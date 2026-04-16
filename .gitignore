@@ -17,3 +17,5 @@ Thumbs.db
 
 # Test results
 test-results/
+
+.claude/worktrees/
