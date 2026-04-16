@@ -257,7 +257,6 @@
     if (targetIdx === -1) return;
 
     // Disable auto-scroll so it doesn't race with the jump scroll.
-    // This covers both jumped mode (main room) and thread highlight.
     shouldScrollToBottom = false;
     // Mark initial scroll as done so the skeleton overlay is removed.
     initialScrollDone = true;
@@ -268,6 +267,19 @@
     // a few times to handle this latency.
     tick().then(() => {
       safeScrollToIndex(targetIdx, { align: 'center' });
+
+      // After the scroll and virtualizer measurement settle, restore
+      // shouldScrollToBottom if we landed at the bottom (e.g., linking to a
+      // recent message, or content doesn't overflow the viewport). Without this,
+      // the "Jump to Present" button appears spuriously because no scroll event
+      // fires when content is shorter than the viewport.
+      setTimeout(() => {
+        if (!virtualizerHandle) return;
+        const dist = virtualizerHandle.getScrollSize() - virtualizerHandle.getScrollOffset() - virtualizerHandle.getViewportSize();
+        if (dist < 50) {
+          shouldScrollToBottom = true;
+        }
+      }, 200);
 
       let attempts = 0;
       function tryHighlight() {
@@ -600,7 +612,7 @@
 
   <TypingIndicator {typingUserIds} members={typingMembers} />
 
-  {#if isJumpedMode && onJumpToPresent}
+  {#if isJumpedMode && !shouldScrollToBottom && onJumpToPresent}
     <button
       transition:fade={{ duration: 150 }}
       onclick={onJumpToPresent}
