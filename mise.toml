@@ -1,6 +1,7 @@
 [tools]
 go = "1.26.2"
 node = "22"
+watchexec = "latest"
 
 [env]
 _.file = '.env'
