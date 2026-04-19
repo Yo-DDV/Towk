@@ -5,8 +5,7 @@ Chatto is a real-time chat application with a GraphQL gateway backed by NATS/Jet
 ## Key Files
 
 - `docs/ARCHITECTURE.md` - Source of truth for architecture (streams, KV buckets, data flow)
-- `docs/adr/` - Architecture Decision Records explaining *why* key decisions were made
-- `.beans/` - Issue tracking (use `beans` CLI to manage tasks and roadmap)
+- `docs/adr/` - Architecture Decision Records explaining _why_ key decisions were made
 
 ## Monorepo Structure
 

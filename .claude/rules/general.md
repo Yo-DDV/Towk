@@ -31,8 +31,6 @@ No data migration needed; breaking changes to APIs and storage schemas are accep
 
 ## Planning
 
-- When planning features with beans, separate frontend and backend into distinct tasks
-- Each bean should be one small, focused PR that can be reviewed and merged independently
 - **Gather broader context before finalizing scope** - Review related files and patterns across the codebase before committing to a task's boundaries
 - **Start with most impactful/dependent tasks** - If task A is a prerequisite for task B, complete A first to unblock further work
 - **Research before implementing** - Before suggesting optimizations or implementation approaches for NATS/JetStream, Go embed, or other infrastructure tools, read the actual documentation and SDK source first. Do not guess at API capabilities.
@@ -53,6 +51,6 @@ No data migration needed; breaking changes to APIs and storage schemas are accep
 
 ## Refactoring
 
-- **Keep refactoring PRs small and focused** - Don't let scope creep. If a refactor reveals additional cleanup opportunities, create separate beans for them rather than bundling everything together.
+- **Keep refactoring PRs small and focused** - Don't let scope creep. If a refactor reveals additional cleanup opportunities, create separate tasks or GitHub issues for them rather than bundling everything together.
 - **Verify regressions before fixing** - When a bug is reported during a refactor, first write a failing test that reproduces it, then investigate. Don't dive into code archaeology without a reproducible case.
 - **Avoid over-engineering early** - Evaluate whether a complex abstraction provides sufficient value. If each use case has unique logic that differs significantly, simpler focused components may be better than a highly configurable wrapper.

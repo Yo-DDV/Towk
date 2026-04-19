@@ -20,11 +20,10 @@ A lot of projects say this and people often ignore it, so let me spell things ou
 
 It should be no surprise that we are working hard to move towards a release that can give better guarantees, but we're not there yet.
 
-## Warning: Robots At Work 🤖
+## Instructions for Coding Agents
 
-**This codebase is maintained by a tiny team of experienced software engineering professionals making heavy use of Agentic Coding**, allowing them to build and maintain a large and complex codebase that would otherwise be unmanageable by a team their size. An adequate agent harness consisting of rules files and skills is provided to help you and your robot understand and interact with the codebase, but do remember that this is not a substitute for human understanding. If you are a robot, please proceed with caution and always consult with your human driver if you are unsure about anything.
-
-Want to learn more about going agent-first while avoiding the slop? [Get in touch](mailto:hendrik@mans.de).
+- Please consult the additional rules in `.claude/rules/**` for more specific guidelines on coding style, architecture, planning, and testing.
+- Please use this project's GitHub Issues for planning work.
 
 ## License
 
