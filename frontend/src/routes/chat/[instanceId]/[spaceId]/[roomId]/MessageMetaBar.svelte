@@ -21,6 +21,7 @@ Contains the thread reply button, reaction pills, and an add-reaction button.
 <script lang="ts">
   import type { RoomEventViewFragment } from '$lib/gql/graphql';
   import UserAvatar, { UserAvatarFragment } from '$lib/components/UserAvatar.svelte';
+  import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import { useFragment } from '$lib/gql/fragment-masking';
   import { useConnection } from '$lib/state/instance/connection.svelte';
   import { graphql } from '$lib/gql';
@@ -134,7 +135,7 @@ Contains the thread reply button, reaction pills, and an add-reaction button.
         {replyCount === 1 ? 'reply' : 'replies'}
       </span>
       {#if hasThreadNotification}
-        <span class="h-2 w-2 rounded-full bg-warning"></span>
+        <UnreadDot />
       {/if}
     </button>
     {#if onToggleThreadFollow}

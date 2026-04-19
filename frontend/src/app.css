@@ -327,11 +327,6 @@
   @apply bg-surface-100;
 }
 
-/* Unread notification dot */
-@utility unread-dot {
-  @apply absolute top-0 right-0 h-3 w-3 rounded-full bg-warning;
-}
-
 @layer base {
   html {
     height: 100%;

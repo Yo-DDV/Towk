@@ -6,6 +6,7 @@
   import { renderMarkdown } from '$lib/markdown';
   import { version } from '$app/environment';
   import { sidebarNav } from '$lib/state/globals.svelte';
+  import UnreadDot from '$lib/ui/UnreadDot.svelte';
 
   // AppHeader renders in the root layout (above [[instanceId=hostname]]),
   // so it cannot use getActiveInstance(). Use the origin instance directly
@@ -53,7 +54,7 @@
     >
       <span class="iconify text-lg uil--bell"></span>
       {#if totalNotificationCount > 0}
-        <span class="absolute top-2 right-2 h-2 w-2 rounded-full bg-warning"></span>
+        <UnreadDot class="absolute top-2 right-2" />
       {/if}
     </a>
 

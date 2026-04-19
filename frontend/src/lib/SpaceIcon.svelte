@@ -12,6 +12,7 @@
 
 <script lang="ts">
   import SpaceLogo from './components/SpaceLogo.svelte';
+  import UnreadDot from './ui/UnreadDot.svelte';
   import { graphql } from './gql';
   import type { SpaceIconSpaceFragment } from './gql/graphql';
 
@@ -67,14 +68,11 @@
         class="absolute -top-1.5 -right-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center notification-dot"
         aria-label="Go to notification"
       >
-        <span class="h-3 w-3 rounded-full bg-warning shadow-sm ring-2 ring-background"></span>
+        <UnreadDot overlay />
       </button>
     {:else}
       <!-- Non-clickable notification dot (backward compatible) -->
-      <span
-        class="absolute top-0 right-0 z-10 h-3 w-3 rounded-full bg-warning shadow-sm ring-2 ring-background"
-        aria-hidden="true"
-      ></span>
+      <UnreadDot overlay class="absolute top-0 right-0 z-10" />
     {/if}
 
     <!-- Unread badge -->
@@ -90,18 +88,16 @@
         class="absolute -top-1.5 -right-1.5 z-10 flex h-6 w-6 cursor-pointer items-center justify-center notification-dot"
         aria-label="Go to first unread room"
       >
-        <span
-          class="h-3 w-3 rounded-full bg-muted shadow-sm ring-2 ring-background"
-          data-testid="space-unread-dot"
-        ></span>
+        <UnreadDot color="muted" overlay testid="space-unread-dot" />
       </button>
     {:else}
       <!-- Non-clickable unread dot (backward compatible) -->
-      <span
-        class="absolute top-0 right-0 z-10 h-3 w-3 rounded-full bg-muted shadow-sm ring-2 ring-background"
-        aria-hidden="true"
-        data-testid="space-unread-dot"
-      ></span>
+      <UnreadDot
+        color="muted"
+        overlay
+        class="absolute top-0 right-0 z-10"
+        testid="space-unread-dot"
+      />
     {/if}
   {/if}
 </div>

@@ -13,6 +13,7 @@
   } from '$lib/gql/graphql';
   import { DM_SPACE_ID } from '$lib/constants';
   import UserAvatar from '$lib/components/UserAvatar.svelte';
+  import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import type { EventHandler } from '$lib/instanceEventBus.svelte';
@@ -266,7 +267,7 @@
 
         <!-- Unread Indicator -->
         {#if conv.hasUnread}
-          <span class="h-2 w-2 rounded-full bg-warning"></span>
+          <UnreadDot />
         {/if}
       </a>
     {/each}

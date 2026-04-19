@@ -32,6 +32,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { graphql, useFragment } from './gql';
   import type { PresenceStatus } from '$lib/gql/graphql';
   import UserAvatar, { UserAvatarFragment } from '$lib/components/UserAvatar.svelte';
+  import UnreadDot from '$lib/ui/UnreadDot.svelte';
 
   let {
     spaceId
@@ -438,13 +439,12 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
         class="-mr-2 flex h-6 w-6 cursor-pointer items-center justify-center notification-dot"
         aria-label="Go to notification"
       >
-        <span class="h-2 w-2 rounded-full bg-warning"></span>
+        <UnreadDot />
       </button>
       <span class="sr-only">{room.hasMention ? 'you were mentioned' : 'thread reply'}</span>
       <!-- Unread Indicator (subtle) -->
     {:else if room.hasUnread && !notificationLevelStore.isRoomMuted(spaceId, room.id)}
-      <span class="h-2 w-2 rounded-full bg-primary" aria-hidden="true" data-testid="room-unread-dot"
-      ></span>
+      <UnreadDot color="primary" testid="room-unread-dot" />
       <span class="sr-only">unread messages</span>
     {/if}
 

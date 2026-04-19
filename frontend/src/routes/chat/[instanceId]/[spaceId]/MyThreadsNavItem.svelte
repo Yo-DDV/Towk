@@ -3,6 +3,7 @@
 	import { instanceIdToSegment } from '$lib/navigation';
 	import { getActiveInstance } from '$lib/state/activeInstance.svelte';
 	import { instanceRegistry } from '$lib/state/instance/registry.svelte';
+	import UnreadDot from '$lib/ui/UnreadDot.svelte';
 
 	const getInstanceId = getActiveInstance();
 
@@ -27,9 +28,6 @@
 	<span class="sidebar-icon iconify uil--comment-alt-lines"></span>
 	My Threads
 	{#if hasUnread}
-		<span
-			class="ml-auto h-2 w-2 shrink-0 rounded-full bg-warning"
-			data-testid="my-threads-unread-dot"
-		></span>
+		<UnreadDot class="ml-auto" testid="my-threads-unread-dot" />
 	{/if}
 </a>
