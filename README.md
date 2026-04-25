@@ -20,6 +20,26 @@ A lot of projects say this and people often ignore it, so let me spell things ou
 
 It should be no surprise that we are working hard to move towards a release that can give better guarantees, but we're not there yet.
 
+## Development with Conductor
+
+[Conductor](https://conductor.build) workspaces launch a fully containerized dev stack via Docker Compose. The `run` script in `conductor.json` invokes:
+
+```sh
+docker compose -p instance-name up
+```
+
+The stack is then reachable via OrbStack at:
+
+```
+https://instance-name.orb.local/
+```
+
+Each instance is bootstrapped with the same dev credentials (configured in `compose.yml`):
+
+- **Login:** `devuser`
+- **Email:** `dev@dev.com`
+- **Password:** `devpassword`
+
 ## Instructions for Coding Agents
 
 - Please consult the additional rules in `.claude/rules/**` for more specific guidelines on coding style, architecture, planning, and testing.
