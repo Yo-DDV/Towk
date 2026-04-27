@@ -160,5 +160,5 @@ jobs:
           file: Dockerfile.frontend
           push: true
           tags: |
-            ghcr.io/hmans/chatto-client:${{ steps.version.outputs.version }}
-            ghcr.io/hmans/chatto-client:latest
+            ghcr.io/chattocorp/chatto-client:${{ steps.version.outputs.version }}
+            ghcr.io/chattocorp/chatto-client:latest
