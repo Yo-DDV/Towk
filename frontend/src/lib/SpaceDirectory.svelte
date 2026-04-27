@@ -78,11 +78,11 @@
 
   /** Reactively track which instances are authenticated. */
   const authenticatedInstances = $derived(
-    instanceRegistry.instances.filter((i) =>
-      instanceRegistry.isOriginInstance(i.id)
-        ? !!currentUser.user
-        : !!i.token
-    )
+    instanceRegistry.instances.filter((i) => {
+      const store = instanceRegistry.tryGetStore(i.id);
+      if (store?.isAuthenticated) return true;
+      return instanceRegistry.isOriginInstance(i.id) && !!currentUser.user;
+    })
   );
 
   const LoadInstanceSpacesQuery = graphql(`

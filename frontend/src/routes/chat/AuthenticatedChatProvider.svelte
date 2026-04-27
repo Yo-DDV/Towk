@@ -5,11 +5,7 @@
   import type { UserSettingsState } from '$lib/state/userSettings.svelte';
   import { setCurrentUser } from '$lib/auth/currentUser.svelte';
   import { instanceRegistry } from '$lib/state/instance/registry.svelte';
-  import {
-    graphqlClientManager,
-    setAuthFailureHandler,
-    setSessionValidationHandler
-  } from '$lib/state/instance/graphqlClient.svelte';
+  import { graphqlClientManager } from '$lib/state/instance/graphqlClient.svelte';
   import { initInstanceEventBus } from '$lib/instanceEventBus.svelte';
   import {
     useInstanceEvent,
@@ -49,7 +45,9 @@
   // would have no effect on the auth guard's view of the world (#184).
   //
   // The parent's `{#if data.user && instanceRegistry.originInstance}` guard
-  // ensures the origin store exists by the time this script runs.
+  // ensures the origin store exists by the time this script runs. Auth-failure
+  // and session-validation handlers are wired on the GraphQLClient by
+  // `InstanceStateStore`'s constructor, so no further setup is needed here.
   const originInstance = instanceRegistry.originInstance;
   if (!originInstance) {
     throw new Error(
@@ -67,10 +65,6 @@
   // SpaceDirectory on /chat/spaces) read this via getCurrentUser() and would
   // otherwise see an empty user — even though we just populated the registry's.
   setCurrentUser(currentUserState);
-
-  // Register auth event handlers from GraphQL client
-  setAuthFailureHandler(() => currentUserState.handleAuthFailure());
-  setSessionValidationHandler(() => currentUserState.validateSession());
 
   // Initialize user settings from the user's settings data
   // svelte-ignore state_referenced_locally
