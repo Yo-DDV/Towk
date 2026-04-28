@@ -264,8 +264,8 @@
 
     items.push({
       href: adminBase,
-      label: 'Home',
-      icon: 'iconify uil--home'
+      label: 'Dashboard',
+      icon: 'iconify uil--dashboard'
     });
 
     if (spaceData.canManage) {
@@ -305,6 +305,11 @@
         href: resolve('/chat/[instanceId]/[spaceId]/admin/roles', { instanceId: instanceSegment, spaceId: data.spaceId }),
         label: 'Roles',
         icon: 'iconify uil--shield-check'
+      });
+      items.push({
+        href: resolve('/chat/[instanceId]/[spaceId]/admin/inspector', { instanceId: instanceSegment, spaceId: data.spaceId }),
+        label: 'Inspector',
+        icon: 'iconify uil--search'
       });
     }
 
@@ -353,8 +358,7 @@
             </div>
           {:else if isAdminMode}
             <SidebarNav
-              title="Space Admin"
-              subtitle={spaceName ?? undefined}
+              title={spaceName ?? 'Space'}
               items={adminNavItems}
               backHref={resolve('/chat/[instanceId]/[spaceId]', { instanceId: instanceSegment, spaceId: data.spaceId })}
               backLabel="Back to Space"

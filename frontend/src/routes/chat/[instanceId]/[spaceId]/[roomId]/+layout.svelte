@@ -108,6 +108,15 @@
               spaceId,
               roomId
             }),
+            label: 'Dashboard',
+            icon: 'iconify uil--dashboard'
+          },
+          {
+            href: resolve('/chat/[instanceId]/[spaceId]/[roomId]/settings/general', {
+              instanceId: instanceSegment,
+              spaceId,
+              roomId
+            }),
             label: 'General',
             icon: 'iconify uil--setting'
           },
@@ -117,7 +126,7 @@
               spaceId,
               roomId
             }),
-            label: 'Permissions',
+            label: 'Roles',
             icon: 'iconify uil--shield'
           }
         ]
@@ -152,12 +161,11 @@
     <div class="flex min-h-0 min-w-0 flex-1 flex-row">
       <SecondarySidebar>
         <SidebarNav
-          title="Room Settings"
-          subtitle={roomSettingsLoading
-            ? 'Loading...'
+          title={roomSettingsLoading
+            ? 'Loading…'
             : roomSettingsData?.name
               ? `# ${roomSettingsData.name}`
-              : undefined}
+              : 'Room'}
           items={settingsNavItems}
           backHref={resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
             instanceId: instanceSegment,

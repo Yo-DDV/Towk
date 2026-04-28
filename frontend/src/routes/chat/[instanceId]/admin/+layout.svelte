@@ -17,6 +17,7 @@
     'users': PermAdminUsersView,
     'spaces': PermAdminSpacesView,
     'roles': PermAdminRolesView,
+    'inspector': PermAdminRolesView,
     'system': PermAdminSystemView,
     'settings/instance': PermAdminAccess
   };
@@ -81,8 +82,14 @@
     },
     {
       href: resolve('/chat/[instanceId]/admin/roles', { instanceId: instanceSegment }),
-      label: 'Permissions',
+      label: 'Roles',
       icon: 'iconify uil--shield-check',
+      perm: PermAdminRolesView
+    },
+    {
+      href: resolve('/chat/[instanceId]/admin/inspector', { instanceId: instanceSegment }),
+      label: 'Inspector',
+      icon: 'iconify uil--search',
       perm: PermAdminRolesView
     },
     {
@@ -143,7 +150,7 @@
   />
 {:else}
   <SecondarySidebar width="md:w-56">
-    <SidebarNav title="Admin" items={navItems} backHref={resolve('/chat/[instanceId]', { instanceId: instanceSegment })} />
+    <SidebarNav title="Instance" items={navItems} backHref={resolve('/chat/[instanceId]', { instanceId: instanceSegment })} />
   </SecondarySidebar>
 
   <!-- Main content -->

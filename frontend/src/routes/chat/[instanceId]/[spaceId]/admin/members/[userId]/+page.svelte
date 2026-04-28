@@ -8,12 +8,12 @@
   import { graphql } from '$lib/gql';
   import { getCurrentUser } from '$lib/auth/currentUser.svelte';
   import { Panel } from '$lib/components/admin';
+  import { Hint, Pill } from '$lib/ui';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button, FormError } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
   import { getAvatarInitials } from '$lib/utils/initials';
-  import EffectivePermissions from '$lib/components/rbac/EffectivePermissions.svelte';
   import { getLiveLogin } from '$lib/state/userProfiles.svelte';
 
   type User = {
@@ -229,21 +229,19 @@
 <PageTitle title={`${member?.displayName ?? 'Member'} | Space Admin`} />
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-  <PaneHeader title="Member Details" subtitle={member?.displayName ?? 'Loading...'} showMobileNav>
-    {#snippet actions()}
-      <Button variant="secondary" href={resolve('/chat/[instanceId]/[spaceId]/admin/members', { instanceId: instanceIdToSegment(getInstanceId()), spaceId })}>
-        Back to Members
-      </Button>
-    {/snippet}
-  </PaneHeader>
+  <PaneHeader
+    title="Member Details"
+    subtitle={member?.displayName ?? 'Loading...'}
+    backHref={resolve('/chat/[instanceId]/[spaceId]/admin/members', { instanceId: instanceIdToSegment(getInstanceId()), spaceId })}
+    backLabel="Back to Members"
+    showMobileNav
+  />
 
   <div class="flex flex-col gap-6 overflow-y-auto p-6">
     {#if loading}
       <div class="text-muted">Loading member...</div>
     {:else if !member}
-      <div class="rounded-lg border border-danger/20 bg-danger/10 p-4 text-danger">
-        Member not found. They may have left the space.
-      </div>
+      <Hint variant="danger">Member not found. They may have left the space.</Hint>
     {:else}
       {#if error}
         <FormError {error} />
@@ -278,11 +276,9 @@
               <div class="text-sm text-muted">Space Roles</div>
               <div class="flex flex-wrap gap-1">
                 {#each sortedSpaceRoles as roleName (roleName)}
-                  <span class="rounded bg-surface-200 px-2 py-0.5 text-xs"
-                    >{getRoleDisplayName(roleName)}</span
-                  >
+                  <Pill>{getRoleDisplayName(roleName)}</Pill>
                 {/each}
-                <span class="rounded bg-surface-200 px-2 py-0.5 text-xs">Member</span>
+                <Pill>Member</Pill>
               </div>
             </div>
             <div>
@@ -292,9 +288,9 @@
                   <span class="text-xs text-muted">None</span>
                 {:else}
                   {#each sortedInstanceRoles as roleName (roleName)}
-                    <span class="rounded bg-surface-200 px-2 py-0.5 text-xs capitalize"
-                      >{roleName}</span
-                    >
+                    <Pill>
+                      <span class="capitalize">{roleName}</span>
+                    </Pill>
                   {/each}
                 {/if}
               </div>
@@ -377,16 +373,21 @@
         </div>
       </Panel>
 
-      <!-- Effective Permissions -->
+      <!-- Effective Permissions: hand off to the inspector for the full trace -->
       <Panel title="Effective Permissions" icon="iconify uil--lock-access">
         <p class="mb-4 text-sm text-muted">
-          Permissions this member has based on their assigned roles. Denials override grants.
+          Open the Permission Inspector to see every permission this member has, with the role and
+          level (instance/space/room) that decided each call.
         </p>
-        <EffectivePermissions
-          allPermissions={availablePermissions}
-          userRoleNames={effectiveSpaceRoles}
-          roles={allRoles}
-        />
+        <Button
+          variant="primary"
+          href={resolve('/chat/[instanceId]/[spaceId]/admin/inspector', {
+            instanceId: instanceIdToSegment(getInstanceId()),
+            spaceId
+          }) + `?userId=${userId}`}
+        >
+          Open in Permission Inspector
+        </Button>
       </Panel>
     {/if}
   </div>
