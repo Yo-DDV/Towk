@@ -7,9 +7,14 @@ services:
     command: ["watchexec", "-r", "--poll", "500ms", "-e", "go", "--", "go", "run", "-tags", "dev", ".", "start"]
     environment:
       CHATTO_WEBSERVER_URL: https://${COMPOSE_PROJECT_NAME}.orb.local
-      CHATTO_SMTP_HOST: mailpit.chatto-tools.orb.local
+      # Shared dev infrastructure runs in OrbStack's Kubernetes (see the
+      # umbrella's Tiltfile). The hostnames below are reachable from inside
+      # OrbStack's Docker side too — both stacks share the same VM.
+      CHATTO_SMTP_HOST: mailpit.k8s.orb.local
       CHATTO_SMTP_PORT: "1025"
-      CHATTO_LIVEKIT_URL: ws://livekit.chatto-tools.orb.local:7880
+      CHATTO_LIVEKIT_URL: wss://livekit.k8s.orb.local
+      CHATTO_LIVEKIT_API_KEY: devkey
+      CHATTO_LIVEKIT_API_SECRET: devsecret
       CHATTO_BOOTSTRAP_LOGIN: devuser
       CHATTO_BOOTSTRAP_EMAIL: dev@dev.com
       CHATTO_BOOTSTRAP_PASSWORD: devpassword
