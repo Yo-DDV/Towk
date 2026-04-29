@@ -9,11 +9,22 @@ import type { InstancePermissions, ViewerData } from './permissions.svelte';
 import { NotificationStore } from './notifications.svelte';
 import { RoomUnreadStore } from './roomUnread.svelte';
 import { NotificationLevelStore } from './notificationLevel.svelte';
+import { PendingHighlightStore } from './pendingHighlight.svelte';
 import { VoiceCallState } from './voiceCall.svelte';
 import { CallParticipantsState } from './callParticipants.svelte';
 import { ActiveCallRoomsState } from './activeCallRooms.svelte';
 import type { GraphQLClient } from './graphqlClient.svelte';
 import type { RegisteredInstance } from './registry.svelte';
+
+/**
+ * What kind of indicator dot a space (or the DM area) should display.
+ * - 'notification' = orange dot, has a pending mention/reply/room-message
+ * - 'unread' = grey dot, has unread rooms but no pending notification
+ * - null = no indicator
+ */
+export type SpaceIndicator = 'notification' | 'unread' | null;
+
+const DM_SPACE_ID = 'DM';
 
 const EMPTY_PERMISSIONS: InstancePermissions = {
 	loaded: false,
@@ -38,6 +49,7 @@ export class InstanceStateStore {
 	readonly notifications: NotificationStore;
 	readonly roomUnread: RoomUnreadStore;
 	readonly notificationLevels: NotificationLevelStore;
+	readonly pendingHighlights: PendingHighlightStore;
 	readonly voiceCall: VoiceCallState;
 	readonly callParticipants: CallParticipantsState;
 	readonly activeCallRooms: ActiveCallRoomsState;
@@ -63,6 +75,7 @@ export class InstanceStateStore {
 		this.notifications = new NotificationStore(client);
 		this.roomUnread = new RoomUnreadStore();
 		this.notificationLevels = new NotificationLevelStore();
+		this.pendingHighlights = new PendingHighlightStore();
 		this.voiceCall = new VoiceCallState(client);
 		this.callParticipants = new CallParticipantsState(client);
 		this.activeCallRooms = new ActiveCallRoomsState(client, this.voiceCall);
@@ -108,10 +121,31 @@ export class InstanceStateStore {
 		this.permissions = { ...viewer, loaded: true };
 	}
 
+	/**
+	 * Single source of truth for the space-level indicator dot.
+	 * Notifications take precedence over plain unread.
+	 */
+	spaceIndicator(spaceId: string): SpaceIndicator {
+		if (this.notifications.hasSpaceNotification(spaceId)) return 'notification';
+		if (this.roomUnread.spaceHasUnread(spaceId)) return 'unread';
+		return null;
+	}
+
+	/**
+	 * Indicator for the DM area. DM notifications have no `spaceId` so they
+	 * need their own check; unread tracking uses the synthetic `'DM'` space id.
+	 */
+	dmIndicator(): SpaceIndicator {
+		if (this.notifications.hasDMNotifications()) return 'notification';
+		if (this.roomUnread.spaceHasUnread(DM_SPACE_ID)) return 'unread';
+		return null;
+	}
+
 	/** Clean up resources. */
 	dispose(): void {
 		this.roomUnread.clear();
 		this.notificationLevels.clear();
+		this.pendingHighlights.clear();
 		this.activeCallRooms.clear();
 		this.callParticipants.clear();
 	}

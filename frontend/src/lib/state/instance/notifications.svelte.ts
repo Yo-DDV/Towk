@@ -116,6 +116,80 @@ const DismissAllNotificationsMutationDoc = graphql(`
 export type NotificationItem = NotificationsQuery['notifications'][number];
 
 /**
+ * Normalized view of a notification's target (where it points to in the app).
+ * Avoids `__typename` switches at every read site — see {@link notificationTarget}.
+ */
+export type NotificationTarget = {
+  isDM: boolean;
+  spaceId: string | null;
+  spaceName: string | null;
+  roomId: string | null;
+  roomName: string | null;
+  eventId: string | null;
+  /** Thread root event ID for thread-reply notifications; null otherwise. */
+  threadRootId: string | null;
+};
+
+/**
+ * Extract the target a notification points to. Adding a new notification type
+ * means updating this single function instead of every read site.
+ */
+export function notificationTarget(n: NotificationItem): NotificationTarget {
+  switch (n.__typename) {
+    case 'DMMessageNotificationItem':
+      return {
+        isDM: true,
+        spaceId: null,
+        spaceName: null,
+        roomId: n.room.id,
+        roomName: null,
+        eventId: null,
+        threadRootId: null
+      };
+    case 'MentionNotificationItem':
+      return {
+        isDM: false,
+        spaceId: n.mentionSpace?.id ?? null,
+        spaceName: n.mentionSpace?.name ?? null,
+        roomId: n.mentionRoom?.id ?? null,
+        roomName: n.mentionRoom?.name ?? null,
+        eventId: n.mentionEventId ?? null,
+        threadRootId: null
+      };
+    case 'ReplyNotificationItem':
+      return {
+        isDM: false,
+        spaceId: n.replySpace?.id ?? null,
+        spaceName: n.replySpace?.name ?? null,
+        roomId: n.replyRoom?.id ?? null,
+        roomName: n.replyRoom?.name ?? null,
+        eventId: n.replyEventId ?? null,
+        threadRootId: n.replyInThread ?? null
+      };
+    case 'RoomMessageNotificationItem':
+      return {
+        isDM: false,
+        spaceId: n.roomMsgSpace?.id ?? null,
+        spaceName: n.roomMsgSpace?.name ?? null,
+        roomId: n.roomMsgRoom?.id ?? null,
+        roomName: n.roomMsgRoom?.name ?? null,
+        eventId: n.roomMsgEventId ?? null,
+        threadRootId: null
+      };
+    default:
+      return {
+        isDM: false,
+        spaceId: null,
+        spaceName: null,
+        roomId: null,
+        roomName: null,
+        eventId: null,
+        threadRootId: null
+      };
+  }
+}
+
+/**
  * Notification state store.
  * Manages notifications for the current user with real-time sync.
  */
@@ -162,78 +236,37 @@ export class NotificationStore {
   }
 
   /**
-   * Check if a specific room has pending notifications (thread replies or mentions).
+   * Check if a specific room has pending non-DM notifications.
    */
   hasRoomNotification(roomId: string): boolean {
     return this.notifications.some((n) => {
-      if (n.__typename === 'ReplyNotificationItem') {
-        return n.replyRoom?.id === roomId;
-      }
-      if (n.__typename === 'MentionNotificationItem') {
-        return n.mentionRoom?.id === roomId;
-      }
-      if (n.__typename === 'RoomMessageNotificationItem') {
-        return n.roomMsgRoom?.id === roomId;
-      }
-      return false;
+      const t = notificationTarget(n);
+      return !t.isDM && t.roomId === roomId;
     });
   }
 
   /**
-   * Check if a specific space has pending notifications (thread replies or mentions).
+   * Check if a specific space has pending notifications.
    */
   hasSpaceNotification(spaceId: string): boolean {
-    return this.notifications.some((n) => {
-      if (n.__typename === 'ReplyNotificationItem') {
-        return n.replySpace?.id === spaceId;
-      }
-      if (n.__typename === 'MentionNotificationItem') {
-        return n.mentionSpace?.id === spaceId;
-      }
-      if (n.__typename === 'RoomMessageNotificationItem') {
-        return n.roomMsgSpace?.id === spaceId;
-      }
-      return false;
-    });
+    return this.notifications.some((n) => notificationTarget(n).spaceId === spaceId);
   }
 
   /**
    * Get the most recent notification for a space.
-   * Returns undefined if no notifications exist for the space.
-   * Uses .find() which returns the first match - notifications are sorted by most recent first.
+   * Notifications are sorted most-recent-first, so .find returns the freshest.
    */
   getSpaceNotification(spaceId: string): NotificationItem | undefined {
-    return this.notifications.find((n) => {
-      if (n.__typename === 'ReplyNotificationItem') {
-        return n.replySpace?.id === spaceId;
-      }
-      if (n.__typename === 'MentionNotificationItem') {
-        return n.mentionSpace?.id === spaceId;
-      }
-      if (n.__typename === 'RoomMessageNotificationItem') {
-        return n.roomMsgSpace?.id === spaceId;
-      }
-      return false;
-    });
+    return this.notifications.find((n) => notificationTarget(n).spaceId === spaceId);
   }
 
   /**
-   * Get the most recent notification for a room.
-   * Returns undefined if no notifications exist for the room.
-   * Uses .find() which returns the first match - notifications are sorted by most recent first.
+   * Get the most recent non-DM notification for a room.
    */
   getRoomNotification(roomId: string): NotificationItem | undefined {
     return this.notifications.find((n) => {
-      if (n.__typename === 'ReplyNotificationItem') {
-        return n.replyRoom?.id === roomId;
-      }
-      if (n.__typename === 'MentionNotificationItem') {
-        return n.mentionRoom?.id === roomId;
-      }
-      if (n.__typename === 'RoomMessageNotificationItem') {
-        return n.roomMsgRoom?.id === roomId;
-      }
-      return false;
+      const t = notificationTarget(n);
+      return !t.isDM && t.roomId === roomId;
     });
   }
 
@@ -360,45 +393,67 @@ export class NotificationStore {
   }
 
   /**
-   * Dismiss a single notification.
+   * Dismiss a single notification. Optimistic: removes locally first, rolls
+   * back on failure. The orange dot disappears the moment the user clicks.
    */
   async dismiss(notificationId: string): Promise<boolean> {
+    const removed = this.notifications.find((n) => n.id === notificationId);
+    if (!removed) return false;
+
+    this.notifications = this.notifications.filter((n) => n.id !== notificationId);
+
     try {
       const result = await this.#client
         .mutation(DismissNotificationMutationDoc, { input: { notificationId } })
         .toPromise();
 
-      if (result.data?.dismissNotification) {
-        // Remove from local state immediately for snappy UI
-        this.notifications = this.notifications.filter((n) => n.id !== notificationId);
-        return true;
+      if (result.error || !result.data?.dismissNotification) {
+        this.#restoreNotification(removed);
+        return false;
       }
-      return false;
+      return true;
     } catch (e) {
       console.error('Failed to dismiss notification:', e);
+      this.#restoreNotification(removed);
       return false;
     }
   }
 
   /**
-   * Dismiss all notifications.
+   * Dismiss all notifications. Optimistic: clears locally first, rolls back
+   * on failure.
    */
   async dismissAll(): Promise<number> {
+    const original = this.notifications;
+    if (original.length === 0) return 0;
+
+    this.notifications = [];
+
     try {
       const result = await this.#client
         .mutation(DismissAllNotificationsMutationDoc, {})
         .toPromise();
 
-      const count = result.data?.dismissAllNotifications ?? 0;
-      if (count > 0) {
-        // Clear local state
-        this.notifications = [];
+      if (result.error || result.data?.dismissAllNotifications == null) {
+        this.notifications = original;
+        return 0;
       }
-      return count;
+      return result.data.dismissAllNotifications;
     } catch (e) {
       console.error('Failed to dismiss all notifications:', e);
+      this.notifications = original;
       return 0;
     }
+  }
+
+  /**
+   * Re-insert a previously-removed notification, sorted most-recent-first by
+   * createdAt to preserve the canonical ordering after a rollback.
+   */
+  #restoreNotification(notification: NotificationItem): void {
+    this.notifications = [...this.notifications, notification].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt)
+    );
   }
 
   /**
@@ -419,148 +474,108 @@ export class NotificationStore {
 
   /**
    * Get location string for a notification (e.g., "#general in My Space").
-   * Returns null for DM notifications (no space/room context needed).
+   * Returns null for DM notifications and any notification missing names.
    */
   getLocationString(notification: NotificationItem): string | null {
-    switch (notification.__typename) {
-      case 'MentionNotificationItem': {
-        const spaceName = notification.mentionSpace?.name;
-        const roomName = notification.mentionRoom?.name;
-        if (spaceName && roomName) {
-          return `#${roomName} in ${spaceName}`;
-        }
-        return null;
-      }
+    const t = notificationTarget(notification);
+    if (t.isDM || !t.spaceName || !t.roomName) return null;
+    return `#${t.roomName} in ${t.spaceName}`;
+  }
 
-      case 'ReplyNotificationItem': {
-        const spaceName = notification.replySpace?.name;
-        const roomName = notification.replyRoom?.name;
-        if (spaceName && roomName) {
-          return `#${roomName} in ${spaceName}`;
-        }
-        return null;
-      }
+  /**
+   * Build a clean (no `?highlight=`) destination path for a notification.
+   * Use this with `PendingHighlightStore.set()` to deliver the highlight
+   * intent without polluting the URL.
+   *
+   * For notifications that point to a specific event whose thread context
+   * isn't directly known from the notification (mention/room-message),
+   * we route through the `/m/[messageId]` resolver, which fetches the event
+   * server-side, detects thread membership, and redirects to the right
+   * thread or room URL with a pending highlight set. This is the same
+   * mechanism that powers shared message permalinks.
+   */
+  getCleanPath(instanceId: string, notification: NotificationItem): string {
+    const seg = instanceIdToSegment(instanceId);
+    const t = notificationTarget(notification);
 
-      case 'RoomMessageNotificationItem': {
-        const spaceName = notification.roomMsgSpace?.name;
-        const roomName = notification.roomMsgRoom?.name;
-        if (spaceName && roomName) {
-          return `#${roomName} in ${spaceName}`;
-        }
-        return null;
-      }
-
-      default:
-        return null;
+    if (t.isDM && t.roomId) {
+      return resolve('/chat/dm/[instanceSegment]/[conversationId]', {
+        instanceSegment: seg,
+        conversationId: t.roomId
+      });
     }
+    if (!t.spaceId || !t.roomId) {
+      return resolve('/chat/[instanceId]', { instanceId: seg });
+    }
+    if (t.threadRootId && t.eventId) {
+      // We already know the thread root from the notification (reply
+      // notifications). Skip the message-link resolver and go direct.
+      return resolve('/chat/[instanceId]/[spaceId]/[roomId]/[threadId]', {
+        instanceId: seg,
+        spaceId: t.spaceId,
+        roomId: t.roomId,
+        threadId: t.threadRootId
+      });
+    }
+    if (t.eventId) {
+      // Thread context unknown — let the message-link resolver figure it out.
+      return resolve('/chat/[instanceId]/[spaceId]/[roomId]/m/[messageId]', {
+        instanceId: seg,
+        spaceId: t.spaceId,
+        roomId: t.roomId,
+        messageId: t.eventId
+      });
+    }
+    return resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
+      instanceId: seg,
+      spaceId: t.spaceId,
+      roomId: t.roomId
+    });
   }
 
   /**
    * Get navigation info for a notification.
-   * Returns the path to navigate to when acting on the notification.
+   * Returns the path to navigate to when acting on the notification, with
+   * `?highlight=<eventId>` for messages.
+   *
+   * @deprecated Prefer `getCleanPath` + `PendingHighlightStore.set`. The
+   *   `?highlight=` URL param survives refresh and re-fires; the transient
+   *   store delivers the intent one-shot. Kept for permalink-style call sites
+   *   that genuinely want the URL to encode the highlight.
    */
   getNavigationPath(instanceId: string, notification: NotificationItem): string {
     const seg = instanceIdToSegment(instanceId);
+    const t = notificationTarget(notification);
 
-    switch (notification.__typename) {
-      case 'DMMessageNotificationItem':
-        return resolve('/chat/dm/[instanceSegment]/[conversationId]', {
-          instanceSegment: seg,
-          conversationId: notification.room.id
-        });
-
-      case 'MentionNotificationItem': {
-        // Navigate to the room, optionally with eventId to scroll to message
-        // Using aliased fields from query
-        const spaceId = notification.mentionSpace?.id;
-        const roomId = notification.mentionRoom?.id;
-        const eventId = notification.mentionEventId;
-        if (eventId && spaceId && roomId) {
-          return (
-            resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
-              instanceId: seg,
-              spaceId,
-              roomId
-            }) +
-            '?highlight=' +
-            eventId
-          );
-        }
-        return spaceId && roomId
-          ? resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
-              instanceId: seg,
-              spaceId,
-              roomId
-            })
-          : resolve('/chat/[instanceId]', { instanceId: seg });
-      }
-
-      case 'ReplyNotificationItem': {
-        // Using aliased fields from query
-        const spaceId = notification.replySpace?.id;
-        const roomId = notification.replyRoom?.id;
-        const eventId = notification.replyEventId;
-        const threadRootId = notification.replyInThread;
-        if (threadRootId && spaceId && roomId && eventId) {
-          // Thread reply: navigate to the thread (using thread root) and highlight the new reply
-          return (
-            resolve('/chat/[instanceId]/[spaceId]/[roomId]/[threadId]', {
-              instanceId: seg,
-              spaceId,
-              roomId,
-              threadId: threadRootId
-            }) +
-            '?highlight=' +
-            eventId
-          );
-        }
-        // Room-level reply: navigate to room and highlight the reply message
-        if (eventId && spaceId && roomId) {
-          return (
-            resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
-              instanceId: seg,
-              spaceId,
-              roomId
-            }) +
-            '?highlight=' +
-            eventId
-          );
-        }
-        return spaceId && roomId
-          ? resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
-              instanceId: seg,
-              spaceId,
-              roomId
-            })
-          : resolve('/chat/[instanceId]', { instanceId: seg });
-      }
-
-      case 'RoomMessageNotificationItem': {
-        const spaceId = notification.roomMsgSpace?.id;
-        const roomId = notification.roomMsgRoom?.id;
-        const eventId = notification.roomMsgEventId;
-        if (eventId && spaceId && roomId) {
-          return (
-            resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
-              instanceId: seg,
-              spaceId,
-              roomId
-            }) +
-            '?highlight=' +
-            eventId
-          );
-        }
-        return spaceId && roomId
-          ? resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
-              instanceId: seg,
-              spaceId,
-              roomId
-            })
-          : resolve('/chat/[instanceId]', { instanceId: seg });
-      }
-
-      default:
-        return resolve('/chat/[instanceId]', { instanceId: seg });
+    if (t.isDM && t.roomId) {
+      return resolve('/chat/dm/[instanceSegment]/[conversationId]', {
+        instanceSegment: seg,
+        conversationId: t.roomId
+      });
     }
+
+    if (!t.spaceId || !t.roomId) {
+      return resolve('/chat/[instanceId]', { instanceId: seg });
+    }
+
+    if (t.threadRootId && t.eventId) {
+      return (
+        resolve('/chat/[instanceId]/[spaceId]/[roomId]/[threadId]', {
+          instanceId: seg,
+          spaceId: t.spaceId,
+          roomId: t.roomId,
+          threadId: t.threadRootId
+        }) +
+        '?highlight=' +
+        t.eventId
+      );
+    }
+
+    const roomPath = resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
+      instanceId: seg,
+      spaceId: t.spaceId,
+      roomId: t.roomId
+    });
+    return t.eventId ? `${roomPath}?highlight=${t.eventId}` : roomPath;
   }
 }

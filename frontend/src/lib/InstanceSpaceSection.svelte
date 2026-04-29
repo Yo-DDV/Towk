@@ -9,9 +9,9 @@
   import { createInstanceEventBusHandlerRegistrar } from '$lib/instanceEventBus.svelte';
   import { graphql, useFragment } from './gql';
   import { SpaceIconSpaceFragmentDoc, type SpaceIconSpaceFragment } from './gql/graphql';
+  import { notificationTarget } from '$lib/state/instance/notifications.svelte';
   import SpaceIcon from './SpaceIcon.svelte';
   import { useTabResumeCallback } from '$lib/hooks';
-  import { onMount } from 'svelte';
 
   const DM_SPACE_ID = 'DM';
 
@@ -45,6 +45,13 @@
 
   // Track unread space count to force re-render when unread status changes
   let unreadSpaceCount = $derived(roomUnreadStore.unreadSpaceCount);
+
+  // Single dispatcher for space-icon clicks — kind comes from spaceIndicator()
+  // so the two paths can't drift out of sync with what was rendered.
+  function handleSpaceIndicatorClick(spaceId: string, kind: 'notification' | 'unread') {
+    if (kind === 'notification') return handleSpaceNotificationClick(spaceId);
+    return handleSpaceUnreadClick(spaceId);
+  }
 
   // Get the GraphQL client for this instance
   function getClient() {
@@ -193,10 +200,13 @@
   // Load on mount and tab resume
   useTabResumeCallback(() => loadAll());
 
-  onMount(() => {
-    // Look up the event bus registrar at mount time (not during script init).
-    // For newly-added instances, the bus is started in a $effect in the parent layout,
-    // which runs after the initial render but before onMount.
+  // Subscribe to instance events. Use $effect (not onMount) so that if the
+  // event bus isn't started yet on first run — possible when this component
+  // mounts before the parent layout's startBus effect for this instance —
+  // the effect re-runs once the bus comes online (getBus is a reactive read
+  // on a SvelteMap). Without this, e.g. cross-instance NewMessageInSpaceEvent
+  // is silently dropped and unread dots never light up for remote spaces.
+  $effect(() => {
     const registrar = createInstanceEventBusHandlerRegistrar(instanceId);
     if (!registrar) return;
 
@@ -276,16 +286,21 @@
   // Handle click on space notification dot
   async function handleSpaceNotificationClick(spaceId: string) {
     const notification = notificationStore.getSpaceNotification(spaceId);
-    if (notification) {
-      const path = notificationStore.getNavigationPath(instanceId, notification);
-      // Fire dismiss in parallel — awaiting the server roundtrip before goto
-      // delays the highlight effect and risks the URL updating after Room.svelte
-      // has already settled on a scroll position.
-      void notificationStore.dismiss(notification.id);
+    if (!notification) return;
 
-      // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getNavigationPath() is already resolved
-      await goto(path);
+    const target = notificationTarget(notification);
+    // Pre-set pending highlight only when we know the thread context. For
+    // mention/room-message types getCleanPath routes through /m/[messageId],
+    // and that resolver sets the pending highlight itself once it has fetched
+    // the event and detected thread membership.
+    if (target.threadRootId && target.eventId && target.spaceId && target.roomId) {
+      stores.pendingHighlights.set(target.spaceId, target.roomId, target.threadRootId, target.eventId);
     }
+    void notificationStore.dismiss(notification.id);
+
+    const path = notificationStore.getCleanPath(instanceId, notification);
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
+    await goto(path);
   }
 
   // Query to fetch rooms with unread status on demand (for sentinel-only spaces)
@@ -333,10 +348,8 @@
       {space}
       href={resolve('/chat/[instanceId]/[spaceId]', { instanceId: instanceSegment, spaceId: space.id })}
       selected={space.id === activeSpaceId}
-      hasNotification={notificationStore.hasSpaceNotification(space.id)}
-      hasUnread={roomUnreadStore.spaceHasUnread(space.id)}
-      onNotificationClick={() => handleSpaceNotificationClick(space.id)}
-      onUnreadClick={() => handleSpaceUnreadClick(space.id)}
+      indicator={stores.spaceIndicator(space.id)}
+      onIndicatorClick={(kind) => handleSpaceIndicatorClick(space.id, kind)}
     />
   {/each}
 {/key}
