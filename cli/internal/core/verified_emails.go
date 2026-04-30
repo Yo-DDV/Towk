@@ -288,6 +288,24 @@ func (c *ChattoCore) GetUserByVerifiedEmail(ctx context.Context, email string) (
 	return c.GetUser(ctx, userID)
 }
 
+// CountVerifiedUsers returns the number of users with at least one verified email.
+//
+// One KV entry exists per user under user.{userID}.verified_emails, so this is a
+// key scan without value fetches. ListKeysFiltered is used (rather than the
+// faster server-side stream.Info(WithSubjectFilter)) because the latter counts
+// tombstones from deleted users — see CountSpaces for the full reasoning.
+func (c *ChattoCore) CountVerifiedUsers(ctx context.Context) (int, error) {
+	keyLister, err := c.storage.instanceKV.ListKeysFiltered(ctx, "user.*.verified_emails")
+	if err != nil {
+		return 0, nil
+	}
+	count := 0
+	for range keyLister.Keys() {
+		count++
+	}
+	return count, nil
+}
+
 // ListUsersWithVerifiedEmail returns all user IDs that have at least one verified email.
 func (c *ChattoCore) ListUsersWithVerifiedEmail(ctx context.Context) ([]string, error) {
 	// List all keys matching user.*.verified_emails pattern
