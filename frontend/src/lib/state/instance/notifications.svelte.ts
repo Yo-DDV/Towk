@@ -45,6 +45,7 @@ const NotificationsQueryDoc = graphql(`
           name
         }
         mentionEventId: eventId
+        mentionInThread: inThread
       }
       ... on ReplyNotificationItem {
         id
@@ -154,7 +155,7 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
         roomId: n.mentionRoom?.id ?? null,
         roomName: n.mentionRoom?.name ?? null,
         eventId: n.mentionEventId ?? null,
-        threadRootId: null
+        threadRootId: n.mentionInThread ?? null
       };
     case 'ReplyNotificationItem':
       return {
@@ -286,13 +287,14 @@ export class NotificationStore {
   }
 
   /**
-   * Dismiss all reply notifications for a specific thread.
+   * Dismiss all thread-scoped notifications (replies + mentions) for a thread.
    * Called when a user opens a thread to clear the notification indicator.
    */
   async dismissThreadNotifications(threadRootId: string): Promise<void> {
-    // Find all thread reply notifications for this thread (not room-level replies)
     const threadNotifications = this.notifications.filter(
-      (n) => n.__typename === 'ReplyNotificationItem' && n.replyInThread === threadRootId
+      (n) =>
+        (n.__typename === 'ReplyNotificationItem' && n.replyInThread === threadRootId) ||
+        (n.__typename === 'MentionNotificationItem' && n.mentionInThread === threadRootId)
     );
 
     // Dismiss each one (in parallel)
@@ -300,14 +302,17 @@ export class NotificationStore {
   }
 
   /**
-   * Dismiss mention notifications for a specific room.
-   * Called when a user enters a room to clear mention notification indicators.
-   * Note: Thread reply notifications are NOT dismissed here - they should only
-   * be dismissed when the user opens the specific thread (via dismissThreadNotifications).
+   * Dismiss room-level mention notifications for a specific room.
+   * Called when a user enters a room. Thread-scoped mentions are NOT dismissed
+   * here — they're dismissed when the user opens the specific thread (via
+   * dismissThreadNotifications), matching the symmetry with reply notifications.
    */
   async dismissMentionNotifications(roomId: string): Promise<void> {
     const mentionNotifications = this.notifications.filter(
-      (n) => n.__typename === 'MentionNotificationItem' && n.mentionRoom?.id === roomId
+      (n) =>
+        n.__typename === 'MentionNotificationItem' &&
+        !n.mentionInThread &&
+        n.mentionRoom?.id === roomId
     );
 
     // Dismiss each one (in parallel)
@@ -356,6 +361,14 @@ export class NotificationStore {
 
   /**
    * Fetch all notifications from the server.
+   *
+   * Resilience contract: a server-side error (e.g. a schema mismatch on a
+   * remote instance running an older backend, network failure, transient
+   * 500) records the error message and logs it, but leaves
+   * `this.notifications` at its previous value. This matters in
+   * multi-instance setups — the bell, DM dot, etc. aggregate across
+   * NotificationStore instances, and one bad response on one instance
+   * must not erase already-loaded notifications on others.
    */
   async fetch() {
     this.loading = true;
@@ -365,7 +378,9 @@ export class NotificationStore {
       const result = await this.#client.query(NotificationsQueryDoc, {}).toPromise();
 
       if (result.error) {
-        throw new Error(result.error.message);
+        this.error = result.error.message;
+        console.error('Failed to fetch notifications:', result.error);
+        return;
       }
 
       if (result.data) {
@@ -486,13 +501,6 @@ export class NotificationStore {
    * Build a clean (no `?highlight=`) destination path for a notification.
    * Use this with `PendingHighlightStore.set()` to deliver the highlight
    * intent without polluting the URL.
-   *
-   * For notifications that point to a specific event whose thread context
-   * isn't directly known from the notification (mention/room-message),
-   * we route through the `/m/[messageId]` resolver, which fetches the event
-   * server-side, detects thread membership, and redirects to the right
-   * thread or room URL with a pending highlight set. This is the same
-   * mechanism that powers shared message permalinks.
    */
   getCleanPath(instanceId: string, notification: NotificationItem): string {
     const seg = instanceIdToSegment(instanceId);
@@ -507,23 +515,12 @@ export class NotificationStore {
     if (!t.spaceId || !t.roomId) {
       return resolve('/chat/[instanceId]', { instanceId: seg });
     }
-    if (t.threadRootId && t.eventId) {
-      // We already know the thread root from the notification (reply
-      // notifications). Skip the message-link resolver and go direct.
+    if (t.threadRootId) {
       return resolve('/chat/[instanceId]/[spaceId]/[roomId]/[threadId]', {
         instanceId: seg,
         spaceId: t.spaceId,
         roomId: t.roomId,
         threadId: t.threadRootId
-      });
-    }
-    if (t.eventId) {
-      // Thread context unknown — let the message-link resolver figure it out.
-      return resolve('/chat/[instanceId]/[spaceId]/[roomId]/m/[messageId]', {
-        instanceId: seg,
-        spaceId: t.spaceId,
-        roomId: t.roomId,
-        messageId: t.eventId
       });
     }
     return resolve('/chat/[instanceId]/[spaceId]/[roomId]', {
