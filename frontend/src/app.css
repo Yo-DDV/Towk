@@ -37,6 +37,12 @@
   --color-surface-300: var(--color-gray-400);
   --color-surface-highlighted: var(--color-gray-300);
 
+  /* Form-field surface — distinct from any container surface so inputs
+     never disappear into a dialog or panel. Pure white in light mode
+     (raised paper), deeper-than-surface in dark mode (inset well). */
+  --color-input: var(--color-white);
+  --color-input-border: var(--color-gray-300);
+
   --color-accent: var(--color-sky-600);
   --color-primary: #64748b;
   --color-primary-hover: #475569;
@@ -73,6 +79,10 @@
   --color-surface-300: var(--color-neutral-600);
   --color-surface-highlighted: var(--color-neutral-600);
 
+  /* See light-mode comment — sits below all surfaces for an inset well look. */
+  --color-input: var(--color-neutral-950);
+  --color-input-border: var(--color-neutral-700);
+
   --color-accent: var(--color-sky-400);
   --color-primary: var(--color-neutral-600);
   --color-primary-hover: var(--color-neutral-500);
@@ -100,6 +110,9 @@
   --color-surface-300: var(--color-surface-300);
   --color-surface-highlighted: var(--color-surface-highlighted);
 
+  --color-input: var(--color-input);
+  --color-input-border: var(--color-input-border);
+
   --color-accent: var(--color-accent);
   --color-primary: var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
@@ -122,16 +135,26 @@
   @apply btn bg-primary text-white hover:bg-primary-hover;
 }
 
+@utility btn-accent {
+  @apply btn bg-accent text-white hover:bg-accent/90;
+}
+
 @utility btn-secondary {
-  @apply btn border border-border bg-surface text-text hover:bg-surface-300;
+  /* bg-input keeps secondary buttons distinct from surfaces (dialogs,
+     menus, panels), so they don't visually disappear. */
+  @apply btn border border-input-border bg-input text-text hover:bg-surface-200;
 }
 
 @utility btn-ghost {
   @apply btn bg-transparent text-text hover:bg-surface;
 }
 
+@utility btn-warning {
+  @apply btn bg-warning text-white hover:bg-warning/90;
+}
+
 @utility btn-danger {
-  @apply btn bg-red-500 text-white hover:bg-red-600;
+  @apply btn bg-danger text-white hover:bg-danger/90;
 }
 
 @utility btn-sm {
@@ -144,9 +167,12 @@
 
 /* Form input utilities */
 @utility input {
-  @apply w-full rounded-lg border border-border bg-surface px-4 py-2 text-text;
-  @apply placeholder:text-muted focus:ring-2 focus:ring-primary focus:outline-none;
-  @apply disabled:opacity-50;
+  @apply w-full rounded-lg border border-input-border bg-input px-2 py-1 text-text;
+  @apply placeholder:text-muted/70;
+  @apply transition-[border-color,box-shadow] duration-100;
+  @apply focus:border-accent focus:ring-2 focus:ring-accent/30 focus:outline-none;
+  @apply aria-invalid:border-error aria-invalid:focus:ring-error/30;
+  @apply disabled:cursor-not-allowed disabled:opacity-60;
   @apply select-text; /* Re-enable text selection in form fields */
 }
 
@@ -156,14 +182,15 @@
 
 /* Checkbox utility */
 @utility checkbox {
-  @apply h-4 w-4 cursor-pointer rounded border-border bg-surface text-primary;
-  @apply focus:ring-2 focus:ring-primary focus:ring-offset-0;
-  @apply disabled:cursor-not-allowed disabled:opacity-50;
+  @apply h-4 w-4 cursor-pointer rounded border-input-border bg-input text-accent;
+  @apply transition-[border-color,box-shadow] duration-100;
+  @apply focus:ring-2 focus:ring-accent/30 focus:ring-offset-0;
+  @apply disabled:cursor-not-allowed disabled:opacity-60;
 }
 
 /* Form error utility */
 @utility form-error {
-  @apply rounded-lg px-4 py-2 text-sm text-error;
+  @apply text-sm text-error;
 }
 
 /* Mention styling in messages */

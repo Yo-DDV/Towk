@@ -5,7 +5,7 @@
   let {
     type = 'button',
     variant = 'primary',
-    size = 'default',
+    size = 'md',
     loading = false,
     disabled = false,
     fullWidth = false,
@@ -15,8 +15,8 @@
     children
   }: {
     type?: 'button' | 'submit' | 'reset';
-    variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-    size?: 'default' | 'sm' | 'lg';
+    variant?: 'primary' | 'accent' | 'secondary' | 'ghost' | 'warning' | 'danger';
+    size?: 'sm' | 'md' | 'lg';
     loading?: boolean;
     disabled?: boolean;
     fullWidth?: boolean;
@@ -29,14 +29,16 @@
 
   const variantClasses = {
     primary: 'btn-primary',
+    accent: 'btn-accent',
     secondary: 'btn-secondary',
     ghost: 'btn-ghost',
+    warning: 'btn-warning',
     danger: 'btn-danger'
   };
 
   const sizeClasses = {
-    default: '',
     sm: 'btn-sm',
+    md: '',
     lg: 'btn-lg'
   };
 </script>
@@ -60,6 +62,7 @@
 {#if href}
   <a
     {href}
+    aria-busy={loading || undefined}
     class="{variantClasses[variant]} {sizeClasses[size]} {fullWidth ? 'w-full' : ''}"
   >
     {@render content()}
@@ -69,6 +72,7 @@
     {type}
     {onclick}
     disabled={disabled || loading}
+    aria-busy={loading || undefined}
     class="{variantClasses[variant]} {sizeClasses[size]} {fullWidth ? 'w-full' : ''}"
   >
     {@render content()}

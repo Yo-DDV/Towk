@@ -1,24 +1,41 @@
+<!--
+@component
+
+The "Add Instance" form as a modal. Collects a URL, probes
+`/api/instance`, and on success closes the dialog and navigates to
+`/instances/add/[hostname]` for the auth-method picker (a separate
+full-page step that needs the OAuth redirect surface).
+-->
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { instanceRegistry } from '$lib/state/instance/registry.svelte';
-  import { TextInput, FormError, Button } from '$lib/ui/form';
-  import PaneHeader from '$lib/ui/PaneHeader.svelte';
-  import PageTitle from '$lib/ui/PageTitle.svelte';
+  import { TextInput } from '$lib/ui/form';
+  import FormDialog from '$lib/ui/FormDialog.svelte';
 
-  // Redirect to login if origin exists but user isn't authenticated
-  const origin = $derived(instanceRegistry.originInstance);
-  const originAuthenticated = $derived(origin ? instanceRegistry.isAuthenticated(origin.id) : false);
-  $effect(() => {
-    if (origin && !originAuthenticated) {
-      goto(resolve('/login'), { replaceState: true });
-    }
-  });
+  let {
+    visible = $bindable(false),
+    onclose
+  }: {
+    visible?: boolean;
+    onclose: () => void;
+  } = $props();
 
-  // --- Remote instance URL form ---
   let instanceUrl = $state('');
   let urlError = $state('');
   let probing = $state(false);
+
+  // Reset form state whenever the dialog is closed so reopening starts
+  // fresh — otherwise the previously typed URL and any prior error
+  // message would still be visible on the next open. The component is
+  // mounted persistently by its callers (sidebar, instances page, login),
+  // so without this the state survives across open/close cycles.
+  $effect(() => {
+    if (!visible) {
+      instanceUrl = '';
+      urlError = '';
+    }
+  });
 
   function normalizeUrl(url: string): string {
     let u = url.trim().replace(/\/+$/, '');
@@ -26,15 +43,13 @@
       u = 'https://' + u;
     }
     try {
-      const parsed = new URL(u);
-      return parsed.origin;
+      return new URL(u).origin;
     } catch {
       return u;
     }
   }
 
-  async function handleUrlSubmit(e: Event) {
-    e.preventDefault();
+  async function handleSubmit() {
     urlError = '';
 
     const url = normalizeUrl(instanceUrl);
@@ -79,6 +94,7 @@
       }
 
       const hostname = new URL(url).host;
+      onclose();
       goto(resolve('/instances/add/[hostname]', { hostname }));
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
@@ -94,45 +110,32 @@
   }
 </script>
 
-<PageTitle title="Add Instance" />
+<FormDialog
+  bind:visible
+  title="Add Instance"
+  size="sm"
+  submitLabel="Connect"
+  submitIcon="iconify uil--link"
+  submitLoadingText="Connecting…"
+  loading={probing}
+  disabled={!instanceUrl.trim()}
+  error={urlError}
+  onsubmit={handleSubmit}
+  {onclose}
+>
+  {#snippet description()}
+    Chatto is a distributed chat platform — your client connects to each
+    instance directly. Enter a URL to add another one.
+  {/snippet}
 
-<div class="flex min-h-0 min-w-0 flex-1 flex-col">
-  <PaneHeader title="Add Instance" showMobileNav />
-
-  <div class="flex-1 overflow-y-auto">
-    <section class="mx-auto w-full max-w-sm p-6">
-      <div class="flex flex-col gap-4">
-        <div>
-          <h3 class="text-lg font-semibold">Connect to a remote instance</h3>
-          <p class="text-sm text-muted">
-            Chatto is a distributed chat platform made up of many separate instances
-            located all over the world. Instances don't talk to each other — your
-            client connects to each one directly.
-          </p>
-          <p class="text-sm text-muted">
-            Enter a URL to add another instance to this client.
-          </p>
-        </div>
-
-        <form onsubmit={handleUrlSubmit} class="flex flex-col gap-4">
-          <TextInput
-            id="instance-url"
-            label="Instance URL"
-            type="text"
-            bind:value={instanceUrl}
-            placeholder="chat.example.com"
-            disabled={probing}
-            required
-            autofocus
-          />
-
-          <FormError error={urlError} />
-
-          <Button type="submit" disabled={!instanceUrl.trim() || probing} loading={probing} loadingText="Connecting...">
-            Connect
-          </Button>
-        </form>
-      </div>
-    </section>
-  </div>
-</div>
+  <TextInput
+    id="add-instance-url"
+    label="Instance URL"
+    bind:value={instanceUrl}
+    placeholder="chat.example.com"
+    leadingIcon="uil--globe"
+    disabled={probing}
+    required
+    autofocus
+  />
+</FormDialog>

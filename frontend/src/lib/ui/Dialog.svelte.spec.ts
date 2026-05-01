@@ -12,6 +12,9 @@ function renderDialog(props: {
   return render(Dialog, { props });
 }
 
+const FRAME = 'dialog > div';
+const WELL = 'dialog > div > div';
+
 describe('Dialog', () => {
   describe('dialog element', () => {
     it('renders a dialog element', async () => {
@@ -21,6 +24,16 @@ describe('Dialog', () => {
       });
 
       await expect.element(q(container, 'dialog')).toBeInTheDocument();
+    });
+
+    it('does not render contents when closed', async () => {
+      const { container } = renderDialog({
+        visible: false,
+        children: testSnippet('<span>Content</span>')
+      });
+
+      // Dialog stays in the DOM but its content tree is gated on `visible`.
+      expect(q(container, FRAME)).toBeNull();
     });
   });
 
@@ -50,7 +63,7 @@ describe('Dialog', () => {
   describe('size classes', () => {
     it('applies medium size class by default', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         children: testSnippet('<span>Content</span>')
       });
 
@@ -59,7 +72,7 @@ describe('Dialog', () => {
 
     it('applies small size class when size is sm', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         size: 'sm',
         children: testSnippet('<span>Content</span>')
       });
@@ -69,7 +82,7 @@ describe('Dialog', () => {
 
     it('applies large size class when size is lg', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         size: 'lg',
         children: testSnippet('<span>Content</span>')
       });
@@ -85,83 +98,62 @@ describe('Dialog', () => {
         children: testSnippet('<span>Test Content</span>')
       });
 
-      await expect.element(q(container, 'dialog > div > div.text-text')).toBeInTheDocument();
+      await expect.element(q(container, `${WELL} > div.text-text`)).toBeInTheDocument();
     });
   });
 
-  describe('styling', () => {
-    it('has rounded corners', async () => {
+  describe('frame styling', () => {
+    it('outer frame uses surface-100 with subtle border and shadow', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog > div')).toHaveClass('rounded-lg');
+      const frame = q(container, FRAME);
+      await expect.element(frame).toHaveClass('bg-surface-100');
+      await expect.element(frame).toHaveClass('border');
+      await expect.element(frame).toHaveClass('rounded-lg');
+      await expect.element(frame).toHaveClass('shadow-xl');
+    });
+  });
+
+  describe('well styling', () => {
+    it('inner well sits on the page background color', async () => {
+      const { container } = renderDialog({
+        visible: true,
+        children: testSnippet('<span>Content</span>')
+      });
+
+      const well = q(container, WELL);
+      await expect.element(well).toHaveClass('bg-background');
+      await expect.element(well).toHaveClass('rounded-md');
     });
 
-    it('has padding', async () => {
+    it('well has padding', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog > div')).toHaveClass('p-6');
-    });
-
-    it('has shadow', async () => {
-      const { container } = renderDialog({
-        visible: false,
-        children: testSnippet('<span>Content</span>')
-      });
-
-      await expect.element(q(container, 'dialog > div')).toHaveClass('shadow-lg');
-    });
-
-    it('has border', async () => {
-      const { container } = renderDialog({
-        visible: false,
-        children: testSnippet('<span>Content</span>')
-      });
-
-      const wrapper = q(container, 'dialog > div');
-      await expect.element(wrapper).toHaveClass('border');
-      await expect.element(wrapper).toHaveClass('border-border');
-    });
-
-    it('has background color', async () => {
-      const { container } = renderDialog({
-        visible: false,
-        children: testSnippet('<span>Content</span>')
-      });
-
-      await expect.element(q(container, 'dialog > div')).toHaveClass('bg-surface');
+      await expect.element(q(container, WELL)).toHaveClass('p-3');
     });
   });
 
   describe('overflow handling', () => {
-    it('has vertical overflow auto', async () => {
+    it('well has vertical overflow auto', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog > div')).toHaveClass('overflow-y-auto');
-    });
-
-    it('has max height constraint', async () => {
-      const { container } = renderDialog({
-        visible: false,
-        children: testSnippet('<span>Content</span>')
-      });
-
-      await expect.element(q(container, 'dialog > div')).toHaveClass('max-h-[80vh]');
+      await expect.element(q(container, WELL)).toHaveClass('overflow-y-auto');
     });
   });
 
   describe('centering', () => {
     it('is centered with margin auto', async () => {
       const { container } = renderDialog({
-        visible: false,
+        visible: true,
         children: testSnippet('<span>Content</span>')
       });
 
