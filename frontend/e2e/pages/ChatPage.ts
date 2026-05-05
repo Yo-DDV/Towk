@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import * as routes from '../routes';
 import { graphqlQuery } from '../fixtures/graphqlHelpers';
+import { loginAsAdmin } from '../fixtures/testUser';
 import { RoomPage } from './RoomPage';
 
 /**
@@ -9,11 +10,6 @@ import { RoomPage } from './RoomPage';
  */
 export class ChatPage {
   constructor(readonly page: Page) {}
-
-  /** The create space button in the sidebar */
-  get createSpaceButton(): Locator {
-    return this.page.locator('[title="Create Space"]');
-  }
 
   /** The explore spaces link in the sidebar */
   get exploreSpacesLink(): Locator {
@@ -57,28 +53,21 @@ export class ChatPage {
   }
 
   /**
-   * Create a new space via the create space page.
-   * Returns the space name for reference.
+   * Wait until the user is in the deployment's bootstrap (primary) space and
+   * return its name. Issue #330 / ADR-027: signup auto-joins the primary
+   * space, so tests no longer create their own — this is just "make sure the
+   * space chrome is loaded before continuing." `name` and `description` args
+   * are ignored, retained only so existing call sites compile.
    */
-  async createSpace(name?: string, description?: string): Promise<string> {
-    const spaceName = name ?? `Test Space ${Date.now()}`;
-
-    await this.createSpaceButton.click();
-    await this.page.waitForURL(routes.newSpace);
-
-    await this.page.getByLabel('Name').fill(spaceName);
-
-    if (description) {
-      await this.page.getByLabel('Description').fill(description);
+  async createSpace(_name?: string, _description?: string): Promise<string> {
+    const data = await graphqlQuery<{
+      spaces: Array<{ id: string; name: string }>;
+    }>(this.page, `query { spaces { id name } }`);
+    const primary = data.spaces[0];
+    if (!primary) {
+      throw new Error('No primary space configured — bootstrap config likely broken');
     }
-
-    await this.page.locator('button[type="submit"]').click();
-    // After creating a space, user is redirected to the first room in the new space
-    // Wait for a URL that looks like a space page (not /spaces, /admin, /dm, etc.)
-    // Use negative lookahead to exclude known non-space paths
-    await this.page.waitForURL(routes.patterns.anySpace);
-
-    return spaceName;
+    return primary.name;
   }
 
   /**
@@ -163,10 +152,18 @@ export class ChatPage {
   /**
    * Open the room creation modal on the admin rooms page.
    * Navigates to the admin rooms page and clicks "New Room".
+   *
+   * Issue #330 / ADR-027: with auto-join, the test user lands as a regular
+   * member of the bootstrap space and the admin route 403s. Logout then
+   * re-authenticate as e2eadmin (the bootstrap owner) before navigating so
+   * the previous session's permissions don't leak into the page's reactive
+   * state.
    */
   async openCreateRoomModal(): Promise<void> {
-    const spaceId = await this.getSpaceId();
+    await this.page.request.post('/auth/logout');
+    await loginAsAdmin(this.page);
     await this.page.goto(routes.serverAdminRooms);
+    await expect(this.page).toHaveURL(/\/server-admin\/rooms/);
     await this.page.getByRole('button', { name: 'New Room' }).click();
     await expect(this.roomNameInput).toBeVisible();
   }
@@ -264,20 +261,6 @@ export class ChatPage {
   }
 
   // --- Assertions ---
-
-  /**
-   * Assert that the create space button is visible.
-   */
-  async expectCreateSpaceVisible(): Promise<void> {
-    await expect(this.createSpaceButton).toBeVisible();
-  }
-
-  /**
-   * Assert that the create space button is NOT visible (permission denied).
-   */
-  async expectCreateSpaceNotVisible(): Promise<void> {
-    await expect(this.createSpaceButton).not.toBeVisible();
-  }
 
   /**
    * Assert that the explore spaces button is visible.

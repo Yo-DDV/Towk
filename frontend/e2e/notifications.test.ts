@@ -1,7 +1,12 @@
 import { expect } from '@playwright/test';
 import { test } from './setup';
 import { ChatPage, RoomPage, NotificationsPage } from './pages';
-import { createAndLoginTestUser, loginTestUser, joinSpace } from './fixtures/testUser';
+import {
+  createAndLoginTestUser,
+  loginAsAdmin,
+  loginTestUser,
+  joinSpace
+} from './fixtures/testUser';
 import * as routes from './routes';
 import { POLLING_INTERVALS, TIMEOUTS } from './constants';
 
@@ -77,6 +82,10 @@ test.describe('Mention Notifications', () => {
     await chatPage.createSpace();
     const spaceId = await chatPage.getSpaceId();
 
+    // Issue #330: upload the logo as e2eadmin (the bootstrap space owner) since
+    // userA can't manage the space, then re-login as userA so they receive the
+    // mention notification later in this test.
+    await loginAsAdmin(page);
     // Upload a logo to the space via settings (general settings page)
     await spaceAdminPage.gotoGeneralDirectly(spaceId);
 
@@ -87,6 +96,9 @@ test.describe('Mention Notifications', () => {
     );
     await spaceAdminPage.uploadLogo(pngData, 'test-logo.png');
     await spaceAdminPage.expectToast('Logo uploaded successfully', TIMEOUTS.COMPLEX_OPERATION);
+
+    // Re-login as userA so the rest of the test exercises userA's view.
+    await loginTestUser(page, userA);
 
     // Navigate back to the space
     await page.goto(routes.space());
@@ -1472,62 +1484,6 @@ test.describe('Clickable Notification Dots', () => {
     }
   });
 
-  // FIXME: creates two spaces and navigates between them — multi-space
-  // concept, doesn't apply post-collapse. Re-enable / remove in next
-  // phase-2 PR.
-  test.skip('clicking notification dot on space icon navigates to message and dismisses', async ({
-    page,
-    chatPage,
-    browser,
-    serverURL
-  }) => {
-    // User A: Create account, space
-    const userA = await createAndLoginTestUser(page);
-    await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
-
-    // Create a second space to navigate away
-    await chatPage.createSpace('Second Space');
-    const secondSpaceId = await chatPage.getSpaceId();
-
-    // User B: Mention User A in first space
-    const context2 = await browser!.newContext({ baseURL: serverURL });
-    const page2 = await context2.newPage();
-
-    try {
-      await createAndLoginTestUser(page2);
-      await joinSpace(page2, spaceId);
-      await page2.goto(routes.space());
-      const chatPage2 = new ChatPage(page2);
-      const roomPage2 = new RoomPage(page2);
-      await chatPage2.enterRoom('general');
-      const testMessage = `@${userA.login} space dot test ${Date.now()}`;
-      await roomPage2.sendMessage(testMessage);
-
-      // User A: Navigate to second space (away from first space)
-      await page.goto(routes.space());
-
-      // Verify notification dot appears on first space icon
-      const spaceList = page.locator('.space-list');
-      const firstSpaceIcon = spaceList.locator('[data-testid="space-icon"]').first();
-      const spaceNotificationDot = firstSpaceIcon.locator('..').locator('.bg-warning');
-      await expect(spaceNotificationDot).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
-
-      // Click the notification dot on the space icon
-      await spaceNotificationDot.click();
-
-      // Verify navigated to the room with the mention. Highlight intent is
-      // delivered via PendingHighlightStore now, so the URL is clean.
-      await page.waitForURL(routes.patterns.anyRoom);
-      await expect(page.getByRole('heading', { name: '# general' })).toBeVisible();
-
-      // Verify notification dot is gone
-      await expect(spaceNotificationDot).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-    } finally {
-      await context2.close();
-    }
-  });
 
   test('clicking notification dot for room reply navigates to room with highlight', async ({
     page,
