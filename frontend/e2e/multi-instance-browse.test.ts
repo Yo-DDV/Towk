@@ -53,7 +53,9 @@ test.describe('Multi-Instance Browse Spaces', () => {
 		await expect(page.locator('[data-testid="instance-header"]')).toHaveCount(0);
 	});
 
-	test('search filters across all instances', async ({ page, chatPage }) => {
+	// FIXME: multi-space test — creates multiple spaces per instance which
+	// the URL collapse can't represent. Re-enable in next phase-2 PR.
+	test.skip('search filters across all instances', async ({ page, chatPage }) => {
 		// Set up home instance
 		await createAndLoginTestUser(page);
 		await chatPage.goto();
@@ -90,7 +92,11 @@ test.describe('Multi-Instance Browse Spaces', () => {
 		await explorePage.expectSpaceNotVisible('Gamma Remote');
 	});
 
-	test('joining a space on remote instance navigates to it', async ({ page, chatPage }) => {
+	// FIXME: post-URL-collapse, joining a non-primary space from Browse
+	// Spaces can't navigate to it (the URL has no spaceId segment).
+	// Re-enable when the next phase-2 PR narrows discovery to the primary
+	// space and removes the "join arbitrary space" flow.
+	test.skip('joining a space on remote instance navigates to it', async ({ page, chatPage }) => {
 		// Set up home instance (need a user logged in)
 		await createAndLoginTestUser(page);
 		await chatPage.goto();

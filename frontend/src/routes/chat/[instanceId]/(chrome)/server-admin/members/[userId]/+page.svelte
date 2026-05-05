@@ -1,0 +1,394 @@
+<script lang="ts">
+
+  import { resolve } from '$app/paths';
+  import { getActiveSpace } from '$lib/state/activeSpace.svelte';
+  import { page } from '$app/state';
+  import { instanceIdToSegment } from '$lib/navigation';
+  import { getActiveInstance } from '$lib/state/activeInstance.svelte';
+  import { useConnection } from '$lib/state/instance/connection.svelte';
+  import { graphql } from '$lib/gql';
+  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
+  import { Panel } from '$lib/components/admin';
+  import { Hint, Pill } from '$lib/ui';
+  import PaneHeader from '$lib/ui/PaneHeader.svelte';
+  import PageTitle from '$lib/ui/PageTitle.svelte';
+  import { Button, FormError } from '$lib/ui/form';
+  import { toast } from '$lib/ui/toast';
+  import { getAvatarInitials } from '$lib/utils/initials';
+  import { getLiveLogin } from '$lib/state/userProfiles.svelte';
+
+  type User = {
+    id: string;
+    login: string;
+    displayName: string;
+    avatarUrl?: string | null;
+    instanceRoles: string[];
+    spaceRoles: string[];
+  };
+  type Role = {
+    name: string;
+    displayName: string;
+    position: number;
+    permissions: string[];
+    permissionDenials: string[];
+  };
+  // Everyone role is implicit for all space members and shouldn't be assignable
+  const IMPLICIT_ROLES = ['everyone'];
+
+  const getInstanceId = getActiveInstance();
+  const currentUser = getCurrentUser();
+  const connection = useConnection();
+  const spaceId = $derived(getActiveSpace()());
+  const userId = $derived(page.params.userId!);
+
+  let member = $state<User | null>(null);
+  let allRoles = $state<Role[]>([]);
+  let viewerRoles = $state<string[]>([]);
+  let memberSpaceRoles = $state<string[]>([]); // Member's space roles (separate from member object)
+  let memberInstanceRoles = $state<string[]>([]); // Member's instance roles (separate from member object)
+  let availablePermissions = $state<string[]>([]);
+  let canAssignRoles = $state(false);
+  let canManageRoles = $state(false);
+  let loading = $state(true);
+  let updating = $state<string | null>(null);
+  let error = $state<string | null>(null);
+
+  // Optimistically compute whether viewer can manage this member based on role hierarchy
+  // Lower position = higher rank. Viewer can manage if their best role outranks target's best role.
+  function computeCanManage(
+    viewerRoleNames: string[],
+    targetRoleNames: string[],
+    roles: Role[]
+  ): boolean {
+    const getPosition = (name: string) => roles.find((r) => r.name === name)?.position ?? Infinity;
+
+    // Get best (lowest position) role for each
+    const viewerBest = Math.min(...viewerRoleNames.map(getPosition), Infinity);
+    const targetBest = Math.min(...targetRoleNames.map(getPosition), Infinity);
+
+    // Viewer can manage if their best role has a lower position (higher rank)
+    return viewerBest < targetBest;
+  }
+
+  // Derived: whether viewer can manage this member
+  const viewerCanManage = $derived(computeCanManage(viewerRoles, memberSpaceRoles, allRoles));
+
+  async function loadData() {
+    error = null;
+
+    const resp = await connection().client.query(
+      graphql(`
+        query SpaceMemberDetails($spaceId: ID!, $userId: ID!) {
+          me {
+            id
+            spaceRoles(spaceId: $spaceId)
+          }
+          space(id: $spaceId) {
+            id
+            viewerCanAssignRoles
+            viewerCanManageRoles
+            availablePermissions
+            roles {
+              name
+              displayName
+              position
+              permissions
+              permissionDenials
+            }
+            member(userId: $userId) {
+              id
+              login
+              displayName
+              avatarUrl
+              instanceRoles
+              spaceRoles(spaceId: $spaceId)
+            }
+          }
+        }
+      `),
+      { spaceId, userId }
+    );
+
+    if (resp.error) {
+      error = resp.error.message;
+      loading = false;
+      return;
+    }
+
+    if (!resp.data?.space) {
+      error = 'Space not found';
+      loading = false;
+      return;
+    }
+
+    member = resp.data.space.member ?? null;
+    allRoles = resp.data.space.roles ?? [];
+    availablePermissions = resp.data.space.availablePermissions ?? [];
+    viewerRoles = resp.data.me?.spaceRoles ?? [];
+    memberSpaceRoles = resp.data.space.member?.spaceRoles ?? [];
+    memberInstanceRoles = resp.data.space.member?.instanceRoles ?? [];
+    canAssignRoles = resp.data.space.viewerCanAssignRoles;
+    canManageRoles = resp.data.space.viewerCanManageRoles;
+    loading = false;
+  }
+
+  // Check if user has a specific role (explicit assignment)
+  function hasRole(roleName: string): boolean {
+    return memberSpaceRoles.includes(roleName);
+  }
+
+  // Check if a role is implicit (always assigned to all members)
+  function isImplicitRole(roleName: string): boolean {
+    return IMPLICIT_ROLES.includes(roleName);
+  }
+
+  function getRoleDisplayName(roleName: string): string {
+    const role = allRoles.find((r) => r.name === roleName);
+    return role?.displayName || roleName;
+  }
+
+  function getRolePosition(roleName: string): number {
+    const role = allRoles.find((r) => r.name === roleName);
+    return role?.position ?? Number.MAX_SAFE_INTEGER;
+  }
+
+  // Sort instance roles: admin first, then alphabetically
+  function sortInstanceRoles(roles: string[]): string[] {
+    const order: Record<string, number> = { admin: 0 };
+    return [...roles].sort((a, b) => {
+      const posA = order[a] ?? 1;
+      const posB = order[b] ?? 1;
+      if (posA !== posB) return posA - posB;
+      return a.localeCompare(b); // Alphabetical for same position
+    });
+  }
+
+  // All roles the member effectively has (explicit + implicit everyone role)
+  const effectiveSpaceRoles = $derived(
+    memberSpaceRoles.includes('everyone') ? memberSpaceRoles : [...memberSpaceRoles, 'everyone']
+  );
+
+  // Check if this is the current user
+  const isSelf = $derived(currentUser.user?.id === userId);
+
+  // Sorted space roles (excluding everyone, sorted by position)
+  const sortedSpaceRoles = $derived(
+    memberSpaceRoles
+      .filter((r) => r !== 'everyone')
+      .sort((a, b) => getRolePosition(a) - getRolePosition(b))
+  );
+
+  // Sorted instance roles
+  const sortedInstanceRoles = $derived(sortInstanceRoles(memberInstanceRoles));
+
+  async function toggleRole(roleName: string, currentlyHas: boolean) {
+    if (!member) return;
+
+    updating = roleName;
+    error = null;
+
+    const mutation = currentlyHas
+      ? graphql(`
+          mutation RevokeSpaceRoleFromMember($input: RevokeSpaceRoleInput!) {
+            revokeSpaceRole(input: $input)
+          }
+        `)
+      : graphql(`
+          mutation AssignSpaceRoleToMember($input: AssignSpaceRoleInput!) {
+            assignSpaceRole(input: $input)
+          }
+        `);
+
+    const resp = await connection().client.mutation(mutation, {
+      input: { spaceId, userId: member.id, roleName }
+    });
+
+    if (resp.error) {
+      error = resp.error.message;
+    } else {
+      const displayName = getRoleDisplayName(roleName);
+      if (currentlyHas) {
+        toast.success(`Removed ${displayName} role`);
+      } else {
+        toast.success(`Assigned ${displayName} role`);
+      }
+      // Reload to get updated state
+      await loadData();
+    }
+
+    updating = null;
+  }
+
+  // Load data when params change
+  $effect(() => {
+    if (spaceId && userId) {
+      loadData();
+    }
+  });
+</script>
+
+<PageTitle title={`${member?.displayName ?? 'Member'} | Space Admin`} />
+
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+  <PaneHeader
+    title="Member Details"
+    subtitle={member?.displayName ?? 'Loading...'}
+    backHref={resolve('/chat/[instanceId]/(chrome)/server-admin/members', { instanceId: instanceIdToSegment(getInstanceId()) })}
+    backLabel="Back to Members"
+    showMobileNav
+  />
+
+  <div class="flex flex-col gap-6 overflow-y-auto p-6">
+    {#if loading}
+      <div class="text-muted">Loading member...</div>
+    {:else if !member}
+      <Hint tone="danger">Member not found. They may have left the space.</Hint>
+    {:else}
+      {#if error}
+        <FormError {error} />
+      {/if}
+
+      <!-- User Details -->
+      <Panel title="User Details" icon="iconify uil--user">
+        <div class="flex gap-6">
+          {#if member.avatarUrl}
+            <img
+              src={member.avatarUrl}
+              alt={member.displayName}
+              class="h-20 w-20 rounded-full border border-border"
+            />
+          {:else}
+            <div
+              class="flex h-20 w-20 items-center justify-center rounded-full bg-surface-300 text-3xl text-muted"
+            >
+              {getAvatarInitials(member.displayName, member.login)}
+            </div>
+          {/if}
+          <div class="flex flex-col gap-2">
+            <div>
+              <div class="text-sm text-muted">Login</div>
+              <div class="font-medium">@{getLiveLogin(member.id, member.login)}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Display Name</div>
+              <div>{member.displayName}</div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Space Roles</div>
+              <div class="flex flex-wrap gap-1">
+                {#each sortedSpaceRoles as roleName (roleName)}
+                  <Pill>{getRoleDisplayName(roleName)}</Pill>
+                {/each}
+                <Pill>Member</Pill>
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">Instance Roles</div>
+              <div class="flex flex-wrap gap-1">
+                {#if sortedInstanceRoles.length === 0}
+                  <span class="text-xs text-muted">None</span>
+                {:else}
+                  {#each sortedInstanceRoles as roleName (roleName)}
+                    <Pill>
+                      <span class="capitalize">{roleName}</span>
+                    </Pill>
+                  {/each}
+                {/if}
+              </div>
+            </div>
+            <div>
+              <div class="text-sm text-muted">ID</div>
+              <code class="text-xs">{member.id}</code>
+            </div>
+          </div>
+        </div>
+      </Panel>
+
+      <!-- Role Assignments -->
+      <Panel title="Role Assignments" icon="iconify uil--shield-check">
+        <p class="mb-4 text-sm text-muted">
+          {#if canAssignRoles && viewerCanManage}
+            Assign roles to this member. Changes are saved immediately.
+          {:else if canAssignRoles && !viewerCanManage}
+            You cannot modify roles for this member because their highest role outranks yours.
+          {:else}
+            View the roles assigned to this member.
+          {/if}
+        </p>
+
+        <div class="flex flex-col gap-2">
+          {#each allRoles as role (role.name)}
+            {@const isImplicit = isImplicitRole(role.name)}
+            {@const has = isImplicit || hasRole(role.name)}
+            {@const isUpdating = updating === role.name}
+            {@const isSelfAdmin = isSelf && role.name === 'admin' && has}
+            {@const isDisabled =
+              !canAssignRoles || !viewerCanManage || isImplicit || isUpdating || isSelfAdmin}
+            {@const tooltip = isImplicit
+              ? 'All space members have this role implicitly'
+              : isSelfAdmin
+                ? 'You cannot revoke your own admin role'
+                : ''}
+
+            <div
+              class={[
+                'flex items-center gap-3 rounded-lg border border-border p-3',
+                isDisabled ? 'opacity-50' : ''
+              ]}
+            >
+              <label
+                class={[
+                  'flex flex-1 items-center gap-3',
+                  isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
+                ]}
+                title={tooltip}
+              >
+                <input
+                  type="checkbox"
+                  checked={has}
+                  disabled={isDisabled}
+                  class={[
+                    'h-5 w-5',
+                    isDisabled ? 'cursor-not-allowed' : 'cursor-pointer',
+                    isUpdating ? 'animate-pulse' : ''
+                  ]}
+                  onchange={() => toggleRole(role.name, has)}
+                />
+                <div class="flex-1">
+                  <div class="font-medium">{role.displayName}</div>
+                  {#if isImplicit}
+                    <div class="text-xs text-muted">Implicit for all members</div>
+                  {/if}
+                </div>
+              </label>
+              {#if canManageRoles}
+                <a
+                  href={resolve('/chat/[instanceId]/(chrome)/server-admin/roles/[name]', { instanceId: instanceIdToSegment(getInstanceId()), name: role.name })}
+                  class="shrink-0 text-sm text-primary hover:underline"
+                >
+                  Edit
+                </a>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </Panel>
+
+      <!-- Effective Permissions: hand off to the inspector for the full trace -->
+      <Panel title="Effective Permissions" icon="iconify uil--lock-access">
+        <p class="mb-4 text-sm text-muted">
+          Open the Permission Inspector to see every permission this member has, with the role and
+          level (instance/space/room) that decided each call.
+        </p>
+        <Button
+          variant="primary"
+          href={resolve('/chat/[instanceId]/(chrome)/server-admin/inspector', {
+            instanceId: instanceIdToSegment(getInstanceId()),
+          }) + `?userId=${userId}`}
+        >
+          Open in Permission Inspector
+        </Button>
+      </Panel>
+    {/if}
+  </div>
+</div>

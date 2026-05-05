@@ -7,7 +7,10 @@ import { ChatPage, ExplorePage, SettingsPage } from './pages';
 import * as routes from './routes';
 
 test.describe('Real-time synchronization', () => {
-  test('space list updates when user creates a new space from another session', async ({
+  // FIXME: cross-session createSpace + space list propagation. Doesn't
+  // apply post-collapse — one space per server. Re-enable / remove in
+  // next phase-2 PR.
+  test.skip('space list updates when user creates a new space from another session', async ({
     page,
     chatPage,
     browser,
@@ -64,7 +67,7 @@ test.describe('Real-time synchronization', () => {
     await chatPage.goto();
     await chatPage.createSpace(`Room Sync Test ${Date.now()}`);
 
-    const spaceId = chatPage.getSpaceId();
+    const spaceId = await chatPage.getSpaceId();
 
     // Session 1: Create a new room via API (creator is auto-joined)
     const testRoomName = await chatPage.createRoom();
@@ -87,7 +90,7 @@ test.describe('Real-time synchronization', () => {
       expect(loginResponse.ok()).toBeTruthy();
 
       // Navigate to the space
-      await page2.goto(routes.space(spaceId));
+      await page2.goto(routes.space());
       await page2.waitForURL(routes.patterns.anySpace);
 
       // Session 2 should already have the room since it's the same user
@@ -353,7 +356,7 @@ test.describe('Real-time synchronization', () => {
     await chatPage.goto();
     await chatPage.createSpace();
 
-    const spaceId = chatPage.getSpaceId();
+    const spaceId = await chatPage.getSpaceId();
 
     // Navigate to "general" room to see member list
     const roomPage = await chatPage.enterRoom('general');
@@ -373,7 +376,7 @@ test.describe('Real-time synchronization', () => {
       await joinSpace(page2, spaceId);
 
       // Navigate to the space
-      await page2.goto(routes.space(spaceId));
+      await page2.goto(routes.space());
       await page2.waitForURL(routes.patterns.anySpace);
 
       // User B clicks on general room

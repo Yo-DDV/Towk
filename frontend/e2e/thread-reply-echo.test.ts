@@ -7,10 +7,20 @@ import { ChatPage, RoomPage } from './pages';
 import { TIMEOUTS } from './constants';
 import * as routes from './routes';
 
-function getIdsFromUrl(page: Page): { spaceId: string; roomId: string } {
-  const match = page.url().match(/\/chat\/-\/([a-zA-Z0-9_-]+)\/([a-zA-Z0-9_-]+)/);
-  if (!match) throw new Error(`Could not extract IDs from URL: ${page.url()}`);
-  return { spaceId: match[1], roomId: match[2] };
+async function getIdsFromUrl(page: Page): Promise<{ spaceId: string; roomId: string }> {
+  const match = page.url().match(/\/chat\/-\/([^/]+)/);
+  if (!match) throw new Error(`Could not extract roomId from URL: ${page.url()}`);
+  const roomId = match[1];
+  const data = await page.evaluate(async () => {
+    const r = await fetch('/api/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ query: `query { instance { primarySpaceId } }` })
+    });
+    return r.json();
+  });
+  return { spaceId: data.data.instance.primarySpaceId, roomId };
 }
 
 /** Post a message via API and return its event ID. */
@@ -202,7 +212,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.goto();
       await chatPage.createSpace();
       await chatPage.enterRoom('general');
-      spaceId = chatPage.getSpaceId();
+      spaceId = await chatPage.getSpaceId();
     });
 
     const rootMessage = `Root for realtime echo ${Date.now()}`;
@@ -604,7 +614,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.enterRoom('general');
     });
 
-    const { spaceId, roomId } = getIdsFromUrl(page);
+    const { spaceId, roomId } = await getIdsFromUrl(page);
 
     // Post a root message that starts the thread
     const rootBody = `Thread root ${timestamp}`;
@@ -760,7 +770,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.goto();
       await chatPage.createSpace();
       await chatPage.enterRoom('general');
-      spaceId = chatPage.getSpaceId();
+      spaceId = await chatPage.getSpaceId();
     });
 
     const rootMessage = `Root for permission test ${Date.now()}`;
@@ -822,7 +832,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.goto();
       await chatPage.createSpace();
       await chatPage.enterRoom('general');
-      spaceId = chatPage.getSpaceId();
+      spaceId = await chatPage.getSpaceId();
     });
 
     const rootMessage = `Root for unread test ${Date.now()}`;
@@ -895,7 +905,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.enterRoom('general');
     });
 
-    const { spaceId, roomId } = getIdsFromUrl(page);
+    const { spaceId, roomId } = await getIdsFromUrl(page);
 
     // Post a root message that starts the thread
     const rootBody = `Thread root ${timestamp}`;
@@ -999,7 +1009,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.enterRoom('general');
     });
 
-    const { spaceId, roomId } = getIdsFromUrl(page);
+    const { spaceId, roomId } = await getIdsFromUrl(page);
 
     // Post root message
     const rootBody = `Thread root ${timestamp}`;
@@ -1043,7 +1053,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
 
     await test.step('Open thread first to cache data, then close', async () => {
       // Navigate directly to thread URL to cache the data
-      await page.goto(routes.thread(spaceId, roomId, rootEventId));
+      await page.goto(routes.thread(roomId, rootEventId));
       await roomPage.expectThreadPaneVisible();
 
       // Wait for thread data to finish loading (last filler should be visible)
@@ -1092,7 +1102,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.enterRoom('general');
     });
 
-    const { spaceId, roomId } = getIdsFromUrl(page);
+    const { spaceId, roomId } = await getIdsFromUrl(page);
 
     // Post root message
     const rootBody = `Thread root ${timestamp}`;
@@ -1179,7 +1189,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await chatPage.enterRoom('general');
     });
 
-    const { spaceId, roomId } = getIdsFromUrl(page);
+    const { spaceId, roomId } = await getIdsFromUrl(page);
 
     // Post root message via API
     const rootBody = `Thread root ${timestamp}`;

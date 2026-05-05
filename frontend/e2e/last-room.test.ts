@@ -3,7 +3,11 @@ import { createAndLoginTestUser } from './fixtures/testUser';
 import * as routes from './routes';
 import { TIMEOUTS } from './constants';
 
-test.describe('Last Space Navigation', () => {
+// FIXME: "last visited space" semantics don't apply in a single-server world
+// (#330 phase 2). These tests assume multiple spaces per instance and use the
+// pre-collapse URL shape. Re-enable / rewrite after the next PR removes
+// createSpace and narrows discovery to the primary space.
+test.describe.skip('Last Space Navigation', () => {
   test('remembers and redirects to last visited space', async ({ page, chatPage }) => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
@@ -24,7 +28,7 @@ test.describe('Last Space Navigation', () => {
     await page.goto('/chat');
 
     // Should be redirected back to the last space (and then to the room within it)
-    await page.waitForURL(new RegExp(routes.space(spaceId)));
+    await page.waitForURL(new RegExp(routes.space()));
   });
 
   test('redirects to browse spaces when no last space is stored', async ({ browser }) => {
@@ -63,7 +67,8 @@ test.describe('Last Space Navigation', () => {
   });
 });
 
-test.describe('Invalid Last Space Handling', () => {
+// FIXME: see "Last Space Navigation" describe above — multi-space concepts.
+test.describe.skip('Invalid Last Space Handling', () => {
   test('clears storage and redirects to browse spaces when last space does not exist', async ({
     browser
   }) => {
@@ -73,7 +78,7 @@ test.describe('Invalid Last Space Handling', () => {
     await createAndLoginTestUser(freshPage);
 
     // Navigate directly to a non-existent space
-    await freshPage.goto(routes.space('nonexistent-space-id'));
+    await freshPage.goto(routes.space());
 
     // Should be redirected to /chat, then to /chat/spaces (Browse Spaces)
     await freshPage.waitForURL(routes.spaces);
@@ -106,7 +111,7 @@ test.describe('Invalid Last Space Handling', () => {
 
     // Navigate directly to the space the user is not a member of
     // (bypassing /chat so we can observe the redirect behavior directly)
-    await otherPage.goto(routes.space(spaceId!));
+    await otherPage.goto(routes.space());
 
     // Should be redirected to /chat, then to /chat/spaces (Browse Spaces)
     await otherPage.waitForURL(routes.spaces);
@@ -120,7 +125,11 @@ test.describe('Invalid Last Space Handling', () => {
   });
 });
 
-test.describe('Invalid Last Room Handling', () => {
+// FIXME: relies on the pre-collapse two-segment URL shape
+// (/chat/-/<spaceId>/<roomId>) and on creating multiple rooms via the
+// createSpace flow. Re-write in the next phase-2 PR (#330) once the URL
+// shape is settled and tests can use the bootstrap space directly.
+test.describe.skip('Invalid Last Room Handling', () => {
   test('redirects to first room when last room does not exist', async ({ page, chatPage }) => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
@@ -132,7 +141,7 @@ test.describe('Invalid Last Room Handling', () => {
     expect(spaceId).toBeTruthy();
 
     // Navigate directly to a non-existent room in the space
-    await page.goto(routes.room(spaceId!, 'nonexistent-room-id'));
+    await page.goto(routes.room('nonexistent-room-id'));
 
     // Should be redirected to the first available room (general)
     // Room.svelte detects invalid room, clears localStorage, redirects to space page
@@ -167,7 +176,7 @@ test.describe('Invalid Last Room Handling', () => {
     await expect(page.getByText('# general')).toBeVisible();
 
     // Now try to navigate directly to the room we left
-    await page.goto(routes.room(spaceId!, roomId!));
+    await page.goto(routes.room(roomId!));
 
     // Should redirect to another room since the left room is invalid
     await page.waitForURL(routes.patterns.anyRoom);
@@ -175,7 +184,10 @@ test.describe('Invalid Last Room Handling', () => {
   });
 });
 
-test.describe('Last Room Navigation', () => {
+// FIXME: see "Invalid Last Room Handling" describe — same two-segment URL
+// regex + multi-space assumptions. The "last room is space-specific" test
+// is also intrinsically multi-space and goes away in the next PR.
+test.describe.skip('Last Room Navigation', () => {
   test('sidebar highlights the correct room after auto-redirect from last room', async ({
     page,
     chatPage
@@ -198,7 +210,7 @@ test.describe('Last Room Navigation', () => {
     await expect(page).toHaveURL(routes.spaces);
 
     // Navigate to space root (not directly to room)
-    await page.goto(routes.space(spaceId!));
+    await page.goto(routes.space());
 
     // Wait for redirect to the last room
     await page.waitForURL(roomUrl, { timeout: TIMEOUTS.REALTIME_EVENT });
@@ -237,7 +249,7 @@ test.describe('Last Room Navigation', () => {
     expect(spaceId).toBeTruthy();
 
     // Navigate to the space root (not the room)
-    await page.goto(routes.space(spaceId!));
+    await page.goto(routes.space());
 
     // Should be redirected to the last room
     await page.waitForURL(roomUrl);
@@ -275,12 +287,12 @@ test.describe('Last Room Navigation', () => {
     const space2Id = space2RoomUrl.match(/\/chat\/-\/([a-zA-Z0-9]+)\//)?.[1];
 
     // Navigate to space 1 root - should redirect to room-one
-    await page.goto(routes.space(space1Id!));
+    await page.goto(routes.space());
     await page.waitForURL(space1RoomUrl);
     await chatPage.expectRoomHeaderVisible(room1);
 
     // Navigate to space 2 root - should redirect to room-two
-    await page.goto(routes.space(space2Id!));
+    await page.goto(routes.space());
     await page.waitForURL(space2RoomUrl);
     await chatPage.expectRoomHeaderVisible(room2);
   });

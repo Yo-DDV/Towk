@@ -21,7 +21,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       await chatPage.createSpace();
       await chatPage.enterRoom('general');
 
-      const spaceId = chatPage.getSpaceId();
+      const spaceId = await chatPage.getSpaceId();
 
       // User A posts root message
       const rootMessage = `Root message for cross-room test ${Date.now()}`;
@@ -92,7 +92,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       await chatPage.createSpace();
       await chatPage.enterRoom('general');
 
-      const spaceId = chatPage.getSpaceId();
+      const spaceId = await chatPage.getSpaceId();
 
       const rootMessage = `Cross-room realtime test ${Date.now()}`;
       const message1 = await roomPage.sendMessage(rootMessage);
@@ -150,7 +150,11 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
     });
   });
 
-  test.describe('Messages when switching between spaces', () => {
+  // FIXME: tests cross-space switching, which doesn't apply in a
+  // single-server world (#330 phase 2). The second-space flow also breaks
+  // because the URL collapse can't represent a non-primary space. Re-enable
+  // / rewrite in the next PR cycle once createSpace is removed.
+  test.describe.skip('Messages when switching between spaces', () => {
     test('messages appear correctly after switching from another space', async ({
       page,
       chatPage,
@@ -164,7 +168,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       const _space1Name = await chatPage.createSpace(`Space1-${Date.now()}`);
       await chatPage.enterRoom('general');
 
-      const space1Id = chatPage.getSpaceId();
+      const space1Id = await chatPage.getSpaceId();
 
       const space1Message = `Message in Space 1 ${Date.now()}`;
       await roomPage.sendMessage(space1Message);
@@ -174,7 +178,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       const _space2Name = await chatPage.createSpace(`Space2-${Date.now()}`);
       await chatPage.enterRoom('general');
 
-      const _space2Id = chatPage.getSpaceId();
+      const _space2Id = await chatPage.getSpaceId();
 
       // User B joins Space 1 and posts a message while User A is in Space 2
       const context2 = await browser!.newContext({ baseURL: serverURL });
@@ -198,8 +202,8 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
         await roomPage2.expectMessageVisible(userBMessage);
 
         // User A switches back to Space 1
-        await page.goto(routes.space(space1Id));
-        await page.waitForURL(new RegExp(routes.space(space1Id)));
+        await page.goto(routes.space());
+        await page.waitForURL(new RegExp(routes.space()));
         await chatPage.enterRoom('general');
         await waitForRoomReady(page, 'general');
 
@@ -224,7 +228,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       const _space1Name = await chatPage.createSpace(`ThreadSpace1-${Date.now()}`);
       await chatPage.enterRoom('general');
 
-      const space1Id = chatPage.getSpaceId();
+      const space1Id = await chatPage.getSpaceId();
 
       // User A posts root message and opens thread
       const rootMessage = `Thread root in Space 1 ${Date.now()}`;
@@ -243,7 +247,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       await chatPage.createSpace(`Space2-${Date.now()}`);
       await chatPage.enterRoom('general');
 
-      const _space2Id = chatPage.getSpaceId();
+      const _space2Id = await chatPage.getSpaceId();
 
       // User B joins Space 1 and posts a thread reply
       const context2 = await browser!.newContext({ baseURL: serverURL });
@@ -272,8 +276,8 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
         await roomPage2.expectTextInThreadPane(userBReply);
 
         // User A switches back to Space 1
-        await page.goto(routes.space(space1Id));
-        await page.waitForURL(new RegExp(routes.space(space1Id)));
+        await page.goto(routes.space());
+        await page.waitForURL(new RegExp(routes.space()));
         await chatPage.enterRoom('general');
         await waitForRoomReady(page, 'general');
 
@@ -308,7 +312,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       const space1Message = `Space 1 unique message ${Date.now()}`;
       await roomPage.sendMessage(space1Message);
 
-      const space1Id = chatPage.getSpaceId();
+      const space1Id = await chatPage.getSpaceId();
 
       // User creates Space 2
       await chatPage.goto();
@@ -323,8 +327,8 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       await roomPage.expectMessageNotVisible(space1Message);
 
       // Switch back to Space 1
-      await page.goto(routes.space(space1Id));
-      await page.waitForURL(new RegExp(routes.space(space1Id)));
+      await page.goto(routes.space());
+      await page.waitForURL(new RegExp(routes.space()));
       await chatPage.enterRoom('general');
       await waitForRoomReady(page, 'general');
 
@@ -348,7 +352,7 @@ test.describe('Message Cache - Cross-Room and Cross-Space Scenarios', () => {
       await chatPage.createSpace();
       await chatPage.enterRoom('general');
 
-      const spaceId = chatPage.getSpaceId();
+      const spaceId = await chatPage.getSpaceId();
 
       const rootMessage = `Multiple replies test ${Date.now()}`;
       await roomPage.sendMessage(rootMessage);
