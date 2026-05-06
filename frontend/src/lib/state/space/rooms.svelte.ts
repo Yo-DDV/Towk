@@ -1,15 +1,23 @@
 import { createContext, untrack } from 'svelte';
 import type { Client } from '@urql/svelte';
-import { graphql } from '$lib/gql';
-import type { RoomEventViewFragment } from '$lib/gql/graphql';
+import { graphql, useFragment } from '$lib/gql';
+import {
+  RoomType,
+  type RoomEventViewFragment,
+  UserAvatarUserFragmentDoc,
+  type UserAvatarUserFragment
+} from '$lib/gql/graphql';
 import type { NotificationLevelStore } from '$lib/state/instance/notificationLevel.svelte';
 import type { RoomUnreadStore } from '$lib/state/instance/roomUnread.svelte';
 
 export type SpaceRoom = {
   id: string;
   name: string;
+  type: RoomType;
   hasUnread: boolean;
   hasMention: boolean;
+  // Populated for DM rooms only — used to derive the display name in the sidebar.
+  members: UserAvatarUserFragment[];
 };
 
 export type SpaceLayoutSection = {
@@ -21,15 +29,20 @@ export type SpaceLayoutSection = {
 const SpaceRoomsQuery = graphql(`
   query GetMyRoomsInSpace($spaceId: ID!) {
     me {
+      id
       rooms(spaceId: $spaceId) {
         id
         name
+        type
         hasUnread
         hasMention
         archived
         viewerNotificationPreference {
           level
           effectiveLevel
+        }
+        members {
+          ...UserAvatarUser
         }
       }
     }
@@ -101,8 +114,10 @@ export class SpaceRoomsStore {
       this.rooms = visible.map((r) => ({
         id: r.id,
         name: r.name,
+        type: r.type,
         hasUnread: r.hasUnread,
-        hasMention: r.hasMention
+        hasMention: r.hasMention,
+        members: r.members.map((m) => useFragment(UserAvatarUserFragmentDoc, m))
       }));
       this.roomUnread.initSpaceRooms(this.spaceId, visible);
     }
@@ -142,6 +157,21 @@ export class SpaceRoomsStore {
     this.patchRoom(roomId, { hasMention: false });
   }
 
+  /**
+   * Move a room to the front of the rooms array. RoomList renders DMs in
+   * their store-array order, so this is what makes a freshly-active DM jump
+   * to the top of the Direct Messages section. Channels render alphabetically
+   * regardless of array order, so a bump is a no-op for them visually.
+   */
+  bumpRoom(roomId: string): void {
+    untrack(() => {
+      const idx = this.rooms.findIndex((r) => r.id === roomId);
+      if (idx <= 0) return;
+      const room = this.rooms[idx];
+      this.rooms = [room, ...this.rooms.slice(0, idx), ...this.rooms.slice(idx + 1)];
+    });
+  }
+
   private patchRoom(roomId: string, patch: Partial<SpaceRoom>): void {
     // Wrapped in untrack so callers can invoke from within a $effect without
     // creating a read+write loop on `rooms` (e.g. `$effect(() =>
@@ -160,7 +190,10 @@ export class SpaceRoomsStore {
 
   /**
    * Refresh the room list when membership or room metadata changes. Other
-   * event types (messages, reactions, presence) are no-ops at this level.
+   * event types (messages, reactions, presence) are no-ops at this level
+   * unless the message arrives for a room we don't yet know about — that's
+   * how a freshly-created empty DM (filtered from ListDMConversations until
+   * its first message lands) shows up in the sidebar without a manual reload.
    */
   ingestSpaceEvent(spaceEvent: RoomEventViewFragment): void {
     const event = spaceEvent.event;
@@ -173,6 +206,13 @@ export class SpaceRoomsStore {
       event.__typename === 'RoomUnarchivedEvent'
     ) {
       void this.refresh();
+      return;
+    }
+    if (event.__typename === 'MessagePostedEvent') {
+      const roomId = event.roomId;
+      if (roomId && !this.rooms.some((r) => r.id === roomId)) {
+        void this.refresh();
+      }
     }
   }
 }

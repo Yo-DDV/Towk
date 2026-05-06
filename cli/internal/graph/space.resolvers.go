@@ -51,6 +51,11 @@ func (r *spaceResolver) BannerURL(ctx context.Context, obj *corev1.Space, width 
 }
 
 // Rooms is the resolver for the rooms field.
+//
+// When called on the primary space (issue #330 / ADR-027 phase 3), the result
+// also includes the caller's DM rooms — they're modelled as rooms on the
+// Server for the API and frontend, while their underlying storage stays in the
+// hidden DM space (ADR-015) until phase 4 retires that split.
 func (r *spaceResolver) Rooms(ctx context.Context, obj *corev1.Space) ([]*corev1.Room, error) {
 	user, err := requireAuth(ctx)
 	if err != nil {
@@ -89,7 +94,11 @@ func (r *spaceResolver) Rooms(ctx context.Context, obj *corev1.Space) ([]*corev1
 		return nil, core.ErrPermissionDenied
 	}
 
-	return r.core.ListRoomsBySpace(ctx, obj.Id)
+	rooms, err := r.core.ListRoomsBySpace(ctx, obj.Id)
+	if err != nil {
+		return nil, err
+	}
+	return r.appendDMRoomsForPrimary(ctx, obj.Id, user.Id, rooms)
 }
 
 // RoomLayout is the resolver for the roomLayout field.

@@ -1,611 +1,410 @@
 import { expect } from '@playwright/test';
 import { test } from './setup';
-import { ChatPage } from './pages';
 import {
   createAndLoginTestUser,
   loginAsAdmin,
   denyUserInstancePermission,
-  clearUserInstancePermissionOverride,
-  type TestUser
+  clearUserInstancePermissionOverride
 } from './fixtures/testUser';
+import { DMPage } from './pages/DMPage';
+import { RoomPage } from './pages/RoomPage';
+import { postMessageViaAPI } from './fixtures/graphqlHelpers';
+import { DM_SPACE_ID } from '../src/lib/constants';
 import * as routes from './routes';
 import { TIMEOUTS } from './constants';
 
 /**
- * Helper to create a second user via the GraphQL API (without logging in).
+ * Direct Messages — post-#330 phase 3 shape. DMs are rooms on the Server,
+ * appear in the primary-space sidebar alongside channels, and use the same
+ * `/chat/{instanceSegment}/{roomId}` URL shape. The dedicated /chat/dm
+ * inbox is gone for the time being.
+ *
+ * These tests pin the regressions we just fixed (silent post + reload-redirect)
+ * and the basic sidebar integration so future work doesn't quietly undo them.
  */
-async function createSecondUser(page: import('@playwright/test').Page): Promise<TestUser> {
-  const timestamp = Date.now();
-  const user: TestUser = {
-    email: `dmuser${timestamp}@example.com`,
-    login: `dmuser${timestamp}`,
-    displayName: `DM User ${timestamp}`,
-    password: 'testpassword123'
-  };
 
-  const createUserResponse = await page.request.post('/auth/test/create-user', {
-    headers: { 'Content-Type': 'application/json' },
-    data: {
-      login: user.login,
-      displayName: user.displayName,
-      password: user.password
+test.describe('Direct Messages (room-shaped)', () => {
+  test('post a DM message, reload, and stay on the conversation', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    // Two users on the same server.
+    const userA = await createAndLoginTestUser(page);
+
+    const context2 = await browser.newContext({ baseURL: serverURL });
+    const page2 = await context2.newPage();
+    try {
+      await createAndLoginTestUser(page2);
+
+      // User B starts a DM with User A and seeds a message so the DM is in
+      // User A's merged sidebar (ListDMConversations filters empty rooms).
+      // The conversation ID is deterministic across the two users — pull it
+      // from B's URL once the room loads.
+      const dmPageB = new DMPage(page2);
+      const roomB = await dmPageB.startConversation(userA.login);
+      await roomB.sendMessage('seed from B');
+      const conversationId = page2.url().split('/').pop()!;
+
+      // User A navigates to the DM via the channel-shaped URL.
+      await page.goto(routes.room(conversationId));
+      await page.waitForURL(routes.patterns.anyRoom);
+
+      // Bug #1 (the silent post): the SpaceEventProvider must subscribe to
+      // DM-space events too, so MessagePostedEvent reaches RoomEventsPane
+      // and the new message renders without a reload.
+      const roomA = new RoomPage(page);
+      const postedBody = `dm round-trip ${Date.now()}`;
+      await roomA.sendMessage(postedBody);
+      await expect(page.getByText(postedBody)).toBeVisible({
+        timeout: TIMEOUTS.REALTIME_EVENT
+      });
+
+      // Bug #2 (the reload-redirect): on reload the rooms store is briefly
+      // unloaded — the layout must wait for it before resolving spaceId,
+      // otherwise Room.svelte's not-found redirect bounces the user out.
+      await page.reload();
+      await page.waitForURL(routes.patterns.anyRoom);
+      await expect(page.getByText(postedBody)).toBeVisible({
+        timeout: TIMEOUTS.REALTIME_EVENT
+      });
+    } finally {
+      await context2.close();
     }
   });
-  expect(createUserResponse.ok()).toBeTruthy();
 
-  return user;
-}
-
-test.describe('Direct Messages', () => {
-  test('can start DM with another user', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-
-    // Should navigate to the conversation and show the other user's name
-    await dmPage.expectConversationHeader(user2.displayName);
-    await expect(roomPage.messageInput).toBeVisible();
-  });
-
-  test('can send message in DM conversation', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-
-    const testMessage = `Hello from DM test! ${Date.now()}`;
-    await roomPage.sendMessage(testMessage);
-  });
-
-  test('DM conversation appears in list after sending a message', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-
-    // Start DM and send a message (empty DMs are hidden from the list)
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-    await roomPage.sendMessage(`Hello! ${Date.now()}`);
-
-    // Go back to DM list
-    await dmPage.goto();
-
-    // Should see the conversation in the list
-    await dmPage.expectConversationVisible(user2.displayName);
-  });
-
-  test('new DM conversation appears in sidebar immediately after first message', async ({
+  test('a DM with messages renders in the primary-space sidebar and links to /chat/{seg}/{id}', async ({
     page,
-    dmPage
+    browser,
+    serverURL
   }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
+    const userA = await createAndLoginTestUser(page);
 
-    // Start DM - navigates to /chat/dm/-/{conversationId}
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-
-    // The sidebar should NOT show the conversation yet (empty DMs are filtered)
-    await dmPage.expectConversationNotVisible(user2.displayName);
-
-    // Send the first message
-    await roomPage.sendMessage(`First DM message ${Date.now()}`);
-
-    // The conversation should appear in the sidebar WITHOUT navigating away.
-    // The MessagePostedEvent triggers a refetch that picks up the now-non-empty DM.
-    await expect(async () => {
-      await dmPage.expectConversationVisible(user2.displayName);
-    }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [100, 250, 500, 1000] });
-  });
-
-  test('can add reaction to DM message', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-
-    const testMessage = `DM reaction test ${Date.now()}`;
-    const message = await roomPage.sendMessage(testMessage);
-
-    await message.react('👍');
-    await message.expectReaction('👍', 1);
-  });
-
-  test('can reply to a DM message', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-
-    // Send a message to reply to
-    const originalMessage = `Original DM ${Date.now()}`;
-    const message = await roomPage.sendMessage(originalMessage);
-
-    // Reply to it via context menu
-    await message.replyInRoom();
-
-    // The composer should show reply indicator
-    await expect(page.getByText('Replying to')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-
-    // Send the reply
-    const replyText = `Reply to DM ${Date.now()}`;
-    await roomPage.sendMessage(replyText);
-
-    // Verify reply attribution is visible on the reply message
-    await expect(
-      page.locator('[role="article"]', { hasText: replyText }).getByTestId('reply-attribution')
-    ).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-  });
-
-  test('can delete attachment from DM message', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user2.login);
-
-    // Upload an image attachment
-    const fileChooserPromise = page.waitForEvent('filechooser');
-    await page.getByTitle('Attach file').click();
-    const fileChooser = await fileChooserPromise;
-
-    // Create a 100x100 red PNG (must be large enough for the thumbnail to be visible)
-    const pngData = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAIAAAD/gAIDAAABFUlEQVR4nO3OUQkAIABEsetfWiv4Nx4IC7Cd7XvkByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIX4Q4gchfhDiByF+EOIHIReeLesrH9s1agAAAABJRU5ErkJggg==',
-      'base64'
-    );
-    await fileChooser.setFiles({
-      name: 'test-image.png',
-      mimeType: 'image/png',
-      buffer: pngData
-    });
-
-    // Wait for attachment preview
-    const attachmentPreview = page.locator('img[alt="test-image.png"]').first();
-    await expect(attachmentPreview).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-
-    // Add message text and send
-    const testMessage = `DM attachment test ${Date.now()}`;
-    await roomPage.messageInput.fill(testMessage);
-    await roomPage.messageInput.press('Enter');
-
-    // Wait for message to appear
-    await roomPage.expectMessageVisible(testMessage);
-
-    // Get the message and verify attachment
-    const message = roomPage.getMessage(testMessage);
-    await message.expectAttachment();
-
-    // Delete the attachment
-    await message.deleteAttachment();
-
-    // Verify the attachment is gone
-    await message.expectNoAttachment();
-  });
-});
-
-test.describe('Self-DM', () => {
-  test('can start a DM conversation with yourself', async ({ page, dmPage }) => {
-    const user = await createAndLoginTestUser(page);
-    await dmPage.goto();
-
-    const roomPage = await dmPage.startConversation(user.login);
-
-    // Self-DM header shows user's own display name
-    await dmPage.expectConversationHeader(user.displayName);
-    await expect(roomPage.messageInput).toBeVisible();
-  });
-
-  test('self-DM appears in conversation list after sending a message', async ({ page, dmPage }) => {
-    const user = await createAndLoginTestUser(page);
-
-    // Create self-DM and send a message (empty DMs are hidden from the list)
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user.login);
-    await roomPage.sendMessage(`Note to self ${Date.now()}`);
-
-    // Go back to DM list
-    await dmPage.goto();
-
-    // Self-DM shows user's own display name
-    await dmPage.expectConversationVisible(user.displayName);
-  });
-
-  test('can send message in self-DM', async ({ page, dmPage }) => {
-    const user = await createAndLoginTestUser(page);
-
-    await dmPage.goto();
-    const roomPage = await dmPage.startConversation(user.login);
-
-    const testMessage = `Note to self: ${Date.now()}`;
-    await roomPage.sendMessage(testMessage);
-
-    await roomPage.expectMessageVisible(testMessage);
-  });
-
-  test('starting self-DM twice returns the same conversation', async ({ page, dmPage }) => {
-    const user = await createAndLoginTestUser(page);
-
-    // Create self-DM first time
-    await dmPage.startConversation(user.login);
-    const firstUrl = page.url();
-
-    // Start again via API — should return the same room
-    await dmPage.startConversation(user.login);
-    const secondUrl = page.url();
-
-    expect(secondUrl).toBe(firstUrl);
-  });
-});
-
-test.describe('DM Permissions', () => {
-  test('user with denied dm.view cannot see DM icon in sidebar', async ({ page, browser }) => {
-    // Login as admin user to make permission changes
-    await loginAsAdmin(page);
-
-    // Create regular user in separate browser context
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularChatPage = new ChatPage(regularPage);
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // Navigate to chat - should see DM icon by default (everyone has dm.view)
-    await regularChatPage.goto();
-    await expect(regularPage.locator('[title="Direct Messages"]')).toBeVisible();
-
-    // Deny dm.view for the regular user (using admin context)
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'dm.view');
-
-    // Reload and verify DM icon is hidden
-    await regularPage.reload();
-    await expect(regularPage.locator('[title="Direct Messages"]')).not.toBeVisible();
-
-    // Clean up
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'dm.view', denyRoleName);
-    await regularContext.close();
-  });
-
-  test('user with denied dm.view sees access denied on /chat/dm', async ({ page, browser }) => {
-    // Login as admin user to make permission changes
-    await loginAsAdmin(page);
-
-    // Create regular user in separate browser context
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // Deny dm.view for the regular user
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'dm.view');
-
-    // Navigate directly to /chat/dm
-    await regularPage.goto(routes.dm);
-
-    // Should see access denied message
-    await expect(regularPage.getByText('Access Denied', { exact: true })).toBeVisible();
-    await expect(
-      regularPage.getByText('You do not have permission to access Direct Messages.')
-    ).toBeVisible();
-
-    // Clean up
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'dm.view', denyRoleName);
-    await regularContext.close();
-  });
-
-  test('user with dm.view but denied dm.write can view DMs but not start new ones', async ({
-    page,
-    browser
-  }) => {
-    // Login as admin user to make permission changes
-    const adminUser = await loginAsAdmin(page);
-
-    // Create regular user in separate browser context
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const { DMPage } = await import('./pages');
-    const regularDmPage = new DMPage(regularPage);
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // Admin starts a DM with the regular user and sends a message
-    // (empty DMs are hidden from the list, so a message is needed for visibility)
-    const { DMPage: AdminDMPage } = await import('./pages');
-    const adminDmPage = new AdminDMPage(page);
-    await adminDmPage.goto();
-    const adminRoomPage = await adminDmPage.startConversation(regularUser.login);
-    await adminRoomPage.sendMessage(`Hello from admin ${Date.now()}`);
-
-    // Now deny dm.write for the regular user
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'dm.write');
-
-    // Regular user navigates to DM page
-    await regularDmPage.goto();
-
-    // Should be able to view the DM list (has dm.view)
-    await expect(regularPage.getByText('Access Denied')).not.toBeVisible();
-
-    // Should see the existing conversation from admin
-    await regularDmPage.expectConversationVisible(adminUser.displayName);
-
-    // Clean up
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'dm.write', denyRoleName);
-    await regularContext.close();
-  });
-
-  test('user can access DMs by default', async ({ page, dmPage }) => {
-    // Create a user (all users have dm.view and dm.write via everyone role)
-    await createAndLoginTestUser(page);
-
-    // Navigate to DM page
-    await dmPage.goto();
-
-    // Should NOT see access denied
-    await expect(page.getByText('Access Denied')).not.toBeVisible();
-
-    // Should see the DM interface (either empty state or conversation list)
-    await expect(page.getByRole('heading', { name: 'Direct Messages' })).toBeVisible();
-  });
-});
-
-test.describe('DM List Sorting', () => {
-  // These tests create multiple conversations and send messages, which takes time
-  test.setTimeout(30000);
-
-  test('sending a message bumps conversation to top of list', async ({ page, dmPage }) => {
-    await createAndLoginTestUser(page);
-    const user2 = await createSecondUser(page);
-    const user3 = await createSecondUser(page);
-
-    // Create conversations and send messages to establish order
-    // (DM list is sorted by last message time, not creation time)
-    await dmPage.goto();
-    let roomPage = await dmPage.startConversation(user2.login);
-    await roomPage.sendMessage(`First message to user2 - ${Date.now()}`);
-
-    await dmPage.goto();
-    await dmPage.expectConversationVisible(user2.displayName);
-
-    roomPage = await dmPage.startConversation(user3.login);
-    await roomPage.sendMessage(`First message to user3 - ${Date.now()}`);
-
-    await dmPage.goto();
-    await dmPage.expectConversationVisible(user2.displayName);
-    await dmPage.expectConversationVisible(user3.displayName);
-
-    // User3 should be at top (most recent message)
-    await dmPage.expectConversationAtTop(user3.displayName);
-
-    // Send a message to user2's conversation (not at top)
-    roomPage = await dmPage.openConversation(user2.displayName);
-    // Verify we're in the right conversation (header shows the user's name)
-    await dmPage.expectConversationHeader(user2.displayName);
-    await roomPage.sendMessage(`Second message to user2 - ${Date.now()}`);
-
-    // Go back to DM list
-    await dmPage.goto();
-
-    // User2's conversation should now be at the top
-    await dmPage.expectConversationAtTop(user2.displayName);
-  });
-});
-
-test.describe('DM from Member List', () => {
-  // Use larger viewport so member list is visible (lg breakpoint is 1024px)
-  test.use({ viewport: { width: 1280, height: 720 } });
-
-  test('can start DM by clicking member in room member list', async ({ page, chatPage }) => {
-    const { RoomPage } = await import('./pages');
-
-    // Create a user and create a space/room
-    const user = await createAndLoginTestUser(page);
-
-    await chatPage.goto();
-    await chatPage.createSpace('Test Space');
-    await chatPage.createRoom('test-room');
-
-    // Create a RoomPage to interact with the room
-    const roomPage = new RoomPage(page);
-
-    // Wait for member list to show our name
-    await roomPage.expectMemberVisible(user.displayName, { timeout: TIMEOUTS.REALTIME_EVENT });
-
-    // Click on ourselves in the member list (opens profile popover)
-    const memberButton = page.locator('aside[aria-label="Room members"] button', {
-      hasText: user.displayName
-    });
-    await memberButton.click();
-
-    // Profile popover should appear with "Send Message" button
-    const sendMessageButton = page.getByRole('button', { name: 'Send Message', exact: true });
-    await expect(sendMessageButton).toBeVisible();
-
-    // Click "Send Message" to start the DM
-    await sendMessageButton.click();
-
-    // Should navigate to DM conversation
-    await page.waitForURL(routes.patterns.anyDmConversation);
-
-    // Should show user's own display name in the conversation header (self-DM)
-    await expect(page.getByRole('heading', { name: user.displayName })).toBeVisible();
-  });
-
-  test('can start DM by clicking author name in a message', async ({ page, chatPage }) => {
-    const { RoomPage } = await import('./pages');
-
-    // Create a user and a space/room
-    const user = await createAndLoginTestUser(page);
-
-    await chatPage.goto();
-    await chatPage.createSpace('Test Space');
-    await chatPage.createRoom('test-room');
-
-    const roomPage = new RoomPage(page);
-    const testMessage = `Clickable name test ${Date.now()}`;
-    await roomPage.sendMessage(testMessage);
-
-    // Click the author's display name in the message
-    const messageAuthor = page
-      .locator('[role="article"]', { hasText: testMessage })
-      .getByRole('button', { name: user.displayName });
-    await messageAuthor.click();
-
-    // Profile popover should appear with "Send Message" button
-    const popover = page.getByRole('dialog', { name: 'User profile' });
-    await expect(popover).toBeVisible();
-    const sendMessageButton = popover.getByRole('button', { name: 'Send Message' });
-    await expect(sendMessageButton).toBeVisible();
-
-    // Click "Send Message" to start the DM
-    await sendMessageButton.click();
-
-    // Should navigate to DM conversation
-    await page.waitForURL(routes.patterns.anyDmConversation);
-    await expect(page.getByRole('heading', { name: user.displayName })).toBeVisible();
-  });
-
-  test('can open profile popover by clicking @mention in a message', async ({ page, chatPage }) => {
-    const { RoomPage } = await import('./pages');
-
-    // Create a user and a space/room
-    const user = await createAndLoginTestUser(page);
-
-    await chatPage.goto();
-    await chatPage.createSpace('Test Space');
-    await chatPage.createRoom('test-room');
-
-    const roomPage = new RoomPage(page);
-
-    // Send a message that mentions ourselves
-    const testMessage = `Hey @${user.login} check this out`;
-    await roomPage.sendMessage(testMessage);
-
-    // Click the @mention in the message body
-    const mention = page.locator('.mention', { hasText: `@${user.login}` }).first();
-    await expect(mention).toBeVisible();
-    await mention.click();
-
-    // Profile popover should appear
-    const popover = page.getByRole('dialog', { name: 'User profile' });
-    await expect(popover).toBeVisible();
-    await expect(popover.getByText(`@${user.login}`)).toBeVisible();
-
-    // Should show "Send Message" button
-    await expect(popover.getByRole('button', { name: 'Send Message' })).toBeVisible();
-  });
-
-  test('popover closes when clicking outside', async ({ page, chatPage }) => {
-    const { RoomPage } = await import('./pages');
-
-    const user = await createAndLoginTestUser(page);
-
-    await chatPage.goto();
-    await chatPage.createSpace('Test Space');
-    await chatPage.createRoom('test-room');
-
-    const roomPage = new RoomPage(page);
-    const testMessage = `Click outside test ${Date.now()}`;
-    await roomPage.sendMessage(testMessage);
-
-    // Open the popover by clicking the author name
-    const messageAuthor = page
-      .locator('[role="article"]', { hasText: testMessage })
-      .getByRole('button', { name: user.displayName });
-    await messageAuthor.click();
-
-    const popover = page.getByRole('dialog', { name: 'User profile' });
-    await expect(popover).toBeVisible();
-
-    // Click outside the popover (on the message area)
-    await page
-      .locator('[role="article"]', { hasText: testMessage })
-      .click({ position: { x: 5, y: 5 } });
-
-    // Popover should close
-    await expect(popover).not.toBeVisible();
-  });
-
-  test('popover closes when pressing Escape', async ({ page, chatPage }) => {
-    const { RoomPage } = await import('./pages');
-
-    const user = await createAndLoginTestUser(page);
-
-    await chatPage.goto();
-    await chatPage.createSpace('Test Space');
-    await chatPage.createRoom('test-room');
-
-    const roomPage = new RoomPage(page);
-    const testMessage = `Escape test ${Date.now()}`;
-    await roomPage.sendMessage(testMessage);
-
-    // Open the popover by clicking the author name
-    const messageAuthor = page
-      .locator('[role="article"]', { hasText: testMessage })
-      .getByRole('button', { name: user.displayName });
-    await messageAuthor.click();
-
-    const popover = page.getByRole('dialog', { name: 'User profile' });
-    await expect(popover).toBeVisible();
-
-    // Press Escape
-    await page.keyboard.press('Escape');
-
-    // Popover should close
-    await expect(popover).not.toBeVisible();
-  });
-
-  test('popover hides Send Message when dm.write is denied', async ({
-    page,
-    browser
-  }) => {
-    // Login as admin to manage permissions
-    const adminPage = page;
-    await loginAsAdmin(adminPage);
-
-    // Create regular user in separate browser context
-    const regularContext = await browser!.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularChatPage = new ChatPage(regularPage);
-    const regularUser = await createAndLoginTestUser(regularPage);
-
+    const context2 = await browser.newContext({ baseURL: serverURL });
+    const page2 = await context2.newPage();
     try {
-      // Deny dm.write for the regular user
-      const denyRoleName = await denyUserInstancePermission(adminPage, regularUser.id!, 'dm.write');
+      const userB = await createAndLoginTestUser(page2);
 
-      // Regular user creates a space and room
-      await regularChatPage.goto();
-      await regularChatPage.createSpace('Popover Perm Test');
-      await regularChatPage.createRoom('test-room');
+      // User B → User A: start DM and post so the DM survives the
+      // ListDMConversations empty-room filter.
+      const dmPageB = new DMPage(page2);
+      const roomB = await dmPageB.startConversation(userA.login);
+      await roomB.sendMessage('seed');
 
-      const { RoomPage } = await import('./pages');
-      const roomPage = new RoomPage(regularPage);
-      const testMessage = `DM perm test ${Date.now()}`;
-      await roomPage.sendMessage(testMessage);
+      // User A: land on chat root and look at the merged sidebar.
+      await page.goto(routes.chat);
+      await page.waitForURL(routes.chat);
 
-      // Reload to pick up permission changes
-      await regularPage.reload();
-      await roomPage.expectMessageVisible(testMessage, { timeout: TIMEOUTS.REALTIME_EVENT });
+      // The "Direct Messages" group header should be present, and User B's
+      // displayName should be a sidebar item underneath it.
+      await expect(
+        page.getByRole('button', { name: /direct messages/i })
+      ).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
-      // Click the author name to open popover
-      const messageAuthor = regularPage
-        .locator('[role="article"]', { hasText: testMessage })
-        .getByRole('button', { name: regularUser.displayName });
-      await messageAuthor.click();
+      const dmLink = page
+        .locator('nav a.sidebar-item')
+        .filter({ has: page.getByText(userB.displayName, { exact: true }) });
+      await expect(dmLink).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
-      // Popover should appear but WITHOUT "Send Message" button
-      const popover = regularPage.getByRole('dialog', { name: 'User profile' });
-      await expect(popover).toBeVisible();
-      await expect(popover.getByText(`@${regularUser.login}`)).toBeVisible();
-      await expect(popover.getByRole('button', { name: 'Send Message' })).not.toBeVisible();
+      // Click it: the URL must be the channel-shaped /chat/-/{roomId}, not
+      // the legacy /chat/dm/... path.
+      await dmLink.click();
+      await page.waitForURL(routes.patterns.anyRoom);
+      expect(page.url()).not.toContain('/chat/dm/');
+    } finally {
+      await context2.close();
+    }
+  });
 
-      // Clean up permission
-      await clearUserInstancePermissionOverride(
-        adminPage,
-        regularUser.id!,
-        'dm.write',
-        denyRoleName
-      );
+  test('an incoming DM bumps the conversation to the top and shows an unread dot', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    const userA = await createAndLoginTestUser(page);
+
+    const ctxB = await browser.newContext({ baseURL: serverURL });
+    const ctxC = await browser.newContext({ baseURL: serverURL });
+    const pageB = await ctxB.newPage();
+    const pageC = await ctxC.newPage();
+    try {
+      const userB = await createAndLoginTestUser(pageB);
+      const userC = await createAndLoginTestUser(pageC);
+
+      // Seed two existing DMs from User A's side, B last so it sorts above C
+      // by last-activity (newest first). User A then leaves the chat root open
+      // — *not* in either DM — so subsequent activity must bump via subscription.
+      const dmA = new DMPage(page);
+      const aToC = await dmA.startConversation(userC.login);
+      await aToC.sendMessage('seed C');
+      const aToB = await dmA.startConversation(userB.login);
+      await aToB.sendMessage('seed B');
+
+      await page.goto(routes.chat);
+      await page.waitForURL(routes.chat);
+      await expect(
+        page.getByRole('button', { name: /direct messages/i })
+      ).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
+
+      // Snapshot the order before C posts. dmRows() returns the visible DM
+      // sidebar items; the order reflects the rooms-store array order.
+      const dmRows = () =>
+        page.locator('nav a.sidebar-item').filter({
+          has: page.getByText(new RegExp(`^(${userB.displayName}|${userC.displayName})$`))
+        });
+      const initial = await dmRows().allTextContents();
+      expect(initial[0]).toContain(userB.displayName);
+
+      // User C posts into their existing DM with A. A's sidebar should bump
+      // C's row to the top and mark it unread — both arrive over the
+      // mySpaceEvents(DM) subscription that SpaceEventProvider now wires
+      // alongside the primary subscription, plus the NewMessageInSpaceEvent
+      // for cross-room unread bookkeeping.
+      const cToA = await new DMPage(pageC).startConversation(userA.login);
+      await cToA.sendMessage(`bump ${Date.now()}`);
+
+      // Bumped to top:
+      await expect
+        .poll(async () => (await dmRows().allTextContents())[0], {
+          timeout: TIMEOUTS.REALTIME_EVENT
+        })
+        .toContain(userC.displayName);
+
+      // Some indicator is present on C's row. An incoming DM creates a
+      // persistent DMMessageNotification, so the row renders the
+      // higher-priority notification dot — "new direct message" — rather
+      // than the plain unread dot. Assert on whichever applies.
+      const cRow = page
+        .locator('nav a.sidebar-item')
+        .filter({ has: page.getByText(userC.displayName, { exact: true }) });
+      await expect(
+        cRow.getByText(/new direct message|unread messages/)
+      ).toBeAttached({ timeout: TIMEOUTS.REALTIME_EVENT });
+    } finally {
+      await ctxB.close();
+      await ctxC.close();
+    }
+  });
+
+  test('posting in a not-at-the-top DM bumps it to the top without reload', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    const userA = await createAndLoginTestUser(page);
+
+    const ctxB = await browser.newContext({ baseURL: serverURL });
+    const ctxC = await browser.newContext({ baseURL: serverURL });
+    const pageB = await ctxB.newPage();
+    const pageC = await ctxC.newPage();
+    try {
+      const userB = await createAndLoginTestUser(pageB);
+      const userC = await createAndLoginTestUser(pageC);
+
+      // Seed two DMs from User A. C goes second so it ends up at the top by
+      // last-activity. We then post into B's DM (not at the top) and assert
+      // the row jumps without a reload.
+      const dmA = new DMPage(page);
+      const aToB = await dmA.startConversation(userB.login);
+      await aToB.sendMessage('seed B');
+      const aToC = await dmA.startConversation(userC.login);
+      await aToC.sendMessage('seed C');
+      // C is now most-recent.
+
+      await page.goto(routes.chat);
+      await page.waitForURL(routes.chat);
+      const dmRows = () =>
+        page.locator('nav a.sidebar-item').filter({
+          has: page.getByText(new RegExp(`^(${userB.displayName}|${userC.displayName})$`))
+        });
+      await expect
+        .poll(async () => (await dmRows().allTextContents())[0], {
+          timeout: TIMEOUTS.REALTIME_EVENT
+        })
+        .toContain(userC.displayName);
+
+      // Open the not-at-the-top DM (B) and post a message in it.
+      await dmA.openConversation(userB.displayName);
+      const bRoom = new RoomPage(page);
+      await bRoom.sendMessage(`A bumps B ${Date.now()}`);
+
+      // The DM list (still in the sidebar of the same chrome) should re-sort
+      // with B at the top. No reload — relies on the NewMessageInSpaceEvent
+      // delivered to the viewer for their own message.
+      await expect
+        .poll(async () => (await dmRows().allTextContents())[0], {
+          timeout: TIMEOUTS.REALTIME_EVENT
+        })
+        .toContain(userB.displayName);
+    } finally {
+      await ctxB.close();
+      await ctxC.close();
+    }
+  });
+
+  test('server icon picks up DM activity and clicking it opens the DM', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    const userA = await createAndLoginTestUser(page);
+
+    const ctxB = await browser.newContext({ baseURL: serverURL });
+    const pageB = await ctxB.newPage();
+    try {
+      await createAndLoginTestUser(pageB);
+
+      // User A on chat root with no DMs yet — server icon has no indicator.
+      await page.goto(routes.chat);
+      await page.waitForURL(routes.chat);
+      // Scope to the space-list rail so we don't collide with notification
+      // buttons rendered inside the secondary RoomList sidebar.
+      const serverIconWrapper = page
+        .locator('.space-list div.relative')
+        .filter({ has: page.getByTestId('space-icon') });
+      await expect(serverIconWrapper).toBeVisible();
+      await expect(serverIconWrapper.getByRole('button')).toHaveCount(0);
+
+      // User B starts a DM with User A and posts. The persistent
+      // DMMessageNotification surfaces as a server-icon indicator on A's
+      // sidebar, even though A is on the chat root and not in the DM.
+      const dmB = new DMPage(pageB);
+      const roomB = await dmB.startConversation(userA.login);
+      await roomB.sendMessage(`server-icon DM ${Date.now()}`);
+
+      const indicator = serverIconWrapper.getByRole('button');
+      await expect(indicator).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
+
+      // Clicking takes A straight to the DM conversation, not just to the
+      // chat root — same affordance channel rooms get.
+      await indicator.click();
+      await page.waitForURL(routes.patterns.anyRoom);
+      // The DM has a deterministic ID; we don't recompute it here, but the
+      // post-click URL must be a /chat/-/{id} room URL.
+      expect(page.url()).not.toMatch(/\/chat\/-\/?$/);
+    } finally {
+      await ctxB.close();
+    }
+  });
+
+  test('collapsed Direct Messages section reveals freshly-unread DMs', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    const userA = await createAndLoginTestUser(page);
+
+    const ctxB = await browser.newContext({ baseURL: serverURL });
+    const ctxC = await browser.newContext({ baseURL: serverURL });
+    const pageB = await ctxB.newPage();
+    const pageC = await ctxC.newPage();
+    try {
+      const userB = await createAndLoginTestUser(pageB);
+      const userC = await createAndLoginTestUser(pageC);
+
+      // Seed two existing DMs from User A. Both have content, so both end
+      // up in the merged sidebar.
+      const dmA = new DMPage(page);
+      const aToB = await dmA.startConversation(userB.login);
+      await aToB.sendMessage('seed B');
+      const aToC = await dmA.startConversation(userC.login);
+      await aToC.sendMessage('seed C');
+
+      await page.goto(routes.chat);
+      await page.waitForURL(routes.chat);
+
+      const groupHeader = page.getByRole('button', { name: /direct messages/i });
+      const dmRow = (displayName: string) =>
+        page.locator('nav a.sidebar-item').filter({
+          has: page.getByText(displayName, { exact: true })
+        });
+
+      // Both DMs are visible in the expanded section.
+      await expect(dmRow(userB.displayName)).toBeVisible();
+      await expect(dmRow(userC.displayName)).toBeVisible();
+
+      // Collapse the group. Both rows hide because neither is highlighted
+      // (no unread, not active, no notification). The group header stays.
+      await groupHeader.click();
+      await expect(dmRow(userB.displayName)).toBeHidden({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(dmRow(userC.displayName)).toBeHidden({ timeout: TIMEOUTS.UI_STANDARD });
+
+      // User C posts into their existing DM with A. The fresh DM-message
+      // notification flips the row's `isHighlighted` predicate, so the
+      // collapsed group reveals the C row even though it's still
+      // collapsed. The user can never miss a message because the section
+      // is collapsed.
+      const cToA = await new DMPage(pageC).startConversation(userA.login);
+      await cToA.sendMessage(`reveal-on-collapse ${Date.now()}`);
+
+      await expect(dmRow(userC.displayName)).toBeVisible({
+        timeout: TIMEOUTS.REALTIME_EVENT
+      });
+      // The other DM row stays hidden because nothing has happened in it.
+      await expect(dmRow(userB.displayName)).toBeHidden();
+    } finally {
+      await ctxB.close();
+      await ctxC.close();
+    }
+  });
+
+  test('user with denied dm.view sees no Direct Messages section', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    test.setTimeout(60_000);
+
+    // Admin context: also doubles as the DM partner so the regular user has
+    // a real DM to filter out. All admin-side setup goes through the GraphQL
+    // API to avoid the slow UI-driven path.
+    await loginAsAdmin(page);
+
+    const regularContext = await browser.newContext({ baseURL: serverURL });
+    const regularPage = await regularContext.newPage();
+    try {
+      const regularUser = await createAndLoginTestUser(regularPage);
+
+      // Admin starts a DM with the regular user (via API) and seeds it so
+      // the conversation isn't filtered by ListDMConversations.
+      const startResp = await page.request.post('/api/graphql', {
+        headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
+        data: {
+          query: `mutation($input: StartDMInput!) { startDM(input: $input) { id } }`,
+          variables: { input: { participantIds: [regularUser.id] } }
+        }
+      });
+      const dmRoomId = (await startResp.json()).data.startDM.id as string;
+      await postMessageViaAPI(page, DM_SPACE_ID, dmRoomId, 'seed');
+
+      // Deny dm.view BEFORE the regular user navigates, so their first sidebar
+      // load already reflects the deny. (Reloading after a deny works too but
+      // double-loads the page; keeping the test short.)
+      const denyRole = await denyUserInstancePermission(page, regularUser.id!, 'dm.view');
+      try {
+        await regularPage.goto(routes.chat);
+        await regularPage.waitForURL(routes.chat);
+
+        // Wait for the sidebar's room list to render so the assertion below
+        // is comparing against a settled DOM — Browse Rooms is always there
+        // for a primary-space member.
+        await expect(
+          regularPage.getByRole('link', { name: /browse rooms/i })
+        ).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+
+        // dm.view denied → backend short-circuits the DM merge in Space.rooms,
+        // the rooms store has no DMs, the sidebar header never renders.
+        await expect(
+          regularPage.getByRole('button', { name: /direct messages/i })
+        ).not.toBeVisible();
+      } finally {
+        await clearUserInstancePermissionOverride(
+          page,
+          regularUser.id!,
+          'dm.view',
+          denyRole
+        );
+      }
     } finally {
       await regularContext.close();
     }

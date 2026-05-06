@@ -5,8 +5,8 @@
   import { resolve } from '$app/paths';
   import { instanceIdToSegment } from '$lib/navigation';
   import { getActiveInstance } from '$lib/state/activeInstance.svelte';
-  import { getActiveSpace } from '$lib/state/activeSpace.svelte';
   import { useConnection } from '$lib/state/instance/connection.svelte';
+  import { useEffectiveSpaceId } from '$lib/hooks';
   import { toast } from '$lib/ui/toast';
   import SecondarySidebar from '$lib/components/SecondarySidebar.svelte';
   import SidebarNav from '$lib/components/SidebarNav.svelte';
@@ -17,10 +17,15 @@
 
   const connection = useConnection();
   const getInstanceId = getActiveInstance();
-  const getSpaceId = getActiveSpace();
   const instanceSegment = $derived(instanceIdToSegment(getInstanceId()));
-  const spaceId = $derived(getSpaceId());
   let { roomId } = $derived(data);
+
+  // The URL only carries roomId; useEffectiveSpaceId picks the right
+  // underlying space (primary for channels, hidden DM space for DMs) from
+  // the merged SpaceRoomsStore. Returns null while the store is loading —
+  // the `{#if spaceId && roomId}` template gate below holds rendering.
+  const effective = useEffectiveSpaceId(() => roomId);
+  const spaceId = $derived(effective.current);
 
   // Get threadId from URL params (only set when on the [threadId] route)
   let threadId = $derived(page.params.threadId);

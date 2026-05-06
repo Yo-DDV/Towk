@@ -6,7 +6,6 @@
 -->
 <script lang="ts" module>
   import { graphql } from '$lib/gql';
-  import { getActiveSpace } from '$lib/state/activeSpace.svelte';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import type { Client } from '@urql/svelte';
@@ -82,17 +81,24 @@
   import { useConnection } from '$lib/state/instance/connection.svelte';
   import { instanceRegistry } from '$lib/state/instance/registry.svelte';
   import { getActiveInstance } from '$lib/state/activeInstance.svelte';
+  import { useEffectiveSpaceId } from '$lib/hooks';
 
   const connection = useConnection();
   const getInstanceId = getActiveInstance();
   const stores = $derived(instanceRegistry.getStore(getInstanceId()));
 
+  // Resolve the room's actual storage space (DM rooms live in DM_SPACE_ID even
+  // though the URL only carries roomId). Returns null while the rooms store
+  // is loading — the effect below skips until it settles.
+  const effective = useEffectiveSpaceId(() => page.params.roomId);
+
   $effect(() => {
+    if (!effective.current) return;
     resolveAndRedirect(
       connection().client,
       stores.pendingHighlights,
       page.params.instanceId!,
-      getActiveSpace()(),
+      effective.current,
       page.params.roomId!,
       page.params.messageId!
     );

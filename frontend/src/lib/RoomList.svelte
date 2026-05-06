@@ -13,7 +13,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { page } from '$app/state';
   import { instanceIdToSegment } from '$lib/navigation';
   import { getActiveInstance } from '$lib/state/activeInstance.svelte';
-  import { untrack } from 'svelte';
+  import { untrack, type Snippet } from 'svelte';
   import { slide } from 'svelte/transition';
   import { instanceRegistry } from '$lib/state/instance/registry.svelte';
   import type { CallRoomParticipant } from '$lib/state/instance/activeCallRooms.svelte';
@@ -29,10 +29,12 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { instanceStorageKey } from '$lib/storage/instanceStorage';
   import { SvelteSet } from 'svelte/reactivity';
   import { useFragment } from './gql';
-  import type { PresenceStatus } from '$lib/gql/graphql';
+  import { RoomType, type PresenceStatus } from '$lib/gql/graphql';
+  import { DM_SPACE_ID } from '$lib/constants';
   import UserAvatar, { UserAvatarFragment } from '$lib/components/UserAvatar.svelte';
   import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import { notificationTarget } from '$lib/state/instance/notifications.svelte';
+  import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
   import { getSpaceRoomsStore, type SpaceRoom, type SpaceLayoutSection } from '$lib/state/space';
 
   let {
@@ -117,25 +119,31 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
 
   // --- Derived layout helpers ---
 
-  let roomMap = $derived(new Map(roomsStore.rooms.map((r) => [r.id, r])));
+  // Channels and DMs are stored together, but rendered as separate groups.
+  // Layout sections (and the alphabetical fallback) only apply to channels —
+  // DM rooms always render in their own group below.
+  let channels = $derived(roomsStore.rooms.filter((r) => r.type === RoomType.Channel));
+  let dmRooms = $derived(roomsStore.rooms.filter((r) => r.type === RoomType.Dm));
+
+  let channelMap = $derived(new Map(channels.map((r) => [r.id, r])));
 
   function getSectionRooms(section: SpaceLayoutSection): SpaceRoom[] {
-    return section.roomIds.map((id) => roomMap.get(id)).filter((r): r is SpaceRoom => r != null);
+    return section.roomIds.map((id) => channelMap.get(id)).filter((r): r is SpaceRoom => r != null);
   }
 
-  // Sections that have at least one room the viewer is a member of
+  // Sections that have at least one channel the viewer is a member of
   let visibleSections = $derived.by(() => {
     const sections = roomsStore.layoutSections;
     if (!sections) return [];
     return sections.filter((s) => getSectionRooms(s).length > 0);
   });
 
-  // Rooms not assigned to any section, respecting stored order when available
+  // Channels not assigned to any section, respecting stored order when available
   let unsectionedRooms = $derived.by(() => {
     const sections = roomsStore.layoutSections;
     if (!sections) return [];
     const sectionedIds = new Set(sections.flatMap((s) => s.roomIds));
-    const unsectioned = roomsStore.rooms.filter((r) => !sectionedIds.has(r.id));
+    const unsectioned = channels.filter((r) => !sectionedIds.has(r.id));
 
     if (roomsStore.unsectionedRoomIds.length > 0) {
       const orderedMap = new Map(unsectioned.map((r) => [r.id, r]));
@@ -159,8 +167,42 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     return unsectioned.sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  // When no layout exists, display all rooms alphabetically
-  let sortedRooms = $derived([...roomsStore.rooms].sort((a, b) => a.name.localeCompare(b.name)));
+  // When no layout exists, display channels alphabetically
+  let sortedRooms = $derived([...channels].sort((a, b) => a.name.localeCompare(b.name)));
+
+  // DM display name: comma-joined participants other than the current user
+  // (or "You" for self-DMs).
+  function dmDisplayName(room: SpaceRoom): string {
+    const meId = currentUserState.user?.id;
+    const others = room.members.filter((m) => m.id !== meId);
+    if (others.length === 0) return 'You';
+    return others.map((m) => getLiveDisplayName(m.id, m.displayName || m.login)).join(', ');
+  }
+
+  function dmAvatarParticipants(room: SpaceRoom) {
+    const meId = currentUserState.user?.id;
+    const others = room.members.filter((m) => m.id !== meId);
+    if (others.length === 0) {
+      // Self-DM: show own avatar
+      return room.members.slice(0, 1);
+    }
+    return others.slice(0, 3);
+  }
+
+  // Whether a room should remain visible while its sidebar group is
+  // collapsed. Active room + any unread / mention / pending notification
+  // anchor the row so the user can always reach what's calling for
+  // attention. Channels and DMs only differ in the notification accessor —
+  // hasRoomNotification deliberately excludes DMs.
+  function isHighlighted(room: SpaceRoom): boolean {
+    if (room.id === activeRoomId) return true;
+    if (room.hasUnread) return true;
+    if (room.hasMention) return true;
+    if (room.type === RoomType.Dm) {
+      return notificationStore.hasDMRoomNotification(room.id);
+    }
+    return notificationStore.hasRoomNotification(room.id);
+  }
 
   // --- Real-time event handlers ---
 
@@ -193,9 +235,10 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     roomsStore.setMention(notification.roomId);
   });
 
-  // Marked-as-read from other tabs/devices
+  // Marked-as-read from other tabs/devices. Accept DM-space events too —
+  // DM rooms now appear in this sidebar and need the same cross-tab sync.
   useRoomMarkedAsRead(({ spaceId: eventSpaceId, roomId }) => {
-    if (eventSpaceId !== spaceId) return;
+    if (eventSpaceId !== spaceId && eventSpaceId !== DM_SPACE_ID) return;
     roomsStore.markRead(roomId);
   });
 
@@ -203,12 +246,28 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   // Uses the instance event bus (NewMessageInSpaceEvent) rather than the
   // space event bus (MessagePostedEvent) because it's more reliable for
   // cross-room delivery.
+  //
+  // Accepts events for both the active (primary) space and the DM space,
+  // since DM rooms now appear in this sidebar alongside channels.
   useInstanceEvent((instanceEvent) => {
     const event = instanceEvent.event;
     if (!event) return;
 
     if (event.__typename === 'NewMessageInSpaceEvent') {
-      if (event.spaceId !== spaceId) return;
+      if (event.spaceId !== spaceId && event.spaceId !== DM_SPACE_ID) return;
+
+      // Bump DM rooms to the top of the Direct Messages section on ANY
+      // root-message activity — including the viewer's own messages, even in
+      // the room they're currently looking at. The sort matches what a
+      // reload would produce; without this, posting in a not-at-the-top DM
+      // leaves the row stranded until next refresh. Channels render
+      // alphabetically so the bump is visually a no-op for them.
+      if (event.spaceId === DM_SPACE_ID) {
+        roomsStore.bumpRoom(event.roomId);
+      }
+
+      // Unread bookkeeping is suppressed for the viewer's own messages and
+      // for the room they're currently in.
       if (event.roomId === activeRoomId) return;
       if (instanceEvent.actorId === currentUserState.user?.id) return;
       if (notificationLevelStore.isRoomMuted(event.spaceId, event.roomId)) return;
@@ -263,6 +322,23 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     if (target.eventId && target.spaceId && target.roomId) {
       stores.pendingHighlights.set(target.spaceId, target.roomId, target.threadRootId, target.eventId);
     }
+    void notificationStore.dismiss(notification.id);
+
+    const path = notificationStore.getCleanPath(getInstanceId(), notification);
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
+    await goto(path);
+  }
+
+  // Handle click on a DM notification dot. Mirrors handleRoomNotificationClick
+  // but uses the DM-flavoured store accessors — `getRoomNotification` /
+  // `hasRoomNotification` deliberately exclude DMs.
+  async function handleDMNotificationClick(event: MouseEvent, roomId: string) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const notification = notificationStore.getDMRoomNotification(roomId);
+    if (!notification) return;
+
     void notificationStore.dismiss(notification.id);
 
     const path = notificationStore.getCleanPath(getInstanceId(), notification);
@@ -330,78 +406,99 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   </a>
 {/snippet}
 
+{#snippet collapsibleGroup(
+  groupId: string,
+  label: string,
+  rooms: SpaceRoom[],
+  link: Snippet<[SpaceRoom]>,
+  marginTopClass: string = 'mt-4'
+)}
+  {@const isCollapsed = collapsedSections.has(groupId)}
+  <div class={marginTopClass}>
+    <button
+      type="button"
+      onclick={() => toggleSection(groupId)}
+      class="hover:text-foreground flex w-full cursor-pointer items-center gap-1 px-2 py-1 text-xs font-semibold tracking-wider text-muted uppercase"
+    >
+      <span
+        class={[
+          'iconify text-[10px] transition-transform',
+          isCollapsed ? 'uil--angle-right' : 'uil--angle-down'
+        ]}
+      ></span>
+      {label}
+    </button>
+    <div class="sidebar-nav">
+      {#each rooms as room (room.id)}
+        {#if !isCollapsed || isHighlighted(room)}
+          <div transition:slide={{ duration: 150 }}>
+            {@render link(room)}
+          </div>
+        {/if}
+      {/each}
+    </div>
+  </div>
+{/snippet}
+
+{#snippet dmLink(room: SpaceRoom)}
+  <a
+    href={resolve('/chat/[instanceId]/(chrome)/[roomId]', { instanceId: instanceSegment, roomId: room.id })}
+    class={[
+      'sidebar-item',
+      room.id === activeRoomId ? 'bg-surface-100' : '',
+      room.hasUnread && room.id !== activeRoomId ? 'font-semibold' : ''
+    ]}
+    aria-current={room.id === activeRoomId ? 'page' : undefined}
+  >
+    <div class="flex shrink-0 -space-x-1">
+      {#each dmAvatarParticipants(room) as participant (participant.id)}
+        <UserAvatar user={participant} size="xs" />
+      {/each}
+    </div>
+    <span class="flex-1 truncate">{dmDisplayName(room)}</span>
+
+    {#if notificationStore.hasDMRoomNotification(room.id)}
+      <button
+        type="button"
+        onclick={(e) => handleDMNotificationClick(e, room.id)}
+        class="-mr-2 flex h-6 w-6 cursor-pointer items-center justify-center notification-dot"
+        aria-label="Go to notification"
+      >
+        <UnreadDot />
+      </button>
+      <span class="sr-only">new direct message</span>
+    {:else if room.hasUnread}
+      <UnreadDot color="primary" testid="dm-unread-dot" />
+      <span class="sr-only">unread messages</span>
+    {/if}
+  </a>
+{/snippet}
+
 <nav class="room-list sidebar-nav p-2 md:w-64">
   {#if roomsStore.layoutSections && roomsStore.layoutSections.length > 0}
     <!-- Sectioned layout -->
-    {#each visibleSections as section (section.id)}
-      {@const sectionRooms = getSectionRooms(section)}
-      {@const isCollapsed = collapsedSections.has(section.id)}
-      <div class="mt-4 first:mt-0">
-        <button
-          type="button"
-          onclick={() => toggleSection(section.id)}
-          class="hover:text-foreground flex w-full cursor-pointer items-center gap-1 px-2 py-1 text-xs font-semibold tracking-wider text-muted uppercase"
-        >
-          <span
-            class={[
-              'iconify text-[10px] transition-transform',
-              isCollapsed ? 'uil--angle-right' : 'uil--angle-down'
-            ]}
-          ></span>
-          {section.name}
-        </button>
-        {#if isCollapsed}
-          {@const activeRoom = sectionRooms.find((r) => r.id === activeRoomId)}
-          {#if activeRoom}
-            {@render roomLink(activeRoom)}
-          {/if}
-        {:else}
-          <div class="sidebar-nav" transition:slide={{ duration: 150 }}>
-            {#each sectionRooms as room (room.id)}
-              {@render roomLink(room)}
-            {/each}
-          </div>
-        {/if}
-      </div>
+    {#each visibleSections as section, i (section.id)}
+      {@render collapsibleGroup(
+        section.id,
+        section.name,
+        getSectionRooms(section),
+        roomLink,
+        i === 0 ? 'mt-4 first:mt-0' : 'mt-4'
+      )}
     {/each}
 
     <!-- Unsectioned rooms (not in any section) -->
     {#if unsectionedRooms.length > 0}
-      {@const isCollapsed = collapsedSections.has('__unsorted__')}
-      <div class="mt-4">
-        <button
-          type="button"
-          onclick={() => toggleSection('__unsorted__')}
-          class="hover:text-foreground flex w-full cursor-pointer items-center gap-1 px-2 py-1 text-xs font-semibold tracking-wider text-muted uppercase"
-        >
-          <span
-            class={[
-              'iconify text-[10px] transition-transform',
-              isCollapsed ? 'uil--angle-right' : 'uil--angle-down'
-            ]}
-          ></span>
-          Other
-        </button>
-        {#if !isCollapsed}
-          <div class="sidebar-nav" transition:slide={{ duration: 150 }}>
-            {#each unsectionedRooms as room (room.id)}
-              {@render roomLink(room)}
-            {/each}
-          </div>
-        {:else}
-          {@const activeRoom = unsectionedRooms.find((r) => r.id === activeRoomId)}
-          {#if activeRoom}
-            <div transition:slide={{ duration: 150 }}>
-              {@render roomLink(activeRoom)}
-            </div>
-          {/if}
-        {/if}
-      </div>
+      {@render collapsibleGroup('__unsorted__', 'Other', unsectionedRooms, roomLink)}
     {/if}
   {:else}
     <!-- No layout configured — alphabetical flat list -->
     {#each sortedRooms as room (room.id)}
       {@render roomLink(room)}
     {/each}
+  {/if}
+
+  {#if dmRooms.length > 0}
+    {@render collapsibleGroup('__dms__', 'Direct Messages', dmRooms, dmLink)}
   {/if}
 </nav>

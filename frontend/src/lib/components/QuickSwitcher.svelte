@@ -6,7 +6,11 @@
   import { instanceRegistry } from '$lib/state/instance/registry.svelte';
   import { graphqlClientManager } from '$lib/state/instance/graphqlClient.svelte';
   import { graphql, useFragment } from '$lib/gql';
-  import { UserAvatarUserFragmentDoc, type UserAvatarUserFragment } from '$lib/gql/graphql';
+  import {
+    RoomType,
+    UserAvatarUserFragmentDoc,
+    type UserAvatarUserFragment
+  } from '$lib/gql/graphql';
   import UserAvatar from '$lib/components/UserAvatar.svelte';
   import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import { getGradientForName } from '$lib/utils/gradients';
@@ -62,7 +66,6 @@
       }
       viewer {
         canListSpaces
-        canViewDMs
       }
     }
   `);
@@ -73,6 +76,7 @@
         rooms(spaceId: $spaceId) {
           id
           name
+          type
         }
       }
     }
@@ -116,7 +120,6 @@
     const contexts: InstanceContext[] = [];
     const opts = { requestPolicy: 'network-only' as const };
     let anyCanListSpaces = false;
-    let anyCanViewDMs = false;
 
     await Promise.allSettled(
       instances.map(async (instance) => {
@@ -135,7 +138,6 @@
         const dmsResult = dmsSettled.status === 'fulfilled' ? dmsSettled.value : null;
 
         if (spacesResult?.data?.viewer?.canListSpaces) anyCanListSpaces = true;
-        if (dmsResult?.data?.space) anyCanViewDMs = true;
 
         // Spaces
         type SpaceInfo = { id: string; name: string; logoUrl?: string | null };
@@ -216,6 +218,13 @@
             if (roomsResult.data?.me) {
               const logo: SpaceLogo = { name: space.name, logoUrl: space.logoUrl };
               for (const room of roomsResult.data.me.rooms) {
+                // Skip DMs surfaced through the merged primary-space response
+                // (#330 phase 3) — they're already added as kind='dm' items
+                // above via DMsQuery, with the right label and avatar. Without
+                // this filter they'd double up as kind='room' items with an
+                // empty name, rendering as "# · <primary-space-name>" and
+                // impersonating the actual primary-space channels.
+                if (room.type === RoomType.Dm) continue;
                 items.push({
                   kind: 'room',
                   id: room.id,
@@ -243,18 +252,6 @@
         instanceId: '',
         href: resolve('/chat/spaces'),
         icon: 'uil--compass',
-        score: 0
-      });
-    }
-    if (anyCanViewDMs) {
-      items.push({
-        kind: 'destination',
-        id: 'direct-messages',
-        label: 'Direct Messages',
-        detail: '',
-        instanceId: '',
-        href: resolve('/chat/dm'),
-        icon: 'uil--comment-dots',
         score: 0
       });
     }
@@ -468,7 +465,7 @@
 
   function itemUrl(item: ResultItem): string | undefined {
     if (item.kind === 'destination' && item.href) return item.href;
-    if (item.kind === 'dm') return resolve('/chat/dm/[instanceSegment]/[conversationId]', { instanceSegment: instanceIdToSegment(item.instanceId), conversationId: item.id });
+    if (item.kind === 'dm') return resolve('/chat/[instanceId]/(chrome)/[roomId]', { instanceId: instanceIdToSegment(item.instanceId), roomId: item.id });
     if (item.kind === 'room' && item.spaceId) return resolve('/chat/[instanceId]/(chrome)/[roomId]', { instanceId: instanceIdToSegment(item.instanceId), roomId: item.id });
     if (item.kind === 'space') return resolve('/chat/[instanceId]', { instanceId: instanceIdToSegment(item.instanceId) });
     return undefined;
