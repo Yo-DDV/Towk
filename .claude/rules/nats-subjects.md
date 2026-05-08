@@ -43,6 +43,28 @@ msg.{rootId}.replies.{eventId}
 thread.{rootId}.{eventId}
 ```
 
+### 4. Encode Filter Discriminators in the Key Prefix
+
+When a single bucket (or stream) holds records of multiple kinds, put the kind in the key prefix so listing operations can prefix-filter without loading and deserializing every record. This applies to KV keys (which are subjects under the hood) just as much as stream subjects.
+
+```
+# Good: kind in key prefix → fast prefix scans
+SERVER_CONFIG:
+  room.channel.{roomId}                        # filter `room.channel.*`
+  room.dm.{roomId}                             # filter `room.dm.*`
+  room_membership.channel.{roomId}.{userId}    # filter `room_membership.channel.{roomId}.*`
+  room_membership.dm.{roomId}.{userId}
+
+# Less efficient: kind on the proto, not the key
+SERVER_CONFIG:
+  room.{roomId}             # have to load + deserialize each room to filter
+  room_membership.{u}.{r}   # have to look up the room to know its kind
+```
+
+Same outer-to-inner scope ordering across related keys: `room.{kind}.{roomId}` and `room_membership.{kind}.{roomId}.{userId}` both put the kind first, then the room (the entity being described), then per-room detail. Symmetric and predictable.
+
+The kind segment is then **the** source of truth — don't also store it on the proto. One canonical representation per piece of information.
+
 ## Filtering Patterns Reference
 
 For room messages, these wildcard patterns enable efficient filtering:
@@ -54,6 +76,17 @@ For room messages, these wildcard patterns enable efficient filtering:
 | `msg.*.replies.>` | All thread replies (any thread) |
 | `msg.{rootId}.replies.>` | Replies in a specific thread |
 | `msg.*.replies.{eventId}` | Lookup thread reply by event ID |
+
+For kind-prefixed KV keys (`SERVER_CONFIG`):
+
+| Pattern | Matches |
+|---------|---------|
+| `room.channel.*` | Channel rooms only |
+| `room.dm.*` | DM rooms only |
+| `room.*.*` | All rooms regardless of kind |
+| `room_membership.{kind}.{roomId}.*` | Members of one room (pure prefix) |
+| `room_membership.{kind}.*.{userId}` | A user's memberships of one kind (server-side wildcard) |
+| `room_membership.{kind}.>` | All memberships of one kind |
 
 ## Subject Refactoring Checklist
 

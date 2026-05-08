@@ -197,7 +197,7 @@ func (c *ChattoCore) createDMRoom(ctx context.Context, roomID string, participan
 		return nil, fmt.Errorf("failed to marshal DM room: %w", err)
 	}
 
-	_, err = bucket.Create(ctx, roomKey(roomID), roomData)
+	_, err = bucket.Create(ctx, roomKey("dm", roomID), roomData)
 	if err != nil {
 		return nil, err // Let caller handle ErrKeyExists for race condition
 	}
@@ -210,13 +210,13 @@ func (c *ChattoCore) createDMRoom(ctx context.Context, roomID string, participan
 
 			// Rollback: delete memberships we already created
 			for _, joinedID := range joinedParticipants {
-				if delErr := bucket.Delete(ctx, roomMembershipKey(joinedID, roomID)); delErr != nil {
+				if delErr := bucket.Delete(ctx, roomMembershipKey("dm", roomID, joinedID)); delErr != nil {
 					c.logger.Error("Failed to rollback DM membership", "participant", joinedID, "room_id", roomID, "error", delErr)
 				}
 			}
 
 			// Rollback: delete the room
-			if delErr := bucket.Delete(ctx, roomKey(roomID)); delErr != nil {
+			if delErr := bucket.Delete(ctx, roomKey("dm", roomID)); delErr != nil {
 				c.logger.Error("Failed to rollback DM room", "room_id", roomID, "error", delErr)
 			}
 
@@ -244,7 +244,7 @@ func (c *ChattoCore) joinDMRoom(ctx context.Context, bucket jetstream.KeyValue, 
 		return fmt.Errorf("failed to marshal DM membership: %w", err)
 	}
 
-	_, err = bucket.Put(ctx, roomMembershipKey(userID, roomID), data)
+	_, err = bucket.Put(ctx, roomMembershipKey("dm", roomID, userID), data)
 	if err != nil {
 		return fmt.Errorf("failed to create DM membership: %w", err)
 	}

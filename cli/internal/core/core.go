@@ -100,10 +100,19 @@ func (c *ChattoCore) SetPrimarySpaceID(spaceID string) {
 	c.primarySpaceID.Store(spaceID)
 }
 
-// usesServerLevelMetadata reports whether the given spaceID's CONFIG / RBAC /
-// RUNTIME data lives in the shared SERVER_* buckets (true only for the
-// configured primary space).
+// usesServerLevelMetadata reports whether the given spaceID's CONFIG /
+// RBAC / RUNTIME data lives in the shared SERVER_* buckets.
+//
+// True for: the configured primary space (#330 phase 4a) and the DM system
+// space (#330 phase 4b). DM rooms live in SERVER_CONFIG alongside channel
+// rooms and are disambiguated by Room.kind.
+//
+// False for: any other (test-created) space, which keeps its per-space
+// SPACE_{id}_* buckets via the legacy lazycache routes.
 func (c *ChattoCore) usesServerLevelMetadata(spaceID string) bool {
+	if IsDMSpace(spaceID) {
+		return true
+	}
 	primary := c.PrimarySpaceID()
 	return primary != "" && spaceID == primary
 }
@@ -737,9 +746,31 @@ func spaceKey(spaceID string) string {
 	return fmt.Sprintf("space.%s", spaceID)
 }
 
+// roomKindKeyFromSpaceID returns the kind segment for the rooms that live
+// in a given space. DM space holds DM rooms; everything else holds channels.
+//
+// The segment is part of the key on disk (e.g., `room.channel.{roomID}`,
+// `room.dm.{roomID}`) so list operations can prefix-filter by kind via
+// NATS subject matching without loading and deserializing every room
+// record. Kind isn't stored on the Room proto — the storage layout is
+// the canonical source of truth.
+func roomKindKeyFromSpaceID(spaceID string) string {
+	if IsDMSpace(spaceID) {
+		return "dm"
+	}
+	return "channel"
+}
+
 // roomKey returns the KV key for a room record in a space bucket.
-func roomKey(roomID string) string {
-	return fmt.Sprintf("room.%s", roomID)
+// Pattern: `room.{kind}.{roomID}` where kind is "channel" or "dm".
+func roomKey(kind, roomID string) string {
+	return fmt.Sprintf("room.%s.%s", kind, roomID)
+}
+
+// roomKeyPrefix returns the key prefix for listing all rooms of a given
+// kind in a CONFIG bucket. Pattern: `room.{kind}.*`.
+func roomKeyPrefix(kind string) string {
+	return fmt.Sprintf("room.%s.*", kind)
 }
 
 // roomNameIndexKey returns the KV key that claims a room name within a space.

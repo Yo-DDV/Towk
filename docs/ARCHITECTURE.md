@@ -508,17 +508,19 @@ All live events bypass JetStream entirely — KV buckets are the source of truth
 | `INSTANCE`                    | Instance  | File    | Yes      | Users, spaces, memberships                      |
 | `INSTANCE_RBAC`               | Instance  | File    | Yes      | Instance-level roles and permissions            |
 | `INSTANCE_CONFIG`             | Instance  | File    | Yes      | Runtime configuration overrides                 |
+| `SERVER_CONFIG`               | Server    | File    | Yes      | Rooms (channel + DM), memberships               |
+| `SERVER_RBAC`                 | Server    | File    | Yes      | Roles, permissions, assignments                 |
+| `SERVER_RUNTIME`              | Server    | File    | Yes      | Read state, mention tracking                    |
 | `NOTIFICATIONS`               | Instance  | File    | Yes      | User notifications (90-day TTL)                 |
 | `AUTH_TOKENS`                 | Instance  | File    | No       | Bearer auth tokens (configurable TTL, default 90d) |
-| `SPACE_{spaceId}_CONFIG`      | Per-space | File    | Yes      | Rooms, memberships                              |
-| `SPACE_{spaceId}_RBAC`        | Per-space | File    | Yes      | Roles, permissions, assignments                 |
-| `SPACE_{spaceId}_RUNTIME`     | Per-space | File    | Yes      | Read status, mention tracking                   |
 | `USER_PRESENCE`               | Instance  | Memory  | No       | User presence status (TTL 60s)                  |
 | `ENCRYPTION_KEYS`             | Instance  | File    | **No**   | User encryption keys (excluded for security)    |
 | `SPACE_{spaceId}_BODIES`      | Per-space | File    | Yes      | Message bodies (GDPR-compliant)                 |
 | `SPACE_{spaceId}_REACTIONS`   | Per-space | File    | Yes      | Emoji reactions on messages                     |
 | `SPACE_{spaceId}_THREADS`     | Per-space | File    | Yes      | Thread metadata (reply count, participants)     |
 | `LINK_PREVIEW_CACHE`          | Instance  | File    | No       | Cached link preview metadata (48h TTL)          |
+
+**Migration note (#330 / ADR-027 phase 4a + 4b):** the primary space's CONFIG/RBAC/RUNTIME data and the DM system space's CONFIG/RUNTIME data were folded into `SERVER_*`. The legacy `SPACE_{primary}_CONFIG`/`_RBAC`/`_RUNTIME` and `SPACE_DM_CONFIG`/`_RUNTIME` buckets are still present (no-deletes rule) but dormant — reads route to `SERVER_*`. A future cleanup pass will retire them. Per-space `BODIES`/`REACTIONS`/`THREADS`/`ASSETS` are still per-space; later sub-phases fold those in too.
 
 **INSTANCE keys:**
 
@@ -538,6 +540,9 @@ All live events bypass JetStream entirely — KV buckets are the source of truth
 | `space.{spaceId}.banner`               | Space banner asset reference                     |
 | `space_membership.{spaceId}.{userId}`  | User-space membership tracking                   |
 | `user_preferences.{userId}`            | User display preferences (timezone, time format) |
+| `migration_lock`                       | Schema-migration mutex (per-key TTL'd, owner ID as value) — see #330 phase 4 |
+| `migration.phase4a_complete`           | Phase 4a (primary CONFIG/RBAC/RUNTIME → `SERVER_*`) completion marker |
+| `migration.phase4b_complete`           | Phase 4b (DM merge + kind-prefixed keys) completion marker |
 
 Notes: Email verification uses SHA256 hashing for claim keys to ensure valid NATS subject characters and case-insensitive uniqueness. The claim key is created atomically when an email is verified, preventing race conditions where two users try to verify the same email. Verification tokens store userId and email in the JSON value for O(1) lookup by token.
 
@@ -600,25 +605,48 @@ Notes: Tokens are opaque strings (`cht_AT` + 14-char NanoID). Used for `Authoriz
 
 Notes: Excluded from backups so backup archives contain only encrypted data, not the keys to decrypt it. Enables GDPR-compliant crypto-shredding: deleting a user's key renders all their messages permanently unreadable.
 
-**SPACE\_{spaceId}\_CONFIG keys:**
+**SERVER\_CONFIG keys:**
 
-| Key                                       | Description                                      |
-| ----------------------------------------- | ------------------------------------------------ |
-| `room.{roomId}`                           | Room configurations                              |
-| `room_name_index.{lowercaseName}`         | Atomic name claim → room ID. Used to enforce case-insensitive uniqueness of room names without a read-then-write race. |
-| `room_membership.{userId}.{roomId}`       | User-room membership tracking                    |
-| `role.{roleName}`                               | Role metadata (name, display_name, description)         |
-| `role_permission.{roleName}.{permission}`       | Permission grant (empty value = granted)                |
-| `role_assignment.{roleName}.{userId}`           | Role assignment (empty value = assigned)                |
-| `user_permission.{userId}.{permission}`         | User-specific permission grant (overrides role perms)   |
-| `user_permission_denied.{userId}.{permission}`  | User-specific permission denial (overrides all grants)  |
+Room and membership keys carry a `kind` segment (`channel` or `dm`) so listing operations can prefix-filter without loading and deserializing every record. The kind isn't a field on the `Room` proto — the storage layout is the canonical source of truth.
 
-**SPACE\_{spaceId}\_RUNTIME keys:**
+| Key                                                  | Description                                      |
+| ---------------------------------------------------- | ------------------------------------------------ |
+| `room.channel.{roomId}`                              | Channel-style room                               |
+| `room.dm.{roomId}`                                   | Direct-message room                              |
+| `room_name_index.{lowercaseName}`                    | Atomic name claim → room ID. Channels only; DMs have empty names. Enforces case-insensitive uniqueness without a read-then-write race. |
+| `room_membership.channel.{roomId}.{userId}`          | Channel membership (room-first ordering matches `room.{kind}.{X}`)  |
+| `room_membership.dm.{roomId}.{userId}`               | DM membership                                    |
+| `role.{roleName}`                                    | Role metadata (name, display_name, description)  |
+| `role_permission.{roleName}.{permission}`            | Permission grant (empty value = granted)         |
+| `role_assignment.{roleName}.{userId}`                | Role assignment (empty value = assigned)         |
+| `user_permission.{userId}.{permission}`              | User-specific permission grant (overrides role perms)   |
+| `user_permission_denied.{userId}.{permission}`       | User-specific permission denial (overrides all grants)  |
+
+Useful filter patterns:
+
+| Pattern                                              | Matches                                          |
+| ---------------------------------------------------- | ------------------------------------------------ |
+| `room.channel.*`                                     | All channel rooms                                |
+| `room.dm.*`                                          | All DM rooms                                     |
+| `room.*.*`                                           | All rooms regardless of kind                     |
+| `room_membership.{kind}.{roomId}.*`                  | All members of one room (pure prefix)            |
+| `room_membership.{kind}.*.{userId}`                  | A user's memberships of one kind (server-side wildcard) |
+| `room_membership.{kind}.>`                           | All memberships of one kind                      |
+
+**SERVER\_RBAC keys:**
+
+Same shape as the legacy `SPACE_{spaceId}_RBAC` keys (`role.*`, `role_permission.*`, `role_assignment.*`, `user_permission.*`, `user_permission_denied.*`). Held in `SERVER_RBAC` post-#330 phase 4a; pre-4a primary data was copied verbatim.
+
+**SERVER\_RUNTIME keys:**
 
 | Key                                    | Description                                                       |
 | -------------------------------------- | ----------------------------------------------------------------- |
 | `room_read_event.{userId}.{roomId}`    | Last-read root message event ID (UTF-8 string, ~14 bytes). Empty value = "joined but no specific event read yet" (e.g. joined an empty room). Missing key triggers a one-time lazy init to the room's current last event ("caught up at first read post-deploy"). The legacy `room_read_status.*` keys (8-byte uint64 sequences) are orphaned and ignored. |
 | `room_mention_status.{userId}.{roomId}`| Unread mention indicator (boolean — key presence means unread)    |
+| `room_last_msg_at.{roomId}`            | Last message timestamp (per-room, used for sidebar sort)          |
+| `video.{attachmentId}`                 | Video processing state for an attachment                          |
+
+These keys don't carry a kind segment — `roomId` is globally unique, so direct lookup works for DM and channel rooms alike.
 
 **USER_PRESENCE keys:**
 
@@ -638,11 +666,11 @@ Notes: The compound key format `{userId}.{eventId}` enables efficient prefix-bas
 
 **SPACE\_{spaceId}\_REACTIONS keys:**
 
-| Key                                   | Description                                    |
-| ------------------------------------- | ---------------------------------------------- |
-| `{messageSeqId}.{emojiName}.{userId}` | Reaction tracking (empty value = reacted)      |
+| Key                                     | Description                                    |
+| --------------------------------------- | ---------------------------------------------- |
+| `{messageEventId}.{emojiName}.{userId}` | Reaction tracking (empty value = reacted; value stores nanosecond timestamp for "added at" ordering) |
 
-Notes: Emoji stored as name (e.g., "thumbsup") for NATS KV key compatibility. Separated for load isolation (high-volume). Events are live-only (not stored in JetStream). KV bucket is source of truth.
+Notes: Emoji stored as name (e.g., "thumbsup") for NATS KV key compatibility. Separated for load isolation (high-volume). Events are live-only (not stored in JetStream). KV bucket is source of truth. Keyed by event ID (not the volatile JetStream sequence) so reactions survive any future stream re-publishing.
 
 **SPACE\_{spaceId}\_THREADS keys:**
 

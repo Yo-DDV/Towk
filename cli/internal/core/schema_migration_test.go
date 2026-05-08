@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/proto"
+
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 // TestPhase4aMigration_FreshInstall verifies that a fresh install (no primary
@@ -220,16 +223,91 @@ func TestPhase4aMigration_PrimaryRoutingAfterMigration(t *testing.T) {
 		t.Fatalf("primary should route to SERVER_CONFIG after migration, got %q", status.Bucket())
 	}
 
-	// And the DM space (different ID) still routes to its per-space bucket.
+	// Post-#330 phase 4b: the DM space also routes to SERVER_CONFIG.
 	dmBucket, err := core.getSpaceConfigKV(ctx, DMSpaceID)
 	if err != nil {
 		t.Fatalf("getSpaceConfigKV(DM): %v", err)
 	}
 	if status, err := dmBucket.Status(ctx); err != nil {
 		t.Fatalf("dm bucket status: %v", err)
-	} else if status.Bucket() != legacySpaceConfigBucket(DMSpaceID) {
-		t.Fatalf("DM should route to %q, got %q",
-			legacySpaceConfigBucket(DMSpaceID), status.Bucket())
+	} else if status.Bucket() != "SERVER_CONFIG" {
+		t.Fatalf("DM should route to SERVER_CONFIG after phase 4b, got %q", status.Bucket())
+	}
+}
+
+// TestPhase4bMigration_RewritesDMRoomsToKindPrefix verifies that the phase
+// 4b migrator copies DM-space room records into SERVER_CONFIG under the
+// kind-prefixed key `room.dm.{X}`, with the original Room proto preserved
+// byte-for-byte (the kind discriminator lives in the key, not the proto).
+func TestPhase4bMigration_RewritesDMRoomsToKindPrefix(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	dmConfig, err := core.js.KeyValue(ctx, legacySpaceConfigBucket(DMSpaceID))
+	if err != nil {
+		t.Fatalf("open SPACE_DM_CONFIG: %v", err)
+	}
+	roomID := "Rtest-dm-room-1"
+	legacyRoom := &corev1.Room{
+		Id:      roomID,
+		SpaceId: DMSpaceID,
+	}
+	value, err := proto.Marshal(legacyRoom)
+	if err != nil {
+		t.Fatalf("marshal legacy DM room: %v", err)
+	}
+	if _, err := dmConfig.Put(ctx, "room."+roomID, value); err != nil {
+		t.Fatalf("seed legacy DM room: %v", err)
+	}
+
+	if err := core.RunMigrationsIfNeeded(ctx, ""); err != nil {
+		t.Fatalf("RunMigrationsIfNeeded: %v", err)
+	}
+
+	// The migrated room should now exist in SERVER_CONFIG under the new
+	// kind-prefixed key.
+	migratedEntry, err := core.storage.serverConfigKV.Get(ctx, "room.dm."+roomID)
+	if err != nil {
+		t.Fatalf("get migrated DM room from SERVER_CONFIG[room.dm.*]: %v", err)
+	}
+	migratedRoom := &corev1.Room{}
+	if err := proto.Unmarshal(migratedEntry.Value(), migratedRoom); err != nil {
+		t.Fatalf("unmarshal migrated room: %v", err)
+	}
+	if migratedRoom.Id != roomID {
+		t.Fatalf("expected room.Id = %q, got %q", roomID, migratedRoom.Id)
+	}
+
+	// Source bucket left untouched (no-deletes rule).
+	if _, err := dmConfig.Get(ctx, "room."+roomID); err != nil {
+		t.Fatalf("source DM room should still exist: %v", err)
+	}
+
+	// And the marker is set.
+	if _, err := core.storage.instanceKV.Get(ctx, phase4bCompleteKey); err != nil {
+		t.Fatalf("expected phase4b completion marker: %v", err)
+	}
+}
+
+// TestPhase4bMigration_FreshInstall verifies that phase 4b is a fast no-op
+// on a freshly-created instance (DM space exists but has no rooms).
+func TestPhase4bMigration_FreshInstall(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	// setupTestCore already initialized the DM space, which created
+	// SPACE_DM_CONFIG/RUNTIME as empty buckets. Phase 4b should detect
+	// them, copy nothing, verify, and mark complete.
+	if err := core.RunMigrationsIfNeeded(ctx, ""); err != nil {
+		t.Fatalf("RunMigrationsIfNeeded: %v", err)
+	}
+	if _, err := core.storage.instanceKV.Get(ctx, phase4bCompleteKey); err != nil {
+		t.Fatalf("expected phase4b completion marker: %v", err)
+	}
+
+	// Re-run is a fast no-op via the marker.
+	if err := core.RunMigrationsIfNeeded(ctx, ""); err != nil {
+		t.Fatalf("second run failed: %v", err)
 	}
 }
 

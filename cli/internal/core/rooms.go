@@ -196,7 +196,7 @@ func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, space_id, n
 		c.bestEffortReleaseRoomNameClaim(ctx, bucket, indexKey, room_id)
 		return nil, fmt.Errorf("failed to marshal room: %w", err)
 	}
-	if _, err := bucket.Put(ctx, roomKey(room.Id), roomData); err != nil {
+	if _, err := bucket.Put(ctx, roomKey(roomKindKeyFromSpaceID(room.SpaceId), room.Id), roomData); err != nil {
 		c.bestEffortReleaseRoomNameClaim(ctx, bucket, indexKey, room_id)
 		return nil, fmt.Errorf("failed to store room: %w", err)
 	}
@@ -295,7 +295,7 @@ func (c *ChattoCore) UpdateRoom(ctx context.Context, actorID string, space_id, r
 		}
 		return nil, fmt.Errorf("failed to marshal room: %w", err)
 	}
-	if _, err := bucket.Put(ctx, roomKey(room.Id), roomData); err != nil {
+	if _, err := bucket.Put(ctx, roomKey(roomKindKeyFromSpaceID(room.SpaceId), room.Id), roomData); err != nil {
 		if renamed {
 			c.bestEffortReleaseRoomNameClaim(ctx, bucket, newIndexKey, room_id)
 		}
@@ -360,7 +360,7 @@ func (c *ChattoCore) DeleteRoom(ctx context.Context, actorID string, space_id, r
 	if err != nil {
 		return fmt.Errorf("failed to get bucket: %w", err)
 	}
-	err = bucket.Delete(ctx, roomKey(room_id))
+	err = bucket.Delete(ctx, roomKey(roomKindKeyFromSpaceID(space_id), room_id))
 	if err != nil {
 		return fmt.Errorf("failed to delete room: %w", err)
 	}
@@ -403,7 +403,7 @@ func (c *ChattoCore) ArchiveRoom(ctx context.Context, actorID, spaceID, roomID s
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal room: %w", err)
 	}
-	_, err = bucket.Put(ctx, roomKey(room.Id), roomData)
+	_, err = bucket.Put(ctx, roomKey(roomKindKeyFromSpaceID(room.SpaceId), room.Id), roomData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to archive room: %w", err)
 	}
@@ -453,7 +453,7 @@ func (c *ChattoCore) UnarchiveRoom(ctx context.Context, actorID, spaceID, roomID
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal room: %w", err)
 	}
-	_, err = bucket.Put(ctx, roomKey(room.Id), roomData)
+	_, err = bucket.Put(ctx, roomKey(roomKindKeyFromSpaceID(room.SpaceId), room.Id), roomData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unarchive room: %w", err)
 	}
@@ -500,7 +500,7 @@ func (c *ChattoCore) SetRoomAutoJoin(ctx context.Context, actorID, spaceID, room
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal room: %w", err)
 	}
-	_, err = bucket.Put(ctx, roomKey(room.Id), roomData)
+	_, err = bucket.Put(ctx, roomKey(roomKindKeyFromSpaceID(room.SpaceId), room.Id), roomData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update room auto_join: %w", err)
 	}
@@ -516,7 +516,7 @@ func (c *ChattoCore) GetRoom(ctx context.Context, space_id, room_id string) (*co
 		return nil, err
 	}
 
-	entry, err := bucket.Get(ctx, roomKey(room_id))
+	entry, err := bucket.Get(ctx, roomKey(roomKindKeyFromSpaceID(space_id), room_id))
 	if err != nil {
 		return nil, fmt.Errorf("room not found: %w", err)
 	}
@@ -530,13 +530,19 @@ func (c *ChattoCore) GetRoom(ctx context.Context, space_id, room_id string) (*co
 }
 
 // ListRoomsBySpace retrieves all rooms in a space from the CONFIG bucket.
+//
+// Post-#330 phase 4b: the primary space and the DM system space share
+// SERVER_CONFIG, with kind encoded in the key prefix (`room.channel.{X}`
+// vs `room.dm.{X}`). The prefix scan returns only the matching kind, so
+// no in-memory filter is needed.
 func (c *ChattoCore) ListRoomsBySpace(ctx context.Context, space_id string) ([]*corev1.Room, error) {
 	bucket, err := c.getSpaceConfigBucket(ctx, space_id)
 	if err != nil {
 		return nil, err
 	}
 
-	keyLister, err := bucket.ListKeysFiltered(ctx, "room.*")
+	prefix := roomKeyPrefix(roomKindKeyFromSpaceID(space_id))
+	keyLister, err := bucket.ListKeysFiltered(ctx, prefix)
 	if err != nil {
 		if err == jetstream.ErrNoKeysFound {
 			return []*corev1.Room{}, nil
@@ -610,7 +616,8 @@ func (c *ChattoCore) ensureRoomNameIndex(ctx context.Context, spaceID string, bu
 		return nil
 	}
 
-	keyLister, err := bucket.ListKeysFiltered(ctx, "room.*")
+	// Channels only — DM rooms have empty names so there's nothing to index.
+	keyLister, err := bucket.ListKeysFiltered(ctx, roomKeyPrefix(roomKindKeyFromSpaceID(spaceID)))
 	if err != nil {
 		if errors.Is(err, jetstream.ErrNoKeysFound) {
 			c.roomNameIndexBackfilled.Store(spaceID, struct{}{})
@@ -674,9 +681,28 @@ func (c *ChattoCore) bestEffortReleaseRoomNameClaim(ctx context.Context, bucket 
 // Room Membership Operations
 // ============================================================================
 
-// roomMembershipKey returns the KV key for a room membership using the pattern: room_membership.{user_id}.{room_id}
-func roomMembershipKey(user_id, room_id string) string {
-	return fmt.Sprintf("room_membership.%s.%s", user_id, room_id)
+// roomMembershipKey returns the KV key for a room membership.
+// Pattern: `room_membership.{kind}.{roomID}.{userID}` where kind is
+// "channel" or "dm". Same outer-to-inner scope ordering as roomKey
+// (`room.{kind}.{roomID}`): kind, then room, then per-room detail.
+func roomMembershipKey(kind, room_id, user_id string) string {
+	return fmt.Sprintf("room_membership.%s.%s.%s", kind, room_id, user_id)
+}
+
+// roomMembershipKeyPrefixForRoom returns the key prefix for listing all
+// memberships of a given room. Pattern: `room_membership.{kind}.{roomID}.*`.
+// Pure prefix scan — used by room-deletion cleanup and member-list reads.
+func roomMembershipKeyPrefixForRoom(kind, room_id string) string {
+	return fmt.Sprintf("room_membership.%s.%s.*", kind, room_id)
+}
+
+// roomMembershipKeyMatchForUser returns the subject filter that matches
+// a user's memberships of a given kind. The userID is in the trailing
+// position of the key (`room_membership.{kind}.{roomID}.{userID}`), so
+// this is an internal-wildcard filter rather than a pure prefix:
+// `room_membership.{kind}.*.{userID}`. Server-side filtered by NATS.
+func roomMembershipKeyMatchForUser(kind, user_id string) string {
+	return fmt.Sprintf("room_membership.%s.*.%s", kind, user_id)
 }
 
 // GetRoomMembership retrieves a room membership for a user in a specific room.
@@ -686,7 +712,7 @@ func (c *ChattoCore) GetRoomMembership(ctx context.Context, space_id, user_id, r
 		return nil, err
 	}
 
-	key := roomMembershipKey(user_id, room_id)
+	key := roomMembershipKey(roomKindKeyFromSpaceID(space_id), room_id, user_id)
 	data, err := kv.Get(ctx, key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get room membership for user %s in room %s: %w", user_id, room_id, err)
@@ -763,7 +789,7 @@ func (c *ChattoCore) JoinRoom(ctx context.Context, actorID, space_id, user_id, r
 		return nil, fmt.Errorf("failed to marshal room membership data: %w", err)
 	}
 
-	_, err = kv.Put(ctx, roomMembershipKey(user_id, room_id), data)
+	_, err = kv.Put(ctx, roomMembershipKey(roomKindKeyFromSpaceID(space_id), room_id, user_id), data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create room membership for user %s in room %s: %w", user_id, room_id, err)
 	}
@@ -829,7 +855,7 @@ func (c *ChattoCore) LeaveRoom(ctx context.Context, actorID, space_id, user_id, 
 		return err
 	}
 
-	err = kv.Delete(ctx, roomMembershipKey(user_id, room_id))
+	err = kv.Delete(ctx, roomMembershipKey(roomKindKeyFromSpaceID(space_id), room_id, user_id))
 	if err != nil {
 		return fmt.Errorf("failed to delete room membership for user %s in room %s: %w", user_id, room_id, err)
 	}
@@ -863,7 +889,7 @@ func (c *ChattoCore) GetUserRoomMemberships(ctx context.Context, space_id, user_
 		return nil, err
 	}
 
-	kl, err := kv.ListKeysFiltered(ctx, fmt.Sprintf("room_membership.%s.*", user_id))
+	kl, err := kv.ListKeysFiltered(ctx, roomMembershipKeyMatchForUser(roomKindKeyFromSpaceID(space_id), user_id))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list room memberships for user %s in space %s: %w", user_id, space_id, err)
 	}
@@ -896,9 +922,11 @@ func (c *ChattoCore) deleteUserRoomMembershipsInSpace(ctx context.Context, user_
 		return err
 	}
 
-	// List all room membership keys for this user
-	// Key format: room_membership.{user_id}.{room_id}
-	kl, err := kv.ListKeysFiltered(ctx, fmt.Sprintf("room_membership.%s.*", user_id))
+	// List the user's memberships in this space's kind. Key format
+	// post-#330 phase 4b: `room_membership.{kind}.{room_id}.{user_id}`.
+	// userID is the trailing segment, so this is an internal-wildcard
+	// filter rather than a pure prefix.
+	kl, err := kv.ListKeysFiltered(ctx, roomMembershipKeyMatchForUser(roomKindKeyFromSpaceID(space_id), user_id))
 	if err != nil {
 		// No keys found is fine - user may not be in any rooms
 		if errors.Is(err, jetstream.ErrNoKeysFound) {
@@ -914,9 +942,9 @@ func (c *ChattoCore) deleteUserRoomMembershipsInSpace(ctx context.Context, user_
 	}
 	var entries []keyAndRoom
 	for key := range kl.Keys() {
-		// Extract room ID from key: room_membership.{user_id}.{room_id}
+		// Extract room ID from key: room_membership.{kind}.{room_id}.{user_id}
 		parts := strings.Split(key, ".")
-		if len(parts) == 3 {
+		if len(parts) == 4 {
 			entries = append(entries, keyAndRoom{key: key, roomID: parts[2]})
 		}
 	}
@@ -957,8 +985,9 @@ func (c *ChattoCore) GetRoomMembersList(ctx context.Context, space_id, room_id s
 		return nil, err
 	}
 
-	// List all room membership keys in the bucket
-	kl, err := kv.ListKeysFiltered(ctx, "room_membership.>")
+	// List room memberships of the kind that lives in this space's bucket.
+	// Key format: `room_membership.{kind}.{userID}.{roomID}`.
+	kl, err := kv.ListKeysFiltered(ctx, fmt.Sprintf("room_membership.%s.>", roomKindKeyFromSpaceID(space_id)))
 	if err != nil {
 		if err == jetstream.ErrNoKeysFound {
 			return []*corev1.RoomMembership{}, nil

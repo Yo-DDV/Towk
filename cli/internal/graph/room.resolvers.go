@@ -15,6 +15,12 @@ import (
 )
 
 // Type is the resolver for the type field.
+//
+// Derived from the room's SpaceId rather than persisted on the Room proto:
+// the canonical kind discriminator is the storage key prefix (#330 phase
+// 4b), and DM rooms keep SpaceId="DM" through migration. Once the bridge
+// retires (4g) and SpaceId becomes vestigial, this resolver shifts to
+// reading the kind directly from the storage layer.
 func (r *roomResolver) Type(ctx context.Context, obj *corev1.Room) (model.RoomType, error) {
 	if core.IsDMSpace(obj.SpaceId) {
 		return model.RoomTypeDm, nil

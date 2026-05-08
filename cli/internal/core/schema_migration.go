@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -45,6 +46,11 @@ const (
 	// cleanup follow-up deletes this alongside the legacy resources, after
 	// which the migrator becomes a permanent no-op.
 	phase4aCompleteKey = "migration.phase4a_complete"
+
+	// phase4bCompleteKey marks phase 4b as done. Same presence-as-truth shape
+	// as phase 4a. The cleanup follow-up deletes both markers along with the
+	// legacy SPACE_* resources.
+	phase4bCompleteKey = "migration.phase4b_complete"
 )
 
 // RunMigrationsIfNeeded runs any pending schema migrations. Idempotent and
@@ -58,7 +64,13 @@ const (
 // first space yet, in which case there's no legacy data and the marker is
 // written immediately.
 func (c *ChattoCore) RunMigrationsIfNeeded(ctx context.Context, primarySpaceID string) error {
-	return c.runPhase4aIfNeeded(ctx, primarySpaceID)
+	if err := c.runPhase4aIfNeeded(ctx, primarySpaceID); err != nil {
+		return err
+	}
+	if err := c.runPhase4bIfNeeded(ctx); err != nil {
+		return err
+	}
+	return nil
 }
 
 // runPhase4aIfNeeded migrates the primary space's CONFIG, RBAC and RUNTIME
@@ -112,6 +124,272 @@ func (c *ChattoCore) runPhase4aIfNeeded(ctx context.Context, primarySpaceID stri
 
 	c.logger.Info("phase4a: migration complete", "primary_space_id", primarySpaceID)
 	return nil
+}
+
+// runPhase4bIfNeeded folds the DM system space's metadata into SERVER_*
+// and rewrites room/membership keys to encode the room kind in the key
+// prefix (`room.channel.{X}` and `room.dm.{X}`).
+//
+// Two pieces of work happen here:
+//
+//  1. Rewrite primary's already-migrated keys in SERVER_CONFIG from the
+//     phase-4a-era format `room.{X}` / `room_membership.{u}.{r}` into
+//     the kind-prefixed format `room.channel.{X}` /
+//     `room_membership.channel.{u}.{r}`.
+//
+//  2. Copy DM-space data from SPACE_DM_CONFIG / SPACE_DM_RUNTIME into
+//     SERVER_CONFIG / SERVER_RUNTIME, writing rooms and memberships
+//     under the `room.dm.*` / `room_membership.dm.*` prefixes.
+//
+// In both cases the original keys are left in place (no-deletes rule);
+// reads use the new prefixes, the dormant old keys cost a little disk
+// until the cleanup follow-up retires them.
+//
+// DM space has no RBAC bucket to migrate (DM permissions are hardcoded;
+// see isDMPermissionAllowed). Per-message KVs (BODIES/REACTIONS/THREADS)
+// move in a later phase.
+func (c *ChattoCore) runPhase4bIfNeeded(ctx context.Context) error {
+	if done, err := c.isMigrationComplete(ctx, phase4bCompleteKey); err != nil {
+		return fmt.Errorf("phase4b: check completion marker: %w", err)
+	} else if done {
+		return nil
+	}
+
+	release, err := c.acquireMigrationLock(ctx)
+	if err != nil {
+		return fmt.Errorf("phase4b: acquire lock: %w", err)
+	}
+	defer release()
+
+	// Re-check after acquiring the lock — another pod may have just finished.
+	if done, err := c.isMigrationComplete(ctx, phase4bCompleteKey); err != nil {
+		return fmt.Errorf("phase4b: re-check completion marker: %w", err)
+	} else if done {
+		return nil
+	}
+
+	c.logger.Info("phase4b: rewriting primary keys in SERVER_CONFIG to kind-prefixed form")
+	if err := c.rewritePrimaryConfigKeysToKindPrefix(ctx); err != nil {
+		return fmt.Errorf("phase4b: rewrite primary keys: %w", err)
+	}
+
+	if hasLegacyDM, err := c.legacyDMMetadataExists(ctx); err != nil {
+		return fmt.Errorf("phase4b: detect legacy DM data: %w", err)
+	} else if hasLegacyDM {
+		c.logger.Info("phase4b: copying DM space data into SERVER_* with dm-prefixed keys")
+		if err := c.copyDMDataToServerLayout(ctx); err != nil {
+			return fmt.Errorf("phase4b: copy DM data: %w", err)
+		}
+	}
+
+	if err := c.markMigrationComplete(ctx, phase4bCompleteKey); err != nil {
+		return fmt.Errorf("phase4b: mark complete: %w", err)
+	}
+
+	c.logger.Info("phase4b: migration complete")
+	return nil
+}
+
+// legacyDMMetadataExists returns true if either of the DM system space's
+// legacy CONFIG/RUNTIME buckets exist. (RBAC is intentionally absent — DM
+// has no roles.)
+func (c *ChattoCore) legacyDMMetadataExists(ctx context.Context) (bool, error) {
+	for _, bucketName := range []string{
+		legacySpaceConfigBucket(DMSpaceID),
+		legacySpaceRuntimeBucket(DMSpaceID),
+	} {
+		_, err := c.js.KeyValue(ctx, bucketName)
+		if err == nil {
+			return true, nil
+		}
+		if !errors.Is(err, jetstream.ErrBucketNotFound) {
+			return false, fmt.Errorf("checking bucket %s: %w", bucketName, err)
+		}
+	}
+	return false, nil
+}
+
+// rewritePrimaryConfigKeysToKindPrefix walks SERVER_CONFIG and copies any
+// key in the phase-4a-era format (`room.{X}`, `room_membership.{u}.{r}`)
+// to its kind-prefixed equivalent (`room.channel.{X}`,
+// `room_membership.channel.{u}.{r}`). The original key is left in place
+// for rollback safety; it becomes dormant once code switches to the new
+// prefixes.
+//
+// Idempotent: re-runs find no old-format keys to copy (the prefix scans
+// `room.*` and `room_membership.*.*` no longer match anything once
+// rewrites happen, and Create swallows ErrKeyExists for any key already
+// present in the target).
+func (c *ChattoCore) rewritePrimaryConfigKeysToKindPrefix(ctx context.Context) error {
+	target := c.storage.serverConfigKV
+
+	roomsCopied, roomsSkipped, err := c.copyKeysWithRewrite(ctx, target, "room.*", func(oldKey string) (string, bool) {
+		// "room.{X}" — exactly one segment after "room.", and no
+		// further dots (NanoIDs don't contain dots).
+		suffix := strings.TrimPrefix(oldKey, "room.")
+		if suffix == oldKey || strings.Contains(suffix, ".") {
+			return "", false
+		}
+		return "room.channel." + suffix, true
+	})
+	if err != nil {
+		return fmt.Errorf("rewrite room.* keys: %w", err)
+	}
+
+	memCopied, memSkipped, err := c.copyKeysWithRewrite(ctx, target, "room_membership.*.*", func(oldKey string) (string, bool) {
+		// Old format: "room_membership.{u}.{r}" — exactly two segments
+		// after the "room_membership." prefix. New format swaps the
+		// order to put roomID first: "room_membership.channel.{r}.{u}".
+		suffix := strings.TrimPrefix(oldKey, "room_membership.")
+		if suffix == oldKey {
+			return "", false
+		}
+		segments := strings.Split(suffix, ".")
+		if len(segments) != 2 {
+			return "", false
+		}
+		userID, roomID := segments[0], segments[1]
+		return fmt.Sprintf("room_membership.channel.%s.%s", roomID, userID), true
+	})
+	if err != nil {
+		return fmt.Errorf("rewrite room_membership.*.* keys: %w", err)
+	}
+
+	c.logger.Info("phase4b: rewrote primary keys in SERVER_CONFIG",
+		"rooms_copied", roomsCopied,
+		"rooms_skipped_existing", roomsSkipped,
+		"memberships_copied", memCopied,
+		"memberships_skipped_existing", memSkipped,
+	)
+	return nil
+}
+
+// copyKeysWithRewrite scans target with filterPattern, computes a new key
+// for each match via rewrite, and writes the original value at the new
+// key. Returns (copied, skipped, error). The original key stays in place.
+func (c *ChattoCore) copyKeysWithRewrite(
+	ctx context.Context,
+	target jetstream.KeyValue,
+	filterPattern string,
+	rewrite func(oldKey string) (newKey string, ok bool),
+) (copied, skipped int, err error) {
+	keysLister, err := target.ListKeysFiltered(ctx, filterPattern)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrNoKeysFound) {
+			return 0, 0, nil
+		}
+		return 0, 0, fmt.Errorf("list %q: %w", filterPattern, err)
+	}
+	defer keysLister.Stop()
+
+	for oldKey := range keysLister.Keys() {
+		newKey, ok := rewrite(oldKey)
+		if !ok {
+			continue
+		}
+		entry, err := target.Get(ctx, oldKey)
+		if err != nil {
+			if errors.Is(err, jetstream.ErrKeyNotFound) {
+				continue
+			}
+			return copied, skipped, fmt.Errorf("read %q: %w", oldKey, err)
+		}
+		_, err = target.Create(ctx, newKey, entry.Value())
+		switch {
+		case err == nil:
+			copied++
+		case errors.Is(err, jetstream.ErrKeyExists):
+			skipped++
+		default:
+			return copied, skipped, fmt.Errorf("write %q: %w", newKey, err)
+		}
+	}
+	return copied, skipped, nil
+}
+
+// copyDMDataToServerLayout copies DM-space CONFIG and RUNTIME data into
+// the shared SERVER_* buckets, rewriting room/membership keys with the
+// `dm` kind prefix. Source data left intact (no-deletes rule).
+func (c *ChattoCore) copyDMDataToServerLayout(ctx context.Context) error {
+	if err := c.copyDMConfigToServer(ctx); err != nil {
+		return err
+	}
+	if err := c.copyKVBucket(ctx, legacySpaceRuntimeBucket(DMSpaceID), c.storage.serverRuntimeKV, "DM_RUNTIME"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// copyDMConfigToServer walks SPACE_DM_CONFIG and writes each key into
+// SERVER_CONFIG, rewriting `room.{X}` → `room.dm.{X}` and
+// `room_membership.{u}.{r}` → `room_membership.dm.{u}.{r}`. Other keys
+// (none expected for DM space, but defensively) copy verbatim.
+func (c *ChattoCore) copyDMConfigToServer(ctx context.Context) error {
+	sourceName := legacySpaceConfigBucket(DMSpaceID)
+	source, err := c.js.KeyValue(ctx, sourceName)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrBucketNotFound) {
+			return nil
+		}
+		return fmt.Errorf("open %s: %w", sourceName, err)
+	}
+
+	keysLister, err := source.ListKeys(ctx)
+	if err != nil {
+		return fmt.Errorf("list keys in %s: %w", sourceName, err)
+	}
+	defer keysLister.Stop()
+
+	target := c.storage.serverConfigKV
+
+	copied := 0
+	skipped := 0
+	for key := range keysLister.Keys() {
+		entry, err := source.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, jetstream.ErrKeyNotFound) {
+				continue
+			}
+			return fmt.Errorf("read key %q from %s: %w", key, sourceName, err)
+		}
+
+		newKey := dmConfigKeyToServerKey(key)
+		_, err = target.Create(ctx, newKey, entry.Value())
+		switch {
+		case err == nil:
+			copied++
+		case errors.Is(err, jetstream.ErrKeyExists):
+			skipped++
+		default:
+			return fmt.Errorf("write key %q to SERVER_CONFIG: %w", newKey, err)
+		}
+	}
+
+	c.logger.Info("phase4b: copied DM CONFIG bucket to SERVER_CONFIG",
+		"source", sourceName,
+		"copied", copied,
+		"skipped_existing", skipped,
+	)
+	return nil
+}
+
+// dmConfigKeyToServerKey rewrites a DM-space CONFIG key to its
+// SERVER_CONFIG equivalent. `room.{X}` becomes `room.dm.{X}`;
+// `room_membership.{u}.{r}` becomes `room_membership.dm.{r}.{u}`
+// (note the user/room swap to align with the room-first ordering).
+// Any other key shape is returned unchanged.
+func dmConfigKeyToServerKey(key string) string {
+	if rest, ok := strings.CutPrefix(key, "room."); ok && !strings.Contains(rest, ".") {
+		return "room.dm." + rest
+	}
+	if rest, ok := strings.CutPrefix(key, "room_membership."); ok {
+		segments := strings.Split(rest, ".")
+		if len(segments) == 2 {
+			userID, roomID := segments[0], segments[1]
+			return fmt.Sprintf("room_membership.dm.%s.%s", roomID, userID)
+		}
+	}
+	return key
 }
 
 // isMigrationComplete returns true if the given completion marker key exists
