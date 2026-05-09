@@ -36,13 +36,10 @@ const NotificationsQueryDoc = graphql(`
           presenceStatus
         }
         summary
-        mentionSpace: space {
-          id
-          name
-        }
         mentionRoom: room {
           id
           name
+          spaceId
         }
         mentionEventId: eventId
         mentionInThread: inThread
@@ -58,13 +55,10 @@ const NotificationsQueryDoc = graphql(`
           presenceStatus
         }
         summary
-        replySpace: space {
-          id
-          name
-        }
         replyRoom: room {
           id
           name
+          spaceId
         }
         replyEventId: eventId
         inReplyToId
@@ -81,13 +75,10 @@ const NotificationsQueryDoc = graphql(`
           presenceStatus
         }
         summary
-        roomMsgSpace: space {
-          id
-          name
-        }
         roomMsgRoom: room {
           id
           name
+          spaceId
         }
         roomMsgEventId: eventId
       }
@@ -98,6 +89,16 @@ const NotificationsQueryDoc = graphql(`
 const HasNotificationsQueryDoc = graphql(`
   query HasNotifications {
     hasNotifications
+  }
+`);
+
+const InstanceNameQueryDoc = graphql(`
+  query NotificationInstanceName {
+    instance {
+      config {
+        instanceName
+      }
+    }
   }
 `);
 
@@ -150,8 +151,8 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
     case 'MentionNotificationItem':
       return {
         isDM: false,
-        spaceId: n.mentionSpace?.id ?? null,
-        spaceName: n.mentionSpace?.name ?? null,
+        spaceId: n.mentionRoom?.spaceId ?? null,
+        spaceName: null,
         roomId: n.mentionRoom?.id ?? null,
         roomName: n.mentionRoom?.name ?? null,
         eventId: n.mentionEventId ?? null,
@@ -160,8 +161,8 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
     case 'ReplyNotificationItem':
       return {
         isDM: false,
-        spaceId: n.replySpace?.id ?? null,
-        spaceName: n.replySpace?.name ?? null,
+        spaceId: n.replyRoom?.spaceId ?? null,
+        spaceName: null,
         roomId: n.replyRoom?.id ?? null,
         roomName: n.replyRoom?.name ?? null,
         eventId: n.replyEventId ?? null,
@@ -170,8 +171,8 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
     case 'RoomMessageNotificationItem':
       return {
         isDM: false,
-        spaceId: n.roomMsgSpace?.id ?? null,
-        spaceName: n.roomMsgSpace?.name ?? null,
+        spaceId: n.roomMsgRoom?.spaceId ?? null,
+        spaceName: null,
         roomId: n.roomMsgRoom?.id ?? null,
         roomName: n.roomMsgRoom?.name ?? null,
         eventId: n.roomMsgEventId ?? null,
@@ -197,6 +198,13 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
 export class NotificationStore {
   #client: Client;
   notifications = $state<NotificationItem[]>([]);
+  /**
+   * Instance display name, captured alongside the notification list and used
+   * by getLocationString() for non-DM notifications. Post-#330 PR(a) the
+   * notification's space name no longer comes from the per-notification
+   * fragment — it's the instance name.
+   */
+  instanceName = $state<string | null>(null);
   loading = $state(false);
   error = $state<string | null>(null);
 
@@ -403,7 +411,18 @@ export class NotificationStore {
       }
 
       if (result.data) {
-        this.notifications = result.data.notifications;
+        this.notifications = result.data.notifications ?? [];
+      }
+      // Capture the instance display name lazily — used by getLocationString
+      // for non-DM notifications. Failure here is non-fatal; the UI just
+      // omits the "in <name>" suffix.
+      try {
+        const nameRes = await this.#client
+          .query(InstanceNameQueryDoc, {}, { requestPolicy: 'cache-first' })
+          .toPromise();
+        this.instanceName = nameRes.data?.instance?.config.instanceName ?? null;
+      } catch {
+        // ignore
       }
     } catch (e) {
       this.error = e instanceof Error ? e.message : 'Failed to fetch notifications';
@@ -507,13 +526,17 @@ export class NotificationStore {
   }
 
   /**
-   * Get location string for a notification (e.g., "#general in My Space").
+   * Get location string for a notification (e.g., "#general in My Server").
    * Returns null for DM notifications and any notification missing names.
+   * The "in <name>" suffix uses the instance display name (server = instance
+   * post-#330 PR(a)), captured alongside the notification list.
    */
   getLocationString(notification: NotificationItem): string | null {
     const t = notificationTarget(notification);
-    if (t.isDM || !t.spaceName || !t.roomName) return null;
-    return `#${t.roomName} in ${t.spaceName}`;
+    if (t.isDM || !t.roomName) return null;
+    const serverName = this.instanceName;
+    if (!serverName) return `#${t.roomName}`;
+    return `#${t.roomName} in ${serverName}`;
   }
 
   /**

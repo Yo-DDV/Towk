@@ -10,8 +10,6 @@ import {
   verifyAdminEmail,
   grantInstancePermission,
   revokeInstancePermission,
-  denyUserInstancePermission,
-  clearUserInstancePermissionOverride,
   type TestUser
 } from './fixtures/testUser';
 
@@ -203,22 +201,8 @@ test.describe('Admin Users Page', () => {
   });
 });
 
-test.describe('Admin Spaces Page', () => {
-  test('admin can view spaces list', async ({ page, adminPage }) => {
-    await createAndLoginAdminUser(page);
-
-    await adminPage.gotoSpaces();
-
-    // Should see the spaces page header
-    await adminPage.expectSpacesPageVisible();
-
-    // Should see table headers
-    await adminPage.expectSpacesTableHeadersVisible();
-
-    // Should see the total count (even if 0)
-    await adminPage.expectSpaceCountVisible();
-  });
-});
+// Admin Spaces page retired in PR(a) — instance metadata is managed via the
+// Server Admin → General page now; the dashboard no longer has a "spaces" tier.
 
 test.describe('Admin System Page', () => {
   test('admin can view system information', async ({ page, adminPage }) => {
@@ -246,10 +230,6 @@ test.describe('Admin Navigation', () => {
     // Navigate to Users
     await adminPage.navigateToUsers();
     await adminPage.expectUsersPageVisible();
-
-    // Navigate to Spaces
-    await adminPage.navigateToSpaces();
-    await adminPage.expectSpacesPageVisible();
 
     // Navigate to System
     await adminPage.navigateToSystem();
@@ -338,9 +318,8 @@ test.describe('Admin Granular Permissions', () => {
     // Should see dashboard in nav
     await regularAdminPage.expectSidebarLinkVisible('Dashboard');
 
-    // Should NOT see Users, Spaces, System (no permissions for those)
+    // Should NOT see Users, System (no permissions for those)
     await regularAdminPage.expectSidebarLinkNotVisible('Users');
-    await regularAdminPage.expectSidebarLinkNotVisible('Spaces');
     await regularAdminPage.expectSidebarLinkNotVisible('System');
 
     // Clean up
@@ -398,26 +377,6 @@ test.describe('Admin Granular Permissions', () => {
     await regularContext.close();
   });
 
-  test('user without admin.view-spaces sees access denied on /chat/-/admin/spaces', async ({
-    page,
-    browser
-  }) => {
-    await createAndLoginAdminUser(page);
-    await grantInstancePermission(page, 'everyone', 'admin.access');
-
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularAdminPage = new AdminPage(regularPage);
-    await createAndLoginTestUser(regularPage);
-
-    await regularAdminPage.gotoSpaces();
-
-    await regularAdminPage.expectAccessDeniedForPermission('admin.view-spaces');
-
-    await revokeInstancePermission(page, 'everyone', 'admin.access');
-    await regularContext.close();
-  });
-
   test('user without admin.view-system sees access denied on /chat/-/admin/system', async ({
     page,
     browser
@@ -455,28 +414,6 @@ test.describe('Admin Granular Permissions', () => {
     await regularAdminPage.expectAccessDeniedForPermission('admin.view-roles');
 
     await revokeInstancePermission(page, 'everyone', 'admin.access');
-    await regularContext.close();
-  });
-
-  test('user with admin.view-spaces permission can see spaces list', async ({ page, browser }) => {
-    // Grant admin and admin.view-spaces
-    await createAndLoginAdminUser(page);
-    await grantInstancePermission(page, 'everyone', 'admin.access');
-    await grantInstancePermission(page, 'everyone', 'admin.view-spaces');
-
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularAdminPage = new AdminPage(regularPage);
-    await createAndLoginTestUser(regularPage);
-
-    await regularAdminPage.gotoSpaces();
-
-    await regularAdminPage.expectSpacesPageVisible();
-    await regularAdminPage.expectSpaceCountVisible();
-
-    // Clean up
-    await revokeInstancePermission(page, 'everyone', 'admin.access');
-    await revokeInstancePermission(page, 'everyone', 'admin.view-spaces');
     await regularContext.close();
   });
 
@@ -591,60 +528,9 @@ test.describe('User Permission Management', () => {
     await regularContext.close();
   });
 
-  test('denying a permission via role blocks user access', async ({ page, browser }) => {
-    await createAndLoginAdminUser(page);
-
-    // Create a regular user
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // User should initially be able to browse spaces (has space.list via everyone role)
-    await regularPage.goto(routes.spaces);
-    await expect(regularPage.getByRole('heading', { name: 'Browse Spaces' })).toBeVisible();
-
-    // Deny space.list for this user via a deny-role
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'space.list');
-
-    // User should now be denied — the SpaceDirectory shows an error or permission message.
-    // The server may return a GraphQL error or canListSpaces: false depending on
-    // how the permission denial manifests, so accept either message.
-    await regularPage.reload();
-    await expect(
-      regularPage.getByText(/(No permission to browse spaces on|Could not connect to)/)
-    ).toBeVisible();
-
-    // Clean up
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'space.list', denyRoleName);
-    await regularContext.close();
-  });
-
-  test('removing deny role restores role-based permission', async ({ page, browser }) => {
-    await createAndLoginAdminUser(page);
-
-    // Create a regular user
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // Deny space.list for this user
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'space.list');
-
-    // Verify denied — the SpaceDirectory shows an error or permission message
-    await regularPage.goto(routes.spaces);
-    await expect(
-      regularPage.getByText(/(No permission to browse spaces on|Could not connect to)/)
-    ).toBeVisible();
-
-    // Remove the deny role to restore permission
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'space.list', denyRoleName);
-
-    // Permission should be restored via everyone role
-    await regularPage.reload();
-    await expect(regularPage.getByRole('heading', { name: 'Browse Spaces' })).toBeVisible();
-
-    await regularContext.close();
-  });
+  // The "deny `space.list` blocks the Browse Spaces page" pair was retired
+  // with the Browse Spaces UI in PR(a). The underlying deny-role mechanism is
+  // covered by the other permission-denial tests in this file.
 });
 
 test.describe('Role Assignment', () => {
@@ -814,82 +700,9 @@ test.describe('Role Assignment', () => {
   });
 });
 
-test.describe('Browse Spaces Permission', () => {
-  test('user with denied space.list cannot see explore spaces icon', async ({ page, browser }) => {
-    // Create admin and regular user
-    await createAndLoginAdminUser(page);
-
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularChatPage = new ChatPage(regularPage);
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // Navigate to chat - should see explore spaces icon by default
-    await regularChatPage.goto();
-    await regularChatPage.expectExploreSpacesVisible();
-
-    // Deny space.list for the regular user
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'space.list');
-
-    // Reload and verify icon is hidden
-    await regularPage.reload();
-    await expect(regularPage.locator('[title="Explore Spaces"]')).not.toBeVisible();
-
-    // Clean up
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'space.list', denyRoleName);
-    await regularContext.close();
-  });
-
-  test('user with denied space.list sees no spaces on /chat/spaces', async ({
-    page,
-    browser
-  }) => {
-    // Create admin and regular user
-    await createAndLoginAdminUser(page);
-
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // Deny space.list for the regular user
-    const denyRoleName = await denyUserInstancePermission(page, regularUser.id!, 'space.list');
-
-    // Navigate directly to /chat/spaces
-    await regularPage.goto(routes.spaces);
-
-    // The page loads (instance-agnostic browse page) but no space cards are shown
-    await expect(regularPage.getByRole('heading', { name: 'Browse Spaces' })).toBeVisible();
-    await expect(regularPage.locator('[data-testid="space-card"]')).not.toBeVisible();
-
-    // Clean up
-    await clearUserInstancePermissionOverride(page, regularUser.id!, 'space.list', denyRoleName);
-    await regularContext.close();
-  });
-
-  test('user with space.list can see explore spaces icon and page', async ({ page, browser }) => {
-    // Create admin and regular user
-    await createAndLoginAdminUser(page);
-
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularChatPage = new ChatPage(regularPage);
-    await createAndLoginTestUser(regularPage);
-
-    // Navigate to chat - should see explore spaces icon (default permission)
-    await regularChatPage.goto();
-    await regularChatPage.expectExploreSpacesVisible();
-
-    // Click the icon to navigate to spaces page
-    await regularChatPage.goToExploreSpaces();
-
-    // Should see the browse spaces page content (not access denied)
-    await expect(regularPage.getByRole('heading', { name: 'Browse Spaces' })).toBeVisible();
-    await expect(regularPage.getByRole('heading', { name: 'Access Denied' })).not.toBeVisible();
-
-    await regularContext.close();
-  });
-
-});
+// "Browse Spaces Permission" describe block was retired with the Browse
+// Spaces UI in PR(a). The `space.list` permission is gone; deny-role
+// behaviour is exercised by the other admin permission tests.
 
 test.describe('Instance Settings', () => {
   // Reset instance config after each test to prevent test pollution
@@ -912,7 +725,9 @@ test.describe('Instance Settings', () => {
     await adminPage.gotoInstanceSettings();
 
     await adminPage.expectInstanceSettingsVisible();
-    await adminPage.expectInstanceName('Chatto');
+    // The e2e fixture's [bootstrap.instance] block seeds the instance name on
+    // first boot (see frontend/e2e/fixtures/chatto.toml).
+    await adminPage.expectInstanceName('E2E Test Server');
     await adminPage.expectMotd('');
     await adminPage.expectWelcomeMessage('');
   });
@@ -1050,8 +865,11 @@ test.describe('Instance Settings', () => {
     await createAndLoginTestUser(page2);
     await page2.goto(routes.spaces);
 
-    // Verify initial page title uses default instance name
-    await expect(page2).toHaveTitle(/Chatto/);
+    // Verify initial page title contains *some* instance name (post-PR(a)
+    // this is the bootstrap space's name when no override is configured —
+    // see `InstanceConfig.instanceName` resolver fallback chain). The
+    // assertion below for the *changed* name is the meaningful signal.
+    await expect(page2).not.toHaveTitle('');
 
     // First page (admin): go to settings and change instance name
     await adminPage.gotoInstanceSettings();
@@ -1084,9 +902,6 @@ test.describe('Instance Settings', () => {
 
     await page.goto(routes.adminUsers);
     await expect(page).toHaveTitle('Users | Admin | My Chat Server');
-
-    await page.goto(routes.spaces);
-    await expect(page).toHaveTitle('Browse Spaces | My Chat Server');
   });
 
   test('Link Previews section is accessible and has all expected fields', async ({
@@ -1267,90 +1082,6 @@ test.describe('Instance Role Permission Denials', () => {
     });
   });
 
-  test('permission denial on a role blocks user with that role', async ({ page, browser }) => {
-    await createAndLoginAdminUser(page);
-
-    // Create a custom role
-    const roleName = generateInstanceRoleName('block');
-    await page.request.post('/api/graphql', {
-      headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
-      data: {
-        query: `
-					mutation CreateRole($input: CreateRoleInput!) {
-						createRole(input: $input) { name }
-					}
-				`,
-        variables: {
-          input: {
-            name: roleName,
-            displayName: 'Block Test Role',
-            description: 'A role that denies space.list'
-          }
-        }
-      }
-    });
-
-    // Deny space.list on the role
-    await page.request.post('/api/graphql', {
-      headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
-      data: {
-        query: `
-					mutation DenyInstancePermission($input: DenyInstancePermissionInput!) { denyInstancePermission(input: $input)
-					}
-				`,
-        variables: { input: { role: roleName, permission: 'space.list' } }
-      }
-    });
-
-    // Create a second user and assign the role
-    const regularContext = await browser.newContext();
-    const regularPage = await regularContext.newPage();
-    const regularUser = await createAndLoginTestUser(regularPage);
-
-    // First verify the user CAN browse spaces (has permission via member role)
-    await regularPage.goto(routes.spaces);
-    await expect(regularPage.getByRole('heading', { name: 'Browse Spaces' })).toBeVisible();
-
-    // Now assign the blocking role to the user
-    await page.request.post('/api/graphql', {
-      headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
-      data: {
-        query: `
-					mutation AssignRole($input: AssignInstanceRoleInput!) { assignInstanceRole(input: $input)
-					}
-				`,
-        variables: { input: { userId: regularUser.id, roleName } }
-      }
-    });
-
-    // Reload and verify the user is NOW blocked (denial overrides member grant)
-    // The SpaceDirectory shows an error or permission message instead of Access Denied
-    await regularPage.reload();
-    await expect(
-      regularPage.getByText(/(No permission to browse spaces on|Could not connect to)/)
-    ).toBeVisible();
-
-    // Clean up - revoke the role and delete it
-    await page.request.post('/api/graphql', {
-      headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
-      data: {
-        query: `
-					mutation RevokeRole($input: RevokeInstanceRoleInput!) { revokeInstanceRole(input: $input)
-					}
-				`,
-        variables: { input: { userId: regularUser.id, roleName } }
-      }
-    });
-    await page.request.post('/api/graphql', {
-      headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
-      data: {
-        query: `mutation DeleteRole($input: DeleteRoleInput!) { deleteRole(input: $input) }`,
-        variables: { input: { name: roleName } }
-      }
-    });
-
-    await regularContext.close();
-  });
 });
 
 test.describe('Identity Editing', () => {

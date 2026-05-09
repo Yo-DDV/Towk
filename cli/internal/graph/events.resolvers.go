@@ -150,11 +150,6 @@ func (r *instanceUserPreferencesUpdatedEventResolver) TimeFormat(ctx context.Con
 	return protoTimeFormatToGQL(obj.TimeFormat), nil
 }
 
-// Space is the resolver for the space field.
-func (r *mentionNotificationEventResolver) Space(ctx context.Context, obj *corev1.MentionNotificationEvent) (*corev1.Space, error) {
-	return r.core.GetSpace(ctx, obj.SpaceId)
-}
-
 // Room is the resolver for the room field.
 func (r *mentionNotificationEventResolver) Room(ctx context.Context, obj *corev1.MentionNotificationEvent) (*corev1.Room, error) {
 	return r.core.GetRoom(ctx, obj.SpaceId, obj.RoomId)

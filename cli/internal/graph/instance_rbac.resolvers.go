@@ -400,14 +400,6 @@ func (r *viewerResolver) CanViewAdmin(ctx context.Context, obj *model.Viewer) (b
 	return r.core.CanAdminAccess(ctx, obj.UserID)
 }
 
-// CanListSpaces is the resolver for the canListSpaces field.
-func (r *viewerResolver) CanListSpaces(ctx context.Context, obj *model.Viewer) (bool, error) {
-	if obj.IsConfigOwner {
-		return true, nil
-	}
-	return r.core.CanSpaceList(ctx, obj.UserID)
-}
-
 // CanViewDMs is the resolver for the canViewDMs field.
 func (r *viewerResolver) CanViewDMs(ctx context.Context, obj *model.Viewer) (bool, error) {
 	if obj.IsConfigOwner {
@@ -438,14 +430,6 @@ func (r *viewerResolver) CanAdminManageUsers(ctx context.Context, obj *model.Vie
 		return true, nil
 	}
 	return r.core.CanAdminUsersManage(ctx, obj.UserID)
-}
-
-// CanAdminViewSpaces is the resolver for the canAdminViewSpaces field.
-func (r *viewerResolver) CanAdminViewSpaces(ctx context.Context, obj *model.Viewer) (bool, error) {
-	if obj.IsConfigOwner {
-		return true, nil
-	}
-	return r.core.CanAdminSpacesView(ctx, obj.UserID)
 }
 
 // CanAdminViewRoles is the resolver for the canAdminViewRoles field.
