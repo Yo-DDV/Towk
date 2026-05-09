@@ -26,7 +26,6 @@
     detail: string;
     instanceId: string;
     instanceName: string;
-    spaceId?: string;
     spaceLogo?: SpaceLogo;
     participants?: UserAvatarUserFragment[];
     currentUserId?: string;
@@ -143,7 +142,6 @@
               detail: instanceLabel || logo.name,
               instanceId: instance.id,
               instanceName,
-              spaceId: primarySpaceId,
               spaceLogo: logo,
               score: 0
             });
@@ -270,7 +268,7 @@
   function itemUrl(item: ResultItem): string | undefined {
     if (item.kind === 'destination' && item.href) return item.href;
     if (item.kind === 'dm') return resolve('/chat/[instanceId]/(chrome)/[roomId]', { instanceId: instanceIdToSegment(item.instanceId), roomId: item.id });
-    if (item.kind === 'room' && item.spaceId) return resolve('/chat/[instanceId]/(chrome)/[roomId]', { instanceId: instanceIdToSegment(item.instanceId), roomId: item.id });
+    if (item.kind === 'room') return resolve('/chat/[instanceId]/(chrome)/[roomId]', { instanceId: instanceIdToSegment(item.instanceId), roomId: item.id });
     return undefined;
   }
 

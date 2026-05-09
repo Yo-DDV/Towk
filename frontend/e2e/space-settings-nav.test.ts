@@ -91,7 +91,6 @@ async function joinSpaceViaAPI(_page: Page, _spaceId: string): Promise<void> {
  */
 async function grantSpacePermission(
   page: Page,
-  spaceId: string,
   role: string,
   permission: string
 ): Promise<void> {
@@ -106,7 +105,7 @@ async function grantSpacePermission(
 					grantSpacePermission(input: $input)
 				}
 			`,
-      variables: { input: { spaceId, role, permission } }
+      variables: { input: { role, permission } }
     }
   });
 
@@ -165,7 +164,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant role.assign to everyone role
-      await grantSpacePermission(page, space.id, 'everyone', 'role.assign');
+      await grantSpacePermission(page, 'everyone', 'role.assign');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
@@ -191,7 +190,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant member.invite to everyone role
-      await grantSpacePermission(page, space.id, 'everyone', 'member.invite');
+      await grantSpacePermission(page, 'everyone', 'member.invite');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
@@ -217,7 +216,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant role.manage to everyone role
-      await grantSpacePermission(page, space.id, 'everyone', 'role.manage');
+      await grantSpacePermission(page, 'everyone', 'role.manage');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
@@ -262,7 +261,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant role.assign to everyone role (enables Members page access)
-      await grantSpacePermission(page, space.id, 'everyone', 'role.assign');
+      await grantSpacePermission(page, 'everyone', 'role.assign');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
@@ -296,7 +295,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant role.manage to everyone role (enables Roles page access)
-      await grantSpacePermission(page, space.id, 'everyone', 'role.manage');
+      await grantSpacePermission(page, 'everyone', 'role.manage');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
@@ -350,7 +349,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant only role.assign to everyone role (no space.manage)
-      await grantSpacePermission(page, space.id, 'everyone', 'role.assign');
+      await grantSpacePermission(page, 'everyone', 'role.assign');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
@@ -410,7 +409,7 @@ test.describe('Space Admin Navigation Permissions', () => {
       const space = await createSpaceViaAPI(page);
 
       // Grant only role.assign to member role (NOT space.manage)
-      await grantSpacePermission(page, space.id, 'everyone', 'role.assign');
+      await grantSpacePermission(page, 'everyone', 'role.assign');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);

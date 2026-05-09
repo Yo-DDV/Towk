@@ -7,7 +7,7 @@ import { DM_SPACE_ID } from '$lib/constants';
 import { untrack } from 'svelte';
 
 export type RoomData = {
-  room: { id: string; name: string };
+  room: { id: string; name: string; type: string };
   spaceName: string | null;
   canPostMessage: boolean;
   canPostInThread: boolean;
@@ -45,7 +45,7 @@ export type DMData = {
  *
  * Must be called during component initialization (uses context).
  */
-export function useRoomData(getProps: () => { spaceId: string; roomId: string }) {
+export function useRoomData(getProps: () => { roomId: string }) {
   const connection = useConnection();
   const reconnect = useReconnectTrigger();
 
@@ -54,16 +54,17 @@ export function useRoomData(getProps: () => { spaceId: string; roomId: string })
   let dmData = $state<DMData | null>(null);
   const roomLoadId = { current: 0 };
 
-  const isDM = $derived(getProps().spaceId === DM_SPACE_ID);
+  // Post-PR(b) we tell channel vs DM via `Room.type` (the resolver returns
+  // `RoomType.DM` for DM rooms and `CHANNEL` for everything else).
+  const isDM = $derived(roomData?.room.type === 'DM');
   const isRoomLoading = $derived(roomData === undefined);
 
-  // Load room data when roomId, spaceId, or reconnect changes
+  // Load room data when roomId or reconnect changes
   $effect(() => {
     void reconnect.count;
 
-    const { spaceId, roomId } = getProps();
+    const { roomId } = getProps();
     const thisLoadId = ++roomLoadId.current;
-    const currentSpaceId = spaceId;
     const currentRoomId = roomId;
 
     // Don't reset roomData to undefined when staying in the same room (reconnect case).
@@ -79,10 +80,11 @@ export function useRoomData(getProps: () => { spaceId: string; roomId: string })
     connection()
       .client.query(
         graphql(`
-          query GetRoom($spaceId: ID!, $roomId: ID!) {
-            room(spaceId: $spaceId, roomId: $roomId) {
+          query GetRoom($roomId: ID!) {
+            room(roomId: $roomId) {
               id
               name
+              type
               viewerCanPostMessage
               viewerCanPostInThread
               viewerCanReply
@@ -109,7 +111,7 @@ export function useRoomData(getProps: () => { spaceId: string; roomId: string })
             }
           }
         `),
-        { spaceId: currentSpaceId, roomId: currentRoomId }
+        { roomId: currentRoomId }
       )
       .toPromise()
       .then((resp) => {
@@ -122,7 +124,7 @@ export function useRoomData(getProps: () => { spaceId: string; roomId: string })
         if (resp.error?.networkError) {
           console.warn(
             '[useRoomData] networkError, ignoring (roomData stays at prior value)',
-            { spaceId: currentSpaceId, roomId: currentRoomId, error: resp.error }
+            { roomId: currentRoomId, error: resp.error }
           );
           return;
         }
@@ -174,8 +176,8 @@ export function useRoomData(getProps: () => { spaceId: string; roomId: string })
     connection()
       .client.query(
         graphql(`
-          query GetDMRoomMembers($spaceId: ID!, $roomId: ID!) {
-            room(spaceId: $spaceId, roomId: $roomId) {
+          query GetDMRoomMembers($roomId: ID!) {
+            room(roomId: $roomId) {
               id
               members {
                 id
@@ -190,7 +192,7 @@ export function useRoomData(getProps: () => { spaceId: string; roomId: string })
             }
           }
         `),
-        { spaceId: DM_SPACE_ID, roomId: getProps().roomId }
+        { roomId: getProps().roomId }
       )
       .toPromise()
       .then((resp) => {
