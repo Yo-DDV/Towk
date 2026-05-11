@@ -67,7 +67,7 @@ describe('eventBusManager subscription robustness', () => {
     bus!.handlers.add(ranAfter);
 
     const event = { actorId: 'a', event: { __typename: 'ServerUpdatedEvent' } };
-    deliver({ data: { myInstanceEvents: event } });
+    deliver({ data: { myEvents: event } });
 
     expect(ranBefore).toHaveBeenCalledTimes(1);
     expect(ranAfter).toHaveBeenCalledTimes(1);
@@ -91,8 +91,8 @@ describe('eventBusManager subscription robustness', () => {
     bus.handlers.add(handler);
 
     const event = { actorId: 'a', event: { __typename: 'ServerUpdatedEvent' } };
-    deliver({ data: { myInstanceEvents: event } });
-    deliver({ data: { myInstanceEvents: event } });
+    deliver({ data: { myEvents: event } });
+    deliver({ data: { myEvents: event } });
 
     expect(handler).toHaveBeenCalledTimes(2);
   });

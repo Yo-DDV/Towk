@@ -1211,6 +1211,12 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 
 		c.logger.Debug("Server subscription active", "user_id", userID, "member_rooms", len(memberRooms))
 
+		// Synthetic heartbeat so clients can detect a dead subscription on
+		// an otherwise-healthy WebSocket. Pure in-process — never touches
+		// NATS or JetStream.
+		heartbeatTicker := time.NewTicker(25 * time.Second)
+		defer heartbeatTicker.Stop()
+
 		// Initialize dedup map from hub snapshot (contains current presence state at subscribe time)
 		lastKnownPresence := make(map[string]string, len(presenceSub.Snapshot))
 		for k, v := range presenceSub.Snapshot {
@@ -1221,6 +1227,18 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 			select {
 			case <-ctx.Done():
 				return
+
+			case <-heartbeatTicker.C:
+				heartbeat := &corev1.Event{
+					Id:        NewEventID(),
+					CreatedAt: timestamppb.Now(),
+					Event:     &corev1.Event_Heartbeat{Heartbeat: &corev1.HeartbeatEvent{}},
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case eventChan <- heartbeat:
+				}
 
 			case msg := <-liveMsgChan:
 				// Server-level live event (member_deleted).

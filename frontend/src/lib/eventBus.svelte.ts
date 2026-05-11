@@ -15,14 +15,14 @@ import { SvelteSet } from 'svelte/reactivity';
 import { graphql, useFragment } from './gql';
 import {
   RoomEventViewFragmentDoc,
-  type MyEventsSubscription,
+  type MyServerEventsSubscription,
   type NotificationLevel,
   type PresenceStatus,
   type TimeFormat
 } from './gql/graphql';
 import { eventBusManager } from './state/server/eventBus.svelte';
 
-export const MyEventsSubscriptionDoc = graphql(`
+export const MyServerEventsSubscriptionDoc = graphql(`
   subscription MyServerEvents {
     myEvents {
       id
@@ -196,6 +196,9 @@ export const MyEventsSubscriptionDoc = graphql(`
         ... on SessionTerminatedEvent {
           reason
         }
+        ... on HeartbeatEvent {
+          alive
+        }
       }
     }
   }
@@ -206,7 +209,7 @@ export const MyEventsSubscriptionDoc = graphql(`
  *  store, which still types its inputs against RoomEventView. */
 export { RoomEventViewFragmentDoc, useFragment };
 
-export type ServerEvent = MyEventsSubscription['myEvents'];
+export type ServerEvent = MyServerEventsSubscription['myEvents'];
 
 export type EventHandler = (event: ServerEvent) => void;
 

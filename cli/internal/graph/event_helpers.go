@@ -77,6 +77,10 @@ func unwrapEvent(event *corev1.Event) any {
 	case *corev1.Event_CallParticipantLeft:
 		return e.CallParticipantLeft
 
+	// ---- Subscription liveness ----
+	case *corev1.Event_Heartbeat:
+		return e.Heartbeat
+
 	// ---- Server config ----
 	case *corev1.Event_ConfigUpdated:
 		return e.ConfigUpdated

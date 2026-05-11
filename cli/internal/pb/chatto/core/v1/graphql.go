@@ -51,6 +51,11 @@ func (*RoomMarkedAsReadEvent) IsServerEventType()             {}
 func (*RoomLayoutUpdatedEvent) IsServerEventType()            {}
 func (*SessionTerminatedEvent) IsServerEventType()            {}
 
+// Synthetic, in-process only. Emitted by StreamMyEvents on a 25s ticker
+// purely as a liveness signal for the client-side watchdog.
+
+func (*HeartbeatEvent) IsServerEventType() {}
+
 // Room-event interface markers, retained because RoomEvent (the query-side
 // wrapper) and its RoomEventType union still exist for historical-message
 // fetches. The subscription has consolidated onto ServerEventType above.
