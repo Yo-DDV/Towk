@@ -11,7 +11,7 @@
   import { useActiveInstanceEvent, useReconnectCallback } from '$lib/hooks';
   import SecondarySidebar from '$lib/components/SecondarySidebar.svelte';
   import { createSpacePermissions } from '$lib/state/space';
-  import { getInstancePermissions } from '$lib/state/instance/permissions.svelte';
+  import { getServerPermissions } from '$lib/state/instance/permissions.svelte';
   import RoomList from '$lib/RoomList.svelte';
   import SpaceHeader from './SpaceHeader.svelte';
   import SpaceBanner from './SpaceBanner.svelte';
@@ -88,10 +88,10 @@
       .client.query(
         graphql(`
           query ValidateSpaceAccess {
-            instance {
+            server {
               primarySpaceId
               config {
-                instanceName
+                serverName
                 bannerUrl(width: 480, height: 252)
               }
               viewerHasAnyAdminPermission
@@ -115,14 +115,14 @@
       return 'transient';
     }
 
-    if (!result.data?.instance || !result.data.instance.primarySpaceId) {
+    if (!result.data?.server || !result.data.server.primarySpaceId) {
       return null;
     }
 
-    const inst = result.data.instance;
+    const inst = result.data.server;
     return {
       id: inst.primarySpaceId,
-      name: inst.config.instanceName,
+      name: inst.config.serverName,
       bannerUrl: inst.config.bannerUrl ?? null,
       hasAnyAdminPermission: inst.viewerHasAnyAdminPermission,
       canManage: inst.viewerCanManageInstance,
@@ -243,7 +243,7 @@
   });
 
   // Read instance permissions for admin-flavoured nav items (system, runtime).
-  const instancePerms = getInstancePermissions();
+  const instancePerms = getServerPermissions();
 
   // Whether the user can access ANY admin/settings feature (used to decide
   // whether to show the gear cog in the SpaceHeader).

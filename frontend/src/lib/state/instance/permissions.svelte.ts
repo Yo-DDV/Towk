@@ -23,11 +23,11 @@ export type ViewerData = {
  * The underlying state lives on the per-instance `InstanceStateStore`
  * (populated by `InstanceSpaceSection`'s viewer query).
  */
-export type InstancePermissions = ViewerData & {
+export type ServerPermissions = ViewerData & {
   loaded: boolean;
 };
 
-const EMPTY_PERMISSIONS: InstancePermissions = {
+const EMPTY_PERMISSIONS: ServerPermissions = {
   loaded: false,
   canViewAdmin: false,
   canViewDMs: false,
@@ -50,11 +50,11 @@ const EMPTY_PERMISSIONS: InstancePermissions = {
  *
  * Usage:
  * ```ts
- * const instancePerms = getInstancePermissions();
+ * const instancePerms = getServerPermissions();
  * const canViewAdmin = $derived(instancePerms.current.canViewAdmin);
  * ```
  */
-export function getInstancePermissions(): { readonly current: InstancePermissions } {
+export function getServerPermissions(): { readonly current: ServerPermissions } {
   const getActiveId = getActiveInstance();
   return {
     get current() {

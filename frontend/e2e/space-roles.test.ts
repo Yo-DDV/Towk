@@ -177,8 +177,8 @@ async function grantPermission(
     },
     data: {
       query: `
-				mutation GrantPerm($input: GrantInstancePermissionInput!) {
-					grantInstancePermission(input: $input)
+				mutation GrantPerm($input: GrantServerPermissionInput!) {
+					grantServerPermission(input: $input)
 				}
 			`,
       variables: { input: { role, permission } }
@@ -187,7 +187,7 @@ async function grantPermission(
 
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
-  expect(data.data?.grantInstancePermission).toBe(true);
+  expect(data.data?.grantServerPermission).toBe(true);
 }
 
 /**
@@ -205,8 +205,8 @@ async function _revokePermission(
     },
     data: {
       query: `
-				mutation RevokePerm($input: RevokeInstancePermissionInput!) {
-					revokeInstancePermission(input: $input)
+				mutation RevokePerm($input: RevokeServerPermissionInput!) {
+					revokeServerPermission(input: $input)
 				}
 			`,
       variables: { input: { role, permission } }
@@ -215,7 +215,7 @@ async function _revokePermission(
 
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
-  expect(data.data?.revokeInstancePermission).toBe(true);
+  expect(data.data?.revokeServerPermission).toBe(true);
 }
 
 /**
@@ -234,8 +234,8 @@ async function denyPermission(
     },
     data: {
       query: `
-				mutation DenyPerm($input: DenyInstancePermissionInput!) {
-					denyInstancePermission(input: $input)
+				mutation DenyPerm($input: DenyServerPermissionInput!) {
+					denyServerPermission(input: $input)
 				}
 			`,
       variables: { input: { role, permission } }
@@ -244,7 +244,7 @@ async function denyPermission(
 
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
-  expect(data.data?.denyInstancePermission).toBe(true);
+  expect(data.data?.denyServerPermission).toBe(true);
 }
 
 // FIXME #330: see space-admin-members.test.ts.
@@ -805,7 +805,7 @@ test.describe.skip('Space Permission Enforcement', () => {
         data: {
           query: `
 						query ListRooms {
-							instance {
+							server {
 								rooms { id name }
 							}
 						}
@@ -818,7 +818,7 @@ test.describe.skip('Space Permission Enforcement', () => {
 
       // Should succeed - member has room.list
       expect(data.errors).toBeUndefined();
-      expect(data.data?.instance?.rooms).toBeDefined();
+      expect(data.data?.server?.rooms).toBeDefined();
     });
 
     test('user without room.list permission cannot list rooms via API', async ({ page }) => {
@@ -844,7 +844,7 @@ test.describe.skip('Space Permission Enforcement', () => {
         data: {
           query: `
 						query ListRooms {
-							instance {
+							server {
 								rooms { id name }
 							}
 						}
@@ -858,7 +858,7 @@ test.describe.skip('Space Permission Enforcement', () => {
       // Should fail - room.list is denied
       // The response should either have errors or return null/empty rooms
       const hasError = data.errors && data.errors.length > 0;
-      const noRooms = data.data?.instance?.rooms === null;
+      const noRooms = data.data?.server?.rooms === null;
       expect(hasError || noRooms).toBeTruthy();
     });
 

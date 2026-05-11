@@ -55,10 +55,10 @@
   // Single combined query for instance icon, unread status, notification prefs, and viewer permissions.
   const InstanceInitQuery = graphql(`
     query InstanceInit {
-      instance {
+      server {
         primarySpaceId
         config {
-          instanceName
+          serverName
           logoUrl(width: 96, height: 96)
         }
         viewerHasUnreadRooms
@@ -106,7 +106,7 @@
 
     if (!initResult.data) return;
 
-    const { instance, me, viewer } = initResult.data;
+    const { server, me, viewer } = initResult.data;
 
     if (viewer) {
       stores.setPermissions(viewer);
@@ -119,18 +119,18 @@
       }
     }
 
-    if (instance && instance.primarySpaceId) {
+    if (server && server.primarySpaceId) {
       // Populate server-level notification preference and unread state.
-      const pref = instance.viewerNotificationPreference;
+      const pref = server.viewerNotificationPreference;
       if (pref) {
         notificationLevelStore.setServerPreference(pref.level, pref.effectiveLevel);
       }
       roomUnreadStore.clear();
-      roomUnreadStore.setServerHasUnread(instance.viewerHasUnreadRooms);
+      roomUnreadStore.setServerHasUnread(server.viewerHasUnreadRooms);
 
       // Populate DM unread status and notification preferences. Channel
       // and DM rooms now share the same per-room unread map.
-      for (const room of instance.rooms) {
+      for (const room of server.rooms) {
         const roomPref = room.viewerNotificationPreference;
         if (roomPref) {
           notificationLevelStore.setRoomPreference(room.id, roomPref.level, roomPref.effectiveLevel);
@@ -141,9 +141,9 @@
       }
     }
 
-    if (instance) {
-      displayName = instance.config.instanceName;
-      logoUrl = instance.config.logoUrl ?? null;
+    if (server) {
+      displayName = server.config.serverName;
+      logoUrl = server.config.logoUrl ?? null;
       loaded = true;
     }
   }
@@ -155,9 +155,9 @@
       .query(
         graphql(`
           query InstanceIconRefresh {
-            instance {
+            server {
               config {
-                instanceName
+                serverName
                 logoUrl(width: 96, height: 96)
               }
             }
@@ -167,9 +167,9 @@
       )
       .toPromise();
 
-    if (result.data?.instance) {
-      displayName = result.data.instance.config.instanceName;
-      logoUrl = result.data.instance.config.logoUrl ?? null;
+    if (result.data?.server) {
+      displayName = result.data.server.config.serverName;
+      logoUrl = result.data.server.config.logoUrl ?? null;
     }
   }
 
@@ -271,7 +271,7 @@
   // Query to fetch rooms with unread status on demand (sentinel-only spaces).
   const FirstUnreadRoomQuery = graphql(`
     query FirstUnreadRoom {
-      instance {
+      server {
         rooms(type: CHANNEL) {
           id
           hasUnread
@@ -290,7 +290,7 @@
       const client = getClient();
       const result = await client.query(FirstUnreadRoomQuery, {}).toPromise();
 
-      const rooms = result.data?.instance?.rooms;
+      const rooms = result.data?.server?.rooms;
       if (rooms) {
         roomUnreadStore.initRooms(
           rooms.map((r: { id: string; hasUnread: boolean }) => ({ id: r.id, hasUnread: r.hasUnread }))

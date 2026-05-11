@@ -86,12 +86,12 @@ async function getRoomByName(page: Page, roomName: string): Promise<string> {
   const resp = await page.request.post('/api/graphql', {
     headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
     data: {
-      query: `query { instance { rooms(type: CHANNEL) { id name } } }`
+      query: `query { server { rooms(type: CHANNEL) { id name } } }`
     }
   });
   expect(resp.ok()).toBeTruthy();
   const data = await resp.json();
-  const rooms = data.data?.instance?.rooms;
+  const rooms = data.data?.server?.rooms;
   if (!rooms) {
     throw new Error(`Failed to get rooms: ${JSON.stringify(data)}`);
   }
@@ -122,12 +122,12 @@ async function denyPermission(
   const resp = await page.request.post('/api/graphql', {
     headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
     data: {
-      query: `mutation($input: DenyInstancePermissionInput!) { denyInstancePermission(input: $input) }`,
+      query: `mutation($input: DenyServerPermissionInput!) { denyServerPermission(input: $input) }`,
       variables: { input: { role, permission } }
     }
   });
   expect(resp.ok()).toBeTruthy();
-  expect((await resp.json()).data?.denyInstancePermission).toBe(true);
+  expect((await resp.json()).data?.denyServerPermission).toBe(true);
 }
 
 async function revokePermission(
@@ -138,12 +138,12 @@ async function revokePermission(
   const resp = await page.request.post('/api/graphql', {
     headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
     data: {
-      query: `mutation($input: RevokeInstancePermissionInput!) { revokeInstancePermission(input: $input) }`,
+      query: `mutation($input: RevokeServerPermissionInput!) { revokeServerPermission(input: $input) }`,
       variables: { input: { role, permission } }
     }
   });
   expect(resp.ok()).toBeTruthy();
-  expect((await resp.json()).data?.revokeInstancePermission).toBe(true);
+  expect((await resp.json()).data?.revokeServerPermission).toBe(true);
 }
 
 async function grantRoomPermission(
@@ -618,22 +618,22 @@ async function assignSpaceRole(
   const resp = await page.request.post('/api/graphql', {
     headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
     data: {
-      query: `mutation($input: AssignInstanceRoleInput!) {
-				assignInstanceRole(input: $input)
+      query: `mutation($input: AssignRoleInput!) {
+				assignRole(input: $input)
 			}`,
       variables: { input: { userId, roleName } }
     }
   });
   expect(resp.ok()).toBeTruthy();
-  expect((await resp.json()).data?.assignInstanceRole).toBe(true);
+  expect((await resp.json()).data?.assignRole).toBe(true);
 }
 
 async function reorderSpaceRoles(page: Page, roleNames: string[]): Promise<void> {
   const resp = await page.request.post('/api/graphql', {
     headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
     data: {
-      query: `mutation($input: ReorderInstanceRolesInput!) {
-				reorderInstanceRoles(input: $input) { name position }
+      query: `mutation($input: ReorderRolesInput!) {
+				reorderRoles(input: $input) { name position }
 			}`,
       variables: { input: { roleNames } }
     }

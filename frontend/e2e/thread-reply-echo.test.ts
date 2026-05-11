@@ -16,11 +16,11 @@ async function getIdsFromUrl(page: Page): Promise<{ spaceId: string; roomId: str
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ query: `query { instance { primarySpaceId } }` })
+      body: JSON.stringify({ query: `query { server { primarySpaceId } }` })
     });
     return r.json();
   });
-  return { spaceId: data.data.instance.primarySpaceId, roomId };
+  return { spaceId: data.data.server.primarySpaceId, roomId };
 }
 
 /** Post a message via API and return its event ID. */
@@ -782,7 +782,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
         const resp = await adminPage.request.post('/api/graphql', {
           headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
           data: {
-            query: `mutation($input: DenyInstancePermissionInput!) { denyInstancePermission(input: $input) }`,
+            query: `mutation($input: DenyServerPermissionInput!) { denyServerPermission(input: $input) }`,
             variables: { input: { role: 'everyone', permission: 'message.echo' } }
           }
         });

@@ -5,7 +5,7 @@
   import { page } from '$app/state';
   import { instanceIdToSegment } from '$lib/navigation';
   import { getActiveInstance } from '$lib/state/activeInstance.svelte';
-  import { getInstancePermissions } from '$lib/state/instance/permissions.svelte';
+  import { getServerPermissions } from '$lib/state/instance/permissions.svelte';
   import { graphql } from '$lib/gql';
   import { useQuery } from '$lib/hooks';
   import { Hint } from '$lib/ui';
@@ -18,7 +18,7 @@
   // lifting is done by PermissionMatrix's own tierRoles query.
   const SpaceRolesGateQuery = graphql(`
     query SpaceRolesGate {
-      instance {
+      server {
         viewerCanManageRoles
       }
     }
@@ -29,14 +29,14 @@
   const spaceId = $derived(getActiveInstanceSpaceId()());
 
   const gateQuery = useQuery(SpaceRolesGateQuery, () => ({}));
-  const canManageRoles = $derived(gateQuery.data?.instance?.viewerCanManageRoles ?? false);
+  const canManageRoles = $derived(gateQuery.data?.server?.viewerCanManageRoles ?? false);
   const error = $derived(
-    gateQuery.error ?? (!gateQuery.loading && !gateQuery.data?.instance ? 'Instance not found' : null)
+    gateQuery.error ?? (!gateQuery.loading && !gateQuery.data?.server ? 'Instance not found' : null)
   );
 
   // Role detail pages require admin.manage-roles. Gate the column-header
   // click so non-admins see plain text.
-  const instancePerms = getInstancePermissions();
+  const instancePerms = getServerPermissions();
   const canManageRolesFull = $derived(instancePerms.current.canAdminManageRoles);
 
   function openRoleDetail(role: { roleName: string }) {

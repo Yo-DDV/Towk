@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import Harness from './__permissionsTestHarness.svelte';
 import { instanceRegistry, type RegisteredInstance } from './registry.svelte';
-import type { InstancePermissions, ViewerData } from './permissions.svelte';
+import type { ServerPermissions, ViewerData } from './permissions.svelte';
 
 const STORAGE_KEY = 'chatto:instances';
 
@@ -37,8 +37,8 @@ function makeViewer(overrides: Partial<ViewerData> = {}): ViewerData {
   };
 }
 
-function mount(instanceId: string): { readonly current: InstancePermissions } {
-  let perms: { readonly current: InstancePermissions } | undefined;
+function mount(instanceId: string): { readonly current: ServerPermissions } {
+  let perms: { readonly current: ServerPermissions } | undefined;
   render(Harness, {
     props: {
       instanceId,
@@ -51,7 +51,7 @@ function mount(instanceId: string): { readonly current: InstancePermissions } {
   return perms;
 }
 
-describe('getInstancePermissions', () => {
+describe('getServerPermissions', () => {
   beforeEach(() => {
     localStorage.removeItem(STORAGE_KEY);
     for (const instance of [...instanceRegistry.instances]) {
