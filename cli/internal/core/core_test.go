@@ -113,7 +113,7 @@ func TestChattoCore_FullWorkflow(t *testing.T) {
 	}
 
 	// Verify rooms can be listed
-	rooms, err := core.ListRoomsBySpace(ctx, space.Id)
+	rooms, err := core.ListRooms(ctx, KindForSpace(space.Id))
 	if err != nil {
 		t.Fatalf("Failed to list rooms: %v", err)
 	}
@@ -186,8 +186,6 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 	userA, _ := core.CreateUser(ctx, "system", "userA", "User A", "")
 	userB, _ := core.CreateUser(ctx, "system", "userB", "User B", "")
 
-	// Create a space that only userA is a member of
-	space, _ := core.CreateSpace(ctx, userA.Id, "Test Space", "")
 	tests := []struct {
 		name       string
 		userID     string
@@ -234,18 +232,18 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 			wantResult: true,
 		},
 
-		// Space-scoped events: every authenticated user is implicitly a member
-		// post-#330, so both receive.
+		// Config-scoped events (incl. server branding + room layout):
+		// every authenticated user is implicitly a member, so both receive.
 		{
-			name:       "space event - user A receives it",
+			name:       "config event - user A receives it",
 			userID:     userA.Id,
-			subject:    "live.server.space." + space.Id + ".updated",
+			subject:    "live.server.config.server_updated",
 			wantResult: true,
 		},
 		{
-			name:       "space event - user B also receives it",
+			name:       "config event - user B also receives it",
 			userID:     userB.Id,
-			subject:    "live.server.space." + space.Id + ".updated",
+			subject:    "live.server.config.server_updated",
 			wantResult: true,
 		},
 
@@ -351,93 +349,6 @@ func TestNewSpaceEvent_PopulatesCreatedAt(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// StreamMyEvents Tests
-// ============================================================================
-
-// TestStreamMyEvents_FiltersNewMessageByRoomMembership verifies that
-// NewMessageInSpaceEvent is only delivered to users who are room members,
-// not just space members.
-func TestStreamMyEvents_FiltersNewMessageByRoomMembership(t *testing.T) {
-	core, _ := setupTestCore(t)
-	ctx := testContext(t)
-
-	// Create two users
-	user1, _ := core.CreateUser(ctx, "system", "roomfilter1", "Room Filter User 1", "")
-	user2, _ := core.CreateUser(ctx, "system", "roomfilter2", "Room Filter User 2", "")
-
-	// Create a space - user1 is owner and member
-	space, err := core.CreateSpace(ctx, user1.Id, "Test Space", "")
-	if err != nil {
-		t.Fatalf("CreateSpace failed: %v", err)
-	}
-
-	// user2 joins space (but not any rooms)
-
-	// user1 creates a room (becomes member automatically)
-	room, err := core.CreateRoom(ctx, user1.Id, space.Id, "test-room", "")
-	if err != nil {
-		t.Fatalf("CreateRoom failed: %v", err)
-	}
-
-	// Start streaming instance events for user2 (space member, NOT room member)
-	subCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	eventChan, err := core.StreamMyEvents(subCtx, user2.Id)
-	if err != nil {
-		t.Fatalf("StreamMyEvents failed: %v", err)
-	}
-
-	// Give subscription time to establish
-	time.Sleep(100 * time.Millisecond)
-
-	// Post a message in the room (user2 is NOT a member)
-	_, err = core.PostMessage(ctx, space.Id, room.Id, user1.Id, "Hello from room", nil, "", "", nil, false)
-	if err != nil {
-		t.Fatalf("PostMessage failed: %v", err)
-	}
-
-	// user2 should NOT receive NewMessageInSpaceEvent (not a room member)
-	select {
-	case event := <-eventChan:
-		if event.GetNewMessageInSpace() != nil {
-			t.Error("Space member who is NOT a room member received NewMessageInSpaceEvent - filtering failed")
-		}
-		// Other events (like space join) might come through, that's fine
-	case <-time.After(500 * time.Millisecond):
-		// Expected: no NewMessageInSpaceEvent for non-room-member
-	}
-
-	// Now user2 joins the room
-	_, err = core.JoinRoom(ctx, user2.Id, space.Id, user2.Id, room.Id)
-	if err != nil {
-		t.Fatalf("JoinRoom failed: %v", err)
-	}
-
-	// Post another message
-	_, err = core.PostMessage(ctx, space.Id, room.Id, user1.Id, "Hello again", nil, "", "", nil, false)
-	if err != nil {
-		t.Fatalf("PostMessage failed: %v", err)
-	}
-
-	// Now user2 SHOULD receive NewMessageInSpaceEvent
-	timeout := time.After(2 * time.Second)
-	for {
-		select {
-		case event := <-eventChan:
-			if newMsg := event.GetNewMessageInSpace(); newMsg != nil {
-				if newMsg.SpaceId != space.Id || newMsg.RoomId != room.Id {
-					t.Errorf("Unexpected NewMessageInSpaceEvent: space=%s room=%s", newMsg.SpaceId, newMsg.RoomId)
-				}
-				return // Success!
-			}
-			// Other events might come through (join events), keep waiting
-		case <-timeout:
-			t.Fatal("Timeout waiting for NewMessageInSpaceEvent after user joined room")
-		}
-	}
-}
 
 // TestStreamMyEvents_ClosesOnSessionTerminated verifies that
 // the instance event stream closes after receiving a SessionTerminatedEvent,
@@ -547,7 +458,7 @@ func TestStreamMyEvents_FiltersOwnTypingEvents(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// user1 publishes a typing indicator (their own typing)
-	err = core.PublishTypingIndicator(ctx, user1.Id, space.Id, room.Id, nil)
+	err = core.PublishTypingIndicator(ctx, user1.Id, KindForSpace(space.Id), room.Id, nil)
 	if err != nil {
 		t.Fatalf("PublishTypingIndicator failed: %v", err)
 	}
@@ -563,7 +474,7 @@ func TestStreamMyEvents_FiltersOwnTypingEvents(t *testing.T) {
 	}
 
 	// Now user2 publishes a typing indicator
-	err = core.PublishTypingIndicator(ctx, user2.Id, space.Id, room.Id, nil)
+	err = core.PublishTypingIndicator(ctx, user2.Id, KindForSpace(space.Id), room.Id, nil)
 	if err != nil {
 		t.Fatalf("PublishTypingIndicator failed: %v", err)
 	}

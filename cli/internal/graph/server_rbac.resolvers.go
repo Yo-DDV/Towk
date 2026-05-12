@@ -467,4 +467,3 @@ func (r *Resolver) Viewer() ViewerResolver { return &viewerResolver{r} }
 
 type roleResolver struct{ *Resolver }
 type viewerResolver struct{ *Resolver }
-

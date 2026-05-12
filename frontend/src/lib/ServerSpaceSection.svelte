@@ -33,8 +33,6 @@
   // the URL's instance segment matches this one — and since each instance
   // is now a single deployment-wide server, that's the active context.
   const isActiveInstance = $derived(page.params.serverId === instanceSegment);
-  const primarySpaceId = $derived(stores.instance.primarySpaceId);
-  const activeSpaceId = $derived(isActiveInstance ? primarySpaceId : undefined);
 
   let displayName = $state('');
   let logoUrl = $state<string | null>(null);
@@ -56,7 +54,6 @@
   const InstanceInitQuery = graphql(`
     query InstanceInit {
       server {
-        primarySpaceId
         config {
           serverName
           logoUrl(width: 96, height: 96)
@@ -116,7 +113,7 @@
       }
     }
 
-    if (server && server.primarySpaceId) {
+    if (server) {
       // Populate server-level notification preference and unread state.
       const pref = server.viewerNotificationPreference;
       if (pref) {
@@ -177,8 +174,8 @@
   // event bus isn't started yet on first run — possible when this component
   // mounts before the parent layout's startBus effect for this instance —
   // the effect re-runs once the bus comes online (getBus is a reactive read
-  // on a SvelteMap). Without this, e.g. cross-instance NewMessageInServerEvent
-  // is silently dropped and unread dots never light up for remote spaces.
+  // on a SvelteMap). Without this, cross-instance unread bookkeeping is
+  // silently dropped and unread dots never light up for remote servers.
   $effect(() => {
     const registrar = createEventBusHandlerRegistrar(serverId);
     if (!registrar) return;
@@ -196,8 +193,10 @@
           reloadInstance();
         }
 
-        // New message on the server - mark that specific room as unread
-        if (event.__typename === 'NewMessageInServerEvent') {
+        // Root message in any room on this server → mark that room
+        // unread (unless the viewer authored it or is currently in it).
+        if (event.__typename === 'MessagePostedEvent') {
+          if (event.inThread) return; // root messages only
           const eventRoomId = event.roomId;
           const isFromSelf = actorId === currentUserId;
 
@@ -305,11 +304,11 @@
 </script>
 
 <!-- One icon per instance (server = instance post-#330). -->
-{#if loaded && primarySpaceId}
+{#if loaded}
   <SpaceIcon
     space={{ name: displayName, logoUrl }}
     href={resolve('/chat/[serverId]', { serverId: instanceSegment })}
-    selected={primarySpaceId === activeSpaceId}
+    selected={isActiveInstance}
     indicator={stores.spaceIndicator()}
     onIndicatorClick={handleSpaceIndicatorClick}
   />

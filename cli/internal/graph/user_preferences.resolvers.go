@@ -59,4 +59,3 @@ func (r *userResolver) Settings(ctx context.Context, obj *corev1.User) (*model.U
 
 	return protoSettingsToGQL(settings), nil
 }
-

@@ -95,10 +95,10 @@ message Event {
     // reassigned freely, but skip these for now to keep grep
     // breadcrumbs working when tracing old logs.
 
-    // ----- Space lifecycle (1030-1039) -----
-    SpaceCreatedEvent space_created = 1030;
-    SpaceUpdatedEvent space_updated = 1031;
-    SpaceDeletedEvent space_deleted = 1032;
+    // ----- Server lifecycle (1030-1039) -----
+    ServerCreatedEvent server_created = 1030;
+    ServerUpdatedEvent server_updated = 1031;
+    ServerDeletedEvent server_deleted = 1032;
 
     // ----- Message mutations (1040-1049) — KV is source of truth -----
     MessageUpdatedEvent message_updated = 1040;
@@ -130,7 +130,8 @@ message Event {
     NotificationDismissedEvent notification_dismissed = 1111;
 
     // ----- Unread indicators (1120-1129) -----
-    NewMessageInSpaceEvent new_message_in_space = 1120;
+    // 1120 was NewMessageInSpaceEvent (retired in ADR-030 cleanup —
+    // MessagePostedEvent on the per-room subject covers the same use case).
     RoomMarkedAsReadEvent room_marked_as_read = 1121;
 
     // ----- Room layout (1130-1139) -----
@@ -346,27 +347,27 @@ message NotificationLevelChangedEvent {
 }
 
 // ============================================================================
-// SPACE LIFECYCLE EVENTS (server-scoped)
+// SERVER LIFECYCLE EVENTS (deployment-scoped)
 // ============================================================================
 
-message SpaceCreatedEvent {
-  string space_id = 1;
+message ServerCreatedEvent {
+  string server_id = 1;
   string name = 2;
   string description = 3;
 }
 
-message SpaceUpdatedEvent {
-  string space_id = 1;
+message ServerUpdatedEvent {
+  string server_id = 1;
   string name = 2;
   string description = 3;
-  // URL to the space's logo, or empty if no logo is set.
+  // URL to the server's logo, or empty if no logo is set.
   string logo_url = 4;
-  // URL to the space's banner, or empty if no banner is set.
+  // URL to the server's banner, or empty if no banner is set.
   string banner_url = 5;
 }
 
-message SpaceDeletedEvent {
-  string space_id = 1;
+message ServerDeletedEvent {
+  string server_id = 1;
 }
 
 // ============================================================================
@@ -554,19 +555,8 @@ message ThreadFollowChangedEvent {
 }
 
 // ============================================================================
-// SPACE UNREAD EVENTS (server-scoped)
+// UNREAD INDICATOR EVENTS (server-scoped)
 // ============================================================================
-
-// Published to all members of a space (except the author) when a new message is posted.
-// This lightweight event enables real-time unread indicators on space icons without
-// requiring per-space subscriptions.
-message NewMessageInSpaceEvent {
-  // Space ID where the message was posted
-  string space_id = 1;
-
-  // Room ID where the message was posted
-  string room_id = 2;
-}
 
 // Published to the user who marked a room as read.
 // This enables real-time updates to space unread indicators when the user

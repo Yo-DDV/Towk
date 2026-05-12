@@ -359,11 +359,6 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 	assetsConfig := core.AssetsConfig()
 	core.linkPreviewFetcher = linkpreview.NewFetcher(storage.serverStore, &assetsConfig, NewAssetID)
 
-	// Initialize DM system space
-	if err := core.initDMSpace(ctx); err != nil {
-		return nil, fmt.Errorf("failed to initialize DM space: %w", err)
-	}
-
 	// Initialize instance-level RBAC (roles and permissions)
 	if err := core.initInstanceRBAC(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize instance RBAC: %w", err)
@@ -704,20 +699,6 @@ func userAvatarKey(userID string) string {
 	return fmt.Sprintf("user.%s.avatar", userID)
 }
 
-// spaceLogoKey returns the KV key for a space's logo asset reference.
-// Logo assets are stored separately from space profile to avoid overwriting
-// the entire space record when the logo changes.
-func spaceLogoKey(spaceID string) string {
-	return fmt.Sprintf("space.%s.logo", spaceID)
-}
-
-// spaceBannerKey returns the KV key for a space's banner asset reference.
-// Banner assets are stored separately from space profile to avoid overwriting
-// the entire space record when the banner changes.
-func spaceBannerKey(spaceID string) string {
-	return fmt.Sprintf("space.%s.banner", spaceID)
-}
-
 // spaceKey returns the KV key for a space record.
 func spaceKey(spaceID string) string {
 	return fmt.Sprintf("space.%s", spaceID)
@@ -891,7 +872,7 @@ const maxOCCRetries = 5
 //
 // This provides reliable message posting that handles race conditions gracefully.
 // The function retries up to 5 times on sequence mismatch errors with exponential backoff.
-func (c *ChattoCore) publishServerEventWithOCC(ctx context.Context, spaceID, subject string, event *corev1.Event) (uint64, error) {
+func (c *ChattoCore) publishServerEventWithOCC(ctx context.Context, subject string, event *corev1.Event) (uint64, error) {
 	if err := validateEvent(event); err != nil {
 		return 0, err
 	}
@@ -989,18 +970,18 @@ func (c *ChattoCore) createSpaceResources(_ context.Context, _ string) error {
 	return nil
 }
 
-// purgeRoomEvents removes all events for a specific room from the space stream.
+// purgeRoomEvents removes all events for a specific room from the server stream.
 // This is called when a room is deleted to clean up the room's event history.
-func (c *ChattoCore) purgeRoomEvents(ctx context.Context, spaceID, roomID string) error {
+func (c *ChattoCore) purgeRoomEvents(ctx context.Context, kind, roomID string) error {
 	stream := c.storage.serverEventsStream
 
 	// Purge all events matching the room's subject pattern
-	subjectFilter := subjects.RoomAllEvents(kindForSpace(spaceID), roomID)
+	subjectFilter := subjects.RoomAllEvents(kind, roomID)
 	if err := stream.Purge(ctx, jetstream.WithPurgeSubject(subjectFilter)); err != nil {
 		return fmt.Errorf("failed to purge room events for %s (subject: %s): %w", roomID, subjectFilter, err)
 	}
 
-	c.logger.Debug("Purged room events from space stream", "space_id", spaceID, "room_id", roomID, "subject_filter", subjectFilter)
+	c.logger.Debug("Purged room events from server stream", "kind", kind, "room_id", roomID, "subject_filter", subjectFilter)
 
 	return nil
 }
@@ -1044,10 +1025,8 @@ func isTerminalIteratorError(err error) bool {
 //     across both kinds (channel + dm) and updated as join/leave/
 //     room-deleted events arrive.
 //   - DM-kind events are additionally gated on `dm.view`.
-//   - User/space/config/member subjects are filtered by
+//   - User/config/member subjects are filtered by
 //     isAuthorizedForLiveEvent.
-//   - NewMessageInSpace events authorize on per-room membership rather
-//     than subject pattern (DM rooms have no space membership).
 //   - Presence updates from the per-process PresenceHub are deployment-
 //     wide; the hub dedups status flapping.
 //
@@ -1216,13 +1195,11 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 // should be delivered. Mutates memberRooms when the subscriber
 // themselves joins/leaves a room or when a room is deleted.
 //
-// Three routing paths:
+// Two routing paths:
 //
 //  1. Room subjects (live.server.room.{kind}.{roomId}.…):
 //     gated on room membership and (for DM-kind) dm.view permission.
-//  2. NewMessageInSpace events: gated on per-room membership, not by
-//     subject pattern, since DM rooms have no space membership.
-//  3. Everything else: delegated to isAuthorizedForLiveEvent.
+//  2. Everything else: delegated to isAuthorizedForLiveEvent.
 func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, canDM bool, memberRooms map[string]struct{}, msg *nats.Msg) (*corev1.Event, bool) {
 	var event corev1.Event
 	if err := proto.Unmarshal(msg.Data, &event); err != nil {
@@ -1275,21 +1252,7 @@ func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, canDM b
 		return &event, true
 	}
 
-	// Path 2: NewMessageInSpace — room membership rather than subject.
-	if newMsg := event.GetNewMessageInSpace(); newMsg != nil {
-		isMember, err := c.RoomMembershipExists(ctx, newMsg.SpaceId, userID, newMsg.RoomId)
-		if err != nil {
-			c.logger.Warn("Room-membership check failed for NewMessageInSpace",
-				"error", err, "user_id", userID, "room_id", newMsg.RoomId)
-			return nil, false
-		}
-		if !isMember {
-			return nil, false
-		}
-		return &event, true
-	}
-
-	// Path 3: user/space/config/member subjects.
+	// Path 2: user/config/member subjects.
 	if !c.isAuthorizedForLiveEvent(ctx, userID, msg.Subject) {
 		return nil, false
 	}
@@ -1299,9 +1262,9 @@ func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, canDM b
 // isAuthorizedForLiveEvent checks if a user is authorized to receive a
 // non-room live event based on the subject pattern:
 //
-//   - live.server.config.* → all authenticated users (server config is public)
+//   - live.server.config.* → all authenticated users (server config /
+//     branding / room-layout updates — public to every member)
 //   - live.server.member.* → all authenticated users (single-server membership)
-//   - live.server.space.{spaceId}.* → all authenticated users (every user is a member)
 //   - live.server.user.{userId}.* → only the target user, except
 //     live.server.user.{userId}.profile_updated which is broadcast.
 //
@@ -1315,7 +1278,7 @@ func (c *ChattoCore) isAuthorizedForLiveEvent(_ context.Context, userID, subject
 	}
 
 	switch parts[2] {
-	case "config", "member", "space":
+	case "config", "member":
 		return true
 	case "user":
 		if len(parts) < 5 {
@@ -1349,27 +1312,25 @@ func (c *ChattoCore) PublishServerConfigUpdated(ctx context.Context, actorID str
 		},
 	})
 
-	return c.publishLiveEvent(ctx, subjects.LiveConfigUpdated(), event)
+	return c.publishLiveEvent(ctx, subjects.LiveConfigEvent("updated"), event)
 }
 
 // ============================================================================
 // Statistics
 // ============================================================================
 
-// ServerStats contains aggregate statistics about the Chatto instance.
+// ServerStats contains aggregate counts surfaced in the admin dashboard.
 type ServerStats struct {
-	UserCount    int
-	SpaceCount   int
-	RoomCount    int
-	MessageCount uint64
+	UserCount        int
+	ChannelRoomCount int
+	DMRoomCount      int
 }
 
-// GetStats returns aggregate statistics for the Chatto instance.
-// This includes counts of users, spaces, rooms, and total room events across all spaces.
+// GetStats returns deployment-level counts: registered users, channel rooms,
+// DM rooms. Per-space breakdowns went away with the Space tier (ADR-030).
 func (c *ChattoCore) GetStats(ctx context.Context) (*ServerStats, error) {
 	stats := &ServerStats{}
 
-	// Count users
 	userKeys, err := c.storage.serverKV.ListKeysFiltered(ctx, "user.*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list user keys: %w", err)
@@ -1378,32 +1339,17 @@ func (c *ChattoCore) GetStats(ctx context.Context) (*ServerStats, error) {
 		stats.UserCount++
 	}
 
-	// Count spaces and rooms
-	spaces, err := c.ListSpaces(ctx)
+	channelRooms, err := c.ListRooms(ctx, "channel")
 	if err != nil {
-		return nil, fmt.Errorf("failed to list spaces: %w", err)
+		return nil, fmt.Errorf("failed to list channel rooms: %w", err)
 	}
-	stats.SpaceCount = len(spaces)
+	stats.ChannelRoomCount = len(channelRooms)
 
-	// For each space, count rooms and messages
-	for _, space := range spaces {
-		rooms, err := c.ListRoomsBySpace(ctx, space.Id)
-		if err != nil {
-			c.logger.Warn("Failed to list rooms for space", "space_id", space.Id, "error", err)
-			continue
-		}
-		stats.RoomCount += len(rooms)
-
-		// Count room events in the unified space stream
-		stream := c.storage.serverEventsStream
-		// Get subject-filtered info for room events
-		roomSubjectFilter := subjects.AllRoomEvents(kindForSpace(space.Id))
-		info, err := stream.Info(ctx, jetstream.WithSubjectFilter(roomSubjectFilter))
-		if err != nil {
-			continue
-		}
-		stats.MessageCount += info.State.Msgs
+	dmRooms, err := c.ListRooms(ctx, "dm")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list dm rooms: %w", err)
 	}
+	stats.DMRoomCount = len(dmRooms)
 
 	return stats, nil
 }

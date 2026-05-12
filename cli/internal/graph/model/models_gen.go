@@ -66,7 +66,7 @@ type AdminMutations struct {
 	UpdateServerConfig *AdminServerConfig `json:"updateServerConfig"`
 	// Reset server configuration to defaults. Returns true on success.
 	ResetServerConfig bool `json:"resetServerConfig"`
-	// Update a user's login and/or display name. Bypasses the 30-day login change cooldown but otherwise reuses the same validation as updateMyProfile.
+	// Update a user's login and/or display name. Bypasses the 30-day login change cooldown but otherwise reuses the same validation as updateProfile.
 	UpdateUser *corev1.User `json:"updateUser"`
 	// Clear the 30-day login change cooldown for a user, allowing them to immediately rename themselves. Idempotent.
 	ClearUsernameCooldown bool `json:"clearUsernameCooldown"`
@@ -604,8 +604,6 @@ type Server struct {
 	MaxVideoUploadSize int32 `json:"maxVideoUploadSize"`
 	// Duration in seconds after posting during which a user can edit their own message. Moderators with `message.edit-any` are not bound by this window.
 	MessageEditWindowSeconds int32 `json:"messageEditWindowSeconds"`
-	// ID of the deployment's server space. Internal migration bridge — frontend should treat this as opaque and prefer top-level Server fields.
-	PrimarySpaceID string `json:"primarySpaceId"`
 	// List of rooms on this server.
 	//
 	// When `type` is null or `CHANNEL`, the result includes regular channels. When
@@ -697,6 +695,16 @@ type ServerMembersConnection struct {
 	HasMore bool `json:"hasMore"`
 }
 
+// Aggregate counts for the deployment. Operator-facing only.
+type ServerStats struct {
+	// Number of registered users.
+	UserCount int32 `json:"userCount"`
+	// Number of channel rooms.
+	ChannelRoomCount int32 `json:"channelRoomCount"`
+	// Number of DM rooms.
+	DmRoomCount int32 `json:"dmRoomCount"`
+}
+
 // Input for setting whether new members automatically join a room.
 type SetRoomAutoJoinInput struct {
 	// The ID of the room.
@@ -735,6 +743,8 @@ type SystemInfo struct {
 	Connection *ConnectionInfo `json:"connection"`
 	// JetStream account limits and usage (aggregate totals).
 	Account *AccountInfo `json:"account"`
+	// Deployment-level counts surfaced in the admin dashboard.
+	Stats *ServerStats `json:"stats"`
 }
 
 // A role's permission state at a single tier (server or room).

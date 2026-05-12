@@ -740,7 +740,7 @@ func TestChattoCore_ListRoomsBySpace(t *testing.T) {
 	space, _ := core.CreateSpace(ctx, "test-user", "Test Space", "A test space")
 
 	// Initially should be empty
-	rooms, err := core.ListRoomsBySpace(ctx, space.Id)
+	rooms, err := core.ListRooms(ctx, KindForSpace(space.Id))
 	if err != nil {
 		t.Fatalf("Failed to list rooms: %v", err)
 	}
@@ -754,7 +754,7 @@ func TestChattoCore_ListRoomsBySpace(t *testing.T) {
 	room3, _ := core.CreateRoom(ctx, "test-user", space.Id, "room-3", "Third room")
 
 	// List should return all rooms
-	rooms, err = core.ListRoomsBySpace(ctx, space.Id)
+	rooms, err = core.ListRooms(ctx, KindForSpace(space.Id))
 	if err != nil {
 		t.Fatalf("Failed to list rooms: %v", err)
 	}
@@ -2217,7 +2217,7 @@ func TestChattoCore_DeleteMessage_DeletesAttachments(t *testing.T) {
 	}
 
 	// Verify attachment exists in ObjectStore
-	store, err := core.GetAttachmentsStore(ctx, space.Id)
+	store, err := core.GetAttachmentsStore(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get attachments store: %v", err)
 	}
@@ -2284,7 +2284,7 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 	}
 
 	// Verify both attachments exist
-	store, err := core.GetAttachmentsStore(ctx, space.Id)
+	store, err := core.GetAttachmentsStore(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get attachments store: %v", err)
 	}
@@ -2362,7 +2362,7 @@ func TestChattoCore_DeleteAttachmentFromMessage_NotAuthor(t *testing.T) {
 	}
 
 	// Verify attachment still exists
-	store, _ := core.GetAttachmentsStore(ctx, space.Id)
+	store, _ := core.GetAttachmentsStore(ctx)
 	if _, err := store.Get(ctx, attachment.Id); err != nil {
 		t.Error("Attachment should still exist after failed deletion")
 	}
@@ -2477,45 +2477,6 @@ func TestChattoCore_DeleteAttachmentFromMessage_S3(t *testing.T) {
 	if messageBody.Attachments[0].Id != attachment2.Id {
 		t.Error("Remaining attachment should be attachment 2")
 	}
-}
-
-func TestChattoCore_DeleteSpace_DeletesMessageBodiesBucket(t *testing.T) {
-	core, _ := setupTestCore(t)
-	ctx := testContext(t)
-
-	// Create space, room, and user
-	space, _ := core.CreateSpace(ctx, "test-user", "Test Space", "A test space")
-	room, _ := core.CreateRoom(ctx, "test-user", space.Id, "General", "General discussion")
-	user, _ := core.CreateUser(ctx, "system", "testuser", "testuser", "password123")
-
-	// Join space and room (required for posting messages)
-	core.JoinRoom(ctx, user.Id, space.Id, user.Id, room.Id)
-
-	// Post a message to create the bodies bucket
-	_, err := core.PostMessage(ctx, space.Id, room.Id, user.Id, "Test message", nil, "", "", nil, false)
-	if err != nil {
-		t.Fatalf("Failed to post message: %v", err)
-	}
-
-	// Verify the bodies bucket exists
-	bucket := core.storage.serverBodiesKV
-	if bucket == nil {
-		t.Fatal("Bodies bucket should exist")
-	}
-
-	// Delete the space
-	err = core.DeleteSpace(ctx, "test-user", space.Id)
-	if err != nil {
-		t.Fatalf("Failed to delete space: %v", err)
-	}
-
-	// Verify we can't get the space anymore
-	_, err = core.GetSpace(ctx, space.Id)
-	if err == nil {
-		t.Error("Space should not exist after deletion")
-	}
-
-	// Cache cleanup is an implementation detail; the important behavior is verified above
 }
 
 // ============================================================================
@@ -4222,8 +4183,8 @@ func TestChattoCore_PostMessage_InReplyToNotification(t *testing.T) {
 		core.DismissAllNotifications(ctx, alice.Id)
 
 		// Alice mutes the room
-		core.SetRoomNotificationLevel(ctx, space.Id, alice.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED)
-		defer core.SetRoomNotificationLevel(ctx, space.Id, alice.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_DEFAULT)
+		core.SetRoomNotificationLevel(ctx, alice.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED)
+		defer core.SetRoomNotificationLevel(ctx, alice.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_DEFAULT)
 
 		// Alice posts a message
 		aliceMsg, err := core.PostMessage(ctx, space.Id, room.Id, alice.Id, "Muted test", nil, "", "", nil, false)

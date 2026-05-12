@@ -41,12 +41,13 @@ func (*UserProfileUpdatedEvent) IsServerEventType()           {}
 func (*ServerUserPreferencesUpdatedEvent) IsServerEventType() {}
 func (*NotificationLevelChangedEvent) IsServerEventType()     {}
 func (*ThreadFollowChangedEvent) IsServerEventType()          {}
-func (*SpaceUpdatedEvent) IsServerEventType()                 {}
+func (*ServerCreatedEvent) IsServerEventType()                {}
+func (*ServerUpdatedEvent) IsServerEventType()                {}
+func (*ServerDeletedEvent) IsServerEventType()                {}
 func (*MentionNotificationEvent) IsServerEventType()          {}
 func (*NewDirectMessageNotificationEvent) IsServerEventType() {}
 func (*NotificationCreatedEvent) IsServerEventType()          {}
 func (*NotificationDismissedEvent) IsServerEventType()        {}
-func (*NewMessageInSpaceEvent) IsServerEventType()            {}
 func (*RoomMarkedAsReadEvent) IsServerEventType()             {}
 func (*RoomLayoutUpdatedEvent) IsServerEventType()            {}
 func (*SessionTerminatedEvent) IsServerEventType()            {}

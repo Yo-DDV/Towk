@@ -423,30 +423,28 @@ Note: Event type (created, joined, etc.) is determined by the event payload, not
 Pattern: `live.server.{scope}.{subject}` — the single subscription root for real-time delivery. Two publishers feed it:
 
 - `SERVER_EVENTS` RePublish (`server.>` → `live.server.>`): every accepted stream message is re-emitted onto a NATS Core subject after persistence. Subscribers don't need a JetStream consumer to receive room messages, thread replies, room meta, or server-level member events.
-- Direct NATS Core publishes (`publishLiveUserEvent()`, `publishLiveSpaceEvent()`, `publishLiveConfigEvent()`, `publishLiveRoomEvent()`, `publishLiveMemberEvent()`): transient events with no stream storage.
+- Direct NATS Core publishes (`publishLiveUserEvent()`, `publishLiveDeploymentEvent()`, `publishLiveConfigEvent()`, `publishLiveRoomEvent()`, `publishLiveMemberEvent()`): transient events with no stream storage.
 
 Subject leaf tokens never collide between the two paths — republished events end in `.msg.{id}` / `.meta` / `.{member_verb}`, direct publishes use event-type tokens (`.reaction_added`, `.user_typing`, `.profile_updated`, etc.).
 
-**Deployment-wide live events** (`live.server.{user,space,config}.>`):
+**Deployment-wide live events** (`live.server.{user,config}.>`):
 
 | Subject                                                  | Description                  |
 | -------------------------------------------------------- | ---------------------------- |
 | `live.server.user.{userId}.created`                      | User registration completed  |
 | `live.server.user.{userId}.profile_updated`              | User profile changed (broadcast) |
 | `live.server.user.{userId}.user_deleted`                 | User account deleted         |
-| `live.server.user.{userId}.space_created`                | Space creation               |
-| `live.server.user.{userId}.space_deleted`                | Space deletion               |
-| `live.server.user.{userId}.joined_space`                 | User joined a space          |
-| `live.server.user.{userId}.left_space`                   | User left a space            |
-| `live.server.space.{spaceId}.updated`                    | Space settings changed       |
-| `live.server.config.updated`                             | Server config changed        |
+| `live.server.user.{userId}.joined_space`                 | User joined the server       |
+| `live.server.user.{userId}.left_space`                   | User left the server         |
+| `live.server.config.updated`                             | Server config (name/MOTD/welcome) changed |
+| `live.server.config.server_updated`                      | Server branding (name/logo/banner/description) changed |
+| `live.server.config.room_layout_updated`                 | Admin reordered the room sidebar |
 | `live.server.user.{userId}.mentioned`                    | User was @mentioned          |
 | `live.server.user.{userId}.dm_message`                   | New DM message received      |
 | `live.server.user.{userId}.notification_created`         | New notification created     |
 | `live.server.user.{userId}.notification_dismissed`       | Notification dismissed       |
 | `live.server.user.{userId}.settings_updated`             | User preferences changed     |
 | `live.server.user.{userId}.room_read`                    | Room marked as read          |
-| `live.server.space.{spaceId}.new_message`                | New message in space         |
 
 **Republished from `SERVER_EVENTS`** (durable, available via `live.server.>` after stream write):
 

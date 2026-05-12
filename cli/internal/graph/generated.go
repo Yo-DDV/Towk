@@ -308,10 +308,6 @@ type ComplexityRoot struct {
 		Sender           func(childComplexity int) int
 	}
 
-	NewMessageInServerEvent struct {
-		RoomId func(childComplexity int) int
-	}
-
 	NotificationCreatedEvent struct {
 		EventId        func(childComplexity int) int
 		InReplyToId    func(childComplexity int) int
@@ -552,7 +548,6 @@ type ComplexityRoot struct {
 		MemberCount                  func(childComplexity int) int
 		Members                      func(childComplexity int, search *string, limit *int32, offset *int32) int
 		MessageEditWindowSeconds     func(childComplexity int) int
-		PrimarySpaceID               func(childComplexity int) int
 		PushNotificationsEnabled     func(childComplexity int) int
 		Role                         func(childComplexity int, name string) int
 		RoleUsers                    func(childComplexity int, roleName string) int
@@ -612,6 +607,12 @@ type ComplexityRoot struct {
 		Users      func(childComplexity int) int
 	}
 
+	ServerStats struct {
+		ChannelRoomCount func(childComplexity int) int
+		DmRoomCount      func(childComplexity int) int
+		UserCount        func(childComplexity int) int
+	}
+
 	ServerUpdatedEvent struct {
 		BannerUrl   func(childComplexity int) int
 		Description func(childComplexity int) int
@@ -635,6 +636,7 @@ type ComplexityRoot struct {
 	SystemInfo struct {
 		Account    func(childComplexity int) int
 		Connection func(childComplexity int) int
+		Stats      func(childComplexity int) int
 	}
 
 	ThreadFollowChangedEvent struct {
@@ -983,7 +985,6 @@ type ServerResolver interface {
 	MaxUploadSize(ctx context.Context, obj *model.Server) (int32, error)
 	MaxVideoUploadSize(ctx context.Context, obj *model.Server) (int32, error)
 	MessageEditWindowSeconds(ctx context.Context, obj *model.Server) (int32, error)
-	PrimarySpaceID(ctx context.Context, obj *model.Server) (string, error)
 	Rooms(ctx context.Context, obj *model.Server, typeArg *model.RoomType) ([]*corev1.Room, error)
 	RoomLayout(ctx context.Context, obj *model.Server) (*model.RoomLayoutModel, error)
 	MemberCount(ctx context.Context, obj *model.Server) (int32, error)
@@ -2366,13 +2367,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.NewDirectMessageNotificationEvent.Sender(childComplexity), true
 
-	case "NewMessageInServerEvent.roomId":
-		if e.complexity.NewMessageInServerEvent.RoomId == nil {
-			break
-		}
-
-		return e.complexity.NewMessageInServerEvent.RoomId(childComplexity), true
-
 	case "NotificationCreatedEvent.eventId":
 		if e.complexity.NotificationCreatedEvent.EventId == nil {
 			break
@@ -3374,12 +3368,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Server.MessageEditWindowSeconds(childComplexity), true
-	case "Server.primarySpaceId":
-		if e.complexity.Server.PrimarySpaceID == nil {
-			break
-		}
-
-		return e.complexity.Server.PrimarySpaceID(childComplexity), true
 	case "Server.pushNotificationsEnabled":
 		if e.complexity.Server.PushNotificationsEnabled == nil {
 			break
@@ -3678,6 +3666,25 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.ServerMembersConnection.Users(childComplexity), true
 
+	case "ServerStats.channelRoomCount":
+		if e.complexity.ServerStats.ChannelRoomCount == nil {
+			break
+		}
+
+		return e.complexity.ServerStats.ChannelRoomCount(childComplexity), true
+	case "ServerStats.dmRoomCount":
+		if e.complexity.ServerStats.DmRoomCount == nil {
+			break
+		}
+
+		return e.complexity.ServerStats.DmRoomCount(childComplexity), true
+	case "ServerStats.userCount":
+		if e.complexity.ServerStats.UserCount == nil {
+			break
+		}
+
+		return e.complexity.ServerStats.UserCount(childComplexity), true
+
 	case "ServerUpdatedEvent.bannerUrl":
 		if e.complexity.ServerUpdatedEvent.BannerUrl == nil {
 			break
@@ -3742,6 +3749,12 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SystemInfo.Connection(childComplexity), true
+	case "SystemInfo.stats":
+		if e.complexity.SystemInfo.Stats == nil {
+			break
+		}
+
+		return e.complexity.SystemInfo.Stats(childComplexity), true
 
 	case "ThreadFollowChangedEvent.isFollowing":
 		if e.complexity.ThreadFollowChangedEvent.IsFollowing == nil {
@@ -5948,6 +5961,8 @@ func (ec *executionContext) fieldContext_AdminQueries_systemInfo(_ context.Conte
 				return ec.fieldContext_SystemInfo_connection(ctx, field)
 			case "account":
 				return ec.fieldContext_SystemInfo_account(ctx, field)
+			case "stats":
+				return ec.fieldContext_SystemInfo_stats(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SystemInfo", field.Name)
 		},
@@ -9867,8 +9882,6 @@ func (ec *executionContext) fieldContext_Mutation_updateServer(ctx context.Conte
 				return ec.fieldContext_Server_maxVideoUploadSize(ctx, field)
 			case "messageEditWindowSeconds":
 				return ec.fieldContext_Server_messageEditWindowSeconds(ctx, field)
-			case "primarySpaceId":
-				return ec.fieldContext_Server_primarySpaceId(ctx, field)
 			case "rooms":
 				return ec.fieldContext_Server_rooms(ctx, field)
 			case "roomLayout":
@@ -9982,8 +9995,6 @@ func (ec *executionContext) fieldContext_Mutation_uploadServerLogo(ctx context.C
 				return ec.fieldContext_Server_maxVideoUploadSize(ctx, field)
 			case "messageEditWindowSeconds":
 				return ec.fieldContext_Server_messageEditWindowSeconds(ctx, field)
-			case "primarySpaceId":
-				return ec.fieldContext_Server_primarySpaceId(ctx, field)
 			case "rooms":
 				return ec.fieldContext_Server_rooms(ctx, field)
 			case "roomLayout":
@@ -10096,8 +10107,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteServerLogo(_ context.Con
 				return ec.fieldContext_Server_maxVideoUploadSize(ctx, field)
 			case "messageEditWindowSeconds":
 				return ec.fieldContext_Server_messageEditWindowSeconds(ctx, field)
-			case "primarySpaceId":
-				return ec.fieldContext_Server_primarySpaceId(ctx, field)
 			case "rooms":
 				return ec.fieldContext_Server_rooms(ctx, field)
 			case "roomLayout":
@@ -10200,8 +10209,6 @@ func (ec *executionContext) fieldContext_Mutation_uploadServerBanner(ctx context
 				return ec.fieldContext_Server_maxVideoUploadSize(ctx, field)
 			case "messageEditWindowSeconds":
 				return ec.fieldContext_Server_messageEditWindowSeconds(ctx, field)
-			case "primarySpaceId":
-				return ec.fieldContext_Server_primarySpaceId(ctx, field)
 			case "rooms":
 				return ec.fieldContext_Server_rooms(ctx, field)
 			case "roomLayout":
@@ -10314,8 +10321,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteServerBanner(_ context.C
 				return ec.fieldContext_Server_maxVideoUploadSize(ctx, field)
 			case "messageEditWindowSeconds":
 				return ec.fieldContext_Server_messageEditWindowSeconds(ctx, field)
-			case "primarySpaceId":
-				return ec.fieldContext_Server_primarySpaceId(ctx, field)
 			case "rooms":
 				return ec.fieldContext_Server_rooms(ctx, field)
 			case "roomLayout":
@@ -12369,35 +12374,6 @@ func (ec *executionContext) fieldContext_NewDirectMessageNotificationEvent_conve
 	return fc, nil
 }
 
-func (ec *executionContext) _NewMessageInServerEvent_roomId(ctx context.Context, field graphql.CollectedField, obj *corev1.NewMessageInSpaceEvent) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_NewMessageInServerEvent_roomId,
-		func(ctx context.Context) (any, error) {
-			return obj.RoomId, nil
-		},
-		nil,
-		ec.marshalNID2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_NewMessageInServerEvent_roomId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "NewMessageInServerEvent",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type ID does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _NotificationCreatedEvent_notificationId(ctx context.Context, field graphql.CollectedField, obj *corev1.NotificationCreatedEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -13541,8 +13517,6 @@ func (ec *executionContext) fieldContext_Query_server(_ context.Context, field g
 				return ec.fieldContext_Server_maxVideoUploadSize(ctx, field)
 			case "messageEditWindowSeconds":
 				return ec.fieldContext_Server_messageEditWindowSeconds(ctx, field)
-			case "primarySpaceId":
-				return ec.fieldContext_Server_primarySpaceId(ctx, field)
 			case "rooms":
 				return ec.fieldContext_Server_rooms(ctx, field)
 			case "roomLayout":
@@ -17846,35 +17820,6 @@ func (ec *executionContext) fieldContext_Server_messageEditWindowSeconds(_ conte
 	return fc, nil
 }
 
-func (ec *executionContext) _Server_primarySpaceId(ctx context.Context, field graphql.CollectedField, obj *model.Server) (ret graphql.Marshaler) {
-	return graphql.ResolveField(
-		ctx,
-		ec.OperationContext,
-		field,
-		ec.fieldContext_Server_primarySpaceId,
-		func(ctx context.Context) (any, error) {
-			return ec.resolvers.Server().PrimarySpaceID(ctx, obj)
-		},
-		nil,
-		ec.marshalNString2string,
-		true,
-		true,
-	)
-}
-
-func (ec *executionContext) fieldContext_Server_primarySpaceId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Server",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Server_rooms(ctx context.Context, field graphql.CollectedField, obj *model.Server) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -19503,7 +19448,94 @@ func (ec *executionContext) fieldContext_ServerMembersConnection_hasMore(_ conte
 	return fc, nil
 }
 
-func (ec *executionContext) _ServerUpdatedEvent_name(ctx context.Context, field graphql.CollectedField, obj *corev1.SpaceUpdatedEvent) (ret graphql.Marshaler) {
+func (ec *executionContext) _ServerStats_userCount(ctx context.Context, field graphql.CollectedField, obj *model.ServerStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ServerStats_userCount,
+		func(ctx context.Context) (any, error) {
+			return obj.UserCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ServerStats_userCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ServerStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ServerStats_channelRoomCount(ctx context.Context, field graphql.CollectedField, obj *model.ServerStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ServerStats_channelRoomCount,
+		func(ctx context.Context) (any, error) {
+			return obj.ChannelRoomCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ServerStats_channelRoomCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ServerStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ServerStats_dmRoomCount(ctx context.Context, field graphql.CollectedField, obj *model.ServerStats) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_ServerStats_dmRoomCount,
+		func(ctx context.Context) (any, error) {
+			return obj.DmRoomCount, nil
+		},
+		nil,
+		ec.marshalNInt2int32,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_ServerStats_dmRoomCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ServerStats",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ServerUpdatedEvent_name(ctx context.Context, field graphql.CollectedField, obj *corev1.ServerUpdatedEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -19532,7 +19564,7 @@ func (ec *executionContext) fieldContext_ServerUpdatedEvent_name(_ context.Conte
 	return fc, nil
 }
 
-func (ec *executionContext) _ServerUpdatedEvent_description(ctx context.Context, field graphql.CollectedField, obj *corev1.SpaceUpdatedEvent) (ret graphql.Marshaler) {
+func (ec *executionContext) _ServerUpdatedEvent_description(ctx context.Context, field graphql.CollectedField, obj *corev1.ServerUpdatedEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -19561,7 +19593,7 @@ func (ec *executionContext) fieldContext_ServerUpdatedEvent_description(_ contex
 	return fc, nil
 }
 
-func (ec *executionContext) _ServerUpdatedEvent_logoUrl(ctx context.Context, field graphql.CollectedField, obj *corev1.SpaceUpdatedEvent) (ret graphql.Marshaler) {
+func (ec *executionContext) _ServerUpdatedEvent_logoUrl(ctx context.Context, field graphql.CollectedField, obj *corev1.ServerUpdatedEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -19590,7 +19622,7 @@ func (ec *executionContext) fieldContext_ServerUpdatedEvent_logoUrl(_ context.Co
 	return fc, nil
 }
 
-func (ec *executionContext) _ServerUpdatedEvent_bannerUrl(ctx context.Context, field graphql.CollectedField, obj *corev1.SpaceUpdatedEvent) (ret graphql.Marshaler) {
+func (ec *executionContext) _ServerUpdatedEvent_bannerUrl(ctx context.Context, field graphql.CollectedField, obj *corev1.ServerUpdatedEvent) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
@@ -19832,6 +19864,43 @@ func (ec *executionContext) fieldContext_SystemInfo_account(_ context.Context, f
 				return ec.fieldContext_AccountInfo_consumersUsed(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AccountInfo", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SystemInfo_stats(ctx context.Context, field graphql.CollectedField, obj *model.SystemInfo) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_SystemInfo_stats,
+		func(ctx context.Context) (any, error) {
+			return obj.Stats, nil
+		},
+		nil,
+		ec.marshalNServerStats2ᚖhmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐServerStats,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_SystemInfo_stats(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SystemInfo",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "userCount":
+				return ec.fieldContext_ServerStats_userCount(ctx, field)
+			case "channelRoomCount":
+				return ec.fieldContext_ServerStats_channelRoomCount(ctx, field)
+			case "dmRoomCount":
+				return ec.fieldContext_ServerStats_dmRoomCount(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ServerStats", field.Name)
 		},
 	}
 	return fc, nil
@@ -25693,7 +25762,7 @@ func (ec *executionContext) _ServerEventType(ctx context.Context, sel ast.Select
 			return graphql.Null
 		}
 		return ec._ServerUserPreferencesUpdatedEvent(ctx, sel, obj)
-	case *corev1.SpaceUpdatedEvent:
+	case *corev1.ServerUpdatedEvent:
 		if obj == nil {
 			return graphql.Null
 		}
@@ -25773,11 +25842,6 @@ func (ec *executionContext) _ServerEventType(ctx context.Context, sel ast.Select
 			return graphql.Null
 		}
 		return ec._NotificationCreatedEvent(ctx, sel, obj)
-	case *corev1.NewMessageInSpaceEvent:
-		if obj == nil {
-			return graphql.Null
-		}
-		return ec._NewMessageInServerEvent(ctx, sel, obj)
 	case *corev1.NewDirectMessageNotificationEvent:
 		if obj == nil {
 			return graphql.Null
@@ -28736,45 +28800,6 @@ func (ec *executionContext) _NewDirectMessageNotificationEvent(ctx context.Conte
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		default:
-			panic("unknown field " + strconv.Quote(field.Name))
-		}
-	}
-	out.Dispatch(ctx)
-	if out.Invalids > 0 {
-		return graphql.Null
-	}
-
-	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
-
-	for label, dfs := range deferred {
-		ec.processDeferredGroup(graphql.DeferredGroup{
-			Label:    label,
-			Path:     graphql.GetPath(ctx),
-			FieldSet: dfs,
-			Context:  ctx,
-		})
-	}
-
-	return out
-}
-
-var newMessageInServerEventImplementors = []string{"NewMessageInServerEvent", "ServerEventType"}
-
-func (ec *executionContext) _NewMessageInServerEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.NewMessageInSpaceEvent) graphql.Marshaler {
-	fields := graphql.CollectFields(ec.OperationContext, sel, newMessageInServerEventImplementors)
-
-	out := graphql.NewFieldSet(fields)
-	deferred := make(map[string]*graphql.FieldSet)
-	for i, field := range fields {
-		switch field.Name {
-		case "__typename":
-			out.Values[i] = graphql.MarshalString("NewMessageInServerEvent")
-		case "roomId":
-			out.Values[i] = ec._NewMessageInServerEvent_roomId(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -32206,42 +32231,6 @@ func (ec *executionContext) _Server(ctx context.Context, sel ast.SelectionSet, o
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
-		case "primarySpaceId":
-			field := field
-
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._Server_primarySpaceId(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
-				return res
-			}
-
-			if field.Deferrable != nil {
-				dfs, ok := deferred[field.Deferrable.Label]
-				di := 0
-				if ok {
-					dfs.AddField(field)
-					di = len(dfs.Values) - 1
-				} else {
-					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
-					deferred[field.Deferrable.Label] = dfs
-				}
-				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
-					return innerFunc(ctx, dfs)
-				})
-
-				// don't run the out.Concurrently() call below
-				out.Values[i] = graphql.Null
-				continue
-			}
-
-			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "rooms":
 			field := field
 
@@ -33639,9 +33628,58 @@ func (ec *executionContext) _ServerMembersConnection(ctx context.Context, sel as
 	return out
 }
 
+var serverStatsImplementors = []string{"ServerStats"}
+
+func (ec *executionContext) _ServerStats(ctx context.Context, sel ast.SelectionSet, obj *model.ServerStats) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, serverStatsImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ServerStats")
+		case "userCount":
+			out.Values[i] = ec._ServerStats_userCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "channelRoomCount":
+			out.Values[i] = ec._ServerStats_channelRoomCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dmRoomCount":
+			out.Values[i] = ec._ServerStats_dmRoomCount(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var serverUpdatedEventImplementors = []string{"ServerUpdatedEvent", "ServerEventType"}
 
-func (ec *executionContext) _ServerUpdatedEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.SpaceUpdatedEvent) graphql.Marshaler {
+func (ec *executionContext) _ServerUpdatedEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.ServerUpdatedEvent) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, serverUpdatedEventImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -33845,6 +33883,11 @@ func (ec *executionContext) _SystemInfo(ctx context.Context, sel ast.SelectionSe
 			}
 		case "account":
 			out.Values[i] = ec._SystemInfo_account(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "stats":
+			out.Values[i] = ec._SystemInfo_stats(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -37224,6 +37267,16 @@ func (ec *executionContext) marshalNServerMembersConnection2ᚖhmansᚗdeᚋchat
 		return graphql.Null
 	}
 	return ec._ServerMembersConnection(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNServerStats2ᚖhmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐServerStats(ctx context.Context, sel ast.SelectionSet, v *model.ServerStats) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			graphql.AddErrorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ServerStats(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNSetRoomAutoJoinInput2hmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐSetRoomAutoJoinInput(ctx context.Context, v any) (model.SetRoomAutoJoinInput, error) {
