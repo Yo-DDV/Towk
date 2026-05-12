@@ -7,8 +7,7 @@
   import { graphqlClientManager } from '$lib/state/server/graphqlClient.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
 
-  const getServerId = getActiveServer();
-  const activeInstanceId = $derived(getServerId());
+  const activeInstanceId = $derived(getActiveServer());
   const serverSegment = $derived(serverIdToSegment(activeInstanceId));
   import Dialog from '$lib/ui/Dialog.svelte';
   import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';

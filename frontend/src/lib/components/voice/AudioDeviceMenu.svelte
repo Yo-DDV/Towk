@@ -13,8 +13,7 @@ Reads available devices and current selection from `voiceCallState`.
 	import { serverRegistry } from '$lib/state/server/registry.svelte';
 	import { getActiveServer } from '$lib/state/activeServer.svelte';
 
-	const getServerId = getActiveServer();
-	const voiceCallState = serverRegistry.getStore(getServerId()).voiceCall;
+	const voiceCallState = serverRegistry.getStore(getActiveServer()).voiceCall;
 	import ContextMenu from '$lib/ui/ContextMenu.svelte';
 
 	let {

@@ -12,8 +12,7 @@ import { appState } from '$lib/state/globals.svelte';
  */
 export function useRoomUnread(getProps: () => { roomId: string }) {
   const connection = useConnection();
-  const getServerId = getActiveServer();
-  const roomUnreadStore = serverRegistry.getStore(getServerId()).roomUnread;
+  const roomUnreadStore = serverRegistry.getStore(getActiveServer()).roomUnread;
 
   let unreadAfterTime = $state<string | null>(null);
   let unreadBeforeTime = $state<string | null>(null);

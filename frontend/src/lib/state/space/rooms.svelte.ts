@@ -1,4 +1,4 @@
-import { createContext, untrack } from 'svelte';
+import { untrack } from 'svelte';
 import type { Client } from '@urql/svelte';
 import { graphql, useFragment } from '$lib/gql';
 import {
@@ -10,7 +10,7 @@ import {
 import type { NotificationLevelStore } from '$lib/state/server/notificationLevel.svelte';
 import type { RoomUnreadStore } from '$lib/state/server/roomUnread.svelte';
 
-export type SpaceRoom = {
+export type RoomsListItem = {
   id: string;
   name: string;
   type: RoomType;
@@ -20,13 +20,13 @@ export type SpaceRoom = {
   members: UserAvatarUserFragment[];
 };
 
-export type SpaceLayoutSection = {
+export type RoomsListSection = {
   id: string;
   name: string;
   roomIds: string[];
 };
 
-const SpaceRoomsQuery = graphql(`
+const MyRoomsQuery = graphql(`
   query GetMyRoomsInSpace {
     viewer {
       user {
@@ -64,21 +64,24 @@ const SpaceRoomsQuery = graphql(`
 `);
 
 /**
- * Reactive store for a space's joined-room list, layout, and per-room
- * unread/mention state. One instance per `<SpaceEventProvider>`; consumers
- * (RoomList sidebar, the `/[spaceId]` redirect page, etc.) read from the same
- * source instead of each running their own `me.rooms(spaceId)` query.
+ * Reactive store for a server's joined-room list, layout, and per-room
+ * unread/mention state. One instance per registered server, owned by
+ * `ServerStateStore` — consumers (RoomList sidebar, the `/[serverId]` redirect
+ * page, etc.) reach the active server's store via
+ * `serverRegistry.getStore(activeServerId).rooms`, so the reactivity follows
+ * the URL automatically when the user switches servers.
  *
  * Per-room flag mutations (markRead, setMention, ...) are exposed as methods
  * so components can react to local UI events (entering a room) and to other
  * subscriptions (mentions, marked-as-read across tabs).
  *
- * Subscription events are forwarded by the component via {@link ingestServerEvent};
- * the store decides whether a refresh is warranted.
+ * Subscription events are forwarded via {@link ingestServerEvent}; the
+ * top-level `RoomsSync` component attaches a handler to every server's bus
+ * so every server's store stays current regardless of which one is active.
  */
-export class SpaceRoomsStore {
-  rooms = $state<SpaceRoom[]>([]);
-  layoutSections = $state<SpaceLayoutSection[] | null>(null);
+export class RoomsStore {
+  rooms = $state<RoomsListItem[]>([]);
+  layoutSections = $state<RoomsListSection[] | null>(null);
   unsectionedRoomIds = $state<string[]>([]);
   isInitialLoading = $state(true);
   // The viewer's user ID, captured from the same `viewer { user { id, rooms } }`
@@ -94,9 +97,7 @@ export class SpaceRoomsStore {
     private readonly client: Client,
     private readonly notificationLevels: NotificationLevelStore,
     private readonly roomUnread: RoomUnreadStore
-  ) {
-    void this.refresh();
-  }
+  ) {}
 
   // -------------------------------------------------------------------------
   // Loading
@@ -104,7 +105,7 @@ export class SpaceRoomsStore {
 
   async refresh(): Promise<void> {
     const thisLoad = ++this.loadId;
-    const result = await this.client.query(SpaceRoomsQuery, {}).toPromise();
+    const result = await this.client.query(MyRoomsQuery, {}).toPromise();
     if (this.loadId !== thisLoad) return;
 
     if (result.data?.viewer?.user) {
@@ -181,7 +182,7 @@ export class SpaceRoomsStore {
     });
   }
 
-  private patchRoom(roomId: string, patch: Partial<SpaceRoom>): void {
+  private patchRoom(roomId: string, patch: Partial<RoomsListItem>): void {
     // Wrapped in untrack so callers can invoke from within a $effect without
     // creating a read+write loop on `rooms` (e.g. `$effect(() =>
     // store.markRead(activeRoomId))`). Reactivity for other consumers still
@@ -226,4 +227,3 @@ export class SpaceRoomsStore {
   }
 }
 
-export const [getSpaceRoomsStore, setSpaceRoomsStore] = createContext<SpaceRoomsStore>();

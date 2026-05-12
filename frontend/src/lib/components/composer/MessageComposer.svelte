@@ -35,8 +35,7 @@
   import TipTapEditor, { type TipTapEditorApi } from './TipTapEditor.svelte';
   import { prepareFiles } from '$lib/attachments/prepareFiles';
 
-  const getServerId = getActiveServer();
-  const stores = serverRegistry.getStore(getServerId());
+  const stores = serverRegistry.getStore(getActiveServer());
   const serverInfo = stores.serverInfo;
   const roomUnreadStore = stores.roomUnread;
 

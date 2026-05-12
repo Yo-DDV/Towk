@@ -23,8 +23,7 @@
     }
   `);
 
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
 
   const gateQuery = useQuery(SpaceRolesGateQuery, () => ({}));
   const canManageRoles = $derived(gateQuery.data?.server?.viewerCanManageRoles ?? false);

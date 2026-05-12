@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
+  import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { graphqlClientManager } from '$lib/state/server/graphqlClient.svelte';
   import { graphql } from '$lib/gql';
   import { PaneHeader, FormSection, Dialog } from '$lib/ui';
@@ -15,17 +16,26 @@
   } from '$lib/validation';
   import { getAvatarInitials } from '$lib/utils/initials';
 
-  const currentUser = getCurrentUser();
+  // Capture the active server's CurrentUserState at init. The settings
+  // page is scoped to one server (it lives under `[serverId]/settings`),
+  // so we don't need the registry lookup to re-resolve reactively — and
+  // the captured CurrentUserState is itself a reactive class (`user` /
+  // `loading` are `$state`), so subsequent profile updates flow through.
+  const currentUser = serverRegistry.getStore(getActiveServer()).currentUser;
 
-  // Form state
+  // Form state seeded once from the user's current profile. After init
+  // these are local edit buffers; profile updates from elsewhere
+  // (`currentUser.user = ...` after a mutation, cross-tab sync, etc.)
+  // intentionally don't re-sync into them.
   let displayName = $state(currentUser.user?.displayName ?? '');
   let login = $state(currentUser.user?.login ?? '');
+  let avatarUrl = $state<string | null>(currentUser.user?.avatarUrl ?? null);
+
   let isSaving = $state(false);
   let error = $state('');
   let successMessage = $state('');
 
   // Avatar state
-  let avatarUrl = $state<string | null>(currentUser.user?.avatarUrl ?? null);
   let uploadingAvatar = $state(false);
   let deletingAvatar = $state(false);
   let avatarFileInput = $state<HTMLInputElement>();

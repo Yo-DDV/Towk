@@ -6,7 +6,7 @@
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
-  import { getSpaceRoomsStore } from '$lib/state/space';
+  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { toast } from '$lib/ui/toast';
   import SecondarySidebar from '$lib/components/SecondarySidebar.svelte';
   import SidebarNav from '$lib/components/SidebarNav.svelte';
@@ -15,15 +15,14 @@
   let { data, children } = $props();
 
   const connection = useConnection();
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
   let { roomId } = $derived(data);
 
-  // Wait for the merged SpaceRoomsStore (channels + DMs) to settle before
-  // letting children mount. Without this, a freshly-loaded room page can fire
-  // queries against the URL roomId before the store has decided whether the
-  // room exists, briefly showing the not-found redirect.
-  const roomsStore = getSpaceRoomsStore();
+  // Wait for the active server's merged rooms store (channels + DMs) to
+  // settle before letting children mount. Without this, a freshly-loaded
+  // room page can fire queries against the URL roomId before the store has
+  // decided whether the room exists, briefly showing the not-found redirect.
+  const roomsStore = $derived(serverRegistry.getStore(getActiveServer()).rooms);
   const ready = $derived(!roomsStore.isInitialLoading);
 
   // Get threadId from URL params (only set when on the [threadId] route)

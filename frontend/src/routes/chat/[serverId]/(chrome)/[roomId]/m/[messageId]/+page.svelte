@@ -82,16 +82,14 @@
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
-  import { getSpaceRoomsStore } from '$lib/state/space';
 
   const connection = useConnection();
-  const getServerId = getActiveServer();
-  const stores = $derived(serverRegistry.getStore(getServerId()));
+  const stores = $derived(serverRegistry.getStore(getActiveServer()));
 
-  // Wait for the rooms store to settle before redirecting, so a deep-link to
-  // a DM doesn't briefly resolve as a missing channel room and trigger the
-  // not-found redirect.
-  const roomsStore = getSpaceRoomsStore();
+  // Wait for the active server's rooms store to settle before redirecting,
+  // so a deep-link to a DM doesn't briefly resolve as a missing channel
+  // room and trigger the not-found redirect.
+  const roomsStore = $derived(stores.rooms);
 
   $effect(() => {
     if (roomsStore.isInitialLoading) return;

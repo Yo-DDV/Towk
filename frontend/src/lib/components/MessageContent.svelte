@@ -6,7 +6,8 @@
 <script lang="ts">
   /* eslint-disable svelte/no-navigation-without-resolve -- goto target is built via buildMessageLinkPath which already calls resolve() */
   import { goto } from '$app/navigation';
-  import { getCurrentUser, type CurrentUserState } from '$lib/auth/currentUser.svelte';
+  import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { renderMarkdown as renderMd } from '$lib/markdown';
   import { parseMessageLink, buildMessageLinkPath } from '$lib/messageLinks';
   import { wrapValidMentions, type RoomMember } from '$lib/mentions';
@@ -23,13 +24,14 @@
     onMentionClick?: (userId: string, anchorRect: DOMRect) => void;
   } = $props();
 
-  // getCurrentUser throws if context is not set (e.g., in tests), so handle gracefully
-  let currentUser: CurrentUserState | undefined;
-  try {
-    currentUser = getCurrentUser();
-  } catch {
-    // Context not available - self-mention highlighting won't work
-  }
+  // The viewer's login on the active server, used by `wrapValidMentions` to
+  // mark self-mentions. Same reactive registry-lookup pattern every other
+  // chat-tree component uses — `tryGetStore` and the `?.` chain mean an
+  // unregistered or pre-auth server leaves `viewerLogin` undefined, which
+  // `wrapValidMentions` already treats as "no self-mention."
+  const viewerLogin = $derived(
+    serverRegistry.tryGetStore(getActiveServer())?.currentUser.user?.login
+  );
 
   function injectEditedMarker(html: string): string {
     const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
@@ -54,11 +56,17 @@
   }
 
   // Render markdown then wrap valid mentions
-  async function render(body: string, members: RoomMember[], edited: boolean): Promise<string> {
+  async function render(
+    body: string,
+    members: RoomMember[],
+    edited: boolean,
+    viewerLogin: string | undefined
+  ): Promise<string> {
     const html = await renderMd(body);
-    const wrapped = wrapValidMentions(html, members, currentUser?.user?.login);
+    const wrapped = wrapValidMentions(html, members, viewerLogin);
     return edited ? injectEditedMarker(wrapped) : wrapped;
   }
+
 
   // Handle clicks on links (open in system browser) and mentions (trigger callback).
   function handleContentClick(event: MouseEvent) {
@@ -97,7 +105,7 @@
 </script>
 
 <div class="prose max-w-none min-w-0" role="presentation" onclick={handleContentClick}>
-  {#await render(body, members, edited)}
+  {#await render(body, members, edited, viewerLogin)}
     <!-- Show escaped body while loading -->
     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
     {@html body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}

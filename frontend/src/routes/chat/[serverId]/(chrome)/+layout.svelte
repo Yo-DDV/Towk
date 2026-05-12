@@ -10,20 +10,19 @@
   import { clearLastRoom } from '$lib/storage/lastRoom';
   import { useActiveEvent, useReconnectCallback } from '$lib/hooks';
   import SecondarySidebar from '$lib/components/SecondarySidebar.svelte';
-  import { createSpacePermissions } from '$lib/state/space';
+  import { createChromePermissions } from '$lib/state/space';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import RoomList from '$lib/RoomList.svelte';
   import SpaceHeader from './SpaceHeader.svelte';
   import SpaceBanner from './SpaceBanner.svelte';
-  import SpaceEventProvider from '$lib/components/chat/SpaceEventProvider.svelte';
+  import ServerEventProvider from '$lib/components/chat/ServerEventProvider.svelte';
   import SidebarNav from '$lib/components/SidebarNav.svelte';
   import MyThreadsNavItem from './MyThreadsNavItem.svelte';
 
   let { data, children } = $props();
 
   const connection = useConnection();
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
 
   // Detect if we're in space admin mode based on URL (use startsWith to avoid
   // false positives from rooms or other paths that happen to contain "admin")
@@ -55,7 +54,7 @@
   );
 
   // Create space permissions context (must be synchronous during init)
-  const updateSpacePermissions = createSpacePermissions();
+  const updateChromePermissions = createChromePermissions();
 
   type SpaceData = {
     name: string;
@@ -137,7 +136,7 @@
 
   // Fetch server data on instance change or after WebSocket reconnection.
   $effect(() => {
-    const currentInstance = getServerId();
+    const currentInstance = getActiveServer();
     const currentRevalidation = revalidationCounter;
 
     // Skip if already validated for this instance in this revalidation cycle
@@ -177,7 +176,7 @@
         // Genuine "no access" — clear the last-room hint so we don't loop
         // back here, then redirect away.
         if (result === null) {
-          clearLastRoom(getServerId());
+          clearLastRoom(getActiveServer());
           goto(resolve('/chat/[serverId]', { serverId: serverSegment }), { replaceState: true });
         }
       })
@@ -193,7 +192,7 @@
   // Update space permissions context when spaceData changes
   $effect(() => {
     if (spaceData) {
-      updateSpacePermissions({
+      updateChromePermissions({
         hasAnyAdminPermission: spaceData.hasAnyAdminPermission,
         canManage: spaceData.canManage,
         canBrowseRooms: spaceData.canBrowseRooms,
@@ -311,7 +310,7 @@
   }
 </script>
 
-<SpaceEventProvider>
+<ServerEventProvider>
       <!-- Sidebar -->
       {#if !isRoomSettingsMode}
         <SecondarySidebar>
@@ -392,4 +391,4 @@
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         {@render children?.()}
       </div>
-    </SpaceEventProvider>
+    </ServerEventProvider>

@@ -3,15 +3,14 @@
   import { resolve } from '$app/paths';
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
-  import { getSpacePermissions } from '$lib/state/space';
+  import { getChromePermissions } from '$lib/state/space';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
 
-  const getServerId = getActiveServer();
   import AccessDenied from '$lib/ui/AccessDenied.svelte';
 
   let { children } = $props();
 
-  const spacePermissions = getSpacePermissions();
+  const spacePermissions = getChromePermissions();
   const serverPerms = getServerPermissions();
 
   // Check if user can access ANY admin section — space-side (server roles,
@@ -23,7 +22,7 @@
   // Map routes to required permissions
   // Returns the permission check function for each route prefix
   function getRoutePermissionCheck(pathname: string): () => boolean {
-    const seg = serverIdToSegment(getServerId());
+    const seg = serverIdToSegment(getActiveServer());
     const params = { serverId: seg };
     const adminBase = resolve('/chat/[serverId]/(chrome)/server-admin', params);
     const generalBase = resolve('/chat/[serverId]/(chrome)/server-admin/general', params);
@@ -101,7 +100,7 @@
   <AccessDenied
     message="You do not have permission to access this page."
     backHref={resolve('/chat/[serverId]', {
-      serverId: serverIdToSegment(getServerId())
+      serverId: serverIdToSegment(getActiveServer())
     })}
     backLabel="Return to Server"
   />

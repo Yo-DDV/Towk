@@ -14,7 +14,6 @@
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import { formatDate as formatDateUtil } from '$lib/utils/formatTime';
 
-  const getServerId = getActiveServer();
   const userSettings = getUserSettings();
 
   const SpaceMembersQuery = graphql(`
@@ -118,7 +117,7 @@
           onRowClick={(user) =>
             goto(
               resolve('/chat/[serverId]/(chrome)/server-admin/members/[userId]', {
-                serverId: serverIdToSegment(getServerId()),
+                serverId: serverIdToSegment(getActiveServer()),
                 userId: user.id
               })
             )}

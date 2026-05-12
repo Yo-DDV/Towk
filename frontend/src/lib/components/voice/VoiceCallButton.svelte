@@ -18,8 +18,7 @@ States:
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
 
-  const getServerId = getActiveServer();
-  const voiceCallState = serverRegistry.getStore(getServerId()).voiceCall;
+  const voiceCallState = serverRegistry.getStore(getActiveServer()).voiceCall;
   import { toast } from '$lib/ui/toast';
 
   let {

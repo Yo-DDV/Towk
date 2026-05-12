@@ -4,13 +4,13 @@
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { getSpaceRoomsStore } from '$lib/state/space';
   import { getLastRoom } from '$lib/storage/lastRoom';
 
-  const serverId = getActiveServer()();
+  const serverId = $derived(getActiveServer());
   const lastRoom = $derived(getLastRoom(serverId));
-  const roomsStore = getSpaceRoomsStore();
-  const serverInfo = $derived(serverRegistry.tryGetStore(serverId)?.serverInfo);
+  const stores = $derived(serverRegistry.tryGetStore(serverId));
+  const roomsStore = $derived(stores?.rooms);
+  const serverInfo = $derived(stores?.serverInfo);
   const serverInfoLoading = $derived(serverInfo?.loading ?? true);
 
   function redirectToRoom(roomId: string) {
@@ -26,6 +26,7 @@
   $effect(() => {
     if (sessionStorage.getItem('returnUrl')) return;
     if (serverInfoLoading) return;
+    if (!roomsStore) return;
 
     if (lastRoom) {
       redirectToRoom(lastRoom);
@@ -40,7 +41,7 @@
   });
 
   const showNoRoomMessage = $derived(
-    !lastRoom && !roomsStore.isInitialLoading && roomsStore.rooms.length === 0
+    !lastRoom && !!roomsStore && !roomsStore.isInitialLoading && roomsStore.rooms.length === 0
   );
 </script>
 

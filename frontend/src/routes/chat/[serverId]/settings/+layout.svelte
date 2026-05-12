@@ -1,18 +1,17 @@
 <script lang="ts">
   import { resolve } from '$app/paths';
-  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
+  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
 
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
   import SecondarySidebar from '$lib/components/SecondarySidebar.svelte';
   import SidebarNav from '$lib/components/SidebarNav.svelte';
   import LoadingPage from '$lib/ui/LoadingPage.svelte';
 
   let { children } = $props();
 
-  const currentUser = getCurrentUser();
+  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
 
   // Nav items for settings
   const navItems = $derived([

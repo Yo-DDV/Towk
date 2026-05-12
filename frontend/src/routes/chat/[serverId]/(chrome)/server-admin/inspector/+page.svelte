@@ -1,8 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
-  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { Panel } from '$lib/components/admin';
@@ -10,9 +10,8 @@
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
 
-  const currentUser = getCurrentUser();
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
+  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
 
   const targetUserId = $derived(page.url.searchParams.get('userId') ?? currentUser.user?.id ?? '');
   const roomId = $derived(page.url.searchParams.get('roomId') ?? null);

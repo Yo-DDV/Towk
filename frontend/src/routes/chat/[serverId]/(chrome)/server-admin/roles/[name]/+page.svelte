@@ -14,8 +14,7 @@
 
   type User = { id: string; login: string; displayName: string };
 
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
   const connection = useConnection();
   const roleName = $derived(page.params.name!);
 

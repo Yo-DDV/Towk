@@ -3,7 +3,6 @@
   import { page } from '$app/state';
   import { dropZone } from '$lib/attachments/dropZone.svelte';
   import DropZoneOverlay from '$lib/attachments/DropZoneOverlay.svelte';
-  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
   import MessageComposer, {
     type MessageComposerApi
   } from '$lib/components/composer/MessageComposer.svelte';
@@ -27,9 +26,8 @@
 
   let { roomId, threadId }: { roomId: string; threadId?: string } = $props();
 
-  const getServerId = getActiveServer();
-  const serverSegment = $derived(serverIdToSegment(getServerId()));
-  const stores = serverRegistry.getStore(getServerId());
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
+  const stores = serverRegistry.getStore(getActiveServer());
   const serverInfo = stores.serverInfo;
   const notificationStore = stores.notifications;
 
@@ -49,7 +47,7 @@
   const composerContext = createComposerContext({ scroll: true });
   const replyState = composerContext.replyState;
   const jumpState = composerContext.jumpState;
-  const currentUser = getCurrentUser();
+  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
 
   // --- Extracted hooks ---
   const room = useRoomData(() => ({ roomId }));
@@ -91,7 +89,7 @@
   // back here in an infinite loop.
   $effect.pre(() => {
     if (room.roomData === null) {
-      clearLastRoom(getServerId());
+      clearLastRoom(getActiveServer());
       goto(resolve('/chat/[serverId]', { serverId: serverSegment }), { replaceState: true });
     }
   });
@@ -146,7 +144,7 @@
   // surprising — channels are the implicit destination.
   $effect(() => {
     if (room.roomData && !room.isDM) {
-      setLastRoom(getServerId(), roomId);
+      setLastRoom(getActiveServer(), roomId);
     }
   });
 

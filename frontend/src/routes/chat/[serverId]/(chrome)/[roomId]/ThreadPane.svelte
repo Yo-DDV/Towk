@@ -7,11 +7,9 @@
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
 
-  const getServerId = getActiveServer();
-  const notificationStore = serverRegistry.getStore(getServerId()).notifications;
+  const notificationStore = serverRegistry.getStore(getActiveServer()).notifications;
   import { appState } from '$lib/state/globals.svelte';
   import { getRoomMembers, createComposerContext, ThreadMessagesStore } from '$lib/state/room';
-  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import MessageComposer, {
     type MessageComposerApi
@@ -41,7 +39,7 @@
 
   const connection = useConnection();
   const members = $derived(getRoomMembers());
-  const currentUser = getCurrentUser();
+  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
 
   const store = new ThreadMessagesStore(
     connection().client,

@@ -10,15 +10,13 @@
   import { useFragment } from '$lib/gql/fragment-masking';
   import { graphql } from '$lib/gql';
   import { RoomEventViewFragmentDoc, type RoomEventViewFragment } from '$lib/gql/graphql';
-  import { getCurrentUser } from '$lib/auth/currentUser.svelte';
   import { getRoomPermissions, getRoomMembers, getComposerContext, type RoomMember } from '$lib/state/room';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
 
-  const getServerId = getActiveServer();
-  const stores = serverRegistry.getStore(getServerId());
+  const stores = serverRegistry.getStore(getActiveServer());
   const notificationStore = stores.notifications;
   const serverInfo = stores.serverInfo;
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
@@ -57,7 +55,7 @@
   } = $props();
 
   const connection = useConnection();
-  const currentUser = getCurrentUser();
+  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
   const roomPermissions = $derived(getRoomPermissions());
   const composerContext = getComposerContext();
   const replyState = composerContext.replyState;
@@ -222,7 +220,7 @@
 
   // Canonical link for this message (internal path for href, absolute URL for copy).
   const messageLinkPath = $derived(
-    event ? buildMessageLinkPath(getServerId(), roomId, event.id) : ''
+    event ? buildMessageLinkPath(getActiveServer(), roomId, event.id) : ''
   );
 
   // Message links referenced in this message's body — rendered inline as previews.
@@ -238,7 +236,7 @@
     e.preventDefault();
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(buildMessageLinkURL(getServerId(), roomId, event.id));
+      await navigator.clipboard.writeText(buildMessageLinkURL(getActiveServer(), roomId, event.id));
       toast.success('Message link copied');
     } catch {
       toast.error('Failed to copy link');
@@ -709,7 +707,7 @@
       <!-- Quick actions toolbar (desktop only — mobile uses long-press action sheet) -->
       {#if !isDeleted && !isTouch}
         <MessageHoverBar
-          serverId={getServerId()}
+          serverId={getActiveServer()}
           {roomId}
           messageEventId={event.id}
           eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
@@ -739,7 +737,7 @@
       user={popoverUser}
       anchorRect={popoverAnchorRect}
       canSendMessage={canWriteDMs}
-      onSendMessage={() => startDMWith(getServerId(), popoverUser!.id)}
+      onSendMessage={() => startDMWith(getActiveServer(), popoverUser!.id)}
       onClose={closePopover}
     />
   {/if}
@@ -754,7 +752,7 @@
       }}
     >
       <MessageContextMenu
-        serverId={getServerId()}
+        serverId={getActiveServer()}
         {roomId}
         messageEventId={event.id}
         eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
@@ -781,7 +779,7 @@
   {#if emojiPickerPos && !isDeleted}
     <ContextMenu position={emojiPickerPos} onclose={closeEmojiPicker}>
       <EmojiPicker
-        serverId={getServerId()}
+        serverId={getActiveServer()}
         onSelect={handleEmojiSelect}
         onClose={closeEmojiPicker}
       />
@@ -792,7 +790,7 @@
   {#if showActionSheet && !isDeleted}
     <BottomSheet bind:visible={showActionSheet}>
       <MessageActionSheet
-        serverId={getServerId()}
+        serverId={getActiveServer()}
         {roomId}
         messageEventId={event.id}
         eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}

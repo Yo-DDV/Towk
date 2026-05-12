@@ -1,8 +1,6 @@
-import { createContext } from 'svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import type { Client } from '@urql/svelte';
 import { graphql } from '$lib/gql';
-import type { RoomEventViewFragment } from '$lib/gql/graphql';
 
 export type DirectoryRoom = {
   id: string;
@@ -44,18 +42,23 @@ export type LeaveResult = { ok: true; room?: DirectoryRoom } | { ok: false; erro
 /**
  * Reactive state for the Browse Rooms directory page.
  *
- * Owns the "all rooms in this space" listing (joined or not) plus the
- * optimistic UI state for in-flight join/leave operations
- * (`joiningIds` / `leavingIds`) and the just-completed momentary state
- * (`justJoinedIds` / `justLeftIds`). The actual "which rooms have I joined"
- * answer comes from the existing {@link SpaceRoomsStore} — components combine
- * the two via `isJoined(roomId, joinedSet)` rather than this store
- * duplicating that data.
+ * Owns the "all rooms" listing (joined or not) plus the optimistic UI state
+ * for in-flight join/leave operations (`joiningIds` / `leavingIds`) and the
+ * just-completed momentary state (`justJoinedIds` / `justLeftIds`). The
+ * actual "which rooms have I joined" answer comes from the active server's
+ * rooms store — components combine the two via
+ * `isJoined(roomId, joinedSet)` rather than this store duplicating that
+ * data.
+ *
+ * One instance per registered server, owned by `ServerStateStore`. The
+ * Browse Rooms page reads the active server's instance via
+ * `serverRegistry.getStore(getServerId()).roomDirectory` and triggers
+ * `refresh()` reactively when the active server changes.
  *
  * The page-level component is responsible for:
- * - Constructing the store with a GraphQL `client`
- * - Forwarding space events via {@link ingestServerEvent}
- * - Forwarding room-layout events via {@link ingestRoomLayoutUpdated}
+ * - Forwarding events to {@link ingestServerEvent} and
+ *   {@link ingestRoomLayoutUpdated}
+ * - Triggering {@link refresh} on mount / server switch
  * - Surfacing toast feedback from the {@link joinRoom} / {@link leaveRoom}
  *   results
  */
@@ -72,9 +75,7 @@ export class RoomDirectoryStore {
 
   private loadId = 0;
 
-  constructor(private readonly client: Client) {
-    void this.refresh();
-  }
+  constructor(private readonly client: Client) {}
 
   // ---------------------------------------------------------------------------
   // Loading
@@ -89,7 +90,7 @@ export class RoomDirectoryStore {
       this.allRooms = result.data.server.rooms;
       // A successful refresh confirms what was optimistically applied; clear
       // the just-* sets so isJoined() falls back on the authoritative joined
-      // membership reported by SpaceRoomsStore.
+      // membership reported by RoomsStore.
       this.justJoinedIds.clear();
       this.justLeftIds.clear();
     }
@@ -102,7 +103,7 @@ export class RoomDirectoryStore {
 
   /**
    * Whether a room should render as "joined" in the directory UI. Combines
-   * authoritative membership (from `SpaceRoomsStore.rooms`, supplied by the
+   * authoritative membership (from `RoomsStore.rooms`, supplied by the
    * caller) with optimistic just-* state held here.
    */
   isJoined(roomId: string, joinedRoomIds: ReadonlySet<string>): boolean {
@@ -159,7 +160,7 @@ export class RoomDirectoryStore {
 
   /**
    * Refresh on membership / archive changes. Other event types are no-ops.
-   * Mirrors the trigger set used by {@link SpaceRoomsStore.ingestServerEvent}.
+   * Mirrors the trigger set used by {@link RoomsStore.ingestServerEvent}.
    *
    * Accepts a discriminated-union envelope so the test harness can pass a
    * minimal stub without needing to materialise a full RoomEventViewFragment
@@ -183,6 +184,3 @@ export class RoomDirectoryStore {
     void this.refresh();
   }
 }
-
-export const [getRoomDirectoryStore, setRoomDirectoryStore] =
-  createContext<RoomDirectoryStore>();
