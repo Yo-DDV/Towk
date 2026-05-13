@@ -409,6 +409,18 @@
   let scrollUpLock = false;
   let scrollUpLockTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Timestamp of the most recent user-driven scroll signal (wheel or touchmove).
+  // The scroll-up branch in handleVirtuaScroll only fires when this is recent,
+  // so virtua's internal scroll adjustments (re-measurement, $fixScrollJump),
+  // composer-resize-driven scrollTop writes, and browser scroll clamping during
+  // layout shifts never get misread as the user scrolling up.
+  let userScrollIntentAt = 0;
+  const USER_SCROLL_INTENT_MS = 250;
+
+  function markUserScrollIntent() {
+    userScrollIntentAt = Date.now();
+  }
+
   // Handle scroll events from virtua to detect user intent and trigger pagination.
   // virtua's shift=true handles scroll restoration during pagination automatically,
   // eliminating the need for manual scrollHeight capture/restore and overflow-anchor toggling.
@@ -426,10 +438,14 @@
         shouldScrollToBottom = true;
       }
       // Disable auto-scroll if user scrolled up (and clearly not near the bottom).
-      // The distanceFromBottom guard prevents virtua's internal scroll corrections
-      // ($fixScrollJump) from being misinterpreted as user scrolling up.
-      // The lock prevents the correction from immediately re-enabling auto-scroll.
+      // Gated on a recent wheel/touchmove signal so virtua's internal scroll
+      // corrections ($fixScrollJump after re-measuring items), composer-resize
+      // scrollTop writes, and browser scroll-clamping during layout shifts can't
+      // be misread as the user scrolling up. The distanceFromBottom guard is
+      // kept as a second line of defense for the brief window where intent is
+      // still armed from a fling that already settled near the bottom.
       else if (
+        Date.now() - userScrollIntentAt < USER_SCROLL_INTENT_MS &&
         previousOffset !== null &&
         offset < previousOffset - 10 &&
         distanceFromBottom > 20
@@ -450,13 +466,17 @@
 
     // Self-correcting scroll: after a programmatic scroll, the virtualizer may
     // re-measure items (changing scrollHeight), leaving the position short of
-    // the bottom. Re-scroll to the true bottom. Only fires when a programmatic
-    // scroll set the flag — never during user-initiated scrolling.
-    // Self-correcting scroll: after a programmatic scroll, the virtualizer may
-    // re-measure items (changing scrollHeight), leaving the position short of
     // the bottom. Re-scroll to the true bottom. Only fires during the short
     // window after a programmatic scroll set the flag — never during user scrolling.
-    if (pendingScrollCorrection && distanceFromBottom > 50 && scrollContainer) {
+    // Also gated on shouldScrollToBottom so a stale correction window from the
+    // initial auto-scroll doesn't yank the user back to the bottom after a
+    // jump-to-message takes them to an old event within those 500ms.
+    if (
+      pendingScrollCorrection &&
+      (alwaysScrollToBottom || shouldScrollToBottom) &&
+      distanceFromBottom > 50 &&
+      scrollContainer
+    ) {
       scrollContainer.scrollTop = scrollContainer.scrollHeight;
     }
 
@@ -550,10 +570,13 @@
     </div>
   {/if}
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     bind:this={scrollContainer}
     class="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain [&>div]:mt-auto"
     data-testid="messages-container"
+    onwheel={markUserScrollIntent}
+    ontouchmove={markUserScrollIntent}
   >
     {#if !isLoading && virtualItems.length === 0}
       <div class="flex flex-1 items-center justify-center">
