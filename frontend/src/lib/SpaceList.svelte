@@ -1,21 +1,8 @@
 <script lang="ts">
-  import { resolve } from '$app/paths';
-  import { serverIdToSegment } from '$lib/navigation';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { getActiveServer } from '$lib/state/activeServer.svelte';
   import type { ServerPermissions } from '$lib/state/server/permissions.svelte';
-  import UserAvatar from './components/UserAvatar.svelte';
   import ServerSpaceSection from './ServerSpaceSection.svelte';
   import AddServerDialog from './components/AddServerDialog.svelte';
-
-  const activeServerId = $derived(getActiveServer());
-  // Get the current user for the active server (reactive — updates on
-  // avatar/name changes and when navigating between servers). During the
-  // setup-wizard window before the origin server is registered, this is
-  // undefined; the template shows a placeholder avatar.
-  const activeServerUser = $derived(
-    serverRegistry.tryGetStore(activeServerId)?.currentUser.user
-  );
 
   // Check whether any authenticated instance grants a permission.
   // Optimistically returns true while permissions are still loading.
@@ -51,29 +38,20 @@
         />
       {/if}
     {/each}
+  </div>
 
-    <!-- Add Server -->
+  <!-- Add Server - pinned to the bottom; the top border lines up with the
+       secondary sidebar's current-user bar. -->
+  <div class="flex shrink-0 justify-center border-t border-border p-2">
     <button
       type="button"
       onclick={() => (addInstanceDialogVisible = true)}
       title="Add Server"
-      class={['space-list-item', addInstanceDialogVisible && 'space-list-item-active']}
+      class={['space-list-item cursor-pointer', addInstanceDialogVisible && 'space-list-item-active']}
     >
       <span class="iconify uil--plus"></span>
     </button>
-
   </div>
-
-  <!-- User avatar - shows the user for the currently active instance -->
-  {#if activeServerUser}
-    <a
-      href={resolve('/chat/[serverId]/settings', { serverId: serverIdToSegment(activeServerId) })}
-      title="User Settings"
-      class="m-2 mt-2 h-12 w-12 shrink-0 cursor-pointer rounded-full"
-    >
-      <UserAvatar user={activeServerUser} size="lg" showPresence={false} />
-    </a>
-  {/if}
 </div>
 
 <AddServerDialog
