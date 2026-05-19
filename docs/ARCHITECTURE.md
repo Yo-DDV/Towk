@@ -1,6 +1,12 @@
 # Chatto Architecture
 
-> **Note:** This document is a reference for *what* the system looks like. For *why* key decisions were made and what alternatives were considered, see the [Architecture Decision Records](adr/INDEX.md).
+This document is the **inventory**: what currently exists in the system — streams, KV buckets, object stores, subject patterns, key shapes, GraphQL operations. It's the *what's where* reference, not the *why* one.
+
+For *why* a particular design decision was made:
+
+- **Cross-cutting architectural choices** (NATS as primary store, GraphQL as the API, per-user encryption, etc.) live in the [Architecture Decision Records](adr/INDEX.md).
+- **Per-feature design** (Roles & Permissions, Direct Messages, Reactions, Notifications, etc.) lives in the [Feature Decision Records](fdr/INDEX.md).
+- **Coding and review conventions** live in `.claude/rules/` at the repo root.
 
 ## Table of Contents
 
@@ -12,14 +18,10 @@
   - [Queries](#queries)
   - [Mutations](#mutations)
   - [Subscriptions](#subscriptions)
+  - [Admin sub-API](#admin-sub-api)
 - [Architecture Pattern: CRUD + Audit Log](#architecture-pattern-crud--audit-log)
   - [Write Path](#write-path)
   - [Consistency Model](#consistency-model)
-- [Roles and Permissions](#roles-and-permissions)
-  - [Permission Check Functions](#permission-check-functions)
-  - [Space Permissions](#space-permissions)
-  - [Server Permissions](#server-permissions)
-- [Direct Messages (DM)](#direct-messages-dm)
 - [NATS Resource Inventory](#nats-resource-inventory)
   - [Event Types](#event-types)
   - [Event Streams](#event-streams)
@@ -77,65 +79,181 @@ Key files: [`cli/internal/core/core.go`](cli/internal/core/core.go)
 
 ## GraphQL API Overview
 
-Key files: [`cli/internal/graph/`](cli/internal/graph/)
+Key files: [`cli/internal/graph/`](cli/internal/graph/) (schemas in `*.graphqls` files, resolvers in `*.resolvers.go`)
 
-The GraphQL API is the primary client-facing interface for Chatto. It provides queries, mutations, and subscriptions over HTTP and WebSocket connections.
+The GraphQL API is the primary client-facing interface for Chatto. It provides queries, mutations, and a single unified subscription over HTTP and WebSocket connections. Authentication is cookie-session-based; user registration, login, password reset, email verification, and OAuth flows are REST endpoints (under `/auth/...`) rather than GraphQL mutations.
+
+The schema is modular: each feature area lives in its own `.graphqls` file and extends the root `Query` / `Mutation` / `Subscription` types. The operations below group by user-facing area, not by source file.
 
 ### Queries
 
-| Query                   | Description                               |
-| ----------------------- | ----------------------------------------- |
-| `me`                    | Get the currently authenticated user      |
-| `user(id)`              | Get a user by ID                          |
-| `userByLogin(login)`    | Get a user by login name                  |
-| `users`                 | List all users (server admin only)        |
-| `spaces`                | List all spaces (for discovery)           |
-| `space(id)`             | Get a space by ID                         |
-| `room(spaceId, roomId)` | Get a room by ID                          |
-| `roomEvents(...)`       | Fetch paginated room events (default: 50) |
-| `roomEvent(...)`        | Fetch a single room event by sequence     |
-| `threadEvents(...)`     | Fetch thread messages (root + replies)    |
-| `notifications`         | Get all notifications for current user    |
-| `hasNotifications`      | Check if user has any notifications       |
-| `notificationCount`     | Get count of user's notifications         |
+**Server & identity** ([`server.graphqls`](../cli/internal/graph/server.graphqls), [`server_rbac.graphqls`](../cli/internal/graph/server_rbac.graphqls))
+
+| Query                                | Description                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| `server`                             | Information about this Chatto server (name, branding, member counts). Public. |
+| `viewer`                             | Current authenticated user's identity, permissions, follows, notifications.    |
+
+Note: there is no top-level `me` query — viewer-scoped state hangs off the `viewer` field (which is extended by several feature files, e.g. `threads.graphqls` adds `viewer.followedThreads`, `notifications.graphqls` adds `viewer.notifications` / `viewer.hasNotifications`).
+
+**Users** ([`query.graphqls`](../cli/internal/graph/query.graphqls), [`user_permissions.graphqls`](../cli/internal/graph/user_permissions.graphqls), [`permission_inspector.graphqls`](../cli/internal/graph/permission_inspector.graphqls))
+
+| Query                              | Description                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `user(id)`                         | Get a user by ID.                                                                      |
+| `userByLogin(login)`               | Get a user by login (returns null if not found).                                       |
+| `users`                            | List all users (server admin only).                                                    |
+| `userPermissionMatrix(userId)`     | Effective allow/deny matrix for a user (admin surface; `role.manage` + outrank gate).  |
+| `permissionExplanation(userId, …)` | Per-permission resolver explainer (self-inspection or admin).                          |
+
+**Rooms** ([`query.graphqls`](../cli/internal/graph/query.graphqls), [`room.graphqls`](../cli/internal/graph/room.graphqls))
+
+| Query                              | Description                                                                            |
+| ---------------------------------- | -------------------------------------------------------------------------------------- |
+| `room(roomId)`                     | Get a room by ID. Room-scoped reads (`events`, `event(eventId)`, `eventsAround`, `voiceCallToken`, `viewerCan*` flags) live as fields on the returned `Room`. |
+
+**RBAC introspection** ([`role_permissions.graphqls`](../cli/internal/graph/role_permissions.graphqls), [`role_permission_matrix.graphqls`](../cli/internal/graph/role_permission_matrix.graphqls))
+
+| Query                                       | Description                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------------ |
+| `rolePermissions(roleName, roomId?)`        | A role's grants/denials across every applicable tier.                    |
+| `tierRoles(roomId?, groupId?)`              | Full permission matrix at server / group / room scope.                   |
+| `rolePermissionMatrix(roleName)`            | Per-role permission matrix (`role.manage` gated).                        |
+
+**Voice & link previews** ([`voice.graphqls`](../cli/internal/graph/voice.graphqls), [`linkpreview.graphqls`](../cli/internal/graph/linkpreview.graphqls))
+
+| Query                       | Description                                                                |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `activeCallRoomIds`         | Room IDs that currently have an active LiveKit voice call.                 |
+| `linkPreview(url)`          | Fetch (and cache) Open Graph metadata for a URL.                           |
+
+**Admin** ([`admin.graphqls`](../cli/internal/graph/admin.graphqls))
+
+Admin queries are nested under a single `admin: AdminQueries` field that returns `null` for non-admins — so one auth gate covers the whole sub-surface. See [Admin sub-API](#admin-sub-api) below for the contents.
 
 ### Mutations
 
-| Mutation                  | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `createUser`              | Register a new user account                             |
-| `createSpace`             | Create a new space                                      |
-| `updateSpace`             | Update space name/description                           |
-| `uploadSpaceLogo`         | Upload a logo for a space                               |
-| `deleteSpaceLogo`         | Delete a space's logo                                   |
-| `uploadSpaceBanner`       | Upload a banner for a space                             |
-| `deleteSpaceBanner`       | Delete a space's banner                                 |
-| `joinSpace`               | Join a space                                            |
-| `leaveSpace`              | Leave a space                                           |
-| `createRoom`              | Create a new room in a space                            |
-| `joinRoom`                | Join a room                                             |
-| `leaveRoom`               | Leave a room                                            |
-| `markRoomAsRead`          | Mark a room as read                                     |
-| `postMessage`             | Post a message (with optional attachments/thread reply) |
-| `editMessage`             | Edit a message (author-only, 3-hour window)             |
-| `deleteMessage`           | Delete a message body (GDPR compliance)                 |
-| `deleteAttachment`        | Delete an attachment (author-only)                      |
-| `addReaction`             | Add an emoji reaction                                   |
-| `removeReaction`          | Remove an emoji reaction                                |
-| `updateMyProfile`         | Update current user's display name                      |
-| `uploadMyAvatar`          | Upload avatar (resized to 256x256, WebP)                |
-| `deleteMyAvatar`          | Delete current user's avatar                            |
-| `requestAccountDeletion`  | Request account deletion (generates 15-min token)       |
-| `deleteMyAccount`         | Permanently delete account (GDPR crypto-shredding)      |
-| `dismissNotification`     | Dismiss a single notification                           |
-| `dismissAllNotifications` | Dismiss all notifications for current user              |
+**Server settings** ([`mutation.graphqls`](../cli/internal/graph/mutation.graphqls))
+
+| Mutation                | Description                                                |
+| ----------------------- | ---------------------------------------------------------- |
+| `updateServer`          | Update server name / description.                          |
+| `uploadServerLogo`      | Upload server logo.                                        |
+| `deleteServerLogo`      | Delete server logo.                                        |
+| `uploadServerBanner`    | Upload server banner.                                      |
+| `deleteServerBanner`    | Delete server banner.                                      |
+
+**Rooms** ([`mutation.graphqls`](../cli/internal/graph/mutation.graphqls), [`dm.graphqls`](../cli/internal/graph/dm.graphqls))
+
+| Mutation                       | Description                                                                      |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `createRoom`                   | Create a new channel room.                                                       |
+| `updateRoom`                   | Update a room's name / description (`room.manage`).                              |
+| `archiveRoom` / `unarchiveRoom`| Archive or restore a room (`room.manage`).                                       |
+| `joinRoom` / `leaveRoom`       | Join / leave a room.                                                             |
+| `joinGroup`                    | Join every room in a group the caller has `room.join` for. Powers "Join all".    |
+| `markRoomAsRead`               | Mark a room as read; records the last-seen root event ID for unread tracking.    |
+| `startDM`                      | Start a DM with a participant set (returns existing room if the set matches).    |
+
+**Messages, reactions, threads** ([`mutation.graphqls`](../cli/internal/graph/mutation.graphqls))
+
+| Mutation                  | Description                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `postMessage`             | Post a message (root or thread reply; optional attachments / link previews / echo-to-channel).|
+| `editMessage`             | Edit own message body (3-hour window).                                                       |
+| `deleteMessage`           | Delete message body (GDPR crypto-shred); event stays in stream as audit trail.               |
+| `deleteAttachment`        | Delete an attachment from own message.                                                       |
+| `deleteLinkPreview`       | Delete a link preview from own message.                                                      |
+| `addReaction` / `removeReaction` | Add or remove an emoji reaction (shortcode names).                                    |
+| `sendTypingIndicator`     | Publish a transient "user is typing" live event.                                             |
+| `markThreadAsRead`        | Update viewer's last-seen marker for a thread (drives unread separators).                    |
+| `followThread` / `unfollowThread` | Subscribe / unsubscribe to thread reply notifications.                              |
+
+**User profile & account** ([`mutation.graphqls`](../cli/internal/graph/mutation.graphqls), [`user_preferences.graphqls`](../cli/internal/graph/user_preferences.graphqls))
+
+| Mutation                  | Description                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------------------- |
+| `updateProfile`           | Update display name and/or login (login change has a 30-day cooldown).                       |
+| `uploadAvatar`            | Upload avatar (resized to 256×256, WebP).                                                    |
+| `deleteAvatar`            | Delete a user's avatar.                                                                      |
+| `updateSettings`          | Update display preferences (timezone, time format).                                          |
+| `requestAccountDeletion`  | Issue a 15-minute confirmation token for account deletion (XSS-resistant two-step).          |
+| `deleteMyAccount`         | Permanently delete the authenticated user's account (GDPR crypto-shredding).                 |
+
+**Notifications, presence, push** ([`notifications.graphqls`](../cli/internal/graph/notifications.graphqls), [`notification_level.graphqls`](../cli/internal/graph/notification_level.graphqls), [`presence.graphqls`](../cli/internal/graph/presence.graphqls), [`push.graphqls`](../cli/internal/graph/push.graphqls))
+
+| Mutation                          | Description                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `dismissNotification`             | Dismiss a single in-app notification.                                                        |
+| `dismissAllNotifications`         | Dismiss every notification for the viewer (returns dismissed count).                         |
+| `setServerNotificationLevel`      | Update viewer's server-wide notification level.                                              |
+| `setRoomNotificationLevel`        | Update viewer's per-room notification level.                                                 |
+| `updateMyPresence`                | Set caller's presence status (`OFFLINE` is implicit on disconnect, not a valid input).       |
+| `subscribeToPush`                 | Register a Web Push subscription for this device.                                            |
+| `unsubscribeFromPush`             | Remove a previously-registered Web Push subscription.                                        |
+
+**Room groups** ([`room_groups.graphqls`](../cli/internal/graph/room_groups.graphqls))
+
+| Mutation                          | Description                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `createRoomGroup`                 | Create a new room group (`role.manage`).                                                     |
+| `updateRoomGroup`                 | Rename / re-describe a room group.                                                           |
+| `deleteRoomGroup`                 | Delete a room group (must be empty).                                                         |
+| `reorderRoomGroups`               | Reorder all room groups (full list, exactly once each).                                      |
+| `reorderRoomsInGroup`             | Reorder rooms within a single group.                                                         |
+| `moveRoomToSet`                   | Move a room into a different group (`room.manage` in both source and target — see ADR-031). |
+| `grantGroupPermission`            | Grant a permission to a role at group scope (overrides server defaults).                     |
+| `denyGroupPermission`             | Deny a permission to a role at group scope.                                                  |
+| `clearGroupPermissionState`       | Remove both grant and denial at group scope.                                                 |
+
+**Roles & permissions** ([`server_rbac.graphqls`](../cli/internal/graph/server_rbac.graphqls), [`server_rbac_extra.graphqls`](../cli/internal/graph/server_rbac_extra.graphqls))
+
+| Mutation                          | Description                                                                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `createRole` / `updateRole` / `deleteRole` | CRUD for custom server roles (system roles are fixed).                              |
+| `reorderRoles`                    | Reorder custom roles. System roles maintain fixed positions and are excluded.                |
+| `assignRole` / `revokeRole`       | Add / remove a role assignment on a user (`role.assign` + outrank target).                   |
+| `grantPermission` / `revokePermission` | Grant or revoke a permission on a role at server scope.                                 |
+| `denyPermission`                  | Deny a permission on a role at server scope (clears any existing grant).                     |
+| `clearPermissionState`            | Restore neutral state for a permission on a role at server scope.                            |
+| `grantRoomPermission` / `denyRoomPermission` / `clearRoomPermission` | Same trio at room scope.                              |
+| `grantUserPermission`             | Grant a permission directly to a user (beats role decisions; no self-action).                |
+| `denyUserPermission`              | Deny a permission directly to a user (beats role grants; no self-action).                    |
+| `clearUserPermissionState`        | Clear both grant and denial of a permission on a user.                                       |
+
+**Admin** ([`admin.graphqls`](../cli/internal/graph/admin.graphqls))
+
+Like `Query.admin`, the `admin: AdminMutations` field returns `null` for non-admins. See [Admin sub-API](#admin-sub-api) below.
 
 ### Subscriptions
 
-| Subscription          | Description                                                                |
-| --------------------- | -------------------------------------------------------------------------- |
-| `myEvents`            | Single unified subscription. Multiplexes room events (messages, reactions, typing, voice, video) and server events (config, profile, lifecycle, notifications, thread-follow, room-layout, session termination) plus presence into one envelope; per-event scoping is enforced by the resolver. Subscribing also sets the caller's presence to ONLINE. |
-| `adminAuditLogEvents` | All server events for admin audit log (requires admin.audit.view)          |
+| Subscription          | Description                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------- | ---- |
+| `myEvents`            | The single subscription. Multiplexes room events (messages, reactions, typing, edits, deletes, mention notifications, video processing, voice call lifecycle) and deployment-scoped events (server config, profile updates, room CRUD, room-layout changes, notifications, thread-follow sync, presence, server membership lifecycle, session termination, heartbeats) into one envelope. The membership set is tracked in real time — joining or leaving a room updates filtering immediately without reconnecting. DM-room events are additionally gated by `dm.view`. Subscribing sets the caller's presence to `ONLINE`. Only new events stream; no historical replay. |
+
+There is no `adminAuditLogEvents` subscription — audit events arrive through `myEvents` for users with the relevant admin scope.
+
+### Admin sub-API
+
+`Query.admin` returns `AdminQueries`; `Mutation.admin` returns `AdminMutations`. Both return `null` when the caller lacks admin access, so the nested fields don't need individual auth checks (see [FDR-021](fdr/FDR-021-admin-dashboard.md)). Admin operations are spread across multiple schema files but all hang off these two types.
+
+| Field                                            | Type      | Description                                                                                  |
+| ------------------------------------------------ | --------- | -------------------------------------------------------------------------------------------- |
+| `admin.systemInfo`                               | Query     | Aggregate operational metrics: NATS connection + JetStream account usage totals.            |
+| `admin.serverConfig`                             | Query     | Server configuration overrides (welcome message, MOTD, blocked usernames, OG description).  |
+| `admin.roles`                                    | Query     | List all server roles with their permissions.                                                |
+| `admin.role(name)`                               | Query     | Get a single role.                                                                           |
+| `admin.serverPermissions`                        | Query     | List every available server permission identifier (catalog).                                 |
+| `admin.roleUsers(roleName)`                      | Query     | List users assigned to a role.                                                               |
+| `admin.userRoles(userId)`                        | Query     | List roles assigned to a user.                                                               |
+| `admin.userEffectivePermissions(userId)`         | Query     | A user's effective allow set at server scope (roles + user overrides combined).              |
+| `admin.userEffectiveDenials(userId)`             | Query     | A user's effective deny set at server scope.                                                 |
+| `admin.groupRolePermissions(groupId, roleName)`  | Query     | Explicit grants and denials for a role on a specific room group.                             |
+| `admin.groupUserPermissions(groupId, userId)`    | Query     | Explicit grants and denials for a user on a specific room group.                             |
+| `admin.updateServerConfig(input)`                | Mutation  | Update server configuration.                                                                 |
+| `admin.resetServerConfig`                        | Mutation  | Reset server configuration to defaults.                                                      |
+| `admin.updateUser(input)`                        | Mutation  | Update a user's login / display name (bypasses the 30-day cooldown).                         |
+| `admin.clearUsernameCooldown(userId)`            | Mutation  | Manually clear a user's login change cooldown.                                               |
 
 ## Architecture Pattern: CRUD + Audit Log
 
@@ -189,164 +307,14 @@ See [NATS Resource Inventory](#nats-resource-inventory) for detailed key pattern
 - Storage costs scale with active data, not infinite history
 - Still provides full audit trail for compliance/debugging (until retention expires)
 
-## Roles and Permissions
+## Roles, Permissions, and Direct Messages
 
-Chatto implements a single flat tier of server roles stored in `SERVER_RBAC`. The system roles are `owner`, `admin`, `moderator`, and the virtual `everyone`. The earlier two-tier model (`INSTANCE_RBAC` + per-space RBAC) is gone after Phase 5 of #330; there is no separate instance-vs-space split, and the legacy `instance-` prefix on role names is gone.
+These sections previously described the RBAC model and DM behavior in detail. They've moved:
 
-### Permission Resolution
-
-Key file: [`cli/internal/core/permission_resolver.go`](cli/internal/core/permission_resolver.go)
-
-Permission resolution follows **role hierarchy order** (higher position = higher rank):
-
-1. Get the user's roles sorted by position (higher = higher rank).
-2. For each role in descending-position order, check for an explicit grant or deny.
-3. **First explicit decision found wins.**
-
-This enables `#announcements`-style channels where `everyone` is denied `message.post` but `owner`/`admin`/`moderator` can still post (higher rank checked first), and ensures a server admin is never blocked by an `everyone` denial.
-
-Mental model: *"Highest-rank role with an explicit opinion wins."*
-
-For channel rooms the resolver walks three tiers — **room → group → server** — and returns the first explicit decision; per-room overrides win over per-group overrides win over server-scope defaults. See `.claude/rules/authorization.md` for the full walker (DM boundary, user-level overrides, scope rules).
-
-### Permission Check Functions
-
-Key files: [`cli/internal/core/can.go`](cli/internal/core/can.go), [`cli/internal/core/permission.go`](cli/internal/core/permission.go)
-
-Authorization is enforced at the API boundary using `Can*` functions defined in `core/can.go`. These wrap the low-level resolver calls with business-meaningful names:
-
-| Function                  | Permission Checked        | Description                                              |
-| ------------------------- | ------------------------- | -------------------------------------------------------- |
-| `CanManageServer`         | `server.manage`           | Update server settings (name, description, logo)         |
-| `CanManageRoles`          | `role.manage`             | Create, update, delete, reorder roles                    |
-| `CanAssignRoles`          | `role.assign`             | Assign or revoke roles to/from users                     |
-| `CanCreateRoom`           | `room.create`             | Create new rooms (optionally scoped to a group)          |
-| `CanManageAnyRoom`        | `room.manage`             | Server-scope "edit any room" capability                  |
-| `CanJoinRoom`             | `room.join`               | Top-level join capability (server tier, no room context) |
-| `CanJoinRoomAt`           | `room.join`               | Per-room join check (room → group → server walk)         |
-| `CanSeeRoom`              | `room.list`               | Room visible in directories (members short-circuit true) |
-| `CanPostMessage`          | `message.post`            | Post root messages in a room                             |
-| `CanPostInThread`         | `message.post-in-thread`  | Post inside a thread                                     |
-| `CanReactToMessage`       | `message.react`           | Add/remove reactions                                     |
-| `CanEchoMessage`          | `message.echo`            | Echo a thread reply back to the main channel             |
-| `CanManageOthersMessage`  | `message.manage`          | Edit/delete other users' messages (pair with outrank)    |
-| `CanDMView`               | `dm.view`                 | Access the DM space and read DMs                         |
-| `CanDMWrite`              | `dm.write`                | Start DMs and send DM messages                           |
-| `CanAdminAccess`          | `admin.access`            | Access the admin panel                                   |
-| `CanAdminUsersView`       | `admin.view-users`        | View the users page in admin                             |
-| `CanAdminSystemView`      | `admin.view-system`       | View the system/data pages in admin                      |
-| `CanDeleteUser`           | `user.delete-{self,any}`  | Delete own / any user account                            |
-
-Notes:
-- All functions return `(bool, error)` where bool indicates permission and error indicates system failures
-- DM rooms route through a static deny-list inside the resolver (`dmBoundaryDeniedPermissions`) — see `.claude/rules/authorization.md`
-- `SystemActorID` (`"system"`) is used for internal/bootstrap operations that bypass permission checks
-
-### Server Permissions
-
-**Concepts:**
-
-- **Permissions**: Finite set of strings defined in code (e.g., `server.manage`, `room.create`, `message.post`)
-- **Roles**: Named sets of permissions stored in the single server RBAC bucket (e.g., `owner`, `admin`, `moderator`, `everyone`)
-- **Role Assignment**: Users can have multiple roles; the highest-ranked role with an explicit decision wins per the hierarchy walker
-- **System Roles**: Seeded automatically:
-  - `owner` (position 1000, highest rank): Full server control
-  - `admin` (position 900): Full administrative access except managing owner-rank users
-  - `moderator` (position 100): Moderation permissions without administrative reach
-  - `everyone` (position 0, virtual): Implicit role for all authenticated users — default-permission grants attach here
-
-**Storage (RBAC bucket `SERVER_RBAC`):**
-
-| Key                                                       | Description                                             |
-| --------------------------------------------------------- | ------------------------------------------------------- |
-| `role.{roleName}`                                         | Role metadata (name, display_name, description)         |
-| `member.{roleName}.{userId}`                              | Role assignment (empty value = assigned)                |
-| `allow.{subject}.{verb}.{objectType}.{objectId}`          | Server-scope grant. `objectId` is `any`.                |
-| `deny.{subject}.{verb}.{objectType}.{objectId}`           | Server-scope deny. `objectId` is `any`.                 |
-| `group_allow.{groupId}.{subject}.{verb}.{objectType}`     | Room-group-scope grant (ADR-031).                       |
-| `group_deny.{groupId}.{subject}.{verb}.{objectType}`      | Room-group-scope deny (ADR-031).                        |
-| `room_allow.{roomId}.{subject}.{verb}.{objectType}`       | Per-room override grant (ADR-031).                      |
-| `room_deny.{roomId}.{subject}.{verb}.{objectType}`        | Per-room override deny (ADR-031).                       |
-
-`subject` is either a role name (lowercase) or a user ID (`U…` prefix); user-level grants/denies sit alongside role grants in the same bucket. The `group_*` and `room_*` key families introduced by ADR-031 put the container ID immediately after the prefix so a single prefix scan (`group_allow.{groupId}.>`) lists everything for that container.
-
-**Available Permissions:**
-
-| Permission                | Description                                       | Default Everyone |
-| ------------------------- | ------------------------------------------------- | ---------------- |
-| `server.manage`           | Update server settings (name, description, logo) | No               |
-| `role.manage`             | Create, update, delete, reorder roles            | No               |
-| `role.assign`             | Assign roles to users                             | No               |
-| `room.create`             | Create new rooms (scope: server / group)         | No               |
-| `room.manage`             | Edit, configure, and delete rooms                | No               |
-| `room.join`               | Join existing rooms                              | Yes              |
-| `room.list`               | Room is visible in directories                   | Yes              |
-| `message.post`            | Post root messages in a room                     | Yes              |
-| `message.post-in-thread`  | Post messages inside a thread                    | Yes              |
-| `message.react`           | Add/remove reactions                              | Yes              |
-| `message.echo`            | Echo a thread reply back to the main channel     | Yes              |
-| `message.manage`          | Edit/delete *other* users' messages              | No               |
-| `dm.view`, `dm.write`     | Access and send DMs                              | Yes              |
-| `user.delete-self`        | Delete own account                                | Yes              |
-| `user.delete-any`         | Delete any user account                          | No               |
-| `admin.access`            | Access the admin panel                           | No               |
-| `admin.view-users`        | View the admin users page                        | No               |
-| `admin.view-system`       | View the admin system/data pages                 | No               |
-| `admin.view-audit`        | View the admin audit log                         | No               |
-
-**Automatic Behavior:**
-
-- Verified emails matching `owners.emails` in `chatto.toml` get the `owner` role auto-assigned on verification
-- All authenticated users implicitly hold the `everyone` role
-- Permission checks are enforced on:
-  - Server operations: UpdateServer
-  - Room operations: CreateRoom, UpdateRoom, DeleteRoom, JoinRoom, JoinGroup
-
-### Server Permissions
-
-Server permissions are the deployment-wide capabilities — admin access, DM access, space creation, etc. They live alongside space permissions in the single `SERVER_RBAC` bucket and use the same hierarchy-wins resolver as space permissions.
-
-**Server Roles:**
-
-| Role        | Description                                                                                  |
-| ----------- | -------------------------------------------------------------------------------------------- |
-| `owner`     | Full server control. Top of the hierarchy (position 0); passes every permission check; can never be demoted by an admin. |
-| `admin`     | Full administrative access except managing owner-rank users.                                 |
-| `moderator` | Moderation permissions without administrative reach.                                         |
-| `everyone`  | Virtual role assigned to every authenticated user; default-permission grants attach here.    |
-
-Config-designated owners (`owners.emails` in `chatto.toml`) are materialised as real `owner` role assignments: on email verification, `addVerifiedEmail` auto-assigns the `owner` role when the verified email matches the config list. Existing deployments can run `chatto reset rbac` after upgrading to re-seed the system roles and re-assign owners.
-
-## Direct Messages (DM)
-
-Direct messages use a special system space with ID `"DM"` that is created automatically at startup.
-
-Key files: [`cli/internal/core/dm.go`](cli/internal/core/dm.go)
-
-**Key Characteristics:**
-
-- DM rooms have no names - display names are derived from participants in the UI
-- Room IDs are deterministic hashes of sorted participant IDs, enabling find-or-create semantics without database queries
-- Maximum 10 participants per DM conversation
-- DM space has no roles - permissions are implicit based on room membership
-- DM rooms are listed via dedicated `ListDMConversations` API, not the regular room browsing
-
-**Permissions in DM Space:**
-
-DM rooms route through a static deny-list in the resolver (`dmBoundaryDeniedPermissions` in `permission_resolver.go`). Participation is gated by `dm.view` / `dm.write` at the server tier; once inside, the deny-list constrains what participants can do:
-
-| Allowed                       | Denied (regardless of role grants)                         |
-| ----------------------------- | ---------------------------------------------------------- |
-| `dm.view`, `dm.write`         | `room.create`, `room.manage` (use FindOrCreateDM)          |
-| `message.post`, `message.react` | `room.list` (use ListDMConversations instead) |
-|                               | `message.edit-any`, `message.delete-any`, `message.echo`   |
-|                               | `member.invite`, `member.remove`                            |
-
-**DM Notifications:**
-
-- Every DM message triggers a live notification to all participants except the sender
-- Published to `live.server.user.{userId}.dm_message` for toast display
-- DM unread status uses standard room read tracking (no separate mention tracking)
+- **Roles, permissions, and the resolver** — see [FDR-001](fdr/FDR-001-roles-and-permissions.md) for the design and rationale, [`/.claude/rules/authorization.md`](../.claude/rules/authorization.md) for the full resolver semantics (DM boundary, user-level overrides, scope cascade), and [`/.claude/rules/admin.md`](../.claude/rules/admin.md) for the admin-side picture.
+- **Permission constants and `Can*` functions** — see [`cli/internal/core/permission.go`](../cli/internal/core/permission.go) and [`cli/internal/core/can.go`](../cli/internal/core/can.go).
+- **Direct Messages** — see [FDR-007](fdr/FDR-007-direct-messages.md) and [ADR-015 (DMs as a Hidden Space)](adr/ADR-015-dms-as-hidden-space.md).
+- **Storage layout for RBAC and DM rooms** — captured in the [NATS Resource Inventory](#nats-resource-inventory) below alongside the rest of the KV.
 
 ## NATS Resource Inventory
 
@@ -510,6 +478,7 @@ The unified `myEvents` GraphQL subscription is backed by a single core stream (`
 | `NOTIFICATIONS`               | File    | Yes      | User notifications (90-day TTL)                 |
 | `AUTH_TOKENS`                 | File    | No       | Bearer auth tokens (configurable TTL, default 90d) |
 | `USER_PRESENCE`               | Memory  | No       | User presence status (TTL 60s)                  |
+| `CALL_STATE`                  | Memory  | No       | Active voice call participants, keyed `{spaceId}.{roomId}` (repopulated by LiveKit webhooks after restart) |
 | `ENCRYPTION_KEYS`             | File    | **No**   | User encryption keys (excluded for security)    |
 | `LINK_PREVIEW_CACHE`          | File    | No       | Cached link preview metadata (48h TTL)          |
 
