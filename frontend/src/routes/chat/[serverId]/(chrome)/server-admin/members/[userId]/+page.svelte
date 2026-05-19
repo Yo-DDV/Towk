@@ -9,6 +9,7 @@
   import { graphql } from '$lib/gql';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { Panel } from '$lib/components/admin';
+  import { UserPermissionsMatrix } from '$lib/components/rbac';
   import { Hint, Pill } from '$lib/ui';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
@@ -22,6 +23,7 @@
     getLoginChangeCooldownRemaining,
     formatCooldownRemaining
   } from '$lib/validation';
+  import { viewerOutranksTarget } from '$lib/roleHierarchy';
 
   type User = {
     id: string;
@@ -68,25 +70,10 @@
   let lastLoginChange = $state<Date | null>(null);
   let clearingCooldown = $state(false);
 
-  // Optimistically compute whether viewer can manage this member based on role hierarchy
-  // Lower position = higher rank. Viewer can manage if their best role outranks target's best role.
-  function computeCanManage(
-    viewerRoleNames: string[],
-    targetRoleNames: string[],
-    roles: Role[]
-  ): boolean {
-    const getPosition = (name: string) => roles.find((r) => r.name === name)?.position ?? Infinity;
-
-    // Get best (lowest position) role for each
-    const viewerBest = Math.min(...viewerRoleNames.map(getPosition), Infinity);
-    const targetBest = Math.min(...targetRoleNames.map(getPosition), Infinity);
-
-    // Viewer can manage if their best role has a lower position (higher rank)
-    return viewerBest < targetBest;
-  }
-
-  // Derived: whether viewer can manage this member
-  const viewerCanManage = $derived(computeCanManage(viewerRoles, memberSpaceRoles, allRoles));
+  // Optimistic UI hint mirroring the backend's OutranksUser. The mutation
+  // still re-checks server-side; this just gates whether the affordance
+  // appears at all.
+  const viewerCanManage = $derived(viewerOutranksTarget(viewerRoles, memberSpaceRoles, allRoles));
 
   async function loadData() {
     error = null;
@@ -428,7 +415,7 @@
 
       {#if canAdminManageUsers}
         <!-- Identity (admin) — bypasses the 30-day rename cooldown -->
-        <Panel title="Identity" icon="iconify uil--id-badge">
+        <Panel title="Identity" icon="iconify uil--edit">
           <form class="flex flex-col gap-4" onsubmit={saveIdentity}>
             {#if identityError}
               <FormError error={identityError} />
@@ -551,7 +538,7 @@
               {#if canManageRoles}
                 <a
                   href={resolve('/chat/[serverId]/(chrome)/server-admin/roles/[name]', { serverId: serverIdToSegment(getActiveServer()), name: role.name })}
-                  class="shrink-0 text-sm text-primary hover:underline"
+                  class="shrink-0 text-sm text-accent hover:underline"
                 >
                   Edit
                 </a>
@@ -561,21 +548,12 @@
         </div>
       </Panel>
 
-      <!-- Effective Permissions: hand off to the inspector for the full trace -->
-      <Panel title="Effective Permissions" icon="iconify uil--lock-access">
-        <p class="mb-4 text-sm text-muted">
-          Open the Permission Inspector to see every permission this member has, with the role and
-          level (instance/space/room) that decided each call.
-        </p>
-        <Button
-          variant="primary"
-          href={resolve('/chat/[serverId]/(chrome)/server-admin/inspector', {
-            serverId: serverIdToSegment(getActiveServer()),
-          }) + `?userId=${userId}`}
-        >
-          Open in Permission Inspector
-        </Button>
-      </Panel>
+      <!-- Per-user permission overrides. -->
+      <Hint>
+        User-level overrides for this account. They outrank every role grant — use sparingly
+        for per-user exceptions like suspensions or one-off elevations.
+      </Hint>
+      <UserPermissionsMatrix {userId} />
     {/if}
   </div>
 </div>

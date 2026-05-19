@@ -63,6 +63,9 @@ message Event {
     RoomDeletedEvent room_deleted = 302;
     RoomArchivedEvent room_archived = 303;
     RoomUnarchivedEvent room_unarchived = 304;
+    // Fields 305 / 306 were RoomBecameAutoJoinEvent / RoomBecameRegularEvent.
+    // Removed alongside the auto-join feature; oneof tags don't reserve,
+    // so don't reuse those numbers.
 
     // ----- Room membership (310-329) -----
     UserJoinedRoomEvent user_joined_room = 310;
@@ -135,7 +138,7 @@ message Event {
     RoomMarkedAsReadEvent room_marked_as_read = 1121;
 
     // ----- Room layout (1130-1139) -----
-    RoomLayoutUpdatedEvent room_layout_updated = 1130;
+    RoomGroupsUpdatedEvent room_groups_updated = 1130;
 
     // ----- Session termination (1140-1149) -----
     SessionTerminatedEvent session_terminated = 1140;
@@ -573,11 +576,11 @@ message RoomMarkedAsReadEvent {
 // ROOM LAYOUT EVENTS (server-scoped — KV bucket is source of truth)
 // ============================================================================
 
-// Notifies clients that the room layout for a space was updated.
-// Clients should refetch the room layout to get the new order/sections.
+// Notifies clients that the channel-room groups (their ordering, names,
+// or membership) were updated. Clients should refetch `Server.roomGroups`.
 // Published as a live server event (not stored in JetStream).
-message RoomLayoutUpdatedEvent {
-  // Space ID whose room layout was updated
+message RoomGroupsUpdatedEvent {
+  // Space ID whose groups were updated
   string space_id = 1;
 }
 

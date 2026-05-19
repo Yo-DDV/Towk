@@ -122,34 +122,62 @@ func (c *ChattoCore) CanManageAnyRoom(ctx context.Context, userID string) (bool,
 // Server-tier Member Permissions
 // ============================================================================
 
-// CanBrowseRooms checks if a user can view the room list at all (server-scope).
-// This is the gate for "is the room list accessible" — per-room visibility uses
-// CanSeeRoom for filtering.
+// CanSeeRoom checks if a user can see a specific room in the directory
+// or any other surface that enumerates rooms (e.g. the group "Join all"
+// affordance). A user can see a room iff they are already a member OR
+// `room.list` resolves to allow at the room (room → group → server walk).
 //
-// DM-sensitive: for KindDM the resolver short-circuits to a static rule
-// (DM rooms aren't listed via this API).
-func (c *ChattoCore) CanBrowseRooms(ctx context.Context, userID string, kind RoomKind) (bool, error) {
-	return c.hasKindPermission(ctx, kind, userID, PermRoomList)
-}
-
-// CanSeeRoom checks if a user can see a specific room in the room list.
-// Uses room-scope permission resolution (room-level grants/denials override
-// server-level defaults). The Space.rooms resolver filters its output by
-// this check so per-room private channels stay invisible to non-members.
+// `room.list` is distinct from `room.join`: a restricted room can be
+// visible in the directory (request-access flow) without being directly
+// joinable. Pair with `CanJoinRoomAt` to decide whether to show a "Join"
+// button vs a "Restricted" indicator.
+//
+// DM-sensitive: for KindDM this returns false. DM rooms aren't surfaced
+// through the channel room-list API; they use their own listing path.
 func (c *ChattoCore) CanSeeRoom(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
+	if kind == KindDM {
+		return false, nil
+	}
+	isMember, err := c.RoomMembershipExists(ctx, kind, userID, roomID)
+	if err != nil {
+		return false, err
+	}
+	if isMember {
+		return true, nil
+	}
 	return c.hasRoomPermission(ctx, kind, roomID, userID, PermRoomList)
 }
 
-// CanCreateRoom checks if a user can create new rooms.
-// DM-sensitive: see CanBrowseRooms.
-func (c *ChattoCore) CanCreateRoom(ctx context.Context, userID string, kind RoomKind) (bool, error) {
+// CanCreateRoom checks if a user can create new rooms. When groupID is
+// non-empty, the check is scoped to that room group (a role granted
+// room.create at server scope can create in any group; a role granted only
+// at a group's scope can create only in that group). DM rooms are
+// creation-locked at this layer (the DM boundary in the resolver denies
+// room.create unconditionally); DMs are created via FindOrCreateDM.
+func (c *ChattoCore) CanCreateRoom(ctx context.Context, userID string, kind RoomKind, groupID string) (bool, error) {
+	if kind == KindChannel && groupID != "" {
+		return c.hasGroupPermission(ctx, kind, groupID, userID, PermRoomCreate)
+	}
 	return c.hasKindPermission(ctx, kind, userID, PermRoomCreate)
 }
 
-// CanJoinRoom checks if a user can join existing rooms.
+// CanJoinRoom checks if a user can join existing rooms at the server tier
+// (no specific room context). Used as a top-level "is the join action
+// available at all" check. For per-room decisions — including "is this
+// user implicitly a member of this global room" — use CanJoinRoomAt,
+// which walks the room → group → server hierarchy.
+//
 // DM-sensitive: DMs grant join implicitly to participants.
 func (c *ChattoCore) CanJoinRoom(ctx context.Context, userID string, kind RoomKind) (bool, error) {
 	return c.hasKindPermission(ctx, kind, userID, PermRoomJoin)
+}
+
+// CanJoinRoomAt checks if a user can join a specific room. Uses room-scope
+// permission resolution (room override > group override > server default).
+// This is the gate for global-room implicit membership: a global room's
+// members are exactly the users for whom this returns true.
+func (c *ChattoCore) CanJoinRoomAt(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
+	return c.hasRoomPermission(ctx, kind, roomID, userID, PermRoomJoin)
 }
 
 // ============================================================================
@@ -168,16 +196,11 @@ func (c *ChattoCore) CanPostInThread(ctx context.Context, userID string, kind Ro
 	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessagePostInThread)
 }
 
-// CanReply checks if a user can use reply attribution (inReplyTo) on room-level messages.
-// Uses room-level permission resolution (checks room overrides, then server defaults).
+// CanReply checks if a user can use reply attribution (inReplyTo) in this
+// room. Applies to both room-level replies and in-thread replies — the
+// destination is gated separately by message.post / message.post-in-thread.
 func (c *ChattoCore) CanReply(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
 	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageReply)
-}
-
-// CanReplyInThread checks if a user can use reply attribution (inReplyTo) on thread messages.
-// Uses room-level permission resolution (checks room overrides, then server defaults).
-func (c *ChattoCore) CanReplyInThread(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
-	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageReplyInThread)
 }
 
 // CanReactToMessage checks if a user can add/remove reactions in a specific room.
@@ -190,22 +213,12 @@ func (c *ChattoCore) CanEchoMessage(ctx context.Context, userID string, kind Roo
 	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageEcho)
 }
 
-// CanEditOwnMessage checks if a user can edit their own messages in a specific room.
-func (c *ChattoCore) CanEditOwnMessage(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
-	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageEditOwn)
-}
-
-// CanEditAnyMessage checks if a user can edit any user's messages in a specific room.
-func (c *ChattoCore) CanEditAnyMessage(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
-	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageEditAny)
-}
-
-// CanDeleteOwnMessage checks if a user can delete their own messages in a specific room.
-func (c *ChattoCore) CanDeleteOwnMessage(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
-	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageDeleteOwn)
-}
-
-// CanDeleteAnyMessage checks if a user can delete any user's messages in a specific room.
-func (c *ChattoCore) CanDeleteAnyMessage(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
-	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageDeleteAny)
+// CanManageOthersMessage checks if a user can edit/delete other users'
+// messages in a specific room. Authors editing/deleting their own messages
+// don't need this permission — that's always allowed and gated only by
+// authorship + the edit window in core. Callers that operate on someone
+// else's message must ALSO check that the actor strictly outranks the
+// author via requireOutranksAuthor.
+func (c *ChattoCore) CanManageOthersMessage(ctx context.Context, userID string, kind RoomKind, roomID string) (bool, error) {
+	return c.hasRoomPermission(ctx, kind, roomID, userID, PermMessageManage)
 }

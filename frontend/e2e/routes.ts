@@ -52,7 +52,10 @@ export const messageLink = (roomId: string, messageId: string) =>
  */
 export const spaces = `/chat/${HOME}`;
 
-export const browseRooms = `/chat/${HOME}/rooms`;
+// Browse Rooms was retired; its functionality is folded into the server
+// Overview page at `/chat/{server}`. The export name is kept as an alias
+// so existing tests don't need to be renamed in a single sweep.
+export const browseRooms = `/chat/${HOME}`;
 export const threads = `/chat/${HOME}/threads`;
 export const preferences = `/chat/${HOME}/preferences`;
 
@@ -77,7 +80,8 @@ export const serverAdminMembers = serverAdmin('members');
 export const serverAdminMember = (userId: string) => serverAdmin(`members/${userId}`);
 export const serverAdminSecurity = serverAdmin('security');
 export const serverAdminSystem = serverAdmin('system');
-export const serverAdminInspector = serverAdmin('inspector');
+export const serverAdminMemberPermissions = (userId: string) =>
+  serverAdmin(`members/${userId}/permissions`);
 
 // Back-compat aliases — the dedicated /admin route tree was removed once
 // instance admin folded into server admin. Existing tests that reference
@@ -123,8 +127,8 @@ export const patterns = {
 	chatRootOrRoomWithQuery: /\/chat\/-(?:\/[a-zA-Z0-9]+)?(?:\?.*)?$/,
 	/** Any room with query params (e.g. ?highlight=) */
 	anyRoomWithQuery: /\/chat\/-\/[a-zA-Z0-9]+/,
-	/** Browse rooms page: /chat/-/rooms */
-	browseRooms: /\/chat\/-\/rooms$/,
+	/** Browse rooms — folded into the server overview at /chat/- */
+	browseRooms: /\/chat\/-$/,
 	/** Email verified redirect */
 	emailVerified: /\?email_verified=true/,
 
@@ -132,9 +136,16 @@ export const patterns = {
 	 * Back-compat aliases. After ADR-027 there's no separate "space" URL —
 	 * the chat URL goes straight from instance to room — so these alias the
 	 * post-collapse equivalents to keep older tests working without churn.
+	 *
+	 * `anySpace` matches either the chat root or any room because, after the
+	 * auto-join-on-space-entry behaviour was retired, navigating to the
+	 * space root lands on `/chat/-` until the user explicitly enters a
+	 * room. Older tests that wait on `anySpace` just care that we've
+	 * landed *somewhere* on the server, so the relaxed pattern is the
+	 * correct meaning today.
 	 */
 	get anySpace() {
-		return this.anyRoom;
+		return this.chatRootOrRoom;
 	},
 	get spaceOrRoom() {
 		return this.chatRootOrRoom;

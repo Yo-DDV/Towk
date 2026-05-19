@@ -63,39 +63,49 @@ under it. Column headers are clickable when `onRoleClick` is provided
 
   const CATEGORY_META: Record<string, { title: string; description: string }> = {
     space: {
-      title: 'Space Operations',
+      title: 'Space Permissions',
       description: 'Control who can browse, create, join, and manage spaces'
     },
     room: {
-      title: 'Room Operations',
+      title: 'Room Permissions',
       description: 'Control who can create, join, and manage rooms'
     },
-    message: { title: 'Messages', description: 'Control what users can do with messages' },
+    message: {
+      title: 'Message Permissions',
+      description: 'Control what users can do with messages'
+    },
     member: {
-      title: 'Member Management',
+      title: 'Member Permissions',
       description: 'Control who can invite and remove space members'
     },
     role: {
-      title: 'Role Management',
+      title: 'Role Permissions',
       description: 'Control who can create roles and assign them to users'
     },
     admin: {
-      title: 'Server Administration',
+      title: 'Admin Permissions',
       description: 'Access to server-wide admin functions'
     },
-    dm: { title: 'Direct Messages', description: 'Control access to direct messaging' },
-    user: { title: 'User Management', description: 'Control user account operations' }
+    dm: { title: 'DM Permissions', description: 'Control access to direct messaging' },
+    user: { title: 'User Permissions', description: 'Control user account operations' }
   };
 
   let {
     spaceId = null,
     roomId = null,
+    groupId = null,
     categoryOrder = DEFAULT_CATEGORY_ORDER,
     onRoleClick,
     isRoleClickable
   }: {
     spaceId?: string | null;
     roomId?: string | null;
+    /**
+     * Set-scope editing (ADR-031). When provided, the matrix shows the
+     * set's grants/denials per role with no inheritance. Mutually
+     * exclusive with `roomId`.
+     */
+    groupId?: string | null;
     categoryOrder?: string[];
     /**
      * Called when a column header is clicked. Used by the parent route to
@@ -122,17 +132,18 @@ under it. Column headers are clickable when `onRoleClick` is provided
   $effect(() => {
     const s = spaceId ?? null;
     const rm = roomId ?? null;
-    void load(s, rm);
+    const st = groupId ?? null;
+    void load(s, rm, st);
   });
 
-  async function load(s: string | null, rm: string | null) {
+  async function load(s: string | null, rm: string | null, st: string | null) {
     loading = true;
     error = null;
 
     const resp = await connection().client.query(
       graphql(`
-        query MatrixTierRoles($roomId: ID) {
-          tierRoles(roomId: $roomId) {
+        query MatrixTierRoles($roomId: ID, $groupId: ID) {
+          tierRoles(roomId: $roomId, groupId: $groupId) {
             applicablePermissions
             roles {
               roleName
@@ -150,10 +161,16 @@ under it. Column headers are clickable when `onRoleClick` is provided
           }
         }
       `),
-      { roomId: rm ?? undefined }
+      { roomId: rm ?? undefined, groupId: st ?? undefined }
     );
 
-    if (s !== (spaceId ?? null) || rm !== (roomId ?? null)) return;
+    if (
+      s !== (spaceId ?? null) ||
+      rm !== (roomId ?? null) ||
+      st !== (groupId ?? null)
+    ) {
+      return;
+    }
 
     loading = false;
     if (resp.error) {
@@ -230,6 +247,9 @@ under it. Column headers are clickable when `onRoleClick` is provided
   // ----- Mutations --------------------------------------------------------
 
   function scopeFor(role: TierRole): MutationScope {
+    if (groupId) {
+      return { tier: 'group', roleName: role.roleName, groupId };
+    }
     if (roomId) {
       return { tier: 'room', roleName: role.roleName, roomId };
     }
@@ -278,7 +298,7 @@ under it. Column headers are clickable when `onRoleClick` is provided
 {:else if !data || data.roles.length === 0}
   <Hint tone="info">No roles applicable at this scope.</Hint>
 {:else}
-  {@const roles = data.roles}
+  {@const roles = [...data.roles].sort((a, b) => b.position - a.position)}
   <div class="flex flex-col gap-6">
     {#each groupedPermissions as group (group.category)}
       {@const meta = CATEGORY_META[group.category]}

@@ -14,11 +14,13 @@ type Mutation {
   "Unarchive a previously archived room. Requires rooms.manage permission."
   unarchiveRoom(input: UnarchiveRoomInput!): Room!
 
-  "Set whether new members automatically join a room. Requires rooms.manage permission."
-  setRoomAutoJoin(input: SetRoomAutoJoinInput!): Room!
-
-  "Update the room layout for the server. Requires room.manage permission."
-  updateRoomLayout(input: UpdateRoomLayoutInput!): RoomLayout!
+  """
+  Join every room in a group that the caller has `room.join` for and
+  hasn't already joined. Returns the IDs of the rooms that were newly
+  joined (already-joined and non-joinable rooms are silently skipped).
+  Powers the "Join all" affordance in the room directory.
+  """
+  joinGroup(input: JoinGroupInput!): [ID!]!
 
   "Post a message to a room. Automatically marks the room as read since the user is viewing it."
   postMessage(input: PostMessageInput!): RoomEvent!
@@ -187,6 +189,12 @@ input CreateRoomInput {
   name: String!
   "Optional description of the room's purpose."
   description: String
+  """
+  Optional room-set ID to place the new room in. Required once the
+  room-sets feature is fully wired (see ADR-031); during the transition
+  it may be omitted, in which case the room is created without a set.
+  """
+  groupId: ID
 }
 
 """
@@ -233,28 +241,6 @@ input PostMessageInput {
   alsoSendToChannel: Boolean
   "Link preview data from the composer. Server stores this directly without fetching."
   linkPreview: LinkPreviewInput
-}
-
-"""
-Input for a room layout section.
-"""
-input RoomLayoutSectionInput {
-  "Section ID (use existing ID to update, or a new NanoID to create)."
-  id: ID!
-  "Display name for this section."
-  name: String!
-  "Ordered list of room IDs in this section."
-  roomIds: [ID!]!
-}
-
-"""
-Input for updating the room layout.
-"""
-input UpdateRoomLayoutInput {
-  "The new layout sections in display order."
-  sections: [RoomLayoutSectionInput!]!
-  "Ordered list of unsectioned room IDs. When provided, unsectioned rooms are displayed in this order."
-  unsectionedRoomIds: [ID!]
 }
 
 """
@@ -354,16 +340,6 @@ input UnarchiveRoomInput {
 }
 
 """
-Input for setting whether new members automatically join a room.
-"""
-input SetRoomAutoJoinInput {
-  "The ID of the room."
-  roomId: ID!
-  "Whether new members should automatically join this room."
-  autoJoin: Boolean!
-}
-
-"""
 Input for uploading the server logo.
 """
 input UploadServerLogoInput {
@@ -393,6 +369,14 @@ Input for leaving a room.
 input LeaveRoomInput {
   "The ID of the room to leave."
   roomId: ID!
+}
+
+"""
+Input for joining every joinable room in a group.
+"""
+input JoinGroupInput {
+  "The ID of the room group whose rooms the caller wants to join."
+  groupId: ID!
 }
 
 """

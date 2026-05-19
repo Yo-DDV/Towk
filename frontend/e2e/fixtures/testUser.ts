@@ -325,6 +325,12 @@ export async function joinSpace(_page: Page, _spaceId: string): Promise<void> {
 export interface CreateTestUserOptions {
   /** Custom prefix for the login (default: 'testuser') */
   loginPrefix?: string;
+  /**
+   * Skip the auto-join into the bootstrap default rooms (announcements +
+   * general). Tests that exercise the "fresh user with empty sidebar"
+   * path (e.g. Join-all-on-Overview coverage) opt out via this flag.
+   */
+  skipDefaultRooms?: boolean;
 }
 
 /**
@@ -376,7 +382,39 @@ export async function createAndLoginTestUser(
   const loginData = await loginResponse.json();
   expect(loginData.success).toBe(true);
 
+  // Auto-join the bootstrap default rooms (announcements + general). Server
+  // membership is implicit but room membership is now strictly explicit
+  // after the auto-join feature was retired, so a freshly-minted user lands
+  // in an empty sidebar. Most tests assume `# general` is reachable from
+  // the sidebar; do that join here so every test doesn't have to repeat
+  // the dance. Idempotent — joining an already-joined room is a no-op.
+  if (!options?.skipDefaultRooms) {
+    await autoJoinDefaultRooms(page);
+  }
+
   return testUser;
+}
+
+async function autoJoinDefaultRooms(page: Page): Promise<void> {
+  const roomsResp = await page.request.post('/api/graphql', {
+    headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
+    data: { query: `query { server { rooms(type: CHANNEL) { id name } } }` }
+  });
+  if (!roomsResp.ok()) return;
+  const roomsData = (await roomsResp.json()) as {
+    data?: { server?: { rooms?: Array<{ id: string; name: string }> } };
+  };
+  const defaults = new Set(['general', 'announcements']);
+  const targets = (roomsData.data?.server?.rooms ?? []).filter((r) => defaults.has(r.name));
+  for (const room of targets) {
+    await page.request.post('/api/graphql', {
+      headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
+      data: {
+        query: `mutation($input: JoinRoomInput!) { joinRoom(input: $input) }`,
+        variables: { input: { roomId: room.id } }
+      }
+    });
+  }
 }
 
 /**

@@ -34,8 +34,16 @@ func (r *mutationResolver) CreateRoom(ctx context.Context, input model.CreateRoo
 		desc = *input.Description
 	}
 
-	// Authorization: check CanCreateRoom permission
-	can, err := r.core.CanCreateRoom(ctx, user.Id, kind)
+	groupID := ""
+	if input.GroupID != nil {
+		groupID = *input.GroupID
+	}
+
+	// Authorization: check CanCreateRoom permission, scoped to the target
+	// group when one is specified. A role granted room.create at server
+	// scope can still create in any group; a role granted it only at a
+	// group's scope can create only in that group.
+	can, err := r.core.CanCreateRoom(ctx, user.Id, kind, groupID)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +51,7 @@ func (r *mutationResolver) CreateRoom(ctx context.Context, input model.CreateRoo
 		return nil, core.ErrPermissionDenied
 	}
 
-	return r.core.CreateRoom(ctx, user.Id, kind, input.Name, desc)
+	return r.core.CreateRoom(ctx, user.Id, kind, groupID, input.Name, desc)
 }
 
 // UpdateRoom is the resolver for the updateRoom field.
@@ -117,102 +125,54 @@ func (r *mutationResolver) UnarchiveRoom(ctx context.Context, input model.Unarch
 	return r.core.UnarchiveRoom(ctx, user.Id, kind, input.RoomID)
 }
 
-// SetRoomAutoJoin is the resolver for the setRoomAutoJoin field.
-func (r *mutationResolver) SetRoomAutoJoin(ctx context.Context, input model.SetRoomAutoJoinInput) (*corev1.Room, error) {
+// JoinGroup is the resolver for the joinGroup field.
+//
+// Walks the group's rooms in order, and for each one the caller has
+// `room.join` for AND isn't already in AND isn't archived, creates a
+// membership record. Already-joined rooms, archived rooms, and
+// non-joinable rooms are silently skipped — "join all" is best-effort
+// by design, the result tells the UI which rooms transitioned from
+// not-joined to joined.
+func (r *mutationResolver) JoinGroup(ctx context.Context, input model.JoinGroupInput) ([]string, error) {
 	user, err := requireAuth(ctx)
 	if err != nil {
 		return nil, err
 	}
-	kind, err := r.resolveRoomKind(ctx, input.RoomID)
+
+	group, err := r.core.GetRoomGroup(ctx, input.GroupID)
 	if err != nil {
 		return nil, err
 	}
 
-	can, err := r.core.CanManageAnyRoom(ctx, user.Id)
-	if err != nil {
-		return nil, err
-	}
-	if !can {
-		return nil, core.ErrPermissionDenied
-	}
-
-	return r.core.SetRoomAutoJoin(ctx, user.Id, kind, input.RoomID, input.AutoJoin)
-}
-
-// UpdateRoomLayout is the resolver for the updateRoomLayout field.
-// Updates the room layout for a space. Requires room.manage permission.
-func (r *mutationResolver) UpdateRoomLayout(ctx context.Context, input model.UpdateRoomLayoutInput) (*model.RoomLayoutModel, error) {
-	user, err := requireAuth(ctx)
-	if err != nil {
-		return nil, err
-	}
-	kind := core.KindChannel
-
-	// Authorization: require room.manage permission
-	can, err := r.core.CanManageAnyRoom(ctx, user.Id)
-	if err != nil {
-		return nil, err
-	}
-	if !can {
-		return nil, core.ErrPermissionDenied
-	}
-
-	// Validate input: no duplicate room IDs across sections or unsectioned list, section names non-empty
-	seenRoomIDs := make(map[string]bool)
-	for _, section := range input.Sections {
-		if strings.TrimSpace(section.Name) == "" {
-			return nil, fmt.Errorf("section name must not be empty")
+	joined := make([]string, 0, len(group.RoomIds))
+	for _, roomID := range group.RoomIds {
+		room, err := r.core.GetRoom(ctx, core.KindChannel, roomID)
+		if err != nil {
+			return nil, err
 		}
-		for _, roomID := range section.RoomIds {
-			if seenRoomIDs[roomID] {
-				return nil, fmt.Errorf("duplicate room ID %q across sections", roomID)
-			}
-			seenRoomIDs[roomID] = true
+		if room.Archived {
+			continue
 		}
-	}
-	for _, roomID := range input.UnsectionedRoomIds {
-		if seenRoomIDs[roomID] {
-			return nil, fmt.Errorf("room ID %q appears in both sections and unsectioned list", roomID)
+		alreadyMember, err := r.core.RoomMembershipExists(ctx, core.KindChannel, user.Id, roomID)
+		if err != nil {
+			return nil, err
 		}
-		seenRoomIDs[roomID] = true
-	}
-
-	// Convert input to proto
-	layout := &corev1.RoomLayout{
-		Sections:        make([]*corev1.RoomLayoutSection, len(input.Sections)),
-		UnsortedRoomIds: input.UnsectionedRoomIds,
-	}
-	for i, s := range input.Sections {
-		layout.Sections[i] = &corev1.RoomLayoutSection{
-			Id:      s.ID,
-			Name:    s.Name,
-			RoomIds: s.RoomIds,
+		if alreadyMember {
+			continue
 		}
+		canJoin, err := r.core.CanJoinRoomAt(ctx, user.Id, core.KindChannel, roomID)
+		if err != nil {
+			return nil, err
+		}
+		if !canJoin {
+			continue
+		}
+		if _, err := r.core.JoinRoom(ctx, user.Id, core.KindChannel, user.Id, roomID); err != nil {
+			return nil, fmt.Errorf("join %s: %w", roomID, err)
+		}
+		joined = append(joined, roomID)
 	}
-
-	// Store
-	result, err := r.core.UpdateRoomLayout(ctx, kind, layout)
-	if err != nil {
-		return nil, err
-	}
-
-	// Publish live event (best-effort)
-	if pubErr := r.core.PublishRoomLayoutUpdated(ctx, user.Id, kind); pubErr != nil {
-		r.logger.Warn("Failed to publish room layout updated event", "error", pubErr, "kind", kind)
-	}
-
-	// For the mutation response, fetch all rooms so the response can resolve section rooms.
-	// The admin performing this action can manage rooms, so show all rooms in the space.
-	allRooms, err := r.core.ListRooms(ctx, kind)
-	if err != nil {
-		return nil, err
-	}
-	allRoomMap := make(map[string]*corev1.Room, len(allRooms))
-	for _, room := range allRooms {
-		allRoomMap[room.Id] = room
-	}
-
-	return protoLayoutToModel(result, allRoomMap), nil
+	return joined, nil
 }
 
 // PostMessage is the resolver for the postMessage field.
@@ -265,26 +225,15 @@ func (r *mutationResolver) PostMessage(ctx context.Context, input model.PostMess
 		}
 	}
 
-	// Authorization: check reply attribution permissions (inReplyTo)
+	// Authorization: check reply attribution permission (covers both
+	// room-level and in-thread replies).
 	if kind != "dm" && input.InReplyTo != nil && *input.InReplyTo != "" {
-		if input.InThread != nil && *input.InThread != "" {
-			// Reply in thread: check message.reply-in-thread
-			can, err := r.core.CanReplyInThread(ctx, user.Id, kind, input.RoomID)
-			if err != nil {
-				return nil, err
-			}
-			if !can {
-				return nil, core.ErrPermissionDenied
-			}
-		} else {
-			// Reply in room: check message.reply
-			can, err := r.core.CanReply(ctx, user.Id, kind, input.RoomID)
-			if err != nil {
-				return nil, err
-			}
-			if !can {
-				return nil, core.ErrPermissionDenied
-			}
+		can, err := r.core.CanReply(ctx, user.Id, kind, input.RoomID)
+		if err != nil {
+			return nil, err
+		}
+		if !can {
+			return nil, core.ErrPermissionDenied
 		}
 	}
 
@@ -942,21 +891,12 @@ func (r *mutationResolver) DeleteMessage(ctx context.Context, input model.Delete
 		return true, nil
 	}
 
-	if user.Id == authorID {
-		// Author deleting own message: check message.delete.own permission
-		can, err := r.core.CanDeleteOwnMessage(ctx, user.Id, kind, input.RoomID)
-		if err != nil {
-			return false, err
-		}
-		if !can {
-			return false, core.ErrPermissionDenied
-		}
-	} else {
-		// Non-author deleting: check message.delete-any permission AND
+	if user.Id != authorID {
+		// Non-author deleting: check message.manage permission AND
 		// strict-outrank on the author. The rank check prevents a
 		// moderator from deleting messages of higher-ranked users
 		// (admins, owners) — see requireOutranksAuthor.
-		can, err := r.core.CanDeleteAnyMessage(ctx, user.Id, kind, input.RoomID)
+		can, err := r.core.CanManageOthersMessage(ctx, user.Id, kind, input.RoomID)
 		if err != nil {
 			return false, err
 		}
@@ -967,6 +907,8 @@ func (r *mutationResolver) DeleteMessage(ctx context.Context, input model.Delete
 			return false, err
 		}
 	}
+	// Authors deleting their own messages: always allowed (subject to
+	// membership, which we already checked above).
 
 	if err := r.core.DeleteMessage(ctx, user.Id, kind, input.RoomID, messageBodyKey); err != nil {
 		return false, err
@@ -1010,23 +952,13 @@ func (r *mutationResolver) EditMessage(ctx context.Context, input model.EditMess
 		return false, core.ErrMessageNotFound
 	}
 
-	// Authorization: two-tier permission check based on authorship
-	isAuthor := messageBody.AuthorId == user.Id
-	if isAuthor {
-		can, err := r.core.CanEditOwnMessage(ctx, user.Id, kind, input.RoomID)
-		if err != nil {
-			return false, err
-		}
-		if !can {
-			return false, core.ErrPermissionDenied
-		}
-		// Edit window is enforced in Core.EditMessage for author edits
-	} else {
-		// Non-author editing: check message.edit-any permission AND
-		// strict-outrank on the author. The rank check prevents a
-		// moderator from editing messages of higher-ranked users
-		// (admins, owners) — see requireOutranksAuthor.
-		can, err := r.core.CanEditAnyMessage(ctx, user.Id, kind, input.RoomID)
+	// Authorization: authors editing their own messages are always allowed
+	// (the edit window is enforced in Core.EditMessage). Non-author edits
+	// require message.manage AND strict-outrank on the author — the rank
+	// check prevents a moderator from editing messages of higher-ranked
+	// users (admins, owners).
+	if messageBody.AuthorId != user.Id {
+		can, err := r.core.CanManageOthersMessage(ctx, user.Id, kind, input.RoomID)
 		if err != nil {
 			return false, err
 		}

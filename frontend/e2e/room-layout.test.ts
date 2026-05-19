@@ -7,6 +7,7 @@ import {
 } from './fixtures/testUser';
 import { SpaceAdminPage } from './pages';
 import { TIMEOUTS } from './constants';
+import { postMessageViaAPI } from './fixtures/graphqlHelpers';
 import * as routes from './routes';
 
 // ============================================================================
@@ -18,7 +19,7 @@ interface TestSpace {
   name: string;
 }
 
-interface RoomLayoutSection {
+interface RoomGroup {
   id: string;
   name: string;
   roomIds: string[];
@@ -68,40 +69,156 @@ async function joinRoomViaAPI(page: Page, roomId: string): Promise<void> {
   expect(data.joinRoom).toBe(true);
 }
 
-async function updateRoomLayoutViaAPI(
-  page: Page,
-  sections: RoomLayoutSection[]
-): Promise<void> {
-  await gqlRequest(
-    page,
-    `mutation($input: UpdateRoomLayoutInput!) {
-			updateRoomLayout(input: $input) {
-				sections { id name rooms { id } }
-			}
-		}`,
-    {
-      input: { sections: sections.map((s) => ({
-          id: s.id,
-          name: s.name,
-          roomIds: s.roomIds
-        }))
+// updateRoomLayoutViaAPI reshapes the room-group layout to match the
+// `groups` argument using the per-key delta mutations (the bulk
+// `updateRoomGroups` mutation was removed when storage was split — see
+// ADR-031). The `id` on each input group is treated as a "stable name
+// for this test": existing real IDs are used in place; anything else
+// triggers a `createRoomGroup` call and the returned server-side ID is
+// substituted in. After this returns, the server-side layout matches
+// the input exactly — same group order, same room order within each
+// group, no extras.
+async function updateRoomLayoutViaAPI(page: Page, groups: RoomGroup[]): Promise<void> {
+  // Snapshot the current state once so we can decide create vs. update.
+  type CurrentGroup = { id: string; name: string; roomIds: string[] };
+  const currentData = await gqlRequest<{
+    server: { roomGroups: { id: string; name: string; rooms: { id: string }[] }[] };
+  }>(page, `query { server { roomGroups { id name rooms { id } } } }`);
+  const currentById = new Map<string, CurrentGroup>();
+  for (const g of currentData.server.roomGroups) {
+    currentById.set(g.id, { id: g.id, name: g.name, roomIds: g.rooms.map((r) => r.id) });
+  }
+
+  // Resolve every desired group to a real server-side ID, creating new
+  // groups as needed and renaming existing ones if the name drifted.
+  const resolvedIds: string[] = [];
+  for (const desired of groups) {
+    const existing = currentById.get(desired.id);
+    if (existing) {
+      if (existing.name !== desired.name) {
+        await gqlRequest(
+          page,
+          `mutation($input: UpdateRoomGroupInput!) { updateRoomGroup(input: $input) { id } }`,
+          { input: { id: existing.id, name: desired.name } }
+        );
+      }
+      resolvedIds.push(existing.id);
+    } else {
+      const created = await gqlRequest<{ createRoomGroup: { id: string } }>(
+        page,
+        `mutation($input: CreateRoomGroupInput!) { createRoomGroup(input: $input) { id } }`,
+        { input: { name: desired.name } }
+      );
+      const newId = created.createRoomGroup.id;
+      currentById.set(newId, { id: newId, name: desired.name, roomIds: [] });
+      resolvedIds.push(newId);
+    }
+  }
+
+  // Move every room that is not already in its target group. After this
+  // pass each group's membership set matches the desired set; positions
+  // may still be wrong because MoveRoomToGroup appends to the end. The
+  // per-key model requires every channel room to live in some group, so
+  // any room the input didn't mention is parked in the first desired
+  // group — preserves the bulk-replace spirit of the old API without
+  // violating the new invariant.
+  const targetByRoom = new Map<string, string>();
+  for (let i = 0; i < groups.length; i++) {
+    for (const roomId of groups[i].roomIds) targetByRoom.set(roomId, resolvedIds[i]);
+  }
+  if (resolvedIds.length > 0) {
+    const fallbackId = resolvedIds[0];
+    for (const g of currentById.values()) {
+      for (const roomId of g.roomIds) {
+        if (!targetByRoom.has(roomId)) targetByRoom.set(roomId, fallbackId);
       }
     }
-  );
+  }
+  for (const [roomId, targetId] of targetByRoom) {
+    let currentGroup = '';
+    for (const g of currentById.values()) {
+      if (g.roomIds.includes(roomId)) {
+        currentGroup = g.id;
+        break;
+      }
+    }
+    if (currentGroup === targetId) continue;
+    await gqlRequest(
+      page,
+      `mutation($input: MoveRoomToSetInput!) { moveRoomToSet(input: $input) { id } }`,
+      { input: { roomId, groupId: targetId } }
+    );
+  }
+
+  // Reorder rooms inside each desired group so the final sequence
+  // matches the input. Read fresh state to confirm the moves landed
+  // before validating room sets.
+  const refreshed = await gqlRequest<{
+    server: { roomGroups: { id: string; rooms: { id: string }[] }[] };
+  }>(page, `query { server { roomGroups { id rooms { id } } } }`);
+  const refreshedRooms = new Map<string, string[]>();
+  for (const g of refreshed.server.roomGroups) {
+    refreshedRooms.set(g.id, g.rooms.map((r) => r.id));
+  }
+  for (let i = 0; i < groups.length; i++) {
+    const targetId = resolvedIds[i];
+    const desired = groups[i].roomIds;
+    const after = refreshedRooms.get(targetId) ?? [];
+    const same = desired.length === after.length && desired.every((id, j) => id === after[j]);
+    if (same) continue;
+    await gqlRequest(
+      page,
+      `mutation($input: ReorderRoomsInGroupInput!) { reorderRoomsInGroup(input: $input) { id } }`,
+      { input: { groupId: targetId, orderedRoomIds: desired } }
+    );
+  }
+
+  // Drop any pre-existing group that isn't part of the desired layout.
+  // Delete requires the group be empty — moves above already evicted
+  // every targeted room, but a leftover group may still hold rooms the
+  // test didn't enumerate (defensive: leave those groups in place).
+  const desiredSet = new Set(resolvedIds);
+  for (const g of currentById.values()) {
+    if (desiredSet.has(g.id)) continue;
+    const fresh = refreshedRooms.get(g.id) ?? [];
+    if (fresh.length > 0) continue;
+    await gqlRequest(
+      page,
+      `mutation($input: DeleteRoomGroupInput!) { deleteRoomGroup(input: $input) }`,
+      { input: { id: g.id } }
+    );
+  }
+
+  // Finally, force the layout's group order to match the input.
+  if (resolvedIds.length > 1) {
+    await gqlRequest(
+      page,
+      `mutation($input: ReorderRoomGroupsInput!) { reorderRoomGroups(input: $input) { id } }`,
+      { input: { orderedIds: resolvedIds } }
+    );
+  }
 }
 
 async function getRoomLayoutViaAPI(
   page: Page
-): Promise<{ sections: { id: string; name: string; rooms: { id: string }[] }[] } | null> {
+): Promise<{ groups: { id: string; name: string; rooms: { id: string }[] }[] } | null> {
   const data = await gqlRequest<{
-    server: {
-      roomLayout: { sections: { id: string; name: string; rooms: { id: string }[] }[] } | null;
-    };
-  }>(
-    page,
-    `query { server { roomLayout { sections { id name rooms { id } } } } }`
-  );
-  return data.server.roomLayout;
+    server: { roomGroups: { id: string; name: string; rooms: { id: string }[] }[] };
+  }>(page, `query { server { roomGroups { id name rooms { id } } } }`);
+  return { groups: data.server.roomGroups };
+}
+
+/**
+ * Returns the ID of the first (seed) room group. Every server boots with a
+ * "Lobby" group after #454; tests need its ID to construct layouts that
+ * include the auto-created announcements/general rooms.
+ */
+async function getSeedSetId(page: Page): Promise<string> {
+  const layout = await getRoomLayoutViaAPI(page);
+  if (!layout || layout.groups.length === 0) {
+    throw new Error('Expected the seed room group to exist');
+  }
+  return layout.groups[0].id;
 }
 
 async function archiveRoomViaAPI(page: Page, roomId: string): Promise<void> {
@@ -117,18 +234,6 @@ async function unarchiveRoomViaAPI(page: Page, roomId: string): Promise<void> {
     page,
     `mutation($input: UnarchiveRoomInput!) { unarchiveRoom(input: $input) { id archived } }`,
     { input: { roomId } }
-  );
-}
-
-async function setRoomAutoJoinViaAPI(
-  page: Page,
-  roomId: string,
-  autoJoin: boolean
-): Promise<void> {
-  await gqlRequest(
-    page,
-    `mutation($input: SetRoomAutoJoinInput!) { setRoomAutoJoin(input: $input) { id autoJoin } }`,
-    { input: { roomId, autoJoin } }
   );
 }
 
@@ -172,7 +277,7 @@ async function waitForSidebarRooms(page: Page, expectedCount: number): Promise<s
 /**
  * Wait for exactly `expectedCount` section headers to appear, then return their names in order.
  */
-async function waitForSidebarSections(page: Page, expectedCount: number): Promise<string[]> {
+async function waitForSidebarSets(page: Page, expectedCount: number): Promise<string[]> {
   const headers = page.locator('.room-list button.uppercase');
 
   if (expectedCount === 0) {
@@ -202,30 +307,34 @@ async function waitForSidebarSections(page: Page, expectedCount: number): Promis
 
 test.describe('Room Layout', () => {
   test.describe('Sidebar Display', () => {
-    test('no layout configured — rooms display alphabetically', async ({ page }) => {
+    test('rooms render in their seed-set insertion order', async ({ page }) => {
+      // Post-ADR-031, every channel room is in a set. A fresh server boots
+      // with one seed "Lobby" group containing the auto-created announcements
+      // and general rooms; subsequently-created rooms are appended in the
+      // order they were created. There is no "no layout" / alphabetical
+      // fallback anymore.
       await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
+      await createSpaceViaAPI(page);
 
-      // Create rooms with names that aren't already alphabetical
       const charlieId = await createRoomViaAPI(page, 'charlie');
       const alphaId = await createRoomViaAPI(page, 'alpha');
       const bravoId = await createRoomViaAPI(page, 'bravo');
 
-      // Join all rooms (owner auto-joins announcements + general, but not these)
       await joinRoomViaAPI(page, charlieId);
       await joinRoomViaAPI(page, alphaId);
       await joinRoomViaAPI(page, bravoId);
 
       await navigateToSpace(page);
 
-      // 5 rooms total: announcements + general (default) + alpha, bravo, charlie
+      // 5 rooms total: announcements + general (default) + charlie, alpha,
+      // bravo (in creation order, since CreateRoom appends to the seed set).
       const roomNames = await waitForSidebarRooms(page, 5);
-      expect(roomNames).toEqual(['alpha', 'announcements', 'bravo', 'charlie', 'general']);
+      expect(roomNames).toEqual(['announcements', 'general', 'charlie', 'alpha', 'bravo']);
     });
 
-    test('layout sections render in sidebar', async ({ page }) => {
+    test('layout sets render in sidebar', async ({ page }) => {
       await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
+      await createSpaceViaAPI(page);
 
       const { generalId, announcementsId } = await getDefaultRoomIds(page);
       const alphaId = await createRoomViaAPI(page, 'alpha');
@@ -236,75 +345,54 @@ test.describe('Room Layout', () => {
       await joinRoomViaAPI(page, bravoId);
       await joinRoomViaAPI(page, deltaId);
 
-      // Configure layout with 2 sections (include all rooms to avoid unsectioned)
+      // Reshape the layout into two sets — every room must appear in exactly
+      // one set (the seed set is replaced by these two named sets).
+      const seedSetId = await getSeedSetId(page);
       await updateRoomLayoutViaAPI(page, [
-        { id: 'sec-general', name: 'General', roomIds: [announcementsId, generalId, alphaId] },
+        { id: seedSetId, name: 'General', roomIds: [announcementsId, generalId, alphaId] },
         { id: 'sec-projects', name: 'Projects', roomIds: [bravoId, deltaId] }
       ]);
 
       await navigateToSpace(page);
 
-      // Verify section headers
-      const headers = await waitForSidebarSections(page, 2);
+      const headers = await waitForSidebarSets(page, 2);
       expect(headers).toEqual(['General', 'Projects']);
 
-      // Verify rooms are visible in configured order (5 total)
+      // Rooms in configured set order (5 total).
       const roomNames = await waitForSidebarRooms(page, 5);
       expect(roomNames).toEqual(['announcements', 'general', 'alpha', 'bravo', 'delta']);
     });
 
-    test('unsectioned rooms appear at bottom of sidebar', async ({ page }) => {
-      await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
-
-      const { generalId } = await getDefaultRoomIds(page);
-      const alphaId = await createRoomViaAPI(page, 'alpha');
-      const extraId = await createRoomViaAPI(page, 'extra');
-
-      await joinRoomViaAPI(page, alphaId);
-      await joinRoomViaAPI(page, extraId);
-
-      // Only put general and alpha in a section; announcements + extra are unsectioned
-      await updateRoomLayoutViaAPI(page, [
-        { id: 'sec-main', name: 'Main', roomIds: [generalId, alphaId] }
-      ]);
-
-      await navigateToSpace(page);
-
-      // Sectioned rooms first (general, alpha), then unsectioned alphabetically (announcements, extra)
-      const roomNames = await waitForSidebarRooms(page, 4);
-      expect(roomNames).toEqual(['general', 'alpha', 'announcements', 'extra']);
-    });
-
-    test('empty sections are hidden from sidebar', async ({ page, browser, serverURL }) => {
+    test('empty sets are hidden from sidebar', async ({ page, browser, serverURL }) => {
       // User A (owner) creates space and configures layout
       await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
+      await createSpaceViaAPI(page);
 
       const { generalId, announcementsId } = await getDefaultRoomIds(page);
       const secretId = await createRoomViaAPI(page, 'secret');
+      const seedSetId = await getSeedSetId(page);
 
-      // Configure layout: "Public" has both default rooms, "Secret" has secret
+      // Reshape: "Public" set holds the default rooms, "Secret" holds secret.
       await updateRoomLayoutViaAPI(page, [
-        { id: 'sec-public', name: 'Public', roomIds: [announcementsId, generalId] },
+        { id: seedSetId, name: 'Public', roomIds: [announcementsId, generalId] },
         { id: 'sec-secret', name: 'Secret', roomIds: [secretId] }
       ]);
 
-      // User B joins space — auto-joins announcements + general, but not secret
+      // User B joins the server — implicit membership in the default global
+      // rooms (announcements, general), but not in secret.
       const context2 = await browser!.newContext({ baseURL: serverURL });
       const page2 = await context2.newPage();
 
       try {
         await createAndLoginTestUser(page2);
-        await joinSpace(page2, "");
+        await joinSpace(page2, '');
 
         await navigateToSpace(page2);
 
-        // User B should only see the "Public" section, not "Secret"
-        const headers = await waitForSidebarSections(page2, 1);
+        // User B should only see the "Public" set, not "Secret" (empty for them).
+        const headers = await waitForSidebarSets(page2, 1);
         expect(headers).toEqual(['Public']);
 
-        // And only see the 2 default rooms
         const roomNames = await waitForSidebarRooms(page2, 2);
         expect(roomNames).toEqual(['announcements', 'general']);
       } finally {
@@ -312,9 +400,9 @@ test.describe('Room Layout', () => {
       }
     });
 
-    test('section collapse/expand persists across navigation', async ({ page }) => {
+    test('set collapse/expand persists across navigation', async ({ page }) => {
       await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
+      await createSpaceViaAPI(page);
 
       const { generalId, announcementsId } = await getDefaultRoomIds(page);
       const alphaId = await createRoomViaAPI(page, 'alpha');
@@ -323,15 +411,19 @@ test.describe('Room Layout', () => {
       await joinRoomViaAPI(page, alphaId);
       await joinRoomViaAPI(page, bravoId);
 
+      const seedSetId = await getSeedSetId(page);
       await updateRoomLayoutViaAPI(page, [
-        { id: 'sec-main', name: 'Main', roomIds: [announcementsId, generalId, alphaId] },
+        { id: seedSetId, name: 'Main', roomIds: [announcementsId, generalId, alphaId] },
         { id: 'sec-other', name: 'Other', roomIds: [bravoId] }
       ]);
 
-      await navigateToSpace(page);
+      // Navigate to bravo (in the Other set) so the collapsed-but-active-room
+      // visibility rule doesn't keep a Main room visible during the test.
+      await page.goto(routes.room(bravoId));
+      await expect(page.locator('.room-list')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
       // Verify both sections visible with all rooms
-      const headers = await waitForSidebarSections(page, 2);
+      const headers = await waitForSidebarSets(page, 2);
       expect(headers).toEqual(['Main', 'Other']);
       await waitForSidebarRooms(page, 4);
 
@@ -375,7 +467,7 @@ test.describe('Room Layout', () => {
     }) => {
       // User A (owner) creates space and rooms
       await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
+      await createSpaceViaAPI(page);
 
       const { generalId, announcementsId } = await getDefaultRoomIds(page);
       const alphaId = await createRoomViaAPI(page, 'alpha');
@@ -388,22 +480,23 @@ test.describe('Room Layout', () => {
 
       try {
         await createAndLoginTestUser(page2);
-        await joinSpace(page2, "");
+        await joinSpace(page2, '');
         await joinRoomViaAPI(page2, alphaId);
 
-        // User B navigates to space — no layout yet, rooms render under
-        // the default "Rooms" collapsible group.
+        // User B navigates to space — rooms render under the seed "Lobby" group.
         await navigateToSpace(page2);
         await waitForSidebarRooms(page2, 3); // announcements + general + alpha
-        const headersBefore = await waitForSidebarSections(page2, 1);
-        expect(headersBefore).toEqual(['Rooms']);
+        const headersBefore = await waitForSidebarSets(page2, 1);
+        expect(headersBefore).toEqual(['Lobby']);
 
-        // User A configures a layout
+        // User A renames the seed set (keep the ID — renaming via the same
+        // set preserves its permission grants).
+        const seedSetId = await getSeedSetId(page);
         await updateRoomLayoutViaAPI(page, [
-          { id: 'sec-main', name: 'Organized', roomIds: [announcementsId, generalId, alphaId] }
+          { id: seedSetId, name: 'Organized', roomIds: [announcementsId, generalId, alphaId] }
         ]);
 
-        // User B should see the section header appear in real-time
+        // User B should see the new set name appear in real-time
         await expect(
           page2.locator('.room-list button.uppercase', { hasText: 'Organized' })
         ).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
@@ -418,7 +511,7 @@ test.describe('Room Layout', () => {
       await createAndLoginTestUser(page);
       const space = await createSpaceViaAPI(page);
 
-      const { generalId } = await getDefaultRoomIds(page);
+      const { generalId, announcementsId } = await getDefaultRoomIds(page);
       const alphaId = await createRoomViaAPI(page, 'alpha');
       const bravoId = await createRoomViaAPI(page, 'bravo');
 
@@ -426,21 +519,30 @@ test.describe('Room Layout', () => {
       await joinRoomViaAPI(page, alphaId);
       await joinRoomViaAPI(page, bravoId);
 
-      // Update layout
+      // Reshape the seed set to a single named "Section One". The per-key
+      // model requires every channel room to live in some group, so the
+      // input enumerates the full membership rather than just the rooms
+      // the test cares about.
+      const seedSetId = await getSeedSetId(page);
       await updateRoomLayoutViaAPI(page, [
         {
-          id: 'sec-one',
+          id: seedSetId,
           name: 'Section One',
-          roomIds: [bravoId, alphaId, generalId]
+          roomIds: [bravoId, alphaId, generalId, announcementsId]
         }
       ]);
 
       // Query it back
       const layout = await getRoomLayoutViaAPI(page);
       expect(layout).not.toBeNull();
-      expect(layout!.sections).toHaveLength(1);
-      expect(layout!.sections[0].name).toBe('Section One');
-      expect(layout!.sections[0].rooms.map((r) => r.id)).toEqual([bravoId, alphaId, generalId]);
+      expect(layout!.groups).toHaveLength(1);
+      expect(layout!.groups[0].name).toBe('Section One');
+      expect(layout!.groups[0].rooms.map((r) => r.id)).toEqual([
+        bravoId,
+        alphaId,
+        generalId,
+        announcementsId
+      ]);
     });
 
     test('regular member cannot update layout (permission denied)', async ({
@@ -461,22 +563,21 @@ test.describe('Room Layout', () => {
         await createAndLoginTestUser(page2);
         await joinSpace(page2, "");
 
-        // User B tries to update room layout — should fail
+        // User B tries to mutate the room layout — should fail. Hits
+        // createRoomGroup since it shares the role.manage gate with every
+        // other layout mutator (the old bulk updateRoomGroups was retired
+        // when storage was split per ADR-031).
+        void generalId;
         const resp = await page2.request.post('/api/graphql', {
           headers: {
             'Content-Type': 'application/json',
             'X-REQUEST-TYPE': 'GraphQL'
           },
           data: {
-            query: `mutation($input: UpdateRoomLayoutInput!) {
-							updateRoomLayout(input: $input) {
-								sections { id name }
-							}
+            query: `mutation($input: CreateRoomGroupInput!) {
+							createRoomGroup(input: $input) { id name }
 						}`,
-            variables: {
-              input: { sections: [{ id: 'sec-hack', name: 'Hacked', roomIds: [generalId] }]
-              }
-            }
+            variables: { input: { name: 'Hacked' } }
           }
         });
 
@@ -546,17 +647,17 @@ test.describe('Room Layout', () => {
 
       await spaceAdminRoomsPage.goto(space.id);
 
-      // Create a section
-      await spaceAdminRoomsPage.createSection('My Section');
-      await spaceAdminRoomsPage.expectSectionVisible('My Section');
+      // Create a section (the seed "Lobby" group is also present)
+      await spaceAdminRoomsPage.createGroup('My Section');
+      await spaceAdminRoomsPage.expectGroupVisible('My Section');
 
       // Rename the section
-      await spaceAdminRoomsPage.renameSection('Renamed Section');
-      await spaceAdminRoomsPage.expectSectionVisible('Renamed Section');
+      await spaceAdminRoomsPage.renameGroup('My Section', 'Renamed Section');
+      await spaceAdminRoomsPage.expectGroupVisible('Renamed Section');
 
       // Delete the section
-      await spaceAdminRoomsPage.deleteSection();
-      await spaceAdminRoomsPage.expectSectionNotVisible('Renamed Section');
+      await spaceAdminRoomsPage.deleteGroup('Renamed Section');
+      await spaceAdminRoomsPage.expectGroupNotVisible('Renamed Section');
     });
 
     test('layout auto-saves and persists', async ({ page, spaceAdminRoomsPage }) => {
@@ -570,63 +671,29 @@ test.describe('Room Layout', () => {
       await spaceAdminRoomsPage.goto(space.id);
 
       // Create a section
-      await spaceAdminRoomsPage.createSection('Important');
-      await spaceAdminRoomsPage.expectSectionVisible('Important');
+      await spaceAdminRoomsPage.createGroup('Important');
+      await spaceAdminRoomsPage.expectGroupVisible('Important');
 
       // Verify layout auto-saves (poll API until it appears)
       await expect(async () => {
         const layout = await getRoomLayoutViaAPI(page);
         expect(layout).not.toBeNull();
-        expect(layout!.sections).toHaveLength(1);
-        expect(layout!.sections[0].name).toBe('Important');
+        // The original seed set + the new "Important" set = 2 sets.
+        const names = layout!.groups.map((s) => s.name);
+        expect(names).toContain('Important');
       }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [250, 500, 1000] });
     });
   });
 
   test.describe('Edge Cases', () => {
-    test('clearing layout reverts to alphabetical display', async ({ page }) => {
-      await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
-
-      const { generalId, announcementsId } = await getDefaultRoomIds(page);
-      const alphaId = await createRoomViaAPI(page, 'alpha');
-
-      await joinRoomViaAPI(page, alphaId);
-
-      // Configure layout with a section
-      await updateRoomLayoutViaAPI(page, [
-        { id: 'sec-main', name: 'Main', roomIds: [generalId, alphaId, announcementsId] }
-      ]);
-
-      await navigateToSpace(page);
-
-      // Verify section appears
-      const headers = await waitForSidebarSections(page, 1);
-      expect(headers).toEqual(['Main']);
-
-      // Clear layout by setting empty sections
-      await updateRoomLayoutViaAPI(page, []);
-
-      // Wait for real-time update to swap the "Main" section header for
-      // the default "Rooms" group that holds an unsectioned room list.
-      await expect(async () => {
-        const headers = await page.locator('.room-list button.uppercase').allTextContents();
-        expect(headers.map((h) => h.trim())).toEqual(['Rooms']);
-      }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
-
-      // Rooms should now display alphabetically inside the Rooms group
-      const roomNames = await waitForSidebarRooms(page, 3);
-      expect(roomNames).toEqual(['alpha', 'announcements', 'general']);
-    });
-
-    test('rooms user has not joined are hidden from sections', async ({
+    test('rooms user has not joined are hidden from sets', async ({
       page,
       browser,
       serverURL
     }) => {
       // User A creates space with extra rooms
       await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
+      await createSpaceViaAPI(page);
 
       const { generalId, announcementsId } = await getDefaultRoomIds(page);
       const privateId = await createRoomViaAPI(page, 'private');
@@ -635,10 +702,11 @@ test.describe('Room Layout', () => {
       await joinRoomViaAPI(page, privateId);
       await joinRoomViaAPI(page, publicId);
 
-      // Configure layout with all rooms in one section
+      // Put every channel room into the seed set.
+      const seedSetId = await getSeedSetId(page);
       await updateRoomLayoutViaAPI(page, [
         {
-          id: 'sec-all',
+          id: seedSetId,
           name: 'All',
           roomIds: [announcementsId, generalId, privateId, publicId]
         }
@@ -679,14 +747,18 @@ test.describe('Room Layout', () => {
       // Archive the room via UI (click Archive, confirm dialog)
       await spaceAdminRoomsPage.archiveRoom('to-archive');
 
-      // Room should still be visible (now in Archived zone) and removed from layout
+      // Room stays in its set (archive only flips the archived flag) but
+      // its row now shows the Unarchive affordance instead of Archive.
       await expect(async () => {
         await spaceAdminRoomsPage.expectRoomVisible('to-archive');
         const layout = await getRoomLayoutViaAPI(page);
         if (layout) {
-          const allRoomIds = layout.sections.flatMap((s) => s.rooms.map((r) => r.id));
-          expect(allRoomIds).not.toContain(roomId);
+          const allRoomIds = layout.groups.flatMap((s) => s.rooms.map((r) => r.id));
+          expect(allRoomIds).toContain(roomId);
         }
+        await expect(
+          spaceAdminRoomsPage.roomRow('to-archive').getByTitle('Unarchive room')
+        ).toBeVisible();
       }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [100, 250, 500, 1000] });
     });
 
@@ -790,9 +862,9 @@ test.describe('Room Layout', () => {
         await createAndLoginTestUser(page2);
         await joinSpace(page2, "");
 
-        // Navigate to Browse Rooms
+        // Navigate to the Overview page (where the room directory now lives)
         await page2.goto(routes.browseRooms);
-        await expect(page2.getByRole('heading', { name: 'Browse Rooms' })).toBeVisible();
+        await expect(page2.getByRole('heading', { name: 'Overview' })).toBeVisible();
 
         // The non-archived room should be visible (not yet joined by User B)
         await expect(page2.getByText('visible-room')).toBeVisible();
@@ -841,66 +913,6 @@ test.describe('Room Layout', () => {
     });
   });
 
-  test.describe('Auto-Join', () => {
-    test('admin can toggle auto-join on a room', async ({ page, spaceAdminRoomsPage }) => {
-      await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
-      await createRoomViaAPI(page, 'toggle-me');
-
-      await spaceAdminRoomsPage.goto(space.id);
-
-      // Enable auto-join
-      await spaceAdminRoomsPage.toggleAutoJoin('toggle-me');
-      await expect(async () => {
-        await spaceAdminRoomsPage.expectAutoJoinEnabled('toggle-me');
-      }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [100, 250, 500, 1000] });
-
-      // Disable auto-join
-      await spaceAdminRoomsPage.toggleAutoJoin('toggle-me');
-      await expect(async () => {
-        await spaceAdminRoomsPage.expectAutoJoinDisabled('toggle-me');
-      }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [100, 250, 500, 1000] });
-    });
-
-    test('new members auto-join rooms with auto_join enabled', async ({
-      page,
-      browser,
-      serverURL
-    }) => {
-      await createAndLoginTestUser(page);
-      const space = await createSpaceViaAPI(page);
-      const autoRoom = await createRoomViaAPI(page, 'welcome');
-      const manualRoom = await createRoomViaAPI(page, 'opt-in');
-      await joinRoomViaAPI(page, autoRoom);
-      await joinRoomViaAPI(page, manualRoom);
-
-      // Enable auto_join on the welcome room only
-      await setRoomAutoJoinViaAPI(page, autoRoom, true);
-
-      // New user joins the space
-      const context2 = await browser!.newContext({ baseURL: serverURL });
-      const page2 = await context2.newPage();
-
-      try {
-        await createAndLoginTestUser(page2);
-        await joinSpace(page2, "");
-
-        // Navigate to space — should see auto-joined rooms in sidebar
-        await navigateToSpace(page2);
-
-        // Should see the auto-join room (announcements, general are also auto-joined by default)
-        const roomNames = await waitForSidebarRooms(page2, 3);
-        expect(roomNames).toContain('welcome');
-        expect(roomNames).toContain('announcements');
-        expect(roomNames).toContain('general');
-        // Should NOT see the manual room
-        expect(roomNames).not.toContain('opt-in');
-      } finally {
-        await context2.close();
-      }
-    });
-  });
-
   test.describe('Admin Room Management', () => {
     test('admin can edit room name and description', async ({ page, spaceAdminRoomsPage }) => {
       await createAndLoginTestUser(page);
@@ -924,14 +936,52 @@ test.describe('Room Layout', () => {
 
       await spaceAdminRoomsPage.goto(space.id);
 
-      // Create a room
-      await spaceAdminRoomsPage.createRoom('fresh-room');
+      // Create a room from the seed "Lobby" group's header.
+      await spaceAdminRoomsPage.createRoom('Lobby', 'fresh-room');
 
       // Room should appear in admin page
       await spaceAdminRoomsPage.expectRoomVisible('fresh-room', TIMEOUTS.UI_STANDARD);
     });
 
-    test('deleting section with rooms moves them to unsorted', async ({
+    test('admin can create a room in a non-seed set', async ({ page, spaceAdminRoomsPage }) => {
+      // Regression: previously, creating a room from a set other than the
+      // seed "Lobby" group silently dropped the groupId or the room didn't
+      // appear after refetch. Verify the room lands in the chosen set.
+      await createAndLoginTestUser(page);
+      const space = await createSpaceViaAPI(page);
+
+      // Pre-create a second set via API so we don't race the autosave.
+      // The per-key delta path generates real group IDs server-side, so
+      // the assertions below look up groups by name instead of a
+      // pre-allocated client-side ID.
+      const seedSetId = await getSeedSetId(page);
+      const { generalId, announcementsId } = await getDefaultRoomIds(page);
+      await updateRoomLayoutViaAPI(page, [
+        { id: seedSetId, name: 'Lobby', roomIds: [generalId, announcementsId] },
+        { id: 'projects-placeholder', name: 'Projects', roomIds: [] }
+      ]);
+
+      await spaceAdminRoomsPage.goto(space.id);
+      await spaceAdminRoomsPage.expectGroupVisible('Projects');
+
+      // Create a room from the "Projects" set's header.
+      await spaceAdminRoomsPage.createRoom('Projects', 'project-room');
+
+      // Room must show up in the admin layout, inside the Projects set.
+      await spaceAdminRoomsPage.expectRoomVisible('project-room', TIMEOUTS.UI_STANDARD);
+      await expect(async () => {
+        const layout = await getRoomLayoutViaAPI(page);
+        expect(layout).not.toBeNull();
+        const projects = layout!.groups.find((s) => s.name === 'Projects');
+        expect(projects).toBeTruthy();
+        expect(projects!.rooms.length).toBe(1);
+        // And the seed "Lobby" group is unchanged.
+        const rooms = layout!.groups.find((s) => s.id === seedSetId);
+        expect(rooms!.rooms.length).toBe(2);
+      }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [100, 250, 500, 1000] });
+    });
+
+    test('delete button is disabled while a set still has rooms', async ({
       page,
       spaceAdminRoomsPage
     }) => {
@@ -940,33 +990,93 @@ test.describe('Room Layout', () => {
 
       const { generalId, announcementsId } = await getDefaultRoomIds(page);
 
-      // Create a section with rooms via API
+      const seedSetId = await getSeedSetId(page);
       await updateRoomLayoutViaAPI(page, [
         {
-          id: 'doomed',
-          name: 'Doomed Section',
+          id: seedSetId,
+          name: 'Has Rooms',
           roomIds: [generalId, announcementsId]
         }
       ]);
 
       await spaceAdminRoomsPage.goto(space.id);
-      await spaceAdminRoomsPage.expectSectionVisible('Doomed Section');
+      await spaceAdminRoomsPage.expectGroupVisible('Has Rooms');
 
-      // Delete the section (confirms dialog)
-      await spaceAdminRoomsPage.deleteSection();
+      // With Unsorted gone, deletion of a non-empty set would orphan the
+      // rooms — so the Delete button is disabled until they're moved out.
+      const deleteBtn = spaceAdminRoomsPage
+        .groupHeaderRow('Has Rooms')
+        .getByTitle('Move all rooms out of this group before deleting');
+      await expect(deleteBtn).toBeVisible();
+      await expect(deleteBtn).toBeDisabled();
+    });
+  });
 
-      // Section should be gone, rooms should still be on the page (moved to Unsorted)
-      await spaceAdminRoomsPage.expectSectionNotVisible('Doomed Section');
-      await spaceAdminRoomsPage.expectRoomVisible('general');
-      await spaceAdminRoomsPage.expectRoomVisible('announcements');
+  test.describe('Overview — Join all (group)', () => {
+    test('one click joins every joinable room in the group', async ({
+      page,
+      browser,
+      serverURL
+    }) => {
+      // Admin owns the server and creates three new rooms (which land in
+      // the seed "Lobby" group alongside the bootstrap rooms).
+      await createAndLoginTestUser(page);
+      await createSpaceViaAPI(page);
+      await createRoomViaAPI(page, 'alpha');
+      await createRoomViaAPI(page, 'bravo');
+      await createRoomViaAPI(page, 'charlie');
 
-      // Verify via API that layout no longer has the section
-      await expect(async () => {
-        const layout = await getRoomLayoutViaAPI(page);
-        if (layout === null) return; // Layout cleared entirely = also fine
-        const sectionNames = layout.sections.map((s) => s.name);
-        expect(sectionNames).not.toContain('Doomed Section');
-      }).toPass({ timeout: TIMEOUTS.UI_STANDARD, intervals: [250, 500, 1000] });
+      // User B shows up empty-handed — no auto-join, no rooms in their
+      // sidebar yet.
+      const context2 = await browser!.newContext({ baseURL: serverURL });
+      const page2 = await context2.newPage();
+
+      try {
+        await createAndLoginTestUser(page2, { skipDefaultRooms: true });
+        await joinSpace(page2, '');
+
+        // Go to the server Overview (which hosts the room directory).
+        await page2.goto(routes.browseRooms);
+        await expect(page2.getByRole('heading', { name: 'Overview' })).toBeVisible({
+          timeout: TIMEOUTS.UI_STANDARD
+        });
+
+        // Click the group's "Join all" button.
+        const joinAll = page2.getByRole('button', { name: 'Join all' }).first();
+        await expect(joinAll).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+        await joinAll.click();
+        // Move the cursor off the group card so no row stays in :hover
+        // (which would swap a freshly-joined row's button label from
+        // "Joined" to "Leave" and break the regex below).
+        await page2.mouse.move(0, 0);
+
+        // After the bulk join finishes, the rows for all three rooms
+        // should render the "Joined" pill in the directory. The
+        // button's accessible name resolves to its visible text
+        // ("Joined" when off-hover, "Leave" on hover); we matched the
+        // hover away above so the off-hover label is stable.
+        for (const name of ['alpha', 'bravo', 'charlie']) {
+          const row = page2.locator('li', { hasText: `# ${name}` });
+          await expect(row.getByRole('button', { name: 'Joined' })).toBeVisible({
+            timeout: TIMEOUTS.REALTIME_EVENT
+          });
+        }
+
+        // And the rooms now appear in the sidebar (alongside the
+        // bootstrap rooms, which "Join all" also joined since they
+        // share the group). The seed "Lobby" group has 5 rooms total:
+        // announcements, general, alpha, bravo, charlie.
+        await navigateToSpace(page2);
+        await expect(async () => {
+          const roomNames = await waitForSidebarRooms(page2, 5);
+          expect(roomNames).toEqual(expect.arrayContaining(['alpha', 'bravo', 'charlie']));
+        }).toPass({
+          timeout: TIMEOUTS.REALTIME_EVENT,
+          intervals: [500, 1000, 2000]
+        });
+      } finally {
+        await context2.close();
+      }
     });
   });
 });

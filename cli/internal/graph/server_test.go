@@ -130,15 +130,16 @@ func TestInstanceResolver_Rooms(t *testing.T) {
 }
 
 // TestInstanceResolver_Rooms_RoomScopeVisibility covers the per-room
-// filtering that makes private channels possible: a room-level deny on
-// room.list for `everyone` should hide that room from regular users while
-// remaining visible to a role that has an explicit room-level grant.
+// filtering that makes private channels possible. Visibility follows
+// `room.list`: a room-level deny on room.list for `everyone` hides the
+// room from regular users; a role with an explicit room-level grant
+// on room.list restores visibility.
 func TestInstanceResolver_Rooms_RoomScopeVisibility(t *testing.T) {
 	env := setupTestResolver(t)
 	instance := &model.Server{}
 
-	// Create a "private" room and deny everyone the room.list permission on it.
-	privateRoom, err := env.core.CreateRoom(env.ctx, env.testUser.Id, core.KindChannel, "eng-secret", "Engineering Secret")
+	// Create a "private" room and deny everyone room.list on it.
+	privateRoom, err := env.core.CreateRoom(env.ctx, env.testUser.Id, core.KindChannel, "", "eng-secret", "Engineering Secret")
 	if err != nil {
 		t.Fatalf("CreateRoom: %v", err)
 	}
@@ -178,8 +179,8 @@ func TestInstanceResolver_Rooms_RoomScopeVisibility(t *testing.T) {
 	})
 
 	t.Run("explicit role grant restores visibility", func(t *testing.T) {
-		// Create an "engineering" role positioned above everyone, grant it
-		// room.list on the private room. The user with this role should see it.
+		// Create an "engineering" role, grant it room.list on the private
+		// room. A user with this role should see it in the directory.
 		_, err := env.core.CreateServerRole(env.ctx, "engineering", "Engineering", "Eng team")
 		if err != nil {
 			t.Fatalf("CreateServerRole: %v", err)

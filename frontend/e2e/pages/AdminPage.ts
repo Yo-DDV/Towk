@@ -331,7 +331,7 @@ export class AdminPage {
    * Assert that the roles page is visible.
    */
   async expectRolesPageVisible(): Promise<void> {
-    await expect(this.page.getByRole('heading', { name: 'Roles', exact: true })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: 'Roles', exact: true, level: 1 })).toBeVisible();
   }
 
   /**
@@ -537,7 +537,7 @@ export class AdminPage {
    * Assert that the member role shows the implicit membership message.
    */
   async expectMemberRoleMessage(): Promise<void> {
-    await expect(this.page.getByText(/all.*users.*members/i)).toBeVisible();
+    await expect(this.page.getByText(/all.*members.*everyone.*role/i)).toBeVisible();
   }
 
   /**

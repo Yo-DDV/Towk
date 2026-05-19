@@ -1,5 +1,6 @@
 import { graphql } from '$lib/gql';
 import { RoomType, type PresenceStatus } from '$lib/gql/graphql';
+import { useActiveRoomLayoutUpdated } from '$lib/hooks/useEvent.svelte';
 import { useReconnectTrigger } from '$lib/hooks/useReconnectCallback.svelte';
 import { useConnection } from '$lib/state/server/connection.svelte';
 import type { RoomMember } from '$lib/state/room';
@@ -11,12 +12,8 @@ export type RoomData = {
   canPostMessage: boolean;
   canPostInThread: boolean;
   canReply: boolean;
-  canReplyInThread: boolean;
   canReact: boolean;
-  canEditOwnMessage: boolean;
-  canEditAnyMessage: boolean;
-  canDeleteOwnMessage: boolean;
-  canDeleteAnyMessage: boolean;
+  canManageOthersMessage: boolean;
   canEchoMessage: boolean;
   canManageRoom: boolean;
   members: RoomMember[];
@@ -48,6 +45,15 @@ export function useRoomData(getProps: () => { roomId: string }) {
   const connection = useConnection();
   const reconnect = useReconnectTrigger();
 
+  // Refresh on room-groups-updated too: an admin renaming/reordering
+  // groups, moving rooms between groups, or editing per-group / per-room
+  // permissions can change any viewerCan* permission for this room.
+  // Bump a counter and let the loading effect react.
+  let layoutTrigger = $state(0);
+  useActiveRoomLayoutUpdated(() => {
+    layoutTrigger++;
+  });
+
   // undefined = loading, null = not found / no access, object = loaded
   let roomData = $state<RoomData | null | undefined>(undefined);
   let dmData = $state<DMData | null>(null);
@@ -58,9 +64,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
   const isDM = $derived(roomData?.room.type === RoomType.Dm);
   const isRoomLoading = $derived(roomData === undefined);
 
-  // Load room data when roomId or reconnect changes
+  // Load room data when roomId, reconnect, or the room-sets layout changes
   $effect(() => {
     void reconnect.count;
+    void layoutTrigger;
 
     const { roomId } = getProps();
     const thisLoadId = ++roomLoadId.current;
@@ -87,13 +94,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
               viewerCanPostMessage
               viewerCanPostInThread
               viewerCanReply
-              viewerCanReplyInThread
               viewerCanReact
-              viewerCanEditOwnMessage
-              viewerCanEditAnyMessage
-              viewerCanDeleteOwnMessage
-              viewerCanDeleteAnyMessage
+              viewerCanManageOthersMessage
               viewerCanEchoMessage
+              viewerCanManageRoom
               members {
                 id
                 login
@@ -139,14 +143,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
           canPostMessage: resp.data.room.viewerCanPostMessage,
           canPostInThread: resp.data.room.viewerCanPostInThread,
           canReply: resp.data.room.viewerCanReply,
-          canReplyInThread: resp.data.room.viewerCanReplyInThread,
           canReact: resp.data.room.viewerCanReact,
-          canEditOwnMessage: resp.data.room.viewerCanEditOwnMessage,
-          canEditAnyMessage: resp.data.room.viewerCanEditAnyMessage,
-          canDeleteOwnMessage: resp.data.room.viewerCanDeleteOwnMessage,
-          canDeleteAnyMessage: resp.data.room.viewerCanDeleteAnyMessage,
+          canManageOthersMessage: resp.data.room.viewerCanManageOthersMessage,
           canEchoMessage: resp.data.room.viewerCanEchoMessage,
-          canManageRoom: resp.data.server?.viewerCanManageRooms ?? false,
+          canManageRoom: resp.data.room.viewerCanManageRoom,
           members: resp.data.room.members.map((m) => ({
             id: m.id,
             login: m.login,

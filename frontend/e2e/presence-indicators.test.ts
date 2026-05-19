@@ -47,9 +47,12 @@ test.describe('Presence indicators', () => {
       // User B joins the space via API helper
       await joinSpace(page2);
 
-      // Navigate to the space
+      // Navigate to the space. After joinSpace, the user lands on the
+      // server overview (`/chat/-`) — the auto-redirect to a default
+      // room was removed when default-room auto-join became permission-
+      // derived. Accepting either shape keeps this resilient.
       await page2.goto(routes.space());
-      await page2.waitForURL(routes.patterns.anySpace);
+      await page2.waitForURL(routes.patterns.chatRootOrRoom);
 
       // User B is auto-joined to "general" room - click it in the sidebar
       const chatPage2 = new ChatPage(page2);
@@ -200,7 +203,7 @@ test.describe('Member list display format', () => {
       // User B joins the space
       await joinSpace(page2);
       await page2.goto(routes.space());
-      await page2.waitForURL(routes.patterns.anySpace);
+      await page2.waitForURL(routes.patterns.chatRootOrRoom);
 
       const chatPage2 = new ChatPage(page2);
       await chatPage2.enterRoom('general');
@@ -265,7 +268,7 @@ test.describe('Member list grouping', () => {
       // User B joins the space
       await joinSpace(page2);
       await page2.goto(routes.space());
-      await page2.waitForURL(routes.patterns.anySpace);
+      await page2.waitForURL(routes.patterns.chatRootOrRoom);
 
       const chatPage2 = new ChatPage(page2);
       await chatPage2.enterRoom('general');
@@ -326,7 +329,7 @@ test.describe('Member list grouping', () => {
     const _userB = await createAndLoginTestUser(page2);
     await joinSpace(page2);
     await page2.goto(routes.space());
-    await page2.waitForURL(routes.patterns.anySpace);
+    await page2.waitForURL(routes.patterns.chatRootOrRoom);
 
     const chatPage2 = new ChatPage(page2);
     await chatPage2.enterRoom('general');

@@ -40,7 +40,7 @@ var (
 
 	// ErrInvalidRoleName is returned when a role name doesn't match the required format
 	// (lowercase letters, numbers, and dashes; must start with a letter; 1-32 chars).
-	ErrInvalidRoleName = errors.New("invalid role name: must be lowercase letters, numbers, and dashes only, starting with a letter")
+	ErrInvalidRoleName = errors.New("invalid role name: must be lowercase letters, numbers, and dashes, starting with a letter, 1-32 chars")
 
 	// ErrRoleAlreadyExists is returned when attempting to create a role that already exists.
 	ErrRoleAlreadyExists = errors.New("role already exists")
@@ -114,7 +114,12 @@ var (
 	// the deployment's primary space ID before its bootstrap has run.
 	ErrServerNotBootstrapped = errors.New("instance not bootstrapped")
 
-	// ErrPasswordTooShort is returned when a password is shorter than MinPasswordLength.
+	// ErrRoomArchived is returned when an operation is rejected because the
+	// room is archived. Archived rooms are read-only: no posting, editing,
+	// reactions, or joining.
+	ErrRoomArchived = errors.New("room is archived")
+
+// ErrPasswordTooShort is returned when a password is shorter than MinPasswordLength.
 	ErrPasswordTooShort = fmt.Errorf("password must be at least %d characters long", MinPasswordLength)
 
 	// ErrPasswordTooLong is returned when a password exceeds MaxPasswordLength.

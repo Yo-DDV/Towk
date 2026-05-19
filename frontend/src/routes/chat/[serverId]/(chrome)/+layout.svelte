@@ -19,7 +19,7 @@
   import SidebarNav from '$lib/components/SidebarNav.svelte';
   import MyThreadsNavItem from './MyThreadsNavItem.svelte';
 
-  let { data, children } = $props();
+  let { children } = $props();
 
   const connection = useConnection();
   const serverSegment = $derived(serverIdToSegment(getActiveServer()));
@@ -31,16 +31,9 @@
   );
   const isAdminMode = $derived(page.url.pathname.startsWith(adminPrefix));
 
-  // Detect if we're in room settings mode (separate from space admin mode)
-  // Room settings: /chat/[spaceId]/[roomId]/settings
-  // Space admin: /chat/[spaceId]/admin
-  const isRoomSettingsMode = $derived(
-    data.roomId && page.url.pathname.includes(`/${data.roomId}/settings`)
-  );
-
-  // Detect if we're on the Browse Rooms page
-  const isBrowseRoomsActive = $derived(
-    page.url.pathname === resolve('/chat/[serverId]/(chrome)/rooms', { serverId: serverSegment })
+  // Detect if we're on the server Overview page
+  const isHomeActive = $derived(
+    page.url.pathname === resolve('/chat/[serverId]', { serverId: serverSegment })
   );
 
   // Detect if we're on the My Threads page
@@ -61,7 +54,6 @@
     bannerUrl: string | null;
     hasAnyAdminPermission: boolean;
     canManage: boolean;
-    canBrowseRooms: boolean;
     canManageRooms: boolean;
     canManageRoles: boolean;
     canAssignRoles: boolean;
@@ -82,7 +74,6 @@
               }
               viewerHasAnyAdminPermission
               viewerCanManageInstance
-              viewerCanBrowseRooms
               viewerCanManageRooms
               viewerCanManageRoles
               viewerCanAssignRoles
@@ -110,7 +101,6 @@
       bannerUrl: inst.config.bannerUrl ?? null,
       hasAnyAdminPermission: inst.viewerHasAnyAdminPermission,
       canManage: inst.viewerCanManageInstance,
-      canBrowseRooms: inst.viewerCanBrowseRooms,
       canManageRooms: inst.viewerCanManageRooms,
       canManageRoles: inst.viewerCanManageRoles,
       canAssignRoles: inst.viewerCanAssignRoles
@@ -192,7 +182,6 @@
       updateChromePermissions({
         hasAnyAdminPermission: spaceData.hasAnyAdminPermission,
         canManage: spaceData.canManage,
-        canBrowseRooms: spaceData.canBrowseRooms,
         canManageRooms: spaceData.canManageRooms,
         canManageRoles: spaceData.canManageRoles,
         canAssignRoles: spaceData.canAssignRoles
@@ -270,11 +259,6 @@
         label: 'Roles',
         icon: 'iconify uil--shield-check'
       });
-      items.push({
-        href: resolve('/chat/[serverId]/(chrome)/server-admin/inspector', { serverId: serverSegment }),
-        label: 'Inspector',
-        icon: 'iconify uil--search'
-      });
     }
 
     if (serverPerms.current.canViewAdmin) {
@@ -308,7 +292,6 @@
 
 <ServerEventProvider>
       <!-- Sidebar -->
-      {#if !isRoomSettingsMode}
         <SecondarySidebar>
           {#if !spaceData}
             <!-- Skeleton sidebar while space data is loading -->
@@ -343,10 +326,7 @@
             />
           {:else}
             <!-- Space header - fixed at top -->
-            <SpaceHeader
-              spaceName={spaceName ?? ''}
-              canAccessSettings={canAccessAnySettings}
-            />
+            <SpaceHeader spaceName={spaceName ?? ''} />
 
             <!-- Scrollable area for room list sidebar -->
             <div class="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
@@ -355,15 +335,13 @@
               {/if}
 
               <nav class="sidebar-nav p-2">
-                {#if spaceData.canBrowseRooms}
-                  <a
-                    href={resolve('/chat/[serverId]/(chrome)/rooms', { serverId: serverSegment })}
-                    class={['sidebar-item', isBrowseRoomsActive ? 'bg-surface-100' : 'text-muted']}
-                  >
-                    <span class="sidebar-icon iconify uil--search-alt"></span>
-                    Browse Rooms
-                  </a>
-                {/if}
+                <a
+                  href={resolve('/chat/[serverId]', { serverId: serverSegment })}
+                  class={['sidebar-item', isHomeActive ? 'bg-surface-100' : 'text-muted']}
+                >
+                  <span class="sidebar-icon iconify uil--estate"></span>
+                  Overview
+                </a>
                 <MyThreadsNavItem active={isMyThreadsActive} />
                 <a
                   href={resolve('/chat/[serverId]/(chrome)/preferences', { serverId: serverSegment })}
@@ -372,6 +350,17 @@
                   <span class="sidebar-icon iconify uil--bell"></span>
                   Preferences
                 </a>
+                {#if canAccessAnySettings}
+                  <a
+                    href={resolve('/chat/[serverId]/(chrome)/server-admin', {
+                      serverId: serverSegment
+                    })}
+                    class={['sidebar-item', isAdminMode ? 'bg-surface-100' : 'text-muted']}
+                  >
+                    <span class="sidebar-icon iconify uil--setting"></span>
+                    Administration
+                  </a>
+                {/if}
               </nav>
 
               <hr class="border-border" />
@@ -381,7 +370,6 @@
             </div>
           {/if}
         </SecondarySidebar>
-      {/if}
 
       <!-- Main content - always renders so room can load in parallel -->
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">

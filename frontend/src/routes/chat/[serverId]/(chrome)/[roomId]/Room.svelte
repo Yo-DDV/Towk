@@ -66,12 +66,8 @@
     canPostMessage: true,
     canPostInThread: false,
     canReply: true,
-    canReplyInThread: false,
     canReact: true,
-    canEditOwnMessage: true,
-    canEditAnyMessage: false,
-    canDeleteOwnMessage: true,
-    canDeleteAnyMessage: false
+    canManageOthersMessage: false
   } as const;
 
   let permissions = $derived.by(() => {
@@ -214,7 +210,7 @@
 
   // Header action visibility — flat derivations keep the template clean
   let showVoiceCall = $derived(!!room.roomData && !!serverInfo.livekitUrl);
-  let showRoomSettings = $derived(!!room.roomData && !room.isDM && !!room.roomData.canManageRoom);
+  // Channel rooms can always be left. DMs are permanent (no leave action).
   let showLeaveRoom = $derived(!!room.roomData && !room.isDM);
 
   let leavingRoom = $state(false);
@@ -294,14 +290,6 @@
           {#snippet actions()}
             {#if showVoiceCall}
               <VoiceCallButton {roomId} livekitUrl={serverInfo.livekitUrl!} />
-            {/if}
-            {#if showRoomSettings}
-              <a
-                href={resolve('/chat/[serverId]/(chrome)/[roomId]/settings', { serverId: serverSegment, roomId })}
-                class="iconify cursor-pointer text-muted uil--setting hover:text-text"
-                title="Room settings"
-              >
-              </a>
             {/if}
             {#if showLeaveRoom}
               <button

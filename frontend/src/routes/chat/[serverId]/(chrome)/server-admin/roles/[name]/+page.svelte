@@ -7,10 +7,11 @@
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { graphql } from '$lib/gql';
   import { Panel, UserList } from '$lib/components/admin';
+  import { Hint } from '$lib/ui';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button, TextInput, TextArea, FormError } from '$lib/ui/form';
-  import { DeleteRoleModal, type Role } from '$lib/components/rbac';
+  import { DeleteRoleModal, RolePermissionsMatrix, type Role } from '$lib/components/rbac';
 
   type User = { id: string; login: string; displayName: string };
 
@@ -245,6 +246,16 @@
           {/if}
         </div>
       </Panel>
+
+      <!-- Permissions matrix: full per-role allow/deny across server, groups, and rooms. -->
+      {#if canManageRoles && role}
+        <Hint>
+          This role's grants and denials across every scope. Combined with the user's other
+          roles at resolution time — use the per-user matrix to see what an individual user
+          ends up with.
+        </Hint>
+        <RolePermissionsMatrix roleName={role.name} />
+      {/if}
 
       <!-- Users with this role -->
       <Panel title="Users with this Role" icon="iconify uil--users-alt">

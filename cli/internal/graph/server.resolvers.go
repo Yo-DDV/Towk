@@ -77,9 +77,11 @@ func (r *serverResolver) MessageEditWindowSeconds(ctx context.Context, obj *mode
 
 // Rooms is the resolver for the rooms field.
 //
-// Per-room visibility: CanBrowseRooms gates "can the user see any rooms at
-// all" (server-scope); CanSeeRoom then filters the list per-room so private
-// channels (denied at room scope) stay invisible to non-members.
+// Visibility is gated by `CanSeeRoom`: a user sees a room iff they are
+// already a member OR `room.list` resolves to allow at the room. The
+// list permission is distinct from `room.join` — restricted rooms can
+// be discoverable in the directory (request-access flow) without being
+// directly joinable.
 func (r *serverResolver) Rooms(ctx context.Context, obj *model.Server, typeArg *model.RoomType) ([]*corev1.Room, error) {
 	user, err := requireAuth(ctx)
 	if err != nil {
@@ -87,13 +89,6 @@ func (r *serverResolver) Rooms(ctx context.Context, obj *model.Server, typeArg *
 	}
 	var rooms []*corev1.Room
 	if roomTypeIs(typeArg, model.RoomTypeChannel) {
-		can, err := r.core.CanBrowseRooms(ctx, user.Id, core.KindChannel)
-		if err != nil {
-			return nil, err
-		}
-		if !can {
-			return nil, core.ErrPermissionDenied
-		}
 		all, err := r.core.ListRooms(ctx, core.KindChannel)
 		if err != nil {
 			return nil, err
@@ -112,26 +107,16 @@ func (r *serverResolver) Rooms(ctx context.Context, obj *model.Server, typeArg *
 	return r.appendDMRoomsForServer(ctx, user.Id, rooms, typeArg)
 }
 
-// RoomLayout is the resolver for the roomLayout field.
-func (r *serverResolver) RoomLayout(ctx context.Context, obj *model.Server) (*model.RoomLayoutModel, error) {
+// RoomGroups is the resolver for the roomGroups field.
+func (r *serverResolver) RoomGroups(ctx context.Context, obj *model.Server) ([]*model.RoomGroupModel, error) {
 	user, err := requireAuth(ctx)
 	if err != nil {
 		return nil, err
 	}
-	can, err := r.core.CanBrowseRooms(ctx, user.Id, core.KindChannel)
-	if err != nil {
-		return nil, err
-	}
-	if !can {
-		return nil, core.ErrPermissionDenied
-	}
 
-	layout, err := r.core.GetRoomLayout(ctx, core.KindChannel)
+	groups, err := r.core.ListRoomGroupsOrdered(ctx, core.KindChannel)
 	if err != nil {
 		return nil, err
-	}
-	if layout == nil {
-		return nil, nil
 	}
 
 	allRooms, err := r.core.ListRooms(ctx, core.KindChannel)
@@ -140,7 +125,7 @@ func (r *serverResolver) RoomLayout(ctx context.Context, obj *model.Server) (*mo
 	}
 
 	// Filter to rooms the caller can see; layout entries pointing at hidden
-	// rooms are dropped by protoLayoutToModel when the room isn't in the map.
+	// rooms are dropped by the per-group rooms resolver via the viewerRooms map.
 	allRoomMap := make(map[string]*corev1.Room, len(allRooms))
 	for _, room := range allRooms {
 		visible, err := r.core.CanSeeRoom(ctx, user.Id, core.KindChannel, room.Id)
@@ -152,7 +137,11 @@ func (r *serverResolver) RoomLayout(ctx context.Context, obj *model.Server) (*mo
 		}
 	}
 
-	return protoLayoutToModel(layout, allRoomMap), nil
+	out := make([]*model.RoomGroupModel, len(groups))
+	for i, g := range groups {
+		out[i] = roomGroupToModel(g, allRoomMap)
+	}
+	return out, nil
 }
 
 // MemberCount is the resolver for the memberCount field.
@@ -200,24 +189,15 @@ func (r *serverResolver) ViewerCanManageInstance(ctx context.Context, obj *model
 	return r.core.CanManageServer(ctx, user.Id)
 }
 
-// ViewerCanBrowseRooms is the resolver for the viewerCanBrowseRooms field.
-func (r *serverResolver) ViewerCanBrowseRooms(ctx context.Context, obj *model.Server) (bool, error) {
-	user := auth.ForContext(ctx)
-	if user == nil {
-		return false, nil
-	}
-	kind := core.KindChannel
-	return r.core.CanBrowseRooms(ctx, user.Id, kind)
-}
-
 // ViewerCanCreateRoom is the resolver for the viewerCanCreateRoom field.
+// Server-scope check (no specific group context); the per-group group editor
+// gates on group-scope room.create separately.
 func (r *serverResolver) ViewerCanCreateRoom(ctx context.Context, obj *model.Server) (bool, error) {
 	user := auth.ForContext(ctx)
 	if user == nil {
 		return false, nil
 	}
-	kind := core.KindChannel
-	return r.core.CanCreateRoom(ctx, user.Id, kind)
+	return r.core.CanCreateRoom(ctx, user.Id, core.KindChannel, "")
 }
 
 // ViewerCanManageRooms is the resolver for the viewerCanManageRooms field.

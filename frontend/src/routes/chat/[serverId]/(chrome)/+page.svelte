@@ -1,61 +1,30 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
-  import { resolve } from '$app/paths';
-  import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { getLastRoom } from '$lib/storage/lastRoom';
+  import RoomDirectory from '$lib/RoomDirectory.svelte';
+  import PaneHeader from '$lib/ui/PaneHeader.svelte';
+  import PageTitle from '$lib/ui/PageTitle.svelte';
 
-  const serverId = $derived(getActiveServer());
-  const lastRoom = $derived(getLastRoom(serverId));
-  const stores = $derived(serverRegistry.tryGetStore(serverId));
-  const roomsStore = $derived(stores?.rooms);
-  const serverInfo = $derived(stores?.serverInfo);
-  const serverInfoLoading = $derived(serverInfo?.loading ?? true);
-
-  function redirectToRoom(roomId: string) {
-    void goto(
-      resolve('/chat/[serverId]/(chrome)/[roomId]', {
-        serverId: serverIdToSegment(serverId),
-        roomId
-      }),
-      { replaceState: true }
-    );
-  }
-
-  $effect(() => {
-    if (sessionStorage.getItem('returnUrl')) return;
-    if (serverInfoLoading) return;
-    if (!roomsStore) return;
-
-    if (lastRoom) {
-      redirectToRoom(lastRoom);
-      return;
-    }
-    if (!roomsStore.isInitialLoading) {
-      const fallback = roomsStore.rooms[0]?.id;
-      if (fallback) {
-        redirectToRoom(fallback);
-      }
-    }
-  });
-
-  const showNoRoomMessage = $derived(
-    !lastRoom && !!roomsStore && !roomsStore.isInitialLoading && roomsStore.rooms.length === 0
-  );
+  // Active-server stores. Both substores self-manage refresh and
+  // live-event ingestion from inside `ServerStateStore`, so this page
+  // just reads them. Re-derives reactively when the URL `[serverId]`
+  // changes.
+  const stores = $derived(serverRegistry.getStore(getActiveServer()));
+  const directory = $derived(stores.roomDirectory);
+  const roomsStore = $derived(stores.rooms);
 </script>
 
-{#if showNoRoomMessage}
-  <div class="flex flex-1 items-center justify-center p-8">
-    <div class="max-w-md text-center">
-      <div class="mb-6">
-        <span class="mb-4 iconify inline-block text-6xl text-muted uil--comments-alt"></span>
-        <h2 class="mb-2 text-2xl font-bold">No Room Selected</h2>
-        <p class="text-muted">
-          Choose a room from your sidebar to get started. We promise this page will eventually do
-          something more useful.
-        </p>
-      </div>
+<PageTitle title="Overview" />
+
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
+  <PaneHeader title="Overview" showMobileNav />
+
+  <div class="flex-1 overflow-auto">
+    <div class="mx-auto flex max-w-6xl flex-col gap-8 p-6">
+      <section class="flex flex-col gap-3">
+        <h2 class="text-lg font-semibold">Rooms</h2>
+        <RoomDirectory {directory} {roomsStore} />
+      </section>
     </div>
   </div>
-{/if}
+</div>

@@ -3,7 +3,7 @@ import * as routes from '../routes';
 
 /**
  * Page object for the Space Admin Rooms page (/chat/-/{spaceId}/admin/rooms).
- * Covers room listing, archiving/unarchiving, auto-join, sections, and CRUD.
+ * Covers room listing, archiving/unarchiving, global-room toggle, groups, and CRUD.
  */
 export class SpaceAdminRoomsPage {
   constructor(readonly page: Page) {}
@@ -15,14 +15,14 @@ export class SpaceAdminRoomsPage {
     return this.page.locator('h1', { hasText: 'Rooms' });
   }
 
-  /** The "New Room" button */
-  get newRoomButton(): Locator {
-    return this.page.getByRole('button', { name: 'New Room' });
+  /** The "New Group" button (page-level). */
+  get newGroupButton(): Locator {
+    return this.page.getByRole('button', { name: 'New Group' });
   }
 
-  /** The "New Section" button */
-  get newSectionButton(): Locator {
-    return this.page.getByRole('button', { name: 'New Section' });
+  /** The "New Room" button on a specific group's header. */
+  newRoomButton(groupName: string): Locator {
+    return this.groupHeaderRow(groupName).getByRole('button', { name: 'New Room' });
   }
 
   /** The dialog element (used for create/edit/archive/delete modals) */
@@ -41,11 +41,23 @@ export class SpaceAdminRoomsPage {
   }
 
   /**
-   * Get a section header locator by name.
-   * Targets the `span.font-semibold` that renders section names.
+   * Get a group header locator by name.
+   * Targets the `h2` that renders group names.
    */
-  sectionHeader(name: string): Locator {
-    return this.page.locator('span.font-semibold', { hasText: name });
+  groupHeader(name: string): Locator {
+    return this.page.locator('h2', { hasText: name });
+  }
+
+  /**
+   * Get the full group-header row for a given group name. Scopes the
+   * per-group Rename / Delete buttons so they don't collide with the
+   * seed "Lobby" group's buttons (post-ADR-031 there is always at
+   * least one group present).
+   */
+  groupHeaderRow(name: string): Locator {
+    return this.page.locator('.group-header', {
+      has: this.page.locator('h2', { hasText: name })
+    });
   }
 
   // --- Navigation ---
@@ -71,11 +83,17 @@ export class SpaceAdminRoomsPage {
     await this.dialog.getByRole('button', { name: 'Archive Room' }).click();
   }
 
-  /** Click the Unarchive button on an archived room row. */
-  async unarchiveRoom(roomName: string): Promise<void> {
+  /** Click the Unarchive button on an archived room row (opens confirmation dialog). */
+  async clickUnarchive(roomName: string): Promise<void> {
     const row = this.roomRow(roomName);
-    await expect(row.getByTitle('Unarchive room')).toBeVisible();
-    await row.getByRole('button', { name: 'Unarchive' }).click();
+    await row.getByTitle('Unarchive room').click();
+    await expect(this.dialog).toBeVisible();
+  }
+
+  /** Unarchive a room via admin UI: clicks Unarchive, then confirms the dialog. */
+  async unarchiveRoom(roomName: string): Promise<void> {
+    await this.clickUnarchive(roomName);
+    await this.dialog.getByRole('button', { name: 'Unarchive Room' }).click();
   }
 
   /** Click the Edit button on a room row (opens edit dialog). */
@@ -104,47 +122,48 @@ export class SpaceAdminRoomsPage {
     await this.dialog.getByRole('button', { name: 'Save Changes' }).click();
   }
 
-  /** Click the auto-join toggle button on a room row. */
-  async toggleAutoJoin(roomName: string): Promise<void> {
-    const row = this.roomRow(roomName);
-    const button = row.getByTitle(/auto-join/);
-    await expect(button).toBeVisible();
-    await button.click();
+  // --- Group Actions ---
+
+  /** Create a new group via the New Group modal. */
+  async createGroup(name: string): Promise<void> {
+    await this.newGroupButton.click();
+    await expect(this.dialog).toBeVisible();
+    await this.dialog.getByLabel('Group name').fill(name);
+    await this.dialog.getByRole('button', { name: 'Create Group' }).click();
   }
 
-  // --- Section Actions ---
-
-  /** Create a new section via the New Section modal. */
-  async createSection(name: string): Promise<void> {
-    await this.newSectionButton.click();
+  /**
+   * Rename a group: clicks the rename icon on the named group's header
+   * row, fills the new name, saves. Scoped to `currentName` because the
+   * seed "Lobby" group always has its own Rename button.
+   */
+  async renameGroup(currentName: string, newName: string): Promise<void> {
+    await this.groupHeaderRow(currentName).getByTitle('Rename group').click();
     await expect(this.dialog).toBeVisible();
-    await this.dialog.getByLabel('Section name').fill(name);
-    await this.dialog.getByRole('button', { name: 'Create Section' }).click();
-  }
-
-  /** Rename a section: clicks the rename icon, fills new name, saves. */
-  async renameSection(newName: string): Promise<void> {
-    await this.page.getByTitle('Rename section').click();
-    await expect(this.dialog).toBeVisible();
-    await this.dialog.getByLabel('Section name').clear();
-    await this.dialog.getByLabel('Section name').fill(newName);
+    await this.dialog.getByLabel('Group name').clear();
+    await this.dialog.getByLabel('Group name').fill(newName);
     await this.dialog.getByRole('button', { name: 'Save' }).click();
   }
 
-  /** Delete a section: clicks the delete icon, confirms the dialog. */
-  async deleteSection(): Promise<void> {
-    await this.page.getByTitle('Delete section (rooms move to Unsorted)').click();
+  /**
+   * Delete a group: clicks the delete icon on the named group's header
+   * row, confirms the dialog. Scoped to `groupName` for the same reason
+   * as renameGroup. The button is disabled while the group still has
+   * rooms, so callers must move rooms out first.
+   */
+  async deleteGroup(groupName: string): Promise<void> {
+    await this.groupHeaderRow(groupName).getByTitle('Delete group').click();
     await expect(this.dialog).toBeVisible();
-    await this.dialog.getByRole('button', { name: 'Delete Section' }).click();
+    await this.dialog.getByRole('button', { name: 'Delete Group' }).click();
   }
 
   // --- Room Creation ---
 
-  /** Create a new room via the New Room modal. */
-  async createRoom(name: string): Promise<void> {
-    await this.newRoomButton.click();
+  /** Create a new room in the named group via the New Room modal. */
+  async createRoom(groupName: string, name: string): Promise<void> {
+    await this.newRoomButton(groupName).click();
     await expect(this.dialog).toBeVisible();
-    await this.dialog.getByLabel('Name').fill(name);
+    await this.dialog.getByLabel('Room Name').fill(name);
     await this.dialog.getByRole('button', { name: 'Create Room' }).click();
   }
 
@@ -161,43 +180,27 @@ export class SpaceAdminRoomsPage {
   /** Assert the rooms admin page is visible. */
   async expectVisible(): Promise<void> {
     await expect(this.pageHeading).toBeVisible();
-    await expect(this.newRoomButton).toBeVisible();
-    await expect(this.newSectionButton).toBeVisible();
+    await expect(this.newGroupButton).toBeVisible();
   }
 
   /** Assert a room is visible on the admin page. */
   async expectRoomVisible(name: string, timeout?: number): Promise<void> {
-    await expect(this.page.locator('.truncate.text-sm', { hasText: name })).toBeVisible({
-      timeout
-    });
+    await expect(this.roomRow(name)).toBeVisible({ timeout });
   }
 
   /** Assert a room is NOT visible on the admin page. */
   async expectRoomNotVisible(name: string): Promise<void> {
-    await expect(this.page.locator('.truncate.text-sm', { hasText: name })).not.toBeVisible();
+    await expect(this.roomRow(name)).not.toBeVisible();
   }
 
-  /** Assert a section header is visible. */
-  async expectSectionVisible(name: string): Promise<void> {
-    await expect(this.sectionHeader(name)).toBeVisible();
+  /** Assert a group header is visible. */
+  async expectGroupVisible(name: string): Promise<void> {
+    await expect(this.groupHeader(name)).toBeVisible();
   }
 
-  /** Assert a section header is NOT visible. */
-  async expectSectionNotVisible(name: string): Promise<void> {
-    await expect(this.sectionHeader(name)).not.toBeVisible();
+  /** Assert a group header is NOT visible. */
+  async expectGroupNotVisible(name: string): Promise<void> {
+    await expect(this.groupHeader(name)).not.toBeVisible();
   }
 
-  /** Assert auto-join is enabled on a room (button title reflects "on" state). */
-  async expectAutoJoinEnabled(roomName: string, timeout?: number): Promise<void> {
-    const row = this.roomRow(roomName);
-    await expect(row.getByTitle('New members auto-join this room')).toBeVisible({ timeout });
-  }
-
-  /** Assert auto-join is disabled on a room (button title reflects "off" state). */
-  async expectAutoJoinDisabled(roomName: string, timeout?: number): Promise<void> {
-    const row = this.roomRow(roomName);
-    await expect(row.getByTitle('New members do not auto-join this room')).toBeVisible({
-      timeout
-    });
-  }
 }

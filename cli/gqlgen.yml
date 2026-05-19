@@ -209,12 +209,9 @@ models:
   Viewer:
     model:
       - hmans.de/chatto/internal/graph/model.Viewer
-  RoomLayout:
+  RoomGroup:
     model:
-      - hmans.de/chatto/internal/graph/model.RoomLayoutModel
-  RoomLayoutSection:
-    model:
-      - hmans.de/chatto/internal/graph/model.RoomLayoutSectionModel
+      - hmans.de/chatto/internal/graph/model.RoomGroupModel
   FollowedThread:
     model:
       - hmans.de/chatto/internal/graph/model.FollowedThread

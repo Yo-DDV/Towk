@@ -22,7 +22,6 @@ func TestValidatePermission_InstanceScope(t *testing.T) {
 	}{
 		{"admin valid", PermAdminAccess, false},
 		// Unified permissions with ScopeServer
-		{"room.leave valid (unified scope)", Permission("room.leave"), false},
 		{"message.post valid (unified scope)", Permission("message.post"), false},
 		{"message.react valid (unified scope)", Permission("message.react"), false},
 		{"room.join valid (unified scope)", Permission("room.join"), false},
@@ -699,21 +698,28 @@ func TestChattoCore_CreateServerRole(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects role name with dashes", func(t *testing.T) {
-		_, err := core.CreateServerRole(ctx, "custom-role", "Custom", "Should fail")
-		if err == nil {
-			t.Error("Expected error for role name with dashes")
+	t.Run("accepts role name with dashes", func(t *testing.T) {
+		role, err := core.CreateServerRole(ctx, "custom-role", "Custom", "Dashes allowed")
+		if err != nil {
+			t.Fatalf("CreateServerRole(custom-role): %v", err)
 		}
-		if !errors.Is(err, ErrInvalidRoleName) {
-			t.Errorf("Expected ErrInvalidRoleName, got %v", err)
+		if role.Name != "custom-role" {
+			t.Errorf("Expected role name 'custom-role', got %q", role.Name)
 		}
 	})
 
-	t.Run("rejects role name with numbers", func(t *testing.T) {
-		_, err := core.CreateServerRole(ctx, "role2", "Role 2", "Should fail")
-		if err == nil {
-			t.Error("Expected error for role name with numbers")
+	t.Run("accepts role name with numbers", func(t *testing.T) {
+		role, err := core.CreateServerRole(ctx, "tier2", "Tier 2", "Numbers allowed")
+		if err != nil {
+			t.Fatalf("CreateServerRole(tier2): %v", err)
 		}
+		if role.Name != "tier2" {
+			t.Errorf("Expected role name 'tier2', got %q", role.Name)
+		}
+	})
+
+	t.Run("rejects role name with leading dash", func(t *testing.T) {
+		_, err := core.CreateServerRole(ctx, "-custom", "Custom", "Should fail")
 		if !errors.Is(err, ErrInvalidRoleName) {
 			t.Errorf("Expected ErrInvalidRoleName, got %v", err)
 		}
@@ -1312,24 +1318,23 @@ func TestValidateRoleName(t *testing.T) {
 		input   string
 		wantErr bool
 	}{
-		// Valid space role names - lowercase letters only
+		// Valid role names - lowercase letters, digits, and dashes;
+		// must start with a letter and end with a letter or digit.
 		{"simple", "admin", false},
 		{"moderator", "moderator", false},
 		{"single-char", "a", false},
+		{"with-dash", "content-mod", false},
+		{"with-number", "tier1", false},
+		{"ends-with-number", "admin42", false},
 		{"max-length", "abcdefghijklmnopqrstuvwxyzabcdef", false}, // 32 chars
 
-		// Invalid space role names - now reject dashes and numbers
-		{"with-dash", "contentmod", false},       // without dash is valid
-		{"with-number", "tierone", false},        // without number is valid
-		{"dash-is-invalid", "content-mod", true}, // dash is now invalid
-		{"number-is-invalid", "tier1", true},     // number is now invalid
-
-		// Other invalid names
+		// Invalid names
 		{"empty", "", true},
 		{"uppercase", "Admin", true},
 		{"mixed-case", "contentModerator", true},
 		{"starts-with-number", "1admin", true},
 		{"starts-with-dash", "-admin", true},
+		{"ends-with-dash", "admin-", true},
 		{"contains-underscore", "content_mod", true},
 		{"contains-space", "content mod", true},
 		{"contains-dot", "content.mod", true},
@@ -1746,7 +1751,7 @@ func TestChattoCore_GetRolePermissions_Multiple(t *testing.T) {
 	core.CreateServerRole(ctx, "testmod", "Test Mod", "Can moderate")
 
 	// Grant multiple permissions
-	core.GrantInstancePermission(ctx, "testmod", PermRoomList)
+	core.GrantInstancePermission(ctx, "testmod", PermRoomJoin)
 	core.GrantInstancePermission(ctx, "testmod", PermRoleAssign)
 	core.GrantInstancePermission(ctx, "testmod", PermRoomManage)
 
@@ -1765,8 +1770,8 @@ func TestChattoCore_GetRolePermissions_Multiple(t *testing.T) {
 		permSet[p] = true
 	}
 
-	if !permSet[PermRoomList] {
-		t.Error("Missing PermRoomList")
+	if !permSet[PermRoomJoin] {
+		t.Error("Missing PermRoomJoin")
 	}
 	if !permSet[PermRoleAssign] {
 		t.Error("Missing PermRoleAssign")
@@ -2163,7 +2168,7 @@ func TestChattoCore_GrantRoomRolePermission(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "test-room", "Test channel")
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "test-room", "Test channel")
 
 	// Grant message.post at room level for member role
 	err := core.GrantRoomPermission(ctx, room.Id, RoleEveryone, PermMessagePost)
@@ -2188,7 +2193,7 @@ func TestChattoCore_DenyRoomRolePermission(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "test-room", "Test channel")
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "test-room", "Test channel")
 
 	// Deny message.post at room level
 	err := core.DenyRoomPermission(ctx, room.Id, RoleEveryone, PermMessagePost)
@@ -2212,7 +2217,7 @@ func TestChattoCore_ClearRoomRolePermission(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "test-room", "Test channel")
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "test-room", "Test channel")
 
 	// Grant, then clear
 	core.GrantRoomPermission(ctx, room.Id, RoleEveryone, PermMessagePost)
@@ -2237,7 +2242,7 @@ func TestChattoCore_GrantRoomRolePermission_InvalidScope(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "general", "General")
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "general", "General")
 
 	// space.manage is not room-scoped — should fail
 	err := core.GrantRoomPermission(ctx, room.Id, RoleEveryone, PermServerManage)
@@ -2250,8 +2255,8 @@ func TestChattoCore_RoomPermissions_PerRoomIsolation(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	room1, _ := core.CreateRoom(ctx, "test-user", KindChannel, "room-alpha", "Room Alpha")
-	room2, _ := core.CreateRoom(ctx, "test-user", KindChannel, "room-beta", "Room Beta")
+	room1, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "room-alpha", "Room Alpha")
+	room2, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "room-beta", "Room Beta")
 
 	// Deny message.post only in room1
 	core.DenyRoomPermission(ctx, room1.Id, RoleEveryone, PermMessagePost)
@@ -2281,7 +2286,7 @@ func TestChattoCore_GrantRoomRolePermission_GrantClearsDenial(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "general", "General")
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "general", "General")
 
 	// Deny, then grant — should clear the denial
 	core.DenyRoomPermission(ctx, room.Id, RoleEveryone, PermMessagePost)
@@ -2325,7 +2330,7 @@ func TestChattoCore_GetUserEffectiveSpacePermissions_SpaceRoles(t *testing.T) {
 
 	// User should have default member permissions (via everyone role)
 	// Note: room.create is NOT a default permission - it's opt-in
-	expectedPerms := []string{"room.list", "room.join", "message.post", "message.post-in-thread", "message.react", "message.reply", "message.reply-in-thread"}
+	expectedPerms := []string{"room.join", "message.post", "message.post-in-thread", "message.react", "message.reply"}
 	for _, exp := range expectedPerms {
 		if !permSet[exp] {
 			t.Errorf("Expected user to have %s permission", exp)
@@ -2439,24 +2444,23 @@ func TestChattoCore_GetUserEffectiveSpacePermissions_ServerRoleDenialInSpace(t *
 	// Create a space
 	_, _ = core.CreateUser(ctx, SystemActorID, "creator4", "Creator", "password123")
 
-	// User joins space
-	// Verify user has room.list by default
+	// Verify user has room.join by default
 	perms1, _ := core.GetUserEffectiveSpacePermissions(ctx, KindChannel, user.Id)
 	permSet1 := make(map[string]bool)
 	for _, p := range perms1 {
 		permSet1[string(p)] = true
 	}
-	if !permSet1["room.list"] {
-		t.Error("User should have room.list by default")
+	if !permSet1["room.join"] {
+		t.Error("User should have room.join by default")
 	}
 
-	// Deny room.list to moderator role
-	err := core.DenyInstancePermission(ctx, RoleModerator, PermRoomList)
+	// Deny room.join to moderator role
+	err := core.DenyInstancePermission(ctx, RoleModerator, PermRoomJoin)
 	if err != nil {
 		t.Fatalf("Failed to deny role permission: %v", err)
 	}
 
-	// Now user should NOT have room.list (instance role denial in space wins)
+	// Now user should NOT have room.join (instance role denial wins)
 	perms2, err := core.GetUserEffectiveSpacePermissions(ctx, KindChannel, user.Id)
 	if err != nil {
 		t.Fatalf("GetUserEffectiveSpacePermissions failed: %v", err)
@@ -2465,8 +2469,8 @@ func TestChattoCore_GetUserEffectiveSpacePermissions_ServerRoleDenialInSpace(t *
 	for _, p := range perms2 {
 		permSet2[string(p)] = true
 	}
-	if permSet2["room.list"] {
-		t.Error("User should NOT have room.list after instance role denial")
+	if permSet2["room.join"] {
+		t.Error("User should NOT have room.join after instance role denial")
 	}
 }
 

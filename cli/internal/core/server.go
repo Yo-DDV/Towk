@@ -1,11 +1,7 @@
 package core
 
-import "context"
-
-// JoinServer auto-joins the user to any channel rooms that have auto_join
-// enabled. Best-effort; logs and continues on failure. Server "membership"
-// itself is implicit post-#330 — every authenticated user counts as a
-// member.
-func (c *ChattoCore) JoinServer(ctx context.Context, userID string) {
-	c.JoinDefaultRooms(ctx, userID)
-}
+// Server membership is implicit — every authenticated user counts as a
+// member of the (single) server. There's nothing to write on signup,
+// and there's no auto-join logic: room membership is strictly explicit
+// (users join via `JoinRoom` or admin mass-invite). New users land in
+// an empty sidebar and use the room directory to discover rooms.

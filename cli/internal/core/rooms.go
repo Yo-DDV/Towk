@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -140,7 +141,14 @@ func ValidateRoomDescription(description string) error {
 // CreateRoom creates a new room in a space.
 // KV store is written first, then an event is published for audit trail (best-effort).
 // Authorization: Caller must verify CanCreateRoom before calling.
-func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKind, name, description string) (*corev1.Room, error) {
+//
+// groupID identifies the RoomGroup the room belongs to. For channel rooms
+// this should be a real set's ID once the room-sets feature is fully
+// wired (see ADR-031); during the transition, an empty string is still
+// accepted and the room is created without a set membership. DM rooms
+// always pass an empty groupID. When a non-empty groupID is provided the
+// set must exist; the room is automatically added to its room_ids list.
+func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKind, groupID, name, description string) (*corev1.Room, error) {
 	// Validate room name
 	if err := ValidateRoomName(name); err != nil {
 		return nil, err
@@ -149,6 +157,25 @@ func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKi
 	// Validate room description
 	if err := ValidateRoomDescription(description); err != nil {
 		return nil, err
+	}
+
+	// If a groupID is provided, verify it exists before creating the room.
+	// DM rooms always pass empty. For channel rooms, an empty groupID
+	// auto-routes to the first group in the layout (the seed "Lobby" group
+	// on fresh deployments) so existing callers don't need to pick one
+	// explicitly. See ADR-031.
+	if groupID != "" {
+		if _, err := c.GetRoomGroup(ctx, groupID); err != nil {
+			return nil, err
+		}
+	} else if kind == KindChannel {
+		groups, err := c.ListRoomGroupsOrdered(ctx, KindChannel)
+		if err != nil {
+			return nil, fmt.Errorf("lookup default group: %w", err)
+		}
+		if len(groups) > 0 {
+			groupID = groups[0].Id
+		}
 	}
 
 	// Trim whitespace from name
@@ -179,6 +206,7 @@ func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKi
 		SpaceId:     SpaceIDForKind(kind),
 		Name:        name,
 		Description: description,
+		GroupId:     groupID,
 	}
 
 	roomData, err := proto.Marshal(room)
@@ -190,6 +218,17 @@ func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKi
 	if _, err := bucket.Put(ctx, roomKey(kind, room.Id), roomData); err != nil {
 		c.bestEffortReleaseRoomNameClaim(ctx, bucket, indexKey, room_id)
 		return nil, fmt.Errorf("failed to store room: %w", err)
+	}
+
+	// If the room belongs to a set, append it to the set's room_ids.
+	// Best-effort — if this fails the room exists with its GroupId stamped
+	// but the layout isn't updated; the inconsistency is detectable and
+	// can be repaired by an admin re-move.
+	if groupID != "" {
+		if err := c.MoveRoomToGroup(ctx, actorID, room_id, groupID); err != nil {
+			c.logger.Warn("Failed to add new room to set layout; room.GroupId is set but set membership is not reflected in the layout",
+				"error", err, "room_id", room_id, "group_id", groupID)
+		}
 	}
 
 	// Create and publish audit event to space stream
@@ -219,7 +258,16 @@ func (c *ChattoCore) CreateRoom(ctx context.Context, actorID string, kind RoomKi
 		}
 	}
 
-	c.logger.Info("Room created", "kind", kind, "room_id", room_id, "name", name)
+	c.logger.Info("Room created", "kind", kind, "room_id", room_id, "name", name, "group_id", groupID)
+
+	// Notify connected clients so they pick up the new room in the
+	// directory and (if joined) the sidebar. Channel rooms only — DMs
+	// live outside the channel layout. When the room was placed in a
+	// group, MoveRoomToGroup already published this event; only emit
+	// here as a fallback for the (rare) groupless channel-room case.
+	if kind == KindChannel && groupID == "" {
+		c.notifyRoomLayoutChanged(ctx, actorID, "create_room")
+	}
 
 	return room, nil
 }
@@ -241,7 +289,7 @@ func (c *ChattoCore) UpdateRoom(ctx context.Context, actorID string, kind RoomKi
 	// Trim whitespace from name
 	name = strings.TrimSpace(name)
 
-	// Fetch existing room (preserves all fields like Archived, AutoJoin)
+	// Fetch existing room (preserves all fields like Archived)
 	room, err := c.GetRoom(ctx, kind, room_id)
 	if err != nil {
 		return nil, err
@@ -366,6 +414,10 @@ func (c *ChattoCore) DeleteRoom(ctx context.Context, actorID string, kind RoomKi
 
 	c.logger.Info("Room deleted", "kind", kind, "room_id", room_id)
 
+	if kind == KindChannel {
+		c.notifyRoomLayoutChanged(ctx, actorID, "delete_room")
+	}
+
 	return nil
 }
 
@@ -390,9 +442,6 @@ func (c *ChattoCore) ArchiveRoom(ctx context.Context, actorID string, kind RoomK
 		return nil, fmt.Errorf("failed to archive room: %w", err)
 	}
 
-	// Remove from layout (archived rooms should not appear in layout sections)
-	c.removeRoomFromLayout(ctx, kind, roomID)
-
 	// Publish persisted event to space stream (best-effort)
 	event := newEvent(actorID, &corev1.Event{
 		Event: &corev1.Event_RoomArchived{
@@ -408,7 +457,7 @@ func (c *ChattoCore) ArchiveRoom(ctx context.Context, actorID string, kind RoomK
 	}
 
 	// Publish live event for real-time sync (sidebar/layout updates)
-	if err := c.PublishRoomLayoutUpdated(ctx, actorID, kind); err != nil {
+	if err := c.PublishRoomGroupsUpdated(ctx, actorID, kind); err != nil {
 		c.logger.Error("failed to publish room layout updated event after archive", "error", err)
 	}
 
@@ -416,8 +465,9 @@ func (c *ChattoCore) ArchiveRoom(ctx context.Context, actorID string, kind RoomK
 	return room, nil
 }
 
-// UnarchiveRoom sets a room's archived flag to false.
-// The room will reappear in sidebars and Browse Rooms as an unsorted room.
+// UnarchiveRoom sets a room's archived flag to false. Archive/unarchive
+// only toggles the flag — the room keeps its set position throughout the
+// cycle.
 // Authorization: Caller must verify CanManageAnyRoom before calling.
 func (c *ChattoCore) UnarchiveRoom(ctx context.Context, actorID string, kind RoomKind, roomID string) (*corev1.Room, error) {
 	room, err := c.GetRoom(ctx, kind, roomID)
@@ -452,36 +502,11 @@ func (c *ChattoCore) UnarchiveRoom(ctx context.Context, actorID string, kind Roo
 	}
 
 	// Publish live event for real-time sync (sidebar/layout updates)
-	if err := c.PublishRoomLayoutUpdated(ctx, actorID, kind); err != nil {
+	if err := c.PublishRoomGroupsUpdated(ctx, actorID, kind); err != nil {
 		c.logger.Error("failed to publish room layout updated event after unarchive", "error", err)
 	}
 
 	c.logger.Info("Room unarchived", "kind", kind, "room_id", roomID)
-	return room, nil
-}
-
-// SetRoomAutoJoin sets the auto_join flag on a room.
-// When auto_join is true, new space members automatically join this room.
-// Authorization: Caller must verify CanManageAnyRoom before calling.
-func (c *ChattoCore) SetRoomAutoJoin(ctx context.Context, actorID string, kind RoomKind, roomID string, autoJoin bool) (*corev1.Room, error) {
-	room, err := c.GetRoom(ctx, kind, roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	room.AutoJoin = autoJoin
-
-	bucket := c.storage.serverConfigKV
-	roomData, err := proto.Marshal(room)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal room: %w", err)
-	}
-	_, err = bucket.Put(ctx, roomKey(kind, room.Id), roomData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update room auto_join: %w", err)
-	}
-
-	c.logger.Info("Room auto_join updated", "kind", kind, "room_id", roomID, "auto_join", autoJoin)
 	return room, nil
 }
 
@@ -715,18 +740,20 @@ func (c *ChattoCore) GetRoomMembership(ctx context.Context, kind RoomKind, user_
 }
 
 // RoomMembershipExists checks if a user is a member of a room.
+//
+// Membership is strictly explicit: a user is a member iff a
+// `room_membership` KV record exists. A user with `room.join` who hasn't
+// joined is not yet a member.
 func (c *ChattoCore) RoomMembershipExists(ctx context.Context, kind RoomKind, user_id, room_id string) (bool, error) {
 	_, err := c.GetRoomMembership(ctx, kind, user_id, room_id)
-
-	if errors.Is(err, jetstream.ErrKeyNotFound) {
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, jetstream.ErrKeyNotFound):
 		return false, nil
-	}
-
-	if err != nil {
+	default:
 		return false, fmt.Errorf("failed to check membership for user %s in room %s: %w", user_id, room_id, err)
 	}
-
-	return true, nil
 }
 
 // JoinRoom creates or updates a room membership for a user.
@@ -811,7 +838,10 @@ func (c *ChattoCore) JoinRoom(ctx context.Context, actorID string, kind RoomKind
 // LeaveRoom removes a room membership for a user.
 // This operation is idempotent - it will succeed even if the membership doesn't exist.
 //
-// Business rule: DM conversations are permanent and cannot be left.
+// Business rules:
+//   - DM conversations are permanent and cannot be left.
+//   - Global rooms grant implicit membership to every server member and
+//     cannot be left (users can mute them via notification preferences).
 func (c *ChattoCore) LeaveRoom(ctx context.Context, actorID string, kind RoomKind, user_id, room_id string) error {
 	// DM conversations are permanent - users cannot leave them
 	if kind == KindDM {
@@ -1113,10 +1143,13 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 		return nil, fmt.Errorf("message must have either body or attachments")
 	}
 
-	// Verify room exists
-	_, err := c.GetRoom(ctx, kind, room_id)
+	// Verify room exists and isn't archived
+	room, err := c.GetRoom(ctx, kind, room_id)
 	if err != nil {
 		return nil, err
+	}
+	if room.Archived {
+		return nil, ErrRoomArchived
 	}
 
 	// If replying to a message inside a thread, inherit its thread root.
@@ -1506,7 +1539,7 @@ func (c *ChattoCore) GetMessageAuthorID(ctx context.Context, kind RoomKind, mess
 // Subsequent lazy-loading will result in an empty body field.
 // Publishes a MessageDeletedEvent to notify connected clients in real-time.
 // The messageBodyKey parameter is the full compound key ({userId}.{bodyId}) stored in the event.
-// Authorization: Caller must verify CanDeleteAnyMessage OR (CanDeleteOwnMessage AND ownership) before calling.
+// Authorization: Caller must verify the actor is the message author OR (CanManageOthersMessage AND OutranksAuthor) before calling.
 func (c *ChattoCore) DeleteMessage(ctx context.Context, actorID string, kind RoomKind, roomID, messageBodyKey string) error {
 	// Get the full message body first to find any attachments
 	messageBody, err := c.GetFullMessageBody(ctx, kind, messageBodyKey)
@@ -1573,10 +1606,19 @@ func (c *ChattoCore) publishMessageDeletedEvent(ctx context.Context, kind RoomKi
 // The messageBodyKey parameter is the full compound key ({userId}.{bodyId}) stored in the event.
 //
 // Business rule: Authors can only edit their own messages within MessageEditWindow (3 hours).
-// Non-authors (moderators with message.edit.any) can edit at any time.
+// Non-authors (moderators with message.manage) can edit at any time.
 //
-// Authorization: Caller must verify CanEditOwnMessage or CanEditAnyMessage before calling.
+// Authorization: Caller must verify the actor is the author OR (CanManageOthersMessage AND OutranksAuthor) before calling.
 func (c *ChattoCore) EditMessage(ctx context.Context, actorID string, kind RoomKind, roomID, messageBodyKey, newBody string) error {
+	// Block edits in archived rooms.
+	room, err := c.GetRoom(ctx, kind, roomID)
+	if err != nil {
+		return err
+	}
+	if room.Archived {
+		return ErrRoomArchived
+	}
+
 	bucket := c.storage.serverBodiesKV
 
 	// Get message with revision for optimistic locking
@@ -3441,151 +3483,48 @@ const roomLayoutKey = "room_layout"
 // maxLayoutRetries is the maximum number of OCC retry attempts for room layout updates.
 const maxLayoutRetries = 5
 
-// GetRoomLayout retrieves the room layout for a space from the CONFIG bucket.
-// Returns nil if no layout has been configured.
-func (c *ChattoCore) GetRoomLayout(ctx context.Context, kind RoomKind) (*corev1.RoomLayout, error) {
-	bucket := c.storage.serverConfigKV
-
-	entry, err := bucket.Get(ctx, roomLayoutKey)
-	if err != nil {
-		if errors.Is(err, jetstream.ErrKeyNotFound) {
-			return nil, nil // No layout configured
-		}
-		return nil, fmt.Errorf("failed to get room layout: %w", err)
-	}
-
-	layout := &corev1.RoomLayout{}
-	if err := proto.Unmarshal(entry.Value(), layout); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal room layout: %w", err)
-	}
-
-	return layout, nil
-}
-
-// UpdateRoomLayout atomically updates the room layout using optimistic concurrency control.
-// The layout is stored as a single KV entry for atomic reorders.
-// Retries up to maxLayoutRetries times on concurrent modification conflicts.
-func (c *ChattoCore) UpdateRoomLayout(ctx context.Context, kind RoomKind, layout *corev1.RoomLayout) (*corev1.RoomLayout, error) {
-	bucket := c.storage.serverConfigKV
-
-	data, err := proto.Marshal(layout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal room layout: %w", err)
-	}
-
-	for attempt := 0; attempt < maxLayoutRetries; attempt++ {
-		// Get current entry to obtain revision
-		entry, getErr := bucket.Get(ctx, roomLayoutKey)
-
-		var revision uint64
-		if getErr != nil {
-			if !errors.Is(getErr, jetstream.ErrKeyNotFound) {
-				return nil, fmt.Errorf("failed to get room layout: %w", getErr)
-			}
-			// Key doesn't exist — will use Create
-			revision = 0
-		} else {
-			revision = entry.Revision()
-		}
-
-		// Attempt atomic update
-		var writeErr error
-		if revision == 0 {
-			_, writeErr = bucket.Create(ctx, roomLayoutKey, data)
-		} else {
-			_, writeErr = bucket.Update(ctx, roomLayoutKey, data, revision)
-		}
-
-		if writeErr == nil {
-			return layout, nil
-		}
-
-		if errors.Is(writeErr, jetstream.ErrKeyExists) {
-			continue // Retry on conflict
-		}
-
-		return nil, fmt.Errorf("failed to store room layout: %w", writeErr)
-	}
-
-	return nil, ErrConfigConflict
-}
-
-// removeRoomFromLayout removes a room ID from the room layout (best-effort).
-// Called when a room is deleted to keep the layout consistent.
+// removeRoomFromLayout removes a room ID from every group document
+// (best-effort). Called when a room is deleted to keep group docs
+// consistent. The layout's `group_ids` ordering is not touched —
+// only per-group `room_ids` lists.
 func (c *ChattoCore) removeRoomFromLayout(ctx context.Context, kind RoomKind, roomID string) {
-	bucket := c.storage.serverConfigKV
-
-	for attempt := 0; attempt < maxLayoutRetries; attempt++ {
-		entry, err := bucket.Get(ctx, roomLayoutKey)
-		if err != nil {
-			return // No layout exists or error — nothing to clean up
+	if kind != KindChannel {
+		return
+	}
+	docs, err := c.listAllRoomGroupDocs(ctx)
+	if err != nil {
+		c.logger.Warn("removeRoomFromLayout: list groups", "error", err)
+		return
+	}
+	for groupID, g := range docs {
+		if !slices.Contains(g.RoomIds, roomID) {
+			continue
 		}
-
-		layout := &corev1.RoomLayout{}
-		if err := proto.Unmarshal(entry.Value(), layout); err != nil {
-			return
+		if err := c.mutateRoomGroup(ctx, groupID, func(g *corev1.RoomGroup) error {
+			g.RoomIds = slices.DeleteFunc(g.RoomIds, func(id string) bool { return id == roomID })
+			return nil
+		}); err != nil {
+			c.logger.Warn("removeRoomFromLayout: prune group",
+				"error", err, "group_id", groupID, "room_id", roomID)
 		}
-
-		// Remove the room ID from all sections and the unsectioned list
-		changed := false
-		for _, section := range layout.Sections {
-			filtered := section.RoomIds[:0]
-			for _, id := range section.RoomIds {
-				if id != roomID {
-					filtered = append(filtered, id)
-				} else {
-					changed = true
-				}
-			}
-			section.RoomIds = filtered
-		}
-		if len(layout.UnsortedRoomIds) > 0 {
-			filtered := layout.UnsortedRoomIds[:0]
-			for _, id := range layout.UnsortedRoomIds {
-				if id != roomID {
-					filtered = append(filtered, id)
-				} else {
-					changed = true
-				}
-			}
-			layout.UnsortedRoomIds = filtered
-		}
-
-		if !changed {
-			return // Room wasn't in the layout
-		}
-
-		data, err := proto.Marshal(layout)
-		if err != nil {
-			return
-		}
-
-		_, err = bucket.Update(ctx, roomLayoutKey, data, entry.Revision())
-		if err == nil {
-			return // Success
-		}
-
-		if errors.Is(err, jetstream.ErrKeyExists) {
-			continue // Retry on conflict
-		}
-		return // Other error — give up
 	}
 }
 
-// PublishRoomLayoutUpdated publishes a live event notifying clients that the room layout was updated.
-// Authorization: The event is published to the instance space subject, so it is delivered
-// to all space members via the existing instance event authorization filter.
-func (c *ChattoCore) PublishRoomLayoutUpdated(ctx context.Context, actorID string, kind RoomKind) error {
+// PublishRoomGroupsUpdated publishes a live event notifying clients that the
+// channel-room groups (their ordering, names, or membership) changed.
+// Authorization: published to the deployment-scoped config subject, delivered
+// to all authenticated users via the existing live-event authorization filter.
+func (c *ChattoCore) PublishRoomGroupsUpdated(ctx context.Context, actorID string, kind RoomKind) error {
 	event := &corev1.Event{
 		CreatedAt: timestamppb.Now(),
 		ActorId:   actorID,
-		Event: &corev1.Event_RoomLayoutUpdated{
-			RoomLayoutUpdated: &corev1.RoomLayoutUpdatedEvent{
+		Event: &corev1.Event_RoomGroupsUpdated{
+			RoomGroupsUpdated: &corev1.RoomGroupsUpdatedEvent{
 				SpaceId: SpaceIDForKind(kind),
 			},
 		},
 	}
 
-	subject := subjects.LiveConfigEvent("room_layout_updated")
+	subject := subjects.LiveConfigEvent("room_groups_updated")
 	return c.publishLiveEvent(ctx, subject, event)
 }

@@ -19,6 +19,18 @@ func expectedDenyKey(subject string, perm Permission, objectId string) string {
 	return rbac.DenyKey(subject, parts.Verb, parts.ObjectType, objectId)
 }
 
+// Helper to construct expected room-override allow key from permission
+func expectedRoomAllowKey(roomID, subject string, perm Permission) string {
+	parts := perm.KeyParts()
+	return rbac.RoomAllowKey(roomID, subject, parts.Verb, parts.ObjectType)
+}
+
+// Helper to construct expected room-override deny key from permission
+func expectedRoomDenyKey(roomID, subject string, perm Permission) string {
+	parts := perm.KeyParts()
+	return rbac.RoomDenyKey(roomID, subject, parts.Verb, parts.ObjectType)
+}
+
 // ============================================================================
 // Instance-Level Role Operations Tests
 // ============================================================================
@@ -231,16 +243,16 @@ func TestClearSpaceRolePermission(t *testing.T) {
 
 	t.Run("clears both grant and denial at space level", func(t *testing.T) {
 		// Grant then clear
-		_ = core.GrantInstancePermission(ctx, RoleEveryone, PermRoomList)
+		_ = core.GrantInstancePermission(ctx, RoleEveryone, PermRoomJoin)
 
-		err := core.ClearInstancePermissionState(ctx, RoleEveryone, PermRoomList)
+		err := core.ClearInstancePermissionState(ctx, RoleEveryone, PermRoomJoin)
 		if err != nil {
 			t.Fatalf("ClearSpaceRolePermission() error = %v", err)
 		}
 
 		// Verify keys are gone
 		kv := core.storage.serverRBACKV
-		grantKey := expectedAllowKey(RoleEveryone, PermRoomList, rbac.ObjectIdAny)
+		grantKey := expectedAllowKey(RoleEveryone, PermRoomJoin, rbac.ObjectIdAny)
 		if _, err := kv.Get(ctx, grantKey); err == nil {
 			t.Error("Expected grant key to be cleared")
 		}
@@ -256,7 +268,7 @@ func TestGrantRoomRolePermission(t *testing.T) {
 	ctx := testContext(t)
 
 	user, _ := core.CreateUser(ctx, "system", "testuser", "Test User", "password123")
-	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "General", "General chat")
+	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "", "General", "General chat")
 
 	t.Run("creates correct KV key for room-level permission", func(t *testing.T) {
 		err := core.GrantRoomPermission(ctx, room.Id, RoleEveryone, PermMessagePost)
@@ -264,9 +276,9 @@ func TestGrantRoomRolePermission(t *testing.T) {
 			t.Fatalf("GrantRoomRolePermission() error = %v", err)
 		}
 
-		// Verify key was created with room ID as objectId
+		// Verify the per-room override key was created (ADR-031 shape).
 		kv := core.storage.serverRBACKV
-		expectedKey := expectedAllowKey(RoleEveryone, PermMessagePost, room.Id)
+		expectedKey := expectedRoomAllowKey(room.Id, RoleEveryone, PermMessagePost)
 		_, err = kv.Get(ctx, expectedKey)
 		if err != nil {
 			t.Errorf("Expected room grant key to exist, got error: %v", err)
@@ -287,7 +299,7 @@ func TestDenyRoomRolePermission(t *testing.T) {
 	ctx := testContext(t)
 
 	user, _ := core.CreateUser(ctx, "system", "testuser", "Test User", "password123")
-	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "General", "General chat")
+	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "", "General", "General chat")
 
 	t.Run("creates deny key at room level", func(t *testing.T) {
 		err := core.DenyRoomPermission(ctx, room.Id, RoleEveryone, PermMessagePost)
@@ -295,9 +307,9 @@ func TestDenyRoomRolePermission(t *testing.T) {
 			t.Fatalf("DenyRoomRolePermission() error = %v", err)
 		}
 
-		// Verify deny key was created
+		// Verify the per-room override deny key was created (ADR-031 shape).
 		kv := core.storage.serverRBACKV
-		expectedKey := expectedDenyKey(RoleEveryone, PermMessagePost, room.Id)
+		expectedKey := expectedRoomDenyKey(room.Id, RoleEveryone, PermMessagePost)
 		_, err = kv.Get(ctx, expectedKey)
 		if err != nil {
 			t.Errorf("Expected room deny key to exist, got error: %v", err)
@@ -317,7 +329,7 @@ func TestClearRoomRolePermission(t *testing.T) {
 	ctx := testContext(t)
 
 	user, _ := core.CreateUser(ctx, "system", "testuser", "Test User", "password123")
-	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "General", "General chat")
+	room, _ := core.CreateRoom(ctx, user.Id, KindChannel, "", "General", "General chat")
 
 	t.Run("clears both grant and denial at room level", func(t *testing.T) {
 		// Grant then clear
@@ -503,7 +515,7 @@ func TestInitDefaultPermissions(t *testing.T) {
 
 	t.Run("moderator has moderation permissions", func(t *testing.T) {
 		kv := core.storage.serverRBACKV
-		moderatorPerms := []Permission{PermMessageEditAny, PermMessageDeleteAny}
+		moderatorPerms := []Permission{PermMessageManage}
 		for _, perm := range moderatorPerms {
 			key := expectedAllowKey("moderator", perm, rbac.ObjectIdAny)
 			if _, err := kv.Get(ctx, key); err != nil {
@@ -549,34 +561,36 @@ func TestSetupAnnouncementsRoomPermissions(t *testing.T) {
 	}
 
 	// Create a regular room
-	regularRoom, err := core.CreateRoom(ctx, user.Id, KindChannel, "general", "")
+	regularRoom, err := core.CreateRoom(ctx, user.Id, KindChannel, "", "general", "")
 	if err != nil {
 		t.Fatalf("CreateRoom (general) failed: %v", err)
 	}
 
 	// Create an announcements room
-	annRoom, err := core.CreateRoom(ctx, user.Id, KindChannel, "announcements", "")
+	annRoom, err := core.CreateRoom(ctx, user.Id, KindChannel, "", "announcements", "")
 	if err != nil {
 		t.Fatalf("CreateRoom (announcements) failed: %v", err)
 	}
 
 	t.Run("announcements room denies message.post to everyone", func(t *testing.T) {
 		kv := core.storage.serverRBACKV
-		denyKey := expectedDenyKey(RoleEveryone, PermMessagePost, annRoom.Id)
+		denyKey := expectedRoomDenyKey(annRoom.Id, RoleEveryone, PermMessagePost)
 		_, err := kv.Get(ctx, denyKey)
 		if err != nil {
 			t.Errorf("Expected deny key %s to exist for announcements room", denyKey)
 		}
 	})
 
-	t.Run("announcements room grants message.post to owner, admin, and moderator", func(t *testing.T) {
+	t.Run("announcements room does not need explicit grants for higher-ranked roles", func(t *testing.T) {
 		kv := core.storage.serverRBACKV
 
+		// Higher-ranked roles (owner/admin/moderator) inherit message.post
+		// from their server-scope defaults; the resolver hits those grants
+		// before descending to the everyone-role deny.
 		for _, roleName := range []string{RoleOwner, RoleAdmin, RoleModerator} {
-			grantKey := expectedAllowKey(roleName, PermMessagePost, annRoom.Id)
-			_, err := kv.Get(ctx, grantKey)
-			if err != nil {
-				t.Errorf("Expected grant key %s to exist for %s in announcements room", grantKey, roleName)
+			grantKey := expectedRoomAllowKey(annRoom.Id, roleName, PermMessagePost)
+			if _, err := kv.Get(ctx, grantKey); err == nil {
+				t.Errorf("Did not expect grant key %s for %s in announcements room", grantKey, roleName)
 			}
 		}
 	})
@@ -585,7 +599,7 @@ func TestSetupAnnouncementsRoomPermissions(t *testing.T) {
 		kv := core.storage.serverRBACKV
 
 		// Regular room should NOT have the everyone denial for message.post
-		denyKey := expectedDenyKey(RoleEveryone, PermMessagePost, regularRoom.Id)
+		denyKey := expectedRoomDenyKey(regularRoom.Id, RoleEveryone, PermMessagePost)
 		_, err := kv.Get(ctx, denyKey)
 		if err == nil {
 			t.Errorf("Regular room should not have %s denial for everyone", PermMessagePost)

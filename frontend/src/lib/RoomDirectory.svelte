@@ -1,15 +1,18 @@
 <!--
 @component
 
-Room directory for browsing and joining rooms. Shows all non-archived
-rooms organized by the admin-defined layout (or alphabetically if none).
-Rooms can be joined without leaving the page.
+Room directory rendered as a responsive grid of group cards. Each card
+represents one room group from the admin-defined layout; rooms inside
+are compact rows with a join / joined / restricted indicator. The
+header carries a "Join all" affordance when there's at least one
+joinable, non-joined room left in the group.
 
-Both stores are passed in as props — the active server's `directory` (a
-`RoomDirectoryStore`) owns the all-rooms listing and optimistic join/leave
-state, and the active server's `roomsStore` (a `RoomsStore`) supplies
-the joined-membership set. Explicit props keep the component testable
-without context stubs and decoupled from the multi-server registry.
+Both stores are passed in as props — the active server's `directory`
+(`RoomDirectoryStore`) owns the all-rooms listing and optimistic
+join/leave state, and the active server's `roomsStore` (`RoomsStore`)
+supplies the joined-membership set. Explicit props keep the component
+testable without context stubs and decoupled from the multi-server
+registry.
 -->
 <script lang="ts">
   import { toast } from '$lib/ui/toast';
@@ -32,16 +35,8 @@ without context stubs and decoupled from the multi-server registry.
 
   // --- Derived data ---
 
-  // Joined membership comes from the active server's rooms store —
-  // RoomsSync keeps it current via per-server event handlers.
   const joinedRoomIds = $derived(new Set(roomsStore.rooms.map((r) => r.id)));
-
-  // Layout sections also come from the rooms store — same source the
-  // sidebar uses, so the directory shows the admin-configured layout
-  // consistently.
-  const layoutSections = $derived(roomsStore.layoutSections);
-  const unsectionedRoomIds = $derived(roomsStore.unsectionedRoomIds);
-
+  const roomGroups = $derived(roomsStore.roomGroups);
   const visibleRooms = $derived(directory.allRooms.filter((room) => !room.archived));
 
   function matchesSearch(room: DirectoryRoom): boolean {
@@ -59,48 +54,20 @@ without context stubs and decoupled from the multi-server registry.
 
   const visibleRoomMap = $derived(new Map(visibleRooms.map((r) => [r.id, r])));
 
-  function getSectionRooms(section: { roomIds: string[] }): DirectoryRoom[] {
-    return section.roomIds
+  function getSetRooms(set: { roomIds: string[] }): DirectoryRoom[] {
+    return set.roomIds
       .map((id) => visibleRoomMap.get(id))
       .filter((r): r is DirectoryRoom => r != null && matchesSearch(r));
   }
 
-  const visibleSections = $derived.by(() => {
-    if (!layoutSections) return [];
-    return layoutSections.filter((s) => getSectionRooms(s).length > 0);
+  const visibleSets = $derived.by(() => {
+    if (!roomGroups) return [];
+    return roomGroups.filter((s) => getSetRooms(s).length > 0);
   });
 
-  const unsectionedRooms = $derived.by(() => {
-    if (!layoutSections) return [];
-    const sectionedIds = new Set(layoutSections.flatMap((s) => s.roomIds));
-    const unsectioned = visibleRooms.filter((r) => !sectionedIds.has(r.id) && matchesSearch(r));
-
-    if (unsectionedRoomIds.length > 0) {
-      const roomMap = new Map(unsectioned.map((r) => [r.id, r]));
-      const ordered: DirectoryRoom[] = [];
-      // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local computation, not reactive state
-      const seen = new Set<string>();
-      for (const id of unsectionedRoomIds) {
-        const room = roomMap.get(id);
-        if (room) {
-          ordered.push(room);
-          seen.add(id);
-        }
-      }
-      const extra = unsectioned
-        .filter((r) => !seen.has(r.id))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      return [...ordered, ...extra];
-    }
-
-    return unsectioned.sort((a, b) => a.name.localeCompare(b.name));
-  });
-
-  const hasLayout = $derived(layoutSections !== null && layoutSections.length > 0);
+  const hasLayout = $derived(roomGroups !== null && roomGroups.length > 0);
   const hasVisibleResults = $derived(
-    hasLayout
-      ? visibleSections.length > 0 || unsectionedRooms.length > 0
-      : filteredRooms.length > 0
+    hasLayout ? visibleSets.length > 0 : filteredRooms.length > 0
   );
 
   // --- Actions ---
@@ -114,6 +81,65 @@ without context stubs and decoupled from the multi-server registry.
       console.error('Error joining room:', result.error);
     }
   }
+
+  async function handleJoinGroup(group: { id: string; name: string }) {
+    const result = await directory.joinGroup(group.id);
+    if (result.ok) {
+      if (result.joinedRoomIds.length === 0) {
+        toast.success(`Already in every room in ${group.name}`);
+      } else {
+        toast.success(
+          `Joined ${result.joinedRoomIds.length} room${result.joinedRoomIds.length === 1 ? '' : 's'} in ${group.name}`
+        );
+      }
+    } else {
+      toast.error('Failed to join group');
+      console.error('Error joining group:', result.error);
+    }
+  }
+
+  // A group is "join-allable" iff it has at least one not-yet-joined,
+  // self-joinable room. Cheap to compute per render — no debouncing needed.
+  function canJoinAllInGroup(rooms: DirectoryRoom[]): boolean {
+    return rooms.some(
+      (r) =>
+        r.viewerCanJoinRoom &&
+        !directory.isJoined(r.id, joinedRoomIds) &&
+        !directory.joiningIds.has(r.id)
+    );
+  }
+
+  // JS-based masonry: each card spans as many small grid rows as its
+  // measured height needs, so the browser packs cards via
+  // `grid-auto-flow: dense` and they end up left-to-right per row
+  // (proper Pinterest layout) without depending on the still-
+  // experimental `grid-template-rows: masonry` property.
+  const MASONRY_ROW = 8; // px; must match the grid container's grid-auto-rows
+  const MASONRY_GAP = 16; // px; must match the container's gap-4
+
+  function masonryItem(node: HTMLElement) {
+    let raf = 0;
+    function measure() {
+      // Use the card's natural content height — we set align-self: start
+      // on grid items, so the row span doesn't feed back into the height.
+      const h = node.getBoundingClientRect().height;
+      if (!h) return;
+      const rows = Math.max(1, Math.ceil((h + MASONRY_GAP) / (MASONRY_ROW + MASONRY_GAP)));
+      node.style.gridRow = `span ${rows}`;
+    }
+    function schedule() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(measure);
+    }
+    schedule();
+    const ro = new ResizeObserver(schedule);
+    ro.observe(node);
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }
+
 
   function promptLeaveRoom(room: DirectoryRoom) {
     leaveConfirmRoom = room;
@@ -136,93 +162,159 @@ without context stubs and decoupled from the multi-server registry.
   }
 </script>
 
-{#snippet roomItem(room: DirectoryRoom)}
+{#snippet roomRow(room: DirectoryRoom)}
   {@const joined = directory.isJoined(room.id, joinedRoomIds)}
   {@const joining = directory.joiningIds.has(room.id)}
   {@const leaving = directory.leavingIds.has(room.id)}
-  <li class="flex w-full items-center justify-between gap-4 px-4 py-3">
+  <!--
+    Every status indicator shares an identical outer box: btn-sm padding
+    + a 1px border + `w-24 shrink-0 justify-center`. Each variant uses
+    `border border-{tone}` so the inner content area stays at 22px
+    regardless of fill style — without explicit borders on the primary
+    variant, btn-secondary's visible border would shrink its content
+    area by 2px and read as a width mismatch.
+  -->
+  <!--
+    `transition-none` overrides the `transition-colors duration-100`
+    baked into the `btn` utility — hover swaps feel snappier without
+    the fade.
+  -->
+  {@const sizing = 'btn-sm w-28 shrink-0 justify-center border transition-none'}
+  {@const primarySolid = `btn btn-accent border-transparent ${sizing}`}
+  <!--
+    Joined rooms get a "ghost"-style button that fades into the card
+    background, so the eye is drawn to the saturated accent Join
+    buttons next to rooms the viewer can act on. Hover swaps to a
+    solid danger fill to telegraph the leave action.
+  -->
+  {@const joinedGhost = `btn border-border bg-background text-muted hover:!border-danger hover:!bg-danger hover:!text-white ${sizing}`}
+  {@const restrictedSoft = `btn border-border bg-background text-muted/70 !cursor-default opacity-80 ${sizing}`}
+  <li class="flex items-center gap-3 rounded px-3 py-1.5">
     <div class="min-w-0 flex-1">
-      <div class={['font-medium', joined ? '' : 'text-muted']}># {room.name}</div>
+      <div class="flex min-w-0 items-baseline gap-1 font-medium">
+        <span class="text-muted/60">#</span>
+        <span class="truncate">{room.name}</span>
+      </div>
       {#if room.description}
-        <div class="truncate text-sm text-muted">{room.description}</div>
+        <div class="truncate text-xs text-muted/80">{room.description}</div>
       {/if}
     </div>
 
     {#if joined}
       <button
         type="button"
-        class="w-22 shrink-0 cursor-pointer rounded-md border border-success/30 bg-success/10 px-3 py-1.5 text-center text-sm font-medium text-success hover:border-danger/30 hover:bg-danger/10 hover:text-danger disabled:cursor-wait disabled:opacity-50"
+        class="group {joinedGhost}"
         onclick={() => promptLeaveRoom(room)}
         disabled={leaving}
+        title={`Joined #${room.name} — click to leave`}
       >
-        {leaving ? 'Leaving...' : 'Joined'}
+        {#if leaving}
+          <span class="iconify uil--spinner animate-spin"></span>
+          Leaving
+        {:else}
+          <span class="iconify uil--check group-hover:hidden"></span>
+          <span class="iconify uil--sign-out-alt hidden group-hover:inline"></span>
+          <span class="group-hover:hidden">Joined</span>
+          <span class="hidden group-hover:inline">Leave</span>
+        {/if}
       </button>
     {:else if joining}
-      <span
-        class="w-22 shrink-0 rounded-md bg-primary px-3 py-1.5 text-center text-sm font-medium text-white opacity-50"
-      >
-        Joining...
-      </span>
+      <button type="button" class={primarySolid} disabled>
+        <span class="iconify uil--spinner animate-spin"></span>
+        Joining
+      </button>
     {:else if room.viewerCanJoinRoom}
-      <button
-        type="button"
-        class="w-22 shrink-0 cursor-pointer rounded-md bg-primary px-3 py-1.5 text-center text-sm font-medium text-white hover:bg-primary-hover"
-        onclick={() => handleJoin(room.id)}
-      >
+      <button type="button" class={primarySolid} onclick={() => handleJoin(room.id)}>
+        <span class="iconify uil--plus"></span>
         Join
       </button>
     {:else}
-      <span class="w-22 shrink-0 text-center text-sm text-muted">No permission</span>
+      <span class={restrictedSoft} title="You don't have permission to join this room">
+        <span class="iconify uil--lock"></span>
+        Restricted
+      </span>
     {/if}
   </li>
 {/snippet}
 
-{#snippet roomList(rooms: DirectoryRoom[])}
-  <ul class="divide-y divide-border overflow-hidden rounded-md border border-border">
-    {#each rooms as room (room.id)}
-      {@render roomItem(room)}
-    {/each}
-  </ul>
+{#snippet groupCard(set: { id: string; name: string; roomIds: string[] }, rooms: DirectoryRoom[])}
+  {@const joining = directory.joiningGroupIds.has(set.id)}
+  {@const canJoinAll = canJoinAllInGroup(rooms)}
+  <div
+    {@attach masonryItem}
+    class="self-start overflow-hidden rounded-xl border border-border bg-background"
+  >
+    <div class="flex items-center justify-between gap-4 border-b border-border p-4">
+      <h2 class="truncate text-lg font-semibold">{set.name}</h2>
+      {#if canJoinAll || joining}
+        <!-- Matches the per-row primary buttons: w-28 so the card's
+             header action lines up vertically with Join / Joined. -->
+        <button
+          type="button"
+          class="btn btn-accent btn-sm border border-transparent w-28 shrink-0 justify-center transition-none"
+          onclick={() => handleJoinGroup(set)}
+          disabled={joining}
+        >
+          {#if joining}
+            <span class="iconify uil--spinner animate-spin"></span>
+            Joining
+          {:else}
+            <span class="iconify uil--plus-circle"></span>
+            Join all
+          {/if}
+        </button>
+      {/if}
+    </div>
+    <!--
+      Horizontal inset (`px-1` + the menu-item's own `px-3` = 16px)
+      matches the header's `p-4` so the per-row buttons line up with
+      the "Join all" action above.
+    -->
+    <ul class="flex flex-col gap-0.5 px-1 py-2">
+      {#each rooms as room (room.id)}
+        {@render roomRow(room)}
+      {/each}
+    </ul>
+  </div>
 {/snippet}
 
-<div class="mb-4">
+<div class="mb-6">
   <input
     type="text"
-    placeholder="Filter rooms..."
+    placeholder="Search rooms…"
     bind:value={searchQuery}
-    class="w-full rounded-md border border-border bg-surface px-3 py-2 text-text placeholder:text-muted focus:border-primary focus:outline-none"
+    class="input w-full"
   />
 </div>
 
 {#if visibleRooms.length === 0}
-  <p class="text-muted">No rooms in this space yet.</p>
+  <p class="text-muted">No rooms in this server yet.</p>
 {:else if !hasVisibleResults}
   <p class="text-muted">No rooms match your filter.</p>
 {:else if hasLayout}
-  <!-- Sectioned layout -->
-  <div class="flex flex-col gap-6">
-    {#each visibleSections as section (section.id)}
-      {@const sectionRooms = getSectionRooms(section)}
-      <div>
-        <h3 class="mb-2 text-xs font-semibold tracking-wider text-muted uppercase">
-          {section.name}
-        </h3>
-        {@render roomList(sectionRooms)}
-      </div>
+  <!-- Row-major masonry via JS row-spans. Each card is measured by the
+       `masonryItem` attachment, which sets `grid-row: span N` to fit
+       its content. `grid-auto-flow: dense` then packs cards left-to-
+       right, filling shorter columns first. Works everywhere CSS Grid
+       does — no dependency on the experimental masonry track. -->
+  <div
+    class="grid gap-4"
+    style="grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); grid-auto-rows: 8px; grid-auto-flow: row dense;"
+  >
+    {#each visibleSets as set (set.id)}
+      {@render groupCard(set, getSetRooms(set))}
     {/each}
-
-    {#if unsectionedRooms.length > 0}
-      <div>
-        {#if visibleSections.length > 0}
-          <h3 class="mb-2 text-xs font-semibold tracking-wider text-muted uppercase">Other</h3>
-        {/if}
-        {@render roomList(unsectionedRooms)}
-      </div>
-    {/if}
   </div>
 {:else}
-  <!-- No layout configured — flat list sorted alphabetically -->
-  {@render roomList(filteredRooms)}
+  <div
+    class="grid gap-4"
+    style="grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); grid-auto-rows: 8px; grid-auto-flow: row dense;"
+  >
+    {@render groupCard(
+      { id: 'all', name: 'Rooms', roomIds: filteredRooms.map((r) => r.id) },
+      filteredRooms
+    )}
+  </div>
 {/if}
 
 <Dialog bind:visible={leaveConfirmVisible} title="Leave Room" size="sm">

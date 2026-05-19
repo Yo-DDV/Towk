@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { page } from '$app/state';
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { graphql } from '$lib/gql';
   import { useQuery, useMutation, useActiveRoomLayoutUpdated } from '$lib/hooks';
-  import { Panel } from '$lib/components/admin';
-  import { Hint } from '$lib/ui';
+  import { serverIdToSegment } from '$lib/navigation';
+  import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { EmptyState, Hint, Pill, ToggleChip } from '$lib/ui';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import Dialog from '$lib/ui/Dialog.svelte';
@@ -12,47 +14,77 @@
   import CreateRoom from '$lib/CreateRoom.svelte';
   import { Button, TextInput, TextArea } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
-  import { untrack } from 'svelte';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import { flip } from 'svelte/animate';
 
+  const serverSegment = $derived(serverIdToSegment(getActiveServer()));
+
   // --- Queries & Mutations ---
 
-  const RoomLayoutQuery = graphql(`
-    query AdminRoomLayout {
+  const RoomGroupsQuery = graphql(`
+    query AdminRoomGroups {
       server {
         rooms(type: CHANNEL) {
           id
           name
           description
           archived
-          autoJoin
         }
-        roomLayout {
-          sections {
-            id
-            name
-            rooms {
-              id
-            }
-          }
-          unsectionedRoomIds
-        }
-      }
-    }
-  `);
-
-  const UpdateRoomLayoutMutation = graphql(`
-    mutation UpdateRoomLayout($input: UpdateRoomLayoutInput!) {
-      updateRoomLayout(input: $input) {
-        sections {
+        roomGroups {
           id
           name
           rooms {
             id
           }
         }
-        unsectionedRoomIds
+      }
+    }
+  `);
+
+  const CreateRoomGroupMutation = graphql(`
+    mutation AdminCreateRoomGroup($input: CreateRoomGroupInput!) {
+      createRoomGroup(input: $input) {
+        id
+        name
+      }
+    }
+  `);
+
+  const UpdateRoomGroupMutation = graphql(`
+    mutation AdminUpdateRoomGroup($input: UpdateRoomGroupInput!) {
+      updateRoomGroup(input: $input) {
+        id
+        name
+      }
+    }
+  `);
+
+  const DeleteRoomGroupMutation = graphql(`
+    mutation AdminDeleteRoomGroup($input: DeleteRoomGroupInput!) {
+      deleteRoomGroup(input: $input)
+    }
+  `);
+
+  const ReorderRoomGroupsMutation = graphql(`
+    mutation AdminReorderRoomGroups($input: ReorderRoomGroupsInput!) {
+      reorderRoomGroups(input: $input) {
+        id
+      }
+    }
+  `);
+
+  const MoveRoomToSetMutation = graphql(`
+    mutation AdminMoveRoomToSet($input: MoveRoomToSetInput!) {
+      moveRoomToSet(input: $input) {
+        id
+      }
+    }
+  `);
+
+  const ReorderRoomsInGroupMutation = graphql(`
+    mutation AdminReorderRoomsInGroup($input: ReorderRoomsInGroupInput!) {
+      reorderRoomsInGroup(input: $input) {
+        id
       }
     }
   `);
@@ -85,27 +117,27 @@
     }
   `);
 
-  const SetRoomAutoJoinMutation = graphql(`
-    mutation SetRoomAutoJoin($input: SetRoomAutoJoinInput!) {
-      setRoomAutoJoin(input: $input) {
-        id
-        autoJoin
-      }
-    }
-  `);
-
-  const layoutQuery = useQuery(RoomLayoutQuery, () => ({}));
-  const updateLayoutMutation = useMutation(UpdateRoomLayoutMutation);
+  const layoutQuery = useQuery(RoomGroupsQuery, () => ({}));
+  const createGroupMutation = useMutation(CreateRoomGroupMutation);
+  const updateGroupMutation = useMutation(UpdateRoomGroupMutation);
+  const deleteGroupMutation = useMutation(DeleteRoomGroupMutation);
+  const reorderGroupsMutation = useMutation(ReorderRoomGroupsMutation);
+  const moveRoomMutation = useMutation(MoveRoomToSetMutation);
+  const reorderRoomsMutation = useMutation(ReorderRoomsInGroupMutation);
   const updateRoomMutation = useMutation(UpdateRoomMutation);
   const archiveMutation = useMutation(ArchiveRoomMutation);
   const unarchiveMutation = useMutation(UnarchiveRoomMutation);
-  const setAutoJoinMutation = useMutation(SetRoomAutoJoinMutation);
 
   // --- Types ---
 
-  type RoomInfo = { id: string; name: string; description?: string | null; autoJoin: boolean };
+  type RoomInfo = {
+    id: string;
+    name: string;
+    description?: string | null;
+    archived: boolean;
+  };
   type DndRoomItem = RoomInfo & { id: string };
-  type SectionState = {
+  type GroupState = {
     id: string;
     name: string;
     rooms: DndRoomItem[];
@@ -113,97 +145,51 @@
 
   // --- Local state ---
 
-  let sections = $state<SectionState[]>([]);
-  let unsorted = $state<DndRoomItem[]>([]);
-  let archivedItems = $state<DndRoomItem[]>([]);
+  let groups = $state<GroupState[]>([]);
   let initialized = $state(false);
   let isDragging = $state(false);
   let lastMutationTimestamp = 0;
 
-  let loading = $derived(layoutQuery.loading);
+  // Only show the spinner on the very first load — subsequent refetches
+  // (triggered by mutations and live events) shouldn't flash the page tree
+  // away. Local state already reflects the optimistic update; the refetch
+  // just reconciles with the server.
+  let loading = $derived(layoutQuery.loading && !initialized);
   let error = $derived(
     layoutQuery.error ??
       (!layoutQuery.loading && !layoutQuery.data?.server ? 'Server not found' : null)
   );
 
-  // Build lookup maps for active and archived rooms. The query asks the
-  // server for channels only — `Server.rooms(type: CHANNEL)` — so DM rooms
-  // (which the server merges into `Server.rooms` by default for the
-  // unified sidebar) are not in the result.
+  // Build a lookup of every channel room (active and archived). Archived
+  // rooms keep their set position in the admin so the operator can find
+  // and unarchive them; the frontend's regular sidebar filters them out.
   let allRooms = $derived(layoutQuery.data?.server?.rooms ?? []);
-  let activeRoomsMap = $derived(
+  let roomsMap = $derived(
     new Map<string, RoomInfo>(
-      allRooms
-        .filter((r) => !r.archived)
-        .map((r) => [
-          r.id,
-          { id: r.id, name: r.name, description: r.description, autoJoin: r.autoJoin }
-        ])
+      allRooms.map((r) => [
+        r.id,
+        {
+          id: r.id,
+          name: r.name,
+          description: r.description,
+          archived: r.archived
+        }
+      ])
     )
   );
-  // Server-side archived room IDs (used to detect DnD boundary crossings)
-  let archivedRoomIds = $derived(new Set(allRooms.filter((r) => r.archived).map((r) => r.id)));
 
-  // Initialize local state from query data.
-  // Only re-runs when layoutQuery.data changes (on refetch).
-  // During DnD, no refetch happens, so local state is preserved.
-  // Real-time events are debounced by lastMutationTimestamp in the
-  // useRoomLayoutUpdated handler, preventing unwanted refetches.
+  // Initialize local state from query data. Only re-runs when layoutQuery
+  // data changes (on refetch). Real-time events are debounced via
+  // lastMutationTimestamp to avoid clobbering in-flight DnD edits.
   $effect(() => {
     const space = layoutQuery.data?.server;
     if (!space) return;
 
-    const layout = space.roomLayout;
-
-    if (layout) {
-      sections = layout.sections.map((s) => ({
-        id: s.id,
-        name: s.name,
-        rooms: s.rooms.map((r) => activeRoomsMap.get(r.id)).filter((r): r is RoomInfo => r != null)
-      }));
-
-      // Unsorted = active rooms not in any section, respecting stored order
-      const sectionedIds = new Set(layout.sections.flatMap((s) => s.rooms.map((r) => r.id)));
-      const unsortedActiveRooms = new Map(
-        [...activeRoomsMap.entries()].filter(([id]) => !sectionedIds.has(id))
-      );
-
-      if (layout.unsectionedRoomIds.length > 0) {
-        // Use stored order, then append new rooms alphabetically
-        const ordered: DndRoomItem[] = [];
-        // eslint-disable-next-line svelte/prefer-svelte-reactivity -- local computation, not reactive state
-        const seen = new Set<string>();
-        for (const id of layout.unsectionedRoomIds) {
-          const room = unsortedActiveRooms.get(id);
-          if (room) {
-            ordered.push(room);
-            seen.add(id);
-          }
-        }
-        const extra = [...unsortedActiveRooms.values()]
-          .filter((r) => !seen.has(r.id))
-          .sort((a, b) => a.name.localeCompare(b.name));
-        unsorted = [...ordered, ...extra];
-      } else {
-        unsorted = [...unsortedActiveRooms.values()].sort((a, b) => a.name.localeCompare(b.name));
-      }
-    } else {
-      sections = [];
-      unsorted = [...activeRoomsMap.values()].sort((a, b) => a.name.localeCompare(b.name));
-    }
-
-    // Archived rooms (DnD-compatible)
-    archivedItems = allRooms
-      .filter((r) => r.archived)
-      .map((r) => ({ id: r.id, name: r.name, description: r.description, autoJoin: r.autoJoin }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    // Set lastSavedSnapshot from the just-computed local state so it
-    // matches layoutSnapshot exactly (avoids false save on first load
-    // when the server has no stored unsectionedRoomIds yet).
-    // Use untrack to avoid creating dependencies on sections/unsorted
-    // (which this effect also writes to — reading them would cause an infinite loop).
-    lastSavedSnapshot = untrack(() => layoutSnapshot);
+    groups = space.roomGroups.map((s) => ({
+      id: s.id,
+      name: s.name,
+      rooms: s.rooms.map((r) => roomsMap.get(r.id)).filter((r): r is RoomInfo => r != null)
+    }));
 
     initialized = true;
   });
@@ -216,226 +202,246 @@
     layoutQuery.refetch();
   });
 
-  // --- Section creation modal ---
+  // --- Set creation modal ---
 
-  let createSectionDialogVisible = $state(false);
-  let newSectionName = $state('');
+  let createGroupDialogVisible = $state(false);
+  let newGroupName = $state('');
 
-  function openCreateSection() {
-    newSectionName = '';
-    createSectionDialogVisible = true;
+  function openCreateGroup() {
+    newGroupName = '';
+    createGroupDialogVisible = true;
   }
 
-  function handleCreateSectionSubmit(e: Event) {
+  async function handleCreateGroupSubmit(e: Event) {
     e.preventDefault();
-    const name = newSectionName.trim();
+    const name = newGroupName.trim();
     if (!name) return;
 
-    sections = [
-      ...sections,
-      {
-        id: crypto.randomUUID(),
-        name,
-        rooms: []
-      }
-    ];
-    newSectionName = '';
-    createSectionDialogVisible = false;
-  }
-
-  function renameSection(sectionId: string, newName: string) {
-    const idx = sections.findIndex((s) => s.id === sectionId);
-    if (idx !== -1) {
-      sections[idx] = { ...sections[idx], name: newName };
+    const result = await createGroupMutation.execute({ input: { name } });
+    if (result.error || !result.data?.createRoomGroup) {
+      toast.error(`Failed to create group: ${result.error ?? 'unknown error'}`);
+      return;
     }
+    const created = result.data.createRoomGroup;
+    groups = [...groups, { id: created.id, name: created.name, rooms: [] }];
+    newGroupName = '';
+    createGroupDialogVisible = false;
+    lastMutationTimestamp = Date.now();
+    toast.success('Group created');
   }
 
-  let deleteSectionConfirmDialogVisible = $state(false);
-  let deleteSectionConfirm = $state<SectionState | null>(null);
-
-  function confirmDeleteSection(section: SectionState) {
-    deleteSectionConfirm = section;
-    deleteSectionConfirmDialogVisible = true;
-  }
-
-  function deleteSection() {
-    if (!deleteSectionConfirm) return;
-    const idx = sections.findIndex((s) => s.id === deleteSectionConfirm!.id);
+  async function renameGroup(groupId: string, newName: string) {
+    const idx = groups.findIndex((s) => s.id === groupId);
     if (idx === -1) return;
+    const result = await updateGroupMutation.execute({
+      input: { id: groupId, name: newName }
+    });
+    if (result.error) {
+      toast.error(`Failed to rename group: ${result.error}`);
+      return;
+    }
+    groups[idx] = { ...groups[idx], name: newName };
+    lastMutationTimestamp = Date.now();
+    toast.success('Group renamed');
+  }
 
-    // Move rooms back to unsorted (append at end to preserve existing order)
-    const removedRooms = sections[idx].rooms;
-    unsorted = [...unsorted, ...removedRooms];
-    sections = sections.filter((s) => s.id !== deleteSectionConfirm!.id);
-    deleteSectionConfirmDialogVisible = false;
-    deleteSectionConfirm = null;
+  let deleteGroupConfirmDialogVisible = $state(false);
+  let deleteGroupConfirm = $state<GroupState | null>(null);
+
+  function confirmDeleteGroup(group: GroupState) {
+    deleteGroupConfirm = group;
+    deleteGroupConfirmDialogVisible = true;
+  }
+
+  async function deleteGroup() {
+    if (!deleteGroupConfirm) return;
+    const target = deleteGroupConfirm;
+    const result = await deleteGroupMutation.execute({ input: { id: target.id } });
+    deleteGroupConfirmDialogVisible = false;
+    deleteGroupConfirm = null;
+    if (result.error) {
+      toast.error(`Failed to delete group: ${result.error}`);
+      return;
+    }
+    groups = groups.filter((s) => s.id !== target.id);
+    lastMutationTimestamp = Date.now();
+    toast.success('Group deleted');
   }
 
   // --- Drag-and-drop handlers ---
+  //
+  // Two distinct mutations cover room drags:
+  //   - cross-group → `moveRoomToSet` per room that changed groups
+  //   - within-group reorder → `reorderRoomsInGroup` per group whose
+  //     room order changed
+  // svelte-dnd-action fires onfinalize on both source and target zones
+  // for cross-zone moves; we capture a pre-drag snapshot of every
+  // group's room order so the diff after the drag yields both kinds of
+  // change in one pass.
 
-  function handleSectionConsider(sectionId: string, e: CustomEvent<DndEvent<DndRoomItem>>) {
-    isDragging = true;
-    const idx = sections.findIndex((s) => s.id === sectionId);
-    if (idx !== -1) {
-      sections[idx] = { ...sections[idx], rooms: e.detail.items };
+  type GroupRoomOrder = Map<string, string[]>;
+
+  function buildGroupRoomOrder(state: GroupState[]): GroupRoomOrder {
+    const map = new Map<string, string[]>();
+    for (const g of state) map.set(g.id, g.rooms.map((r) => r.id));
+    return map;
+  }
+
+  function buildRoomToGroup(snapshot: GroupRoomOrder): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const [groupId, roomIds] of snapshot) {
+      for (const roomId of roomIds) map.set(roomId, groupId);
     }
+    return map;
   }
 
-  function handleSectionFinalize(sectionId: string, e: CustomEvent<DndEvent<DndRoomItem>>) {
-    const idx = sections.findIndex((s) => s.id === sectionId);
-    if (idx !== -1) {
-      sections[idx] = { ...sections[idx], rooms: e.detail.items };
-    }
-    if (!checkBoundaryCrossing()) {
-      isDragging = false;
-    }
+  function sameOrder(a: string[], b: string[] | undefined): boolean {
+    if (!b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
   }
 
-  function handleUnsortedConsider(e: CustomEvent<DndEvent<DndRoomItem>>) {
-    isDragging = true;
-    unsorted = e.detail.items;
+  let preDragSnapshot: GroupRoomOrder | null = null;
+  let pendingMoveDiff = false;
+
+  function captureSnapshotIfNeeded() {
+    if (!preDragSnapshot) preDragSnapshot = buildGroupRoomOrder(groups);
   }
 
-  function handleUnsortedFinalize(e: CustomEvent<DndEvent<DndRoomItem>>) {
-    unsorted = e.detail.items;
-    if (!checkBoundaryCrossing()) {
-      isDragging = false;
-    }
-  }
+  async function flushRoomMoves() {
+    if (!preDragSnapshot) return;
+    const before = preDragSnapshot;
+    preDragSnapshot = null;
 
-  // Drag-and-drop for reordering sections themselves
-  type DndSectionItem = SectionState & { id: string };
+    const after = buildGroupRoomOrder(groups);
+    const beforeRoomGroup = buildRoomToGroup(before);
+    const afterRoomGroup = buildRoomToGroup(after);
 
-  let draggingSectionId = $state<string | null>(null);
-
-  function handleSectionsConsider(e: CustomEvent<DndEvent<DndSectionItem>>) {
-    isDragging = true;
-    draggingSectionId = e.detail.info?.id ?? null;
-    sections = e.detail.items;
-  }
-
-  function handleSectionsFinalize(e: CustomEvent<DndEvent<DndSectionItem>>) {
-    draggingSectionId = null;
-    sections = e.detail.items;
-    if (!checkBoundaryCrossing()) {
-      isDragging = false;
-    }
-  }
-
-  // Drag-and-drop for the archived zone
-  function handleArchivedConsider(e: CustomEvent<DndEvent<DndRoomItem>>) {
-    isDragging = true;
-    archivedItems = e.detail.items;
-  }
-
-  function handleArchivedFinalize(e: CustomEvent<DndEvent<DndRoomItem>>) {
-    archivedItems = e.detail.items;
-    if (!checkBoundaryCrossing()) {
-      // Re-sort alphabetically — reordering within archived is meaningless
-      archivedItems = [...archivedItems].sort((a, b) => a.name.localeCompare(b.name));
-      isDragging = false;
-    }
-  }
-
-  /**
-   * After any finalize, check if a room crossed the archive boundary.
-   * Returns true if a boundary crossing was detected (modal shown, isDragging stays true).
-   */
-  function checkBoundaryCrossing(): boolean {
-    // Skip if already showing a confirmation
-    if (archiveConfirmDialogVisible || unarchiveConfirmDialogVisible) return true;
-
-    // Check if a non-archived room was dragged into the archived zone
-    const newlyArchived = archivedItems.find((r) => !archivedRoomIds.has(r.id));
-    if (newlyArchived) {
-      confirmArchiveRoom(newlyArchived, 'dnd');
-      return true;
+    // Cross-group moves: room is now in a different group than before.
+    // The server's MoveRoomToGroup appends to the target's end; the
+    // post-move reorder pass below restores the user's intended position.
+    const moves: Array<{ roomId: string; groupId: string }> = [];
+    for (const [roomId, groupId] of afterRoomGroup) {
+      if (beforeRoomGroup.get(roomId) !== groupId) moves.push({ roomId, groupId });
     }
 
-    // Check if an archived room was dragged out of the archived zone
-    const currentArchivedIdSet = new Set(archivedItems.map((r) => r.id));
-    for (const id of archivedRoomIds) {
-      if (!currentArchivedIdSet.has(id)) {
-        const room =
-          unsorted.find((r) => r.id === id) ??
-          sections.flatMap((s) => s.rooms).find((r) => r.id === id);
-        if (room) {
-          pendingUnarchiveRoom = room;
-          unarchiveConfirmDialogVisible = true;
-          return true;
-        }
+    // Reorder pass: any group whose room sequence changed needs a
+    // `reorderRoomsInGroup` call. This covers both pure intra-group
+    // reorder and the "drop into the middle of another group" case
+    // (where the move appends, then this reorder lifts the room into
+    // its dropped position). Reorder always runs AFTER moves so the
+    // server's membership set already matches `after` at that point.
+    const reorders: Array<{ groupId: string; orderedRoomIds: string[] }> = [];
+    for (const [groupId, orderedRoomIds] of after) {
+      if (!sameOrder(orderedRoomIds, before.get(groupId))) {
+        reorders.push({ groupId, orderedRoomIds });
       }
     }
 
-    return false;
-  }
+    if (moves.length === 0 && reorders.length === 0) return;
 
-  // --- Auto-save layout ---
-
-  let layoutSnapshot = $derived(
-    JSON.stringify({
-      sections: sections.map((s) => ({
-        id: s.id,
-        name: s.name,
-        roomIds: s.rooms.map((r) => r.id)
-      })),
-      unsectionedRoomIds: unsorted.map((r) => r.id)
-    })
-  );
-
-  let lastSavedSnapshot = $state<string | null>(null);
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
-
-  $effect(() => {
-    void layoutSnapshot; // track changes
-
-    if (!initialized || isDragging) return;
-    if (layoutSnapshot === lastSavedSnapshot) return;
-
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
-      const snapshot = layoutSnapshot;
-      const result = await updateLayoutMutation.execute({
-        input: {
-          sections: sections.map((s) => ({
-            id: s.id,
-            name: s.name,
-            roomIds: s.rooms.map((r) => r.id)
-          })),
-          unsectionedRoomIds: unsorted.map((r) => r.id)
-        }
-      });
-
+    let anyFailed = false;
+    for (const move of moves) {
+      const result = await moveRoomMutation.execute({ input: move });
       if (result.error) {
-        toast.error(`Failed to save layout: ${result.error}`);
-      } else {
-        toast.success('Layout saved');
-        lastSavedSnapshot = snapshot;
-        lastMutationTimestamp = Date.now();
+        anyFailed = true;
+        toast.error(`Failed to move room: ${result.error}`);
       }
-    }, 500);
-
-    return () => clearTimeout(saveTimer);
-  });
-
-  // --- Section rename modal ---
-
-  let editSectionDialogVisible = $state(false);
-  let editSectionId = $state('');
-  let editSectionName = $state('');
-
-  function openEditSection(section: SectionState) {
-    editSectionId = section.id;
-    editSectionName = section.name;
-    editSectionDialogVisible = true;
+    }
+    for (const r of reorders) {
+      const result = await reorderRoomsMutation.execute({ input: r });
+      if (result.error) {
+        anyFailed = true;
+        toast.error(`Failed to reorder rooms: ${result.error}`);
+      }
+    }
+    lastMutationTimestamp = Date.now();
+    if (anyFailed) {
+      layoutQuery.refetch();
+    } else if (moves.length > 0) {
+      toast.success(moves.length === 1 ? 'Room moved' : `${moves.length} rooms moved`);
+    }
   }
 
-  function handleEditSectionSubmit(e: Event) {
-    e.preventDefault();
-    if (editSectionId && editSectionName.trim()) {
-      renameSection(editSectionId, editSectionName.trim());
+  function handleGroupConsider(groupId: string, e: CustomEvent<DndEvent<DndRoomItem>>) {
+    isDragging = true;
+    captureSnapshotIfNeeded();
+    const idx = groups.findIndex((s) => s.id === groupId);
+    if (idx !== -1) {
+      groups[idx] = { ...groups[idx], rooms: e.detail.items };
     }
-    editSectionDialogVisible = false;
+  }
+
+  function handleGroupFinalize(groupId: string, e: CustomEvent<DndEvent<DndRoomItem>>) {
+    const idx = groups.findIndex((s) => s.id === groupId);
+    if (idx !== -1) {
+      groups[idx] = { ...groups[idx], rooms: e.detail.items };
+    }
+    isDragging = false;
+    // svelte-dnd-action fires finalize on BOTH source and target zones
+    // for cross-zone moves. Batch the diff into the next microtask so we
+    // only emit mutations once both zones have updated.
+    if (!pendingMoveDiff) {
+      pendingMoveDiff = true;
+      queueMicrotask(() => {
+        pendingMoveDiff = false;
+        void flushRoomMoves();
+      });
+    }
+  }
+
+  // Drag-and-drop for reordering groups themselves
+  type DndGroupItem = GroupState & { id: string };
+
+  let draggingGroupId = $state<string | null>(null);
+  let preReorderIds: string[] | null = null;
+
+  function handleGroupsConsider(e: CustomEvent<DndEvent<DndGroupItem>>) {
+    isDragging = true;
+    draggingGroupId = e.detail.info?.id ?? null;
+    if (!preReorderIds) preReorderIds = groups.map((g) => g.id);
+    groups = e.detail.items;
+  }
+
+  async function handleGroupsFinalize(e: CustomEvent<DndEvent<DndGroupItem>>) {
+    draggingGroupId = null;
+    groups = e.detail.items;
+    isDragging = false;
+
+    const before = preReorderIds;
+    preReorderIds = null;
+    const after = groups.map((g) => g.id);
+    if (!before || (before.length === after.length && before.every((id, i) => id === after[i]))) {
+      return;
+    }
+
+    const result = await reorderGroupsMutation.execute({ input: { orderedIds: after } });
+    if (result.error) {
+      toast.error(`Failed to reorder groups: ${result.error}`);
+      layoutQuery.refetch();
+      return;
+    }
+    lastMutationTimestamp = Date.now();
+  }
+
+  // --- Set rename modal ---
+
+  let editGroupDialogVisible = $state(false);
+  let editGroupId = $state('');
+  let editGroupName = $state('');
+
+  function openEditGroup(group: GroupState) {
+    editGroupId = group.id;
+    editGroupName = group.name;
+    editGroupDialogVisible = true;
+  }
+
+  function handleEditGroupSubmit(e: Event) {
+    e.preventDefault();
+    if (editGroupId && editGroupName.trim()) {
+      renameGroup(editGroupId, editGroupName.trim());
+    }
+    editGroupDialogVisible = false;
   }
 
   // --- Room editing ---
@@ -493,14 +499,9 @@
   let archivingRoomId = $state<string | null>(null);
   let archiveConfirmDialogVisible = $state(false);
   let archiveConfirmRoom = $state<{ id: string; name: string } | null>(null);
-  let archiveTrigger = $state<'button' | 'dnd'>('button');
 
-  function confirmArchiveRoom(
-    room: { id: string; name: string },
-    trigger: 'button' | 'dnd' = 'button'
-  ) {
+  function confirmArchiveRoom(room: { id: string; name: string }) {
     archiveConfirmRoom = room;
-    archiveTrigger = trigger;
     archiveConfirmDialogVisible = true;
   }
 
@@ -519,7 +520,6 @@
     }
 
     archiveConfirmRoom = null;
-    isDragging = false;
     lastMutationTimestamp = Date.now();
     layoutQuery.refetch();
   }
@@ -527,15 +527,21 @@
   function cancelArchive() {
     archiveConfirmDialogVisible = false;
     archiveConfirmRoom = null;
-    if (archiveTrigger === 'dnd') {
-      isDragging = false;
-      lastMutationTimestamp = Date.now();
-      layoutQuery.refetch();
-    }
   }
 
-  async function unarchiveRoom(roomId: string) {
+  let unarchiveConfirmDialogVisible = $state(false);
+  let unarchiveConfirmRoom = $state<{ id: string; name: string } | null>(null);
+
+  function confirmUnarchiveRoom(room: { id: string; name: string }) {
+    unarchiveConfirmRoom = room;
+    unarchiveConfirmDialogVisible = true;
+  }
+
+  async function unarchiveRoom() {
+    if (!unarchiveConfirmRoom) return;
+    const roomId = unarchiveConfirmRoom.id;
     archivingRoomId = roomId;
+    unarchiveConfirmDialogVisible = false;
     const result = await unarchiveMutation.execute({ input: { roomId } });
     archivingRoomId = null;
 
@@ -546,365 +552,263 @@
       lastMutationTimestamp = Date.now();
       layoutQuery.refetch();
     }
+    unarchiveConfirmRoom = null;
   }
 
-  // --- Unarchive confirmation (DnD) ---
-
-  let unarchiveConfirmDialogVisible = $state(false);
-  let pendingUnarchiveRoom = $state<{ id: string; name: string } | null>(null);
-
-  async function confirmDndUnarchive() {
-    if (!pendingUnarchiveRoom) return;
-    const roomId = pendingUnarchiveRoom.id;
+  function cancelUnarchive() {
     unarchiveConfirmDialogVisible = false;
-
-    const result = await unarchiveMutation.execute({ input: { roomId } });
-
-    if (result.error) {
-      toast.error(`Failed to unarchive room: ${result.error}`);
-    } else {
-      toast.success('Room unarchived');
-    }
-
-    pendingUnarchiveRoom = null;
-    isDragging = false;
-    lastMutationTimestamp = Date.now();
-    layoutQuery.refetch();
+    unarchiveConfirmRoom = null;
   }
 
-  function cancelDndUnarchive() {
-    unarchiveConfirmDialogVisible = false;
-    pendingUnarchiveRoom = null;
-    isDragging = false;
-    lastMutationTimestamp = Date.now();
-    layoutQuery.refetch();
+  // --- Permissions navigation ---
+  //
+  // Group / room permissions live on dedicated routes
+  // (`/server-admin/rooms/group/[groupId]` and `.../room/[roomId]`).
+  // Clicking the shield chip navigates there; the destination page has
+  // its own back arrow.
+
+  function openGroupPermissions(group: GroupState) {
+    goto(
+      resolve('/chat/[serverId]/(chrome)/server-admin/rooms/group/[groupId]', {
+        serverId: serverSegment,
+        groupId: group.id
+      })
+    );
   }
 
-  // --- Auto-join toggle ---
-
-  async function toggleAutoJoin(roomId: string, currentValue: boolean) {
-    const result = await setAutoJoinMutation.execute({
-      input: { roomId, autoJoin: !currentValue }
-    });
-
-    if (result.error) {
-      toast.error(`Failed to update auto-join: ${result.error}`);
-    } else {
-      toast.success(!currentValue ? 'Auto-join enabled' : 'Auto-join disabled');
-      lastMutationTimestamp = Date.now();
-      layoutQuery.refetch();
-    }
+  function openRoomPermissions(room: RoomInfo) {
+    goto(
+      resolve('/chat/[serverId]/(chrome)/server-admin/rooms/room/[roomId]', {
+        serverId: serverSegment,
+        roomId: room.id
+      })
+    );
   }
 
   // --- Room creation modal ---
 
   let createRoomDialogVisible = $state(false);
+  let createRoomGroupId = $state<string | null>(null);
+
+  function openCreateRoom(group: GroupState) {
+    createRoomGroupId = group.id;
+    createRoomDialogVisible = true;
+  }
 
   function handleRoomCreated() {
     createRoomDialogVisible = false;
+    createRoomGroupId = null;
     toast.success('Room created');
     lastMutationTimestamp = Date.now();
     layoutQuery.refetch();
   }
 </script>
 
-{#snippet roomActions(room: DndRoomItem)}
-  <button
-    type="button"
-    class={[
-      'inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs',
-      room.autoJoin
-        ? 'bg-green-500/10 text-green-600 hover:bg-green-500/20 dark:text-green-400'
-        : 'text-muted hover:bg-surface-200 hover:text-text'
-    ]}
-    title={room.autoJoin
-      ? 'New members auto-join this room'
-      : 'New members do not auto-join this room'}
+{#snippet iconButton(opts: {
+  icon: string;
+  title: string;
+  onclick: () => void;
+  disabled?: boolean;
+  tone?: 'neutral' | 'warning' | 'danger';
+})}
+  <ToggleChip
+    tone={opts.tone ?? 'neutral'}
+    square
+    title={opts.title}
+    disabled={opts.disabled}
     onclick={(e) => {
       e.stopPropagation();
-      toggleAutoJoin(room.id, room.autoJoin);
+      opts.onclick();
     }}
   >
-    <span class={['iconify', room.autoJoin ? 'uil--check-circle' : 'uil--circle']}></span>
-    Auto-join
-  </button>
-  <button
-    type="button"
-    class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-200 hover:text-text"
-    title="Edit room"
-    onclick={(e) => {
-      e.stopPropagation();
-      openEditRoom(room);
-    }}
-  >
-    <span class="iconify uil--pen"></span>
-    Edit
-  </button>
-  <button
-    type="button"
-    class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-200 hover:text-warning"
-    title="Archive room"
-    disabled={archivingRoomId === room.id}
-    onclick={(e) => {
-      e.stopPropagation();
-      confirmArchiveRoom(room);
-    }}
-  >
-    <span class="iconify uil--archive"></span>
-    Archive
-  </button>
+    <span class={['iconify text-base', opts.icon]} aria-label={opts.title}></span>
+  </ToggleChip>
 {/snippet}
 
-{#snippet archivedRoomActions(room: DndRoomItem)}
-  <button
-    type="button"
-    class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-200 hover:text-text"
-    title="Edit room"
-    onclick={(e) => {
-      e.stopPropagation();
-      openEditRoom(room);
-    }}
-  >
-    <span class="iconify uil--pen"></span>
-    Edit
-  </button>
-  <button
-    type="button"
-    class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-200 hover:text-text"
-    title="Unarchive room"
-    disabled={archivingRoomId === room.id}
-    onclick={(e) => {
-      e.stopPropagation();
-      unarchiveRoom(room.id);
-    }}
-  >
-    <span class="iconify uil--redo"></span>
-    Unarchive
-  </button>
+{#snippet roomActions(room: DndRoomItem)}
+  {@render iconButton({
+    icon: 'uil--pen',
+    title: 'Edit room',
+    onclick: () => openEditRoom(room)
+  })}
+  {@render iconButton({
+    icon: 'uil--shield',
+    title: 'Per-room permission overrides',
+    onclick: () => openRoomPermissions(room)
+  })}
+  {#if room.archived}
+    {@render iconButton({
+      icon: 'uil--redo',
+      title: 'Unarchive room',
+      disabled: archivingRoomId === room.id,
+      onclick: () => confirmUnarchiveRoom(room)
+    })}
+  {:else}
+    {@render iconButton({
+      icon: 'uil--archive',
+      title: 'Archive room',
+      tone: 'warning',
+      disabled: archivingRoomId === room.id,
+      onclick: () => confirmArchiveRoom(room)
+    })}
+  {/if}
 {/snippet}
 
 <PageTitle title="Rooms | Space Admin" />
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-  <PaneHeader title="Rooms" subtitle="Create, edit, organize, and archive rooms" showMobileNav />
+  <PaneHeader
+    title="Rooms"
+    subtitle="Create, edit, organize, and archive rooms"
+    showMobileNav
+  />
 
-  <div class="flex flex-col gap-6 overflow-y-auto p-6">
+  <div class="flex flex-col gap-4 overflow-y-auto p-6">
     {#if loading}
       <div class="text-muted">Loading rooms...</div>
     {:else if error}
       <Hint tone="danger">{error}</Hint>
     {:else}
-      <!-- Sections & Rooms -->
-      <Panel title="Rooms" icon="iconify uil--layers">
-        <!-- Action buttons -->
-        <div class="mb-4 flex gap-3">
-          <Button variant="secondary" onclick={() => (createRoomDialogVisible = true)}>
-            <span class="iconify uil--plus"></span>
-            New Room
-          </Button>
-          <Button variant="secondary" onclick={openCreateSection}>
-            <span class="iconify uil--layer-group"></span>
-            New Section
-          </Button>
-        </div>
+      {#if groups.length === 0}
+        <EmptyState icon="uil--layer-group" title="No room groups yet">
+          Create a set to start organizing rooms.
+        </EmptyState>
+      {:else}
+        <Hint>
+          Drag rooms between groups to organize them. Drag group headers to reorder groups.
+          Archived rooms stay in their set but are hidden from members.
+        </Hint>
+      {/if}
 
-        <p class="mb-4 text-muted">
-          Drag rooms between sections to organize them. Drag section headers to reorder sections.
-          Drop rooms into Archived to archive them.
-        </p>
-
-        <div class="flex flex-col gap-6">
-          {#if sections.length > 0}
-            <div
-              class="flex flex-col gap-6"
-              use:dndzone={{
-                items: sections,
-                flipDurationMs: 200,
-                dropTargetStyle: {},
-                type: 'sections'
-              }}
-              onconsider={handleSectionsConsider}
-              onfinalize={handleSectionsFinalize}
+      <div
+        class="flex flex-col gap-4"
+        use:dndzone={{
+          items: groups,
+          flipDurationMs: 200,
+          dropTargetStyle: {},
+          type: 'groups'
+        }}
+        onconsider={handleGroupsConsider}
+        onfinalize={handleGroupsFinalize}
+      >
+        {#each groups as group (group.id)}
+          <section
+            animate:flip={{ duration: 200 }}
+            class={[
+              'overflow-hidden rounded-xl border border-border bg-background transition-shadow',
+              draggingGroupId === group.id && 'shadow-lg ring-1 ring-accent/30'
+            ]}
+          >
+            <!-- Set header -->
+            <header
+              class="group-header flex items-center gap-3 border-b border-border px-4 py-3"
             >
-              {#each sections as section (section.id)}
+              <span
+                role="button"
+                tabindex="0"
+                class="iconify shrink-0 cursor-grab text-lg text-muted hover:text-text uil--draggabledots"
+                title="Drag to reorder group"
+                aria-label="Drag to reorder group"
+              ></span>
+
+              <div class="flex min-w-0 flex-1 items-center gap-2">
+                <h2 class="truncate text-lg font-semibold">{group.name}</h2>
+                <Pill tone="muted">{group.rooms.length}</Pill>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onclick={() => openCreateRoom(group)}>
+                  <span class="iconify uil--plus"></span>
+                  New Room
+                </Button>
+                <div class="flex items-center gap-1.5">
+                  {@render iconButton({
+                    icon: 'uil--pen',
+                    title: 'Rename group',
+                    onclick: () => openEditGroup(group)
+                  })}
+                  {@render iconButton({
+                    icon: 'uil--shield',
+                    title: 'Group permissions',
+                    onclick: () => openGroupPermissions(group)
+                  })}
+                  {@render iconButton({
+                    icon: 'uil--trash-alt',
+                    title:
+                      group.rooms.length === 0
+                        ? 'Delete group'
+                        : 'Move all rooms out of this group before deleting',
+                    tone: 'danger',
+                    disabled: group.rooms.length > 0,
+                    onclick: () => confirmDeleteGroup(group)
+                  })}
+                </div>
+              </div>
+            </header>
+
+            <!-- Room drop zone -->
+            <div
+              class="min-h-12 p-2"
+              use:dndzone={{
+                items: group.rooms,
+                flipDurationMs: 200,
+                dropTargetStyle: {
+                  outline: '2px dashed var(--color-accent)',
+                  'outline-offset': '-2px',
+                  'border-radius': '0.5rem',
+                  'background-color': 'color-mix(in srgb, var(--color-accent) 5%, transparent)'
+                },
+                type: 'rooms'
+              }}
+              onconsider={(e) => handleGroupConsider(group.id, e)}
+              onfinalize={(e) => handleGroupFinalize(group.id, e)}
+            >
+              {#each group.rooms as room (room.id)}
                 <div
                   animate:flip={{ duration: 200 }}
                   class={[
-                    'rounded-lg transition-colors [&:has(>.section-header:hover)]:bg-surface-100',
-                    draggingSectionId === section.id && 'bg-surface-100'
+                    'group flex cursor-grab items-center gap-3 rounded-lg py-2 pl-3 pr-2 hover:bg-surface-100',
+                    room.archived && 'opacity-60'
                   ]}
                 >
-                  <!-- Section header -->
-                  <div class="section-header flex items-center gap-2 px-2 py-2">
-                    <span
-                      role="button"
-                      tabindex="0"
-                      class="hover:text-foreground iconify cursor-grab text-muted uil--draggabledots"
-                      title="Drag to reorder section"
-                      aria-label="Drag to reorder section"
-                    >
-                    </span>
-
-                    <span class="flex-1 font-semibold">
-                      {section.name}
-                    </span>
-
-                    <button
-                      type="button"
-                      class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-200 hover:text-text"
-                      title="Rename section"
-                      onclick={() => openEditSection(section)}
-                    >
-                      <span class="iconify uil--pen"></span>
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      class="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted hover:bg-surface-200 hover:text-danger"
-                      title="Delete section (rooms move to Unsorted)"
-                      onclick={() => confirmDeleteSection(section)}
-                    >
-                      <span class="iconify uil--trash-alt"></span>
-                      Delete
-                    </button>
-                  </div>
-
-                  <!-- Room drop zone -->
-                  <div
-                    class="min-h-10 pl-8"
-                    use:dndzone={{
-                      items: section.rooms,
-                      flipDurationMs: 200,
-                      dropTargetStyle: {
-                        outline: '2px dashed var(--color-muted)',
-                        'outline-offset': '-2px',
-                        'border-radius': '0.5rem',
-                        'background-color': 'color-mix(in srgb, var(--color-muted) 5%, transparent)'
-                      },
-                      type: 'rooms'
-                    }}
-                    onconsider={(e) => handleSectionConsider(section.id, e)}
-                    onfinalize={(e) => handleSectionFinalize(section.id, e)}
-                  >
-                    {#each section.rooms as room (room.id)}
-                      <div
-                        animate:flip={{ duration: 200 }}
-                        class="group flex cursor-grab items-start gap-2 rounded px-2 py-1.5 hover:bg-surface-100"
-                      >
-                        <span class="text-sm text-muted">#</span>
-                        <div class="min-w-0 flex-1">
-                          <span class="block truncate text-sm">{room.name}</span>
-                          {#if room.description}
-                            <span class="block truncate text-xs text-muted">{room.description}</span
-                            >
-                          {/if}
-                        </div>
-                        {@render roomActions(room)}
-                      </div>
-                    {:else}
-                      <div class="px-2 py-3 text-center text-muted">Drop rooms here</div>
-                    {/each}
-                  </div>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          <!-- Unsorted rooms -->
-          <div>
-            <div class="flex items-center gap-2 px-2 py-2">
-              <span class="iconify text-muted uil--inbox"></span>
-              <span class="flex-1 font-semibold text-muted">Unsorted</span>
-            </div>
-
-            <div
-              class="min-h-10 pl-8"
-              use:dndzone={{
-                items: unsorted,
-                flipDurationMs: 200,
-                dropTargetStyle: {
-                  outline: '2px dashed var(--color-muted)',
-                  'outline-offset': '-2px',
-                  'border-radius': '0.5rem',
-                  'background-color': 'color-mix(in srgb, var(--color-muted) 5%, transparent)'
-                },
-                type: 'rooms'
-              }}
-              onconsider={handleUnsortedConsider}
-              onfinalize={handleUnsortedFinalize}
-            >
-              {#each unsorted as room (room.id)}
-                <div
-                  animate:flip={{ duration: 200 }}
-                  class="group flex cursor-grab items-start gap-2 rounded px-2 py-1.5 hover:bg-surface-100"
-                >
-                  <span class="text-sm text-muted">#</span>
                   <div class="min-w-0 flex-1">
-                    <span class="block truncate text-sm">{room.name}</span>
+                    <div class="flex min-w-0 items-baseline gap-1">
+                      <span class="text-muted">#</span>
+                      <span class="truncate font-medium">{room.name}</span>
+                      {#if room.archived}
+                        <Pill tone="muted">Archived</Pill>
+                      {/if}
+                    </div>
                     {#if room.description}
-                      <span class="block truncate text-xs text-muted">{room.description}</span>
+                      <p class="truncate text-sm text-muted">{room.description}</p>
                     {/if}
                   </div>
-                  {@render roomActions(room)}
-                </div>
-              {:else}
-                <div class="px-2 py-3 text-center text-muted">All rooms are organized</div>
-              {/each}
-            </div>
-          </div>
-
-          <!-- Archived rooms -->
-          <div>
-            <div class="flex items-center gap-2 px-2 py-2">
-              <span class="iconify text-muted uil--archive"></span>
-              <span class="flex-1 font-semibold text-muted">Archived</span>
-            </div>
-
-            <div
-              class="min-h-10 pl-8"
-              use:dndzone={{
-                items: archivedItems,
-                flipDurationMs: 200,
-                dropTargetStyle: {
-                  outline: '2px dashed var(--color-muted)',
-                  'outline-offset': '-2px',
-                  'border-radius': '0.5rem',
-                  'background-color': 'color-mix(in srgb, var(--color-muted) 5%, transparent)'
-                },
-                type: 'rooms'
-              }}
-              onconsider={handleArchivedConsider}
-              onfinalize={handleArchivedFinalize}
-            >
-              {#each archivedItems as room (room.id)}
-                <div
-                  animate:flip={{ duration: 200 }}
-                  class="group flex cursor-grab items-start gap-2 rounded px-2 py-1.5 hover:bg-surface-100"
-                >
-                  <span class="text-sm text-muted/50">#</span>
-                  <div class="min-w-0 flex-1">
-                    <span class="block truncate text-sm text-muted">{room.name}</span>
-                    {#if room.description}
-                      <span class="block truncate text-xs text-muted/50">{room.description}</span>
-                    {/if}
+                  <div class="flex items-center gap-1.5">
+                    {@render roomActions(room)}
                   </div>
-                  {@render archivedRoomActions(room)}
                 </div>
               {:else}
-                <div class="px-2 py-3 text-center text-muted">Drop rooms here to archive them</div>
+                <div class="px-3 py-4 text-center text-sm text-muted">Drop rooms here</div>
               {/each}
             </div>
-          </div>
-        </div>
-      </Panel>
+          </section>
+        {/each}
+      </div>
+
+      <div class="flex justify-center">
+        <Button variant="secondary" onclick={openCreateGroup}>
+          <span class="iconify uil--plus"></span>
+          New Group
+        </Button>
+      </div>
     {/if}
   </div>
 </div>
 
 <!-- Create Room Dialog -->
 <Dialog bind:visible={createRoomDialogVisible} title="Create Room" size="sm">
-  {#if createRoomDialogVisible}
-    <CreateRoom onroomcreated={handleRoomCreated} />
+  {#if createRoomDialogVisible && createRoomGroupId}
+    <CreateRoom groupId={createRoomGroupId} onroomcreated={handleRoomCreated} />
   {/if}
 </Dialog>
 
@@ -939,56 +843,51 @@
   />
 </FormDialog>
 
-<!-- Create Section Dialog -->
+<!-- Create Group Dialog -->
 <FormDialog
-  bind:visible={createSectionDialogVisible}
-  title="Create Section"
+  bind:visible={createGroupDialogVisible}
+  title="Create Group"
   size="sm"
-  submitLabel="Create Section"
+  submitLabel="Create Group"
   submitIcon="iconify uil--plus"
-  disabled={!newSectionName.trim()}
-  onsubmit={handleCreateSectionSubmit}
-  onclose={() => (createSectionDialogVisible = false)}
+  disabled={!newGroupName.trim()}
+  onsubmit={handleCreateGroupSubmit}
+  onclose={() => (createGroupDialogVisible = false)}
 >
   <TextInput
-    id="new-section-name"
-    label="Section name"
-    bind:value={newSectionName}
+    id="new-group-name"
+    label="Group name"
+    bind:value={newGroupName}
     placeholder="e.g., General, Projects, Teams"
   />
 </FormDialog>
 
-<!-- Edit Section Dialog -->
+<!-- Edit Set Dialog -->
 <FormDialog
-  bind:visible={editSectionDialogVisible}
-  title="Rename Section"
+  bind:visible={editGroupDialogVisible}
+  title="Rename Group"
   size="sm"
   submitLabel="Save"
-  disabled={!editSectionName.trim()}
-  onsubmit={handleEditSectionSubmit}
-  onclose={() => (editSectionDialogVisible = false)}
+  disabled={!editGroupName.trim()}
+  onsubmit={handleEditGroupSubmit}
+  onclose={() => (editGroupDialogVisible = false)}
 >
-  <TextInput id="edit-section-name" label="Section name" bind:value={editSectionName} />
+  <TextInput id="edit-group-name" label="Group name" bind:value={editGroupName} />
 </FormDialog>
 
-<!-- Delete Section Confirmation Dialog -->
-{#if deleteSectionConfirmDialogVisible && deleteSectionConfirm}
+<!-- Delete Group Confirmation Dialog -->
+{#if deleteGroupConfirmDialogVisible && deleteGroupConfirm}
   <ConfirmDialog
-    title="Delete Section"
-    actionLabel="Delete Section"
+    title="Delete Group"
+    actionLabel="Delete Group"
     actionIcon="iconify uil--trash-alt"
-    onconfirm={deleteSection}
+    onconfirm={deleteGroup}
     onclose={() => {
-      deleteSectionConfirmDialogVisible = false;
-      deleteSectionConfirm = null;
+      deleteGroupConfirmDialogVisible = false;
+      deleteGroupConfirm = null;
     }}
   >
-    Are you sure you want to delete the section <strong>{deleteSectionConfirm.name}</strong>?
-    {#if deleteSectionConfirm.rooms.length > 0}
-      Its {deleteSectionConfirm.rooms.length} room{deleteSectionConfirm.rooms.length === 1
-        ? ''
-        : 's'} will be moved to Unsorted.
-    {/if}
+    Are you sure you want to delete the set <strong>{deleteGroupConfirm.name}</strong>?
   </ConfirmDialog>
 {/if}
 
@@ -1008,17 +907,20 @@
   </ConfirmDialog>
 {/if}
 
-<!-- Unarchive Room Confirmation Dialog (DnD) -->
-{#if unarchiveConfirmDialogVisible && pendingUnarchiveRoom}
+<!-- Unarchive Room Confirmation Dialog -->
+{#if unarchiveConfirmDialogVisible && unarchiveConfirmRoom}
   <ConfirmDialog
     title="Unarchive Room"
-    tone="info"
+    tone="warning"
     actionLabel="Unarchive Room"
     actionIcon="iconify uil--redo"
-    onconfirm={confirmDndUnarchive}
-    onclose={cancelDndUnarchive}
+    loading={!!archivingRoomId}
+    onconfirm={unarchiveRoom}
+    onclose={cancelUnarchive}
   >
-    Are you sure you want to unarchive <strong>#{pendingUnarchiveRoom.name}</strong>? It will
-    become accessible to space members again.
+    Are you sure you want to unarchive <strong>#{unarchiveConfirmRoom.name}</strong>? Members will
+    be able to access it again.
   </ConfirmDialog>
 {/if}
+
+

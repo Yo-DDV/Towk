@@ -216,6 +216,18 @@ func (c *ChattoCore) hasRoomPermission(ctx context.Context, kind RoomKind, roomI
 	return c.permissionResolver.HasRoomPermission(ctx, userID, kind, roomID, perm)
 }
 
+// hasGroupPermission checks a permission at the room-group level (no room
+// context). Used for group-scoped capability gates like room.create. For
+// permissions that are also ScopeServer, the resolver falls back to the
+// server tier when no group decision exists.
+func (c *ChattoCore) hasGroupPermission(ctx context.Context, kind RoomKind, groupID, userID string, perm Permission) (bool, error) {
+	decision, err := c.permissionResolver.ResolveGroup(ctx, userID, kind, groupID, perm)
+	if err != nil {
+		return false, err
+	}
+	return decision == DecisionAllow, nil
+}
+
 // ============================================================================
 // Server-tier Role Assignment
 // ============================================================================
@@ -668,17 +680,19 @@ func (c *ChattoCore) ReorderServerRoles(ctx context.Context, roleNames []string)
 	return result, nil
 }
 
-// GetRoomRolePermissions returns the room-level grants and denials for a role in a specific room.
+// GetRoomRolePermissions returns the per-room override grants and denials
+// for a role in a specific room. Reads ADR-031's room_allow / room_deny
+// key families.
 func (c *ChattoCore) GetRoomRolePermissions(ctx context.Context, roomID, roleName string) (grants []Permission, denials []Permission, err error) {
 	kv := c.storage.serverRBACKV
 
-	allowKeys, err := listKeysWithPattern(ctx, kv, rbac.AllowPatternForSubject(roleName))
+	allowKeys, err := listKeysWithPattern(ctx, kv, rbac.RoomAllowPatternForRoom(roomID))
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, key := range allowKeys {
-		parts := rbac.ParseAllowKey(key)
-		if parts.ObjectId == roomID {
+		parts := rbac.ParseRoomAllowKey(key)
+		if parts.Subject == roleName {
 			perm := ReconstructPermission(parts.Verb, parts.ObjectType)
 			if perm != "" {
 				grants = append(grants, perm)
@@ -686,13 +700,13 @@ func (c *ChattoCore) GetRoomRolePermissions(ctx context.Context, roomID, roleNam
 		}
 	}
 
-	denyKeys, err := listKeysWithPattern(ctx, kv, rbac.DenyPatternForSubject(roleName))
+	denyKeys, err := listKeysWithPattern(ctx, kv, rbac.RoomDenyPatternForRoom(roomID))
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, key := range denyKeys {
-		parts := rbac.ParseDenyKey(key)
-		if parts.ObjectId == roomID {
+		parts := rbac.ParseRoomDenyKey(key)
+		if parts.Subject == roleName {
 			perm := ReconstructPermission(parts.Verb, parts.ObjectType)
 			if perm != "" {
 				denials = append(denials, perm)
@@ -701,6 +715,91 @@ func (c *ChattoCore) GetRoomRolePermissions(ctx context.Context, roomID, roleNam
 	}
 
 	return grants, denials, nil
+}
+
+// GetGroupRolePermissions returns the set-scope grants and denials for a role
+// in a specific room group (ADR-031).
+func (c *ChattoCore) GetGroupRolePermissions(ctx context.Context, groupID, roleName string) (grants []Permission, denials []Permission, err error) {
+	kv := c.storage.serverRBACKV
+
+	allowKeys, err := listKeysWithPattern(ctx, kv, rbac.GroupAllowPatternForGroup(groupID))
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, key := range allowKeys {
+		parts := rbac.ParseSetAllowKey(key)
+		if parts.Subject == roleName {
+			perm := ReconstructPermission(parts.Verb, parts.ObjectType)
+			if perm != "" {
+				grants = append(grants, perm)
+			}
+		}
+	}
+
+	denyKeys, err := listKeysWithPattern(ctx, kv, rbac.GroupDenyPatternForGroup(groupID))
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, key := range denyKeys {
+		parts := rbac.ParseSetDenyKey(key)
+		if parts.Subject == roleName {
+			perm := ReconstructPermission(parts.Verb, parts.ObjectType)
+			if perm != "" {
+				denials = append(denials, perm)
+			}
+		}
+	}
+
+	return grants, denials, nil
+}
+
+// GrantGroupPermission writes a group-scope grant for a role on a specific room group.
+func (c *ChattoCore) GrantGroupPermission(ctx context.Context, groupID, roleName string, perm Permission) error {
+	if !PermissionAppliesAtScope(perm, ScopeGroup) && !PermissionAppliesAtScope(perm, ScopeRoom) {
+		return fmt.Errorf("permission %s does not apply at group scope", perm)
+	}
+	parts := perm.KeyParts()
+	if parts.Verb == "" || parts.ObjectType == "" {
+		return fmt.Errorf("invalid permission: %s", perm)
+	}
+	kv := c.storage.serverRBACKV
+	if _, err := kv.Put(ctx, rbac.GroupAllowKey(groupID, roleName, parts.Verb, parts.ObjectType), []byte("1")); err != nil {
+		return fmt.Errorf("write set allow: %w", err)
+	}
+	_ = kv.Delete(ctx, rbac.GroupDenyKey(groupID, roleName, parts.Verb, parts.ObjectType))
+	c.logger.Debug("Granted set permission", "set", groupID, "role", roleName, "permission", perm)
+	return nil
+}
+
+// DenyGroupPermission writes a group-scope deny for a role on a specific room group.
+func (c *ChattoCore) DenyGroupPermission(ctx context.Context, groupID, roleName string, perm Permission) error {
+	if !PermissionAppliesAtScope(perm, ScopeGroup) && !PermissionAppliesAtScope(perm, ScopeRoom) {
+		return fmt.Errorf("permission %s does not apply at group scope", perm)
+	}
+	parts := perm.KeyParts()
+	if parts.Verb == "" || parts.ObjectType == "" {
+		return fmt.Errorf("invalid permission: %s", perm)
+	}
+	kv := c.storage.serverRBACKV
+	if _, err := kv.Put(ctx, rbac.GroupDenyKey(groupID, roleName, parts.Verb, parts.ObjectType), []byte("1")); err != nil {
+		return fmt.Errorf("write set deny: %w", err)
+	}
+	_ = kv.Delete(ctx, rbac.GroupAllowKey(groupID, roleName, parts.Verb, parts.ObjectType))
+	c.logger.Debug("Denied set permission", "set", groupID, "role", roleName, "permission", perm)
+	return nil
+}
+
+// ClearGroupPermissionState removes both allow and deny for a role on a set.
+func (c *ChattoCore) ClearGroupPermissionState(ctx context.Context, groupID, roleName string, perm Permission) error {
+	parts := perm.KeyParts()
+	if parts.Verb == "" || parts.ObjectType == "" {
+		return fmt.Errorf("invalid permission: %s", perm)
+	}
+	kv := c.storage.serverRBACKV
+	_ = kv.Delete(ctx, rbac.GroupAllowKey(groupID, roleName, parts.Verb, parts.ObjectType))
+	_ = kv.Delete(ctx, rbac.GroupDenyKey(groupID, roleName, parts.Verb, parts.ObjectType))
+	c.logger.Debug("Cleared set permission", "set", groupID, "role", roleName, "permission", perm)
+	return nil
 }
 
 // OutranksUser reports whether actor outranks target by role-hierarchy
@@ -726,8 +825,6 @@ func (c *ChattoCore) GetUserEffectiveSpacePermissions(ctx context.Context, kind 
 			PermMessagePost,
 			PermMessageReply,
 			PermMessageReact,
-			PermMessageEditOwn,
-			PermMessageDeleteOwn,
 		}, nil
 	}
 
