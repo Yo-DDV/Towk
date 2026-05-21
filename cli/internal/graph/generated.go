@@ -25346,20 +25346,20 @@ func (ec *executionContext) unmarshalInputClearPermissionStateInput(ctx context.
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"role", "permission"}
+	fieldsInOrder := [...]string{"roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -25380,7 +25380,7 @@ func (ec *executionContext) unmarshalInputClearRoomPermissionInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"roomId", "role", "permission"}
+	fieldsInOrder := [...]string{"roomId", "roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -25394,13 +25394,13 @@ func (ec *executionContext) unmarshalInputClearRoomPermissionInput(ctx context.C
 				return it, err
 			}
 			it.RoomID = data
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -25782,20 +25782,20 @@ func (ec *executionContext) unmarshalInputDenyPermissionInput(ctx context.Contex
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"role", "permission"}
+	fieldsInOrder := [...]string{"roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -25816,7 +25816,7 @@ func (ec *executionContext) unmarshalInputDenyRoomPermissionInput(ctx context.Co
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"roomId", "role", "permission"}
+	fieldsInOrder := [...]string{"roomId", "roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -25830,13 +25830,13 @@ func (ec *executionContext) unmarshalInputDenyRoomPermissionInput(ctx context.Co
 				return it, err
 			}
 			it.RoomID = data
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -26007,20 +26007,20 @@ func (ec *executionContext) unmarshalInputGrantPermissionInput(ctx context.Conte
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"role", "permission"}
+	fieldsInOrder := [...]string{"roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -26041,7 +26041,7 @@ func (ec *executionContext) unmarshalInputGrantRoomPermissionInput(ctx context.C
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"roomId", "role", "permission"}
+	fieldsInOrder := [...]string{"roomId", "roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -26055,13 +26055,13 @@ func (ec *executionContext) unmarshalInputGrantRoomPermissionInput(ctx context.C
 				return it, err
 			}
 			it.RoomID = data
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)
@@ -26676,20 +26676,20 @@ func (ec *executionContext) unmarshalInputRevokePermissionInput(ctx context.Cont
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"role", "permission"}
+	fieldsInOrder := [...]string{"roleName", "permission"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
-		case "role":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("role"))
+		case "roleName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("roleName"))
 			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
-			it.Role = data
+			it.RoleName = data
 		case "permission":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("permission"))
 			data, err := ec.unmarshalNString2string(ctx, v)

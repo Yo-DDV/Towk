@@ -116,7 +116,7 @@ func (r *mutationResolver) GrantPermission(ctx context.Context, input model.Gran
 	if !can {
 		return false, core.ErrPermissionDenied
 	}
-	if err := r.core.GrantServerPermission(ctx, input.Role, core.Permission(input.Permission)); err != nil {
+	if err := r.core.GrantServerPermission(ctx, input.RoleName, core.Permission(input.Permission)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -135,7 +135,7 @@ func (r *mutationResolver) RevokePermission(ctx context.Context, input model.Rev
 	if !can {
 		return false, core.ErrPermissionDenied
 	}
-	if err := r.core.RevokeServerPermission(ctx, input.Role, core.Permission(input.Permission)); err != nil {
+	if err := r.core.RevokeServerPermission(ctx, input.RoleName, core.Permission(input.Permission)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -154,7 +154,7 @@ func (r *mutationResolver) DenyPermission(ctx context.Context, input model.DenyP
 	if !can {
 		return false, core.ErrPermissionDenied
 	}
-	if err := r.core.DenyServerPermission(ctx, input.Role, core.Permission(input.Permission)); err != nil {
+	if err := r.core.DenyServerPermission(ctx, input.RoleName, core.Permission(input.Permission)); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -173,7 +173,7 @@ func (r *mutationResolver) ClearPermissionState(ctx context.Context, input model
 	if !can {
 		return false, core.ErrPermissionDenied
 	}
-	if err := r.core.ClearServerPermissionState(ctx, input.Role, core.Permission(input.Permission)); err != nil {
+	if err := r.core.ClearServerPermissionState(ctx, input.RoleName, core.Permission(input.Permission)); err != nil {
 		return false, err
 	}
 	return true, nil

@@ -287,7 +287,7 @@ export type ClearPermissionStateInput = {
   /** The permission identifier to clear. */
   permission: Scalars['String']['input'];
   /** The role to clear permission state for. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
 };
 
 /** Input for clearing a room-level permission override. */
@@ -295,7 +295,7 @@ export type ClearRoomPermissionInput = {
   /** The permission identifier to clear. */
   permission: Scalars['String']['input'];
   /** The role to clear the permission for. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
   /** The ID of the room. */
   roomId: Scalars['ID']['input'];
 };
@@ -433,7 +433,7 @@ export type DenyPermissionInput = {
   /** The permission identifier to deny. */
   permission: Scalars['String']['input'];
   /** The role to deny the permission for. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
 };
 
 /** Input for denying a room-level permission for a role. */
@@ -441,7 +441,7 @@ export type DenyRoomPermissionInput = {
   /** The permission identifier to deny. */
   permission: Scalars['String']['input'];
   /** The role to deny the permission for. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
   /** The ID of the room. */
   roomId: Scalars['ID']['input'];
 };
@@ -533,7 +533,7 @@ export type GrantPermissionInput = {
   /** The permission identifier to grant. */
   permission: Scalars['String']['input'];
   /** The role to grant the permission to. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
 };
 
 /** Input for granting a room-level permission to a role. */
@@ -541,7 +541,7 @@ export type GrantRoomPermissionInput = {
   /** The permission identifier to grant. */
   permission: Scalars['String']['input'];
   /** The role to grant the permission to. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
   /** The ID of the room. */
   roomId: Scalars['ID']['input'];
 };
@@ -1935,7 +1935,7 @@ export type RevokePermissionInput = {
   /** The permission identifier to revoke. */
   permission: Scalars['String']['input'];
   /** The role to revoke the permission from. */
-  role: Scalars['String']['input'];
+  roleName: Scalars['String']['input'];
 };
 
 /** Input for revoking an server role from a user. */
