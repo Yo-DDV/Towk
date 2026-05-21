@@ -360,7 +360,7 @@ type ComplexityRoot struct {
 		Room                  func(childComplexity int, roomID string) int
 		Server                func(childComplexity int) int
 		TierRoles             func(childComplexity int, roomID *string, groupID *string) int
-		User                  func(childComplexity int, id string) int
+		User                  func(childComplexity int, userID string) int
 		UserByLogin           func(childComplexity int, login string) int
 		UserPermissionMatrix  func(childComplexity int, userID string) int
 		Users                 func(childComplexity int) int
@@ -955,7 +955,7 @@ type PresenceChangedEventResolver interface {
 }
 type QueryResolver interface {
 	Room(ctx context.Context, roomID string) (*corev1.Room, error)
-	User(ctx context.Context, id string) (*corev1.User, error)
+	User(ctx context.Context, userID string) (*corev1.User, error)
 	UserByLogin(ctx context.Context, login string) (*corev1.User, error)
 	Users(ctx context.Context) ([]*corev1.User, error)
 	Admin(ctx context.Context) (*model.AdminQueries, error)
@@ -2697,7 +2697,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.User(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.User(childComplexity, args["userId"].(string)), true
 	case "Query.userByLogin":
 		if e.complexity.Query.UserByLogin == nil {
 			break
@@ -5629,11 +5629,11 @@ func (ec *executionContext) field_Query_userPermissionMatrix_args(ctx context.Co
 func (ec *executionContext) field_Query_user_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "id", ec.unmarshalNID2string)
+	arg0, err := graphql.ProcessArgField(ctx, rawArgs, "userId", ec.unmarshalNID2string)
 	if err != nil {
 		return nil, err
 	}
-	args["id"] = arg0
+	args["userId"] = arg0
 	return args, nil
 }
 
@@ -13605,7 +13605,7 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 		ec.fieldContext_Query_user,
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.resolvers.Query().User(ctx, fc.Args["id"].(string))
+			return ec.resolvers.Query().User(ctx, fc.Args["userId"].(string))
 		},
 		nil,
 		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
