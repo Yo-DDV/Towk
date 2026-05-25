@@ -3,6 +3,8 @@ syntax = "proto3";
 package chatto.core.v1;
 
 import "google/protobuf/timestamp.proto";
+import "chatto/config/v1/config.proto";
+import "chatto/core/v1/models.proto";
 import "chatto/core/v1/user_preferences.proto";
 
 option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
@@ -75,6 +77,33 @@ message Event {
     // ----- Messages (400-409) -----
     MessagePostedEvent message_posted = 400;
     // Field 403 was ThreadReplyEchoEvent, now folded into MessagePostedEvent.
+
+    // ----- Server config (500-509, durable) -----
+    // Distinct from ServerConfigUpdatedEvent at 1000, which is the
+    // legacy live-only broadcast on the SERVER_EVENTS path. The
+    // durable variant below lives on the EVT stream (subject
+    // evt.config.server) per ADRs 033/034/035.
+    ServerConfigChangedEvent server_config_changed = 500;
+
+    // ----- Room groups (600-609, durable, evt.group.{groupId}) -----
+    // The group aggregate owns its room-membership AND room-ordering.
+    // Move-room is two events (RoomRemovedFromGroup on source +
+    // RoomAddedToGroup on target), matching ADR-034 Approach A.
+    RoomGroupCreatedEvent room_group_created = 600;
+    RoomGroupUpdatedEvent room_group_updated = 601;
+    RoomGroupDeletedEvent room_group_deleted = 602;
+    RoomAddedToGroupEvent room_added_to_group = 603;
+    RoomRemovedFromGroupEvent room_removed_from_group = 604;
+    RoomsInGroupReorderedEvent rooms_in_group_reordered = 605;
+
+    // ----- Room layout (650-659, durable, evt.layout.{singleton}) -----
+    // The layout aggregate is a singleton; the singletonID is a stable
+    // constant ("default"). It owns the operator-defined inter-group
+    // ordering for the sidebar. New groups appear at the end of the
+    // sidebar implicitly via the RoomGroup projection's All() + the
+    // reconciler in ListRoomGroupsOrdered; the layout aggregate only
+    // tracks explicit reorders.
+    RoomGroupsReorderedEvent room_groups_reordered = 650;
 
     // =================================================================
     // LIVE-ONLY VARIANTS (>= 1000) — never persisted.
@@ -178,6 +207,11 @@ message RoomCreatedEvent {
   string room_id = 2;
   string name = 3;
   string description = 4;
+  // Room kind (channel or DM). Added when this event became durable
+  // on the EVT stream — the room-catalog projection needs it to
+  // distinguish DMs (which don't appear in group structures) from
+  // channels.
+  RoomKind kind = 5;
 }
 
 message RoomUpdatedEvent {
@@ -278,6 +312,81 @@ message MessagePostedEvent {
   string event_id = 1001;
 
   reserved 1000; // was sequence_id (dead field, never read)
+}
+
+// Durable server-config event for the EVT log. Carries the
+// complete ServerConfig snapshot after the change so projections and
+// the audit log can reconstruct state without reaching back to KV.
+// Distinct from the live-only ServerConfigUpdatedEvent at field 1000,
+// which still rides the legacy live broadcast path during the
+// migration window.
+message ServerConfigChangedEvent {
+  // The complete server config after the change.
+  chatto.config.v1.ServerConfig config = 1;
+}
+
+// ============================================================================
+// ROOM GROUP EVENTS (group aggregate, evt.group.{groupId})
+// ============================================================================
+//
+// Groups own their room-membership and room-ordering. Move-room and
+// delete-room cascade across aggregates as per-aggregate events under
+// ADR-034 Approach A (one event per affected aggregate).
+
+message RoomGroupCreatedEvent {
+  string group_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+// Coarse metadata update — matches today's form-based admin UI that
+// submits name + description together. If finer-grained audit becomes
+// useful we can split per the "event granularity follows operation
+// granularity" rule.
+message RoomGroupUpdatedEvent {
+  string group_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message RoomGroupDeletedEvent {
+  string group_id = 1;
+}
+
+// A room was added to this group. The group aggregate's projection
+// appends to its room_ids list. For a move from group A to group B
+// this is the target-side event; the source-side gets a separate
+// RoomRemovedFromGroupEvent.
+message RoomAddedToGroupEvent {
+  string group_id = 1;
+  string room_id = 2;
+}
+
+// A room was removed from this group. Two paths trigger this: an
+// operator move (paired with RoomAddedToGroupEvent on the target
+// group) or a room deletion (paired with RoomDeletedEvent on the
+// room aggregate).
+message RoomRemovedFromGroupEvent {
+  string group_id = 1;
+  string room_id = 2;
+}
+
+// Drag-reorder within a single group. Carries the full new ordering
+// rather than a delta — the operation is "set the order to this",
+// not "swap room X and Y". Projection replaces room_ids wholesale.
+message RoomsInGroupReorderedEvent {
+  string group_id = 1;
+  repeated string room_ids = 2;
+}
+
+// RoomGroupsReorderedEvent is the inter-group ordering update. The
+// layout aggregate is a singleton — there's only one sidebar layout
+// per server — so the event carries no aggregate ID; the publish
+// subject (evt.layout.default) identifies the singleton. The
+// `group_ids` field is the full, operator-validated permutation of
+// existing groups.
+message RoomGroupsReorderedEvent {
+  repeated string group_ids = 1;
 }
 
 // ============================================================================

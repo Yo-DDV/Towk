@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"hmans.de/chatto/internal/core/subjects"
+	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -52,12 +52,12 @@ func IsDMSpace(spaceID string) bool {
 	return spaceID == DMSpaceID
 }
 
-// KindForSpace returns the room kind for a legacy wire-frozen SpaceId
-// value ("server" or "DM"). Use this when reading from a persisted
-// shape that still carries `space_id` (e.g. MessagePostedEvent in the
-// JetStream backlog). For `*Room` records, prefer KindOfRoom — it
-// reads the new `kind` field first and only falls back here for
-// pre-backfill rooms. See ADR-030.
+// KindForSpace returns the room kind for a legacy wire-frozen
+// `space_id` value ("server" or "DM"). Still used at the proto
+// boundary for messages whose persisted shape (e.g.
+// MessagePostedEvent on the legacy SERVER_EVENTS stream) carries
+// `space_id` as a partition key. New code working with Room records
+// should call KindOfRoom (which reads Room.kind directly).
 func KindForSpace(spaceID string) RoomKind {
 	if IsDMSpace(spaceID) {
 		return KindDM
@@ -65,10 +65,15 @@ func KindForSpace(spaceID string) RoomKind {
 	return KindChannel
 }
 
-// SpaceIDForKind is the inverse of KindForSpace: returns the legacy
-// SpaceId string for a kind. Used at the proto boundary where
-// wire-format-frozen `space_id` fields still need a value written
-// alongside the new `kind` field.
+// SpaceIDForKind returns the legacy `space_id` string for a kind.
+// Used at the proto boundary where wire-format-frozen `space_id`
+// fields (still present on a handful of message-event payloads and
+// LiveKit/threads partition keys) need a value derived from kind.
+//
+// Not used by Room records anymore — Room.space_id was removed in
+// favor of Room.kind. Callers that previously read room.SpaceId
+// should now call SpaceIDForKind(room.kind) directly at the use
+// site rather than relying on a stamped field.
 func SpaceIDForKind(kind RoomKind) string {
 	if kind == KindDM {
 		return DMSpaceID
@@ -77,8 +82,7 @@ func SpaceIDForKind(kind RoomKind) string {
 }
 
 // ProtoKindForRoomKind maps the Go-side RoomKind string to the proto
-// enum stored on Room.kind. Writers populate both `space_id` (wire-frozen)
-// and `kind`; readers prefer `kind` (see RoomKind helper below).
+// enum stored on Room.kind.
 func ProtoKindForRoomKind(kind RoomKind) corev1.RoomKind {
 	if kind == KindDM {
 		return corev1.RoomKind_ROOM_KIND_DM
@@ -86,17 +90,16 @@ func ProtoKindForRoomKind(kind RoomKind) corev1.RoomKind {
 	return corev1.RoomKind_ROOM_KIND_CHANNEL
 }
 
-// KindOfRoom returns the canonical RoomKind for a Room, preferring the
-// new `kind` field and falling back to `space_id` for legacy records that
-// predate the field (until the boot-time backfill rewrites them).
+// KindOfRoom returns the canonical RoomKind for a Room. Reads
+// Room.kind directly; legacy `space_id`-based fallback was removed
+// when the field was retired from the proto.
 func KindOfRoom(room *corev1.Room) RoomKind {
 	switch room.Kind {
 	case corev1.RoomKind_ROOM_KIND_DM:
 		return KindDM
-	case corev1.RoomKind_ROOM_KIND_CHANNEL:
+	default:
 		return KindChannel
 	}
-	return KindForSpace(room.SpaceId)
 }
 
 // DMRoomID generates a deterministic room ID from participant IDs.
@@ -170,8 +173,11 @@ func (c *ChattoCore) FindOrCreateDM(ctx context.Context, creatorID string, parti
 	// Create new DM room
 	room, err = c.createDMRoom(ctx, roomID, allParticipants)
 	if err != nil {
-		// Handle race condition - another request may have created it
-		if errors.Is(err, jetstream.ErrKeyExists) {
+		// Handle race condition: another request published the
+		// RoomCreated first. JetStream's per-subject OCC (expected
+		// seq 0) is what arbitrates — the loser sees ErrConflict
+		// and looks up the now-existing room.
+		if errors.Is(err, events.ErrConflict) {
 			room, err = c.GetRoom(ctx, KindDM, roomID)
 			if err != nil {
 				return nil, false, fmt.Errorf("failed to get DM after race: %w", err)
@@ -185,99 +191,106 @@ func (c *ChattoCore) FindOrCreateDM(ctx context.Context, creatorID string, parti
 	return room, true, nil
 }
 
-// createDMRoom creates a new DM room and joins all participants atomically.
-// If any participant fails to join, the room is deleted and an error is returned.
-// This is an internal function - use FindOrCreateDM for the public API.
+// createDMRoom creates a new DM room and joins all participants
+// atomically via a single AppendBatch — RoomCreatedEvent followed
+// by N×UserJoinedRoomEvent on the same per-room subject, committed
+// as one unit. No rollback path is needed: either all events land
+// or none do.
+//
+// Concurrency safety: the first batch entry carries HasOCC with
+// ExpectedSeq=0, so a race where another replica already created
+// this DM (same hashed roomID) is rejected with events.ErrConflict
+// — the caller (FindOrCreateDM) re-fetches.
+//
+// Post-batch side effects (per-participant read markers, legacy
+// live publishes) happen after the batch acks, since they're
+// outside the durable event log.
 func (c *ChattoCore) createDMRoom(ctx context.Context, roomID string, participantIDs []string) (*corev1.Room, error) {
 	room := &corev1.Room{
-		Id:      roomID,
-		SpaceId: DMSpaceID,
-		Kind:    corev1.RoomKind_ROOM_KIND_DM,
-		Name:    "", // DMs don't have names - derived from participants in UI
+		Id:   roomID,
+		Kind: corev1.RoomKind_ROOM_KIND_DM,
+		Name: "", // DMs don't have names - derived from participants in UI
 	}
 
-	// Get config bucket for room storage
-	bucket := c.storage.serverConfigKV
+	agg := events.RoomAggregate(roomID)
 
-	// Store room (atomic create to handle race conditions)
-	roomData, err := proto.Marshal(room)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal DM room: %w", err)
-	}
-
-	_, err = bucket.Create(ctx, roomKey(KindDM, roomID), roomData)
-	if err != nil {
-		return nil, err // Let caller handle ErrKeyExists for race condition
-	}
-
-	// Join all participants - rollback room on failure
-	var joinedParticipants []string
-	for _, participantID := range participantIDs {
-		if err := c.joinDMRoom(ctx, bucket, participantID, roomID); err != nil {
-			c.logger.Error("Failed to join participant to DM, rolling back", "participant", participantID, "room_id", roomID, "error", err)
-
-			// Rollback: delete memberships we already created
-			for _, joinedID := range joinedParticipants {
-				if delErr := bucket.Delete(ctx, roomMembershipKey(KindDM, roomID, joinedID)); delErr != nil {
-					c.logger.Error("Failed to rollback DM membership", "participant", joinedID, "room_id", roomID, "error", delErr)
-				}
-			}
-
-			// Rollback: delete the room
-			if delErr := bucket.Delete(ctx, roomKey(KindDM, roomID)); delErr != nil {
-				c.logger.Error("Failed to rollback DM room", "room_id", roomID, "error", delErr)
-			}
-
-			return nil, fmt.Errorf("failed to add participant %s to DM: %w", participantID, err)
-		}
-		joinedParticipants = append(joinedParticipants, participantID)
-	}
-
-	return room, nil
-}
-
-// joinDMRoom adds a user to a DM room (internal, no authorization check).
-// Publishes a UserJoinedRoomEvent to initialize the room's event stream — this is
-// required for JetStream consumers to work properly. The frontend filters out these
-// join events in DM rooms since they're not useful for 1:1 conversations (see
-// RoomEvent.svelte).
-func (c *ChattoCore) joinDMRoom(ctx context.Context, bucket jetstream.KeyValue, userID, roomID string) error {
-	membership := &corev1.RoomMembership{
-		UserId: userID,
-		RoomId: roomID,
-	}
-
-	data, err := proto.Marshal(membership)
-	if err != nil {
-		return fmt.Errorf("failed to marshal DM membership: %w", err)
-	}
-
-	_, err = bucket.Put(ctx, roomMembershipKey(KindDM, roomID, userID), data)
-	if err != nil {
-		return fmt.Errorf("failed to create DM membership: %w", err)
-	}
-
-	// Initialize an empty read marker so HasUnread distinguishes a fresh DM
-	// member from a deploy-era user without any marker (see GetLastReadEventID).
-	if err := c.SetLastReadEventID(ctx, KindDM, userID, roomID, ""); err != nil {
-		c.logger.Warn("Failed to initialize DM read marker", "error", err, "user_id", userID, "room_id", roomID)
-	}
-
-	// Publish UserJoinedRoomEvent to seed the room's event stream.
-	// This event is filtered out in the frontend for DM rooms.
-	event := newEvent(userID, &corev1.Event{
-		Event: &corev1.Event_UserJoinedRoom{
-			UserJoinedRoom: &corev1.UserJoinedRoomEvent{
-				RoomId: roomID,
+	// "system" actor reflects that the conversation is created by
+	// the platform on the first participant's behalf — DMs have no
+	// operator-driven creation flow.
+	createdEvent := newEvent("system", &corev1.Event{
+		Event: &corev1.Event_RoomCreated{
+			RoomCreated: &corev1.RoomCreatedEvent{
+				RoomId:      roomID,
+				Name:        "",
+				Description: "",
+				Kind:        corev1.RoomKind_ROOM_KIND_DM,
 			},
 		},
 	})
-	subject := subjects.RoomMeta(string(KindDM), roomID)
-	if err := c.publishServerEvent(ctx, subject, event); err != nil {
-		c.logger.Error("failed to publish UserJoinedRoomEvent for DM", "error", err, "user_id", userID, "room_id", roomID)
+
+	// First entry uses wildcard OCC against the aggregate's full
+	// filter — "the entire room aggregate must be empty," not just
+	// "no prior RoomCreated event." Preserves the per-aggregate
+	// uniqueness guarantee under the per-(agg, event-type) subject
+	// shape.
+	entries := []events.BatchEntry{
+		{
+			Subject:       agg.SubjectFor(createdEvent),
+			Event:         createdEvent,
+			HasOCC:        true,
+			FilterSubject: agg.AllEventsFilter(),
+		},
+	}
+	joinEvents := make(map[string]*corev1.Event, len(participantIDs))
+	for _, pid := range participantIDs {
+		joinEvent := newEvent(pid, &corev1.Event{
+			Event: &corev1.Event_UserJoinedRoom{
+				UserJoinedRoom: &corev1.UserJoinedRoomEvent{RoomId: roomID},
+			},
+		})
+		joinEvents[pid] = joinEvent
+		entries = append(entries, events.BatchEntry{
+			Subject: agg.SubjectFor(joinEvent),
+			Event:   joinEvent,
+		})
 	}
 
-	return nil
+	seqs, err := c.EventPublisher.AppendBatch(ctx, entries)
+	if err != nil {
+		// Includes events.ErrConflict on race (per-subject OCC
+		// rejected because another replica created this DM first).
+		return nil, err
+	}
+
+	// Wait per-projector for the seq of the last event each
+	// actually consumes. Projectors subscribe to narrow event-type
+	// filters now — waiting on a seq that doesn't match the filter
+	// blocks forever (the LastSeq only advances on filter-matching
+	// events). seqs[0] is the RoomCreated (catalog); seqs[len-1] is
+	// the last UserJoinedRoom (membership).
+	if err := c.RoomCatalogProjector.WaitForSeq(ctx, seqs[0]); err != nil {
+		c.logger.Warn("DM room catalog projection wait failed", "error", err, "room_id", roomID)
+	}
+	if err := c.RoomMembershipProjector.WaitForSeq(ctx, seqs[len(seqs)-1]); err != nil {
+		c.logger.Warn("DM membership projection wait failed", "error", err, "room_id", roomID)
+	}
+
+	// Per-participant non-batched side effects: initialise the
+	// read marker (so HasUnread distinguishes a fresh member from a
+	// deploy-era user; see GetLastReadEventID), and mirror the join
+	// to the legacy live subject so the frontend's myEvents stream
+	// sees it.
+	legacySubject := subjects.RoomMeta(string(KindDM), roomID)
+	for _, pid := range participantIDs {
+		if err := c.SetLastReadEventID(ctx, KindDM, pid, roomID, ""); err != nil {
+			c.logger.Warn("Failed to initialize DM read marker", "error", err, "user_id", pid, "room_id", roomID)
+		}
+		if err := c.publishServerEvent(ctx, legacySubject, joinEvents[pid]); err != nil {
+			c.logger.Error("failed to publish UserJoinedRoomEvent for DM (legacy)", "error", err, "user_id", pid, "room_id", roomID)
+		}
+	}
+
+	return room, nil
 }
 
 // ListDMConversations returns DM rooms the user is a member of that have at least

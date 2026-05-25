@@ -838,6 +838,8 @@ func setupTestCoreWithS3(t *testing.T) (*ChattoCore, *nats.Conn, *S3Client) {
 		t.Fatalf("Failed to create ChattoCore with S3: %v", err)
 	}
 
+	startCoreServices(t, core)
+
 	// Create a separate S3 client for test verification (to check if objects exist)
 	verifyClient, err := NewS3Client(cfg.Assets.S3)
 	if err != nil {
@@ -896,6 +898,8 @@ func setupTestCoreWithCache(t *testing.T) (*ChattoCore, *nats.Conn) {
 	if err != nil {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
+
+	startCoreServices(t, core)
 
 	return core, nc
 }

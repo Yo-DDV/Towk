@@ -10,6 +10,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	v1 "hmans.de/chatto/internal/pb/chatto/config/v1"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -71,6 +72,14 @@ type Event struct {
 	//	*Event_UserLeftRoom
 	//	*Event_SpaceMemberDeleted
 	//	*Event_MessagePosted
+	//	*Event_ServerConfigChanged
+	//	*Event_RoomGroupCreated
+	//	*Event_RoomGroupUpdated
+	//	*Event_RoomGroupDeleted
+	//	*Event_RoomAddedToGroup
+	//	*Event_RoomRemovedFromGroup
+	//	*Event_RoomsInGroupReordered
+	//	*Event_RoomGroupsReordered
 	//	*Event_ConfigUpdated
 	//	*Event_UserCreated
 	//	*Event_UserDeleted
@@ -238,6 +247,78 @@ func (x *Event) GetMessagePosted() *MessagePostedEvent {
 	if x != nil {
 		if x, ok := x.Event.(*Event_MessagePosted); ok {
 			return x.MessagePosted
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetServerConfigChanged() *ServerConfigChangedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_ServerConfigChanged); ok {
+			return x.ServerConfigChanged
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomGroupCreated() *RoomGroupCreatedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomGroupCreated); ok {
+			return x.RoomGroupCreated
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomGroupUpdated() *RoomGroupUpdatedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomGroupUpdated); ok {
+			return x.RoomGroupUpdated
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomGroupDeleted() *RoomGroupDeletedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomGroupDeleted); ok {
+			return x.RoomGroupDeleted
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomAddedToGroup() *RoomAddedToGroupEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomAddedToGroup); ok {
+			return x.RoomAddedToGroup
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomRemovedFromGroup() *RoomRemovedFromGroupEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomRemovedFromGroup); ok {
+			return x.RoomRemovedFromGroup
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomsInGroupReordered() *RoomsInGroupReorderedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomsInGroupReordered); ok {
+			return x.RoomsInGroupReordered
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetRoomGroupsReordered() *RoomGroupsReorderedEvent {
+	if x != nil {
+		if x, ok := x.Event.(*Event_RoomGroupsReordered); ok {
+			return x.RoomGroupsReordered
 		}
 	}
 	return nil
@@ -538,6 +619,54 @@ type Event_MessagePosted struct {
 	MessagePosted *MessagePostedEvent `protobuf:"bytes,400,opt,name=message_posted,json=messagePosted,proto3,oneof"` // Field 403 was ThreadReplyEchoEvent, now folded into MessagePostedEvent.
 }
 
+type Event_ServerConfigChanged struct {
+	// ----- Server config (500-509, durable) -----
+	// Distinct from ServerConfigUpdatedEvent at 1000, which is the
+	// legacy live-only broadcast on the SERVER_EVENTS path. The
+	// durable variant below lives on the EVT stream (subject
+	// evt.config.server) per ADRs 033/034/035.
+	ServerConfigChanged *ServerConfigChangedEvent `protobuf:"bytes,500,opt,name=server_config_changed,json=serverConfigChanged,proto3,oneof"`
+}
+
+type Event_RoomGroupCreated struct {
+	// ----- Room groups (600-609, durable, evt.group.{groupId}) -----
+	// The group aggregate owns its room-membership AND room-ordering.
+	// Move-room is two events (RoomRemovedFromGroup on source +
+	// RoomAddedToGroup on target), matching ADR-034 Approach A.
+	RoomGroupCreated *RoomGroupCreatedEvent `protobuf:"bytes,600,opt,name=room_group_created,json=roomGroupCreated,proto3,oneof"`
+}
+
+type Event_RoomGroupUpdated struct {
+	RoomGroupUpdated *RoomGroupUpdatedEvent `protobuf:"bytes,601,opt,name=room_group_updated,json=roomGroupUpdated,proto3,oneof"`
+}
+
+type Event_RoomGroupDeleted struct {
+	RoomGroupDeleted *RoomGroupDeletedEvent `protobuf:"bytes,602,opt,name=room_group_deleted,json=roomGroupDeleted,proto3,oneof"`
+}
+
+type Event_RoomAddedToGroup struct {
+	RoomAddedToGroup *RoomAddedToGroupEvent `protobuf:"bytes,603,opt,name=room_added_to_group,json=roomAddedToGroup,proto3,oneof"`
+}
+
+type Event_RoomRemovedFromGroup struct {
+	RoomRemovedFromGroup *RoomRemovedFromGroupEvent `protobuf:"bytes,604,opt,name=room_removed_from_group,json=roomRemovedFromGroup,proto3,oneof"`
+}
+
+type Event_RoomsInGroupReordered struct {
+	RoomsInGroupReordered *RoomsInGroupReorderedEvent `protobuf:"bytes,605,opt,name=rooms_in_group_reordered,json=roomsInGroupReordered,proto3,oneof"`
+}
+
+type Event_RoomGroupsReordered struct {
+	// ----- Room layout (650-659, durable, evt.layout.{singleton}) -----
+	// The layout aggregate is a singleton; the singletonID is a stable
+	// constant ("default"). It owns the operator-defined inter-group
+	// ordering for the sidebar. New groups appear at the end of the
+	// sidebar implicitly via the RoomGroup projection's All() + the
+	// reconciler in ListRoomGroupsOrdered; the layout aggregate only
+	// tracks explicit reorders.
+	RoomGroupsReordered *RoomGroupsReorderedEvent `protobuf:"bytes,650,opt,name=room_groups_reordered,json=roomGroupsReordered,proto3,oneof"`
+}
+
 type Event_ConfigUpdated struct {
 	// ----- Server config (1000-1009) -----
 	ConfigUpdated *ServerConfigUpdatedEvent `protobuf:"bytes,1000,opt,name=config_updated,json=configUpdated,proto3,oneof"`
@@ -689,6 +818,22 @@ func (*Event_SpaceMemberDeleted) isEvent_Event() {}
 
 func (*Event_MessagePosted) isEvent_Event() {}
 
+func (*Event_ServerConfigChanged) isEvent_Event() {}
+
+func (*Event_RoomGroupCreated) isEvent_Event() {}
+
+func (*Event_RoomGroupUpdated) isEvent_Event() {}
+
+func (*Event_RoomGroupDeleted) isEvent_Event() {}
+
+func (*Event_RoomAddedToGroup) isEvent_Event() {}
+
+func (*Event_RoomRemovedFromGroup) isEvent_Event() {}
+
+func (*Event_RoomsInGroupReordered) isEvent_Event() {}
+
+func (*Event_RoomGroupsReordered) isEvent_Event() {}
+
 func (*Event_ConfigUpdated) isEvent_Event() {}
 
 func (*Event_UserCreated) isEvent_Event() {}
@@ -786,10 +931,15 @@ func (*HeartbeatEvent) Descriptor() ([]byte, []int) {
 }
 
 type RoomCreatedEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RoomId        string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	RoomId      string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	Name        string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Description string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	// Room kind (channel or DM). Added when this event became durable
+	// on the EVT stream — the room-catalog projection needs it to
+	// distinguish DMs (which don't appear in group structures) from
+	// channels.
+	Kind          RoomKind `protobuf:"varint,5,opt,name=kind,proto3,enum=chatto.core.v1.RoomKind" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -843,6 +993,13 @@ func (x *RoomCreatedEvent) GetDescription() string {
 		return x.Description
 	}
 	return ""
+}
+
+func (x *RoomCreatedEvent) GetKind() RoomKind {
+	if x != nil {
+		return x.Kind
+	}
+	return RoomKind_ROOM_KIND_UNSPECIFIED
 }
 
 type RoomUpdatedEvent struct {
@@ -1290,6 +1447,442 @@ func (x *MessagePostedEvent) GetEventId() string {
 	return ""
 }
 
+// Durable server-config event for the EVT log. Carries the
+// complete ServerConfig snapshot after the change so projections and
+// the audit log can reconstruct state without reaching back to KV.
+// Distinct from the live-only ServerConfigUpdatedEvent at field 1000,
+// which still rides the legacy live broadcast path during the
+// migration window.
+type ServerConfigChangedEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The complete server config after the change.
+	Config        *v1.ServerConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServerConfigChangedEvent) Reset() {
+	*x = ServerConfigChangedEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServerConfigChangedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerConfigChangedEvent) ProtoMessage() {}
+
+func (x *ServerConfigChangedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerConfigChangedEvent.ProtoReflect.Descriptor instead.
+func (*ServerConfigChangedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ServerConfigChangedEvent) GetConfig() *v1.ServerConfig {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+type RoomGroupCreatedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomGroupCreatedEvent) Reset() {
+	*x = RoomGroupCreatedEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomGroupCreatedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomGroupCreatedEvent) ProtoMessage() {}
+
+func (x *RoomGroupCreatedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomGroupCreatedEvent.ProtoReflect.Descriptor instead.
+func (*RoomGroupCreatedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *RoomGroupCreatedEvent) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *RoomGroupCreatedEvent) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RoomGroupCreatedEvent) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+// Coarse metadata update — matches today's form-based admin UI that
+// submits name + description together. If finer-grained audit becomes
+// useful we can split per the "event granularity follows operation
+// granularity" rule.
+type RoomGroupUpdatedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomGroupUpdatedEvent) Reset() {
+	*x = RoomGroupUpdatedEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomGroupUpdatedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomGroupUpdatedEvent) ProtoMessage() {}
+
+func (x *RoomGroupUpdatedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomGroupUpdatedEvent.ProtoReflect.Descriptor instead.
+func (*RoomGroupUpdatedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RoomGroupUpdatedEvent) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *RoomGroupUpdatedEvent) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *RoomGroupUpdatedEvent) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+type RoomGroupDeletedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomGroupDeletedEvent) Reset() {
+	*x = RoomGroupDeletedEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomGroupDeletedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomGroupDeletedEvent) ProtoMessage() {}
+
+func (x *RoomGroupDeletedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomGroupDeletedEvent.ProtoReflect.Descriptor instead.
+func (*RoomGroupDeletedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RoomGroupDeletedEvent) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+// A room was added to this group. The group aggregate's projection
+// appends to its room_ids list. For a move from group A to group B
+// this is the target-side event; the source-side gets a separate
+// RoomRemovedFromGroupEvent.
+type RoomAddedToGroupEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	RoomId        string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomAddedToGroupEvent) Reset() {
+	*x = RoomAddedToGroupEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomAddedToGroupEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomAddedToGroupEvent) ProtoMessage() {}
+
+func (x *RoomAddedToGroupEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomAddedToGroupEvent.ProtoReflect.Descriptor instead.
+func (*RoomAddedToGroupEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RoomAddedToGroupEvent) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *RoomAddedToGroupEvent) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+// A room was removed from this group. Two paths trigger this: an
+// operator move (paired with RoomAddedToGroupEvent on the target
+// group) or a room deletion (paired with RoomDeletedEvent on the
+// room aggregate).
+type RoomRemovedFromGroupEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	RoomId        string                 `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomRemovedFromGroupEvent) Reset() {
+	*x = RoomRemovedFromGroupEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomRemovedFromGroupEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomRemovedFromGroupEvent) ProtoMessage() {}
+
+func (x *RoomRemovedFromGroupEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomRemovedFromGroupEvent.ProtoReflect.Descriptor instead.
+func (*RoomRemovedFromGroupEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *RoomRemovedFromGroupEvent) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *RoomRemovedFromGroupEvent) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+// Drag-reorder within a single group. Carries the full new ordering
+// rather than a delta — the operation is "set the order to this",
+// not "swap room X and Y". Projection replaces room_ids wholesale.
+type RoomsInGroupReorderedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       string                 `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
+	RoomIds       []string               `protobuf:"bytes,2,rep,name=room_ids,json=roomIds,proto3" json:"room_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomsInGroupReorderedEvent) Reset() {
+	*x = RoomsInGroupReorderedEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomsInGroupReorderedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomsInGroupReorderedEvent) ProtoMessage() {}
+
+func (x *RoomsInGroupReorderedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomsInGroupReorderedEvent.ProtoReflect.Descriptor instead.
+func (*RoomsInGroupReorderedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *RoomsInGroupReorderedEvent) GetGroupId() string {
+	if x != nil {
+		return x.GroupId
+	}
+	return ""
+}
+
+func (x *RoomsInGroupReorderedEvent) GetRoomIds() []string {
+	if x != nil {
+		return x.RoomIds
+	}
+	return nil
+}
+
+// RoomGroupsReorderedEvent is the inter-group ordering update. The
+// layout aggregate is a singleton — there's only one sidebar layout
+// per server — so the event carries no aggregate ID; the publish
+// subject (evt.layout.default) identifies the singleton. The
+// `group_ids` field is the full, operator-validated permutation of
+// existing groups.
+type RoomGroupsReorderedEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupIds      []string               `protobuf:"bytes,1,rep,name=group_ids,json=groupIds,proto3" json:"group_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomGroupsReorderedEvent) Reset() {
+	*x = RoomGroupsReorderedEvent{}
+	mi := &file_chatto_core_v1_event_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomGroupsReorderedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomGroupsReorderedEvent) ProtoMessage() {}
+
+func (x *RoomGroupsReorderedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_event_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomGroupsReorderedEvent.ProtoReflect.Descriptor instead.
+func (*RoomGroupsReorderedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *RoomGroupsReorderedEvent) GetGroupIds() []string {
+	if x != nil {
+		return x.GroupIds
+	}
+	return nil
+}
+
 // Notifies clients that server configuration was updated.
 // Clients should refetch server info to get the new values.
 type ServerConfigUpdatedEvent struct {
@@ -1308,7 +1901,7 @@ type ServerConfigUpdatedEvent struct {
 
 func (x *ServerConfigUpdatedEvent) Reset() {
 	*x = ServerConfigUpdatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[11]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1320,7 +1913,7 @@ func (x *ServerConfigUpdatedEvent) String() string {
 func (*ServerConfigUpdatedEvent) ProtoMessage() {}
 
 func (x *ServerConfigUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[11]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1333,7 +1926,7 @@ func (x *ServerConfigUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerConfigUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*ServerConfigUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{11}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ServerConfigUpdatedEvent) GetServerName() string {
@@ -1375,7 +1968,7 @@ type UserCreatedEvent struct {
 
 func (x *UserCreatedEvent) Reset() {
 	*x = UserCreatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[12]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1387,7 +1980,7 @@ func (x *UserCreatedEvent) String() string {
 func (*UserCreatedEvent) ProtoMessage() {}
 
 func (x *UserCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[12]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1400,7 +1993,7 @@ func (x *UserCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserCreatedEvent.ProtoReflect.Descriptor instead.
 func (*UserCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{12}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *UserCreatedEvent) GetUserId() string {
@@ -1435,7 +2028,7 @@ type UserDeletedEvent struct {
 
 func (x *UserDeletedEvent) Reset() {
 	*x = UserDeletedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[13]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1447,7 +2040,7 @@ func (x *UserDeletedEvent) String() string {
 func (*UserDeletedEvent) ProtoMessage() {}
 
 func (x *UserDeletedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[13]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1460,7 +2053,7 @@ func (x *UserDeletedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserDeletedEvent.ProtoReflect.Descriptor instead.
 func (*UserDeletedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{13}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *UserDeletedEvent) GetUserId() string {
@@ -1487,7 +2080,7 @@ type UserProfileUpdatedEvent struct {
 
 func (x *UserProfileUpdatedEvent) Reset() {
 	*x = UserProfileUpdatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[14]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1499,7 +2092,7 @@ func (x *UserProfileUpdatedEvent) String() string {
 func (*UserProfileUpdatedEvent) ProtoMessage() {}
 
 func (x *UserProfileUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[14]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1512,7 +2105,7 @@ func (x *UserProfileUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserProfileUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*UserProfileUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{14}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *UserProfileUpdatedEvent) GetUserId() string {
@@ -1557,7 +2150,7 @@ type ServerUserPreferencesUpdatedEvent struct {
 
 func (x *ServerUserPreferencesUpdatedEvent) Reset() {
 	*x = ServerUserPreferencesUpdatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[15]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1569,7 +2162,7 @@ func (x *ServerUserPreferencesUpdatedEvent) String() string {
 func (*ServerUserPreferencesUpdatedEvent) ProtoMessage() {}
 
 func (x *ServerUserPreferencesUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[15]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1582,7 +2175,7 @@ func (x *ServerUserPreferencesUpdatedEvent) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use ServerUserPreferencesUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*ServerUserPreferencesUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{15}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ServerUserPreferencesUpdatedEvent) GetTimezone() string {
@@ -1616,7 +2209,7 @@ type NotificationLevelChangedEvent struct {
 
 func (x *NotificationLevelChangedEvent) Reset() {
 	*x = NotificationLevelChangedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[16]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1628,7 +2221,7 @@ func (x *NotificationLevelChangedEvent) String() string {
 func (*NotificationLevelChangedEvent) ProtoMessage() {}
 
 func (x *NotificationLevelChangedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[16]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1641,7 +2234,7 @@ func (x *NotificationLevelChangedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotificationLevelChangedEvent.ProtoReflect.Descriptor instead.
 func (*NotificationLevelChangedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{16}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *NotificationLevelChangedEvent) GetRoomId() string {
@@ -1676,7 +2269,7 @@ type ServerCreatedEvent struct {
 
 func (x *ServerCreatedEvent) Reset() {
 	*x = ServerCreatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[17]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1688,7 +2281,7 @@ func (x *ServerCreatedEvent) String() string {
 func (*ServerCreatedEvent) ProtoMessage() {}
 
 func (x *ServerCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[17]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1701,7 +2294,7 @@ func (x *ServerCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCreatedEvent.ProtoReflect.Descriptor instead.
 func (*ServerCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{17}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ServerCreatedEvent) GetServerId() string {
@@ -1740,7 +2333,7 @@ type ServerUpdatedEvent struct {
 
 func (x *ServerUpdatedEvent) Reset() {
 	*x = ServerUpdatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[18]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1752,7 +2345,7 @@ func (x *ServerUpdatedEvent) String() string {
 func (*ServerUpdatedEvent) ProtoMessage() {}
 
 func (x *ServerUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[18]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1765,7 +2358,7 @@ func (x *ServerUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*ServerUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{18}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ServerUpdatedEvent) GetServerId() string {
@@ -1812,7 +2405,7 @@ type ServerDeletedEvent struct {
 
 func (x *ServerDeletedEvent) Reset() {
 	*x = ServerDeletedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[19]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1824,7 +2417,7 @@ func (x *ServerDeletedEvent) String() string {
 func (*ServerDeletedEvent) ProtoMessage() {}
 
 func (x *ServerDeletedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[19]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1837,7 +2430,7 @@ func (x *ServerDeletedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerDeletedEvent.ProtoReflect.Descriptor instead.
 func (*ServerDeletedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{19}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ServerDeletedEvent) GetServerId() string {
@@ -1870,7 +2463,7 @@ type MessageUpdatedEvent struct {
 
 func (x *MessageUpdatedEvent) Reset() {
 	*x = MessageUpdatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[20]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1882,7 +2475,7 @@ func (x *MessageUpdatedEvent) String() string {
 func (*MessageUpdatedEvent) ProtoMessage() {}
 
 func (x *MessageUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[20]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1895,7 +2488,7 @@ func (x *MessageUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*MessageUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{20}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *MessageUpdatedEvent) GetRoomId() string {
@@ -1956,7 +2549,7 @@ type MessageDeletedEvent struct {
 
 func (x *MessageDeletedEvent) Reset() {
 	*x = MessageDeletedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[21]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1968,7 +2561,7 @@ func (x *MessageDeletedEvent) String() string {
 func (*MessageDeletedEvent) ProtoMessage() {}
 
 func (x *MessageDeletedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[21]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1981,7 +2574,7 @@ func (x *MessageDeletedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageDeletedEvent.ProtoReflect.Descriptor instead.
 func (*MessageDeletedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{21}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *MessageDeletedEvent) GetRoomId() string {
@@ -2019,7 +2612,7 @@ type ReactionAddedEvent struct {
 
 func (x *ReactionAddedEvent) Reset() {
 	*x = ReactionAddedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[22]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2031,7 +2624,7 @@ func (x *ReactionAddedEvent) String() string {
 func (*ReactionAddedEvent) ProtoMessage() {}
 
 func (x *ReactionAddedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[22]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2044,7 +2637,7 @@ func (x *ReactionAddedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionAddedEvent.ProtoReflect.Descriptor instead.
 func (*ReactionAddedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{22}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ReactionAddedEvent) GetRoomId() string {
@@ -2082,7 +2675,7 @@ type ReactionRemovedEvent struct {
 
 func (x *ReactionRemovedEvent) Reset() {
 	*x = ReactionRemovedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[23]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2094,7 +2687,7 @@ func (x *ReactionRemovedEvent) String() string {
 func (*ReactionRemovedEvent) ProtoMessage() {}
 
 func (x *ReactionRemovedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[23]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2107,7 +2700,7 @@ func (x *ReactionRemovedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReactionRemovedEvent.ProtoReflect.Descriptor instead.
 func (*ReactionRemovedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{23}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *ReactionRemovedEvent) GetRoomId() string {
@@ -2147,7 +2740,7 @@ type UserTypingEvent struct {
 
 func (x *UserTypingEvent) Reset() {
 	*x = UserTypingEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[24]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2159,7 +2752,7 @@ func (x *UserTypingEvent) String() string {
 func (*UserTypingEvent) ProtoMessage() {}
 
 func (x *UserTypingEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[24]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2172,7 +2765,7 @@ func (x *UserTypingEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserTypingEvent.ProtoReflect.Descriptor instead.
 func (*UserTypingEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{24}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *UserTypingEvent) GetRoomId() string {
@@ -2203,7 +2796,7 @@ type PresenceChangedEvent struct {
 
 func (x *PresenceChangedEvent) Reset() {
 	*x = PresenceChangedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[25]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2215,7 +2808,7 @@ func (x *PresenceChangedEvent) String() string {
 func (*PresenceChangedEvent) ProtoMessage() {}
 
 func (x *PresenceChangedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[25]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2228,7 +2821,7 @@ func (x *PresenceChangedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PresenceChangedEvent.ProtoReflect.Descriptor instead.
 func (*PresenceChangedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{25}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *PresenceChangedEvent) GetStatus() string {
@@ -2253,7 +2846,7 @@ type MentionNotificationEvent struct {
 
 func (x *MentionNotificationEvent) Reset() {
 	*x = MentionNotificationEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[26]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2265,7 +2858,7 @@ func (x *MentionNotificationEvent) String() string {
 func (*MentionNotificationEvent) ProtoMessage() {}
 
 func (x *MentionNotificationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[26]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2278,7 +2871,7 @@ func (x *MentionNotificationEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MentionNotificationEvent.ProtoReflect.Descriptor instead.
 func (*MentionNotificationEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{26}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *MentionNotificationEvent) GetRoomId() string {
@@ -2310,7 +2903,7 @@ type NewDirectMessageNotificationEvent struct {
 
 func (x *NewDirectMessageNotificationEvent) Reset() {
 	*x = NewDirectMessageNotificationEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[27]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2322,7 +2915,7 @@ func (x *NewDirectMessageNotificationEvent) String() string {
 func (*NewDirectMessageNotificationEvent) ProtoMessage() {}
 
 func (x *NewDirectMessageNotificationEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[27]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2335,7 +2928,7 @@ func (x *NewDirectMessageNotificationEvent) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use NewDirectMessageNotificationEvent.ProtoReflect.Descriptor instead.
 func (*NewDirectMessageNotificationEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{27}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *NewDirectMessageNotificationEvent) GetRoomId() string {
@@ -2368,7 +2961,7 @@ type NotificationCreatedEvent struct {
 
 func (x *NotificationCreatedEvent) Reset() {
 	*x = NotificationCreatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[28]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2380,7 +2973,7 @@ func (x *NotificationCreatedEvent) String() string {
 func (*NotificationCreatedEvent) ProtoMessage() {}
 
 func (x *NotificationCreatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[28]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2393,7 +2986,7 @@ func (x *NotificationCreatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotificationCreatedEvent.ProtoReflect.Descriptor instead.
 func (*NotificationCreatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{28}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *NotificationCreatedEvent) GetNotificationId() string {
@@ -2436,7 +3029,7 @@ type NotificationDismissedEvent struct {
 
 func (x *NotificationDismissedEvent) Reset() {
 	*x = NotificationDismissedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[29]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2448,7 +3041,7 @@ func (x *NotificationDismissedEvent) String() string {
 func (*NotificationDismissedEvent) ProtoMessage() {}
 
 func (x *NotificationDismissedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[29]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2461,7 +3054,7 @@ func (x *NotificationDismissedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotificationDismissedEvent.ProtoReflect.Descriptor instead.
 func (*NotificationDismissedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{29}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *NotificationDismissedEvent) GetNotificationId() string {
@@ -2488,7 +3081,7 @@ type ThreadFollowChangedEvent struct {
 
 func (x *ThreadFollowChangedEvent) Reset() {
 	*x = ThreadFollowChangedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[30]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2500,7 +3093,7 @@ func (x *ThreadFollowChangedEvent) String() string {
 func (*ThreadFollowChangedEvent) ProtoMessage() {}
 
 func (x *ThreadFollowChangedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[30]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2513,7 +3106,7 @@ func (x *ThreadFollowChangedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ThreadFollowChangedEvent.ProtoReflect.Descriptor instead.
 func (*ThreadFollowChangedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{30}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ThreadFollowChangedEvent) GetRoomId() string {
@@ -2549,7 +3142,7 @@ type RoomMarkedAsReadEvent struct {
 
 func (x *RoomMarkedAsReadEvent) Reset() {
 	*x = RoomMarkedAsReadEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[31]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2561,7 +3154,7 @@ func (x *RoomMarkedAsReadEvent) String() string {
 func (*RoomMarkedAsReadEvent) ProtoMessage() {}
 
 func (x *RoomMarkedAsReadEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[31]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2574,7 +3167,7 @@ func (x *RoomMarkedAsReadEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomMarkedAsReadEvent.ProtoReflect.Descriptor instead.
 func (*RoomMarkedAsReadEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{31}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *RoomMarkedAsReadEvent) GetRoomId() string {
@@ -2599,7 +3192,7 @@ type MentionStatusClearedEvent struct {
 
 func (x *MentionStatusClearedEvent) Reset() {
 	*x = MentionStatusClearedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[32]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2611,7 +3204,7 @@ func (x *MentionStatusClearedEvent) String() string {
 func (*MentionStatusClearedEvent) ProtoMessage() {}
 
 func (x *MentionStatusClearedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[32]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2624,7 +3217,7 @@ func (x *MentionStatusClearedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MentionStatusClearedEvent.ProtoReflect.Descriptor instead.
 func (*MentionStatusClearedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{32}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *MentionStatusClearedEvent) GetRoomId() string {
@@ -2645,7 +3238,7 @@ type RoomGroupsUpdatedEvent struct {
 
 func (x *RoomGroupsUpdatedEvent) Reset() {
 	*x = RoomGroupsUpdatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[33]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2657,7 +3250,7 @@ func (x *RoomGroupsUpdatedEvent) String() string {
 func (*RoomGroupsUpdatedEvent) ProtoMessage() {}
 
 func (x *RoomGroupsUpdatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[33]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2670,7 +3263,7 @@ func (x *RoomGroupsUpdatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RoomGroupsUpdatedEvent.ProtoReflect.Descriptor instead.
 func (*RoomGroupsUpdatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{33}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{41}
 }
 
 // Notifies a user that their session has been terminated.
@@ -2687,7 +3280,7 @@ type SessionTerminatedEvent struct {
 
 func (x *SessionTerminatedEvent) Reset() {
 	*x = SessionTerminatedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[34]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2699,7 +3292,7 @@ func (x *SessionTerminatedEvent) String() string {
 func (*SessionTerminatedEvent) ProtoMessage() {}
 
 func (x *SessionTerminatedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[34]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2712,7 +3305,7 @@ func (x *SessionTerminatedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionTerminatedEvent.ProtoReflect.Descriptor instead.
 func (*SessionTerminatedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{34}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *SessionTerminatedEvent) GetReason() string {
@@ -2741,7 +3334,7 @@ type VideoProcessingCompletedEvent struct {
 
 func (x *VideoProcessingCompletedEvent) Reset() {
 	*x = VideoProcessingCompletedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[35]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2753,7 +3346,7 @@ func (x *VideoProcessingCompletedEvent) String() string {
 func (*VideoProcessingCompletedEvent) ProtoMessage() {}
 
 func (x *VideoProcessingCompletedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[35]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2766,7 +3359,7 @@ func (x *VideoProcessingCompletedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VideoProcessingCompletedEvent.ProtoReflect.Descriptor instead.
 func (*VideoProcessingCompletedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{35}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *VideoProcessingCompletedEvent) GetRoomId() string {
@@ -2808,7 +3401,7 @@ type CallParticipantJoinedEvent struct {
 
 func (x *CallParticipantJoinedEvent) Reset() {
 	*x = CallParticipantJoinedEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[36]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2820,7 +3413,7 @@ func (x *CallParticipantJoinedEvent) String() string {
 func (*CallParticipantJoinedEvent) ProtoMessage() {}
 
 func (x *CallParticipantJoinedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[36]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2833,7 +3426,7 @@ func (x *CallParticipantJoinedEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallParticipantJoinedEvent.ProtoReflect.Descriptor instead.
 func (*CallParticipantJoinedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{36}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *CallParticipantJoinedEvent) GetRoomId() string {
@@ -2854,7 +3447,7 @@ type CallParticipantLeftEvent struct {
 
 func (x *CallParticipantLeftEvent) Reset() {
 	*x = CallParticipantLeftEvent{}
-	mi := &file_chatto_core_v1_event_proto_msgTypes[37]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2866,7 +3459,7 @@ func (x *CallParticipantLeftEvent) String() string {
 func (*CallParticipantLeftEvent) ProtoMessage() {}
 
 func (x *CallParticipantLeftEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_event_proto_msgTypes[37]
+	mi := &file_chatto_core_v1_event_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2879,7 +3472,7 @@ func (x *CallParticipantLeftEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallParticipantLeftEvent.ProtoReflect.Descriptor instead.
 func (*CallParticipantLeftEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{37}
+	return file_chatto_core_v1_event_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CallParticipantLeftEvent) GetRoomId() string {
@@ -2893,7 +3486,7 @@ var File_chatto_core_v1_event_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_event_proto_rawDesc = "" +
 	"\n" +
-	"\x1achatto/core/v1/event.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%chatto/core/v1/user_preferences.proto\"\xa1\x1a\n" +
+	"\x1achatto/core/v1/event.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1dchatto/config/v1/config.proto\x1a\x1bchatto/core/v1/models.proto\x1a%chatto/core/v1/user_preferences.proto\"\x91 \n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -2907,7 +3500,15 @@ const file_chatto_core_v1_event_proto_rawDesc = "" +
 	"\x10user_joined_room\x18\xb6\x02 \x01(\v2#.chatto.core.v1.UserJoinedRoomEventH\x00R\x0euserJoinedRoom\x12J\n" +
 	"\x0euser_left_room\x18\xb7\x02 \x01(\v2!.chatto.core.v1.UserLeftRoomEventH\x00R\fuserLeftRoom\x12\\\n" +
 	"\x14space_member_deleted\x18\xc0\x02 \x01(\v2'.chatto.core.v1.SpaceMemberDeletedEventH\x00R\x12spaceMemberDeleted\x12L\n" +
-	"\x0emessage_posted\x18\x90\x03 \x01(\v2\".chatto.core.v1.MessagePostedEventH\x00R\rmessagePosted\x12R\n" +
+	"\x0emessage_posted\x18\x90\x03 \x01(\v2\".chatto.core.v1.MessagePostedEventH\x00R\rmessagePosted\x12_\n" +
+	"\x15server_config_changed\x18\xf4\x03 \x01(\v2(.chatto.core.v1.ServerConfigChangedEventH\x00R\x13serverConfigChanged\x12V\n" +
+	"\x12room_group_created\x18\xd8\x04 \x01(\v2%.chatto.core.v1.RoomGroupCreatedEventH\x00R\x10roomGroupCreated\x12V\n" +
+	"\x12room_group_updated\x18\xd9\x04 \x01(\v2%.chatto.core.v1.RoomGroupUpdatedEventH\x00R\x10roomGroupUpdated\x12V\n" +
+	"\x12room_group_deleted\x18\xda\x04 \x01(\v2%.chatto.core.v1.RoomGroupDeletedEventH\x00R\x10roomGroupDeleted\x12W\n" +
+	"\x13room_added_to_group\x18\xdb\x04 \x01(\v2%.chatto.core.v1.RoomAddedToGroupEventH\x00R\x10roomAddedToGroup\x12c\n" +
+	"\x17room_removed_from_group\x18\xdc\x04 \x01(\v2).chatto.core.v1.RoomRemovedFromGroupEventH\x00R\x14roomRemovedFromGroup\x12f\n" +
+	"\x18rooms_in_group_reordered\x18\xdd\x04 \x01(\v2*.chatto.core.v1.RoomsInGroupReorderedEventH\x00R\x15roomsInGroupReordered\x12_\n" +
+	"\x15room_groups_reordered\x18\x8a\x05 \x01(\v2(.chatto.core.v1.RoomGroupsReorderedEventH\x00R\x13roomGroupsReordered\x12R\n" +
 	"\x0econfig_updated\x18\xe8\a \x01(\v2(.chatto.core.v1.ServerConfigUpdatedEventH\x00R\rconfigUpdated\x12F\n" +
 	"\fuser_created\x18\xf2\a \x01(\v2 .chatto.core.v1.UserCreatedEventH\x00R\vuserCreated\x12F\n" +
 	"\fuser_deleted\x18\xf3\a \x01(\v2 .chatto.core.v1.UserDeletedEventH\x00R\vuserDeleted\x12\\\n" +
@@ -2938,11 +3539,12 @@ const file_chatto_core_v1_event_proto_rawDesc = "" +
 	"\x12session_terminated\x18\xf4\b \x01(\v2&.chatto.core.v1.SessionTerminatedEventH\x00R\x11sessionTerminated\x12?\n" +
 	"\theartbeat\x18\xb0\t \x01(\v2\x1e.chatto.core.v1.HeartbeatEventH\x00R\theartbeatB\a\n" +
 	"\x05eventJ\x06\b\xa9F\x10\xaaF\"\x10\n" +
-	"\x0eHeartbeatEvent\"q\n" +
+	"\x0eHeartbeatEvent\"\x9f\x01\n" +
 	"\x10RoomCreatedEvent\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescriptionJ\x04\b\x01\x10\x02R\bspace_id\"q\n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12,\n" +
+	"\x04kind\x18\x05 \x01(\x0e2\x18.chatto.core.v1.RoomKindR\x04kindJ\x04\b\x01\x10\x02R\bspace_id\"q\n" +
 	"\x10RoomUpdatedEvent\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
@@ -2967,7 +3569,30 @@ const file_chatto_core_v1_event_proto_rawDesc = "" +
 	"\x12mentioned_user_ids\x18\x06 \x03(\tR\x10mentionedUserIds\x12'\n" +
 	"\x10echo_of_event_id\x18\a \x01(\tR\rechoOfEventId\x12A\n" +
 	"\x1eecho_from_thread_root_event_id\x18\b \x01(\tR\x19echoFromThreadRootEventId\x12\x1a\n" +
-	"\bevent_id\x18\xe9\a \x01(\tR\aeventIdJ\x04\b\x01\x10\x02J\x06\b\xe8\a\x10\xe9\aR\bspace_id\"\xa5\x01\n" +
+	"\bevent_id\x18\xe9\a \x01(\tR\aeventIdJ\x04\b\x01\x10\x02J\x06\b\xe8\a\x10\xe9\aR\bspace_id\"R\n" +
+	"\x18ServerConfigChangedEvent\x126\n" +
+	"\x06config\x18\x01 \x01(\v2\x1e.chatto.config.v1.ServerConfigR\x06config\"h\n" +
+	"\x15RoomGroupCreatedEvent\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"h\n" +
+	"\x15RoomGroupUpdatedEvent\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\"2\n" +
+	"\x15RoomGroupDeletedEvent\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\"K\n" +
+	"\x15RoomAddedToGroupEvent\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x17\n" +
+	"\aroom_id\x18\x02 \x01(\tR\x06roomId\"O\n" +
+	"\x19RoomRemovedFromGroupEvent\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x17\n" +
+	"\aroom_id\x18\x02 \x01(\tR\x06roomId\"R\n" +
+	"\x1aRoomsInGroupReorderedEvent\x12\x19\n" +
+	"\bgroup_id\x18\x01 \x01(\tR\agroupId\x12\x19\n" +
+	"\broom_ids\x18\x02 \x03(\tR\aroomIds\"7\n" +
+	"\x18RoomGroupsReorderedEvent\x12\x1b\n" +
+	"\tgroup_ids\x18\x01 \x03(\tR\bgroupIds\"\xa5\x01\n" +
 	"\x18ServerConfigUpdatedEvent\x12\x1f\n" +
 	"\vserver_name\x18\x01 \x01(\tR\n" +
 	"serverName\x12\x12\n" +
@@ -3080,7 +3705,7 @@ func file_chatto_core_v1_event_proto_rawDescGZIP() []byte {
 	return file_chatto_core_v1_event_proto_rawDescData
 }
 
-var file_chatto_core_v1_event_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_chatto_core_v1_event_proto_msgTypes = make([]protoimpl.MessageInfo, 46)
 var file_chatto_core_v1_event_proto_goTypes = []any{
 	(*Event)(nil),                             // 0: chatto.core.v1.Event
 	(*HeartbeatEvent)(nil),                    // 1: chatto.core.v1.HeartbeatEvent
@@ -3093,39 +3718,49 @@ var file_chatto_core_v1_event_proto_goTypes = []any{
 	(*UserLeftRoomEvent)(nil),                 // 8: chatto.core.v1.UserLeftRoomEvent
 	(*SpaceMemberDeletedEvent)(nil),           // 9: chatto.core.v1.SpaceMemberDeletedEvent
 	(*MessagePostedEvent)(nil),                // 10: chatto.core.v1.MessagePostedEvent
-	(*ServerConfigUpdatedEvent)(nil),          // 11: chatto.core.v1.ServerConfigUpdatedEvent
-	(*UserCreatedEvent)(nil),                  // 12: chatto.core.v1.UserCreatedEvent
-	(*UserDeletedEvent)(nil),                  // 13: chatto.core.v1.UserDeletedEvent
-	(*UserProfileUpdatedEvent)(nil),           // 14: chatto.core.v1.UserProfileUpdatedEvent
-	(*ServerUserPreferencesUpdatedEvent)(nil), // 15: chatto.core.v1.ServerUserPreferencesUpdatedEvent
-	(*NotificationLevelChangedEvent)(nil),     // 16: chatto.core.v1.NotificationLevelChangedEvent
-	(*ServerCreatedEvent)(nil),                // 17: chatto.core.v1.ServerCreatedEvent
-	(*ServerUpdatedEvent)(nil),                // 18: chatto.core.v1.ServerUpdatedEvent
-	(*ServerDeletedEvent)(nil),                // 19: chatto.core.v1.ServerDeletedEvent
-	(*MessageUpdatedEvent)(nil),               // 20: chatto.core.v1.MessageUpdatedEvent
-	(*MessageDeletedEvent)(nil),               // 21: chatto.core.v1.MessageDeletedEvent
-	(*ReactionAddedEvent)(nil),                // 22: chatto.core.v1.ReactionAddedEvent
-	(*ReactionRemovedEvent)(nil),              // 23: chatto.core.v1.ReactionRemovedEvent
-	(*UserTypingEvent)(nil),                   // 24: chatto.core.v1.UserTypingEvent
-	(*PresenceChangedEvent)(nil),              // 25: chatto.core.v1.PresenceChangedEvent
-	(*MentionNotificationEvent)(nil),          // 26: chatto.core.v1.MentionNotificationEvent
-	(*NewDirectMessageNotificationEvent)(nil), // 27: chatto.core.v1.NewDirectMessageNotificationEvent
-	(*NotificationCreatedEvent)(nil),          // 28: chatto.core.v1.NotificationCreatedEvent
-	(*NotificationDismissedEvent)(nil),        // 29: chatto.core.v1.NotificationDismissedEvent
-	(*ThreadFollowChangedEvent)(nil),          // 30: chatto.core.v1.ThreadFollowChangedEvent
-	(*RoomMarkedAsReadEvent)(nil),             // 31: chatto.core.v1.RoomMarkedAsReadEvent
-	(*MentionStatusClearedEvent)(nil),         // 32: chatto.core.v1.MentionStatusClearedEvent
-	(*RoomGroupsUpdatedEvent)(nil),            // 33: chatto.core.v1.RoomGroupsUpdatedEvent
-	(*SessionTerminatedEvent)(nil),            // 34: chatto.core.v1.SessionTerminatedEvent
-	(*VideoProcessingCompletedEvent)(nil),     // 35: chatto.core.v1.VideoProcessingCompletedEvent
-	(*CallParticipantJoinedEvent)(nil),        // 36: chatto.core.v1.CallParticipantJoinedEvent
-	(*CallParticipantLeftEvent)(nil),          // 37: chatto.core.v1.CallParticipantLeftEvent
-	(*timestamppb.Timestamp)(nil),             // 38: google.protobuf.Timestamp
-	(TimeFormat)(0),                           // 39: chatto.core.v1.TimeFormat
-	(NotificationLevel)(0),                    // 40: chatto.core.v1.NotificationLevel
+	(*ServerConfigChangedEvent)(nil),          // 11: chatto.core.v1.ServerConfigChangedEvent
+	(*RoomGroupCreatedEvent)(nil),             // 12: chatto.core.v1.RoomGroupCreatedEvent
+	(*RoomGroupUpdatedEvent)(nil),             // 13: chatto.core.v1.RoomGroupUpdatedEvent
+	(*RoomGroupDeletedEvent)(nil),             // 14: chatto.core.v1.RoomGroupDeletedEvent
+	(*RoomAddedToGroupEvent)(nil),             // 15: chatto.core.v1.RoomAddedToGroupEvent
+	(*RoomRemovedFromGroupEvent)(nil),         // 16: chatto.core.v1.RoomRemovedFromGroupEvent
+	(*RoomsInGroupReorderedEvent)(nil),        // 17: chatto.core.v1.RoomsInGroupReorderedEvent
+	(*RoomGroupsReorderedEvent)(nil),          // 18: chatto.core.v1.RoomGroupsReorderedEvent
+	(*ServerConfigUpdatedEvent)(nil),          // 19: chatto.core.v1.ServerConfigUpdatedEvent
+	(*UserCreatedEvent)(nil),                  // 20: chatto.core.v1.UserCreatedEvent
+	(*UserDeletedEvent)(nil),                  // 21: chatto.core.v1.UserDeletedEvent
+	(*UserProfileUpdatedEvent)(nil),           // 22: chatto.core.v1.UserProfileUpdatedEvent
+	(*ServerUserPreferencesUpdatedEvent)(nil), // 23: chatto.core.v1.ServerUserPreferencesUpdatedEvent
+	(*NotificationLevelChangedEvent)(nil),     // 24: chatto.core.v1.NotificationLevelChangedEvent
+	(*ServerCreatedEvent)(nil),                // 25: chatto.core.v1.ServerCreatedEvent
+	(*ServerUpdatedEvent)(nil),                // 26: chatto.core.v1.ServerUpdatedEvent
+	(*ServerDeletedEvent)(nil),                // 27: chatto.core.v1.ServerDeletedEvent
+	(*MessageUpdatedEvent)(nil),               // 28: chatto.core.v1.MessageUpdatedEvent
+	(*MessageDeletedEvent)(nil),               // 29: chatto.core.v1.MessageDeletedEvent
+	(*ReactionAddedEvent)(nil),                // 30: chatto.core.v1.ReactionAddedEvent
+	(*ReactionRemovedEvent)(nil),              // 31: chatto.core.v1.ReactionRemovedEvent
+	(*UserTypingEvent)(nil),                   // 32: chatto.core.v1.UserTypingEvent
+	(*PresenceChangedEvent)(nil),              // 33: chatto.core.v1.PresenceChangedEvent
+	(*MentionNotificationEvent)(nil),          // 34: chatto.core.v1.MentionNotificationEvent
+	(*NewDirectMessageNotificationEvent)(nil), // 35: chatto.core.v1.NewDirectMessageNotificationEvent
+	(*NotificationCreatedEvent)(nil),          // 36: chatto.core.v1.NotificationCreatedEvent
+	(*NotificationDismissedEvent)(nil),        // 37: chatto.core.v1.NotificationDismissedEvent
+	(*ThreadFollowChangedEvent)(nil),          // 38: chatto.core.v1.ThreadFollowChangedEvent
+	(*RoomMarkedAsReadEvent)(nil),             // 39: chatto.core.v1.RoomMarkedAsReadEvent
+	(*MentionStatusClearedEvent)(nil),         // 40: chatto.core.v1.MentionStatusClearedEvent
+	(*RoomGroupsUpdatedEvent)(nil),            // 41: chatto.core.v1.RoomGroupsUpdatedEvent
+	(*SessionTerminatedEvent)(nil),            // 42: chatto.core.v1.SessionTerminatedEvent
+	(*VideoProcessingCompletedEvent)(nil),     // 43: chatto.core.v1.VideoProcessingCompletedEvent
+	(*CallParticipantJoinedEvent)(nil),        // 44: chatto.core.v1.CallParticipantJoinedEvent
+	(*CallParticipantLeftEvent)(nil),          // 45: chatto.core.v1.CallParticipantLeftEvent
+	(*timestamppb.Timestamp)(nil),             // 46: google.protobuf.Timestamp
+	(RoomKind)(0),                             // 47: chatto.core.v1.RoomKind
+	(*v1.ServerConfig)(nil),                   // 48: chatto.config.v1.ServerConfig
+	(TimeFormat)(0),                           // 49: chatto.core.v1.TimeFormat
+	(NotificationLevel)(0),                    // 50: chatto.core.v1.NotificationLevel
 }
 var file_chatto_core_v1_event_proto_depIdxs = []int32{
-	38, // 0: chatto.core.v1.Event.created_at:type_name -> google.protobuf.Timestamp
+	46, // 0: chatto.core.v1.Event.created_at:type_name -> google.protobuf.Timestamp
 	2,  // 1: chatto.core.v1.Event.room_created:type_name -> chatto.core.v1.RoomCreatedEvent
 	3,  // 2: chatto.core.v1.Event.room_updated:type_name -> chatto.core.v1.RoomUpdatedEvent
 	4,  // 3: chatto.core.v1.Event.room_deleted:type_name -> chatto.core.v1.RoomDeletedEvent
@@ -3135,42 +3770,52 @@ var file_chatto_core_v1_event_proto_depIdxs = []int32{
 	8,  // 7: chatto.core.v1.Event.user_left_room:type_name -> chatto.core.v1.UserLeftRoomEvent
 	9,  // 8: chatto.core.v1.Event.space_member_deleted:type_name -> chatto.core.v1.SpaceMemberDeletedEvent
 	10, // 9: chatto.core.v1.Event.message_posted:type_name -> chatto.core.v1.MessagePostedEvent
-	11, // 10: chatto.core.v1.Event.config_updated:type_name -> chatto.core.v1.ServerConfigUpdatedEvent
-	12, // 11: chatto.core.v1.Event.user_created:type_name -> chatto.core.v1.UserCreatedEvent
-	13, // 12: chatto.core.v1.Event.user_deleted:type_name -> chatto.core.v1.UserDeletedEvent
-	14, // 13: chatto.core.v1.Event.user_profile_updated:type_name -> chatto.core.v1.UserProfileUpdatedEvent
-	15, // 14: chatto.core.v1.Event.server_user_preferences_updated:type_name -> chatto.core.v1.ServerUserPreferencesUpdatedEvent
-	16, // 15: chatto.core.v1.Event.notification_level_changed:type_name -> chatto.core.v1.NotificationLevelChangedEvent
-	30, // 16: chatto.core.v1.Event.thread_follow_changed:type_name -> chatto.core.v1.ThreadFollowChangedEvent
-	17, // 17: chatto.core.v1.Event.server_created:type_name -> chatto.core.v1.ServerCreatedEvent
-	18, // 18: chatto.core.v1.Event.server_updated:type_name -> chatto.core.v1.ServerUpdatedEvent
-	19, // 19: chatto.core.v1.Event.server_deleted:type_name -> chatto.core.v1.ServerDeletedEvent
-	20, // 20: chatto.core.v1.Event.message_updated:type_name -> chatto.core.v1.MessageUpdatedEvent
-	21, // 21: chatto.core.v1.Event.message_deleted:type_name -> chatto.core.v1.MessageDeletedEvent
-	22, // 22: chatto.core.v1.Event.reaction_added:type_name -> chatto.core.v1.ReactionAddedEvent
-	23, // 23: chatto.core.v1.Event.reaction_removed:type_name -> chatto.core.v1.ReactionRemovedEvent
-	24, // 24: chatto.core.v1.Event.user_typing:type_name -> chatto.core.v1.UserTypingEvent
-	35, // 25: chatto.core.v1.Event.video_processing_completed:type_name -> chatto.core.v1.VideoProcessingCompletedEvent
-	25, // 26: chatto.core.v1.Event.presence_changed:type_name -> chatto.core.v1.PresenceChangedEvent
-	26, // 27: chatto.core.v1.Event.mention_notification:type_name -> chatto.core.v1.MentionNotificationEvent
-	27, // 28: chatto.core.v1.Event.new_direct_message_notification:type_name -> chatto.core.v1.NewDirectMessageNotificationEvent
-	36, // 29: chatto.core.v1.Event.call_participant_joined:type_name -> chatto.core.v1.CallParticipantJoinedEvent
-	37, // 30: chatto.core.v1.Event.call_participant_left:type_name -> chatto.core.v1.CallParticipantLeftEvent
-	28, // 31: chatto.core.v1.Event.notification_created:type_name -> chatto.core.v1.NotificationCreatedEvent
-	29, // 32: chatto.core.v1.Event.notification_dismissed:type_name -> chatto.core.v1.NotificationDismissedEvent
-	31, // 33: chatto.core.v1.Event.room_marked_as_read:type_name -> chatto.core.v1.RoomMarkedAsReadEvent
-	32, // 34: chatto.core.v1.Event.mention_status_cleared:type_name -> chatto.core.v1.MentionStatusClearedEvent
-	33, // 35: chatto.core.v1.Event.room_groups_updated:type_name -> chatto.core.v1.RoomGroupsUpdatedEvent
-	34, // 36: chatto.core.v1.Event.session_terminated:type_name -> chatto.core.v1.SessionTerminatedEvent
-	1,  // 37: chatto.core.v1.Event.heartbeat:type_name -> chatto.core.v1.HeartbeatEvent
-	39, // 38: chatto.core.v1.ServerUserPreferencesUpdatedEvent.time_format:type_name -> chatto.core.v1.TimeFormat
-	40, // 39: chatto.core.v1.NotificationLevelChangedEvent.level:type_name -> chatto.core.v1.NotificationLevel
-	40, // 40: chatto.core.v1.NotificationLevelChangedEvent.effective_level:type_name -> chatto.core.v1.NotificationLevel
-	41, // [41:41] is the sub-list for method output_type
-	41, // [41:41] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	11, // 10: chatto.core.v1.Event.server_config_changed:type_name -> chatto.core.v1.ServerConfigChangedEvent
+	12, // 11: chatto.core.v1.Event.room_group_created:type_name -> chatto.core.v1.RoomGroupCreatedEvent
+	13, // 12: chatto.core.v1.Event.room_group_updated:type_name -> chatto.core.v1.RoomGroupUpdatedEvent
+	14, // 13: chatto.core.v1.Event.room_group_deleted:type_name -> chatto.core.v1.RoomGroupDeletedEvent
+	15, // 14: chatto.core.v1.Event.room_added_to_group:type_name -> chatto.core.v1.RoomAddedToGroupEvent
+	16, // 15: chatto.core.v1.Event.room_removed_from_group:type_name -> chatto.core.v1.RoomRemovedFromGroupEvent
+	17, // 16: chatto.core.v1.Event.rooms_in_group_reordered:type_name -> chatto.core.v1.RoomsInGroupReorderedEvent
+	18, // 17: chatto.core.v1.Event.room_groups_reordered:type_name -> chatto.core.v1.RoomGroupsReorderedEvent
+	19, // 18: chatto.core.v1.Event.config_updated:type_name -> chatto.core.v1.ServerConfigUpdatedEvent
+	20, // 19: chatto.core.v1.Event.user_created:type_name -> chatto.core.v1.UserCreatedEvent
+	21, // 20: chatto.core.v1.Event.user_deleted:type_name -> chatto.core.v1.UserDeletedEvent
+	22, // 21: chatto.core.v1.Event.user_profile_updated:type_name -> chatto.core.v1.UserProfileUpdatedEvent
+	23, // 22: chatto.core.v1.Event.server_user_preferences_updated:type_name -> chatto.core.v1.ServerUserPreferencesUpdatedEvent
+	24, // 23: chatto.core.v1.Event.notification_level_changed:type_name -> chatto.core.v1.NotificationLevelChangedEvent
+	38, // 24: chatto.core.v1.Event.thread_follow_changed:type_name -> chatto.core.v1.ThreadFollowChangedEvent
+	25, // 25: chatto.core.v1.Event.server_created:type_name -> chatto.core.v1.ServerCreatedEvent
+	26, // 26: chatto.core.v1.Event.server_updated:type_name -> chatto.core.v1.ServerUpdatedEvent
+	27, // 27: chatto.core.v1.Event.server_deleted:type_name -> chatto.core.v1.ServerDeletedEvent
+	28, // 28: chatto.core.v1.Event.message_updated:type_name -> chatto.core.v1.MessageUpdatedEvent
+	29, // 29: chatto.core.v1.Event.message_deleted:type_name -> chatto.core.v1.MessageDeletedEvent
+	30, // 30: chatto.core.v1.Event.reaction_added:type_name -> chatto.core.v1.ReactionAddedEvent
+	31, // 31: chatto.core.v1.Event.reaction_removed:type_name -> chatto.core.v1.ReactionRemovedEvent
+	32, // 32: chatto.core.v1.Event.user_typing:type_name -> chatto.core.v1.UserTypingEvent
+	43, // 33: chatto.core.v1.Event.video_processing_completed:type_name -> chatto.core.v1.VideoProcessingCompletedEvent
+	33, // 34: chatto.core.v1.Event.presence_changed:type_name -> chatto.core.v1.PresenceChangedEvent
+	34, // 35: chatto.core.v1.Event.mention_notification:type_name -> chatto.core.v1.MentionNotificationEvent
+	35, // 36: chatto.core.v1.Event.new_direct_message_notification:type_name -> chatto.core.v1.NewDirectMessageNotificationEvent
+	44, // 37: chatto.core.v1.Event.call_participant_joined:type_name -> chatto.core.v1.CallParticipantJoinedEvent
+	45, // 38: chatto.core.v1.Event.call_participant_left:type_name -> chatto.core.v1.CallParticipantLeftEvent
+	36, // 39: chatto.core.v1.Event.notification_created:type_name -> chatto.core.v1.NotificationCreatedEvent
+	37, // 40: chatto.core.v1.Event.notification_dismissed:type_name -> chatto.core.v1.NotificationDismissedEvent
+	39, // 41: chatto.core.v1.Event.room_marked_as_read:type_name -> chatto.core.v1.RoomMarkedAsReadEvent
+	40, // 42: chatto.core.v1.Event.mention_status_cleared:type_name -> chatto.core.v1.MentionStatusClearedEvent
+	41, // 43: chatto.core.v1.Event.room_groups_updated:type_name -> chatto.core.v1.RoomGroupsUpdatedEvent
+	42, // 44: chatto.core.v1.Event.session_terminated:type_name -> chatto.core.v1.SessionTerminatedEvent
+	1,  // 45: chatto.core.v1.Event.heartbeat:type_name -> chatto.core.v1.HeartbeatEvent
+	47, // 46: chatto.core.v1.RoomCreatedEvent.kind:type_name -> chatto.core.v1.RoomKind
+	48, // 47: chatto.core.v1.ServerConfigChangedEvent.config:type_name -> chatto.config.v1.ServerConfig
+	49, // 48: chatto.core.v1.ServerUserPreferencesUpdatedEvent.time_format:type_name -> chatto.core.v1.TimeFormat
+	50, // 49: chatto.core.v1.NotificationLevelChangedEvent.level:type_name -> chatto.core.v1.NotificationLevel
+	50, // 50: chatto.core.v1.NotificationLevelChangedEvent.effective_level:type_name -> chatto.core.v1.NotificationLevel
+	51, // [51:51] is the sub-list for method output_type
+	51, // [51:51] is the sub-list for method input_type
+	51, // [51:51] is the sub-list for extension type_name
+	51, // [51:51] is the sub-list for extension extendee
+	0,  // [0:51] is the sub-list for field type_name
 }
 
 func init() { file_chatto_core_v1_event_proto_init() }
@@ -3178,6 +3823,7 @@ func file_chatto_core_v1_event_proto_init() {
 	if File_chatto_core_v1_event_proto != nil {
 		return
 	}
+	file_chatto_core_v1_models_proto_init()
 	file_chatto_core_v1_user_preferences_proto_init()
 	file_chatto_core_v1_event_proto_msgTypes[0].OneofWrappers = []any{
 		(*Event_RoomCreated)(nil),
@@ -3189,6 +3835,14 @@ func file_chatto_core_v1_event_proto_init() {
 		(*Event_UserLeftRoom)(nil),
 		(*Event_SpaceMemberDeleted)(nil),
 		(*Event_MessagePosted)(nil),
+		(*Event_ServerConfigChanged)(nil),
+		(*Event_RoomGroupCreated)(nil),
+		(*Event_RoomGroupUpdated)(nil),
+		(*Event_RoomGroupDeleted)(nil),
+		(*Event_RoomAddedToGroup)(nil),
+		(*Event_RoomRemovedFromGroup)(nil),
+		(*Event_RoomsInGroupReordered)(nil),
+		(*Event_RoomGroupsReordered)(nil),
 		(*Event_ConfigUpdated)(nil),
 		(*Event_UserCreated)(nil),
 		(*Event_UserDeleted)(nil),
@@ -3218,14 +3872,14 @@ func file_chatto_core_v1_event_proto_init() {
 		(*Event_SessionTerminated)(nil),
 		(*Event_Heartbeat)(nil),
 	}
-	file_chatto_core_v1_event_proto_msgTypes[24].OneofWrappers = []any{}
+	file_chatto_core_v1_event_proto_msgTypes[32].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_core_v1_event_proto_rawDesc), len(file_chatto_core_v1_event_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   46,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

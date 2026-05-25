@@ -37,7 +37,7 @@ func TestConfigManager_GetServerConfig(t *testing.T) {
 			Motd:           "Message of the day",
 		}
 
-		err := core.configManager.SetServerConfig(ctx, testCfg)
+		err := core.configManager.SetServerConfig(ctx, "test", testCfg)
 		if err != nil {
 			t.Fatalf("failed to set config: %v", err)
 		}
@@ -67,9 +67,8 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 
 	t.Run("creates config when none exists", func(t *testing.T) {
 		// Reset to ensure clean state
-		core.configManager.ResetServerConfig(ctx)
 
-		cfg, err := core.configManager.UpdateServerConfigFunc(ctx, func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
+		cfg, err := core.configManager.UpdateServerConfigFunc(ctx, "test", func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
 			if current != nil {
 				t.Error("expected nil current config for fresh server")
 			}
@@ -88,12 +87,12 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 
 	t.Run("updates existing config", func(t *testing.T) {
 		// Set initial config
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			ServerName: "Original Name",
 			Motd:         "Original MOTD",
 		})
 
-		cfg, err := core.configManager.UpdateServerConfigFunc(ctx, func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
+		cfg, err := core.configManager.UpdateServerConfigFunc(ctx, "test", func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
 			if current == nil {
 				t.Error("expected non-nil current config")
 			}
@@ -119,7 +118,7 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 	t.Run("propagates update function errors", func(t *testing.T) {
 		expectedErr := errors.New("update function error")
 
-		_, err := core.configManager.UpdateServerConfigFunc(ctx, func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
+		_, err := core.configManager.UpdateServerConfigFunc(ctx, "test", func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
 			return nil, expectedErr
 		})
 
@@ -130,8 +129,7 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 
 	t.Run("handles concurrent updates with OCC", func(t *testing.T) {
 		// Reset and set initial config
-		core.configManager.ResetServerConfig(ctx)
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			ServerName: "Concurrent Test",
 		})
 
@@ -146,7 +144,7 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 			go func(idx int) {
 				defer wg.Done()
 
-				_, err := core.configManager.UpdateServerConfigFunc(ctx, func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
+				_, err := core.configManager.UpdateServerConfigFunc(ctx, "test", func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
 					if current == nil {
 						current = &configv1.ServerConfig{}
 					}
@@ -179,51 +177,11 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 	})
 }
 
-func TestConfigManager_ResetServerConfig(t *testing.T) {
-	core, _ := setupTestCore(t)
-	ctx := testContext(t)
-
-	t.Run("resets config to unconfigured state", func(t *testing.T) {
-		// Set config first
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
-			ServerName: "To Be Reset",
-		})
-
-		// Verify it's set
-		_, isConfigured, _ := core.configManager.GetServerConfig(ctx)
-		if !isConfigured {
-			t.Fatal("config should be set before reset")
-		}
-
-		// Reset
-		err := core.configManager.ResetServerConfig(ctx)
-		if err != nil {
-			t.Fatalf("failed to reset config: %v", err)
-		}
-
-		// Verify it's gone
-		_, isConfigured, _ = core.configManager.GetServerConfig(ctx)
-		if isConfigured {
-			t.Error("config should be unconfigured after reset")
-		}
-	})
-
-	t.Run("no error when resetting unconfigured server", func(t *testing.T) {
-		// Reset twice - should not error
-		core.configManager.ResetServerConfig(ctx)
-		err := core.configManager.ResetServerConfig(ctx)
-		if err != nil {
-			t.Errorf("reset should not error for unconfigured server: %v", err)
-		}
-	})
-}
-
 func TestConfigManager_GetEffectiveWelcomeMessage(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
 	t.Run("returns empty string when not configured", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		msg, err := core.configManager.GetEffectiveWelcomeMessage(ctx)
 		if err != nil {
@@ -235,7 +193,7 @@ func TestConfigManager_GetEffectiveWelcomeMessage(t *testing.T) {
 	})
 
 	t.Run("returns configured welcome message", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			WelcomeMessage: "Hello, world!",
 		})
 
@@ -254,7 +212,6 @@ func TestConfigManager_GetEffectiveServerName(t *testing.T) {
 	ctx := testContext(t)
 
 	t.Run("returns 'Chatto' when not configured", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		name, err := core.configManager.GetEffectiveServerName(ctx)
 		if err != nil {
@@ -266,7 +223,7 @@ func TestConfigManager_GetEffectiveServerName(t *testing.T) {
 	})
 
 	t.Run("returns 'Chatto' when configured with empty name", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			ServerName: "",
 		})
 
@@ -280,7 +237,7 @@ func TestConfigManager_GetEffectiveServerName(t *testing.T) {
 	})
 
 	t.Run("returns configured server name", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			ServerName: "My Custom Instance",
 		})
 
@@ -299,7 +256,6 @@ func TestConfigManager_GetEffectiveMOTD(t *testing.T) {
 	ctx := testContext(t)
 
 	t.Run("returns empty string when not configured", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		motd, err := core.configManager.GetEffectiveMOTD(ctx)
 		if err != nil {
@@ -311,7 +267,7 @@ func TestConfigManager_GetEffectiveMOTD(t *testing.T) {
 	})
 
 	t.Run("returns configured MOTD", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			Motd: "Today's announcement",
 		})
 
@@ -330,7 +286,6 @@ func TestConfigManager_BlockedUsernames(t *testing.T) {
 	ctx := testContext(t)
 
 	t.Run("returns default blocked usernames when not configured", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		blocked, err := core.configManager.GetEffectiveBlockedUsernames(ctx)
 		if err != nil {
@@ -342,7 +297,7 @@ func TestConfigManager_BlockedUsernames(t *testing.T) {
 	})
 
 	t.Run("returns configured blocked usernames", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			BlockedUsernames: "blocked1\nblocked2",
 		})
 
@@ -356,7 +311,7 @@ func TestConfigManager_BlockedUsernames(t *testing.T) {
 	})
 
 	t.Run("returns empty when admin explicitly clears", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			BlockedUsernames: "", // Admin explicitly cleared
 		})
 
@@ -375,7 +330,6 @@ func TestConfigManager_GetBlockedUsernamesList(t *testing.T) {
 	ctx := testContext(t)
 
 	t.Run("parses default blocked usernames into list", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		list, err := core.configManager.GetBlockedUsernamesList(ctx)
 		if err != nil {
@@ -395,7 +349,7 @@ func TestConfigManager_GetBlockedUsernamesList(t *testing.T) {
 	})
 
 	t.Run("handles empty lines and whitespace", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			BlockedUsernames: "  user1  \n\nuser2\n  \nUSER3  ",
 		})
 
@@ -420,7 +374,6 @@ func TestConfigManager_IsUsernameBlocked(t *testing.T) {
 	ctx := testContext(t)
 
 	t.Run("blocks default usernames", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		blocked, err := core.configManager.IsUsernameBlocked(ctx, "admin")
 		if err != nil {
@@ -432,7 +385,6 @@ func TestConfigManager_IsUsernameBlocked(t *testing.T) {
 	})
 
 	t.Run("case-insensitive blocking", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		blocked, err := core.configManager.IsUsernameBlocked(ctx, "ADMIN")
 		if err != nil {
@@ -452,7 +404,6 @@ func TestConfigManager_IsUsernameBlocked(t *testing.T) {
 	})
 
 	t.Run("allows non-blocked usernames", func(t *testing.T) {
-		core.configManager.ResetServerConfig(ctx)
 
 		blocked, err := core.configManager.IsUsernameBlocked(ctx, "regularuser")
 		if err != nil {
@@ -464,7 +415,7 @@ func TestConfigManager_IsUsernameBlocked(t *testing.T) {
 	})
 
 	t.Run("respects custom blocked list", func(t *testing.T) {
-		core.configManager.SetServerConfig(ctx, &configv1.ServerConfig{
+		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			BlockedUsernames: "customblocked",
 		})
 

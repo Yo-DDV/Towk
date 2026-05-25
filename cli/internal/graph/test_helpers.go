@@ -65,16 +65,27 @@ func setupTestResolver(t *testing.T) *testEnv {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
 
-	// Start PresenceHub in background (needed by StreamMyEvents)
-	hubCtx, hubCancel := context.WithCancel(context.Background())
-	go chattoCore.PresenceHub.Run(hubCtx)
+	// Run core's background services (PresenceHub + projectors) for the
+	// lifetime of the test. StreamMyEvents needs PresenceHub; membership
+	// mutations need the projector loops to advance so WaitForSeq returns.
+	servicesCtx, servicesCancel := context.WithCancel(context.Background())
+	go func() { _ = chattoCore.Run(servicesCtx) }()
 
 	t.Cleanup(func() {
-		hubCancel()
+		servicesCancel()
 		nc.Close()
 		ns.Shutdown()
 		ns.WaitForShutdown()
 	})
+
+	// Wait for Run's boot phase before letting the test issue reads
+	// against the projections.
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := chattoCore.WaitForBoot(bootCtx); err != nil {
+		bootCancel()
+		t.Fatalf("WaitForBoot: %v", err)
+	}
+	bootCancel()
 
 	// Create resolver with empty owners/auth/push config for tests
 	resolver := NewResolver(chattoCore, config.OwnersConfig{}, config.AuthConfig{}, config.PushConfig{}, config.VideoConfig{}, config.LiveKitConfig{}, "test")
@@ -205,16 +216,27 @@ func setupTestResolverWithAdmin(t *testing.T, ownerEmails []string) *testEnv {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
 
-	// Start PresenceHub in background (needed by StreamMyEvents)
-	hubCtx, hubCancel := context.WithCancel(context.Background())
-	go chattoCore.PresenceHub.Run(hubCtx)
+	// Run core's background services (PresenceHub + projectors) for the
+	// lifetime of the test. StreamMyEvents needs PresenceHub; membership
+	// mutations need the projector loops to advance so WaitForSeq returns.
+	servicesCtx, servicesCancel := context.WithCancel(context.Background())
+	go func() { _ = chattoCore.Run(servicesCtx) }()
 
 	t.Cleanup(func() {
-		hubCancel()
+		servicesCancel()
 		nc.Close()
 		ns.Shutdown()
 		ns.WaitForShutdown()
 	})
+
+	// Wait for Run's boot phase before letting the test issue reads
+	// against the projections.
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := chattoCore.WaitForBoot(bootCtx); err != nil {
+		bootCancel()
+		t.Fatalf("WaitForBoot: %v", err)
+	}
+	bootCancel()
 
 	// Create resolver with provided owners config
 	resolver := NewResolver(chattoCore, ownersConfig, config.AuthConfig{}, config.PushConfig{}, config.VideoConfig{}, config.LiveKitConfig{}, "test")

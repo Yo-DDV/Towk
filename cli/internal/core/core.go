@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"math/rand"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/assets"
@@ -21,6 +21,7 @@ import (
 	"hmans.de/chatto/internal/core/linkpreview"
 	"hmans.de/chatto/internal/core/subjects"
 	"hmans.de/chatto/internal/encryption"
+	"hmans.de/chatto/internal/events"
 	"hmans.de/chatto/internal/migrations"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -40,7 +41,6 @@ type ChattoCore struct {
 	config                  config.CoreConfig
 	encryption              *encryptionManager
 	configManager           *ConfigManager
-	roomNameIndexBackfilled sync.Map             // tracks which spaces have had their room-name index backfilled
 	s3Client                *S3Client            // Optional S3 client for S3-compatible storage
 	permissionResolver      *PermissionResolver  // Hierarchical permission resolver
 	linkPreviewCache        *linkpreview.Cache   // Cache for link preview metadata
@@ -67,8 +67,179 @@ type ChattoCore struct {
 	AssetBaseURL string
 
 	// PresenceHub runs a single KV watcher on presence.> per process and fans
-	// out updates to all space subscriptions. Must be started via Run() in an errgroup.
+	// out updates to all space subscriptions. Started by (*ChattoCore).Run.
 	PresenceHub *PresenceHub
+
+	// EventPublisher writes to the EVT event-sourcing stream
+	// (ADR-033/034). Exposed for use by the migrate subcommand and
+	// future aggregate cutovers; domain code accesses it through
+	// higher-level helpers as aggregates migrate.
+	EventPublisher *events.Publisher
+
+	// RoomMembership is the first event-sourced projection (ADR-033 POC).
+	// Populated by RoomMembershipProjector; not yet read by any
+	// user-facing resolver. Inspectable via an admin endpoint.
+	RoomMembership *RoomMembershipProjection
+
+	// RoomMembershipProjector runs the consumer + apply loop that keeps
+	// RoomMembership current. Started by (*ChattoCore).Run; exposed here
+	// so writers can call WaitForSeq for read-your-writes.
+	RoomMembershipProjector *events.Projector
+
+	// ServerConfig is the projection holding the current server-config
+	// snapshot (ADR-035 phase 5 cutover for the config aggregate).
+	// Reads of "what's the server's MOTD / welcome message / blocked
+	// usernames" go through this projection rather than the legacy
+	// INSTANCE_CONFIG KV.
+	ServerConfig *ServerConfigProjection
+
+	// ServerConfigProjector runs the consumer + apply loop that keeps
+	// ServerConfig current. Started by (*ChattoCore).Run; exposed here
+	// so writers (ConfigManager mutations) can call WaitForSeq.
+	ServerConfigProjector *events.Projector
+
+	// RoomCatalog is the projection holding per-room metadata
+	// (id/name/description/kind/archived) derived from evt.room.>.
+	// Coexists with RoomMembership on the same subject family.
+	RoomCatalog *RoomCatalogProjection
+
+	// RoomCatalogProjector runs the consumer for RoomCatalog. Exposed
+	// for WaitForSeq from room-metadata writers.
+	RoomCatalogProjector *events.Projector
+
+	// RoomGroups is the projection holding per-group metadata and
+	// ordered room membership, derived from evt.group.>.
+	RoomGroups *RoomGroupProjection
+
+	// RoomGroupsProjector runs the consumer for RoomGroups. Exposed
+	// for WaitForSeq from group writers.
+	RoomGroupsProjector *events.Projector
+
+	// RoomLayout holds the operator-defined inter-group ordering for
+	// the sidebar, derived from evt.layout.> events.
+	RoomLayout *RoomLayoutProjection
+
+	// RoomLayoutProjector runs the consumer for RoomLayout. Exposed
+	// for WaitForSeq from layout writers.
+	RoomLayoutProjector *events.Projector
+
+	// projectors is the set of all event-sourcing projectors owned by
+	// this core. Each new aggregate migration (ADR-035) appends here
+	// during NewChattoCore; Run iterates the slice. Adding a projector
+	// is one line at construction and zero changes at call sites — see
+	// (*ChattoCore).Run.
+	projectors []*events.Projector
+
+	// bootDone is closed by Run once all projectors are started AND
+	// boot-time mutations (ensureChannelRoomsAreInAGroup) have
+	// completed. Callers that need to issue projection-backed reads
+	// during startup — most notably SeedDefaultRooms in cmd/run.go —
+	// block on this via WaitForBoot.
+	bootDone chan struct{}
+}
+
+// Run starts every background service owned by the core — currently
+// PresenceHub and every registered projector — and blocks until ctx is
+// cancelled or any service returns an error. Returns the first error
+// observed (or ctx.Err on shutdown).
+//
+// Call this once per process from an errgroup goroutine; tests typically
+// launch it in a bare goroutine with a per-test context that cleanup
+// cancels. Background services are not designed to be restarted.
+//
+// New projectors should be appended to c.projectors during NewChattoCore;
+// they are then started automatically here without any additional wiring.
+func (c *ChattoCore) Run(ctx context.Context) error {
+	g, gctx := errgroup.WithContext(ctx)
+
+	for _, p := range c.projectors {
+		p := p
+		g.Go(func() error { return p.Run(gctx) })
+	}
+
+	// Block until every projector has entered Run before issuing
+	// projection-backed mutations during boot. Without this,
+	// ensureChannelRoomsAreInAGroup's reads against an empty
+	// projection would silently skip the WaitForSeq path and leave
+	// orphan rooms (rooms created without a group assignment).
+	g.Go(func() error {
+		if err := c.waitForProjectorsStarted(gctx, 5*time.Second); err != nil {
+			return fmt.Errorf("wait for projectors: %w", err)
+		}
+		// Seed the default room group and ensure every existing
+		// channel room belongs to a set (ADR-031). Idempotent —
+		// runs on every boot. Has to happen AFTER projectors are
+		// running because it both reads the RoomGroups projection
+		// and depends on WaitForSeq actually waiting.
+		if err := c.ensureChannelRoomsAreInAGroup(gctx); err != nil {
+			return fmt.Errorf("ensure channel rooms in a group: %w", err)
+		}
+		close(c.bootDone)
+		return nil
+	})
+
+	g.Go(func() error { return c.PresenceHub.Run(gctx) })
+
+	return g.Wait()
+}
+
+// AllProjectorsStarted reports whether every registered projector
+// has entered its Run body. Test helpers (and any sequenced startup
+// code) use this to wait for projector consumers to come online
+// before issuing reads that depend on a populated projection — the
+// background goroutines launched by Run aren't guaranteed to have
+// been scheduled the instant `go core.Run(ctx)` returns.
+func (c *ChattoCore) AllProjectorsStarted() bool {
+	for _, p := range c.projectors {
+		if !p.Started() {
+			return false
+		}
+	}
+	return true
+}
+
+// WaitForBoot blocks until Run has finished boot-time setup
+// (projectors running + ensureChannelRoomsAreInAGroup done) or ctx
+// is cancelled. Callers that issue projection-backed mutations during
+// startup — e.g. SeedDefaultRooms in cmd/run.go — must wait here
+// first; mutating before boot completes leaves orphan rooms because
+// CreateRoom's default-group lookup reads the (still-empty)
+// projection.
+func (c *ChattoCore) WaitForBoot(ctx context.Context) error {
+	select {
+	case <-c.bootDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// waitForProjectorsStarted polls AllProjectorsStarted with a short
+// interval until every projector has entered its Run body or the
+// deadline / context elapses. The polling shape mirrors the test
+// helper; this version lives in Run so production has the same
+// guarantee without test-only code on the path.
+func (c *ChattoCore) waitForProjectorsStarted(ctx context.Context, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for !c.AllProjectorsStarted() {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("projectors did not start within %s", timeout)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Millisecond):
+		}
+	}
+	return nil
+}
+
+// EventStreamForDebug returns the EVT stream. Intended for the
+// `chatto evt list` command and similar low-level operator tooling that
+// reads raw stream messages. Domain code goes through EventPublisher /
+// Projector instead.
+func (c *ChattoCore) EventStreamForDebug(_ context.Context) (jetstream.Stream, error) {
+	return c.storage.serverEvtStream, nil
 }
 
 // assetURL prepends AssetBaseURL to an asset path.
@@ -293,13 +464,6 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	// Run boot-time data migrations. Idempotent and cheap on subsequent
-	// boots (each migration short-circuits when no legacy data remains).
-	// See cli/internal/migrations for what's currently registered.
-	if err := migrations.RunAll(ctx, storage.serverKV, storage.serverConfigKV, storage.serverBodiesKV, storage.serverRuntimeKV, logger); err != nil {
-		return nil, fmt.Errorf("failed to run boot migrations: %w", err)
-	}
-
 	// Initialize encryption manager
 	encMgr := &encryptionManager{
 		keyManager: encryption.NewKeyManager(storage.encryptionKV),
@@ -322,9 +486,6 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		Logger: slog.Default().With("component", "server-rbac"),
 	})
 
-	// Initialize config manager for runtime configuration
-	configMgr := NewConfigManager(storage.runtimeConfigKV)
-
 	// Initialize S3 client if S3 storage is configured
 	var s3Client *S3Client
 	if cfg.Assets.StorageBackend == config.StorageBackendS3 {
@@ -342,15 +503,83 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		}
 	}
 
+	// Build the event-sourcing primitives before any aggregate-specific
+	// wiring so projections and managers that need them can be passed the
+	// concrete deps at construction. Order: publisher → projections →
+	// projectors → managers that depend on them.
+	eventPublisher := events.NewPublisher(js, storage.serverEvtStream, logger)
+
+	// newProjector wraps the (projection, logger-prefix) → Projector
+	// construction so the per-aggregate wiring below stays one line per
+	// projection. Each projector also gets appended to the slice that
+	// (*ChattoCore).Run iterates.
+	var projectors []*events.Projector
+	newProjector := func(p events.Projection, name string) *events.Projector {
+		pr := events.NewProjector(js, storage.serverEvtStream, p, logger.WithPrefix("core."+name))
+		projectors = append(projectors, pr)
+		return pr
+	}
+
+	roomMembership := NewRoomMembershipProjection()
+	roomMembershipProjector := newProjector(roomMembership, "RoomMembershipProjector")
+
+	serverConfigProjection := NewServerConfigProjection()
+	serverConfigProjector := newProjector(serverConfigProjection, "ServerConfigProjector")
+
+	roomCatalog := NewRoomCatalogProjection()
+	roomCatalogProjector := newProjector(roomCatalog, "RoomCatalogProjector")
+
+	roomGroups := NewRoomGroupProjection()
+	roomGroupsProjector := newProjector(roomGroups, "RoomGroupsProjector")
+
+	roomLayout := NewRoomLayoutProjection()
+	roomLayoutProjector := newProjector(roomLayout, "RoomLayoutProjector")
+
+	// ConfigManager owns server-config dual-writes; it needs the
+	// publisher (for ServerConfigChangedEvent), the projector
+	// (WaitForSeq for read-your-writes), and the projection (for reads).
+	configMgr := NewConfigManager(eventPublisher, serverConfigProjector, serverConfigProjection)
+
 	core := &ChattoCore{
-		nc:            nc,
-		js:            js,
-		logger:        logger,
-		storage:       storage,
-		config:        cfg,
-		encryption:    encMgr,
-		configManager: configMgr,
-		s3Client:      s3Client,
+		nc:                      nc,
+		js:                      js,
+		logger:                  logger,
+		storage:                 storage,
+		config:                  cfg,
+		encryption:              encMgr,
+		configManager:           configMgr,
+		s3Client:                s3Client,
+		EventPublisher:          eventPublisher,
+		RoomMembership:          roomMembership,
+		RoomMembershipProjector: roomMembershipProjector,
+		ServerConfig:            serverConfigProjection,
+		ServerConfigProjector:   serverConfigProjector,
+		RoomCatalog:             roomCatalog,
+		RoomCatalogProjector:    roomCatalogProjector,
+		RoomGroups:              roomGroups,
+		RoomGroupsProjector:     roomGroupsProjector,
+		RoomLayout:              roomLayout,
+		RoomLayoutProjector:     roomLayoutProjector,
+		projectors:              projectors,
+		bootDone:                make(chan struct{}),
+	}
+
+	// Run boot-time data migrations. Idempotent and cheap on subsequent
+	// boots (each migration short-circuits when no legacy data remains).
+	// See cli/internal/migrations for the registry, including the
+	// ADR-035 ES seed migrations that need the event publisher we just
+	// constructed.
+	//
+	// In the typical embedded-NATS deployment the NATS server has no
+	// TCP listener, so we can't run migrations from a second process —
+	// the boot path is the only safe place for them.
+	if err := migrations.RunAll(
+		ctx,
+		storage.serverKV, storage.serverConfigKV, storage.serverBodiesKV, storage.serverRuntimeKV, storage.runtimeConfigKV,
+		eventPublisher,
+		logger,
+	); err != nil {
+		return nil, fmt.Errorf("failed to run boot migrations: %w", err)
 	}
 
 	// Initialize permission resolver (must be done after core struct is created)
@@ -370,14 +599,14 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		return nil, fmt.Errorf("failed to initialize server RBAC: %w", err)
 	}
 
-	// Seed the default room group and ensure every existing channel room
-	// belongs to a set (ADR-031). Idempotent — runs on every boot.
-	if err := core.ensureChannelRoomsAreInAGroup(ctx); err != nil {
-		return nil, fmt.Errorf("failed to seed default room group: %w", err)
-	}
+	// ensureChannelRoomsAreInAGroup is deferred to core.Run() — it
+	// needs the projectors to be live so its CreateRoomGroup /
+	// MoveRoomToGroup calls can actually WaitForSeq. Doing it here
+	// (when projectors haven't been started yet) would leave orphan
+	// rooms in any subsequent SeedDefaultRooms call.
 
-	// Initialize presence hub (single KV watcher per process).
-	// Caller must start core.PresenceHub.Run(ctx) in an errgroup.
+	// Initialize presence hub (single KV watcher per process). Started
+	// by core.Run alongside the projectors.
 	core.PresenceHub = NewPresenceHub(storage.presenceKV, logger)
 
 	return core, nil
@@ -416,6 +645,7 @@ type storage struct {
 	serverThreadsKV    jetstream.KeyValue    // SERVER_THREADS   - thread metadata (#330 phase 4c)
 	serverAttachments  jetstream.ObjectStore // SERVER_ASSETS    - message attachment binaries (#330 phase 4e)
 	serverEventsStream jetstream.Stream      // SERVER_EVENTS    - event stream (#330 phase 4d)
+	serverEvtStream    jetstream.Stream      // EVT       - event-sourcing log (ADR-033/034). Coexists with SERVER_EVENTS during migration.
 
 	presenceKV      jetstream.KeyValue    // Instance-level presence bucket
 	imageCacheStore jetstream.ObjectStore // Optional: cached resized images (nil if disabled)
@@ -636,6 +866,40 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		return nil, fmt.Errorf("failed to create SERVER_EVENTS stream: %w", err)
 	}
 
+	// EVT — the event-sourcing log (ADR-033/034). Coexists with
+	// SERVER_EVENTS during the per-aggregate migration (ADR-035).
+	// Subjects are evt.{aggregateType}.{aggregateId}; live.evt.> is
+	// the republish target so projections and live subscribers consume
+	// from a single NATS Core path.
+	//
+	// We deliberately do NOT nest under server.> here — the legacy
+	// SERVER_EVENTS stream claims server.> as its subject root, and NATS
+	// won't allow two streams to share an overlapping subject space.
+	// During the migration window we keep them in separate top-level
+	// roots; once SERVER_EVENTS is decommissioned we can revisit the
+	// naming if we want to consolidate.
+	serverEvtStream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name:        "EVT",
+		Description: "Event-sourcing log (ADR-033)",
+		Subjects:    []string{"evt.>"},
+		Storage:     jetstream.FileStorage,
+		Compression: jetstream.S2Compression,
+		Replicas:    cfg.Replicas,
+		// AllowAtomicPublish gates the Nats-Batch-Id / Nats-Batch-Commit
+		// protocol on this stream. Used by Publisher.AppendBatch to
+		// land multi-aggregate cascades (MoveRoomToGroup, DM creation)
+		// adjacently in stream order so projections never observe an
+		// intermediate state that breaks an invariant.
+		AllowAtomicPublish: true,
+		RePublish: &jetstream.RePublish{
+			Source:      "evt.>",
+			Destination: "live.evt.>",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create EVT stream: %w", err)
+	}
+
 	// Initialize auth tokens KV bucket with configurable TTL
 	// Stores opaque bearer tokens for cross-origin API authentication.
 	// NATS TTL handles automatic token expiry.
@@ -669,6 +933,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		serverThreadsKV:    serverThreadsKV,
 		serverAttachments:  serverAttachments,
 		serverEventsStream: serverEventsStream,
+		serverEvtStream:    serverEvtStream,
 		// serverRBACEngine is constructed below (after the storage value
 		// exists) and assigned in NewChattoCore.
 		presenceKV:      presenceKV,

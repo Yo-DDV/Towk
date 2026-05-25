@@ -79,10 +79,12 @@ func setupWebSocketTestServer(t *testing.T) *wsTestEnv {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
 
-	// Start PresenceHub in background (needed by StreamMyEvents)
-	hubCtx, hubCancel := context.WithCancel(context.Background())
-	go chattoCore.PresenceHub.Run(hubCtx)
-	t.Cleanup(hubCancel)
+	// Start all core background services (PresenceHub + every
+	// registered projector) via the shared test helper. Blocks
+	// until projectors report started so test code can read from
+	// projection-backed accessors without racing the goroutine
+	// startup.
+	startCoreServices(t, chattoCore)
 
 	// Create router with session middleware
 	router := gin.New()

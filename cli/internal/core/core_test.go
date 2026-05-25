@@ -71,12 +71,34 @@ func setupTestCore(t *testing.T) (*ChattoCore, *nats.Conn) {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
 
-	// Start PresenceHub in background (needed by StreamMyEvents)
-	hubCtx, hubCancel := context.WithCancel(context.Background())
-	go core.PresenceHub.Run(hubCtx)
-	t.Cleanup(hubCancel)
+	startCoreServices(t, core)
 
 	return core, nc
+}
+
+// startCoreServices runs ChattoCore's background services (PresenceHub +
+// projectors) for the duration of a test. Required because membership
+// mutations call WaitForSeq, and StreamMyEvents depends on PresenceHub —
+// neither works without the corresponding loop running.
+//
+// Once `core.Run` owns the lifecycle of every background service, new
+// projectors (ADR-035) get picked up here automatically.
+func startCoreServices(t *testing.T, core *ChattoCore) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { _ = core.Run(ctx) }()
+	t.Cleanup(cancel)
+	// Block until Run's boot phase is complete — projectors started
+	// AND ensureChannelRoomsAreInAGroup has run. Without this the
+	// test thread races ahead and issues reads against an empty
+	// projection (RoomCatalog returns "not found" for rooms whose
+	// RoomCreated hasn't been applied yet), and SeedDefaultRooms
+	// calls would seed rooms without a group assignment.
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer bootCancel()
+	if err := core.WaitForBoot(bootCtx); err != nil {
+		t.Fatalf("WaitForBoot: %v", err)
+	}
 }
 
 // ============================================================================
