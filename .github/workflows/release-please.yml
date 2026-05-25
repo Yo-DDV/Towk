@@ -33,7 +33,14 @@ on:
   push:
     branches:
       - main
-      - 'release-*'
+      # Backport maintenance branches (e.g. release-0.0.x). MUST NOT be a
+      # plain `release-*` glob: release-please names its own working
+      # branches `release-please--branches--…`, which start with
+      # `release-` and would match `release-*`, re-firing this workflow
+      # on each release-please branch and creating an exponential
+      # nested-PR chain. Use a digit-anchored pattern so backport
+      # branches still match but release-please's own branches do not.
+      - 'release-[0-9]*'
       - next
 
 permissions:
