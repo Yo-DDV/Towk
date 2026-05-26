@@ -40,9 +40,10 @@ Each instance is bootstrapped with the same dev credentials (configured in `cli/
 
 ## Instructions for Coding Agents
 
-This codebase keeps agent-relevant context in five places. Read the one that fits your task:
+This codebase keeps agent-relevant context in six places. Read the one that fits your task:
 
 - **`.claude/rules/**`** — always-on coding, testing, and review conventions, mostly path-scoped (`frontend.md` and `frontend-conventions.md` for SvelteKit work, `backend.md` for Go, `testing-frontend.md` / `testing-backend.md` for tests, `authorization.md` for permission changes, etc.). Start here for "how do we do things in this repo?"
+- **`.agents/skills/**`** — opt-in agent skills for repeated workflows. Use `svelte-core-bestpractices` together with the Svelte MCP tools when writing, editing, or reviewing Svelte components and modules.
 - **`docs/fdr/INDEX.md`** — **Feature** Decision Records, one per feature. They describe what a feature does *and* why it's designed that way. Read the relevant FDR before changing user-facing behavior.
 - **`docs/adr/INDEX.md`** — **Architecture** Decision Records. Cross-cutting choices like "NATS as primary data store" or "per-user encryption keys with crypto-shredding". Read when touching architectural seams.
 - **`docs/ARCHITECTURE.md`** — inventory of what currently exists (streams, KV buckets, subject patterns, GraphQL operations). Use when you need to know *what's where*, not *why*.
