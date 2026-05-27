@@ -8,6 +8,7 @@
 
 - Use Conventional Commit formatting for the PR title. Keep in mind that release-please makes version bump decisions based on this, so set breaking changes where adequate (and avoid otherwise.)
 - In the PR body, include a concise bullet-point summary of the changes and their motivation. If the PR addresses a GitHub issue, link it in the description (e.g., "Fixes #123").
+- When creating or editing a multiline PR body with `gh`, write the body to a markdown file and use `--body-file`. Do not pass escaped `\n` sequences to `--body`; they render literally on GitHub.
 - After creating a PR, always check that CI passes. If CI fails, proactively diagnose and fix the failures without waiting to be asked.
 - **The baseline for test failures is ALWAYS `main`, never the previous commit on the branch.** If a test passes on `main` but fails on your branch, it is a regression you introduced and you MUST fix it. Do not dismiss a failure just because a previous commit on the same branch also had it. The only tests you may ignore are those that are also failing or flaky on `main`.
 - Common CI failure sources: broken tests from removed code paths, nil loggers in test setup, ESLint missing keys in Svelte `{#each}` blocks, and test selectors that are too broad.
@@ -34,6 +35,13 @@ This repo uses GitHub's modern issue features. Prefer them over hand-rolled chec
 ## Sub-issues (GA 2025)
 
 - Use parent/child sub-issue relationships for any multi-PR effort. The parent issue gets a native progress bar driven by closed sub-issues — no manual checklist sync.
-- Create the parent first, then link children via `gh api graphql` with the `addSubIssue` mutation. The `subIssueId` is the GraphQL node ID (not the issue number); fetch it via `gh issue view <number> --json id`.
+- When creating a child issue for an epic, set GitHub's native parent/sub-issue metadata immediately. Do not rely on body text like `Parent: #123` as the only link.
+- Prefer creating sub-issues through GraphQL `createIssue` with both `issueTypeId` and `parentIssueId` set. If the issue already exists, link it via `addSubIssue`. `subIssueId` is the GraphQL node ID, not the issue number.
+- After creating or linking sub-issues, verify the native relationship with a GraphQL query before reporting the work as done:
+
+  ```sh
+  gh api graphql -f query='query($owner:String!,$repo:String!,$number:Int!){ repository(owner:$owner,name:$repo){ issue(number:$number){ number subIssues(first:50){ nodes { number title parent { number } } } } } }' -F owner=chattocorp -F repo=chatto -F number=123
+  ```
+
 - Sub-issues can span repos in the same org. Don't bundle unrelated work under one parent just because they share a theme — keep parents tight.
 - For epics, write the hub issue body to capture the _why_ (motivation, key decisions, phase breakdown). Don't duplicate the per-sub-issue scope into the hub — the sub-issue list is the source of truth for what's left.
