@@ -57,6 +57,12 @@ func unwrapEvent(event *corev1.Event) any {
 	case *corev1.Event_MessageDeleted:
 		return e.MessageDeleted
 
+	// ---- Assets ----
+	case *corev1.Event_AssetCreated:
+		return e.AssetCreated
+	case *corev1.Event_AssetDeleted:
+		return e.AssetDeleted
+
 	// ---- Reactions ----
 	case *corev1.Event_ReactionAdded:
 		return e.ReactionAdded
@@ -70,6 +76,12 @@ func unwrapEvent(event *corev1.Event) any {
 	// ---- Video processing ----
 	case *corev1.Event_VideoProcessingCompleted:
 		return e.VideoProcessingCompleted
+	case *corev1.Event_AssetProcessingStarted:
+		return e.AssetProcessingStarted
+	case *corev1.Event_AssetProcessingSucceeded:
+		return e.AssetProcessingSucceeded
+	case *corev1.Event_AssetProcessingFailed:
+		return e.AssetProcessingFailed
 
 	// ---- Presence ----
 	case *corev1.Event_PresenceChanged:
@@ -157,6 +169,56 @@ func (r *Resolver) resolveEventActor(ctx context.Context, event *corev1.Event) (
 		return nil, err
 	}
 	return user, nil
+}
+
+// assetCreationForProcessing looks up the AssetCreatedEvent referenced by an
+// asset-processing event. Returns nil when the asset is unknown to the
+// projection (e.g. after AssetDeletedEvent has dropped it). Callers must
+// tolerate the nil and return empty fields rather than errors — these events
+// surface through non-null GraphQL fields, so a returned error would
+// propagate up and blank the entire room.events list.
+func (r *Resolver) assetCreationForProcessing(assetID string) *corev1.AssetCreatedEvent {
+	if assetID == "" {
+		return nil
+	}
+	declared, ok := r.core.RoomTimeline.AssetCreation(assetID)
+	if !ok {
+		return nil
+	}
+	return declared
+}
+
+func (r *attachmentResolver) assetSourceAvailable(assetID string, fallback bool) bool {
+	created, ok := r.core.RoomTimeline.AssetCreation(assetID)
+	if !ok || created == nil {
+		return fallback
+	}
+	return created.GetOriginalBinaryAvailable()
+}
+
+func assetCreatedRoomID(event *corev1.AssetCreatedEvent) string {
+	if event == nil {
+		return ""
+	}
+	return event.GetRoomId()
+}
+
+func assetDimensions(asset *corev1.AssetRecord) (int32, int32) {
+	if asset == nil {
+		return 0, 0
+	}
+	return asset.GetWidth(), asset.GetHeight()
+}
+
+func assetProcessingFailureReasonCode(code corev1.AssetProcessingFailureCode) string {
+	switch code {
+	case corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING:
+		return "original_missing"
+	case corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED:
+		return "processing_failed"
+	default:
+		return "processing_failed"
+	}
 }
 
 // unwrapEventAs unwraps a proto Event and asserts the payload to the

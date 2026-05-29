@@ -1,6 +1,9 @@
 package core
 
 import (
+	"strings"
+
+	"google.golang.org/protobuf/proto"
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -41,6 +44,44 @@ type RoomTimelineProjection struct {
 	// each has its own embedded body and we need explicit
 	// propagation.
 	echoLinks map[string][]string
+	// videoManifests stores the latest durable processing outcome for each
+	// original video attachment. A processed event supersedes a failed event
+	// and vice versa; generated asset metadata lives in the event payload.
+	assetCreations map[string]*corev1.AssetCreatedEvent
+	videoManifests map[string]*VideoAttachmentManifest
+	// assetMessageOwner maps an asset ID to the message that references it,
+	// derived from MessagePostedEvent bodies. Upload-time AssetCreatedEvents
+	// don't carry message linkage — the message doesn't exist yet — so the
+	// deprecated AssetCreatedEvent.message_event_id is never set on new
+	// uploads. Message ownership is reconstructed here from the posting
+	// message's asset_ids (or legacy embedded attachments).
+	assetMessageOwner map[string]assetMessageRef
+}
+
+// assetMessageRef is the room + message that owns an asset, captured from
+// the MessagePostedEvent that references it.
+type assetMessageRef struct {
+	roomID         string
+	messageEventID string
+}
+
+// VideoAttachmentManifest is the projection's current processing state for
+// one original video attachment. Started fires when processing is enqueued;
+// Succeeded or Failed fires on terminal outcome. A Started event for a
+// previously-finalised asset clears the prior terminal state (treated as a
+// retry); a Succeeded/Failed event clears the opposite terminal.
+type VideoAttachmentManifest struct {
+	Started   *corev1.AssetProcessingStartedEvent
+	Succeeded *corev1.AssetProcessingSucceededEvent
+	Failed    *corev1.AssetProcessingFailedEvent
+}
+
+// VideoProcessingRequest describes an original video/GIF attachment embedded
+// in a durable MessagePostedEvent that does not yet have a projected manifest.
+type VideoProcessingRequest struct {
+	RoomID         string
+	MessageEventID string
+	Attachment     *corev1.Attachment
 }
 
 // TimelineEntry is one event's position in a room timeline. Carries
@@ -60,6 +101,9 @@ func NewRoomTimelineProjection() *RoomTimelineProjection {
 		latestBody:     make(map[string]*corev1.MessageBody),
 		retractedFlags: make(map[string]struct{}),
 		echoLinks:      make(map[string][]string),
+		assetCreations:    make(map[string]*corev1.AssetCreatedEvent),
+		videoManifests:    make(map[string]*VideoAttachmentManifest),
+		assetMessageOwner: make(map[string]assetMessageRef),
 	}
 }
 
@@ -81,12 +125,12 @@ func (p *RoomTimelineProjection) Apply(event *corev1.Event, seq uint64) error {
 	if event == nil {
 		return nil
 	}
-	roomID := roomIDOfEvent(event)
+	p.Lock()
+	defer p.Unlock()
+	roomID := p.roomIDOfEventLocked(event)
 	if roomID == "" {
 		return nil
 	}
-	p.Lock()
-	defer p.Unlock()
 
 	// Idempotency: a re-applied event with the same envelope id is a
 	// no-op. The Projection.Apply contract is "Apply(e,n) twice ==
@@ -114,6 +158,18 @@ func (p *RoomTimelineProjection) Apply(event *corev1.Event, seq uint64) error {
 		if targetID != "" {
 			p.latestBody[targetID] = ev.MessagePosted.GetBody()
 			delete(p.retractedFlags, targetID)
+			// Record message ownership of any referenced assets. This is the
+			// source of truth for "which message owns this asset" — the
+			// upload-time AssetCreatedEvent can't carry it (no message yet).
+			for _, assetID := range ownedAssetIDsFromBody(ev.MessagePosted.GetBody()) {
+				if assetID == "" {
+					continue
+				}
+				if _, exists := p.assetMessageOwner[assetID]; exists {
+					continue
+				}
+				p.assetMessageOwner[assetID] = assetMessageRef{roomID: roomID, messageEventID: targetID}
+			}
 		}
 		// Track echo links so edits / retracts on either side can fan
 		// out to the other.
@@ -132,8 +188,81 @@ func (p *RoomTimelineProjection) Apply(event *corev1.Event, seq uint64) error {
 			delete(p.latestBody, targetID)
 			p.retractedFlags[targetID] = struct{}{}
 		}
+	case *corev1.Event_AssetCreated:
+		assetID := ev.AssetCreated.GetAsset().GetId()
+		if assetID != "" {
+			p.assetCreations[assetID] = proto.Clone(ev.AssetCreated).(*corev1.AssetCreatedEvent)
+		}
+	case *corev1.Event_AssetProcessingStarted:
+		assetID := ev.AssetProcessingStarted.GetAssetId()
+		if assetID != "" {
+			// Started clears any prior terminal state — treat as a retry.
+			p.videoManifests[assetID] = &VideoAttachmentManifest{
+				Started: proto.Clone(ev.AssetProcessingStarted).(*corev1.AssetProcessingStartedEvent),
+			}
+		}
+	case *corev1.Event_AssetProcessingSucceeded:
+		assetID := ev.AssetProcessingSucceeded.GetAssetId()
+		if assetID != "" {
+			manifest := p.videoManifests[assetID]
+			if manifest == nil {
+				manifest = &VideoAttachmentManifest{}
+			}
+			manifest.Succeeded = proto.Clone(ev.AssetProcessingSucceeded).(*corev1.AssetProcessingSucceededEvent)
+			manifest.Failed = nil
+			p.videoManifests[assetID] = manifest
+		}
+	case *corev1.Event_AssetProcessingFailed:
+		assetID := ev.AssetProcessingFailed.GetAssetId()
+		if assetID != "" {
+			manifest := p.videoManifests[assetID]
+			if manifest == nil {
+				manifest = &VideoAttachmentManifest{}
+			}
+			manifest.Failed = proto.Clone(ev.AssetProcessingFailed).(*corev1.AssetProcessingFailedEvent)
+			manifest.Succeeded = nil
+			p.videoManifests[assetID] = manifest
+		}
+	case *corev1.Event_AssetDeleted:
+		assetID := ev.AssetDeleted.GetAssetId()
+		if assetID != "" {
+			delete(p.assetCreations, assetID)
+			delete(p.videoManifests, assetID)
+			delete(p.assetMessageOwner, assetID)
+		}
 	}
 	return nil
+}
+
+func (p *RoomTimelineProjection) roomIDOfEventLocked(event *corev1.Event) string {
+	if started := event.GetAssetProcessingStarted(); started != nil {
+		if declared := p.assetCreations[started.GetAssetId()]; declared != nil {
+			return assetCreatedRoomID(declared)
+		}
+		return ""
+	}
+	if succeeded := event.GetAssetProcessingSucceeded(); succeeded != nil {
+		if declared := p.assetCreations[succeeded.GetAssetId()]; declared != nil {
+			return assetCreatedRoomID(declared)
+		}
+		return ""
+	}
+	if failed := event.GetAssetProcessingFailed(); failed != nil {
+		if declared := p.assetCreations[failed.GetAssetId()]; declared != nil {
+			return assetCreatedRoomID(declared)
+		}
+		return ""
+	}
+	if deleted := event.GetAssetDeleted(); deleted != nil {
+		if declared := p.assetCreations[deleted.GetAssetId()]; declared != nil {
+			return assetCreatedRoomID(declared)
+		}
+		return ""
+	}
+	if created := event.GetAssetCreated(); created != nil {
+		return p.roomIDOfAssetCreatedLocked(created)
+	}
+	return roomIDOfEvent(event)
 }
 
 // RoomEvents returns up to `limit` entries from a room's timeline in
@@ -225,6 +354,126 @@ func (p *RoomTimelineProjection) LatestBody(eventID string) (body *corev1.Messag
 		return b, false, true
 	}
 	return nil, false, true
+}
+
+// VideoAttachmentManifest returns the latest durable processing outcome for
+// the original video attachment ID, if one has been projected. The returned
+// protos are clones so callers can inspect or adapt them freely.
+func (p *RoomTimelineProjection) VideoAttachmentManifest(attachmentID string) (*VideoAttachmentManifest, bool) {
+	p.RLock()
+	defer p.RUnlock()
+	if attachmentID == "" {
+		return nil, false
+	}
+	manifest, ok := p.videoManifests[attachmentID]
+	if !ok || manifest == nil {
+		return nil, false
+	}
+	out := &VideoAttachmentManifest{}
+	if manifest.Started != nil {
+		out.Started = proto.Clone(manifest.Started).(*corev1.AssetProcessingStartedEvent)
+	}
+	if manifest.Succeeded != nil {
+		out.Succeeded = proto.Clone(manifest.Succeeded).(*corev1.AssetProcessingSucceededEvent)
+	}
+	if manifest.Failed != nil {
+		out.Failed = proto.Clone(manifest.Failed).(*corev1.AssetProcessingFailedEvent)
+	}
+	return out, true
+}
+
+// AssetCreation returns the durable creation event for an asset.
+func (p *RoomTimelineProjection) AssetCreation(attachmentID string) (*corev1.AssetCreatedEvent, bool) {
+	p.RLock()
+	defer p.RUnlock()
+	if attachmentID == "" {
+		return nil, false
+	}
+	declared, ok := p.assetCreations[attachmentID]
+	if !ok || declared == nil {
+		return nil, false
+	}
+	return proto.Clone(declared).(*corev1.AssetCreatedEvent), true
+}
+
+// AssetMessageOwner returns the room and message that own an asset, derived
+// from the MessagePostedEvent that referenced it. Reports ok=false when no
+// projected message has claimed the asset yet (e.g. an upload that was never
+// posted, or whose message hasn't been projected). The deprecated
+// AssetCreatedEvent.message_event_id is not consulted — new uploads never
+// set it.
+func (p *RoomTimelineProjection) AssetMessageOwner(assetID string) (roomID, messageEventID string, ok bool) {
+	p.RLock()
+	defer p.RUnlock()
+	if assetID == "" {
+		return "", "", false
+	}
+	owner, found := p.assetMessageOwner[assetID]
+	if !found {
+		return "", "", false
+	}
+	return owner.roomID, owner.messageEventID, true
+}
+
+// UnmanifestedVideoAttachments returns message-owned video/GIF assets that
+// do not yet have a durable processed/failed manifest. Ownership comes from
+// the posting message (assetMessageOwner), not the deprecated
+// AssetCreatedEvent.message_event_id, which new uploads never set.
+func (p *RoomTimelineProjection) UnmanifestedVideoAttachments() []VideoProcessingRequest {
+	p.RLock()
+	defer p.RUnlock()
+	var out []VideoProcessingRequest
+	for assetID, owner := range p.assetMessageOwner {
+		if owner.roomID == "" || owner.messageEventID == "" {
+			continue
+		}
+		// Don't recover processing for a retracted message — its video is
+		// no longer visible, so transcoding it again is wasted work.
+		if _, retracted := p.retractedFlags[owner.messageEventID]; retracted {
+			continue
+		}
+		declared := p.assetCreations[assetID]
+		if declared == nil {
+			continue
+		}
+		asset := declared.GetAsset()
+		if asset == nil {
+			continue
+		}
+		if _, hasManifest := p.videoManifests[assetID]; hasManifest {
+			continue
+		}
+		contentType := asset.GetContentType()
+		if !strings.HasPrefix(contentType, "video/") && contentType != "image/gif" {
+			continue
+		}
+		out = append(out, VideoProcessingRequest{
+			RoomID:         owner.roomID,
+			MessageEventID: owner.messageEventID,
+			Attachment:     attachmentFromAsset(asset),
+		})
+	}
+	return out
+}
+
+// ownedAssetIDsFromBody returns the asset IDs a message body references,
+// preferring the current asset_ids list and falling back to the legacy
+// embedded attachments slice.
+func ownedAssetIDsFromBody(body *corev1.MessageBody) []string {
+	if body == nil {
+		return nil
+	}
+	if ids := body.GetAssetIds(); len(ids) > 0 {
+		return ids
+	}
+	atts := body.GetAttachments()
+	out := make([]string, 0, len(atts))
+	for _, att := range atts {
+		if id := att.GetId(); id != "" {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // LinkedEventIDs returns the set of event_ids that an edit / retract
@@ -363,6 +612,37 @@ func (p *RoomTimelineProjection) VisibleRoomTimelineAfter(
 	return out
 }
 
+func assetCreatedRoomID(event *corev1.AssetCreatedEvent) string {
+	if event == nil {
+		return ""
+	}
+	return event.GetRoomId()
+}
+
+// roomIDOfAssetCreatedLocked resolves an asset's room, walking up the
+// derivative chain to a parent when the event carries no room of its own.
+// The walk is bounded and cycle-guarded: legitimate chains are one level
+// deep, but corrupt/replayed EVT data could otherwise loop forever while
+// holding the projection mutex.
+func (p *RoomTimelineProjection) roomIDOfAssetCreatedLocked(event *corev1.AssetCreatedEvent) string {
+	seen := map[string]struct{}{}
+	for event != nil {
+		if roomID := event.GetRoomId(); roomID != "" {
+			return roomID
+		}
+		parentID := event.GetParentAssetId()
+		if parentID == "" {
+			return ""
+		}
+		if _, looped := seen[parentID]; looped {
+			return ""
+		}
+		seen[parentID] = struct{}{}
+		event = p.assetCreations[parentID]
+	}
+	return ""
+}
+
 // roomIDOfEvent extracts the room_id from any room-scoped event
 // variant. Returns "" for non-room events.
 //
@@ -395,6 +675,8 @@ func roomIDOfEvent(event *corev1.Event) string {
 		return e.MessageEdited.GetRoomId()
 	case *corev1.Event_MessageRetracted:
 		return e.MessageRetracted.GetRoomId()
+	case *corev1.Event_AssetCreated:
+		return ""
 	case *corev1.Event_ReactionAdded:
 		return e.ReactionAdded.GetRoomId()
 	case *corev1.Event_ReactionRemoved:

@@ -60,6 +60,10 @@ union RoomEventType =
   | UserTypingEvent
   # Video processing
   | VideoProcessingCompletedEvent
+  | AssetProcessingStartedEvent
+  | AssetProcessingSucceededEvent
+  | AssetProcessingFailedEvent
+  | AssetDeletedEvent
   # Presence
   | PresenceChangedEvent
   # Voice calls
@@ -117,6 +121,10 @@ union ServerEventType =
   | UserTypingEvent
   # Video processing
   | VideoProcessingCompletedEvent
+  | AssetProcessingStartedEvent
+  | AssetProcessingSucceededEvent
+  | AssetProcessingFailedEvent
+  | AssetDeletedEvent
   # Presence
   | PresenceChangedEvent
   # Voice calls
@@ -487,6 +495,55 @@ type VideoProcessingCompletedEvent {
   messageEventId: ID! @goField(forceResolver: true)
 }
 
+"""
+Event: asset processing has been enqueued. Emitted before SucceededEvent or
+FailedEvent so subscribers can render a "processing…" placeholder.
+"""
+type AssetProcessingStartedEvent {
+  "The room ID."
+  roomId: ID! @goField(forceResolver: true)
+  "The original asset ID whose processing has been enqueued."
+  assetId: ID!
+  "The event ID of the message containing the attachment, when message-owned."
+  messageEventId: ID! @goField(forceResolver: true)
+}
+
+"""
+Event: asset processing produced a durable derivative manifest.
+"""
+type AssetProcessingSucceededEvent {
+  "The room ID."
+  roomId: ID! @goField(forceResolver: true)
+  "The original asset ID that was processed."
+  assetId: ID!
+  "The event ID of the message containing the processed attachment, when message-owned."
+  messageEventId: ID! @goField(forceResolver: true)
+}
+
+"""
+Event: asset processing reached a durable failed/unavailable outcome.
+"""
+type AssetProcessingFailedEvent {
+  "The room ID."
+  roomId: ID! @goField(forceResolver: true)
+  "The original asset ID that failed processing."
+  assetId: ID!
+  "The event ID of the message containing the attachment, when message-owned."
+  messageEventId: ID! @goField(forceResolver: true)
+  "Stable machine-readable reason."
+  reasonCode: String! @goField(forceResolver: true)
+}
+
+"""
+Event: an asset has been deleted; subscribers should drop any local reference.
+"""
+type AssetDeletedEvent {
+  "The room ID, when the asset was room-scoped."
+  roomId: ID @goField(forceResolver: true)
+  "The deleted asset ID."
+  assetId: ID!
+}
+
 # ==============================================================================
 # PRESENCE EVENTS
 # ==============================================================================
@@ -517,7 +574,7 @@ type MentionNotificationEvent {
   "The room where the mention occurred (for display)."
   room: Room! @goField(forceResolver: true)
   "The user who mentioned you."
-  actor: User! @goField(forceResolver: true)
+  actor: User @goField(forceResolver: true)
 }
 
 """
@@ -528,7 +585,7 @@ type NewDirectMessageNotificationEvent {
   "The ID of the DM conversation."
   roomId: ID!
   "The user who sent the message."
-  sender: User! @goField(forceResolver: true)
+  sender: User @goField(forceResolver: true)
   "The name of the conversation (derived from participants)."
   conversationName: String! @goField(forceResolver: true)
 }
@@ -688,8 +745,10 @@ type VideoProcessing {
   thumbnailUrl: String @goField(forceResolver: true)
   "Available quality variants."
   variants: [VideoVariant!]!
-  "Error message if processing failed."
-  errorMessage: String
+  "Stable machine-readable failure reason."
+  reasonCode: String
+  "Whether the original uploaded video binary is available for fallback playback."
+  sourceAvailable: Boolean!
 }
 
 "A transcoded quality variant of a video."
@@ -714,6 +773,6 @@ enum VideoProcessingStatus {
   PROCESSING
   "Transcoding finished; at least one variant is available for playback."
   COMPLETED
-  "Transcoding failed; `errorMessage` describes the failure and no variants are available."
+  "Transcoding failed; `reasonCode` describes the failure and no variants are available."
   FAILED
 }

@@ -119,6 +119,173 @@ func TestMessagePostedEventResolver_Body(t *testing.T) {
 	})
 }
 
+func TestAttachmentResolver_VideoProcessingFromManifest(t *testing.T) {
+	env := setupTestResolver(t)
+	resolver := env.resolver.Attachment()
+	attachment := &corev1.Attachment{
+		Id:          "A-video",
+		RoomId:      env.testRoom.Id,
+		Filename:    "video.mp4",
+		ContentType: "video/mp4",
+	}
+
+	empty, err := resolver.VideoProcessing(env.authContext(), attachment)
+	if err != nil {
+		t.Fatalf("VideoProcessing without manifest returned error: %v", err)
+	}
+	if empty != nil {
+		t.Fatalf("VideoProcessing without manifest = %+v, want nil", empty)
+	}
+
+	event := &corev1.Event{
+		Id: "ENV-VIDEO",
+		Event: &corev1.Event_AssetProcessingSucceeded{
+			AssetProcessingSucceeded: &corev1.AssetProcessingSucceededEvent{
+				AssetId: attachment.Id,
+				Video: &corev1.AssetProcessedVideo{
+					DurationMs:       1234,
+					Width:            640,
+					Height:           360,
+					ThumbnailAssetId: "A-thumb",
+					Variants: []*corev1.AssetVideoVariant{{
+						Quality: "480p",
+						AssetId: "A-480",
+					}},
+				},
+			},
+		},
+	}
+	if err := env.core.RoomTimeline.Apply(testAssetCreatedEvent(env.testRoom.Id, attachment.Id, attachment.ContentType), 1); err != nil {
+		t.Fatalf("Apply asset creation: %v", err)
+	}
+	if err := env.core.RoomTimeline.Apply(testDerivativeAssetCreatedEvent("A-480", attachment.Id, "480p", 854, 480, 42), 1); err != nil {
+		t.Fatalf("Apply derivative asset creation: %v", err)
+	}
+	if err := env.core.RoomTimeline.Apply(event, 1); err != nil {
+		t.Fatalf("Apply video manifest: %v", err)
+	}
+
+	got, err := resolver.VideoProcessing(env.authContext(), attachment)
+	if err != nil {
+		t.Fatalf("VideoProcessing with manifest returned error: %v", err)
+	}
+	if got == nil || got.Status != model.VideoProcessingStatusCompleted {
+		t.Fatalf("VideoProcessing = %+v, want completed", got)
+	}
+	if got.DurationMs == nil || *got.DurationMs != 1234 {
+		t.Fatalf("DurationMs = %v, want 1234", got.DurationMs)
+	}
+	if len(got.Variants) != 1 || got.Variants[0].Quality != "480p" {
+		t.Fatalf("Variants = %+v, want 480p", got.Variants)
+	}
+	if !got.SourceAvailable {
+		t.Fatal("SourceAvailable = false, want true")
+	}
+}
+
+func TestAttachmentResolver_VideoProcessingFailedManifest(t *testing.T) {
+	env := setupTestResolver(t)
+	resolver := env.resolver.Attachment()
+	attachment := &corev1.Attachment{
+		Id:          "A-video",
+		RoomId:      env.testRoom.Id,
+		Filename:    "video.mp4",
+		ContentType: "video/mp4",
+	}
+	event := &corev1.Event{
+		Id: "ENV-VIDEO-FAILED",
+		Event: &corev1.Event_AssetProcessingFailed{
+			AssetProcessingFailed: &corev1.AssetProcessingFailedEvent{
+				AssetId:     attachment.Id,
+				FailureCode: corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING,
+			},
+		},
+	}
+	if err := env.core.RoomTimeline.Apply(testAssetCreatedEvent(env.testRoom.Id, attachment.Id, attachment.ContentType), 1); err != nil {
+		t.Fatalf("Apply asset creation: %v", err)
+	}
+	if err := env.core.RoomTimeline.Apply(event, 1); err != nil {
+		t.Fatalf("Apply video failure: %v", err)
+	}
+
+	got, err := resolver.VideoProcessing(env.authContext(), attachment)
+	if err != nil {
+		t.Fatalf("VideoProcessing failed manifest returned error: %v", err)
+	}
+	if got == nil || got.Status != model.VideoProcessingStatusFailed {
+		t.Fatalf("VideoProcessing = %+v, want failed", got)
+	}
+	if got.SourceAvailable {
+		t.Fatal("SourceAvailable = true, want false")
+	}
+	if got.ReasonCode == nil || *got.ReasonCode != "original_missing" {
+		t.Fatalf("ReasonCode = %v, want original_missing", got.ReasonCode)
+	}
+}
+
+// TestAssetProcessingSucceededEventResolver_MessageEventID verifies the
+// messageEventId is read directly off the event (stamped at publish time by
+// the scheduler/worker), not resolved via a projection lookup that would race
+// the owning message's own projection. The frontend keys its refetch on it.
+func TestAssetProcessingSucceededEventResolver_MessageEventID(t *testing.T) {
+	env := setupTestResolver(t)
+	resolver := env.resolver.AssetProcessingSucceededEvent()
+
+	// The owning message id is carried on the event — the resolver returns it
+	// without consulting the projection.
+	got, err := resolver.MessageEventID(env.authContext(), &corev1.AssetProcessingSucceededEvent{AssetId: "A-video", MessageEventId: "M1"})
+	if err != nil {
+		t.Fatalf("MessageEventID returned error: %v", err)
+	}
+	if got != "M1" {
+		t.Fatalf("MessageEventID = %q, want M1 (read off the event)", got)
+	}
+
+	// One-shot migration events don't carry it; the resolver yields empty.
+	if got, err := resolver.MessageEventID(env.authContext(), &corev1.AssetProcessingSucceededEvent{AssetId: "A-video"}); err != nil {
+		t.Fatalf("MessageEventID returned error: %v", err)
+	} else if got != "" {
+		t.Fatalf("MessageEventID without stamp = %q, want empty", got)
+	}
+}
+
+func testAssetCreatedEvent(roomID, attachmentID, contentType string) *corev1.Event {
+	return &corev1.Event{
+		Id: "ENV-DECLARED-" + attachmentID,
+		Event: &corev1.Event_AssetCreated{
+			AssetCreated: &corev1.AssetCreatedEvent{
+				OriginalBinaryAvailable: true,
+				Asset: &corev1.AssetRecord{
+					Id:          attachmentID,
+					ContentType: contentType,
+				},
+				RoomId: roomID,
+			},
+		},
+	}
+}
+
+func testDerivativeAssetCreatedEvent(assetID, parentAssetID, quality string, width, height int32, size int64) *corev1.Event {
+	_ = quality
+	return &corev1.Event{
+		Id: "ENV-DERIVATIVE-" + assetID,
+		Event: &corev1.Event_AssetCreated{
+			AssetCreated: &corev1.AssetCreatedEvent{
+				OriginalBinaryAvailable: true,
+				Asset: &corev1.AssetRecord{
+					Id:          assetID,
+					ContentType: "video/mp4",
+					Size:        size,
+					Width:       width,
+					Height:      height,
+				},
+				ParentAssetId:  parentAssetID,
+				DerivativeRole: corev1.AssetDerivativeRole_ASSET_DERIVATIVE_ROLE_VIDEO_VARIANT,
+			},
+		},
+	}
+}
+
 // ============================================================================
 // MessagePostedEvent.InReplyTo Field Resolver Tests
 // ============================================================================

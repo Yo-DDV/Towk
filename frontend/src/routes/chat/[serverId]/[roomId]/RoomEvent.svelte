@@ -109,6 +109,25 @@
           attachmentId
           messageEventId
         }
+        ... on AssetProcessingStartedEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetProcessingSucceededEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetProcessingFailedEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetDeletedEvent {
+          deletedRoomId: roomId
+          assetId
+        }
         ... on ServerMemberDeletedEvent {
           userId
         }

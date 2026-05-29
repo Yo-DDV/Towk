@@ -35,7 +35,7 @@
 		thumbnailUrl = null,
 		width = null,
 		height = null,
-		errorMessage = null,
+		reasonCode = null,
 		filename,
 		autoLoop = false
 	}: {
@@ -44,7 +44,7 @@
 		thumbnailUrl?: string | null;
 		width?: number | null;
 		height?: number | null;
-		errorMessage?: string | null;
+		reasonCode?: string | null;
 		filename: string;
 		autoLoop?: boolean;
 	} = $props();
@@ -75,6 +75,17 @@
 	const videoSrc = $derived(
 		selectedVariant ? { src: selectedVariant.url, type: 'video/mp4' } : undefined
 	);
+
+	const failureMessage = $derived.by(() => {
+		switch (reasonCode) {
+			case 'original_missing':
+				return 'Video is unavailable because the original upload is missing.';
+			case 'processing_failed':
+				return 'Video processing failed. Please try uploading again.';
+			default:
+				return null;
+		}
+	});
 
 	let playerEl = $state<HTMLElement | null>(null);
 
@@ -171,8 +182,8 @@
 		<span class="iconify uil--exclamation-triangle text-lg text-red-400"></span>
 		<div class="text-sm text-muted">
 			Video processing failed
-			{#if errorMessage}
-				<span class="block text-xs text-muted/70">{errorMessage}</span>
+			{#if failureMessage}
+				<span class="block text-xs text-muted/70">{failureMessage}</span>
 			{/if}
 		</div>
 	</div>

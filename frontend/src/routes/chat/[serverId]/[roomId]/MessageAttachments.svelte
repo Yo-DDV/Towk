@@ -16,6 +16,7 @@
         width
         height
         thumbnailUrl
+        sourceAvailable
         variants {
           url
           quality
@@ -23,14 +24,15 @@
           height
           size
         }
-        errorMessage
+        reasonCode
       }
     }
   `);
 </script>
 
 <script lang="ts">
-  /* eslint-disable svelte/no-navigation-without-resolve -- external attachment URLs */
+  /* eslint-disable svelte/no-navigation-without-resolve -- attachment URLs are signed asset URLs */
+
   import type { FragmentType } from '$lib/gql/fragment-masking';
   import { useFragment } from '$lib/gql/fragment-masking';
   import type { MessageAttachmentViewFragment } from '$lib/gql/graphql';
@@ -144,7 +146,7 @@
             thumbnailUrl={attachment.videoProcessing.thumbnailUrl}
             width={attachment.videoProcessing.width}
             height={attachment.videoProcessing.height}
-            errorMessage={attachment.videoProcessing.errorMessage}
+            reasonCode={attachment.videoProcessing.reasonCode}
             filename={attachment.filename}
             autoLoop
           />
@@ -207,14 +209,14 @@
             thumbnailUrl={attachment.videoProcessing.thumbnailUrl}
             width={attachment.videoProcessing.width}
             height={attachment.videoProcessing.height}
-            errorMessage={attachment.videoProcessing.errorMessage}
+            reasonCode={attachment.videoProcessing.reasonCode}
             filename={attachment.filename}
           />
           {#if canDeleteAttachment}
             <button
               type="button"
               onclick={(e) => openDeleteConfirmation(attachment, e)}
-              class="bg-surface-700/80 hover:bg-surface-800 absolute top-1 right-1 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-white shadow-sm transition-opacity md:opacity-0 md:group-hover/attachment:opacity-100"
+              class="bg-surface-700/80 hover:bg-surface-800 absolute top-1 right-1 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-white shadow-sm transition-opacity md:opacity-0 md:group-hover/attachment:opacity-100"
               aria-label="Delete attachment"
               title="Delete attachment"
             >
@@ -223,10 +225,16 @@
           {/if}
         </div>
       {:else if attachment.contentType.startsWith('video/')}
-        <!-- Video without processing data — original may have been deleted after transcoding -->
-        <div class="flex h-16 items-center gap-2 rounded-lg bg-surface px-3">
-          <span class="iconify text-lg text-muted uil--video"></span>
-          <span class="text-sm text-muted">Video unavailable</span>
+        <!--
+          A video attachment that hasn't been projected as a processing manifest
+          yet — e.g. the message arrived before AssetProcessingStartedEvent did,
+          or processing has never been requested for this asset. Render the raw
+          original so the user can at least play it.
+        -->
+        <div class="overflow-hidden rounded-sm">
+          <video controls preload="metadata" src={attachment.url} class="max-h-64 max-w-full rounded-sm">
+            <track kind="captions" />
+          </video>
         </div>
       {:else if attachment.contentType.startsWith('audio/')}
         <div class="group/attachment relative min-w-0">
@@ -255,7 +263,6 @@
           {/if}
         </div>
       {:else}
-        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external asset URL -->
         <a
           href={attachment.url}
           target="_blank"

@@ -61,6 +61,12 @@ type ChattoCore struct {
 	// Set this after ChattoCore is created.
 	OnNotificationDismissed func(ctx context.Context, userID string, notification *corev1.Notification)
 
+	// OnVideoProcessingRequested starts best-effort local video processing for
+	// an already-declared message-owned asset. The video service registers this
+	// callback when enabled; a future durable task queue should replace this
+	// process-local handoff.
+	OnVideoProcessingRequested func(ctx context.Context, assetID, messageEventID string) error
+
 	// AssetBaseURL is prepended to all asset URLs to make them absolute.
 	// When empty, URLs are returned as relative paths (backward compatible).
 	// Set from webserver.url config: scheme + host only (no trailing slash).
@@ -447,7 +453,7 @@ func (c *ChattoCore) GetServerAssetFromAnyBackend(ctx context.Context, assetID s
 
 // CleanupAsset deletes an asset from the server object store.
 // Used to clean up orphaned assets when subsequent operations fail.
-func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.Asset) {
+func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.DeprecatedAsset) {
 	if asset == nil {
 		return
 	}
@@ -459,7 +465,6 @@ func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.Asset) {
 		}
 	}
 	if s3Asset := asset.GetS3(); s3Asset != nil && c.s3Client != nil {
-		// S3Asset.Key stores just the assetID; construct the full S3 path
 		s3Key := S3KeyServerAsset(s3Asset.Key)
 		if err := c.s3Client.DeleteObjectFromBucket(ctx, s3Asset.GetBucket(), s3Key); err != nil {
 			c.logger.Warn("Failed to clean up orphaned S3 asset", "asset_id", s3Asset.Key, "s3_key", s3Key, "error", err)
@@ -473,7 +478,7 @@ func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.Asset) {
 // This is a helper for cleaning up old assets when they are replaced.
 // For S3, the assetID stored in S3Asset.Key is used to construct the full S3 path.
 // The assetType and ownerID are used for logging only.
-func (c *ChattoCore) deleteAsset(ctx context.Context, asset *corev1.Asset, assetType, ownerID string) {
+func (c *ChattoCore) deleteAsset(ctx context.Context, asset *corev1.DeprecatedAsset, assetType, ownerID string) {
 	if asset == nil {
 		return
 	}
@@ -675,6 +680,12 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		logger,
 	); err != nil {
 		return nil, fmt.Errorf("failed to run boot migrations: %w", err)
+	}
+	if err := core.migrateAssetCreationsToES(ctx); err != nil {
+		return nil, fmt.Errorf("failed to migrate asset creations to ES: %w", err)
+	}
+	if err := core.migrateVideoManifestsToES(ctx); err != nil {
+		return nil, fmt.Errorf("failed to migrate video manifests to ES: %w", err)
 	}
 
 	// Initialize permission resolver (must be done after core struct is created)

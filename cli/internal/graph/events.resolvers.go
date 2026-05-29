@@ -17,6 +17,54 @@ import (
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
+// RoomID is the resolver for the roomId field.
+func (r *assetDeletedEventResolver) RoomID(ctx context.Context, obj *corev1.AssetDeletedEvent) (*string, error) {
+	declared, ok := r.core.RoomTimeline.AssetCreation(obj.GetAssetId())
+	if !ok || declared == nil {
+		return nil, nil
+	}
+	roomID := assetCreatedRoomID(declared)
+	if roomID == "" {
+		return nil, nil
+	}
+	return &roomID, nil
+}
+
+// RoomID is the resolver for the roomId field.
+func (r *assetProcessingFailedEventResolver) RoomID(ctx context.Context, obj *corev1.AssetProcessingFailedEvent) (string, error) {
+	return assetCreatedRoomID(r.assetCreationForProcessing(obj.GetAssetId())), nil
+}
+
+// MessageEventID is the resolver for the messageEventId field.
+func (r *assetProcessingFailedEventResolver) MessageEventID(ctx context.Context, obj *corev1.AssetProcessingFailedEvent) (string, error) {
+	return obj.GetMessageEventId(), nil
+}
+
+// ReasonCode is the resolver for the reasonCode field.
+func (r *assetProcessingFailedEventResolver) ReasonCode(ctx context.Context, obj *corev1.AssetProcessingFailedEvent) (string, error) {
+	return assetProcessingFailureReasonCode(obj.GetFailureCode()), nil
+}
+
+// RoomID is the resolver for the roomId field.
+func (r *assetProcessingStartedEventResolver) RoomID(ctx context.Context, obj *corev1.AssetProcessingStartedEvent) (string, error) {
+	return assetCreatedRoomID(r.assetCreationForProcessing(obj.GetAssetId())), nil
+}
+
+// MessageEventID is the resolver for the messageEventId field.
+func (r *assetProcessingStartedEventResolver) MessageEventID(ctx context.Context, obj *corev1.AssetProcessingStartedEvent) (string, error) {
+	return obj.GetMessageEventId(), nil
+}
+
+// RoomID is the resolver for the roomId field.
+func (r *assetProcessingSucceededEventResolver) RoomID(ctx context.Context, obj *corev1.AssetProcessingSucceededEvent) (string, error) {
+	return assetCreatedRoomID(r.assetCreationForProcessing(obj.GetAssetId())), nil
+}
+
+// MessageEventID is the resolver for the messageEventId field.
+func (r *assetProcessingSucceededEventResolver) MessageEventID(ctx context.Context, obj *corev1.AssetProcessingSucceededEvent) (string, error) {
+	return obj.GetMessageEventId(), nil
+}
+
 // Size is the resolver for the size field.
 // Converts int64 to int32 (safe for attachments up to 2GB).
 func (r *attachmentResolver) Size(ctx context.Context, obj *corev1.Attachment) (int32, error) {
@@ -52,78 +100,85 @@ func (r *attachmentResolver) ThumbnailURL(ctx context.Context, obj *corev1.Attac
 }
 
 // VideoProcessing is the resolver for the videoProcessing field.
-// Returns nil for non-video attachments. Reads state from RUNTIME KV.
+// Returns nil for non-video attachments or assets without a durable processing
+// outcome yet. Completed/failed manifests come from the EVT-backed room
+// projection.
 func (r *attachmentResolver) VideoProcessing(ctx context.Context, obj *corev1.Attachment) (*model.VideoProcessing, error) {
 	if !strings.HasPrefix(obj.ContentType, "video/") && obj.ContentType != "image/gif" {
 		return nil, nil
 	}
 
-	state, err := r.core.GetVideoProcessingState(ctx, obj.Id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get video processing state: %w", err)
-	}
-	if state == nil {
-		return nil, nil
-	}
-
-	// Map proto status to GraphQL enum
-	var status model.VideoProcessingStatus
-	switch state.Status {
-	case corev1.VideoStatus_VIDEO_STATUS_PENDING:
-		status = model.VideoProcessingStatusPending
-	case corev1.VideoStatus_VIDEO_STATUS_PROCESSING:
-		status = model.VideoProcessingStatusProcessing
-	case corev1.VideoStatus_VIDEO_STATUS_COMPLETED:
-		status = model.VideoProcessingStatusCompleted
-	case corev1.VideoStatus_VIDEO_STATUS_FAILED:
-		status = model.VideoProcessingStatusFailed
-	}
-
-	// Prefer the embedded thumbnail attachment proto (post-migration);
-	// fall back to the legacy string id while old entries are around.
-	thumbnailID := state.ThumbnailAttachmentId
-	if state.ThumbnailAttachment != nil {
-		thumbnailID = state.ThumbnailAttachment.Id
-	}
-
-	result := &model.VideoProcessing{
-		Status:                status,
-		RoomID:                obj.RoomId,
-		OriginAttachmentID:    obj.Id,
-		ThumbnailAttachmentID: thumbnailID,
-	}
-
-	if state.DurationMs > 0 {
-		d := state.DurationMs
-		result.DurationMs = &d
-	}
-	if state.Width > 0 {
-		result.Width = &state.Width
-	}
-	if state.Height > 0 {
-		result.Height = &state.Height
-	}
-	if state.ErrorMessage != "" {
-		result.ErrorMessage = &state.ErrorMessage
-	}
-
-	for _, v := range state.Variants {
-		variantID := v.AttachmentId
-		if v.Attachment != nil {
-			variantID = v.Attachment.Id
+	if manifest, ok := r.core.RoomTimeline.VideoAttachmentManifest(obj.Id); ok && manifest != nil {
+		if succeeded := manifest.Succeeded; succeeded != nil {
+			video := succeeded.GetVideo()
+			if video == nil {
+				return nil, nil
+			}
+			result := &model.VideoProcessing{
+				Status:             model.VideoProcessingStatusCompleted,
+				RoomID:             obj.RoomId,
+				OriginAttachmentID: obj.Id,
+				SourceAvailable:    r.assetSourceAvailable(obj.Id, true),
+			}
+			if video.DurationMs > 0 {
+				d := video.DurationMs
+				result.DurationMs = &d
+			}
+			if video.Width > 0 {
+				result.Width = &video.Width
+			}
+			if video.Height > 0 {
+				result.Height = &video.Height
+			}
+			if video.GetThumbnailAssetId() != "" {
+				result.ThumbnailAttachmentID = video.GetThumbnailAssetId()
+			}
+			for _, v := range video.Variants {
+				if v == nil {
+					continue
+				}
+				variantID := v.GetAssetId()
+				var width, height int32
+				var size int64
+				if variantAsset, ok := r.core.RoomTimeline.AssetCreation(variantID); ok {
+					asset := variantAsset.GetAsset()
+					width, height = assetDimensions(asset)
+					size = asset.GetSize()
+				}
+				result.Variants = append(result.Variants, &model.VideoVariant{
+					Quality:            v.Quality,
+					Width:              width,
+					Height:             height,
+					Size:               size,
+					RoomID:             obj.RoomId,
+					OriginAttachmentID: obj.Id,
+					AttachmentID:       variantID,
+				})
+			}
+			return result, nil
 		}
-		result.Variants = append(result.Variants, &model.VideoVariant{
-			Quality:            v.Quality,
-			Width:              v.Width,
-			Height:             v.Height,
-			Size:               v.Size,
-			RoomID:             obj.RoomId,
-			OriginAttachmentID: obj.Id,
-			AttachmentID:       variantID,
-		})
+		if failed := manifest.Failed; failed != nil {
+			reasonCode := assetProcessingFailureReasonCode(failed.GetFailureCode())
+			sourceAvailable := reasonCode != "original_missing" && r.assetSourceAvailable(obj.Id, true)
+			return &model.VideoProcessing{
+				Status:             model.VideoProcessingStatusFailed,
+				ReasonCode:         &reasonCode,
+				RoomID:             obj.RoomId,
+				OriginAttachmentID: obj.Id,
+				SourceAvailable:    sourceAvailable,
+			}, nil
+		}
+		if manifest.Started != nil {
+			return &model.VideoProcessing{
+				Status:             model.VideoProcessingStatusProcessing,
+				RoomID:             obj.RoomId,
+				OriginAttachmentID: obj.Id,
+				SourceAvailable:    r.assetSourceAvailable(obj.Id, true),
+			}, nil
+		}
 	}
 
-	return result, nil
+	return nil, nil
 }
 
 // Alive is the resolver for the alive field. Always true — clients only
@@ -139,7 +194,7 @@ func (r *mentionNotificationEventResolver) Room(ctx context.Context, obj *corev1
 
 // Actor is the resolver for the actor field.
 func (r *mentionNotificationEventResolver) Actor(ctx context.Context, obj *corev1.MentionNotificationEvent) (*corev1.User, error) {
-	return r.getUser(ctx, obj.MentionedByUserId)
+	return r.resolveOptionalUser(ctx, obj.MentionedByUserId)
 }
 
 // MessageEventID is the resolver for the messageEventId field.
@@ -177,12 +232,17 @@ func (r *messageEditedEventResolver) Attachments(ctx context.Context, obj *corev
 	if obj.Body == nil {
 		return []*corev1.Attachment{}, nil
 	}
-	for _, att := range obj.Body.Attachments {
-		if att != nil {
+	attachments := r.core.MessageBodyAttachments(obj.Body)
+	for _, att := range attachments {
+		if att == nil {
+			continue
+		}
+		att.RoomId = obj.RoomId
+		if att.MessageBodyId == "" {
 			att.MessageBodyId = obj.EventId
 		}
 	}
-	return obj.Body.Attachments, nil
+	return attachments, nil
 }
 
 // LinkPreview is the resolver for the linkPreview field.
@@ -233,16 +293,20 @@ func (r *messagePostedEventResolver) Attachments(ctx context.Context, obj *corev
 	if messageBody == nil {
 		return []*corev1.Attachment{}, nil // Return empty slice for deleted messages
 	}
-	// Populate MessageBodyId on each attachment so downstream URL
-	// resolvers can build signed locators. Persisted bodies written
-	// after the message_body_id proto field landed already have this
-	// set; older bodies are patched here at read time.
+	// DecryptedMessageBody.Attachments is already hydrated through the asset
+	// projection (or falls back to the legacy embedded protos for old bodies).
+	attachments := make([]*corev1.Attachment, 0, len(messageBody.Attachments))
 	for _, att := range messageBody.Attachments {
-		if att != nil && att.MessageBodyId == "" {
+		if att == nil {
+			continue
+		}
+		att.RoomId = obj.RoomId
+		if att.MessageBodyId == "" {
 			att.MessageBodyId = bodyKeyForLookup(obj)
 		}
+		attachments = append(attachments, att)
 	}
-	return messageBody.Attachments, nil
+	return attachments, nil
 }
 
 // InReplyTo is the resolver for the inReplyTo field.
@@ -464,11 +528,14 @@ func (r *messageUpdatedEventResolver) MessageEventID(ctx context.Context, obj *c
 
 // Sender is the resolver for the sender field.
 func (r *newDirectMessageNotificationEventResolver) Sender(ctx context.Context, obj *corev1.NewDirectMessageNotificationEvent) (*corev1.User, error) {
-	return r.getUser(ctx, obj.SenderId)
+	return r.resolveOptionalUser(ctx, obj.SenderId)
 }
 
 // ConversationName is the resolver for the conversationName field.
 // Returns the display names of the other participants in the DM conversation.
+// Degrades to "Direct Message" if the participant lookup fails — a notification
+// event with a missing name is still useful, an error would drop the whole
+// delivery (and this field is non-null on the schema).
 func (r *newDirectMessageNotificationEventResolver) ConversationName(ctx context.Context, obj *corev1.NewDirectMessageNotificationEvent) (string, error) {
 	currentUser := auth.ForContext(ctx)
 	currentUserID := ""
@@ -478,7 +545,9 @@ func (r *newDirectMessageNotificationEventResolver) ConversationName(ctx context
 
 	participantIDs, err := r.core.GetDMParticipants(ctx, obj.RoomId)
 	if err != nil {
-		return "", fmt.Errorf("failed to get DM participants: %w", err)
+		r.logger.Warn("DM notification: failed to load participants for conversation name",
+			"room_id", obj.RoomId, "error", err)
+		return "Direct Message", nil
 	}
 
 	var names []string
@@ -623,6 +692,26 @@ func (r *videoVariantResolver) URL(ctx context.Context, obj *model.VideoVariant)
 	return r.core.GetAttachmentURL(loc, callerID(ctx)), nil
 }
 
+// AssetDeletedEvent returns AssetDeletedEventResolver implementation.
+func (r *Resolver) AssetDeletedEvent() AssetDeletedEventResolver {
+	return &assetDeletedEventResolver{r}
+}
+
+// AssetProcessingFailedEvent returns AssetProcessingFailedEventResolver implementation.
+func (r *Resolver) AssetProcessingFailedEvent() AssetProcessingFailedEventResolver {
+	return &assetProcessingFailedEventResolver{r}
+}
+
+// AssetProcessingStartedEvent returns AssetProcessingStartedEventResolver implementation.
+func (r *Resolver) AssetProcessingStartedEvent() AssetProcessingStartedEventResolver {
+	return &assetProcessingStartedEventResolver{r}
+}
+
+// AssetProcessingSucceededEvent returns AssetProcessingSucceededEventResolver implementation.
+func (r *Resolver) AssetProcessingSucceededEvent() AssetProcessingSucceededEventResolver {
+	return &assetProcessingSucceededEventResolver{r}
+}
+
 // Attachment returns AttachmentResolver implementation.
 func (r *Resolver) Attachment() AttachmentResolver { return &attachmentResolver{r} }
 
@@ -701,6 +790,10 @@ func (r *Resolver) VideoProcessingCompletedEvent() VideoProcessingCompletedEvent
 // VideoVariant returns VideoVariantResolver implementation.
 func (r *Resolver) VideoVariant() VideoVariantResolver { return &videoVariantResolver{r} }
 
+type assetDeletedEventResolver struct{ *Resolver }
+type assetProcessingFailedEventResolver struct{ *Resolver }
+type assetProcessingStartedEventResolver struct{ *Resolver }
+type assetProcessingSucceededEventResolver struct{ *Resolver }
 type attachmentResolver struct{ *Resolver }
 type heartbeatEventResolver struct{ *Resolver }
 type mentionNotificationEventResolver struct{ *Resolver }

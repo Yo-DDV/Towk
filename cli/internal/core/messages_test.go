@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -50,6 +51,46 @@ func TestChattoCore_PostMessage(t *testing.T) {
 	}
 	if fetchedBody != messageBody {
 		t.Errorf("Message body = %s, want %s", fetchedBody, messageBody)
+	}
+}
+
+func TestChattoCore_PostMessageSchedulesVideoProcessing(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "testuser", "testuser", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "clip.mp4", "video/mp4", bytes.NewReader([]byte("video")))
+	if err != nil {
+		t.Fatalf("Failed to upload attachment: %v", err)
+	}
+
+	requests := captureVideoProcessingRequests(t, core)
+
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Video", []string{attachment.Id}, "", "", nil, false, WithVideoProcessingAssets(attachment.Id))
+	if err != nil {
+		t.Fatalf("Failed to post message: %v", err)
+	}
+
+	select {
+	case req := <-requests:
+		if req.assetID != attachment.Id {
+			t.Fatalf("queued asset id = %q, want %q", req.assetID, attachment.Id)
+		}
+		// The owning message id must ride along on the local work item so the worker
+		// can stamp it onto the terminal event without a racy projection lookup.
+		if req.messageEventID != roomEvent.Id {
+			t.Fatalf("queued message event id = %q, want %q", req.messageEventID, roomEvent.Id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected local video processing request")
+	}
+
+	manifest, ok := core.RoomTimeline.VideoAttachmentManifest(attachment.Id)
+	if !ok || manifest.Started == nil {
+		t.Fatalf("expected AssetProcessingStarted manifest, got %+v", manifest)
 	}
 }
 
@@ -271,6 +312,13 @@ func TestChattoCore_PostMessage_InvisibleChars(t *testing.T) {
 			t.Errorf("Expected success for emoji-only message, got: %v", err)
 		}
 	})
+
+	t.Run("attachment-only with unknown asset is rejected", func(t *testing.T) {
+		_, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "", []string{"missing-asset"}, "", "", nil, false)
+		if err == nil {
+			t.Error("Expected error for attachment-only message with no resolved attachments")
+		}
+	})
 }
 
 func TestChattoCore_DeleteMessage_GDPR(t *testing.T) {
@@ -342,13 +390,13 @@ func TestChattoCore_DeleteMessage_DeletesAttachments(t *testing.T) {
 
 	// Upload an attachment (using createTestPNG from attachments_test.go)
 	imageData := createTestPNG(100, 100)
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
 
 	// Post a message with the attachment
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
@@ -404,17 +452,17 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 
 	// Upload two attachments
 	imageData := createTestPNG(100, 100)
-	attachment1, err := core.UploadAttachment(ctx, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
+	attachment1, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 1: %v", err)
 	}
-	attachment2, err := core.UploadAttachment(ctx, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
+	attachment2, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 2: %v", err)
 	}
 
 	// Post a message with both attachments
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachments", []*corev1.Attachment{attachment1, attachment2}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachments", []string{attachment1.Id, attachment2.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
@@ -465,6 +513,67 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 	}
 }
 
+func TestChattoCore_DeleteAttachmentFromMessage_DeletesVideoDerivatives(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "testuser", "testuser", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	original, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "original.mp4", "video/mp4", bytes.NewReader([]byte("original")))
+	if err != nil {
+		t.Fatalf("Failed to upload original: %v", err)
+	}
+	thumb, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "thumb.png", "image/png", bytes.NewReader(createTestPNG(32, 18)))
+	if err != nil {
+		t.Fatalf("Failed to upload thumbnail: %v", err)
+	}
+	variantAttachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "video-720p.mp4", "video/mp4", bytes.NewReader([]byte("variant")))
+	if err != nil {
+		t.Fatalf("Failed to upload variant: %v", err)
+	}
+
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Video", []string{original.Id}, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Failed to post message: %v", err)
+	}
+	postedMessage := roomEvent.GetMessagePosted()
+
+	if err := core.RecordAssetProcessed(ctx, SystemActorID, KindChannel, room.Id, roomEvent.Id, original.Id, 1234, 640, 360, thumb, []*corev1.VideoVariant{
+		{
+			AttachmentId: variantAttachment.Id,
+			Quality:      "720p",
+			Width:        640,
+			Height:       360,
+			Size:         variantAttachment.Size,
+			Attachment:   variantAttachment,
+		},
+	}); err != nil {
+		t.Fatalf("Failed to record processed video manifest: %v", err)
+	}
+
+	store, err := core.GetAttachmentsStore(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get attachments store: %v", err)
+	}
+	for _, attachment := range []*corev1.Attachment{original, thumb, variantAttachment} {
+		if _, err := store.Get(ctx, attachment.Id); err != nil {
+			t.Fatalf("Attachment %s should exist before deletion: %v", attachment.Id, err)
+		}
+	}
+
+	if err := core.DeleteAttachmentFromMessage(ctx, user.Id, KindChannel, room.Id, postedMessage.MessageBodyId, original.Id); err != nil {
+		t.Fatalf("Failed to delete video attachment: %v", err)
+	}
+
+	for _, attachment := range []*corev1.Attachment{original, thumb, variantAttachment} {
+		if _, err := store.Get(ctx, attachment.Id); err == nil {
+			t.Fatalf("Attachment %s should be deleted", attachment.Id)
+		}
+	}
+}
+
 func TestChattoCore_DeleteAttachmentFromMessage_NotAuthor(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
@@ -480,12 +589,12 @@ func TestChattoCore_DeleteAttachmentFromMessage_NotAuthor(t *testing.T) {
 
 	// Upload attachment and post message as author
 	imageData := createTestPNG(100, 100)
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
 
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "Message with attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "Message with attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
@@ -521,7 +630,7 @@ func TestChattoCore_DeleteMessage_DeletesS3Attachments(t *testing.T) {
 
 	// Upload attachment (stored in S3)
 	imageData := createTestPNG(100, 100)
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
@@ -529,7 +638,7 @@ func TestChattoCore_DeleteMessage_DeletesS3Attachments(t *testing.T) {
 	s3Key := attachment.Storage.GetS3().Key
 
 	// Post message with attachment
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
@@ -565,11 +674,11 @@ func TestChattoCore_DeleteAttachmentFromMessage_S3(t *testing.T) {
 
 	// Upload two attachments (stored in S3)
 	imageData := createTestPNG(100, 100)
-	attachment1, err := core.UploadAttachment(ctx, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
+	attachment1, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 1: %v", err)
 	}
-	attachment2, err := core.UploadAttachment(ctx, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
+	attachment2, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 2: %v", err)
 	}
@@ -578,7 +687,7 @@ func TestChattoCore_DeleteAttachmentFromMessage_S3(t *testing.T) {
 	s3Key2 := attachment2.Storage.GetS3().Key
 
 	// Post message with both attachments
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachments", []*corev1.Attachment{attachment1, attachment2}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachments", []string{attachment1.Id, attachment2.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}

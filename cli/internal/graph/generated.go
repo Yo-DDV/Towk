@@ -44,6 +44,10 @@ type Config struct {
 type ResolverRoot interface {
 	AdminMutations() AdminMutationsResolver
 	AdminQueries() AdminQueriesResolver
+	AssetDeletedEvent() AssetDeletedEventResolver
+	AssetProcessingFailedEvent() AssetProcessingFailedEventResolver
+	AssetProcessingStartedEvent() AssetProcessingStartedEventResolver
+	AssetProcessingSucceededEvent() AssetProcessingSucceededEventResolver
 	Attachment() AttachmentResolver
 	DMMessageNotificationItem() DMMessageNotificationItemResolver
 	FollowedThread() FollowedThreadResolver
@@ -119,6 +123,30 @@ type ComplexityRoot struct {
 		Motd             func(childComplexity int) int
 		ServerName       func(childComplexity int) int
 		WelcomeMessage   func(childComplexity int) int
+	}
+
+	AssetDeletedEvent struct {
+		AssetId func(childComplexity int) int
+		RoomID  func(childComplexity int) int
+	}
+
+	AssetProcessingFailedEvent struct {
+		AssetId        func(childComplexity int) int
+		MessageEventID func(childComplexity int) int
+		ReasonCode     func(childComplexity int) int
+		RoomID         func(childComplexity int) int
+	}
+
+	AssetProcessingStartedEvent struct {
+		AssetId        func(childComplexity int) int
+		MessageEventID func(childComplexity int) int
+		RoomID         func(childComplexity int) int
+	}
+
+	AssetProcessingSucceededEvent struct {
+		AssetId        func(childComplexity int) int
+		MessageEventID func(childComplexity int) int
+		RoomID         func(childComplexity int) int
 	}
 
 	Attachment struct {
@@ -820,13 +848,14 @@ type ComplexityRoot struct {
 	}
 
 	VideoProcessing struct {
-		DurationMs   func(childComplexity int) int
-		ErrorMessage func(childComplexity int) int
-		Height       func(childComplexity int) int
-		Status       func(childComplexity int) int
-		ThumbnailURL func(childComplexity int) int
-		Variants     func(childComplexity int) int
-		Width        func(childComplexity int) int
+		DurationMs      func(childComplexity int) int
+		Height          func(childComplexity int) int
+		ReasonCode      func(childComplexity int) int
+		SourceAvailable func(childComplexity int) int
+		Status          func(childComplexity int) int
+		ThumbnailURL    func(childComplexity int) int
+		Variants        func(childComplexity int) int
+		Width           func(childComplexity int) int
 	}
 
 	VideoProcessingCompletedEvent struct {
@@ -882,6 +911,25 @@ type AdminQueriesResolver interface {
 	Projections(ctx context.Context, obj *model.AdminQueries) ([]*model.ProjectionState, error)
 	GroupRolePermissions(ctx context.Context, obj *model.AdminQueries, groupID string, roleName string) (*model.RoomGroupRolePermissions, error)
 	GroupUserPermissions(ctx context.Context, obj *model.AdminQueries, groupID string, userID string) (*model.RoomGroupUserPermissions, error)
+}
+type AssetDeletedEventResolver interface {
+	RoomID(ctx context.Context, obj *corev1.AssetDeletedEvent) (*string, error)
+}
+type AssetProcessingFailedEventResolver interface {
+	RoomID(ctx context.Context, obj *corev1.AssetProcessingFailedEvent) (string, error)
+
+	MessageEventID(ctx context.Context, obj *corev1.AssetProcessingFailedEvent) (string, error)
+	ReasonCode(ctx context.Context, obj *corev1.AssetProcessingFailedEvent) (string, error)
+}
+type AssetProcessingStartedEventResolver interface {
+	RoomID(ctx context.Context, obj *corev1.AssetProcessingStartedEvent) (string, error)
+
+	MessageEventID(ctx context.Context, obj *corev1.AssetProcessingStartedEvent) (string, error)
+}
+type AssetProcessingSucceededEventResolver interface {
+	RoomID(ctx context.Context, obj *corev1.AssetProcessingSucceededEvent) (string, error)
+
+	MessageEventID(ctx context.Context, obj *corev1.AssetProcessingSucceededEvent) (string, error)
 }
 type AttachmentResolver interface {
 	Size(ctx context.Context, obj *corev1.Attachment) (int32, error)
@@ -1386,6 +1434,82 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.AdminServerConfig.WelcomeMessage(childComplexity), true
+
+	case "AssetDeletedEvent.assetId":
+		if e.complexity.AssetDeletedEvent.AssetId == nil {
+			break
+		}
+
+		return e.complexity.AssetDeletedEvent.AssetId(childComplexity), true
+	case "AssetDeletedEvent.roomId":
+		if e.complexity.AssetDeletedEvent.RoomID == nil {
+			break
+		}
+
+		return e.complexity.AssetDeletedEvent.RoomID(childComplexity), true
+
+	case "AssetProcessingFailedEvent.assetId":
+		if e.complexity.AssetProcessingFailedEvent.AssetId == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingFailedEvent.AssetId(childComplexity), true
+	case "AssetProcessingFailedEvent.messageEventId":
+		if e.complexity.AssetProcessingFailedEvent.MessageEventID == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingFailedEvent.MessageEventID(childComplexity), true
+	case "AssetProcessingFailedEvent.reasonCode":
+		if e.complexity.AssetProcessingFailedEvent.ReasonCode == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingFailedEvent.ReasonCode(childComplexity), true
+	case "AssetProcessingFailedEvent.roomId":
+		if e.complexity.AssetProcessingFailedEvent.RoomID == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingFailedEvent.RoomID(childComplexity), true
+
+	case "AssetProcessingStartedEvent.assetId":
+		if e.complexity.AssetProcessingStartedEvent.AssetId == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingStartedEvent.AssetId(childComplexity), true
+	case "AssetProcessingStartedEvent.messageEventId":
+		if e.complexity.AssetProcessingStartedEvent.MessageEventID == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingStartedEvent.MessageEventID(childComplexity), true
+	case "AssetProcessingStartedEvent.roomId":
+		if e.complexity.AssetProcessingStartedEvent.RoomID == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingStartedEvent.RoomID(childComplexity), true
+
+	case "AssetProcessingSucceededEvent.assetId":
+		if e.complexity.AssetProcessingSucceededEvent.AssetId == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingSucceededEvent.AssetId(childComplexity), true
+	case "AssetProcessingSucceededEvent.messageEventId":
+		if e.complexity.AssetProcessingSucceededEvent.MessageEventID == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingSucceededEvent.MessageEventID(childComplexity), true
+	case "AssetProcessingSucceededEvent.roomId":
+		if e.complexity.AssetProcessingSucceededEvent.RoomID == nil {
+			break
+		}
+
+		return e.complexity.AssetProcessingSucceededEvent.RoomID(childComplexity), true
 
 	case "Attachment.contentType":
 		if e.complexity.Attachment.ContentType == nil {
@@ -4610,18 +4734,24 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.VideoProcessing.DurationMs(childComplexity), true
-	case "VideoProcessing.errorMessage":
-		if e.complexity.VideoProcessing.ErrorMessage == nil {
-			break
-		}
-
-		return e.complexity.VideoProcessing.ErrorMessage(childComplexity), true
 	case "VideoProcessing.height":
 		if e.complexity.VideoProcessing.Height == nil {
 			break
 		}
 
 		return e.complexity.VideoProcessing.Height(childComplexity), true
+	case "VideoProcessing.reasonCode":
+		if e.complexity.VideoProcessing.ReasonCode == nil {
+			break
+		}
+
+		return e.complexity.VideoProcessing.ReasonCode(childComplexity), true
+	case "VideoProcessing.sourceAvailable":
+		if e.complexity.VideoProcessing.SourceAvailable == nil {
+			break
+		}
+
+		return e.complexity.VideoProcessing.SourceAvailable(childComplexity), true
 	case "VideoProcessing.status":
 		if e.complexity.VideoProcessing.Status == nil {
 			break
@@ -7187,6 +7317,354 @@ func (ec *executionContext) fieldContext_AdminServerConfig_description(_ context
 	return fc, nil
 }
 
+func (ec *executionContext) _AssetDeletedEvent_roomId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetDeletedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetDeletedEvent_roomId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetDeletedEvent().RoomID(ctx, obj)
+		},
+		nil,
+		ec.marshalOID2ᚖstring,
+		true,
+		false,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetDeletedEvent_roomId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetDeletedEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetDeletedEvent_assetId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetDeletedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetDeletedEvent_assetId,
+		func(ctx context.Context) (any, error) {
+			return obj.AssetId, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetDeletedEvent_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetDeletedEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingFailedEvent_roomId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingFailedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingFailedEvent_roomId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingFailedEvent().RoomID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingFailedEvent_roomId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingFailedEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingFailedEvent_assetId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingFailedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingFailedEvent_assetId,
+		func(ctx context.Context) (any, error) {
+			return obj.AssetId, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingFailedEvent_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingFailedEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingFailedEvent_messageEventId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingFailedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingFailedEvent_messageEventId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingFailedEvent().MessageEventID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingFailedEvent_messageEventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingFailedEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingFailedEvent_reasonCode(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingFailedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingFailedEvent_reasonCode,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingFailedEvent().ReasonCode(ctx, obj)
+		},
+		nil,
+		ec.marshalNString2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingFailedEvent_reasonCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingFailedEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingStartedEvent_roomId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingStartedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingStartedEvent_roomId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingStartedEvent().RoomID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingStartedEvent_roomId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingStartedEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingStartedEvent_assetId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingStartedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingStartedEvent_assetId,
+		func(ctx context.Context) (any, error) {
+			return obj.AssetId, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingStartedEvent_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingStartedEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingStartedEvent_messageEventId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingStartedEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingStartedEvent_messageEventId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingStartedEvent().MessageEventID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingStartedEvent_messageEventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingStartedEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingSucceededEvent_roomId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingSucceededEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingSucceededEvent_roomId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingSucceededEvent().RoomID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingSucceededEvent_roomId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingSucceededEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingSucceededEvent_assetId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingSucceededEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingSucceededEvent_assetId,
+		func(ctx context.Context) (any, error) {
+			return obj.AssetId, nil
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingSucceededEvent_assetId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingSucceededEvent",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AssetProcessingSucceededEvent_messageEventId(ctx context.Context, field graphql.CollectedField, obj *corev1.AssetProcessingSucceededEvent) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_AssetProcessingSucceededEvent_messageEventId,
+		func(ctx context.Context) (any, error) {
+			return ec.resolvers.AssetProcessingSucceededEvent().MessageEventID(ctx, obj)
+		},
+		nil,
+		ec.marshalNID2string,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_AssetProcessingSucceededEvent_messageEventId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AssetProcessingSucceededEvent",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Attachment_id(ctx context.Context, field graphql.CollectedField, obj *corev1.Attachment) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
@@ -7508,8 +7986,10 @@ func (ec *executionContext) fieldContext_Attachment_videoProcessing(_ context.Co
 				return ec.fieldContext_VideoProcessing_thumbnailUrl(ctx, field)
 			case "variants":
 				return ec.fieldContext_VideoProcessing_variants(ctx, field)
-			case "errorMessage":
-				return ec.fieldContext_VideoProcessing_errorMessage(ctx, field)
+			case "reasonCode":
+				return ec.fieldContext_VideoProcessing_reasonCode(ctx, field)
+			case "sourceAvailable":
+				return ec.fieldContext_VideoProcessing_sourceAvailable(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type VideoProcessing", field.Name)
 		},
@@ -7962,9 +8442,9 @@ func (ec *executionContext) _DMMessageNotificationItem_actor(ctx context.Context
 			return ec.resolvers.DMMessageNotificationItem().Actor(ctx, obj)
 		},
 		nil,
-		ec.marshalNUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
+		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -9332,9 +9812,9 @@ func (ec *executionContext) _MentionNotificationEvent_actor(ctx context.Context,
 			return ec.resolvers.MentionNotificationEvent().Actor(ctx, obj)
 		},
 		nil,
-		ec.marshalNUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
+		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -9449,9 +9929,9 @@ func (ec *executionContext) _MentionNotificationItem_actor(ctx context.Context, 
 			return ec.resolvers.MentionNotificationItem().Actor(ctx, obj)
 		},
 		nil,
-		ec.marshalNUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
+		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -14129,9 +14609,9 @@ func (ec *executionContext) _NewDirectMessageNotificationEvent_sender(ctx contex
 			return ec.resolvers.NewDirectMessageNotificationEvent().Sender(ctx, obj)
 		},
 		nil,
-		ec.marshalNUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
+		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -16493,9 +16973,9 @@ func (ec *executionContext) _ReplyNotificationItem_actor(ctx context.Context, fi
 			return ec.resolvers.ReplyNotificationItem().Actor(ctx, obj)
 		},
 		nil,
-		ec.marshalNUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
+		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -19566,9 +20046,9 @@ func (ec *executionContext) _RoomMessageNotificationItem_actor(ctx context.Conte
 			return ec.resolvers.RoomMessageNotificationItem().Actor(ctx, obj)
 		},
 		nil,
-		ec.marshalNUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
+		ec.marshalOUser2ᚖhmansᚗdeᚋchattoᚋinternalᚋpbᚋchattoᚋcoreᚋv1ᚐUser,
 		true,
-		true,
+		false,
 	)
 }
 
@@ -24194,14 +24674,14 @@ func (ec *executionContext) fieldContext_VideoProcessing_variants(_ context.Cont
 	return fc, nil
 }
 
-func (ec *executionContext) _VideoProcessing_errorMessage(ctx context.Context, field graphql.CollectedField, obj *model.VideoProcessing) (ret graphql.Marshaler) {
+func (ec *executionContext) _VideoProcessing_reasonCode(ctx context.Context, field graphql.CollectedField, obj *model.VideoProcessing) (ret graphql.Marshaler) {
 	return graphql.ResolveField(
 		ctx,
 		ec.OperationContext,
 		field,
-		ec.fieldContext_VideoProcessing_errorMessage,
+		ec.fieldContext_VideoProcessing_reasonCode,
 		func(ctx context.Context) (any, error) {
-			return obj.ErrorMessage, nil
+			return obj.ReasonCode, nil
 		},
 		nil,
 		ec.marshalOString2ᚖstring,
@@ -24210,7 +24690,7 @@ func (ec *executionContext) _VideoProcessing_errorMessage(ctx context.Context, f
 	)
 }
 
-func (ec *executionContext) fieldContext_VideoProcessing_errorMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_VideoProcessing_reasonCode(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "VideoProcessing",
 		Field:      field,
@@ -24218,6 +24698,35 @@ func (ec *executionContext) fieldContext_VideoProcessing_errorMessage(_ context.
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _VideoProcessing_sourceAvailable(ctx context.Context, field graphql.CollectedField, obj *model.VideoProcessing) (ret graphql.Marshaler) {
+	return graphql.ResolveField(
+		ctx,
+		ec.OperationContext,
+		field,
+		ec.fieldContext_VideoProcessing_sourceAvailable,
+		func(ctx context.Context) (any, error) {
+			return obj.SourceAvailable, nil
+		},
+		nil,
+		ec.marshalNBoolean2bool,
+		true,
+		true,
+	)
+}
+
+func (ec *executionContext) fieldContext_VideoProcessing_sourceAvailable(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "VideoProcessing",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -28819,6 +29328,26 @@ func (ec *executionContext) _RoomEventType(ctx context.Context, sel ast.Selectio
 			return graphql.Null
 		}
 		return ec._CallParticipantJoinedEvent(ctx, sel, obj)
+	case *corev1.AssetProcessingSucceededEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetProcessingSucceededEvent(ctx, sel, obj)
+	case *corev1.AssetProcessingStartedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetProcessingStartedEvent(ctx, sel, obj)
+	case *corev1.AssetProcessingFailedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetProcessingFailedEvent(ctx, sel, obj)
+	case *corev1.AssetDeletedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetDeletedEvent(ctx, sel, obj)
 	default:
 		if typedObj, ok := obj.(graphql.Marshaler); ok {
 			return typedObj
@@ -29017,6 +29546,26 @@ func (ec *executionContext) _ServerEventType(ctx context.Context, sel ast.Select
 			return graphql.Null
 		}
 		return ec._CallParticipantJoinedEvent(ctx, sel, obj)
+	case *corev1.AssetProcessingSucceededEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetProcessingSucceededEvent(ctx, sel, obj)
+	case *corev1.AssetProcessingStartedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetProcessingStartedEvent(ctx, sel, obj)
+	case *corev1.AssetProcessingFailedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetProcessingFailedEvent(ctx, sel, obj)
+	case *corev1.AssetDeletedEvent:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._AssetDeletedEvent(ctx, sel, obj)
 	default:
 		if typedObj, ok := obj.(graphql.Marshaler); ok {
 			return typedObj
@@ -29555,6 +30104,447 @@ func (ec *executionContext) _AdminServerConfig(ctx context.Context, sel ast.Sele
 	return out
 }
 
+var assetDeletedEventImplementors = []string{"AssetDeletedEvent", "RoomEventType", "ServerEventType"}
+
+func (ec *executionContext) _AssetDeletedEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.AssetDeletedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetDeletedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetDeletedEvent")
+		case "roomId":
+			field := field
+
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetDeletedEvent_roomId(ctx, field, obj)
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "assetId":
+			out.Values[i] = ec._AssetDeletedEvent_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var assetProcessingFailedEventImplementors = []string{"AssetProcessingFailedEvent", "RoomEventType", "ServerEventType"}
+
+func (ec *executionContext) _AssetProcessingFailedEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.AssetProcessingFailedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetProcessingFailedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetProcessingFailedEvent")
+		case "roomId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingFailedEvent_roomId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "assetId":
+			out.Values[i] = ec._AssetProcessingFailedEvent_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "messageEventId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingFailedEvent_messageEventId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "reasonCode":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingFailedEvent_reasonCode(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var assetProcessingStartedEventImplementors = []string{"AssetProcessingStartedEvent", "RoomEventType", "ServerEventType"}
+
+func (ec *executionContext) _AssetProcessingStartedEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.AssetProcessingStartedEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetProcessingStartedEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetProcessingStartedEvent")
+		case "roomId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingStartedEvent_roomId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "assetId":
+			out.Values[i] = ec._AssetProcessingStartedEvent_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "messageEventId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingStartedEvent_messageEventId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var assetProcessingSucceededEventImplementors = []string{"AssetProcessingSucceededEvent", "RoomEventType", "ServerEventType"}
+
+func (ec *executionContext) _AssetProcessingSucceededEvent(ctx context.Context, sel ast.SelectionSet, obj *corev1.AssetProcessingSucceededEvent) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, assetProcessingSucceededEventImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("AssetProcessingSucceededEvent")
+		case "roomId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingSucceededEvent_roomId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		case "assetId":
+			out.Values[i] = ec._AssetProcessingSucceededEvent_assetId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
+		case "messageEventId":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._AssetProcessingSucceededEvent_messageEventId(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var attachmentImplementors = []string{"Attachment"}
 
 func (ec *executionContext) _Attachment(ctx context.Context, sel ast.SelectionSet, obj *corev1.Attachment) graphql.Marshaler {
@@ -29979,16 +30969,13 @@ func (ec *executionContext) _DMMessageNotificationItem(ctx context.Context, sel 
 		case "actor":
 			field := field
 
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
 				res = ec._DMMessageNotificationItem_actor(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -30681,16 +31668,13 @@ func (ec *executionContext) _MentionNotificationEvent(ctx context.Context, sel a
 		case "actor":
 			field := field
 
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
 				res = ec._MentionNotificationEvent_actor(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -30761,16 +31745,13 @@ func (ec *executionContext) _MentionNotificationItem(ctx context.Context, sel as
 		case "actor":
 			field := field
 
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
 				res = ec._MentionNotificationItem_actor(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -32358,16 +33339,13 @@ func (ec *executionContext) _NewDirectMessageNotificationEvent(ctx context.Conte
 		case "sender":
 			field := field
 
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
 				res = ec._NewDirectMessageNotificationEvent_sender(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -33495,16 +34473,13 @@ func (ec *executionContext) _ReplyNotificationItem(ctx context.Context, sel ast.
 		case "actor":
 			field := field
 
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
 				res = ec._ReplyNotificationItem_actor(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -35404,16 +36379,13 @@ func (ec *executionContext) _RoomMessageNotificationItem(ctx context.Context, se
 		case "actor":
 			field := field
 
-			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, _ *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
 					}
 				}()
 				res = ec._RoomMessageNotificationItem_actor(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&fs.Invalids, 1)
-				}
 				return res
 			}
 
@@ -38728,8 +39700,13 @@ func (ec *executionContext) _VideoProcessing(ctx context.Context, sel ast.Select
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "errorMessage":
-			out.Values[i] = ec._VideoProcessing_errorMessage(ctx, field, obj)
+		case "reasonCode":
+			out.Values[i] = ec._VideoProcessing_reasonCode(ctx, field, obj)
+		case "sourceAvailable":
+			out.Values[i] = ec._VideoProcessing_sourceAvailable(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

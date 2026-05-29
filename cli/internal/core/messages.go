@@ -16,6 +16,46 @@ import (
 
 const defaultHistoricalMessageLimit = 50
 
+type postMessageOptions struct {
+	videoProcessingAssetIDs map[string]struct{}
+}
+
+// PostMessageOption customizes side effects owned by the message-post command.
+type PostMessageOption func(*postMessageOptions)
+
+// WithVideoProcessingAssets schedules video processing for the listed message
+// attachments after their AssetCreatedEvent records have been appended.
+func WithVideoProcessingAssets(assetIDs ...string) PostMessageOption {
+	return func(options *postMessageOptions) {
+		if options.videoProcessingAssetIDs == nil {
+			options.videoProcessingAssetIDs = make(map[string]struct{}, len(assetIDs))
+		}
+		for _, assetID := range assetIDs {
+			if assetID != "" {
+				options.videoProcessingAssetIDs[assetID] = struct{}{}
+			}
+		}
+	}
+}
+
+func collectPostMessageOptions(opts []PostMessageOption) postMessageOptions {
+	var options postMessageOptions
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&options)
+		}
+	}
+	return options
+}
+
+func (options postMessageOptions) shouldScheduleVideoProcessingForID(assetID string) bool {
+	if assetID == "" || len(options.videoProcessingAssetIDs) == 0 {
+		return false
+	}
+	_, ok := options.videoProcessingAssetIDs[assetID]
+	return ok
+}
+
 // PostMessage posts a message to a room. Publishes a
 // MessagePostedEvent on evt.room.{R}.message_posted with the
 // encrypted body embedded — no separate SERVER_BODIES write.
@@ -32,7 +72,9 @@ const defaultHistoricalMessageLimit = 50
 // Authorization: Caller must verify room membership and
 // CanPostMessage / CanPostInThread before calling, and CanEchoMessage
 // (if alsoSendToChannel).
-func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, user_id, body string, attachments []*corev1.Attachment, inThread, inReplyTo string, linkPreview *corev1.LinkPreview, alsoSendToChannel bool) (*corev1.Event, error) {
+func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, user_id, body string, assetIDs []string, inThread, inReplyTo string, linkPreview *corev1.LinkPreview, alsoSendToChannel bool, opts ...PostMessageOption) (*corev1.Event, error) {
+	options := collectPostMessageOptions(opts)
+
 	// Validate message body length to prevent DoS via oversized messages
 	if len(body) > MaxMessageBodyLength {
 		return nil, ErrMessageTooLong
@@ -41,8 +83,37 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// Validate that message has either body or attachments.
 	// HasVisibleContent rejects messages with only invisible Unicode characters.
 	hasBody := HasVisibleContent(body)
-	hasAttachments := len(attachments) > 0
+	hasAttachments := len(assetIDs) > 0
 	if !hasBody && !hasAttachments {
+		return nil, fmt.Errorf("message must have either body or attachments")
+	}
+
+	// Resolve referenced assets from the projection. Each must already exist
+	// (UploadAttachment emitted AssetCreatedEvent before the caller routed
+	// the id here). Missing ids are dropped with a warning rather than
+	// failing the post — the user already typed and clicked Send; a transient
+	// projection lag for one attachment is better swallowed than fatal.
+	resolvedAssets := make([]*corev1.Attachment, 0, len(assetIDs))
+	resolvedAssetIDs := make([]string, 0, len(assetIDs))
+	for _, id := range assetIDs {
+		if id == "" {
+			continue
+		}
+		declared, ok := c.RoomTimeline.AssetCreation(id)
+		if !ok || declared == nil || declared.GetAsset() == nil {
+			c.logger.Warn("PostMessage references unknown asset; dropping",
+				"asset_id", id, "room_id", room_id, "actor_id", user_id)
+			continue
+		}
+		att := attachmentFromAsset(declared.GetAsset())
+		if att == nil {
+			continue
+		}
+		att.RoomId = room_id
+		resolvedAssets = append(resolvedAssets, att)
+		resolvedAssetIDs = append(resolvedAssetIDs, id)
+	}
+	if !hasBody && len(resolvedAssetIDs) == 0 {
 		return nil, fmt.Errorf("message must have either body or attachments")
 	}
 
@@ -122,7 +193,7 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 
 	messageBody := &corev1.MessageBody{
 		CreatedAt:       timestamppb.New(now),
-		Attachments:     attachments,
+		AssetIds:        resolvedAssetIDs,
 		AuthorId:        user_id,
 		LinkPreview:     linkPreview,
 		EncryptedBody:   encrypted.Ciphertext,
@@ -146,16 +217,25 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// key — it's just an alias for event_id, kept on the proto so
 	// legacy code paths that pass MessageBodyId around (resolvers,
 	// attachment signed URLs) keep working without changes.
-	// eventIDFromBodyKey treats no-dot keys as event_ids, so the
-	// projection lookup picks the right entry.
 	event.GetMessagePosted().MessageBodyId = event.Id
 
-	// Stamp the event_id onto each attachment so signed attachment
-	// URLs can carry it without a separate index lookup at request
-	// time.
-	for _, att := range attachments {
-		if att != nil {
-			att.MessageBodyId = event.Id
+	// Schedule any video processing before MessagePosted so AssetProcessing-
+	// Started fires before subscribers see the message; the frontend uses
+	// the started marker to render the "Processing…" placeholder.
+	//
+	// The asset itself was already created at upload time
+	// (UploadAttachment → AssetCreatedEvent); here we just trigger derivative
+	// processing for any referenced asset the caller flagged as a video.
+	for _, att := range resolvedAssets {
+		if !options.shouldScheduleVideoProcessingForID(att.GetId()) {
+			continue
+		}
+		if err := c.ScheduleVideoProcessingForMessageAttachment(ctx, user_id, kind, room_id, event.Id, att); err != nil {
+			c.logger.Warn("Failed to schedule video processing",
+				"room_id", room_id,
+				"message_event_id", event.Id,
+				"asset_id", att.GetId(),
+				"error", err)
 		}
 	}
 
@@ -462,9 +542,16 @@ func (c *ChattoCore) DeleteMessage(ctx context.Context, actorID string, kind Roo
 	// event log. Same posture as the legacy DeleteMessage path —
 	// best-effort, log warnings, keep going.
 	if body != nil {
-		for _, att := range body.GetAttachments() {
+		for _, att := range c.MessageBodyAttachments(body) {
+			c.DeleteVideoDerivativesForAttachment(ctx, actorID, kind, att.GetId())
 			if err := c.DeleteAttachmentFromStorage(ctx, att); err != nil {
 				c.logger.Warn("Failed to delete attachment during message deletion",
+					"attachment_id", att.GetId(),
+					"event_id", eventID,
+					"error", err)
+			}
+			if err := c.RecordAssetDeleted(ctx, actorID, kind, roomID, att.GetId()); err != nil {
+				c.logger.Warn("Failed to publish asset deletion event",
 					"attachment_id", att.GetId(),
 					"event_id", eventID,
 					"error", err)
@@ -693,18 +780,31 @@ func (c *ChattoCore) editEmbeddedBody(
 func (c *ChattoCore) DeleteAttachmentFromMessage(ctx context.Context, actorID string, kind RoomKind, roomID, messageBodyKey, attachmentID string) error {
 	var removed *corev1.Attachment
 	err := c.editEmbeddedBody(ctx, actorID, kind, roomID, messageBodyKey, func(body *corev1.MessageBody) error {
-		idx := -1
-		for i, att := range body.GetAttachments() {
+		// Resolve the attachment (new bodies hold IDs; older bodies hold
+		// embedded protos). Then trim from whichever shape holds it.
+		for _, att := range c.MessageBodyAttachments(body) {
 			if att.GetId() == attachmentID {
-				idx = i
+				removed = att
 				break
 			}
 		}
-		if idx == -1 {
+		if removed == nil {
 			return fmt.Errorf("attachment not found in message")
 		}
-		removed = body.Attachments[idx]
-		body.Attachments = append(body.Attachments[:idx], body.Attachments[idx+1:]...)
+		trimmedIDs := body.AssetIds[:0]
+		for _, id := range body.GetAssetIds() {
+			if id != attachmentID {
+				trimmedIDs = append(trimmedIDs, id)
+			}
+		}
+		body.AssetIds = trimmedIDs
+		trimmedAttachments := body.Attachments[:0]
+		for _, att := range body.GetAttachments() {
+			if att.GetId() != attachmentID {
+				trimmedAttachments = append(trimmedAttachments, att)
+			}
+		}
+		body.Attachments = trimmedAttachments
 		return nil
 	})
 	if err != nil {
@@ -712,11 +812,18 @@ func (c *ChattoCore) DeleteAttachmentFromMessage(ctx context.Context, actorID st
 	}
 
 	if removed != nil {
+		c.DeleteVideoDerivativesForAttachment(ctx, actorID, kind, removed.GetId())
 		if delErr := c.DeleteAttachmentFromStorage(ctx, removed); delErr != nil {
 			c.logger.Warn("Failed to delete attachment file after removing from message",
 				"attachment_id", attachmentID,
 				"message_body_key", messageBodyKey,
 				"error", delErr)
+		}
+		if err := c.RecordAssetDeleted(ctx, actorID, kind, roomID, removed.GetId()); err != nil {
+			c.logger.Warn("Failed to publish asset deletion event",
+				"attachment_id", attachmentID,
+				"message_body_key", messageBodyKey,
+				"error", err)
 		}
 	}
 

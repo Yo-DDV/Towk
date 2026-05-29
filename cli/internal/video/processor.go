@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -195,7 +196,7 @@ func selectVariantHeights(sourceHeight int32) []int {
 }
 
 // processVideo handles the full processing pipeline for a single video.
-func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
+func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 	// Per-job timeout prevents any single ffmpeg invocation from hanging forever.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
@@ -207,16 +208,9 @@ func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Update state to PROCESSING
-	if err := s.core.SetVideoProcessingState(ctx, req.AttachmentID, &corev1.VideoProcessingState{
-		Status: corev1.VideoStatus_VIDEO_STATUS_PROCESSING,
-	}); err != nil {
-		return fmt.Errorf("failed to set processing state: %w", err)
-	}
-
 	// Download original from asset store
 	inputPath := filepath.Join(tmpDir, "input")
-	if err := s.downloadAttachment(ctx, req.MessageBodyID, req.AttachmentID, inputPath); err != nil {
+	if err := s.downloadAttachment(ctx, req.Attachment, inputPath); err != nil {
 		return s.failProcessing(ctx, req, fmt.Errorf("failed to download original: %w", err))
 	}
 
@@ -230,7 +224,7 @@ func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
 	}
 
 	s.logger.Info("Video probed",
-		"attachment_id", req.AttachmentID,
+		"asset_id", req.AssetID,
 		"duration_ms", probeResult.DurationMs,
 		"resolution", fmt.Sprintf("%dx%d", probeResult.Width, probeResult.Height),
 		"codec", probeResult.CodecInfo,
@@ -257,10 +251,13 @@ func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
 		thumbPath = "" // Non-fatal
 	}
 
-	// Upload thumbnail as attachment
+	// Upload thumbnail as a derivative asset of the original. Each derivative
+	// upload writes its own AssetCreatedEvent with parent_asset_id set, so
+	// the projection knows immediately that this asset is a child of the
+	// original — no separate "claim as derivative" step downstream.
 	var thumbnailAttachment *corev1.Attachment
 	if thumbPath != "" {
-		thumb, err := s.uploadFile(ctx, req.RoomID, "thumbnail.jpg", "image/jpeg", thumbPath)
+		thumb, err := s.uploadDerivativeFile(ctx, req.AssetID, corev1.AssetDerivativeRole_ASSET_DERIVATIVE_ROLE_THUMBNAIL, req.RoomID, "thumbnail.jpg", "image/jpeg", thumbPath)
 		if err != nil {
 			s.logger.Warn("Failed to upload thumbnail", "error", err)
 		} else {
@@ -276,7 +273,7 @@ func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
 	for _, h := range heights {
 		outputPath := filepath.Join(tmpDir, fmt.Sprintf("%dp.mp4", h))
 		s.logger.Info("Transcoding variant",
-			"attachment_id", req.AttachmentID,
+			"asset_id", req.AssetID,
 			"height", h,
 		)
 
@@ -294,8 +291,8 @@ func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
 
 		// Upload variant as attachment
 		quality := fmt.Sprintf("%dp", h)
-		filename := fmt.Sprintf("%s_%s.mp4", strings.TrimSuffix(req.AttachmentID, filepath.Ext(req.AttachmentID)), quality)
-		variant, err := s.uploadFile(ctx, req.RoomID, filename, "video/mp4", outputPath)
+		filename := fmt.Sprintf("%s_%s.mp4", strings.TrimSuffix(req.AssetID, filepath.Ext(req.AssetID)), quality)
+		variant, err := s.uploadDerivativeFile(ctx, req.AssetID, corev1.AssetDerivativeRole_ASSET_DERIVATIVE_ROLE_VIDEO_VARIANT, req.RoomID, filename, "video/mp4", outputPath)
 		if err != nil {
 			s.logger.Error("Failed to upload variant", "height", h, "error", err)
 			continue
@@ -322,82 +319,45 @@ func (s *Service) processVideo(ctx context.Context, req ProcessRequest) error {
 		return s.failProcessing(ctx, req, fmt.Errorf("all variant transcodes failed"))
 	}
 
-	// Update state to COMPLETED
-	state := &corev1.VideoProcessingState{
-		Status:              corev1.VideoStatus_VIDEO_STATUS_COMPLETED,
-		ThumbnailAttachment: thumbnailAttachment,
-		DurationMs:          probeResult.DurationMs,
-		Width:               probeResult.Width,
-		Height:              probeResult.Height,
-		Variants:            variants,
-	}
-	if thumbnailAttachment != nil {
-		state.ThumbnailAttachmentId = thumbnailAttachment.Id
-	}
-	if err := s.core.SetVideoProcessingState(ctx, req.AttachmentID, state); err != nil {
-		return fmt.Errorf("failed to set completed state: %w", err)
-	}
-
-	// Delete the original attachment binary (save storage — variants
-	// replace it). The Attachment proto stays on the body so its URL
-	// still resolves (to a 404), and the frontend uses the variants.
-	if origAttachment, err := s.core.FindBodyAttachment(ctx, req.MessageBodyID, req.AttachmentID); err != nil {
-		s.logger.Warn("Failed to look up original for deletion", "error", err)
-	} else if origAttachment != nil {
-		if err := s.core.DeleteAttachmentFromStorage(ctx, origAttachment); err != nil {
-			s.logger.Warn("Failed to delete original after transcoding", "error", err)
-			// Non-fatal — the variants are already uploaded
-		}
-	}
-
-	// Publish live event
+	// Publish durable manifest. The original upload is retained as source
+	// content for future re-encoding; generated variants are derivatives.
 	kind, err := s.core.FindRoomKind(ctx, req.RoomID)
 	if err != nil {
-		s.logger.Warn("Failed to resolve room kind for video-completed event", "error", err)
-	} else if err := s.core.PublishVideoProcessingCompleted(ctx, kind, req.RoomID, req.AttachmentID, req.MessageBodyID); err != nil {
-		s.logger.Warn("Failed to publish video processing completed event", "error", err)
+		s.logger.Warn("Failed to resolve room kind for video processed event", "error", err)
+	} else if err := s.core.RecordAssetProcessed(ctx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, probeResult.DurationMs, probeResult.Width, probeResult.Height, thumbnailAttachment, variants); err != nil {
+		s.logger.Warn("Failed to publish video processed event", "error", err)
 	}
 
 	s.logger.Info("Video processing completed",
-		"attachment_id", req.AttachmentID,
+		"asset_id", req.AssetID,
 		"variants", len(variants),
 	)
 
 	return nil
 }
 
-// failProcessing updates the processing state to FAILED and returns the original error.
-func (s *Service) failProcessing(ctx context.Context, req ProcessRequest, originalErr error) error {
+// failProcessing records a durable failed outcome and returns the original error.
+func (s *Service) failProcessing(ctx context.Context, req processRequest, originalErr error) error {
 	// Log the full error for server-side debugging (may contain file paths, ffmpeg output, etc.)
 	s.logger.Error("Video processing failed",
-		"attachment_id", req.AttachmentID,
+		"asset_id", req.AssetID,
 		"error", originalErr)
 
-	state := &corev1.VideoProcessingState{
-		Status:       corev1.VideoStatus_VIDEO_STATUS_FAILED,
-		ErrorMessage: "Video processing failed. Please try uploading again.",
-	}
-	if err := s.core.SetVideoProcessingState(ctx, req.AttachmentID, state); err != nil {
-		s.logger.Error("Failed to set error state", "error", err)
-	}
-	// Publish live event even on failure so frontend can update
+	// Publish durable failure event even on failure so frontend can update
+	// and replay can reconstruct the terminal state.
 	kind, kindErr := s.core.FindRoomKind(ctx, req.RoomID)
 	if kindErr != nil {
 		s.logger.Warn("Failed to resolve room kind for video-failed event", "error", kindErr)
-	} else if err := s.core.PublishVideoProcessingCompleted(ctx, kind, req.RoomID, req.AttachmentID, req.MessageBodyID); err != nil {
+	} else if err := s.core.RecordAssetProcessingFailed(ctx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED); err != nil {
 		s.logger.Warn("Failed to publish video processing failed event", "error", err)
 	}
 	return originalErr
 }
 
 // downloadAttachment downloads an attachment from the asset store to a local file.
-func (s *Service) downloadAttachment(ctx context.Context, bodyKey, attachmentID, destPath string) error {
-	attachment, err := s.core.FindBodyAttachment(ctx, bodyKey, attachmentID)
-	if err != nil {
-		return fmt.Errorf("look up attachment: %w", err)
-	}
+func (s *Service) downloadAttachment(ctx context.Context, attachment *corev1.Attachment, destPath string) error {
 	if attachment == nil {
-		return fmt.Errorf("attachment %s not found in body %s", attachmentID, bodyKey)
+		return fmt.Errorf("attachment is nil")
 	}
 	reader, _, err := s.core.GetAttachmentReader(ctx, attachment)
 	if err != nil {
@@ -420,15 +380,16 @@ func (s *Service) downloadAttachment(ctx context.Context, bodyKey, attachmentID,
 	return nil
 }
 
-// uploadFile uploads a local file as an attachment and returns the
-// resulting Attachment proto. The proto carries the storage info needed
-// to embed it directly in VideoProcessingState.
-func (s *Service) uploadFile(ctx context.Context, roomID, filename, contentType, srcPath string) (*corev1.Attachment, error) {
+// uploadDerivativeFile uploads a local file produced by the worker (thumbnail
+// or transcoded variant) as a derivative of `parentAssetID`. The single
+// AssetCreatedEvent emitted carries the parent + role so the projection
+// links the derivative to its origin immediately.
+func (s *Service) uploadDerivativeFile(ctx context.Context, parentAssetID string, derivativeRole corev1.AssetDerivativeRole, roomID, filename, contentType, srcPath string) (*corev1.Attachment, error) {
 	f, err := os.Open(srcPath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	return s.core.UploadAttachment(ctx, roomID, filename, contentType, f)
+	return s.core.UploadDerivativeAttachment(ctx, parentAssetID, derivativeRole, roomID, filename, contentType, f)
 }

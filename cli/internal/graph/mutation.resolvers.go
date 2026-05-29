@@ -10,7 +10,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -253,6 +252,7 @@ func (r *mutationResolver) PostMessage(ctx context.Context, input model.PostMess
 
 			attachment, err := r.core.UploadAttachment(
 				ctx,
+				user.Id,
 				input.RoomID,
 				upload.Filename,
 				upload.ContentType,
@@ -325,34 +325,28 @@ func (r *mutationResolver) PostMessage(ctx context.Context, input model.PostMess
 		linkPreview.EmbedId = lp.EmbedID
 	}
 
-	// Set PENDING state for video/animated-GIF attachments BEFORE PostMessage, so that
-	// when the subscription delivers the event the videoProcessing field is already populated.
+	var postMessageOptions []core.PostMessageOption
 	if r.videoConfig.Enabled {
+		var videoProcessingAssetIDs []string
 		for _, att := range attachments {
-			if strings.HasPrefix(att.ContentType, "video/") || animatedGIFs[att.Id] {
-				if err := r.core.InitVideoProcessingState(ctx, att.Id); err != nil {
-					r.logger.Warn("Failed to init video processing state", "attachment_id", att.Id, "error", err)
-				}
+			if core.AttachmentNeedsVideoProcessing(att, animatedGIFs[att.Id]) {
+				videoProcessingAssetIDs = append(videoProcessingAssetIDs, att.Id)
 			}
+		}
+		if len(videoProcessingAssetIDs) > 0 {
+			postMessageOptions = append(postMessageOptions, core.WithVideoProcessingAssets(videoProcessingAssetIDs...))
 		}
 	}
 
-	event, err := r.core.PostMessage(ctx, kind, input.RoomID, user.Id, body, attachments, inThread, inReplyTo, linkPreview, alsoSendToChannel)
+	assetIDs := make([]string, 0, len(attachments))
+	for _, att := range attachments {
+		if att != nil && att.GetId() != "" {
+			assetIDs = append(assetIDs, att.GetId())
+		}
+	}
+	event, err := r.core.PostMessage(ctx, kind, input.RoomID, user.Id, body, assetIDs, inThread, inReplyTo, linkPreview, alsoSendToChannel, postMessageOptions...)
 	if err != nil {
 		return nil, err
-	}
-
-	// Publish processing requests (needs messageBodyId from PostMessage response)
-	if r.videoConfig.Enabled {
-		if msg := event.GetMessagePosted(); msg != nil {
-			for _, att := range attachments {
-				if strings.HasPrefix(att.ContentType, "video/") || animatedGIFs[att.Id] {
-					if err := r.core.PublishVideoProcessingRequest(ctx, input.RoomID, att.Id, att.ContentType, msg.MessageBodyId); err != nil {
-						r.logger.Warn("Failed to request video processing", "attachment_id", att.Id, "error", err)
-					}
-				}
-			}
-		}
 	}
 
 	// Auto-mark room as read since user is viewing it (avoids separate
@@ -1075,7 +1069,7 @@ func (r *mutationResolver) UploadAvatar(ctx context.Context, input model.UploadA
 	}
 
 	if err := r.core.SetUserAvatar(ctx, input.UserID, asset); err != nil {
-		r.core.CleanupAsset(ctx, asset)
+		r.core.CleanupAsset(ctx, core.DeprecatedAssetFromAsset(asset))
 		return nil, fmt.Errorf("failed to save avatar: %w", err)
 	}
 
