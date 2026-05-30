@@ -37,3 +37,4 @@ Periodic codebase upkeep — all propose-only unless noted:
 - Use Conventional Commit format in commit messages.
 - Use Conventional Commit format in PR titles. PR bodies should include a bullet list of changes, ideally with links to relevant FDRs, ADRs, and glossary terms.
 - Please keep ADRs and FDRs up to date.
+- When the PR closes an issue, please include this information in the PR title or body (e.g. "Fixes #123") so GitHub can link and auto-close them.
