@@ -82,8 +82,7 @@
           }
         }
         canViewAdmin
-        canViewDMs
-        canWriteDMs
+        canStartDMs
         canAdminViewUsers
         canAdminManageUsers
         canAdminViewRoles

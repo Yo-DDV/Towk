@@ -57,16 +57,11 @@ func (c *ChattoCore) CanAdminAuditView(ctx context.Context, userID string) (bool
 	return c.HasServerPermission(ctx, userID, PermAdminAuditView)
 }
 
-// CanDMView checks if a user can access the DM space and read DMs.
-// Verified users have this permission by default.
-func (c *ChattoCore) CanDMView(ctx context.Context, userID string) (bool, error) {
-	return c.HasServerPermission(ctx, userID, PermDMView)
-}
-
-// CanDMWrite checks if a user can start DM conversations and send messages.
-// Verified users have this permission by default.
-func (c *ChattoCore) CanDMWrite(ctx context.Context, userID string) (bool, error) {
-	return c.HasServerPermission(ctx, userID, PermDMWrite)
+// CanStartDM checks if a user can start DM conversations.
+// DMs piggyback on the server-level message.post grant: if a user can post
+// messages by default, they can start a DM and post root messages inside it.
+func (c *ChattoCore) CanStartDM(ctx context.Context, userID string) (bool, error) {
+	return c.HasServerPermission(ctx, userID, PermMessagePost)
 }
 
 // CanDeleteUser checks if an actor can delete a specific user account.

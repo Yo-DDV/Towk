@@ -9,7 +9,6 @@ import {
 import { DMPage } from './pages/DMPage';
 import { RoomPage } from './pages/RoomPage';
 import { postMessageViaAPI } from './fixtures/graphqlHelpers';
-import { DM_SPACE_ID } from '../src/lib/constants';
 import * as routes from './routes';
 import { TIMEOUTS } from './constants';
 
@@ -349,7 +348,7 @@ test.describe('Direct Messages (room-shaped)', () => {
     }
   });
 
-  test('user with denied dm.view sees no Direct Messages section', async ({
+  test('user with denied message.post still sees existing DM conversations', async ({
     page,
     browser,
     serverURL
@@ -359,7 +358,7 @@ test.describe('Direct Messages (room-shaped)', () => {
     // Admin context: also doubles as the DM partner so the regular user has
     // a real DM to filter out. All admin-side setup goes through the GraphQL
     // API to avoid the slow UI-driven path.
-    await loginAsAdmin(page);
+    const adminUser = await loginAsAdmin(page);
 
     const regularContext = await browser.newContext({ baseURL: serverURL });
     const regularPage = await regularContext.newPage();
@@ -378,11 +377,21 @@ test.describe('Direct Messages (room-shaped)', () => {
       const dmRoomId = (await startResp.json()).data.startDM.id as string;
       await postMessageViaAPI(page, dmRoomId, 'seed');
 
-      // Deny dm.view BEFORE the regular user navigates, so their first sidebar
-      // load already reflects the deny. (Reloading after a deny works too but
-      // double-loads the page; keeping the test short.)
-      const denyRole = await denyUserPermission(page, regularUser.id!, 'dm.view');
+      // Deny message.post BEFORE the regular user navigates. This should stop
+      // starting/sending DMs, not reading an existing DM.
+      const denyRole = await denyUserPermission(page, regularUser.id!, 'message.post');
       try {
+        const deniedStartResp = await regularPage.request.post('/api/graphql', {
+          headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
+          data: {
+            query: `mutation($input: StartDMInput!) { startDM(input: $input) { id } }`,
+            variables: { input: { participantIds: [adminUser.id!] } }
+          }
+        });
+        const deniedStartJson = await deniedStartResp.json();
+        expect(deniedStartJson.data?.startDM).toBeFalsy();
+        expect(deniedStartJson.errors?.length ?? 0).toBeGreaterThan(0);
+
         await regularPage.goto(routes.chat);
         await regularPage.waitForURL(routes.chat);
 
@@ -394,16 +403,35 @@ test.describe('Direct Messages (room-shaped)', () => {
           regularPage.getByRole('link', { name: /overview/i })
         ).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
-        // dm.view denied → backend short-circuits the DM merge in Space.rooms,
-        // the rooms store has no DMs, the sidebar header never renders.
+        // DM read access is membership-based, so the seeded conversation still
+        // appears even while message.post is denied.
         await expect(
           regularPage.getByRole('button', { name: /direct messages/i })
-        ).not.toBeVisible();
+        ).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+
+        await regularPage.goto(routes.room(dmRoomId));
+        await regularPage.waitForURL(routes.patterns.anyRoom);
+
+        const roomPage = new RoomPage(regularPage);
+        await expect(roomPage.getMessage('seed').locator).toBeVisible({
+          timeout: TIMEOUTS.UI_STANDARD
+        });
+        await expect(roomPage.messageInput).toHaveAttribute('contenteditable', 'false');
+        await expect(roomPage.sendButton).toBeDisabled();
+
+        await roomPage
+          .getMessage('seed')
+          .locator.getByRole('button', { name: adminUser.displayName })
+          .click();
+
+        const profileDialog = regularPage.getByRole('dialog', { name: 'User profile' });
+        await expect(profileDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+        await expect(profileDialog.getByRole('button', { name: 'Send Message' })).toBeHidden();
       } finally {
         await clearUserPermissionOverride(
           page,
           regularUser.id!,
-          'dm.view',
+          'message.post',
           denyRole
         );
       }

@@ -37,7 +37,7 @@ export const PERMISSION_METADATA: Record<string, PermissionMetadata> = {
 
   // Message permissions
   'message.post': {
-    description: 'Post messages in a room (does not cover replies inside a thread)'
+    description: 'Post root messages in rooms and start DMs'
   },
   'message.post-in-thread': {
     description: 'Post replies inside a thread'
@@ -73,14 +73,6 @@ export const PERMISSION_METADATA: Record<string, PermissionMetadata> = {
   },
   'admin.view-audit': {
     description: 'View the audit log in admin'
-  },
-
-  // DM
-  'dm.view': {
-    description: 'Access DMs and read direct messages'
-  },
-  'dm.write': {
-    description: 'Start DM conversations and send messages'
   },
 
   // User management

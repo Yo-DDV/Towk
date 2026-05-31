@@ -373,14 +373,9 @@ func (r *viewerResolver) CanViewAdmin(ctx context.Context, obj *model.Viewer) (b
 	return r.core.CanAdminAccess(ctx, obj.UserID)
 }
 
-// CanViewDMs is the resolver for the canViewDMs field.
-func (r *viewerResolver) CanViewDMs(ctx context.Context, obj *model.Viewer) (bool, error) {
-	return r.core.CanDMView(ctx, obj.UserID)
-}
-
-// CanWriteDMs is the resolver for the canWriteDMs field.
-func (r *viewerResolver) CanWriteDMs(ctx context.Context, obj *model.Viewer) (bool, error) {
-	return r.core.CanDMWrite(ctx, obj.UserID)
+// CanStartDMs is the resolver for the canStartDMs field.
+func (r *viewerResolver) CanStartDMs(ctx context.Context, obj *model.Viewer) (bool, error) {
+	return r.core.CanStartDM(ctx, obj.UserID)
 }
 
 // CanAdminViewUsers is the resolver for the canAdminViewUsers field.
