@@ -12,25 +12,7 @@ _.file = '.env'
 
 [tasks.setup]
 description = "Set up the development environment"
-run = [{ task = "deps" }, { task = "agents:install-skills" }]
-
-# =============================================================================
-# Agent Skills
-# =============================================================================
-
-[tasks."agents:install-skills"]
-description = "Restore project agent skills from skills-lock.json"
-run = "npx --yes skills@1.5.1 experimental_install"
-
-[tasks."agents:add-chattocorp-skills"]
-description = "Add or refresh ChattoCorp agent skills in skills-lock.json"
-run = """
-npx --yes skills@1.5.1 add chattocorp/agents/plugins/chattocorp-org/skills \
-  --skill '*' \
-  --agent codex \
-  --agent claude-code \
-  --yes
-"""
+run = { task = "deps" }
 
 # =============================================================================
 # Dependencies
