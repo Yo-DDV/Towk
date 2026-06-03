@@ -69,7 +69,7 @@ func (c *ChattoCore) GetFullMessageBodyByEventID(ctx context.Context, eventID st
 		return nil, nil
 	}
 
-	plaintext, err := c.decryptMessageBody(ctx, body)
+	plaintext, err := c.decryptMessageBody(ctx, eventID, posted.GetRoomId(), body)
 	if err != nil {
 		if errors.Is(err, encryption.ErrKeyNotFound) {
 			return nil, nil // crypto-shredded
@@ -124,10 +124,38 @@ func (c *ChattoCore) GetMessageAuthorID(ctx context.Context, kind RoomKind, mess
 	return entry.Event.GetActorId(), nil
 }
 
-// decryptMessageBody decrypts an encrypted message body using the
-// author's per-user encryption key.
-func (c *ChattoCore) decryptMessageBody(ctx context.Context, msg *corev1.MessageBody) ([]byte, error) {
-	key, err := c.encryption.keyManager.GetUserKey(ctx, msg.GetAuthorId())
+// decryptMessageBody decrypts an encrypted message body. Legacy bodies are
+// decrypted directly with the author's per-user key; v2 bodies resolve the
+// author's message-body DEK epoch and authenticate the event context as AAD.
+func (c *ChattoCore) decryptMessageBody(ctx context.Context, eventID, roomID string, msg *corev1.MessageBody) ([]byte, error) {
+	if msg.GetEncryptionVersion() >= encryption.EnvelopeVersionV2 || msg.GetContentKeyEpoch() > 0 {
+		if version := msg.GetEncryptionVersion(); version != encryption.EnvelopeVersionV2 {
+			return nil, fmt.Errorf("unsupported message body encryption version %d", version)
+		}
+		epoch := msg.GetContentKeyEpoch()
+		if epoch <= 0 {
+			return nil, fmt.Errorf("missing content key epoch for v2 message body")
+		}
+		contentKeyEvent, ok := c.ContentKeys.Get(msg.GetAuthorId(), corev1.UserDEKPurpose_USER_DEK_PURPOSE_MESSAGE_BODY, epoch)
+		if !ok {
+			return nil, encryption.ErrKeyNotFound
+		}
+		contentKey, err := c.unwrapMessageContentKey(ctx, contentKeyEvent)
+		if err != nil {
+			return nil, err
+		}
+		return encryption.DecryptWithContentKey(
+			contentKey.key,
+			msg.GetEncryptedBody(),
+			msg.GetEncryptionNonce(),
+			messageBodyAAD(eventID, roomID, msg.GetAuthorId(), epoch),
+		)
+	}
+
+	if c.encryption.legacyKeys == nil {
+		return nil, encryption.ErrKeyNotFound
+	}
+	key, err := c.encryption.legacyKeys.LegacyUserKey(ctx, msg.GetAuthorId())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get encryption key: %w", err)
 	}

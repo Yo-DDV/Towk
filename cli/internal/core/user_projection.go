@@ -1,6 +1,8 @@
 package core
 
 import (
+	"context"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -8,7 +10,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"hmans.de/chatto/internal/dekstore"
+	"hmans.de/chatto/internal/encryption"
 	"hmans.de/chatto/internal/events"
+	"hmans.de/chatto/internal/kms"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -21,6 +26,9 @@ type UserProjection struct {
 	emailIndex  map[string]string
 	oidcIndex   map[string]string
 	eventIDSeen map[string]struct{}
+	keyWrapper  kms.KeyWrapper
+	dekStore    dekstore.Reader
+	contentKeys map[string]map[corev1.UserDEKPurpose]map[int32][]byte
 }
 
 type projectedUser struct {
@@ -33,13 +41,16 @@ type projectedUser struct {
 	loginChanged  time.Time
 }
 
-func NewUserProjection() *UserProjection {
+func NewUserProjection(keyWrapper kms.KeyWrapper, dekStore dekstore.Reader) *UserProjection {
 	return &UserProjection{
 		users:       make(map[string]*projectedUser),
 		loginIndex:  make(map[string]string),
 		emailIndex:  make(map[string]string),
 		oidcIndex:   make(map[string]string),
 		eventIDSeen: make(map[string]struct{}),
+		keyWrapper:  keyWrapper,
+		dekStore:    dekStore,
+		contentKeys: make(map[string]map[corev1.UserDEKPurpose]map[int32][]byte),
 	}
 }
 
@@ -65,12 +76,14 @@ func (p *UserProjection) Apply(event *corev1.Event, _ uint64) error {
 	defer p.Unlock()
 
 	switch e := event.GetEvent().(type) {
+	case *corev1.Event_UserDekGenerated:
+		p.applyDEKGenerated(e.UserDekGenerated)
 	case *corev1.Event_UserAccountCreated:
-		p.applyAccountCreated(e.UserAccountCreated, event.GetCreatedAt())
+		p.applyAccountCreated(event.GetId(), e.UserAccountCreated, event.GetCreatedAt())
 	case *corev1.Event_UserLoginChanged:
-		p.applyLoginChanged(e.UserLoginChanged, event.GetCreatedAt())
+		p.applyLoginChanged(event.GetId(), e.UserLoginChanged, event.GetCreatedAt())
 	case *corev1.Event_UserDisplayNameChanged:
-		p.applyDisplayNameChanged(e.UserDisplayNameChanged)
+		p.applyDisplayNameChanged(event.GetId(), e.UserDisplayNameChanged)
 	case *corev1.Event_UserAvatarSet:
 		p.applyAvatarSet(e.UserAvatarSet)
 	case *corev1.Event_UserAvatarCleared:
@@ -80,7 +93,7 @@ func (p *UserProjection) Apply(event *corev1.Event, _ uint64) error {
 	case *corev1.Event_AssetDeleted:
 		p.applyAssetDeleted(e.AssetDeleted)
 	case *corev1.Event_UserVerifiedEmailAdded:
-		p.applyVerifiedEmailAdded(e.UserVerifiedEmailAdded, event.GetCreatedAt())
+		p.applyVerifiedEmailAdded(event.GetId(), e.UserVerifiedEmailAdded, event.GetCreatedAt())
 	case *corev1.Event_UserPasswordHashChanged:
 		p.applyPasswordHashChanged(e.UserPasswordHashChanged)
 	case *corev1.Event_UserOidcSubjectLinked:
@@ -93,6 +106,8 @@ func (p *UserProjection) Apply(event *corev1.Event, _ uint64) error {
 		p.applyLoginCooldownCleared(e.UserLoginCooldownCleared)
 	case *corev1.Event_UserAccountDeleted:
 		p.applyAccountDeleted(e.UserAccountDeleted)
+	case *corev1.Event_UserKeyShredded:
+		p.applyKeyShredded(e.UserKeyShredded)
 	}
 	return nil
 }
@@ -109,25 +124,72 @@ func (p *UserProjection) ensureUserLocked(userID string) *projectedUser {
 	return u
 }
 
-func (p *UserProjection) applyAccountCreated(e *corev1.UserAccountCreatedEvent, envelopeCreatedAt *timestamppb.Timestamp) {
+func (p *UserProjection) applyDEKGenerated(e *corev1.UserDEKGeneratedEvent) {
+	if e == nil || e.GetUserId() == "" || e.GetEpoch() <= 0 || e.GetContentKeyRef() == "" || p.keyWrapper == nil || p.dekStore == nil {
+		return
+	}
+	purpose := e.GetPurpose()
+	stored, err := p.dekStore.Get(context.Background(), e.GetContentKeyRef())
+	if err != nil {
+		return
+	}
+	keyRef := stored.WrappingKeyRef
+	if keyRef == "" {
+		keyRef = kms.LegacyUserKeyRef(e.GetUserId())
+	}
+	key, err := p.keyWrapper.UnwrapContentKey(context.Background(), keyRef, kms.WrappedContentKey{
+		EncryptedContentKey: stored.EncryptedContentKey,
+		Nonce:               stored.ContentKeyNonce,
+		Algorithm:           stored.WrappingAlgorithm,
+		Metadata:            stored.WrappingMetadata,
+	}, userDEKAAD(e.GetUserId(), purpose, e.GetEpoch()))
+	if err != nil {
+		return
+	}
+	byPurpose := p.contentKeys[e.GetUserId()]
+	if byPurpose == nil {
+		byPurpose = make(map[corev1.UserDEKPurpose]map[int32][]byte)
+		p.contentKeys[e.GetUserId()] = byPurpose
+	}
+	epochs := byPurpose[purpose]
+	if epochs == nil {
+		epochs = make(map[int32][]byte)
+		byPurpose[purpose] = epochs
+	}
+	epochs[e.GetEpoch()] = append([]byte(nil), key...)
+}
+
+func (p *UserProjection) applyAccountCreated(eventID string, e *corev1.UserAccountCreatedEvent, envelopeCreatedAt *timestamppb.Timestamp) {
 	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	login, ok := p.userPIIString(eventID, e.GetUserId(), events.EventUserAccountCreated, "login", e.GetEncryptedLogin())
+	if !ok {
+		return
+	}
+	displayName, ok := p.userPIIString(eventID, e.GetUserId(), events.EventUserAccountCreated, "display_name", e.GetEncryptedDisplayName())
+	if !ok {
 		return
 	}
 	u := p.ensureUserLocked(e.GetUserId())
 	u.user = &corev1.User{
 		Id:          e.GetUserId(),
-		Login:       e.GetLogin(),
-		DisplayName: e.GetDisplayName(),
+		Login:       login,
+		DisplayName: displayName,
 		CreatedAt:   envelopeCreatedAt,
 	}
 	u.deleted = false
-	if e.GetLogin() != "" {
-		p.loginIndex[strings.ToLower(e.GetLogin())] = e.GetUserId()
+	if login != "" {
+		p.loginIndex[strings.ToLower(login)] = e.GetUserId()
 	}
 }
 
-func (p *UserProjection) applyLoginChanged(e *corev1.UserLoginChangedEvent, envelopeCreatedAt *timestamppb.Timestamp) {
-	if e == nil || e.GetUserId() == "" || e.GetLogin() == "" {
+func (p *UserProjection) applyLoginChanged(eventID string, e *corev1.UserLoginChangedEvent, envelopeCreatedAt *timestamppb.Timestamp) {
+	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	login, ok := p.userPIIString(eventID, e.GetUserId(), events.EventUserLoginChanged, "login", e.GetEncryptedLogin())
+	if !ok || login == "" {
 		return
 	}
 	u := p.ensureUserLocked(e.GetUserId())
@@ -137,19 +199,23 @@ func (p *UserProjection) applyLoginChanged(e *corev1.UserLoginChangedEvent, enve
 	if old := u.user.GetLogin(); old != "" {
 		delete(p.loginIndex, strings.ToLower(old))
 	}
-	u.user.Login = e.GetLogin()
-	p.loginIndex[strings.ToLower(e.GetLogin())] = e.GetUserId()
+	u.user.Login = login
+	p.loginIndex[strings.ToLower(login)] = e.GetUserId()
 }
 
-func (p *UserProjection) applyDisplayNameChanged(e *corev1.UserDisplayNameChangedEvent) {
+func (p *UserProjection) applyDisplayNameChanged(eventID string, e *corev1.UserDisplayNameChangedEvent) {
 	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	displayName, ok := p.userPIIString(eventID, e.GetUserId(), events.EventUserDisplayNameChanged, "display_name", e.GetEncryptedDisplayName())
+	if !ok {
 		return
 	}
 	u := p.ensureUserLocked(e.GetUserId())
 	if u.user == nil {
 		u.user = &corev1.User{Id: e.GetUserId()}
 	}
-	u.user.DisplayName = e.GetDisplayName()
+	u.user.DisplayName = displayName
 }
 
 func (p *UserProjection) applyAvatarSet(e *corev1.UserAvatarSetEvent) {
@@ -190,8 +256,12 @@ func (p *UserProjection) applyAvatarCleared(e *corev1.UserAvatarClearedEvent) {
 	u.avatar = nil
 }
 
-func (p *UserProjection) applyVerifiedEmailAdded(e *corev1.UserVerifiedEmailAddedEvent, envelopeCreatedAt *timestamppb.Timestamp) {
-	if e == nil || e.GetUserId() == "" || e.GetEmail() == "" {
+func (p *UserProjection) applyVerifiedEmailAdded(eventID string, e *corev1.UserVerifiedEmailAddedEvent, envelopeCreatedAt *timestamppb.Timestamp) {
+	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	email, ok := p.userPIIString(eventID, e.GetUserId(), events.EventUserVerifiedEmailAdded, "email", e.GetEncryptedEmail())
+	if !ok || email == "" {
 		return
 	}
 	u := p.ensureUserLocked(e.GetUserId())
@@ -199,8 +269,8 @@ func (p *UserProjection) applyVerifiedEmailAdded(e *corev1.UserVerifiedEmailAdde
 	if envelopeCreatedAt != nil {
 		verifiedAt = envelopeCreatedAt.AsTime()
 	}
-	hash := emailHash(e.GetEmail())
-	u.verifiedEmail[hash] = VerifiedEmail{Email: e.GetEmail(), VerifiedAt: verifiedAt}
+	hash := emailHash(email)
+	u.verifiedEmail[hash] = VerifiedEmail{Email: email, VerifiedAt: verifiedAt}
 	p.emailIndex[hash] = e.GetUserId()
 }
 
@@ -278,6 +348,58 @@ func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent) 
 	u.preferences = nil
 	u.verifiedEmail = make(map[string]VerifiedEmail)
 	u.loginChanged = time.Time{}
+	delete(p.contentKeys, e.GetUserId())
+}
+
+func (p *UserProjection) applyKeyShredded(e *corev1.UserKeyShreddedEvent) {
+	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	delete(p.contentKeys, e.GetUserId())
+	u := p.ensureUserLocked(e.GetUserId())
+	if u.user != nil && u.user.GetLogin() != "" {
+		delete(p.loginIndex, strings.ToLower(u.user.GetLogin()))
+	}
+	for hash, userID := range p.emailIndex {
+		if userID == e.GetUserId() {
+			delete(p.emailIndex, hash)
+		}
+	}
+	for hash, userID := range p.oidcIndex {
+		if userID == e.GetUserId() {
+			delete(p.oidcIndex, hash)
+		}
+	}
+	u.user = &corev1.User{Id: e.GetUserId()}
+	u.passwordHash = nil
+	u.preferences = nil
+	u.verifiedEmail = make(map[string]VerifiedEmail)
+	u.loginChanged = time.Time{}
+}
+
+func (p *UserProjection) userPIIString(eventID, userID, eventType, purpose string, encrypted *corev1.EncryptedUserString) (string, bool) {
+	if encrypted == nil {
+		return "", false
+	}
+	byPurpose := p.contentKeys[userID]
+	if byPurpose == nil {
+		return "", false
+	}
+	key := byPurpose[corev1.UserDEKPurpose_USER_DEK_PURPOSE_USER_PII][encrypted.GetContentKeyEpoch()]
+	if len(key) == 0 {
+		key = byPurpose[corev1.UserDEKPurpose_USER_DEK_PURPOSE_UNSPECIFIED][encrypted.GetContentKeyEpoch()]
+	}
+	if len(key) == 0 {
+		return "", false
+	}
+	plaintext, err := decryptUserPIIString(key, eventID, userID, eventType, purpose, encrypted)
+	if err != nil {
+		if errors.Is(err, encryption.ErrDecryptionFailed) || errors.Is(err, encryption.ErrKeyNotFound) {
+			return "", false
+		}
+		return "", false
+	}
+	return plaintext, true
 }
 
 func (p *UserProjection) Get(userID string) (*corev1.User, bool) {

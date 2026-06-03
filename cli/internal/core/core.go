@@ -19,8 +19,9 @@ import (
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core/linkpreview"
 	"hmans.de/chatto/internal/core/subjects"
-	"hmans.de/chatto/internal/encryption"
+	"hmans.de/chatto/internal/dekstore"
 	"hmans.de/chatto/internal/events"
+	"hmans.de/chatto/internal/kms"
 	"hmans.de/chatto/internal/migrations"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -160,6 +161,14 @@ type ChattoCore struct {
 	// UsersProjector runs the consumer for Users. Exposed for
 	// WaitForSeq from user/account writers.
 	UsersProjector *events.Projector
+
+	// ContentKeys holds wrapped per-user DEK epochs used by encrypted
+	// message bodies and durable user PII.
+	ContentKeys *ContentKeyProjection
+
+	// ContentKeysProjector runs the consumer for ContentKeys. Exposed for
+	// WaitForSeq from encryption writers.
+	ContentKeysProjector *events.Projector
 
 	// RBAC holds current role, assignment, and permission state derived
 	// from durable RBAC aggregate events.
@@ -336,17 +345,18 @@ func (c *ChattoCore) assetURL(path string) string {
 
 // encryptionManager handles message body encryption/decryption.
 type encryptionManager struct {
-	keyManager *encryption.KeyManager
+	keyWrapper  kms.KeyWrapper
+	legacyKeys  kms.LegacyKeyProvider
+	contentKeys *dekstore.Store
 }
 
 func (c *ChattoCore) ServerStore() jetstream.ObjectStore {
 	return c.storage.serverStore
 }
 
-// KeyManager returns the encryption key manager.
-// Used by the KMS service to handle encryption operations.
-func (c *ChattoCore) KeyManager() *encryption.KeyManager {
-	return c.encryption.keyManager
+// KeyWrapper returns the key-only KMS boundary used by encryption operations.
+func (c *ChattoCore) KeyWrapper() kms.KeyWrapper {
+	return c.encryption.keyWrapper
 }
 
 // ConfigManager returns the runtime configuration manager.
@@ -368,27 +378,55 @@ func (c *ChattoCore) DeleteUserEncryptionKey(ctx context.Context, userID string)
 	return c.DeleteUserEncryptionKeyAs(ctx, userID, userID)
 }
 
-func (c *ChattoCore) deleteUserEncryptionKeyOnly(ctx context.Context, userID string) error {
-	if c.encryption.keyManager == nil {
+func (c *ChattoCore) deleteEncryptionKeyOnly(ctx context.Context, keyRef string) error {
+	if c.encryption.keyWrapper == nil {
 		return nil
 	}
-	return c.encryption.keyManager.DeleteUserKey(ctx, userID)
+	return c.encryption.keyWrapper.ShredKey(ctx, keyRef)
 }
 
 func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, userID string) error {
-	if c.encryption.keyManager == nil {
+	if c.encryption.keyWrapper == nil {
 		return nil // Encryption not configured
 	}
-	exists, err := c.encryption.keyManager.UserKeyExists(ctx, userID)
+
+	filterSeq, err := c.EventPublisher.LastSubjectSeq(ctx, events.UserAggregate(userID).AllEventsFilter())
 	if err != nil {
-		return err
+		return fmt.Errorf("read content key projection target seq: %w", err)
 	}
-	if !exists {
+	if err := c.ContentKeysProjector.WaitForSeq(ctx, filterSeq); err != nil {
+		return fmt.Errorf("wait for content key projection: %w", err)
+	}
+
+	contentKeyRefs := c.ContentKeys.ContentKeyRefs(userID)
+	for _, contentKeyRef := range contentKeyRefs {
+		if err := c.encryption.contentKeys.Shred(ctx, contentKeyRef); err != nil {
+			return err
+		}
+	}
+
+	keyRefs := c.ContentKeys.KeyRefs(userID)
+	if len(keyRefs) == 0 && len(contentKeyRefs) == 0 {
+		keyRefs = []string{kms.LegacyUserKeyRef(userID)}
+	}
+	shredded := len(contentKeyRefs) > 0
+	for _, keyRef := range keyRefs {
+		exists, err := c.encryption.keyWrapper.KeyExists(ctx, keyRef)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+		if err := c.encryption.keyWrapper.ShredKey(ctx, keyRef); err != nil {
+			return err
+		}
+		shredded = true
+	}
+	if !shredded {
 		return nil
 	}
-	if err := c.encryption.keyManager.DeleteUserKey(ctx, userID); err != nil {
-		return err
-	}
+
 	event := newEvent(actorID, &corev1.Event{
 		Event: &corev1.Event_UserKeyShredded{
 			UserKeyShredded: &corev1.UserKeyShreddedEvent{UserId: userID},
@@ -584,8 +622,11 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 	}
 
 	// Initialize encryption manager
+	builtinKMS := kms.NewBuiltin(storage.encryptionKV, logger.WithPrefix("core.kms"))
 	encMgr := &encryptionManager{
-		keyManager: encryption.NewKeyManager(storage.encryptionKV),
+		keyWrapper:  builtinKMS,
+		legacyKeys:  builtinKMS,
+		contentKeys: dekstore.New(storage.encryptionKV, logger.WithPrefix("core.dekstore")),
 	}
 
 	// Initialize S3 client if S3 storage is configured
@@ -650,8 +691,11 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 	reactions := NewReactionProjection()
 	reactionsProjector := newProjector(reactions, "ReactionsProjector")
 
-	users := NewUserProjection()
+	users := NewUserProjection(encMgr.keyWrapper, encMgr.contentKeys)
 	usersProjector := newProjector(users, "UsersProjector")
+
+	contentKeys := NewContentKeyProjection()
+	contentKeysProjector := newProjector(contentKeys, "ContentKeysProjector")
 
 	rbac := NewRBACProjection()
 	rbacProjector := newProjector(rbac, "RBACProjector")
@@ -687,6 +731,8 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		ReactionsProjector:      reactionsProjector,
 		Users:                   users,
 		UsersProjector:          usersProjector,
+		ContentKeys:             contentKeys,
+		ContentKeysProjector:    contentKeysProjector,
 		RBAC:                    rbac,
 		RBACProjector:           rbacProjector,
 		projectors:              projectors,
@@ -716,6 +762,8 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		storage.runtimeStateKV,
 		storage.serverEventsStream, storage.serverReactionsKV,
 		eventPublisher,
+		encMgr.keyWrapper,
+		encMgr.contentKeys,
 		logger,
 	); err != nil {
 		return nil, fmt.Errorf("failed to run boot migrations: %w", err)
@@ -814,6 +862,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		Bucket:      "ENCRYPTION_KEYS",
 		Description: "User encryption keys (excluded from backups)",
 		Storage:     jetstream.FileStorage,
+		History:     1,
 		Replicas:    cfg.Replicas,
 	})
 	if err != nil {

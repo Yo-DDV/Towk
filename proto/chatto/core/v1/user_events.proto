@@ -11,7 +11,7 @@ option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 // USER LIFECYCLE EVENTS (server-scoped)
 //
 // Top-level Event oneof tags owned by this file:
-//   - 700-712: durable user aggregate events on evt.user.{userId}.*
+//   - 700-713: durable user aggregate events on evt.user.{userId}.*
 //   - 1010-1015: live-only user lifecycle and preference broadcasts
 //
 // Keep these tags coordinated with event.proto. Message-internal field numbers
@@ -59,20 +59,26 @@ message ServerUserPreferencesUpdatedEvent {
 // DURABLE USER EVENTS (evt.user.{userId})
 // ============================================================================
 
+message EncryptedUserString {
+  bytes encrypted_value = 1;
+  bytes nonce = 2;
+  int32 content_key_epoch = 3;
+}
+
 message UserAccountCreatedEvent {
   string user_id = 1;
-  string login = 2;
-  string display_name = 3;
+  EncryptedUserString encrypted_login = 10;
+  EncryptedUserString encrypted_display_name = 11;
 }
 
 message UserLoginChangedEvent {
   string user_id = 1;
-  string login = 2;
+  EncryptedUserString encrypted_login = 10;
 }
 
 message UserDisplayNameChangedEvent {
   string user_id = 1;
-  string display_name = 2;
+  EncryptedUserString encrypted_display_name = 10;
 }
 
 message UserAvatarSetEvent {
@@ -89,7 +95,7 @@ message UserAvatarClearedEvent {
 
 message UserVerifiedEmailAddedEvent {
   string user_id = 1;
-  string email = 2;
+  EncryptedUserString encrypted_email = 10;
 }
 
 message UserPasswordHashChangedEvent {
@@ -129,4 +135,35 @@ message UserAccountDeletedEvent {
 // same command path.
 message UserKeyShreddedEvent {
   string user_id = 1;
+}
+
+enum UserDEKPurpose {
+  USER_DEK_PURPOSE_UNSPECIFIED = 0;
+  USER_DEK_PURPOSE_MESSAGE_BODY = 1;
+  USER_DEK_PURPOSE_USER_PII = 2;
+}
+
+// UserDEKGeneratedEvent records the creation of one per-user data-encryption
+// key epoch. Message bodies and PII payloads reference purpose-specific
+// epochs; the wrapped key material lives in ENCRYPTION_KEYS under
+// content_key_ref so it can be shredded independently of immutable EVT history.
+message UserDEKGeneratedEvent {
+  string user_id = 1;
+  UserDEKPurpose purpose = 2;
+  int32 epoch = 3;
+  string content_key_ref = 4;
+  string wrapping_key_ref = 5;
+  string wrapping_algorithm = 6;
+  bytes wrapping_metadata = 7;
+}
+
+// StoredUserDEK is the wrapped DEK record stored in ENCRYPTION_KEYS under
+// UserDEKGeneratedEvent.content_key_ref. It is deliberately outside EVT so
+// crypto-shredding can destroy DEK material without mutating event history.
+message StoredUserDEK {
+  bytes encrypted_content_key = 1;
+  bytes content_key_nonce = 2;
+  string wrapping_algorithm = 3;
+  bytes wrapping_metadata = 4;
+  string wrapping_key_ref = 5;
 }

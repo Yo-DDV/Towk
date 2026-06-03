@@ -8,7 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"hmans.de/chatto/internal/config"
+	"hmans.de/chatto/internal/encryption"
 	"hmans.de/chatto/internal/events"
+	"hmans.de/chatto/internal/kms"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/internal/testutil"
 	"hmans.de/chatto/pkg/signedurl"
@@ -38,6 +40,18 @@ func setupTestCoreWithEncryption(t *testing.T) *ChattoCore {
 	return core
 }
 
+func userDEKEventByPurpose(t *testing.T, eventList []*corev1.Event, purpose corev1.UserDEKPurpose) *corev1.UserDEKGeneratedEvent {
+	t.Helper()
+	for _, event := range eventList {
+		dek := event.GetUserDekGenerated()
+		if dek != nil && dek.GetPurpose() == purpose {
+			return dek
+		}
+	}
+	require.FailNowf(t, "missing DEK event", "purpose %s not found", purpose.String())
+	return nil
+}
+
 func TestPostMessage_EncryptsMessageBody(t *testing.T) {
 	core := setupTestCoreWithEncryption(t)
 	ctx := testContext(t)
@@ -63,11 +77,145 @@ func TestPostMessage_EncryptsMessageBody(t *testing.T) {
 	require.NotNil(t, stored, "expected embedded body on the published event")
 	require.NotEmpty(t, stored.EncryptedBody, "encrypted body should not be empty")
 	require.NotEmpty(t, stored.EncryptionNonce, "nonce should not be empty")
+	require.Equal(t, encryption.EnvelopeVersionV2, stored.EncryptionVersion, "new messages should use v2 envelopes")
+	require.EqualValues(t, 1, stored.ContentKeyEpoch, "new messages should reference the active message-body DEK epoch")
+
+	contentKeyEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserDEKGenerated))
+	require.NoError(t, err)
+	require.Len(t, contentKeyEvents, 2)
+	contentKeyEvent := userDEKEventByPurpose(t, contentKeyEvents, corev1.UserDEKPurpose_USER_DEK_PURPOSE_MESSAGE_BODY)
+	require.NotNil(t, contentKeyEvent)
+	require.Equal(t, user.Id, contentKeyEvent.GetUserId())
+	require.EqualValues(t, 1, contentKeyEvent.GetEpoch())
+	require.Equal(t, corev1.UserDEKPurpose_USER_DEK_PURPOSE_MESSAGE_BODY, contentKeyEvent.GetPurpose())
+	require.NotEmpty(t, contentKeyEvent.GetContentKeyRef(), "DEK event should reference DEK storage")
+	require.NotEmpty(t, contentKeyEvent.GetWrappingKeyRef(), "DEK event should reference the wrapping KEK")
+	require.NotEqual(t, kms.LegacyUserKeyRef(user.Id), contentKeyEvent.GetWrappingKeyRef(), "new users should use opaque KMS key refs")
+	storedContentKey, err := core.encryption.contentKeys.Get(ctx, contentKeyEvent.GetContentKeyRef())
+	require.NoError(t, err)
+	require.NotEmpty(t, storedContentKey.GetEncryptedContentKey(), "wrapped DEK should be stored in DEK storage")
+	require.NotEmpty(t, storedContentKey.GetContentKeyNonce(), "wrapped DEK nonce should be stored in DEK storage")
+	require.Equal(t, contentKeyEvent.GetWrappingKeyRef(), storedContentKey.GetWrappingKeyRef())
 
 	// Verify we can read the message back (decrypted)
 	body, err := core.GetMessageBody(ctx, KindChannel, event.Id)
 	require.NoError(t, err)
 	require.Equal(t, "Secret message content", body, "decrypted message should match original")
+}
+
+func TestMessageBodyV2AADRejectsWrongEventContext(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "aaduser", "AAD User", "password123")
+	require.NoError(t, err)
+	room, err := core.CreateRoom(ctx, user.Id, KindChannel, "", "General", "General chat")
+	require.NoError(t, err)
+
+	event, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Bound to one event", nil, "", "", nil, false)
+	require.NoError(t, err)
+	stored := event.GetMessagePosted().GetBody()
+	require.NotNil(t, stored)
+
+	plaintext, err := core.decryptMessageBody(ctx, event.Id, room.Id, stored)
+	require.NoError(t, err)
+	require.Equal(t, "Bound to one event", string(plaintext))
+
+	_, err = core.decryptMessageBody(ctx, "EtamperedEventID", room.Id, stored)
+	require.ErrorIs(t, err, encryption.ErrDecryptionFailed)
+
+	_, err = core.decryptMessageBody(ctx, event.Id, "RtamperedRoomID", stored)
+	require.ErrorIs(t, err, encryption.ErrDecryptionFailed)
+}
+
+func TestUserPIIEvents_AreEncryptedAndProjectable(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "piiuser", "PII User", "password123")
+	require.NoError(t, err)
+	require.NoError(t, core.AddVerifiedEmailDirect(ctx, user.Id, "pii@example.com"))
+
+	updated, err := core.UpdateUserDisplayName(ctx, user.Id, "Renamed User")
+	require.NoError(t, err)
+	require.Equal(t, "Renamed User", updated.GetDisplayName())
+	updated, err = core.UpdateUserLogin(ctx, user.Id, "piiuser2")
+	require.NoError(t, err)
+	require.Equal(t, "piiuser2", updated.GetLogin())
+
+	accountEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserAccountCreated))
+	require.NoError(t, err)
+	require.Len(t, accountEvents, 1)
+	contentKeyEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserDEKGenerated))
+	require.NoError(t, err)
+	require.Len(t, contentKeyEvents, 2)
+	require.Equal(t, kms.AlgorithmBuiltinXChaCha20Poly1305V1, userDEKEventByPurpose(t, contentKeyEvents, corev1.UserDEKPurpose_USER_DEK_PURPOSE_USER_PII).GetWrappingAlgorithm())
+	account := accountEvents[0].GetUserAccountCreated()
+	require.NotNil(t, account.GetEncryptedLogin())
+	require.NotNil(t, account.GetEncryptedDisplayName())
+
+	emailEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserVerifiedEmailAdded))
+	require.NoError(t, err)
+	require.Len(t, emailEvents, 1)
+	email := emailEvents[0].GetUserVerifiedEmailAdded()
+	require.NotNil(t, email.GetEncryptedEmail())
+
+	displayNameEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserDisplayNameChanged))
+	require.NoError(t, err)
+	require.Len(t, displayNameEvents, 1)
+	displayName := displayNameEvents[0].GetUserDisplayNameChanged()
+	require.NotNil(t, displayName.GetEncryptedDisplayName())
+
+	loginEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserLoginChanged))
+	require.NoError(t, err)
+	require.Len(t, loginEvents, 1)
+	login := loginEvents[0].GetUserLoginChanged()
+	require.NotNil(t, login.GetEncryptedLogin())
+
+	found, err := core.GetUserByLogin(ctx, "piiuser2")
+	require.NoError(t, err)
+	require.Equal(t, user.Id, found.GetId())
+	require.True(t, core.Users.EmailClaimed("pii@example.com"))
+	emails := core.Users.VerifiedEmails(user.Id)
+	require.Len(t, emails, 1)
+	require.Equal(t, "pii@example.com", emails[0].Email)
+}
+
+func TestUserPIIProjection_ColdReplayAfterShredSkipsPIIIndexes(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "shreddedpii", "Shredded PII", "password123")
+	require.NoError(t, err)
+	require.NoError(t, core.AddVerifiedEmailDirect(ctx, user.Id, "shredded-pii@example.com"))
+	require.NoError(t, core.DeleteUser(ctx, user.Id, user.Id))
+
+	userEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).AllEventsFilter())
+	require.NoError(t, err)
+
+	replayed := NewUserProjection(core.encryption.keyWrapper, core.encryption.contentKeys)
+	for i, event := range userEvents {
+		require.NoError(t, replayed.Apply(event, uint64(i+1)))
+	}
+	require.False(t, replayed.LoginExists("shreddedpii"))
+	require.False(t, replayed.EmailClaimed("shredded-pii@example.com"))
+	got, ok := replayed.Get(user.Id)
+	require.False(t, ok, "shredded user should not replay as a readable profile")
+	require.Nil(t, got)
+}
+
+func TestUserPIIAADRejectsWrongContext(t *testing.T) {
+	key, err := encryption.GenerateKey()
+	require.NoError(t, err)
+	contentKey := &messageContentKey{epoch: 1, purpose: corev1.UserDEKPurpose_USER_DEK_PURPOSE_USER_PII, key: key}
+
+	encrypted, err := encryptUserPIIStringWithContentKey(contentKey, "E1", "U1", events.EventUserLoginChanged, "login", "alice")
+	require.NoError(t, err)
+
+	_, err = decryptUserPIIString(key, "E2", "U1", events.EventUserLoginChanged, "login", encrypted)
+	require.ErrorIs(t, err, encryption.ErrDecryptionFailed)
+	_, err = decryptUserPIIString(key, "E1", "U1", events.EventUserLoginChanged, "display_name", encrypted)
+	require.ErrorIs(t, err, encryption.ErrDecryptionFailed)
 }
 
 func TestGetMessageBody_CryptoShredding(t *testing.T) {
@@ -92,9 +240,10 @@ func TestGetMessageBody_CryptoShredding(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Secret message content", body)
 
-	// Delete the user's encryption key (crypto-shredding)
-	err = core.encryption.keyManager.DeleteUserKey(ctx, user.Id)
-	require.NoError(t, err)
+	// Delete the message-body DEK record (crypto-shredding)
+	contentKeyEvent, ok := core.ContentKeys.Active(user.Id, corev1.UserDEKPurpose_USER_DEK_PURPOSE_MESSAGE_BODY)
+	require.True(t, ok)
+	require.NoError(t, core.encryption.contentKeys.Shred(ctx, contentKeyEvent.GetContentKeyRef()))
 
 	// Verify message now returns empty string (crypto-shredded)
 	body, err = core.GetMessageBody(ctx, KindChannel, event.Id)
@@ -127,6 +276,9 @@ func TestDeleteUser_CryptoShredEventTombstonesMessagesAndDeletesAssetGraph(t *te
 	require.NoError(t, err)
 	variant, err := core.UploadDerivativeAttachment(ctx, original.Id, corev1.AssetDerivativeRole_ASSET_DERIVATIVE_ROLE_VIDEO_VARIANT, room.Id, "variant.mp4", "video/mp4", bytes.NewReader([]byte("secret variant")))
 	require.NoError(t, err)
+	avatar, err := core.UploadUserAvatar(ctx, author.Id, bytes.NewReader(createTestPNG(64, 64)))
+	require.NoError(t, err)
+	require.NoError(t, core.SetUserAvatar(ctx, author.Id, avatar))
 
 	event, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "message with secret asset", []string{original.Id}, "", "", nil, false)
 	require.NoError(t, err)
@@ -172,6 +324,16 @@ func TestDeleteUser_CryptoShredEventTombstonesMessagesAndDeletesAssetGraph(t *te
 		_, _, err = core.GetAttachmentReader(ctx, att)
 		require.Error(t, err, "backing bytes for %s should be deleted", att.Id)
 	}
+
+	userAssetDeletedEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(author.Id).Subject(events.EventAssetDeleted))
+	require.NoError(t, err)
+	require.Len(t, userAssetDeletedEvents, 1)
+	require.Equal(t, avatar.Id, userAssetDeletedEvents[0].GetAssetDeleted().GetAssetId())
+	deletedAvatar, err := core.GetUserAvatar(ctx, author.Id)
+	require.NoError(t, err)
+	require.Nil(t, deletedAvatar)
+	_, err = core.storage.serverStore.Get(ctx, avatar.Id)
+	require.Error(t, err, "avatar backing bytes should be deleted after key shred and account deletion")
 }
 
 func TestEditMessage_PreservesEncryptionState(t *testing.T) {
@@ -204,6 +366,8 @@ func TestEditMessage_PreservesEncryptionState(t *testing.T) {
 	require.NotNil(t, stored, "expected a body after edit")
 	require.NotEmpty(t, stored.EncryptedBody, "encrypted body should not be empty after edit")
 	require.NotEmpty(t, stored.EncryptionNonce, "nonce should not be empty after edit")
+	require.Equal(t, encryption.EnvelopeVersionV2, stored.EncryptionVersion, "edited messages should keep v2 envelopes")
+	require.EqualValues(t, 1, stored.ContentKeyEpoch, "edited messages should reference the active message-body DEK epoch")
 
 	// Verify we can read the edited content
 	body, err := core.GetMessageBody(ctx, KindChannel, messageBodyID)
