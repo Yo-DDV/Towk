@@ -271,19 +271,20 @@ func TestMigrateMessagesToES_ImportsThreadReplies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evt info: %v", err)
 	}
-	if info.State.Msgs != 2 {
-		t.Fatalf("EVT msg count = %d, want 2", info.State.Msgs)
+	if info.State.Msgs != 3 {
+		t.Fatalf("EVT msg count = %d, want 3", info.State.Msgs)
 	}
 
-	// Both root and reply land on the same per-room subject; in_thread
-	// distinguishes them.
 	root := rig.readEvent(t, 1)
 	checkImportedMessage(t, root, "ROOT", "U1", "root")
 	if root.GetMessagePosted().GetInThread() != "" {
 		t.Errorf("root in_thread = %q, want empty", root.GetMessagePosted().GetInThread())
 	}
 
-	reply := rig.readEvent(t, 2)
+	created := rig.readEvent(t, 2)
+	checkImportedThreadCreated(t, created, "R1", "ROOT", "U2")
+
+	reply := rig.readEvent(t, 3)
 	checkImportedMessage(t, reply, "REPLY1", "U2", "reply-1")
 	if got := reply.GetMessagePosted().GetInThread(); got != "ROOT" {
 		t.Errorf("reply in_thread = %q, want ROOT", got)
@@ -329,7 +330,10 @@ func TestMigrateMessagesToES_BackfillsMessageIdentityAndThreadRootFromEnvelopeOr
 		t.Errorf("root in_thread = %q, want empty", got)
 	}
 
-	reply := rig.readEvent(t, 2)
+	created := rig.readEvent(t, 2)
+	checkImportedThreadCreated(t, created, "R1", "ROOT", "U2")
+
+	reply := rig.readEvent(t, 3)
 	checkImportedMessage(t, reply, "REPLY1", "U2", "reply")
 	if got := reply.GetMessagePosted().GetInThread(); got != "ROOT" {
 		t.Errorf("reply in_thread = %q, want ROOT", got)
@@ -578,5 +582,22 @@ func checkImportedMessage(t *testing.T, ev *corev1.Event, wantEventID, wantActor
 	}
 	if got := string(body.GetEncryptedBody()); got != wantCiphertext {
 		t.Errorf("body ciphertext = %q, want %q", got, wantCiphertext)
+	}
+}
+
+func checkImportedThreadCreated(t *testing.T, ev *corev1.Event, wantRoomID, wantThreadRootID, wantActor string) {
+	t.Helper()
+	if ev.GetActorId() != wantActor {
+		t.Errorf("actor id = %q, want %q", ev.GetActorId(), wantActor)
+	}
+	created := ev.GetThreadCreated()
+	if created == nil {
+		t.Fatal("expected ThreadCreatedEvent payload")
+	}
+	if got := created.GetRoomId(); got != wantRoomID {
+		t.Errorf("room_id = %q, want %q", got, wantRoomID)
+	}
+	if got := created.GetThreadRootEventId(); got != wantThreadRootID {
+		t.Errorf("thread_root_event_id = %q, want %q", got, wantThreadRootID)
 	}
 }
