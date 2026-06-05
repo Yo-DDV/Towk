@@ -5,18 +5,17 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/nats-io/nats.go/jetstream"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 // ============================================================================
 // Permission Operations
 // ============================================================================
 //
-// These ChattoCore methods are thin wrappers around the RBAC engine's
-// scope-aware Grant / Deny / Clear primitives. They apply scope-validity
-// checks (PermissionAppliesAtScope) and permission-shape validation
-// (ValidatePermission), then delegate to engine.Grant / engine.Deny /
-// engine.Clear with the appropriate scope tag.
+// These ChattoCore methods append scoped RBAC Grant / Deny / Clear facts.
+// They apply scope-validity checks (PermissionAppliesAtScope) and
+// permission-shape validation (ValidatePermission), then wait for the local
+// RBAC projection to catch up before returning.
 //
 // Subject disambiguation by naming convention:
 //   - Role: lowercase word (e.g., "owner", "admin", "moderator")
@@ -31,7 +30,19 @@ func (c *ChattoCore) GrantServerPermission(ctx context.Context, roleName string,
 	if err := ValidatePermission(perm); err != nil {
 		return err
 	}
-	return c.storage.serverRBACEngine.Grant(ctx, ScopeServer, "", roleName, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
+		RbacPermissionGranted: rbacPermissionGrantedEvent(ScopeServer, "", roleName, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, func() error {
+		if c.RBAC.GetDecision(ScopeServer, "", roleName, perm) == DecisionAllow {
+			return errRBACNoop
+		}
+		return nil
+	})
+	if errors.Is(err, errRBACNoop) {
+		return nil
+	}
+	return err
 }
 
 // DenyServerPermission denies a permission at a role's server-level default.
@@ -39,20 +50,28 @@ func (c *ChattoCore) DenyServerPermission(ctx context.Context, roleName string, 
 	if err := ValidatePermission(perm); err != nil {
 		return err
 	}
-	return c.storage.serverRBACEngine.Deny(ctx, ScopeServer, "", roleName, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionDenied{
+		RbacPermissionDenied: rbacPermissionDeniedEvent(ScopeServer, "", roleName, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ClearServerPermissionState clears both grant and denial for a permission.
 func (c *ChattoCore) ClearServerPermissionState(ctx context.Context, roleName string, perm Permission) error {
-	return c.storage.serverRBACEngine.Clear(ctx, ScopeServer, "", roleName, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionCleared{
+		RbacPermissionCleared: rbacPermissionClearedEvent(ScopeServer, "", roleName, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ----------------------------------------------------------------------------
 // User-level overrides
 // ----------------------------------------------------------------------------
 //
-// User-level grants/denies sit alongside role-based grants in the same KV.
-// The walker consults user-level decisions FIRST (before any role), so an
+// User-level grants/denies sit alongside role-based decisions in the RBAC
+// projection. The walker consults user-level decisions FIRST (before any role), so an
 // explicit user-deny blocks the action even for owners and an explicit
 // user-grant allows it even when no role grants it.
 
@@ -61,7 +80,11 @@ func (c *ChattoCore) GrantUserPermission(ctx context.Context, userID string, per
 	if err := ValidatePermission(perm); err != nil {
 		return err
 	}
-	return c.storage.serverRBACEngine.Grant(ctx, ScopeServer, "", userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
+		RbacPermissionGranted: rbacPermissionGrantedEvent(ScopeServer, "", userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // DenyUserPermission denies a permission directly to a user at server scope.
@@ -69,13 +92,21 @@ func (c *ChattoCore) DenyUserPermission(ctx context.Context, userID string, perm
 	if err := ValidatePermission(perm); err != nil {
 		return err
 	}
-	return c.storage.serverRBACEngine.Deny(ctx, ScopeServer, "", userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionDenied{
+		RbacPermissionDenied: rbacPermissionDeniedEvent(ScopeServer, "", userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ClearUserPermissionState clears both the grant and denial for a user-level
 // permission at server scope.
 func (c *ChattoCore) ClearUserPermissionState(ctx context.Context, userID string, perm Permission) error {
-	return c.storage.serverRBACEngine.Clear(ctx, ScopeServer, "", userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionCleared{
+		RbacPermissionCleared: rbacPermissionClearedEvent(ScopeServer, "", userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // GrantUserRoomPermission grants a permission directly to a user for a specific room.
@@ -83,7 +114,11 @@ func (c *ChattoCore) GrantUserRoomPermission(ctx context.Context, roomID, userID
 	if !PermissionAppliesAtScope(perm, ScopeRoom) {
 		return fmt.Errorf("permission %s does not apply at room scope", perm)
 	}
-	return c.storage.serverRBACEngine.Grant(ctx, ScopeRoom, roomID, userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
+		RbacPermissionGranted: rbacPermissionGrantedEvent(ScopeRoom, roomID, userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // DenyUserRoomPermission denies a permission directly to a user for a specific room.
@@ -91,13 +126,21 @@ func (c *ChattoCore) DenyUserRoomPermission(ctx context.Context, roomID, userID 
 	if !PermissionAppliesAtScope(perm, ScopeRoom) {
 		return fmt.Errorf("permission %s does not apply at room scope", perm)
 	}
-	return c.storage.serverRBACEngine.Deny(ctx, ScopeRoom, roomID, userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionDenied{
+		RbacPermissionDenied: rbacPermissionDeniedEvent(ScopeRoom, roomID, userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ClearUserRoomPermissionState clears both the grant and denial for a
 // user-level permission for a specific room.
 func (c *ChattoCore) ClearUserRoomPermissionState(ctx context.Context, roomID, userID string, perm Permission) error {
-	return c.storage.serverRBACEngine.Clear(ctx, ScopeRoom, roomID, userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionCleared{
+		RbacPermissionCleared: rbacPermissionClearedEvent(ScopeRoom, roomID, userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // GrantUserGroupPermission grants a permission directly to a user at a room
@@ -106,7 +149,11 @@ func (c *ChattoCore) GrantUserGroupPermission(ctx context.Context, groupID, user
 	if !PermissionAppliesAtScope(perm, ScopeGroup) && !PermissionAppliesAtScope(perm, ScopeRoom) {
 		return fmt.Errorf("permission %s does not apply at group scope", perm)
 	}
-	return c.storage.serverRBACEngine.Grant(ctx, ScopeGroup, groupID, userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
+		RbacPermissionGranted: rbacPermissionGrantedEvent(ScopeGroup, groupID, userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // DenyUserGroupPermission denies a permission directly to a user at a room
@@ -115,13 +162,21 @@ func (c *ChattoCore) DenyUserGroupPermission(ctx context.Context, groupID, userI
 	if !PermissionAppliesAtScope(perm, ScopeGroup) && !PermissionAppliesAtScope(perm, ScopeRoom) {
 		return fmt.Errorf("permission %s does not apply at group scope", perm)
 	}
-	return c.storage.serverRBACEngine.Deny(ctx, ScopeGroup, groupID, userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionDenied{
+		RbacPermissionDenied: rbacPermissionDeniedEvent(ScopeGroup, groupID, userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ClearUserGroupPermissionState clears both the grant and denial for a
 // user-level permission at a specific room group's scope.
 func (c *ChattoCore) ClearUserGroupPermissionState(ctx context.Context, groupID, userID string, perm Permission) error {
-	return c.storage.serverRBACEngine.Clear(ctx, ScopeGroup, groupID, userID, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionCleared{
+		RbacPermissionCleared: rbacPermissionClearedEvent(ScopeGroup, groupID, userID, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ----------------------------------------------------------------------------
@@ -133,7 +188,11 @@ func (c *ChattoCore) GrantRoomPermission(ctx context.Context, roomID, roleName s
 	if !PermissionAppliesAtScope(perm, ScopeRoom) {
 		return fmt.Errorf("permission %s does not apply at room scope", perm)
 	}
-	return c.storage.serverRBACEngine.Grant(ctx, ScopeRoom, roomID, roleName, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionGranted{
+		RbacPermissionGranted: rbacPermissionGrantedEvent(ScopeRoom, roomID, roleName, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // DenyRoomPermission denies a permission for a role at a specific room.
@@ -141,13 +200,21 @@ func (c *ChattoCore) DenyRoomPermission(ctx context.Context, roomID, roleName st
 	if !PermissionAppliesAtScope(perm, ScopeRoom) {
 		return fmt.Errorf("permission %s does not apply at room scope", perm)
 	}
-	return c.storage.serverRBACEngine.Deny(ctx, ScopeRoom, roomID, roleName, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionDenied{
+		RbacPermissionDenied: rbacPermissionDeniedEvent(ScopeRoom, roomID, roleName, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ClearRoomPermissionState removes both grant and denial for a permission at
 // room level.
 func (c *ChattoCore) ClearRoomPermissionState(ctx context.Context, roomID, roleName string, perm Permission) error {
-	return c.storage.serverRBACEngine.Clear(ctx, ScopeRoom, roomID, roleName, perm)
+	event := newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_RbacPermissionCleared{
+		RbacPermissionCleared: rbacPermissionClearedEvent(ScopeRoom, roomID, roleName, perm),
+	}})
+	_, err := c.appendRBACEvent(ctx, event, nil)
+	return err
 }
 
 // ----------------------------------------------------------------------------
@@ -158,45 +225,19 @@ func (c *ChattoCore) ClearRoomPermissionState(ctx context.Context, roomID, roleN
 // allow/deny at server scope for the given permission, or DecisionNone when
 // there's no user-level override.
 func (c *ChattoCore) GetUserExplicitServerOverride(ctx context.Context, userID string, perm Permission) (DecisionKind, error) {
-	return c.probeUserExplicit(ctx,
-		AllowKey(userID, perm.KeyParts().Verb, perm.KeyParts().ObjectType, ObjectIdAny),
-		DenyKey(userID, perm.KeyParts().Verb, perm.KeyParts().ObjectType, ObjectIdAny))
+	return c.RBAC.GetDecision(ScopeServer, "", userID, perm), nil
 }
 
 // GetUserExplicitGroupOverride returns the user's explicit user-level
 // allow/deny at the given room group's scope, or DecisionNone.
 func (c *ChattoCore) GetUserExplicitGroupOverride(ctx context.Context, groupID, userID string, perm Permission) (DecisionKind, error) {
-	return c.probeUserExplicit(ctx,
-		GroupAllowKey(groupID, userID, perm.KeyParts().Verb, perm.KeyParts().ObjectType),
-		GroupDenyKey(groupID, userID, perm.KeyParts().Verb, perm.KeyParts().ObjectType))
+	return c.RBAC.GetDecision(ScopeGroup, groupID, userID, perm), nil
 }
 
 // GetUserExplicitRoomOverride returns the user's explicit user-level
 // allow/deny at the given room's scope, or DecisionNone.
 func (c *ChattoCore) GetUserExplicitRoomOverride(ctx context.Context, roomID, userID string, perm Permission) (DecisionKind, error) {
-	return c.probeUserExplicit(ctx,
-		RoomAllowKey(roomID, userID, perm.KeyParts().Verb, perm.KeyParts().ObjectType),
-		RoomDenyKey(roomID, userID, perm.KeyParts().Verb, perm.KeyParts().ObjectType))
-}
-
-// probeUserExplicit checks an (allow, deny) key pair on SERVER_RBAC and
-// returns DecisionAllow / DecisionDeny / DecisionNone. The allow key is
-// preferred when both are somehow present — the write path keeps them
-// mutually exclusive, so that should never happen, but choosing
-// deterministically here keeps the read side robust.
-func (c *ChattoCore) probeUserExplicit(ctx context.Context, allowKey, denyKey string) (DecisionKind, error) {
-	kv := c.storage.serverRBACEngine.KV()
-	if _, err := kv.Get(ctx, allowKey); err == nil {
-		return DecisionAllow, nil
-	} else if !errors.Is(err, jetstream.ErrKeyNotFound) {
-		return DecisionNone, fmt.Errorf("probe allow %s: %w", allowKey, err)
-	}
-	if _, err := kv.Get(ctx, denyKey); err == nil {
-		return DecisionDeny, nil
-	} else if !errors.Is(err, jetstream.ErrKeyNotFound) {
-		return DecisionNone, fmt.Errorf("probe deny %s: %w", denyKey, err)
-	}
-	return DecisionNone, nil
+	return c.RBAC.GetDecision(ScopeRoom, roomID, userID, perm), nil
 }
 
 // ============================================================================
@@ -229,7 +270,7 @@ func (c *ChattoCore) SetupAnnouncementsRoomPermissions(ctx context.Context, room
 // ============================================================================
 
 // InitDefaultPermissions seeds the system roles with their default permission
-// grants in SERVER_RBAC. Idempotent — safe to call on every boot.
+// grants through RBAC events. Idempotent at the projection level.
 //
 // Owner and Admin receive the same enumerated permission set
 // (`DefaultOwnerPermissions` / `DefaultAdminPermissions`). They are
@@ -314,23 +355,8 @@ func (c *ChattoCore) grantSetPermissionIfMissing(ctx context.Context, groupID, r
 	if parts.Verb == "" || parts.ObjectType == "" {
 		return fmt.Errorf("invalid permission: %s", perm)
 	}
-	kv := c.storage.serverRBACEngine.KV()
-
-	allowKey := GroupAllowKey(groupID, roleName, parts.Verb, parts.ObjectType)
-	denyKey := GroupDenyKey(groupID, roleName, parts.Verb, parts.ObjectType)
-
-	// If a deny already exists, leave the operator's choice alone.
-	if _, err := kv.Get(ctx, denyKey); err == nil {
+	if c.RBAC.GetDecision(ScopeGroup, groupID, roleName, perm) != DecisionNone {
 		return nil
-	} else if !errors.Is(err, jetstream.ErrKeyNotFound) {
-		return fmt.Errorf("check existing deny: %w", err)
 	}
-
-	// kv.Create fails if the allow key already exists — that's the
-	// idempotency boundary; we don't overwrite operator edits.
-	_, err := kv.Create(ctx, allowKey, []byte("1"))
-	if err != nil && !errors.Is(err, jetstream.ErrKeyExists) {
-		return fmt.Errorf("create allow: %w", err)
-	}
-	return nil
+	return c.GrantGroupPermission(ctx, groupID, roleName, perm)
 }

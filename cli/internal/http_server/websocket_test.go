@@ -16,11 +16,10 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"github.com/nats-io/nats-server/v2/server"
-	"github.com/nats-io/nats.go"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/email"
+	"hmans.de/chatto/internal/testutil"
 )
 
 // ============================================================================
@@ -41,29 +40,7 @@ func setupWebSocketTestServer(t *testing.T) *wsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
-	// Start embedded NATS server
-	opts := &server.Options{
-		JetStream: true,
-		Port:      -1,
-		StoreDir:  t.TempDir(),
-	}
-
-	ns, err := server.NewServer(opts)
-	if err != nil {
-		t.Fatalf("Failed to create NATS server: %v", err)
-	}
-
-	go ns.Start()
-	if !ns.ReadyForConnections(5 * 1e9) {
-		t.Fatal("NATS server not ready")
-	}
-	t.Cleanup(func() { ns.Shutdown() })
-
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
-	t.Cleanup(func() { nc.Close() })
+	_, nc := testutil.StartNATS(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	t.Cleanup(cancel)
@@ -79,10 +56,12 @@ func setupWebSocketTestServer(t *testing.T) *wsTestEnv {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
 
-	// Start PresenceHub in background (needed by StreamMyEvents)
-	hubCtx, hubCancel := context.WithCancel(context.Background())
-	go chattoCore.PresenceHub.Run(hubCtx)
-	t.Cleanup(hubCancel)
+	// Start all core background services (PresenceHub + every
+	// registered projector) via the shared test helper. Blocks
+	// until projectors report started so test code can read from
+	// projection-backed accessors without racing the goroutine
+	// startup.
+	startCoreServices(t, chattoCore)
 
 	// Create router with session middleware
 	router := gin.New()
@@ -272,8 +251,6 @@ func TestWebSocket_Subscription_Authenticated(t *testing.T) {
 		t.Fatalf("Failed to create user: %v", err)
 	}
 
-
-
 	room, err := env.core.CreateRoom(env.ctx, user.Id, "channel", "", "sub-room", "")
 	if err != nil {
 		t.Fatalf("Failed to create room: %v", err)
@@ -413,8 +390,8 @@ func TestWebSocket_MultipleSubscriptions(t *testing.T) {
 	sendWSMessage(t, conn, graphqlWSMessage{Type: "connection_init"})
 	readWSMessage(t, conn, 5*time.Second) // connection_ack
 
-	// myEvents is deployment-wide and takes no args. Two subscriptions
-	// over the single feed exercise the multi-subscription dispatch path.
+	// myEvents is deployment-wide. Two subscriptions over the single feed
+	// exercise the multi-subscription dispatch path.
 	for i := 0; i < 2; i++ {
 		payload, _ := json.Marshal(subscriptionPayload{
 			Query: `subscription { myEvents { id event { ... on MessagePostedEvent { body } } } }`,

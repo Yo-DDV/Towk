@@ -286,8 +286,8 @@
 
     if (spaceData.canManageRoles || serverPerms.current.canAdminViewRoles) {
       items.push({
-        href: resolve('/chat/[serverId]/server-admin/roles', { serverId: serverSegment }),
-        label: 'Roles',
+        href: resolve('/chat/[serverId]/server-admin/permissions', { serverId: serverSegment }),
+        label: 'Permissions',
         icon: 'iconify uil--shield-check'
       });
     }
@@ -297,6 +297,14 @@
         href: resolve('/chat/[serverId]/server-admin/security', { serverId: serverSegment }),
         label: 'Security',
         icon: 'iconify uil--shield-exclamation'
+      });
+    }
+
+    if (serverPerms.current.canAdminViewAudit) {
+      items.push({
+        href: resolve('/chat/[serverId]/server-admin/event-log', { serverId: serverSegment }),
+        label: 'Event Log',
+        icon: 'iconify uil--history'
       });
     }
 

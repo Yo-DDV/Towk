@@ -363,7 +363,8 @@
 
     const evt = spaceEvent.event;
     if (
-      (evt?.__typename === 'MessageDeletedEvent' || evt?.__typename === 'MessageUpdatedEvent') &&
+      (evt?.__typename === 'MessageRetractedEvent' ||
+        evt?.__typename === 'MessageEditedEvent') &&
       evt.roomId === roomId
     ) {
       // Check if the deleted/updated message is our reply target
@@ -409,7 +410,7 @@
 
   // User profile popover state
   const serverPerms = getServerPermissions();
-  const canWriteDMs = $derived(serverPerms.current.canWriteDMs);
+  const canStartDMs = $derived(serverPerms.current.canStartDMs);
   let popoverUser = $state<RoomMember | null>(null);
   let popoverAnchorRect = $state<DOMRect | null>(null);
 
@@ -660,6 +661,7 @@
         <!-- Message attachments -->
         <MessageAttachments
           attachments={msg.attachments ?? []}
+          serverId={getActiveServer()}
           {roomId}
           eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
           canDeleteAttachment={isAuthor}
@@ -710,6 +712,7 @@
           {roomId}
           messageEventId={event.id}
           eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
+          deleteEventId={event.id}
           messageBody={msg.body ?? ''}
           reactions={msg?.reactions ?? []}
           canReact={roomPermissions.canReact}
@@ -729,7 +732,7 @@
     <UserContextMenu
       user={popoverUser}
       anchorRect={popoverAnchorRect}
-      canSendMessage={canWriteDMs}
+      canSendMessage={canStartDMs}
       onSendMessage={() => startDMWith(getActiveServer(), popoverUser!.id)}
       onClose={closePopover}
     />
@@ -749,6 +752,7 @@
         {roomId}
         messageEventId={event.id}
         eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
+        deleteEventId={event.id}
         messageBody={msg.body ?? ''}
         reactions={msg?.reactions ?? []}
         canReact={roomPermissions.canReact}
@@ -781,6 +785,7 @@
         {roomId}
         messageEventId={event.id}
         eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
+        deleteEventId={event.id}
         messageBody={msg.body ?? ''}
         reactions={msg?.reactions ?? []}
         canReact={roomPermissions.canReact}

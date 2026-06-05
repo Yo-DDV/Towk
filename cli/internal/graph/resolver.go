@@ -4,6 +4,7 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/log"
@@ -55,6 +56,26 @@ func (r *Resolver) getUser(ctx context.Context, userID string) (*corev1.User, er
 	return r.core.GetUser(ctx, userID)
 }
 
+// resolveOptionalUser is a tolerant variant of getUser for resolvers backing
+// nullable `actor` / `sender` / `target` fields: a deleted user returns
+// (nil, nil) instead of (nil, ErrNotFound), so the field resolves to null
+// without erroring up and blanking a non-null enclosing list. Reserve true
+// errors for infrastructure faults (KV unreachable, decode failure, etc.) —
+// see graphql.md "Nullability Must Match Resolver Failure Mode."
+func (r *Resolver) resolveOptionalUser(ctx context.Context, userID string) (*corev1.User, error) {
+	if userID == "" {
+		return nil, nil
+	}
+	user, err := r.getUser(ctx, userID)
+	if err != nil {
+		if errors.Is(err, core.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return user, nil
+}
+
 // getReactions loads reactions for a message, using the batch dataloader if available.
 func (r *Resolver) getReactions(ctx context.Context, eventID string) ([]core.ReactionSummary, error) {
 	if loaders := dataloader.ForContext(ctx); loaders != nil {
@@ -102,6 +123,28 @@ func (r *Resolver) resolveReactions(ctx context.Context, eventID string) ([]*mod
 	return reactions, nil
 }
 
+func messagePostedPayload(obj *model.MessagePostedEvent) *corev1.MessagePostedEvent {
+	if obj == nil {
+		return nil
+	}
+	return obj.Payload
+}
+
+// messagePostedEventID returns the durable message event ID from the GraphQL
+// event wrapper. MessagePostedEvent itself is payload-only.
+func messagePostedEventID(obj *model.MessagePostedEvent) string {
+	if obj == nil || obj.Envelope == nil {
+		return ""
+	}
+	return obj.Envelope.GetId()
+}
+
+// bodyKeyForLookup uses the canonical envelope event ID. The core body lookup
+// still accepts this through its legacy "body key" parameter name.
+func bodyKeyForLookup(obj *model.MessagePostedEvent) string {
+	return messagePostedEventID(obj)
+}
+
 // getMessageBody loads a message body, using per-request caching if available.
 // This prevents redundant KV lookups when Body, Attachments, and UpdatedAt
 // resolvers all need the same MessageBody for a single message.
@@ -145,7 +188,7 @@ func (r *Resolver) resolveMessageBodyKey(ctx context.Context, kind core.RoomKind
 	}
 
 	if msg := event.GetMessagePosted(); msg != nil {
-		return msg.MessageBodyId, nil
+		return event.GetId(), nil
 	}
 
 	return "", fmt.Errorf("event %s is not a message event", eventID)

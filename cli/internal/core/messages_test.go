@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
-	"google.golang.org/protobuf/proto"
+	"hmans.de/chatto/internal/encryption"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -45,12 +46,52 @@ func TestChattoCore_PostMessage(t *testing.T) {
 	}
 
 	// Body is now lazy-loaded, fetch it separately using messageBodyId
-	fetchedBody, err := core.GetMessageBody(ctx, KindChannel, messagePosted.MessageBodyId)
+	fetchedBody, err := core.GetMessageBody(ctx, KindChannel, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to fetch message body: %v", err)
 	}
 	if fetchedBody != messageBody {
 		t.Errorf("Message body = %s, want %s", fetchedBody, messageBody)
+	}
+}
+
+func TestChattoCore_PostMessageSchedulesVideoProcessing(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "testuser", "testuser", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "clip.mp4", "video/mp4", bytes.NewReader([]byte("video")))
+	if err != nil {
+		t.Fatalf("Failed to upload attachment: %v", err)
+	}
+
+	requests := captureVideoProcessingRequests(t, core)
+
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Video", []string{attachment.Id}, "", "", nil, false, WithVideoProcessingAssets(attachment.Id))
+	if err != nil {
+		t.Fatalf("Failed to post message: %v", err)
+	}
+
+	select {
+	case req := <-requests:
+		if req.assetID != attachment.Id {
+			t.Fatalf("queued asset id = %q, want %q", req.assetID, attachment.Id)
+		}
+		// The owning message id must ride along on the local work item so the worker
+		// can stamp it onto the terminal event without a racy projection lookup.
+		if req.messageEventID != roomEvent.Id {
+			t.Fatalf("queued message event id = %q, want %q", req.messageEventID, roomEvent.Id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected local video processing request")
+	}
+
+	manifest, ok := core.RoomTimeline.VideoAttachmentManifest(attachment.Id)
+	if !ok || manifest.Started == nil {
+		t.Fatalf("expected AssetProcessingStarted manifest, got %+v", manifest)
 	}
 }
 
@@ -79,7 +120,7 @@ func TestChattoCore_PostMessage_BodyStoredInKV(t *testing.T) {
 	}
 
 	// Verify the body can be fetched via GetMessageBody using messageBodyId
-	fetchedBody, err := core.GetMessageBody(ctx, KindChannel, messagePosted.MessageBodyId)
+	fetchedBody, err := core.GetMessageBody(ctx, KindChannel, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to fetch message body: %v", err)
 	}
@@ -87,19 +128,14 @@ func TestChattoCore_PostMessage_BodyStoredInKV(t *testing.T) {
 		t.Errorf("Message body = %s, want %s", fetchedBody, messageBody)
 	}
 
-	// Verify the body is stored in the BODIES bucket
-	// MessageBodyId now contains the full compound key ({userId}.{bodyId})
-	bucket := core.storage.serverBodiesKV
-
-	entry, err := bucket.Get(ctx, messagePosted.MessageBodyId)
-	if err != nil {
-		t.Fatalf("Failed to get message body from KV: %v", err)
-	}
-
-	// Unmarshal and verify
-	var storedBody corev1.MessageBody
-	if err := proto.Unmarshal(entry.Value(), &storedBody); err != nil {
-		t.Fatalf("Failed to unmarshal message body: %v", err)
+	// Post-#597 cutover: the body lives embedded in the event payload
+	// on the EVT stream, not in a separate SERVER_BODIES KV entry.
+	// Recover it through the projection-backed GetFullMessageBody and
+	// then verify the encryption envelope by peeking at the body
+	// embedded on the MessagePostedEvent we just received back.
+	storedBody := roomEvent.GetMessagePosted().GetBody()
+	if storedBody == nil {
+		t.Fatal("Expected message body to be embedded on the published event")
 	}
 
 	// Messages are always encrypted - verify encrypted fields are set
@@ -108,6 +144,12 @@ func TestChattoCore_PostMessage_BodyStoredInKV(t *testing.T) {
 	}
 	if len(storedBody.EncryptionNonce) == 0 {
 		t.Error("Expected encryption nonce to be non-empty")
+	}
+	if storedBody.EncryptionVersion != encryption.EnvelopeVersionV2 {
+		t.Errorf("EncryptionVersion = %d, want %d", storedBody.EncryptionVersion, encryption.EnvelopeVersionV2)
+	}
+	if storedBody.ContentKeyEpoch != 1 {
+		t.Errorf("ContentKeyEpoch = %d, want 1", storedBody.ContentKeyEpoch)
 	}
 
 	// Verify timestamps are set correctly
@@ -277,6 +319,13 @@ func TestChattoCore_PostMessage_InvisibleChars(t *testing.T) {
 			t.Errorf("Expected success for emoji-only message, got: %v", err)
 		}
 	})
+
+	t.Run("attachment-only with unknown asset is rejected", func(t *testing.T) {
+		_, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "", []string{"missing-asset"}, "", "", nil, false)
+		if err == nil {
+			t.Error("Expected error for attachment-only message with no resolved attachments")
+		}
+	})
 }
 
 func TestChattoCore_DeleteMessage_GDPR(t *testing.T) {
@@ -303,31 +352,233 @@ func TestChattoCore_DeleteMessage_GDPR(t *testing.T) {
 		t.Fatal("Event should be a MessagePosted event")
 	}
 
-	// Verify the body is in BODIES bucket
-	// MessageBodyId now contains the full compound key ({userId}.{bodyId})
-	bucket := core.storage.serverBodiesKV
-
-	_, err = bucket.Get(ctx, messagePosted.MessageBodyId)
+	// Pre-deletion: GetMessageBody returns the plaintext.
+	bodyText, err := core.GetMessageBody(ctx, KindChannel, roomEvent.Id)
 	if err != nil {
-		t.Fatalf("Message body should exist in KV before deletion: %v", err)
+		t.Fatalf("Failed to fetch message body before deletion: %v", err)
+	}
+	if bodyText == "" {
+		t.Fatal("Message body should be non-empty before deletion")
 	}
 
-	// Delete the message using the full compound key (author can delete own messages)
-	err = core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, messagePosted.MessageBodyId)
+	// Delete the message (author can delete own messages).
+	err = core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to delete message: %v", err)
 	}
 
-	// Verify the body is no longer in KV
-	_, err = bucket.Get(ctx, messagePosted.MessageBodyId)
-	if err == nil {
-		t.Error("Message body should not exist in KV after deletion")
+	// Post-deletion: projection tombstones the message, body
+	// disappears from GetMessageBody.
+	bodyText, err = core.GetMessageBody(ctx, KindChannel, roomEvent.Id)
+	if err != nil {
+		t.Fatalf("GetMessageBody on retracted message returned error: %v", err)
+	}
+	if bodyText != "" {
+		t.Errorf("Retracted message body should be empty, got %q", bodyText)
 	}
 
-	// Verify we can delete again without error (idempotent)
-	err = core.DeleteMessage(ctx, "test-user", KindChannel, room.Id, messagePosted.MessageBodyId)
+	// Idempotent: deleting again is a no-op.
+	err = core.DeleteMessage(ctx, "test-user", KindChannel, room.Id, roomEvent.Id)
 	if err != nil {
 		t.Errorf("Deleting already deleted message should not error: %v", err)
+	}
+}
+
+func TestChattoCore_DeleteEcho_HidesEchoOnly(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "echo-delete-user", "Echo Delete User", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	rootEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Post root: %v", err)
+	}
+	replyEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread reply echoed", nil, rootEvent.Id, "", nil, true)
+	if err != nil {
+		t.Fatalf("Post reply with echo: %v", err)
+	}
+
+	echoID := ""
+	before, err := core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
+	if err != nil {
+		t.Fatalf("GetRoomEvents before delete: %v", err)
+	}
+	for _, event := range before.Events {
+		if msg := event.GetMessagePosted(); msg != nil && msg.GetEchoOfEventId() == replyEvent.Id {
+			echoID = event.Id
+			break
+		}
+	}
+	if echoID == "" {
+		t.Fatal("expected echoed reply in room timeline")
+	}
+
+	if err := core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, echoID); err != nil {
+		t.Fatalf("Delete echo: %v", err)
+	}
+
+	after, err := core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
+	if err != nil {
+		t.Fatalf("GetRoomEvents after delete: %v", err)
+	}
+	for _, event := range after.Events {
+		if event.Id == echoID {
+			t.Fatal("hidden echo should not appear in room timeline")
+		}
+	}
+	if event, err := core.GetRoomEventByEventID(ctx, KindChannel, room.Id, echoID); err != nil {
+		t.Fatalf("GetRoomEventByEventID hidden echo: %v", err)
+	} else if event != nil {
+		t.Fatal("hidden echo should not be directly loadable from room event API")
+	}
+
+	body, err := core.GetMessageBody(ctx, KindChannel, replyEvent.Id)
+	if err != nil {
+		t.Fatalf("Get original reply body: %v", err)
+	}
+	if body != "Thread reply echoed" {
+		t.Fatalf("original thread reply body = %q, want %q", body, "Thread reply echoed")
+	}
+	threadEvents, err := core.GetThreadEvents(ctx, KindChannel, room.Id, rootEvent.Id)
+	if err != nil {
+		t.Fatalf("GetThreadEvents: %v", err)
+	}
+	foundReply := false
+	for _, event := range threadEvents {
+		if event.Id == replyEvent.Id {
+			foundReply = true
+			break
+		}
+	}
+	if !foundReply {
+		t.Fatal("original thread reply should remain in thread")
+	}
+}
+
+func TestChattoCore_DeleteEcho_PreservesOriginalAttachment(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "echo-attachment-delete-user", "Echo Attachment Delete User", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "echo-attachment.png", "image/png", bytes.NewReader(createTestPNG(100, 100)))
+	if err != nil {
+		t.Fatalf("UploadAttachment: %v", err)
+	}
+	store, err := core.GetAttachmentsStore(ctx)
+	if err != nil {
+		t.Fatalf("GetAttachmentsStore: %v", err)
+	}
+
+	rootEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Post root: %v", err)
+	}
+	replyEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread reply with attachment", []string{attachment.Id}, rootEvent.Id, "", nil, true)
+	if err != nil {
+		t.Fatalf("Post reply with echo: %v", err)
+	}
+	echoID := ""
+	roomEvents, err := core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
+	if err != nil {
+		t.Fatalf("GetRoomEvents: %v", err)
+	}
+	for _, event := range roomEvents.Events {
+		if msg := event.GetMessagePosted(); msg != nil && msg.GetEchoOfEventId() == replyEvent.Id {
+			echoID = event.Id
+			break
+		}
+	}
+	if echoID == "" {
+		t.Fatal("expected echoed reply in room timeline")
+	}
+
+	if err := core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, echoID); err != nil {
+		t.Fatalf("Delete echo: %v", err)
+	}
+
+	if _, err := store.Get(ctx, attachment.Id); err != nil {
+		t.Fatalf("echo delete should preserve backing attachment: %v", err)
+	}
+	body, err := core.GetFullMessageBody(ctx, KindChannel, replyEvent.Id)
+	if err != nil {
+		t.Fatalf("Get original reply body: %v", err)
+	}
+	if body == nil {
+		t.Fatal("original reply body should remain readable")
+	}
+	if len(body.Attachments) != 1 || body.Attachments[0].Id != attachment.Id {
+		t.Fatalf("original reply attachments = %+v, want %s", body.Attachments, attachment.Id)
+	}
+}
+
+func TestChattoCore_DeleteOriginalReply_TombstonesEcho(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "echo-original-delete-user", "Echo Original Delete User", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	rootEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Post root: %v", err)
+	}
+	replyEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread reply echoed", nil, rootEvent.Id, "", nil, true)
+	if err != nil {
+		t.Fatalf("Post reply with echo: %v", err)
+	}
+	roomEvents, err := core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
+	if err != nil {
+		t.Fatalf("GetRoomEvents before delete: %v", err)
+	}
+	echoID := ""
+	for _, event := range roomEvents.Events {
+		if msg := event.GetMessagePosted(); msg != nil && msg.GetEchoOfEventId() == replyEvent.Id {
+			echoID = event.Id
+			break
+		}
+	}
+	if echoID == "" {
+		t.Fatal("expected echoed reply in room timeline")
+	}
+
+	if err := core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, replyEvent.Id); err != nil {
+		t.Fatalf("Delete original reply: %v", err)
+	}
+
+	roomEvents, err = core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
+	if err != nil {
+		t.Fatalf("GetRoomEvents after delete: %v", err)
+	}
+	foundEcho := false
+	for _, event := range roomEvents.Events {
+		if event.Id == echoID {
+			foundEcho = true
+			break
+		}
+	}
+	if !foundEcho {
+		t.Fatal("echo should remain visible as a tombstone when original is deleted")
+	}
+	replyBody, err := core.GetMessageBody(ctx, KindChannel, replyEvent.Id)
+	if err != nil {
+		t.Fatalf("Get original reply body: %v", err)
+	}
+	if replyBody != "" {
+		t.Fatalf("deleted original reply body = %q, want empty", replyBody)
+	}
+	echoBody, err := core.GetMessageBody(ctx, KindChannel, echoID)
+	if err != nil {
+		t.Fatalf("Get echo body: %v", err)
+	}
+	if echoBody != "" {
+		t.Fatalf("echo body after original delete = %q, want empty", echoBody)
 	}
 }
 
@@ -344,13 +595,13 @@ func TestChattoCore_DeleteMessage_DeletesAttachments(t *testing.T) {
 
 	// Upload an attachment (using createTestPNG from attachments_test.go)
 	imageData := createTestPNG(100, 100)
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
 
 	// Post a message with the attachment
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
@@ -372,7 +623,7 @@ func TestChattoCore_DeleteMessage_DeletesAttachments(t *testing.T) {
 	}
 
 	// Delete the message
-	err = core.DeleteMessage(ctx, "test-user", KindChannel, room.Id, postedMessage.MessageBodyId)
+	err = core.DeleteMessage(ctx, "test-user", KindChannel, room.Id, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to delete message: %v", err)
 	}
@@ -384,7 +635,7 @@ func TestChattoCore_DeleteMessage_DeletesAttachments(t *testing.T) {
 	}
 
 	// Verify message body is deleted
-	body, err := core.GetMessageBody(ctx, KindChannel, postedMessage.MessageBodyId)
+	body, err := core.GetMessageBody(ctx, KindChannel, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to get message body: %v", err)
 	}
@@ -406,17 +657,17 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 
 	// Upload two attachments
 	imageData := createTestPNG(100, 100)
-	attachment1, err := core.UploadAttachment(ctx, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
+	attachment1, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 1: %v", err)
 	}
-	attachment2, err := core.UploadAttachment(ctx, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
+	attachment2, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 2: %v", err)
 	}
 
 	// Post a message with both attachments
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachments", []*corev1.Attachment{attachment1, attachment2}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with attachments", []string{attachment1.Id, attachment2.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
@@ -439,7 +690,7 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 	}
 
 	// Delete only attachment 1
-	err = core.DeleteAttachmentFromMessage(ctx, user.Id, KindChannel, room.Id, postedMessage.MessageBodyId, attachment1.Id)
+	err = core.DeleteAttachmentFromMessage(ctx, user.Id, KindChannel, room.Id, roomEvent.Id, attachment1.Id)
 	if err != nil {
 		t.Fatalf("Failed to delete attachment: %v", err)
 	}
@@ -455,7 +706,7 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 	}
 
 	// Verify message body still has attachment 2 but not attachment 1
-	messageBody, err := core.GetFullMessageBody(ctx, KindChannel, postedMessage.MessageBodyId)
+	messageBody, err := core.GetFullMessageBody(ctx, KindChannel, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to get message body: %v", err)
 	}
@@ -464,6 +715,66 @@ func TestChattoCore_DeleteAttachmentFromMessage(t *testing.T) {
 	}
 	if messageBody.Attachments[0].Id != attachment2.Id {
 		t.Error("Remaining attachment should be attachment 2")
+	}
+}
+
+func TestChattoCore_DeleteAttachmentFromMessage_DeletesVideoDerivatives(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
+	user, _ := core.CreateUser(ctx, "system", "testuser", "testuser", "password123")
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+
+	original, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "original.mp4", "video/mp4", bytes.NewReader([]byte("original")))
+	if err != nil {
+		t.Fatalf("Failed to upload original: %v", err)
+	}
+	thumb, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "thumb.png", "image/png", bytes.NewReader(createTestPNG(32, 18)))
+	if err != nil {
+		t.Fatalf("Failed to upload thumbnail: %v", err)
+	}
+	variantAttachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "video-720p.mp4", "video/mp4", bytes.NewReader([]byte("variant")))
+	if err != nil {
+		t.Fatalf("Failed to upload variant: %v", err)
+	}
+
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Video", []string{original.Id}, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Failed to post message: %v", err)
+	}
+
+	if err := core.RecordAssetProcessed(ctx, SystemActorID, KindChannel, room.Id, roomEvent.Id, original.Id, 1234, 640, 360, thumb, []*corev1.VideoVariant{
+		{
+			AttachmentId: variantAttachment.Id,
+			Quality:      "720p",
+			Width:        640,
+			Height:       360,
+			Size:         variantAttachment.Size,
+			Attachment:   variantAttachment,
+		},
+	}); err != nil {
+		t.Fatalf("Failed to record processed video manifest: %v", err)
+	}
+
+	store, err := core.GetAttachmentsStore(ctx)
+	if err != nil {
+		t.Fatalf("Failed to get attachments store: %v", err)
+	}
+	for _, attachment := range []*corev1.Attachment{original, thumb, variantAttachment} {
+		if _, err := store.Get(ctx, attachment.Id); err != nil {
+			t.Fatalf("Attachment %s should exist before deletion: %v", attachment.Id, err)
+		}
+	}
+
+	if err := core.DeleteAttachmentFromMessage(ctx, user.Id, KindChannel, room.Id, roomEvent.Id, original.Id); err != nil {
+		t.Fatalf("Failed to delete video attachment: %v", err)
+	}
+
+	for _, attachment := range []*corev1.Attachment{original, thumb, variantAttachment} {
+		if _, err := store.Get(ctx, attachment.Id); err == nil {
+			t.Fatalf("Attachment %s should be deleted", attachment.Id)
+		}
 	}
 }
 
@@ -482,20 +793,18 @@ func TestChattoCore_DeleteAttachmentFromMessage_NotAuthor(t *testing.T) {
 
 	// Upload attachment and post message as author
 	imageData := createTestPNG(100, 100)
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
 
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "Message with attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "Message with attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
 
-	postedMessage := roomEvent.GetMessagePosted()
-
 	// Try to delete attachment as other user - should fail
-	err = core.DeleteAttachmentFromMessage(ctx, otherUser.Id, KindChannel, room.Id, postedMessage.MessageBodyId, attachment.Id)
+	err = core.DeleteAttachmentFromMessage(ctx, otherUser.Id, KindChannel, room.Id, roomEvent.Id, attachment.Id)
 	if err == nil {
 		t.Error("Expected error when non-author tries to delete attachment")
 	}
@@ -523,7 +832,7 @@ func TestChattoCore_DeleteMessage_DeletesS3Attachments(t *testing.T) {
 
 	// Upload attachment (stored in S3)
 	imageData := createTestPNG(100, 100)
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
@@ -531,12 +840,10 @@ func TestChattoCore_DeleteMessage_DeletesS3Attachments(t *testing.T) {
 	s3Key := attachment.Storage.GetS3().Key
 
 	// Post message with attachment
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
-
-	postedMessage := roomEvent.GetMessagePosted()
 
 	// Verify S3 object exists
 	_, err = s3Client.StatObject(ctx, s3Key)
@@ -545,7 +852,7 @@ func TestChattoCore_DeleteMessage_DeletesS3Attachments(t *testing.T) {
 	}
 
 	// Delete the message
-	err = core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, postedMessage.MessageBodyId)
+	err = core.DeleteMessage(ctx, user.Id, KindChannel, room.Id, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to delete message: %v", err)
 	}
@@ -567,11 +874,11 @@ func TestChattoCore_DeleteAttachmentFromMessage_S3(t *testing.T) {
 
 	// Upload two attachments (stored in S3)
 	imageData := createTestPNG(100, 100)
-	attachment1, err := core.UploadAttachment(ctx, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
+	attachment1, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test1.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 1: %v", err)
 	}
-	attachment2, err := core.UploadAttachment(ctx, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
+	attachment2, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test2.png", "image/png", bytes.NewReader(imageData))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment 2: %v", err)
 	}
@@ -580,15 +887,13 @@ func TestChattoCore_DeleteAttachmentFromMessage_S3(t *testing.T) {
 	s3Key2 := attachment2.Storage.GetS3().Key
 
 	// Post message with both attachments
-	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachments", []*corev1.Attachment{attachment1, attachment2}, "", "", nil, false)
+	roomEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Message with S3 attachments", []string{attachment1.Id, attachment2.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message: %v", err)
 	}
 
-	postedMessage := roomEvent.GetMessagePosted()
-
 	// Delete only attachment 1
-	err = core.DeleteAttachmentFromMessage(ctx, user.Id, KindChannel, room.Id, postedMessage.MessageBodyId, attachment1.Id)
+	err = core.DeleteAttachmentFromMessage(ctx, user.Id, KindChannel, room.Id, roomEvent.Id, attachment1.Id)
 	if err != nil {
 		t.Fatalf("Failed to delete attachment from message: %v", err)
 	}
@@ -606,7 +911,7 @@ func TestChattoCore_DeleteAttachmentFromMessage_S3(t *testing.T) {
 	}
 
 	// Verify message body still has attachment 2 but not attachment 1
-	messageBody, err := core.GetFullMessageBody(ctx, KindChannel, postedMessage.MessageBodyId)
+	messageBody, err := core.GetFullMessageBody(ctx, KindChannel, roomEvent.Id)
 	if err != nil {
 		t.Fatalf("Failed to get message body: %v", err)
 	}
@@ -651,7 +956,7 @@ func TestChattoCore_ArchiveRoom_BlocksWrites(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PostMessage failed: %v", err)
 		}
-		msgBodyKey := event.GetMessagePosted().MessageBodyId
+		msgBodyKey := event.Id
 
 		if _, err := core.ArchiveRoom(ctx, user.Id, KindChannel, room.Id); err != nil {
 			t.Fatalf("ArchiveRoom failed: %v", err)

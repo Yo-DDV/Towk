@@ -299,7 +299,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
     });
   });
 
-  test('echo and original share reactions', async ({ page, chatPage, roomPage }) => {
+  test('echo and original have independent reactions', async ({ page, chatPage, roomPage }) => {
     await test.step('Setup: User creates space and posts root message', async () => {
       await createAndLoginTestUser(page);
       await chatPage.goto();
@@ -324,7 +324,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       await threadReply.expectReaction('👍', 1);
     });
 
-    await test.step('Close thread and verify echo ALSO has the reaction', async () => {
+    await test.step('Close thread and verify echo does not inherit the reaction', async () => {
       await roomPage.closeThread();
       await roomPage.expectThreadRouteClosed();
 
@@ -332,23 +332,20 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
       const echo = roomPage.getMessage(replyMessage);
       await expect(echo.locator).toBeVisible();
 
-      // The echo should have the 👍 reaction (reactions are shared)
-      await echo.expectReaction('👍', 1);
+      await echo.expectNoReaction('👍');
     });
 
-    await test.step('React to echo and verify thread original also has it', async () => {
+    await test.step('React to echo and verify thread original stays independent', async () => {
       const echo = roomPage.getMessage(replyMessage);
       await echo.react('❤️');
       await echo.expectReaction('❤️', 1);
 
-      // Open thread and verify original ALSO has ❤️
       await rootMessageComponent.openThread();
       await roomPage.expectThreadPaneVisible();
 
       const threadReply = roomPage.getThreadMessage(replyMessage);
-      // Original should have both 👍 and ❤️ (shared reactions)
       await threadReply.expectReaction('👍', 1);
-      await threadReply.expectReaction('❤️', 1);
+      await threadReply.expectNoReaction('❤️');
     });
   });
 
@@ -458,7 +455,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
     });
   });
 
-  test('deleting echo deletes both echo and thread original', async ({
+  test('deleting echo hides only the echo and keeps thread original readable', async ({
     page,
     chatPage,
     roomPage
@@ -476,41 +473,62 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
     const rootMessageComponent = await roomPage.sendMessage(rootMessage);
 
     let echoEventId: string | null;
+    let originalReplyEventId: string | null;
 
     await test.step('Post reply with echo and close thread', async () => {
       await rootMessageComponent.openThread();
       await roomPage.expectThreadPaneVisible();
       await roomPage.postThreadReplyWithEcho(replyMessage);
+
+      const threadReply = roomPage.getThreadMessage(replyMessage);
+      originalReplyEventId = await threadReply.getEventId();
+
       await roomPage.closeThread();
 
-      // Wait for echo to arrive and become visible
+      // Wait for echo to arrive in the main room and become visible.
       const echo = roomPage.getMessage(replyMessage);
       await expect(echo.locator).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       echoEventId = await echo.getEventId();
+      expect(echoEventId).not.toBe(originalReplyEventId);
     });
 
-    await test.step('Delete the echo in main room', async () => {
+    await test.step('Delete the echo in main room using the echo event ID', async () => {
       const echo = roomPage.getMessage(replyMessage);
+      const deleteRequestPromise = page.waitForRequest((request) => {
+        const body = request.postData() ?? '';
+        return request.url().includes('/api/graphql') && body.includes('DeleteMessageFromModal');
+      });
+
       await echo.delete();
+
+      const deleteRequest = await deleteRequestPromise;
+      const payload = JSON.parse(deleteRequest.postData() ?? '{}') as {
+        variables?: { input?: { eventId?: string } };
+      };
+      expect(payload.variables?.input?.eventId).toBe(echoEventId);
     });
 
-    await test.step('Verify echo shows the deleted tombstone', async () => {
+    await test.step('Verify echo is hidden from the main room', async () => {
       const echo = roomPage.getMessageByEventId(echoEventId!);
-      await echo.expectDeleted();
+      await echo.expectNotVisible();
     });
 
-    await test.step('Open thread and verify thread original also shows tombstone', async () => {
+    await test.step('Open thread and verify thread original is still readable', async () => {
       await rootMessageComponent.openThread();
       await roomPage.expectThreadPaneVisible();
 
-      await expect(roomPage.threadPane.getByText(replyMessage)).not.toBeVisible();
+      const threadReply = roomPage.getThreadMessage(replyMessage);
+      await expect(threadReply.locator).toHaveAttribute('data-event-id', originalReplyEventId!);
+      await expect(threadReply.locator).toBeVisible({
+        timeout: TIMEOUTS.REALTIME_EVENT
+      });
       await expect(
         roomPage.threadPane.getByText('This message has been deleted').first()
-      ).toBeVisible();
+      ).not.toBeVisible();
     });
   });
 
-  test('deleting thread original deletes both thread original and echo', async ({
+  test('deleting thread original tombstones both thread original and echo', async ({
     page,
     chatPage,
     roomPage

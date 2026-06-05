@@ -21,10 +21,14 @@ enum RoomKind {
 // For channel rooms, group_id MUST point to a RoomGroup; DM rooms leave it empty.
 message Room {
   string id = 1;
-  // Legacy kind discriminator ("server"/"DM"); wire-frozen for KV-stored
-  // bytes. New code reads `kind` (field 8); writers populate both. See
-  // ADR-030.
-  string space_id = 2;
+  // Field 2 was `space_id` — a legacy "server"/"DM" discriminator
+  // wire-frozen for KV-stored bytes. The concept of spaces was
+  // removed post-ADR-030 (replaced by `kind`), and the field was
+  // kept around as a deprecated wire-compat hack longer than needed.
+  // Removed entirely; callers that need the legacy partition key
+  // compute it on-demand via `core.LegacySpaceIDForRoomKind(kind)`.
+  reserved 2;
+  reserved "space_id";
   string name = 3;
   string description = 4;
   bool archived = 5;
@@ -36,8 +40,7 @@ message Room {
   // group_id is the RoomGroup this room belongs to. Required for channel
   // rooms, empty for DM rooms. See ADR-031.
   string group_id = 7;
-  // Canonical kind discriminator. Populated by all writers post-ADR-030;
-  // existing KV records are backfilled at boot from `space_id`.
+  // Canonical kind discriminator.
   RoomKind kind = 8;
 }
 
@@ -46,7 +49,7 @@ message User {
   string id = 1;
   string login = 2; // Unique login identifier
   string display_name = 3;
-  // Avatar is stored separately in KV at key "user:{id}:avatar"
+  // Avatar state is projected from AssetCreatedEvent/UserAvatarClearedEvent.
   google.protobuf.Timestamp created_at = 4; // When the user was created (null for users created before this field was added)
 }
 
@@ -61,7 +64,13 @@ message VerifiedEmail {
   google.protobuf.Timestamp verified_at = 2;
 }
 
-message Asset {
+// DeprecatedAsset is the storage-pointer-only proto used for legacy values:
+// branding KV entries, avatar pointers on UserAvatarSetEvent, and the
+// Storage field on legacy embedded Attachment protos. Wire format matches
+// the original `Asset` message it replaced; keep it for decode of historical
+// bytes. New writes use AssetRecord (richer content metadata) and emit
+// AssetCreatedEvent for owner / lifecycle context.
+message DeprecatedAsset {
   oneof asset {
     NATSAsset nats = 2;
     S3Asset s3 = 1;
@@ -75,6 +84,39 @@ message S3Asset {
 
 message NATSAsset {
   string key = 1;
+}
+
+// AssetRecord is durable content metadata for one uploaded or generated
+// binary. Storage and intrinsic media metadata live here; ownership and
+// derivation context live on AssetCreatedEvent.
+message AssetRecord {
+  // Unique identifier (NanoID).
+  string id = 1;
+
+  // Original filename.
+  string filename = 2;
+
+  // MIME type (e.g., "image/jpeg", "video/mp4").
+  string content_type = 3;
+
+  // File size in bytes.
+  int64 size = 4;
+
+  // Media dimensions when known.
+  int32 width = 5;
+  int32 height = 6;
+
+  // Media duration in milliseconds when known.
+  int64 duration_ms = 7;
+
+  // Media bitrate in bits per second when known.
+  int32 bitrate = 8;
+
+  // Storage location for the binary data.
+  oneof storage {
+    NATSAsset nats = 10;
+    S3Asset s3 = 11;
+  }
 }
 
 message RoomMembership {
@@ -100,8 +142,8 @@ enum UserPresenceStatus {
   USER_PRESENCE_STATUS_DO_NOT_DISTURB = 2;
 }
 
-// UserPresence represents a user's current presence in a space.
-// Stored in USER_PRESENCE KV bucket.
+// UserPresence represents a user's current live presence status.
+// Stored under presence.{userId} in MEMORY_CACHE.
 message UserPresence {
   UserPresenceStatus status = 1;
 }
@@ -130,9 +172,11 @@ message ThreadMetadata {
   repeated string participant_ids = 4;
 }
 
-// Attachment represents a file attached to a message.
-// The actual binary data is stored either in NATS ObjectStore or S3,
-// as indicated by the storage field.
+// Attachment is the legacy embedded representation of a message attachment.
+// New posts store only attachment IDs on MessageBody and emit
+// AssetCreatedEvent records for each; this proto is retained so historical
+// MessageBody payloads remain decodable. Remove in post-migration cleanup
+// once all legacy embedded records have been backfilled and archived.
 message Attachment {
   // Unique identifier for this attachment (NanoID)
   string id = 1;
@@ -162,7 +206,7 @@ message Attachment {
 
   // Storage location for the attachment binary data.
   // If not set (nil), defaults to NATS ObjectStore for backwards compatibility.
-  Asset storage = 9;
+  DeprecatedAsset storage = 9;
 
   // Compound key (`{userId}.{bodyId}`) of the MessageBody that owns this
   // attachment. Set when the body is written in PostMessage; also
@@ -179,19 +223,43 @@ message Attachment {
 // Stored separately from events in KV buckets for GDPR compliance.
 // This allows individual message bodies to be deleted while preserving
 // the audit trail in the event stream.
-// Message bodies are always encrypted using per-user ChaCha20-Poly1305 keys.
+// Message bodies are always encrypted. Legacy bodies use the author's
+// per-user ChaCha20-Poly1305 key directly. New bodies use a versioned
+// envelope with a per-user message-body DEK epoch.
 message MessageBody {
   string author_id = 1;
   google.protobuf.Timestamp created_at = 2;
   google.protobuf.Timestamp updated_at = 3;
 
-  // Encrypted message body (ChaCha20-Poly1305 ciphertext with auth tag)
+  // Encryption envelope version. Empty/0 means legacy v1 direct per-user-key
+  // encryption for backward compatibility with historical bodies. Version 2
+  // means XChaCha20-Poly1305 body encryption with the author's referenced
+  // message-body DEK epoch.
+  int32 encryption_version = 4;
+  // V2 only: per-user message-body DEK epoch that encrypted this body.
+  int32 content_key_epoch = 5;
+
+  // Encrypted message body ciphertext with auth tag. For legacy bodies this
+  // is ChaCha20-Poly1305. For v2 envelope bodies this is XChaCha20-Poly1305
+  // using the referenced message-body DEK.
   bytes encrypted_body = 20;
-  // 12-byte nonce for ChaCha20-Poly1305 (must be unique per encryption)
+  // Nonce for encrypted_body: 12 bytes for legacy ChaCha20-Poly1305, 24 bytes
+  // for v2 XChaCha20-Poly1305.
   bytes encryption_nonce = 21;
 
-  // File attachments (images, videos, etc.)
+  // Legacy embedded attachment protos. Older bodies (and the legacy
+  // import path) carry full Attachment records here. New bodies write
+  // asset_ids instead and the GraphQL resolver hydrates from the
+  // asset projection (see AssetCreatedEvent). Keep this field for decode
+  // until every historical body has been backfilled into the projection.
   repeated Attachment attachments = 30;
+
+  // Ordered list of asset IDs referenced by this message. Source of truth
+  // for new bodies; their content metadata + storage live on AssetRecord /
+  // AssetCreatedEvent in the projection. Each ID points at an asset that
+  // was created (via AssetCreatedEvent) before the message was posted —
+  // typically by an UploadAsset call from the same actor.
+  repeated string asset_ids = 31;
 
   // Link preview extracted from the first URL in the message body
   LinkPreview link_preview = 40;
@@ -289,9 +357,9 @@ message RoomGroup {
 // ============================================================================
 
 // VideoProcessingState tracks the async processing state of a video attachment.
-// Stored in the SERVER_RUNTIME KV bucket at key "video.{attachmentId}".
-// Kept separate from MessageBody (which is encrypted per-user) so the video
-// service can update processing state without touching encryption.
+// Legacy entries were stored in SERVER_RUNTIME at key "video.{attachmentId}".
+// New durable completed/failed manifests live in AssetProcessing* EVT events;
+// this shape remains for transient worker progress and legacy import.
 message VideoProcessingState {
   // Current processing status
   VideoStatus status = 1;

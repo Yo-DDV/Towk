@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"hmans.de/chatto/internal/core/subjects"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -38,220 +36,38 @@ type FollowedThread struct {
 // maxThreadParticipants is the maximum number of participant IDs tracked per thread.
 const maxThreadParticipants = 50
 
-// GetThreadEvents fetches all events for a specific thread.
-// Returns the root message followed by all replies in chronological order.
-// Authorization: Caller must verify room membership before calling.
+// GetThreadEvents returns the root message followed by every reply
+// (in stream-arrival order) for the given thread root.
+//
+// Source: RoomTimelineProjection for the root, ThreadProjection for
+// the replies. The ThreadProjection holds replies plus edit/retract
+// events targeting them — currently we surface only MessagePostedEvent
+// replies here so legacy callers see the same shape as the
+// SERVER_EVENTS-backed implementation. Edits / retracts are folded
+// onto the original via LatestBody at body-resolve time.
+//
+// Authorization: caller must verify room membership before calling.
 func (c *ChattoCore) GetThreadEvents(ctx context.Context, kind RoomKind, room_id string, threadRootEventId string) ([]*corev1.Event, error) {
-	stream := c.storage.serverEventsStream
-
-	// 1. First, fetch the root message by event ID
-	rootEvent, err := c.GetRoomEventByEventID(ctx, kind, room_id, threadRootEventId)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get root message: %w", err)
-	}
-	if rootEvent == nil {
+	rootEntry, ok := c.RoomTimeline.Get(threadRootEventId)
+	if !ok {
 		return nil, fmt.Errorf("thread root message not found: event ID %s", threadRootEventId)
 	}
-
-	// Verify it's actually a message (not some other event type)
-	if rootEvent.GetMessagePosted() == nil {
+	if rootEntry.Event.GetMessagePosted() == nil {
 		return nil, fmt.Errorf("event ID %s is not a message event", threadRootEventId)
 	}
 
-	// 2. Fetch all thread replies using subject filter
-	// Thread replies are published to: space.{s}.room.{r}.msg.{rootEventId}.replies.{eventId}
-	threadFilterSubject := subjects.RoomThreadFilter(string(kind), room_id, threadRootEventId)
-
-	// Create ephemeral consumer to fetch all thread replies
-	consumer, err := stream.CreateConsumer(ctx, jetstream.ConsumerConfig{
-		FilterSubject:     threadFilterSubject,
-		DeliverPolicy:     jetstream.DeliverAllPolicy,
-		AckPolicy:         jetstream.AckExplicitPolicy,
-		MemoryStorage:     true,
-		InactiveThreshold: 10 * time.Second,
-	})
-	if err != nil {
-		// If consumer creation fails, still return the root message
-		c.logger.Warn("Failed to create thread consumer", "error", err)
-		return []*corev1.Event{rootEvent}, nil
-	}
-
-	// Ensure consumer is deleted when we're done
-	consumerName := consumer.CachedInfo().Name
-	defer func() {
-		if err := stream.DeleteConsumer(ctx, consumerName); err != nil {
-			c.logger.Debug("Failed to delete thread consumer", "consumer", consumerName, "error", err)
-		}
-	}()
-
-	// Collect all thread replies by fetching in batches until exhausted
-	events := []*corev1.Event{rootEvent}
-	const batchSize = 500
-
-	for {
-		msgs, err := consumer.Fetch(batchSize, jetstream.FetchMaxWait(100*time.Millisecond))
-		if err != nil && !errors.Is(err, jetstream.ErrNoMessages) {
-			c.logger.Warn("Failed to fetch thread replies", "error", err)
-			break
-		}
-
-		if msgs == nil {
-			break
-		}
-
-		fetchedCount := 0
-		for msg := range msgs.Messages() {
-			fetchedCount++
-
-			var event corev1.Event
-			if err := proto.Unmarshal(msg.Data(), &event); err != nil {
-				msg.Ack()
-				continue
-			}
-
-			// Skip events with unknown/removed inner types (e.g., old ThreadReplyEchoEvent)
-			if event.Event == nil {
-				msg.Ack()
-				continue
-			}
-
-			events = append(events, &event)
-			msg.Ack()
-		}
-
-		// If we got fewer messages than batch size, we've exhausted the stream
-		if fetchedCount < batchSize {
-			break
-		}
-	}
-
-	c.logger.Debug("Fetched thread events", "kind", kind, "room_id", room_id, "thread_root_event_id", threadRootEventId, "count", len(events))
-
-	return events, nil
-}
-
-// threadMetadataKey returns the KV key for thread metadata: {roomId}.{rootEventId}
-func threadMetadataKey(roomID string, rootEventId string) string {
-	return fmt.Sprintf("%s.%s", roomID, rootEventId)
-}
-
-// updateThreadMetadata updates the thread metadata in KV with optimistic locking.
-// Called when a reply is posted to a thread. Tracks reply count, last reply time, and participants.
-// The rootAuthorID is the author of the thread root message - they're included as the first participant.
-func (c *ChattoCore) updateThreadMetadata(ctx context.Context, kind RoomKind, roomID string, rootEventId string, rootAuthorID, replyAuthorID string, replyTime time.Time) error {
-	const maxRetries = 5
-
-	bucket := c.storage.serverThreadsKV
-
-	key := threadMetadataKey(roomID, rootEventId)
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		// Get current entry (if any) with its revision
-		var revision uint64
-		var metadata *corev1.ThreadMetadata
-
-		entry, err := bucket.Get(ctx, key)
-		if err == nil {
-			// Key exists - unmarshal and get revision
-			revision = entry.Revision()
-			metadata = &corev1.ThreadMetadata{}
-			if unmarshalErr := proto.Unmarshal(entry.Value(), metadata); unmarshalErr != nil {
-				c.logger.Warn("Failed to unmarshal thread metadata, creating new", "error", unmarshalErr)
-				metadata = nil
-			}
-		} else if !errors.Is(err, jetstream.ErrKeyNotFound) {
-			return fmt.Errorf("failed to get thread metadata: %w", err)
-		}
-
-		// Create or update metadata
-		if metadata == nil {
-			// First reply to this thread - initialize participant list with root author first
-			participants := []string{}
-			if rootAuthorID != "" {
-				participants = append(participants, rootAuthorID)
-			}
-			// Add reply author if different from root author
-			if replyAuthorID != rootAuthorID {
-				participants = append(participants, replyAuthorID)
-			}
-			metadata = &corev1.ThreadMetadata{
-				RootEventId:    rootEventId,
-				ReplyCount:     1,
-				LastReplyAt:    timestamppb.New(replyTime),
-				ParticipantIds: participants,
-			}
-		} else {
-			metadata.ReplyCount++
-			metadata.LastReplyAt = timestamppb.New(replyTime)
-
-			// Ensure root author is in participants (for backward compatibility with existing threads)
-			if rootAuthorID != "" {
-				rootAuthorExists := false
-				for _, pid := range metadata.ParticipantIds {
-					if pid == rootAuthorID {
-						rootAuthorExists = true
-						break
-					}
-				}
-				if !rootAuthorExists && len(metadata.ParticipantIds) < maxThreadParticipants {
-					// Insert root author at the beginning
-					metadata.ParticipantIds = append([]string{rootAuthorID}, metadata.ParticipantIds...)
-				}
-			}
-
-			// Add reply author if not already present and under cap
-			replyAuthorExists := false
-			for _, pid := range metadata.ParticipantIds {
-				if pid == replyAuthorID {
-					replyAuthorExists = true
-					break
-				}
-			}
-			if !replyAuthorExists && len(metadata.ParticipantIds) < maxThreadParticipants {
-				metadata.ParticipantIds = append(metadata.ParticipantIds, replyAuthorID)
-			}
-		}
-
-		// Marshal and store
-		data, err := proto.Marshal(metadata)
-		if err != nil {
-			return fmt.Errorf("failed to marshal thread metadata: %w", err)
-		}
-
-		// Try atomic update
-		var updateErr error
-		if revision == 0 {
-			// No existing key - use Create for atomic insert
-			_, updateErr = bucket.Create(ctx, key, data)
-		} else {
-			// Existing key - use Update with revision check
-			_, updateErr = bucket.Update(ctx, key, data, revision)
-		}
-
-		if updateErr == nil {
-			c.logger.Debug("Updated thread metadata",
-				"kind", kind,
-				"room_id", roomID,
-				"root_event_id", rootEventId,
-				"reply_count", metadata.ReplyCount,
-				"participants", len(metadata.ParticipantIds))
-			return nil
-		}
-
-		// Check if it's a revision conflict (concurrent update)
-		if errors.Is(updateErr, jetstream.ErrKeyExists) {
-			c.logger.Debug("Thread metadata revision conflict, retrying",
-				"room_id", roomID,
-				"root_event_id", rootEventId,
-				"attempt", attempt+1)
+	replies := c.Threads.ThreadEvents(threadRootEventId)
+	events := make([]*corev1.Event, 0, 1+len(replies))
+	events = append(events, rootEntry.Event)
+	for _, r := range replies {
+		// Skip edit/retract entries — the body resolver folds them via
+		// LatestBody. The thread pane only wants the post events.
+		if r.Event.GetMessagePosted() == nil {
 			continue
 		}
-
-		// Some other error
-		return fmt.Errorf("failed to store thread metadata: %w", updateErr)
+		events = append(events, r.Event)
 	}
-
-	return fmt.Errorf("failed to update thread metadata after %d retries due to concurrent modifications", maxRetries)
+	return events, nil
 }
 
 // notifyThreadFollowers creates persistent notifications for all thread followers when someone replies.
@@ -401,51 +217,64 @@ func (c *ChattoCore) notifyInReplyToAuthor(ctx context.Context, kind RoomKind, r
 	return originalAuthorID
 }
 
-// GetThreadMetadata returns the reply count, last reply timestamp, and participants for a thread root message.
-// Returns zero values if the message has no replies.
-// Reads from the THREADS KV bucket which is updated on each reply.
+// GetThreadMetadata returns reply count, last reply timestamp, and
+// participants for a thread root message. Returns zero values if the
+// thread has no replies. Derived live from the ThreadProjection.
 func (c *ChattoCore) GetThreadMetadata(ctx context.Context, kind RoomKind, roomID string, rootEventId string) (*ThreadMetadata, error) {
-	bucket := c.storage.serverThreadsKV
+	replies := c.Threads.ThreadEvents(rootEventId)
 
-	entry, err := bucket.Get(ctx, threadMetadataKey(roomID, rootEventId))
-	if err != nil {
-		if errors.Is(err, jetstream.ErrKeyNotFound) {
-			// No thread metadata = no replies
-			return &ThreadMetadata{ReplyCount: 0}, nil
+	metadata := &ThreadMetadata{}
+	participants := make(map[string]struct{})
+	var latestReplyAt *time.Time
+	for _, r := range replies {
+		// Only MessagePostedEvent entries count as replies — edit /
+		// retract entries land in the thread's bucket but mustn't
+		// inflate the metadata.
+		posted := r.Event.GetMessagePosted()
+		if posted == nil {
+			continue
 		}
-		return nil, fmt.Errorf("failed to get thread metadata: %w", err)
+		eventID := r.Event.GetId()
+		if c.RoomTimeline.MessageTombstoned(eventID) {
+			continue
+		}
+		metadata.ReplyCount++
+		if actor := r.Event.GetActorId(); actor != "" {
+			if len(participants) < maxThreadParticipants {
+				participants[actor] = struct{}{}
+			}
+		}
+		if t := r.Event.GetCreatedAt(); t != nil {
+			ts := t.AsTime()
+			if latestReplyAt == nil || ts.After(*latestReplyAt) {
+				latestReplyAt = &ts
+			}
+		}
 	}
-
-	var pbMetadata corev1.ThreadMetadata
-	if err := proto.Unmarshal(entry.Value(), &pbMetadata); err != nil {
-		c.logger.Warn("Failed to unmarshal thread metadata", "error", err)
-		return &ThreadMetadata{ReplyCount: 0}, nil
+	if len(participants) > 0 {
+		metadata.ParticipantIDs = make([]string, 0, len(participants))
+		for id := range participants {
+			metadata.ParticipantIDs = append(metadata.ParticipantIDs, id)
+		}
 	}
-
-	metadata := &ThreadMetadata{
-		ReplyCount:     int(pbMetadata.ReplyCount),
-		ParticipantIDs: pbMetadata.ParticipantIds,
-	}
-
-	if pbMetadata.LastReplyAt != nil {
-		t := pbMetadata.LastReplyAt.AsTime()
-		metadata.LastReplyAt = &t
-	}
-
+	metadata.LastReplyAt = latestReplyAt
 	return metadata, nil
 }
 
-// threadLastOpenedKey returns the KV key for tracking when a user last opened a thread.
+// threadLastOpenedKey returns the RUNTIME_STATE key for tracking the latest
+// thread message the user has seen.
 func threadLastOpenedKey(userID, roomID, threadRootEventID string) string {
-	return fmt.Sprintf("thread_last_opened.%s.%s.%s", userID, roomID, threadRootEventID)
+	return fmt.Sprintf("read.thread.%s.%s.%s", userID, roomID, threadRootEventID)
 }
 
-// GetThreadLastOpened retrieves the timestamp when a user last opened a thread.
-// Returns zero time if the thread has never been opened.
+// GetThreadLastOpened retrieves the timestamp of the latest thread message the
+// user has seen. Returns zero time if the thread has never been opened.
+//
+// New RUNTIME_STATE markers store the seen message event ID. Values migrated
+// from SERVER_RUNTIME may still be the legacy 8-byte UnixNano timestamp; those
+// are decoded here so existing read state survives the rollout.
 func (c *ChattoCore) GetThreadLastOpened(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string) (time.Time, error) {
-	bucket := c.storage.serverRuntimeKV
-
-	entry, err := bucket.Get(ctx, threadLastOpenedKey(userID, roomID, threadRootEventID))
+	entry, err := c.storage.runtimeStateKV.Get(ctx, threadLastOpenedKey(userID, roomID, threadRootEventID))
 	if err != nil {
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
 			return time.Time{}, nil // Never opened
@@ -453,19 +282,14 @@ func (c *ChattoCore) GetThreadLastOpened(ctx context.Context, kind RoomKind, use
 		return time.Time{}, fmt.Errorf("failed to get thread last opened: %w", err)
 	}
 
-	// Decode int64 (Unix nano) from bytes using binary.BigEndian
-	if len(entry.Value()) != 8 {
-		return time.Time{}, fmt.Errorf("invalid thread last opened value")
-	}
-	nanos := int64(binary.BigEndian.Uint64(entry.Value()))
-	return time.Unix(0, nanos), nil
+	return c.threadReadMarkerTime(ctx, kind, roomID, entry.Value())
 }
 
-// SetThreadLastOpenedAt stores ts as the user's last-opened time for a
-// thread, but only if ts is newer than the existing marker (advance-only).
-// Returns the previous last-opened time (zero if never opened before).
-func (c *ChattoCore) SetThreadLastOpenedAt(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string, ts time.Time) (time.Time, error) {
-	bucket := c.storage.serverRuntimeKV
+// SetThreadLastReadEventID stores eventID as the latest thread message the user
+// has seen, but only if it is newer than the existing marker (advance-only).
+// Returns the previous marker time (zero if never opened before).
+func (c *ChattoCore) SetThreadLastReadEventID(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID, eventID string) (time.Time, error) {
+	bucket := c.storage.runtimeStateKV
 	key := threadLastOpenedKey(userID, roomID, threadRootEventID)
 
 	var previousTime time.Time
@@ -473,9 +297,50 @@ func (c *ChattoCore) SetThreadLastOpenedAt(ctx context.Context, kind RoomKind, u
 	if err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
 		return time.Time{}, fmt.Errorf("failed to get previous thread last opened: %w", err)
 	}
-	if err == nil && len(entry.Value()) == 8 {
-		nanos := int64(binary.BigEndian.Uint64(entry.Value()))
-		previousTime = time.Unix(0, nanos)
+	if err == nil {
+		previousTime, err = c.threadReadMarkerTime(ctx, kind, roomID, entry.Value())
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+
+	nextTime, err := c.GetEventTimestamp(ctx, kind, roomID, eventID)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if nextTime.IsZero() {
+		return previousTime, nil
+	}
+
+	if !nextTime.After(previousTime) {
+		return previousTime, nil
+	}
+
+	if _, err = bucket.Put(ctx, key, []byte(eventID)); err != nil {
+		return time.Time{}, fmt.Errorf("failed to set thread last opened: %w", err)
+	}
+
+	c.logger.Debug("Set thread last read event", "user_id", userID, "room_id", roomID, "thread_root_event_id", threadRootEventID, "previous", previousTime, "event_id", eventID)
+	return previousTime, nil
+}
+
+// SetThreadLastOpenedAt is retained for timestamp-based callers/tests. It
+// stores a legacy timestamp marker in RUNTIME_STATE and should not be used for
+// new code when a concrete event ID is available.
+func (c *ChattoCore) SetThreadLastOpenedAt(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string, ts time.Time) (time.Time, error) {
+	bucket := c.storage.runtimeStateKV
+	key := threadLastOpenedKey(userID, roomID, threadRootEventID)
+
+	var previousTime time.Time
+	entry, err := bucket.Get(ctx, key)
+	if err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
+		return time.Time{}, fmt.Errorf("failed to get previous thread last opened: %w", err)
+	}
+	if err == nil {
+		previousTime, err = c.threadReadMarkerTime(ctx, kind, roomID, entry.Value())
+		if err != nil {
+			return time.Time{}, err
+		}
 	}
 
 	if !ts.After(previousTime) {
@@ -484,20 +349,47 @@ func (c *ChattoCore) SetThreadLastOpenedAt(ctx context.Context, kind RoomKind, u
 
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(ts.UnixNano()))
-
 	if _, err = bucket.Put(ctx, key, buf); err != nil {
 		return time.Time{}, fmt.Errorf("failed to set thread last opened: %w", err)
 	}
-
-	c.logger.Debug("Set thread last opened", "user_id", userID, "room_id", roomID, "thread_root_event_id", threadRootEventID, "previous", previousTime, "at", ts)
+	c.logger.Debug("Set legacy thread last opened timestamp", "user_id", userID, "room_id", roomID, "thread_root_event_id", threadRootEventID, "previous", previousTime, "at", ts)
 	return previousTime, nil
 }
 
-// SetThreadLastOpened records the current wall-clock time as the user's
-// last-opened time for a thread. Returns the previous last-opened time
-// (zero if never opened before).
+// SetThreadLastOpened records the latest current reply in the thread as read.
+// Returns the previous marker time (zero if never opened before).
 func (c *ChattoCore) SetThreadLastOpened(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string) (time.Time, error) {
-	return c.SetThreadLastOpenedAt(ctx, kind, userID, roomID, threadRootEventID, time.Now())
+	latestID := c.latestThreadMessageEventID(threadRootEventID)
+	if latestID == "" {
+		return time.Time{}, nil
+	}
+	return c.SetThreadLastReadEventID(ctx, kind, userID, roomID, threadRootEventID, latestID)
+}
+
+func (c *ChattoCore) threadReadMarkerTime(ctx context.Context, kind RoomKind, roomID string, value []byte) (time.Time, error) {
+	if len(value) == 8 {
+		nanos := int64(binary.BigEndian.Uint64(value))
+		return time.Unix(0, nanos), nil
+	}
+	eventID := string(value)
+	if eventID == "" {
+		return time.Time{}, nil
+	}
+	return c.GetEventTimestamp(ctx, kind, roomID, eventID)
+}
+
+func (c *ChattoCore) latestThreadMessageEventID(threadRootEventID string) string {
+	entries := c.Threads.ThreadEvents(threadRootEventID)
+	for i := len(entries) - 1; i >= 0; i-- {
+		event := entries[i].Event
+		if event == nil || event.GetMessagePosted() == nil {
+			continue
+		}
+		if id := event.GetId(); id != "" {
+			return id
+		}
+	}
+	return threadRootEventID
 }
 
 // threadFollowKey returns the KV key for tracking whether a user is following a thread.
@@ -506,10 +398,10 @@ func threadFollowKey(userID, roomID, threadRootEventID string) string {
 }
 
 // FollowThread marks a user as following a thread so they receive reply notifications.
-// Stores a single byte in the RUNTIME KV bucket. Idempotent.
+// Stores a single byte in RUNTIME_STATE. Idempotent.
 // Publishes a ThreadFollowChangedEvent for multi-tab sync.
 func (c *ChattoCore) FollowThread(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string) error {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 
 	if _, err := bucket.Put(ctx, threadFollowKey(userID, roomID, threadRootEventID), []byte{0x01}); err != nil {
 		return fmt.Errorf("failed to follow thread: %w", err)
@@ -523,7 +415,7 @@ func (c *ChattoCore) FollowThread(ctx context.Context, kind RoomKind, userID, ro
 // Idempotent - calling when not following is a no-op.
 // Publishes a ThreadFollowChangedEvent for multi-tab sync.
 func (c *ChattoCore) UnfollowThread(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string) error {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 
 	if err := bucket.Delete(ctx, threadFollowKey(userID, roomID, threadRootEventID)); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) {
 		return fmt.Errorf("failed to unfollow thread: %w", err)
@@ -536,20 +428,17 @@ func (c *ChattoCore) UnfollowThread(ctx context.Context, kind RoomKind, userID, 
 // publishThreadFollowChangedEvent publishes a live event when a user's thread follow state changes.
 // User-scoped: only delivered to the user who changed their follow state.
 func (c *ChattoCore) publishThreadFollowChangedEvent(ctx context.Context, userID string, kind RoomKind, roomID, threadRootEventID string, isFollowing bool) {
-	event := &corev1.Event{
-		Id:        NewEventID(),
-		ActorId:   userID,
-		CreatedAt: timestamppb.Now(),
-		Event: &corev1.Event_ThreadFollowChanged{
+	event := newLiveEvent(userID, &corev1.LiveEvent{
+		Event: &corev1.LiveEvent_ThreadFollowChanged{
 			ThreadFollowChanged: &corev1.ThreadFollowChangedEvent{
 				RoomId:            roomID,
 				ThreadRootEventId: threadRootEventID,
 				IsFollowing:       isFollowing,
 			},
 		},
-	}
+	})
 
-	subject := subjects.LiveUserEvent(userID, "thread_follow_changed")
+	subject := subjects.LiveSyncUserEvent(userID, "thread_follow_changed")
 	if err := c.publishLiveEvent(ctx, subject, event); err != nil {
 		c.logger.Warn("Failed to publish thread follow changed event", "error", err, "user_id", userID, "thread_root_event_id", threadRootEventID)
 	}
@@ -557,7 +446,7 @@ func (c *ChattoCore) publishThreadFollowChangedEvent(ctx context.Context, userID
 
 // IsFollowingThread checks if a user is following a thread.
 func (c *ChattoCore) IsFollowingThread(ctx context.Context, kind RoomKind, userID, roomID, threadRootEventID string) (bool, error) {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 
 	if _, err := bucket.Get(ctx, threadFollowKey(userID, roomID, threadRootEventID)); err != nil {
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
@@ -571,7 +460,7 @@ func (c *ChattoCore) IsFollowingThread(ctx context.Context, kind RoomKind, userI
 // GetThreadFollowers returns all user IDs following a specific thread.
 // Uses ListKeysFiltered to scan for thread_follow.*.{roomID}.{threadRootEventID} keys.
 func (c *ChattoCore) GetThreadFollowers(ctx context.Context, kind RoomKind, roomID, threadRootEventID string) ([]string, error) {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 
 	pattern := fmt.Sprintf("thread_follow.*.%s.%s", roomID, threadRootEventID)
 	lister, err := bucket.ListKeysFiltered(ctx, pattern)
@@ -600,7 +489,7 @@ func (c *ChattoCore) ListFollowedThreads(ctx context.Context, userID string, spa
 	var allThreads []*FollowedThread
 
 	for _, spaceID := range spaceIDs {
-		threads, err := c.listFollowedThreadsInSpace(ctx, userID, KindForSpace(spaceID))
+		threads, err := c.listFollowedThreadsInSpace(ctx, userID, RoomKindFromLegacySpaceID(spaceID))
 		if err != nil {
 			c.logger.Warn("Failed to list followed threads for space", "space_id", spaceID, "error", err)
 			continue
@@ -624,7 +513,7 @@ func (c *ChattoCore) ListFollowedThreads(ctx context.Context, userID string, spa
 
 // listFollowedThreadsInSpace returns all threads followed by the user in a single space.
 func (c *ChattoCore) listFollowedThreadsInSpace(ctx context.Context, userID string, kind RoomKind) ([]*FollowedThread, error) {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 
 	// List all thread_follow keys for this user across all rooms
 	// Use ">" to match remaining parts: thread_follow.{userId}.{roomId}.{threadRootEventId}
@@ -666,7 +555,7 @@ func (c *ChattoCore) listFollowedThreadsInSpace(ctx context.Context, userID stri
 		}
 
 		result = append(result, &FollowedThread{
-			SpaceID:           SpaceIDForKind(kind),
+			SpaceID:           LegacySpaceIDForRoomKind(kind),
 			RoomID:            roomID,
 			ThreadRootEventID: threadRootEventID,
 			ReplyCount:        metadata.ReplyCount,

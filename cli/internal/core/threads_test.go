@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"hmans.de/chatto/internal/core/subjects"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -338,7 +339,12 @@ func TestChattoCore_ThreadLastOpened(t *testing.T) {
 	// Setup
 	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "General", "General discussion")
 	user, _ := core.CreateUser(ctx, "system", "testuser", "testuser", "password123")
-	threadRootEventId := "test-thread-root-123"
+	core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
+	root, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Root message", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Failed to post root message: %v", err)
+	}
+	threadRootEventId := root.Id
 
 	// Initially should return zero time (never opened)
 	lastOpened, err := core.GetThreadLastOpened(ctx, KindChannel, user.Id, room.Id, threadRootEventId)
@@ -444,6 +450,12 @@ func TestChattoCore_ThreadFollow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to follow thread: %v", err)
 		}
+
+		key := threadFollowKey(user.Id, room.Id, threadRootEventId)
+		if _, err := core.storage.runtimeStateKV.Get(ctx, key); err != nil {
+			t.Fatalf("Expected thread follow in RUNTIME_STATE: %v", err)
+		}
+		assertLegacyKeyAbsent(t, core.storage.serverRuntimeKV, key, "legacy SERVER_RUNTIME follow")
 
 		isFollowing, err := core.IsFollowingThread(ctx, KindChannel, user.Id, room.Id, threadRootEventId)
 		if err != nil {
@@ -563,7 +575,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 	core.JoinRoom(ctx, userB.Id, KindChannel, userB.Id, room2.Id)
 
 	t.Run("returns empty list when no threads are followed", func(t *testing.T) {
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -586,7 +598,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 
 	t.Run("returns followed threads sorted by last activity", func(t *testing.T) {
 		// User A auto-follows both threads (root author auto-follow on first reply)
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -604,7 +616,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 	})
 
 	t.Run("includes correct metadata", func(t *testing.T) {
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -617,7 +629,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 		if thread2.RoomID != room2.Id {
 			t.Errorf("Expected room2 ID, got %s", thread2.RoomID)
 		}
-		if thread2.SpaceID != SpaceIDForKind(KindChannel) {
+		if thread2.SpaceID != LegacySpaceIDForRoomKind(KindChannel) {
 			t.Errorf("Expected canonical space ID, got %s", thread2.SpaceID)
 		}
 		if thread2.LastReplyAt == nil {
@@ -632,7 +644,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 	})
 
 	t.Run("hasUnread is true when thread has activity after last opened", func(t *testing.T) {
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -655,7 +667,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 		// User A opens thread 2
 		core.SetThreadLastOpened(ctx, KindChannel, userA.Id, room2.Id, rootMsg2.Id)
 
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -677,7 +689,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 		// User A unfollows thread 1
 		core.UnfollowThread(ctx, KindChannel, userA.Id, room1.Id, rootMsg1.Id)
 
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -691,7 +703,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 
 	t.Run("only returns threads for the specified user", func(t *testing.T) {
 		// User B followed both threads (auto-follow from posting replies)
-		threadsB, err := core.ListFollowedThreads(ctx, userB.Id, []string{ServerSpaceID})
+		threadsB, err := core.ListFollowedThreads(ctx, userB.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads for user B: %v", err)
 		}
@@ -700,7 +712,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 		}
 
 		// User A should still only have 1 (unfollowed thread 1 above)
-		threadsA, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threadsA, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads for user A: %v", err)
 		}
@@ -713,7 +725,7 @@ func TestChattoCore_ListFollowedThreads(t *testing.T) {
 		// Manually follow a thread that has no metadata (orphaned)
 		core.FollowThread(ctx, KindChannel, userA.Id, room1.Id, "nonexistent-thread-id")
 
-		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{ServerSpaceID})
+		threads, err := core.ListFollowedThreads(ctx, userA.Id, []string{LegacyServerSpaceID})
 		if err != nil {
 			t.Fatalf("Failed to list followed threads: %v", err)
 		}
@@ -958,9 +970,8 @@ func TestChattoCore_PostMessage_ThreadReplyEcho(t *testing.T) {
 		for _, e := range roomEvents {
 			if msg := e.GetMessagePosted(); msg != nil && msg.EchoOfEventId != "" {
 				foundEcho = true
-				if msg.MessageBodyId != reply.MessageBodyId {
-					t.Errorf("Echo should share messageBodyId with reply: got echo=%q, reply=%q", msg.MessageBodyId, reply.MessageBodyId)
-				}
+				// The echo has its own envelope id. EchoOfEventId /
+				// EchoFromThreadRootEventId are the shared identifiers.
 				if msg.EchoOfEventId != replyEvent.Id {
 					t.Errorf("Echo.EchoOfEventId should be %q, got %q", replyEvent.Id, msg.EchoOfEventId)
 				}
@@ -1021,32 +1032,51 @@ func TestChattoCore_PostMessage_ThreadReplyEcho(t *testing.T) {
 		}
 	})
 
-	t.Run("shared message body between echo and reply", func(t *testing.T) {
-		// Post root and reply with echo
+	t.Run("echo carries the same body content as the reply", func(t *testing.T) {
+		// Post root and reply with echo.
 		rootEvent, _ := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Root for body test", nil, "", "", nil, false)
 		replyEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Shared body content", nil, rootEvent.Id, "", nil, true)
 		if err != nil {
 			t.Fatalf("Failed to post reply: %v", err)
 		}
 
+		// Echo and reply each have their own envelope id and encryption
+		// context, but decrypt to the same visible content.
 		reply := replyEvent.GetMessagePosted()
+		replyBody := reply.GetBody()
+		if replyBody == nil {
+			t.Fatal("reply has no embedded body")
+		}
 
-		// Find the echo in room events
 		roomEventsResult, _ := core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
-		roomEvents := roomEventsResult.Events
-		var echoBodyID string
-		for _, e := range roomEvents {
+		var echoBody *corev1.MessageBody
+		var echoID string
+		for _, e := range roomEventsResult.Events {
 			if msg := e.GetMessagePosted(); msg != nil && msg.EchoOfEventId == replyEvent.Id {
-				echoBodyID = msg.MessageBodyId
+				echoBody = msg.GetBody()
+				echoID = e.Id
 				break
 			}
 		}
-
-		if echoBodyID == "" {
-			t.Fatal("Echo not found in room events")
+		if echoBody == nil {
+			t.Fatal("Echo not found in room events (or has no embedded body)")
 		}
-		if echoBodyID != reply.MessageBodyId {
-			t.Errorf("Echo and reply should share messageBodyId: echo=%q, reply=%q", echoBodyID, reply.MessageBodyId)
+		if echoID == "" {
+			t.Fatal("Echo event has no id")
+		}
+		if string(echoBody.EncryptedBody) == string(replyBody.EncryptedBody) {
+			t.Errorf("Echo body ciphertext should be independently encrypted")
+		}
+		echoText, err := core.GetMessageBody(ctx, KindChannel, echoID)
+		if err != nil {
+			t.Fatalf("Failed to decrypt echo body: %v", err)
+		}
+		replyText, err := core.GetMessageBody(ctx, KindChannel, replyEvent.Id)
+		if err != nil {
+			t.Fatalf("Failed to decrypt reply body: %v", err)
+		}
+		if echoText != replyText || echoText != "Shared body content" {
+			t.Errorf("Echo/reply body = %q/%q, want shared content", echoText, replyText)
 		}
 	})
 }
@@ -1065,7 +1095,7 @@ func TestChattoCore_PostMessage_EchoMentionNotification(t *testing.T) {
 	t.Run("echo with mention produces exactly one notification", func(t *testing.T) {
 		// Subscribe to live mention events for the target user
 		mentionCount := 0
-		sub, err := nc.Subscribe("live.server.user."+target.Id+".mentioned", func(msg *nats.Msg) {
+		sub, err := nc.Subscribe(subjects.LiveSyncUserEvent(target.Id, "mentioned"), func(msg *nats.Msg) {
 			mentionCount++
 		})
 		if err != nil {

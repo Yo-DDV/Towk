@@ -11,15 +11,15 @@ ADR-027 collapsed the historical three-tier model (Instance → Space → Room) 
 The Space tier is therefore *behaviourally* retired, but its mechanical residue is still load-bearing in four places:
 
 1. **A vestigial primary-space record with stale readers.** Every deployment has one `Space` proto stored in `INSTANCE` KV at key `space.{spaceId}` with fields `id`, `name`, `description`. The branding (logo, banner) and the canonical server name/description already live in `INSTANCE_CONFIG` (`ServerConfig` proto + separate `instance.logo`/`instance.banner` keys). Four code paths still read from the Space record anyway (line numbers omitted — these files have since shifted):
-   - `cli/internal/core/dm.go` — bootstrap creates a `DMSpaceID` Space record
+   - `cli/internal/core/dm.go` — bootstrap creates a synthetic DM Space record
    - `cli/internal/graph/mutation.resolvers.go` — explicit "until PR(c)" dual-write of name/description
    - `cli/internal/http_server/opengraph.go` — OG metadata reads `space.Name` / `space.Description` (stale; `ServerConfig` is the right source)
    - `cli/internal/graph/space_helpers.go` — thin GraphQL wrapper
    These are dead-end reads of stale data. Once they're removed, the persisted `space.{spaceId}` KV record becomes an orphan and can be left alone — one tiny entry per server, zero functional impact.
 
-2. **`spaceID` plumbing on the core API.** Roughly 80 functions across `cli/internal/core/*.go` still take a `spaceID string` parameter. Every one of them either ignores the value or feeds it into `KindForSpace(spaceID)` (in `cli/internal/core/dm.go`), which exists only to map a sentinel `DMSpaceID` to `"dm"` and everything else to `"channel"`. The parameter is a one-bit DM flag dressed up as an ID.
+2. **`spaceID` plumbing on the core API.** Roughly 80 functions across `cli/internal/core/*.go` still take a `spaceID string` parameter. Every one of them either ignores the value or feeds it into a legacy compatibility mapping, which exists only to map the legacy wire value `space_id = "DM"` to `"dm"` and everything else to `"channel"`. The parameter is a one-bit DM flag dressed up as an ID.
 
-3. **DMs are still modelled as a hidden space.** ADR-015's "hidden DM space" predates the room-`kind` discriminator. With the `kind` field now baked into KV keys and NATS subjects, the DM scope is determined by `kind == "dm"` directly; the `DMSpaceID` sentinel is the only thing that needs the Space-shaped routing to survive.
+3. **DMs still have legacy hidden-space residue at the wire boundary.** ADR-015's "hidden DM space" predates the room-`kind` discriminator. With the `kind` field now baked into KV keys and NATS subjects, the DM scope is determined by `kind == "dm"` directly; the old `space_id = "DM"` value only survives where persisted payloads or compatibility APIs still carry a `space_id` field.
 
 4. **Proto layer is partially renamed.** GraphQL already exposes live deployment-scoped events as `ServerUpdatedEvent` / `ServerCreatedEvent` / `ServerDeletedEvent`, but the proto messages are still called `SpaceUpdatedEvent` / `SpaceCreatedEvent` / `SpaceDeletedEvent` (fields 1030–1032 in the unified `corev1.Event` oneof — all in the live-only `>=1000` range, so renaming them is wire-format-safe). `SpaceUserPreferences` (used by notification levels) and the bare `Space` / `SpaceMembership` messages share the same naming legacy.
 
@@ -38,7 +38,7 @@ When a function previously took `spaceID` and the only thing it actually needed 
 - takes a `kind RoomKind` (or `kind string` for now, pending a typed enum), if the kind is what the caller wants to express; or
 - drops the parameter entirely if the function only needs the room ID (the kind is derivable from the room record).
 
-The DM sentinel `DMSpaceID` is retired in favour of an explicit `kind == "dm"` check at call sites.
+The DM sentinel is retired as a product/storage concept in favour of an explicit `kind == "dm"` check at call sites. A small `RoomKindFromLegacySpaceID` / `LegacySpaceIDForRoomKind` mapping may remain only at wire-format boundaries where persisted payloads or compatibility APIs still expose `space_id`.
 
 ### Scope
 
@@ -83,7 +83,7 @@ Each phase is shippable independently. Phases 1 and 2 are good candidates to com
 - The core Go API stops lying about its shape: signatures reflect what data they actually depend on.
 - New contributors don't have to learn the Space tier just to find it's not real.
 - `spaces.go` (1070 lines) goes away. The `Space` Go type and `Server.primarySpaceId` GraphQL bridge field go away.
-- The DM mechanism gets simpler: one `kind == "dm"` check instead of a sentinel-space + `kindForSpace` indirection.
+- The DM mechanism gets simpler: normal room code uses `kind == "dm"` directly, while the legacy `space_id` conversion is boxed into explicitly named compatibility helpers.
 - ADR-015 ("DMs as a hidden space") was already marked superseded by ADR-027 at the storage layer. This ADR finishes the job at the API layer.
 
 ### Negative / risks

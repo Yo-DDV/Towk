@@ -8,7 +8,7 @@ import {
   type RoomEventViewFragment
 } from '$lib/gql/graphql';
 import type { FragmentType } from '$lib/gql/fragment-masking';
-import type { ServerEvent } from '$lib/eventBus.svelte';
+import type { EventEnvelope } from '$lib/eventBus.svelte';
 import type { GraphQLClient } from '$lib/state/server/graphqlClient.svelte';
 import type { JumpToMessageState } from './composerContext.svelte';
 
@@ -96,8 +96,12 @@ const ThreadEventsQuery = graphql(`
     room(roomId: $roomId) {
       event(eventId: $threadRootEventId) {
         ...RoomEventView
-        threadReplies {
-          ...RoomEventView
+        event {
+          ... on MessagePostedEvent {
+            threadReplies {
+              ...RoomEventView
+            }
+          }
         }
       }
     }
@@ -248,19 +252,16 @@ export abstract class MessageListStore {
 
   /**
    * Route a space event into the store. Handles all common message-list
-   * mutations: refetch on edit/delete/reaction/video, full reset on
+   * mutations: inline edit/retract, refetch on reaction/video, full reset on
    * RoomDeletedEvent, full refetch on ServerMemberDeletedEvent. Delegates
    * MessagePostedEvent and room system events to subclass hooks.
    */
-  ingestServerEvent(serverEvent: ServerEvent): void {
+  ingestServerEvent(serverEvent: EventEnvelope): void {
     const eventData = serverEvent.event;
     if (!eventData) return;
-    // The subscription envelope (ServerEvent) and the historical-query
-    // envelope (RoomEventView) describe identical fields for the room-
-    // event union members the store cares about — the only TypeScript
-    // difference is the wrapper's broader union of event types. Cast
-    // once at the boundary so the downstream code can keep using the
-    // RoomEventViewFragment shape it was written against.
+    // Subscription and historical-query payloads share the same Event
+    // envelope. Cast once at the room boundary so downstream code can keep
+    // using the RoomEventViewFragment shape it renders with.
     const spaceEvent = serverEvent as unknown as RoomEventViewFragment;
 
     if (eventData.__typename === 'ServerMemberDeletedEvent') {
@@ -280,16 +281,23 @@ export abstract class MessageListStore {
     // (body=null, attachments=[]) and we already know the affected event id,
     // so a server round-trip is wasteful and a refetch failure would leave
     // the original message visible on screen.
-    if (eventData.__typename === 'MessageDeletedEvent') {
+    if (eventData.__typename === 'MessageRetractedEvent') {
       this.applyDeletion(eventData.messageEventId);
       return;
     }
 
+    if (eventData.__typename === 'MessageEditedEvent') {
+      this.applyEdit(eventData.messageEventId, eventData);
+      return;
+    }
+
     if (
-      eventData.__typename === 'MessageUpdatedEvent' ||
       eventData.__typename === 'ReactionAddedEvent' ||
       eventData.__typename === 'ReactionRemovedEvent' ||
-      eventData.__typename === 'VideoProcessingCompletedEvent'
+      eventData.__typename === 'VideoProcessingCompletedEvent' ||
+      eventData.__typename === 'AssetProcessingStartedEvent' ||
+      eventData.__typename === 'AssetProcessingSucceededEvent' ||
+      eventData.__typename === 'AssetProcessingFailedEvent'
     ) {
       this.refetchByMessageEventId(eventData.messageEventId);
       return;
@@ -363,13 +371,24 @@ export abstract class MessageListStore {
   }
 
   /**
-   * Apply a deletion locally to any matching MessagePostedEvent in the buffer
-   * (the original by id, plus any echo whose echoOfEventId points at it).
-   * Mirrors the server's post-deletion state: body=null, attachments=[].
+   * Apply a deletion locally. Direct echo retractions hide only the echo
+   * artifact; original-message retractions tombstone the original and any
+   * visible echoes that point at it.
    * Reactions and reply metadata are left intact so the tombstone row keeps
    * its existing engagement visible alongside the placeholder.
    */
   protected applyDeletion(messageEventId: string): void {
+    const targetIndex = this.events.findIndex((e) => e.id === messageEventId);
+    const target = targetIndex === -1 ? null : this.events[targetIndex];
+    const targetPayload = target?.event;
+    if (
+      targetPayload?.__typename === 'MessagePostedEvent' &&
+      targetPayload.echoOfEventId
+    ) {
+      this.events.splice(targetIndex, 1);
+      return;
+    }
+
     for (let i = 0; i < this.events.length; i++) {
       const e = this.events[i];
       const evt = e.event;
@@ -379,6 +398,34 @@ export abstract class MessageListStore {
       this.events[i] = {
         ...e,
         event: { ...evt, body: null, attachments: [] }
+      };
+    }
+  }
+
+  /**
+   * Apply an edit payload directly to the matching MessagePostedEvent. The
+   * backend emits one canonical edit event per linked post/echo, so we only
+   * patch the direct event ID here; the linked event will arrive separately.
+   */
+  protected applyEdit(
+    messageEventId: string,
+    edit: Extract<EventEnvelope['event'], { __typename: 'MessageEditedEvent' }>
+  ): void {
+    for (let i = 0; i < this.events.length; i++) {
+      const e = this.events[i];
+      const evt = e.event;
+      if (evt?.__typename !== 'MessagePostedEvent') continue;
+      if (e.id !== messageEventId) continue;
+
+      this.events[i] = {
+        ...e,
+        event: {
+          ...evt,
+          body: edit.body,
+          attachments: edit.attachments,
+          linkPreview: edit.linkPreview,
+          updatedAt: edit.updatedAt
+        }
       };
     }
   }
@@ -908,7 +955,8 @@ export class ThreadMessagesStore extends MessageListStore {
           // Merge with any subscription events that arrived during the
           // in-flight query (e.g. the user's own reply or a fast cross-user
           // reply). Overwriting would drop them.
-          this.replaceMergingExisting([root, ...root.threadReplies]);
+          const replies = root.event?.__typename === 'MessagePostedEvent' ? root.event.threadReplies : [];
+          this.replaceMergingExisting([root, ...replies]);
         }
         this.isInitialLoading = false;
       })
@@ -931,8 +979,8 @@ export function isRootRoomEvent(event: RoomEventViewFragment): boolean {
     case 'MessagePostedEvent':
       // Echoes are root-level; thread replies (threadRootEventId set) are not.
       return !!eventData.echoOfEventId || !eventData.threadRootEventId;
-    case 'MessageUpdatedEvent':
-    case 'MessageDeletedEvent':
+    case 'MessageEditedEvent':
+    case 'MessageRetractedEvent':
     case 'UserJoinedRoomEvent':
     case 'UserLeftRoomEvent':
     case 'RoomUpdatedEvent':

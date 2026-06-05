@@ -1,7 +1,7 @@
 # FDR-001: Roles & Permissions (RBAC)
 
 **Status:** Active
-**Last reviewed:** 2026-05-19
+**Last reviewed:** 2026-05-31
 
 ## Overview
 
@@ -13,9 +13,10 @@ Chatto controls who can do what through role-based access control. Every authent
 - The system roles, highest rank first, are `owner`, `admin`, `moderator`, `everyone`. Custom roles can be created and positioned anywhere between `moderator` and `everyone`.
 - A role grants or denies named permissions like `message.post`, `room.create`, `admin.view-users`.
 - Permission grants/denies can be configured at three scopes: per-server (the role default), per room-group, and per room. The most specific scope wins.
+- Permissions gate capabilities, not every form of visibility. For example, DM read access comes from room membership, while `message.post` gates starting DMs and sending root DM messages.
 - Server admins can drag-and-drop to reorder custom roles. System roles are fixed in rank.
 - Owners pass every permission check because the `owner` role is seeded with every server-scope permission — not because the resolver special-cases them. Owners are not above the rules; they hold the rules.
-- Operators can designate owners via `owners.emails` in `chatto.toml`. On email verification, matching users are auto-assigned the `owner` role.
+- Operators can designate owners via `owners.emails` in `chatto.toml`. Matching users are auto-assigned the `owner` role when their email is verified, and already-verified matching users are assigned the role on server boot.
 
 ## Design Decisions
 
@@ -35,7 +36,7 @@ Chatto controls who can do what through role-based access control. Every authent
 
 **Decision:** Permissions resolve room → group → server. The most specific scope wins.
 **Why:** Operators want both "system-wide defaults" and "this one channel works differently" without modelling them as separate role systems. See ADR-031.
-**Tradeoff:** A given permission decision now requires checking up to three KV lookups per role. Acceptable given resolution happens in-process.
+**Tradeoff:** A given permission decision now checks up to three scopes per role. This is acceptable because current RBAC state is kept in an in-memory projection.
 
 ### 4. Owner privileges materialize as role grants, not bypass
 
@@ -45,8 +46,8 @@ Chatto controls who can do what through role-based access control. Every authent
 
 ### 5. Config-designated owners materialize as real role assignments
 
-**Decision:** `owners.emails` in `chatto.toml` triggers an `owner` role assignment on email verification, rather than being checked at permission time.
-**Why:** Avoids a config-vs-role drift class of bug. Once assigned, the role is the source of truth. Fresh deployments work without restart because verification triggers the assignment.
+**Decision:** `owners.emails` in `chatto.toml` materializes durable `owner` role assignments, rather than being checked at permission time. Verification applies the role immediately for newly verified users; server boot applies it to already-verified matching users after config changes.
+**Why:** Avoids a config-vs-role drift class of bug. Once assigned, the role is the source of truth. Fresh deployments work without restart because verification triggers the assignment, and retroactive config changes need only a process restart.
 **Tradeoff:** Removing an email from `owners.emails` doesn't automatically demote that user — operators must revoke the role explicitly. This is intentional: removing the config shouldn't silently change live authorization.
 
 ### 6. Rank gates target-user mutations, in addition to permissions
@@ -55,6 +56,12 @@ Chatto controls who can do what through role-based access control. Every authent
 **Why:** Otherwise a rogue moderator with `role.assign` could rename the owner. Permission asks "can this role do X at all?"; rank asks "does the actor outrank this specific target?". Both are needed.
 **Tradeoff:** Two-step checks are more code than a single permission lookup, and easy to forget when adding new mutations. Helpers (`requireUserAdminTarget`, `requireUserPermissionTarget`) exist to keep call sites uniform.
 
+### 7. RBAC state is event-sourced
+
+**Decision:** Role definitions, role order, assignments, and explicit permission decisions are durable events, with reads served from an in-memory RBAC projection.
+**Why:** This aligns RBAC with the rest of Chatto's event-sourced migration and makes authorization reads rebuildable from the deployment event log. See ADR-033 and ADR-035.
+**Tradeoff:** Writes must append events and wait for local projection catch-up before returning, so mutation paths need optimistic concurrency handling instead of direct state writes.
+
 ## Permissions
 
 The full permission catalog is in `cli/internal/core/permission.go`. Key permissions that gate RBAC management itself:
@@ -62,8 +69,9 @@ The full permission catalog is in `cli/internal/core/permission.go`. Key permiss
 - `role.manage` — create, edit, delete roles and the permissions attached to them.
 - `role.assign` — assign roles to users.
 - `admin.access`, `admin.view-users`, `admin.view-system`, `admin.view-audit` — gate access to the admin UI and its sub-views.
+- `message.post` — post root messages in rooms and start DMs. Reading DMs is not permission-gated; it follows room membership.
 
 ## Related
 
-- **ADRs:** ADR-004 (authorization at API boundary), ADR-005 (hierarchy-wins RBAC), ADR-027 (instance/space consolidation), ADR-030 (space tier retirement), ADR-031 (room-group-centric ACL)
+- **ADRs:** ADR-004 (authorization at API boundary), ADR-005 (hierarchy-wins RBAC), ADR-027 (instance/space consolidation), ADR-030 (space tier retirement), ADR-031 (room-group-centric ACL), ADR-033 (event-sourced state), ADR-035 (per-aggregate migration), ADR-037 (DM access via membership)
 - **FDRs:** Every FDR that mentions a permission depends on this one.

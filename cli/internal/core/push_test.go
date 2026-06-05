@@ -131,6 +131,12 @@ func TestSavePushSubscription(t *testing.T) {
 		if sub.CreatedAt == nil {
 			t.Error("Expected CreatedAt to be set")
 		}
+
+		key := pushSubscriptionKey(userID, endpoint)
+		if _, err := core.storage.runtimeStateKV.Get(ctx, key); err != nil {
+			t.Fatalf("expected push subscription in RUNTIME_STATE: %v", err)
+		}
+		assertLegacyKeyAbsent(t, core.storage.serverKV, key, "legacy INSTANCE push subscription")
 	})
 
 	t.Run("updates existing subscription with same endpoint", func(t *testing.T) {
@@ -149,6 +155,33 @@ func TestSavePushSubscription(t *testing.T) {
 			t.Errorf("Expected 1 subscription after update, got %d", len(subs))
 		}
 	})
+}
+
+func TestGetAllPushSubscriptions(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := context.Background()
+
+	_, err := core.SavePushSubscription(ctx, "push-user-all-a", "https://push.example.com/all-a", "key", "auth", "browser-a")
+	if err != nil {
+		t.Fatalf("SavePushSubscription user A error: %v", err)
+	}
+	_, err = core.SavePushSubscription(ctx, "push-user-all-b", "https://push.example.com/all-b", "key", "auth", "browser-b")
+	if err != nil {
+		t.Fatalf("SavePushSubscription user B error: %v", err)
+	}
+
+	subs, err := core.GetAllPushSubscriptions(ctx)
+	if err != nil {
+		t.Fatalf("GetAllPushSubscriptions error: %v", err)
+	}
+
+	seen := map[string]bool{}
+	for _, sub := range subs {
+		seen[sub.UserID] = true
+	}
+	if !seen["push-user-all-a"] || !seen["push-user-all-b"] {
+		t.Fatalf("GetAllPushSubscriptions missing users; got %#v", seen)
+	}
 }
 
 func TestGetUserPushSubscriptions(t *testing.T) {

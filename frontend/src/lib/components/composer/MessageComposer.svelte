@@ -265,6 +265,10 @@
   // Derive just the files for posting
   let selectedFiles = $derived(filesWithUrls.map((f) => f.file));
 
+  const attachmentAccept = $derived(
+    serverInfo.videoProcessingEnabled ? 'image/*,video/*,audio/*' : 'image/*,audio/*'
+  );
+
   // Save/restore draft file attachments across room switches.
   // When leaving a room (DRAFT_KEY changes or unmount), stash files in the
   // module-level Map. When entering a room, restore any stashed files.
@@ -544,13 +548,18 @@
   }
 
   /**
-   * Validate file sizes against instance limits.
+   * Validate files against instance capabilities and upload limits.
    * Returns only the files that pass validation, toasting errors for rejected ones.
    */
-  function validateFileSizes(files: File[]): File[] {
+  function validateFiles(files: File[]): File[] {
     const accepted: File[] = [];
     for (const file of files) {
       const isVideo = file.type.startsWith('video/');
+      if (isVideo && !serverInfo.videoProcessingEnabled) {
+        toast.error('Video uploads are disabled on this server.');
+        continue;
+      }
+
       const limit = isVideo ? serverInfo.maxVideoUploadSize : serverInfo.maxUploadSize;
       if (file.size > limit) {
         toast.error(
@@ -571,7 +580,7 @@
   }
 
   async function stageFiles(files: File[]) {
-    const validFiles = validateFileSizes(files);
+    const validFiles = validateFiles(files);
     if (validFiles.length === 0) return;
 
     pendingAttachmentCount += validFiles.length;
@@ -939,7 +948,7 @@
   <input
     bind:this={fileInputElement}
     type="file"
-    accept="image/*,video/*,audio/*"
+    accept={attachmentAccept}
     multiple
     onchange={handleFileSelect}
     class="hidden"

@@ -73,7 +73,7 @@ DM rooms use the same hierarchy walker as channels, with one extra rule: a stati
 - **Privacy** — owners/admins/moderators cannot moderate DM contents (`message.edit-any`, `message.delete-any`, `room.manage`, `message.echo`).
 - **Category mismatch** — DMs have their own listing/creation/membership APIs, so channel-style `room.create` / `member.invite` / `member.remove` don't apply.
 
-Access *to* DM rooms is gated separately by participation (`requireRoomMember`) and the `dm.view` permission at the server boundary. The deny-list only constrains what a participant can do once inside.
+Access *to* DM rooms is gated by participation (`requireRoomMember`). There are no `dm.*` permissions; `message.post` gates starting DMs and root DM messages, while `message.post-in-thread` gates thread replies. The deny-list only constrains what a participant can do once inside.
 
 ### Rank vs Permission: the two-step rule
 
@@ -119,11 +119,8 @@ Permission constants follow the pattern `InstPerm{Category}{Action}` (singular n
 |---------|---------|-------|
 | `InstPerm{Category}{Action}` | `InstPermSpaceCreate` | Singular category |
 | `InstPermAdmin{Area}{Action}` | `InstPermAdminUsersView` | Admin permissions |
-| `InstPermDM{Action}` | `InstPermDMWrite` | DM permissions |
-
 **Common mistakes** (avoid these):
 - `InstPermSpacesCreate` → Use `InstPermSpaceCreate` (singular)
-- `InstPermDMsWrite` → Use `InstPermDMWrite` (no plural 's')
 - `InstPermAdminAccessUsersView` → Use `InstPermAdminUsersView`
 
 The Go constants in `cli/internal/core/permissions.go` are the source of truth. Frontend TypeScript types are generated via `mise codegen-types`.
@@ -151,7 +148,7 @@ at. Examples after the message-perms consolidation:
 
 | Permission | Scopes |
 |------------|--------|
-| `server.manage`, `role.manage`, `role.assign`, `admin.*`, `dm.*`, `user.*` | `server` only |
+| `server.manage`, `role.manage`, `role.assign`, `admin.*`, `user.*` | `server` only |
 | `room.create` | `server`, `group` (no per-room — you can't create a room inside a room) |
 | `room.join`, `room.manage`, `message.post`, `message.post-in-thread`, `message.react`, `message.echo`, `message.manage` | `server`, `group`, `room` |
 
@@ -175,7 +172,6 @@ the ability to create rooms only in specific groups.
 | `message.react` | Add and remove reactions on messages |
 | `message.echo` | Echo a thread reply back to the main channel |
 | `message.manage` | Edit and delete *other* users' messages (subject to outranking the author). Authors editing or deleting their own messages don't need this. |
-| `dm.view`, `dm.write` | Access DMs and send direct messages |
 | `user.delete-any`, `user.delete-self` | Delete user accounts (server-admin / self) |
 | `admin.access`, `admin.view-users`, `admin.view-system`, `admin.view-audit` | Admin panel access tiers |
 
@@ -219,7 +215,7 @@ the ability to create rooms only in specific groups.
 
 | Subscription | Auth Required | Additional Check |
 |--------------|---------------|------------------|
-| `myEvents` | Yes | None at gateway; per-event scoping is enforced inside the resolver (room membership for room events, dm.view for DM rooms, target-user filtering for private user events, etc.) |
+| `myEvents` | Yes | None at gateway; per-event scoping is enforced inside the resolver (room membership for room events, target-user filtering for private user events, etc.) |
 
 ### Field Resolvers
 
@@ -287,27 +283,26 @@ if caller.Id != obj.Id {
 
 Default member permissions (`rooms.browse`, `rooms.create`, `rooms.join`) can be revoked from the member role. When implementing or modifying permission checks:
 
-1. **Always use the RBAC engine** - Never hardcode permission grants based on role names or "default" lists
+1. **Always use RBAC resolution** - Never hardcode permission grants based on role names or "default" lists
 2. **Test both grant and revoke** - Permissions must work when granted AND when revoked
-3. **Follow the server RBAC pattern** - Use `engine.RoleHasPermission(ctx, RoleMember, permStr)` to check actual KV state
+3. **Follow the server RBAC pattern** - Use the `Can*` helpers or permission resolver to check projected RBAC state
 
 **Anti-pattern (avoid):**
 ```go
 // BAD: Hardcoded bypass that ignores actual role permissions
 if isMember && isDefaultPermission(perm) {
-    return true, nil  // Bypasses RBAC engine!
+    return true, nil  // Bypasses RBAC resolution!
 }
 ```
 
 **Correct pattern:**
 ```go
-// GOOD: Always check actual role permissions via RBAC engine
-if isMember {
-    hasPerm, err := engine.RoleHasPermission(ctx, RoleMember, string(perm))
-    if hasPerm {
-        return true, nil
-    }
+// GOOD: Ask the permission resolver / Can helper for the actual decision
+canPost, err := core.CanPostMessage(ctx, userID)
+if err != nil {
+    return false, err
 }
+return canPost, nil
 ```
 
 ## Server Owner via Config
@@ -321,12 +316,12 @@ resolver — the config flow materialises a real `owner` role assignment:
   auto-assigns the `owner` role if it matches. Fresh deployments work
   without a restart.
 - For existing deployments, run `chatto reset rbac` after upgrading
-  the binary. The command wipes `SERVER_RBAC`, re-seeds the system
-  roles plus default permissions, and assigns `owner` to every user
-  whose verified email matches `owners.emails`.
+  the binary. The command appends reset facts, re-seeds the system roles plus
+  default permissions, and assigns `owner` to every user whose verified email
+  matches `owners.emails`.
 
 Owners pass every permission check through the standard hierarchy
-walk (owner is rank 0). They have access to:
+walk (owner is position 1000, the highest rank). They have access to:
 
 - `/admin` routes in the frontend
 - `Query.admin` and `Query.users` in GraphQL

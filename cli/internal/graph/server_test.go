@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/graph/model"
 )
@@ -11,6 +12,28 @@ import (
 // ============================================================================
 // Instance Field Resolver Tests
 // ============================================================================
+
+func TestServerResolver_VideoProcessingEnabled(t *testing.T) {
+	env := setupTestResolver(t)
+	instance := &model.Server{}
+
+	enabled, err := env.resolver.Server().VideoProcessingEnabled(env.ctx, instance)
+	if err != nil {
+		t.Fatalf("VideoProcessingEnabled returned error: %v", err)
+	}
+	if enabled {
+		t.Fatal("VideoProcessingEnabled default = true, want false")
+	}
+
+	env.resolver.videoConfig = config.VideoConfig{Enabled: true}
+	enabled, err = env.resolver.Server().VideoProcessingEnabled(env.ctx, instance)
+	if err != nil {
+		t.Fatalf("VideoProcessingEnabled returned error: %v", err)
+	}
+	if !enabled {
+		t.Fatal("VideoProcessingEnabled after enabling = false, want true")
+	}
+}
 
 func TestServerResolver_Rooms(t *testing.T) {
 	env := setupTestResolver(t)
@@ -63,7 +86,7 @@ func TestServerResolver_Rooms(t *testing.T) {
 			if r.Id == env.testRoom.Id {
 				sawChannel = true
 			}
-			if r.Id == dm.Id && r.SpaceId == core.DMSpaceID {
+			if r.Id == dm.Id && core.KindOfRoom(r) == core.KindDM {
 				sawDM = true
 			}
 		}
@@ -91,7 +114,7 @@ func TestServerResolver_Rooms(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 		for _, r := range rooms {
-			if r.SpaceId == core.DMSpaceID {
+			if core.KindOfRoom(r) == core.KindDM {
 				t.Errorf("type:CHANNEL should exclude DM rooms, got %+v", r)
 			}
 		}
@@ -122,7 +145,7 @@ func TestServerResolver_Rooms(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 		for _, r := range rooms {
-			if r.SpaceId != core.DMSpaceID {
+			if core.KindOfRoom(r) != core.KindDM {
 				t.Errorf("type:DM should exclude channel rooms, got %+v", r)
 			}
 		}

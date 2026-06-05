@@ -45,12 +45,92 @@ type AccountInfo {
   consumersUsed: Int!
 }
 
-"Aggregate operational metrics. Intentionally excludes per-stream / per-bucket / per-object-store breakdowns: those leak structural information (room IDs, user IDs, bucket names) without serving an operator use case the chatto CLI doesn't already cover."
+"Basic state for one JetStream stream."
+type NatsStreamInfo {
+  "Stream name."
+  name: String!
+  "Optional stream description."
+  description: String!
+  "Configured subject filters."
+  subjects: [String!]!
+  "Storage backend, e.g. File or Memory."
+  storage: String!
+  "Messages currently retained."
+  messages: Int64!
+  "Bytes currently retained."
+  bytes: Int64!
+  "First retained stream sequence."
+  firstSequence: String!
+  "Last stream sequence."
+  lastSequence: String!
+  "Consumers currently attached to this stream."
+  consumerCount: Int!
+  "Configured replica count."
+  replicas: Int!
+  "Cluster leader when running clustered JetStream, otherwise empty."
+  clusterLeader: String!
+}
+
+"Basic state for one JetStream consumer."
+type NatsConsumerInfo {
+  "Stream this consumer belongs to."
+  stream: String!
+  "Consumer name."
+  name: String!
+  "Durable name, empty for ephemeral consumers."
+  durable: String!
+  "Single filter subject, if configured."
+  filterSubject: String!
+  "Multiple filter subjects, if configured."
+  filterSubjects: [String!]!
+  "Ack policy, e.g. Explicit, All, or None."
+  ackPolicy: String!
+  "True for pull consumers; false for push consumers."
+  pullBased: Boolean!
+  "Whether a push consumer currently has an active subscription."
+  pushBound: Boolean!
+  "Messages matching the consumer that have not yet been delivered."
+  pending: Int64!
+  "Delivered messages awaiting acknowledgement."
+  ackPending: Int!
+  "Messages redelivered and still unacknowledged."
+  redelivered: Int!
+  "Active pull requests waiting for messages."
+  waiting: Int!
+  "Most recently delivered consumer sequence."
+  deliveredConsumerSequence: String!
+  "Most recently delivered stream sequence."
+  deliveredStreamSequence: String!
+  "Ack floor consumer sequence."
+  ackFloorConsumerSequence: String!
+  "Ack floor stream sequence."
+  ackFloorStreamSequence: String!
+}
+
+"Current JetStream stream and consumer diagnostics."
+type NatsStats {
+  "Streams in the JetStream account."
+  streams: [NatsStreamInfo!]!
+  "Consumers across all streams."
+  consumers: [NatsConsumerInfo!]!
+  "Total retained messages across listed streams."
+  totalMessages: Int64!
+  "Total retained bytes across listed streams."
+  totalBytes: Int64!
+  "Total consumer backlog across listed consumers."
+  totalConsumerPending: Int64!
+  "Total delivered-but-unacknowledged messages across listed consumers."
+  totalAckPending: Int!
+}
+
+"Aggregate operational metrics."
 type SystemInfo {
   "NATS connection status and server info."
   connection: ConnectionInfo!
   "JetStream account limits and usage (aggregate totals)."
   account: AccountInfo!
+  "Current JetStream stream and consumer diagnostics."
+  nats: NatsStats!
   "Deployment-level counts surfaced in the admin dashboard."
   stats: ServerStats!
 }
@@ -71,8 +151,6 @@ type ServerStats {
 
 "Server configuration section."
 type AdminServerConfig {
-  "Whether this server has been configured (has settings in KV)."
-  isConfigured: Boolean!
   "Welcome message shown on the login page (markdown supported)."
   welcomeMessage: String
   "Server name, displayed in page titles. Defaults to 'Chatto' if not set."
@@ -104,12 +182,100 @@ extend type AdminQueries {
   serverConfig: AdminServerConfig! @goField(forceResolver: true)
 }
 
+# =============================================================================
+# Event Log (EVT inspection)
+# =============================================================================
+
+"One entry in the event-sourcing log (EVT). Each entry corresponds to one durable domain event under ADR-033."
+type EventLogEntry {
+  "Stream sequence — the canonical monotonic ID. NATS uses uint64, serialised here as a String so values past 2^31 don't overflow GraphQL Int."
+  sequence: String!
+  "NATS subject the event was published on (e.g. 'evt.room.RAbc', 'evt.config.server')."
+  subject: String!
+  "Aggregate type parsed from the subject (e.g. 'room', 'config')."
+  aggregateType: String!
+  "Aggregate ID parsed from the subject (a NanoID for entity aggregates, a sentinel like 'server' for singletons)."
+  aggregateId: String!
+  "Event variant tag from the protobuf oneof, e.g. 'UserJoinedRoomEvent', 'ServerConfigChangedEvent'. Empty if the event has no recognised payload variant."
+  eventType: String!
+  "Per-event unique identifier from event.id."
+  eventId: String!
+  "ID of the actor who triggered the event. May also be a synthetic actor like 'system:migration' or 'system:bootstrap'."
+  actorId: String!
+  "When the event was created (per the event payload, not the stream)."
+  createdAt: Time!
+  "Protobuf payload encoded as JSON for human inspection."
+  payloadJson: String!
+}
+
+"A page of EventLogEntries, newest first."
+type EventLogConnection {
+  "Entries on this page, ordered newest → oldest."
+  entries: [EventLogEntry!]!
+  "True if older entries exist beyond this page."
+  hasOlder: Boolean!
+  "Pass as the next call's `before` to fetch the next (older) page. Null when there are no older entries."
+  endCursor: String
+  "Total messages currently in EVT — an operational metric, not bounded by `limit`."
+  totalCount: Int!
+}
+
+extend type AdminQueries {
+  "Browse the event-sourcing log (EVT) newest-first. `limit` defaults to 50, max 200. `before` is a stream sequence (as String); entries returned will have sequence < before."
+  eventLog(limit: Int, before: String): EventLogConnection! @goField(forceResolver: true)
+  "Fetch a single event-log entry by its stream sequence. Returns null if the sequence doesn't exist."
+  eventLogEntry(sequence: String!): EventLogEntry @goField(forceResolver: true)
+}
+
+# =============================================================================
+# Projection Runtime State
+# =============================================================================
+
+"One named diagnostic count/byte bucket for a projection."
+type ProjectionMetric {
+  "Stable metric identifier, e.g. 'timeline_entries' or 'event_id_index'."
+  name: String!
+  "Count associated with this metric."
+  value: Int64!
+  "Estimated bytes associated with this metric. Zero when the metric is count-only."
+  bytes: Int64!
+}
+
+"Runtime state for one event-sourced projection."
+type ProjectionState {
+  "Human-readable projection name."
+  name: String!
+  "NATS subject filters consumed by this projection."
+  subjects: [String!]!
+  "Whether the projector run loop has started."
+  started: Boolean!
+  "Highest EVT stream sequence applied by this projection, serialized as String to avoid GraphQL Int overflow."
+  lastAppliedSequence: String!
+  "Highest EVT stream sequence currently matching this projection's subject filters."
+  matchingStreamSequence: String!
+  "Highest sequence in the EVT stream, regardless of whether this projection consumes it."
+  streamLastSequence: String!
+  "Unapplied matching events, computed as matchingStreamSequence - lastAppliedSequence."
+  lag: Int64!
+  "Primary projected entry count for this projection."
+  entryCount: Int64!
+  "Estimated bytes held in memory by this projection."
+  estimatedBytes: Int64!
+  "estimatedBytes divided by entryCount, or zero when entryCount is zero."
+  averageEntryBytes: Int64!
+  "Breakdown of the projection's current state."
+  metrics: [ProjectionMetric!]!
+}
+
+extend type AdminQueries {
+  "Inspect runtime state and rough memory estimates for event-sourced projections."
+  projections: [ProjectionState!]! @goField(forceResolver: true)
+}
+
 "Admin mutations for configuration management."
 type AdminMutations {
   "Update server configuration. Returns the updated config section."
   updateServerConfig(input: UpdateServerConfigInput!): AdminServerConfig! @goField(forceResolver: true)
-  "Reset server configuration to defaults. Returns true on success."
-  resetServerConfig: Boolean! @goField(forceResolver: true)
   "Update a user's login and/or display name. Bypasses the 30-day login change cooldown but otherwise reuses the same validation as updateProfile."
   updateUser(input: AdminUpdateUserInput!): User! @goField(forceResolver: true)
   "Clear the 30-day login change cooldown for a user, allowing them to immediately rename themselves. Idempotent."
@@ -136,4 +302,3 @@ extend type Mutation {
   "Admin mutations. Returns null if user lacks admin permission."
   admin: AdminMutations @goField(forceResolver: true)
 }
-

@@ -17,6 +17,7 @@ gqlgen is schema-first. Follow this workflow for GraphQL changes:
 - Every enum value must have a description explaining its meaning
 - Descriptions should be concise (one sentence preferred)
 - Include format examples for non-obvious string values (e.g., `"Round-trip time (e.g., '1.234ms')."`)
+- Schema descriptions are user-facing API documentation. Do not mention backend implementation details like KV buckets, streams, internal projections, storage names, migration paths, or webhook plumbing unless they are intentionally part of the public contract.
 
 ## Schema Directives
 
@@ -121,6 +122,19 @@ type MyCustomType struct {
 func (MyCustomType) IsMyUnion() {}  // Union marker method
 ```
 
+## Nullability Must Match Resolver Failure Mode
+
+A `!` (non-null) field is a promise the resolver can always produce a value. If the resolver does a *lookup* — projection, KV, dataloader — that can legitimately return "not found" under normal lifecycle, the field MUST be nullable. Otherwise a single missing reference blanks the entire enclosing structure.
+
+The chain-of-non-null trap: `roomId: ID!` on an event in a `[RoomEvent!]!` connection. The resolver errors when the referenced asset has been deleted; GraphQL can't null the `ID!`, so it propagates to `event: RoomEventType!`, then to the `RoomEvent` itself, then to the non-null list, then to the connection. One stale reference → empty channel. This is silent on the client unless you read the `errors` array, which we don't surface in the UI.
+
+**Rules:**
+
+- **Derived fields whose lookup can decay → nullable.** If the field models a *reference to something that can be deleted independently* (asset behind an event, user behind a deleted account, room behind a notification), declare it `Foo` not `Foo!`. Intrinsic identity that lives on the payload itself (an event's own id, a known field on the proto) can stay non-null.
+- **Don't return errors for expected absence.** A `not found` result from a projection / KV is a normal lifecycle state, not a failure. Return nil / zero / empty string and let the nullable field carry the absence. Reserve resolver errors for auth denials, validation, and infrastructure faults — things the client genuinely cannot proceed past.
+- **Helpers shouldn't return `(*T, error)` for "missing" either.** A helper like `assetCreationForProcessing(id)` that returns nil-or-found is easier to use safely than one that returns nil-and-error; the caller can't accidentally promote the absence into a non-null violation.
+- **When in doubt, look at the list.** Any `[T!]!` in the chain above the field amplifies a single resolver error into a total list wipeout. If even one element's resolver can fail, the safer schema is `[T!]` or `[T]!` — but better still is the nullability/no-error discipline above so the failure never reaches GraphQL.
+
 ## Type Compatibility
 
 When autobind can't match protobuf types to GraphQL types, you'll see warnings like:
@@ -151,9 +165,9 @@ Backend `viewer*` fields are still useful for:
 
 ## Don't Duplicate Permission Checks Across Resolvers
 
-When the same resolver-side gate appears in two places that ought to behave identically (e.g. `Space.rooms` and `User.rooms` both merging DMs into the primary-space response, both supposed to check `dm.view`), extract the gate into a single helper in `*_helpers.go`. Each resolver is then a one-liner; the check can't go missing in one of them.
+When the same resolver-side merge appears in two places that ought to behave identically (e.g. unified room lists that append the caller's DM rooms), extract the shared behavior into a helper in `*_helpers.go`. Each resolver is then a one-liner; membership-filtered DM listing can't drift between GraphQL entry points.
 
-This bit us once in #330 phase 3: `Space.rooms` checked `CanDMView` before appending DMs; `User.rooms` (which the frontend's `me.rooms` query actually routes through) didn't, so a user with `dm.view` denied was still seeing DMs in their merged sidebar. Refactored into `appendDMRoomsForPrimary(ctx, spaceID, userID, rooms)` in `space_helpers.go`. The frontend's permission UI looked correct because `viewer.canViewDMs` *did* go through the gated helper — the resolver split was the only path that bypassed it.
+This bit us once in #330 phase 3 when two room-list resolvers had subtly different DM gates. Since ADR-037, DMs do not have a read permission: room membership is the read boundary, and message permissions gate starting/sending DMs. Keep resolver helpers aligned with that split.
 
 General principle: if you find yourself copy-pasting an authorization branch between resolvers, that's the moment to extract — before the copies drift.
 

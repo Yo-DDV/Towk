@@ -1,16 +1,23 @@
 name: release-please
 
-# Maintains a rolling Release PR. As conventional-commit PRs land on main,
-# release-please updates the PR with the aggregated changelog and bumped
-# versions (cli/version.go + frontend/package.json). Merging the Release
-# PR creates the `vX.Y.Z` tag + GitHub Release. The tag push then fires
-# ci.yml's `release` job (GoReleaser + frontend image push) as before.
+# Maintains a rolling prerelease PR on main. As conventional-commit PRs
+# land on main, release-please updates the PR with the aggregated changelog
+# and bumped versions (cli/version.go + frontend/package.json). Merging the
+# Release PR creates the `vX.Y.Z-alpha.N` tag + GitHub prerelease. The tag
+# push then fires ci.yml's `release` job (GoReleaser + frontend image push).
 #
 # Also runs on `release-*` maintenance branches (e.g. `release-0.0.x`) to
 # support backport patches against older versions. release-please keeps a
 # separate Release PR per target branch, and the per-branch manifest tracks
 # its own latest version, so a backport on `release-0.0.x` bumps from the
 # tag reachable on that branch without jumping to main's version.
+#
+# The `main` branch is the active prerelease line. Commits there bump the
+# version as `0.1.0-alpha.N` (rather than `0.0.x`), using a separate config
+# + manifest pair so the prerelease setting doesn't leak into stable
+# maintenance branches. GoReleaser is wired up so prerelease tags get their
+# own floating `:next` Docker tag and do NOT update `:latest` or
+# `:Major.Minor`.
 #
 # Replaces the old `mise bump` flow (goversion + manual tag + push).
 #
@@ -42,14 +49,18 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     env:
-      # Push event's ref_name is the branch (main or release-*). Used as the
-      # target-branch input below. Captured into env per workflow-injection
-      # best practice, even though it's an action input rather than a shell arg.
+      # Push event's ref_name is the branch (main / release-*).
+      # Captured into env per workflow-injection best practice, even
+      # though it's only used as an action input here (never in `run:`).
       TARGET_BRANCH: ${{ github.ref_name }}
+      # Main cuts alpha prereleases. Maintenance branches (release-*) use
+      # the stable config/manifest so backports cut stable patch releases.
+      CONFIG_FILE: ${{ github.ref_name == 'main' && '.release-please-config-prerelease.json' || '.release-please-config.json' }}
+      MANIFEST_FILE: ${{ github.ref_name == 'main' && '.release-please-manifest-prerelease.json' || '.release-please-manifest.json' }}
     steps:
       - uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.RELEASE_PLEASE_PAT }}
-          config-file: .release-please-config.json
-          manifest-file: .release-please-manifest.json
+          config-file: ${{ env.CONFIG_FILE }}
+          manifest-file: ${{ env.MANIFEST_FILE }}
           target-branch: ${{ env.TARGET_BRANCH }}

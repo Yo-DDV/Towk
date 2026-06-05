@@ -14,20 +14,15 @@ import (
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
+// Union of every typed event payload exposed by GraphQL.
+type EventType interface {
+	IsEventType()
+}
+
 // Union of all notification types.
 // Clients should check __typename to determine the notification type.
 type NotificationItem interface {
 	IsNotificationItem()
-}
-
-// Union of all room-scoped event types (both persisted and live).
-type RoomEventType interface {
-	IsRoomEventType()
-}
-
-// Union of every event type a subscriber can receive.
-type ServerEventType interface {
-	IsServerEventType()
 }
 
 // JetStream account limits and usage.
@@ -64,8 +59,6 @@ type AddReactionInput struct {
 type AdminMutations struct {
 	// Update server configuration. Returns the updated config section.
 	UpdateServerConfig *AdminServerConfig `json:"updateServerConfig"`
-	// Reset server configuration to defaults. Returns true on success.
-	ResetServerConfig bool `json:"resetServerConfig"`
 	// Update a user's login and/or display name. Bypasses the 30-day login change cooldown but otherwise reuses the same validation as updateProfile.
 	UpdateUser *corev1.User `json:"updateUser"`
 	// Clear the 30-day login change cooldown for a user, allowing them to immediately rename themselves. Idempotent.
@@ -78,6 +71,12 @@ type AdminQueries struct {
 	SystemInfo *SystemInfo `json:"systemInfo"`
 	// Get server configuration.
 	ServerConfig *AdminServerConfig `json:"serverConfig"`
+	// Browse the event-sourcing log (EVT) newest-first. `limit` defaults to 50, max 200. `before` is a stream sequence (as String); entries returned will have sequence < before.
+	EventLog *EventLogConnection `json:"eventLog"`
+	// Fetch a single event-log entry by its stream sequence. Returns null if the sequence doesn't exist.
+	EventLogEntry *EventLogEntry `json:"eventLogEntry,omitempty"`
+	// Inspect runtime state and rough memory estimates for event-sourced projections.
+	Projections []*ProjectionState `json:"projections"`
 	// Resolve the explicit grants and denials configured for a role on a
 	// specific set. Returns empty arrays if neither side has any keys.
 	GroupRolePermissions *RoomGroupRolePermissions `json:"groupRolePermissions"`
@@ -90,8 +89,6 @@ type AdminQueries struct {
 
 // Server configuration section.
 type AdminServerConfig struct {
-	// Whether this server has been configured (has settings in KV).
-	IsConfigured bool `json:"isConfigured"`
 	// Welcome message shown on the login page (markdown supported).
 	WelcomeMessage *string `json:"welcomeMessage,omitempty"`
 	// Server name, displayed in page titles. Defaults to 'Chatto' if not set.
@@ -120,6 +117,14 @@ type ArchiveRoomInput struct {
 	RoomID string `json:"roomId"`
 }
 
+// A protected asset URL and the time its embedded access ticket expires.
+type AssetURL struct {
+	// URL to the asset on the owning host.
+	URL string `json:"url"`
+	// Time after which the embedded access ticket is no longer valid.
+	ExpiresAt *timestamppb.Timestamp `json:"expiresAt"`
+}
+
 // Input for assigning an server role to a user.
 type AssignRoleInput struct {
 	// The ID of the user to assign the role to.
@@ -129,7 +134,6 @@ type AssignRoleInput struct {
 }
 
 // A participant currently in a voice call.
-// Sourced from the server-side CALL_STATE KV bucket (populated by LiveKit webhooks).
 type CallParticipant struct {
 	// The user's ID.
 	UserID string `json:"userId"`
@@ -315,6 +319,40 @@ type DismissNotificationInput struct {
 	NotificationID string `json:"notificationId"`
 }
 
+// A page of EventLogEntries, newest first.
+type EventLogConnection struct {
+	// Entries on this page, ordered newest → oldest.
+	Entries []*EventLogEntry `json:"entries"`
+	// True if older entries exist beyond this page.
+	HasOlder bool `json:"hasOlder"`
+	// Pass as the next call's `before` to fetch the next (older) page. Null when there are no older entries.
+	EndCursor *string `json:"endCursor,omitempty"`
+	// Total messages currently in EVT — an operational metric, not bounded by `limit`.
+	TotalCount int32 `json:"totalCount"`
+}
+
+// One entry in the event-sourcing log (EVT). Each entry corresponds to one durable domain event under ADR-033.
+type EventLogEntry struct {
+	// Stream sequence — the canonical monotonic ID. NATS uses uint64, serialised here as a String so values past 2^31 don't overflow GraphQL Int.
+	Sequence string `json:"sequence"`
+	// NATS subject the event was published on (e.g. 'evt.room.RAbc', 'evt.config.server').
+	Subject string `json:"subject"`
+	// Aggregate type parsed from the subject (e.g. 'room', 'config').
+	AggregateType string `json:"aggregateType"`
+	// Aggregate ID parsed from the subject (a NanoID for entity aggregates, a sentinel like 'server' for singletons).
+	AggregateID string `json:"aggregateId"`
+	// Event variant tag from the protobuf oneof, e.g. 'UserJoinedRoomEvent', 'ServerConfigChangedEvent'. Empty if the event has no recognised payload variant.
+	EventType string `json:"eventType"`
+	// Per-event unique identifier from event.id.
+	EventID string `json:"eventId"`
+	// ID of the actor who triggered the event. May also be a synthetic actor like 'system:migration' or 'system:bootstrap'.
+	ActorID string `json:"actorId"`
+	// When the event was created (per the event payload, not the stream).
+	CreatedAt *timestamppb.Timestamp `json:"createdAt"`
+	// Protobuf payload encoded as JSON for human inspection.
+	PayloadJSON string `json:"payloadJson"`
+}
+
 // Input for following a thread.
 type FollowThreadInput struct {
 	// The ID of the room containing the thread.
@@ -388,7 +426,7 @@ type LeaveRoomInput struct {
 
 // Input type for passing link preview data from client to server.
 // The client fetches preview metadata via the linkPreview query, then includes
-// the data in the postMessage mutation so the server stores it directly.
+// the data in the postMessage mutation so it can be attached to the message.
 type LinkPreviewInput struct {
 	// The URL that was previewed.
 	URL string `json:"url"`
@@ -455,6 +493,84 @@ type MoveRoomToSetInput struct {
 type Mutation struct {
 }
 
+// Basic state for one JetStream consumer.
+type NatsConsumerInfo struct {
+	// Stream this consumer belongs to.
+	Stream string `json:"stream"`
+	// Consumer name.
+	Name string `json:"name"`
+	// Durable name, empty for ephemeral consumers.
+	Durable string `json:"durable"`
+	// Single filter subject, if configured.
+	FilterSubject string `json:"filterSubject"`
+	// Multiple filter subjects, if configured.
+	FilterSubjects []string `json:"filterSubjects"`
+	// Ack policy, e.g. Explicit, All, or None.
+	AckPolicy string `json:"ackPolicy"`
+	// True for pull consumers; false for push consumers.
+	PullBased bool `json:"pullBased"`
+	// Whether a push consumer currently has an active subscription.
+	PushBound bool `json:"pushBound"`
+	// Messages matching the consumer that have not yet been delivered.
+	Pending int `json:"pending"`
+	// Delivered messages awaiting acknowledgement.
+	AckPending int32 `json:"ackPending"`
+	// Messages redelivered and still unacknowledged.
+	Redelivered int32 `json:"redelivered"`
+	// Active pull requests waiting for messages.
+	Waiting int32 `json:"waiting"`
+	// Most recently delivered consumer sequence.
+	DeliveredConsumerSequence string `json:"deliveredConsumerSequence"`
+	// Most recently delivered stream sequence.
+	DeliveredStreamSequence string `json:"deliveredStreamSequence"`
+	// Ack floor consumer sequence.
+	AckFloorConsumerSequence string `json:"ackFloorConsumerSequence"`
+	// Ack floor stream sequence.
+	AckFloorStreamSequence string `json:"ackFloorStreamSequence"`
+}
+
+// Current JetStream stream and consumer diagnostics.
+type NatsStats struct {
+	// Streams in the JetStream account.
+	Streams []*NatsStreamInfo `json:"streams"`
+	// Consumers across all streams.
+	Consumers []*NatsConsumerInfo `json:"consumers"`
+	// Total retained messages across listed streams.
+	TotalMessages int `json:"totalMessages"`
+	// Total retained bytes across listed streams.
+	TotalBytes int `json:"totalBytes"`
+	// Total consumer backlog across listed consumers.
+	TotalConsumerPending int `json:"totalConsumerPending"`
+	// Total delivered-but-unacknowledged messages across listed consumers.
+	TotalAckPending int32 `json:"totalAckPending"`
+}
+
+// Basic state for one JetStream stream.
+type NatsStreamInfo struct {
+	// Stream name.
+	Name string `json:"name"`
+	// Optional stream description.
+	Description string `json:"description"`
+	// Configured subject filters.
+	Subjects []string `json:"subjects"`
+	// Storage backend, e.g. File or Memory.
+	Storage string `json:"storage"`
+	// Messages currently retained.
+	Messages int `json:"messages"`
+	// Bytes currently retained.
+	Bytes int `json:"bytes"`
+	// First retained stream sequence.
+	FirstSequence string `json:"firstSequence"`
+	// Last stream sequence.
+	LastSequence string `json:"lastSequence"`
+	// Consumers currently attached to this stream.
+	ConsumerCount int32 `json:"consumerCount"`
+	// Configured replica count.
+	Replicas int32 `json:"replicas"`
+	// Cluster leader when running clustered JetStream, otherwise empty.
+	ClusterLeader string `json:"clusterLeader"`
+}
+
 // The complete explanation for one permission for one user at one scope.
 // Mirrors the algorithm of the permission resolver: the first trace entry
 // is the winning decision; subsequent entries are also-saw context.
@@ -472,14 +588,14 @@ type PermissionExplanation struct {
 }
 
 // A single step in the permission resolution trace.
-// Only entries actually backed by a KV value are emitted (allow or deny);
-// roles with no entry at the level being checked are silent.
+// Only explicit allow or deny entries are emitted; roles with no decision at the
+// level being checked are silent.
 type PermissionTraceEntry struct {
 	// The level at which this decision was observed.
 	Level PermissionLevel `json:"level"`
-	// The role whose KV produced this decision.
+	// The role that produced this decision.
 	RoleName string `json:"roleName"`
-	// Whether the role's KV said allow or deny at this level.
+	// Whether the role allowed or denied the permission at this level.
 	Decision PermissionDecisionKind `json:"decision"`
 	// Whether this entry is the winning decision (matches the trace head).
 	Applied bool `json:"applied"`
@@ -501,6 +617,42 @@ type PostMessageInput struct {
 	AlsoSendToChannel *bool `json:"alsoSendToChannel,omitempty"`
 	// Link preview data from the composer. Server stores this directly without fetching.
 	LinkPreview *LinkPreviewInput `json:"linkPreview,omitempty"`
+}
+
+// One named diagnostic count/byte bucket for a projection.
+type ProjectionMetric struct {
+	// Stable metric identifier, e.g. 'timeline_entries' or 'event_id_index'.
+	Name string `json:"name"`
+	// Count associated with this metric.
+	Value int `json:"value"`
+	// Estimated bytes associated with this metric. Zero when the metric is count-only.
+	Bytes int `json:"bytes"`
+}
+
+// Runtime state for one event-sourced projection.
+type ProjectionState struct {
+	// Human-readable projection name.
+	Name string `json:"name"`
+	// NATS subject filters consumed by this projection.
+	Subjects []string `json:"subjects"`
+	// Whether the projector run loop has started.
+	Started bool `json:"started"`
+	// Highest EVT stream sequence applied by this projection, serialized as String to avoid GraphQL Int overflow.
+	LastAppliedSequence string `json:"lastAppliedSequence"`
+	// Highest EVT stream sequence currently matching this projection's subject filters.
+	MatchingStreamSequence string `json:"matchingStreamSequence"`
+	// Highest sequence in the EVT stream, regardless of whether this projection consumes it.
+	StreamLastSequence string `json:"streamLastSequence"`
+	// Unapplied matching events, computed as matchingStreamSequence - lastAppliedSequence.
+	Lag int `json:"lag"`
+	// Primary projected entry count for this projection.
+	EntryCount int `json:"entryCount"`
+	// Estimated bytes held in memory by this projection.
+	EstimatedBytes int `json:"estimatedBytes"`
+	// estimatedBytes divided by entryCount, or zero when entryCount is zero.
+	AverageEntryBytes int `json:"averageEntryBytes"`
+	// Breakdown of the projection's current state.
+	Metrics []*ProjectionMetric `json:"metrics"`
 }
 
 // Input for subscribing to Web Push notifications.
@@ -654,7 +806,7 @@ type RoleRoomPermissions struct {
 // and `endCursor` are opaque pagination cursors usable on `Room.events`.
 type RoomEventsAroundResult struct {
 	// The events in the window, in chronological order.
-	Events []*corev1.Event `json:"events"`
+	Events []core.EventEnvelope `json:"events"`
 	// The index of the target event within the events array.
 	TargetIndex int32 `json:"targetIndex"`
 	// Opaque cursor of the first event in this window (null if empty).
@@ -673,7 +825,7 @@ type RoomEventsAroundResult struct {
 // call. Both are null when `events` is empty.
 type RoomEventsConnection struct {
 	// The events in chronological order.
-	Events []*corev1.Event `json:"events"`
+	Events []core.EventEnvelope `json:"events"`
 	// Opaque cursor of the first event in this page (null if empty).
 	StartCursor *string `json:"startCursor,omitempty"`
 	// Opaque cursor of the last event in this page (null if empty).
@@ -747,6 +899,8 @@ type Server struct {
 	LivekitURL *string `json:"livekitUrl,omitempty"`
 	// True if direct (email/password) registration is enabled on this server.
 	DirectRegistrationEnabled bool `json:"directRegistrationEnabled"`
+	// True if video processing is enabled, allowing video attachments to be uploaded.
+	VideoProcessingEnabled bool `json:"videoProcessingEnabled"`
 	// Maximum upload size for regular attachments (images, files) in bytes.
 	MaxUploadSize int32 `json:"maxUploadSize"`
 	// Maximum upload size for video attachments in bytes. Same as maxUploadSize when video processing is disabled.
@@ -757,10 +911,9 @@ type Server struct {
 	//
 	// When `type` is null or `CHANNEL`, the result includes regular channels. When
 	// `type` is null or `DM`, the caller's direct-message conversations are merged
-	// in (subject to `dm.view`); the unified sidebar uses the null default to
-	// render channels and DMs together. Pass `type: CHANNEL` for channels-only
-	// consumers (e.g. the admin room-management UI); pass `type: DM` for DMs-only
-	// consumers.
+	// in through membership; the unified sidebar uses the null default to render
+	// channels and DMs together. Pass `type: CHANNEL` for channels-only consumers
+	// (e.g. the admin room-management UI); pass `type: DM` for DMs-only consumers.
 	Rooms []*corev1.Room `json:"rooms"`
 	// Ordered list of channel-room groups (ADR-031). Every server boots with at
 	// least the seed "Lobby" group; the list is never empty for a configured
@@ -883,12 +1036,14 @@ type StartDMInput struct {
 type Subscription struct {
 }
 
-// Aggregate operational metrics. Intentionally excludes per-stream / per-bucket / per-object-store breakdowns: those leak structural information (room IDs, user IDs, bucket names) without serving an operator use case the chatto CLI doesn't already cover.
+// Aggregate operational metrics.
 type SystemInfo struct {
 	// NATS connection status and server info.
 	Connection *ConnectionInfo `json:"connection"`
 	// JetStream account limits and usage (aggregate totals).
 	Account *AccountInfo `json:"account"`
+	// Current JetStream stream and consumer diagnostics.
+	Nats *NatsStats `json:"nats"`
 	// Deployment-level counts surfaced in the admin dashboard.
 	Stats *ServerStats `json:"stats"`
 }
@@ -1207,9 +1362,9 @@ func (e FitMode) MarshalJSON() ([]byte, error) {
 type PermissionDecisionKind string
 
 const (
-	// The role's KV grants the permission.
+	// The role explicitly grants the permission.
 	PermissionDecisionKindAllow PermissionDecisionKind = "ALLOW"
-	// The role's KV denies the permission.
+	// The role explicitly denies the permission.
 	PermissionDecisionKindDeny PermissionDecisionKind = "DENY"
 	// Used only for overall State; the resolver found no allow or deny anywhere.
 	PermissionDecisionKindNone PermissionDecisionKind = "NONE"
@@ -1396,7 +1551,7 @@ type RoomType string
 const (
 	// A regular channel — has a name, optional layout placement, and is governed by the server's RBAC roles.
 	RoomTypeChannel RoomType = "CHANNEL"
-	// A direct-message conversation — derives its display name from its participants and uses fixed DM permissions instead of RBAC.
+	// A direct-message conversation — derives its display name from its participants and uses membership plus message permissions.
 	RoomTypeDm RoomType = "DM"
 )
 
@@ -1577,7 +1732,7 @@ const (
 	VideoProcessingStatusProcessing VideoProcessingStatus = "PROCESSING"
 	// Transcoding finished; at least one variant is available for playback.
 	VideoProcessingStatusCompleted VideoProcessingStatus = "COMPLETED"
-	// Transcoding failed; `errorMessage` describes the failure and no variants are available.
+	// Transcoding failed; `reasonCode` describes the failure and no variants are available.
 	VideoProcessingStatusFailed VideoProcessingStatus = "FAILED"
 )
 

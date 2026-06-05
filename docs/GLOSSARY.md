@@ -100,7 +100,7 @@ Chatto's RBAC model. Read top-to-bottom — terms build on each other.
 
 **User-level override** — Permission grant or deny attached directly to a user, not via a role. Outranks every role grant. Used for suspensions and ad-hoc grants.
 
-**DM Privacy Boundary** — Static set of permissions (`message.manage`, `message.echo`, `room.manage`, …) unconditionally denied inside DM rooms regardless of role grants. Owners can't moderate DM contents.
+**DM Privacy Boundary** — Static set of permissions (`message.manage`, `message.echo`, `room.manage`, …) unconditionally denied inside DM rooms regardless of role grants. Owners can't moderate DM contents; DM read access comes from room membership, not a separate read permission. See [ADR-037](adr/ADR-037-dm-access-via-membership.md).
 
 ## Backend
 
@@ -112,20 +112,20 @@ Infrastructure jargon. If only contributors say the word, it goes here.
 
 **JetStream** — NATS's persistence layer (streams + KV buckets). Chatto's primary data store. See [ADR-001](adr/ADR-001-nats-jetstream-as-primary-data-store.md).
 
-**Stream** — JetStream append-only log. Chatto's primary stream is `SERVER_EVENTS`. Streams act as the audit log.
+**Stream** — JetStream append-only log. Chatto's event-sourcing stream is `EVT`; the older `SERVER_EVENTS` stream remains as pre-ES import evidence and for legacy restore/debugging tools, but runtime mutations no longer write it.
 
-**KV (Key-Value Bucket)** — JetStream-backed key/value store. Chatto uses several (`SERVER_CONFIG`, `SERVER_RBAC`, `KV_INSTANCE`, …). KV is the source of truth; streams are the audit log. See [ADR-006](adr/ADR-006-kv-source-of-truth-streams-audit-log.md).
+**KV (Key-Value Bucket)** — JetStream-backed key/value store. Chatto uses several (`RUNTIME_STATE`, `SERVER_CONFIG`, `SERVER_RBAC`, `INSTANCE`, …). Some buckets still hold latest-value runtime or legacy import state; event-sourced domain state is sourced from `EVT`. See [ADR-033](adr/ADR-033-event-sourced-state.md).
 
-**Subject** — NATS message topic. Chatto's subject conventions (`server.room.{kind}.{r}.msg.{id}`, `live.server.…`) are documented in `.claude/rules/nats-subjects.md`.
+**Subject** — NATS message topic. Chatto's subject conventions (`server.room.{kind}.{r}.msg.{id}`, `evt.room.{r}.{type}`, `live.sync.…`) are documented in `.claude/rules/nats-subjects.md`.
 
-**Event** — Durable record on the `SERVER_EVENTS` stream (message posted, room created, member joined, etc.). Contrast with *Live Event*.
+**Event** — Durable domain fact stored on `EVT` using the `corev1.Event` wrapper. Contrast with *Live Event*.
 
-**Live Event** — Transient event published on `live.server.>` (typing, reactions, presence). Either republished from a durable event, or published directly via NATS Core. See [ADR-012](adr/ADR-012-two-tier-realtime-events.md).
+**Live Event** — Transient `corev1.LiveEvent` published on `live.sync.>` (typing, notification sync, voice-call presence). Durable EVT facts reach live subscribers through the internal `live.evt.>` republish path after server-side projection readiness and authorization checks.
 
-**Republish** — JetStream feature that mirrors every accepted `server.>` message onto `live.server.>` automatically. Keeps subscribers on one logical pipe without holding a JetStream consumer. See `.claude/rules/nats-subjects.md`.
+**Republish** — JetStream feature that mirrors accepted stream messages onto another NATS subject. Chatto uses it to expose committed EVT facts on `live.evt.>`; `myEvents` treats that as an internal feed, not a client contract. See `.claude/rules/nats-subjects.md`.
 
 **OCC (Optimistic Concurrency Control)** — Publishing with an expected stream sequence so concurrent writers don't clobber each other. Used for message posting. See [ADR-016](adr/ADR-016-occ-for-message-publishing.md).
 
 **Nanoid** — Short URL-safe unique ID format. All Chatto entities are prefixed (`usr_…`, `rm_…`, `srv_…`). See [ADR-022](adr/ADR-022-nanoid-with-entity-prefixes.md).
 
-**Crypto-shredding** — Deleting a user's data by destroying their per-user encryption key rather than mutating storage. See [ADR-007](adr/ADR-007-per-user-encryption-with-crypto-shredding.md).
+**Crypto-shredding** — Deleting a user's data by destroying the app-owned DEK refs and KMS wrapping-key refs that protect their encrypted content rather than mutating storage. See [ADR-007](adr/ADR-007-per-user-encryption-with-crypto-shredding.md).

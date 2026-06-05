@@ -5,7 +5,7 @@
   import SystemEvent from './SystemEvent.svelte';
 
   graphql(`
-    fragment RoomEventView on RoomEvent {
+    fragment RoomEventView on Event {
       id
       createdAt
       actorId
@@ -44,13 +44,22 @@
           }
           viewerIsFollowingThread
         }
-        ... on MessageUpdatedEvent {
+        ... on MessageEditedEvent {
           roomId
           messageEventId
+          body
+          attachments {
+            ...MessageAttachmentView
+          }
+          linkPreview {
+            ...LinkPreviewView
+          }
+          updatedAt
         }
-        ... on MessageDeletedEvent {
+        ... on MessageRetractedEvent {
           roomId
           messageEventId
+          retractedReason: reason
         }
         ... on UserJoinedRoomEvent {
           roomId
@@ -91,6 +100,25 @@
           roomId
           attachmentId
           messageEventId
+        }
+        ... on AssetProcessingStartedEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetProcessingSucceededEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetProcessingFailedEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetDeletedEvent {
+          deletedRoomId: roomId
+          assetId
         }
         ... on ServerMemberDeletedEvent {
           userId

@@ -54,7 +54,7 @@ All commands via mise task runner. Run from project root.
 | `mise clean`            | Remove build artifacts                        |
 | `mise docs`             | Start pkgsite documentation server            |
 
-Releases are driven by [release-please](https://github.com/googleapis/release-please) — see `.release-please-config.json`. Conventional-commit PRs on `main` accumulate in a rolling Release PR; merging it cuts the tag.
+Releases are driven by [release-please](https://github.com/googleapis/release-please). Conventional-commit PRs on `main` accumulate in a rolling alpha prerelease PR using `.release-please-config-prerelease.json`; merging it cuts a `v0.1.0-alpha.N` tag. Maintenance branches (`release-[0-9]*`) use `.release-please-config.json` for stable patch releases.
 
 ## Reference Links
 

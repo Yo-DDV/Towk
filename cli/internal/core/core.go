@@ -5,22 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
-	"math/rand"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/assets"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core/linkpreview"
 	"hmans.de/chatto/internal/core/subjects"
-	"hmans.de/chatto/internal/encryption"
+	"hmans.de/chatto/internal/dekstore"
+	"hmans.de/chatto/internal/events"
+	"hmans.de/chatto/internal/kms"
 	"hmans.de/chatto/internal/migrations"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -31,20 +32,19 @@ import (
 
 // ChattoCore is the central hub for all Chatto operations.
 // It provides a unified API for spaces, users, rooms, and messages,
-// managing all KV buckets and event streams internally.
+// managing current JetStream resources and legacy import handles internally.
 type ChattoCore struct {
-	nc                      *nats.Conn
-	js                      jetstream.JetStream
-	logger                  *log.Logger
-	storage                 *storage
-	config                  config.CoreConfig
-	encryption              *encryptionManager
-	configManager           *ConfigManager
-	roomNameIndexBackfilled sync.Map             // tracks which spaces have had their room-name index backfilled
-	s3Client                *S3Client            // Optional S3 client for S3-compatible storage
-	permissionResolver      *PermissionResolver  // Hierarchical permission resolver
-	linkPreviewCache        *linkpreview.Cache   // Cache for link preview metadata
-	linkPreviewFetcher      *linkpreview.Fetcher // Fetcher for link preview metadata
+	nc                 *nats.Conn
+	js                 jetstream.JetStream
+	logger             *log.Logger
+	storage            *storage
+	config             config.CoreConfig
+	encryption         *encryptionManager
+	configManager      *ConfigManager
+	s3Client           *S3Client            // Optional S3 client for S3-compatible storage
+	permissionResolver *PermissionResolver  // Hierarchical permission resolver
+	linkPreviewCache   *linkpreview.Cache   // Cache for link preview metadata
+	linkPreviewFetcher *linkpreview.Fetcher // Fetcher for link preview metadata
 
 	// VideoMaxUploadSize is the maximum size for video uploads in bytes.
 	// When set (> 0), video attachments use this limit instead of the asset limit.
@@ -61,14 +61,271 @@ type ChattoCore struct {
 	// Set this after ChattoCore is created.
 	OnNotificationDismissed func(ctx context.Context, userID string, notification *corev1.Notification)
 
+	// OnVideoProcessingRequested starts best-effort local video processing for
+	// an already-declared message-owned asset. The video service registers this
+	// callback when enabled; a future durable task queue should replace this
+	// process-local handoff.
+	OnVideoProcessingRequested func(ctx context.Context, assetID, messageEventID string) error
+
 	// AssetBaseURL is prepended to all asset URLs to make them absolute.
 	// When empty, URLs are returned as relative paths (backward compatible).
 	// Set from webserver.url config: scheme + host only (no trailing slash).
 	AssetBaseURL string
 
 	// PresenceHub runs a single KV watcher on presence.> per process and fans
-	// out updates to all space subscriptions. Must be started via Run() in an errgroup.
+	// out updates to all space subscriptions. Started by (*ChattoCore).Run.
 	PresenceHub *PresenceHub
+
+	// EventPublisher writes to the EVT event-sourcing stream
+	// (ADR-033/034). Exposed for use by the migrate subcommand and
+	// future aggregate cutovers; domain code accesses it through
+	// higher-level helpers as aggregates migrate.
+	EventPublisher *events.Publisher
+
+	// RoomDirectory combines the room catalog and membership read models under
+	// one evt.room.> projector.
+	RoomDirectory *RoomDirectoryProjection
+
+	// RoomDirectoryProjector runs the consumer for RoomDirectory. The
+	// room catalog and membership writer paths wait on this projector for
+	// read-your-writes.
+	RoomDirectoryProjector *events.Projector
+
+	// RoomMembership is the membership index inside RoomDirectory.
+	RoomMembership *RoomMembershipProjection
+
+	// ServerConfig is the projection holding current dynamic configuration
+	// rebuilt from EVT. The field name is retained for compatibility with
+	// existing admin/verification code while the projection now stores more
+	// than the old server-config snapshot.
+	ServerConfig *ConfigProjection
+
+	// ServerConfigProjector runs the consumer + apply loop that keeps
+	// ServerConfig current. Started by (*ChattoCore).Run; exposed here
+	// so writers (ConfigManager mutations) can call WaitForSeq.
+	ServerConfigProjector *events.Projector
+
+	// RoomCatalog is the room metadata index inside RoomDirectory.
+	RoomCatalog *RoomCatalogProjection
+
+	// RoomGroupLayout combines room-group state and sidebar ordering under one
+	// projector over evt.group.> plus evt.layout.>.
+	RoomGroupLayout *RoomGroupLayoutProjection
+
+	// RoomGroupLayoutProjector runs the consumer for RoomGroupLayout. The
+	// room-group and layout writer paths wait on this projector for
+	// read-your-writes.
+	RoomGroupLayoutProjector *events.Projector
+
+	// RoomGroups is the group state index inside RoomGroupLayout.
+	RoomGroups *RoomGroupProjection
+
+	// RoomLayout is the sidebar ordering index inside RoomGroupLayout.
+	RoomLayout *RoomLayoutProjection
+
+	// RoomTimeline holds an append-only event log per room, derived
+	// from the full evt.room.> firehose (#597 phase 2). Source of
+	// truth for room timeline reads post-cutover.
+	RoomTimeline *RoomTimelineProjection
+
+	// RoomTimelineProjector runs the consumer for RoomTimeline.
+	// Exposed for WaitForSeq from message writers.
+	RoomTimelineProjector *events.Projector
+
+	// Threads holds an append-only event log per thread root,
+	// derived from the same evt.room.> firehose. Source of truth
+	// for thread-pane reads post-cutover.
+	Threads *ThreadProjection
+
+	// ThreadsProjector runs the consumer for Threads. Exposed for
+	// WaitForSeq from message writers that touch threads.
+	ThreadsProjector *events.Projector
+
+	// Reactions holds current per-message reaction state derived
+	// from durable room-aggregate reaction events.
+	Reactions *ReactionProjection
+
+	// ReactionsProjector runs the consumer for Reactions. Exposed
+	// for WaitForSeq from reaction writers.
+	ReactionsProjector *events.Projector
+
+	// Users holds current user/account/profile/auth lookup state derived
+	// from durable user-aggregate events.
+	Users *UserProjection
+
+	// UsersProjector runs the consumer for Users. Exposed for
+	// WaitForSeq from user/account writers.
+	UsersProjector *events.Projector
+
+	// ContentKeys holds wrapped per-user DEK epochs used by encrypted
+	// message bodies and durable user PII.
+	ContentKeys *ContentKeyProjection
+
+	// ContentKeysProjector runs the consumer for ContentKeys. Exposed for
+	// WaitForSeq from encryption writers.
+	ContentKeysProjector *events.Projector
+
+	// RBAC holds current role, assignment, and permission state derived
+	// from durable RBAC aggregate events.
+	RBAC *RBACProjection
+
+	// RBACProjector runs the consumer for RBAC. Exposed for WaitForSeq
+	// from role and permission writers.
+	RBACProjector *events.Projector
+
+	// projections is the set of all event-sourcing projections owned by
+	// this core. Each registration carries the runtime projector plus
+	// operator-facing diagnostics, so lifecycle and admin surfaces cannot
+	// drift into separate hand-maintained lists.
+	projections []projectionRegistration
+
+	// bootDone is closed by Run once all projectors are started AND
+	// boot-time mutations (ensureChannelRoomsAreInAGroup) have
+	// completed. Callers that need to issue projection-backed reads
+	// during startup — most notably SeedDefaultRooms in cmd/run.go —
+	// block on this via WaitForBoot.
+	bootDone chan struct{}
+}
+
+// Run starts every background service owned by the core — currently
+// PresenceHub and every registered projector — and blocks until ctx is
+// cancelled or any service returns an error. Returns the first error
+// observed (or ctx.Err on shutdown).
+//
+// Call this once per process from an errgroup goroutine; tests typically
+// launch it in a bare goroutine with a per-test context that cleanup
+// cancels. Background services are not designed to be restarted.
+//
+// New projectors should be registered during NewChattoCore; they are then
+// started automatically here without any additional wiring.
+func (c *ChattoCore) Run(ctx context.Context) error {
+	g, gctx := errgroup.WithContext(ctx)
+
+	for _, projection := range c.projections {
+		projector := projection.projector
+		g.Go(func() error { return projector.Run(gctx) })
+	}
+
+	// Block until every projector has entered Run before issuing
+	// projection-backed mutations during boot. Without this,
+	// ensureChannelRoomsAreInAGroup's reads against an empty
+	// projection would silently skip the WaitForSeq path and leave
+	// orphan rooms (rooms created without a group assignment).
+	g.Go(func() error {
+		if err := c.waitForProjectorsStarted(gctx, 5*time.Second); err != nil {
+			return fmt.Errorf("wait for projectors: %w", err)
+		}
+		// Before issuing boot-time "ensure" mutations, let every
+		// projection replay the durable stream as it exists now. A
+		// started-but-cold projection would otherwise look empty and
+		// append duplicate seed facts on every process restart.
+		if err := c.WaitForProjectionsCurrent(gctx); err != nil {
+			return fmt.Errorf("wait for projections current: %w", err)
+		}
+		// Apply config-designated owners to already-verified users on every
+		// boot. Changing owners.emails requires a process restart, so this
+		// is the natural point to materialize new config owners as RBAC
+		// assignments. The assignment path is idempotent.
+		if err := c.applyConfigOwners(gctx); err != nil {
+			return fmt.Errorf("apply config owners: %w", err)
+		}
+		// Seed the default room group and ensure every existing
+		// channel room belongs to a set (ADR-031). Idempotent —
+		// runs on every boot. Has to happen AFTER projectors are
+		// running and caught up because it reads the RoomGroups
+		// projection and depends on WaitForSeq actually waiting.
+		if err := c.ensureChannelRoomsAreInAGroup(gctx); err != nil {
+			return fmt.Errorf("ensure channel rooms in a group: %w", err)
+		}
+		if c.config.ESBootVerify {
+			if err := c.WaitForProjectionsCurrent(gctx); err != nil {
+				return fmt.Errorf("wait for projections current: %w", err)
+			}
+			if err := c.logESBootVerification(gctx); err != nil {
+				if c.config.ESBootVerifyStrict {
+					return err
+				}
+				c.logger.Warn("ES boot verification reported problems", "error", err)
+			}
+		}
+		close(c.bootDone)
+		return nil
+	})
+
+	g.Go(func() error { return c.PresenceHub.Run(gctx) })
+
+	return g.Wait()
+}
+
+// AllProjectorsStarted reports whether every registered projector
+// has entered its Run body. Test helpers (and any sequenced startup
+// code) use this to wait for projector consumers to come online
+// before issuing reads that depend on a populated projection — the
+// background goroutines launched by Run aren't guaranteed to have
+// been scheduled the instant `go core.Run(ctx)` returns.
+func (c *ChattoCore) AllProjectorsStarted() bool {
+	for _, projection := range c.projections {
+		if !projection.projector.Started() {
+			return false
+		}
+	}
+	return true
+}
+
+// WaitForBoot blocks until Run has finished boot-time setup
+// (projectors running + ensureChannelRoomsAreInAGroup done) or ctx
+// is cancelled. Callers that issue projection-backed mutations during
+// startup — e.g. SeedDefaultRooms in cmd/run.go — must wait here
+// first; mutating before boot completes leaves orphan rooms because
+// CreateRoom's default-group lookup reads the (still-empty)
+// projection.
+func (c *ChattoCore) WaitForBoot(ctx context.Context) error {
+	select {
+	case <-c.bootDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// WaitForProjectionsCurrent blocks until every registered projection has
+// applied the latest stream message matching its filters as of this call.
+// Intended for boot/import diagnostics, not hot request paths.
+func (c *ChattoCore) WaitForProjectionsCurrent(ctx context.Context) error {
+	for _, projection := range c.projections {
+		if err := projection.projector.WaitForCurrent(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// waitForProjectorsStarted polls AllProjectorsStarted with a short
+// interval until every projector has entered its Run body or the
+// deadline / context elapses. The polling shape mirrors the test
+// helper; this version lives in Run so production has the same
+// guarantee without test-only code on the path.
+func (c *ChattoCore) waitForProjectorsStarted(ctx context.Context, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for !c.AllProjectorsStarted() {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("projectors did not start within %s", timeout)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Millisecond):
+		}
+	}
+	return nil
+}
+
+// EventStreamForDebug returns the EVT stream. Intended for the
+// `chatto evt list` command and similar low-level operator tooling that
+// reads raw stream messages. Domain code goes through EventPublisher /
+// Projector instead.
+func (c *ChattoCore) EventStreamForDebug(_ context.Context) (jetstream.Stream, error) {
+	return c.storage.serverEvtStream, nil
 }
 
 // assetURL prepends AssetBaseURL to an asset path.
@@ -82,17 +339,18 @@ func (c *ChattoCore) assetURL(path string) string {
 
 // encryptionManager handles message body encryption/decryption.
 type encryptionManager struct {
-	keyManager *encryption.KeyManager
+	keyWrapper  kms.KeyWrapper
+	legacyKeys  kms.LegacyKeyProvider
+	contentKeys *dekstore.Store
 }
 
 func (c *ChattoCore) ServerStore() jetstream.ObjectStore {
 	return c.storage.serverStore
 }
 
-// KeyManager returns the encryption key manager.
-// Used by the KMS service to handle encryption operations.
-func (c *ChattoCore) KeyManager() *encryption.KeyManager {
-	return c.encryption.keyManager
+// KeyWrapper returns the key-only KMS boundary used by encryption operations.
+func (c *ChattoCore) KeyWrapper() kms.KeyWrapper {
+	return c.encryption.keyWrapper
 }
 
 // ConfigManager returns the runtime configuration manager.
@@ -111,10 +369,84 @@ func (c *ChattoCore) PermResolver() *PermissionResolver {
 // All messages encrypted with this key become permanently unreadable.
 // This is used for GDPR-compliant user deletion.
 func (c *ChattoCore) DeleteUserEncryptionKey(ctx context.Context, userID string) error {
-	if c.encryption.keyManager == nil {
+	return c.DeleteUserEncryptionKeyAs(ctx, userID, userID)
+}
+
+func (c *ChattoCore) deleteEncryptionKeyOnly(ctx context.Context, keyRef string) error {
+	if c.encryption.keyWrapper == nil {
+		return nil
+	}
+	return c.encryption.keyWrapper.ShredKey(ctx, keyRef)
+}
+
+func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, userID string) error {
+	if c.encryption.keyWrapper == nil {
 		return nil // Encryption not configured
 	}
-	return c.encryption.keyManager.DeleteUserKey(ctx, userID)
+
+	if err := c.waitForUserContentKeysCurrent(ctx, userID); err != nil {
+		return err
+	}
+
+	contentKeyRefs := c.ContentKeys.ContentKeyRefs(userID)
+	keyRefs := make(map[string]struct{})
+	keyRefs[kms.LegacyUserKeyRef(userID)] = struct{}{}
+	for _, keyRef := range c.ContentKeys.KeyRefs(userID) {
+		if keyRef != "" {
+			keyRefs[keyRef] = struct{}{}
+		}
+	}
+	for _, contentKeyRef := range contentKeyRefs {
+		if c.encryption.contentKeys == nil {
+			return fmt.Errorf("content key store is not configured")
+		}
+		stored, err := c.encryption.contentKeys.Get(ctx, contentKeyRef)
+		if err != nil {
+			return fmt.Errorf("failed to load DEK %s before shredding: %w", contentKeyRef, err)
+		}
+		if wrappingKeyRef := stored.GetWrappingKeyRef(); wrappingKeyRef != "" {
+			keyRefs[wrappingKeyRef] = struct{}{}
+		}
+	}
+
+	shredded := false
+	for _, contentKeyRef := range contentKeyRefs {
+		if err := c.encryption.contentKeys.Shred(ctx, contentKeyRef); err != nil {
+			return err
+		}
+		shredded = true
+	}
+
+	for keyRef := range keyRefs {
+		exists, err := c.encryption.keyWrapper.KeyExists(ctx, keyRef)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			continue
+		}
+		if err := c.encryption.keyWrapper.ShredKey(ctx, keyRef); err != nil {
+			return err
+		}
+		shredded = true
+	}
+	if !shredded {
+		return nil
+	}
+
+	event := newEvent(actorID, &corev1.Event{
+		Event: &corev1.Event_UserKeyShredded{
+			UserKeyShredded: &corev1.UserKeyShreddedEvent{UserId: userID},
+		},
+	})
+	seq, err := c.appendUserEvent(ctx, userID, event, "", nil)
+	if err != nil {
+		return fmt.Errorf("failed to record user key shred event: %w", err)
+	}
+	return waitForSeqAll(ctx, seq,
+		waitForProjection("room timeline", c.RoomTimelineProjector),
+		waitForProjection("thread", c.ThreadsProjector),
+	)
 }
 
 // AssetsConfig returns the assets configuration as an assets.Config.
@@ -216,7 +548,7 @@ func (c *ChattoCore) GetServerAssetFromAnyBackend(ctx context.Context, assetID s
 
 // CleanupAsset deletes an asset from the server object store.
 // Used to clean up orphaned assets when subsequent operations fail.
-func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.Asset) {
+func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.DeprecatedAsset) {
 	if asset == nil {
 		return
 	}
@@ -228,7 +560,6 @@ func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.Asset) {
 		}
 	}
 	if s3Asset := asset.GetS3(); s3Asset != nil && c.s3Client != nil {
-		// S3Asset.Key stores just the assetID; construct the full S3 path
 		s3Key := S3KeyServerAsset(s3Asset.Key)
 		if err := c.s3Client.DeleteObjectFromBucket(ctx, s3Asset.GetBucket(), s3Key); err != nil {
 			c.logger.Warn("Failed to clean up orphaned S3 asset", "asset_id", s3Asset.Key, "s3_key", s3Key, "error", err)
@@ -242,7 +573,7 @@ func (c *ChattoCore) CleanupAsset(ctx context.Context, asset *corev1.Asset) {
 // This is a helper for cleaning up old assets when they are replaced.
 // For S3, the assetID stored in S3Asset.Key is used to construct the full S3 path.
 // The assetType and ownerID are used for logging only.
-func (c *ChattoCore) deleteAsset(ctx context.Context, asset *corev1.Asset, assetType, ownerID string) {
+func (c *ChattoCore) deleteAsset(ctx context.Context, asset *corev1.DeprecatedAsset, assetType, ownerID string) {
 	if asset == nil {
 		return
 	}
@@ -264,14 +595,15 @@ func (c *ChattoCore) deleteAsset(ctx context.Context, asset *corev1.Asset, asset
 	}
 }
 
-// Ready checks if the core is fully initialized and JetStream resources are accessible.
+// Ready checks if the core is fully initialized and current persistent resources are accessible.
 // Returns nil if ready, or an error describing what's not ready.
 // Used by the /readyz endpoint to verify the server can handle requests.
 func (c *ChattoCore) Ready(ctx context.Context) error {
-	// Check if JetStream is operational by getting the INSTANCE KV bucket status
-	_, err := c.storage.serverKV.Status(ctx)
-	if err != nil {
-		return fmt.Errorf("JetStream not ready: %w", err)
+	if _, err := c.storage.runtimeStateKV.Status(ctx); err != nil {
+		return fmt.Errorf("RUNTIME_STATE not ready: %w", err)
+	}
+	if _, err := c.storage.serverEvtStream.Info(ctx); err != nil {
+		return fmt.Errorf("EVT not ready: %w", err)
 	}
 	return nil
 }
@@ -287,43 +619,19 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		return nil, fmt.Errorf("failed to create JetStream context: %w", err)
 	}
 
-	// Initialize storage (KV buckets)
+	// Initialize storage (current resources plus optional legacy import sources).
 	storage, err := newStorage(js, ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	// Run boot-time data migrations. Idempotent and cheap on subsequent
-	// boots (each migration short-circuits when no legacy data remains).
-	// See cli/internal/migrations for what's currently registered.
-	if err := migrations.RunAll(ctx, storage.serverKV, storage.serverConfigKV, storage.serverBodiesKV, storage.serverRuntimeKV, logger); err != nil {
-		return nil, fmt.Errorf("failed to run boot migrations: %w", err)
-	}
-
 	// Initialize encryption manager
+	builtinKMS := kms.NewBuiltin(storage.encryptionKV, logger.WithPrefix("core.kms"))
 	encMgr := &encryptionManager{
-		keyManager: encryption.NewKeyManager(storage.encryptionKV),
+		keyWrapper:  builtinKMS,
+		legacyKeys:  builtinKMS,
+		contentKeys: dekstore.New(storage.encryptionKV, logger.WithPrefix("core.dekstore")),
 	}
-
-	// Phase 5 of #330 collapsed the dual instance-/space-RBAC engines into a
-	// single server-RBAC engine wrapping SERVER_RBAC. All permission checks
-	// go through here.
-	storage.serverRBACEngine = NewEngine(storage.serverRBACKV, Config{
-		SystemRoles:  []string{RoleOwner, RoleAdmin, RoleModerator, RoleEveryone},
-		AdminRole:    RoleOwner,
-		VirtualRoles: VirtualRoles(),
-		ValidateVerbObjectType: func(verb, objectType string) error {
-			perm := ReconstructPermission(verb, objectType)
-			if perm == "" {
-				return fmt.Errorf("%w: verb=%s, objectType=%s", ErrInvalidPermission, verb, objectType)
-			}
-			return nil
-		},
-		Logger: slog.Default().With("component", "server-rbac"),
-	})
-
-	// Initialize config manager for runtime configuration
-	configMgr := NewConfigManager(storage.runtimeConfigKV)
 
 	// Initialize S3 client if S3 storage is configured
 	var s3Client *S3Client
@@ -342,43 +650,155 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		}
 	}
 
+	// Build the event-sourcing primitives before any aggregate-specific
+	// wiring so projections and managers that need them can be passed the
+	// concrete deps at construction. Order: publisher → projections →
+	// projectors → managers that depend on them.
+	eventPublisher := events.NewPublisher(js, storage.serverEvtStream, logger)
+
+	// newProjector wraps projection construction into one registration
+	// record. Runtime lifecycle and admin diagnostics both consume this
+	// same list, so adding a projection has a single wiring point.
+	var projections []projectionRegistration
+	newProjector := func(p events.Projection, name string, estimate func() (int64, int64, []ProjectionAdminMetric)) *events.Projector {
+		loggerName := strings.ReplaceAll(name, " ", "") + "Projector"
+		pr := events.NewProjector(js, storage.serverEvtStream, p, logger.WithPrefix("core."+loggerName))
+		projections = append(projections, projectionRegistration{
+			name:      name,
+			projector: pr,
+			estimate:  estimate,
+		})
+		return pr
+	}
+
+	roomDirectory := NewRoomDirectoryProjection()
+	roomDirectoryProjector := newProjector(roomDirectory, "Room Directory", roomDirectory.adminProjectionEstimate)
+	roomMembership := roomDirectory.Membership
+
+	serverConfigProjection := NewConfigProjection()
+	serverConfigProjector := newProjector(serverConfigProjection, "Server Config", serverConfigProjection.adminProjectionEstimate)
+
+	roomCatalog := roomDirectory.Catalog
+
+	roomGroupLayout := NewRoomGroupLayoutProjection()
+	roomGroupLayoutProjector := newProjector(roomGroupLayout, "Room Group Layout", roomGroupLayout.adminProjectionEstimate)
+	roomGroups := roomGroupLayout.Groups
+	roomLayout := roomGroupLayout.Layout
+
+	// Per-room event-log + per-thread event-log projections (#597
+	// phase 2). Both consume the full evt.room.> firehose; resolvers
+	// do all filtering and rendering at query time. v1 shape — we
+	// iterate significantly on this once we observe read patterns.
+	roomTimeline := NewRoomTimelineProjection()
+	roomTimelineProjector := newProjector(roomTimeline, "Room Timeline", roomTimeline.adminProjectionEstimate)
+
+	threads := NewThreadProjection()
+	threadsProjector := newProjector(threads, "Threads", threads.adminProjectionEstimate)
+
+	reactions := NewReactionProjection()
+	reactionsProjector := newProjector(reactions, "Reactions", reactions.adminProjectionEstimate)
+
+	users := NewUserProjection(encMgr.keyWrapper, encMgr.contentKeys)
+	usersProjector := newProjector(users, "Users", users.adminProjectionEstimate)
+
+	contentKeys := NewContentKeyProjection()
+	contentKeysProjector := newProjector(contentKeys, "Content Keys", contentKeys.adminProjectionEstimate)
+
+	rbac := NewRBACProjection()
+	rbacProjector := newProjector(rbac, "RBAC", rbac.adminProjectionEstimate)
+
+	configService := NewConfigService(eventPublisher, serverConfigProjector, serverConfigProjection)
+	configMgr := NewConfigManager(configService, serverConfigProjection)
+
 	core := &ChattoCore{
-		nc:            nc,
-		js:            js,
-		logger:        logger,
-		storage:       storage,
-		config:        cfg,
-		encryption:    encMgr,
-		configManager: configMgr,
-		s3Client:      s3Client,
+		nc:                       nc,
+		js:                       js,
+		logger:                   logger,
+		storage:                  storage,
+		config:                   cfg,
+		encryption:               encMgr,
+		configManager:            configMgr,
+		s3Client:                 s3Client,
+		EventPublisher:           eventPublisher,
+		RoomDirectory:            roomDirectory,
+		RoomDirectoryProjector:   roomDirectoryProjector,
+		RoomMembership:           roomMembership,
+		ServerConfig:             serverConfigProjection,
+		ServerConfigProjector:    serverConfigProjector,
+		RoomCatalog:              roomCatalog,
+		RoomGroupLayout:          roomGroupLayout,
+		RoomGroupLayoutProjector: roomGroupLayoutProjector,
+		RoomGroups:               roomGroups,
+		RoomLayout:               roomLayout,
+		RoomTimeline:             roomTimeline,
+		RoomTimelineProjector:    roomTimelineProjector,
+		Threads:                  threads,
+		ThreadsProjector:         threadsProjector,
+		Reactions:                reactions,
+		ReactionsProjector:       reactionsProjector,
+		Users:                    users,
+		UsersProjector:           usersProjector,
+		ContentKeys:              contentKeys,
+		ContentKeysProjector:     contentKeysProjector,
+		RBAC:                     rbac,
+		RBACProjector:            rbacProjector,
+		projections:              projections,
+		bootDone:                 make(chan struct{}),
+	}
+
+	if err := core.migrateLegacyCallStateToMemoryCache(ctx); err != nil {
+		logger.Warn("Failed to copy legacy CALL_STATE entries into MEMORY_CACHE", "error", err)
+	}
+
+	if err := core.migrateRBACToES(ctx); err != nil {
+		return nil, fmt.Errorf("failed to migrate RBAC to ES: %w", err)
+	}
+
+	// Run boot-time data migrations. Idempotent and cheap on subsequent
+	// boots (each migration short-circuits when no legacy data remains).
+	// See cli/internal/migrations for the registry, including the
+	// ADR-035 ES seed migrations that need the event publisher we just
+	// constructed.
+	//
+	// In the typical embedded-NATS deployment the NATS server has no
+	// TCP listener, so we can't run migrations from a second process —
+	// the boot path is the only safe place for them.
+	if err := migrations.RunAll(
+		ctx,
+		storage.serverKV, storage.serverConfigKV, storage.serverBodiesKV, storage.serverRuntimeKV, storage.runtimeConfigKV,
+		storage.runtimeStateKV,
+		storage.serverEventsStream, storage.serverReactionsKV,
+		eventPublisher,
+		encMgr.keyWrapper,
+		encMgr.contentKeys,
+		logger,
+	); err != nil {
+		return nil, fmt.Errorf("failed to run boot migrations: %w", err)
+	}
+	if err := core.migrateAssetCreationsToES(ctx); err != nil {
+		return nil, fmt.Errorf("failed to migrate asset creations to ES: %w", err)
+	}
+	if err := core.migrateVideoManifestsToES(ctx); err != nil {
+		return nil, fmt.Errorf("failed to migrate video manifests to ES: %w", err)
 	}
 
 	// Initialize permission resolver (must be done after core struct is created)
 	core.permissionResolver = NewPermissionResolver(core)
 
 	// Initialize link preview cache and fetcher
-	linkPreviewCache, err := linkpreview.NewCache(ctx, js, cfg.Replicas)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create link preview cache: %w", err)
-	}
-	core.linkPreviewCache = linkPreviewCache
+	core.linkPreviewCache = linkpreview.NewCache(storage.runtimeStateKV)
 	assetsConfig := core.AssetsConfig()
 	core.linkPreviewFetcher = linkpreview.NewFetcher(storage.serverStore, &assetsConfig, NewAssetID)
 
-	// Initialize server-level RBAC (roles and permissions)
-	if err := core.initServerRBAC(ctx); err != nil {
-		return nil, fmt.Errorf("failed to initialize server RBAC: %w", err)
-	}
+	// ensureChannelRoomsAreInAGroup is deferred to core.Run() — it
+	// needs the projectors to be live so its CreateRoomGroup /
+	// MoveRoomToGroup calls can actually WaitForSeq. Doing it here
+	// (when projectors haven't been started yet) would leave orphan
+	// rooms in any subsequent SeedDefaultRooms call.
 
-	// Seed the default room group and ensure every existing channel room
-	// belongs to a set (ADR-031). Idempotent — runs on every boot.
-	if err := core.ensureChannelRoomsAreInAGroup(ctx); err != nil {
-		return nil, fmt.Errorf("failed to seed default room group: %w", err)
-	}
-
-	// Initialize presence hub (single KV watcher per process).
-	// Caller must start core.PresenceHub.Run(ctx) in an errgroup.
-	core.PresenceHub = NewPresenceHub(storage.presenceKV, logger)
+	// Initialize presence hub (single KV watcher per process). Started
+	// by core.Run alongside the projectors.
+	core.PresenceHub = NewPresenceHub(storage.memoryCacheKV, logger)
 
 	return core, nil
 }
@@ -396,51 +816,39 @@ func (c *ChattoCore) Subscribe(ctx context.Context, subject string, handler nats
 // Storage
 // ============================================================================
 
-// storage encapsulates all JetStream KV buckets and streams used by Chatto Core.
+// storage encapsulates JetStream resources used by Chatto Core. Current
+// resources are provisioned at startup; legacy import resources are opened only
+// when they already exist.
 type storage struct {
-	serverKV        jetstream.KeyValue
 	serverStore     jetstream.ObjectStore
 	encryptionKV    jetstream.KeyValue // Encryption keys (excluded from backups)
-	runtimeConfigKV jetstream.KeyValue // INSTANCE_CONFIG - runtime configuration overrides
+	serverKV        jetstream.KeyValue // INSTANCE        - legacy user/config import source
+	runtimeConfigKV jetstream.KeyValue // INSTANCE_CONFIG - legacy runtime configuration import source
+	runtimeStateKV  jetstream.KeyValue // RUNTIME_STATE  - persisted latest-value runtime/user state
 
-	// Server-level KV buckets (#330 phase 4a, 4b, 4c, 4e) and event stream
-	// (#330 phase 4d). Shared by the primary and DM spaces; non-primary,
-	// non-DM spaces (test-created only in practice) keep their per-space
-	// lazycaches below.
-	serverConfigKV     jetstream.KeyValue    // SERVER_CONFIG    - rooms, memberships
-	serverRuntimeKV    jetstream.KeyValue    // SERVER_RUNTIME   - sequences, timestamps, read state
-	serverRBACKV       jetstream.KeyValue    // SERVER_RBAC      - roles, permissions, assignments
-	serverRBACEngine   *Engine               // Engine wrapping serverRBACKV
-	serverBodiesKV     jetstream.KeyValue    // SERVER_BODIES    - message bodies + attachment metadata records (#330 phase 4c). TODO: rename → SERVER_CONTENT now that it hosts more than bodies.
-	serverReactionsKV  jetstream.KeyValue    // SERVER_REACTIONS - emoji reactions (#330 phase 4c)
-	serverThreadsKV    jetstream.KeyValue    // SERVER_THREADS   - thread metadata (#330 phase 4c)
-	serverAttachments  jetstream.ObjectStore // SERVER_ASSETS    - message attachment binaries (#330 phase 4e)
-	serverEventsStream jetstream.Stream      // SERVER_EVENTS    - event stream (#330 phase 4d)
+	// Legacy import resources. Fresh ES-only deployments do not create these;
+	// boot importers treat nil handles as empty sources.
+	serverConfigKV     jetstream.KeyValue // SERVER_CONFIG    - legacy rooms, memberships
+	serverRuntimeKV    jetstream.KeyValue // SERVER_RUNTIME   - legacy sequences, timestamps, read state
+	serverRBACKV       jetstream.KeyValue // SERVER_RBAC      - legacy RBAC import source
+	serverBodiesKV     jetstream.KeyValue // SERVER_BODIES    - legacy message bodies + attachment metadata records
+	serverReactionsKV  jetstream.KeyValue // SERVER_REACTIONS - legacy emoji reactions
+	serverEventsStream jetstream.Stream   // SERVER_EVENTS    - legacy event stream
 
-	presenceKV      jetstream.KeyValue    // Instance-level presence bucket
-	imageCacheStore jetstream.ObjectStore // Optional: cached resized images (nil if disabled)
-	notificationsKV jetstream.KeyValue    // User notifications with TTL
-	callStateKV     jetstream.KeyValue    // Active voice call participants (ephemeral, memory-backed)
-	authTokensKV    jetstream.KeyValue    // Bearer auth tokens with TTL
+	serverAttachments jetstream.ObjectStore // SERVER_ASSETS    - message attachment binaries (#330 phase 4e)
+	serverEvtStream   jetstream.Stream      // EVT       - event-sourcing log (ADR-033/034).
+
+	memoryCacheKV     jetstream.KeyValue    // MEMORY_CACHE - volatile, memory-backed runtime cache state
+	imageCacheStore   jetstream.ObjectStore // Optional: cached resized images (nil if disabled)
+	legacyCallStateKV jetstream.KeyValue    // CALL_STATE - legacy active voice call import source
 }
 
-// newStorage initializes all JetStream KV buckets and streams.
+// newStorage initializes current JetStream resources and opens existing legacy
+// import resources.
 func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConfig) (*storage, error) {
-	// Initialize INSTANCE KV bucket for all server-level data
-	// Uses subject-based keys: user.{userId}, space.{spaceId}, space_membership.{spaceId}.{userId}, etc.
-	serverKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "INSTANCE",
-		Description: "Instance-level data (users, spaces, memberships)",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-		// Enables per-key TTL via jetstream.KeyTTL(...) on Create. Used for short-lived
-		// entries like registration tokens and email-verification tokens so they leave
-		// the bucket automatically. The duration is how long delete markers from
-		// TTL-expiry are kept before purging.
-		LimitMarkerTTL: 24 * time.Hour,
-	})
+	serverKV, err := openLegacyKeyValue(ctx, js, "INSTANCE")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create INSTANCE KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy INSTANCE KV bucket: %w", err)
 	}
 
 	// Initialize server object store
@@ -455,41 +863,47 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		return nil, fmt.Errorf("failed to create INSTANCE object store: %w", err)
 	}
 
-	// Initialize server-level presence KV bucket (memory-based with TTL)
-	presenceKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:         "USER_PRESENCE",
-		Description:    "Instance-level user presence status",
-		Storage:        jetstream.MemoryStorage, // Memory-based for speed, no persistence needed
-		TTL:            PresenceTTL,             // Auto-expire entries that aren't refreshed
-		History:        1,                       // Only current value needed
-		LimitMarkerTTL: PresenceTTL,             // Emit delete markers on TTL expiry so watchers get notified
-		Replicas:       cfg.Replicas,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PRESENCE KV bucket: %w", err)
-	}
-
 	// Initialize encryption keys KV bucket (excluded from backups for security)
 	// Keys are stored separately so backups contain only encrypted data, not the keys to decrypt it
 	encryptionKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 		Bucket:      "ENCRYPTION_KEYS",
 		Description: "User encryption keys (excluded from backups)",
 		Storage:     jetstream.FileStorage,
+		History:     1,
 		Replicas:    cfg.Replicas,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ENCRYPTION_KEYS KV bucket: %w", err)
 	}
 
-	// Initialize runtime configuration KV bucket
-	runtimeConfigKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "INSTANCE_CONFIG",
-		Description: "Runtime configuration overrides",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
+	runtimeConfigKV, err := openLegacyKeyValue(ctx, js, "INSTANCE_CONFIG")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open legacy INSTANCE_CONFIG KV bucket: %w", err)
+	}
+
+	runtimeStateKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:         "RUNTIME_STATE",
+		Description:    "Persisted latest-value runtime/user state",
+		Storage:        jetstream.FileStorage,
+		History:        1,
+		Compression:    true,
+		Replicas:       cfg.Replicas,
+		LimitMarkerTTL: 24 * time.Hour,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create INSTANCE_CONFIG KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to create RUNTIME_STATE KV bucket: %w", err)
+	}
+
+	memoryCacheKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:         "MEMORY_CACHE",
+		Description:    "Volatile memory-backed runtime cache state",
+		Storage:        jetstream.MemoryStorage,
+		History:        1,
+		Replicas:       cfg.Replicas,
+		LimitMarkerTTL: PresenceTTL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create MEMORY_CACHE KV bucket: %w", err)
 	}
 
 	// Initialize image cache object store (optional, only when enabled)
@@ -508,95 +922,34 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		}
 	}
 
-	// Initialize notifications KV bucket with 3-month TTL
-	notificationsKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "NOTIFICATIONS",
-		Description: "User notifications (mentions, DMs, thread replies)",
-		Storage:     jetstream.FileStorage,
-		TTL:         90 * 24 * time.Hour, // 3 months
-		Replicas:    cfg.Replicas,
-	})
+	legacyCallStateKV, err := openLegacyKeyValue(ctx, js, "CALL_STATE")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create NOTIFICATIONS KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy CALL_STATE KV bucket: %w", err)
 	}
 
-	// Initialize call state KV bucket (memory-backed, ephemeral)
-	// Tracks active voice call participants. Keys: {spaceId}.{roomId} → JSON participant list.
-	// Memory storage is intentional: call state is transient and will be repopulated
-	// by LiveKit webhooks after a server restart.
-	callStateKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "CALL_STATE",
-		Description: "Active voice call participants (ephemeral)",
-		Storage:     jetstream.MemoryStorage,
-		History:     1,
-		Replicas:    cfg.Replicas,
-	})
+	serverConfigKV, err := openLegacyKeyValue(ctx, js, "SERVER_CONFIG")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create CALL_STATE KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy SERVER_CONFIG KV bucket: %w", err)
 	}
 
-	// Initialize server-level KV buckets (#330 phase 4a, 4b, 4c). These hold
-	// the deployment-wide primary + DM data. Non-primary, non-DM spaces
-	// (test-created only in practice) keep their per-space SPACE_{id}_*
-	// buckets.
-	serverConfigKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "SERVER_CONFIG",
-		Description: "Server-level configuration (rooms, memberships)",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-	})
+	serverRBACKV, err := openLegacyKeyValue(ctx, js, "SERVER_RBAC")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_CONFIG KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy SERVER_RBAC KV bucket: %w", err)
 	}
 
-	serverRBACKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "SERVER_RBAC",
-		Description: "Server-level RBAC (roles, permissions, assignments)",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-	})
+	serverRuntimeKV, err := openLegacyKeyValue(ctx, js, "SERVER_RUNTIME")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_RBAC KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy SERVER_RUNTIME KV bucket: %w", err)
 	}
 
-	serverRuntimeKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "SERVER_RUNTIME",
-		Description: "Server-level runtime state (sequences, read status)",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-	})
+	serverBodiesKV, err := openLegacyKeyValue(ctx, js, "SERVER_BODIES")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_RUNTIME KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy SERVER_BODIES KV bucket: %w", err)
 	}
 
-	serverBodiesKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "SERVER_BODIES",
-		Description: "Server-level message bodies",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-	})
+	serverReactionsKV, err := openLegacyKeyValue(ctx, js, "SERVER_REACTIONS")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_BODIES KV bucket: %w", err)
-	}
-
-	serverReactionsKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "SERVER_REACTIONS",
-		Description: "Server-level emoji reactions",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_REACTIONS KV bucket: %w", err)
-	}
-
-	serverThreadsKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:      "SERVER_THREADS",
-		Description: "Server-level thread metadata",
-		Storage:     jetstream.FileStorage,
-		Replicas:    cfg.Replicas,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_THREADS KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to open legacy SERVER_REACTIONS KV bucket: %w", err)
 	}
 
 	serverAttachments, err := js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
@@ -610,49 +963,35 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		return nil, fmt.Errorf("failed to create SERVER_ASSETS object store: %w", err)
 	}
 
-	// Initialize the deployment-wide events stream (#330 phase 4d). Holds all
-	// JetStream events for the primary space and the DM system space; non-
-	// primary, non-DM spaces (test-created only in production) keep their
-	// per-space SPACE_{id}_EVENTS streams.
-	serverEventsStream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:               "SERVER_EVENTS",
-		Description:        "Server-level event stream (primary + DM)",
-		Subjects:           []string{"server.>"},
-		Storage:            jetstream.FileStorage,
-		Compression:        jetstream.S2Compression,
+	serverEventsStream, err := openLegacyStream(ctx, js, "SERVER_EVENTS")
+	if err != nil {
+		return nil, fmt.Errorf("failed to open legacy SERVER_EVENTS stream: %w", err)
+	}
+
+	// EVT — the event-sourcing log (ADR-033/034).
+	// Subjects are evt.{aggregateType}.{aggregateId}; live.evt.> is
+	// the republish target so projections and live subscribers consume
+	// from a single NATS Core path.
+	serverEvtStream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+		Name:        "EVT",
+		Description: "Event-sourcing log (ADR-033)",
+		Subjects:    []string{"evt.>"},
+		Storage:     jetstream.FileStorage,
+		Compression: jetstream.S2Compression,
+		Replicas:    cfg.Replicas,
+		// AllowAtomicPublish gates the Nats-Batch-Id / Nats-Batch-Commit
+		// protocol on this stream. Used by Publisher.AppendBatch to
+		// land multi-aggregate cascades (MoveRoomToGroup, DM creation)
+		// adjacently in stream order so projections never observe an
+		// intermediate state that breaks an invariant.
 		AllowAtomicPublish: true,
-		Replicas:           cfg.Replicas,
-		// Republish every accepted stream message onto a NATS Core
-		// subject so subscribers can listen for room events without
-		// holding a per-connection JetStream consumer. The republish
-		// fires after persistence, so consumers cannot observe an
-		// event that didn't durably land on the stream.
 		RePublish: &jetstream.RePublish{
-			Source:      "server.>",
-			Destination: "live.server.>",
+			Source:      "evt.>",
+			Destination: "live.evt.>",
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SERVER_EVENTS stream: %w", err)
-	}
-
-	// Initialize auth tokens KV bucket with configurable TTL
-	// Stores opaque bearer tokens for cross-origin API authentication.
-	// NATS TTL handles automatic token expiry.
-	authTokenTTL := cfg.AuthTokenTTL
-	if authTokenTTL == 0 {
-		authTokenTTL = 90 * 24 * time.Hour // Default 90 days
-	}
-	authTokensKV, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
-		Bucket:         "AUTH_TOKENS",
-		Description:    "Bearer tokens and OAuth authorization codes",
-		Storage:        jetstream.FileStorage,
-		TTL:            authTokenTTL,
-		Replicas:       cfg.Replicas,
-		LimitMarkerTTL: time.Minute, // Required for per-key TTL (used by authorization codes)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create AUTH_TOKENS KV bucket: %w", err)
+		return nil, fmt.Errorf("failed to create EVT stream: %w", err)
 	}
 
 	// Return initialized storage and whether RBAC bucket was newly created
@@ -661,22 +1000,41 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		serverStore:        serverStore,
 		encryptionKV:       encryptionKV,
 		runtimeConfigKV:    runtimeConfigKV,
+		runtimeStateKV:     runtimeStateKV,
 		serverConfigKV:     serverConfigKV,
 		serverRBACKV:       serverRBACKV,
 		serverRuntimeKV:    serverRuntimeKV,
 		serverBodiesKV:     serverBodiesKV,
 		serverReactionsKV:  serverReactionsKV,
-		serverThreadsKV:    serverThreadsKV,
 		serverAttachments:  serverAttachments,
 		serverEventsStream: serverEventsStream,
-		// serverRBACEngine is constructed below (after the storage value
-		// exists) and assigned in NewChattoCore.
-		presenceKV:      presenceKV,
-		imageCacheStore: imageCacheStore,
-		notificationsKV: notificationsKV,
-		callStateKV:     callStateKV,
-		authTokensKV:    authTokensKV,
+		serverEvtStream:    serverEvtStream,
+		memoryCacheKV:      memoryCacheKV,
+		imageCacheStore:    imageCacheStore,
+		legacyCallStateKV:  legacyCallStateKV,
 	}, nil
+}
+
+func openLegacyKeyValue(ctx context.Context, js jetstream.JetStream, bucket string) (jetstream.KeyValue, error) {
+	kv, err := js.KeyValue(ctx, bucket)
+	if err == nil {
+		return kv, nil
+	}
+	if errors.Is(err, jetstream.ErrBucketNotFound) {
+		return nil, nil
+	}
+	return nil, err
+}
+
+func openLegacyStream(ctx context.Context, js jetstream.JetStream, streamName string) (jetstream.Stream, error) {
+	stream, err := js.Stream(ctx, streamName)
+	if err == nil {
+		return stream, nil
+	}
+	if errors.Is(err, jetstream.ErrStreamNotFound) {
+		return nil, nil
+	}
+	return nil, err
 }
 
 // ============================================================================
@@ -758,40 +1116,18 @@ func eventIDFromBodyKey(bodyKey string) string {
 // indefinitely instead of surfacing as a normal error.
 const natsPublishFlushTimeout = 5 * time.Second
 
-// publishServerEvent publishes a SpaceEvent to NATS via the provided subject.
-// Streams automatically capture events based on their subject filters.
-// Uses NATS Core publish (fire-and-forget) rather than JetStream publish (which waits for acks).
-// Handles marshaling internally for consistent error handling.
-func (c *ChattoCore) publishServerEvent(_ context.Context, subject string, event *corev1.Event) error {
-	if err := validateEvent(event); err != nil {
-		return err
-	}
+// liveEVTProjectionWaitTimeout bounds the causal barrier between JetStream's
+// raw EVT republish and GraphQL delivery. In the normal case the local
+// projectors have already advanced and WaitForSeq returns immediately; the
+// timeout covers replica lag or a stuck projector without wedging a
+// subscription goroutine forever.
+const liveEVTProjectionWaitTimeout = 2 * time.Second
 
-	eventData, err := proto.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("failed to marshal event: %w", err)
-	}
-
-	err = c.nc.Publish(subject, eventData)
-	if err != nil {
-		return fmt.Errorf("failed to publish event: %w", err)
-	}
-
-	// Flush to ensure message is sent to server immediately
-	// This is important for stream capture and republishing to work correctly
-	err = c.nc.FlushTimeout(natsPublishFlushTimeout)
-	if err != nil {
-		return fmt.Errorf("failed to flush connection: %w", err)
-	}
-
-	return nil
-}
-
-// publishLiveServerEvent publishes a SpaceEvent directly to a live.> subject, bypassing JetStream storage.
-// Use this for transient space-scoped notifications that don't need to be stored or replayed.
-// The subject should already include the "live." prefix.
-func (c *ChattoCore) publishLiveServerEvent(_ context.Context, subject string, event *corev1.Event) error {
-	if err := validateEvent(event); err != nil {
+// publishLiveEvent publishes a transient LiveEvent directly to a live.sync.>
+// subject, bypassing JetStream storage. The subject should already include
+// the "live.sync." prefix.
+func (c *ChattoCore) publishLiveEvent(_ context.Context, subject string, event *corev1.LiveEvent) error {
+	if err := validateLiveEvent(event); err != nil {
 		return err
 	}
 
@@ -808,129 +1144,18 @@ func (c *ChattoCore) publishLiveServerEvent(_ context.Context, subject string, e
 		return fmt.Errorf("failed to flush live event to %s: %w", subject, err)
 	}
 	return nil
-}
-
-// publishLiveEvent publishes a LiveEvent directly to a live.server.> subject,
-// bypassing JetStream storage. Use this for deployment-wide notifications
-// (user events, space lifecycle, config updates). The subject should already
-// include the "live.server." prefix.
-func (c *ChattoCore) publishLiveEvent(_ context.Context, subject string, event *corev1.Event) error {
-	if err := validateEvent(event); err != nil {
-		return err
-	}
-
-	eventData, err := proto.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("failed to marshal live event: %w", err)
-	}
-
-	if err := c.nc.Publish(subject, eventData); err != nil {
-		return fmt.Errorf("failed to publish live event to %s: %w", subject, err)
-	}
-
-	if err := c.nc.FlushTimeout(natsPublishFlushTimeout); err != nil {
-		return fmt.Errorf("failed to flush live event to %s: %w", subject, err)
-	}
-	return nil
-}
-
-// publishServerEventWithAck publishes a SpaceEvent using JetStream and returns the sequence ID.
-// This uses synchronous JetStream publish (waits for ack) to get the sequence ID from the PubAck.
-// Use this when you need to know the sequence ID immediately (e.g., for message body storage).
-func (c *ChattoCore) publishServerEventWithAck(ctx context.Context, subject string, event *corev1.Event) (uint64, error) {
-	if err := validateEvent(event); err != nil {
-		return 0, err
-	}
-
-	eventData, err := proto.Marshal(event)
-	if err != nil {
-		return 0, fmt.Errorf("failed to marshal event: %w", err)
-	}
-
-	ack, err := c.js.Publish(ctx, subject, eventData)
-	if err != nil {
-		return 0, fmt.Errorf("failed to publish event: %w", err)
-	}
-
-	return ack.Sequence, nil
-}
-
-const maxOCCRetries = 5
-
-// publishServerEventWithOCC publishes a SpaceEvent to a space stream using Optimistic Concurrency Control.
-// It uses the Nats-Expected-Last-Subject-Sequence header to ensure that:
-// 1. We know the current state of the subject before publishing
-// 2. Concurrent publishes to the same subject are detected and retried
-//
-// This provides reliable message posting that handles race conditions gracefully.
-// The function retries up to 5 times on sequence mismatch errors with exponential backoff.
-func (c *ChattoCore) publishServerEventWithOCC(ctx context.Context, subject string, event *corev1.Event) (uint64, error) {
-	if err := validateEvent(event); err != nil {
-		return 0, err
-	}
-
-	eventData, err := proto.Marshal(event)
-	if err != nil {
-		return 0, fmt.Errorf("failed to marshal event: %w", err)
-	}
-
-	stream := c.storage.serverEventsStream
-
-	var lastErr error
-	for attempt := 1; attempt <= maxOCCRetries; attempt++ {
-		// Get the current last sequence for this subject
-		var expectedSeq uint64
-		msg, err := stream.GetLastMsgForSubject(ctx, subject)
-		if err != nil {
-			if !errors.Is(err, jetstream.ErrMsgNotFound) {
-				return 0, fmt.Errorf("failed to get last message for subject: %w", err)
-			}
-			// No messages yet for this subject - expect sequence 0
-			expectedSeq = 0
-		} else {
-			expectedSeq = msg.Sequence
-		}
-
-		// Publish with expected last subject sequence
-		ack, err := c.js.Publish(ctx, subject, eventData,
-			jetstream.WithExpectLastSequencePerSubject(expectedSeq))
-		if err == nil {
-			return ack.Sequence, nil
-		}
-
-		// Check if this is a sequence mismatch error (concurrent publish)
-		var jsErr *jetstream.APIError
-		if errors.As(err, &jsErr) && jsErr.ErrorCode == jetstream.JSErrCodeStreamWrongLastSequence {
-			c.logger.Debug("Sequence mismatch, retrying publish",
-				"subject", subject,
-				"expected_seq", expectedSeq,
-				"attempt", attempt,
-				"max_attempts", maxOCCRetries)
-			lastErr = err
-
-			// Exponential backoff with jitter to avoid thundering herd
-			// Base delay: 1ms, 2ms, 4ms, 8ms, 16ms for attempts 1-5
-			// Plus random jitter of 0-5ms to spread out concurrent retries
-			baseDelay := time.Duration(1<<(attempt-1)) * time.Millisecond
-			jitter := time.Duration(rand.Int63n(int64(5 * time.Millisecond)))
-			select {
-			case <-ctx.Done():
-				return 0, ctx.Err()
-			case <-time.After(baseDelay + jitter):
-			}
-			continue
-		}
-
-		// For any other error, fail immediately
-		return 0, fmt.Errorf("failed to publish event: %w", err)
-	}
-
-	return 0, fmt.Errorf("failed to publish event after %d attempts due to concurrent modifications: %w", maxOCCRetries, lastErr)
 }
 
 func validateEvent(event *corev1.Event) error {
 	if event == nil || event.Event == nil {
 		return fmt.Errorf("%w: event payload is nil or oneof field is unset", ErrInvalidEvent)
+	}
+	return nil
+}
+
+func validateLiveEvent(event *corev1.LiveEvent) error {
+	if event == nil || event.Event == nil {
+		return fmt.Errorf("%w: live event payload is nil or oneof field is unset", ErrInvalidEvent)
 	}
 	return nil
 }
@@ -951,30 +1176,30 @@ func newEvent(actorID string, event *corev1.Event) *corev1.Event {
 	return event
 }
 
+// newLiveEvent fills in the Id, ActorID, and CreatedAt fields of a LiveEvent
+// envelope if they're not already set. The caller provides the event with the
+// concrete oneof variant already populated.
+func newLiveEvent(actorID string, event *corev1.LiveEvent) *corev1.LiveEvent {
+	if event.Id == "" {
+		event.Id = NewEventID()
+	}
+	if event.ActorId == "" {
+		event.ActorId = actorID
+	}
+	if event.CreatedAt == nil {
+		event.CreatedAt = timestamppb.New(time.Now())
+	}
+	return event
+}
+
 // ============================================================================
 // Stream Management
 // ============================================================================
 
-// createSpaceResources is now a no-op: all data lives in the deployment-wide
-// SERVER_* buckets (eager-created in newStorage). Kept as a stub so callers
-// don't have to be edited until the broader Space-retirement pass.
+// createSpaceResources is now a no-op: room/user domain state lives in EVT and
+// deployment-wide projections. Kept as a stub so callers don't have to be
+// edited until the broader Space-retirement pass.
 func (c *ChattoCore) createSpaceResources(_ context.Context, _ string) error {
-	return nil
-}
-
-// purgeRoomEvents removes all events for a specific room from the server stream.
-// This is called when a room is deleted to clean up the room's event history.
-func (c *ChattoCore) purgeRoomEvents(ctx context.Context, kind RoomKind, roomID string) error {
-	stream := c.storage.serverEventsStream
-
-	// Purge all events matching the room's subject pattern
-	subjectFilter := subjects.RoomAllEvents(string(kind), roomID)
-	if err := stream.Purge(ctx, jetstream.WithPurgeSubject(subjectFilter)); err != nil {
-		return fmt.Errorf("failed to purge room events for %s (subject: %s): %w", roomID, subjectFilter, err)
-	}
-
-	c.logger.Debug("Purged room events from server stream", "kind", kind, "room_id", roomID, "subject_filter", subjectFilter)
-
 	return nil
 }
 
@@ -1002,21 +1227,18 @@ func isTerminalIteratorError(err error) bool {
 // StreamMyEvents creates a unified stream of every event on this
 // deployment that is relevant to a specific user.
 //
-// All events arrive via a single NATS Core subscription on
-// `live.server.>`. JetStream-stored events (room messages, thread
-// replies, meta lifecycle, server-level member events) are republished
-// onto the same subject root by the SERVER_EVENTS stream's RePublish
-// config; transient events (reactions, typing, edits, deletes, user/
-// space/config notifications) publish directly via NATS Core. The
-// subject prefix is what disambiguates the two — payload-wise they're
-// identical `corev1.Event` wire protos.
+// Events arrive via NATS Core subscriptions on two internal subject roots:
+// `live.sync.>` carries transient LiveEvent messages and `live.evt.>` is the
+// raw singleton republish of committed EVT facts. EVT delivery is not UI-safe
+// by itself: filterLiveEvent waits for the relevant local projection(s) to
+// reach the republished stream sequence, then applies this user's
+// authorization before forwarding the event through GraphQL.
 //
 // Authorization:
-//   - Room events (live.server.room.>) are delivered only for rooms
+//   - Room events (live.sync.room.> and deliverable live.evt.room.>) are delivered only for rooms
 //     where the user is a member. The membership set is pre-loaded
 //     across both kinds (channel + dm) and updated as join/leave/
 //     room-deleted events arrive.
-//   - DM-kind events are additionally gated on `dm.view`.
 //   - User/config/member subjects are filtered by
 //     isAuthorizedForLiveEvent.
 //   - Presence updates from the per-process PresenceHub are deployment-
@@ -1030,45 +1252,52 @@ func isTerminalIteratorError(err error) bool {
 //
 // The returned channel closes when the context is cancelled or when a
 // SessionTerminatedEvent is delivered to the user.
-func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan *corev1.Event, error) {
-	canDM, err := c.HasServerPermission(ctx, userID, PermDMView)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check dm.view permission: %w", err)
-	}
-
+func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan EventEnvelope, error) {
 	// memberRooms is the per-subscription visibility cache: the user
 	// receives live events for rooms they are an explicit member of.
 	// Seeded from `room_membership.*` records and mutated on
 	// `UserJoinedRoom` / `UserLeftRoom` / `RoomDeleted`, and re-seeded
 	// on `RoomGroupsUpdated` to absorb admin-driven membership changes.
 	memberRooms := make(map[string]struct{})
-	if err := c.populateMemberRoomsCache(ctx, userID, canDM, memberRooms); err != nil {
+	if err := c.populateMemberRoomsCache(ctx, userID, memberRooms); err != nil {
 		return nil, err
 	}
 
-	// Single live-subject subscription. The 256-message buffer absorbs
-	// reaction/typing bursts; on overflow NATS Core drops messages and
-	// transitions the subscription to SlowConsumer state — slowConsumerCh
-	// below catches that and tears the resolver down so the client can
-	// re-subscribe (and pick up missed history via the GraphQL catch-up
-	// path) rather than silently miss events.
+	// live.sync.> is the transient LiveEvent subject root. live.evt.> is
+	// the raw committed-event feed from the EVT stream. SERVER_EVENTS no
+	// longer participates in live delivery.
+	//
+	// The 256-message buffer absorbs reaction/typing bursts; on
+	// overflow NATS Core drops messages and transitions the
+	// subscription to SlowConsumer state — slowConsumerCh below
+	// catches that and tears the resolver down so the client can
+	// re-subscribe (and pick up missed history via the GraphQL
+	// catch-up path) rather than silently miss events.
 	msgChan := make(chan *nats.Msg, 256)
-	liveSub, err := c.nc.ChanSubscribe(subjects.LiveAllEvents(), msgChan)
+	liveSyncSub, err := c.nc.ChanSubscribe(subjects.LiveSyncAllEvents(), msgChan)
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to live events: %w", err)
+		return nil, fmt.Errorf("failed to subscribe to live sync events: %w", err)
 	}
-	slowConsumerCh := liveSub.StatusChanged(nats.SubscriptionSlowConsumer)
+	slowSyncConsumerCh := liveSyncSub.StatusChanged(nats.SubscriptionSlowConsumer)
+
+	liveEVTSub, err := c.nc.ChanSubscribe(events.LiveSubjectRoot+">", msgChan)
+	if err != nil {
+		liveSyncSub.Unsubscribe()
+		return nil, fmt.Errorf("failed to subscribe to live EVT events: %w", err)
+	}
+	slowEVTConsumerCh := liveEVTSub.StatusChanged(nats.SubscriptionSlowConsumer)
 
 	presenceSub, err := c.PresenceHub.Subscribe(ctx)
 	if err != nil {
-		liveSub.Unsubscribe()
+		liveSyncSub.Unsubscribe()
+		liveEVTSub.Unsubscribe()
 		return nil, fmt.Errorf("failed to subscribe to presence hub: %w", err)
 	}
 
-	eventChan := make(chan *corev1.Event)
+	eventChan := make(chan EventEnvelope)
 
 	go func() {
-		c.logger.Debug("Server event stream started", "user_id", userID, "can_dm", canDM, "member_rooms", len(memberRooms))
+		c.logger.Debug("Server event stream started", "user_id", userID, "member_rooms", len(memberRooms))
 
 		// Subscribing implies the user is online; refresh on a ticker
 		// so the KV TTL doesn't expire while the connection is open.
@@ -1088,12 +1317,13 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 
 		defer func() {
 			c.logger.Debug("Server event stream closed", "user_id", userID)
-			liveSub.Unsubscribe()
+			liveSyncSub.Unsubscribe()
+			liveEVTSub.Unsubscribe()
 			c.PresenceHub.Unsubscribe(presenceSub)
 			close(eventChan)
 		}()
 
-		send := func(event *corev1.Event) bool {
+		send := func(event EventEnvelope) bool {
 			select {
 			case <-ctx.Done():
 				return false
@@ -1107,15 +1337,15 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 			case <-ctx.Done():
 				return
 
-			case <-slowConsumerCh:
-				// The NATS Core subscription's buffer overflowed and
-				// messages were dropped. Continuing would silently
-				// hide missing events, so tear down — the client's
-				// eventBus watchdog will re-subscribe (and any UI
-				// state that depends on missed messages will be
-				// repaired via the usual GraphQL refetch paths).
-				dropped, _ := liveSub.Dropped()
-				c.logger.Warn("Slow consumer on live events subscription — tearing down",
+			case <-slowEVTConsumerCh:
+				dropped, _ := liveEVTSub.Dropped()
+				c.logger.Warn("Slow consumer on live EVT subscription — tearing down",
+					"user_id", userID, "dropped", dropped)
+				return
+
+			case <-slowSyncConsumerCh:
+				dropped, _ := liveSyncSub.Dropped()
+				c.logger.Warn("Slow consumer on live sync subscription — tearing down",
 					"user_id", userID, "dropped", dropped)
 				return
 
@@ -1125,16 +1355,12 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 				}
 
 			case <-heartbeatTicker.C:
-				if !send(&corev1.Event{
-					Id:        NewEventID(),
-					CreatedAt: timestamppb.Now(),
-					Event:     &corev1.Event_Heartbeat{Heartbeat: &corev1.HeartbeatEvent{}},
-				}) {
+				if !send(NewHeartbeatEventEnvelope(NewEventID(), timestamppb.Now())) {
 					return
 				}
 
 			case msg := <-msgChan:
-				event, ok := c.filterLiveEvent(ctx, userID, canDM, memberRooms, msg)
+				event, ok := c.filterLiveEvent(ctx, userID, memberRooms, msg)
 				if !ok {
 					continue
 				}
@@ -1144,7 +1370,7 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 				// Session termination tears down the subscription.
 				// The frontend handles logout on receipt; closing
 				// the channel ensures the server tears down too.
-				if event.GetSessionTerminated() != nil {
+				if EventSessionTerminated(event) != nil {
 					c.logger.Info("Session terminated - closing event stream", "user_id", userID)
 					return
 				}
@@ -1158,13 +1384,12 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 				} else {
 					lastKnownPresence[update.UserID] = update.Status
 				}
-				if !send(&corev1.Event{
-					CreatedAt: timestamppb.Now(),
-					ActorId:   update.UserID,
-					Event: &corev1.Event_PresenceChanged{
+				live := newLiveEvent(update.UserID, &corev1.LiveEvent{
+					Event: &corev1.LiveEvent_PresenceChanged{
 						PresenceChanged: &corev1.PresenceChangedEvent{Status: update.Status},
 					},
-				}) {
+				})
+				if !send(NewLiveEventEnvelope(live)) {
 					return
 				}
 			}
@@ -1176,11 +1401,11 @@ func (c *ChattoCore) StreamMyEvents(ctx context.Context, userID string) (<-chan 
 
 // populateMemberRoomsCache (re)builds the per-subscription room
 // visibility set in place. The cache contains every channel room the
-// user is an explicit member of, plus DM rooms when canDM. Used at
+// user is an explicit member of, plus every DM room they participate in. Used at
 // subscription start and on `RoomGroupsUpdatedEvent` to re-seed after
 // admin-driven membership changes (e.g. a user gaining access to a
 // room via a group-scope permission edit, then joining).
-func (c *ChattoCore) populateMemberRoomsCache(ctx context.Context, userID string, canDM bool, memberRooms map[string]struct{}) error {
+func (c *ChattoCore) populateMemberRoomsCache(ctx context.Context, userID string, memberRooms map[string]struct{}) error {
 	for k := range memberRooms {
 		delete(memberRooms, k)
 	}
@@ -1190,81 +1415,75 @@ func (c *ChattoCore) populateMemberRoomsCache(ctx context.Context, userID string
 	// whether they could re-join today (e.g. they joined while the room
 	// was open, then `room.join` was denied for everyone). The
 	// "leave the room" mutation is the only way to lose live events.
-	channelMemberships, err := c.GetUserRoomMemberships(ctx, KindChannel, userID)
+	channelRooms, err := c.ListMemberRooms(ctx, KindChannel, userID, MemberRoomListOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get channel room memberships: %w", err)
+		return fmt.Errorf("failed to list channel member rooms: %w", err)
 	}
-	for _, m := range channelMemberships {
-		memberRooms[m.RoomId] = struct{}{}
+	for _, room := range channelRooms {
+		memberRooms[room.Id] = struct{}{}
 	}
 
-	if canDM {
-		dmMemberships, err := c.GetUserRoomMemberships(ctx, KindDM, userID)
-		if err != nil {
-			return fmt.Errorf("failed to get DM room memberships: %w", err)
-		}
-		// DM rooms surface via their own listing path; explicit
-		// membership is the visibility gate.
-		for _, m := range dmMemberships {
-			memberRooms[m.RoomId] = struct{}{}
-		}
+	dmRooms, err := c.ListMemberRooms(ctx, KindDM, userID, MemberRoomListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list DM member rooms: %w", err)
+	}
+	// DM rooms surface via their own listing path; explicit
+	// membership is the visibility gate.
+	for _, room := range dmRooms {
+		memberRooms[room.Id] = struct{}{}
 	}
 
 	return nil
 }
 
-// filterLiveEvent unmarshals a message from the unified live.> stream
+// filterLiveEvent unmarshals a message from one of the live delivery roots
 // and applies per-user authorization. Returns the event and true if it
 // should be delivered. Mutates memberRooms when the subscriber
 // themselves joins/leaves a room or when a room is deleted.
 //
 // Two routing paths:
 //
-//  1. Room subjects (live.server.room.{kind}.{roomId}.…):
-//     gated on room membership and (for DM-kind) dm.view permission.
+//  1. Room subjects (live.sync.room.{kind}.{roomId}.…):
+//     gated on room membership.
 //  2. Everything else: delegated to isAuthorizedForLiveEvent.
-func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, canDM bool, memberRooms map[string]struct{}, msg *nats.Msg) (*corev1.Event, bool) {
+func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, memberRooms map[string]struct{}, msg *nats.Msg) (EventEnvelope, bool) {
+	if strings.HasPrefix(msg.Subject, "live.sync.") {
+		var live corev1.LiveEvent
+		if err := proto.Unmarshal(msg.Data, &live); err != nil {
+			c.logger.Warn("Failed to unmarshal live sync event", "subject", msg.Subject, "error", err)
+			return nil, false
+		}
+		return c.filterLiveSyncEvent(ctx, userID, memberRooms, msg, &live)
+	}
+
+	if !strings.HasPrefix(msg.Subject, events.LiveSubjectRoot) {
+		c.logger.Warn("Unknown live event subject root", "subject", msg.Subject)
+		return nil, false
+	}
+
 	var event corev1.Event
 	if err := proto.Unmarshal(msg.Data, &event); err != nil {
 		c.logger.Warn("Failed to unmarshal live event", "subject", msg.Subject, "error", err)
 		return nil, false
 	}
 
-	// Path 1: room-scoped events. Both JetStream republishes (msg, meta)
-	// and direct live publishes (reactions, typing, edits) share the
-	// `live.server.room.{kind}.{roomId}.…` shape, so a single membership
-	// check covers both.
+	return c.filterLiveEVTEvent(ctx, userID, memberRooms, msg, &event)
+}
+
+func (c *ChattoCore) filterLiveSyncEvent(ctx context.Context, userID string, memberRooms map[string]struct{}, msg *nats.Msg, event *corev1.LiveEvent) (EventEnvelope, bool) {
+	if event == nil || event.Event == nil {
+		c.logger.Warn("Dropping live sync event without payload", "subject", msg.Subject)
+		return nil, false
+	}
+
+	// Path 1: room-scoped transient events on live.sync.room.{kind}.{roomId}.…
 	if kind := subjects.ParseKindFromRoomSubject(msg.Subject); kind != "" {
-		if !canDM && kind == string(KindDM) {
-			return nil, false
-		}
 		roomID := subjects.ParseRoomIDFromSubject(msg.Subject)
 		if roomID == "" {
 			return nil, false
 		}
 
-		// Capture membership before mutating the cache so transition
-		// events (self-leave, room-deleted) still reach the member who
-		// is transitioning out.
 		_, isMember := memberRooms[roomID]
-
-		switch event.Event.(type) {
-		case *corev1.Event_UserJoinedRoom:
-			if event.ActorId == userID {
-				// Membership is the gate: once the user has joined, they
-				// receive the room's live events. Visibility is handled
-				// upstream by the join action itself; if the user wasn't
-				// allowed to join, this event wouldn't have been published.
-				memberRooms[roomID] = struct{}{}
-				isMember = true
-			}
-		case *corev1.Event_UserLeftRoom:
-			if event.ActorId == userID {
-				delete(memberRooms, roomID)
-			}
-		case *corev1.Event_RoomDeleted:
-			delete(memberRooms, roomID)
-		}
 
 		// Skip own typing events — the sender doesn't need to see them.
 		// Critical for multi-server clients where the frontend's
@@ -1276,7 +1495,7 @@ func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, canDM b
 		if !isMember {
 			return nil, false
 		}
-		return &event, true
+		return NewLiveEventEnvelope(event), true
 	}
 
 	// Path 2: user/config/member subjects.
@@ -1284,23 +1503,117 @@ func (c *ChattoCore) filterLiveEvent(ctx context.Context, userID string, canDM b
 		return nil, false
 	}
 
-	return &event, true
+	return NewLiveEventEnvelope(event), true
+}
+
+func (c *ChattoCore) filterLiveEVTEvent(ctx context.Context, userID string, memberRooms map[string]struct{}, msg *nats.Msg, event *corev1.Event) (EventEnvelope, bool) {
+	roomID, ok := events.ParseRoomSubject(msg.Subject)
+	if !ok {
+		return nil, false
+	}
+	if !isDeliverableLiveEVTRoomEvent(event) {
+		return nil, false
+	}
+
+	seq, err := strconv.ParseUint(msg.Header.Get(nats.JSSequence), 10, 64)
+	if err != nil || seq == 0 {
+		c.logger.Warn("live EVT message missing stream sequence", "subject", msg.Subject, "sequence", msg.Header.Get(nats.JSSequence), "error", err)
+		return nil, false
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, liveEVTProjectionWaitTimeout)
+	defer cancel()
+	if err := c.waitForLiveEVTRoomEvent(waitCtx, event, seq); err != nil {
+		c.logger.Warn("Timed out waiting for live EVT projection readiness", "subject", msg.Subject, "sequence", seq, "error", err)
+		return nil, false
+	}
+
+	_, isMember := memberRooms[roomID]
+	switch event.Event.(type) {
+	case *corev1.Event_UserJoinedRoom:
+		if event.ActorId == userID {
+			memberRooms[roomID] = struct{}{}
+			isMember = true
+		}
+	case *corev1.Event_UserLeftRoom:
+		if event.ActorId == userID {
+			delete(memberRooms, roomID)
+		}
+	case *corev1.Event_RoomDeleted:
+		delete(memberRooms, roomID)
+	}
+	if !isMember {
+		return nil, false
+	}
+	return NewEVTEventEnvelope(event), true
+}
+
+func isDeliverableLiveEVTRoomEvent(event *corev1.Event) bool {
+	switch event.GetEvent().(type) {
+	case *corev1.Event_RoomCreated,
+		*corev1.Event_RoomUpdated,
+		*corev1.Event_RoomDeleted,
+		*corev1.Event_RoomArchived,
+		*corev1.Event_RoomUnarchived,
+		*corev1.Event_UserJoinedRoom,
+		*corev1.Event_UserLeftRoom,
+		*corev1.Event_MessagePosted,
+		*corev1.Event_MessageEdited,
+		*corev1.Event_MessageRetracted,
+		*corev1.Event_ReactionAdded,
+		*corev1.Event_ReactionRemoved,
+		*corev1.Event_AssetProcessingStarted,
+		*corev1.Event_AssetProcessingSucceeded,
+		*corev1.Event_AssetProcessingFailed,
+		*corev1.Event_AssetDeleted:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *ChattoCore) waitForLiveEVTRoomEvent(ctx context.Context, event *corev1.Event, seq uint64) error {
+	if err := waitForSeqAll(ctx, seq,
+		waitForProjection("room timeline", c.RoomTimelineProjector),
+		waitForProjection("threads", c.ThreadsProjector),
+	); err != nil {
+		return err
+	}
+
+	switch event.GetEvent().(type) {
+	case *corev1.Event_ReactionAdded, *corev1.Event_ReactionRemoved:
+		if err := waitForSeqAll(ctx, seq, waitForProjection("reactions", c.ReactionsProjector)); err != nil {
+			return err
+		}
+	}
+	switch event.GetEvent().(type) {
+	case *corev1.Event_UserJoinedRoom,
+		*corev1.Event_UserLeftRoom,
+		*corev1.Event_RoomCreated,
+		*corev1.Event_RoomUpdated,
+		*corev1.Event_RoomArchived,
+		*corev1.Event_RoomUnarchived,
+		*corev1.Event_RoomDeleted:
+		if err := waitForSeqAll(ctx, seq, waitForProjection("room directory", c.RoomDirectoryProjector)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // isAuthorizedForLiveEvent checks if a user is authorized to receive a
 // non-room live event based on the subject pattern:
 //
-//   - live.server.config.* → all authenticated users (server config /
+//   - live.sync.config.* → all authenticated users (server config /
 //     branding / room-layout updates — public to every member)
-//   - live.server.member.* → all authenticated users (single-server membership)
-//   - live.server.user.{userId}.* → only the target user, except
-//     live.server.user.{userId}.profile_updated which is broadcast.
+//   - live.sync.member.* → all authenticated users (single-server membership)
+//   - live.sync.user.{userId}.* → only the target user, except
+//     live.sync.user.{userId}.profile_updated which is broadcast.
 //
-// Room events (`live.server.room.>`) are filtered separately via the
-// per-user room-membership cache and never reach this function.
+// Room events (`live.sync.room.>`) are filtered separately via the per-user
+// room-membership cache and never reach this function.
 func (c *ChattoCore) isAuthorizedForLiveEvent(_ context.Context, userID, subject string) bool {
 	parts := strings.Split(subject, ".")
-	if len(parts) < 3 || parts[0] != "live" || parts[1] != "server" {
+	if len(parts) < 3 || parts[0] != "live" || parts[1] != "sync" {
 		c.logger.Warn("Invalid live event subject format", "subject", subject)
 		return false
 	}
@@ -1329,8 +1642,8 @@ func (c *ChattoCore) isAuthorizedForLiveEvent(_ context.Context, userID, subject
 // PublishServerConfigUpdated publishes an server config update event.
 // This notifies all connected clients that the server configuration has changed.
 func (c *ChattoCore) PublishServerConfigUpdated(ctx context.Context, actorID string, serverName, motd, welcomeMessage, blockedUsernames string) error {
-	event := newEvent(actorID, &corev1.Event{
-		Event: &corev1.Event_ConfigUpdated{
+	event := newLiveEvent(actorID, &corev1.LiveEvent{
+		Event: &corev1.LiveEvent_ConfigUpdated{
 			ConfigUpdated: &corev1.ServerConfigUpdatedEvent{
 				ServerName:       serverName,
 				Motd:             motd,
@@ -1340,7 +1653,7 @@ func (c *ChattoCore) PublishServerConfigUpdated(ctx context.Context, actorID str
 		},
 	})
 
-	return c.publishLiveEvent(ctx, subjects.LiveConfigEvent("updated"), event)
+	return c.publishLiveEvent(ctx, subjects.LiveSyncConfigEvent("updated"), event)
 }
 
 // ============================================================================
@@ -1358,14 +1671,7 @@ type ServerStats struct {
 // DM rooms. Per-space breakdowns went away with the Space tier (ADR-030).
 func (c *ChattoCore) GetStats(ctx context.Context) (*ServerStats, error) {
 	stats := &ServerStats{}
-
-	userKeys, err := c.storage.serverKV.ListKeysFiltered(ctx, "user.*")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list user keys: %w", err)
-	}
-	for range userKeys.Keys() {
-		stats.UserCount++
-	}
+	stats.UserCount, _, _ = c.Users.Stats()
 
 	channelRooms, err := c.ListRooms(ctx, KindChannel)
 	if err != nil {

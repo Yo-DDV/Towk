@@ -14,6 +14,7 @@ import { SvelteSet } from 'svelte/reactivity';
 import { graphql, useFragment } from './gql';
 import {
   RoomEventViewFragmentDoc,
+  UserAvatarUserFragmentDoc,
   type MyServerEventsSubscription,
   type NotificationLevel,
   type PresenceStatus,
@@ -32,7 +33,7 @@ export const MyServerEventsSubscriptionDoc = graphql(`
       }
       event {
         __typename
-        # Room events — full RoomEventView coverage for the chat surface.
+        # Room payloads — full RoomEventView coverage for the chat surface.
         ... on MessagePostedEvent {
           roomId
           body
@@ -63,13 +64,22 @@ export const MyServerEventsSubscriptionDoc = graphql(`
           }
           viewerIsFollowingThread
         }
-        ... on MessageUpdatedEvent {
+        ... on MessageEditedEvent {
           roomId
           messageEventId
+          body
+          attachments {
+            ...MessageAttachmentView
+          }
+          linkPreview {
+            ...LinkPreviewView
+          }
+          updatedAt
         }
-        ... on MessageDeletedEvent {
+        ... on MessageRetractedEvent {
           roomId
           messageEventId
+          retractedReason: reason
         }
         ... on UserJoinedRoomEvent {
           roomId
@@ -113,6 +123,25 @@ export const MyServerEventsSubscriptionDoc = graphql(`
           roomId
           attachmentId
           messageEventId
+        }
+        ... on AssetProcessingStartedEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetProcessingSucceededEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetProcessingFailedEvent {
+          roomId
+          assetId
+          messageEventId
+        }
+        ... on AssetDeletedEvent {
+          deletedRoomId: roomId
+          assetId
         }
         ... on ServerMemberDeletedEvent {
           userId
@@ -181,9 +210,6 @@ export const MyServerEventsSubscriptionDoc = graphql(`
         ... on RoomMarkedAsReadEvent {
           roomId
         }
-        ... on MentionStatusClearedEvent {
-          mscRoomId: roomId
-        }
         ... on ThreadFollowChangedEvent {
           tfcRoomId: roomId
           tfcThreadRootEventId: threadRootEventId
@@ -203,14 +229,13 @@ export const MyServerEventsSubscriptionDoc = graphql(`
   }
 `);
 
-/** Re-export the urql RoomEventView fragment doc — the chat-event handler
- *  needs it to mask subscription payloads when forwarding to the room-history
- *  store, which still types its inputs against RoomEventView. */
+/** Re-export the urql RoomEventView fragment doc so the chat-event handler can
+ *  mask subscription payloads when forwarding to room-history stores. */
 export { RoomEventViewFragmentDoc, useFragment };
 
-export type ServerEvent = MyServerEventsSubscription['myEvents'];
+export type EventEnvelope = MyServerEventsSubscription['myEvents'];
 
-export type EventHandler = (event: ServerEvent) => void;
+export type EventHandler = (event: EventEnvelope) => void;
 
 export interface EventBus {
   handlers: SvelteSet<EventHandler>;
@@ -271,7 +296,7 @@ export function onEvent(handler: EventHandler): () => void {
 function onTypedEvent<T>(
   typename: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extract: (envelope: ServerEvent, event: any) => T,
+  extract: (envelope: EventEnvelope, event: any) => T,
   handler: (data: T) => void
 ): () => void {
   let getBus: () => EventBus | undefined;
@@ -299,7 +324,7 @@ function onTypedEventDirect<T>(
   bus: EventBus,
   typename: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extract: (envelope: ServerEvent, event: any) => T,
+  extract: (envelope: EventEnvelope, event: any) => T,
   handler: (data: T) => void
 ): () => void {
   const wrapper: EventHandler = (envelope) => {
@@ -339,11 +364,14 @@ export type MentionNotification = {
 };
 
 export function onMention(handler: (notification: MentionNotification) => void): () => void {
-  return onTypedEvent('MentionNotificationEvent', (_env, e) => {
+  return onTypedEvent('MentionNotificationEvent', (env, e) => {
+    const envelopeActor = env.actor ? useFragment(UserAvatarUserFragmentDoc, env.actor) : null;
+    const actor = e.actor ?? envelopeActor;
+
     return {
       roomId: e.roomId,
-      actorUserId: e.actor.id,
-      actorDisplayName: e.actor.displayName,
+      actorUserId: actor?.id ?? env.actorId,
+      actorDisplayName: actor?.displayName ?? 'Unknown user',
       spaceName: '',
       roomName: e.room.name
     };
@@ -359,12 +387,15 @@ export type DMNotification = {
 };
 
 export function onNewDM(handler: (notification: DMNotification) => void): () => void {
-  return onTypedEvent('NewDirectMessageNotificationEvent', (_env, e) => {
+  return onTypedEvent('NewDirectMessageNotificationEvent', (env, e) => {
+    const envelopeActor = env.actor ? useFragment(UserAvatarUserFragmentDoc, env.actor) : null;
+    const sender = e.sender ?? envelopeActor;
+
     return {
       roomId: e.roomId,
-      senderId: e.sender.id,
-      senderDisplayName: e.sender.displayName,
-      senderAvatarUrl: e.sender.avatarUrl ?? '',
+      senderId: sender?.id ?? env.actorId,
+      senderDisplayName: sender?.displayName ?? 'Unknown user',
+      senderAvatarUrl: sender?.avatarUrl ?? '',
       conversationName: e.conversationName
     };
   }, handler);
@@ -406,16 +437,6 @@ export type RoomMarkedAsReadInfo = {
 export function onRoomMarkedAsRead(handler: (info: RoomMarkedAsReadInfo) => void): () => void {
   return onTypedEvent('RoomMarkedAsReadEvent', (_env, e) => {
     return { roomId: e.roomId };
-  }, handler);
-}
-
-export type MentionStatusClearedInfo = {
-  roomId: string;
-};
-
-export function onMentionStatusCleared(handler: (info: MentionStatusClearedInfo) => void): () => void {
-  return onTypedEvent('MentionStatusClearedEvent', (_env, e) => {
-    return { roomId: e.mscRoomId };
   }, handler);
 }
 
@@ -542,11 +563,6 @@ export function createEventBusHandlerRegistrar(serverId: string) {
     onRoomMarkedAsRead(handler: (info: RoomMarkedAsReadInfo) => void): () => void {
       return onTypedEventDirect(bus, 'RoomMarkedAsReadEvent', (_env, e) => {
         return { roomId: e.roomId };
-      }, handler);
-    },
-    onMentionStatusCleared(handler: (info: MentionStatusClearedInfo) => void): () => void {
-      return onTypedEventDirect(bus, 'MentionStatusClearedEvent', (_env, e) => {
-        return { roomId: e.mscRoomId };
       }, handler);
     },
     onNotificationLevelChanged(handler: (update: NotificationLevelChanged) => void): () => void {

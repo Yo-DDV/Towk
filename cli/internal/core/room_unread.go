@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"hmans.de/chatto/internal/core/subjects"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -17,33 +16,31 @@ import (
 // Unread Message Tracking
 // ============================================================================
 //
-// Per-user, per-room read state is keyed on the last-read root message's stable
-// event ID (14-char NanoID, see ADR-026), not on the (volatile) JetStream
-// sequence number. Event IDs are embedded in NATS subjects, so they survive
-// stream renumbering and rebuilds. See docs/adr/ADR-028 for rationale.
+// Per-user, per-room read state lives in RUNTIME_STATE and is keyed on the
+// last-read root message's stable event ID (14-char NanoID, see ADR-026), not
+// on the (volatile) JetStream sequence number. Event IDs are embedded in NATS
+// subjects, so they survive stream renumbering and rebuilds. See docs/adr/ADR-028
+// for rationale.
 //
 // The legacy `room_read_status.*` keys (uint64 sequence numbers) are orphaned
-// and ignored. Users with no `room_read_event.*` key are lazy-initialized to
-// the room's current last root event on first read — the "caught up at deploy
+// and ignored. Users with no `read.room.*` key are lazy-initialized to the
+// room's current last root event on first read — the "caught up at deploy
 // time" semantic.
 
 // NotifyRoomMarkedAsRead publishes a live event to notify the user that they marked
 // a room as read. This enables real-time updates to space unread indicators.
 // This is best-effort - failures are logged but don't affect the mark-as-read operation.
 func (c *ChattoCore) NotifyRoomMarkedAsRead(ctx context.Context, userID string, kind RoomKind, roomID string) {
-	event := &corev1.Event{
-		Id:        NewEventID(),
-		ActorId:   userID,
-		CreatedAt: timestamppb.Now(),
-		Event: &corev1.Event_RoomMarkedAsRead{
+	event := newLiveEvent(userID, &corev1.LiveEvent{
+		Event: &corev1.LiveEvent_RoomMarkedAsRead{
 			RoomMarkedAsRead: &corev1.RoomMarkedAsReadEvent{
 				RoomId: roomID,
 			},
 		},
-	}
+	})
 
 	// Publish to user's server event stream (only they need to know)
-	subject := subjects.LiveUserEvent(userID, "room_read")
+	subject := subjects.LiveSyncUserEvent(userID, "room_read")
 	if err := c.publishLiveEvent(ctx, subject, event); err != nil {
 		c.logger.Warn("Failed to publish room marked as read event",
 			"user_id", userID,
@@ -62,24 +59,21 @@ func (c *ChattoCore) NotifyRoomMarkedAsRead(ctx context.Context, userID string, 
 // value stays correct after #354 phase 4d (which re-publishes messages
 // with fresh JetStream timestamps but leaves the proto payloads intact).
 func (c *ChattoCore) GetRoomLastEvent(ctx context.Context, kind RoomKind, roomID string) (eventID string, ts time.Time, exists bool, err error) {
-	msg, err := c.getRoomLastRootMessage(ctx, kind, roomID)
-	if err != nil {
-		return "", time.Time{}, false, err
-	}
-	if msg == nil {
+	ev := c.getRoomLastRootEvent(roomID)
+	if ev == nil {
 		return "", time.Time{}, false, nil
 	}
-	createdAt, err := rawMsgEventCreatedAt(msg)
-	if err != nil {
-		return "", time.Time{}, false, err
+	var createdAt time.Time
+	if ts := ev.GetCreatedAt(); ts != nil {
+		createdAt = ts.AsTime()
 	}
-	return subjects.ParseEventIDFromSubject(msg.Subject), createdAt, true, nil
+	return ev.GetId(), createdAt, true, nil
 }
 
-// roomReadEventKey returns the KV key for tracking the user's last-read root
-// event ID in a room.
+// roomReadEventKey returns the RUNTIME_STATE key for tracking the user's
+// last-read root event ID in a room.
 func roomReadEventKey(userID, roomID string) string {
-	return fmt.Sprintf("room_read_event.%s.%s", userID, roomID)
+	return fmt.Sprintf("read.room.%s.%s", userID, roomID)
 }
 
 // GetLastReadEventID returns the user's last-read root-message event ID for a
@@ -87,7 +81,7 @@ func roomReadEventKey(userID, roomID string) string {
 // current last root event ("caught up at deploy time"); if the room has no
 // messages, it returns "".
 func (c *ChattoCore) GetLastReadEventID(ctx context.Context, kind RoomKind, userID, roomID string) (string, error) {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 
 	key := roomReadEventKey(userID, roomID)
 	entry, err := bucket.Get(ctx, key)
@@ -125,12 +119,11 @@ func (c *ChattoCore) GetLastReadEventID(ctx context.Context, kind RoomKind, user
 
 // SetLastReadEventID stores the user's last-read root-message event ID.
 //
-// Callers MUST pass either a root message event ID (one published with subject
-// `space.{s}.room.{r}.msg.{eventId}`) or the empty string. Thread-reply event
-// IDs would not resolve via GetEventTimestamp's root-subject lookup and would
-// keep the room permanently flagged as unread.
+// Callers MUST pass either a root message event ID or the empty string. Thread
+// reply event IDs are tracked separately by the thread read marker; using one
+// here would make room-level unread comparisons point at the wrong timeline.
 func (c *ChattoCore) SetLastReadEventID(ctx context.Context, kind RoomKind, userID, roomID, eventID string) error {
-	bucket := c.storage.serverRuntimeKV
+	bucket := c.storage.runtimeStateKV
 	if _, err := bucket.Put(ctx, roomReadEventKey(userID, roomID), []byte(eventID)); err != nil {
 		return fmt.Errorf("failed to set read marker: %w", err)
 	}
@@ -149,15 +142,18 @@ func (c *ChattoCore) GetEventTimestamp(ctx context.Context, kind RoomKind, roomI
 	if eventID == "" {
 		return time.Time{}, nil
 	}
-	stream := c.storage.serverEventsStream
-	msg, err := stream.GetLastMsgForSubject(ctx, subjects.RoomMessage(string(kind), roomID, eventID))
-	if err != nil {
-		if errors.Is(err, jetstream.ErrMsgNotFound) {
-			return time.Time{}, nil
-		}
-		return time.Time{}, fmt.Errorf("failed to get event: %w", err)
+	entry, ok := c.RoomTimeline.Get(eventID)
+	if !ok {
+		return time.Time{}, nil
 	}
-	return rawMsgEventCreatedAt(msg)
+	// Honour roomID scope — same as GetRoomEventByEventID.
+	if roomIDOfEvent(entry.Event) != roomID {
+		return time.Time{}, nil
+	}
+	if ts := entry.Event.GetCreatedAt(); ts != nil {
+		return ts.AsTime(), nil
+	}
+	return time.Time{}, nil
 }
 
 // HasUnread reports whether a room has unread messages for a user. Returns

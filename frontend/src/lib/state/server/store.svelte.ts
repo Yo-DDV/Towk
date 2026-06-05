@@ -31,8 +31,7 @@ export type SpaceIndicator = 'notification' | 'unread' | null;
 const EMPTY_PERMISSIONS: ServerPermissions = {
 	loaded: false,
 	canViewAdmin: false,
-	canViewDMs: false,
-	canWriteDMs: false,
+	canStartDMs: false,
 	canAdminViewUsers: false,
 	canAdminManageUsers: false,
 	canAdminViewRoles: false,

@@ -23,6 +23,10 @@ var (
 
 func (s *HTTPServer) setupAuthRoutes() {
 	auth := s.router.Group("/auth")
+	auth.Use(func(c *gin.Context) {
+		s.requestContextWithAuditMetadata(c)
+		c.Next()
+	})
 
 	auth.POST("logout", func(c *gin.Context) {
 		ctx := c.Request.Context()
@@ -34,7 +38,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		// If authenticated via bearer token, revoke it
 		if authHeader := c.GetHeader("Authorization"); authHeader != "" {
 			if token, ok := strings.CutPrefix(authHeader, "Bearer "); ok && strings.TrimSpace(token) != "" {
-				if err := s.core.RevokeAuthToken(ctx, strings.TrimSpace(token)); err != nil {
+				if err := s.core.RevokeAuthTokenWithReason(ctx, strings.TrimSpace(token), "logout"); err != nil {
 					log.Warn("Failed to revoke bearer token on logout", "error", err)
 				}
 			}
@@ -48,6 +52,9 @@ func (s *HTTPServer) setupAuthRoutes() {
 		if userID != "" {
 			if err := s.core.PublishSessionTerminated(ctx, userID, "logout"); err != nil {
 				log.Warn("Failed to publish session terminated event", "error", err)
+			}
+			if err := s.core.RecordLogoutSucceeded(ctx, userID); err != nil {
+				log.Warn("Failed to append logout audit event", "error", err, "userId", userID)
 			}
 		}
 
@@ -65,7 +72,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		ctx := c.Request.Context()
-		if err := s.core.RevokeAuthToken(ctx, req.Token); err != nil {
+		if err := s.core.RevokeAuthTokenWithReason(ctx, req.Token, "explicit"); err != nil {
 			log.Error("Failed to revoke token", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke token"})
 			return
@@ -115,6 +122,9 @@ func (s *HTTPServer) setupAuthRoutes() {
 		ctx := c.Request.Context()
 		user, err := s.core.VerifyPassword(ctx, login, loginRequest.Password)
 		if err != nil {
+			if auditErr := s.core.RecordLoginFailed(ctx, login); auditErr != nil {
+				log.Warn("Failed to append failed-login audit event", "error", auditErr)
+			}
 			log.Error("Login failed", "login", login, "error", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return
@@ -129,6 +139,13 @@ func (s *HTTPServer) setupAuthRoutes() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 			return
 		}
+		if err := s.core.RecordLoginSucceeded(ctx, user.Id, login); err != nil {
+			log.Error("Failed to append login audit event", "userId", user.Id, "error", err)
+			session.Clear()
+			_ = session.Save()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			return
+		}
 
 		log.Info("User logged in successfully", "userId", user.Id, "login", user.Login)
 
@@ -138,7 +155,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		// Issue a bearer token (cross-origin clients use this instead of the session cookie)
-		if token, err := s.core.CreateAuthToken(ctx, user.Id); err == nil {
+		if token, err := s.core.CreateAuthTokenWithSource(ctx, user.Id, "password_login"); err == nil {
 			response["token"] = token
 		} else {
 			log.Warn("Failed to create auth token on login", "userId", user.Id, "error", err)
@@ -342,7 +359,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			"user":    gin.H{"id": user.Id, "login": user.Login},
 		}
 
-		if token, err := s.core.CreateAuthToken(ctx, user.Id); err == nil {
+		if token, err := s.core.CreateAuthTokenWithSource(ctx, user.Id, "registration"); err == nil {
 			response["token"] = token
 		} else {
 			log.Warn("Failed to create auth token on register", "userId", user.Id, "error", err)
@@ -473,7 +490,6 @@ func (s *HTTPServer) setupAuthRoutes() {
 	// Register test endpoints if built with -tags test_endpoints
 	registerTestEndpoints(auth, s)
 }
-
 
 // isValidLogin validates that a login name meets the requirements:
 // 2-32 characters, alphanumeric with dots, dashes, or underscores.

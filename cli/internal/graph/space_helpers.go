@@ -3,6 +3,7 @@ package graph
 import (
 	"context"
 
+	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/graph/model"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -14,20 +15,18 @@ func roomTypeIs(filter *model.RoomType, want model.RoomType) bool {
 	return filter == nil || *filter == want
 }
 
-// appendDMRoomsForServer appends the user's DM conversations to a channel
-// rooms list (issue #330 / ADR-027 phase 3). Storage stays in the hidden DM
-// space (ADR-015); only the API surface merges. The caller's dm.view
-// permission is checked — without it the original list is returned
-// unchanged. No-op when the caller asked for channels only (`type: CHANNEL`).
+// appendDMRoomsForServer appends the user's active DM rooms to a channel rooms
+// list. No-op when the caller asked for channels only (`type: CHANNEL`).
+// The DM listing path is the generic member-room list plus DM presentation
+// policy: hide empty conversations and sort by last message.
 func (r *Resolver) appendDMRoomsForServer(ctx context.Context, userID string, rooms []*corev1.Room, roomType *model.RoomType) ([]*corev1.Room, error) {
 	if !roomTypeIs(roomType, model.RoomTypeDm) {
 		return rooms, nil
 	}
-	canDM, err := r.core.CanDMView(ctx, userID)
-	if err != nil || !canDM {
-		return rooms, nil
-	}
-	dms, err := r.core.ListDMConversations(ctx, userID)
+	dms, err := r.core.ListMemberRooms(ctx, core.KindDM, userID, core.MemberRoomListOptions{
+		RequireLastMessage:    true,
+		SortByLastMessageDesc: true,
+	})
 	if err != nil {
 		return nil, err
 	}

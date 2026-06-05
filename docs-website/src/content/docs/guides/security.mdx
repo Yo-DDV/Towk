@@ -21,7 +21,7 @@ Login comparison runs bcrypt against a dummy hash for unknown users and OAuth-on
 
 ### Sessions and tokens
 
-Chatto issues **opaque bearer tokens**, not JWTs. Tokens are stored in a NATS KV bucket with a sliding TTL: every successful validation re-puts the entry, extending its expiry. Revocation is a single KV delete — there is no signed-but-still-valid window to worry about.
+Chatto issues **opaque bearer tokens**, not JWTs. Token verifiers are stored in `RUNTIME_STATE` under HMAC-derived keys, with a sliding TTL: every successful validation re-puts the entry, extending its expiry. Revocation is a single KV delete — there is no signed-but-still-valid window to worry about.
 
 Browser sessions use signed cookies with the following options:
 
@@ -78,20 +78,31 @@ This boundary is intentional and enforced in the resolvers under `Query.admin` �
 
 ### Message bodies at rest
 
-Message bodies are encrypted with **ChaCha20-Poly1305** (AEAD, 256-bit key, 96-bit random nonce) before being written to JetStream. Each user has their own encryption key, generated on demand and stored in a dedicated `KV_ENCRYPTION_KEYS` bucket. Authentication tags are verified on every read; tampered ciphertext is rejected with `ErrDecryptionFailed`.
+Message bodies are encrypted before being written to JetStream. New messages use a compact versioned envelope:
+
+- Chatto generates a per-user, purpose-scoped message-body DEK epoch, stores the wrapped key in app-owned `ENCRYPTION_KEYS` storage, and records only the content-key ref and wrapping metadata in the user event stream as a `UserDEKGeneratedEvent`.
+- The body is encrypted with **XChaCha20-Poly1305** using the author's active message-body DEK epoch.
+- Each DEK is wrapped through Chatto's KMS boundary, stored by the application, and addressed by an opaque content-key ref.
+- The encrypted body is authenticated with its event context — event ID, room ID, author ID, message-body DEK epoch, and message-body event type — as Additional Authenticated Data (AAD).
+
+The built-in KMS runs in-process and stores KEKs as protobuf `UserKeyEncryptionKey` records in a dedicated `ENCRYPTION_KEYS` NATS KV bucket under opaque `kek.*` references, with read compatibility for older raw 32-byte `kek.*` records. App-owned protobuf `UserDataEncryptionKey` wrapped DEK records live in the same bucket under `dek.*` references. Raw `user.*` records are legacy direct-key compatibility only. DEK events record their purpose, epoch, content-key ref, and wrapping key ref, which keeps Chatto's durable event shape close to external KMS systems such as Vault, AWS KMS, or HSM-backed providers without making immutable EVT history or the KMS API a permanent DEK registry. Authentication tags are verified on every read; tampered ciphertext or ciphertext copied into the wrong event context is rejected with `ErrDecryptionFailed`.
 
 This means an attacker who exfiltrates the JetStream data files alone cannot recover message text without also obtaining the encryption keys bucket.
 
+Older message bodies encrypted directly with the user's per-user ChaCha20-Poly1305 key remain readable.
+
+Durable user events also encrypt login, display name, and verified email fields with a separate user-PII DEK epoch. Legacy KV user records are imported by emitting encrypted user events, and projections decrypt those fields while the key exists to derive the in-memory login/email indexes used by the API.
+
 <Aside type="note">
-  Message **bodies** are encrypted. User profile fields — login, display name, email address — are stored in plaintext KV. Email addresses are indexed by SHA-256 hash of the normalized address, but the email itself is also stored in plaintext on the user record so it can be displayed in admin views and matched against `owners.emails`.
+  Authorized live events and GraphQL responses still contain profile fields in plaintext because clients need to render them. The durable event log is the protected boundary here.
 </Aside>
 
 ### Crypto-shredding
 
 When a user is deleted, Chatto:
 
-1. Deletes every message body the user authored across every room.
-2. **Deletes the user's encryption key**, rendering any remaining encrypted bytes (e.g. inside long-lived event streams) permanently unreadable.
+1. Retracts visible message bodies the user authored across every room.
+2. **Shreds the user's app-owned DEK refs and KMS wrapping-key refs**, rendering remaining encrypted body bytes and durable PII bytes permanently unreadable.
 3. Removes profile fields, the avatar object, push-notification subscriptions, email index entries, and the server membership.
 4. Publishes member-deleted events so other clients refetch and show "Deleted User" in place of any orphaned references.
 
@@ -109,12 +120,13 @@ TLS is **not required**. Chatto can also run plain HTTP, which is useful for loc
 
 ## Backup security
 
-Backups encrypt with [age](https://age-encryption.org) (passphrase-based scrypt) when you pass `--encrypt`. Two buckets are **deliberately excluded** from backups for security reasons:
+Backups encrypt with [age](https://age-encryption.org) (passphrase-based scrypt) when you pass `--encrypt`. The `ENCRYPTION_KEYS` bucket is **deliberately excluded** from backups for security reasons:
 
-- `KV_ENCRYPTION_KEYS` — keeps backup archives unable to decrypt their own message bodies if leaked.
-- `KV_AUTH_TOKENS` — prevents session-token exfiltration via stolen backup files.
+- `ENCRYPTION_KEYS` — keeps backup archives unable to decrypt their own message bodies or durable user PII if leaked.
 
-Encryption keys are exported and imported separately with `chatto keys export` / `chatto keys import`, again age-encrypted. The same passphrase format means a standalone `age` CLI can inspect or re-encrypt any Chatto archive.
+`RUNTIME_STATE` is included in backups so active sessions and pending registration, email-verification, password-reset, account-deletion, and OAuth-code flows can survive a restore. Credential entries in that bucket use HMAC-derived keys, so backup archives do not contain redeemable raw bearer tokens, links, or OAuth codes. Restoring with a different `core.secret_key` intentionally invalidates those credentials.
+
+Encryption key records are exported and imported separately with `chatto keys export` / `chatto keys import`, again age-encrypted. Restores need those KEK and wrapped-DEK records to rebuild encrypted profile indexes as well as message bodies. The same passphrase format means a standalone `age` CLI can inspect or re-encrypt any Chatto archive.
 
 <LinkCard
   title="Backup & Restore"
@@ -167,8 +179,10 @@ For HSTS, CSP, and other policy headers, add them at your reverse proxy.
 
 | Secret                              | Storage                                     | Backed up?     |
 | ----------------------------------- | ------------------------------------------- | -------------- |
-| User encryption keys                | `KV_ENCRYPTION_KEYS` (NATS KV)              | No (export separately) |
-| Bearer auth tokens                  | `KV_AUTH_TOKENS` (NATS KV, with TTL)        | No             |
+| Per-user KEK and wrapped DEK records | `ENCRYPTION_KEYS` (NATS KV)                 | No (export separately) |
+| Bearer/session token verifiers      | `RUNTIME_STATE` (HMAC-keyed, with TTL)      | Yes (not raw tokens) |
+| Account-flow link/code verifiers    | `RUNTIME_STATE` (HMAC-keyed, with TTL)      | Yes (not raw links/codes) |
+| Core secret key                     | `chatto.toml` (`core.secret_key`)           | n/a            |
 | Cookie signing secret               | `chatto.toml` (`webserver.cookie_signing_secret`) | n/a       |
 | Cookie encryption secret (optional) | `chatto.toml` (`webserver.cookie_encryption_secret`) | n/a    |
 | TLS certificates                    | Disk cache directory (`autocert`)           | n/a            |

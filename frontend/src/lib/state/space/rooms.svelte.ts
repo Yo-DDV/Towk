@@ -14,7 +14,6 @@ export type RoomsListItem = {
   name: string;
   type: RoomType;
   hasUnread: boolean;
-  hasMention: boolean;
   // Populated for DM rooms only — used to derive the display name in the sidebar.
   members: UserAvatarUserFragment[];
 };
@@ -35,7 +34,6 @@ const MyRoomsQuery = graphql(`
           name
           type
           hasUnread
-          hasMention
           archived
           viewerNotificationPreference {
             level
@@ -59,6 +57,15 @@ const MyRoomsQuery = graphql(`
   }
 `);
 
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen: Record<string, true> = Object.create(null);
+  return items.filter((item) => {
+    if (seen[item.id]) return false;
+    seen[item.id] = true;
+    return true;
+  });
+}
+
 /**
  * Reactive store for a server's joined-room list, layout, and per-room
  * unread/mention state. One instance per registered server, owned by
@@ -67,7 +74,7 @@ const MyRoomsQuery = graphql(`
  * `serverRegistry.getStore(activeServerId).rooms`, so the reactivity follows
  * the URL automatically when the user switches servers.
  *
- * Per-room flag mutations (markRead, setMention, ...) are exposed as methods
+ * Per-room flag mutations (markRead, setUnread, ...) are exposed as methods
  * so components can react to local UI events (entering a room) and to other
  * subscriptions (mentions, marked-as-read across tabs).
  *
@@ -105,7 +112,7 @@ export class RoomsStore {
 
     if (result.data?.viewer?.user) {
       this.currentUserId = result.data.viewer.user.id;
-      const allRooms = result.data.viewer.user.rooms;
+      const allRooms = uniqueById(result.data.viewer.user.rooms);
 
       for (const room of allRooms) {
         const pref = room.viewerNotificationPreference;
@@ -120,7 +127,6 @@ export class RoomsStore {
         name: r.name,
         type: r.type,
         hasUnread: r.hasUnread,
-        hasMention: r.hasMention,
         members: r.members.map((m: typeof r.members[number]) => useFragment(UserAvatarUserFragmentDoc, m))
       }));
       this.roomUnread.initRooms(visible);
@@ -131,7 +137,7 @@ export class RoomsStore {
       this.roomGroups = result.data.server.roomGroups.map((s: SetT) => ({
         id: s.id,
         name: s.name,
-        roomIds: s.rooms.map((r: SetT['rooms'][number]) => r.id)
+        roomIds: uniqueById(s.rooms).map((r: SetT['rooms'][number]) => r.id)
       }));
     } else {
       this.roomGroups = null;
@@ -145,19 +151,11 @@ export class RoomsStore {
   // -------------------------------------------------------------------------
 
   markRead(roomId: string): void {
-    this.patchRoom(roomId, { hasUnread: false, hasMention: false });
+    this.patchRoom(roomId, { hasUnread: false });
   }
 
   setUnread(roomId: string): void {
     this.patchRoom(roomId, { hasUnread: true });
-  }
-
-  setMention(roomId: string): void {
-    this.patchRoom(roomId, { hasMention: true });
-  }
-
-  clearMention(roomId: string): void {
-    this.patchRoom(roomId, { hasMention: false });
   }
 
   /**
@@ -195,8 +193,9 @@ export class RoomsStore {
    * Refresh the room list when membership or room metadata changes. Other
    * event types (messages, reactions, presence) are no-ops at this level
    * unless the message arrives for a room we don't yet know about — that's
-   * how a freshly-created empty DM (filtered from ListDMConversations until
-   * its first message lands) shows up in the sidebar without a manual reload.
+   * how a freshly-created empty DM (filtered from the active member-room DM
+   * list until its first message lands) shows up in the sidebar without a
+   * manual reload.
    */
   ingestServerEvent(serverEvent: { event?: { __typename?: string; roomId?: string } | null }): void {
     const event = serverEvent.event;

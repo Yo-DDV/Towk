@@ -2,14 +2,17 @@ package core
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"hmans.de/chatto/internal/config"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/testutil"
 )
 
 // ============================================================================
@@ -30,38 +33,13 @@ func testContext(t *testing.T) context.Context {
 func setupTestCore(t *testing.T) (*ChattoCore, *nats.Conn) {
 	t.Helper()
 
-	// Start embedded NATS server
-	opts := &server.Options{
-		JetStream: true,
-		Port:      -1,
-		StoreDir:  t.TempDir(),
-	}
-
-	ns, err := server.NewServer(opts)
-	if err != nil {
-		t.Fatalf("Failed to create NATS server: %v", err)
-	}
-
-	go ns.Start()
-	if !ns.ReadyForConnections(5 * 1e9) {
-		t.Fatal("NATS server not ready")
-	}
-
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
-
-	t.Cleanup(func() {
-		nc.Close()
-		ns.Shutdown()
-		ns.WaitForShutdown()
-	})
+	_, nc := testutil.StartNATS(t)
 
 	ctx := testContext(t)
 
 	// Create ChattoCore
 	cfg := config.CoreConfig{
+		SecretKey: "test-core-secret",
 		Assets: config.AssetsConfig{
 			SigningSecret: "test-signing-secret",
 		},
@@ -71,17 +49,324 @@ func setupTestCore(t *testing.T) (*ChattoCore, *nats.Conn) {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
 
-	// Start PresenceHub in background (needed by StreamMyEvents)
-	hubCtx, hubCancel := context.WithCancel(context.Background())
-	go core.PresenceHub.Run(hubCtx)
-	t.Cleanup(hubCancel)
+	startCoreServices(t, core)
 
 	return core, nc
+}
+
+// startCoreServices runs ChattoCore's background services (PresenceHub +
+// projectors) for the duration of a test. Required because membership
+// mutations call WaitForSeq, and StreamMyEvents depends on PresenceHub —
+// neither works without the corresponding loop running.
+//
+// Once `core.Run` owns the lifecycle of every background service, new
+// projectors (ADR-035) get picked up here automatically.
+func startCoreServices(t *testing.T, core *ChattoCore) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- core.Run(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("core.Run did not stop within timeout")
+		}
+	})
+	// Block until Run's boot phase is complete — projectors started
+	// AND ensureChannelRoomsAreInAGroup has run. Without this the
+	// test thread races ahead and issues reads against an empty
+	// projection (RoomCatalog returns "not found" for rooms whose
+	// RoomCreated hasn't been applied yet), and SeedDefaultRooms
+	// calls would seed rooms without a group assignment.
+	bootCtx, bootCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer bootCancel()
+	if err := core.WaitForBoot(bootCtx); err != nil {
+		t.Fatalf("WaitForBoot: %v", err)
+	}
+}
+
+func eventStreamMsgCount(t *testing.T, core *ChattoCore) uint64 {
+	t.Helper()
+
+	ctx := testContext(t)
+	stream, err := core.EventStreamForDebug(ctx)
+	if err != nil {
+		t.Fatalf("event stream: %v", err)
+	}
+	info, err := stream.Info(ctx)
+	if err != nil {
+		t.Fatalf("event stream info: %v", err)
+	}
+	return info.State.Msgs
+}
+
+func ensureLegacyKeyValue(t *testing.T, core *ChattoCore, bucket string) jetstream.KeyValue {
+	t.Helper()
+	ctx := testContext(t)
+	kv, err := core.js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  bucket,
+		Storage: jetstream.FileStorage,
+	})
+	if err != nil {
+		t.Fatalf("create legacy %s KV: %v", bucket, err)
+	}
+	return kv
+}
+
+func ensureLegacyServerRuntimeKV(t *testing.T, core *ChattoCore) jetstream.KeyValue {
+	t.Helper()
+	kv := ensureLegacyKeyValue(t, core, "SERVER_RUNTIME")
+	core.storage.serverRuntimeKV = kv
+	return kv
+}
+
+func ensureLegacyServerConfigKV(t *testing.T, core *ChattoCore) jetstream.KeyValue {
+	t.Helper()
+	kv := ensureLegacyKeyValue(t, core, "SERVER_CONFIG")
+	core.storage.serverConfigKV = kv
+	return kv
+}
+
+func assertLegacyKeyAbsent(t *testing.T, kv jetstream.KeyValue, key, label string) {
+	t.Helper()
+	if kv == nil {
+		return
+	}
+	ctx := testContext(t)
+	if _, err := kv.Get(ctx, key); !errors.Is(err, jetstream.ErrKeyNotFound) {
+		t.Fatalf("%s lookup error = %v, want ErrKeyNotFound", label, err)
+	}
+}
+
+func TestNewChattoCore_DoesNotProvisionLegacyImportResourcesOnFreshBoot(t *testing.T) {
+	_, nc := testutil.StartNATS(t)
+	ctx := testContext(t)
+	cfg := config.CoreConfig{
+		SecretKey: "test-core-secret",
+		Assets: config.AssetsConfig{
+			SigningSecret: "test-signing-secret",
+		},
+	}
+
+	core, err := NewChattoCore(ctx, nc, cfg)
+	if err != nil {
+		t.Fatalf("NewChattoCore: %v", err)
+	}
+
+	for _, bucket := range []string{
+		"INSTANCE",
+		"INSTANCE_CONFIG",
+		"SERVER_CONFIG",
+		"SERVER_RBAC",
+		"SERVER_RUNTIME",
+		"SERVER_BODIES",
+		"SERVER_REACTIONS",
+		"USER_PRESENCE",
+		"CALL_STATE",
+	} {
+		if _, err := core.js.KeyValue(ctx, bucket); !errors.Is(err, jetstream.ErrBucketNotFound) {
+			t.Fatalf("legacy bucket %s lookup error = %v, want ErrBucketNotFound", bucket, err)
+		}
+	}
+	if _, err := core.js.KeyValue(ctx, "MEMORY_CACHE"); err != nil {
+		t.Fatalf("MEMORY_CACHE lookup error = %v", err)
+	}
+	if _, err := core.js.Stream(ctx, "SERVER_EVENTS"); !errors.Is(err, jetstream.ErrStreamNotFound) {
+		t.Fatalf("legacy stream SERVER_EVENTS lookup error = %v, want ErrStreamNotFound", err)
+	}
+}
+
+func TestNewChattoCore_CopiesLegacyCallStateToMemoryCache(t *testing.T) {
+	_, nc := testutil.StartNATS(t)
+	ctx := testContext(t)
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("jetstream: %v", err)
+	}
+
+	legacy, err := js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "CALL_STATE",
+		Storage: jetstream.MemoryStorage,
+		History: 1,
+	})
+	if err != nil {
+		t.Fatalf("create legacy CALL_STATE: %v", err)
+	}
+	state := callState{Participants: []CallParticipant{{
+		UserID:      "user-1",
+		DisplayName: "Alice",
+		Login:       "alice",
+		JoinedAt:    123,
+	}}}
+	data, err := json.Marshal(&state)
+	if err != nil {
+		t.Fatalf("marshal call state: %v", err)
+	}
+	if _, err := legacy.Put(ctx, legacyCallStateKey("channel", "room-1"), data); err != nil {
+		t.Fatalf("put legacy call state: %v", err)
+	}
+
+	core, err := NewChattoCore(ctx, nc, config.CoreConfig{
+		SecretKey: "test-core-secret",
+		Assets: config.AssetsConfig{
+			SigningSecret: "test-signing-secret",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewChattoCore: %v", err)
+	}
+
+	participants, err := core.GetCallParticipants(ctx, "channel", "room-1")
+	if err != nil {
+		t.Fatalf("GetCallParticipants: %v", err)
+	}
+	if len(participants) != 1 || participants[0].UserID != "user-1" {
+		t.Fatalf("participants = %+v, want copied legacy participant user-1", participants)
+	}
 }
 
 // ============================================================================
 // Integration Tests
 // ============================================================================
+
+func TestChattoCore_RunReplaysProjectionsBeforeBootEnsures(t *testing.T) {
+	_, nc := testutil.StartNATS(t)
+	cfg := config.CoreConfig{
+		SecretKey: "test-core-secret",
+		Assets: config.AssetsConfig{
+			SigningSecret: "test-signing-secret",
+		},
+	}
+
+	start := func(t *testing.T, core *ChattoCore) func() {
+		t.Helper()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- core.Run(ctx) }()
+
+		bootCtx, bootCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer bootCancel()
+		if err := core.WaitForBoot(bootCtx); err != nil {
+			cancel()
+			t.Fatalf("WaitForBoot: %v", err)
+		}
+
+		return func() {
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("core.Run did not stop within timeout")
+			}
+		}
+	}
+
+	ctx := testContext(t)
+	first, err := NewChattoCore(ctx, nc, cfg)
+	if err != nil {
+		t.Fatalf("first core: %v", err)
+	}
+	stopFirst := start(t, first)
+	if err := first.SeedDefaultRooms(ctx); err != nil {
+		stopFirst()
+		t.Fatalf("seed default rooms: %v", err)
+	}
+	eventsAfterFirstBoot := eventStreamMsgCount(t, first)
+	stopFirst()
+
+	second, err := NewChattoCore(ctx, nc, cfg)
+	if err != nil {
+		t.Fatalf("second core: %v", err)
+	}
+	stopSecond := start(t, second)
+	defer stopSecond()
+	if err := second.SeedDefaultRooms(ctx); err != nil {
+		t.Fatalf("seed default rooms after restart: %v", err)
+	}
+	eventsAfterSecondBoot := eventStreamMsgCount(t, second)
+
+	if eventsAfterSecondBoot != eventsAfterFirstBoot {
+		t.Fatalf("expected restart boot to append no events, got %d -> %d", eventsAfterFirstBoot, eventsAfterSecondBoot)
+	}
+}
+
+func TestChattoCore_RunAppliesConfigOwnersToExistingVerifiedUsers(t *testing.T) {
+	_, nc := testutil.StartNATS(t)
+	cfg := config.CoreConfig{
+		SecretKey: "test-core-secret",
+		Assets: config.AssetsConfig{
+			SigningSecret: "test-signing-secret",
+		},
+	}
+
+	start := func(t *testing.T, core *ChattoCore) func() {
+		t.Helper()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error, 1)
+		go func() { done <- core.Run(ctx) }()
+
+		bootCtx, bootCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer bootCancel()
+		if err := core.WaitForBoot(bootCtx); err != nil {
+			cancel()
+			t.Fatalf("WaitForBoot: %v", err)
+		}
+
+		return func() {
+			cancel()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("core.Run did not stop within timeout")
+			}
+		}
+	}
+
+	ctx := testContext(t)
+	first, err := NewChattoCore(ctx, nc, cfg)
+	if err != nil {
+		t.Fatalf("first core: %v", err)
+	}
+	stopFirst := start(t, first)
+	user, err := first.CreateVerifiedUser(ctx, SystemActorID, "retro-owner", "Retro Owner", "password123", "owner@example.com")
+	if err != nil {
+		stopFirst()
+		t.Fatalf("create verified user: %v", err)
+	}
+	if isOwner, err := first.IsServerOwner(ctx, user.Id); err != nil || isOwner {
+		stopFirst()
+		t.Fatalf("user should not be owner before owners.emails is configured, owner=%v err=%v", isOwner, err)
+	}
+	stopFirst()
+
+	cfg.Owners = config.OwnersConfig{Emails: []string{"OWNER@example.com"}}
+	second, err := NewChattoCore(ctx, nc, cfg)
+	if err != nil {
+		t.Fatalf("second core: %v", err)
+	}
+	stopSecond := start(t, second)
+	if isOwner, err := second.IsServerOwner(ctx, user.Id); err != nil || !isOwner {
+		stopSecond()
+		t.Fatalf("user should be owner after owners.emails boot sync, owner=%v err=%v", isOwner, err)
+	}
+	eventsAfterPromotion := eventStreamMsgCount(t, second)
+	stopSecond()
+
+	third, err := NewChattoCore(ctx, nc, cfg)
+	if err != nil {
+		t.Fatalf("third core: %v", err)
+	}
+	stopThird := start(t, third)
+	defer stopThird()
+	eventsAfterRestart := eventStreamMsgCount(t, third)
+	if eventsAfterRestart != eventsAfterPromotion {
+		t.Fatalf("expected owner boot sync to be idempotent, got %d -> %d events", eventsAfterPromotion, eventsAfterRestart)
+	}
+}
 
 // TestChattoCore_FullWorkflow tests an end-to-end workflow demonstrating
 // all core functionality working together.
@@ -163,8 +448,8 @@ func TestChattoCore_FullWorkflow(t *testing.T) {
 
 // TestPerSpaceBucketCache_DeleteAndRecreate verifies that cache deletion works
 // and that a new bucket is created after deletion. Uses a non-server space so
-// the lazycache code path is exercised (the deployment's server space and the
-// DM space both bypass the lazycache).
+// the lazycache code path is exercised (deployment-wide channel and DM room
+// data bypasses the lazycache).
 
 // TestPerSpaceBucketCache_BucketConfigured verifies that storage buckets are correctly configured.
 
@@ -192,25 +477,25 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 		{
 			name:       "user event - same user receives their own registration_completed",
 			userID:     userA.Id,
-			subject:    "live.server.user." + userA.Id + ".registration_completed",
+			subject:    "live.sync.user." + userA.Id + ".registration_completed",
 			wantResult: true,
 		},
 		{
 			name:       "user event - other user does NOT receive registration_completed",
 			userID:     userB.Id,
-			subject:    "live.server.user." + userA.Id + ".registration_completed",
+			subject:    "live.sync.user." + userA.Id + ".registration_completed",
 			wantResult: false,
 		},
 		{
 			name:       "user event - same user receives their own user_deleted",
 			userID:     userA.Id,
-			subject:    "live.server.user." + userA.Id + ".user_deleted",
+			subject:    "live.sync.user." + userA.Id + ".user_deleted",
 			wantResult: true,
 		},
 		{
 			name:       "user event - other user does NOT receive user_deleted",
 			userID:     userB.Id,
-			subject:    "live.server.user." + userA.Id + ".user_deleted",
+			subject:    "live.sync.user." + userA.Id + ".user_deleted",
 			wantResult: false,
 		},
 
@@ -218,13 +503,13 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 		{
 			name:       "profile_updated - same user receives it",
 			userID:     userA.Id,
-			subject:    "live.server.user." + userA.Id + ".profile_updated",
+			subject:    "live.sync.user." + userA.Id + ".profile_updated",
 			wantResult: true,
 		},
 		{
 			name:       "profile_updated - other user ALSO receives it (broadcast)",
 			userID:     userB.Id,
-			subject:    "live.server.user." + userA.Id + ".profile_updated",
+			subject:    "live.sync.user." + userA.Id + ".profile_updated",
 			wantResult: true,
 		},
 
@@ -233,13 +518,13 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 		{
 			name:       "config event - user A receives it",
 			userID:     userA.Id,
-			subject:    "live.server.config.server_updated",
+			subject:    "live.sync.config.server_updated",
 			wantResult: true,
 		},
 		{
 			name:       "config event - user B also receives it",
 			userID:     userB.Id,
-			subject:    "live.server.config.server_updated",
+			subject:    "live.sync.config.server_updated",
 			wantResult: true,
 		},
 
@@ -247,7 +532,7 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 		{
 			name:       "invalid subject format - too few parts",
 			userID:     userA.Id,
-			subject:    "live.server.user",
+			subject:    "live.sync.user",
 			wantResult: false,
 		},
 		{
@@ -259,7 +544,7 @@ func TestChattoCore_isAuthorizedForLiveEvent(t *testing.T) {
 		{
 			name:       "unknown scope",
 			userID:     userA.Id,
-			subject:    "live.server.unknown.someid.event",
+			subject:    "live.sync.unknown.someid.event",
 			wantResult: false,
 		},
 	}
@@ -383,7 +668,7 @@ func TestStreamMyEvents_ClosesOnSessionTerminated(t *testing.T) {
 				}
 				return // Success!
 			}
-			if st := event.GetSessionTerminated(); st != nil {
+			if st := EventSessionTerminated(event); st != nil {
 				if st.Reason != "logout" {
 					t.Errorf("Expected reason 'logout', got %q", st.Reason)
 				}
@@ -454,7 +739,7 @@ func TestStreamMyEvents_FiltersOwnTypingEvents(t *testing.T) {
 	// user1 should NOT receive their own typing event
 	select {
 	case event := <-eventChan:
-		if event.GetUserTyping() != nil {
+		if EventUserTyping(event) != nil {
 			t.Error("User received their own typing event — should be filtered server-side")
 		}
 	case <-time.After(500 * time.Millisecond):
@@ -472,9 +757,9 @@ func TestStreamMyEvents_FiltersOwnTypingEvents(t *testing.T) {
 	for {
 		select {
 		case event := <-eventChan:
-			if typing := event.GetUserTyping(); typing != nil {
-				if event.ActorId != user2.Id {
-					t.Errorf("Expected typing event from user2 (%s), got %s", user2.Id, event.ActorId)
+			if typing := EventUserTyping(event); typing != nil {
+				if event.ActorID() != user2.Id {
+					t.Errorf("Expected typing event from user2 (%s), got %s", user2.Id, event.ActorID())
 				}
 				return // Success!
 			}
@@ -482,5 +767,24 @@ func TestStreamMyEvents_FiltersOwnTypingEvents(t *testing.T) {
 		case <-timeout:
 			t.Fatal("Timeout waiting for user2's typing event")
 		}
+	}
+}
+
+func TestFilterLiveSyncEvent_DropsMissingPayload(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	event, ok := core.filterLiveSyncEvent(ctx, "U1", map[string]struct{}{}, &nats.Msg{
+		Subject: "live.sync.config.updated",
+	}, &corev1.LiveEvent{
+		Id:      "LIVE-empty",
+		ActorId: "U1",
+	})
+
+	if ok {
+		t.Fatal("expected empty LiveEvent to be rejected")
+	}
+	if event != nil {
+		t.Fatalf("expected no delivered event, got %+v", event)
 	}
 }

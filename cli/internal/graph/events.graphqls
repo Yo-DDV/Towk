@@ -1,42 +1,28 @@
 """
-RoomEvent wraps all room-scoped events.
+Event wraps all typed Chatto events.
 
-Events are either:
-- Stored in JetStream streams — persisted events
-- Published to NATS Core for real-time updates — live events
-
-Authorization is determined by NATS subject:
-- Persisted room events: `server.room.{kind}.{roomId}.>` (JetStream)
-- Live room events: `live.server.room.{kind}.{roomId}.>` (NATS Core; the
-  `SERVER_EVENTS` stream's RePublish also forwards persisted events here).
-
-`{kind}` is `channel` or `dm`. See `.claude/rules/nats-subjects.md` for the
-full subject taxonomy.
+Room queries and server subscriptions are delivery contexts over the same
+event envelope. Room-scoped events are returned only when the current user can
+see the affected room; deployment-scoped events are delivered according to
+their audience.
 """
-type RoomEvent {
+type Event {
   "Universal event identifier."
-  id: ID!
+  id: ID! @goField(forceResolver: true)
   "When this event was created."
-  createdAt: Time!
+  createdAt: Time! @goField(forceResolver: true)
   "The ID of the user who triggered this event."
-  actorId: ID!
+  actorId: ID! @goField(forceResolver: true)
   "The user who triggered this event. May be null if user was deleted."
   actor: User @goField(forceResolver: true)
   "The concrete event data."
-  event: RoomEventType! @goField(forceResolver: true)
-  """
-  Replies to this event, when it is a thread root message. Returns an empty
-  list when this event is not a `MessagePostedEvent` or when the message is
-  itself a thread reply (i.e. its `threadRootEventId` is set). Replies are returned in
-  chronological order and do not include this root event.
-  """
-  threadReplies: [RoomEvent!]! @goField(forceResolver: true)
+  event: EventType! @goField(forceResolver: true)
 }
 
 """
-Union of all room-scoped event types (both persisted and live).
+Union of every typed event payload exposed by GraphQL.
 """
-union RoomEventType =
+union EventType =
   # Room lifecycle
   | RoomCreatedEvent
   | RoomUpdatedEvent
@@ -49,8 +35,8 @@ union RoomEventType =
   | ServerMemberDeletedEvent
   # Messages
   | MessagePostedEvent
-  | MessageUpdatedEvent
-  | MessageDeletedEvent
+  | MessageEditedEvent
+  | MessageRetractedEvent
   # Reactions
   | ReactionAddedEvent
   | ReactionRemovedEvent
@@ -58,61 +44,10 @@ union RoomEventType =
   | UserTypingEvent
   # Video processing
   | VideoProcessingCompletedEvent
-  # Presence
-  | PresenceChangedEvent
-  # Voice calls
-  | CallParticipantJoinedEvent
-  | CallParticipantLeftEvent
-
-"""
-ServerEvent wraps any event delivered through the `myEvents` subscription.
-Two backend streams flow into this single envelope:
-
-- Room-scoped events (messages, room lifecycle, typing, presence, reactions,
-  video processing, voice calls) — sourced from the `SERVER_EVENTS` JetStream
-  and the `live.server.room.>` / `live.server.member.>` NATS-Core subjects.
-- Deployment-scoped events (config changes, notifications, server lifecycle,
-  thread-follow sync, session termination) — sourced from
-  `live.server.{user,config,member}.>`.
-"""
-type ServerEvent {
-  "Universal event identifier."
-  id: ID!
-  "When this event was created."
-  createdAt: Time!
-  "The ID of the user who triggered this event."
-  actorId: ID!
-  "The user who triggered this event. May be null if user was deleted."
-  actor: User @goField(forceResolver: true)
-  "The concrete event data."
-  event: ServerEventType! @goField(forceResolver: true)
-}
-
-"""
-Union of every event type a subscriber can receive.
-"""
-union ServerEventType =
-  # Room lifecycle
-  | RoomCreatedEvent
-  | RoomUpdatedEvent
-  | RoomDeletedEvent
-  | RoomArchivedEvent
-  | RoomUnarchivedEvent
-  # Room membership
-  | UserJoinedRoomEvent
-  | UserLeftRoomEvent
-  | ServerMemberDeletedEvent
-  # Messages
-  | MessagePostedEvent
-  | MessageUpdatedEvent
-  | MessageDeletedEvent
-  # Reactions
-  | ReactionAddedEvent
-  | ReactionRemovedEvent
-  # Typing indicators
-  | UserTypingEvent
-  # Video processing
-  | VideoProcessingCompletedEvent
+  | AssetProcessingStartedEvent
+  | AssetProcessingSucceededEvent
+  | AssetProcessingFailedEvent
+  | AssetDeletedEvent
   # Presence
   | PresenceChangedEvent
   # Voice calls
@@ -340,11 +275,11 @@ Event: A message was posted
 type MessagePostedEvent {
   "The ID of the room where the message was posted."
   roomId: ID!
-  "The message content. Lazy-loaded from KV bucket on demand. Null if deleted."
+  "The message content. Null if deleted."
   body: String @goField(forceResolver: true)
-  "Attachments for this message. Lazy-loaded from KV bucket on demand."
+  "Attachments for this message."
   attachments: [Attachment!]! @goField(forceResolver: true)
-  "Sequence ID of the message this is replying to (null for top-level messages)."
+  "Event ID of the message this is replying to (null for top-level messages)."
   inReplyTo: ID @goField(forceResolver: true)
   "Event ID of the thread root message (null for top-level messages). For direct replies, equals inReplyTo. For nested replies, references the original root."
   threadRootEventId: ID @goField(forceResolver: true)
@@ -364,32 +299,48 @@ type MessagePostedEvent {
   threadParticipants(first: Int = 5): [User!]! @goField(forceResolver: true)
   "Whether the current viewer is following this thread. Null for non-root messages or messages without replies."
   viewerIsFollowingThread: Boolean @goField(forceResolver: true)
+  """
+  Replies to this message, when it is a thread root. Returns an empty list when
+  this message is itself a thread reply. Replies are returned in chronological
+  order and do not include this root event.
+  """
+  threadReplies: [Event!]! @goField(forceResolver: true)
 }
 
 """
-Event: A message was updated.
-This is a live-only notification event — clients should refetch the affected message
-to get the updated content. Only identifies which message changed.
+Event: A message was edited.
+Carries the updated message body inline so subscription clients can update
+without refetching the affected message.
 """
-type MessageUpdatedEvent {
-  "The ID of the room where the message was updated."
+type MessageEditedEvent {
+  "The ID of the room where the message was edited."
   roomId: ID!
-  "The event ID of the message that was updated."
+  "The event ID of the message that was edited."
   messageEventId: ID! @goField(forceResolver: true)
+  "The decrypted message body, or null if the author was crypto-shredded."
+  body: String @goField(forceResolver: true)
+  "Attachments after the edit."
+  attachments: [Attachment!]! @goField(forceResolver: true)
+  "Link preview after the edit."
+  linkPreview: LinkPreview @goField(forceResolver: true)
+  "When the message was edited."
+  updatedAt: Time @goField(forceResolver: true)
 }
 
 """
-Event: A message was deleted
+Event: A message was retracted.
 """
-type MessageDeletedEvent {
-  "The ID of the room where the message was deleted."
+type MessageRetractedEvent {
+  "The ID of the room where the message was retracted."
   roomId: ID!
-  "The event ID of the message that was deleted."
+  "The event ID of the message that was retracted."
   messageEventId: ID! @goField(forceResolver: true)
+  "Optional human-readable retraction reason."
+  reason: String
 }
 
 # ==============================================================================
-# REACTION EVENTS (Live-only - KV bucket is source of truth)
+# REACTION EVENTS
 # ==============================================================================
 
 """
@@ -422,9 +373,9 @@ type ReactionRemovedEvent {
 
 """
 Event: A user is typing in a room or thread.
-This is a live-only event (not stored in JetStream).
+This is a transient event.
 Clients should implement timeout-based clearing (e.g., 6 seconds of inactivity).
-The user who is typing is identified by the parent RoomEvent's actorId/actor.
+The user who is typing is identified by the parent Event's actorId/actor.
 """
 type UserTypingEvent {
   "The ID of the room where the user is typing."
@@ -451,13 +402,62 @@ type VideoProcessingCompletedEvent {
   messageEventId: ID! @goField(forceResolver: true)
 }
 
+"""
+Event: asset processing has been enqueued. Emitted before SucceededEvent or
+FailedEvent so subscribers can render a "processing…" placeholder.
+"""
+type AssetProcessingStartedEvent {
+  "The room ID."
+  roomId: ID! @goField(forceResolver: true)
+  "The original asset ID whose processing has been enqueued."
+  assetId: ID!
+  "The event ID of the message containing the attachment, when message-owned."
+  messageEventId: ID! @goField(forceResolver: true)
+}
+
+"""
+Event: asset processing produced a durable derivative manifest.
+"""
+type AssetProcessingSucceededEvent {
+  "The room ID."
+  roomId: ID! @goField(forceResolver: true)
+  "The original asset ID that was processed."
+  assetId: ID!
+  "The event ID of the message containing the processed attachment, when message-owned."
+  messageEventId: ID! @goField(forceResolver: true)
+}
+
+"""
+Event: asset processing reached a durable failed/unavailable outcome.
+"""
+type AssetProcessingFailedEvent {
+  "The room ID."
+  roomId: ID! @goField(forceResolver: true)
+  "The original asset ID that failed processing."
+  assetId: ID!
+  "The event ID of the message containing the attachment, when message-owned."
+  messageEventId: ID! @goField(forceResolver: true)
+  "Stable machine-readable reason."
+  reasonCode: String! @goField(forceResolver: true)
+}
+
+"""
+Event: an asset has been deleted; subscribers should drop any local reference.
+"""
+type AssetDeletedEvent {
+  "The room ID, when the asset was room-scoped."
+  roomId: ID @goField(forceResolver: true)
+  "The deleted asset ID."
+  assetId: ID!
+}
+
 # ==============================================================================
 # PRESENCE EVENTS
 # ==============================================================================
 
 """
 Event: A user's presence status changed.
-The user whose presence changed is identified by the parent RoomEvent's actorId/actor.
+The user whose presence changed is identified by the parent Event's actorId/actor.
 Presence is server-wide.
 """
 type PresenceChangedEvent {
@@ -472,7 +472,8 @@ type PresenceChangedEvent {
 """
 Notification: A user was mentioned in a message.
 This is a live-only notification event for toast displays.
-Persistent state is tracked separately via Room.hasMention.
+Persistent pending-attention state is represented separately by
+NotificationCreatedEvent and the user's notification records.
 """
 type MentionNotificationEvent {
   "The ID of the room where the mention occurred."
@@ -480,7 +481,7 @@ type MentionNotificationEvent {
   "The room where the mention occurred (for display)."
   room: Room! @goField(forceResolver: true)
   "The user who mentioned you."
-  actor: User! @goField(forceResolver: true)
+  actor: User @goField(forceResolver: true)
 }
 
 """
@@ -491,7 +492,7 @@ type NewDirectMessageNotificationEvent {
   "The ID of the DM conversation."
   roomId: ID!
   "The user who sent the message."
-  sender: User! @goField(forceResolver: true)
+  sender: User @goField(forceResolver: true)
   "The name of the conversation (derived from participants)."
   conversationName: String! @goField(forceResolver: true)
 }
@@ -528,11 +529,9 @@ type RoomMarkedAsReadEvent {
 }
 
 """
-Event: The mention indicator for a room was cleared for the current user.
-Fires whenever the server-side mention flag is deleted — that happens when the
-user marks a room as read (auto on entry or explicit) or dismisses a mention
-notification on any device. Other devices drop the orange dot for the room
-without waiting for a refetch.
+Legacy event: the mention indicator for a room was cleared for the current user.
+Retained for wire compatibility; new builds derive orange dots from pending
+notifications and do not publish this event.
 """
 type MentionStatusClearedEvent {
   "The ID of the room whose mention indicator was cleared."
@@ -540,13 +539,12 @@ type MentionStatusClearedEvent {
 }
 
 # ==============================================================================
-# ROOM LAYOUT EVENTS (Live-only - KV bucket is source of truth)
+# ROOM LAYOUT EVENTS
 # ==============================================================================
 
 """
 Event: The channel-room groups (ordering, names, or membership) were updated.
-Clients should refetch `Server.roomGroups` to get the new shape. This is a
-live-only event (not stored in JetStream).
+Clients should refetch `Server.roomGroups` to get the new shape.
 """
 type RoomGroupsUpdatedEvent {
   "Always true. Vestigial — clients only need the event arrival to trigger a refetch of the sets."
@@ -574,8 +572,7 @@ type HeartbeatEvent {
 
 """
 Event: The user's session was terminated.
-Published on logout or admin boot. The subscription stream closes after this event,
-tearing down the WebSocket connection server-side.
+Published on logout or admin boot. The subscription closes after this event.
 """
 type SessionTerminatedEvent {
   "Why the session was terminated (logout, admin_boot, account_deleted)."
@@ -613,6 +610,14 @@ enum FitMode {
   EXACT
 }
 
+"A protected asset URL and the time its embedded access ticket expires."
+type AssetURL {
+  "URL to the asset on the owning host."
+  url: String!
+  "Time after which the embedded access ticket is no longer valid."
+  expiresAt: Time!
+}
+
 """
 An attachment to a message (image, video, etc.).
 """
@@ -633,8 +638,12 @@ type Attachment {
   height: Int!
   "URL to download the full attachment. Optional transform parameters for images."
   url(width: Int, height: Int, fit: FitMode): String! @goField(forceResolver: true)
+  "URL and expiry for the full attachment. Optional transform parameters for images."
+  assetUrl(width: Int, height: Int, fit: FitMode): AssetURL! @goField(forceResolver: true)
   "URL to download the thumbnail (null if no thumbnail). Optional transform parameters."
   thumbnailUrl(width: Int, height: Int, fit: FitMode): String @goField(forceResolver: true)
+  "URL and expiry for the thumbnail (null if no thumbnail). Optional transform parameters."
+  thumbnailAssetUrl(width: Int, height: Int, fit: FitMode): AssetURL @goField(forceResolver: true)
   "Video processing state (null for non-video attachments)."
   videoProcessing: VideoProcessing @goField(forceResolver: true)
 }
@@ -651,16 +660,22 @@ type VideoProcessing {
   height: Int
   "URL for the video thumbnail image."
   thumbnailUrl: String @goField(forceResolver: true)
+  "URL and expiry for the video thumbnail image."
+  thumbnailAssetUrl: AssetURL @goField(forceResolver: true)
   "Available quality variants."
   variants: [VideoVariant!]!
-  "Error message if processing failed."
-  errorMessage: String
+  "Stable machine-readable failure reason."
+  reasonCode: String
+  "Whether the original uploaded video binary is available for fallback playback."
+  sourceAvailable: Boolean!
 }
 
 "A transcoded quality variant of a video."
 type VideoVariant {
   "URL to stream/download this variant."
   url: String! @goField(forceResolver: true)
+  "URL and expiry for streaming/downloading this variant."
+  assetUrl: AssetURL! @goField(forceResolver: true)
   "Quality label (e.g., '720p', '480p')."
   quality: String!
   "Video width in pixels."
@@ -679,6 +694,6 @@ enum VideoProcessingStatus {
   PROCESSING
   "Transcoding finished; at least one variant is available for playback."
   COMPLETED
-  "Transcoding failed; `errorMessage` describes the failure and no variants are available."
+  "Transcoding failed; `reasonCode` describes the failure and no variants are available."
   FAILED
 }

@@ -1,9 +1,12 @@
 package graph
 
 import (
+	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
+	"github.com/99designs/gqlgen/graphql"
 	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/graph/model"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -155,6 +158,121 @@ func TestPostMessage_Authorization(t *testing.T) {
 			t.Fatal("expected event, got nil")
 		}
 	})
+}
+
+func TestPostMessage_VideoUploadsDisabled(t *testing.T) {
+	env := setupTestResolver(t)
+	mutation := env.resolver.Mutation()
+
+	before, err := env.core.GetAssetCount(env.ctx)
+	if err != nil {
+		t.Fatalf("GetAssetCount before post: %v", err)
+	}
+
+	_, err = mutation.PostMessage(env.authContext(), model.PostMessageInput{
+		RoomID: env.testRoom.Id,
+		Attachments: []*graphql.Upload{{
+			File:        bytes.NewReader([]byte("not a real video, but enough to reject by MIME type")),
+			Filename:    "clip.mp4",
+			Size:        48,
+			ContentType: "video/mp4",
+		}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "video uploads are disabled") {
+		t.Fatalf("PostMessage video while disabled error = %v, want disabled-video error", err)
+	}
+
+	after, err := env.core.GetAssetCount(env.ctx)
+	if err != nil {
+		t.Fatalf("GetAssetCount after post: %v", err)
+	}
+	if after != before {
+		t.Fatalf("asset count after rejected video = %d, want unchanged %d", after, before)
+	}
+
+	_, err = mutation.PostMessage(env.authContext(), model.PostMessageInput{
+		RoomID: env.testRoom.Id,
+		Attachments: []*graphql.Upload{
+			{
+				File:        bytes.NewReader([]byte("hello")),
+				Filename:    "notes.txt",
+				Size:        5,
+				ContentType: "text/plain",
+			},
+			{
+				File:        bytes.NewReader([]byte("video")),
+				Filename:    "clip.mp4",
+				Size:        5,
+				ContentType: "video/mp4",
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "video uploads are disabled") {
+		t.Fatalf("PostMessage mixed upload while disabled error = %v, want disabled-video error", err)
+	}
+
+	afterMixed, err := env.core.GetAssetCount(env.ctx)
+	if err != nil {
+		t.Fatalf("GetAssetCount after mixed post: %v", err)
+	}
+	if afterMixed != before {
+		t.Fatalf("asset count after rejected mixed upload = %d, want unchanged %d", afterMixed, before)
+	}
+}
+
+func TestPostMessage_AllowsNonVideoUploadsWhenVideoProcessingDisabled(t *testing.T) {
+	env := setupTestResolver(t)
+	mutation := env.resolver.Mutation()
+
+	tests := []struct {
+		name        string
+		filename    string
+		contentType string
+		data        []byte
+	}{
+		{
+			name:        "animated gif stays allowed as image upload",
+			filename:    "tiny.gif",
+			contentType: "image/gif",
+			data: []byte{
+				'G', 'I', 'F', '8', '9', 'a', 1, 0, 1, 0, 0x80, 0, 0,
+				0, 0, 0, 0xff, 0xff, 0xff, 0x2c, 0, 0, 0, 0, 1, 0, 1, 0,
+				0, 2, 2, 0x44, 1, 0, 0x3b,
+			},
+		},
+		{
+			name:        "audio",
+			filename:    "tone.mp3",
+			contentType: "audio/mpeg",
+			data:        []byte("audio bytes"),
+		},
+		{
+			name:        "generic file",
+			filename:    "notes.txt",
+			contentType: "text/plain",
+			data:        []byte("hello"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event, err := mutation.PostMessage(env.authContext(), model.PostMessageInput{
+				RoomID: env.testRoom.Id,
+				Attachments: []*graphql.Upload{{
+					File:        bytes.NewReader(tt.data),
+					Filename:    tt.filename,
+					Size:        int64(len(tt.data)),
+					ContentType: tt.contentType,
+				}},
+			})
+			if err != nil {
+				t.Fatalf("PostMessage returned error: %v", err)
+			}
+			if event == nil {
+				t.Fatal("PostMessage returned nil event")
+			}
+		})
+	}
 }
 
 // ============================================================================
@@ -326,8 +444,8 @@ func TestPostMessage_ThreadPermissions(t *testing.T) {
 		}
 
 		event, err := mutation.PostMessage(env.authContextForUser(member), model.PostMessageInput{
-			RoomID:   env.testRoom.Id,
-			Body:     ptr("Starting a thread"),
+			RoomID:            env.testRoom.Id,
+			Body:              ptr("Starting a thread"),
 			ThreadRootEventID: ptr(root.Id),
 		})
 		if err != nil {
@@ -352,8 +470,8 @@ func TestPostMessage_ThreadPermissions(t *testing.T) {
 
 		// First reply (no existing replies) — still requires post-in-thread
 		_, err = mutation.PostMessage(env.authContextForUser(member), model.PostMessageInput{
-			RoomID:   env.testRoom.Id,
-			Body:     ptr("Trying to start thread"),
+			RoomID:            env.testRoom.Id,
+			Body:              ptr("Trying to start thread"),
 			ThreadRootEventID: ptr(root.Id),
 		})
 		if !errors.Is(err, core.ErrPermissionDenied) {
@@ -367,8 +485,8 @@ func TestPostMessage_ThreadPermissions(t *testing.T) {
 		}
 
 		_, err = mutation.PostMessage(env.authContextForUser(member), model.PostMessageInput{
-			RoomID:   env.testRoom.Id,
-			Body:     ptr("Trying to post in existing thread"),
+			RoomID:            env.testRoom.Id,
+			Body:              ptr("Trying to post in existing thread"),
 			ThreadRootEventID: ptr(root.Id),
 		})
 		if !errors.Is(err, core.ErrPermissionDenied) {
@@ -388,8 +506,8 @@ func TestPostMessage_ThreadPermissions(t *testing.T) {
 		}
 
 		event, err := mutation.PostMessage(env.authContextForUser(member), model.PostMessageInput{
-			RoomID:   env.testRoom.Id,
-			Body:     ptr("Thread reply still works"),
+			RoomID:            env.testRoom.Id,
+			Body:              ptr("Thread reply still works"),
 			ThreadRootEventID: ptr(root.Id),
 		})
 		if err != nil {
@@ -1126,7 +1244,7 @@ func TestDeleteMessage_Authorization(t *testing.T) {
 		}
 
 		// Verify message body is deleted
-		messageBodyKey := newEvent.GetMessagePosted().MessageBodyId
+		messageBodyKey := newEvent.Id
 		body, err := env.core.GetMessageBody(env.ctx, core.KindChannel, messageBodyKey)
 		if err != nil {
 			t.Fatalf("failed to get message body: %v", err)
@@ -1161,6 +1279,70 @@ func TestDeleteMessage_Authorization(t *testing.T) {
 			t.Error("expected success=true for idempotent delete")
 		}
 	})
+}
+
+func TestDeleteMessage_EchoDeletesOnlyEchoArtifact(t *testing.T) {
+	env := setupTestResolver(t)
+	mutation := env.resolver.Mutation()
+	roomResolver := env.resolver.Room()
+
+	rootEvent, err := env.core.PostMessage(env.ctx, core.KindChannel, env.testRoom.Id, env.testUser.Id, "GraphQL echo delete root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("Post root: %v", err)
+	}
+	replyEvent, err := env.core.PostMessage(env.ctx, core.KindChannel, env.testRoom.Id, env.testUser.Id, "GraphQL echo delete reply", nil, rootEvent.Id, "", nil, true)
+	if err != nil {
+		t.Fatalf("Post reply with echo: %v", err)
+	}
+
+	events, err := roomResolver.Events(env.authContext(), env.testRoom, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("Room.Events before delete: %v", err)
+	}
+	echoID := ""
+	for _, event := range events.Events {
+		if msg := core.EventMessagePosted(event); msg != nil && msg.GetEchoOfEventId() == replyEvent.Id {
+			echoID = event.ID()
+			break
+		}
+	}
+	if echoID == "" {
+		t.Fatal("expected echoed reply in room events")
+	}
+
+	ok, err := mutation.DeleteMessage(env.authContext(), model.DeleteMessageInput{
+		RoomID:  env.testRoom.Id,
+		EventID: echoID,
+	})
+	if err != nil {
+		t.Fatalf("DeleteMessage echo: %v", err)
+	}
+	if !ok {
+		t.Fatal("DeleteMessage echo returned false")
+	}
+
+	events, err = roomResolver.Events(env.authContext(), env.testRoom, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("Room.Events after delete: %v", err)
+	}
+	for _, event := range events.Events {
+		if event.ID() == echoID {
+			t.Fatal("hidden echo should not appear in GraphQL room events")
+		}
+	}
+	if event, err := roomResolver.Event(env.authContext(), env.testRoom, echoID); err != nil {
+		t.Fatalf("Room.Event hidden echo: %v", err)
+	} else if event != nil {
+		t.Fatal("hidden echo should not be directly loadable through GraphQL room event")
+	}
+
+	body, err := env.core.GetMessageBody(env.ctx, core.KindChannel, replyEvent.Id)
+	if err != nil {
+		t.Fatalf("Get original reply body: %v", err)
+	}
+	if body != "GraphQL echo delete reply" {
+		t.Fatalf("original reply body = %q, want %q", body, "GraphQL echo delete reply")
+	}
 }
 
 // ============================================================================
@@ -1240,13 +1422,14 @@ func TestPostMessage_EchoPermission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to post root message: %v", err)
 	}
+	rootEventID := rootEvent.ID()
 
 	t.Run("user with echo permission can post with alsoSendToChannel", func(t *testing.T) {
 		alsoSend := true
 		input := model.PostMessageInput{
 			RoomID:            env.testRoom.Id,
 			Body:              ptr("Reply echoed to channel"),
-			ThreadRootEventID:          &rootEvent.Id,
+			ThreadRootEventID: &rootEventID,
 			AlsoSendToChannel: &alsoSend,
 		}
 
@@ -1294,7 +1477,7 @@ func TestPostMessage_EchoPermission(t *testing.T) {
 		input := model.PostMessageInput{
 			RoomID:            env.testRoom.Id,
 			Body:              ptr("Reply trying to echo"),
-			ThreadRootEventID:          &rootEvent.Id,
+			ThreadRootEventID: &rootEventID,
 			AlsoSendToChannel: &alsoSend,
 		}
 
@@ -1325,7 +1508,7 @@ func TestPostMessage_EchoPermission(t *testing.T) {
 		input := model.PostMessageInput{
 			RoomID:            env.testRoom.Id,
 			Body:              ptr("Reply trying to echo without post permission"),
-			ThreadRootEventID:          &rootEvent.Id,
+			ThreadRootEventID: &rootEventID,
 			AlsoSendToChannel: &alsoSend,
 		}
 
@@ -1348,9 +1531,9 @@ func TestPostMessage_EchoPermission(t *testing.T) {
 
 		// Post normal thread reply without echo — should succeed even though echo is denied
 		input := model.PostMessageInput{
-			RoomID:   env.testRoom.Id,
-			Body:     ptr("Normal thread reply"),
-			ThreadRootEventID: &rootEvent.Id,
+			RoomID:            env.testRoom.Id,
+			Body:              ptr("Normal thread reply"),
+			ThreadRootEventID: &rootEventID,
 		}
 
 		event, err := mutation.PostMessage(env.authContextForUser(member2), input)

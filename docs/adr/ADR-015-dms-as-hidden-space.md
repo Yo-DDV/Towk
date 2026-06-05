@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-01
 
-**Status:** Superseded by ADR-027 (instance/space → server consolidation). The hidden DM space was dissolved by Phase 4 of #354 (#373 merged the DM rooms into the unified `SERVER_*` storage with `kind: dm`); `IsDMSpace` and the synthetic `spaceID = "DM"` partition are gone. The decision recorded here is preserved as historical context for the storage shape that came before.
+**Status:** Superseded by ADR-027 (instance/space → server consolidation) and ADR-037 (DM access via membership). The hidden DM space was dissolved by Phase 4 of #354 (#373 merged the DM rooms into the unified `SERVER_*` storage with `kind: dm`); only the legacy wire value `space_id = "DM"` remains for persisted payloads and compatibility APIs. The decision recorded here is preserved as historical context for the storage shape that came before.
 
 ## Context
 
@@ -18,7 +18,7 @@ Implement DMs as rooms within a well-known hidden space with `spaceID = "DM"`. K
 
 - **Deterministic room IDs**: DM room IDs are computed as the first 14 hex characters of `SHA-256(sorted participant IDs joined by ".")`. This enables find-or-create semantics without a lookup table — any process computes the same ID from the same participants.
 - **No space membership**: Users have room-level memberships within the DM space but no DM space membership. The space itself is hidden from discovery.
-- **Hardcoded permissions**: DM permissions bypass the RBAC engine entirely. A dedicated `resolveDMPermission` function returns fixed grants for the small set of applicable permissions (`message.post`, `message.edit-own`, `message.delete-own`, etc.).
+- **Hardcoded permissions**: DM permissions bypassed the RBAC resolver entirely. A dedicated `resolveDMPermission` function returned fixed grants for the small set of applicable permissions (`message.post`, `message.edit-own`, `message.delete-own`, etc.).
 
 ## Consequences
 

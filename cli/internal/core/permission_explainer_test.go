@@ -20,17 +20,17 @@ func TestPermissionExplainer_AgreesWithHas(t *testing.T) {
 	// Three subjects with distinct role configurations:
 	//   regular: just everyone
 	//   adminUser: admin role
-	//   denyUser: custom role denying space.list
+	//   denyUser: custom role denying message.post
 	regular, _ := core.CreateUser(ctx, SystemActorID, "regular", "Regular", "password123")
 	adminUser, _ := core.CreateUser(ctx, SystemActorID, "adminuser", "Admin User", "password123")
 	if err := core.AssignServerRole(ctx, SystemActorID, adminUser.Id, RoleAdmin); err != nil {
 		t.Fatalf("assign admin role: %v", err)
 	}
 	denyUser, _ := core.CreateUser(ctx, SystemActorID, "denyuser", "Deny User", "password123")
-	if _, err := core.CreateServerRole(ctx, "denytest", "Deny dm.view", "Test deny role"); err != nil {
+	if _, err := core.CreateServerRole(ctx, "denytest", "Deny message.post", "Test deny role"); err != nil {
 		t.Fatalf("create deny role: %v", err)
 	}
-	if err := core.DenyServerPermission(ctx, "denytest", PermDMView); err != nil {
+	if err := core.DenyServerPermission(ctx, "denytest", PermMessagePost); err != nil {
 		t.Fatalf("deny perm: %v", err)
 	}
 	if err := core.AssignServerRole(ctx, SystemActorID, denyUser.Id, "denytest"); err != nil {
@@ -79,7 +79,7 @@ func TestPermissionExplainer_AgreesWithHas(t *testing.T) {
 			s := s
 			t.Run(s.name, func(t *testing.T) {
 				for _, meta := range PermissionsForScope(ScopeRoom) {
-					assertAgreement(t, ctx, core, s.id, ServerSpaceID, room.Id, meta.Permission, ScopeRoom)
+					assertAgreement(t, ctx, core, s.id, LegacyServerSpaceID, room.Id, meta.Permission, ScopeRoom)
 				}
 			})
 		}
@@ -139,8 +139,8 @@ func assertAgreement(
 		hasResult, hasErr = core.permissionResolver.HasServerPermission(ctx, userID, perm)
 		exp, expErr = core.permissionResolver.ExplainServerPermission(ctx, userID, perm)
 	case ScopeRoom:
-		hasResult, hasErr = core.permissionResolver.HasRoomPermission(ctx, userID, KindForSpace(spaceID), roomID, perm)
-		exp, expErr = core.permissionResolver.ExplainRoomPermission(ctx, userID, KindForSpace(spaceID), roomID, perm)
+		hasResult, hasErr = core.permissionResolver.HasRoomPermission(ctx, userID, RoomKindFromLegacySpaceID(spaceID), roomID, perm)
+		exp, expErr = core.permissionResolver.ExplainRoomPermission(ctx, userID, RoomKindFromLegacySpaceID(spaceID), roomID, perm)
 	default:
 		t.Fatalf("unknown scope %v", scope)
 	}

@@ -15,25 +15,23 @@ func TestPermissionResolver_HasServerPermission(t *testing.T) {
 	// Create a user
 	user, _ := core.CreateUser(ctx, "system", "testuser", "Test User", "password123")
 
-	t.Run("returns true when user has permission via instance-everyone role", func(t *testing.T) {
-		// instance-everyone gets space.list by default
-		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMView)
+	t.Run("returns true when user has user.delete-self via everyone role", func(t *testing.T) {
+		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermUserDeleteSelf)
 		if err != nil {
 			t.Fatalf("HasServerPermission() error = %v", err)
 		}
 		if !has {
-			t.Error("Expected user to have space.list via instance-everyone role")
+			t.Error("Expected user to have user.delete-self via everyone role")
 		}
 	})
 
-	t.Run("returns true when user has space.join via instance-everyone role", func(t *testing.T) {
-		// instance-everyone gets space.join by default
-		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMWrite)
+	t.Run("returns true when user has message.post via everyone role", func(t *testing.T) {
+		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasServerPermission() error = %v", err)
 		}
 		if !has {
-			t.Error("Expected user to have space.join via instance-everyone role")
+			t.Error("Expected user to have message.post via everyone role")
 		}
 	})
 
@@ -58,19 +56,19 @@ func TestPermissionResolver_HasServerPermission_DenyWins(t *testing.T) {
 
 	t.Run("same-role denial replaces grant", func(t *testing.T) {
 		// Grant permission via instance-everyone role
-		err := core.GrantServerPermission(ctx, RoleEveryone, PermDMView)
+		err := core.GrantServerPermission(ctx, RoleEveryone, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to grant permission: %v", err)
 		}
 
 		// Deny same permission for the same role (replaces the grant)
-		err = core.DenyServerPermission(ctx, RoleEveryone, PermDMView)
+		err = core.DenyServerPermission(ctx, RoleEveryone, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to deny permission: %v", err)
 		}
 
 		// User should NOT have the permission (denial replaced grant)
-		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMView)
+		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasServerPermission() error = %v", err)
 		}
@@ -79,7 +77,7 @@ func TestPermissionResolver_HasServerPermission_DenyWins(t *testing.T) {
 		}
 
 		// Restore for other tests
-		core.GrantServerPermission(ctx, RoleEveryone, PermDMView)
+		core.GrantServerPermission(ctx, RoleEveryone, PermMessagePost)
 	})
 }
 
@@ -90,24 +88,24 @@ func TestPermissionResolver_HasServerPermission_CustomDenyRole(t *testing.T) {
 	// Create a user (has everyone role)
 	user, _ := core.CreateUser(ctx, "system", "testuser-denyrole", "Test User", "password123")
 
-	// Verify user initially has space.list (via everyone role default)
-	has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMView)
+	// Verify user initially has message.post (via everyone role default)
+	has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermMessagePost)
 	if err != nil {
 		t.Fatalf("HasServerPermission() error = %v", err)
 	}
 	if !has {
-		t.Fatal("Expected user to have space.list initially via everyone role")
+		t.Fatal("Expected user to have message.post initially via everyone role")
 	}
 
 	// Create a custom deny role (replicates the e2e test scenario)
-	denyRole, err := core.CreateServerRole(ctx, "denytest", "Deny space.list", "Test deny role")
+	denyRole, err := core.CreateServerRole(ctx, "denytest", "Deny message.post", "Test deny role")
 	if err != nil {
 		t.Fatalf("Failed to create deny role: %v", err)
 	}
 	t.Logf("Created deny role with position: %d", denyRole.Position)
 
-	// Deny space.list on the deny role
-	err = core.DenyServerPermission(ctx, "denytest", PermDMView)
+	// Deny message.post on the deny role
+	err = core.DenyServerPermission(ctx, "denytest", PermMessagePost)
 	if err != nil {
 		t.Fatalf("Failed to deny permission: %v", err)
 	}
@@ -118,14 +116,14 @@ func TestPermissionResolver_HasServerPermission_CustomDenyRole(t *testing.T) {
 		t.Fatalf("Failed to assign deny role: %v", err)
 	}
 
-	// User now has: instance-denytest (deny space.list), everyone (grant space.list)
-	// The deny role has the highest rank (lowest position), so its deny should win.
-	has, err = core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMView)
+	// User now has: denytest (deny message.post), everyone (grant message.post).
+	// The custom deny role outranks everyone, so its deny should win.
+	has, err = core.permissionResolver.HasServerPermission(ctx, user.Id, PermMessagePost)
 	if err != nil {
 		t.Fatalf("HasServerPermission() error = %v", err)
 	}
 	if has {
-		t.Error("Expected custom deny role to block space.list despite everyone granting it")
+		t.Error("Expected custom deny role to block message.post despite everyone granting it")
 	}
 
 	// Also verify GetUserServerPermissions (the old path) agrees
@@ -134,8 +132,8 @@ func TestPermissionResolver_HasServerPermission_CustomDenyRole(t *testing.T) {
 		t.Fatalf("GetUserServerPermissions() error = %v", err)
 	}
 	for _, p := range perms {
-		if p == PermDMView {
-			t.Error("Expected space.list to NOT be in GetUserServerPermissions result")
+		if p == PermMessagePost {
+			t.Error("Expected message.post to NOT be in GetUserServerPermissions result")
 			break
 		}
 	}
@@ -150,21 +148,21 @@ func TestPermissionResolver_HasServerPermission_Hierarchy(t *testing.T) {
 	_ = core.AssignServerRole(ctx, SystemActorID, user.Id, RoleAdmin)
 
 	t.Run("higher-ranked role grant beats lower-ranked role denial", func(t *testing.T) {
-		// Deny space.join for everyone (low rank, position MaxInt32)
-		err := core.DenyServerPermission(ctx, RoleEveryone, PermDMWrite)
+		// Deny message.post for everyone (low rank, position 0)
+		err := core.DenyServerPermission(ctx, RoleEveryone, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to deny permission: %v", err)
 		}
 
-		// Grant space.join for admin (high rank, position 1)
-		err = core.GrantServerPermission(ctx, RoleAdmin, PermDMWrite)
+		// Grant message.post for admin (high rank, position 900)
+		err = core.GrantServerPermission(ctx, RoleAdmin, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to grant permission: %v", err)
 		}
 
 		// User has both admin (grant) and everyone (deny) roles.
-		// Admin is higher rank (position 1 < MaxInt32), so admin's grant should win.
-		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMWrite)
+		// Admin is higher rank (position 900 > 0), so admin's grant should win.
+		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasServerPermission() error = %v", err)
 		}
@@ -173,25 +171,25 @@ func TestPermissionResolver_HasServerPermission_Hierarchy(t *testing.T) {
 		}
 
 		// Cleanup
-		core.ClearServerPermissionState(ctx, RoleEveryone, PermDMWrite)
-		core.ClearServerPermissionState(ctx, RoleAdmin, PermDMWrite)
+		core.ClearServerPermissionState(ctx, RoleEveryone, PermMessagePost)
+		core.ClearServerPermissionState(ctx, RoleAdmin, PermMessagePost)
 	})
 
 	t.Run("higher-ranked role denial beats lower-ranked role grant", func(t *testing.T) {
-		// Grant space.join for everyone (low rank)
-		err := core.GrantServerPermission(ctx, RoleEveryone, PermDMWrite)
+		// Grant message.post for everyone (low rank)
+		err := core.GrantServerPermission(ctx, RoleEveryone, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to grant permission: %v", err)
 		}
 
-		// Deny space.join for admin (high rank)
-		err = core.DenyServerPermission(ctx, RoleAdmin, PermDMWrite)
+		// Deny message.post for admin (high rank)
+		err = core.DenyServerPermission(ctx, RoleAdmin, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to deny permission: %v", err)
 		}
 
-		// Admin denial (position 1) should be checked before everyone grant (position MaxInt32)
-		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermDMWrite)
+		// Admin denial (position 900) should be checked before everyone grant (position 0).
+		has, err := core.permissionResolver.HasServerPermission(ctx, user.Id, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasServerPermission() error = %v", err)
 		}
@@ -200,8 +198,8 @@ func TestPermissionResolver_HasServerPermission_Hierarchy(t *testing.T) {
 		}
 
 		// Cleanup
-		core.ClearServerPermissionState(ctx, RoleEveryone, PermDMWrite)
-		core.ClearServerPermissionState(ctx, RoleAdmin, PermDMWrite)
+		core.ClearServerPermissionState(ctx, RoleEveryone, PermMessagePost)
+		core.ClearServerPermissionState(ctx, RoleAdmin, PermMessagePost)
 	})
 
 }
@@ -291,7 +289,7 @@ func TestPermissionResolver_HasSpacePermission_ServerFallback(t *testing.T) {
 		nonMember, _ := core.CreateUser(ctx, "system", "nonmember2", "Non Member 2", "password123")
 
 		// space.join is special - non-members need this to join
-		has, err := core.permissionResolver.HasSpacePermission(ctx, nonMember.Id, KindChannel, PermDMWrite)
+		has, err := core.permissionResolver.HasSpacePermission(ctx, nonMember.Id, KindChannel, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasSpacePermission() error = %v", err)
 		}
@@ -358,42 +356,40 @@ func TestPermissionResolver_HasSpacePermission_ServerRoleOverride(t *testing.T) 
 	})
 }
 
-func TestPermissionResolver_HasSpacePermission_DMSpace(t *testing.T) {
+func TestPermissionResolver_HasSpacePermission_DMKind(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
 	// Create user
 	user, _ := core.CreateUser(ctx, "system", "testuser", "Test User", "password123")
 
-	// Use the DMSpaceID constant (which is "DM")
-
-	t.Run("DM space allows message.post", func(t *testing.T) {
-		has, err := core.permissionResolver.HasSpacePermission(ctx, user.Id, KindForSpace(DMSpaceID), PermMessagePost)
+	t.Run("DM rooms allow message.post", func(t *testing.T) {
+		has, err := core.permissionResolver.HasSpacePermission(ctx, user.Id, KindDM, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasSpacePermission() error = %v", err)
 		}
 		if !has {
-			t.Error("Expected DM space to allow message.post")
+			t.Error("Expected DM rooms to allow message.post")
 		}
 	})
 
-	t.Run("DM space denies space.manage", func(t *testing.T) {
-		has, err := core.permissionResolver.HasSpacePermission(ctx, user.Id, KindForSpace(DMSpaceID), PermServerManage)
+	t.Run("DM rooms deny server.manage", func(t *testing.T) {
+		has, err := core.permissionResolver.HasSpacePermission(ctx, user.Id, KindDM, PermServerManage)
 		if err != nil {
 			t.Fatalf("HasSpacePermission() error = %v", err)
 		}
 		if has {
-			t.Error("Expected DM space NOT to allow space.manage")
+			t.Error("Expected DM rooms NOT to allow server.manage")
 		}
 	})
 
-	t.Run("DM space allows room.join", func(t *testing.T) {
-		has, err := core.permissionResolver.HasSpacePermission(ctx, user.Id, KindForSpace(DMSpaceID), PermRoomJoin)
+	t.Run("DM rooms allow room.join", func(t *testing.T) {
+		has, err := core.permissionResolver.HasSpacePermission(ctx, user.Id, KindDM, PermRoomJoin)
 		if err != nil {
 			t.Fatalf("HasSpacePermission() error = %v", err)
 		}
 		if !has {
-			t.Error("Expected DM space to allow room.join")
+			t.Error("Expected DM rooms to allow room.join")
 		}
 	})
 }
@@ -496,10 +492,8 @@ func TestPermissionResolver_HasRoomPermission_DenyWins(t *testing.T) {
 			t.Fatalf("Failed to grant room permission: %v", err)
 		}
 
-		// Create a "muted" role with explicit position LOWER than everyone (higher rank).
-		// Position 100 is between moderator (2) and everyone (MaxInt32), so muted's
-		// denial will be checked before everyone's grant in hierarchy order.
-		_, err = core.storage.serverRBACEngine.CreateRoleWithPosition(ctx, "muted", "Muted", "Cannot post", 100)
+		// Create a "muted" role, which ranks above the implicit everyone role.
+		_, err = core.CreateServerRole(ctx, "muted", "Muted", "Cannot post")
 		if err != nil {
 			t.Fatalf("Failed to create muted role: %v", err)
 		}
@@ -627,7 +621,7 @@ func TestPermissionResolver_HasRoomPermission_ConflictingRoles(t *testing.T) {
 	room, _ := core.CreateRoom(ctx, admin.Id, KindChannel, "", "general", "General")
 
 	member, _ := core.CreateUser(ctx, "system", "conflictrolemember", "Member", "password123")
-	// Create a custom role (gets position 3, higher rank than everyone at MaxInt32)
+	// Create a custom role (gets a positive custom position, higher rank than everyone).
 	core.CreateServerRole(ctx, "poster", "Poster", "Can post")
 
 	// Grant message.post to poster role at room level
@@ -639,8 +633,8 @@ func TestPermissionResolver_HasRoomPermission_ConflictingRoles(t *testing.T) {
 	// Assign poster role to member (member now has: everyone + poster)
 	core.AssignServerRole(ctx, admin.Id, member.Id, "poster")
 
-	// Room-level uses hierarchy-wins: poster (position 3, higher rank) grant beats
-	// everyone (position MaxInt32, lower rank) deny. This enables patterns like
+	// Room-level uses hierarchy-wins: poster (higher rank) grant beats
+	// everyone (position 0, lower rank) deny. This enables patterns like
 	// #announcements where higher-ranked roles can override lower-ranked denials.
 	has, err := core.permissionResolver.HasRoomPermission(ctx, member.Id, KindChannel, room.Id, PermMessagePost)
 	if err != nil {
@@ -1084,20 +1078,20 @@ func TestPermissionResolver_RoomOverridesServerForSameRole(t *testing.T) {
 		// clears any matching deny and vice versa), but cover the rare race.
 		newUser, _ := core.CreateUser(ctx, "system", "graceuser", "Grace", "password123")
 
-		if err := core.GrantServerPermission(ctx, RoleEveryone, PermDMWrite); err != nil {
+		if err := core.GrantServerPermission(ctx, RoleEveryone, PermMessagePost); err != nil {
 			t.Fatalf("GrantServerPermission: %v", err)
 		}
-		if err := core.DenyServerPermission(ctx, RoleEveryone, PermDMWrite); err != nil {
+		if err := core.DenyServerPermission(ctx, RoleEveryone, PermMessagePost); err != nil {
 			t.Fatalf("DenyServerPermission: %v", err)
 		}
 
 		// Deny operation clears the prior grant, so only the deny remains in KV.
-		has, err := core.permissionResolver.HasSpacePermission(ctx, newUser.Id, KindChannel, PermDMWrite)
+		has, err := core.permissionResolver.HasSpacePermission(ctx, newUser.Id, KindChannel, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasSpacePermission: %v", err)
 		}
 		if has {
-			t.Error("expected deny on everyone to block dm.write for a user with no higher-ranked role")
+			t.Error("expected deny on everyone to block message.post for a user with no higher-ranked role")
 		}
 	})
 }
@@ -1115,13 +1109,13 @@ func TestPermissionResolver_ServerAuthority(t *testing.T) {
 	member, _ := core.CreateUser(ctx, "system", "authmember", "Member User", "password123")
 	t.Run("instance grant applies for space member", func(t *testing.T) {
 		// Grant at instance level for instance-everyone
-		err := core.GrantServerPermission(ctx, RoleEveryone, PermDMWrite)
+		err := core.GrantServerPermission(ctx, RoleEveryone, PermMessagePost)
 		if err != nil {
 			t.Fatalf("Failed to grant server permission: %v", err)
 		}
 
 		// Instance grant should apply (no space-level decision)
-		has, err := core.permissionResolver.HasSpacePermission(ctx, member.Id, KindChannel, PermDMWrite)
+		has, err := core.permissionResolver.HasSpacePermission(ctx, member.Id, KindChannel, PermMessagePost)
 		if err != nil {
 			t.Fatalf("HasSpacePermission() error = %v", err)
 		}

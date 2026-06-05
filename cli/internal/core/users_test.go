@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/color"
@@ -11,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nats-io/nats.go/jetstream"
+	"hmans.de/chatto/internal/kms"
 )
 
 func TestChattoCore_CreateUser(t *testing.T) {
@@ -49,6 +50,49 @@ func TestChattoCore_CreateUser(t *testing.T) {
 	_, err = core.VerifyPassword(ctx, user.Login, "password123")
 	if err != nil {
 		t.Errorf("Expected password to be verifiable: %v", err)
+	}
+}
+
+type cancelAfterWrapKeyWrapper struct {
+	kms.KeyWrapper
+	cancel    context.CancelFunc
+	wrapped   bool
+	wrappedBy string
+}
+
+func (w *cancelAfterWrapKeyWrapper) WrapContentKey(ctx context.Context, keyRef string, contentKey, aad []byte) (*kms.WrappedContentKey, error) {
+	wrapped, err := w.KeyWrapper.WrapContentKey(ctx, keyRef, contentKey, aad)
+	if err == nil && !w.wrapped {
+		w.wrapped = true
+		w.wrappedBy = keyRef
+		w.cancel()
+	}
+	return wrapped, err
+}
+
+func TestChattoCore_CreateUser_AppendFailureCleansUpEncryptionKey(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx, cancel := context.WithCancel(testContext(t))
+	wrapper := &cancelAfterWrapKeyWrapper{
+		KeyWrapper: core.encryption.keyWrapper,
+		cancel:     cancel,
+	}
+	core.encryption.keyWrapper = wrapper
+
+	_, err := core.CreateUser(ctx, "system", "cancelled-signup", "Cancelled Signup", "password123")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("CreateUser error = %v, want context.Canceled", err)
+	}
+	if !wrapper.wrapped {
+		t.Fatal("test did not reach content-key wrapping")
+	}
+
+	exists, err := wrapper.KeyWrapper.KeyExists(context.Background(), wrapper.wrappedBy)
+	if err != nil {
+		t.Fatalf("KeyExists: %v", err)
+	}
+	if exists {
+		t.Fatalf("encryption key for failed signup key ref %q still exists", wrapper.wrappedBy)
 	}
 }
 
@@ -1119,32 +1163,15 @@ func TestChattoCore_SetUserAvatar(t *testing.T) {
 	}
 }
 
-func TestChattoCore_SetUserAvatar_DoesNotModifyUserRecord(t *testing.T) {
-	core, nc := setupTestCore(t)
+func TestChattoCore_SetUserAvatar_DoesNotModifyUserProfile(t *testing.T) {
+	core, _ := setupTestCore(t)
 	ctx := testContext(t)
-
-	// Get JetStream context and KV bucket for verification
-	js, err := jetstream.New(nc)
-	if err != nil {
-		t.Fatalf("Failed to create JetStream context: %v", err)
-	}
-	kv, err := js.KeyValue(ctx, "INSTANCE")
-	if err != nil {
-		t.Fatalf("Failed to get INSTANCE KV bucket: %v", err)
-	}
 
 	// Create a user
 	user, err := core.CreateUser(ctx, "system", "avataruser", "Avatar User", "")
 	if err != nil {
 		t.Fatalf("Failed to create user: %v", err)
 	}
-
-	// Get the initial user record revision
-	entry1, err := kv.Get(ctx, "user."+user.Id)
-	if err != nil {
-		t.Fatalf("Failed to get user entry: %v", err)
-	}
-	initialRevision := entry1.Revision()
 
 	// Upload and set avatar
 	testImage := createTestImage(100, 100)
@@ -1154,23 +1181,20 @@ func TestChattoCore_SetUserAvatar_DoesNotModifyUserRecord(t *testing.T) {
 		t.Fatalf("Failed to set avatar: %v", err)
 	}
 
-	// User record revision should be unchanged (avatar is stored separately)
-	entry2, err := kv.Get(ctx, "user."+user.Id)
+	updated, err := core.GetUser(ctx, user.Id)
 	if err != nil {
-		t.Fatalf("Failed to get user entry: %v", err)
+		t.Fatalf("Failed to get user: %v", err)
+	}
+	if updated.Login != user.Login || updated.DisplayName != user.DisplayName {
+		t.Error("User profile fields were modified when avatar changed")
 	}
 
-	if entry2.Revision() != initialRevision {
-		t.Error("User record was modified when avatar changed - expected no modification")
-	}
-
-	// Verify avatar is stored at the correct scoped key
-	avatarEntry, err := kv.Get(ctx, "user."+user.Id+".avatar")
+	avatar, err := core.GetUserAvatar(ctx, user.Id)
 	if err != nil {
-		t.Fatalf("Expected avatar to be stored at scoped key: %v", err)
+		t.Fatalf("Failed to get avatar: %v", err)
 	}
-	if avatarEntry == nil {
-		t.Error("Expected avatar entry to exist")
+	if avatar == nil || avatar.GetNats().GetKey() != asset.GetNats().GetKey() {
+		t.Error("Expected avatar projection to contain the uploaded avatar")
 	}
 }
 
@@ -1482,7 +1506,6 @@ func TestChattoCore_DeleteUser_PreservesSpaceAndPurgesUser(t *testing.T) {
 		t.Fatalf("Failed to create user: %v", err)
 	}
 
-
 	if err := core.DeleteUser(ctx, user.Id, user.Id); err != nil {
 		t.Fatalf("Failed to delete user: %v", err)
 	}
@@ -1572,20 +1595,20 @@ func TestChattoCore_DeleteUser_WithMessageBodies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to post message 1: %v", err)
 	}
-	msg1ID := event1.GetMessagePosted().MessageBodyId
+	msg1ID := event1.Id
 
 	event2, err := core.PostMessage(ctx, KindChannel, room.Id, user1.Id, "Message 2 from user1", nil, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message 2: %v", err)
 	}
-	msg2ID := event2.GetMessagePosted().MessageBodyId
+	msg2ID := event2.Id
 
 	// User 2 posts one message
 	event3, err := core.PostMessage(ctx, KindChannel, room.Id, user2.Id, "Message from user2", nil, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("Failed to post message 3: %v", err)
 	}
-	msg3ID := event3.GetMessagePosted().MessageBodyId
+	msg3ID := event3.Id
 
 	// Verify all message bodies exist
 	_, err = core.GetMessageBody(ctx, KindChannel, msg1ID)

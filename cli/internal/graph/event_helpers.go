@@ -6,28 +6,29 @@ import (
 	"fmt"
 
 	"hmans.de/chatto/internal/core"
-	"hmans.de/chatto/internal/graph/auth"
+	"hmans.de/chatto/internal/graph/model"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
-// callerID returns the authenticated user's ID from the GraphQL
-// context, or "" if no user is attached. Used by attachment URL
-// resolvers to bake the caller's identity into the signed URL.
-func callerID(ctx context.Context) string {
-	if u := auth.ForContext(ctx); u != nil {
-		return u.Id
+// unwrapEvent extracts the concrete GraphQL payload from the delivered event
+// envelope. Returns nil for an empty envelope or an unknown variant.
+func unwrapEvent(event core.EventEnvelope) any {
+	if event == nil {
+		return nil
 	}
-	return ""
+	if evt := event.EVTEvent(); evt != nil {
+		return unwrapEVTEvent(evt)
+	}
+	if live := event.LiveEvent(); live != nil {
+		return unwrapLiveEvent(live)
+	}
+	if heartbeat := event.HeartbeatEvent(); heartbeat != nil {
+		return heartbeat
+	}
+	return nil
 }
 
-// unwrapEvent extracts the concrete event payload from the proto
-// Event oneof wrapper. Returns nil for an empty envelope or an
-// unknown variant.
-//
-// For message events the wrapper's `Id` is copied into the payload's
-// `EventId` field so nested resolvers (reactions, thread metadata) can
-// reach it without re-traversing the envelope.
-func unwrapEvent(event *corev1.Event) any {
+func unwrapEVTEvent(event *corev1.Event) any {
 	if event == nil || event.Event == nil {
 		return nil
 	}
@@ -55,14 +56,17 @@ func unwrapEvent(event *corev1.Event) any {
 
 	// ---- Messages ----
 	case *corev1.Event_MessagePosted:
-		// Populate EventId from wrapper for nested resolvers (reactions, thread metadata).
-		e.MessagePosted.EventId = event.Id
-		return e.MessagePosted
-	case *corev1.Event_MessageUpdated:
-		e.MessageUpdated.EventId = event.Id
-		return e.MessageUpdated
-	case *corev1.Event_MessageDeleted:
-		return e.MessageDeleted
+		return &model.MessagePostedEvent{Envelope: event, Payload: e.MessagePosted, RoomID: e.MessagePosted.GetRoomId()}
+	case *corev1.Event_MessageEdited:
+		return e.MessageEdited
+	case *corev1.Event_MessageRetracted:
+		return e.MessageRetracted
+
+	// ---- Assets ----
+	case *corev1.Event_AssetCreated:
+		return e.AssetCreated
+	case *corev1.Event_AssetDeleted:
+		return e.AssetDeleted
 
 	// ---- Reactions ----
 	case *corev1.Event_ReactionAdded:
@@ -70,80 +74,68 @@ func unwrapEvent(event *corev1.Event) any {
 	case *corev1.Event_ReactionRemoved:
 		return e.ReactionRemoved
 
-	// ---- Typing indicators ----
-	case *corev1.Event_UserTyping:
-		return e.UserTyping
+	case *corev1.Event_AssetProcessingStarted:
+		return e.AssetProcessingStarted
+	case *corev1.Event_AssetProcessingSucceeded:
+		return e.AssetProcessingSucceeded
+	case *corev1.Event_AssetProcessingFailed:
+		return e.AssetProcessingFailed
 
-	// ---- Video processing ----
-	case *corev1.Event_VideoProcessingCompleted:
-		return e.VideoProcessingCompleted
+	default:
+		return nil
+	}
+}
 
-	// ---- Presence ----
-	case *corev1.Event_PresenceChanged:
-		return e.PresenceChanged
+func unwrapLiveEvent(event *corev1.LiveEvent) any {
+	if event == nil || event.Event == nil {
+		return nil
+	}
 
-	// ---- Voice calls ----
-	case *corev1.Event_CallParticipantJoined:
-		return e.CallParticipantJoined
-	case *corev1.Event_CallParticipantLeft:
-		return e.CallParticipantLeft
-
-	// ---- Subscription liveness ----
-	case *corev1.Event_Heartbeat:
-		return e.Heartbeat
-
-	// ---- Server config ----
-	case *corev1.Event_ConfigUpdated:
+	switch e := event.Event.(type) {
+	case *corev1.LiveEvent_ConfigUpdated:
 		return e.ConfigUpdated
-
-	// ---- User lifecycle ----
-	case *corev1.Event_UserCreated:
+	case *corev1.LiveEvent_UserCreated:
 		return e.UserCreated
-	case *corev1.Event_UserDeleted:
+	case *corev1.LiveEvent_UserDeleted:
 		return e.UserDeleted
-	case *corev1.Event_UserProfileUpdated:
+	case *corev1.LiveEvent_UserProfileUpdated:
 		return e.UserProfileUpdated
-	case *corev1.Event_ServerUserPreferencesUpdated:
+	case *corev1.LiveEvent_ServerUserPreferencesUpdated:
 		return e.ServerUserPreferencesUpdated
-
-	// ---- Notification level ----
-	case *corev1.Event_NotificationLevelChanged:
+	case *corev1.LiveEvent_NotificationLevelChanged:
 		return e.NotificationLevelChanged
-
-	// ---- Server lifecycle ----
-	case *corev1.Event_ServerUpdated:
-		return e.ServerUpdated
-	// ServerCreated / ServerDeleted are intentionally dropped at the GraphQL
-	// gateway: the server can't be created or deleted via the API anymore.
-
-	// ---- Notifications ----
-	case *corev1.Event_MentionNotification:
-		return e.MentionNotification
-	case *corev1.Event_NewDirectMessageNotification:
-		return e.NewDirectMessageNotification
-	case *corev1.Event_NotificationCreated:
-		return e.NotificationCreated
-	case *corev1.Event_NotificationDismissed:
-		return e.NotificationDismissed
-
-	// ---- Server unread ----
-	case *corev1.Event_RoomMarkedAsRead:
-		return e.RoomMarkedAsRead
-	case *corev1.Event_MentionStatusCleared:
-		return e.MentionStatusCleared
-
-	// ---- Thread follow ----
-	case *corev1.Event_ThreadFollowChanged:
+	case *corev1.LiveEvent_ThreadFollowChanged:
 		return e.ThreadFollowChanged
-
-	// ---- Room sets ----
-	case *corev1.Event_RoomGroupsUpdated:
+	case *corev1.LiveEvent_SpaceMemberDeleted:
+		return e.SpaceMemberDeleted
+	case *corev1.LiveEvent_ServerUpdated:
+		return e.ServerUpdated
+	case *corev1.LiveEvent_UserTyping:
+		return e.UserTyping
+	case *corev1.LiveEvent_VideoProcessingCompleted:
+		return e.VideoProcessingCompleted
+	case *corev1.LiveEvent_PresenceChanged:
+		return e.PresenceChanged
+	case *corev1.LiveEvent_MentionNotification:
+		return e.MentionNotification
+	case *corev1.LiveEvent_NewDirectMessageNotification:
+		return e.NewDirectMessageNotification
+	case *corev1.LiveEvent_CallParticipantJoined:
+		return e.CallParticipantJoined
+	case *corev1.LiveEvent_CallParticipantLeft:
+		return e.CallParticipantLeft
+	case *corev1.LiveEvent_NotificationCreated:
+		return e.NotificationCreated
+	case *corev1.LiveEvent_NotificationDismissed:
+		return e.NotificationDismissed
+	case *corev1.LiveEvent_RoomMarkedAsRead:
+		return e.RoomMarkedAsRead
+	case *corev1.LiveEvent_MentionStatusCleared:
+		return e.MentionStatusCleared
+	case *corev1.LiveEvent_RoomGroupsUpdated:
 		return e.RoomGroupsUpdated
-
-	// ---- Session termination ----
-	case *corev1.Event_SessionTerminated:
+	case *corev1.LiveEvent_SessionTerminated:
 		return e.SessionTerminated
-
 	default:
 		return nil
 	}
@@ -152,11 +144,15 @@ func unwrapEvent(event *corev1.Event) any {
 // resolveEventActor loads the actor User for an event envelope.
 // Returns nil (without error) for system-authored events (empty ActorId)
 // and for actors whose accounts have been deleted.
-func (r *Resolver) resolveEventActor(ctx context.Context, event *corev1.Event) (*corev1.User, error) {
-	if event.ActorId == "" {
+func (r *Resolver) resolveEventActor(ctx context.Context, event core.EventEnvelope) (*corev1.User, error) {
+	if event == nil {
 		return nil, nil
 	}
-	user, err := r.getUser(ctx, event.ActorId)
+	actorID := event.ActorID()
+	if actorID == "" {
+		return nil, nil
+	}
+	user, err := r.getUser(ctx, actorID)
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
 			return nil, nil
@@ -166,14 +162,60 @@ func (r *Resolver) resolveEventActor(ctx context.Context, event *corev1.Event) (
 	return user, nil
 }
 
-// unwrapEventAs unwraps a proto Event and asserts the payload to the
-// requested GraphQL union interface (model.RoomEventType or
-// model.ServerEventType). Returns a typed error for nil payloads and
-// for variants that don't belong to the requested union — the latter
-// is normal at the room-history boundary, where deployment-event
-// variants in the proto can't appear in stored room history but the
-// type system requires the assertion anyway.
-func unwrapEventAs[T any](event *corev1.Event, unionName string) (T, error) {
+// assetCreationForProcessing looks up the AssetCreatedEvent referenced by an
+// asset-processing event. Returns nil when the asset is unknown to the
+// projection (e.g. after AssetDeletedEvent has dropped it). Callers must
+// tolerate the nil and return empty fields rather than errors — these events
+// surface through non-null GraphQL fields, so a returned error would
+// propagate up and blank the entire room.events list.
+func (r *Resolver) assetCreationForProcessing(assetID string) *corev1.AssetCreatedEvent {
+	if assetID == "" {
+		return nil
+	}
+	declared, ok := r.core.RoomTimeline.AssetCreation(assetID)
+	if !ok {
+		return nil
+	}
+	return declared
+}
+
+func (r *attachmentResolver) assetSourceAvailable(assetID string, fallback bool) bool {
+	created, ok := r.core.RoomTimeline.AssetCreation(assetID)
+	if !ok || created == nil {
+		return fallback
+	}
+	return created.GetOriginalBinaryAvailable()
+}
+
+func assetCreatedRoomID(event *corev1.AssetCreatedEvent) string {
+	if event == nil {
+		return ""
+	}
+	return event.GetRoomId()
+}
+
+func assetDimensions(asset *corev1.AssetRecord) (int32, int32) {
+	if asset == nil {
+		return 0, 0
+	}
+	return asset.GetWidth(), asset.GetHeight()
+}
+
+func assetProcessingFailureReasonCode(code corev1.AssetProcessingFailureCode) string {
+	switch code {
+	case corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_SOURCE_MISSING:
+		return "original_missing"
+	case corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED:
+		return "processing_failed"
+	default:
+		return "processing_failed"
+	}
+}
+
+// unwrapEventAs unwraps a delivered event and asserts the payload to the
+// requested GraphQL union interface (model.EventType). Returns a typed error
+// for nil or unknown payloads.
+func unwrapEventAs[T any](event core.EventEnvelope, unionName string) (T, error) {
 	var zero T
 	unwrapped := unwrapEvent(event)
 	if unwrapped == nil {
@@ -185,4 +227,3 @@ func unwrapEventAs[T any](event *corev1.Event, unionName string) (T, error) {
 	}
 	return typed, nil
 }
-

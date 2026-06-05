@@ -12,10 +12,10 @@ import (
 
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
-	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"hmans.de/chatto/internal/config"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/testutil"
 	"hmans.de/chatto/pkg/signedurl"
 )
 
@@ -53,6 +53,7 @@ func TestChattoCore_UploadAttachment(t *testing.T) {
 
 		attachment, err := core.UploadAttachment(
 			ctx,
+			SystemActorID,
 			room.Id,
 			"test-image.png",
 			"image/png",
@@ -106,6 +107,7 @@ func TestChattoCore_UploadAttachment(t *testing.T) {
 
 		attachment, err := core.UploadAttachment(
 			ctx,
+			SystemActorID,
 			room.Id,
 			"test-file.txt",
 			"text/plain",
@@ -155,6 +157,7 @@ func TestChattoCore_GetAttachment(t *testing.T) {
 	// Upload an attachment
 	attachment, err := core.UploadAttachment(
 		ctx,
+		SystemActorID,
 		room.Id,
 		"test-file.txt",
 		"text/plain",
@@ -216,6 +219,7 @@ func TestChattoCore_DeleteAttachment(t *testing.T) {
 	// Upload an attachment
 	attachment, err := core.UploadAttachment(
 		ctx,
+		SystemActorID,
 		room.Id,
 		"test-file.txt",
 		"text/plain",
@@ -248,8 +252,8 @@ func TestChattoCore_DeleteAttachment(t *testing.T) {
 		ghost := &corev1.Attachment{
 			Id:     "nonexistent-attachment-id",
 			RoomId: room.Id,
-			Storage: &corev1.Asset{
-				Asset: &corev1.Asset_Nats{Nats: &corev1.NATSAsset{Key: "nonexistent-attachment-id"}},
+			Storage: &corev1.DeprecatedAsset{
+				Asset: &corev1.DeprecatedAsset_Nats{Nats: &corev1.NATSAsset{Key: "nonexistent-attachment-id"}},
 			},
 		}
 		// Deletion of non-existent item may or may not error depending on implementation
@@ -272,7 +276,7 @@ func TestChattoCore_UploadAttachment_S3(t *testing.T) {
 		t.Fatalf("Failed to create room: %v", err)
 	}
 
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.txt", "text/plain", bytes.NewReader([]byte("hello S3")))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.txt", "text/plain", bytes.NewReader([]byte("hello S3")))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
@@ -302,7 +306,7 @@ func TestChattoCore_DeleteAttachmentFromStorage_S3(t *testing.T) {
 		t.Fatalf("Failed to create room: %v", err)
 	}
 
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.txt", "text/plain", bytes.NewReader([]byte("delete me from S3")))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.txt", "text/plain", bytes.NewReader([]byte("delete me from S3")))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
@@ -356,7 +360,7 @@ func TestGetAttachmentReader_ProbesWhenStorageMissing(t *testing.T) {
 		ctx := testContext(t)
 
 		room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "r", "r")
-		attachment, err := core.UploadAttachment(ctx, room.Id, "x.txt", "text/plain", bytes.NewReader([]byte("nats-binary")))
+		attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "x.txt", "text/plain", bytes.NewReader([]byte("nats-binary")))
 		if err != nil {
 			t.Fatalf("UploadAttachment: %v", err)
 		}
@@ -383,7 +387,7 @@ func TestGetAttachmentReader_ProbesWhenStorageMissing(t *testing.T) {
 		ctx := testContext(t)
 
 		room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "r", "r")
-		attachment, err := core.UploadAttachment(ctx, room.Id, "y.txt", "text/plain", bytes.NewReader([]byte("s3-binary")))
+		attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "y.txt", "text/plain", bytes.NewReader([]byte("s3-binary")))
 		if err != nil {
 			t.Fatalf("UploadAttachment: %v", err)
 		}
@@ -579,6 +583,7 @@ func TestAttachment_FullLifecycle(t *testing.T) {
 	// 1. Upload
 	attachment, err := core.UploadAttachment(
 		ctx,
+		SystemActorID,
 		room.Id,
 		"lifecycle-test.txt",
 		"text/plain",
@@ -636,6 +641,7 @@ func TestAttachment_MultipleInSpace(t *testing.T) {
 		content := []byte("Attachment content " + string(rune('A'+i)))
 		att, err := core.UploadAttachment(
 			ctx,
+			SystemActorID,
 			room.Id,
 			"attachment"+string(rune('A'+i))+".txt",
 			"text/plain",
@@ -686,6 +692,7 @@ func TestAttachment_ImageDimensions(t *testing.T) {
 
 			attachment, err := core.UploadAttachment(
 				ctx,
+				SystemActorID,
 				room.Id,
 				tc.name+".png",
 				"image/png",
@@ -785,33 +792,7 @@ func setupTestCoreWithS3(t *testing.T) (*ChattoCore, *nats.Conn, *S3Client) {
 
 	endpointHost := s3Server.URL[7:] // Remove "http://"
 
-	// Start embedded NATS server
-	opts := &server.Options{
-		JetStream: true,
-		Port:      -1,
-		StoreDir:  t.TempDir(),
-	}
-
-	ns, err := server.NewServer(opts)
-	if err != nil {
-		t.Fatalf("Failed to create NATS server: %v", err)
-	}
-
-	go ns.Start()
-	if !ns.ReadyForConnections(5 * 1e9) {
-		t.Fatal("NATS server not ready")
-	}
-
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
-
-	t.Cleanup(func() {
-		nc.Close()
-		ns.Shutdown()
-		ns.WaitForShutdown()
-	})
+	_, nc := testutil.StartNATS(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
@@ -820,6 +801,7 @@ func setupTestCoreWithS3(t *testing.T) (*ChattoCore, *nats.Conn, *S3Client) {
 	pathStyle := true
 
 	cfg := config.CoreConfig{
+		SecretKey: "test-core-secret",
 		Assets: config.AssetsConfig{
 			SigningSecret:  "test-signing-secret",
 			StorageBackend: config.StorageBackendS3,
@@ -838,6 +820,8 @@ func setupTestCoreWithS3(t *testing.T) (*ChattoCore, *nats.Conn, *S3Client) {
 		t.Fatalf("Failed to create ChattoCore with S3: %v", err)
 	}
 
+	startCoreServices(t, core)
+
 	// Create a separate S3 client for test verification (to check if objects exist)
 	verifyClient, err := NewS3Client(cfg.Assets.S3)
 	if err != nil {
@@ -851,39 +835,14 @@ func setupTestCoreWithS3(t *testing.T) (*ChattoCore, *nats.Conn, *S3Client) {
 func setupTestCoreWithCache(t *testing.T) (*ChattoCore, *nats.Conn) {
 	t.Helper()
 
-	// Start embedded NATS server
-	opts := &server.Options{
-		JetStream: true,
-		Port:      -1,
-		StoreDir:  t.TempDir(),
-	}
-
-	ns, err := server.NewServer(opts)
-	if err != nil {
-		t.Fatalf("Failed to create NATS server: %v", err)
-	}
-
-	go ns.Start()
-	if !ns.ReadyForConnections(5 * 1e9) {
-		t.Fatal("NATS server not ready")
-	}
-
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		t.Fatalf("Failed to connect to NATS: %v", err)
-	}
-
-	t.Cleanup(func() {
-		nc.Close()
-		ns.Shutdown()
-		ns.WaitForShutdown()
-	})
+	_, nc := testutil.StartNATS(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 
 	// Create ChattoCore with caching enabled
 	cfg := config.CoreConfig{
+		SecretKey: "test-core-secret",
 		Assets: config.AssetsConfig{
 			SigningSecret: "test-signing-secret",
 			Cache: config.AssetsCacheConfig{
@@ -896,6 +855,8 @@ func setupTestCoreWithCache(t *testing.T) (*ChattoCore, *nats.Conn) {
 	if err != nil {
 		t.Fatalf("Failed to create ChattoCore: %v", err)
 	}
+
+	startCoreServices(t, core)
 
 	return core, nc
 }
@@ -919,6 +880,7 @@ func TestChattoCore_DeleteAttachment_CleansUpCache(t *testing.T) {
 	imageData := createTestPNG(100, 100)
 	attachment, err := core.UploadAttachment(
 		ctx,
+		SystemActorID,
 		room.Id,
 		"test-image.png",
 		"image/png",
@@ -984,8 +946,8 @@ func TestChattoCore_DeleteAttachment_DoesNotAffectOtherAttachmentCache(t *testin
 
 	// Create two attachments
 	imageData := createTestPNG(100, 100)
-	attachment1, _ := core.UploadAttachment(ctx, room.Id, "image1.png", "image/png", bytes.NewReader(imageData))
-	attachment2, _ := core.UploadAttachment(ctx, room.Id, "image2.png", "image/png", bytes.NewReader(imageData))
+	attachment1, _ := core.UploadAttachment(ctx, SystemActorID, room.Id, "image1.png", "image/png", bytes.NewReader(imageData))
+	attachment2, _ := core.UploadAttachment(ctx, SystemActorID, room.Id, "image2.png", "image/png", bytes.NewReader(imageData))
 
 	// Cache entries for both attachments
 	key1 := ImageCacheKey(AttachmentSignResource, attachment1.Id, 200, 150, "contain")
@@ -1061,16 +1023,16 @@ func TestFindBodyAttachment_RoundTrip(t *testing.T) {
 		t.Fatalf("Failed to create room: %v", err)
 	}
 
-	attachment, err := core.UploadAttachment(ctx, room.Id, "test.txt", "text/plain", bytes.NewReader([]byte("hello")))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "test.txt", "text/plain", bytes.NewReader([]byte("hello")))
 	if err != nil {
 		t.Fatalf("Failed to upload attachment: %v", err)
 	}
 
-	event, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "with attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	event, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "with attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("PostMessage failed: %v", err)
 	}
-	bodyKey := event.GetMessagePosted().MessageBodyId
+	bodyKey := event.Id
 
 	got, err := core.FindBodyAttachment(ctx, bodyKey, attachment.Id)
 	if err != nil {
@@ -1119,18 +1081,18 @@ func TestLookupAttachment_BodyDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRoom: %v", err)
 	}
-	attachment, err := core.UploadAttachment(ctx, room.Id, "x.txt", "text/plain", bytes.NewReader([]byte("x")))
+	attachment, err := core.UploadAttachment(ctx, SystemActorID, room.Id, "x.txt", "text/plain", bytes.NewReader([]byte("x")))
 	if err != nil {
 		t.Fatalf("UploadAttachment: %v", err)
 	}
-	event, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "with attachment", []*corev1.Attachment{attachment}, "", "", nil, false)
+	event, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "with attachment", []string{attachment.Id}, "", "", nil, false)
 	if err != nil {
 		t.Fatalf("PostMessage failed: %v", err)
 	}
 
 	loc := signedurl.AttachmentLocator{
 		RoomID:       room.Id,
-		BodyKey:      event.GetMessagePosted().MessageBodyId,
+		BodyKey:      event.Id,
 		AttachmentID: attachment.Id,
 		UserID:       user.Id,
 		ExpiresAt:    1,

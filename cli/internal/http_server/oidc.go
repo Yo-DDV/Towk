@@ -82,6 +82,10 @@ func (s *HTTPServer) setupOIDCRoutes() {
 	}
 
 	auth := s.router.Group("/auth")
+	auth.Use(func(c *gin.Context) {
+		s.requestContextWithAuditMetadata(c)
+		c.Next()
+	})
 
 	// GET /auth/oidc — Redirect to OIDC provider with PKCE
 	auth.GET("oidc", func(c *gin.Context) {
@@ -292,7 +296,18 @@ func (s *HTTPServer) setupOIDCRoutes() {
 
 		// Create session
 		session.Set("user_id", user.Id)
-		session.Save()
+		if err := session.Save(); err != nil {
+			log.Error("Failed to save session", "error", err)
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=oidc_failed")
+			return
+		}
+		if err := s.core.RecordLoginSucceeded(ctx, user.Id, claims.Email); err != nil {
+			log.Error("Failed to append OIDC login audit event", "userId", user.Id, "error", err)
+			session.Clear()
+			_ = session.Save()
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=oidc_failed")
+			return
+		}
 
 		// If there's a pending OAuth authorize flow, complete it
 		if hasPendingOAuthAuthorize(session) {
@@ -311,7 +326,7 @@ func (s *HTTPServer) setupOIDCRoutes() {
 		}
 
 		// Append bearer token for cross-origin clients
-		if bearerToken, err := s.core.CreateAuthToken(ctx, user.Id); err == nil {
+		if bearerToken, err := s.core.CreateAuthTokenWithSource(ctx, user.Id, "oidc_login"); err == nil {
 			separator := "?"
 			if strings.Contains(redirectURL, "?") {
 				separator = "&"

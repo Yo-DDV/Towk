@@ -28,9 +28,10 @@
     const generalBase = resolve('/chat/[serverId]/server-admin/general', params);
     const membersBase = resolve('/chat/[serverId]/server-admin/members', params);
     const roomsBase = adminBase + '/rooms';
-    const rolesBase = adminBase + '/roles';
+    const permissionsBase = adminBase + '/permissions';
     const securityBase = adminBase + '/security';
     const systemBase = adminBase + '/system';
+    const eventLogBase = adminBase + '/event-log';
 
     // General settings page requires space.manage permission
     if (pathname.startsWith(generalBase)) {
@@ -51,8 +52,8 @@
       return () => spacePermissions.current.canManageRooms;
     }
 
-    // Roles pages: space.roles.manage OR instance.admin.view-roles
-    if (pathname.startsWith(rolesBase)) {
+    // Permissions pages: space.roles.manage OR instance.admin.view-roles
+    if (pathname.startsWith(permissionsBase)) {
       return () =>
         spacePermissions.current.canManageRoles ||
         serverPerms.current.canAdminViewRoles;
@@ -66,6 +67,11 @@
     // System info (NATS/JetStream stats) — admin.view-system
     if (pathname.startsWith(systemBase)) {
       return () => serverPerms.current.canAdminViewSystem;
+    }
+
+    // Event log inspection — admin.view-audit
+    if (pathname.startsWith(eventLogBase)) {
+      return () => serverPerms.current.canAdminViewAudit;
     }
 
     // Admin home page is accessible to anyone with ANY admin permission

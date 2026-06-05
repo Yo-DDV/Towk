@@ -351,7 +351,7 @@ test.describe('Admin Granular Permissions', () => {
     await regularContext.close();
   });
 
-  test('user without admin.view-roles sees access denied on /chat/-/admin/roles', async ({
+  test('user without admin.view-roles sees access denied on permissions', async ({
     page,
     browser
   }) => {
@@ -521,19 +521,9 @@ test.describe('Role Assignment', () => {
 // Deny-role behaviour is exercised by the other admin permission tests.
 
 test.describe('Instance Settings', () => {
-  // Reset instance config after each test to prevent test pollution
-  test.afterEach(async ({ page }) => {
-    try {
-      await page.request.post('/api/graphql', {
-        headers: { 'Content-Type': 'application/json', 'X-REQUEST-TYPE': 'GraphQL' },
-        data: {
-          query: `mutation { admin { resetServerConfig } }`
-        }
-      });
-    } catch {
-      // Ignore errors - may not be logged in or admin
-    }
-  });
+  // No per-test cleanup needed: every e2e test spawns its own isolated
+  // chatto instance (see frontend/e2e/fixtures/server.ts), so state
+  // never leaks between tests.
 
   test('admin can access instance settings page', async ({ page, adminPage }) => {
     await createAndLoginAdminUser(page);
@@ -610,11 +600,6 @@ test.describe('Instance Settings', () => {
     // The markdown should render **Chatto** as bold
     await expect(page.getByTestId('motd-content').locator('strong')).toHaveText('Chatto');
   });
-
-  // The "reset to defaults" UI was removed from /server-admin/general; the
-  // admin.resetServerConfig mutation still exists for API callers but isn't
-  // surfaced in the admin panel. Restore an end-to-end test here only if/when
-  // the UI is brought back.
 
   test('instance config changes update other connected clients in real-time', async ({
     page,
@@ -743,7 +728,7 @@ test.describe('Instance Role Permission Denials', () => {
 					mutation DenyInstancePermission($input: DenyPermissionInput!) { denyPermission(input: $input)
 					}
 				`,
-        variables: { input: { roleName, permission: 'dm.write' } }
+        variables: { input: { roleName, permission: 'message.post' } }
       }
     });
     expect(denyResponse.ok()).toBeTruthy();
@@ -771,7 +756,7 @@ test.describe('Instance Role Permission Denials', () => {
     expect(queryRoleResponse.ok()).toBeTruthy();
     const queryRoleData = await queryRoleResponse.json();
     expect(queryRoleData.data?.server?.role).toBeTruthy();
-    expect(queryRoleData.data.server.role.permissionDenials).toContain('dm.write');
+    expect(queryRoleData.data.server.role.permissionDenials).toContain('message.post');
 
     // Clean up - delete the role
     await page.request.post('/api/graphql', {
@@ -819,10 +804,10 @@ test.describe('Instance Role Permission Denials', () => {
     // Deny.
     const displayName = 'UI Denial Test Role';
     await adminPage.gotoRoles();
-    await expect(page.getByRole('heading', { name: 'Roles', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Permissions', level: 1 })).toBeVisible();
 
     const cell = page.locator(
-      `button[aria-label*="${displayName}"][aria-label*="dm.write"]`
+      `td[data-role="${roleName}"][data-permission="message.post"] button`
     );
     await expect(cell).toHaveAttribute('aria-pressed', 'false');
 
@@ -838,9 +823,9 @@ test.describe('Instance Role Permission Denials', () => {
 
     // Reload and verify the denial persists.
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Roles', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Permissions', level: 1 })).toBeVisible();
     const cellAfterReload = page.locator(
-      `button[aria-label*="${displayName}"][aria-label*="dm.write"]`
+      `td[data-role="${roleName}"][data-permission="message.post"] button`
     );
     await expect(cellAfterReload).toHaveAttribute('aria-label', /Override deny/);
     await expect(cellAfterReload).toHaveAttribute('aria-pressed', 'true');
@@ -954,4 +939,3 @@ test.describe('Identity Editing', () => {
     await regularContext.close();
   });
 });
-

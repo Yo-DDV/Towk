@@ -105,12 +105,6 @@ func runServer(configPath string) {
 		log.Fatal("Failed to create Chatto core", "error", err)
 	}
 
-	// Seed `announcements` + `general` on first boot of a fresh server.
-	// Idempotent — no-op once any channel room exists.
-	if err := chattoCore.SeedDefaultRooms(ctx); err != nil {
-		log.Fatal("Failed to seed default rooms", "error", err)
-	}
-
 	// Set asset base URL for absolute asset URLs (required for cross-origin clients)
 	if cfg.Webserver.URL != "" {
 		if parsed, err := url.Parse(cfg.Webserver.URL); err == nil {
@@ -126,13 +120,46 @@ func runServer(configPath string) {
 	// Set up push notification callback if push is enabled
 	setupPushNotifications(chattoCore, cfg)
 
+	// Start core's background services (PresenceHub + projectors) BEFORE
+	// bootstrap. Bootstrap triggers JoinRoom, which calls WaitForSeq on
+	// the room-membership projector — if it's not running yet, the wait
+	// blocks until the bootstrap context cancels.
+	g.Go(func() error {
+		return chattoCore.Run(ctx)
+	})
+
+	// Block until core.Run has finished its boot phase (projectors
+	// started + ensureChannelRoomsAreInAGroup done). SeedDefaultRooms
+	// issues CreateRoom calls whose default-group lookup hits the
+	// RoomGroups projection — without this wait, the projection is
+	// still empty and the seeded rooms land without a group.
+	if err := chattoCore.WaitForBoot(ctx); err != nil {
+		log.Fatal("Core boot never completed", "error", err)
+	}
+
+	// Seed `announcements` + `general` on first boot of a fresh server.
+	// Idempotent — no-op once any channel room exists.
+	if err := chattoCore.SeedDefaultRooms(ctx); err != nil {
+		log.Fatal("Failed to seed default rooms", "error", err)
+	}
+
 	// Run dev startup hook (auto-bootstrap in dev builds, no-op in prod)
 	devStartupHook(ctx, chattoCore, cfg)
 
-	// Start presence hub (single KV watcher per process for presence fan-out)
-	g.Go(func() error {
-		return chattoCore.PresenceHub.Run(ctx)
-	})
+	// Start video processing service if enabled before the HTTP server begins
+	// accepting uploads. The service registers a process-local callback on
+	// core, so no transient NATS worker subject is involved.
+	if cfg.Video.Enabled {
+		videoSvc, err := video.NewService(chattoCore, cfg.Video, log.WithPrefix("video"))
+		if err != nil {
+			log.Error("ffmpeg not found — video processing disabled", "error", err)
+			log.Error("Install ffmpeg: brew install ffmpeg (macOS) or apk add ffmpeg (Alpine)")
+		} else {
+			g.Go(func() error {
+				return videoSvc.Run(ctx)
+			})
+		}
+	}
 
 	// Create and run HTTP server
 	addr := fmt.Sprintf(":%d", cfg.Webserver.EffectivePort())
@@ -149,14 +176,6 @@ func runServer(configPath string) {
 	g.Go(func() error {
 		return httpServer.Run(ctx)
 	})
-
-	// Start video processing service if enabled
-	if cfg.Video.Enabled {
-		videoSvc := video.NewService(chattoCore, nc, cfg.Video, log.WithPrefix("video"))
-		g.Go(func() error {
-			return videoSvc.Run(ctx)
-		})
-	}
 
 	// Wait for all services to complete (or one to fail)
 	if err := g.Wait(); err != nil && err != context.Canceled {
@@ -442,11 +461,11 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 	}
 
 	// Extract message body from the event
-	if msgPosted, ok := event.Event.(*corev1.Event_MessagePosted); ok {
-		body, err := chattoCore.GetMessageBody(ctx, kind, msgPosted.MessagePosted.MessageBodyId)
+	if _, ok := event.Event.(*corev1.Event_MessagePosted); ok {
+		body, err := chattoCore.GetMessageBody(ctx, kind, event.Id)
 		if err != nil {
 			logger.Debug("Failed to fetch message body for push notification preview",
-				"message_body_id", msgPosted.MessagePosted.MessageBodyId,
+				"event_id", event.Id,
 				"error", err)
 		} else {
 			payloadCtx.MessagePreview = body
