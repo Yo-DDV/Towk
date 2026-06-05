@@ -991,12 +991,13 @@ func (p *RoomTimelineProjection) VisibleRoomTimelineAround(
 		return nil, 0, false, false, false
 	}
 
-	half := limit / 2
-	start := targetVisibleIndex - half
+	beforeCount := (limit - 1) / 2
+	afterCount := limit - beforeCount - 1
+	start := targetVisibleIndex - beforeCount
 	if start < 0 {
 		start = 0
 	}
-	end := targetVisibleIndex + half + 1
+	end := targetVisibleIndex + afterCount + 1
 	if end > visibleCount {
 		end = visibleCount
 	}
