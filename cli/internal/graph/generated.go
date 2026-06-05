@@ -708,9 +708,9 @@ type ComplexityRoot struct {
 	}
 
 	ServerConfig struct {
-		BannerURL      func(childComplexity int, width *int32, height *int32) int
+		BannerURL      func(childComplexity int, width *int32, height *int32, fit *model.FitMode) int
 		Description    func(childComplexity int) int
-		LogoURL        func(childComplexity int, width *int32, height *int32) int
+		LogoURL        func(childComplexity int, width *int32, height *int32, fit *model.FitMode) int
 		Motd           func(childComplexity int) int
 		ServerName     func(childComplexity int) int
 		WelcomeMessage func(childComplexity int) int
@@ -799,7 +799,7 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		AvatarURL                   func(childComplexity int, width *int32, height *int32) int
+		AvatarURL                   func(childComplexity int, width *int32, height *int32, fit *model.FitMode) int
 		CreatedAt                   func(childComplexity int) int
 		DisplayName                 func(childComplexity int) int
 		HasVerifiedEmail            func(childComplexity int) int
@@ -1198,8 +1198,8 @@ type ServerResolver interface {
 }
 type ServerConfigResolver interface {
 	ServerName(ctx context.Context, obj *model.ServerConfig) (string, error)
-	LogoURL(ctx context.Context, obj *model.ServerConfig, width *int32, height *int32) (*string, error)
-	BannerURL(ctx context.Context, obj *model.ServerConfig, width *int32, height *int32) (*string, error)
+	LogoURL(ctx context.Context, obj *model.ServerConfig, width *int32, height *int32, fit *model.FitMode) (*string, error)
+	BannerURL(ctx context.Context, obj *model.ServerConfig, width *int32, height *int32, fit *model.FitMode) (*string, error)
 	WelcomeMessage(ctx context.Context, obj *model.ServerConfig) (*string, error)
 	Motd(ctx context.Context, obj *model.ServerConfig) (*string, error)
 	Description(ctx context.Context, obj *model.ServerConfig) (*string, error)
@@ -1211,7 +1211,7 @@ type SubscriptionResolver interface {
 	MyEvents(ctx context.Context) (<-chan core.EventEnvelope, error)
 }
 type UserResolver interface {
-	AvatarURL(ctx context.Context, obj *corev1.User, width *int32, height *int32) (*string, error)
+	AvatarURL(ctx context.Context, obj *corev1.User, width *int32, height *int32, fit *model.FitMode) (*string, error)
 	HasVerifiedEmail(ctx context.Context, obj *corev1.User) (bool, error)
 	VerifiedEmails(ctx context.Context, obj *corev1.User) ([]string, error)
 	Rooms(ctx context.Context, obj *corev1.User, typeArg *model.RoomType) ([]*corev1.Room, error)
@@ -4392,7 +4392,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.ServerConfig.BannerURL(childComplexity, args["width"].(*int32), args["height"].(*int32)), true
+		return e.ComplexityRoot.ServerConfig.BannerURL(childComplexity, args["width"].(*int32), args["height"].(*int32), args["fit"].(*model.FitMode)), true
 	case "ServerConfig.description":
 		if e.ComplexityRoot.ServerConfig.Description == nil {
 			break
@@ -4409,7 +4409,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.ServerConfig.LogoURL(childComplexity, args["width"].(*int32), args["height"].(*int32)), true
+		return e.ComplexityRoot.ServerConfig.LogoURL(childComplexity, args["width"].(*int32), args["height"].(*int32), args["fit"].(*model.FitMode)), true
 	case "ServerConfig.motd":
 		if e.ComplexityRoot.ServerConfig.Motd == nil {
 			break
@@ -4693,7 +4693,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.ComplexityRoot.User.AvatarURL(childComplexity, args["width"].(*int32), args["height"].(*int32)), true
+		return e.ComplexityRoot.User.AvatarURL(childComplexity, args["width"].(*int32), args["height"].(*int32), args["fit"].(*model.FitMode)), true
 	case "User.createdAt":
 		if e.ComplexityRoot.User.CreatedAt == nil {
 			break
@@ -7847,6 +7847,14 @@ func (ec *executionContext) field_ServerConfig_bannerUrl_args(ctx context.Contex
 		return nil, err
 	}
 	args["height"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "fit",
+		func(ctx context.Context, v any) (*model.FitMode, error) {
+			return ec.unmarshalOFitMode2ᚖhmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐFitMode(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["fit"] = arg2
 	return args, nil
 }
 
@@ -7869,6 +7877,14 @@ func (ec *executionContext) field_ServerConfig_logoUrl_args(ctx context.Context,
 		return nil, err
 	}
 	args["height"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "fit",
+		func(ctx context.Context, v any) (*model.FitMode, error) {
+			return ec.unmarshalOFitMode2ᚖhmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐFitMode(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["fit"] = arg2
 	return args, nil
 }
 
@@ -8019,6 +8035,14 @@ func (ec *executionContext) field_User_avatarUrl_args(ctx context.Context, rawAr
 		return nil, err
 	}
 	args["height"] = arg1
+	arg2, err := graphql.ProcessArgField(ctx, rawArgs, "fit",
+		func(ctx context.Context, v any) (*model.FitMode, error) {
+			return ec.unmarshalOFitMode2ᚖhmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐFitMode(ctx, v)
+		})
+	if err != nil {
+		return nil, err
+	}
+	args["fit"] = arg2
 	return args, nil
 }
 
@@ -20552,7 +20576,7 @@ func (ec *executionContext) _ServerConfig_logoUrl(ctx context.Context, field gra
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.ServerConfig().LogoURL(ctx, obj, fc.Args["width"].(*int32), fc.Args["height"].(*int32))
+			return ec.Resolvers.ServerConfig().LogoURL(ctx, obj, fc.Args["width"].(*int32), fc.Args["height"].(*int32), fc.Args["fit"].(*model.FitMode))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -20596,7 +20620,7 @@ func (ec *executionContext) _ServerConfig_bannerUrl(ctx context.Context, field g
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.ServerConfig().BannerURL(ctx, obj, fc.Args["width"].(*int32), fc.Args["height"].(*int32))
+			return ec.Resolvers.ServerConfig().BannerURL(ctx, obj, fc.Args["width"].(*int32), fc.Args["height"].(*int32), fc.Args["fit"].(*model.FitMode))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -21793,7 +21817,7 @@ func (ec *executionContext) _User_avatarUrl(ctx context.Context, field graphql.C
 		},
 		func(ctx context.Context) (any, error) {
 			fc := graphql.GetFieldContext(ctx)
-			return ec.Resolvers.User().AvatarURL(ctx, obj, fc.Args["width"].(*int32), fc.Args["height"].(*int32))
+			return ec.Resolvers.User().AvatarURL(ctx, obj, fc.Args["width"].(*int32), fc.Args["height"].(*int32), fc.Args["fit"].(*model.FitMode))
 		},
 		nil,
 		func(ctx context.Context, selections ast.SelectionSet, v *string) graphql.Marshaler {
@@ -26550,7 +26574,7 @@ func (ec *executionContext) unmarshalInputUpdateMyPresenceInput(ctx context.Cont
 		switch k {
 		case "status":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
-			data, err := ec.unmarshalNPresenceStatus2hmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐPresenceStatus(ctx, v)
+			data, err := ec.unmarshalNPresenceStatusInput2hmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐPresenceStatusInput(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -39530,6 +39554,16 @@ func (ec *executionContext) unmarshalNPresenceStatus2hmansᚗdeᚋchattoᚋinter
 }
 
 func (ec *executionContext) marshalNPresenceStatus2hmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐPresenceStatus(ctx context.Context, sel ast.SelectionSet, v model.PresenceStatus) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) unmarshalNPresenceStatusInput2hmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐPresenceStatusInput(ctx context.Context, v any) (model.PresenceStatusInput, error) {
+	var res model.PresenceStatusInput
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNPresenceStatusInput2hmansᚗdeᚋchattoᚋinternalᚋgraphᚋmodelᚐPresenceStatusInput(ctx context.Context, sel ast.SelectionSet, v model.PresenceStatusInput) graphql.Marshaler {
 	return v
 }
 
