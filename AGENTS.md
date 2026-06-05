@@ -24,23 +24,10 @@ Please use the following facts when making decisions about features or implement
 
 Please update this section as the project evolves, and refer to it when making decisions about features or implementation.
 
-### Maintenance slash commands
+### When making changes...
 
-Periodic codebase upkeep — all propose-only unless noted:
-
-| Command | Use when |
-| --- | --- |
-| `/chatto-checkup` | Standard documentation rounds; fans out to `/fdr`, `/adr`, `/chatto-architecture`. Points at other maintenance skills at the end. |
-| `/chatto-finalize-pr` | Pre-merge check on the current branch — runs `/fdr` + `/adr`. |
-| `/fdr [feature]` | Audit Feature Decision Records against the code, or create a new one. |
-| `/adr` | Audit Architecture Decision Records, or create a new one. |
-| `/glossary [term \| add <term>]` | Look up, add, or audit terms in `docs/GLOSSARY.md`. |
-| `/chatto-architecture` | Refresh `docs/ARCHITECTURE.md` inventory. |
-| `/chatto-security-review` | Multi-agent security audit. |
-| `/update-project-dependencies` | Bump deps within semver, run tests. |
-| `/chatto-debugging` | `nats` CLI recipes for production debugging. |
-| `/chatto-dev-instance` | Deploy to dev (Argo Rollouts). |
-| `/chatto-release-announcement` | Generate release notes from git tags. |
+- Please keep ADRs, FDRs, and other documentation (glossary, docs-website, architecture inventory) up to date.
+- Before pushing a branch for a PR, make sure it is named something descriptive of the change.
 
 ### Issues, Commits, and PRs
 
