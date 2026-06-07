@@ -555,8 +555,8 @@ export type EventLogConnection = {
   entries: Array<EventLogEntry>;
   /** True if older entries exist beyond this page. */
   hasOlder: Scalars['Boolean']['output'];
-  /** Total messages currently in EVT — an operational metric, not bounded by `limit`. */
-  totalCount: Scalars['Int']['output'];
+  /** Total messages currently in EVT, serialized as Int64 so large event logs do not overflow GraphQL Int. */
+  totalCount: Scalars['Int64']['output'];
 };
 
 /** One entry in the event-sourcing log (EVT). Each entry corresponds to one durable domain event under ADR-033. */
@@ -4597,7 +4597,7 @@ export type AdminEventLogQueryVariables = Exact<{
 }>;
 
 
-export type AdminEventLogQuery = { __typename?: 'Query', admin?: { __typename?: 'AdminQueries', eventLog: { __typename?: 'EventLogConnection', hasOlder: boolean, endCursor?: string | null, totalCount: number, entries: Array<{ __typename?: 'EventLogEntry', sequence: string, subject: string, aggregateType: string, aggregateId: string, eventType: string, eventId: string, actorId: string, createdAt: any }> } } | null };
+export type AdminEventLogQuery = { __typename?: 'Query', admin?: { __typename?: 'AdminQueries', eventLog: { __typename?: 'EventLogConnection', hasOlder: boolean, endCursor?: string | null, totalCount: any, entries: Array<{ __typename?: 'EventLogEntry', sequence: string, subject: string, aggregateType: string, aggregateId: string, eventType: string, eventId: string, actorId: string, createdAt: any }> } } | null };
 
 export type AdminEventLogEntryQueryVariables = Exact<{
   sequence: Scalars['String']['input'];
