@@ -1,6 +1,6 @@
 ---
 name: "chatto-pr-checklist"
-description: "Pre-merge PR checklist for the Chatto codebase. Contains instructions for tasks that must run before a PR is merged."
+description: "Pre-merge PR checklist for the Chatto codebase. Contains instructions for tasks that must run before a PR is merged. This skill should automatically run when a PR is opened."
 ---
 
 # Chatto PR Checklist
