@@ -3419,8 +3419,11 @@ export type UserPermissionCell = {
 
 /** Trinary decision used in the user-permission matrix. */
 export enum UserPermissionDecision {
+  /** The permission is explicitly granted. */
   Allow = 'ALLOW',
+  /** The permission is explicitly denied. */
   Deny = 'DENY',
+  /** No explicit grant or denial applies at this scope. */
   None = 'NONE'
 }
 
