@@ -2047,9 +2047,9 @@ export type Query = {
    * Passing both is rejected.
    */
   tierRoles?: Maybe<TierRoles>;
-  /** Get a specific user by ID. */
+  /** Get a specific user by ID. Requires authentication. */
   user?: Maybe<User>;
-  /** Get a specific user by login. Returns null if not found. */
+  /** Get a specific user by login. Requires authentication. Returns null if not found. */
   userByLogin?: Maybe<User>;
   /**
    * Permission matrix for a specific user. Authorization: viewer must
@@ -3035,7 +3035,8 @@ export type Subscription = {
    *   notifications, thread-follow sync, server membership, room layout
    *   changes, session termination) — scoped per event type:
    *   - Config events: delivered to all authenticated users.
-   *   - User profile updates: broadcast (profiles are public).
+   *   - User profile updates: broadcast to authenticated users (profiles are
+   *     public within the server).
    *   - Private user events (notification sync, preferences, session
    *     termination, server membership changes): delivered only to the target
    *     user. Powers cross-tab/cross-device sync.
