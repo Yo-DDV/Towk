@@ -62,12 +62,14 @@ Current occupants include:
 - Web Push subscriptions: `push_subscription.{userId}.{endpointHash}`.
 - Embedded-SPA cookie-session records: `cookie_session.{userId}.{sessionHmac}`,
   with per-key `auth.token_ttl` expiry. The value is a `CookieSession`
-  protobuf containing `user_id`, `created_at`, `expires_at`, source, and safe
-  request metadata.
+  protobuf containing `user_id`, `created_at`, `expires_at`, source, safe
+  request metadata, and the user auth generation it was issued against.
 - Bearer auth token verifiers: `session.{hmac}`, with per-key
-  `auth.token_ttl` sliding-window expiry.
+  `auth.token_ttl` sliding-window expiry. Values include the user auth
+  generation they were issued against. User-wide cleanup scans these records and
+  deletes entries whose stored user ID matches.
 - OAuth authorization-code verifiers: `grant.{hmac}`, with per-key 5-minute
-  TTL.
+  TTL. Values include the user auth generation they were issued against.
 - Account workflow token verifiers: `registration.{hmac}`,
   `email_verification.{hmac}`, `password_reset.{hmac}`, and
   `account_deletion_token.{hmac}`, with per-key TTLs appropriate to each

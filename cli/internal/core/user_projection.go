@@ -32,13 +32,15 @@ type UserProjection struct {
 }
 
 type projectedUser struct {
-	user          *corev1.User
-	deleted       bool
-	avatar        *corev1.AssetRecord
-	passwordHash  []byte
-	verifiedEmail map[string]VerifiedEmail
-	preferences   *corev1.ServerUserPreferences
-	loginChanged  time.Time
+	user           *corev1.User
+	deleted        bool
+	avatar         *corev1.AssetRecord
+	passwordHash   []byte
+	passwordSetAt  time.Time
+	authGeneration uint64
+	verifiedEmail  map[string]VerifiedEmail
+	preferences    *corev1.ServerUserPreferences
+	loginChanged   time.Time
 }
 
 func NewUserProjection(keyWrapper kms.KeyWrapper, dekStore dekstore.Reader) *UserProjection {
@@ -58,7 +60,7 @@ func (p *UserProjection) Subjects() []string {
 	return []string{events.UserSubjectFilter()}
 }
 
-func (p *UserProjection) Apply(event *corev1.Event, _ uint64) error {
+func (p *UserProjection) Apply(event *corev1.Event, seq uint64) error {
 	if event == nil {
 		return nil
 	}
@@ -95,7 +97,7 @@ func (p *UserProjection) Apply(event *corev1.Event, _ uint64) error {
 	case *corev1.Event_UserVerifiedEmailAdded:
 		p.applyVerifiedEmailAdded(event.GetId(), e.UserVerifiedEmailAdded, event.GetCreatedAt())
 	case *corev1.Event_UserPasswordHashChanged:
-		p.applyPasswordHashChanged(e.UserPasswordHashChanged)
+		p.applyPasswordHashChanged(e.UserPasswordHashChanged, event.GetCreatedAt(), seq)
 	case *corev1.Event_UserOidcSubjectLinked:
 		p.applyOIDCSubjectLinked(e.UserOidcSubjectLinked)
 	case *corev1.Event_UserServerPreferencesChanged:
@@ -105,7 +107,7 @@ func (p *UserProjection) Apply(event *corev1.Event, _ uint64) error {
 	case *corev1.Event_UserLoginCooldownCleared:
 		p.applyLoginCooldownCleared(e.UserLoginCooldownCleared)
 	case *corev1.Event_UserAccountDeleted:
-		p.applyAccountDeleted(e.UserAccountDeleted)
+		p.applyAccountDeleted(e.UserAccountDeleted, seq)
 	case *corev1.Event_UserKeyShredded:
 		p.applyKeyShredded(e.UserKeyShredded)
 	}
@@ -274,12 +276,18 @@ func (p *UserProjection) applyVerifiedEmailAdded(eventID string, e *corev1.UserV
 	p.emailIndex[hash] = e.GetUserId()
 }
 
-func (p *UserProjection) applyPasswordHashChanged(e *corev1.UserPasswordHashChangedEvent) {
+func (p *UserProjection) applyPasswordHashChanged(e *corev1.UserPasswordHashChangedEvent, envelopeCreatedAt *timestamppb.Timestamp, seq uint64) {
 	if e == nil || e.GetUserId() == "" {
 		return
 	}
 	u := p.ensureUserLocked(e.GetUserId())
 	u.passwordHash = append(u.passwordHash[:0], e.GetPasswordHash()...)
+	u.authGeneration = seq
+	if envelopeCreatedAt != nil {
+		u.passwordSetAt = envelopeCreatedAt.AsTime()
+	} else {
+		u.passwordSetAt = time.Time{}
+	}
 }
 
 func (p *UserProjection) applyOIDCSubjectLinked(e *corev1.UserOIDCSubjectLinkedEvent) {
@@ -324,12 +332,13 @@ func (p *UserProjection) applyLoginCooldownCleared(e *corev1.UserLoginCooldownCl
 	u.loginChanged = time.Time{}
 }
 
-func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent) {
+func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent, seq uint64) {
 	if e == nil || e.GetUserId() == "" {
 		return
 	}
 	u := p.ensureUserLocked(e.GetUserId())
 	u.deleted = true
+	u.authGeneration = seq
 	if u.user != nil && u.user.GetLogin() != "" {
 		delete(p.loginIndex, strings.ToLower(u.user.GetLogin()))
 	}
@@ -345,6 +354,7 @@ func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent) 
 	}
 	u.avatar = nil
 	u.passwordHash = nil
+	u.passwordSetAt = time.Time{}
 	u.preferences = nil
 	u.verifiedEmail = make(map[string]VerifiedEmail)
 	u.loginChanged = time.Time{}
@@ -372,6 +382,7 @@ func (p *UserProjection) applyKeyShredded(e *corev1.UserKeyShreddedEvent) {
 	}
 	u.user = &corev1.User{Id: e.GetUserId()}
 	u.passwordHash = nil
+	u.passwordSetAt = time.Time{}
 	u.preferences = nil
 	u.verifiedEmail = make(map[string]VerifiedEmail)
 	u.loginChanged = time.Time{}
@@ -457,13 +468,28 @@ func (p *UserProjection) EmailClaimed(email string) bool {
 }
 
 func (p *UserProjection) PasswordHash(userID string) ([]byte, bool) {
+	hash, _, ok := p.PasswordHashWithSetAt(userID)
+	return hash, ok
+}
+
+func (p *UserProjection) PasswordHashWithSetAt(userID string) ([]byte, time.Time, bool) {
 	p.RLock()
 	defer p.RUnlock()
 	u := p.users[userID]
 	if u == nil || u.deleted || len(u.passwordHash) == 0 {
-		return nil, false
+		return nil, time.Time{}, false
 	}
-	return append([]byte(nil), u.passwordHash...), true
+	return append([]byte(nil), u.passwordHash...), u.passwordSetAt, true
+}
+
+func (p *UserProjection) AuthGeneration(userID string) (uint64, bool) {
+	p.RLock()
+	defer p.RUnlock()
+	u := p.users[userID]
+	if u == nil || u.deleted {
+		return 0, false
+	}
+	return u.authGeneration, true
 }
 
 func (p *UserProjection) Avatar(userID string) (*corev1.AssetRecord, bool) {

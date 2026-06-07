@@ -103,6 +103,130 @@ func TestChattoCore_CookieSessionRevocation(t *testing.T) {
 	}
 }
 
+func TestChattoCore_CookieSessionGenerationRejectsStaleAuthentication(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "cookie-generation-user", "Cookie Generation User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	authGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration: %v", err)
+	}
+	sessionID, _, err := core.CreateCookieSessionForGeneration(ctx, user.Id, "password_login", authGeneration)
+	if err != nil {
+		t.Fatalf("CreateCookieSessionForGeneration: %v", err)
+	}
+
+	if err := core.SetPasswordHash(ctx, user.Id, "newpassword456"); err != nil {
+		t.Fatalf("SetPasswordHash: %v", err)
+	}
+	if _, err := core.ValidateCookieSession(ctx, user.Id, sessionID); !errors.Is(err, ErrCookieSessionNotFound) {
+		t.Fatalf("ValidateCookieSession err = %v, want ErrCookieSessionNotFound", err)
+	}
+	if _, _, err := core.CreateCookieSessionForGeneration(ctx, user.Id, "password_login", authGeneration); !errors.Is(err, ErrCookieSessionNotFound) {
+		t.Fatalf("stale CreateCookieSessionForGeneration err = %v, want ErrCookieSessionNotFound", err)
+	}
+	freshGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration fresh: %v", err)
+	}
+	if fresh, _, err := core.CreateCookieSessionForGeneration(ctx, user.Id, "password_login", freshGeneration); err != nil {
+		t.Fatalf("fresh CreateCookieSessionForGeneration should succeed: %v", err)
+	} else if _, err := core.ValidateCookieSession(ctx, user.Id, fresh); err != nil {
+		t.Fatalf("fresh cookie session should validate: %v", err)
+	}
+}
+
+func TestChattoCore_ValidateCookieSessionGrandfathersLegacyGeneration(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "cookie-legacy-user", "Cookie Legacy User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	authGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration: %v", err)
+	}
+
+	sessionID := NewCookieSessionID()
+	key := core.cookieSessionKey(user.Id, sessionID)
+	legacy := &corev1.CookieSession{
+		UserId:    user.Id,
+		CreatedAt: timestamppb.New(time.Now()),
+		ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
+		Source:    "legacy_login",
+	}
+	data, err := proto.Marshal(legacy)
+	if err != nil {
+		t.Fatalf("marshal legacy session: %v", err)
+	}
+	if _, err := core.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(core.cookieSessionTTL())); err != nil {
+		t.Fatalf("store legacy session: %v", err)
+	}
+
+	validated, err := core.ValidateCookieSession(ctx, user.Id, sessionID)
+	if err != nil {
+		t.Fatalf("ValidateCookieSession: %v", err)
+	}
+	if validated.GetAuthGeneration() != authGeneration {
+		t.Fatalf("validated auth generation = %d, want %d", validated.GetAuthGeneration(), authGeneration)
+	}
+
+	entry, err := core.storage.runtimeStateKV.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("get upgraded session: %v", err)
+	}
+	var upgraded corev1.CookieSession
+	if err := proto.Unmarshal(entry.Value(), &upgraded); err != nil {
+		t.Fatalf("unmarshal upgraded session: %v", err)
+	}
+	if upgraded.GetAuthGeneration() != authGeneration {
+		t.Fatalf("stored auth generation = %d, want %d", upgraded.GetAuthGeneration(), authGeneration)
+	}
+}
+
+func TestChattoCore_ValidateCookieSessionRejectsLegacyGenerationBeforePasswordChange(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "cookie-legacy-stale-user", "Cookie Legacy Stale User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	legacyCreatedAt := time.Now()
+	if err := core.SetPasswordHash(ctx, user.Id, "newpassword456"); err != nil {
+		t.Fatalf("SetPasswordHash: %v", err)
+	}
+
+	sessionID := NewCookieSessionID()
+	key := core.cookieSessionKey(user.Id, sessionID)
+	legacy := &corev1.CookieSession{
+		UserId:    user.Id,
+		CreatedAt: timestamppb.New(legacyCreatedAt),
+		ExpiresAt: timestamppb.New(time.Now().Add(time.Hour)),
+		Source:    "legacy_login",
+	}
+	data, err := proto.Marshal(legacy)
+	if err != nil {
+		t.Fatalf("marshal legacy session: %v", err)
+	}
+	if _, err := core.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(core.cookieSessionTTL())); err != nil {
+		t.Fatalf("store legacy session: %v", err)
+	}
+
+	if _, err := core.ValidateCookieSession(ctx, user.Id, sessionID); !errors.Is(err, ErrCookieSessionNotFound) {
+		t.Fatalf("ValidateCookieSession err = %v, want ErrCookieSessionNotFound", err)
+	}
+	if _, err := core.storage.runtimeStateKV.Get(ctx, key); !errors.Is(err, jetstream.ErrKeyNotFound) {
+		t.Fatalf("legacy stale session lookup error = %v, want ErrKeyNotFound", err)
+	}
+}
+
 func TestChattoCore_ValidateCookieSessionRejectsExpiredPayload(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

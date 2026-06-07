@@ -317,11 +317,11 @@ func (c *ChattoCore) SetPasswordHash(ctx context.Context, userID string, passwor
 			PasswordHash: hashedPassword,
 		},
 	}})
-	if _, err := c.RevokeCookieSessionsForUser(ctx, userID); err != nil {
-		return err
-	}
 	if _, err := c.appendUserEvent(ctx, userID, event, "", nil); err != nil {
 		return err
+	}
+	if _, err := c.RevokeRuntimeCredentialsForUser(ctx, userID, "password_changed"); err != nil {
+		c.logger.Warn("Failed to clean up runtime credentials after password change", "user_id", userID, "error", err)
 	}
 	if err := c.PublishSessionTerminated(ctx, userID, "password_changed"); err != nil {
 		c.logger.Warn("Failed to publish SessionTerminatedEvent", "user_id", userID, "reason", "password_changed", "error", err)
@@ -331,6 +331,13 @@ func (c *ChattoCore) SetPasswordHash(ctx context.Context, userID string, passwor
 
 // VerifyPassword verifies a user's password by login name or email and returns the user if valid.
 func (c *ChattoCore) VerifyPassword(ctx context.Context, identifier string, password string) (*corev1.User, error) {
+	user, _, err := c.VerifyPasswordWithAuthGeneration(ctx, identifier, password)
+	return user, err
+}
+
+// VerifyPasswordWithAuthGeneration verifies a password and returns the user
+// auth generation that was current when the password hash was checked.
+func (c *ChattoCore) VerifyPasswordWithAuthGeneration(ctx context.Context, identifier string, password string) (*corev1.User, uint64, error) {
 	// Timing attack protection: Always run bcrypt comparison even for non-existent users.
 	// Without this, attackers could enumerate valid logins by measuring response times:
 	// - Non-existent login: fast return (~1μs)
@@ -350,29 +357,33 @@ func (c *ChattoCore) VerifyPassword(ctx context.Context, identifier string, pass
 	if err != nil || user == nil {
 		// User doesn't exist - run dummy bcrypt to match timing
 		bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, 0, fmt.Errorf("invalid credentials")
 	}
 
 	return c.verifyUserPassword(ctx, user, password, dummyHash)
 }
 
 // verifyUserPassword is an internal helper that verifies a password for an already-fetched user.
-func (c *ChattoCore) verifyUserPassword(ctx context.Context, user *corev1.User, password string, dummyHash []byte) (*corev1.User, error) {
+func (c *ChattoCore) verifyUserPassword(ctx context.Context, user *corev1.User, password string, dummyHash []byte) (*corev1.User, uint64, error) {
+	authGeneration, err := c.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		return nil, 0, err
+	}
 
-	// Retrieve password hash from separate KV storage
+	// Retrieve password hash from the user projection.
 	passwordHash, ok := c.Users.PasswordHash(user.Id)
 	if !ok {
 		// No password set (OAuth-only user) - run dummy bcrypt to match timing
 		bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
-		return nil, fmt.Errorf("password not set for this user")
+		return nil, 0, fmt.Errorf("password not set for this user")
 	}
 
-	err := bcrypt.CompareHashAndPassword(passwordHash, []byte(password))
+	err = bcrypt.CompareHashAndPassword(passwordHash, []byte(password))
 	if err != nil {
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, 0, fmt.Errorf("invalid credentials")
 	}
 
-	return user, nil
+	return user, authGeneration, nil
 }
 
 // UploadUserAvatar processes an image (resizes to 256x256 max, converts to WebP),
@@ -964,11 +975,6 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 		c.logger.Warn("Failed to delete push subscriptions", "user_id", userID, "error", err)
 		// Continue - this is best-effort
 	}
-	if _, err := c.RevokeCookieSessionsForUser(ctx, userID); err != nil {
-		c.logger.Warn("Failed to revoke cookie sessions during deletion", "user_id", userID, "error", err)
-		// Continue - this is best-effort
-	}
-
 	// Delete avatar from object store if it exists
 	avatar, _ := c.GetUserAvatar(ctx, userID)
 	if avatar != nil {
@@ -983,6 +989,10 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 	}})
 	if _, err := c.appendUserEvent(ctx, userID, deletedEvent, "", nil); err != nil {
 		return fmt.Errorf("failed to mark user deleted: %w", err)
+	}
+	if _, err := c.RevokeRuntimeCredentialsForUser(ctx, userID, "account_deleted"); err != nil {
+		c.logger.Warn("Failed to revoke runtime credentials during deletion", "user_id", userID, "error", err)
+		// Continue - this is best-effort
 	}
 	if err := c.deleteUserSettings(ctx, userID); err != nil {
 		c.logger.Warn("Failed to delete user settings during deletion", "user_id", userID, "error", err)

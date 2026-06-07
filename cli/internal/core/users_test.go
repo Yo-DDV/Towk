@@ -607,6 +607,83 @@ func TestChattoCore_SetPasswordHash(t *testing.T) {
 	}
 }
 
+func TestChattoCore_SetPasswordHash_RevokesBearerTokens(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "password-revoke-user", "Password Revoke User", "initial123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	otherUser, err := core.CreateUser(ctx, "system", "password-revoke-other", "Password Revoke Other", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser other: %v", err)
+	}
+
+	token1, err := core.CreateAuthToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken 1: %v", err)
+	}
+	token2, err := core.CreateAuthToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken 2: %v", err)
+	}
+	otherToken, err := core.CreateAuthToken(ctx, otherUser.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken other: %v", err)
+	}
+
+	if err := core.SetPasswordHash(ctx, user.Id, "newpassword456"); err != nil {
+		t.Fatalf("SetPasswordHash: %v", err)
+	}
+
+	if _, err := core.ValidateAuthToken(ctx, token1); err != ErrAuthTokenNotFound {
+		t.Fatalf("token1 ValidateAuthToken err = %v, want ErrAuthTokenNotFound", err)
+	}
+	if _, err := core.ValidateAuthToken(ctx, token2); err != ErrAuthTokenNotFound {
+		t.Fatalf("token2 ValidateAuthToken err = %v, want ErrAuthTokenNotFound", err)
+	}
+	if gotUserID, err := core.ValidateAuthToken(ctx, otherToken); err != nil {
+		t.Fatalf("other token should remain valid: %v", err)
+	} else if gotUserID != otherUser.Id {
+		t.Fatalf("other token user ID = %q, want %q", gotUserID, otherUser.Id)
+	}
+}
+
+func TestChattoCore_FailedPasswordChangeKeepsOldPasswordUsable(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "password-failed-change-user", "Password Failed Change User", "oldpassword")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := core.VerifyPassword(ctx, user.Login, "oldpassword"); err != nil {
+		t.Fatalf("old password should initially verify: %v", err)
+	}
+	authGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration: %v", err)
+	}
+
+	if err := core.SetPasswordHash(ctx, user.Id, "short"); err == nil {
+		t.Fatal("SetPasswordHash should reject too-short password")
+	}
+
+	afterGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration after failure: %v", err)
+	}
+	if afterGeneration != authGeneration {
+		t.Fatalf("auth generation = %d, want unchanged %d", afterGeneration, authGeneration)
+	}
+	if verified, err := core.VerifyPassword(ctx, user.Login, "oldpassword"); err != nil {
+		t.Fatalf("old password should remain usable after failed change: %v", err)
+	} else if verified.Id != user.Id {
+		t.Fatalf("verified user ID = %q, want %q", verified.Id, user.Id)
+	}
+}
+
 func TestChattoCore_CreateUser_WithoutPassword(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
