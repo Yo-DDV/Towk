@@ -183,7 +183,7 @@ the ability to create rooms only in specific groups.
 |-------|---------------|------------------|
 | `me` | No | Returns null if unauthenticated |
 | `user(userId)` / `userByLogin(login)` | Yes | Member profiles are public to authenticated users |
-| `users` | Yes | Server admin only |
+| `server.members(...)` | Yes | Server member directory visible to authenticated users |
 | `spaces` | No | Discovery - lists all spaces |
 | `space(id)` | No | Discovery - view any space |
 | `room(spaceId, roomId)` | Yes | Room membership required |
@@ -324,7 +324,7 @@ Owners pass every permission check through the standard hierarchy
 walk (owner is position 1000, the highest rank). They have access to:
 
 - `/admin` routes in the frontend
-- `Query.admin` and `Query.users` in GraphQL
+- `Query.admin` in GraphQL; member-directory reads use authenticated `Server.members`
 - System monitoring data (NATS stats, streams, KV buckets)
 - Everything else (the owner role's grants cover all permissions)
 

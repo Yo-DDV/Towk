@@ -2059,11 +2059,6 @@ export type Query = {
    * Self-introspection is not allowed; the matrix is an admin surface.
    */
   userPermissionMatrix?: Maybe<UserPermissionMatrix>;
-  /**
-   * List users on this server. Requires server admin.
-   * Search matches login and display name (case-insensitive partial match).
-   */
-  users: UsersConnection;
   /** The current authenticated user's server-level permissions. Null if not authenticated. */
   viewer?: Maybe<Viewer>;
 };
@@ -2123,14 +2118,6 @@ export type QueryUserByLoginArgs = {
 /** Root query type for fetching data. */
 export type QueryUserPermissionMatrixArgs = {
   userId: Scalars['ID']['input'];
-};
-
-
-/** Root query type for fetching data. */
-export type QueryUsersArgs = {
-  limit?: InputMaybe<Scalars['Int']['input']>;
-  offset?: InputMaybe<Scalars['Int']['input']>;
-  search?: InputMaybe<Scalars['String']['input']>;
 };
 
 /**
@@ -3517,17 +3504,6 @@ export type UserTypingEvent = {
   roomId: Scalars['ID']['output'];
   /** If typing in a thread, the root message event ID. Null for main room typing. */
   threadRootEventId?: Maybe<Scalars['ID']['output']>;
-};
-
-/** Paginated list of users with metadata. */
-export type UsersConnection = {
-  __typename?: 'UsersConnection';
-  /** Whether there are more users beyond this page. */
-  hasMore: Scalars['Boolean']['output'];
-  /** Total count of users matching the search (before pagination). */
-  totalCount: Scalars['Int']['output'];
-  /** The users in this page. */
-  users: Array<User>;
 };
 
 /** Video processing state for a video attachment. */

@@ -56,7 +56,7 @@ The admin section gives owners and admins visibility into the server's operation
 ## Permissions
 
 - `admin.access` — gates entry to the admin UI and the `Query.admin` resolver.
-- `admin.view-users` — gates user-management views and user-sensitive fields such as other users' verified email addresses and login cooldowns.
+- `admin.view-users` — gates user-management views, admin-only affordances, and user-sensitive fields such as other users' verified email addresses and login cooldowns. The underlying `server.members` directory query remains authenticated-user visible; see FDR-025.
 - `admin.view-system` — gates `admin.systemInfo` and `admin.projections`.
 - `admin.view-audit` — gates `admin.eventLog` and `admin.eventLogEntry`.
 - `role.assign` — gates user edits and role changes via the `requireUserAdminTarget` helper (permission + outrank-target check).
