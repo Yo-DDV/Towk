@@ -183,6 +183,15 @@ func (r *roomResolver) ViewerCanManageRoom(ctx context.Context, obj *corev1.Room
 	return r.core.PermResolver().HasRoomPermission(ctx, user.Id, core.KindOfRoom(obj), obj.Id, core.PermRoomManage)
 }
 
+// ViewerCanBanRoomMembers is the resolver for the viewerCanBanRoomMembers field.
+func (r *roomResolver) ViewerCanBanRoomMembers(ctx context.Context, obj *corev1.Room) (bool, error) {
+	user := auth.ForContext(ctx)
+	if user == nil {
+		return false, nil
+	}
+	return r.core.PermResolver().HasRoomPermission(ctx, user.Id, core.KindOfRoom(obj), obj.Id, core.PermRoomMemberBan)
+}
+
 // GroupID is the resolver for the groupId field.
 func (r *roomResolver) GroupID(ctx context.Context, obj *corev1.Room) (*string, error) {
 	if core.KindOfRoom(obj) == core.KindDM {

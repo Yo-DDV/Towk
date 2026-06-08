@@ -153,10 +153,18 @@
     const fromUrl = page.url.searchParams.get('highlight');
     if (!fromUrl) return;
 
-    const cleanUrl = new URL(page.url);
-    cleanUrl.searchParams.delete('highlight');
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- cleanUrl is derived from current page URL, already resolved
-    replaceState(cleanUrl.pathname + cleanUrl.search, {});
+    if (threadId) {
+      replaceState(
+        resolve('/chat/[serverId]/[roomId]/[threadId]', {
+          serverId: serverSegment,
+          roomId,
+          threadId
+        }),
+        {}
+      );
+    } else {
+      replaceState(resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId }), {});
+    }
     applyHighlight(fromUrl);
   });
 
@@ -347,7 +355,12 @@
 
     {#if !room.isDM}
       <div class="hidden lg:flex">
-        <RoomSidebar loading={room.isRoomLoading} />
+        <RoomSidebar
+          {roomId}
+          loading={room.isRoomLoading}
+          canBanRoomMembers={room.roomData?.canBanRoomMembers ?? false}
+          currentUserId={currentUser.user?.id ?? null}
+        />
       </div>
     {/if}
   </div>

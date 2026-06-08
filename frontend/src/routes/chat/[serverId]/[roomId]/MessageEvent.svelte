@@ -1,10 +1,11 @@
 <script lang="ts">
-  /* eslint-disable svelte/no-navigation-without-resolve -- timestamp hrefs use buildMessageLinkPath which already calls resolve() */
   import { startDMWith } from '$lib/dm/startDM';
+  import { resolve } from '$app/paths';
   import MessageContent from '$lib/components/MessageContent.svelte';
   import UserAvatar, { UserAvatarFragment } from '$lib/components/UserAvatar.svelte';
   import LinkPreviewCard from '$lib/components/LinkPreviewCard.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
+  import BanRoomMemberModal from '$lib/components/moderation/BanRoomMemberModal.svelte';
   import BottomSheet from '$lib/ui/BottomSheet.svelte';
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import { useFragment } from '$lib/gql/fragment-masking';
@@ -34,7 +35,8 @@
   import { useEvent, useMessageActions } from '$lib/hooks';
   import { emojiToName } from '$lib/emoji';
   import { toast } from '$lib/ui/toast';
-  import { buildMessageLinkPath, buildMessageLinkURL, parseMessageLink, type MessageLink } from '$lib/messageLinks';
+  import { buildMessageLinkURL, parseMessageLink, type MessageLink } from '$lib/messageLinks';
+  import { serverIdToSegment } from '$lib/navigation';
   import { extractURLs } from '$lib/linkPreview';
   import MessagePreviewCard from '$lib/components/MessagePreviewCard.svelte';
 
@@ -217,11 +219,6 @@
   const msg = $derived(messageEvent);
 
   const timestamp = $derived(event ? formatMessageTime(event.createdAt, userSettings) : '');
-
-  // Canonical link for this message (internal path for href, absolute URL for copy).
-  const messageLinkPath = $derived(
-    event ? buildMessageLinkPath(getActiveServer(), roomId, event.id) : ''
-  );
 
   // Message links referenced in this message's body — rendered inline as previews.
   const embeddedMessageLinks = $derived.by<MessageLink[]>(() => {
@@ -413,6 +410,55 @@
   const canStartDMs = $derived(serverPerms.current.canStartDMs);
   let popoverUser = $state<RoomMember | null>(null);
   let popoverAnchorRect = $state<DOMRect | null>(null);
+  let banningMemberId = $state<string | null>(null);
+  let banDialogUser = $state<RoomMember | null>(null);
+  let banError = $state<string | null>(null);
+
+  const BanRoomMemberMutation = graphql(`
+    mutation BanRoomMemberFromMessageEvent($input: BanRoomMemberInput!) {
+      banRoomMember(input: $input)
+    }
+  `);
+
+  const canBanPopoverUser = $derived.by(() => {
+    if (
+      !popoverUser ||
+      !roomPermissions.canBanRoomMembers ||
+      popoverUser.id === currentUser.user?.id
+    ) {
+      return false;
+    }
+    const targetUserId = popoverUser.id;
+    return members.some((member) => member.id === targetUserId);
+  });
+
+  function openBanDialog(member: RoomMember) {
+    banDialogUser = member;
+    banError = null;
+    closePopover();
+  }
+
+  async function banFromRoom(member: RoomMember, reason: string, expiresAt: string | null) {
+    if (banningMemberId) return;
+
+    banningMemberId = member.id;
+    banError = null;
+    const displayName = member.displayName || member.login;
+    const result = await connection().client.mutation(BanRoomMemberMutation, {
+      input: { roomId, userId: member.id, reason, expiresAt }
+    });
+    banningMemberId = null;
+
+    if (result.error) {
+      banError = 'Failed to ban member from room';
+      toast.error(banError);
+      console.error('Failed to ban member from room:', result.error);
+      return;
+    }
+
+    toast.success(`Banned ${displayName} from room`);
+    banDialogUser = null;
+  }
 
   function showPopoverForActor(e: MouseEvent) {
     if (!actor) return;
@@ -534,7 +580,11 @@
       {#if compact}
         <div class="flex w-11 shrink-0 items-center justify-center">
           <a
-            href={messageLinkPath}
+            href={resolve('/chat/[serverId]/[roomId]/m/[messageId]', {
+              serverId: serverIdToSegment(getActiveServer()),
+              roomId,
+              messageId: event.id
+            })}
             onclick={copyMessageLink}
             oncontextmenu={(e) => e.stopPropagation()}
             title="Click to copy link to this message"
@@ -599,7 +649,11 @@
               <strong class="shrink-0 leading-none font-semibold text-muted">{displayName}</strong>
             {/if}
             <a
-              href={messageLinkPath}
+              href={resolve('/chat/[serverId]/[roomId]/m/[messageId]', {
+                serverId: serverIdToSegment(getActiveServer()),
+                roomId,
+                messageId: event.id
+              })}
               onclick={copyMessageLink}
               oncontextmenu={(e) => e.stopPropagation()}
               title="Click to copy link to this message"
@@ -733,8 +787,21 @@
       user={popoverUser}
       anchorRect={popoverAnchorRect}
       canSendMessage={canStartDMs}
+      canBanFromRoom={canBanPopoverUser}
+      banningFromRoom={banningMemberId === popoverUser.id}
       onSendMessage={() => startDMWith(getActiveServer(), popoverUser!.id)}
+      onBanFromRoom={() => openBanDialog(popoverUser!)}
       onClose={closePopover}
+    />
+  {/if}
+
+  {#if banDialogUser}
+    <BanRoomMemberModal
+      user={banDialogUser}
+      submitting={banningMemberId === banDialogUser.id}
+      error={banError}
+      onconfirm={(reason, expiresAt) => banFromRoom(banDialogUser!, reason, expiresAt)}
+      onclose={() => (banDialogUser = null)}
     />
   {/if}
 

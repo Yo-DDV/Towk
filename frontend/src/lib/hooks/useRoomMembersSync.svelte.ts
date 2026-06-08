@@ -86,7 +86,7 @@ export function useRoomMembersSync(
     };
   });
 
-  // Refetch on join/leave events
+  // Refetch on membership-changing events.
   useEvent((event) => {
     if (!event.event) return;
     const eventType = event.event.__typename;
