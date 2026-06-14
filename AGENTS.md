@@ -33,6 +33,7 @@ Please update this section as the project evolves, and refer to it when making d
 
 ### Specific Rules for Frontend Code
 
+- Review your changes and additions in the browser, using the Chrome Devtools MCP.
 - We use Tailwind 4 for styling. Please use it, and don't write custom CSS directives.
 - Establish Tailwind 4 utility classes and/or Svelte components where feasible.
 - Checkboxes and similar in the Server Admin UI should save their change immediately on click, confirmed through a toast notification.
