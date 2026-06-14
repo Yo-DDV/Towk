@@ -86,19 +86,20 @@ Key files: [`cli/internal/core/core.go`](../cli/internal/core/core.go), [`cli/in
 
 The core runtime is process-local but must be safe under multiple Chatto replicas connected to the same NATS account. Correctness comes from JetStream/KV atomicity and projection catch-up, not in-process serialization.
 
-| Service                 | Key files                                                                                 | Responsibility                                                                                  |
-| ----------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `ChattoCore`            | [`core.go`](../cli/internal/core/core.go)                                                  | Application facade, resource initialization, lifecycle, GraphQL-facing operations, event delivery |
-| `events.Publisher`     | [`publisher.go`](../cli/internal/events/publisher.go)                                     | OCC-only writes to `EVT`, including atomic batches and filter-scoped concurrency guards          |
-| `ConfigService`         | [`config_service.go`](../cli/internal/core/config_service.go)                             | Semantic server/user config event writes plus `ConfigProjection` readiness                       |
-| `ConfigManager`         | [`config_manager.go`](../cli/internal/core/config_manager.go)                             | Compatibility facade for server config reads/writes backed by `ConfigService`                    |
-| `RoomService`           | [`room_service.go`](../cli/internal/core/room_service.go)                                 | Room-derived projection readiness for room catalog, membership, layout, timeline, threads, reactions |
-| `UserService`           | [`user_service.go`](../cli/internal/core/user_service.go)                                 | User and content-key projection readiness for account/profile/encryption writes                  |
-| `RBACService`           | [`rbac_service.go`](../cli/internal/core/rbac_service.go)                                 | RBAC projection readiness for role, assignment, and permission writes                            |
-| `MentionablesService`   | [`mentionables_projection.go`](../cli/internal/core/mentionables_projection.go)           | Global mention-handle namespace lookup and readiness                                             |
-| `PresenceService`       | [`presence_service.go`](../cli/internal/core/presence_service.go), [`presence_hub.go`](../cli/internal/core/presence_hub.go) | Per-process watcher/fanout for live presence state in `MEMORY_CACHE`                  |
-| `MediaService`          | [`media_service.go`](../cli/internal/core/media_service.go), [`attachments.go`](../cli/internal/core/attachments.go) | Asset metadata events, object-store writes, signed asset URLs, image cache operations |
-| `video.Service`         | [`service.go`](../cli/internal/video/service.go)                                          | Process-local video/animated-GIF processing; emits asset processing result events                |
+| Service                 | Key files                                                                                                                    | Responsibility                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `ChattoCore`            | [`core.go`](../cli/internal/core/core.go)                                                                                     | Application facade, resource initialization, lifecycle, GraphQL-facing operations, event delivery                            |
+| `events.Publisher`     | [`publisher.go`](../cli/internal/events/publisher.go)                                                                        | OCC-only writes to `EVT`, including atomic batches and filter-scoped concurrency guards                                     |
+| `ConfigService`         | [`config_service.go`](../cli/internal/core/config_service.go)                                                                | Semantic server/user config event writes plus `ConfigProjection` readiness                                                  |
+| `ConfigManager`         | [`config_manager.go`](../cli/internal/core/config_manager.go)                                                                | Compatibility facade for server config reads/writes backed by `ConfigService`                                               |
+| `RoomService`           | [`room_service.go`](../cli/internal/core/room_service.go)                                                                    | Room-derived projection readiness for room catalog, membership, layout, timeline, threads, reactions                        |
+| `UserService`           | [`user_service.go`](../cli/internal/core/user_service.go)                                                                    | User and content-key projection readiness for account/profile/encryption writes                                             |
+| `RBACService`           | [`rbac_service.go`](../cli/internal/core/rbac_service.go)                                                                    | RBAC projection readiness for role, assignment, and permission writes                                                       |
+| `MentionablesService`   | [`mentionables_projection.go`](../cli/internal/core/mentionables_projection.go)                                              | Global mention-handle namespace lookup and readiness                                                                        |
+| `PresenceService`       | [`presence_service.go`](../cli/internal/core/presence_service.go), [`presence_hub.go`](../cli/internal/core/presence_hub.go) | Per-process watcher/fanout for live presence state in `MEMORY_CACHE`                                                       |
+| `MediaService`          | [`media_service.go`](../cli/internal/core/media_service.go), [`attachments.go`](../cli/internal/core/attachments.go)          | Attachment/media binary storage, signed asset URLs, transformed image cache operations                                      |
+| `AssetService`          | [`asset_service.go`](../cli/internal/core/asset_service.go), [`asset_projection.go`](../cli/internal/core/asset_projection.go)  | Durable asset lifecycle facts, processing transitions, tombstones, derivative cleanup ordering, asset projection readiness |
+| `video.Service`         | [`service.go`](../cli/internal/video/service.go)                                                                             | Process-local video/animated-GIF processing; emits asset processing result events                                           |
 
 ## Projection Inventory
 
@@ -106,18 +107,19 @@ Key files: [`cli/internal/core/core.go`](../cli/internal/core/core.go), [`cli/in
 
 Projections are in-memory read models rebuilt from `EVT`. `NewChattoCore` registers each top-level projector once; `ChattoCore.Run` starts every projector, waits for them to become current at boot, and writers wait for the relevant projector sequence before returning read-your-writes.
 
-| Runtime area      | Registered projector | Consumes                                                        | Read models / primary readers                                      |
-| ----------------- | -------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Room directory    | Room Directory       | `evt.room.>`                                                    | `RoomCatalogProjection`, `RoomMembershipProjection`, `RoomBanProjection`; room/member queries and room authorization |
-| Room organization | Room Group Layout    | `evt.group.>`, `evt.layout.>`                                   | `RoomGroupProjection`, `RoomLayoutProjection`; sidebar groups and room ordering |
-| Room timeline     | Room Timeline        | `evt.room.>`                                                    | Raw room log, visible timeline index, message bodies, assets, hidden echoes, reconnect replay |
-| Threads           | Threads              | `evt.room.>`, `evt.user.*.user_key_shredded`                    | Per-thread reply logs, summaries, participants, reply counts        |
-| Reactions         | Reactions            | `evt.room.*.reaction_added`, `evt.room.*.reaction_removed`      | Current per-message reaction sets and summaries                     |
-| Server/user config | Server Config        | `evt.config.>`, selected user cleanup/preference facts          | Server config, branding refs, user preferences, notification levels, blocked usernames |
-| Users             | Users                | `evt.user.>`                                                    | Account/profile/auth lookup state, verified emails, OAuth subjects, encrypted user PII |
-| Content keys      | Content Keys         | `evt.user.*.dek_generated`, `evt.user.*.user_key_shredded`      | Active and shredded user DEK epochs for message bodies and user PII |
-| RBAC              | RBAC                 | `evt.rbac.>`                                                    | Roles, role order, assignments, scoped allow/deny decisions         |
-| Mentions          | Mentionables         | `evt.>`                                                         | Global mention-handle ownership across users, roles, `@all`, and `@here` |
+| Runtime area       | Registered projector | Consumes                                                   | Read models / primary readers                                                             |
+| ------------------ | -------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Room directory     | Room Directory       | `evt.room.>`                                               | `RoomCatalogProjection`, `RoomMembershipProjection`, `RoomBanProjection`; room/member queries and room authorization |
+| Room organization  | Room Group Layout    | `evt.group.>`, `evt.layout.>`                              | `RoomGroupProjection`, `RoomLayoutProjection`; sidebar groups and room ordering            |
+| Room timeline      | Room Timeline        | `evt.room.>`                                               | Raw room log, visible timeline index, message bodies, assets, hidden echoes, reconnect replay |
+| Assets             | Assets               | `evt.asset.>`, legacy `evt.room.*.asset_*`                 | Asset creation metadata, room scope, processing manifests, derivative graph, deletion state, asset reconnect replay |
+| Threads            | Threads              | `evt.room.>`, `evt.user.*.user_key_shredded`               | Per-thread reply logs, summaries, participants, reply counts                               |
+| Reactions          | Reactions            | `evt.room.*.reaction_added`, `evt.room.*.reaction_removed` | Current per-message reaction sets and summaries                                            |
+| Server/user config | Server Config        | `evt.config.>`, selected user cleanup/preference facts     | Server config, branding refs, user preferences, notification levels, blocked usernames     |
+| Users              | Users                | `evt.user.>`                                               | Account/profile/auth lookup state, verified emails, OAuth subjects, encrypted user PII     |
+| Content keys       | Content Keys         | `evt.user.*.dek_generated`, `evt.user.*.user_key_shredded` | Active and shredded user DEK epochs for message bodies and user PII                        |
+| RBAC               | RBAC                 | `evt.rbac.>`                                               | Roles, role order, assignments, scoped allow/deny decisions                                |
+| Mentions           | Mentionables         | `evt.>`                                                    | Global mention-handle ownership across users, roles, `@all`, and `@here`                  |
 
 Notes: "Registered projector" names match the admin projection diagnostics. Composite projections expose nested read models, but only their parent projector is started by `ChattoCore.Run`.
 
@@ -273,7 +275,7 @@ Like `Query.admin`, the `admin: AdminMutations` field returns `null` for unauthe
 
 | Subscription          | Description                                                                                                                                                                                                                                                                                                                                                                                                          |
 | --------------------- | ---- |
-| `myEvents(after:)`            | The single subscription. Multiplexes durable room events from `live.evt.>` (messages, reactions, edits, retractions, room lifecycle, asset processing) and transient sync signals from `live.sync.>` (typing, mention notifications, video-complete pings, voice call lifecycle, server config/profile/preference invalidation, notifications, thread-follow sync, presence, server membership lifecycle, session termination, heartbeats) into one GraphQL `Event` envelope. The membership set is tracked in real time — joining or leaving a room updates filtering immediately without reconnecting. DM-room events use the same membership gate as channel-room events; there is no separate DM read permission. Subscribing sets the caller's presence to `ONLINE`. Durable EVT-backed events include a server-signed, user-bound `deliveryCursor`. When `after` is supplied, durable EVT room facts newer than that cursor are replayed from the in-memory room timeline projection before live delivery continues; invalid, expired, or over-budget cursors require a full refresh. Transient events, presence changes, and heartbeats are not replayed. |
+| `myEvents(after:)`            | The single subscription. Multiplexes durable room/asset events from `live.evt.>` (messages, reactions, edits, retractions, room lifecycle, asset processing) and transient sync signals from `live.sync.>` (typing, mention notifications, video-complete pings, voice call lifecycle, server config/profile/preference invalidation, notifications, thread-follow sync, presence, server membership lifecycle, session termination, heartbeats) into one GraphQL `Event` envelope. Asset lifecycle events are authorized through the room scope recorded on their `AssetCreatedEvent`. The membership set is tracked in real time — joining or leaving a room updates filtering immediately without reconnecting. DM-room events use the same membership gate as channel-room events; there is no separate DM read permission. Subscribing sets the caller's presence to `ONLINE`. Durable EVT-backed events include a server-signed, user-bound `deliveryCursor`. When `after` is supplied, durable EVT room and asset facts newer than that cursor are replayed from in-memory projections before live delivery continues; invalid, expired, or over-budget cursors require a full refresh. Transient events, presence changes, and heartbeats are not replayed. |
 
 There is no `adminAuditLogEvents` subscription — audit events arrive through `myEvents` for users with the relevant admin scope.
 
@@ -315,7 +317,7 @@ See [NATS Resource Inventory](#nats-resource-inventory) for detailed key pattern
 is the source of truth and reads come from in-memory projections. If event
 publishing fails, the write fails. Current aggregates include room
 membership/metadata, room groups/layout, server config, users,
-messages/threads, reactions, RBAC, and auth workflow audit facts.
+messages/threads, reactions, assets, RBAC, and auth workflow audit facts.
 
 ### Consistency Model
 
@@ -331,8 +333,8 @@ messages/threads, reactions, RBAC, and auth workflow audit facts.
 - `EVT` is the source of truth.
 - Fresh deployments seed current invariants such as default RBAC roles and the default room group.
 - Reads come from in-memory projections rebuilt from `EVT`.
-- Room timeline reads use `RoomTimelineProjection`'s derived visible-room index for initial loads, forward/backward pagination, and around-message windows. The raw room log still preserves folded facts such as edits, retractions, reactions, assets, and thread replies; visible readers skip or fold those facts before serving the room timeline. `Subscription.myEvents(after:)` uses the raw room log for reconnect replay so folded facts can reach the client as ordinary durable events without appearing as standalone timeline rows in `Room.events`.
-- Writes append to `EVT` only for durable domain facts.
+- Room timeline reads use `RoomTimelineProjection`'s derived visible-room index for initial loads, forward/backward pagination, and around-message windows. The raw room log still preserves folded room facts such as edits, retractions, reactions, and thread replies; visible readers skip or fold those facts before serving the room timeline. Asset lifecycle facts live in `AssetProjection`, which also consumes legacy beta `evt.room.{roomId}.asset_*` facts. `Subscription.myEvents(after:)` uses the raw room log plus asset projection replay so folded facts can reach the client as ordinary durable events without appearing as standalone timeline rows in `Room.events`.
+- Writes append to `EVT` only for durable domain facts; legacy KV/stream data is not maintained as a mirror.
 - Read-your-writes is provided by waiting for the local projector to reach the append sequence.
 
 - KV buckets remain strongly consistent (NATS JetStream R3 replication)
@@ -411,11 +413,16 @@ User-facing live delivery is built from two internal NATS Core subject roots:
 2. **Direct Live Publish** (transient):
    - Transient UI sync signals publish as `corev1.LiveEvent` via NATS Core to `live.sync.>` — no stream storage.
 
-The `myEvents` GraphQL subscription is backed by one core stream (`StreamMyEvents`) that subscribes to `live.sync.>` and `live.evt.>`. For deliverable raw EVT room messages, it reads the republished `Nats-Sequence` header, waits for the local projections needed by authorization and follow-up resolvers, filters by the subscribing user, and then emits the GraphQL event with an opaque `deliveryCursor`. The cursor is signed with the server-side core secret, bound to the authenticated user, and expires after seven days; clients must treat it as an opaque token. When a client reconnects with `after`, the server subscribes to live feeds first, captures the current room-EVT tail sequence, waits for the replay projections to reach that tail, refreshes the subscriber's current room memberships, plans a bounded replay from `RoomTimelineProjection`, then skips any buffered live EVT messages at or below that tail to avoid duplicates. Current room membership is the replay privacy boundary: rooms the user no longer belongs to are not replayed, even if the cursor predates the leave/ban/delete. If replay would exceed the server budget (currently 1000 durable room facts), GraphQL returns `MY_EVENTS_FULL_REFRESH_REQUIRED` and the web client discards the cursor and reloads from projected state. Transient `LiveEvent` messages are adapted at this API boundary into the public GraphQL event shape. There is no per-connection JetStream consumer.
+The `myEvents` GraphQL subscription is backed by one core stream (`StreamMyEvents`) that subscribes to `live.sync.>` and `live.evt.>`. For deliverable raw EVT room and asset messages, it reads the republished `Nats-Sequence` header, waits for the local projections needed by authorization and follow-up resolvers, filters by the subscribing user, and then emits the GraphQL event with an opaque `deliveryCursor`. Asset lifecycle events resolve their room authorization through `AssetProjection`, using the room scope on `AssetCreatedEvent` and inherited parent scope for derivatives. The cursor is signed with the server-side core secret, bound to the authenticated user, and expires after seven days; clients must treat it as an opaque token. When a client reconnects with `after`, the server subscribes to live feeds first, captures one global `evt.>` stream replay cutoff, waits for replay projections to catch up, refreshes the subscriber's current room memberships, plans a bounded replay from `RoomTimelineProjection` and `AssetProjection` in global stream-sequence order, then skips any buffered live EVT messages at or below that cutoff to avoid duplicates and cursor backtracking. Current room membership is the replay privacy boundary: rooms the user no longer belongs to are not replayed, even if the cursor predates the leave/ban/delete. If replay would exceed the server budget (currently 1000 durable facts), GraphQL returns `MY_EVENTS_FULL_REFRESH_REQUIRED` and the web client discards the cursor and reloads from projected state. Transient `LiveEvent` messages are adapted at this API boundary into the public GraphQL event shape. There is no per-connection JetStream consumer.
 
 ### EVT Subject Patterns
 
-The `EVT` stream stores every durable fact under `evt.{aggregateType}.{aggregateId}.{eventType}` and republishes committed messages to `live.evt.{aggregateType}.{aggregateId}.{eventType}`. The republished subject is an internal server-side feed; GraphQL `myEvents` waits for projections and authorization before delivering anything to clients.
+| Stream                       | Wrapper          | Scope      | Description                                      |
+| ---------------------------- | ---------------- | ---------- | ------------------------------------------------ |
+| `EVT`                        | `corev1.Event`   | Server     | Event-sourcing log ([ADR-033](adr/ADR-033-event-sourced-state-with-projections.md) / [ADR-034](adr/ADR-034-single-event-stream.md)). Subjects `evt.{aggregateType}.{aggregateId}.{eventType}`; republishes onto `live.evt.>` as the raw committed-event feed. Stores room membership/metadata, groups/layout, server config, users, messages/threads, reactions, assets, RBAC, and auth workflow audit facts. |
+| Live Sync                    | `corev1.LiveEvent` | Transient  | Direct NATS Core pubsub on `live.sync.>` for transient UI sync signals. `myEvents` authorizes and adapts these messages into GraphQL events; they are never projection input. |
+
+The republished `live.evt.{aggregateType}.{aggregateId}.{eventType}` subject is an internal server-side feed; GraphQL `myEvents` waits for projections and authorization before delivering anything to clients.
 
 | Pattern                                          | Description                                                                     |
 | ------------------------------------------------ | ------------------------------------------------------------------------------- |
@@ -423,6 +430,9 @@ The `EVT` stream stores every durable fact under `evt.{aggregateType}.{aggregate
 | `evt.room.>`                                     | All room aggregate facts                                                        |
 | `evt.room.{roomId}.{eventType}`                  | One room aggregate fact                                                         |
 | `evt.room.*.{eventType}`                         | One room event type across all rooms                                            |
+| `evt.asset.>`                                    | All asset aggregate facts                                                       |
+| `evt.asset.{assetId}.{eventType}`                | One asset aggregate fact                                                        |
+| `evt.asset.*.{eventType}`                        | One asset event type across all assets                                          |
 | `evt.config.>`                                   | Dynamic server/user configuration and preferences                               |
 | `evt.config.{subject}.{eventType}`               | Config fact for `server`, a user ID, or another configurable subject            |
 | `evt.group.{groupId}.{eventType}`                | Room group metadata and group-owned room ordering/membership facts              |
@@ -433,7 +443,7 @@ The `EVT` stream stores every durable fact under `evt.{aggregateType}.{aggregate
 | `evt.auth.server.{eventType}`                    | Server-wide auth audit facts before a user aggregate exists                     |
 | `live.evt.>`                                     | JetStream republish of committed `EVT` facts                                    |
 
-The aggregate ID is intentionally part of the subject; actor/user and detailed context stay in the protobuf payload. Cross-event-type invariants use wildcard OCC filters such as `evt.room.>` or `evt.rbac.>`.
+The aggregate ID is intentionally part of the subject; actor/user and detailed context stay in the protobuf payload. Asset subjects are keyed by asset ID, while room scope lives in `AssetCreatedEvent` and is resolved by `AssetProjection`. Cross-event-type invariants use wildcard OCC filters such as `evt.room.>`, `evt.asset.>`, or `evt.rbac.>`.
 
 ### Durable EVT Event Inventory
 
@@ -455,11 +465,11 @@ The aggregate ID is intentionally part of the subject; actor/user and detailed c
 | `evt.room.{roomId}.thread_created`                           | `ThreadCreatedEvent`                                |
 | `evt.room.{roomId}.reaction_added`                           | `ReactionAddedEvent`                                |
 | `evt.room.{roomId}.reaction_removed`                         | `ReactionRemovedEvent`                              |
-| `evt.room.{roomId}.asset_created`                            | `AssetCreatedEvent`                                 |
-| `evt.room.{roomId}.asset_processing_started`                 | `AssetProcessingStartedEvent`                       |
-| `evt.room.{roomId}.asset_processing_succeeded`               | `AssetProcessingSucceededEvent`                     |
-| `evt.room.{roomId}.asset_processing_failed`                  | `AssetProcessingFailedEvent`                        |
-| `evt.room.{roomId}.asset_deleted`                            | `AssetDeletedEvent`                                 |
+| `evt.asset.{assetId}.asset_created`                          | `AssetCreatedEvent`                                 |
+| `evt.asset.{assetId}.asset_processing_started`               | `AssetProcessingStartedEvent`                       |
+| `evt.asset.{assetId}.asset_processing_succeeded`             | `AssetProcessingSucceededEvent`                     |
+| `evt.asset.{assetId}.asset_processing_failed`                | `AssetProcessingFailedEvent`                        |
+| `evt.asset.{assetId}.asset_deleted`                          | `AssetDeletedEvent`                                 |
 | `evt.config.{subject}.server_name_changed`                   | `ServerNameChangedEvent`                            |
 | `evt.config.{subject}.server_description_changed`            | `ServerDescriptionChangedEvent`                     |
 | `evt.config.{subject}.server_welcome_message_changed`        | `ServerWelcomeMessageChangedEvent`                  |
@@ -525,11 +535,20 @@ The aggregate ID is intentionally part of the subject; actor/user and detailed c
 | `evt.auth.server.registration_verification_code_issued`    | `RegistrationVerificationCodeIssuedEvent`           |
 | `evt.auth.server.login_failed`                             | `LoginFailedEvent`                                  |
 
-Notes: Subject suffixes are stable NATS event tokens defined in [`cli/internal/events/subjects.go`](../cli/internal/events/subjects.go). Protobuf message types are the concrete `corev1.Event` oneof payloads defined in [`proto/chatto/core/v1/event.proto`](../proto/chatto/core/v1/event.proto) and sibling `*_events.proto` files.
+Notes: Subject suffixes are stable NATS event tokens defined in [`cli/internal/events/subjects.go`](../cli/internal/events/subjects.go). Protobuf message types are the concrete `corev1.Event` oneof payloads defined in [`proto/chatto/core/v1/event.proto`](../proto/chatto/core/v1/event.proto) and sibling `*_events.proto` files. The current asset write path uses `evt.asset.{assetId}.*`; `AssetProjection` also consumes beta-era `evt.room.{roomId}.asset_*` histories for replay compatibility.
 
 ### Transient Live Subjects
 
 Transient sync signals use `corev1.LiveEvent` and are published directly on NATS Core. They are not persisted and are not projection input.
+
+Patterns: `live.sync.>` for transient `LiveEvent` pubsub and `live.evt.>` for raw EVT committed facts. `myEvents` consumes both roots server-side:
+
+- Direct NATS Core publishes (`publishLiveEvent()`): transient `corev1.LiveEvent` messages on `live.sync.>` with no stream storage.
+- `EVT` RePublish (`evt.>` → `live.evt.>`): every committed event-sourced fact is re-emitted once by JetStream. Chatto replicas must wait for local projection readiness and authorize before exposing deliverable room or asset events to clients.
+
+`SERVER_EVENTS` no longer has a `RePublish` live path and runtime code no longer writes legacy `server.>` mirrors. Historical `SERVER_EVENTS` streams may still appear in old backups, but current boot and live-delivery paths do not read or import them.
+
+**Transient live sync events** (`live.sync.{user,config,room}.>`):
 
 | Subject                                                  | Description                  |
 | -------------------------------------------------------- | ---------------------------- |
@@ -554,8 +573,8 @@ Transient sync signals use `corev1.LiveEvent` and are published directly on NATS
 
 The unified `myEvents` GraphQL subscription is backed by a single core stream (`StreamMyEvents`) that combines:
 
-- One `ChanSubscribe("live.sync.>")` for transient `LiveEvent` messages, and one `ChanSubscribe("live.evt.>")` for raw committed EVT facts. Authorization is applied per event: room membership for room subjects, `isAuthorizedForLiveEvent` for user/config/member subjects, and projection readiness before deliverable `live.evt.>` events.
-- Optional reconnect replay from `RoomTimelineProjection` when the client supplies a valid signed `myEvents(after:)` cursor. Replay is limited to durable room EVT facts for rooms the user is currently a member of and capped by a per-subscription event budget; transient sync and presence signals remain live-only.
+- One `ChanSubscribe("live.sync.>")` for transient `LiveEvent` messages, and one `ChanSubscribe("live.evt.>")` for raw committed EVT facts. Authorization is applied per event: room membership for room subjects, asset room membership for asset subjects, `isAuthorizedForLiveEvent` for user/config/member subjects, and projection readiness before deliverable `live.evt.>` events.
+- Optional reconnect replay from `RoomTimelineProjection` and `AssetProjection` when the client supplies a valid signed `myEvents(after:)` cursor. Replay is limited to durable room/asset EVT facts for rooms the user is currently a member of and capped by a per-subscription event budget; transient sync and presence signals remain live-only.
 - The PresenceHub (single per-process KV watcher on `presence.>` fanning out per-user status changes to all subscribers).
 - An in-process heartbeat ticker (synthetic `Heartbeat` event every 25s for client-side liveness detection).
 
@@ -630,7 +649,7 @@ Notes: Only created when `[core.assets.cache]` is enabled in config. Uses TTL fo
 | --------------------- | ----------------------------------------------- |
 | `{assetId}`           | User avatars, server branding images, link-preview images, original attachment files, and derivative binaries |
 
-Notes: Asset IDs are globally unique (NanoID), so no kind segment is needed. Channel and DM assets share the same flat keyspace. Content-Type and original filename stored in object headers where available. S2 compression enabled. Asset **metadata** (filename, dimensions, duration, storage pointer, …) is created in `AssetCreatedEvent`; ownership context lives on the event (`message`, `derivative`, `user_avatar`, or `server_branding`) rather than inside `Asset`. New message bodies reference message-owned assets by ID. Processing events refer to created asset IDs. Message posting asks the process-local video service to spawn video/animated-GIF processing after appending asset creation and processing-started events; there is no transient NATS Core worker subject or `video_processed` live signal. Boot recovery derives missed work from the EVT projection and calls the same local path. Video processing success records thumbnail/variant asset IDs, while each derivative binary is separately declared with `AssetCreatedEvent` and an owner pointing at the original asset. `AssetProcessingFailedEvent.failure_code` records failed/unavailable outcomes. Account deletion follows the projected message asset graph and appends `AssetDeletedEvent` for source assets and derivative children before deleting backing bytes. The asset HTTP handler doesn't look up a separate index bucket; the body-or-video-manifest locator travels in the URL itself as a signed locator (see "Dynamic Image Transformation" below).
+Notes: Asset IDs are globally unique (NanoID), so no kind segment is needed. Channel and DM assets share the same flat keyspace. Content-Type and original filename stored in object headers where available. S2 compression enabled. `MediaService` owns binary storage and serving helpers; `AssetService` owns durable lifecycle facts. Asset **metadata** (filename, dimensions, duration, storage pointer, …) is created in `AssetCreatedEvent` on `evt.asset.{assetId}.asset_created`; room scope and ownership context lives on the event (`message`, `derivative`, `user_avatar`, or `server_branding`) rather than inside `Asset`. New message bodies reference message-owned assets by ID. Processing events refer to created asset IDs and are appended under the same `evt.asset.{assetId}.*` aggregate. The asset projection also reads beta-era `evt.room.{roomId}.asset_*` facts so existing 0.1.0 histories continue to replay without a stream rewrite. Message posting asks the process-local video service to spawn video/animated-GIF processing after appending asset creation and processing-started events; there is no transient NATS Core worker subject or `video_processed` live signal. Boot recovery derives missed work from the EVT projections and calls the same local path. Video processing success records thumbnail/variant asset IDs, while each derivative binary is separately declared with `AssetCreatedEvent` and an owner pointing at the original asset. `AssetProcessingFailedEvent.failure_code` records failed/unavailable outcomes. Account deletion follows the projected message asset graph and appends `AssetDeletedEvent` for source assets and derivative children before deleting backing bytes. The asset HTTP handler doesn't look up a separate index bucket; stable asset URLs resolve metadata and room scope from `AssetProjection`, while legacy locator URLs carry the body-or-video-manifest locator in the URL itself (see "Dynamic Image Transformation" below).
 
 ### Dynamic Image Transformation
 
@@ -660,8 +679,8 @@ Where:
 
 The HMAC uses `[core.assets].signing_secret`. The HTTP handler verifies the
 ticket signature, expiry, asset ID, and transform parameters, then resolves the
-asset and room scope from the `RoomTimelineProjection`'s asset indexes. Every
-request checks that the signed user is still a member of the asset's room
+asset and room scope from `AssetProjection`. Every request checks that the
+signed user is still a member of the asset's room
 before serving the binary.
 
 Internal fallback locator URLs use this shape:
@@ -768,9 +787,9 @@ Messages are persisted as durable `EVT` facts. Public timeline facts (`MessagePo
 
 **Read Path:**
 
-- Room-level message history is served from `RoomTimelineProjection`, which keeps the raw room event log plus derived indexes for latest body state, hidden echoes, assets, and room-visible timeline entries.
+- Room-level message history is served from `RoomTimelineProjection`, which keeps the raw room event log plus derived indexes for latest body state, hidden echoes, message asset references, and room-visible timeline entries. Asset metadata, processing manifests, and derivative graphs are served from `AssetProjection`.
 - Initial loads and cursor pagination walk the derived visible-room index so thread replies, edits, retractions, reactions, asset-processing facts, and directly hidden echoes do not count as separate room timeline rows.
-- Reconnect catch-up uses `Subscription.myEvents(after:)`, keyed by the signed subscription `deliveryCursor`. The web client keeps the most recent durable cursor in its event bus and passes it on resubscribe; replayed reactions/edits/retractions/assets arrive through the same event handlers as live events. If the server rejects the cursor as invalid, expired, or too expensive to replay, the client performs a full refresh from projected query state.
+- Reconnect catch-up uses `Subscription.myEvents(after:)`, keyed by the signed subscription `deliveryCursor`. The web client keeps the most recent durable cursor in its event bus and passes it on resubscribe; replayed reactions/edits/retractions/asset lifecycle facts arrive through the same event handlers as live events. If the server rejects the cursor as invalid, expired, or too expensive to replay, the client performs a full refresh from projected query state.
 - `eventsAround` uses the same visible-room index to center jump-to-message windows on the target's visible position.
 - Thread panes read the root message from `RoomTimelineProjection` and cursor-paginated replies from `ThreadProjection`.
 
