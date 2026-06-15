@@ -130,6 +130,220 @@ signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddee
 	}
 }
 
+func TestReadConfig_AuthProvidersFromEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	t.Setenv("CHATTO_WEBSERVER_URL", "https://chat.example")
+	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
+	t.Setenv("CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ID", "hub")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_TYPE", "oidc")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_LABEL", "Chatto Hub")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ISSUER_URL", "https://id.example")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_ID", "chatto")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_SECRET", "secret")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_SCOPES", "openid, profile, groups")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_REQUEST_EMAIL", "false")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_PROVIDER_OPTIONS_PROMPT", "select_account")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_1_ID", "github-main")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_1_TYPE", "github")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_1_CLIENT_ID", "github-id")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_1_CLIENT_SECRET", "github-secret")
+
+	cfg, err := ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig() failed: %v", err)
+	}
+	if len(cfg.Auth.Providers) != 2 {
+		t.Fatalf("Auth.Providers len = %d, want 2", len(cfg.Auth.Providers))
+	}
+	if got := cfg.Auth.Providers[0]; got.ID != "hub" || got.Type != AuthProviderTypeOpenIDConnect || got.Label != "Chatto Hub" || got.IssuerURL != "https://id.example" || got.ClientID != "chatto" || got.ClientSecret != "secret" {
+		t.Fatalf("Auth.Providers[0] = %+v", got)
+	}
+	if got := cfg.Auth.Providers[0]; got.RequestEmail == nil || *got.RequestEmail {
+		t.Fatalf("Auth.Providers[0].RequestEmail = %v, want false", got.RequestEmail)
+	}
+	if got := strings.Join(cfg.Auth.Providers[0].Scopes, ","); got != "openid,profile,groups" {
+		t.Fatalf("Auth.Providers[0].Scopes = %q", got)
+	}
+	if got := cfg.Auth.Providers[0].ProviderOptions["prompt"]; got != "select_account" {
+		t.Fatalf("Auth.Providers[0].ProviderOptions[prompt] = %q", got)
+	}
+	if got := cfg.Auth.Providers[1]; got.ID != "github-main" || got.Type != AuthProviderTypeGitHub || got.ClientID != "github-id" || got.ClientSecret != "github-secret" {
+		t.Fatalf("Auth.Providers[1] = %+v", got)
+	}
+}
+
+func TestReadConfig_AuthProvidersEnvOverridesFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	configContent := `
+[webserver]
+url = "https://chat.example"
+port = 4000
+cookie_signing_secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+[core]
+secret_key = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+
+[core.assets]
+signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+
+[[auth.providers]]
+id = "toml-github"
+type = "github"
+client_id = "toml-id"
+client_secret = "toml-secret"
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "chatto.toml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ID", "env-discord")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_TYPE", "discord")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_ID", "env-id")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_SECRET", "env-secret")
+
+	cfg, err := ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig() failed: %v", err)
+	}
+	if len(cfg.Auth.Providers) != 1 {
+		t.Fatalf("Auth.Providers len = %d, want 1", len(cfg.Auth.Providers))
+	}
+	if got := cfg.Auth.Providers[0]; got.ID != "env-discord" || got.Type != AuthProviderTypeDiscord {
+		t.Fatalf("Auth.Providers[0] = %+v", got)
+	}
+}
+
+func TestReadConfig_InvalidAuthProvidersEnvField(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	t.Setenv("CHATTO_WEBSERVER_URL", "https://chat.example")
+	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
+	t.Setenv("CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ID", "github")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_UNKNOWN", "value")
+
+	_, err = ReadConfig("")
+	if err == nil || !strings.Contains(err.Error(), "unknown auth provider field") {
+		t.Fatalf("ReadConfig() error = %v, want unknown auth provider field error", err)
+	}
+}
+
+func TestReadConfig_InvalidAuthProvidersEnvIndexGap(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	t.Setenv("CHATTO_WEBSERVER_URL", "https://chat.example")
+	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
+	t.Setenv("CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_1_ID", "github")
+
+	_, err = ReadConfig("")
+	if err == nil || !strings.Contains(err.Error(), "indexes must be contiguous") {
+		t.Fatalf("ReadConfig() error = %v, want contiguous index error", err)
+	}
+}
+
+func TestReadConfig_LegacyOIDCEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	t.Setenv("CHATTO_WEBSERVER_URL", "https://chat.example")
+	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
+	t.Setenv("CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_AUTH_OIDC_ENABLED", "true")
+	t.Setenv("CHATTO_AUTH_OIDC_ISSUER_URL", "https://id.example")
+	t.Setenv("CHATTO_AUTH_OIDC_CLIENT_ID", "chatto")
+	t.Setenv("CHATTO_AUTH_OIDC_CLIENT_SECRET", "secret")
+
+	cfg, err := ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig() failed: %v", err)
+	}
+	if len(cfg.Auth.Providers) != 1 {
+		t.Fatalf("Auth.Providers len = %d, want 1", len(cfg.Auth.Providers))
+	}
+	got := cfg.Auth.Providers[0]
+	if got.ID != "oidc" || got.Type != AuthProviderTypeOpenIDConnect || got.Label != "Chatto Hub" || got.IssuerURL != "https://id.example" || got.ClientID != "chatto" || got.ClientSecret != "secret" {
+		t.Fatalf("legacy OIDC provider = %+v", got)
+	}
+}
+
+func TestReadConfig_LegacyOIDCEnvCannotCombineWithAuthProvidersEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	t.Setenv("CHATTO_WEBSERVER_URL", "https://chat.example")
+	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
+	t.Setenv("CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ID", "github")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_TYPE", "github")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_ID", "id")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_SECRET", "secret")
+	t.Setenv("CHATTO_AUTH_OIDC_ENABLED", "true")
+
+	_, err = ReadConfig("")
+	if err == nil || !strings.Contains(err.Error(), "cannot be combined") {
+		t.Fatalf("ReadConfig() error = %v, want combined provider env error", err)
+	}
+}
+
 func TestReadConfig_InvalidCookieEncryptionSecretFromEnv(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalDir, err := os.Getwd()
@@ -196,20 +410,6 @@ signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddee
 				"CHATTO_WEBSERVER_ALLOWED_ORIGINS": "https://client.example/path",
 			},
 			wantError: "webserver.allowed_origins contains invalid origin",
-		},
-		{
-			name: "OIDC enabled through env must include client secret",
-			env: map[string]string{
-				"CHATTO_WEBSERVER_PORT":                  "4000",
-				"CHATTO_WEBSERVER_URL":                   "https://chat.example",
-				"CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-				"CHATTO_CORE_SECRET_KEY":                 "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
-				"CHATTO_CORE_ASSETS_SIGNING_SECRET":      "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
-				"CHATTO_AUTH_OIDC_ENABLED":               "true",
-				"CHATTO_AUTH_OIDC_ISSUER_URL":            "https://id.example",
-				"CHATTO_AUTH_OIDC_CLIENT_ID":             "chatto",
-			},
-			wantError: "auth.oidc.client_secret is required when OIDC is enabled",
 		},
 		{
 			name: "webserver URL from env must include scheme and host",
@@ -775,32 +975,6 @@ func TestChattoConfig_Validate_URLsAndOrigins(t *testing.T) {
 	}
 }
 
-func TestChattoConfig_Validate_OIDC(t *testing.T) {
-	cfg := validTestConfig()
-	cfg.Webserver.URL = "https://chat.example"
-	cfg.Auth.OIDC = OIDCConfig{
-		Enabled:      true,
-		IssuerURL:    "https://id.example",
-		ClientID:     "chatto",
-		ClientSecret: "secret",
-	}
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("Validate() with complete OIDC config failed: %v", err)
-	}
-	if !cfg.Auth.OIDC.IsConfigured() {
-		t.Fatal("complete OIDC config should be configured")
-	}
-
-	cfg.Auth.OIDC.ClientSecret = ""
-	if cfg.Auth.OIDC.IsConfigured() {
-		t.Fatal("OIDC without client_secret should not be configured")
-	}
-	err := cfg.Validate()
-	if err == nil || !strings.Contains(err.Error(), "auth.oidc.client_secret is required when OIDC is enabled") {
-		t.Fatalf("Validate() error = %v, want missing OIDC client secret", err)
-	}
-}
-
 func TestChattoConfig_Validate_EnabledIntegrationsRequireWebserverURL(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -818,16 +992,17 @@ func TestChattoConfig_Validate_EnabledIntegrationsRequireWebserverURL(t *testing
 			wantError: "webserver.url is required when SMTP is enabled",
 		},
 		{
-			name: "OIDC",
+			name: "auth provider",
 			modify: func(c *ChattoConfig) {
-				c.Auth.OIDC = OIDCConfig{
-					Enabled:      true,
+				c.Auth.Providers = []AuthProviderConfig{{
+					ID:           "hub",
+					Type:         AuthProviderTypeOpenIDConnect,
 					IssuerURL:    "https://id.example",
 					ClientID:     "chatto",
 					ClientSecret: "secret",
-				}
+				}}
 			},
-			wantError: "webserver.url is required when OIDC is enabled",
+			wantError: "webserver.url is required when auth providers are configured",
 		},
 		{
 			name: "push",
@@ -1352,6 +1527,14 @@ func TestAuthConfig_EnabledProviders(t *testing.T) {
 			auth: AuthConfig{},
 			want: nil,
 		},
+		{
+			name: "returns configured provider ids",
+			auth: AuthConfig{Providers: []AuthProviderConfig{
+				{ID: "hub", Type: AuthProviderTypeOpenIDConnect},
+				{ID: "github-main", Type: AuthProviderTypeGitHub},
+			}},
+			want: []string{"hub", "github-main"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1368,6 +1551,119 @@ func TestAuthConfig_EnabledProviders(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAuthConfig_EnabledProviderMethods(t *testing.T) {
+	auth := AuthConfig{Providers: []AuthProviderConfig{
+		{ID: "hub", Type: AuthProviderTypeOpenIDConnect},
+		{ID: "hub-backup", Type: AuthProviderTypeOpenIDConnect},
+		{ID: "github-main", Type: AuthProviderTypeGitHub},
+	}}
+
+	got := auth.EnabledProviderMethods()
+	want := []string{"oidc", "github"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("EnabledProviderMethods() = %v, want %v", got, want)
+	}
+}
+
+func TestAuthConfig_PublicProviders(t *testing.T) {
+	auth := AuthConfig{Providers: []AuthProviderConfig{
+		{ID: "hub", Type: AuthProviderTypeOpenIDConnect, Label: "Chatto Hub", ClientID: "id", ClientSecret: "secret", IssuerURL: "https://issuer.example"},
+		{ID: "github-main", Type: AuthProviderTypeGitHub, ClientID: "id", ClientSecret: "secret"},
+	}}
+
+	got := auth.PublicProviders()
+	if len(got) != 2 {
+		t.Fatalf("PublicProviders() len = %d, want 2", len(got))
+	}
+	if got[0].ID != "hub" || got[0].Type != AuthProviderTypeOpenIDConnect || got[0].Label != "Chatto Hub" {
+		t.Fatalf("PublicProviders()[0] = %+v", got[0])
+	}
+	if got[1].ID != "github-main" || got[1].Type != AuthProviderTypeGitHub || got[1].Label != "GitHub" {
+		t.Fatalf("PublicProviders()[1] = %+v", got[1])
+	}
+	if got[0].ClientID != "" || got[0].ClientSecret != "" || got[0].IssuerURL != "" {
+		t.Fatalf("PublicProviders leaked provider secrets/options: %+v", got[0])
+	}
+}
+
+func TestChattoConfig_Validate_AuthProviders(t *testing.T) {
+	baseConfig := func() ChattoConfig {
+		return ChattoConfig{
+			Webserver: WebserverConfig{
+				URL:                 "https://chat.example",
+				Port:                4000,
+				CookieSigningSecret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			},
+			Core: CoreConfig{
+				SecretKey: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+				Assets:    AssetsConfig{SigningSecret: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"},
+			},
+		}
+	}
+
+	t.Run("accepts curated providers", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.Auth.Providers = []AuthProviderConfig{
+			{ID: "hub", Type: AuthProviderTypeOpenIDConnect, ClientID: "id", ClientSecret: "secret", IssuerURL: "https://issuer.example"},
+			{ID: "github-main", Type: AuthProviderTypeGitHub, ClientID: "id", ClientSecret: "secret"},
+			{ID: "gitlab-main", Type: AuthProviderTypeGitLab, ClientID: "id", ClientSecret: "secret"},
+			{ID: "google-main", Type: AuthProviderTypeGoogle, ClientID: "id", ClientSecret: "secret"},
+			{ID: "discord-main", Type: AuthProviderTypeDiscord, ClientID: "id", ClientSecret: "secret"},
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() unexpected error = %v", err)
+		}
+	})
+
+	t.Run("rejects unknown provider", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.Auth.Providers = []AuthProviderConfig{{ID: "apple", Type: "apple", ClientID: "id", ClientSecret: "secret"}}
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "auth.providers[0].type") {
+			t.Fatalf("Validate() error = %v, want provider type error", err)
+		}
+	})
+
+	t.Run("rejects microsoft provider for now", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.Auth.Providers = []AuthProviderConfig{{ID: "azure", Type: "microsoftonline", ClientID: "id", ClientSecret: "secret"}}
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "auth.providers[0].type") {
+			t.Fatalf("Validate() error = %v, want provider type error", err)
+		}
+	})
+
+	t.Run("rejects duplicate provider ids", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.Auth.Providers = []AuthProviderConfig{
+			{ID: "github", Type: AuthProviderTypeGitHub, ClientID: "id", ClientSecret: "secret"},
+			{ID: "github", Type: AuthProviderTypeGitLab, ClientID: "id", ClientSecret: "secret"},
+		}
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "configured more than once") {
+			t.Fatalf("Validate() error = %v, want duplicate id error", err)
+		}
+	})
+
+	t.Run("rejects oidc without issuer", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.Auth.Providers = []AuthProviderConfig{{ID: "hub", Type: AuthProviderTypeOpenIDConnect, ClientID: "id", ClientSecret: "secret"}}
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "issuer_url is required") {
+			t.Fatalf("Validate() error = %v, want issuer_url error", err)
+		}
+	})
+
+	t.Run("rejects oidc with relative issuer", func(t *testing.T) {
+		cfg := baseConfig()
+		cfg.Auth.Providers = []AuthProviderConfig{{ID: "hub", Type: AuthProviderTypeOpenIDConnect, ClientID: "id", ClientSecret: "secret", IssuerURL: "chatto-id"}}
+		err := cfg.Validate()
+		if err == nil || !strings.Contains(err.Error(), "auth.providers[0].issuer_url must use http or https") {
+			t.Fatalf("Validate() error = %v, want issuer_url absolute URL error", err)
+		}
+	})
 }
 
 func TestChattoConfig_Validate_SMTP(t *testing.T) {
