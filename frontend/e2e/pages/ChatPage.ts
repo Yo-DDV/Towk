@@ -3,6 +3,7 @@ import * as routes from '../routes';
 import { graphqlQuery } from '../fixtures/graphqlHelpers';
 import { csrfHeaders } from '../fixtures/csrf';
 import { loginAsAdmin } from '../fixtures/testUser';
+import { unloadPageForIdentitySwitch } from '../fixtures/navigation';
 import { RoomPage } from './RoomPage';
 
 const E2E_ADMIN_LOGIN = 'e2eadmin';
@@ -191,7 +192,7 @@ export class ChatPage {
     // Unload the currently mounted app before logging out. If the SPA stays
     // mounted during API logout, it can observe the session change and race the
     // following admin navigation with its own redirect.
-    await this.page.goto('about:blank');
+    await unloadPageForIdentitySwitch(this.page);
     const logoutResponse = await this.page.request.post('/auth/logout', {
       headers
     });
