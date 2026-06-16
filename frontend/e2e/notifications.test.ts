@@ -5,7 +5,7 @@ import {
   createAndLoginTestUser,
   loginAsAdmin,
   loginTestUser,
-  joinSpace
+  openServer
 } from './fixtures/testUser';
 import * as routes from './routes';
 import { POLLING_INTERVALS, TIMEOUTS } from './constants';
@@ -20,12 +20,11 @@ test.describe('Mention Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space, and navigate to announcements room
+    // User A: Create account and navigate to announcements room
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
 
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
 
     // Navigate to "announcements" room (User A stays here to observe general)
     await chatPage.enterRoom('announcements');
@@ -37,15 +36,15 @@ test.describe('Mention Notifications', () => {
     const mentionBadge = generalLink.getByTestId('room-notification-badge');
     await expect(mentionBadge).not.toBeVisible();
 
-    // User B: Create account and join the space
+    // User B: Create account and open the server
     const context2 = await browser!.newContext({ baseURL: serverURL });
     const page2 = await context2.newPage();
 
     try {
       await createAndLoginTestUser(page2);
 
-      // User B joins the space
-      await joinSpace(page2);
+      // User B opens the server
+      await openServer(page2);
       await page2.goto(routes.space());
       await page2.waitForURL(routes.patterns.anySpace);
 
@@ -60,10 +59,12 @@ test.describe('Mention Notifications', () => {
       await expect(mentionBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(mentionBadge).toHaveText('1');
 
-      // User A: Verify mention cascades to space icon
+      // User A: Verify mention cascades to server icon
       const serverGutter = page.locator('.server-gutter');
       const spaceButton = serverGutter.locator('[data-testid="server-icon"]').first();
-      const spaceNotificationBadge = spaceButton.locator('..').getByTestId('server-notification-badge');
+      const spaceNotificationBadge = spaceButton
+        .locator('..')
+        .getByTestId('server-notification-badge');
       await expect(spaceNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(spaceNotificationBadge).toHaveText('1');
     } finally {
@@ -71,56 +72,55 @@ test.describe('Mention Notifications', () => {
     }
   });
 
-  test('notification badge appears on space icon with logo image', async ({
+  test('notification badge appears on server icon with logo image', async ({
     page,
     chatPage,
-    spaceAdminPage,
+    serverAdminPage,
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
 
-    // Issue #330: upload the logo as e2eadmin (the bootstrap space owner) since
-    // userA can't manage the space, then re-login as userA so they receive the
+    // Issue #330: upload the logo as e2eadmin (the bootstrap server owner) since
+    // userA can't manage the server, then re-login as userA so they receive the
     // mention notification later in this test.
     await loginAsAdmin(page);
-    // Upload a logo to the space via settings (general settings page)
-    await spaceAdminPage.gotoGeneralDirectly(spaceId);
+    // Upload a logo to the server via settings (general settings page)
+    await serverAdminPage.gotoGeneralDirectly(spaceId);
 
     // Create a minimal valid 1x1 red PNG for testing
     const pngData = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
       'base64'
     );
-    await spaceAdminPage.uploadLogo(pngData, 'test-logo.png');
-    await spaceAdminPage.expectToast('Logo uploaded successfully', TIMEOUTS.COMPLEX_OPERATION);
+    await serverAdminPage.uploadLogo(pngData, 'test-logo.png');
+    await serverAdminPage.expectToast('Logo uploaded successfully', TIMEOUTS.COMPLEX_OPERATION);
 
     // Re-login as userA so the rest of the test exercises userA's view.
     await loginTestUser(page, userA);
 
-    // Navigate back to the space
+    // Navigate back to the server
     await page.goto(routes.space());
     await chatPage.enterRoom('announcements');
 
-    // Verify space icon now shows the logo image (not text)
+    // Verify server icon now shows the logo image (not text)
     const serverGutter = page.locator('.server-gutter');
     const spaceButton = serverGutter.locator('[data-testid="server-icon"]').first();
     const spaceLogoImage = spaceButton.locator('img');
     await expect(spaceLogoImage).toBeVisible();
 
-    // User B: Create account and join the space
+    // User B: Create account and open the server
     const context2 = await browser!.newContext({ baseURL: serverURL });
     const page2 = await context2.newPage();
 
     try {
       await createAndLoginTestUser(page2);
 
-      // User B joins the space
-      await joinSpace(page2);
+      // User B opens the server
+      await openServer(page2);
       await page2.goto(routes.space());
       await page2.waitForURL(routes.patterns.anySpace);
 
@@ -129,11 +129,13 @@ test.describe('Mention Notifications', () => {
 
       // User B enters general room and mentions User A
       await chatPage2.enterRoom('general');
-      await roomPage2.sendMessage(`Hey @${userA.login} notification on space with logo!`);
+      await roomPage2.sendMessage(`Hey @${userA.login} notification on server with logo!`);
 
-      // User A: Verify notification badge appears on space icon with logo.
-      // The badge should be visible even when the space has an image logo.
-      const spaceNotificationBadge = spaceButton.locator('..').getByTestId('server-notification-badge');
+      // User A: Verify notification badge appears on server icon with logo.
+      // The badge should be visible even when the server has an image logo.
+      const spaceNotificationBadge = spaceButton
+        .locator('..')
+        .getByTestId('server-notification-badge');
       await expect(spaceNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(spaceNotificationBadge).toHaveText('1');
 
@@ -150,12 +152,11 @@ test.describe('Mention Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space, and navigate to announcements room
+    // User A: Create account and navigate to announcements room
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
 
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
@@ -167,7 +168,7 @@ test.describe('Mention Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -193,18 +194,17 @@ test.describe('Mention Notifications', () => {
 });
 
 test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
-  test('thread reply shows indicators on thread, room, and space', async ({
+  test('thread reply shows indicators on thread, room, and server', async ({
     page,
     chatPage,
     roomPage,
     browser,
     serverURL
   }) => {
-    // User A: Create account, space, and post a root message
+    // User A: Create account and post a root message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
 
     await chatPage.enterRoom('general');
     const rootMessage = `Thread notify test ${Date.now()}`;
@@ -213,13 +213,13 @@ test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
     // User A: Navigate to announcements (different room)
     await chatPage.enterRoom('announcements');
 
-    // User B: Create account, join space, and reply to User A's thread
+    // User B: Create account, open the server, and reply to User A's thread
     const context2 = await browser!.newContext({ baseURL: serverURL });
     const page2 = await context2.newPage();
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
 
       const chatPage2 = new ChatPage(page2);
@@ -241,14 +241,16 @@ test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
       await expect(roomNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(roomNotificationBadge).toHaveText('1');
 
-      // 2. Notification badge on the space icon.
+      // 2. Notification badge on the server icon.
       const serverGutter = page.locator('.server-gutter');
       const spaceButton = serverGutter.locator('[data-testid="server-icon"]').first();
-      const spaceNotificationBadge = spaceButton.locator('..').getByTestId('server-notification-badge');
+      const spaceNotificationBadge = spaceButton
+        .locator('..')
+        .getByTestId('server-notification-badge');
       await expect(spaceNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(spaceNotificationBadge).toHaveText('1');
 
-      // 3. Navigate to general room and verify thread has orange dot
+      // 3. Navigate to general room and verify thread has notification indicator
       await chatPage.enterRoom('general');
 
       // The thread indicator button shows "1 reply" and should have orange dot
@@ -267,7 +269,7 @@ test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
       // Room notification badge should also be gone (no more notifications for this room).
       await expect(roomNotificationBadge).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
-      // Space notification badge should also be gone (no more notifications in this space).
+      // Server notification badge should also be gone (no more notifications on this server).
       await expect(spaceNotificationBadge).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     } finally {
       await context2.close();
@@ -276,7 +278,7 @@ test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
 });
 
 // DM-icon notification tests have been removed alongside the cross-instance
-// DM icon (#330 phase 3). DMs now appear in the primary-space sidebar
+// DM icon (#330 phase 3). DMs now appear in the primary-server sidebar
 // directly; notification surfacing for them happens via the room unread/badge
 // machinery shared with channels and is covered by other tests in this file.
 // Cross-server consolidated DM notifications will be re-tested when that view
@@ -290,11 +292,10 @@ test.describe('Notification Bell & Page', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // Verify bell has no indicator initially
@@ -306,7 +307,7 @@ test.describe('Notification Bell & Page', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -354,11 +355,11 @@ test.describe('Notification Page Display', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    const spaceName = await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const serverName = await chatPage.getServerName();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
@@ -367,7 +368,7 @@ test.describe('Notification Page Display', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -381,8 +382,8 @@ test.describe('Notification Page Display', () => {
       const notification = notificationsPage.getNotificationBySummary('mentioned you');
       await expect(notification).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
-      // Verify location is shown (room and space name)
-      await notificationsPage.expectNotificationWithLocation(notification, 'general', spaceName);
+      // Verify location is shown (room and server name)
+      await notificationsPage.expectNotificationWithLocation(notification, 'general', serverName);
 
       // Verify Clear all button is visible
       await notificationsPage.expectClearAllVisible();
@@ -399,11 +400,11 @@ test.describe('Notification Page Display', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post a message
+    // User A: Create account and post a message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    const spaceName = await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const serverName = await chatPage.getServerName();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Reply notification test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -417,7 +418,7 @@ test.describe('Notification Page Display', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -434,8 +435,8 @@ test.describe('Notification Page Display', () => {
       const notification = notificationsPage.getNotificationBySummary('replied to your message');
       await expect(notification).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
-      // Verify location is shown (room and space name)
-      await notificationsPage.expectNotificationWithLocation(notification, 'general', spaceName);
+      // Verify location is shown (room and server name)
+      await notificationsPage.expectNotificationWithLocation(notification, 'general', serverName);
     } finally {
       await context2.close();
     }
@@ -449,11 +450,10 @@ test.describe('Notification Page Display', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space, post a message in general, and create an additional room
+    // User A: Create account, post a message in general, and create an additional room
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Multiple notifications test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -469,7 +469,7 @@ test.describe('Notification Page Display', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const roomPage2 = new RoomPage(page2);
 
@@ -480,7 +480,9 @@ test.describe('Notification Page Display', () => {
       // The Joined button swaps visible text to "Leave" on hover, and
       // Playwright leaves the cursor on the button it just clicked.
       // Asserting on `title` is stable across hover state.
-      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
 
       // Navigate to the room via sidebar (Browse Rooms no longer auto-navigates)
       const chatPage2 = new ChatPage(page2);
@@ -512,11 +514,10 @@ test.describe('Notification Dismissal', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
@@ -525,7 +526,7 @@ test.describe('Notification Dismissal', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -555,11 +556,10 @@ test.describe('Notification Dismissal', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space, post message in general, and create an additional room
+    // User A: Create account, post message in general, and create an additional room
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Clear all test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -575,7 +575,7 @@ test.describe('Notification Dismissal', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const roomPage2 = new RoomPage(page2);
 
@@ -586,7 +586,9 @@ test.describe('Notification Dismissal', () => {
       // The Joined button swaps visible text to "Leave" on hover, and
       // Playwright leaves the cursor on the button it just clicked.
       // Asserting on `title` is stable across hover state.
-      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
 
       // Navigate to the room via sidebar (Browse Rooms no longer auto-navigates)
       const chatPage2 = new ChatPage(page2);
@@ -621,11 +623,10 @@ test.describe('Notification Dismissal', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
@@ -634,7 +635,7 @@ test.describe('Notification Dismissal', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -665,11 +666,10 @@ test.describe('Navigation from Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
@@ -678,7 +678,7 @@ test.describe('Navigation from Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -707,11 +707,10 @@ test.describe('Navigation from Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post message
+    // User A: Create account and post message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Thread nav test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -723,7 +722,7 @@ test.describe('Navigation from Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -759,11 +758,10 @@ test.describe('Navigation from Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A in general room (User B can't post in announcements due to RBAC)
@@ -772,7 +770,7 @@ test.describe('Navigation from Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -803,11 +801,10 @@ test.describe('Cross-Tab Sync', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User A: Open second tab (same user, same session)
@@ -831,7 +828,7 @@ test.describe('Cross-Tab Sync', () => {
 
       // User B: Create account and mention User A in general (User B can't post in announcements due to RBAC)
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -858,11 +855,10 @@ test.describe('Cross-Tab Sync', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User A: Open second tab
@@ -881,7 +877,7 @@ test.describe('Cross-Tab Sync', () => {
 
       // User B: Mention User A in general (User B can't post in announcements due to RBAC)
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -900,7 +896,7 @@ test.describe('Cross-Tab Sync', () => {
       await notificationsPage.expectEmptyState();
 
       // Second tab: Bell indicator should also be gone
-      // Navigate to a space page first to ensure the bell is visible
+      // Navigate to a server page first to ensure the bell is visible
       await page1b.goto(routes.space());
       await notificationsPage1b.expectBellIndicatorNotVisible();
 
@@ -919,11 +915,10 @@ test.describe('Cross-Tab Sync', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User A: Open second tab on notifications page
@@ -941,7 +936,7 @@ test.describe('Cross-Tab Sync', () => {
 
       // User B: Mention User A in general (User B can't post in announcements due to RBAC)
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -973,11 +968,10 @@ test.describe('Cross-Tab Sync', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post message
+    // User A: Create account and post message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Thread sync test ${Date.now()}`;
     const message = await roomPage.sendMessage(rootMessage);
@@ -1001,7 +995,7 @@ test.describe('Cross-Tab Sync', () => {
 
       // User B: Reply to User A's message
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1043,7 +1037,6 @@ test.describe('Cross-Tab Sync', () => {
 
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
     await chatPage.enterRoom('announcements');
 
     // The room-level notification badge on #general. Scoped to #general's room
@@ -1068,7 +1061,7 @@ test.describe('Cross-Tab Sync', () => {
 
       // User B: mention User A in #general.
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1122,11 +1115,10 @@ test.describe('Real-time Notification Updates', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space, go to notifications page
+    // User A: Create account and go to notifications page
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
 
     // Navigate to notifications page (empty)
     await notificationsPage.goto();
@@ -1138,7 +1130,7 @@ test.describe('Real-time Notification Updates', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1165,11 +1157,10 @@ test.describe('Real-time Notification Updates', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space, post message, go to notifications
+    // User A: Create account, post message, go to notifications
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Count test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1183,7 +1174,7 @@ test.describe('Real-time Notification Updates', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1216,11 +1207,10 @@ test.describe('Page Title Notification Count', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // Verify title does not have count prefix initially
@@ -1232,7 +1222,7 @@ test.describe('Page Title Notification Count', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1253,11 +1243,10 @@ test.describe('Page Title Notification Count', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space, post message in general, and create an additional room
+    // User A: Create account, post message in general, and create an additional room
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Title count test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1277,7 +1266,7 @@ test.describe('Page Title Notification Count', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const roomPage2 = new RoomPage(page2);
 
@@ -1288,7 +1277,9 @@ test.describe('Page Title Notification Count', () => {
       // The Joined button swaps visible text to "Leave" on hover, and
       // Playwright leaves the cursor on the button it just clicked.
       // Asserting on `title` is stable across hover state.
-      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
 
       // Navigate to the room via sidebar (Browse Rooms no longer auto-navigates)
       const chatPage2 = new ChatPage(page2);
@@ -1319,11 +1310,10 @@ test.describe('Page Title Notification Count', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A in general (User B can't post in announcements due to RBAC)
@@ -1332,7 +1322,7 @@ test.describe('Page Title Notification Count', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1361,11 +1351,10 @@ test.describe('Page Title Notification Count', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space, post message in general, and create an additional room
+    // User A: Create account, post message in general, and create an additional room
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Title decrement test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1382,7 +1371,7 @@ test.describe('Page Title Notification Count', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const roomPage2 = new RoomPage(page2);
 
@@ -1393,7 +1382,9 @@ test.describe('Page Title Notification Count', () => {
       // The Joined button swaps visible text to "Leave" on hover, and
       // Playwright leaves the cursor on the button it just clicked.
       // Asserting on `title` is stable across hover state.
-      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(roomItem.locator('button[title^="Joined "]')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
 
       // Navigate to the room via sidebar (Browse Rooms no longer auto-navigates)
       const chatPage2 = new ChatPage(page2);
@@ -1439,11 +1430,10 @@ test.describe('Clickable Notification Badges', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create account, space
+    // User A: Create account
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A in general
@@ -1452,7 +1442,7 @@ test.describe('Clickable Notification Badges', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1460,7 +1450,7 @@ test.describe('Clickable Notification Badges', () => {
       const testMessage = `@${userA.login} clickable dot test ${Date.now()}`;
       await roomPage2.sendMessage(testMessage);
 
-      // User A: Navigate to the space (not in general room)
+      // User A: Navigate to the server (not in general room)
       await page.goto(routes.space());
       await chatPage.enterRoom('announcements');
 
@@ -1486,7 +1476,6 @@ test.describe('Clickable Notification Badges', () => {
     }
   });
 
-
   test('clicking notification badge for room reply navigates to room with highlight', async ({
     page,
     chatPage,
@@ -1494,11 +1483,10 @@ test.describe('Clickable Notification Badges', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post a message
+    // User A: Create account and post a message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Room reply dot test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1512,7 +1500,7 @@ test.describe('Clickable Notification Badges', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
 
       const chatPage2 = new ChatPage(page2);
@@ -1521,7 +1509,9 @@ test.describe('Clickable Notification Badges', () => {
 
       const targetMsg = roomPage2.getMessage(rootMessage);
       await targetMsg.replyInRoom();
-      await expect(page2.getByTestId('reply-indicator')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(page2.getByTestId('reply-indicator')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
       await roomPage2.sendMessage(`Room reply ${Date.now()}`);
 
       // User A: Verify notification badge on general room.
@@ -1548,7 +1538,7 @@ test.describe('Clickable Notification Badges', () => {
 
   // The DM-icon click-to-navigate test was removed alongside the
   // cross-instance DM icon (#330 phase 3). DM rows now live in the primary-
-  // space sidebar; their click-to-navigate behaviour is the same as channel
+  // server sidebar; their click-to-navigate behaviour is the same as channel
   // rooms and is exercised by sidebar/notification tests above.
 });
 
@@ -1561,11 +1551,11 @@ test.describe('Room Reply Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post a message
+    // User A: Create account and post a message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    const spaceName = await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const serverName = await chatPage.getServerName();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Room reply notify test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1579,7 +1569,7 @@ test.describe('Room Reply Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
 
       const chatPage2 = new ChatPage(page2);
@@ -1588,7 +1578,9 @@ test.describe('Room Reply Notifications', () => {
 
       const targetMsg = roomPage2.getMessage(rootMessage);
       await targetMsg.replyInRoom();
-      await expect(page2.getByTestId('reply-indicator')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(page2.getByTestId('reply-indicator')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
       await roomPage2.sendMessage(`Reply from User B ${Date.now()}`);
 
       // User A: Bell indicator should appear
@@ -1600,10 +1592,12 @@ test.describe('Room Reply Notifications', () => {
       await expect(roomNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(roomNotificationBadge).toHaveText('1');
 
-      // Verify notification badge on space icon.
+      // Verify notification badge on server icon.
       const serverGutter = page.locator('.server-gutter');
       const spaceButton = serverGutter.locator('[data-testid="server-icon"]').first();
-      const spaceNotificationBadge = spaceButton.locator('..').getByTestId('server-notification-badge');
+      const spaceNotificationBadge = spaceButton
+        .locator('..')
+        .getByTestId('server-notification-badge');
       await expect(spaceNotificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(spaceNotificationBadge).toHaveText('1');
 
@@ -1611,7 +1605,7 @@ test.describe('Room Reply Notifications', () => {
       await notificationsPage.goto();
       const notification = notificationsPage.getNotificationBySummary('replied to your message');
       await expect(notification).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
-      await notificationsPage.expectNotificationWithLocation(notification, 'general', spaceName);
+      await notificationsPage.expectNotificationWithLocation(notification, 'general', serverName);
     } finally {
       await context2.close();
     }
@@ -1625,11 +1619,10 @@ test.describe('Room Reply Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post a message
+    // User A: Create account and post a message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Room reply nav test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1641,7 +1634,7 @@ test.describe('Room Reply Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1649,7 +1642,9 @@ test.describe('Room Reply Notifications', () => {
 
       const targetMsg = roomPage2.getMessage(rootMessage);
       await targetMsg.replyInRoom();
-      await expect(page2.getByTestId('reply-indicator')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(page2.getByTestId('reply-indicator')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
       await roomPage2.sendMessage(`Nav reply ${Date.now()}`);
 
       // User A: Click the reply notification
@@ -1675,11 +1670,10 @@ test.describe('Room Reply Notifications', () => {
     browser,
     serverURL
   }) => {
-    // User A: Create space and post a message
+    // User A: Create account and post a message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    await chatPage.createSpace();
-    const spaceId = await chatPage.getSpaceId();
+    const spaceId = await chatPage.getServerScopeId();
     await chatPage.enterRoom('general');
     const rootMessage = `Room reply dismiss test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1691,7 +1685,7 @@ test.describe('Room Reply Notifications', () => {
 
     try {
       await createAndLoginTestUser(page2);
-      await joinSpace(page2);
+      await openServer(page2);
       await page2.goto(routes.space());
       const chatPage2 = new ChatPage(page2);
       const roomPage2 = new RoomPage(page2);
@@ -1699,7 +1693,9 @@ test.describe('Room Reply Notifications', () => {
 
       const targetMsg = roomPage2.getMessage(rootMessage);
       await targetMsg.replyInRoom();
-      await expect(page2.getByTestId('reply-indicator')).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(page2.getByTestId('reply-indicator')).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
       await roomPage2.sendMessage(`Dismiss reply ${Date.now()}`);
 
       // User A: Verify bell indicator appears
