@@ -6,6 +6,7 @@ import MessageComposer from './MessageComposer.svelte';
 import { createMockGraphqlClient, q } from '$lib/test-utils';
 import { getToasts, toast } from '$lib/ui/toast';
 import type { RoomMember } from '$lib/state/room';
+import { PresenceStatus } from '$lib/gql/graphql';
 
 const mutationData = { postMessage: { id: 'msg_123' } };
 const updateMutationData = { updateMessage: true };
@@ -126,6 +127,16 @@ function deferred<T>() {
 
 function imageFile(name = 'paste.png'): File {
   return new File([new Uint8Array([1, 2, 3])], name, { type: 'image/png' });
+}
+
+function roomMember(login: string, displayName = login): RoomMember {
+  return {
+    id: `user_${login}`,
+    login,
+    displayName,
+    avatarUrl: null,
+    presenceStatus: PresenceStatus.Offline
+  };
 }
 
 function pasteFile(target: HTMLElement, file: File) {
@@ -954,6 +965,33 @@ describe('MessageComposer', () => {
   });
 
   describe('submit behavior', () => {
+    it('uses Enter to complete an active mention before Enter can send', async () => {
+      roomStateMock.members = [roomMember('alice')];
+      const { container, roomId } = renderMessageComposer(
+        { roomId: 'room_456' },
+        new Map([['$$_urql', mockClient]])
+      );
+      const editor = await findEditor(container);
+
+      await typeEditorLiteralText(editor, '@ali');
+      await vi.waitFor(() =>
+        expect(container.querySelector('[data-testid="mention-autocomplete"]')).toBeTruthy()
+      );
+
+      await pressEditorKey(editor, 'Enter');
+
+      await vi.waitFor(() => expect(editor.textContent).toBe('@alice '));
+      expect(mutationMock).not.toHaveBeenCalled();
+
+      await pressEditorKey(editor, 'Enter');
+
+      await vi.waitFor(() => expect(mutationMock).toHaveBeenCalledOnce());
+      expect(mutationMock.mock.calls[0][1].input).toMatchObject({
+        roomId,
+        body: '@alice'
+      });
+    });
+
     it('posts markdown after TipTap formatting shortcuts are applied', async () => {
       const { container, roomId } = renderMessageComposer(
         { roomId: 'room_456' },
