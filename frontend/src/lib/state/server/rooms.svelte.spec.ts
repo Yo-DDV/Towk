@@ -39,6 +39,12 @@ type QueryResponse = {
       id: string;
       name: string;
       rooms: Array<{ id: string }>;
+      items?: Array<{
+        type: 'ROOM' | 'SIDEBAR_LINK';
+        id: string;
+        room?: { id: string } | null;
+        link?: { id: string; label: string; url: string } | null;
+      }>;
     }>;
   };
 };
@@ -175,7 +181,14 @@ describe('RoomsStore - refresh', () => {
     await settle();
 
     expect(store.rooms.map((room) => room.id)).toEqual(['newer']);
-    expect(store.roomGroups).toEqual([{ id: 'g1', name: 'Lobby', roomIds: ['newer'] }]);
+    expect(store.roomGroups).toEqual([
+      {
+        id: 'g1',
+        name: 'Lobby',
+        roomIds: ['newer'],
+        items: [{ id: 'room:newer', type: 'room', roomId: 'newer' }]
+      }
+    ]);
     await vi.waitFor(() => {
       expect(store.rooms.find((room) => room.id === 'newer')?.viewerNotificationCount).toBe(4);
     });
@@ -190,7 +203,14 @@ describe('RoomsStore - refresh', () => {
     await settle();
 
     expect(store.rooms.map((room) => room.id)).toEqual(['newer']);
-    expect(store.roomGroups).toEqual([{ id: 'g1', name: 'Lobby', roomIds: ['newer'] }]);
+    expect(store.roomGroups).toEqual([
+      {
+        id: 'g1',
+        name: 'Lobby',
+        roomIds: ['newer'],
+        items: [{ id: 'room:newer', type: 'room', roomId: 'newer' }]
+      }
+    ]);
   });
 
   it('patches notification counts from the optional compatibility query', async () => {
@@ -240,6 +260,45 @@ describe('RoomsStore - refresh', () => {
     await settle();
 
     expect(store.rooms).toMatchObject([{ id: 'general', viewerNotificationCount: 0 }]);
+  });
+
+  it('maps mixed sidebar group items from the bootstrap query', async () => {
+    const { client } = makeClient([
+      makeResponse([makeRoom('general')], [
+        {
+          id: 'g1',
+          name: 'Lobby',
+          rooms: [{ id: 'general' }],
+          items: [
+            {
+              id: 'link:docs',
+              type: 'SIDEBAR_LINK',
+              link: { id: 'docs', label: 'Docs', url: 'https://example.com/docs' }
+            },
+            { id: 'room:general', type: 'ROOM', room: { id: 'general' } }
+          ]
+        }
+      ])
+    ]);
+    const store = makeStore(client);
+
+    await store.refresh();
+
+    expect(store.roomGroups).toEqual([
+      {
+        id: 'g1',
+        name: 'Lobby',
+        roomIds: ['general'],
+        items: [
+          {
+            id: 'link:docs',
+            type: 'link',
+            link: { id: 'docs', label: 'Docs', url: 'https://example.com/docs' }
+          },
+          { id: 'room:general', type: 'room', roomId: 'general' }
+        ]
+      }
+    ]);
   });
 });
 
