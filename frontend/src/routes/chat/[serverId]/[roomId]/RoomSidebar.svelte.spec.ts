@@ -34,7 +34,9 @@ const callStore = vi.hoisted(() => ({
     selectedDeviceId: null,
     selectedOutputDeviceId: null,
     selectedVideoDeviceId: null,
-    isInCall: vi.fn((roomId: string) => callStore.voiceCall.connected && callStore.voiceCall.roomId === roomId),
+    isInCall: vi.fn(
+      (roomId: string) => callStore.voiceCall.connected && callStore.voiceCall.roomId === roomId
+    ),
     join: vi.fn().mockResolvedValue(undefined),
     leave: vi.fn().mockResolvedValue(undefined),
     toggleMute: vi.fn().mockResolvedValue(undefined),
@@ -343,9 +345,9 @@ describe('RoomSidebar', () => {
     callStore.handleVoiceCallJoinFailed.mockClear();
   });
 
-  it('shows the exact total count and automatically loads additional member pages', async () => {
-    const firstPage = Array.from({ length: 50 }, (_, index) => member(index + 1));
-    const secondPage = Array.from({ length: 92 }, (_, index) => member(index + 51));
+  it('shows the exact total count and eagerly loads all member pages', async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => member(index + 1));
+    const secondPage = Array.from({ length: 42 }, (_, index) => member(index + 101));
 
     queryMock
       .mockResolvedValueOnce({
@@ -381,45 +383,27 @@ describe('RoomSidebar', () => {
 
     await expect.element(q(container, 'h1')).toHaveTextContent('Members (142)');
     await vi.waitFor(() => {
-      expect(renderedMemberTitles(container)).toHaveLength(50);
-    });
-    await vi.waitFor(() => {
-      expect(
-        container.querySelector('[data-testid="room-members-load-more-sentinel"]')
-      ).toBeTruthy();
-      expect(MockIntersectionObserver.instances).toHaveLength(1);
-    });
-
-    MockIntersectionObserver.instances[0].trigger();
-    await tick();
-
-    await vi.waitFor(() => {
       expect(queryMock).toHaveBeenCalledWith(expect.anything(), {
         roomId: 'room-1',
         search: null,
-        limit: 50,
+        limit: 100,
         offset: 0
       });
       expect(queryMock).toHaveBeenCalledWith(expect.anything(), {
         roomId: 'room-1',
         search: null,
-        limit: 50,
-        offset: 50
+        limit: 100,
+        offset: 100
       });
     });
 
-    await expect.element(q(container, 'h1')).toHaveTextContent('Members (142)');
     await vi.waitFor(() => {
-      expect(
-        container.querySelector('[data-testid="room-members-load-more-sentinel"]')
-      ).toBeFalsy();
+      expect(renderedMemberTitles(container)).toHaveLength(142);
     });
-
-    const renderedTitles = renderedMemberTitles(container);
-    expect(renderedTitles).toHaveLength(142);
     for (let index = 1; index <= 142; index++) {
-      expect(renderedTitles).toContain(`View profile of User ${index}`);
+      expect(renderedMemberTitles(container)).toContain(`View profile of User ${index}`);
     }
+    expect(container.querySelector('[data-testid="room-members-load-more-sentinel"]')).toBeFalsy();
   });
 
   it('renders the call tab empty state and starts a call', async () => {
@@ -432,9 +416,9 @@ describe('RoomSidebar', () => {
     });
 
     await expect.element(q(container, 'h1')).toHaveTextContent('Call');
-    await expect.element(q(container, '[data-testid="call-join-button"]')).toHaveTextContent(
-      'Start call'
-    );
+    await expect
+      .element(q(container, '[data-testid="call-join-button"]'))
+      .toHaveTextContent('Start call');
     expect(container.textContent).not.toContain('No active call');
     expect(container.textContent).not.toContain("Start one when you're ready.");
 
@@ -469,7 +453,9 @@ describe('RoomSidebar', () => {
     expect(container.textContent).not.toContain('Video (1)');
     expect(container.textContent).toContain('Bob');
     await expect.element(q(container, '[data-testid="call-participant-card"]')).toBeInTheDocument();
-    await expect.element(q(container, '[data-testid="call-participants-list"]')).toBeInTheDocument();
+    await expect
+      .element(q(container, '[data-testid="call-participants-list"]'))
+      .toBeInTheDocument();
     await vi.waitFor(() => {
       expect(callStore.callParticipants.load).toHaveBeenCalledWith('room-1');
     });
@@ -530,7 +516,9 @@ describe('RoomSidebar', () => {
       }
     });
 
-    await expect.element(q(container, '[data-testid="call-participant-panel"]')).toBeInTheDocument();
+    await expect
+      .element(q(container, '[data-testid="call-participant-panel"]'))
+      .toBeInTheDocument();
     expect(container.textContent).not.toContain('Video (1)');
     expect(container.textContent).not.toContain('Voice (1)');
     expect(container.textContent).toContain('Bob');
@@ -660,123 +648,19 @@ describe('RoomSidebar', () => {
     expect(joinButton.title).toBe('Already in another call');
   });
 
-  it('keeps existing pagination state when automatic pagination fails and allows retry', async () => {
-    const firstPage = Array.from({ length: 50 }, (_, index) => member(index + 1));
-    const secondPage = Array.from({ length: 92 }, (_, index) => member(index + 51));
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    queryMock
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: firstPage,
-              totalCount: 142,
-              hasMore: true
-            }
+  it('filters room members locally without changing the canonical total count', async () => {
+    queryMock.mockResolvedValueOnce({
+      data: {
+        room: {
+          members: {
+            users: [member(1), { ...member(2), displayName: 'Boris Member' }],
+            totalCount: 2,
+            hasMore: false
           }
-        },
-        error: null
-      })
-      .mockResolvedValueOnce({
-        data: {
-          room: null
-        },
-        error: new Error('network failed')
-      })
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: secondPage,
-              totalCount: 142,
-              hasMore: false
-            }
-          }
-        },
-        error: null
-      });
-
-    try {
-      const { container } = render(RoomSidebarTestHarness, {
-        props: {
-          roomData: roomData([], 0, false)
         }
-      });
-
-      await expect.element(q(container, 'h1')).toHaveTextContent('Members (142)');
-      await vi.waitFor(() => {
-        expect(renderedMemberTitles(container)).toHaveLength(50);
-      });
-
-      await vi.waitFor(() => {
-        expect(MockIntersectionObserver.instances).toHaveLength(1);
-      });
-
-      MockIntersectionObserver.instances[0].trigger();
-      await tick();
-
-      await vi.waitFor(() => {
-        expect(queryMock).toHaveBeenCalledWith(expect.anything(), {
-          roomId: 'room-1',
-          search: null,
-          limit: 50,
-          offset: 50
-        });
-      });
-
-      await expect.element(q(container, 'h1')).toHaveTextContent('Members (142)');
-      expect(renderedMemberTitles(container)).toHaveLength(50);
-      await vi.waitFor(() => {
-        expect(
-          container.querySelector('[data-testid="room-members-load-more-sentinel"]')
-        ).toBeTruthy();
-      });
-
-      MockIntersectionObserver.instances[0].trigger();
-      await tick();
-
-      await vi.waitFor(() => {
-        expect(queryMock).toHaveBeenCalledTimes(3);
-      });
-
-      await vi.waitFor(() => {
-        expect(renderedMemberTitles(container)).toHaveLength(142);
-        expect(
-          container.querySelector('[data-testid="room-members-load-more-sentinel"]')
-        ).toBeFalsy();
-      });
-    } finally {
-      consoleErrorSpy.mockRestore();
-    }
-  });
-
-  it('searches room members and resets the rendered member page', async () => {
-    queryMock
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: [member(1), member(2)],
-              totalCount: 2,
-              hasMore: false
-            }
-          }
-        },
-        error: null
-      })
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: [{ ...member(2), displayName: 'Boris Member' }],
-              totalCount: 1,
-              hasMore: false
-            }
-          }
-        },
-        error: null
-      });
+      },
+      error: null
+    });
 
     const { container } = render(RoomSidebarTestHarness, {
       props: {
@@ -794,43 +678,25 @@ describe('RoomSidebar', () => {
     await waitForMemberSearchDebounce();
 
     await vi.waitFor(() => {
-      expect(queryMock).toHaveBeenCalledWith(expect.anything(), {
-        roomId: 'room-1',
-        search: 'bor',
-        limit: 50,
-        offset: 0
-      });
       expect(renderedMemberTitles(container)).toEqual(['View profile of Boris Member']);
-      expect(q(container, 'h1')?.textContent).toContain('Members (1)');
+      expect(q(container, 'h1')?.textContent).toContain('Members (2)');
     });
+    expect(queryMock).toHaveBeenCalledTimes(1);
   });
 
-  it('shows an empty result instead of retrying forever when search returns no members', async () => {
-    queryMock
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: [member(1), member(2)],
-              totalCount: 2,
-              hasMore: false
-            }
+  it('shows an empty local search result without changing the canonical total count', async () => {
+    queryMock.mockResolvedValueOnce({
+      data: {
+        room: {
+          members: {
+            users: [member(1), member(2)],
+            totalCount: 2,
+            hasMore: false
           }
-        },
-        error: null
-      })
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: [],
-              totalCount: 0,
-              hasMore: false
-            }
-          }
-        },
-        error: null
-      });
+        }
+      },
+      error: null
+    });
 
     const { container } = render(RoomSidebarTestHarness, {
       props: {
@@ -849,29 +715,17 @@ describe('RoomSidebar', () => {
 
     await vi.waitFor(() => {
       expect(container.textContent).toContain('No members found.');
-      expect(q(container, 'h1')?.textContent).toContain('Members (0)');
+      expect(q(container, 'h1')?.textContent).toContain('Members (2)');
       expect(renderedMemberTitles(container)).toEqual([]);
     });
 
     await new Promise((resolve) => setTimeout(resolve, 350));
-    expect(queryMock).toHaveBeenCalledTimes(2);
+    expect(queryMock).toHaveBeenCalledTimes(1);
   });
 
-  it('falls back to loaded-page filtering when room member search is unsupported', async () => {
+  it('loads members from older servers without the room member search argument', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     queryMock
-      .mockResolvedValueOnce({
-        data: {
-          room: {
-            members: {
-              users: [member(1), { ...member(2), displayName: 'Boris Member' }],
-              totalCount: 2,
-              hasMore: false
-            }
-          }
-        },
-        error: null
-      })
       .mockResolvedValueOnce({
         data: null,
         error: {
@@ -910,17 +764,12 @@ describe('RoomSidebar', () => {
       await vi.waitFor(() => {
         expect(queryMock).toHaveBeenCalledWith(expect.anything(), {
           roomId: 'room-1',
-          search: 'bor',
-          limit: 50,
-          offset: 0
-        });
-        expect(queryMock).toHaveBeenCalledWith(expect.anything(), {
-          roomId: 'room-1',
-          limit: 50,
+          limit: 100,
           offset: 0
         });
         expect(renderedMemberTitles(container)).toEqual(['View profile of Boris Member']);
       });
+      expect(queryMock).toHaveBeenCalledTimes(2);
       expect(consoleErrorSpy).not.toHaveBeenCalled();
     } finally {
       consoleErrorSpy.mockRestore();

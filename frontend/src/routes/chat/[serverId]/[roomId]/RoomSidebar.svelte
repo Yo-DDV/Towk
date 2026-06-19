@@ -72,7 +72,8 @@ calls, and similar room-specific panels can plug into the same shell. See the
   const connection = useConnection();
   const presenceCache = getPresenceCache();
 
-  const members = $derived(membersStore.members);
+  const members = $derived(membersStore.filteredMembers);
+  const allMembers = $derived(membersStore.members);
   const memberCount = $derived(membersStore.totalCount);
   const title = $derived.by(() => {
     if (activePanel === 'members') return `Members (${memberCount})`;
@@ -146,11 +147,14 @@ calls, and similar room-specific panels can plug into the same shell. See the
   // Look up the selected member for the popover (rendered outside the {#each} loop
   // to avoid Svelte reactivity cycles between the popover's $effect and onlineMembers' $derived)
   const popoverMember = $derived(
-    popoverMemberId ? (members.find((m) => m.id === popoverMemberId) ?? null) : null
+    popoverMemberId ? (allMembers.find((m) => m.id === popoverMemberId) ?? null) : null
   );
 
   const canRemovePopoverMember = $derived(
-    !!popoverMember && !popoverMember.deleted && canBanRoomMembers && popoverMember.id !== currentUserId
+    !!popoverMember &&
+      !popoverMember.deleted &&
+      canBanRoomMembers &&
+      popoverMember.id !== currentUserId
   );
 
   function openBanDialog(member: RoomMember) {
@@ -181,22 +185,6 @@ calls, and similar room-specific panels can plug into the same shell. See the
 
     toast.success(`Banned ${displayName} from room`);
     banDialogMember = null;
-  }
-
-  function loadMoreMembersWhenVisible(node: HTMLElement) {
-    if (typeof IntersectionObserver === 'undefined') return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        if (!membersStore.hasMore || membersStore.isLoadingMore) return;
-        void membersStore.loadMore();
-      },
-      { rootMargin: '160px 0px' }
-    );
-    observer.observe(node);
-
-    return () => observer.disconnect();
   }
 
   function scheduleMemberSearch(event: Event) {
@@ -240,7 +228,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
         <label class="sr-only" for="room-member-search">Search room members</label>
         <div class="relative">
           <span
-            class="iconify uil--search pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+            class="pointer-events-none absolute top-1/2 left-2 iconify h-4 w-4 -translate-y-1/2 text-muted uil--search"
             aria-hidden="true"
           ></span>
           <input
@@ -249,7 +237,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
             value={membersStore.searchInput}
             oninput={scheduleMemberSearch}
             placeholder="Search members"
-            class="h-8 w-full rounded-md bg-surface py-1 pl-8 pr-2 text-sm outline-none transition-colors placeholder:text-muted"
+            class="h-8 w-full rounded-md bg-surface py-1 pr-2 pl-8 text-sm transition-colors outline-none placeholder:text-muted"
           />
         </div>
       </div>
@@ -288,16 +276,6 @@ calls, and similar room-specific panels can plug into the same shell. See the
             class="mt-4"
           />
         {/if}
-
-        {#if membersStore.hasMore}
-          <div
-            class="flex justify-center px-3 py-4 text-sm text-muted"
-            data-testid="room-members-load-more-sentinel"
-            {@attach loadMoreMembersWhenVisible}
-          >
-            {membersStore.isLoadingMore ? 'Loading members...' : ''}
-          </div>
-        {/if}
       {/if}
 
       {#if popoverMember && popoverAnchorRect}
@@ -315,7 +293,12 @@ calls, and similar room-specific panels can plug into the same shell. See the
     </nav>
   {:else if activePanel === 'files'}
     {#if filesStore}
-      <RoomFilesPanel store={filesStore} serverId={getActiveServer()} {fileGroupingNow} {onOpenFile} />
+      <RoomFilesPanel
+        store={filesStore}
+        serverId={getActiveServer()}
+        {fileGroupingNow}
+        {onOpenFile}
+      />
     {:else}
       <div class="flex min-h-0 flex-1 items-center justify-center p-4 text-sm text-muted">
         No files in this room yet.
