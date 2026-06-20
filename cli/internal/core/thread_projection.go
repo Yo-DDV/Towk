@@ -65,10 +65,24 @@ func NewThreadProjection() *ThreadProjection {
 	}
 }
 
-// Subjects implements events.Projection. Threads are a room-derived view, so
-// the projection subscribes to the room aggregate namespace plus the extra user
-// key-shred events it needs.
+// Subjects implements events.Projection. Threads only need thread lifecycle
+// and message mutation families, plus user key-shred events that can hide
+// replies during crypto-shredding.
 func (p *ThreadProjection) Subjects() []string {
+	return []string{
+		events.RoomEventTypeFilter(events.EventThreadCreated),
+		events.RoomEventTypeFilter(events.EventMessagePosted),
+		events.RoomEventTypeFilter(events.EventMessageEdited),
+		events.RoomEventTypeFilter(events.EventMessageRetracted),
+		events.UserEventTypeFilter(events.EventUserKeyShredded),
+	}
+}
+
+// ReplaySubjects keeps Threads on the same physical replay stream as the room
+// timeline projection. A separate multi-filter ordered consumer is slower on
+// current self-host scale than sharing the broad room replay and skipping
+// non-thread events before Apply.
+func (p *ThreadProjection) ReplaySubjects() []string {
 	return []string{events.RoomSubjectFilter(), events.UserEventTypeFilter(events.EventUserKeyShredded)}
 }
 
