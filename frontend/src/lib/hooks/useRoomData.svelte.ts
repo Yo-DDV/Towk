@@ -1,4 +1,5 @@
 import { graphql, useFragment } from '$lib/gql';
+import { isUnsupportedGraphQLFieldError } from '$lib/gql/compatibility';
 import { RoomType, UserAvatarUserFragmentDoc, type PresenceStatus } from '$lib/gql/graphql';
 import { useActiveRoomLayoutUpdated } from '$lib/hooks/useEvent.svelte';
 import { useReconnectTrigger } from '$lib/hooks/useReconnectCallback.svelte';
@@ -6,7 +7,13 @@ import { useConnection } from '$lib/state/server/connection.svelte';
 import { untrack } from 'svelte';
 
 export type RoomData = {
-  room: { id: string; name: string; type: string; description?: string | null };
+  room: {
+    id: string;
+    name: string;
+    type: string;
+    description?: string | null;
+    isUniversal: boolean;
+  };
   spaceName: string | null;
   canPostMessage: boolean;
   canPostInThread: boolean;
@@ -30,6 +37,61 @@ export type DMData = {
   currentUserId: string | null;
 };
 
+const GetRoomQuery = graphql(`
+  query GetRoom($roomId: ID!) {
+    room(roomId: $roomId) {
+      id
+      name
+      description
+      type
+      isUniversal
+      viewerCanPostMessage
+      viewerCanPostInThread
+      viewerCanAttach
+      viewerCanReact
+      viewerCanManageOthersMessage
+      viewerCanEchoMessage
+      viewerCanManageRoom
+      viewerCanBanRoomMembers
+    }
+    server {
+      profile {
+        name
+      }
+      viewerCanManageRooms
+    }
+  }
+`);
+
+const GetRoomCompatibilityQuery = graphql(`
+  query GetRoomCompatibility($roomId: ID!) {
+    room(roomId: $roomId) {
+      id
+      name
+      description
+      type
+      viewerCanPostMessage
+      viewerCanPostInThread
+      viewerCanAttach
+      viewerCanReact
+      viewerCanManageOthersMessage
+      viewerCanEchoMessage
+      viewerCanManageRoom
+      viewerCanBanRoomMembers
+    }
+    server {
+      profile {
+        name
+      }
+      viewerCanManageRooms
+    }
+  }
+`);
+
+function roomIsUniversal(room: object): boolean {
+  return 'isUniversal' in room && room.isUniversal === true;
+}
+
 /**
  * Loads room metadata and DM participant data.
  *
@@ -50,7 +112,9 @@ export function useRoomData(getProps: () => { roomId: string }) {
   // permissions can change any viewerCan* permission for this room.
   // Bump a counter and let the loading effect react.
   let layoutTrigger = $state(0);
-  useActiveRoomLayoutUpdated(() => {
+  useActiveRoomLayoutUpdated((info) => {
+    const { roomId } = getProps();
+    if (info.roomId && info.roomId !== roomId) return;
     layoutTrigger++;
   });
 
@@ -83,35 +147,19 @@ export function useRoomData(getProps: () => { roomId: string }) {
       }
     });
 
-    connection()
-      .client.query(
-        graphql(`
-          query GetRoom($roomId: ID!) {
-            room(roomId: $roomId) {
-              id
-              name
-              description
-              type
-              viewerCanPostMessage
-              viewerCanPostInThread
-              viewerCanAttach
-              viewerCanReact
-              viewerCanManageOthersMessage
-              viewerCanEchoMessage
-              viewerCanManageRoom
-              viewerCanBanRoomMembers
-            }
-            server {
-              profile {
-                name
-              }
-              viewerCanManageRooms
-            }
-          }
-        `),
-        { roomId: currentRoomId }
-      )
+    const client = connection().client;
+    client
+      .query(GetRoomQuery, { roomId: currentRoomId })
       .toPromise()
+      .then((initialResp) => {
+        if (
+          initialResp.error &&
+          isUnsupportedGraphQLFieldError(initialResp.error, 'isUniversal')
+        ) {
+          return client.query(GetRoomCompatibilityQuery, { roomId: currentRoomId }).toPromise();
+        }
+        return initialResp;
+      })
       .then((resp) => {
         if (roomLoadId.current !== thisLoadId) return;
 
@@ -132,17 +180,24 @@ export function useRoomData(getProps: () => { roomId: string }) {
           return;
         }
 
+        const loadedRoom = resp.data.room;
         roomData = {
-          room: resp.data.room,
+          room: {
+            id: loadedRoom.id,
+            name: loadedRoom.name,
+            description: loadedRoom.description,
+            type: loadedRoom.type,
+            isUniversal: roomIsUniversal(loadedRoom)
+          },
           spaceName: resp.data.server?.profile.name ?? null,
-          canPostMessage: resp.data.room.viewerCanPostMessage,
-          canPostInThread: resp.data.room.viewerCanPostInThread,
-          canAttach: resp.data.room.viewerCanAttach,
-          canReact: resp.data.room.viewerCanReact,
-          canManageOthersMessage: resp.data.room.viewerCanManageOthersMessage,
-          canEchoMessage: resp.data.room.viewerCanEchoMessage,
-          canManageRoom: resp.data.room.viewerCanManageRoom,
-          canBanRoomMembers: resp.data.room.viewerCanBanRoomMembers
+          canPostMessage: loadedRoom.viewerCanPostMessage,
+          canPostInThread: loadedRoom.viewerCanPostInThread,
+          canAttach: loadedRoom.viewerCanAttach,
+          canReact: loadedRoom.viewerCanReact,
+          canManageOthersMessage: loadedRoom.viewerCanManageOthersMessage,
+          canEchoMessage: loadedRoom.viewerCanEchoMessage,
+          canManageRoom: loadedRoom.viewerCanManageRoom,
+          canBanRoomMembers: loadedRoom.viewerCanBanRoomMembers
         };
       })
       .catch((err) => {

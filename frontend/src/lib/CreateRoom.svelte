@@ -1,7 +1,17 @@
 <script lang="ts">
   import { useConnection } from '$lib/state/server/connection.svelte';
+  import { UNIVERSAL_ROOM_HELP_TEXT } from '$lib/utils/roomCopy';
+  import { isUnsupportedGraphQLInputFieldError } from '$lib/gql/compatibility';
   import { graphql } from './gql';
-  import { TextInput, TextArea, Button, FormError, createFormState, z } from '$lib/ui/form';
+  import {
+    TextInput,
+    TextArea,
+    Checkbox,
+    Button,
+    FormError,
+    createFormState,
+    z
+  } from '$lib/ui/form';
 
   let {
     groupId,
@@ -16,21 +26,37 @@
 
   const schema = z.object({
     name: z.string().trim().min(1, 'Room name is required'),
-    description: z.string()
+    description: z.string(),
+    isUniversal: z.boolean()
   });
 
-  const form = createFormState(schema, { name: '', description: '' });
+  const form = createFormState(schema, { name: '', description: '', isUniversal: false });
+
+  const CreateRoomMutation = graphql(`
+    mutation CreateRoom($input: CreateRoomInput!) {
+      createRoom(input: $input) {
+        id
+        name
+        description
+      }
+    }
+  `);
+
+  const JoinRoomMutation = graphql(`
+    mutation JoinRoom($input: JoinRoomInput!) {
+      joinRoom(input: $input) {
+        id
+      }
+    }
+  `);
 
   let isLoading = $state(false);
   /** Server-side / network error from the mutations. Validation errors live on form. */
   let submitError = $state('');
 
-  // Clear stale submit errors when the user types.
-  $effect(() => {
-    if (form.values.name || form.values.description) {
-      submitError = '';
-    }
-  });
+  function clearSubmitError() {
+    submitError = '';
+  }
 
   const handleSubmit = form.handleSubmit(async (values) => {
     isLoading = true;
@@ -43,26 +69,25 @@
         return;
       }
 
-      const result = await connection()
-        .client.mutation(
-          graphql(`
-            mutation CreateRoom($input: CreateRoomInput!) {
-              createRoom(input: $input) {
-                id
-                name
-                description
-              }
-            }
-          `),
-          {
-            input: {
-              name: values.name.trim(),
-              description: values.description.trim() || undefined,
-              groupId: targetGroupId
-            }
-          }
-        )
+      const input = {
+        name: values.name.trim(),
+        description: values.description.trim() || undefined,
+        groupId: targetGroupId
+      };
+      const client = connection().client;
+      let result = await client
+        .mutation(CreateRoomMutation, {
+          input: values.isUniversal ? { ...input, isUniversal: true } : input
+        })
         .toPromise();
+
+      if (
+        values.isUniversal &&
+        result.error &&
+        isUnsupportedGraphQLInputFieldError(result.error, 'isUniversal')
+      ) {
+        result = await client.mutation(CreateRoomMutation, { input }).toPromise();
+      }
 
       if (result.error) {
         submitError = result.error.message;
@@ -72,15 +97,8 @@
 
       const roomId = result.data!.createRoom.id;
 
-      const joinResult = await connection()
-        .client.mutation(
-          graphql(`
-            mutation JoinRoom($input: JoinRoomInput!) {
-              joinRoom(input: $input) { id }
-            }
-          `),
-          { input: { roomId } }
-        )
+      const joinResult = await client
+        .mutation(JoinRoomMutation, { input: { roomId } })
         .toPromise();
 
       if (joinResult.error) {
@@ -105,6 +123,7 @@
     bind:value={form.values.name}
     error={form.fieldError('name')}
     onkeydown={() => form.touch('name')}
+    oninput={clearSubmitError}
     placeholder="Enter room name"
     disabled={isLoading}
   />
@@ -115,7 +134,17 @@
     bind:value={form.values.description}
     placeholder="What's this room about?"
     disabled={isLoading}
+    oninput={clearSubmitError}
     rows={3}
+  />
+
+  <Checkbox
+    id="room-universal"
+    bind:checked={form.values.isUniversal}
+    disabled={isLoading}
+    onchange={clearSubmitError}
+    label="Universal room"
+    description={UNIVERSAL_ROOM_HELP_TEXT}
   />
 
   <FormError error={submitError} />
