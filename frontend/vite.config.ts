@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import devtoolsJson from 'vite-plugin-devtools-json';
 import tailwindcss from '@tailwindcss/vite';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type Plugin } from 'vite';
 import { playwright } from '@vitest/browser-playwright';
@@ -242,6 +243,13 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     highlightLanguageMetadata(),
+    paraglideVitePlugin({
+      project: './project.inlang',
+      outdir: './src/lib/paraglide',
+      strategy: ['localStorage', 'preferredLanguage', 'baseLocale'],
+      emitTsDeclarations: true,
+      outputStructure: 'locale-modules'
+    }),
     sveltekit(),
     ...(enableGraphqlCodegenClientOptimizer ? [graphqlCodegenClientOptimizer()] : []),
     devtoolsJson()
@@ -249,6 +257,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        manualChunks(id) {
+          if (id.includes('src/lib/paraglide/messages/de.js')) return 'i18n-de';
+        },
         experimentalMinChunkSize: 20_000
       }
     }

@@ -137,6 +137,19 @@ const emailSchema = z.email({ error: "Please enter a valid email" });
 const emailError = $derived(email ? validate(emailSchema, email) : undefined);
 ```
 
+## Internationalization
+
+Chatto's frontend internationalization policy lives in [`docs/adr/ADR-043-client-shell-internationalization.md`](../../docs/adr/ADR-043-client-shell-internationalization.md). Follow it for all new or modified user-visible frontend text.
+
+- Use Paraglide message functions for product UI strings instead of hardcoded English in Svelte markup or TypeScript helpers.
+- Import product messages from `$lib/i18n/messages`, not `$lib/paraglide/messages`. The project facade keeps English in the base bundle and lazy-loads non-base locale modules; importing Paraglide's generated all-message index pulls every locale into the eager bundle.
+- Import locale runtime helpers from `$lib/i18n/runtime` when reading or setting the locale. The wrapper lazy-loads the target locale, updates translated UI reactively, and defaults to switching without a full-page reload.
+- Add or update both `en` and `de` catalog entries when introducing a message key. Provide a best-effort German translation; if the wording is uncertain, mark it clearly for review in the PR rather than omitting the key.
+- Use nested JSON grouped by feature or UI surface, for example `settings.preferences.title`, `auth.login.submit`, or `room.event.user_joined`. Paraglide exposes those nested paths as quoted exports, so call them with bracket notation such as `m["settings.preferences.title"]()`. Do not use English sentences as keys. Until the facade is generated, add the corresponding wrapper export in `$lib/i18n/messages` when adding a new key.
+- Keep user-authored content as authored. Do not translate server names, room names, display names, message bodies, uploaded filenames, or other user-generated values.
+- Map stable enum values, permission names, event types, and notification levels to localized message functions at the UI boundary.
+- When formatting dates, times, numbers, plurals, and relative labels, use the active app locale. Timezone and 12/24-hour choices still come from the existing user settings.
+
 ## Page Layout
 
 Pages rendered in the main content area must wrap all content in a single flex column container:

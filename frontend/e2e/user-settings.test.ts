@@ -46,6 +46,45 @@ test.describe('User Settings - Display', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 
+  test('can choose a local language', async ({ page }) => {
+    await createAndLoginTestUser(page);
+    await page.goto(routes.settingsPreferences);
+    await expect(page.getByRole('heading', { name: 'Display' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+
+    const pageMarker = await page.evaluate(() => {
+      const marker = `locale-switch-${Date.now()}`;
+      (window as typeof window & { __chattoLocaleSwitchMarker?: string }).__chattoLocaleSwitchMarker =
+        marker;
+      return marker;
+    });
+
+    await page.getByRole('radio', { name: 'Deutsch' }).click();
+    await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as typeof window & { __chattoLocaleSwitchMarker?: string })
+              .__chattoLocaleSwitchMarker
+        )
+      )
+      .toBe(pageMarker);
+
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+    await expect(page.getByRole('radio', { name: 'Deutsch' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+  });
+
   test('can set timezone and save', async ({ page }) => {
     await createAndLoginTestUser(page);
     await page.goto(routes.settingsPreferences);
