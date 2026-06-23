@@ -19,7 +19,7 @@ Please use the following facts when making decisions about features or implement
 
 - This project is currently in early development.
 - We've made the software public and users can now self-host. We're advising self-hosters to use the `:latest` image tag to keep up to date, but there may be stragglers.
-- The next big new version will be 0.2.0, but for now we're concentrating on smaller, non-breaking changes to improve the application.
+- We're in the pre-1.0 range of 0.x.y versions. Breaking changes are _mostly_ okay, but please alert the user of them first before committing to them.
 
 Please update this section as the project evolves, and refer to it when making decisions about features or implementation.
 
@@ -28,6 +28,7 @@ Please update this section as the project evolves, and refer to it when making d
 - Prefer simplicity and clarity over cleverness.
 - Where feasible, write code comments that explain intent.
 - Make sure the code is well-tested, and that tests are easy to understand and maintain.
+- We're very likely migrating our API surface away from GraphQL to a combination of ConnectRPC and a custom wire protocol that pushes protobufs to the client. When writing new API surface, please add to the new setup, not GraphQL.
 
 ### Specific Rules for Frontend Code
 
@@ -49,7 +50,6 @@ Please update this section as the project evolves, and refer to it when making d
 - State changes go into the EVT stream. Do not litter RUNTIME_STATE or other KV buckets with durable state unless it's something that we deliberately don't want to put into the main EVT event stream (eg. encryption keys, ephemeral state like typing notifications, last-read markers, etc.)
 - All state interactions should go through a Service responsible for a specific domain; that Service should create and maintain whatever projections it needs to do its work, and expose methods for the rest of the codebase to interact with it. Avoid direct interactions with JetStream, KV, or projections from outside of Services.
 - GraphQL list pagination should follow the existing offset style unless there is a specific reason to use a cursor. Use `limit` and `offset` arguments, normalize them through the backend `paginationArgs` helper with a domain-appropriate default/max, and return a connection-like object with the page items plus `totalCount` and `hasMore`. Compute `hasMore` from the requested offset and actual returned page length, and keep filtering/search semantics server-side so clients can page through filtered results without loading the whole list.
-- When adding GraphQL fields that frontend clients will use against registered remote servers, keep mixed-version compatibility in mind. Where feasible, isolate new/optional fields into focused follow-up queries instead of adding them to critical bootstrap queries, and have the frontend handle `Cannot query field "..."` validation errors through the shared GraphQL compatibility helper so older servers do not break the multi-server client.
 - Never log PII. Logs must not include raw login names, display names, email addresses, submitted auth identifiers, OAuth/OIDC provider subject identifiers, tokens, passwords, auth codes, reset links, raw IP addresses, or full query strings. Prefer opaque Chatto IDs, counts, booleans, event names, and already-safe hashes from audit-specific code.
 
 ### Breaking Changes
