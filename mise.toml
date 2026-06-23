@@ -333,11 +333,3 @@ printf '#!/bin/sh\necho chatto dummy\n' > "$context/chatto"
 chmod +x "$context/chatto"
 docker buildx build --build-arg TARGETARCH=amd64 -f "$context/Dockerfile" "$context"
 """
-
-# =============================================================================
-# Versioning
-# =============================================================================
-# Versions are managed by release-please (.release-please-config.json).
-# Land a conventional-commit PR on main → release-please opens a rolling
-# Release PR → merge it to cut the tag, which triggers ci.yml's release
-# job. No `mise bump` needed.
