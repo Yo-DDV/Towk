@@ -3,7 +3,12 @@ title: Quick Start
 description: Get Chatto running in under five minutes.
 ---
 
-import { Aside, CardGrid, LinkCard, Steps } from "@astrojs/starlight/components";
+import {
+  Aside,
+  CardGrid,
+  LinkCard,
+  Steps,
+} from "@astrojs/starlight/components";
 
 ## Introduction
 
@@ -21,6 +26,8 @@ We've saved the most important fact for last. Read it thoroughly, then read it a
 That's it. For now. Let's dive in.
 
 ## Try Chatto
+
+The quickest and easiest way to give Chatto a try is to just download the executable and run it. Setting up a proper production environment can be a little more involved (depending on your requirements), but if you just want to test the waters, this will get you up and running within minutes.
 
 <Steps>
 
@@ -61,7 +68,19 @@ The generated `chatto.toml` contains a sane set of defaults to get you started. 
 You will probably want to deploy Chatto in a manner that makes it reachable from the Internet, possibly from a VPS, a Kubernetes cluster, or similar; please move on to our Deployment guides section that will guide you through various different setups.
 
 <CardGrid>
-  <LinkCard title="Docker Compose" href="/guides/dockercompose/" description="Recommended self-hosting setup with Chatto, NATS, LiveKit, and Caddy." />
-  <LinkCard title="Standalone Binary" href="/guides/binary/" description="Run Chatto directly as a single binary with embedded NATS." />
-  <LinkCard title="Kubernetes" href="/guides/kubernetes/" description="Current Kubernetes guidance and requirements for scaled deployments." />
+  <LinkCard
+    title="Docker Compose"
+    href="/guides/dockercompose/"
+    description="Recommended self-hosting setup with Chatto, NATS, LiveKit, and Caddy."
+  />
+  <LinkCard
+    title="Standalone Binary"
+    href="/guides/binary/"
+    description="Run Chatto directly as a single binary with embedded NATS."
+  />
+  <LinkCard
+    title="Kubernetes"
+    href="/guides/kubernetes/"
+    description="Current Kubernetes guidance and requirements for scaled deployments."
+  />
 </CardGrid>
