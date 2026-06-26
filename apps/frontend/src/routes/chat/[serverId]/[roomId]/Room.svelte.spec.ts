@@ -293,4 +293,89 @@ describe('Room local message echo', () => {
       expect(mocks.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     });
   });
+
+  it('refreshes the visible room window after a local link-preview deletion succeeds', async () => {
+    const { container } = render(Room, { props: { roomId: 'room-1' } });
+
+    await expect.element(q(container, '[data-testid="room-event-ids"]')).toHaveTextContent('');
+    (q(container, '[data-testid="emit-returned-post"]') as HTMLButtonElement).click();
+    await expect
+      .element(q(container, '[data-testid="room-event-ids"]'))
+      .toHaveTextContent('msg-local');
+    await vi.waitFor(() => expect(mocks.query).toHaveBeenCalled());
+    mocks.query.mockClear();
+
+    window.dispatchEvent(
+      new CustomEvent('chatto:room-message-mutated', {
+        detail: {
+          roomId: 'room-1',
+          eventId: 'msg-local',
+          reason: 'link-preview-deleted'
+        }
+      })
+    );
+
+    await vi.waitFor(() => {
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.anything(),
+        { roomId: 'room-1', eventId: 'msg-local', limit: 50 },
+        { requestPolicy: 'network-only' }
+      );
+    });
+  });
+
+  it('refreshes a visible channel echo when a local mutation references the original message', async () => {
+    const { container } = render(Room, { props: { roomId: 'room-1' } });
+
+    await expect.element(q(container, '[data-testid="room-event-ids"]')).toHaveTextContent('');
+    (q(container, '[data-testid="emit-returned-echo"]') as HTMLButtonElement).click();
+    await expect
+      .element(q(container, '[data-testid="room-event-ids"]'))
+      .toHaveTextContent('echo-local');
+    await vi.waitFor(() => expect(mocks.query).toHaveBeenCalled());
+    mocks.query.mockClear();
+
+    window.dispatchEvent(
+      new CustomEvent('chatto:room-message-mutated', {
+        detail: {
+          roomId: 'room-1',
+          eventId: 'original-reply',
+          reason: 'attachment-deleted'
+        }
+      })
+    );
+
+    await vi.waitFor(() => {
+      expect(mocks.query).toHaveBeenCalledWith(
+        expect.anything(),
+        { roomId: 'room-1', eventId: 'echo-local', limit: 50 },
+        { requestPolicy: 'network-only' }
+      );
+    });
+  });
+
+  it('removes a deleted visible channel echo without refreshing around the hidden echo', async () => {
+    const { container } = render(Room, { props: { roomId: 'room-1' } });
+
+    await expect.element(q(container, '[data-testid="room-event-ids"]')).toHaveTextContent('');
+    (q(container, '[data-testid="emit-returned-echo"]') as HTMLButtonElement).click();
+    await expect
+      .element(q(container, '[data-testid="room-event-ids"]'))
+      .toHaveTextContent('echo-local');
+    await vi.waitFor(() => expect(mocks.query).toHaveBeenCalled());
+    mocks.query.mockClear();
+
+    window.dispatchEvent(
+      new CustomEvent('chatto:room-message-mutated', {
+        detail: {
+          roomId: 'room-1',
+          eventId: 'echo-local',
+          reason: 'message-deleted'
+        }
+      })
+    );
+
+    await expect.element(q(container, '[data-testid="room-event-ids"]')).toHaveTextContent('');
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
 });
