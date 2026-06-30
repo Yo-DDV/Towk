@@ -147,7 +147,9 @@ type ViewerUser struct {
 	// Last time a login credential changed, when known.
 	LastLoginChange *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=last_login_change,json=lastLoginChange,proto3" json:"last_login_change,omitempty"`
 	// Public profile and live presence fields for the authenticated user.
-	Profile       *UserProfile `protobuf:"bytes,11,opt,name=profile,proto3" json:"profile,omitempty"`
+	Profile *UserProfile `protobuf:"bytes,11,opt,name=profile,proto3" json:"profile,omitempty"`
+	// Whether this account currently has a password sign-in credential.
+	HasPassword   bool `protobuf:"varint,12,opt,name=has_password,json=hasPassword,proto3" json:"has_password,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -217,6 +219,13 @@ func (x *ViewerUser) GetProfile() *UserProfile {
 	return nil
 }
 
+func (x *ViewerUser) GetHasPassword() bool {
+	if x != nil {
+		return x.HasPassword
+	}
+	return false
+}
+
 // Permission-derived capabilities for the authenticated user.
 type ViewerCapabilities struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -226,8 +235,6 @@ type ViewerCapabilities struct {
 	CanStartDms bool `protobuf:"varint,2,opt,name=can_start_dms,json=canStartDms,proto3" json:"can_start_dms,omitempty"`
 	// Whether the user may view the admin users screen.
 	CanAdminViewUsers bool `protobuf:"varint,3,opt,name=can_admin_view_users,json=canAdminViewUsers,proto3" json:"can_admin_view_users,omitempty"`
-	// Whether the user may assign and revoke roles for users.
-	CanAdminManageUsers bool `protobuf:"varint,4,opt,name=can_admin_manage_users,json=canAdminManageUsers,proto3" json:"can_admin_manage_users,omitempty"`
 	// Whether the user may view role administration.
 	CanAdminViewRoles bool `protobuf:"varint,5,opt,name=can_admin_view_roles,json=canAdminViewRoles,proto3" json:"can_admin_view_roles,omitempty"`
 	// Whether the user may manage roles.
@@ -295,13 +302,6 @@ func (x *ViewerCapabilities) GetCanStartDms() bool {
 func (x *ViewerCapabilities) GetCanAdminViewUsers() bool {
 	if x != nil {
 		return x.CanAdminViewUsers
-	}
-	return false
-}
-
-func (x *ViewerCapabilities) GetCanAdminManageUsers() bool {
-	if x != nil {
-		return x.CanAdminManageUsers
 	}
 	return false
 }
@@ -600,7 +600,7 @@ const file_chatto_api_v1_viewer_proto_rawDesc = "" +
 	"\btimezone\x18\x01 \x01(\tH\x00R\btimezone\x88\x01\x01\x12:\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x19.chatto.api.v1.TimeFormatR\n" +
 	"timeFormatB\v\n" +
-	"\t_timezone\"\xf7\x02\n" +
+	"\t_timezone\"\x9a\x03\n" +
 	"\n" +
 	"ViewerUser\x12,\n" +
 	"\x12has_verified_email\x18\a \x01(\bR\x10hasVerifiedEmail\x127\n" +
@@ -608,13 +608,13 @@ const file_chatto_api_v1_viewer_proto_rawDesc = "" +
 	"\x19viewer_can_delete_account\x18\t \x01(\bR\x16viewerCanDeleteAccount\x12F\n" +
 	"\x11last_login_change\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\x0flastLoginChange\x124\n" +
-	"\aprofile\x18\v \x01(\v2\x1a.chatto.api.v1.UserProfileR\aprofileJ\x04\b\x01\x10\aR\x02idR\x05loginR\fdisplay_nameR\n" +
-	"avatar_urlR\rcustom_statusR\x0fpresence_status\"\xf1\x04\n" +
+	"\aprofile\x18\v \x01(\v2\x1a.chatto.api.v1.UserProfileR\aprofile\x12!\n" +
+	"\fhas_password\x18\f \x01(\bR\vhasPasswordJ\x04\b\x01\x10\aR\x02idR\x05loginR\fdisplay_nameR\n" +
+	"avatar_urlR\rcustom_statusR\x0fpresence_status\"\xda\x04\n" +
 	"\x12ViewerCapabilities\x12$\n" +
 	"\x0ecan_view_admin\x18\x01 \x01(\bR\fcanViewAdmin\x12\"\n" +
 	"\rcan_start_dms\x18\x02 \x01(\bR\vcanStartDms\x12/\n" +
-	"\x14can_admin_view_users\x18\x03 \x01(\bR\x11canAdminViewUsers\x123\n" +
-	"\x16can_admin_manage_users\x18\x04 \x01(\bR\x13canAdminManageUsers\x12/\n" +
+	"\x14can_admin_view_users\x18\x03 \x01(\bR\x11canAdminViewUsers\x12/\n" +
 	"\x14can_admin_view_roles\x18\x05 \x01(\bR\x11canAdminViewRoles\x123\n" +
 	"\x16can_admin_manage_roles\x18\x06 \x01(\bR\x13canAdminManageRoles\x121\n" +
 	"\x15can_admin_view_system\x18\a \x01(\bR\x12canAdminViewSystem\x12/\n" +
@@ -623,7 +623,7 @@ const file_chatto_api_v1_viewer_proto_rawDesc = "" +
 	"\x1bcan_manage_user_permissions\x18\n" +
 	" \x01(\bR\x18canManageUserPermissions\x12(\n" +
 	"\x10can_assign_roles\x18\v \x01(\bR\x0ecanAssignRoles\x129\n" +
-	"\x19can_admin_manage_accounts\x18\f \x01(\bR\x16canAdminManageAccounts\"\xa1\x01\n" +
+	"\x19can_admin_manage_accounts\x18\f \x01(\bR\x16canAdminManageAccountsJ\x04\b\x04\x10\x05R\x16can_admin_manage_users\"\xa1\x01\n" +
 	"\x1cServerNotificationPreference\x126\n" +
 	"\x05level\x18\x01 \x01(\x0e2 .chatto.api.v1.NotificationLevelR\x05level\x12I\n" +
 	"\x0feffective_level\x18\x02 \x01(\x0e2 .chatto.api.v1.NotificationLevelR\x0eeffectiveLevel\"\xb8\x01\n" +

@@ -19,4 +19,3 @@ their names and docs should make the administrative scope obvious.
   making admin routes private or unstable.
 - Breaking changes still need an explicit compatibility note and generated
   client/docs updates.
-

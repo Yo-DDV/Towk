@@ -615,4 +615,3 @@ export class UpdateBlockedUsernamesResponse extends Message<UpdateBlockedUsernam
     return proto3.util.equals(UpdateBlockedUsernamesResponse, a, b);
   }
 }
-

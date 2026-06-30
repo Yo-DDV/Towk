@@ -48,6 +48,9 @@ const (
 	// AdminMemberServiceUpdateUserProcedure is the fully-qualified name of the AdminMemberService's
 	// UpdateUser RPC.
 	AdminMemberServiceUpdateUserProcedure = "/chatto.admin.v1.AdminMemberService/UpdateUser"
+	// AdminMemberServiceSetUserPasswordProcedure is the fully-qualified name of the
+	// AdminMemberService's SetUserPassword RPC.
+	AdminMemberServiceSetUserPasswordProcedure = "/chatto.admin.v1.AdminMemberService/SetUserPassword"
 	// AdminMemberServiceClearUsernameCooldownProcedure is the fully-qualified name of the
 	// AdminMemberService's ClearUsernameCooldown RPC.
 	AdminMemberServiceClearUsernameCooldownProcedure = "/chatto.admin.v1.AdminMemberService/ClearUsernameCooldown"
@@ -66,6 +69,8 @@ type AdminMemberServiceClient interface {
 	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.RevokeRoleResponse], error)
 	// Updates a user's login and/or display name as an admin action.
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
+	// Sets a user's password as an admin action.
+	SetUserPassword(context.Context, *connect.Request[v1.SetUserPasswordRequest]) (*connect.Response[v1.SetUserPasswordResponse], error)
 	// Clears the target user's self-service username-change cooldown.
 	ClearUsernameCooldown(context.Context, *connect.Request[v1.ClearUsernameCooldownRequest]) (*connect.Response[v1.ClearUsernameCooldownResponse], error)
 }
@@ -111,6 +116,12 @@ func NewAdminMemberServiceClient(httpClient connect.HTTPClient, baseURL string, 
 			connect.WithSchema(adminMemberServiceMethods.ByName("UpdateUser")),
 			connect.WithClientOptions(opts...),
 		),
+		setUserPassword: connect.NewClient[v1.SetUserPasswordRequest, v1.SetUserPasswordResponse](
+			httpClient,
+			baseURL+AdminMemberServiceSetUserPasswordProcedure,
+			connect.WithSchema(adminMemberServiceMethods.ByName("SetUserPassword")),
+			connect.WithClientOptions(opts...),
+		),
 		clearUsernameCooldown: connect.NewClient[v1.ClearUsernameCooldownRequest, v1.ClearUsernameCooldownResponse](
 			httpClient,
 			baseURL+AdminMemberServiceClearUsernameCooldownProcedure,
@@ -127,6 +138,7 @@ type adminMemberServiceClient struct {
 	assignRole            *connect.Client[v1.AssignRoleRequest, v1.AssignRoleResponse]
 	revokeRole            *connect.Client[v1.RevokeRoleRequest, v1.RevokeRoleResponse]
 	updateUser            *connect.Client[v1.UpdateUserRequest, v1.UpdateUserResponse]
+	setUserPassword       *connect.Client[v1.SetUserPasswordRequest, v1.SetUserPasswordResponse]
 	clearUsernameCooldown *connect.Client[v1.ClearUsernameCooldownRequest, v1.ClearUsernameCooldownResponse]
 }
 
@@ -155,6 +167,11 @@ func (c *adminMemberServiceClient) UpdateUser(ctx context.Context, req *connect.
 	return c.updateUser.CallUnary(ctx, req)
 }
 
+// SetUserPassword calls chatto.admin.v1.AdminMemberService.SetUserPassword.
+func (c *adminMemberServiceClient) SetUserPassword(ctx context.Context, req *connect.Request[v1.SetUserPasswordRequest]) (*connect.Response[v1.SetUserPasswordResponse], error) {
+	return c.setUserPassword.CallUnary(ctx, req)
+}
+
 // ClearUsernameCooldown calls chatto.admin.v1.AdminMemberService.ClearUsernameCooldown.
 func (c *adminMemberServiceClient) ClearUsernameCooldown(ctx context.Context, req *connect.Request[v1.ClearUsernameCooldownRequest]) (*connect.Response[v1.ClearUsernameCooldownResponse], error) {
 	return c.clearUsernameCooldown.CallUnary(ctx, req)
@@ -173,6 +190,8 @@ type AdminMemberServiceHandler interface {
 	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.RevokeRoleResponse], error)
 	// Updates a user's login and/or display name as an admin action.
 	UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error)
+	// Sets a user's password as an admin action.
+	SetUserPassword(context.Context, *connect.Request[v1.SetUserPasswordRequest]) (*connect.Response[v1.SetUserPasswordResponse], error)
 	// Clears the target user's self-service username-change cooldown.
 	ClearUsernameCooldown(context.Context, *connect.Request[v1.ClearUsernameCooldownRequest]) (*connect.Response[v1.ClearUsernameCooldownResponse], error)
 }
@@ -214,6 +233,12 @@ func NewAdminMemberServiceHandler(svc AdminMemberServiceHandler, opts ...connect
 		connect.WithSchema(adminMemberServiceMethods.ByName("UpdateUser")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminMemberServiceSetUserPasswordHandler := connect.NewUnaryHandler(
+		AdminMemberServiceSetUserPasswordProcedure,
+		svc.SetUserPassword,
+		connect.WithSchema(adminMemberServiceMethods.ByName("SetUserPassword")),
+		connect.WithHandlerOptions(opts...),
+	)
 	adminMemberServiceClearUsernameCooldownHandler := connect.NewUnaryHandler(
 		AdminMemberServiceClearUsernameCooldownProcedure,
 		svc.ClearUsernameCooldown,
@@ -232,6 +257,8 @@ func NewAdminMemberServiceHandler(svc AdminMemberServiceHandler, opts ...connect
 			adminMemberServiceRevokeRoleHandler.ServeHTTP(w, r)
 		case AdminMemberServiceUpdateUserProcedure:
 			adminMemberServiceUpdateUserHandler.ServeHTTP(w, r)
+		case AdminMemberServiceSetUserPasswordProcedure:
+			adminMemberServiceSetUserPasswordHandler.ServeHTTP(w, r)
 		case AdminMemberServiceClearUsernameCooldownProcedure:
 			adminMemberServiceClearUsernameCooldownHandler.ServeHTTP(w, r)
 		default:
@@ -261,6 +288,10 @@ func (UnimplementedAdminMemberServiceHandler) RevokeRole(context.Context, *conne
 
 func (UnimplementedAdminMemberServiceHandler) UpdateUser(context.Context, *connect.Request[v1.UpdateUserRequest]) (*connect.Response[v1.UpdateUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.admin.v1.AdminMemberService.UpdateUser is not implemented"))
+}
+
+func (UnimplementedAdminMemberServiceHandler) SetUserPassword(context.Context, *connect.Request[v1.SetUserPasswordRequest]) (*connect.Response[v1.SetUserPasswordResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.admin.v1.AdminMemberService.SetUserPassword is not implemented"))
 }
 
 func (UnimplementedAdminMemberServiceHandler) ClearUsernameCooldown(context.Context, *connect.Request[v1.ClearUsernameCooldownRequest]) (*connect.Response[v1.ClearUsernameCooldownResponse], error) {

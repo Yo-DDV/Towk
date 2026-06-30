@@ -67,6 +67,8 @@ export default defineConfig({
                     "reference/connectrpc-api/server-discovery",
                     "reference/connectrpc-api/server",
                     "reference/connectrpc-api/viewer",
+                    "reference/connectrpc-api/external-identity-flows",
+                    "reference/connectrpc-api/external-identities",
                     "reference/connectrpc-api/account",
                     "reference/connectrpc-api/user-directory",
                     "reference/connectrpc-api/member-directory",

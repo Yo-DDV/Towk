@@ -28,6 +28,7 @@ func connectError(err error) error {
 	}
 	if errors.Is(err, core.ErrLoginAlreadyTaken) ||
 		errors.Is(err, core.ErrEmailAlreadyVerified) ||
+		errors.Is(err, core.ErrExternalIdentityAlreadyClaimed) ||
 		errors.Is(err, core.ErrRoleAlreadyExists) {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	}
@@ -37,6 +38,10 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrCustomStatusTextTooLong) ||
 		errors.Is(err, core.ErrCustomStatusExpiryInPast) ||
 		errors.Is(err, core.ErrCannotBanDMRoomMember) ||
+		errors.Is(err, core.ErrExternalIdentityFlowWrongKind) ||
+		errors.Is(err, core.ErrExternalIdentityFlowUserBound) ||
+		errors.Is(err, core.ErrCurrentPasswordRequired) ||
+		errors.Is(err, core.ErrCurrentPasswordInvalid) ||
 		errors.Is(err, core.ErrLoginTooShort) ||
 		errors.Is(err, core.ErrLoginTooLong) ||
 		errors.Is(err, core.ErrLoginInvalidCharacter) ||
@@ -55,6 +60,9 @@ func connectError(err error) error {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	if errors.Is(err, core.ErrNotFound) ||
+		errors.Is(err, core.ErrExternalIdentityNotFound) ||
+		errors.Is(err, core.ErrExternalIdentityFlowNotFound) ||
+		errors.Is(err, core.ErrExternalIdentityFlowExpired) ||
 		errors.Is(err, core.ErrRoleNotFound) ||
 		errors.Is(err, core.ErrRoomGroupNotFound) ||
 		errors.Is(err, core.ErrSidebarLinkNotFound) ||
@@ -73,9 +81,14 @@ func connectError(err error) error {
 	}
 	if errors.Is(err, core.ErrRoomArchived) ||
 		errors.Is(err, core.ErrEditWindowExpired) ||
+		errors.Is(err, core.ErrLimitExceeded) ||
+		errors.Is(err, core.ErrFreshAuthRequired) ||
+		errors.Is(err, core.ErrPasswordAlreadySet) ||
+		errors.Is(err, core.ErrAdminCannotSetOwnPassword) ||
 		errors.Is(err, core.ErrCannotLeaveDMConversation) ||
 		errors.Is(err, core.ErrCannotLeaveUniversalRoom) ||
 		errors.Is(err, core.ErrCannotRevokeSelfAdmin) ||
+		errors.Is(err, core.ErrExternalIdentityLastMethod) ||
 		errors.Is(err, core.ErrCannotDeleteSystemRole) ||
 		errors.Is(err, core.ErrRoomGroupHasRooms) ||
 		errors.Is(err, core.ErrRoomGroupOrderMismatch) ||

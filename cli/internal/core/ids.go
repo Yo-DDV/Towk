@@ -68,6 +68,21 @@ func NewRegistrationToken() string {
 	return newID("RG")
 }
 
+// NewExternalIdentityCreateToken generates a pending external-identity account creation token.
+func NewExternalIdentityCreateToken() string {
+	return newID("EC")
+}
+
+// NewExternalIdentityLinkToken generates a pending external-identity account linking token.
+func NewExternalIdentityLinkToken() string {
+	return newID("EL")
+}
+
+// NewExternalIdentityLinkStartToken generates a provider-link browser handoff token.
+func NewExternalIdentityLinkStartToken() string {
+	return newID("ELS")
+}
+
 // NewVerificationCode generates a six-digit numeric code for email verification.
 func NewVerificationCode() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1000000))

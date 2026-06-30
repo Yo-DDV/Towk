@@ -276,6 +276,57 @@
       "delete_button": "Delete Account",
       "delete_failed": "Failed to delete account",
       "delete_request_failed": "Failed to request account deletion",
+      "password": {
+        "title": "Password",
+        "add_description": "Add a password so you can sign in directly and disconnect your last SSO provider.",
+        "change_description": "Change the password used for direct sign-in.",
+        "current_label": "Current Password",
+        "current_required": "Enter your current password.",
+        "add_button": "Add Password",
+        "change_button": "Change Password",
+        "saving": "Saving password...",
+        "saved": "Password added",
+        "changed": "Password changed",
+        "save_failed": "Failed to save password",
+        "fresh_auth_required": "Sign in again before adding a password.",
+        "already_set": "This account already has a password."
+      },
+      "sso": {
+        "title": "Single Sign-On",
+        "loading": "Loading sign-on providers...",
+        "load_failed": "Failed to load sign-on providers",
+        "none_configured": "No external sign-on providers are configured.",
+        "linked": "Linked",
+        "not_linked": "Not linked",
+        "link_button": "Link",
+        "link_failed": "Failed to link sign-on provider",
+        "fresh_auth_required": "Sign in again before linking another provider.",
+        "provider_unconfigured": "Provider no longer configured",
+        "disconnect_button": "Disconnect",
+        "disconnecting": "Disconnecting...",
+        "disconnect_failed": "Failed to disconnect sign-on provider",
+        "disconnect_last_method": "Add a password or another sign-in method before disconnecting this provider.",
+        "disconnect_fresh_auth_required": "Sign in again before disconnecting this provider.",
+        "disconnect_modal": {
+          "title": "Disconnect provider",
+          "body": "Disconnect {provider} from this account?",
+          "action": "Disconnect"
+        },
+        "disconnect_blocked_modal": {
+          "title": "Provider cannot be disconnected",
+          "body": "{provider} is your only sign-in method. Add a password or link another provider first."
+        },
+        "fresh_auth_modal": {
+          "title": "Confirm password",
+          "body": "Enter your current password before linking {provider}.",
+          "action": "Continue"
+        },
+        "disconnect_fresh_auth_modal": {
+          "title": "Confirm password",
+          "body": "Enter your current password before disconnecting {provider}.",
+          "action": "Disconnect"
+        }
+      },
       "delete_modal": {
         "title": "Delete Account",
         "warning_label": "Warning:",

@@ -276,6 +276,57 @@
       "delete_button": "Konto löschen",
       "delete_failed": "Konto konnte nicht gelöscht werden",
       "delete_request_failed": "Kontolöschung konnte nicht angefordert werden",
+      "password": {
+        "title": "Passwort",
+        "add_description": "Füge ein Passwort hinzu, damit du dich direkt anmelden und deinen letzten SSO-Anbieter trennen kannst.",
+        "change_description": "Ändere das Passwort für die direkte Anmeldung.",
+        "current_label": "Aktuelles Passwort",
+        "current_required": "Gib dein aktuelles Passwort ein.",
+        "add_button": "Passwort hinzufügen",
+        "change_button": "Passwort ändern",
+        "saving": "Passwort wird gespeichert...",
+        "saved": "Passwort hinzugefügt",
+        "changed": "Passwort geändert",
+        "save_failed": "Passwort konnte nicht gespeichert werden",
+        "fresh_auth_required": "Melde dich erneut an, bevor du ein Passwort hinzufügst.",
+        "already_set": "Dieses Konto hat bereits ein Passwort."
+      },
+      "sso": {
+        "title": "Single Sign-On",
+        "loading": "Anmeldeanbieter werden geladen...",
+        "load_failed": "Anmeldeanbieter konnten nicht geladen werden",
+        "none_configured": "Es sind keine externen Anmeldeanbieter konfiguriert.",
+        "linked": "Verknüpft",
+        "not_linked": "Nicht verknüpft",
+        "link_button": "Verknüpfen",
+        "link_failed": "Anmeldeanbieter konnte nicht verknüpft werden",
+        "fresh_auth_required": "Melde dich erneut an, bevor du einen weiteren Anbieter verknüpfst.",
+        "provider_unconfigured": "Anbieter ist nicht mehr konfiguriert",
+        "disconnect_button": "Trennen",
+        "disconnecting": "Wird getrennt...",
+        "disconnect_failed": "Anmeldeanbieter konnte nicht getrennt werden",
+        "disconnect_last_method": "Füge ein Passwort oder eine weitere Anmeldemethode hinzu, bevor du diesen Anbieter trennst.",
+        "disconnect_fresh_auth_required": "Melde dich erneut an, bevor du diesen Anbieter trennst.",
+        "disconnect_modal": {
+          "title": "Anbieter trennen",
+          "body": "{provider} von diesem Konto trennen?",
+          "action": "Trennen"
+        },
+        "disconnect_blocked_modal": {
+          "title": "Anbieter kann nicht getrennt werden",
+          "body": "{provider} ist deine einzige Anmeldemethode. Füge zuerst ein Passwort hinzu oder verknüpfe einen weiteren Anbieter."
+        },
+        "fresh_auth_modal": {
+          "title": "Passwort bestätigen",
+          "body": "Gib dein aktuelles Passwort ein, bevor du {provider} verknüpfst.",
+          "action": "Weiter"
+        },
+        "disconnect_fresh_auth_modal": {
+          "title": "Passwort bestätigen",
+          "body": "Gib dein aktuelles Passwort ein, bevor du {provider} trennst.",
+          "action": "Trennen"
+        }
+      },
       "delete_modal": {
         "title": "Konto löschen",
         "warning_label": "Warnung:",

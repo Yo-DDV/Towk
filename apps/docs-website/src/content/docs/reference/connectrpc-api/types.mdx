@@ -109,7 +109,6 @@ Permission-derived capabilities for the authenticated user.
 | `can_view_admin` | `bool` | Whether the user has at least one server-admin permission. |
 | `can_start_dms` | `bool` | Whether the user may start direct-message conversations. |
 | `can_admin_view_users` | `bool` | Whether the user may view the admin users screen. |
-| `can_admin_manage_users` | `bool` | Whether the user may assign and revoke roles for users. |
 | `can_admin_view_roles` | `bool` | Whether the user may view role administration. |
 | `can_admin_manage_roles` | `bool` | Whether the user may manage roles. |
 | `can_admin_view_system` | `bool` | Whether the user may view system administration. |
@@ -132,6 +131,7 @@ Current authenticated user's public profile plus self-only settings.
 | `viewer_can_delete_account` | `bool` | Whether the authenticated user may delete this account. |
 | `last_login_change` | `google.protobuf.Timestamp` | Last time a login credential changed, when known. |
 | `profile` | [`UserProfile`](#chatto-api-v1-UserProfile) | Public profile and live presence fields for the authenticated user. |
+| `has_password` | `bool` | Whether this account currently has a password sign-in credential. |
 
 <a id="chatto-api-v1-PageInfo"></a>
 
@@ -394,6 +394,54 @@ One current room attachment and its message anchor.
 | `message_event_id` | `string` | Message event containing the attachment. |
 | `thread_root_event_id` | `string` | Thread root event ID when the containing message is a thread reply. |
 | `created_at` | `google.protobuf.Timestamp` | Message creation timestamp. |
+
+<a id="chatto-api-v1-ExternalIdentityProvider"></a>
+
+### ExternalIdentityProvider
+
+Public metadata for a configured external login provider.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Stable configured provider ID. |
+| `type` | `string` | Provider type, such as "oidc", "github", or "discord". |
+| `label` | `string` | Human-readable label. |
+| `login_url` | `string` | URL that starts login for this provider. |
+| `link_url` | `string` | URL that starts authenticated account linking for this provider. Clients should use StartExternalIdentityLink instead of navigating here directly. |
+| `linked` | `bool` | True when this provider is already linked to the authenticated user. |
+| `linked_identity_subject_hash` | `string` | Linked identity subject hash for this provider, when linked. |
+
+<a id="chatto-api-v1-LinkedExternalIdentity"></a>
+
+### LinkedExternalIdentity
+
+Linked provider identity metadata for the authenticated user's settings UI.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `provider_id` | `string` | Provider ID recorded when the identity was linked. |
+| `provider_type` | `string` | Provider type recorded when the identity was linked. |
+| `provider_label` | `string` | Current or fallback provider label. |
+| `subject_hash` | `string` | Stable one-way subject hash, useful only as a UI/list key. |
+
+<a id="chatto-api-v1-PendingExternalIdentity"></a>
+
+### PendingExternalIdentity
+
+Metadata about a pending external identity flow. The provider subject is not
+exposed; clients only need user-facing provider/profile hints.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | [`ExternalIdentityFlowKind`](#chatto-api-v1-ExternalIdentityFlowKind) | Pending flow kind. |
+| `provider_id` | `string` | Provider ID that produced the identity. |
+| `provider_type` | `string` | Provider type that produced the identity. |
+| `provider_label` | `string` | Provider label shown to the user. |
+| `verified_email` | `string` | Verified email supplied by the provider, when available. |
+| `login_hint` | `string` | Suggested username derived from provider profile hints. |
+| `display_name_hint` | `string` | Suggested display name derived from provider profile hints. |
+| `bound_user_id` | `string` | User ID this link flow is bound to. Empty for create flows. |
+| `redirect_path` | `string` | Internal path the client should return to after confirmation. |
 
 <a id="chatto-api-v1-DirectoryMember"></a>
 
@@ -1267,6 +1315,18 @@ Fit mode used when generating transformed attachment thumbnails.
 | `ATTACHMENT_FIT_MODE_UNSPECIFIED` | `0` | The fit mode was not specified. |
 | `ATTACHMENT_FIT_MODE_CONTAIN` | `1` | Preserve the whole source image within the requested bounds. |
 | `ATTACHMENT_FIT_MODE_COVER` | `2` | Fill the requested bounds, cropping when needed. |
+
+<a id="chatto-api-v1-ExternalIdentityFlowKind"></a>
+
+### ExternalIdentityFlowKind
+
+Mode of a pending external identity confirmation flow.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `EXTERNAL_IDENTITY_FLOW_KIND_UNSPECIFIED` | `0` | The flow kind was not specified. |
+| `EXTERNAL_IDENTITY_FLOW_KIND_CREATE_ACCOUNT` | `1` | Create a new passwordless account and link the provider identity. |
+| `EXTERNAL_IDENTITY_FLOW_KIND_LINK_ACCOUNT` | `2` | Link the provider identity to the authenticated account. |
 
 <a id="chatto-api-v1-RoomKind"></a>
 

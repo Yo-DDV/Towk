@@ -1,18 +1,17 @@
 package http_server
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -25,15 +24,8 @@ import (
 	"github.com/markbates/goth/providers/google"
 	"golang.org/x/oauth2"
 	"hmans.de/chatto/internal/config"
-	"hmans.de/chatto/internal/core/linkpreview"
+	"hmans.de/chatto/internal/core"
 )
-
-const (
-	oidcAvatarFetchTimeout = 10 * time.Second
-	oidcAvatarMaxBytes     = 5 * 1024 * 1024
-)
-
-var oidcAvatarClient = linkpreview.NewSSRFSafeClient(oidcAvatarFetchTimeout)
 
 // oidcProvider holds the lazily-initialized OIDC provider, oauth2 config, and
 // token verifier. Initialized on first login attempt. Retries on failure.
@@ -149,9 +141,33 @@ func (s *HTTPServer) setupOIDCRoutes() {
 
 func (s *HTTPServer) handleProviderStart(c *gin.Context, providerRuntime *authProviderRuntime) {
 	session := sessions.Default(c)
+	intent := c.Query("intent")
+	linkStartRedirect := ""
+	if intent == "link" {
+		start, err := s.core.ConsumePendingExternalIdentityLinkStart(c.Request.Context(), c.Query("link_start"))
+		if err != nil || start.ProviderID != providerRuntime.config.ID {
+			if err != nil {
+				log.Warn("Provider link start token failed", "provider_id", providerRuntime.config.ID, "provider_type", providerRuntime.config.Type, "error", err)
+			} else {
+				log.Warn("Provider link start token provider mismatch", "provider_id", providerRuntime.config.ID, "provider_type", providerRuntime.config.Type)
+			}
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=provider_failed")
+			return
+		}
+		session.Set(providerSessionKey(providerRuntime.config.ID, "intent"), "link")
+		session.Set(providerSessionKey(providerRuntime.config.ID, "link_user_id"), start.BoundUserID)
+		if isValidInternalRedirect(start.RedirectPath) {
+			linkStartRedirect = start.RedirectPath
+		}
+	} else {
+		session.Set(providerSessionKey(providerRuntime.config.ID, "intent"), "login")
+		session.Delete(providerSessionKey(providerRuntime.config.ID, "link_user_id"))
+	}
 
 	// Store redirect URL if provided
-	if redirect := c.Query("redirect"); redirect != "" {
+	if linkStartRedirect != "" {
+		session.Set("oauth_redirect", linkStartRedirect)
+	} else if redirect := c.Query("redirect"); redirect != "" {
 		if isValidInternalRedirect(redirect) {
 			session.Set("oauth_redirect", redirect)
 		}
@@ -225,6 +241,10 @@ func (s *HTTPServer) handleProviderCallback(c *gin.Context, providerRuntime *aut
 	}
 
 	session.Delete(providerSessionKey(providerRuntime.config.ID, "state"))
+	intent, _ := session.Get(providerSessionKey(providerRuntime.config.ID, "intent")).(string)
+	linkUserID, _ := session.Get(providerSessionKey(providerRuntime.config.ID, "link_user_id")).(string)
+	session.Delete(providerSessionKey(providerRuntime.config.ID, "intent"))
+	session.Delete(providerSessionKey(providerRuntime.config.ID, "link_user_id"))
 
 	// Check for error from provider
 	if errCode := c.Query("error"); errCode != "" {
@@ -262,8 +282,17 @@ func (s *HTTPServer) handleProviderCallback(c *gin.Context, providerRuntime *aut
 		return
 	}
 	if user == nil {
-		log.Info("Provider login has no linked Chatto account", "provider_id", providerRuntime.config.ID, "provider_type", providerRuntime.config.Type)
-		c.Redirect(http.StatusTemporaryRedirect, "/login?error=external_identity_unlinked")
+		log.Info("Provider login has no linked account", "provider_id", providerRuntime.config.ID, "provider_type", providerRuntime.config.Type)
+		s.redirectPendingExternalIdentity(c, session, providerRuntime.config, identity, intent, linkUserID)
+		return
+	}
+
+	if intent == "link" {
+		if linkUserID == "" || linkUserID != user.Id {
+			c.Redirect(http.StatusTemporaryRedirect, providerReturnPathWithError(session, "/", "external_identity_conflict"))
+			return
+		}
+		c.Redirect(http.StatusTemporaryRedirect, providerReturnPath(session, "/"))
 		return
 	}
 
@@ -272,8 +301,8 @@ func (s *HTTPServer) handleProviderCallback(c *gin.Context, providerRuntime *aut
 	if identity.avatarURL != "" {
 		existingAvatar, _ := s.core.GetUserAvatar(ctx, user.Id)
 		if existingAvatar == nil {
-			if err := fetchAndUploadAvatarFromURL(ctx, identity.avatarURL, s, user.Id); err != nil {
-				log.Error("Failed to fetch provider avatar", "provider_id", providerRuntime.config.ID, "error", err)
+			if err := s.core.ImportUserAvatarFromURL(ctx, user.Id, identity.avatarURL); err != nil {
+				log.Warn("Failed to import provider avatar", "provider_id", providerRuntime.config.ID, "provider_type", providerRuntime.config.Type, "userId", user.Id, "error", err)
 			}
 		}
 	}
@@ -293,10 +322,12 @@ type authProviderRuntime struct {
 }
 
 type resolvedProviderIdentity struct {
-	issuer    string
-	subject   string
-	email     string
-	avatarURL string
+	issuer          string
+	subject         string
+	verifiedEmail   string
+	avatarURL       string
+	loginHint       string
+	displayNameHint string
 }
 
 func newAuthProviderRuntime(providerConfig config.AuthProviderConfig, callbackURL string) (*authProviderRuntime, error) {
@@ -338,6 +369,9 @@ func providerScopes(providerConfig config.AuthProviderConfig) []string {
 		return scopes
 	}
 	if !providerConfig.RequestEmailOrDefault() {
+		if providerConfig.Type == config.AuthProviderTypeGoogle {
+			return []string{"openid", "profile"}
+		}
 		return nil
 	}
 	switch providerConfig.Type {
@@ -440,21 +474,23 @@ func (r *authProviderRuntime) resolveOIDCIdentity(c *gin.Context, session sessio
 		log.Info("OIDC ID token missing email, falling back to userinfo", "provider_id", r.config.ID)
 		userInfo, err := r.oidc.provider.UserInfo(ctx, oauth2.StaticTokenSource(token))
 		if err != nil {
-			return resolvedProviderIdentity{}, fmt.Errorf("fetch userinfo: %w", err)
-		}
-		if err := userInfo.Claims(&claims); err != nil {
-			return resolvedProviderIdentity{}, fmt.Errorf("parse userinfo claims: %w", err)
+			log.Warn("OIDC userinfo fallback failed", "provider_id", r.config.ID, "error", err)
+		} else if err := userInfo.Claims(&claims); err != nil {
+			log.Warn("OIDC userinfo claims ignored", "provider_id", r.config.ID, "error", err)
 		}
 	}
 
+	verifiedEmail := ""
 	if claims.Email != "" && claims.EmailVerified {
-		claims.Email = strings.ToLower(strings.TrimSpace(claims.Email))
+		verifiedEmail = strings.ToLower(strings.TrimSpace(claims.Email))
 	}
 	return resolvedProviderIdentity{
-		issuer:    idToken.Issuer,
-		subject:   idToken.Subject,
-		email:     claims.Email,
-		avatarURL: claims.Picture,
+		issuer:          idToken.Issuer,
+		subject:         idToken.Subject,
+		verifiedEmail:   verifiedEmail,
+		avatarURL:       claims.Picture,
+		loginHint:       loginHintFromParts(claims.PreferredUser, verifiedEmail, claims.Name),
+		displayNameHint: displayNameHintFromParts(claims.Name, claims.PreferredUser, verifiedEmail),
 	}, nil
 }
 
@@ -478,11 +514,220 @@ func (r *authProviderRuntime) resolveGothIdentity(c *gin.Context, session sessio
 		return resolvedProviderIdentity{}, fmt.Errorf("provider returned empty user id")
 	}
 	return resolvedProviderIdentity{
-		issuer:    r.config.ID,
-		subject:   gothUser.UserID,
-		email:     strings.ToLower(strings.TrimSpace(gothUser.Email)),
-		avatarURL: gothUser.AvatarURL,
+		issuer:          r.config.ID,
+		subject:         gothUser.UserID,
+		verifiedEmail:   r.verifiedEmailFromGothUser(c.Request.Context(), gothUser),
+		avatarURL:       gothUser.AvatarURL,
+		loginHint:       loginHintFromParts(gothUser.NickName, gothUser.Email, gothUser.Name),
+		displayNameHint: displayNameHintFromParts(gothUser.Name, gothUser.NickName, gothUser.Email),
 	}, nil
+}
+
+func (r *authProviderRuntime) verifiedEmailFromGothUser(ctx context.Context, gothUser goth.User) string {
+	switch r.config.Type {
+	case config.AuthProviderTypeDiscord:
+		if rawBool(gothUser.RawData, "verified") {
+			return normalizeProviderEmail(gothUser.Email)
+		}
+	case config.AuthProviderTypeGoogle:
+		if rawBool(gothUser.RawData, "verified_email") || rawBool(gothUser.RawData, "email_verified") {
+			return normalizeProviderEmail(gothUser.Email)
+		}
+	case config.AuthProviderTypeGitHub:
+		email, err := fetchGitHubVerifiedPrimaryEmail(ctx, gothUser.AccessToken)
+		if err == nil {
+			return email
+		}
+	}
+	return ""
+}
+
+func rawBool(raw map[string]interface{}, key string) bool {
+	if raw == nil {
+		return false
+	}
+	value, ok := raw[key]
+	if !ok {
+		return false
+	}
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		return strings.EqualFold(v, "true")
+	default:
+		return false
+	}
+}
+
+func normalizeProviderEmail(email string) string {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return ""
+	}
+	return email
+}
+
+func fetchGitHubVerifiedPrimaryEmail(ctx context.Context, accessToken string) (string, error) {
+	if strings.TrimSpace(accessToken) == "" {
+		return "", fmt.Errorf("missing github access token")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, github.EmailURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("github email endpoint returned %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return "", err
+	}
+	var emails []struct {
+		Email    string `json:"email"`
+		Primary  bool   `json:"primary"`
+		Verified bool   `json:"verified"`
+	}
+	if err := json.Unmarshal(body, &emails); err != nil {
+		return "", err
+	}
+	for _, email := range emails {
+		if email.Primary && email.Verified {
+			normalized := normalizeProviderEmail(email.Email)
+			if normalized != "" {
+				return normalized, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("github account has no verified primary email")
+}
+
+func (s *HTTPServer) redirectPendingExternalIdentity(c *gin.Context, session sessions.Session, providerConfig config.AuthProviderConfig, identity resolvedProviderIdentity, intent, linkUserID string) {
+	ctx := c.Request.Context()
+	flow := core.PendingExternalIdentityFlow{
+		ProviderID:      providerConfig.ID,
+		ProviderType:    providerConfig.Type,
+		ProviderLabel:   providerConfig.LabelOrDefault(),
+		Issuer:          identity.issuer,
+		Subject:         identity.subject,
+		VerifiedEmail:   identity.verifiedEmail,
+		AvatarURL:       identity.avatarURL,
+		LoginHint:       identity.loginHint,
+		DisplayNameHint: identity.displayNameHint,
+		RedirectPath:    providerReturnPath(session, "/"),
+	}
+
+	var (
+		token string
+		err   error
+	)
+	if intent == "link" {
+		if linkUserID == "" {
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=authentication_required")
+			return
+		}
+		token, err = s.core.CreatePendingExternalIdentityLinkFlow(ctx, flow, linkUserID)
+	} else {
+		if !providerConfig.AutoProvisionOrDefault() {
+			c.Redirect(http.StatusTemporaryRedirect, "/login?error=external_identity_unlinked")
+			return
+		}
+		token, err = s.core.CreatePendingExternalIdentityCreateFlow(ctx, flow)
+	}
+	if err != nil {
+		log.Error("Failed to create pending external identity flow", "provider_id", providerConfig.ID, "provider_type", providerConfig.Type, "error", err)
+		c.Redirect(http.StatusTemporaryRedirect, "/login?error=provider_failed")
+		return
+	}
+	c.Redirect(http.StatusTemporaryRedirect, "/sso/confirm?token="+url.QueryEscape(token))
+}
+
+func providerReturnPath(session sessions.Session, fallback string) string {
+	if redirect := session.Get("oauth_redirect"); redirect != nil {
+		if r, ok := redirect.(string); ok && r != "" && isValidInternalRedirect(r) {
+			session.Delete("oauth_redirect")
+			_ = session.Save()
+			return r
+		}
+	}
+	return fallback
+}
+
+func providerReturnPathWithError(session sessions.Session, fallback, errorCode string) string {
+	returnPath := providerReturnPath(session, fallback)
+	u, err := url.Parse(returnPath)
+	if err != nil {
+		return fallback
+	}
+	q := u.Query()
+	q.Set("error", errorCode)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func loginHintFromParts(parts ...string) string {
+	for _, part := range parts {
+		hint := loginHint(part)
+		if hint != "" {
+			return hint
+		}
+	}
+	return ""
+}
+
+func loginHint(value string) string {
+	value = strings.TrimSpace(value)
+	if emailName, _, ok := strings.Cut(value, "@"); ok {
+		value = emailName
+	}
+	value = strings.ToLower(value)
+	var b strings.Builder
+	lastDot := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_' || r == '-':
+			b.WriteRune(r)
+			lastDot = false
+		case r == '.':
+			if !lastDot {
+				b.WriteRune(r)
+				lastDot = true
+			}
+		case r == ' ':
+			if !lastDot {
+				b.WriteRune('-')
+				lastDot = false
+			}
+		}
+		if b.Len() >= 32 {
+			break
+		}
+	}
+	hint := strings.Trim(b.String(), ".-_")
+	if len(hint) < 2 {
+		return ""
+	}
+	return hint
+}
+
+func displayNameHintFromParts(parts ...string) string {
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if emailName, _, ok := strings.Cut(part, "@"); ok {
+			part = emailName
+		}
+		if part != "" {
+			return part
+		}
+	}
+	return ""
 }
 
 func (s *HTTPServer) completeProviderLogin(c *gin.Context, session sessions.Session, userID string, providerConfig config.AuthProviderConfig) error {
@@ -555,43 +800,4 @@ func randomString(n int) (string, error) {
 func s256Challenge(verifier string) string {
 	h := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(h[:])
-}
-
-// fetchAndUploadAvatarFromURL downloads an avatar from a URL and uploads it.
-func fetchAndUploadAvatarFromURL(ctx context.Context, avatarURL string, s *HTTPServer, userID string) error {
-	// Validate the URL before making a request
-	u, err := url.Parse(avatarURL)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
-		return nil // silently skip invalid URLs
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, avatarURL, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := oidcAvatarClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-
-	avatarData, err := io.ReadAll(io.LimitReader(resp.Body, oidcAvatarMaxBytes+1))
-	if err != nil {
-		return err
-	}
-	if len(avatarData) > oidcAvatarMaxBytes {
-		return fmt.Errorf("avatar exceeds maximum size of %d bytes", oidcAvatarMaxBytes)
-	}
-
-	asset, err := s.core.UploadUserAvatar(ctx, userID, bytes.NewReader(avatarData))
-	if err != nil {
-		return err
-	}
-
-	return s.core.SetUserAvatar(ctx, userID, asset)
 }

@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -725,6 +726,42 @@ func TestChattoCore_SetPasswordHash(t *testing.T) {
 	}
 }
 
+func TestChattoCore_SetPasswordHash_RechecksCurrentPasswordAfterOCCConflict(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "stale-password-user", "Stale Password User", "initial123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	checks := 0
+	err = core.setPasswordHash(ctx, user.Id, user.Id, "staleoverwrite789", true, func() error {
+		checks++
+		if err := core.verifyUserPasswordCurrent(user.Id, "initial123"); err != nil {
+			return err
+		}
+		if checks == 1 {
+			if err := core.SetPasswordHash(ctx, user.Id, "newerpassword456"); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if !errors.Is(err, ErrCurrentPasswordInvalid) {
+		t.Fatalf("setPasswordHash stale proof error = %v, want ErrCurrentPasswordInvalid", err)
+	}
+	if checks < 2 {
+		t.Fatalf("current password check ran %d time(s), want retry after conflict", checks)
+	}
+	if _, err := core.VerifyPassword(ctx, user.Login, "newerpassword456"); err != nil {
+		t.Fatalf("newer password should remain valid: %v", err)
+	}
+	if _, err := core.VerifyPassword(ctx, user.Login, "staleoverwrite789"); err == nil {
+		t.Fatal("stale password overwrite should not be valid")
+	}
+}
+
 func TestChattoCore_SetPasswordHashRejectsMissingUser(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
@@ -775,6 +812,100 @@ func TestChattoCore_SetPasswordHash_RevokesBearerTokens(t *testing.T) {
 		t.Fatalf("other token should remain valid: %v", err)
 	} else if gotUserID != otherUser.Id {
 		t.Fatalf("other token user ID = %q, want %q", gotUserID, otherUser.Id)
+	}
+}
+
+func TestChattoCore_SetInitialPasswordHash(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "initial-password-user", "Initial Password User", "")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token, err := core.CreateAuthToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken: %v", err)
+	}
+
+	if hasPassword, err := core.HasPassword(ctx, user.Id); err != nil {
+		t.Fatalf("HasPassword before: %v", err)
+	} else if hasPassword {
+		t.Fatal("HasPassword before = true, want false")
+	}
+
+	if err := core.SetInitialPasswordHash(ctx, user.Id, "newpassword456"); err != nil {
+		t.Fatalf("SetInitialPasswordHash: %v", err)
+	}
+	if hasPassword, err := core.HasPassword(ctx, user.Id); err != nil {
+		t.Fatalf("HasPassword after: %v", err)
+	} else if !hasPassword {
+		t.Fatal("HasPassword after = false, want true")
+	}
+	if verified, err := core.VerifyPassword(ctx, user.Login, "newpassword456"); err != nil {
+		t.Fatalf("VerifyPassword: %v", err)
+	} else if verified.Id != user.Id {
+		t.Fatalf("verified user ID = %q, want %q", verified.Id, user.Id)
+	}
+	if gotUserID, err := core.ValidateAuthToken(ctx, token); err != nil {
+		t.Fatalf("existing auth token should remain valid: %v", err)
+	} else if gotUserID != user.Id {
+		t.Fatalf("token user ID = %q, want %q", gotUserID, user.Id)
+	}
+	if err := core.SetInitialPasswordHash(ctx, user.Id, "anotherpassword456"); !errors.Is(err, ErrPasswordAlreadySet) {
+		t.Fatalf("second SetInitialPasswordHash err = %v, want ErrPasswordAlreadySet", err)
+	}
+}
+
+func TestChattoCore_SetOwnPassword(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	passwordless, err := core.CreateUser(ctx, SystemActorID, "own-passwordless", "Own Passwordless", "")
+	if err != nil {
+		t.Fatalf("CreateUser passwordless: %v", err)
+	}
+	token, err := core.CreateAuthToken(ctx, passwordless.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken passwordless: %v", err)
+	}
+	if err := core.SetOwnPassword(ctx, passwordless.Id, "", "newpassword456"); err != nil {
+		t.Fatalf("SetOwnPassword passwordless: %v", err)
+	}
+	if _, err := core.VerifyPassword(ctx, passwordless.Login, "newpassword456"); err != nil {
+		t.Fatalf("VerifyPassword passwordless: %v", err)
+	}
+	if gotUserID, err := core.ValidateAuthToken(ctx, token); err != nil {
+		t.Fatalf("initial password should preserve existing token: %v", err)
+	} else if gotUserID != passwordless.Id {
+		t.Fatalf("token user ID = %q, want %q", gotUserID, passwordless.Id)
+	}
+
+	existing, err := core.CreateUser(ctx, SystemActorID, "own-existing", "Own Existing", "oldpassword123")
+	if err != nil {
+		t.Fatalf("CreateUser existing: %v", err)
+	}
+	existingToken, err := core.CreateAuthToken(ctx, existing.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken existing: %v", err)
+	}
+	if err := core.SetOwnPassword(ctx, existing.Id, "", "newpassword456"); !errors.Is(err, ErrCurrentPasswordRequired) {
+		t.Fatalf("SetOwnPassword missing current err = %v, want ErrCurrentPasswordRequired", err)
+	}
+	if err := core.SetOwnPassword(ctx, existing.Id, "wrongpassword", "newpassword456"); !errors.Is(err, ErrCurrentPasswordInvalid) {
+		t.Fatalf("SetOwnPassword wrong current err = %v, want ErrCurrentPasswordInvalid", err)
+	}
+	if err := core.SetOwnPassword(ctx, existing.Id, "oldpassword123", "newpassword456"); err != nil {
+		t.Fatalf("SetOwnPassword existing: %v", err)
+	}
+	if _, err := core.VerifyPassword(ctx, existing.Login, "oldpassword123"); err == nil {
+		t.Fatal("old password should no longer verify")
+	}
+	if _, err := core.VerifyPassword(ctx, existing.Login, "newpassword456"); err != nil {
+		t.Fatalf("new password should verify: %v", err)
+	}
+	if _, err := core.ValidateAuthToken(ctx, existingToken); err != ErrAuthTokenNotFound {
+		t.Fatalf("existing password change token err = %v, want ErrAuthTokenNotFound", err)
 	}
 }
 
@@ -911,6 +1042,170 @@ func TestChattoCore_LinkExternalIdentity(t *testing.T) {
 	err = core.LinkExternalIdentity(ctx, "github-main", "github", "github-main", "12345", other.Id)
 	if !errors.Is(err, ErrExternalIdentityAlreadyClaimed) {
 		t.Fatalf("LinkExternalIdentity conflict error = %v, want ErrExternalIdentityAlreadyClaimed", err)
+	}
+}
+
+func TestChattoCore_DisconnectExternalIdentity(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	ctx := context.Background()
+	user, err := core.CreateUser(ctx, "system", "disconnectuser", "Disconnect User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := core.LinkExternalIdentity(ctx, "github-main", "github", "github-main", "12345", user.Id); err != nil {
+		t.Fatalf("LinkExternalIdentity: %v", err)
+	}
+	authGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration: %v", err)
+	}
+	token, err := core.CreateAuthTokenWithSourceGeneration(ctx, user.Id, "external_identity_login", authGeneration)
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSourceGeneration: %v", err)
+	}
+	sessionID, _, err := core.CreateCookieSessionForGeneration(ctx, user.Id, "external_identity_login", authGeneration)
+	if err != nil {
+		t.Fatalf("CreateCookieSessionForGeneration: %v", err)
+	}
+	identities, err := core.ExternalIdentitiesForUser(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("ExternalIdentitiesForUser: %v", err)
+	}
+	if len(identities) != 1 || identities[0].SubjectHash == "" {
+		t.Fatalf("identities = %+v", identities)
+	}
+
+	if err := core.DisconnectExternalIdentity(ctx, user.Id, identities[0].SubjectHash); err != nil {
+		t.Fatalf("DisconnectExternalIdentity: %v", err)
+	}
+	found, err := core.GetUserByExternalIdentity(ctx, "github-main", "12345")
+	if err != nil {
+		t.Fatalf("GetUserByExternalIdentity: %v", err)
+	}
+	if found != nil {
+		t.Fatalf("GetUserByExternalIdentity after disconnect = %v, want nil", found)
+	}
+	identities, err = core.ExternalIdentitiesForUser(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("ExternalIdentitiesForUser after disconnect: %v", err)
+	}
+	if len(identities) != 0 {
+		t.Fatalf("identities after disconnect = %+v, want empty", identities)
+	}
+	if _, err := core.ValidateAuthToken(ctx, token); !errors.Is(err, ErrAuthTokenNotFound) {
+		t.Fatalf("ValidateAuthToken after disconnect err = %v, want ErrAuthTokenNotFound", err)
+	}
+	if _, err := core.ValidateCookieSession(ctx, user.Id, sessionID); !errors.Is(err, ErrCookieSessionNotFound) {
+		t.Fatalf("ValidateCookieSession after disconnect err = %v, want ErrCookieSessionNotFound", err)
+	}
+	if _, err := core.CreateAuthTokenWithSourceGeneration(ctx, user.Id, "external_identity_login", authGeneration); !errors.Is(err, ErrAuthTokenNotFound) {
+		t.Fatalf("CreateAuthTokenWithSourceGeneration old generation err = %v, want ErrAuthTokenNotFound", err)
+	}
+	afterGeneration, err := core.CurrentAuthGeneration(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CurrentAuthGeneration after disconnect: %v", err)
+	}
+	if afterGeneration == authGeneration {
+		t.Fatal("auth generation should advance after external identity disconnect")
+	}
+
+	err = core.DisconnectExternalIdentity(ctx, user.Id, "missing-subject-hash")
+	if !errors.Is(err, ErrExternalIdentityNotFound) {
+		t.Fatalf("DisconnectExternalIdentity missing error = %v, want ErrExternalIdentityNotFound", err)
+	}
+}
+
+func TestChattoCore_DisconnectExternalIdentityRejectsLastPasswordlessMethod(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	ctx := context.Background()
+	user, err := core.CreateUser(ctx, "system", "passwordless-disconnect", "Passwordless Disconnect", "")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := core.LinkExternalIdentity(ctx, "github-main", "github", "github-main", "12345", user.Id); err != nil {
+		t.Fatalf("LinkExternalIdentity: %v", err)
+	}
+	identities, err := core.ExternalIdentitiesForUser(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("ExternalIdentitiesForUser: %v", err)
+	}
+
+	err = core.DisconnectExternalIdentity(ctx, user.Id, identities[0].SubjectHash)
+	if !errors.Is(err, ErrExternalIdentityLastMethod) {
+		t.Fatalf("DisconnectExternalIdentity last method error = %v, want ErrExternalIdentityLastMethod", err)
+	}
+
+	if err := core.LinkExternalIdentity(ctx, "discord-main", "discord", "discord-main", "abc123", user.Id); err != nil {
+		t.Fatalf("LinkExternalIdentity second: %v", err)
+	}
+	if err := core.DisconnectExternalIdentity(ctx, user.Id, identities[0].SubjectHash); err != nil {
+		t.Fatalf("DisconnectExternalIdentity with second identity: %v", err)
+	}
+	identities, err = core.ExternalIdentitiesForUser(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("ExternalIdentitiesForUser final: %v", err)
+	}
+	if len(identities) != 1 || identities[0].ProviderID != "discord-main" {
+		t.Fatalf("identities final = %+v, want discord only", identities)
+	}
+}
+
+func TestChattoCore_DisconnectExternalIdentityConcurrentDuplicate(t *testing.T) {
+	core, _ := setupTestCore(t)
+
+	ctx := context.Background()
+	user, err := core.CreateUser(ctx, "system", "disconnectrace", "Disconnect Race", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := core.LinkExternalIdentity(ctx, "github-main", "github", "github-main", "12345", user.Id); err != nil {
+		t.Fatalf("LinkExternalIdentity: %v", err)
+	}
+	identities, err := core.ExternalIdentitiesForUser(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("ExternalIdentitiesForUser: %v", err)
+	}
+	if len(identities) != 1 || identities[0].SubjectHash == "" {
+		t.Fatalf("identities = %+v", identities)
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- core.DisconnectExternalIdentity(ctx, user.Id, identities[0].SubjectHash)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	var successes, notFound int
+	for err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, ErrExternalIdentityNotFound):
+			notFound++
+		default:
+			t.Fatalf("DisconnectExternalIdentity concurrent error = %v", err)
+		}
+	}
+	if successes != 1 || notFound != 1 {
+		t.Fatalf("concurrent disconnect results: successes=%d notFound=%d, want 1 each", successes, notFound)
+	}
+	identities, err = core.ExternalIdentitiesForUser(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("ExternalIdentitiesForUser after concurrent disconnect: %v", err)
+	}
+	if len(identities) != 0 {
+		t.Fatalf("identities after concurrent disconnect = %+v, want empty", identities)
 	}
 }
 
@@ -1325,6 +1620,9 @@ func TestChattoCore_AdminUpdateUserAuthorization(t *testing.T) {
 		if !errors.Is(err, ErrNotAuthenticated) {
 			t.Fatalf("AdminUpdateUser err = %v, want ErrNotAuthenticated", err)
 		}
+		if err := c.AdminSetUserPasswordAuthorized(ctx, "", target.Id, "newpassword456"); !errors.Is(err, ErrNotAuthenticated) {
+			t.Fatalf("AdminSetUserPasswordAuthorized err = %v, want ErrNotAuthenticated", err)
+		}
 	})
 
 	t.Run("regular user cannot update another user", func(t *testing.T) {
@@ -1345,6 +1643,9 @@ func TestChattoCore_AdminUpdateUserAuthorization(t *testing.T) {
 		}
 		if err := c.AdminClearLoginChangeCooldown(ctx, regular.Id, target.Id); !errors.Is(err, ErrPermissionDenied) {
 			t.Fatalf("AdminClearLoginChangeCooldown err = %v, want ErrPermissionDenied", err)
+		}
+		if err := c.AdminSetUserPasswordAuthorized(ctx, regular.Id, target.Id, "newpassword456"); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AdminSetUserPasswordAuthorized err = %v, want ErrPermissionDenied", err)
 		}
 	})
 
@@ -1377,6 +1678,81 @@ func TestChattoCore_AdminUpdateUserAuthorization(t *testing.T) {
 		if err := c.AdminClearLoginChangeCooldown(ctx, admin.Id, target.Id); err != nil {
 			t.Fatalf("AdminClearLoginChangeCooldown: %v", err)
 		}
+		if err := c.AdminSetUserPasswordAuthorized(ctx, admin.Id, target.Id, "adminpassword456"); err != nil {
+			t.Fatalf("AdminSetUserPasswordAuthorized: %v", err)
+		}
+		if _, err := c.VerifyPassword(ctx, updated.GetLogin(), "adminpassword456"); err != nil {
+			t.Fatalf("admin-set password should verify: %v", err)
+		}
+		if err := c.GrantUserPermission(ctx, SystemActorID, admin.Id, PermAdminAuditView); err != nil {
+			t.Fatalf("GrantUserPermission admin.view-audit: %v", err)
+		}
+		log, err := c.ListEventLog(ctx, admin.Id, EventLogQuery{
+			Limit: 10,
+			Filter: EventLogFilter{
+				EventType: "UserPasswordHashChangedEvent",
+				ActorID:   admin.Id,
+			},
+		})
+		if err != nil {
+			t.Fatalf("ListEventLog password reset: %v", err)
+		}
+		var found bool
+		for _, entry := range log.Entries {
+			if strings.Contains(entry.PayloadJSON, target.Id) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("admin password reset audit entry with actor %q for target %q not found: %+v", admin.Id, target.Id, log.Entries)
+		}
+	})
+
+	t.Run("role assignment permission cannot reset another user password", func(t *testing.T) {
+		c, _ := setupTestCore(t)
+		ctx := testContext(t)
+		roleAssigner, err := c.CreateUser(ctx, SystemActorID, "adminauth-role-assigner", "Role Assigner", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser role assigner: %v", err)
+		}
+		if err := c.GrantUserPermission(ctx, SystemActorID, roleAssigner.Id, PermRoleAssign); err != nil {
+			t.Fatalf("GrantUserPermission role.assign: %v", err)
+		}
+		target, err := c.CreateUser(ctx, SystemActorID, "adminauth-target-role-only", "Target", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser target: %v", err)
+		}
+
+		if err := c.AdminSetUserPasswordAuthorized(ctx, roleAssigner.Id, target.Id, "newpassword456"); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AdminSetUserPasswordAuthorized err = %v, want ErrPermissionDenied", err)
+		}
+		if _, err := c.VerifyPassword(ctx, target.Login, "password123"); err != nil {
+			t.Fatalf("original password should still verify: %v", err)
+		}
+	})
+
+	t.Run("account management permission can reset another user password", func(t *testing.T) {
+		c, _ := setupTestCore(t)
+		ctx := testContext(t)
+		accountManager, err := c.CreateUser(ctx, SystemActorID, "adminauth-account-manager", "Account Manager", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser account manager: %v", err)
+		}
+		if err := c.GrantUserPermission(ctx, SystemActorID, accountManager.Id, PermUserManageAccounts); err != nil {
+			t.Fatalf("GrantUserPermission user.manage-accounts: %v", err)
+		}
+		target, err := c.CreateUser(ctx, SystemActorID, "adminauth-target-account-manager", "Target", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser target: %v", err)
+		}
+
+		if err := c.AdminSetUserPasswordAuthorized(ctx, accountManager.Id, target.Id, "managedpassword456"); err != nil {
+			t.Fatalf("AdminSetUserPasswordAuthorized: %v", err)
+		}
+		if _, err := c.VerifyPassword(ctx, target.Login, "managedpassword456"); err != nil {
+			t.Fatalf("account-manager-set password should verify: %v", err)
+		}
 	})
 
 	t.Run("self update preserves legacy admin mutation behavior", func(t *testing.T) {
@@ -1393,6 +1769,21 @@ func TestChattoCore_AdminUpdateUserAuthorization(t *testing.T) {
 		}
 		if updated.GetLogin() != login {
 			t.Fatalf("updated login = %q, want %q", updated.GetLogin(), login)
+		}
+	})
+
+	t.Run("self password reset is rejected", func(t *testing.T) {
+		c, _ := setupTestCore(t)
+		ctx := testContext(t)
+		user, err := c.CreateUser(ctx, SystemActorID, "adminauth-self-password", "Self Password", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser self: %v", err)
+		}
+		if err := c.AdminSetUserPasswordAuthorized(ctx, user.Id, user.Id, "newpassword456"); !errors.Is(err, ErrAdminCannotSetOwnPassword) {
+			t.Fatalf("AdminSetUserPasswordAuthorized self err = %v, want ErrAdminCannotSetOwnPassword", err)
+		}
+		if _, err := c.VerifyPassword(ctx, user.Login, "password123"); err != nil {
+			t.Fatalf("original password should still verify: %v", err)
 		}
 	})
 }

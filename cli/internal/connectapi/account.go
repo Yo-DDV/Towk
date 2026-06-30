@@ -91,6 +91,32 @@ func (s *accountService) DeleteAvatar(ctx context.Context, _ *connect.Request[ap
 	return connect.NewResponse(&apiv1.DeleteAvatarResponse{User: responseUser}), nil
 }
 
+func (s *accountService) SetPassword(ctx context.Context, req *connect.Request[apiv1.SetPasswordRequest]) (*connect.Response[apiv1.SetPasswordResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Msg.GetPassword() == "" {
+		return nil, invalidArgument("password is required")
+	}
+	if err := core.ValidatePassword(req.Msg.GetPassword()); err != nil {
+		return nil, connectError(err)
+	}
+	hasPassword, err := s.api.core.HasPassword(ctx, caller.UserID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	if !hasPassword {
+		if err := s.api.requireFreshCredential(ctx, caller, ""); err != nil {
+			return nil, connectError(err)
+		}
+	}
+	if err := s.api.core.SetOwnPassword(ctx, caller.UserID, req.Msg.GetCurrentPassword(), req.Msg.GetPassword()); err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&apiv1.SetPasswordResponse{}), nil
+}
+
 func (s *accountService) UpdateSettings(ctx context.Context, req *connect.Request[apiv1.UpdateSettingsRequest]) (*connect.Response[apiv1.UpdateSettingsResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {

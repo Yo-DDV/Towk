@@ -20,4 +20,3 @@ protocol used at `/api/realtime`.
   tags. New required client behavior must be negotiated through hello/capability
   fields or a new protocol version.
 - Version 1 is live-only and has no acknowledgement or replay cursor contract.
-

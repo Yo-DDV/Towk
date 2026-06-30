@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"hmans.de/chatto/internal/connectapi"
 	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -31,6 +33,27 @@ func (s *HTTPServer) createCookieSessionForGeneration(c *gin.Context, userID, so
 		return err
 	}
 	return saveCookieSession(c, userID, sessionID)
+}
+
+func (s *HTTPServer) createConnectBrowserSession(c *gin.Context, userID, source string) (connectapi.BrowserSession, error) {
+	if err := s.createCookieSession(c, userID, source); err != nil {
+		return connectapi.BrowserSession{}, err
+	}
+	session := sessions.Default(c)
+	cookieUserID, cookieSessionID, _ := cookieSessionIDs(session)
+	browserSession := connectapi.BrowserSession{
+		Revoke: func(ctx context.Context) error {
+			_ = s.core.RevokeCookieSession(ctx, cookieUserID, cookieSessionID)
+			clearCookieSessionAuth(session)
+			clearCSRFCookie(c)
+			return nil
+		},
+	}
+	if err := s.ensureCSRFToken(c); err != nil {
+		_ = browserSession.Revoke(c.Request.Context())
+		return connectapi.BrowserSession{}, err
+	}
+	return browserSession, nil
 }
 
 func saveCookieSession(c *gin.Context, userID, sessionID string) error {
@@ -89,7 +112,7 @@ func (s *HTTPServer) rotateCookieSessionIfNeeded(c *gin.Context, userID, oldSess
 		return
 	}
 
-	newSessionID, _, err := s.core.CreateCookieSessionForGeneration(c.Request.Context(), userID, "session_rotation", record.GetAuthGeneration())
+	newSessionID, _, err := s.core.CreateCookieSessionForGenerationPreservingFreshAuth(c.Request.Context(), userID, "session_rotation", record.GetAuthGeneration(), record)
 	if err != nil {
 		log.Warn("Failed to rotate cookie session", "userId", userID, "error", err)
 		if errors.Is(err, core.ErrCookieSessionNotFound) {

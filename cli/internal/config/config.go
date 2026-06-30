@@ -459,7 +459,8 @@ type AuthProviderConfig struct {
 	ClientSecret    string            `toml:"client_secret" comment:"OAuth/OIDC client secret. NEVER SHARE THIS!"`
 	IssuerURL       string            `toml:"issuer_url,commented" comment:"OIDC issuer URL. Required when type = 'oidc'."`
 	Scopes          []string          `toml:"scopes,commented" comment:"Optional OAuth scopes. Defaults are provider-specific."`
-	RequestEmail    *bool             `toml:"request_email,commented" comment:"Whether to request email scopes for providers that support it. Default: true."`
+	RequestEmail    *bool             `toml:"request_email,commented" comment:"Whether to request email scopes for providers that support it. Default: false. Chatto still matches by provider subject without an email claim."`
+	AutoProvision   *bool             `toml:"auto_provision,commented" comment:"Whether unlinked external identities may create a new passwordless account after explicit confirmation. Default: false. The linked provider identity counts as a verified sign-in factor."`
 	ProviderOptions map[string]string `toml:"provider_options,commented" comment:"Provider-specific options reserved for future use."`
 }
 
@@ -476,9 +477,16 @@ func (c AuthProviderConfig) LabelOrDefault() string {
 
 func (c AuthProviderConfig) RequestEmailOrDefault() bool {
 	if c.RequestEmail == nil {
-		return true
+		return false
 	}
 	return *c.RequestEmail
+}
+
+func (c AuthProviderConfig) AutoProvisionOrDefault() bool {
+	if c.AutoProvision == nil {
+		return false
+	}
+	return *c.AutoProvision
 }
 
 func IsAllowedAuthProviderType(providerType string) bool {
@@ -648,7 +656,7 @@ func (c *NATSConfig) ReplicasOrDefault() int {
 // briefly overshoot by one or two. Tightening this requires an instance-stats
 // counter system with CAS-incrementing gates — tracked as a follow-up to this PR.
 type LimitsConfig struct {
-	MaxUsers *int `toml:"max_users,commented" env:"CHATTO_LIMITS_MAX_USERS" comment:"Maximum number of verified users allowed in this instance. -1 = unlimited (default), 0 = no new signups, positive = cap. Counts users with at least one verified email."`
+	MaxUsers *int `toml:"max_users,commented" env:"CHATTO_LIMITS_MAX_USERS" comment:"Maximum number of verified accounts allowed in this instance. -1 = unlimited (default), 0 = no new signups, positive = cap. Counts users with at least one verified email or linked SSO identity."`
 }
 
 // MaxUsersOrDefault returns the configured max-users limit, defaulting to -1 (unlimited).
@@ -1348,6 +1356,12 @@ func applyAuthProviderEnvField(provider *AuthProviderConfig, name, field, value 
 			return fmt.Errorf("%s must be a boolean: %w", name, err)
 		}
 		provider.RequestEmail = &requestEmail
+	case "AUTO_PROVISION":
+		autoProvision, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("%s must be a boolean: %w", name, err)
+		}
+		provider.AutoProvision = &autoProvision
 	default:
 		const providerOptionsPrefix = "PROVIDER_OPTIONS_"
 		if strings.HasPrefix(field, providerOptionsPrefix) {

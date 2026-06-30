@@ -197,6 +197,39 @@ Result of an admin user update.
 | `member` | [`AdminMember`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminMember) | Updated admin member row. |
 
 
+<a id="chatto-admin-v1-AdminMemberService-SetUserPassword"></a>
+
+### SetUserPassword
+
+Sets a user's password as an admin action.
+
+```http
+POST /api/connect/chatto.admin.v1.AdminMemberService/SetUserPassword
+```
+
+<a id="chatto-admin-v1-SetUserPasswordRequest"></a>
+
+#### Input: SetUserPasswordRequest
+
+Request to set a user's password as a server-admin action.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user_id` | `string` | Target user ID. |
+| `password` | `string` | New password. The server applies the same password policy as registration and password reset. |
+
+
+<a id="chatto-admin-v1-SetUserPasswordResponse"></a>
+
+#### Result: SetUserPasswordResponse
+
+Result of an admin password update.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `updated` | `bool` | True when the request completed. |
+
+
 <a id="chatto-admin-v1-AdminMemberService-ClearUsernameCooldown"></a>
 
 ### ClearUsernameCooldown

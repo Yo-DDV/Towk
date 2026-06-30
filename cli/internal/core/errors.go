@@ -24,6 +24,22 @@ var (
 	// specific validation message.
 	ErrInvalidArgument = errors.New("invalid argument")
 
+	// ErrPasswordAlreadySet is returned when trying to add an initial password
+	// to an account that already has a password credential.
+	ErrPasswordAlreadySet = errors.New("password is already set")
+
+	// ErrCurrentPasswordRequired is returned when changing an existing password
+	// without proving knowledge of the current password.
+	ErrCurrentPasswordRequired = errors.New("current password is required")
+
+	// ErrCurrentPasswordInvalid is returned when the supplied current password
+	// does not match the authenticated user's password.
+	ErrCurrentPasswordInvalid = errors.New("current password is invalid")
+
+	// ErrAdminCannotSetOwnPassword is returned when a user attempts to use the
+	// admin password-reset path for their own account.
+	ErrAdminCannotSetOwnPassword = errors.New("cannot set your own password through admin user management")
+
 	// ErrNotSpaceMember is returned when a user attempts to access a space
 	// they are not a member of.
 	ErrNotSpaceMember = errors.New("not a member of this space")

@@ -82,6 +82,8 @@ func (a *API) Handlers() []Handler {
 	serverDiscoveryPath, serverDiscoveryHandler := apiv1connect.NewServerDiscoveryServiceHandler(&serverDiscoveryService{api: a}, options...)
 	serverPath, serverHandler := apiv1connect.NewServerServiceHandler(&serverService{api: a}, options...)
 	viewerPath, viewerHandler := apiv1connect.NewViewerServiceHandler(&viewerService{api: a}, options...)
+	externalFlowPath, externalFlowHandler := apiv1connect.NewExternalIdentityFlowServiceHandler(&externalIdentityFlowService{api: a}, options...)
+	externalIdentityPath, externalIdentityHandler := apiv1connect.NewExternalIdentityServiceHandler(&externalIdentityService{api: a}, options...)
 	permissionPath, permissionHandler := adminv1connect.NewAdminPermissionServiceHandler(&permissionService{api: a}, options...)
 	linkPreviewPath, linkPreviewHandler := apiv1connect.NewLinkPreviewServiceHandler(&linkPreviewService{api: a}, options...)
 	messagePath, messageHandler := apiv1connect.NewMessageServiceHandler(&messageService{api: a}, messageUploadOptions...)
@@ -107,6 +109,8 @@ func (a *API) Handlers() []Handler {
 		{ServicePath: adminServerPath, Handler: adminServerHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: adminRoomLayoutPath, Handler: adminRoomLayoutHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: adminMemberPath, Handler: adminMemberHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
+		{ServicePath: externalFlowPath, Handler: externalFlowHandler, AuthPolicy: AuthPolicyPublic},
+		{ServicePath: externalIdentityPath, Handler: externalIdentityHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: linkPreviewPath, Handler: linkPreviewHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: messagePath, Handler: messageHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: memberDirectoryPath, Handler: memberDirectoryHandler, AuthPolicy: AuthPolicyAuthenticatedUser},

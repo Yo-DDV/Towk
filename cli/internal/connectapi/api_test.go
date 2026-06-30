@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"hmans.de/chatto/internal/authctx"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/core/linkpreview"
@@ -55,6 +57,8 @@ func TestAPIHandlers(t *testing.T) {
 		"/" + apiv1connect.AccountServiceName + "/",
 		"/" + adminv1connect.AdminServerServiceName + "/",
 		"/" + apiv1connect.AttachmentServiceName + "/",
+		"/" + apiv1connect.ExternalIdentityFlowServiceName + "/",
+		"/" + apiv1connect.ExternalIdentityServiceName + "/",
 		"/" + adminv1connect.AdminDiagnosticsServiceName + "/",
 		"/" + adminv1connect.AdminEventLogServiceName + "/",
 		"/" + adminv1connect.AdminRoomLayoutServiceName + "/",
@@ -101,6 +105,8 @@ func TestAPIHandlerAuthPolicies(t *testing.T) {
 		"/" + apiv1connect.AccountServiceName + "/":                 AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminServerServiceName + "/":           AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.AttachmentServiceName + "/":              AuthPolicyAuthenticatedUser,
+		"/" + apiv1connect.ExternalIdentityFlowServiceName + "/":    AuthPolicyPublic,
+		"/" + apiv1connect.ExternalIdentityServiceName + "/":        AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminDiagnosticsServiceName + "/":      AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminEventLogServiceName + "/":         AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminRoomLayoutServiceName + "/":       AuthPolicyAuthenticatedUser,
@@ -244,6 +250,256 @@ func TestServerDiscoveryServiceGetServerPublicMetadata(t *testing.T) {
 	}
 	if provider.LoginUrl != "/auth/providers/hub%20provider" {
 		t.Fatalf("provider LoginUrl = %q, want escaped provider path", provider.LoginUrl)
+	}
+}
+
+func TestExternalIdentityServicesCreateAndLink(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	env.api.config.Auth.Providers = []config.AuthProviderConfig{
+		{ID: "github-main", Type: config.AuthProviderTypeGitHub, Label: "GitHub"},
+		{ID: "discord-main", Type: config.AuthProviderTypeDiscord, Label: "Discord"},
+		{ID: "gitlab-main", Type: config.AuthProviderTypeGitLab, Label: "GitLab"},
+	}
+
+	createToken, err := env.core.CreatePendingExternalIdentityCreateFlow(env.ctx, core.PendingExternalIdentityFlow{
+		ProviderID:      "github-main",
+		ProviderType:    config.AuthProviderTypeGitHub,
+		ProviderLabel:   "GitHub",
+		Issuer:          "github-main",
+		Subject:         "12345",
+		LoginHint:       "sso-user",
+		DisplayNameHint: "SSO User",
+	})
+	if err != nil {
+		t.Fatalf("CreatePendingExternalIdentityCreateFlow: %v", err)
+	}
+
+	pending, err := env.flow.GetPendingExternalIdentity(env.ctx, connect.NewRequest(&apiv1.GetPendingExternalIdentityRequest{
+		Token: createToken,
+	}))
+	if err != nil {
+		t.Fatalf("GetPendingExternalIdentity: %v", err)
+	}
+	if pending.Msg.Pending.GetKind() != apiv1.ExternalIdentityFlowKind_EXTERNAL_IDENTITY_FLOW_KIND_CREATE_ACCOUNT || pending.Msg.Pending.GetProviderId() != "github-main" {
+		t.Fatalf("pending = %+v", pending.Msg.Pending)
+	}
+
+	created, err := env.flow.CreateExternalIdentityAccount(env.ctx, connect.NewRequest(&apiv1.CreateExternalIdentityAccountRequest{
+		Token: createToken,
+		Login: "sso-user",
+	}))
+	if err != nil {
+		t.Fatalf("CreateExternalIdentityAccount: %v", err)
+	}
+	createdAuthToken := created.Msg.GetToken()
+	userID, err := env.core.ValidateAuthToken(env.ctx, createdAuthToken)
+	if err != nil {
+		t.Fatalf("ValidateAuthToken: %v", err)
+	}
+	if userID != created.Msg.GetUserId() {
+		t.Fatalf("created token user = %q, want %q", userID, created.Msg.GetUserId())
+	}
+	createdUser, err := env.core.GetUser(env.ctx, created.Msg.GetUserId())
+	if err != nil {
+		t.Fatalf("GetUser created: %v", err)
+	}
+	if createdUser.GetDisplayName() != "SSO User" {
+		t.Fatalf("created display name = %q, want SSO User", createdUser.GetDisplayName())
+	}
+	if _, err := env.core.GetPendingExternalIdentityFlow(env.ctx, createToken); !errors.Is(err, core.ErrExternalIdentityFlowNotFound) {
+		t.Fatalf("pending create flow after confirmation error = %v, want ErrExternalIdentityFlowNotFound", err)
+	}
+
+	fallbackToken, err := env.core.CreatePendingExternalIdentityCreateFlow(env.ctx, core.PendingExternalIdentityFlow{
+		ProviderID:      "discord-main",
+		ProviderType:    config.AuthProviderTypeDiscord,
+		ProviderLabel:   "Discord",
+		Issuer:          "discord-main",
+		Subject:         "fallback-display-name",
+		LoginHint:       "fallback-user",
+		DisplayNameHint: strings.Repeat("Provider ", 8),
+	})
+	if err != nil {
+		t.Fatalf("CreatePendingExternalIdentityCreateFlow fallback: %v", err)
+	}
+	fallbackCreated, err := env.flow.CreateExternalIdentityAccount(env.ctx, connect.NewRequest(&apiv1.CreateExternalIdentityAccountRequest{
+		Token: fallbackToken,
+		Login: "fallback-user",
+	}))
+	if err != nil {
+		t.Fatalf("CreateExternalIdentityAccount fallback: %v", err)
+	}
+	fallbackUser, err := env.core.GetUser(env.ctx, fallbackCreated.Msg.GetUserId())
+	if err != nil {
+		t.Fatalf("GetUser fallback: %v", err)
+	}
+	if fallbackUser.GetDisplayName() != "fallback-user" {
+		t.Fatalf("fallback display name = %q, want login", fallbackUser.GetDisplayName())
+	}
+
+	createdUserRef := &corev1.User{Id: created.Msg.GetUserId()}
+	createdCtx := withBearerCredential(env.ctx, createdUserRef, createdAuthToken)
+	list, err := env.identity.ListExternalIdentities(createdCtx, connect.NewRequest(&apiv1.ListExternalIdentitiesRequest{}))
+	if err != nil {
+		t.Fatalf("ListExternalIdentities: %v", err)
+	}
+	if len(list.Msg.GetProviders()) != 3 ||
+		list.Msg.GetProviders()[0].GetLinkUrl() != "/auth/providers/github-main?intent=link" ||
+		!list.Msg.GetProviders()[0].GetLinked() ||
+		list.Msg.GetProviders()[0].GetLinkedIdentitySubjectHash() == "" {
+		t.Fatalf("providers = %+v", list.Msg.GetProviders())
+	}
+	if len(list.Msg.GetLinkedIdentities()) != 1 || list.Msg.GetLinkedIdentities()[0].GetProviderId() != "github-main" {
+		t.Fatalf("linked identities = %+v", list.Msg.GetLinkedIdentities())
+	}
+	_, err = env.identity.DisconnectExternalIdentity(createdCtx, connect.NewRequest(&apiv1.DisconnectExternalIdentityRequest{
+		SubjectHash: list.Msg.GetProviders()[0].GetLinkedIdentitySubjectHash(),
+	}))
+	requireConnectCode(t, err, connect.CodeFailedPrecondition)
+
+	if _, err := env.identity.StartExternalIdentityLink(withCaller(env.ctx, createdUserRef), connect.NewRequest(&apiv1.StartExternalIdentityLinkRequest{
+		ProviderId:   "discord-main",
+		RedirectPath: "/chat/-/settings/account",
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("StartExternalIdentityLink without credential code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	started, err := env.identity.StartExternalIdentityLink(createdCtx, connect.NewRequest(&apiv1.StartExternalIdentityLinkRequest{
+		ProviderId:   "discord-main",
+		RedirectPath: "/chat/-/settings/account",
+	}))
+	if err != nil {
+		t.Fatalf("StartExternalIdentityLink: %v", err)
+	}
+	startURL, err := url.Parse(started.Msg.GetStartUrl())
+	if err != nil {
+		t.Fatalf("start url parse: %v", err)
+	}
+	if startURL.Path != "/auth/providers/discord-main" || startURL.Query().Get("intent") != "link" || startURL.Query().Get("link_start") == "" {
+		t.Fatalf("start url = %q", started.Msg.GetStartUrl())
+	}
+	linkStart, err := env.core.ConsumePendingExternalIdentityLinkStart(env.ctx, startURL.Query().Get("link_start"))
+	if err != nil {
+		t.Fatalf("ConsumePendingExternalIdentityLinkStart: %v", err)
+	}
+	if linkStart.BoundUserID != created.Msg.GetUserId() || linkStart.ProviderID != "discord-main" || linkStart.RedirectPath != "/chat/-/settings/account" {
+		t.Fatalf("link start = %+v", linkStart)
+	}
+
+	linkToken, err := env.core.CreatePendingExternalIdentityLinkFlow(env.ctx, core.PendingExternalIdentityFlow{
+		ProviderID:   "discord-main",
+		ProviderType: config.AuthProviderTypeDiscord,
+		Issuer:       "discord-main",
+		Subject:      "abc123",
+	}, env.viewer.Id)
+	if err != nil {
+		t.Fatalf("CreatePendingExternalIdentityLinkFlow: %v", err)
+	}
+	_, err = env.identity.LinkExternalIdentity(createdCtx, connect.NewRequest(&apiv1.LinkExternalIdentityRequest{Token: linkToken}))
+	requireConnectCode(t, err, connect.CodeInvalidArgument)
+
+	linked, err := env.identity.LinkExternalIdentity(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.LinkExternalIdentityRequest{
+		Token: linkToken,
+	}))
+	if err != nil {
+		t.Fatalf("LinkExternalIdentity: %v", err)
+	}
+	if linked.Msg.LinkedIdentity.GetProviderId() != "discord-main" || linked.Msg.LinkedIdentity.GetSubjectHash() == "" {
+		t.Fatalf("linked identity = %+v", linked.Msg.LinkedIdentity)
+	}
+	staleViewerToken, err := env.core.CreateAuthTokenWithSource(env.ctx, env.viewer.Id, "oauth_code_exchange")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource stale viewer: %v", err)
+	}
+	viewerCredentialCtx := withBearerCredential(env.ctx, env.viewer, staleViewerToken)
+	_, err = env.identity.DisconnectExternalIdentity(viewerCredentialCtx, connect.NewRequest(&apiv1.DisconnectExternalIdentityRequest{
+		SubjectHash: linked.Msg.LinkedIdentity.GetSubjectHash(),
+	}))
+	requireConnectCode(t, err, connect.CodeFailedPrecondition)
+	disconnected, err := env.identity.DisconnectExternalIdentity(viewerCredentialCtx, connect.NewRequest(&apiv1.DisconnectExternalIdentityRequest{
+		SubjectHash:     linked.Msg.LinkedIdentity.GetSubjectHash(),
+		CurrentPassword: "password",
+	}))
+	if err != nil {
+		t.Fatalf("DisconnectExternalIdentity: %v", err)
+	}
+	if !disconnected.Msg.GetDisconnected() {
+		t.Fatalf("DisconnectExternalIdentity disconnected = false")
+	}
+	found, err := env.core.GetUserByExternalIdentity(env.ctx, "discord-main", "abc123")
+	if err != nil {
+		t.Fatalf("GetUserByExternalIdentity after disconnect: %v", err)
+	}
+	if found != nil {
+		t.Fatalf("GetUserByExternalIdentity after disconnect = %+v, want nil", found)
+	}
+	if _, err := env.core.GetPendingExternalIdentityFlow(env.ctx, linkToken); !errors.Is(err, core.ErrExternalIdentityFlowNotFound) {
+		t.Fatalf("pending link flow after confirmation error = %v, want ErrExternalIdentityFlowNotFound", err)
+	}
+
+	publicLinkToken, err := env.core.CreatePendingExternalIdentityLinkFlow(env.ctx, core.PendingExternalIdentityFlow{
+		ProviderID:   "gitlab-main",
+		ProviderType: config.AuthProviderTypeGitLab,
+		Issuer:       "gitlab-main",
+		Subject:      "gitlab-123",
+	}, env.viewer.Id)
+	if err != nil {
+		t.Fatalf("CreatePendingExternalIdentityLinkFlow public: %v", err)
+	}
+	publicLinked, err := env.flow.ConfirmExternalIdentityLink(env.ctx, connect.NewRequest(&apiv1.ConfirmExternalIdentityLinkRequest{
+		Token: publicLinkToken,
+	}))
+	if err != nil {
+		t.Fatalf("ConfirmExternalIdentityLink: %v", err)
+	}
+	if publicLinked.Msg.LinkedIdentity.GetProviderId() != "gitlab-main" {
+		t.Fatalf("public linked identity = %+v", publicLinked.Msg.LinkedIdentity)
+	}
+}
+
+func TestExternalIdentityCreateDisplayName(t *testing.T) {
+	tests := []struct {
+		name  string
+		login string
+		hint  string
+		want  string
+	}{
+		{
+			name:  "valid hint",
+			login: "sso-user",
+			hint:  "SSO User",
+			want:  "SSO User",
+		},
+		{
+			name:  "empty hint falls back",
+			login: "sso-user",
+			hint:  " ",
+			want:  "sso-user",
+		},
+		{
+			name:  "invalid punctuation falls back",
+			login: "sso-user",
+			hint:  "User, Inc.",
+			want:  "sso-user",
+		},
+		{
+			name:  "too long falls back",
+			login: "sso-user",
+			hint:  strings.Repeat("A", core.MaxDisplayNameLength+1),
+			want:  "sso-user",
+		},
+		{
+			name:  "invalid start falls back",
+			login: "sso-user",
+			hint:  "😀 User",
+			want:  "sso-user",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := externalIdentityCreateDisplayName(tt.login, tt.hint); got != tt.want {
+				t.Fatalf("externalIdentityCreateDisplayName(%q, %q) = %q, want %q", tt.login, tt.hint, got, tt.want)
+			}
+		})
 	}
 }
 
@@ -1216,6 +1472,9 @@ func TestViewerServiceGetViewerReturnsSelfScopedState(t *testing.T) {
 	if !user.GetHasVerifiedEmail() {
 		t.Fatal("HasVerifiedEmail = false, want true")
 	}
+	if !user.GetHasPassword() {
+		t.Fatal("HasPassword = false, want true")
+	}
 	if profile.GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
 		t.Fatalf("PresenceStatus = %v, want AWAY", profile.GetPresenceStatus())
 	}
@@ -1237,8 +1496,8 @@ func TestViewerServiceGetViewerReturnsSelfScopedState(t *testing.T) {
 	if !foundRoomPref {
 		t.Fatalf("room notification preferences did not include %s: %+v", room.Id, resp.Msg.GetRoomNotificationPreferences())
 	}
-	if caps := resp.Msg.GetCapabilities(); !caps.GetCanAdminManageUsers() || !caps.GetCanAssignRoles() || caps.GetCanAdminManageAccounts() {
-		t.Fatalf("viewer capabilities role/account split = manage_users:%v assign_roles:%v manage_accounts:%v, want true/true/false", caps.GetCanAdminManageUsers(), caps.GetCanAssignRoles(), caps.GetCanAdminManageAccounts())
+	if caps := resp.Msg.GetCapabilities(); !caps.GetCanAssignRoles() || caps.GetCanAdminManageAccounts() {
+		t.Fatalf("viewer capabilities role/account split = assign_roles:%v manage_accounts:%v, want true/false", caps.GetCanAssignRoles(), caps.GetCanAdminManageAccounts())
 	}
 }
 
@@ -1287,6 +1546,78 @@ func TestAccountServiceUpdatesSelfProfileAndSettings(t *testing.T) {
 	}
 	if clearResp.Msg.GetSettings().Timezone != nil {
 		t.Fatalf("cleared timezone = %q, want nil", clearResp.Msg.GetSettings().GetTimezone())
+	}
+}
+
+func TestAccountServiceSetsPassword(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	passwordless, err := env.core.CreateUser(env.ctx, core.SystemActorID, "connect-passwordless", "Connect Passwordless", "")
+	if err != nil {
+		t.Fatalf("CreateUser passwordless: %v", err)
+	}
+	ctx := withCaller(env.ctx, passwordless)
+	freshToken, err := env.core.CreateAuthTokenWithSource(env.ctx, passwordless.Id, "test_login")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource: %v", err)
+	}
+	freshCtx := withBearerCredential(env.ctx, passwordless, freshToken)
+	oauthToken, err := env.core.CreateAuthTokenWithSource(env.ctx, passwordless.Id, "oauth_code_exchange")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource oauth: %v", err)
+	}
+	oauthCtx := withBearerCredential(env.ctx, passwordless, oauthToken)
+
+	if _, err := env.account.SetPassword(env.ctx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated SetPassword code = %v, want unauthenticated", connect.CodeOf(err))
+	}
+	if _, err := env.account.SetPassword(ctx, connect.NewRequest(&apiv1.SetPasswordRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty SetPassword code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := env.account.SetPassword(ctx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password: "short",
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("short SetPassword code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+
+	if _, err := env.account.SetPassword(ctx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("SetPassword without fresh credential code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, err := env.account.SetPassword(oauthCtx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("SetPassword with OAuth token code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, err := env.account.SetPassword(freshCtx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password: "newpassword456",
+	})); err != nil {
+		t.Fatalf("SetPassword: %v", err)
+	}
+	if _, err := env.core.VerifyPassword(env.ctx, passwordless.Login, "newpassword456"); err != nil {
+		t.Fatalf("VerifyPassword: %v", err)
+	}
+	if _, err := env.account.SetPassword(ctx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password: "anotherpassword456",
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("second SetPassword without current code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := env.account.SetPassword(ctx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password:        "anotherpassword456",
+		CurrentPassword: "wrongpassword",
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("second SetPassword wrong current code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := env.account.SetPassword(ctx, connect.NewRequest(&apiv1.SetPasswordRequest{
+		Password:        "anotherpassword456",
+		CurrentPassword: "newpassword456",
+	})); err != nil {
+		t.Fatalf("SetPassword with current: %v", err)
+	}
+	if _, err := env.core.VerifyPassword(env.ctx, passwordless.Login, "anotherpassword456"); err != nil {
+		t.Fatalf("VerifyPassword changed: %v", err)
 	}
 }
 
@@ -1365,11 +1696,58 @@ func TestAdminMemberServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("unauthenticated UpdateUser code = %v, want unauthenticated", connect.CodeOf(err))
 	}
+	if _, err := env.adminUsers.SetUserPassword(env.ctx, connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   target.Id,
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated SetUserPassword code = %v, want unauthenticated", connect.CodeOf(err))
+	}
 	if _, err := env.adminUsers.UpdateUser(withCaller(env.ctx, regular), connect.NewRequest(&adminv1.UpdateUserRequest{
 		UserId:      target.Id,
 		DisplayName: stringPtr("Denied"),
 	})); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("regular UpdateUser code = %v, want permission_denied", connect.CodeOf(err))
+	}
+	if _, err := env.adminUsers.SetUserPassword(withCaller(env.ctx, regular), connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   target.Id,
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("regular SetUserPassword code = %v, want permission_denied", connect.CodeOf(err))
+	}
+
+	roleAssigner, err := env.core.CreateUser(env.ctx, core.SystemActorID, "admin-user-role-assigner", "Admin User Role Assigner", "password")
+	if err != nil {
+		t.Fatalf("CreateUser role assigner: %v", err)
+	}
+	if err := env.core.GrantUserPermission(env.ctx, core.SystemActorID, roleAssigner.Id, core.PermRoleAssign); err != nil {
+		t.Fatalf("GrantUserPermission role.assign: %v", err)
+	}
+	if _, err := env.adminUsers.SetUserPassword(withCaller(env.ctx, roleAssigner), connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   target.Id,
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("role.assign-only SetUserPassword code = %v, want permission_denied", connect.CodeOf(err))
+	}
+
+	accountManager, err := env.core.CreateUser(env.ctx, core.SystemActorID, "admin-user-account-manager", "Admin User Account Manager", "password")
+	if err != nil {
+		t.Fatalf("CreateUser account manager: %v", err)
+	}
+	if err := env.core.GrantUserPermission(env.ctx, core.SystemActorID, accountManager.Id, core.PermUserManageAccounts); err != nil {
+		t.Fatalf("GrantUserPermission user.manage-accounts: %v", err)
+	}
+	accountManagerResp, err := env.adminUsers.SetUserPassword(withCaller(env.ctx, accountManager), connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   target.Id,
+		Password: "accountmanagerpass456",
+	}))
+	if err != nil {
+		t.Fatalf("account manager SetUserPassword: %v", err)
+	}
+	if !accountManagerResp.Msg.GetUpdated() {
+		t.Fatal("account manager Updated = false, want true")
+	}
+	if _, err := env.core.VerifyPassword(env.ctx, target.Login, "accountmanagerpass456"); err != nil {
+		t.Fatalf("account-manager-set password should verify: %v", err)
 	}
 
 	admin, err := env.core.CreateUser(env.ctx, core.SystemActorID, "admin-user-admin", "Admin User Admin", "password")
@@ -1386,6 +1764,23 @@ func TestAdminMemberServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("empty UpdateUser code = %v, want invalid_argument", connect.CodeOf(err))
 	}
+	if _, err := env.adminUsers.SetUserPassword(adminCtx, connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId: target.Id,
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty SetUserPassword code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := env.adminUsers.SetUserPassword(adminCtx, connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   target.Id,
+		Password: "short",
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("short SetUserPassword code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := env.adminUsers.SetUserPassword(adminCtx, connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   admin.Id,
+		Password: "newpassword456",
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("self SetUserPassword code = %v, want failed_precondition", connect.CodeOf(err))
+	}
 	resp, err := env.adminUsers.UpdateUser(adminCtx, connect.NewRequest(&adminv1.UpdateUserRequest{
 		UserId:      target.Id,
 		DisplayName: stringPtr("Managed Target"),
@@ -1396,6 +1791,19 @@ func TestAdminMemberServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	}
 	if user := resp.Msg.GetUser(); user.GetId() != target.Id || user.GetDisplayName() != "Managed Target" || user.GetLogin() != "managed-target" {
 		t.Fatalf("updated user = %+v, want managed target", user)
+	}
+	passwordResp, err := env.adminUsers.SetUserPassword(adminCtx, connect.NewRequest(&adminv1.SetUserPasswordRequest{
+		UserId:   target.Id,
+		Password: "adminpassword456",
+	}))
+	if err != nil {
+		t.Fatalf("SetUserPassword: %v", err)
+	}
+	if !passwordResp.Msg.GetUpdated() {
+		t.Fatal("Updated = false, want true")
+	}
+	if _, err := env.core.VerifyPassword(env.ctx, "managed-target", "adminpassword456"); err != nil {
+		t.Fatalf("admin password should verify: %v", err)
 	}
 
 	if _, err := env.core.UpdateUserLogin(env.ctx, target.Id, "target-self-rename"); err != nil {
@@ -5136,6 +5544,15 @@ func withCaller(ctx context.Context, user *corev1.User) context.Context {
 	return authn.SetInfo(ctx, Caller{UserID: user.Id})
 }
 
+func withBearerCredential(ctx context.Context, user *corev1.User, token string) context.Context {
+	ctx = withCaller(ctx, user)
+	return authctx.WithCredential(ctx, authctx.RuntimeCredential{
+		Kind:        authctx.RuntimeCredentialKindBearerToken,
+		UserID:      user.Id,
+		BearerToken: token,
+	})
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }
@@ -5191,6 +5608,8 @@ type connectAPITestEnv struct {
 	adminLayout      *adminRoomLayoutService
 	adminUsers       *adminUserManagementService
 	directory        *roomDirectoryService
+	flow             *externalIdentityFlowService
+	identity         *externalIdentityService
 	linkPreviews     *linkPreviewService
 	messages         *messageService
 	members          *memberDirectoryService
@@ -5246,6 +5665,8 @@ func newConnectAPITestEnv(t *testing.T) *connectAPITestEnv {
 		adminLayout:      &adminRoomLayoutService{api: api},
 		adminUsers:       &adminUserManagementService{api: api},
 		directory:        &roomDirectoryService{api: api},
+		flow:             &externalIdentityFlowService{api: api},
+		identity:         &externalIdentityService{api: api},
 		linkPreviews:     &linkPreviewService{api: api},
 		messages:         &messageService{api: api},
 		members:          &memberDirectoryService{api: api},

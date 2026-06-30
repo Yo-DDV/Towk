@@ -32,16 +32,17 @@ type UserProjection struct {
 }
 
 type projectedUser struct {
-	user           *corev1.User
-	deleted        bool
-	avatar         *corev1.AssetRecord
-	passwordHash   []byte
-	passwordSetAt  time.Time
-	authGeneration uint64
-	verifiedEmail  map[string]VerifiedEmail
-	oauthConsent   map[string]struct{}
-	preferences    *corev1.ServerUserPreferences
-	loginChanged   time.Time
+	user               *corev1.User
+	deleted            bool
+	avatar             *corev1.AssetRecord
+	passwordHash       []byte
+	passwordSetAt      time.Time
+	authGeneration     uint64
+	verifiedEmail      map[string]VerifiedEmail
+	externalIdentities map[string]ExternalIdentity
+	oauthConsent       map[string]struct{}
+	preferences        *corev1.ServerUserPreferences
+	loginChanged       time.Time
 }
 
 func NewUserProjection(keyWrapper kms.KeyWrapper, dekStore dekstore.Reader) *UserProjection {
@@ -96,6 +97,8 @@ func (p *UserProjection) Apply(event *corev1.Event, seq uint64) error {
 		p.applyOIDCSubjectLinked(e.UserOidcSubjectLinked)
 	case *corev1.Event_UserExternalIdentityLinked:
 		p.applyExternalIdentityLinked(e.UserExternalIdentityLinked)
+	case *corev1.Event_UserExternalIdentityUnlinked:
+		p.applyExternalIdentityUnlinked(e.UserExternalIdentityUnlinked, seq)
 	case *corev1.Event_UserServerPreferencesChanged:
 		p.applyServerPreferencesChanged(e.UserServerPreferencesChanged)
 	case *corev1.Event_UserLoginCooldownStarted:
@@ -124,6 +127,9 @@ func (p *UserProjection) ensureUserLocked(userID string) *projectedUser {
 	}
 	if u.verifiedEmail == nil {
 		u.verifiedEmail = make(map[string]VerifiedEmail)
+	}
+	if u.externalIdentities == nil {
+		u.externalIdentities = make(map[string]ExternalIdentity)
 	}
 	if u.oauthConsent == nil {
 		u.oauthConsent = make(map[string]struct{})
@@ -287,11 +293,13 @@ func (p *UserProjection) applyPasswordHashChanged(e *corev1.UserPasswordHashChan
 	}
 	u := p.ensureUserLocked(e.GetUserId())
 	u.passwordHash = append(u.passwordHash[:0], e.GetPasswordHash()...)
-	u.authGeneration = seq
-	if envelopeCreatedAt != nil {
-		u.passwordSetAt = envelopeCreatedAt.AsTime()
-	} else {
-		u.passwordSetAt = time.Time{}
+	if !e.GetPreserveExistingCredentials() {
+		u.authGeneration = seq
+		if envelopeCreatedAt != nil {
+			u.passwordSetAt = envelopeCreatedAt.AsTime()
+		} else {
+			u.passwordSetAt = time.Time{}
+		}
 	}
 }
 
@@ -307,6 +315,14 @@ func (p *UserProjection) applyOIDCSubjectLinked(e *corev1.UserOIDCSubjectLinkedE
 		return
 	}
 	p.identityIndex[hash] = e.GetUserId()
+	u := p.ensureUserLocked(e.GetUserId())
+	u.externalIdentities[hash] = ExternalIdentity{
+		ProviderID:   "oidc",
+		ProviderType: "oidc",
+		Issuer:       e.GetIssuer(),
+		Subject:      e.GetSubject(),
+		SubjectHash:  hash,
+	}
 }
 
 func (p *UserProjection) applyExternalIdentityLinked(e *corev1.UserExternalIdentityLinkedEvent) {
@@ -321,6 +337,34 @@ func (p *UserProjection) applyExternalIdentityLinked(e *corev1.UserExternalIdent
 		return
 	}
 	p.identityIndex[hash] = e.GetUserId()
+	u := p.ensureUserLocked(e.GetUserId())
+	providerID := e.GetProviderId()
+	if providerID == "" {
+		providerID = e.GetIssuer()
+	}
+	providerType := e.GetProviderType()
+	if providerType == "" {
+		providerType = providerID
+	}
+	u.externalIdentities[hash] = ExternalIdentity{
+		ProviderID:   providerID,
+		ProviderType: providerType,
+		Issuer:       e.GetIssuer(),
+		Subject:      e.GetSubject(),
+		SubjectHash:  hash,
+	}
+}
+
+func (p *UserProjection) applyExternalIdentityUnlinked(e *corev1.UserExternalIdentityUnlinkedEvent, seq uint64) {
+	if e == nil || e.GetUserId() == "" || e.GetSubjectHash() == "" {
+		return
+	}
+	if p.identityIndex[e.GetSubjectHash()] == e.GetUserId() {
+		delete(p.identityIndex, e.GetSubjectHash())
+	}
+	u := p.ensureUserLocked(e.GetUserId())
+	delete(u.externalIdentities, e.GetSubjectHash())
+	u.authGeneration = seq
 }
 
 func (p *UserProjection) applyOAuthConsentGranted(e *corev1.OAuthConsentGrantedEvent) {
@@ -408,6 +452,7 @@ func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent, 
 		u.user.CustomStatus = nil
 	}
 	u.verifiedEmail = make(map[string]VerifiedEmail)
+	u.externalIdentities = make(map[string]ExternalIdentity)
 	u.oauthConsent = make(map[string]struct{})
 	u.loginChanged = time.Time{}
 	delete(p.contentKeys, e.GetUserId())
@@ -437,6 +482,7 @@ func (p *UserProjection) applyKeyShredded(e *corev1.UserKeyShreddedEvent) {
 	u.passwordSetAt = time.Time{}
 	u.preferences = nil
 	u.verifiedEmail = make(map[string]VerifiedEmail)
+	u.externalIdentities = make(map[string]ExternalIdentity)
 	u.oauthConsent = make(map[string]struct{})
 	u.loginChanged = time.Time{}
 }
@@ -541,6 +587,26 @@ func (p *UserProjection) GetByExternalIdentity(issuer, subject string) (*corev1.
 	return p.Get(userID)
 }
 
+func (p *UserProjection) ExternalIdentities(userID string) []ExternalIdentity {
+	p.RLock()
+	defer p.RUnlock()
+	u := p.users[userID]
+	if u == nil || u.deleted || len(u.externalIdentities) == 0 {
+		return nil
+	}
+	identities := make([]ExternalIdentity, 0, len(u.externalIdentities))
+	for _, identity := range u.externalIdentities {
+		identities = append(identities, identity)
+	}
+	sort.Slice(identities, func(i, j int) bool {
+		if identities[i].ProviderID != identities[j].ProviderID {
+			return identities[i].ProviderID < identities[j].ProviderID
+		}
+		return identities[i].SubjectHash < identities[j].SubjectHash
+	})
+	return identities
+}
+
 func (p *UserProjection) LoginExists(login string) bool {
 	p.RLock()
 	defer p.RUnlock()
@@ -624,6 +690,16 @@ func (p *UserProjection) HasVerifiedEmail(userID string) bool {
 	return len(p.VerifiedEmails(userID)) > 0
 }
 
+func (p *UserProjection) HasVerifiedFactor(userID string) bool {
+	p.RLock()
+	defer p.RUnlock()
+	u := p.users[userID]
+	if u == nil || u.deleted {
+		return false
+	}
+	return len(u.verifiedEmail) > 0 || len(u.externalIdentities) > 0
+}
+
 func (p *UserProjection) HasOAuthConsent(userID, redirectOrigin string) bool {
 	p.RLock()
 	defer p.RUnlock()
@@ -663,6 +739,28 @@ func (p *UserProjection) VerifiedUserIDs() []string {
 	defer p.RUnlock()
 	seen := map[string]struct{}{}
 	for _, userID := range p.emailIndex {
+		if u := p.users[userID]; u != nil && !u.deleted {
+			seen[userID] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for userID := range seen {
+		out = append(out, userID)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (p *UserProjection) VerifiedAccountIDs() []string {
+	p.RLock()
+	defer p.RUnlock()
+	seen := map[string]struct{}{}
+	for _, userID := range p.emailIndex {
+		if u := p.users[userID]; u != nil && !u.deleted {
+			seen[userID] = struct{}{}
+		}
+	}
+	for _, userID := range p.identityIndex {
 		if u := p.users[userID]; u != nil && !u.deleted {
 			seen[userID] = struct{}{}
 		}

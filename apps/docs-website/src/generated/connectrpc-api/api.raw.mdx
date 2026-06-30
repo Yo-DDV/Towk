@@ -406,6 +406,35 @@ Result of deleting the authenticated user's avatar.
 | `user` | [`User`](#chatto-api-v1-User) | Updated user profile. |
 
 
+<a id="chatto-api-v1-AccountService-SetPassword"></a>
+
+### SetPassword
+
+Sets or changes the authenticated user's password.
+
+```http
+POST /api/connect/chatto.api.v1.AccountService/SetPassword
+```
+
+<a id="chatto-api-v1-SetPasswordRequest"></a>
+
+#### Input: SetPasswordRequest
+
+Request to set or change the authenticated user's password.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `password` | `string` | New password. The server applies the same password policy as registration and password reset. |
+| `current_password` | `string` | Current password. Required when the account already has a password; omitted when adding the first password to a passwordless account. |
+
+
+<a id="chatto-api-v1-SetPasswordResponse"></a>
+
+#### Result: SetPasswordResponse
+
+Result of setting or changing the authenticated account password.
+
+
 <a id="chatto-api-v1-AccountService-UpdateSettings"></a>
 
 ### UpdateSettings
@@ -920,6 +949,277 @@ Response containing fresh signed URLs for the current message attachments.
 | Field | Type | Description |
 | --- | --- | --- |
 | `attachments` | repeated [`RefreshedAttachmentUrls`](#chatto-api-v1-RefreshedAttachmentUrls) | Fresh URL bundle for each current attachment on the message. |
+
+
+<a id="chatto-api-v1-ExternalIdentityFlowService"></a>
+
+## ExternalIdentityFlowService
+
+Public pending external identity flow operations.
+
+<a id="chatto-api-v1-ExternalIdentityFlowService-GetPendingExternalIdentity"></a>
+
+### GetPendingExternalIdentity
+
+Reads safe metadata for a pending create/link flow.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityFlowService/GetPendingExternalIdentity
+```
+
+<a id="chatto-api-v1-GetPendingExternalIdentityRequest"></a>
+
+#### Input: GetPendingExternalIdentityRequest
+
+Request to inspect a pending external identity flow.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `token` | `string` | Raw pending flow token from the provider callback redirect. |
+
+
+<a id="chatto-api-v1-GetPendingExternalIdentityResponse"></a>
+
+#### Result: GetPendingExternalIdentityResponse
+
+Result of inspecting a pending external identity flow.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `pending` | [`PendingExternalIdentity`](#chatto-api-v1-PendingExternalIdentity) | Pending flow metadata. |
+
+
+<a id="chatto-api-v1-ExternalIdentityFlowService-CreateExternalIdentityAccount"></a>
+
+### CreateExternalIdentityAccount
+
+Creates a passwordless account from a pending provider identity.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityFlowService/CreateExternalIdentityAccount
+```
+
+<a id="chatto-api-v1-CreateExternalIdentityAccountRequest"></a>
+
+#### Input: CreateExternalIdentityAccountRequest
+
+Request to create a new passwordless account from a pending provider identity.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `token` | `string` | Raw pending create token from the provider callback redirect. |
+| `login` | `string` | Desired username. |
+
+
+<a id="chatto-api-v1-CreateExternalIdentityAccountResponse"></a>
+
+#### Result: CreateExternalIdentityAccountResponse
+
+Result of creating an account from a pending provider identity.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user_id` | `string` | Newly created user ID. |
+| `login` | `string` | Newly created username. |
+| `token` | `string` | Bearer token for the new session. |
+
+
+<a id="chatto-api-v1-ExternalIdentityFlowService-ConfirmExternalIdentityLink"></a>
+
+### ConfirmExternalIdentityLink
+
+Links a provider identity using a pending link-flow capability token.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityFlowService/ConfirmExternalIdentityLink
+```
+
+<a id="chatto-api-v1-ConfirmExternalIdentityLinkRequest"></a>
+
+#### Input: ConfirmExternalIdentityLinkRequest
+
+Request to confirm a pending provider link using the flow capability token.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `token` | `string` | Raw pending link token from the provider callback redirect. |
+
+
+<a id="chatto-api-v1-ConfirmExternalIdentityLinkResponse"></a>
+
+#### Result: ConfirmExternalIdentityLinkResponse
+
+Result of confirming a provider identity link.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `linked_identity` | [`LinkedExternalIdentity`](#chatto-api-v1-LinkedExternalIdentity) | Linked identity metadata. |
+
+
+<a id="chatto-api-v1-ExternalIdentityFlowService-CancelExternalIdentityFlow"></a>
+
+### CancelExternalIdentityFlow
+
+Cancels a pending provider identity flow.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityFlowService/CancelExternalIdentityFlow
+```
+
+<a id="chatto-api-v1-CancelExternalIdentityFlowRequest"></a>
+
+#### Input: CancelExternalIdentityFlowRequest
+
+Request to cancel a pending external identity flow.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `token` | `string` | Raw pending flow token. |
+
+
+<a id="chatto-api-v1-CancelExternalIdentityFlowResponse"></a>
+
+#### Result: CancelExternalIdentityFlowResponse
+
+Result of cancelling a pending external identity flow.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `cancelled` | `bool` | True when a pending flow was removed or already absent. |
+
+
+<a id="chatto-api-v1-ExternalIdentityService"></a>
+
+## ExternalIdentityService
+
+Authenticated external identity management.
+
+<a id="chatto-api-v1-ExternalIdentityService-ListExternalIdentities"></a>
+
+### ListExternalIdentities
+
+Lists providers and identities linked to the authenticated account.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityService/ListExternalIdentities
+```
+
+<a id="chatto-api-v1-ListExternalIdentitiesRequest"></a>
+
+#### Input: ListExternalIdentitiesRequest
+
+Request to list configured and linked external identities for the current user.
+
+
+<a id="chatto-api-v1-ListExternalIdentitiesResponse"></a>
+
+#### Result: ListExternalIdentitiesResponse
+
+Result of listing configured and linked external identities.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `providers` | repeated [`ExternalIdentityProvider`](#chatto-api-v1-ExternalIdentityProvider) | Configured providers the user may link. |
+| `linked_identities` | repeated [`LinkedExternalIdentity`](#chatto-api-v1-LinkedExternalIdentity) | Provider identities already linked to the authenticated user. |
+
+
+<a id="chatto-api-v1-ExternalIdentityService-StartExternalIdentityLink"></a>
+
+### StartExternalIdentityLink
+
+Creates a short-lived browser handoff URL for linking a provider identity.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityService/StartExternalIdentityLink
+```
+
+<a id="chatto-api-v1-StartExternalIdentityLinkRequest"></a>
+
+#### Input: StartExternalIdentityLinkRequest
+
+Request to start linking a configured provider to the current user.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `provider_id` | `string` | Provider ID to link. |
+| `redirect_path` | `string` | Internal path to return to after confirmation. |
+| `current_password` | `string` | Current password proof for accounts with a password when the active runtime credential is no longer fresh. |
+
+
+<a id="chatto-api-v1-StartExternalIdentityLinkResponse"></a>
+
+#### Result: StartExternalIdentityLinkResponse
+
+Result of preparing an external identity link flow.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `start_url` | `string` | Browser URL that starts provider authorization on the target server origin. |
+
+
+<a id="chatto-api-v1-ExternalIdentityService-LinkExternalIdentity"></a>
+
+### LinkExternalIdentity
+
+Links a pending provider identity to the authenticated account.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityService/LinkExternalIdentity
+```
+
+<a id="chatto-api-v1-LinkExternalIdentityRequest"></a>
+
+#### Input: LinkExternalIdentityRequest
+
+Request to link a pending provider identity to the authenticated user.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `token` | `string` | Raw pending link token from the provider callback redirect. |
+
+
+<a id="chatto-api-v1-LinkExternalIdentityResponse"></a>
+
+#### Result: LinkExternalIdentityResponse
+
+Result of linking a provider identity.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `linked_identity` | [`LinkedExternalIdentity`](#chatto-api-v1-LinkedExternalIdentity) | Linked identity metadata. |
+
+
+<a id="chatto-api-v1-ExternalIdentityService-DisconnectExternalIdentity"></a>
+
+### DisconnectExternalIdentity
+
+Disconnects a provider identity from the authenticated account.
+
+```http
+POST /api/connect/chatto.api.v1.ExternalIdentityService/DisconnectExternalIdentity
+```
+
+<a id="chatto-api-v1-DisconnectExternalIdentityRequest"></a>
+
+#### Input: DisconnectExternalIdentityRequest
+
+Request to disconnect a linked provider identity from the authenticated user.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `subject_hash` | `string` | Stable one-way subject hash of the linked identity to disconnect. |
+| `current_password` | `string` | Current password proof for accounts with a password when the active runtime credential is no longer fresh. |
+
+
+<a id="chatto-api-v1-DisconnectExternalIdentityResponse"></a>
+
+#### Result: DisconnectExternalIdentityResponse
+
+Result of disconnecting a provider identity.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `disconnected` | `bool` | True when the identity was disconnected. |
 
 
 <a id="chatto-api-v1-MemberDirectoryService"></a>
@@ -2635,7 +2935,6 @@ Permission-derived capabilities for the authenticated user.
 | `can_view_admin` | `bool` | Whether the user has at least one server-admin permission. |
 | `can_start_dms` | `bool` | Whether the user may start direct-message conversations. |
 | `can_admin_view_users` | `bool` | Whether the user may view the admin users screen. |
-| `can_admin_manage_users` | `bool` | Whether the user may assign and revoke roles for users. |
 | `can_admin_view_roles` | `bool` | Whether the user may view role administration. |
 | `can_admin_manage_roles` | `bool` | Whether the user may manage roles. |
 | `can_admin_view_system` | `bool` | Whether the user may view system administration. |
@@ -2660,6 +2959,7 @@ Current authenticated user's public profile plus self-only settings.
 | `viewer_can_delete_account` | `bool` | Whether the authenticated user may delete this account. |
 | `last_login_change` | `google.protobuf.Timestamp` | Last time a login credential changed, when known. |
 | `profile` | [`UserProfile`](#chatto-api-v1-UserProfile) | Public profile and live presence fields for the authenticated user. |
+| `has_password` | `bool` | Whether this account currently has a password sign-in credential. |
 
 
 
@@ -2954,6 +3254,60 @@ One current room attachment and its message anchor.
 | `message_event_id` | `string` | Message event containing the attachment. |
 | `thread_root_event_id` | `string` | Thread root event ID when the containing message is a thread reply. |
 | `created_at` | `google.protobuf.Timestamp` | Message creation timestamp. |
+
+
+
+<a id="chatto-api-v1-ExternalIdentityProvider"></a>
+
+### ExternalIdentityProvider
+
+Public metadata for a configured external login provider.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Stable configured provider ID. |
+| `type` | `string` | Provider type, such as "oidc", "github", or "discord". |
+| `label` | `string` | Human-readable label. |
+| `login_url` | `string` | URL that starts login for this provider. |
+| `link_url` | `string` | URL that starts authenticated account linking for this provider. Clients should use StartExternalIdentityLink instead of navigating here directly. |
+| `linked` | `bool` | True when this provider is already linked to the authenticated user. |
+| `linked_identity_subject_hash` | `string` | Linked identity subject hash for this provider, when linked. |
+
+
+
+<a id="chatto-api-v1-LinkedExternalIdentity"></a>
+
+### LinkedExternalIdentity
+
+Linked provider identity metadata for the authenticated user's settings UI.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `provider_id` | `string` | Provider ID recorded when the identity was linked. |
+| `provider_type` | `string` | Provider type recorded when the identity was linked. |
+| `provider_label` | `string` | Current or fallback provider label. |
+| `subject_hash` | `string` | Stable one-way subject hash, useful only as a UI/list key. |
+
+
+
+<a id="chatto-api-v1-PendingExternalIdentity"></a>
+
+### PendingExternalIdentity
+
+Metadata about a pending external identity flow. The provider subject is not
+exposed; clients only need user-facing provider/profile hints.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `kind` | [`ExternalIdentityFlowKind`](#chatto-api-v1-ExternalIdentityFlowKind) | Pending flow kind. |
+| `provider_id` | `string` | Provider ID that produced the identity. |
+| `provider_type` | `string` | Provider type that produced the identity. |
+| `provider_label` | `string` | Provider label shown to the user. |
+| `verified_email` | `string` | Verified email supplied by the provider, when available. |
+| `login_hint` | `string` | Suggested username derived from provider profile hints. |
+| `display_name_hint` | `string` | Suggested display name derived from provider profile hints. |
+| `bound_user_id` | `string` | User ID this link flow is bound to. Empty for create flows. |
+| `redirect_path` | `string` | Internal path the client should return to after confirmation. |
 
 
 
@@ -3462,6 +3816,19 @@ Fit mode used when generating transformed attachment thumbnails.
 | `ATTACHMENT_FIT_MODE_COVER` | `2` | Fill the requested bounds, cropping when needed. |
 
 
+<a id="chatto-api-v1-ExternalIdentityFlowKind"></a>
+
+### ExternalIdentityFlowKind
+
+Mode of a pending external identity confirmation flow.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `EXTERNAL_IDENTITY_FLOW_KIND_UNSPECIFIED` | `0` | The flow kind was not specified. |
+| `EXTERNAL_IDENTITY_FLOW_KIND_CREATE_ACCOUNT` | `1` | Create a new passwordless account and link the provider identity. |
+| `EXTERNAL_IDENTITY_FLOW_KIND_LINK_ACCOUNT` | `2` | Link the provider identity to the authenticated account. |
+
+
 <a id="chatto-api-v1-RoomKind"></a>
 
 ### RoomKind
@@ -3487,5 +3854,3 @@ Room kinds to include in directory responses.
 | `ROOM_DIRECTORY_SCOPE_ALL` | `1` | Include both visible channel rooms and the caller's active DM rooms. |
 | `ROOM_DIRECTORY_SCOPE_CHANNELS` | `2` | Include visible channel rooms only. |
 | `ROOM_DIRECTORY_SCOPE_DMS` | `3` | Include the caller's active DM rooms only. |
-
-

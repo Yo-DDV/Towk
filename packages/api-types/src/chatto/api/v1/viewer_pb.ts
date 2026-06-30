@@ -141,6 +141,13 @@ export class ViewerUser extends Message<ViewerUser> {
    */
   profile?: UserProfile;
 
+  /**
+   * Whether this account currently has a password sign-in credential.
+   *
+   * @generated from field: bool has_password = 12;
+   */
+  hasPassword = false;
+
   constructor(data?: PartialMessage<ViewerUser>) {
     super();
     proto3.util.initPartial(data, this);
@@ -154,6 +161,7 @@ export class ViewerUser extends Message<ViewerUser> {
     { no: 9, name: "viewer_can_delete_account", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 10, name: "last_login_change", kind: "message", T: Timestamp },
     { no: 11, name: "profile", kind: "message", T: UserProfile },
+    { no: 12, name: "has_password", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ViewerUser {
@@ -199,13 +207,6 @@ export class ViewerCapabilities extends Message<ViewerCapabilities> {
    * @generated from field: bool can_admin_view_users = 3;
    */
   canAdminViewUsers = false;
-
-  /**
-   * Whether the user may assign and revoke roles for users.
-   *
-   * @generated from field: bool can_admin_manage_users = 4;
-   */
-  canAdminManageUsers = false;
 
   /**
    * Whether the user may view role administration.
@@ -274,7 +275,6 @@ export class ViewerCapabilities extends Message<ViewerCapabilities> {
     { no: 1, name: "can_view_admin", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 2, name: "can_start_dms", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 3, name: "can_admin_view_users", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 4, name: "can_admin_manage_users", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "can_admin_view_roles", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 6, name: "can_admin_manage_roles", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 7, name: "can_admin_view_system", kind: "scalar", T: 8 /* ScalarType.BOOL */ },

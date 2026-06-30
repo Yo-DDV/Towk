@@ -71,9 +71,14 @@ func (s *viewerService) viewerUser(ctx context.Context, user *corev1.User) (*api
 	if err != nil {
 		return nil, connectError(err)
 	}
+	hasPassword, err := s.api.core.HasPassword(ctx, user.GetId())
+	if err != nil {
+		return nil, connectError(err)
+	}
 
 	response := &apiv1.ViewerUser{
 		HasVerifiedEmail:       hasVerifiedEmail,
+		HasPassword:            hasPassword,
 		Settings:               coreUserSettingsToAPI(settings),
 		ViewerCanDeleteAccount: canDeleteAccount,
 		Profile: &apiv1.UserProfile{
@@ -145,7 +150,6 @@ func (s *viewerService) viewerCapabilities(ctx context.Context, userID string) (
 		CanViewAdmin:             canViewAdmin,
 		CanStartDms:              canStartDMs,
 		CanAdminViewUsers:        canAdminViewUsers,
-		CanAdminManageUsers:      canAssignRoles,
 		CanAdminViewRoles:        canAdminManageRoles,
 		CanAdminManageRoles:      canAdminManageRoles,
 		CanAdminViewSystem:       canAdminViewSystem,

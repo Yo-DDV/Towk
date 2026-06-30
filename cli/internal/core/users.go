@@ -82,12 +82,12 @@ func (c *ChattoCore) CreateUser(ctx context.Context, actorID string, login, disp
 	}
 
 	// Enforce server-wide user limit at signup as a UX gate so people don't sign up
-	// only to be blocked at verification. The verification check (in addVerifiedEmail)
-	// remains the race-safe hard gate.
+	// only to be blocked when adding their first verified sign-in factor. The
+	// factor-add checks remain the race-safe hard gate.
 	if max := c.config.Limits.MaxUsersOrDefault(); max >= 0 {
-		count, err := c.CountVerifiedUsers(ctx)
+		count, err := c.CountVerifiedAccounts(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to count verified users: %w", err)
+			return nil, fmt.Errorf("failed to count verified accounts: %w", err)
 		}
 		if count >= max {
 			return nil, ErrLimitExceeded
@@ -327,6 +327,98 @@ func (c *ChattoCore) SetPasswordHash(ctx context.Context, userID string, passwor
 // SetPasswordHashAs hashes and stores a password for a user with explicit
 // actor attribution. Operator/admin flows should pass SystemActorID.
 func (c *ChattoCore) SetPasswordHashAs(ctx context.Context, actorID, userID string, password string) error {
+	return c.setPasswordHash(ctx, actorID, userID, password, true, nil)
+}
+
+// SetInitialPasswordHash adds the first password credential for a passwordless
+// account. It refuses to overwrite an existing password.
+func (c *ChattoCore) SetInitialPasswordHash(ctx context.Context, userID string, password string) error {
+	return c.setPasswordHash(ctx, userID, userID, password, false, func() error {
+		if _, hasPassword := c.Users.PasswordHash(userID); hasPassword {
+			return ErrPasswordAlreadySet
+		}
+		return nil
+	})
+}
+
+// SetOwnPassword sets or changes a user's own password. Existing password
+// credentials require current password proof; adding the first password keeps
+// existing runtime credentials valid so SSO-only users are not logged out.
+func (c *ChattoCore) SetOwnPassword(ctx context.Context, userID, currentPassword, newPassword string) error {
+	hasPassword, err := c.HasPassword(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !hasPassword {
+		return c.SetInitialPasswordHash(ctx, userID, newPassword)
+	}
+	if currentPassword == "" {
+		return ErrCurrentPasswordRequired
+	}
+	if err := c.VerifyUserPassword(ctx, userID, currentPassword); err != nil {
+		return err
+	}
+	return c.setPasswordHash(ctx, userID, userID, newPassword, true, func() error {
+		return c.verifyUserPasswordCurrent(userID, currentPassword)
+	})
+}
+
+// AdminSetUserPasswordAuthorized sets a password for the target account without requiring
+// the old password. Changing another account requires the same admin-management
+// gate used by admin identity changes.
+func (c *ChattoCore) AdminSetUserPasswordAuthorized(ctx context.Context, actorID, targetUserID, password string) error {
+	if actorID == "" {
+		return ErrNotAuthenticated
+	}
+	if targetUserID == "" {
+		return fmt.Errorf("%w: target user ID is required", ErrInvalidArgument)
+	}
+	if actorID == targetUserID {
+		return ErrAdminCannotSetOwnPassword
+	}
+	canManage, err := c.CanManageUserAccounts(ctx, actorID)
+	if err != nil {
+		return fmt.Errorf("check user.manage-accounts: %w", err)
+	}
+	if !canManage {
+		return ErrPermissionDenied
+	}
+	return c.setPasswordHash(ctx, actorID, targetUserID, password, true, nil)
+}
+
+func (c *ChattoCore) HasPassword(ctx context.Context, userID string) (bool, error) {
+	if err := c.userModel.waitForUsersCurrent(ctx, "user password", events.UserAggregate(userID).AllEventsFilter()); err != nil {
+		return false, err
+	}
+	if _, ok := c.Users.Get(userID); !ok {
+		return false, ErrNotFound
+	}
+	_, hasPassword := c.Users.PasswordHash(userID)
+	return hasPassword, nil
+}
+
+func (c *ChattoCore) VerifyUserPassword(ctx context.Context, userID, password string) error {
+	if err := c.userModel.waitForUsersCurrent(ctx, "user password", events.UserAggregate(userID).AllEventsFilter()); err != nil {
+		return err
+	}
+	return c.verifyUserPasswordCurrent(userID, password)
+}
+
+func (c *ChattoCore) verifyUserPasswordCurrent(userID, password string) error {
+	if _, ok := c.Users.Get(userID); !ok {
+		return ErrNotFound
+	}
+	passwordHash, ok := c.Users.PasswordHash(userID)
+	if !ok {
+		return ErrCurrentPasswordRequired
+	}
+	if err := bcrypt.CompareHashAndPassword(passwordHash, []byte(password)); err != nil {
+		return ErrCurrentPasswordInvalid
+	}
+	return nil
+}
+
+func (c *ChattoCore) setPasswordHash(ctx context.Context, actorID, userID string, password string, revokeCredentials bool, check func() error) error {
 	// Validate password strength
 	if err := ValidatePassword(password); err != nil {
 		return err
@@ -346,17 +438,24 @@ func (c *ChattoCore) SetPasswordHashAs(ctx context.Context, actorID, userID stri
 
 	event := newEvent(actorID, &corev1.Event{Event: &corev1.Event_UserPasswordHashChanged{
 		UserPasswordHashChanged: &corev1.UserPasswordHashChangedEvent{
-			UserId:       userID,
-			PasswordHash: hashedPassword,
+			UserId:                      userID,
+			PasswordHash:                hashedPassword,
+			PreserveExistingCredentials: !revokeCredentials,
 		},
 	}})
 	if _, err := c.appendUserEvent(ctx, userID, event, "", func() error {
 		if _, err := c.GetUser(ctx, userID); err != nil {
 			return fmt.Errorf("user not found: %w", err)
 		}
+		if check != nil {
+			return check()
+		}
 		return nil
 	}); err != nil {
 		return err
+	}
+	if !revokeCredentials {
+		return nil
 	}
 	if _, err := c.RevokeRuntimeCredentialsForUser(ctx, userID, "password_changed"); err != nil {
 		c.logger.Warn("Failed to clean up runtime credentials after password change", "user_id", userID, "error", err)

@@ -339,6 +339,39 @@ Result of an admin user update.
 | `member` | [`AdminMember`](#chatto-admin-v1-AdminMember) | Updated admin member row. |
 
 
+<a id="chatto-admin-v1-AdminMemberService-SetUserPassword"></a>
+
+### SetUserPassword
+
+Sets a user's password as an admin action.
+
+```http
+POST /api/connect/chatto.admin.v1.AdminMemberService/SetUserPassword
+```
+
+<a id="chatto-admin-v1-SetUserPasswordRequest"></a>
+
+#### Input: SetUserPasswordRequest
+
+Request to set a user's password as a server-admin action.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user_id` | `string` | Target user ID. |
+| `password` | `string` | New password. The server applies the same password policy as registration and password reset. |
+
+
+<a id="chatto-admin-v1-SetUserPasswordResponse"></a>
+
+#### Result: SetUserPasswordResponse
+
+Result of an admin password update.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `updated` | `bool` | True when the request completed. |
+
+
 <a id="chatto-admin-v1-AdminMemberService-ClearUsernameCooldown"></a>
 
 ### ClearUsernameCooldown
@@ -1927,5 +1960,3 @@ Sidebar item kind used in reorder requests.
 | `ADMIN_ROOM_LAYOUT_ITEM_KIND_UNSPECIFIED` | `0` | The item kind was not specified. |
 | `ADMIN_ROOM_LAYOUT_ITEM_KIND_ROOM` | `1` | Channel room entry. |
 | `ADMIN_ROOM_LAYOUT_ITEM_KIND_SIDEBAR_LINK` | `2` | Sidebar link entry. |
-
-

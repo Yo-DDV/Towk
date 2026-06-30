@@ -117,6 +117,35 @@ Result of deleting the authenticated user's avatar.
 | `user` | [`User`](/reference/connectrpc-api/types/#chatto-api-v1-User) | Updated user profile. |
 
 
+<a id="chatto-api-v1-AccountService-SetPassword"></a>
+
+### SetPassword
+
+Sets or changes the authenticated user's password.
+
+```http
+POST /api/connect/chatto.api.v1.AccountService/SetPassword
+```
+
+<a id="chatto-api-v1-SetPasswordRequest"></a>
+
+#### Input: SetPasswordRequest
+
+Request to set or change the authenticated user's password.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `password` | `string` | New password. The server applies the same password policy as registration and password reset. |
+| `current_password` | `string` | Current password. Required when the account already has a password; omitted when adding the first password to a passwordless account. |
+
+
+<a id="chatto-api-v1-SetPasswordResponse"></a>
+
+#### Result: SetPasswordResponse
+
+Result of setting or changing the authenticated account password.
+
+
 <a id="chatto-api-v1-AccountService-UpdateSettings"></a>
 
 ### UpdateSettings

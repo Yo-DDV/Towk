@@ -41,6 +41,18 @@ const categories = [
         description: 'Authenticated viewer profile, preferences, and capability RPCs.'
       },
       {
+        name: 'ExternalIdentityFlowService',
+        slug: 'external-identity-flows',
+        title: 'External Identity Flows',
+        description: 'Public pending external-identity confirmation RPCs.'
+      },
+      {
+        name: 'ExternalIdentityService',
+        slug: 'external-identities',
+        title: 'External Identities',
+        description: 'Authenticated external identity listing, linking, and disconnect RPCs.'
+      },
+      {
         name: 'AccountService',
         slug: 'account',
         title: 'Account',
