@@ -26,7 +26,9 @@ func connectError(err error) error {
 	if errors.Is(err, core.ErrRoomNameExists) {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	}
-	if errors.Is(err, core.ErrRoleAlreadyExists) {
+	if errors.Is(err, core.ErrLoginAlreadyTaken) ||
+		errors.Is(err, core.ErrEmailAlreadyVerified) ||
+		errors.Is(err, core.ErrRoleAlreadyExists) {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	}
 	if errors.Is(err, core.ErrCustomStatusEmojiRequired) ||
@@ -35,6 +37,16 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrCustomStatusTextTooLong) ||
 		errors.Is(err, core.ErrCustomStatusExpiryInPast) ||
 		errors.Is(err, core.ErrCannotBanDMRoomMember) ||
+		errors.Is(err, core.ErrLoginTooShort) ||
+		errors.Is(err, core.ErrLoginTooLong) ||
+		errors.Is(err, core.ErrLoginInvalidCharacter) ||
+		errors.Is(err, core.ErrUsernameBlocked) ||
+		errors.Is(err, core.ErrDisplayNameTooLong) ||
+		errors.Is(err, core.ErrDisplayNameInvalidCharacter) ||
+		errors.Is(err, core.ErrDisplayNameInvalidStart) ||
+		errors.Is(err, core.ErrPasswordTooShort) ||
+		errors.Is(err, core.ErrPasswordTooLong) ||
+		errors.Is(err, core.ErrImplicitRole) ||
 		errors.Is(err, core.ErrRoomGroupNameEmpty) ||
 		errors.Is(err, core.ErrSidebarLinkLabelEmpty) ||
 		errors.Is(err, core.ErrSidebarLinkURLInvalid) ||
@@ -49,11 +61,15 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrMessageNotFound) ||
 		errors.Is(err, core.ErrMessageAttachmentNotFound) ||
 		errors.Is(err, core.ErrMessageLinkPreviewNotFound) ||
+		errors.Is(err, core.ErrRoleNotFound) ||
 		errors.Is(err, jetstream.ErrKeyNotFound) {
 		return connect.NewError(connect.CodeNotFound, err)
 	}
 	if errors.Is(err, core.ErrMessageTooLong) {
 		return connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	if errors.Is(err, core.ErrLimitExceeded) {
+		return connect.NewError(connect.CodeResourceExhausted, err)
 	}
 	if errors.Is(err, core.ErrRoomArchived) ||
 		errors.Is(err, core.ErrEditWindowExpired) ||
