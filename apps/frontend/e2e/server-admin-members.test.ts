@@ -168,14 +168,15 @@ test.describe('Server Admin Members', () => {
       await expect(page.getByText(/Deletion (allowed|protected)/)).toBeVisible();
     });
 
-    test('role-assignment-only viewer cannot see another member email state', async ({
+    test('role-assignment-only viewer cannot open another member detail page', async ({
       serverAdminPage
     }) => {
       const { page } = serverAdminPage;
 
       // Create an admin, two regular members, and grant only role.assign to
-      // everyone. The viewer can open member details but still lacks
-      // admin.view-users, so email fields must remain hidden.
+      // everyone. Member detail reads now require admin.view-users, so role
+      // assignment alone is denied by the admin layout guard before the detail
+      // page can load another account's data.
       await createAndLoginTestUser(page);
       const server = await usePrimaryServerViaAPI(page);
       const target = await createSecondTestUser(page);
@@ -186,13 +187,8 @@ test.describe('Server Admin Members', () => {
       await loginUser(page, viewer.login, viewer.password);
       await serverAdminPage.gotoMemberDetails(server.id, target.id!);
 
-      await expect(page.getByRole('heading', { name: 'Member Details' })).toBeVisible({
-        timeout: TIMEOUTS.REALTIME_EVENT
-      });
-      await expect(page.getByText('Email hidden')).toBeVisible();
-      await expect(page.getByText('Email visibility unavailable')).toBeVisible();
+      await serverAdminPage.expectAccessDenied();
       await expect(page.getByText(`${target.login}@example.com`)).not.toBeVisible();
-      await expect(page.getByText('No verified email')).not.toBeVisible();
     });
 
     test('member details page shows role assignments', async ({ serverAdminPage }) => {

@@ -34,14 +34,10 @@
       return () => chromePermissions.current.canManage;
     }
 
-    // Members pages: viewable by anyone who can browse users, assign roles,
-    // or edit direct per-user permission overrides.
+    // Members pages call AdminMemberService.ListMembers/GetMember, which
+    // require admin.view-users.
     if (pathname.startsWith(membersBase)) {
-      return () =>
-        chromePermissions.current.canAssignRoles ||
-        chromePermissions.current.canManageUserAccounts ||
-        chromePermissions.current.canManageUserPermissions ||
-        serverPerms.current.canAdminViewUsers;
+      return () => serverPerms.current.canAdminViewUsers;
     }
 
     // Rooms pages require room.manage permission
@@ -54,10 +50,10 @@
       return () => chromePermissions.current.canViewAdmin;
     }
 
-    // Permissions pages: role.manage OR admin.view-roles
+    // Permissions pages call the server/group role permission matrix APIs,
+    // which require role.manage.
     if (pathname.startsWith(permissionsBase)) {
-      return () =>
-        chromePermissions.current.canManageRoles || serverPerms.current.canAdminViewRoles;
+      return () => chromePermissions.current.canManageRoles;
     }
 
     // Security (blocked usernames) — server.manage

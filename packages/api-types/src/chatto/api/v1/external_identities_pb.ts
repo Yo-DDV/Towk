@@ -687,7 +687,7 @@ export class ListExternalIdentitiesRequest extends Message<ListExternalIdentitie
 }
 
 /**
- * Result of listing configured and linked external identities.
+ * Finite snapshot of configured providers and linked external identities.
  *
  * @generated from message chatto.api.v1.ListExternalIdentitiesResponse
  */
@@ -1006,4 +1006,3 @@ export class DisconnectExternalIdentityResponse extends Message<DisconnectExtern
     return proto3.util.equals(DisconnectExternalIdentityResponse, a, b);
   }
 }
-

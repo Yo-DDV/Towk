@@ -18,12 +18,19 @@ type AdminMemberListInput struct {
 type AdminMemberRoleSummary struct {
 	Name        string
 	DisplayName string
+	Description string
+	IsSystem    bool
+	Position    int32
+	Pingable    bool
 }
 
 type AdminMemberRole struct {
 	Name              string
 	DisplayName       string
+	Description       string
+	IsSystem          bool
 	Position          int32
+	Pingable          bool
 	Permissions       []Permission
 	PermissionDenials []Permission
 }
@@ -59,8 +66,8 @@ type AdminMemberDetails struct {
 }
 
 func (c *ChattoCore) ListAdminMembers(ctx context.Context, actorID string, input AdminMemberListInput) (*AdminMemberList, error) {
-	if actorID == "" {
-		return nil, ErrNotAuthenticated
+	if err := c.requireCanViewAdminMembers(ctx, actorID); err != nil {
+		return nil, err
 	}
 	limit, offset := adminMemberPagination(input.Limit, input.Offset)
 
@@ -96,8 +103,8 @@ func (c *ChattoCore) ListAdminMembers(ctx context.Context, actorID string, input
 }
 
 func (c *ChattoCore) GetAdminMemberDetails(ctx context.Context, actorID, targetUserID string) (*AdminMemberDetails, error) {
-	if actorID == "" {
-		return nil, ErrNotAuthenticated
+	if err := c.requireCanViewAdminMembers(ctx, actorID); err != nil {
+		return nil, err
 	}
 	if targetUserID == "" {
 		return nil, fmt.Errorf("%w: target user ID is required", ErrInvalidArgument)
@@ -141,6 +148,20 @@ func (c *ChattoCore) GetAdminMemberDetails(ctx context.Context, actorID, targetU
 		ViewerCanManageRoles:           canManageRoles,
 		ViewerCanManageUserPermissions: canManageUserPermissions,
 	}, nil
+}
+
+func (c *ChattoCore) requireCanViewAdminMembers(ctx context.Context, actorID string) error {
+	if actorID == "" {
+		return ErrNotAuthenticated
+	}
+	canView, err := c.CanAdminUsersView(ctx, actorID)
+	if err != nil {
+		return fmt.Errorf("check admin.view-users: %w", err)
+	}
+	if !canView {
+		return ErrPermissionDenied
+	}
+	return nil
 }
 
 func (c *ChattoCore) AdminAssignServerRole(ctx context.Context, actorID, targetUserID, roleName string) error {
@@ -287,6 +308,10 @@ func adminMemberRoleSummaries(roles []RoleWithPermissions) []AdminMemberRoleSumm
 		out = append(out, AdminMemberRoleSummary{
 			Name:        role.Name,
 			DisplayName: role.DisplayName,
+			Description: role.Description,
+			IsSystem:    role.IsSystem,
+			Position:    role.Position,
+			Pingable:    role.Pingable,
 		})
 	}
 	return out
@@ -298,7 +323,10 @@ func adminMemberRoles(roles []RoleWithPermissions) []AdminMemberRole {
 		out = append(out, AdminMemberRole{
 			Name:              role.Name,
 			DisplayName:       role.DisplayName,
+			Description:       role.Description,
+			IsSystem:          role.IsSystem,
 			Position:          role.Position,
+			Pingable:          role.Pingable,
 			Permissions:       append([]Permission{}, role.Permissions...),
 			PermissionDenials: append([]Permission{}, role.PermissionDenials...),
 		})

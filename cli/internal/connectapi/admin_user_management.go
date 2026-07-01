@@ -2,6 +2,7 @@ package connectapi
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -9,6 +10,7 @@ import (
 	"hmans.de/chatto/internal/core"
 	adminv1 "hmans.de/chatto/internal/pb/chatto/admin/v1"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 const (
@@ -36,17 +38,14 @@ func (s *adminUserManagementService) ListMembers(ctx context.Context, req *conne
 	}
 	response := &adminv1.ListMembersResponse{
 		Users: make([]*adminv1.AdminMember, 0, len(members.Users)),
-		Roles: make([]*adminv1.AdminRoleReference, 0, len(members.Roles)),
+		Roles: make([]*apiv1.Role, 0, len(members.Roles)),
 		Page:  apiPageInfo(members.TotalCount, members.HasMore),
 	}
 	for _, user := range members.Users {
 		response.Users = append(response.Users, s.adminMember(ctx, user))
 	}
 	for _, role := range members.Roles {
-		response.Roles = append(response.Roles, &adminv1.AdminRoleReference{
-			Name:        role.Name,
-			DisplayName: role.DisplayName,
-		})
+		response.Roles = append(response.Roles, publicAPIRoleFromAdminMemberSummary(role))
 	}
 	return connect.NewResponse(response), nil
 }
@@ -74,20 +73,11 @@ func (s *adminUserManagementService) GetMember(ctx context.Context, req *connect
 	}
 	response := &adminv1.GetMemberResponse{
 		Member:                         s.adminMember(ctx, *details.Member),
-		Roles:                          make([]*adminv1.AdminMemberRole, 0, len(details.Roles)),
+		Roles:                          adminAPIRolesFromAdminMemberRoles(details.Roles),
 		AvailablePermissions:           corePermissionsToStrings(details.AvailablePermissions),
 		ViewerCanAssignRoles:           details.ViewerCanAssignRoles,
 		ViewerCanManageRoles:           details.ViewerCanManageRoles,
 		ViewerCanManageUserPermissions: details.ViewerCanManageUserPermissions,
-	}
-	for _, role := range details.Roles {
-		response.Roles = append(response.Roles, &adminv1.AdminMemberRole{
-			Name:              role.Name,
-			DisplayName:       role.DisplayName,
-			Position:          role.Position,
-			Permissions:       corePermissionsToStrings(role.Permissions),
-			PermissionDenials: corePermissionsToStrings(role.PermissionDenials),
-		})
 	}
 	return connect.NewResponse(response), nil
 }
@@ -106,7 +96,7 @@ func (s *adminUserManagementService) AssignRole(ctx context.Context, req *connec
 	if err := s.api.core.AdminAssignServerRole(ctx, caller.UserID, req.Msg.GetUserId(), req.Msg.GetRoleName()); err != nil {
 		return nil, connectError(err)
 	}
-	member, err := s.adminMemberForUserCaller(ctx, caller.UserID, req.Msg.GetUserId())
+	member, err := s.adminMemberAfterMutation(ctx, caller.UserID, req.Msg.GetUserId())
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +117,7 @@ func (s *adminUserManagementService) RevokeRole(ctx context.Context, req *connec
 	if err := s.api.core.AdminRevokeServerRole(ctx, caller.UserID, req.Msg.GetUserId(), req.Msg.GetRoleName()); err != nil {
 		return nil, connectError(err)
 	}
-	member, err := s.adminMemberForUserCaller(ctx, caller.UserID, req.Msg.GetUserId())
+	member, err := s.adminMemberAfterMutation(ctx, caller.UserID, req.Msg.GetUserId())
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +139,7 @@ func (s *adminUserManagementService) UpdateUser(ctx context.Context, req *connec
 	if err != nil {
 		return nil, connectError(err)
 	}
-	updatedMember, err := s.adminMemberForUserCaller(ctx, caller.UserID, updated.GetId())
+	updatedMember, err := s.adminMemberAfterMutationForUser(ctx, caller.UserID, updated)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +193,30 @@ func (s *adminUserManagementService) ClearUsernameCooldown(ctx context.Context, 
 	return connect.NewResponse(&adminv1.ClearUsernameCooldownResponse{Cleared: true}), nil
 }
 
+func (s *adminUserManagementService) DeleteUser(ctx context.Context, req *connect.Request[adminv1.DeleteUserRequest]) (*connect.Response[adminv1.DeleteUserResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.Msg.GetUserId() == "" {
+		return nil, invalidArgument("user_id is required")
+	}
+	canDelete, err := s.api.core.CanDeleteUser(ctx, caller.UserID, req.Msg.GetUserId())
+	if err != nil {
+		return nil, connectError(err)
+	}
+	if !canDelete {
+		return nil, connectError(core.ErrPermissionDenied)
+	}
+	if err := s.api.requireFreshCredential(ctx, caller, req.Msg.GetCurrentPassword()); err != nil {
+		return nil, connectError(err)
+	}
+	if err := s.api.core.AdminDeleteUserAs(ctx, caller.UserID, req.Msg.GetUserId()); err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&adminv1.DeleteUserResponse{Deleted: true}), nil
+}
+
 func (s *adminUserManagementService) adminMember(ctx context.Context, member core.AdminMember) *adminv1.AdminMember {
 	response := &adminv1.AdminMember{
 		Roles:                  append([]string{}, member.Roles...),
@@ -226,12 +240,47 @@ func (s *adminUserManagementService) adminMember(ctx context.Context, member cor
 	return response
 }
 
-func (s *adminUserManagementService) adminMemberForUserCaller(ctx context.Context, actorID, userID string) (*adminv1.AdminMember, error) {
-	details, err := s.api.core.GetAdminMemberDetails(ctx, actorID, userID)
+func (s *adminUserManagementService) adminMemberAfterMutation(ctx context.Context, actorID, userID string) (*adminv1.AdminMember, error) {
+	user, err := s.api.core.GetUser(ctx, userID)
 	if err != nil {
 		return nil, connectError(err)
 	}
-	return s.adminMember(ctx, *details.Member), nil
+	return s.adminMemberAfterMutationForUser(ctx, actorID, user)
+}
+
+func (s *adminUserManagementService) adminMemberAfterMutationForUser(ctx context.Context, actorID string, user *corev1.User) (*adminv1.AdminMember, error) {
+	if user == nil {
+		return nil, connectError(core.ErrNotFound)
+	}
+	details, err := s.api.core.GetAdminMemberDetails(ctx, actorID, user.GetId())
+	if err == nil {
+		return s.adminMember(ctx, *details.Member), nil
+	}
+	if !errors.Is(err, core.ErrPermissionDenied) {
+		return nil, connectError(err)
+	}
+	roles, err := s.api.core.GetUserRoles(ctx, user.GetId())
+	if err != nil {
+		return nil, connectError(err)
+	}
+	avatarURL, err := s.api.core.GetUserAvatarURL(ctx, user.GetId(), nil, nil, "")
+	if err != nil {
+		return nil, connectError(err)
+	}
+	response := &adminv1.AdminMember{
+		Roles:     append([]string{}, roles...),
+		CreatedAt: user.GetCreatedAt(),
+		User: &apiv1.User{
+			Id:          user.GetId(),
+			Login:       user.GetLogin(),
+			DisplayName: user.GetDisplayName(),
+			Deleted:     user.GetDeleted(),
+		},
+	}
+	if avatarURL != "" {
+		response.User.AvatarUrl = stringPtr(s.api.absolutizeAssetURL(ctx, avatarURL))
+	}
+	return response, nil
 }
 
 func (s *adminUserManagementService) adminMemberForOperator(ctx context.Context, user *core.AdminUserView) (*adminv1.AdminMember, error) {
@@ -265,18 +314,34 @@ func (s *adminUserManagementService) adminMemberForOperator(ctx context.Context,
 	return response, nil
 }
 
-func adminMemberRolesFromCore(roles []core.RoleWithPermissions) []*adminv1.AdminMemberRole {
-	result := make([]*adminv1.AdminMemberRole, 0, len(roles))
+func publicAPIRoleFromAdminMemberSummary(role core.AdminMemberRoleSummary) *apiv1.Role {
+	return &apiv1.Role{
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
+		Description: role.Description,
+		IsSystem:    role.IsSystem,
+		Position:    role.Position,
+		Pingable:    role.Pingable,
+	}
+}
+
+func adminAPIRolesFromAdminMemberRoles(roles []core.AdminMemberRole) []*adminv1.AdminRole {
+	out := make([]*adminv1.AdminRole, 0, len(roles))
 	for _, role := range roles {
-		result = append(result, &adminv1.AdminMemberRole{
-			Name:              role.Name,
-			DisplayName:       role.DisplayName,
-			Position:          role.Position,
+		out = append(out, &adminv1.AdminRole{
+			Role: &apiv1.Role{
+				Name:        role.Name,
+				DisplayName: role.DisplayName,
+				Description: role.Description,
+				IsSystem:    role.IsSystem,
+				Position:    role.Position,
+				Pingable:    role.Pingable,
+			},
 			Permissions:       corePermissionsToStrings(role.Permissions),
 			PermissionDenials: corePermissionsToStrings(role.PermissionDenials),
 		})
 	}
-	return result
+	return out
 }
 
 func corePermissionsToStrings(perms []core.Permission) []string {

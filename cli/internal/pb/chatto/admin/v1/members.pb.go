@@ -127,12 +127,12 @@ func (x *AdminMember) GetUser() *v1.User {
 	return nil
 }
 
-// Role reference used by member list filters and badges.
+// Legacy role reference used by operator.v1 response shapes.
 type AdminRoleReference struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable role name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Display name shown in admin UI.
+	// Display name shown in operator UI.
 	DisplayName   string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -182,12 +182,12 @@ func (x *AdminRoleReference) GetDisplayName() string {
 	return ""
 }
 
-// Role details used by the member detail role-assignment UI.
+// Legacy role details used by operator.v1 response shapes.
 type AdminMemberRole struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Stable role name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Display name shown in admin UI.
+	// Display name shown in operator UI.
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// Display/order position.
 	Position int32 `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
@@ -324,8 +324,8 @@ type ListMembersResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Matching users.
 	Users []*AdminMember `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
-	// Roles for display-name lookup.
-	Roles []*AdminRoleReference `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	// Public roles for display-name lookup.
+	Roles []*v1.Role `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// Page metadata.
 	Page          *v1.PageInfo `protobuf:"bytes,5,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -369,7 +369,7 @@ func (x *ListMembersResponse) GetUsers() []*AdminMember {
 	return nil
 }
 
-func (x *ListMembersResponse) GetRoles() []*AdminRoleReference {
+func (x *ListMembersResponse) GetRoles() []*v1.Role {
 	if x != nil {
 		return x.Roles
 	}
@@ -444,7 +444,7 @@ type GetMemberResponse struct {
 	// Member record.
 	Member *AdminMember `protobuf:"bytes,1,opt,name=member,proto3" json:"member,omitempty"`
 	// Roles for assignment UI.
-	Roles []*AdminMemberRole `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	Roles []*AdminRole `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// Permissions available for per-user overrides.
 	AvailablePermissions []string `protobuf:"bytes,3,rep,name=available_permissions,json=availablePermissions,proto3" json:"available_permissions,omitempty"`
 	// Whether the caller may assign/revoke roles.
@@ -494,7 +494,7 @@ func (x *GetMemberResponse) GetMember() *AdminMember {
 	return nil
 }
 
-func (x *GetMemberResponse) GetRoles() []*AdminMemberRole {
+func (x *GetMemberResponse) GetRoles() []*AdminRole {
 	if x != nil {
 		return x.Roles
 	}
@@ -1062,11 +1062,113 @@ func (x *ClearUsernameCooldownResponse) GetCleared() bool {
 	return false
 }
 
+// Request to delete a user account as a server-admin action.
+type DeleteUserRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Target user ID.
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// Current password proof for accounts with a password when the active
+	// runtime credential is no longer fresh.
+	CurrentPassword string `protobuf:"bytes,2,opt,name=current_password,json=currentPassword,proto3" json:"current_password,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *DeleteUserRequest) Reset() {
+	*x = DeleteUserRequest{}
+	mi := &file_chatto_admin_v1_members_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserRequest) ProtoMessage() {}
+
+func (x *DeleteUserRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_members_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_members_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *DeleteUserRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *DeleteUserRequest) GetCurrentPassword() string {
+	if x != nil {
+		return x.CurrentPassword
+	}
+	return ""
+}
+
+// Result of deleting a user account.
+type DeleteUserResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// True when the user was deleted.
+	Deleted       bool `protobuf:"varint,1,opt,name=deleted,proto3" json:"deleted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteUserResponse) Reset() {
+	*x = DeleteUserResponse{}
+	mi := &file_chatto_admin_v1_members_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteUserResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteUserResponse) ProtoMessage() {}
+
+func (x *DeleteUserResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_members_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteUserResponse.ProtoReflect.Descriptor instead.
+func (*DeleteUserResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_members_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *DeleteUserResponse) GetDeleted() bool {
+	if x != nil {
+		return x.Deleted
+	}
+	return false
+}
+
 var File_chatto_admin_v1_members_proto protoreflect.FileDescriptor
 
 const file_chatto_admin_v1_members_proto_rawDesc = "" +
 	"\n" +
-	"\x1dchatto/admin/v1/members.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1echatto/api/v1/pagination.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
+	"\x1dchatto/admin/v1/members.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1echatto/api/v1/pagination.proto\x1a\x19chatto/api/v1/roles.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1bchatto/admin/v1/roles.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
 	"\vAdminMember\x12\x14\n" +
 	"\x05roles\x18\x05 \x03(\tR\x05roles\x129\n" +
 	"\n" +
@@ -1089,17 +1191,17 @@ const file_chatto_admin_v1_members_proto_rawDesc = "" +
 	"\x12permission_denials\x18\x05 \x03(\tR\x11permissionDenials\"w\n" +
 	"\x12ListMembersRequest\x12\x16\n" +
 	"\x06search\x18\x01 \x01(\tR\x06search\x12.\n" +
-	"\x04page\x18\x04 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05limitR\x06offset\"\xd4\x01\n" +
+	"\x04page\x18\x04 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05limitR\x06offset\"\xc4\x01\n" +
 	"\x13ListMembersResponse\x122\n" +
-	"\x05users\x18\x01 \x03(\v2\x1c.chatto.admin.v1.AdminMemberR\x05users\x129\n" +
-	"\x05roles\x18\x02 \x03(\v2#.chatto.admin.v1.AdminRoleReferenceR\x05roles\x12+\n" +
+	"\x05users\x18\x01 \x03(\v2\x1c.chatto.admin.v1.AdminMemberR\x05users\x12)\n" +
+	"\x05roles\x18\x02 \x03(\v2\x13.chatto.api.v1.RoleR\x05roles\x12+\n" +
 	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_more\"A\n" +
 	"\x10GetMemberRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
-	"\x05login\x18\x02 \x01(\tR\x05login\"\xf0\x02\n" +
+	"\x05login\x18\x02 \x01(\tR\x05login\"\xea\x02\n" +
 	"\x11GetMemberResponse\x124\n" +
-	"\x06member\x18\x01 \x01(\v2\x1c.chatto.admin.v1.AdminMemberR\x06member\x126\n" +
-	"\x05roles\x18\x02 \x03(\v2 .chatto.admin.v1.AdminMemberRoleR\x05roles\x123\n" +
+	"\x06member\x18\x01 \x01(\v2\x1c.chatto.admin.v1.AdminMemberR\x06member\x120\n" +
+	"\x05roles\x18\x02 \x03(\v2\x1a.chatto.admin.v1.AdminRoleR\x05roles\x123\n" +
 	"\x15available_permissions\x18\x03 \x03(\tR\x14availablePermissions\x125\n" +
 	"\x17viewer_can_assign_roles\x18\x04 \x01(\bR\x14viewerCanAssignRoles\x125\n" +
 	"\x17viewer_can_manage_roles\x18\x05 \x01(\bR\x14viewerCanManageRoles\x12J\n" +
@@ -1133,7 +1235,12 @@ const file_chatto_admin_v1_members_proto_rawDesc = "" +
 	"\x1cClearUsernameCooldownRequest\x12 \n" +
 	"\auser_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06userId\"9\n" +
 	"\x1dClearUsernameCooldownResponse\x12\x18\n" +
-	"\acleared\x18\x01 \x01(\bR\acleared2\xa5\x05\n" +
+	"\acleared\x18\x01 \x01(\bR\acleared\"`\n" +
+	"\x11DeleteUserRequest\x12 \n" +
+	"\auser_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06userId\x12)\n" +
+	"\x10current_password\x18\x02 \x01(\tR\x0fcurrentPassword\".\n" +
+	"\x12DeleteUserResponse\x12\x18\n" +
+	"\adeleted\x18\x01 \x01(\bR\adeleted2\xfc\x05\n" +
 	"\x12AdminMemberService\x12X\n" +
 	"\vListMembers\x12#.chatto.admin.v1.ListMembersRequest\x1a$.chatto.admin.v1.ListMembersResponse\x12R\n" +
 	"\tGetMember\x12!.chatto.admin.v1.GetMemberRequest\x1a\".chatto.admin.v1.GetMemberResponse\x12U\n" +
@@ -1144,7 +1251,9 @@ const file_chatto_admin_v1_members_proto_rawDesc = "" +
 	"\n" +
 	"UpdateUser\x12\".chatto.admin.v1.UpdateUserRequest\x1a#.chatto.admin.v1.UpdateUserResponse\x12d\n" +
 	"\x0fSetUserPassword\x12'.chatto.admin.v1.SetUserPasswordRequest\x1a(.chatto.admin.v1.SetUserPasswordResponse\x12v\n" +
-	"\x15ClearUsernameCooldown\x12-.chatto.admin.v1.ClearUsernameCooldownRequest\x1a..chatto.admin.v1.ClearUsernameCooldownResponseB\xb6\x01\n" +
+	"\x15ClearUsernameCooldown\x12-.chatto.admin.v1.ClearUsernameCooldownRequest\x1a..chatto.admin.v1.ClearUsernameCooldownResponse\x12U\n" +
+	"\n" +
+	"DeleteUser\x12\".chatto.admin.v1.DeleteUserRequest\x1a#.chatto.admin.v1.DeleteUserResponseB\xb6\x01\n" +
 	"\x13com.chatto.admin.v1B\fMembersProtoP\x01Z3hmans.de/chatto/internal/pb/chatto/admin/v1;adminv1\xa2\x02\x03CAX\xaa\x02\x0fChatto.Admin.V1\xca\x02\x0fChatto\\Admin\\V1\xe2\x02\x1bChatto\\Admin\\V1\\GPBMetadata\xea\x02\x11Chatto::Admin::V1b\x06proto3"
 
 var (
@@ -1159,7 +1268,7 @@ func file_chatto_admin_v1_members_proto_rawDescGZIP() []byte {
 	return file_chatto_admin_v1_members_proto_rawDescData
 }
 
-var file_chatto_admin_v1_members_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_chatto_admin_v1_members_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_chatto_admin_v1_members_proto_goTypes = []any{
 	(*AdminMember)(nil),                   // 0: chatto.admin.v1.AdminMember
 	(*AdminRoleReference)(nil),            // 1: chatto.admin.v1.AdminRoleReference
@@ -1178,24 +1287,28 @@ var file_chatto_admin_v1_members_proto_goTypes = []any{
 	(*SetUserPasswordResponse)(nil),       // 14: chatto.admin.v1.SetUserPasswordResponse
 	(*ClearUsernameCooldownRequest)(nil),  // 15: chatto.admin.v1.ClearUsernameCooldownRequest
 	(*ClearUsernameCooldownResponse)(nil), // 16: chatto.admin.v1.ClearUsernameCooldownResponse
-	(*timestamppb.Timestamp)(nil),         // 17: google.protobuf.Timestamp
-	(*v1.User)(nil),                       // 18: chatto.api.v1.User
-	(*v1.PageRequest)(nil),                // 19: chatto.api.v1.PageRequest
-	(*v1.PageInfo)(nil),                   // 20: chatto.api.v1.PageInfo
+	(*DeleteUserRequest)(nil),             // 17: chatto.admin.v1.DeleteUserRequest
+	(*DeleteUserResponse)(nil),            // 18: chatto.admin.v1.DeleteUserResponse
+	(*timestamppb.Timestamp)(nil),         // 19: google.protobuf.Timestamp
+	(*v1.User)(nil),                       // 20: chatto.api.v1.User
+	(*v1.PageRequest)(nil),                // 21: chatto.api.v1.PageRequest
+	(*v1.Role)(nil),                       // 22: chatto.api.v1.Role
+	(*v1.PageInfo)(nil),                   // 23: chatto.api.v1.PageInfo
+	(*AdminRole)(nil),                     // 24: chatto.admin.v1.AdminRole
 }
 var file_chatto_admin_v1_members_proto_depIdxs = []int32{
-	17, // 0: chatto.admin.v1.AdminMember.created_at:type_name -> google.protobuf.Timestamp
-	17, // 1: chatto.admin.v1.AdminMember.last_login_change:type_name -> google.protobuf.Timestamp
-	18, // 2: chatto.admin.v1.AdminMember.user:type_name -> chatto.api.v1.User
-	19, // 3: chatto.admin.v1.ListMembersRequest.page:type_name -> chatto.api.v1.PageRequest
+	19, // 0: chatto.admin.v1.AdminMember.created_at:type_name -> google.protobuf.Timestamp
+	19, // 1: chatto.admin.v1.AdminMember.last_login_change:type_name -> google.protobuf.Timestamp
+	20, // 2: chatto.admin.v1.AdminMember.user:type_name -> chatto.api.v1.User
+	21, // 3: chatto.admin.v1.ListMembersRequest.page:type_name -> chatto.api.v1.PageRequest
 	0,  // 4: chatto.admin.v1.ListMembersResponse.users:type_name -> chatto.admin.v1.AdminMember
-	1,  // 5: chatto.admin.v1.ListMembersResponse.roles:type_name -> chatto.admin.v1.AdminRoleReference
-	20, // 6: chatto.admin.v1.ListMembersResponse.page:type_name -> chatto.api.v1.PageInfo
+	22, // 5: chatto.admin.v1.ListMembersResponse.roles:type_name -> chatto.api.v1.Role
+	23, // 6: chatto.admin.v1.ListMembersResponse.page:type_name -> chatto.api.v1.PageInfo
 	0,  // 7: chatto.admin.v1.GetMemberResponse.member:type_name -> chatto.admin.v1.AdminMember
-	2,  // 8: chatto.admin.v1.GetMemberResponse.roles:type_name -> chatto.admin.v1.AdminMemberRole
+	24, // 8: chatto.admin.v1.GetMemberResponse.roles:type_name -> chatto.admin.v1.AdminRole
 	0,  // 9: chatto.admin.v1.AssignRoleResponse.member:type_name -> chatto.admin.v1.AdminMember
 	0,  // 10: chatto.admin.v1.RevokeRoleResponse.member:type_name -> chatto.admin.v1.AdminMember
-	18, // 11: chatto.admin.v1.UpdateUserResponse.user:type_name -> chatto.api.v1.User
+	20, // 11: chatto.admin.v1.UpdateUserResponse.user:type_name -> chatto.api.v1.User
 	0,  // 12: chatto.admin.v1.UpdateUserResponse.member:type_name -> chatto.admin.v1.AdminMember
 	3,  // 13: chatto.admin.v1.AdminMemberService.ListMembers:input_type -> chatto.admin.v1.ListMembersRequest
 	5,  // 14: chatto.admin.v1.AdminMemberService.GetMember:input_type -> chatto.admin.v1.GetMemberRequest
@@ -1204,15 +1317,17 @@ var file_chatto_admin_v1_members_proto_depIdxs = []int32{
 	11, // 17: chatto.admin.v1.AdminMemberService.UpdateUser:input_type -> chatto.admin.v1.UpdateUserRequest
 	13, // 18: chatto.admin.v1.AdminMemberService.SetUserPassword:input_type -> chatto.admin.v1.SetUserPasswordRequest
 	15, // 19: chatto.admin.v1.AdminMemberService.ClearUsernameCooldown:input_type -> chatto.admin.v1.ClearUsernameCooldownRequest
-	4,  // 20: chatto.admin.v1.AdminMemberService.ListMembers:output_type -> chatto.admin.v1.ListMembersResponse
-	6,  // 21: chatto.admin.v1.AdminMemberService.GetMember:output_type -> chatto.admin.v1.GetMemberResponse
-	8,  // 22: chatto.admin.v1.AdminMemberService.AssignRole:output_type -> chatto.admin.v1.AssignRoleResponse
-	10, // 23: chatto.admin.v1.AdminMemberService.RevokeRole:output_type -> chatto.admin.v1.RevokeRoleResponse
-	12, // 24: chatto.admin.v1.AdminMemberService.UpdateUser:output_type -> chatto.admin.v1.UpdateUserResponse
-	14, // 25: chatto.admin.v1.AdminMemberService.SetUserPassword:output_type -> chatto.admin.v1.SetUserPasswordResponse
-	16, // 26: chatto.admin.v1.AdminMemberService.ClearUsernameCooldown:output_type -> chatto.admin.v1.ClearUsernameCooldownResponse
-	20, // [20:27] is the sub-list for method output_type
-	13, // [13:20] is the sub-list for method input_type
+	17, // 20: chatto.admin.v1.AdminMemberService.DeleteUser:input_type -> chatto.admin.v1.DeleteUserRequest
+	4,  // 21: chatto.admin.v1.AdminMemberService.ListMembers:output_type -> chatto.admin.v1.ListMembersResponse
+	6,  // 22: chatto.admin.v1.AdminMemberService.GetMember:output_type -> chatto.admin.v1.GetMemberResponse
+	8,  // 23: chatto.admin.v1.AdminMemberService.AssignRole:output_type -> chatto.admin.v1.AssignRoleResponse
+	10, // 24: chatto.admin.v1.AdminMemberService.RevokeRole:output_type -> chatto.admin.v1.RevokeRoleResponse
+	12, // 25: chatto.admin.v1.AdminMemberService.UpdateUser:output_type -> chatto.admin.v1.UpdateUserResponse
+	14, // 26: chatto.admin.v1.AdminMemberService.SetUserPassword:output_type -> chatto.admin.v1.SetUserPasswordResponse
+	16, // 27: chatto.admin.v1.AdminMemberService.ClearUsernameCooldown:output_type -> chatto.admin.v1.ClearUsernameCooldownResponse
+	18, // 28: chatto.admin.v1.AdminMemberService.DeleteUser:output_type -> chatto.admin.v1.DeleteUserResponse
+	21, // [21:29] is the sub-list for method output_type
+	13, // [13:21] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
 	13, // [13:13] is the sub-list for extension extendee
 	0,  // [0:13] is the sub-list for field type_name
@@ -1223,6 +1338,7 @@ func file_chatto_admin_v1_members_proto_init() {
 	if File_chatto_admin_v1_members_proto != nil {
 		return
 	}
+	file_chatto_admin_v1_roles_proto_init()
 	file_chatto_admin_v1_members_proto_msgTypes[11].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1230,7 +1346,7 @@ func file_chatto_admin_v1_members_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_admin_v1_members_proto_rawDesc), len(file_chatto_admin_v1_members_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

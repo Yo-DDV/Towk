@@ -59,10 +59,7 @@ func (s *operatorUserService) ListUsers(ctx context.Context, req *connect.Reques
 	}
 	response.Roles = make([]*adminv1.AdminRoleReference, 0, len(roles))
 	for _, role := range roles {
-		response.Roles = append(response.Roles, &adminv1.AdminRoleReference{
-			Name:        role.Name,
-			DisplayName: role.DisplayName,
-		})
+		response.Roles = append(response.Roles, operatorAdminRoleReference(role))
 	}
 	return connect.NewResponse(response), nil
 }
@@ -102,7 +99,7 @@ func (s *operatorUserService) GetUser(ctx context.Context, req *connect.Request[
 	}
 	return connect.NewResponse(&operatorv1.GetUserResponse{
 		Member:               member,
-		Roles:                adminMemberRolesFromCore(roles),
+		Roles:                operatorAdminMemberRoles(roles),
 		AvailablePermissions: corePermissionsToStrings(s.api.core.AllServerPermissions()),
 	}), nil
 }
@@ -209,6 +206,27 @@ func (s *operatorUserService) ClearUsernameCooldown(ctx context.Context, req *co
 
 func (s *operatorUserService) operatorMember(ctx context.Context, user *core.AdminUserView) (*adminv1.AdminMember, error) {
 	return (&adminUserManagementService{api: s.api}).adminMemberForOperator(ctx, user)
+}
+
+func operatorAdminRoleReference(role core.RoleWithPermissions) *adminv1.AdminRoleReference {
+	return &adminv1.AdminRoleReference{
+		Name:        role.Name,
+		DisplayName: role.DisplayName,
+	}
+}
+
+func operatorAdminMemberRoles(roles []core.RoleWithPermissions) []*adminv1.AdminMemberRole {
+	out := make([]*adminv1.AdminMemberRole, 0, len(roles))
+	for _, role := range roles {
+		out = append(out, &adminv1.AdminMemberRole{
+			Name:              role.Name,
+			DisplayName:       role.DisplayName,
+			Position:          role.Position,
+			Permissions:       corePermissionsToStrings(role.Permissions),
+			PermissionDenials: corePermissionsToStrings(role.PermissionDenials),
+		})
+	}
+	return out
 }
 
 func nonEmptyCount(values ...string) int {

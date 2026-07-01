@@ -207,34 +207,39 @@ test.describe('Server Admin Navigation Permissions', () => {
       await serverAdminPage.expectRolesNavVisible();
     });
 
-    test('member with only role.assign permission sees Members nav item', async ({
+    test('member with only role.assign permission does not see Permissions or Members nav items', async ({
       serverAdminPage
     }) => {
       const { page } = serverAdminPage;
 
       // Create admin user and load the primary server
       await createAndLoginTestUser(page);
-      const server = await usePrimaryServerViaAPI(page);
+      await usePrimaryServerViaAPI(page);
 
-      // Grant role.assign to everyone role (enables Members page access)
+      // Grant role.assign to everyone role. Role assignment is a targeted
+      // mutation permission; the Permissions matrix still requires role.manage,
+      // and Members still requires admin.view-users because it lists user records.
       await grantPermission(page, 'everyone', 'role.assign');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
       await logoutUser(page);
       await loginUser(page, member.login, member.password);
-      // Navigate to settings
-      await serverAdminPage.gotoMembersDirectly(server.id);
+      // Navigate to an admin shell route that is still available to a viewer
+      // with an admin-scoped action permission.
+      await page.goto(routes.serverAdmin('moderation'));
 
-      // Wait for page to load
-      await expect(page.getByRole('heading', { name: 'Members', exact: true })).toBeVisible();
-
-      // Should see Members (has role.assign)
-      await serverAdminPage.expectMembersNavVisible();
-
-      // Should NOT see other permission-gated nav items
-      await serverAdminPage.expectGeneralNavNotVisible();
+      // Should not see Permissions or Members.
       await serverAdminPage.expectRolesNavNotVisible();
+      await serverAdminPage.expectMembersNavNotVisible();
+
+      // Should NOT see unrelated permission-gated nav items.
+      await serverAdminPage.expectGeneralNavNotVisible();
+
+      // Direct Permissions access is also denied because the page loads the
+      // server role-permission matrix, which requires role.manage.
+      await page.goto(routes.serverAdminRoles);
+      await serverAdminPage.expectAccessDenied();
     });
 
     test('member with only role.manage permission sees Roles nav item', async ({
@@ -296,19 +301,19 @@ test.describe('Server Admin Navigation Permissions', () => {
       await createAndLoginTestUser(page);
       const server = await usePrimaryServerViaAPI(page);
 
-      // Grant only role.assign to everyone role (no server.manage)
-      await grantPermission(page, 'everyone', 'role.assign');
+      // Grant only role.manage to everyone role (no server.manage)
+      await grantPermission(page, 'everyone', 'role.manage');
 
       // Create and login as non-admin user
       const member = await createSecondTestUser(page);
       await logoutUser(page);
       await loginUser(page, member.login, member.password);
-      // Navigate to the concrete section unlocked by role.assign
-      await page.goto(routes.serverAdminMembers);
+      // Navigate to the concrete section unlocked by role.manage
+      await page.goto(routes.serverAdminRoles);
 
-      // Should see Members, NOT Access Denied and NOT General settings
+      // Should see Permissions, NOT Access Denied and NOT General settings
       await serverAdminPage.expectAccessNotDenied();
-      await expect(page.getByRole('heading', { name: 'Members', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Permissions', level: 1 })).toBeVisible();
       await serverAdminPage.expectGeneralSettingsNotVisible();
     });
 
@@ -363,7 +368,7 @@ test.describe('Server Admin Navigation Permissions', () => {
       await serverAdminPage.expectAccessDenied();
     });
 
-    test('member without role.assign permission sees Access Denied on Members settings', async ({
+    test('member without admin.view-users permission sees Access Denied on Members settings', async ({
       serverAdminPage
     }) => {
       const { page } = serverAdminPage;

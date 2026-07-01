@@ -7,6 +7,8 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
 import { User } from "../../api/v1/users_pb.js";
 import { PageInfo, PageRequest } from "../../api/v1/pagination_pb.js";
+import { Role } from "../../api/v1/roles_pb.js";
+import { AdminRole } from "./roles_pb.js";
 
 /**
  * User row returned by server-admin member management reads.
@@ -101,7 +103,7 @@ export class AdminMember extends Message<AdminMember> {
 }
 
 /**
- * Role reference used by member list filters and badges.
+ * Legacy role reference used by operator.v1 response shapes.
  *
  * @generated from message chatto.admin.v1.AdminRoleReference
  */
@@ -114,7 +116,7 @@ export class AdminRoleReference extends Message<AdminRoleReference> {
   name = "";
 
   /**
-   * Display name shown in admin UI.
+   * Display name shown in operator UI.
    *
    * @generated from field: string display_name = 2;
    */
@@ -150,7 +152,7 @@ export class AdminRoleReference extends Message<AdminRoleReference> {
 }
 
 /**
- * Role details used by the member detail role-assignment UI.
+ * Legacy role details used by operator.v1 response shapes.
  *
  * @generated from message chatto.admin.v1.AdminMemberRole
  */
@@ -163,7 +165,7 @@ export class AdminMemberRole extends Message<AdminMemberRole> {
   name = "";
 
   /**
-   * Display name shown in admin UI.
+   * Display name shown in operator UI.
    *
    * @generated from field: string display_name = 2;
    */
@@ -285,11 +287,11 @@ export class ListMembersResponse extends Message<ListMembersResponse> {
   users: AdminMember[] = [];
 
   /**
-   * Roles for display-name lookup.
+   * Public roles for display-name lookup.
    *
-   * @generated from field: repeated chatto.admin.v1.AdminRoleReference roles = 2;
+   * @generated from field: repeated chatto.api.v1.Role roles = 2;
    */
-  roles: AdminRoleReference[] = [];
+  roles: Role[] = [];
 
   /**
    * Page metadata.
@@ -307,7 +309,7 @@ export class ListMembersResponse extends Message<ListMembersResponse> {
   static readonly typeName = "chatto.admin.v1.ListMembersResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "users", kind: "message", T: AdminMember, repeated: true },
-    { no: 2, name: "roles", kind: "message", T: AdminRoleReference, repeated: true },
+    { no: 2, name: "roles", kind: "message", T: Role, repeated: true },
     { no: 5, name: "page", kind: "message", T: PageInfo },
   ]);
 
@@ -393,9 +395,9 @@ export class GetMemberResponse extends Message<GetMemberResponse> {
   /**
    * Roles for assignment UI.
    *
-   * @generated from field: repeated chatto.admin.v1.AdminMemberRole roles = 2;
+   * @generated from field: repeated chatto.admin.v1.AdminRole roles = 2;
    */
-  roles: AdminMemberRole[] = [];
+  roles: AdminRole[] = [];
 
   /**
    * Permissions available for per-user overrides.
@@ -434,7 +436,7 @@ export class GetMemberResponse extends Message<GetMemberResponse> {
   static readonly typeName = "chatto.admin.v1.GetMemberResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "member", kind: "message", T: AdminMember },
-    { no: 2, name: "roles", kind: "message", T: AdminMemberRole, repeated: true },
+    { no: 2, name: "roles", kind: "message", T: AdminRole, repeated: true },
     { no: 3, name: "available_permissions", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
     { no: 4, name: "viewer_can_assign_roles", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "viewer_can_manage_roles", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
@@ -933,3 +935,93 @@ export class ClearUsernameCooldownResponse extends Message<ClearUsernameCooldown
   }
 }
 
+/**
+ * Request to delete a user account as a server-admin action.
+ *
+ * @generated from message chatto.admin.v1.DeleteUserRequest
+ */
+export class DeleteUserRequest extends Message<DeleteUserRequest> {
+  /**
+   * Target user ID.
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId = "";
+
+  /**
+   * Current password proof for accounts with a password when the active
+   * runtime credential is no longer fresh.
+   *
+   * @generated from field: string current_password = 2;
+   */
+  currentPassword = "";
+
+  constructor(data?: PartialMessage<DeleteUserRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.DeleteUserRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "user_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "current_password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteUserRequest {
+    return new DeleteUserRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteUserRequest {
+    return new DeleteUserRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteUserRequest {
+    return new DeleteUserRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteUserRequest | PlainMessage<DeleteUserRequest> | undefined, b: DeleteUserRequest | PlainMessage<DeleteUserRequest> | undefined): boolean {
+    return proto3.util.equals(DeleteUserRequest, a, b);
+  }
+}
+
+/**
+ * Result of deleting a user account.
+ *
+ * @generated from message chatto.admin.v1.DeleteUserResponse
+ */
+export class DeleteUserResponse extends Message<DeleteUserResponse> {
+  /**
+   * True when the user was deleted.
+   *
+   * @generated from field: bool deleted = 1;
+   */
+  deleted = false;
+
+  constructor(data?: PartialMessage<DeleteUserResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.DeleteUserResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "deleted", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DeleteUserResponse {
+    return new DeleteUserResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DeleteUserResponse {
+    return new DeleteUserResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DeleteUserResponse {
+    return new DeleteUserResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DeleteUserResponse | PlainMessage<DeleteUserResponse> | undefined, b: DeleteUserResponse | PlainMessage<DeleteUserResponse> | undefined): boolean {
+    return proto3.util.equals(DeleteUserResponse, a, b);
+  }
+}
