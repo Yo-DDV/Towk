@@ -27,6 +27,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
   } from '$lib/state/userProfiles.svelte';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import CollapsibleGroup from '$lib/ui/CollapsibleGroup.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
@@ -77,6 +78,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
 
   const connection = useConnection();
   const presenceCache = getPresenceCache();
+  const activeCallRooms = serverRegistry.getStore(getActiveServer()).activeCallRooms;
 
   const members = $derived(membersStore.filteredMembers);
   const allMembers = $derived(membersStore.members);
@@ -412,8 +414,29 @@ calls, and similar room-specific panels can plug into the same shell. See the
   {/if}
 </aside>
 
+{#snippet callPresenceIcon(kind: 'voice' | 'video' | null)}
+  {#if kind}
+    <span
+      class={[
+        'iconify shrink-0 text-xs leading-none text-accent',
+        kind === 'video' ? 'uil--video' : 'uil--phone'
+      ]}
+      title={kind === 'video'
+        ? m['room.sidebar.in_video_call']()
+        : m['room.sidebar.in_voice_call']()}
+      aria-label={kind === 'video'
+        ? m['room.sidebar.in_video_call']()
+        : m['room.sidebar.in_voice_call']()}
+      data-testid={`member-call-presence-${kind}`}
+    ></span>
+  {/if}
+{/snippet}
+
 {#snippet memberRow(member: RoomMember)}
   {@const isOnline = isOnlineStatus(getPresence(member))}
+  {@const callPresence = member.deleted
+    ? null
+    : activeCallRooms.getParticipantCallPresenceInAnyRoom(member.id)}
   <button
     type="button"
     class={[
@@ -441,6 +464,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
           status={getLiveCustomStatus(member.id, member.customStatus)}
           class="shrink-0 text-xs"
         />
+        {@render callPresenceIcon(callPresence)}
       </div>
       <div class="truncate text-xs text-muted">@{getLiveLogin(member.id, member.login)}</div>
     </div>
