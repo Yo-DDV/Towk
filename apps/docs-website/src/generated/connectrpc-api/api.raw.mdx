@@ -14,81 +14,6 @@ Endpoint paths use the Connect convention:
 
 Use this reference when building clients against Chatto's public ConnectRPC API.
 
-<a id="chatto-api-v1-UserDirectoryService"></a>
-
-## UserDirectoryService
-
-Provides authenticated public user directory lookups.
-
-<a id="chatto-api-v1-UserDirectoryService-GetUser"></a>
-
-### GetUser
-
-Gets a user by stable ID or login. Returns NOT_FOUND when the user is
-unknown.
-
-```http
-POST /api/connect/chatto.api.v1.UserDirectoryService/GetUser
-```
-
-<a id="chatto-api-v1-GetUserRequest"></a>
-
-#### Input: GetUserRequest
-
-Request one user by stable user ID or login identifier.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `target.user_id` | `string` | Target stable user ID. |
-| `target.login` | `string` | Target login identifier. |
-| `avatar` | [`UserAvatarOptions`](#chatto-api-v1-UserAvatarOptions) | Optional avatar URL transform parameters. Omit for the original avatar URL. |
-
-
-<a id="chatto-api-v1-GetUserResponse"></a>
-
-#### Result: GetUserResponse
-
-Public authenticated user profile response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user` | [`UserProfile`](#chatto-api-v1-UserProfile) | Requested user. |
-
-
-<a id="chatto-api-v1-UserDirectoryService-BatchGetUsers"></a>
-
-### BatchGetUsers
-
-Gets public user profiles for multiple users referenced by event-focused
-payloads.
-
-```http
-POST /api/connect/chatto.api.v1.UserDirectoryService/BatchGetUsers
-```
-
-<a id="chatto-api-v1-BatchGetUsersRequest"></a>
-
-#### Input: BatchGetUsersRequest
-
-Request public user profiles for a set of stable user IDs.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user_ids` | `repeated string` | Required user IDs. Unknown IDs are omitted from the response. |
-| `avatar` | [`UserAvatarOptions`](#chatto-api-v1-UserAvatarOptions) | Optional avatar URL transform parameters. Omit for the original avatar URL. |
-
-
-<a id="chatto-api-v1-BatchGetUsersResponse"></a>
-
-#### Result: BatchGetUsersResponse
-
-Batch public user profile response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `users` | repeated [`UserProfile`](#chatto-api-v1-UserProfile) | Found users. The server preserves first-seen request order and de-duplicates repeated IDs. |
-
-
 <a id="chatto-api-v1-NotificationPreferencesService"></a>
 
 ## NotificationPreferencesService
@@ -766,8 +691,6 @@ Request to start a room-scoped attachment upload.
 | `content_type` | `string` | MIME content type. Empty values are treated as application/octet-stream. |
 | `size` | `int64` | Required total file size in bytes. |
 | `sha256` | `string` | Required SHA-256 digest of the complete file, lowercase hexadecimal. |
-| `thread_root_event_id` | `string` | Thread root event ID when the upload is for a thread reply. |
-| `also_send_to_channel` | `bool` | Whether the eventual thread reply will also be echoed to the channel. |
 
 
 <a id="chatto-api-v1-CreateUploadResponse"></a>
@@ -913,21 +836,207 @@ Response after cancelling an upload.
 | `upload` | [`AssetUpload`](#chatto-api-v1-AssetUpload) | Updated upload session. |
 
 
-<a id="chatto-api-v1-LinkPreviewService"></a>
+<a id="chatto-api-v1-AssetService"></a>
 
-## LinkPreviewService
+## AssetService
 
-Fetches link preview metadata for message composers.
+Reads room-scoped asset metadata and freshly signed asset URLs.
 
-<a id="chatto-api-v1-LinkPreviewService-FetchLinkPreview"></a>
+<a id="chatto-api-v1-AssetService-GetAsset"></a>
+
+### GetAsset
+
+Reads one asset. Authentication and room membership are required. Returns
+NOT_FOUND when the asset is missing, deleted, or owned by a different room.
+
+```http
+POST /api/connect/chatto.api.v1.AssetService/GetAsset
+```
+
+<a id="chatto-api-v1-GetAssetRequest"></a>
+
+#### Input: GetAssetRequest
+
+Request to read one room-scoped asset with freshly signed URLs.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required. Room that owns the asset. |
+| `asset_id` | `string` | Required. Asset ID. |
+| `thumbnail` | [`AssetThumbnailOptions`](#chatto-api-v1-AssetThumbnailOptions) | Thumbnail URL options. Defaults are applied when absent. |
+
+
+<a id="chatto-api-v1-GetAssetResponse"></a>
+
+#### Result: GetAssetResponse
+
+Response containing one room-scoped asset.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `asset` | [`MessageAttachment`](#chatto-api-v1-MessageAttachment) | Asset metadata and signed URLs. |
+
+
+<a id="chatto-api-v1-AssetService-BatchGetAssets"></a>
+
+### BatchGetAssets
+
+Reads many assets in one room. Authentication and room membership are
+required. Missing, deleted, and wrong-room asset IDs are omitted. Results
+preserve first-seen request order and repeated asset IDs are de-duplicated.
+
+```http
+POST /api/connect/chatto.api.v1.AssetService/BatchGetAssets
+```
+
+<a id="chatto-api-v1-BatchGetAssetsRequest"></a>
+
+#### Input: BatchGetAssetsRequest
+
+Request to read many room-scoped assets with freshly signed URLs.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required. Room that owns the assets. |
+| `asset_ids` | `repeated string` | Required. Asset IDs. Missing, deleted, and wrong-room asset IDs are omitted. |
+| `thumbnail` | [`AssetThumbnailOptions`](#chatto-api-v1-AssetThumbnailOptions) | Thumbnail URL options. Defaults are applied when absent. |
+
+
+<a id="chatto-api-v1-BatchGetAssetsResponse"></a>
+
+#### Result: BatchGetAssetsResponse
+
+Response containing room-scoped assets.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `assets` | repeated [`MessageAttachment`](#chatto-api-v1-MessageAttachment) | Assets in first-seen request order. |
+
+
+<a id="chatto-api-v1-UserService"></a>
+
+## UserService
+
+Reads the authenticated server-wide user directory.
+
+<a id="chatto-api-v1-UserService-ListUsers"></a>
+
+### ListUsers
+
+Lists users visible to the authenticated user. Admin-sensitive account
+fields stay out of this public row shape.
+
+```http
+POST /api/connect/chatto.api.v1.UserService/ListUsers
+```
+
+<a id="chatto-api-v1-ListUsersRequest"></a>
+
+#### Input: ListUsersRequest
+
+Request for users visible to the authenticated user.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `search` | `string` | Optional case-insensitive search against login and display name. |
+| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 20 results when absent or limit is zero. |
+
+
+<a id="chatto-api-v1-ListUsersResponse"></a>
+
+#### Result: ListUsersResponse
+
+User directory page.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `users` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Users in the requested page. |
+| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
+
+
+<a id="chatto-api-v1-UserService-GetUser"></a>
+
+### GetUser
+
+Gets one visible user by user ID or login. Returns NOT_FOUND when the
+target is unknown.
+
+```http
+POST /api/connect/chatto.api.v1.UserService/GetUser
+```
+
+<a id="chatto-api-v1-GetUserRequest"></a>
+
+#### Input: GetUserRequest
+
+Request one visible user by stable user ID or login.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `target.user_id` | `string` | Target stable user ID. |
+| `target.login` | `string` | Target login identifier. |
+
+
+<a id="chatto-api-v1-GetUserResponse"></a>
+
+#### Result: GetUserResponse
+
+User directory response.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Requested user. |
+
+
+<a id="chatto-api-v1-UserService-BatchGetUsers"></a>
+
+### BatchGetUsers
+
+Gets visible user rows for multiple stable user IDs. Unknown IDs are
+omitted from the response.
+
+```http
+POST /api/connect/chatto.api.v1.UserService/BatchGetUsers
+```
+
+<a id="chatto-api-v1-BatchGetUsersRequest"></a>
+
+#### Input: BatchGetUsersRequest
+
+Request user directory rows for a set of stable user IDs.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user_ids` | `repeated string` | Required target user IDs. Unknown IDs are omitted from the response. |
+
+
+<a id="chatto-api-v1-BatchGetUsersResponse"></a>
+
+#### Result: BatchGetUsersResponse
+
+Batch user directory response.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `users` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Found users. The server preserves first-seen request order and de-duplicates repeated IDs. |
+
+
+<a id="chatto-api-v1-MessageService"></a>
+
+## MessageService
+
+Creates messages in room and thread timelines.
+
+<a id="chatto-api-v1-MessageService-FetchLinkPreview"></a>
 
 ### FetchLinkPreview
 
-Fetches and caches metadata for a URL. Authentication is required to avoid
-exposing the preview fetcher as an unauthenticated network proxy.
+Fetches and caches metadata for a composer URL. Authentication is required
+to avoid exposing the preview fetcher as an unauthenticated network proxy.
+Successful responses include a short-lived token accepted by CreateMessage.
 
 ```http
-POST /api/connect/chatto.api.v1.LinkPreviewService/FetchLinkPreview
+POST /api/connect/chatto.api.v1.MessageService/FetchLinkPreview
 ```
 
 <a id="chatto-api-v1-FetchLinkPreviewRequest"></a>
@@ -950,13 +1059,8 @@ Result of fetching link preview metadata.
 | Field | Type | Description |
 | --- | --- | --- |
 | `preview` | [`LinkPreview`](#chatto-api-v1-LinkPreview) | Preview metadata, or absent when the URL cannot be previewed. |
+| `preview_token` | `string` | Short-lived opaque token to pass to CreateMessage.link_preview_token when the user posts this preview. |
 
-
-<a id="chatto-api-v1-MessageService"></a>
-
-## MessageService
-
-Creates messages in room and thread timelines.
 
 <a id="chatto-api-v1-MessageService-CreateMessage"></a>
 
@@ -985,8 +1089,7 @@ Request to create a message in a room or thread.
 | `thread_root_event_id` | `string` | Event ID of the thread root message when posting a thread reply. |
 | `in_reply_to` | `string` | Event ID this message replies to for attribution. |
 | `also_send_to_channel` | `bool` | True to also echo a thread reply into the main room timeline. |
-| `mention_confirmation_token` | `string` | Short-lived token returned by a prior mention confirmation challenge. |
-| `link_preview` | [`MessageLinkPreviewInput`](#chatto-api-v1-MessageLinkPreviewInput) | Link preview selected by the client. |
+| `link_preview_token` | `string` | Short-lived token returned by FetchLinkPreview for the selected URL. The server resolves the token to cached, server-fetched metadata during post. |
 
 
 <a id="chatto-api-v1-CreateMessageResponse"></a>
@@ -997,9 +1100,7 @@ Result of creating a message.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `result.event` | [`RoomTimelineEvent`](#chatto-api-v1-RoomTimelineEvent) | Renderable timeline event for the created message. |
-| `result.mention_confirmation` | [`MentionConfirmationChallenge`](#chatto-api-v1-MentionConfirmationChallenge) | Challenge shown when a message would notify many people. |
-| `includes` | [`RoomTimelineIncludes`](#chatto-api-v1-RoomTimelineIncludes) | Related entities needed to render event when a message was created. |
+| `message` | [`Message`](#chatto-api-v1-Message) | Renderable message created by the request. |
 
 
 <a id="chatto-api-v1-MessageService-UpdateMessage"></a>
@@ -1037,8 +1138,7 @@ Result of editing a message.
 | Field | Type | Description |
 | --- | --- | --- |
 | `updated` | `bool` | True when the edit was accepted. |
-| `event` | [`RoomTimelineEvent`](#chatto-api-v1-RoomTimelineEvent) | Renderable timeline event after the edit. |
-| `includes` | [`RoomTimelineIncludes`](#chatto-api-v1-RoomTimelineIncludes) | Related entities needed to render event after the edit. |
+| `message` | [`Message`](#chatto-api-v1-Message) | Renderable message after the edit. |
 
 
 <a id="chatto-api-v1-MessageService-DeleteMessage"></a>
@@ -1143,122 +1243,76 @@ Result of removing a link preview from a message.
 | `deleted` | `bool` | True when the link preview removal was accepted. |
 
 
-<a id="chatto-api-v1-MessageService-RefreshMessageAttachmentUrls"></a>
+<a id="chatto-api-v1-MessageService-GetMessage"></a>
 
-### RefreshMessageAttachmentUrls
+### GetMessage
 
-Refreshes signed URLs for the current attachments on one message.
-Authentication and room membership are required. Returns NOT_FOUND when the
-message does not exist, is not a current visible message, or belongs to a
-different room. Returns an empty attachment list when the message exists
-but currently has no attachments.
-
-```http
-POST /api/connect/chatto.api.v1.MessageService/RefreshMessageAttachmentUrls
-```
-
-<a id="chatto-api-v1-RefreshMessageAttachmentUrlsRequest"></a>
-
-#### Input: RefreshMessageAttachmentUrlsRequest
-
-Request to refresh signed attachment URLs for one message.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Required room ID. |
-| `event_id` | `string` | Required message event ID. |
-| `thumbnail` | [`AttachmentThumbnailOptions`](#chatto-api-v1-AttachmentThumbnailOptions) | Thumbnail URL options. Defaults are applied when absent. |
-
-
-<a id="chatto-api-v1-RefreshMessageAttachmentUrlsResponse"></a>
-
-#### Result: RefreshMessageAttachmentUrlsResponse
-
-Response containing fresh signed URLs for the current message attachments.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `attachments` | repeated [`RefreshedAttachmentUrls`](#chatto-api-v1-RefreshedAttachmentUrls) | Fresh URL bundle for each current attachment on the message. |
-
-
-<a id="chatto-api-v1-MessageService-BatchRefreshMessageAttachmentUrls"></a>
-
-### BatchRefreshMessageAttachmentUrls
-
-Refreshes signed URLs for the current attachments on multiple messages in
-one room. Authentication and room membership are required. Missing,
-retracted, non-message, and wrong-room event IDs are omitted. Results
-preserve first-seen request order and repeated event IDs are de-duplicated.
-Existing visible messages with no current attachments are returned with an
-empty attachment list.
+Reads one renderable message, including current body, attachment metadata,
+link preview, reactions, and thread metadata. Authentication and room
+membership are required. Returns NOT_FOUND when the event does not exist,
+is not a message, has been retracted, or belongs to a different room.
 
 ```http
-POST /api/connect/chatto.api.v1.MessageService/BatchRefreshMessageAttachmentUrls
+POST /api/connect/chatto.api.v1.MessageService/GetMessage
 ```
 
-<a id="chatto-api-v1-BatchRefreshMessageAttachmentUrlsRequest"></a>
+<a id="chatto-api-v1-GetMessageRequest"></a>
 
-#### Input: BatchRefreshMessageAttachmentUrlsRequest
+#### Input: GetMessageRequest
 
-Request to refresh signed attachment URLs for many messages in one room.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Required room ID. |
-| `event_ids` | `repeated string` | Required message event IDs. Missing, retracted, non-message, and wrong-room event IDs are omitted from the response. |
-| `thumbnail` | [`AttachmentThumbnailOptions`](#chatto-api-v1-AttachmentThumbnailOptions) | Thumbnail URL options. Defaults are applied when absent. |
-
-
-<a id="chatto-api-v1-BatchRefreshMessageAttachmentUrlsResponse"></a>
-
-#### Result: BatchRefreshMessageAttachmentUrlsResponse
-
-Response containing fresh signed URLs for many visible messages.
+Request to read one visible message.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `messages` | repeated [`RefreshedMessageAttachmentUrls`](#chatto-api-v1-RefreshedMessageAttachmentUrls) | Refreshed messages in first-seen request order. |
+| `room_id` | `string` | Required. Room containing the message. |
+| `event_id` | `string` | Required. Message event ID. |
 
 
-<a id="chatto-api-v1-MessageService-ResolveMessageLinkTarget"></a>
+<a id="chatto-api-v1-GetMessageResponse"></a>
 
-### ResolveMessageLinkTarget
+#### Result: GetMessageResponse
 
-Resolves a permalink target to either the room timeline or a message
-thread, including thread-only replies that are not room timeline rows.
-Returns NOT_FOUND when the target message is missing or hidden and
-PERMISSION_DENIED when the room is inaccessible.
+Response containing one renderable message.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `message` | [`Message`](#chatto-api-v1-Message) | Renderable message. |
+
+
+<a id="chatto-api-v1-MessageService-BatchGetMessages"></a>
+
+### BatchGetMessages
+
+Reads many renderable messages in one room. Authentication and room
+membership are required. Missing, retracted, non-message, and wrong-room
+event IDs are omitted. Results preserve first-seen request order and
+repeated event IDs are de-duplicated.
 
 ```http
-POST /api/connect/chatto.api.v1.MessageService/ResolveMessageLinkTarget
+POST /api/connect/chatto.api.v1.MessageService/BatchGetMessages
 ```
 
-<a id="chatto-api-v1-ResolveMessageLinkTargetRequest"></a>
+<a id="chatto-api-v1-BatchGetMessagesRequest"></a>
 
-#### Input: ResolveMessageLinkTargetRequest
+#### Input: BatchGetMessagesRequest
 
-Request for resolving a message permalink target.
-
-Unlike GetRoomEventsAround, this can resolve thread-only replies that do not
-appear as rows in the room timeline.
+Request to read many visible messages in one room.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `room_id` | `string` | Required. Room containing the linked event. |
-| `event_id` | `string` | Required. Linked event ID. |
+| `room_id` | `string` | Required. Room containing the messages. |
+| `event_ids` | `repeated string` | Required. Message event IDs. Missing, retracted, non-message, and wrong-room event IDs are omitted from the response. |
 
 
-<a id="chatto-api-v1-ResolveMessageLinkTargetResponse"></a>
+<a id="chatto-api-v1-BatchGetMessagesResponse"></a>
 
-#### Result: ResolveMessageLinkTargetResponse
+#### Result: BatchGetMessagesResponse
 
-Response describing where a message permalink should land.
+Response containing renderable messages.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `event` | [`RoomTimelineEvent`](#chatto-api-v1-RoomTimelineEvent) | Linked event, hydrated with the same shape used by timeline pages. |
-| `thread_root_event_id` | `string` | Event ID of the thread root when event is a thread-only reply. Empty when the event should open in the room timeline. |
-| `includes` | [`RoomTimelineIncludes`](#chatto-api-v1-RoomTimelineIncludes) | Related entities needed to render the event. |
+| `messages` | repeated [`Message`](#chatto-api-v1-Message) | Renderable messages in first-seen request order. |
 
 
 <a id="chatto-api-v1-MessageService-AddReaction"></a>
@@ -1298,7 +1352,7 @@ Result of adding a reaction.
 | Field | Type | Description |
 | --- | --- | --- |
 | `added` | `bool` | True when the reaction was newly added, false when it already existed. |
-| `reaction` | [`RoomTimelineReaction`](#chatto-api-v1-RoomTimelineReaction) | Updated aggregate reaction state for this emoji. |
+| `reaction` | [`MessageReaction`](#chatto-api-v1-MessageReaction) | Updated aggregate reaction state for this emoji. |
 
 
 <a id="chatto-api-v1-MessageService-RemoveReaction"></a>
@@ -1338,7 +1392,7 @@ Result of removing a reaction.
 | Field | Type | Description |
 | --- | --- | --- |
 | `removed` | `bool` | True when the reaction was removed, false when it did not exist. |
-| `reaction` | [`RoomTimelineReaction`](#chatto-api-v1-RoomTimelineReaction) | Updated aggregate reaction state for this emoji. Empty when no reactions for the emoji remain. |
+| `reaction` | [`MessageReaction`](#chatto-api-v1-MessageReaction) | Updated aggregate reaction state for this emoji. Empty when no reactions for the emoji remain. |
 
 
 <a id="chatto-api-v1-NotificationService"></a>
@@ -1377,7 +1431,6 @@ Pending notification page.
 | Field | Type | Description |
 | --- | --- | --- |
 | `notifications` | repeated [`NotificationItem`](#chatto-api-v1-NotificationItem) | Page notifications, newest first. |
-| `server_name` | `string` | Current server display name for non-DM location labels. |
 | `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
 
 
@@ -1412,7 +1465,6 @@ Pending notification response.
 | Field | Type | Description |
 | --- | --- | --- |
 | `notification` | [`NotificationItem`](#chatto-api-v1-NotificationItem) | Requested notification. |
-| `server_name` | `string` | Current server display name for non-DM location labels. |
 
 
 <a id="chatto-api-v1-NotificationService-BatchGetNotifications"></a>
@@ -1445,7 +1497,6 @@ Batch pending notification response.
 | Field | Type | Description |
 | --- | --- | --- |
 | `notifications` | repeated [`NotificationItem`](#chatto-api-v1-NotificationItem) | Found notifications. The server preserves first-seen request order and de-duplicates repeated IDs. |
-| `server_name` | `string` | Current server display name for non-DM location labels. |
 
 
 <a id="chatto-api-v1-NotificationService-ListRoomNotifications"></a>
@@ -1479,7 +1530,6 @@ Pending notification page scoped to one room.
 | Field | Type | Description |
 | --- | --- | --- |
 | `notifications` | repeated [`NotificationItem`](#chatto-api-v1-NotificationItem) | Page notifications, newest first. |
-| `server_name` | `string` | Current server display name for non-DM location labels. |
 | `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
 
 
@@ -1831,8 +1881,8 @@ Result of creating a room.
 
 ### UpdateRoom
 
-Updates a room's name and description. The caller must be allowed to manage
-rooms.
+Updates a room's editable metadata. The caller must be allowed to manage
+rooms. Direct-message rooms cannot be universal.
 
 ```http
 POST /api/connect/chatto.api.v1.RoomService/UpdateRoom
@@ -1849,6 +1899,7 @@ Request to update a room's editable metadata.
 | `room_id` | `string` | Required. Room to update. |
 | `name` | `optional string` | New room name, when changing it. |
 | `description` | `optional string` | New room description, when changing it. Empty clears the description. |
+| `universal` | `optional bool` | New universal membership state, when changing it. Direct-message rooms cannot be universal. |
 
 
 <a id="chatto-api-v1-UpdateRoomResponse"></a>
@@ -1926,40 +1977,6 @@ Result of unarchiving a room.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room` | [`Room`](#chatto-api-v1-Room) | Unarchived room. |
-
-
-<a id="chatto-api-v1-RoomService-UpdateRoomUniversal"></a>
-
-### UpdateRoomUniversal
-
-Changes whether a channel room grants effective membership to eligible
-server members. Direct-message rooms cannot be universal.
-
-```http
-POST /api/connect/chatto.api.v1.RoomService/UpdateRoomUniversal
-```
-
-<a id="chatto-api-v1-UpdateRoomUniversalRequest"></a>
-
-#### Input: UpdateRoomUniversalRequest
-
-Request to change a channel room's universal membership flag.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Required. Channel room to update. |
-| `universal` | `bool` | New universal membership state. |
-
-
-<a id="chatto-api-v1-UpdateRoomUniversalResponse"></a>
-
-#### Result: UpdateRoomUniversalResponse
-
-Result of changing a channel room's universal membership flag.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room` | [`Room`](#chatto-api-v1-Room) | Updated room. |
 
 
 <a id="chatto-api-v1-RoomService-JoinRoom"></a>
@@ -2322,7 +2339,7 @@ Request for room-scoped attachment list pages.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required room ID. |
-| `thumbnail` | [`AttachmentThumbnailOptions`](#chatto-api-v1-AttachmentThumbnailOptions) | Thumbnail URL options. Defaults are applied when absent. |
+| `thumbnail` | [`AssetThumbnailOptions`](#chatto-api-v1-AssetThumbnailOptions) | Thumbnail URL options. Defaults are applied when absent. |
 | `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults are applied when absent or limit is zero. |
 
 
@@ -2602,7 +2619,7 @@ Finite snapshot of rooms visible to the current user.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `rooms` | repeated [`DirectoryRoom`](#chatto-api-v1-DirectoryRoom) | Rooms matching the requested scope. |
+| `rooms` | repeated [`RoomWithViewerState`](#chatto-api-v1-RoomWithViewerState) | Rooms matching the requested scope. |
 
 
 <a id="chatto-api-v1-RoomDirectoryService-ListRoomGroups"></a>
@@ -2611,7 +2628,7 @@ Finite snapshot of rooms visible to the current user.
 
 Lists ordered channel room groups and sidebar items visible to the current
 user as a finite navigation snapshot. Hidden room entries are omitted.
-Archived room entries are omitted unless include_archived_rooms is true.
+Archived room entries are omitted.
 
 ```http
 POST /api/connect/chatto.api.v1.RoomDirectoryService/ListRoomGroups
@@ -2622,10 +2639,6 @@ POST /api/connect/chatto.api.v1.RoomDirectoryService/ListRoomGroups
 #### Input: ListRoomGroupsRequest
 
 Request for ordered room groups visible to the current user.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `include_archived_rooms` | `bool` | Include archived room entries. Ordinary sidebar clients should leave this false; management surfaces can set it when they need archived rooms for direct actions such as unarchiving. |
 
 
 <a id="chatto-api-v1-ListRoomGroupsResponse"></a>
@@ -2644,7 +2657,7 @@ Finite snapshot of ordered room groups visible to the current user.
 ### GetRoomGroup
 
 Returns one ordered room group by ID. Hidden room entries are omitted.
-Archived room entries are omitted unless include_archived_rooms is true.
+Archived room entries are omitted.
 Returns NOT_FOUND when the room group does not exist.
 
 ```http
@@ -2660,7 +2673,6 @@ Request for one ordered room group visible to the current user.
 | Field | Type | Description |
 | --- | --- | --- |
 | `group_id` | `string` | Required. Room group to resolve. |
-| `include_archived_rooms` | `bool` | Include archived room entries. Ordinary sidebar clients should leave this false; management surfaces can set it when they need archived rooms for direct actions such as unarchiving. |
 
 
 <a id="chatto-api-v1-GetRoomGroupResponse"></a>
@@ -2679,9 +2691,9 @@ One ordered room group visible to the current user.
 ### BatchGetRoomGroups
 
 Returns ordered room groups for a set of stable group IDs. Hidden room
-entries are omitted. Archived room entries are omitted unless
-include_archived_rooms is true. Unknown groups are omitted. Results
-preserve first-seen request order and repeated IDs are de-duplicated.
+entries are omitted. Archived room entries are omitted. Unknown groups are
+omitted. Results preserve first-seen request order and repeated IDs are
+de-duplicated.
 
 ```http
 POST /api/connect/chatto.api.v1.RoomDirectoryService/BatchGetRoomGroups
@@ -2696,7 +2708,6 @@ Request visible room groups by stable group ID.
 | Field | Type | Description |
 | --- | --- | --- |
 | `group_ids` | `repeated string` | Required room group IDs. Unknown groups are omitted from the response. |
-| `include_archived_rooms` | `bool` | Include archived room entries. Ordinary sidebar clients should leave this false; management surfaces can set it when they need archived rooms for direct actions such as unarchiving. |
 
 
 <a id="chatto-api-v1-BatchGetRoomGroupsResponse"></a>
@@ -2741,7 +2752,7 @@ Room visible to the current user.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `room` | [`DirectoryRoom`](#chatto-api-v1-DirectoryRoom) | Resolved room and viewer state. |
+| `room` | [`RoomWithViewerState`](#chatto-api-v1-RoomWithViewerState) | Resolved room and viewer state. |
 
 
 <a id="chatto-api-v1-RoomDirectoryService-BatchGetRooms"></a>
@@ -2776,145 +2787,69 @@ Visible room batch response for direct room hydration.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `rooms` | repeated [`DirectoryRoom`](#chatto-api-v1-DirectoryRoom) | Resolved rooms in first-seen request order. |
+| `rooms` | repeated [`RoomWithViewerState`](#chatto-api-v1-RoomWithViewerState) | Resolved rooms in first-seen request order. |
 
 
 <a id="chatto-api-v1-ServerService"></a>
 
 ## ServerService
 
-Provides authenticated server profile, runtime configuration, and public
-server member reads.
+Provides authenticated server-wide reads.
 
-<a id="chatto-api-v1-ServerService-GetServerState"></a>
+<a id="chatto-api-v1-ServerService-GetMotd"></a>
 
-### GetServerState
+### GetMotd
 
-Returns authenticated server state. This RPC requires a logged-in user;
-public discovery remains available through
-chatto.discovery.v1.ServerDiscoveryService.GetServer.
+Returns the authenticated message of the day.
 
 ```http
-POST /api/connect/chatto.api.v1.ServerService/GetServerState
+POST /api/connect/chatto.api.v1.ServerService/GetMotd
 ```
 
-<a id="chatto-api-v1-GetServerStateRequest"></a>
+<a id="chatto-api-v1-GetMotdRequest"></a>
 
-#### Input: GetServerStateRequest
+#### Input: GetMotdRequest
 
-Request for authenticated server state.
+Request for the authenticated message of the day.
 
 
-<a id="chatto-api-v1-GetServerStateResponse"></a>
+<a id="chatto-api-v1-GetMotdResponse"></a>
 
-#### Result: GetServerStateResponse
+#### Result: GetMotdResponse
 
-Authenticated server state used by the web client and public API clients.
+Authenticated message of the day response.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `profile` | [`ServerProfile`](#chatto-api-v1-ServerProfile) | Authenticated server profile and branding. |
+| `motd` | `optional string` | Optional message of the day shown to authenticated members. |
+
+
+<a id="chatto-api-v1-ServerService-GetRuntimeConfig"></a>
+
+### GetRuntimeConfig
+
+Returns authenticated runtime settings used by clients.
+
+```http
+POST /api/connect/chatto.api.v1.ServerService/GetRuntimeConfig
+```
+
+<a id="chatto-api-v1-GetRuntimeConfigRequest"></a>
+
+#### Input: GetRuntimeConfigRequest
+
+Request for authenticated server runtime configuration.
+
+
+<a id="chatto-api-v1-GetRuntimeConfigResponse"></a>
+
+#### Result: GetRuntimeConfigResponse
+
+Authenticated server runtime configuration response.
+
+| Field | Type | Description |
+| --- | --- | --- |
 | `runtime` | [`ServerRuntimeConfig`](#chatto-api-v1-ServerRuntimeConfig) | Authenticated runtime settings used by clients. |
-
-
-<a id="chatto-api-v1-ServerService-ListMembers"></a>
-
-### ListMembers
-
-Lists authenticated server members. Every authenticated user is a server
-member; admin-sensitive fields stay out of this public row shape.
-
-```http
-POST /api/connect/chatto.api.v1.ServerService/ListMembers
-```
-
-<a id="chatto-api-v1-ListServerMembersRequest"></a>
-
-#### Input: ListServerMembersRequest
-
-Request for server members visible to the authenticated user.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `search` | `string` | Optional case-insensitive search against login and display name. |
-| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 20 results when absent or limit is zero. |
-
-
-<a id="chatto-api-v1-ListServerMembersResponse"></a>
-
-#### Result: ListServerMembersResponse
-
-Server member page.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Members in the requested page. |
-| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
-
-
-<a id="chatto-api-v1-ServerService-GetMember"></a>
-
-### GetMember
-
-Gets one authenticated server member. Returns NOT_FOUND when the user ID is
-unknown.
-
-```http
-POST /api/connect/chatto.api.v1.ServerService/GetMember
-```
-
-<a id="chatto-api-v1-GetServerMemberRequest"></a>
-
-#### Input: GetServerMemberRequest
-
-Request one authenticated server member by stable user ID.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user_id` | `string` | Required target user ID. |
-
-
-<a id="chatto-api-v1-GetServerMemberResponse"></a>
-
-#### Result: GetServerMemberResponse
-
-Server member response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `member` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Requested member. |
-
-
-<a id="chatto-api-v1-ServerService-BatchGetMembers"></a>
-
-### BatchGetMembers
-
-Gets authenticated server member rows for multiple users.
-
-```http
-POST /api/connect/chatto.api.v1.ServerService/BatchGetMembers
-```
-
-<a id="chatto-api-v1-BatchGetServerMembersRequest"></a>
-
-#### Input: BatchGetServerMembersRequest
-
-Request server member rows for a set of stable user IDs.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user_ids` | `repeated string` | Required target user IDs. Unknown IDs are omitted from the response. |
-
-
-<a id="chatto-api-v1-BatchGetServerMembersResponse"></a>
-
-#### Result: BatchGetServerMembersResponse
-
-Batch server member response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Found members. The server preserves first-seen request order and de-duplicates repeated IDs. |
 
 
 <a id="chatto-api-v1-ThreadService"></a>
@@ -3455,7 +3390,7 @@ Custom status shown on a user profile, separate from presence.
 
 ### User
 
-Public user identity fields.
+Public user fields.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -3464,6 +3399,8 @@ Public user identity fields.
 | `display_name` | `string` | Display name, when set. |
 | `deleted` | `bool` | True when the user account has been deleted. |
 | `avatar_url` | `optional string` | Avatar image URL, when available. |
+| `presence_status` | [`PresenceStatus`](#chatto-api-v1-PresenceStatus) | Current live presence status. |
+| `custom_status` | [`CustomUserStatus`](#chatto-api-v1-CustomUserStatus) | Custom profile status, when set. |
 
 
 
@@ -3478,20 +3415,6 @@ Avatar transform parameters for user profile reads.
 | `width` | `int32` | Avatar width in pixels. |
 | `height` | `int32` | Avatar height in pixels. |
 | `fit` | [`UserAvatarFitMode`](#chatto-api-v1-UserAvatarFitMode) | Avatar crop/fit behavior. |
-
-
-
-<a id="chatto-api-v1-UserProfile"></a>
-
-### UserProfile
-
-Public user identity fields plus live profile state.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user` | [`User`](#chatto-api-v1-User) | Public identity fields. |
-| `presence_status` | [`PresenceStatus`](#chatto-api-v1-PresenceStatus) | Current live presence status. |
-| `custom_status` | [`CustomUserStatus`](#chatto-api-v1-CustomUserStatus) | Custom profile status, when set. |
 
 
 
@@ -3624,7 +3547,7 @@ Current authenticated user's public profile plus self-only settings.
 | `settings` | [`UserSettings`](#chatto-api-v1-UserSettings) | Current user's display settings. |
 | `viewer_can_delete_account` | `bool` | Whether the authenticated user may delete this account. |
 | `last_login_change` | `google.protobuf.Timestamp` | Last time a login credential changed, when known. |
-| `profile` | [`UserProfile`](#chatto-api-v1-UserProfile) | Public profile and live presence fields for the authenticated user. |
+| `profile` | [`User`](#chatto-api-v1-User) | Public user fields for the authenticated user. |
 | `has_password` | `bool` | Whether this account currently has a password sign-in credential. |
 
 
@@ -3672,32 +3595,66 @@ Metadata for a completed attachment asset.
 
 Link preview metadata used by message composers and room timeline events.
 
-On message-post requests, the server accepts url, title, description,
-site_name, image_asset_id, embed_type, and embed_id. The image_url field is
-response-only and ignored on input. Clients should treat optional metadata as
-unavailable when absent.
+Clients should treat optional metadata as unavailable when absent. Message
+creation accepts only the preview_token returned by FetchLinkPreview, not
+client-provided metadata fields.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `url` | `string` | Previewed URL. |
 | `title` | `optional string` | Page or embed title. |
 | `description` | `optional string` | Page or embed description. |
-| `image_url` | `optional string` | Preview image URL, when available. Response-only; ignored on message-post input. |
-| `image_asset_id` | `optional string` | Existing server asset ID for the preview image, when selected by the client or stored with the message. |
+| `image_url` | `optional string` | Preview image URL, when available. |
+| `image_asset_id` | `optional string` | Existing server asset ID for the preview image, when cached or stored with the message. |
 | `site_name` | `optional string` | Site name, when known. |
 | `embed_type` | `optional string` | Embed provider or type, when recognized. |
 | `embed_id` | `optional string` | Provider-specific embed ID, when recognized. |
 
 
 
-<a id="chatto-api-v1-RoomTimelineAssetUrl"></a>
+<a id="chatto-api-v1-Message"></a>
 
-### RoomTimelineAssetUrl
+### Message
 
-Time-limited URL for a room timeline asset.
+Renderable message data.
 
-Clients should expect these URLs to expire and refresh the timeline data when
-an asset URL is no longer usable.
+The same shape is used for top-level room messages, thread replies, and
+thread echo entries. Thread-related fields let clients render reply counts,
+thread participants, and follow state without additional per-message
+requests.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Stable message event ID. |
+| `room_id` | `string` | Room containing the message. |
+| `created_at` | `google.protobuf.Timestamp` | Time when the message was created. |
+| `actor_id` | `string` | User ID of the message actor. |
+| `body` | `optional string` | Message body text, when available. A present empty string is distinct from an absent body. |
+| `attachments` | repeated [`MessageAttachment`](#chatto-api-v1-MessageAttachment) | Attachments sent with the message. |
+| `link_preview` | [`LinkPreview`](#chatto-api-v1-LinkPreview) | Link preview extracted for the message, when available. |
+| `updated_at` | `google.protobuf.Timestamp` | Time when the message was last edited. |
+| `in_reply_to` | `string` | Event ID this message directly replies to, when this is a reply. |
+| `thread_root_event_id` | `string` | Event ID of the root message for the thread this message belongs to. |
+| `echo_of_event_id` | `string` | Event ID this event echoes into the current view, when applicable. Echoes allow thread activity to appear in another timeline context. |
+| `echo_from_thread_root_event_id` | `string` | Thread root ID of the echoed event, when applicable. |
+| `channel_echo_event_id` | `string` | Channel timeline event ID for a thread echo, when applicable. |
+| `reply_count` | `int32` | Number of replies in this message's thread. |
+| `last_reply_at` | `google.protobuf.Timestamp` | Creation time of the most recent reply in this message's thread. |
+| `thread_participant_preview_user_ids` | `repeated string` | Preview of up to five user IDs that have participated in this message's thread. |
+| `thread_participant_count` | `int32` | Total number of distinct users that have participated in this message's thread. |
+| `viewer_is_following_thread` | `optional bool` | Whether the current user follows this message's thread, when known. |
+| `reactions` | repeated [`MessageReaction`](#chatto-api-v1-MessageReaction) | Reaction summaries for this message. |
+
+
+
+<a id="chatto-api-v1-MessageAssetUrl"></a>
+
+### MessageAssetUrl
+
+Time-limited URL for an asset attached to a message.
+
+Clients should expect these URLs to expire and refresh the asset through
+AssetService when a URL is no longer usable.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -3706,11 +3663,11 @@ an asset URL is no longer usable.
 
 
 
-<a id="chatto-api-v1-RoomTimelineAttachment"></a>
+<a id="chatto-api-v1-MessageAttachment"></a>
 
-### RoomTimelineAttachment
+### MessageAttachment
 
-Attachment metadata included with a posted message.
+Attachment metadata included with a message.
 
 Image and video dimensions are best-effort metadata for layout. Asset URLs can
 be absent while processing is pending or when the source is unavailable.
@@ -3722,111 +3679,19 @@ be absent while processing is pending or when the source is unavailable.
 | `content_type` | `string` | MIME content type. |
 | `width` | `int32` | Image or video width in pixels, when known. |
 | `height` | `int32` | Image or video height in pixels, when known. |
-| `asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Signed URL for the original asset, when available. |
-| `thumbnail_asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Signed URL for a thumbnail image, when available. |
-| `video_processing` | [`RoomTimelineVideoProcessing`](#chatto-api-v1-RoomTimelineVideoProcessing) | Video-specific processing metadata, when this attachment is a video. |
+| `asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for the original asset, when available. |
+| `thumbnail_asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for a thumbnail image, when available. |
+| `video_processing` | [`MessageVideoProcessing`](#chatto-api-v1-MessageVideoProcessing) | Video-specific processing metadata, when this attachment is a video. |
 
 
 
-<a id="chatto-api-v1-RoomTimelineEvent"></a>
+<a id="chatto-api-v1-MessageReaction"></a>
 
-### RoomTimelineEvent
+### MessageReaction
 
-One event in a room or thread timeline.
+Aggregated reaction state for one emoji on one message.
 
-Clients should inspect the event oneof to choose the renderer for the event.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `id` | `string` | Stable event ID. |
-| `created_at` | `google.protobuf.Timestamp` | Time when the event was created. |
-| `actor_id` | `string` | User ID of the event actor. |
-| `event.message_posted` | [`RoomTimelineMessagePosted`](#chatto-api-v1-RoomTimelineMessagePosted) | A message was posted. |
-| `event.room_created` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was created. |
-| `event.room_updated` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room metadata was updated. |
-| `event.room_deleted` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was deleted. |
-| `event.room_archived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was archived. |
-| `event.room_unarchived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was unarchived. |
-| `event.user_joined_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user joined the room. |
-| `event.user_left_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user left the room. |
-
-
-
-<a id="chatto-api-v1-RoomTimelineIncludes"></a>
-
-### RoomTimelineIncludes
-
-Related entities included beside timeline events.
-
-Includes avoid repeating the same user data on every event in a page.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `users` | map&lt;`string`, [`User`](#chatto-api-v1-User)&gt; | Users keyed by user ID. |
-
-
-
-<a id="chatto-api-v1-RoomTimelineMessagePosted"></a>
-
-### RoomTimelineMessagePosted
-
-Payload for a message-posted timeline event.
-
-The same shape is used for top-level room messages, thread replies, and thread
-echo entries. Thread-related fields let clients render reply counts, thread
-participants, and follow state without additional per-message requests.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Room containing the message. |
-| `body` | `optional string` | Message body text, when available. A present empty string is distinct from an absent body. |
-| `attachments` | repeated [`RoomTimelineAttachment`](#chatto-api-v1-RoomTimelineAttachment) | Attachments sent with the message. |
-| `link_preview` | [`LinkPreview`](#chatto-api-v1-LinkPreview) | Link preview extracted for the message, when available. |
-| `updated_at` | `google.protobuf.Timestamp` | Time when the message was last edited. |
-| `in_reply_to` | `string` | Event ID this message directly replies to, when this is a reply. |
-| `thread_root_event_id` | `string` | Event ID of the root message for the thread this message belongs to. |
-| `echo_of_event_id` | `string` | Event ID this event echoes into the current view, when applicable. Echoes allow thread activity to appear in another timeline context. |
-| `echo_from_thread_root_event_id` | `string` | Thread root ID of the echoed event, when applicable. |
-| `channel_echo_event_id` | `string` | Channel timeline event ID for a thread echo, when applicable. |
-| `reply_count` | `int32` | Number of replies in this message's thread. |
-| `last_reply_at` | `google.protobuf.Timestamp` | Creation time of the most recent reply in this message's thread. |
-| `thread_participant_preview_user_ids` | `repeated string` | Preview of up to five user IDs that have participated in this message's thread. |
-| `viewer_is_following_thread` | `optional bool` | Whether the current user follows this message's thread, when known. |
-| `reactions` | repeated [`RoomTimelineReaction`](#chatto-api-v1-RoomTimelineReaction) | Reaction summaries for this message. |
-| `thread_participant_count` | `int32` | Total number of distinct users that have participated in this message's thread. |
-
-
-
-<a id="chatto-api-v1-RoomTimelinePage"></a>
-
-### RoomTimelinePage
-
-Cursor page of room or thread timeline events.
-
-Use opaque start_cursor and end_cursor values with before/after requests to
-continue paging in either direction. Clients must treat cursor values as
-server-owned tokens and must not parse or construct them. The has_older and
-has_newer flags tell clients whether another request can extend the current
-window.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `events` | repeated [`RoomTimelineEvent`](#chatto-api-v1-RoomTimelineEvent) | Events in display order. |
-| `start_cursor` | `string` | Opaque cursor for the first event in the page. |
-| `end_cursor` | `string` | Opaque cursor for the last event in the page. |
-| `has_older` | `bool` | True when older events are available before start_cursor. |
-| `has_newer` | `bool` | True when newer events are available after end_cursor. |
-| `includes` | [`RoomTimelineIncludes`](#chatto-api-v1-RoomTimelineIncludes) | Related entities needed to render the page. |
-
-
-
-<a id="chatto-api-v1-RoomTimelineReaction"></a>
-
-### RoomTimelineReaction
-
-Aggregated reaction state for one emoji on one event.
-
-This state is scoped to the current event and includes whether the current
+This state is scoped to the current message and includes whether the current
 user has reacted with the same emoji.
 
 | Field | Type | Description |
@@ -3838,21 +3703,9 @@ user has reacted with the same emoji.
 
 
 
-<a id="chatto-api-v1-RoomTimelineRoomEvent"></a>
+<a id="chatto-api-v1-MessageVideoProcessing"></a>
 
-### RoomTimelineRoomEvent
-
-Payload for room lifecycle and membership timeline events.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Room affected by the event. |
-
-
-
-<a id="chatto-api-v1-RoomTimelineVideoProcessing"></a>
-
-### RoomTimelineVideoProcessing
+### MessageVideoProcessing
 
 Processing metadata for a video attachment.
 
@@ -3862,20 +3715,20 @@ state.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `status` | [`RoomTimelineVideoProcessingStatus`](#chatto-api-v1-RoomTimelineVideoProcessingStatus) | Current processing status. |
+| `status` | [`MessageVideoProcessingStatus`](#chatto-api-v1-MessageVideoProcessingStatus) | Current processing status. |
 | `duration_ms` | `int64` | Video duration in milliseconds. |
 | `width` | `int32` | Source video width in pixels. |
 | `height` | `int32` | Source video height in pixels. |
 | `source_available` | `bool` | True when the original source asset is currently available. |
 | `reason_code` | `string` | Stable reason code for a failed or incomplete processing state. |
-| `thumbnail_asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Signed URL for the generated thumbnail, when available. |
-| `variants` | repeated [`RoomTimelineVideoVariant`](#chatto-api-v1-RoomTimelineVideoVariant) | Available transcoded renditions. |
+| `thumbnail_asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for the generated thumbnail, when available. |
+| `variants` | repeated [`MessageVideoVariant`](#chatto-api-v1-MessageVideoVariant) | Available transcoded renditions. |
 
 
 
-<a id="chatto-api-v1-RoomTimelineVideoVariant"></a>
+<a id="chatto-api-v1-MessageVideoVariant"></a>
 
-### RoomTimelineVideoVariant
+### MessageVideoVariant
 
 One transcoded video rendition.
 
@@ -3885,37 +3738,21 @@ One transcoded video rendition.
 | `width` | `int32` | Video width in pixels. |
 | `height` | `int32` | Video height in pixels. |
 | `size` | `int64` | Rendition size in bytes. |
-| `asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Signed URL for the rendition. |
+| `asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for the rendition. |
 
 
 
-<a id="chatto-api-v1-AttachmentThumbnailOptions"></a>
+<a id="chatto-api-v1-AssetThumbnailOptions"></a>
 
-### AttachmentThumbnailOptions
+### AssetThumbnailOptions
 
-Thumbnail transform parameters for attachment URL reads.
+Thumbnail transform parameters for asset URL reads.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `width` | `int32` | Thumbnail width in pixels. |
 | `height` | `int32` | Thumbnail height in pixels. |
-| `fit` | [`AttachmentFitMode`](#chatto-api-v1-AttachmentFitMode) | Thumbnail fit mode. |
-
-
-
-<a id="chatto-api-v1-RefreshedAttachmentUrls"></a>
-
-### RefreshedAttachmentUrls
-
-Fresh signed URLs for one message attachment.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `attachment_id` | `string` | Attachment ID these URLs belong to. |
-| `asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Fresh signed URL for the original attachment. |
-| `thumbnail_asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Fresh signed transformed thumbnail URL for the attachment. |
-| `video_thumbnail_asset_url` | [`RoomTimelineAssetUrl`](#chatto-api-v1-RoomTimelineAssetUrl) | Fresh signed URL for the processed video thumbnail, when present. |
-| `variants` | repeated [`RoomTimelineVideoVariant`](#chatto-api-v1-RoomTimelineVideoVariant) | Fresh signed URLs for processed video variants, when present. |
+| `fit` | [`AssetFitMode`](#chatto-api-v1-AssetFitMode) | Thumbnail fit mode. |
 
 
 
@@ -3927,7 +3764,7 @@ One current room attachment and its message anchor.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `attachment` | [`RoomTimelineAttachment`](#chatto-api-v1-RoomTimelineAttachment) | Attachment metadata and signed URLs. |
+| `attachment` | [`MessageAttachment`](#chatto-api-v1-MessageAttachment) | Attachment metadata and signed URLs. |
 | `message_event_id` | `string` | Message event containing the attachment. |
 | `thread_root_event_id` | `string` | Thread root event ID when the containing message is a thread reply. |
 | `created_at` | `google.protobuf.Timestamp` | Message creation timestamp. |
@@ -3965,60 +3802,14 @@ for simple list browsing.
 
 ### DirectoryMember
 
-Public user/member profile used by directory and mention surfaces.
+Public user/member row used by user directory, room membership, and mention
+surfaces.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `profile` | [`UserProfile`](#chatto-api-v1-UserProfile) | Public profile and live presence fields. |
+| `user` | [`User`](#chatto-api-v1-User) | Public user fields. |
 | `roles` | `repeated string` | Explicit roles assigned to the user. Member listings include the virtual `everyone` role for parity with Chatto's permission model. |
 | `created_at` | `google.protobuf.Timestamp` | Account creation time when known. |
-
-
-
-<a id="chatto-api-v1-MentionConfirmationChallenge"></a>
-
-### MentionConfirmationChallenge
-
-Large mention confirmation details for a message that was not posted.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `recipient_count` | `int32` | Number of people the message would notify. |
-| `token` | `string` | Short-lived token to send back with the same message after user approval. |
-
-
-
-<a id="chatto-api-v1-MessageLinkPreviewInput"></a>
-
-### MessageLinkPreviewInput
-
-Link preview metadata accepted when creating a message.
-
-This request-only shape intentionally excludes response-only fields such as
-generated image URLs.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `url` | `string` | Previewed URL. |
-| `title` | `optional string` | Page or embed title, when selected by the client. |
-| `description` | `optional string` | Page or embed description, when selected by the client. |
-| `image_asset_id` | `optional string` | Existing server asset ID for the preview image, when selected by the client. |
-| `site_name` | `optional string` | Site name, when known. |
-| `embed_type` | `optional string` | Embed provider or type, when recognized. |
-| `embed_id` | `optional string` | Provider-specific embed ID, when recognized. |
-
-
-
-<a id="chatto-api-v1-RefreshedMessageAttachmentUrls"></a>
-
-### RefreshedMessageAttachmentUrls
-
-Fresh signed attachment URLs for one visible message.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `event_id` | `string` | Message event ID these attachment URLs belong to. |
-| `attachments` | repeated [`RefreshedAttachmentUrls`](#chatto-api-v1-RefreshedAttachmentUrls) | Fresh URL bundle for each current attachment on the message. |
 
 
 
@@ -4059,7 +3850,7 @@ One pending notification for the authenticated viewer.
 | --- | --- | --- |
 | `id` | `string` | Stable notification ID. |
 | `created_at` | `google.protobuf.Timestamp` | Creation time. |
-| `actor` | [`UserProfile`](#chatto-api-v1-UserProfile) | User who triggered the notification, when still resolvable. |
+| `actor` | [`User`](#chatto-api-v1-User) | User who triggered the notification, when still resolvable. |
 | `kind.direct_message` | [`DirectMessageNotification`](#chatto-api-v1-DirectMessageNotification) | Direct-message notification. |
 | `kind.mention` | [`MentionNotification`](#chatto-api-v1-MentionNotification) | Mention notification. |
 | `kind.reply` | [`ReplyNotification`](#chatto-api-v1-ReplyNotification) | Reply notification. |
@@ -4138,6 +3929,91 @@ Public role metadata used for rendering role mentions, labels, and catalogs.
 
 
 
+<a id="chatto-api-v1-RoomMessagePosted"></a>
+
+### RoomMessagePosted
+
+Payload for a message-posted timeline event.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `message` | [`Message`](#chatto-api-v1-Message) | Renderable message created by this timeline event. |
+
+
+
+<a id="chatto-api-v1-RoomTimelineEvent"></a>
+
+### RoomTimelineEvent
+
+One event in a room or thread timeline.
+
+Clients should inspect the event oneof to choose the renderer for the event.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Stable event ID. |
+| `created_at` | `google.protobuf.Timestamp` | Time when the event was created. |
+| `actor_id` | `string` | User ID of the event actor. |
+| `event.message_posted` | [`RoomMessagePosted`](#chatto-api-v1-RoomMessagePosted) | A message was posted. |
+| `event.room_created` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was created. |
+| `event.room_updated` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room metadata was updated. |
+| `event.room_deleted` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was deleted. |
+| `event.room_archived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was archived. |
+| `event.room_unarchived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was unarchived. |
+| `event.user_joined_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user joined the room. |
+| `event.user_left_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user left the room. |
+
+
+
+<a id="chatto-api-v1-RoomTimelineIncludes"></a>
+
+### RoomTimelineIncludes
+
+Related entities included beside timeline events.
+
+Includes avoid repeating the same user data on every event in a page.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `users` | map&lt;`string`, [`User`](#chatto-api-v1-User)&gt; | Users keyed by user ID. |
+
+
+
+<a id="chatto-api-v1-RoomTimelinePage"></a>
+
+### RoomTimelinePage
+
+Cursor page of room or thread timeline events.
+
+Use opaque start_cursor and end_cursor values with before/after requests to
+continue paging in either direction. Clients must treat cursor values as
+server-owned tokens and must not parse or construct them. The has_older and
+has_newer flags tell clients whether another request can extend the current
+window.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `events` | repeated [`RoomTimelineEvent`](#chatto-api-v1-RoomTimelineEvent) | Events in display order. |
+| `start_cursor` | `string` | Opaque cursor for the first event in the page. |
+| `end_cursor` | `string` | Opaque cursor for the last event in the page. |
+| `has_older` | `bool` | True when older events are available before start_cursor. |
+| `has_newer` | `bool` | True when newer events are available after end_cursor. |
+| `includes` | [`RoomTimelineIncludes`](#chatto-api-v1-RoomTimelineIncludes) | Related entities needed to render the page. |
+
+
+
+<a id="chatto-api-v1-RoomTimelineRoomEvent"></a>
+
+### RoomTimelineRoomEvent
+
+Payload for room lifecycle and membership timeline events.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Room affected by the event. |
+
+
+
 <a id="chatto-api-v1-Room"></a>
 
 ### Room
@@ -4177,19 +4053,6 @@ Active channel room ban with optional hydrated room and user references.
 
 
 
-<a id="chatto-api-v1-DirectoryRoom"></a>
-
-### DirectoryRoom
-
-Room metadata plus viewer-specific state.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room` | [`Room`](#chatto-api-v1-Room) | Public room metadata. |
-| `viewer_state` | [`RoomViewerState`](#chatto-api-v1-RoomViewerState) | State and permissions resolved for the current user. |
-
-
-
 <a id="chatto-api-v1-RoomGroup"></a>
 
 ### RoomGroup
@@ -4214,7 +4077,7 @@ One ordered item in a room group.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `item.room` | [`DirectoryRoom`](#chatto-api-v1-DirectoryRoom) | Visible room entry. |
+| `item.room` | [`RoomWithViewerState`](#chatto-api-v1-RoomWithViewerState) | Visible room entry. |
 | `item.sidebar_link` | [`SidebarLink`](#chatto-api-v1-SidebarLink) | Sidebar link entry. |
 
 
@@ -4231,17 +4094,16 @@ Viewer-specific state for one room group.
 
 
 
-<a id="chatto-api-v1-RoomViewerState"></a>
+<a id="chatto-api-v1-RoomWithViewerState"></a>
 
-### RoomViewerState
+### RoomWithViewerState
 
-Viewer-specific state for one room.
-
-These fields let clients render navigation rows and room action menus without
-issuing per-room permission checks.
+Room metadata plus state and capabilities resolved for the authenticated
+viewer.
 
 | Field | Type | Description |
 | --- | --- | --- |
+| `room` | [`Room`](#chatto-api-v1-Room) | Public room metadata. |
 | `is_member` | `bool` | True when the current user is an effective room member. |
 | `has_unread` | `bool` | True when the room has unread root messages for the current user. |
 | `can_list_room` | `bool` | True when the room can appear in directory surfaces for the current user. |
@@ -4343,7 +4205,6 @@ Authenticated server runtime settings used by clients.
 | `push_notifications_enabled` | `bool` | Whether Web Push notifications are fully configured. |
 | `vapid_public_key` | `optional string` | Optional VAPID public key for Web Push registration. |
 | `livekit_url` | `optional string` | Optional LiveKit URL for voice and video calls. |
-| `direct_registration_enabled` | `bool` | Whether direct email/password registration is enabled. |
 | `video_processing_enabled` | `bool` | Whether video processing is enabled. |
 | `max_upload_size` | `int64` | Maximum general upload size in bytes. |
 | `max_video_upload_size` | `int64` | Maximum video upload size in bytes. |
@@ -4362,7 +4223,7 @@ One followed thread for the current user.
 | `room_id` | `string` | Room containing the thread. |
 | `room_name` | `string` | Current display name of the room. |
 | `thread_root_event_id` | `string` | Event ID of the root message for the thread. |
-| `root_message` | [`RoomTimelineEvent`](#chatto-api-v1-RoomTimelineEvent) | Renderable root message event, when the root is still visible. |
+| `root_message` | [`Message`](#chatto-api-v1-Message) | Renderable root message, when the root is still visible. |
 | `reply_count` | `int32` | Number of replies in the thread. |
 | `last_reply_at` | `google.protobuf.Timestamp` | Creation time of the latest reply, when the thread has replies. |
 | `has_unread` | `bool` | True when the current user has unread replies in the thread. |
@@ -4405,7 +4266,7 @@ User currently participating in a room call.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `user` | [`UserProfile`](#chatto-api-v1-UserProfile) | Participant user. |
+| `user` | [`User`](#chatto-api-v1-User) | Participant user. |
 | `joined_at` | `google.protobuf.Timestamp` | When the user joined this call. |
 | `call_id` | `string` | Active call session ID. |
 
@@ -4489,31 +4350,31 @@ Upload lifecycle state for a room-scoped attachment upload.
 | `ASSET_UPLOAD_STATUS_CANCELLED` | `3` | The upload was cancelled or expired. |
 
 
-<a id="chatto-api-v1-RoomTimelineVideoProcessingStatus"></a>
+<a id="chatto-api-v1-MessageVideoProcessingStatus"></a>
 
-### RoomTimelineVideoProcessingStatus
+### MessageVideoProcessingStatus
 
-Processing state for a timeline video attachment.
-
-| Name | Number | Description |
-| --- | --- | --- |
-| `ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_UNSPECIFIED` | `0` | The processing status was not specified. |
-| `ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_PROCESSING` | `1` | Video processing is still running. |
-| `ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_COMPLETED` | `2` | Video processing completed successfully. |
-| `ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_FAILED` | `3` | Video processing failed. |
-
-
-<a id="chatto-api-v1-AttachmentFitMode"></a>
-
-### AttachmentFitMode
-
-Fit mode used when generating transformed attachment thumbnails.
+Processing state for a video attachment.
 
 | Name | Number | Description |
 | --- | --- | --- |
-| `ATTACHMENT_FIT_MODE_UNSPECIFIED` | `0` | The fit mode was not specified. |
-| `ATTACHMENT_FIT_MODE_CONTAIN` | `1` | Preserve the whole source image within the requested bounds. |
-| `ATTACHMENT_FIT_MODE_COVER` | `2` | Fill the requested bounds, cropping when needed. |
+| `MESSAGE_VIDEO_PROCESSING_STATUS_UNSPECIFIED` | `0` | The processing status was not specified. |
+| `MESSAGE_VIDEO_PROCESSING_STATUS_PROCESSING` | `1` | Video processing is still running. |
+| `MESSAGE_VIDEO_PROCESSING_STATUS_COMPLETED` | `2` | Video processing completed successfully. |
+| `MESSAGE_VIDEO_PROCESSING_STATUS_FAILED` | `3` | Video processing failed. |
+
+
+<a id="chatto-api-v1-AssetFitMode"></a>
+
+### AssetFitMode
+
+Fit mode used when generating transformed asset thumbnails.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ASSET_FIT_MODE_UNSPECIFIED` | `0` | The fit mode was not specified. |
+| `ASSET_FIT_MODE_CONTAIN` | `1` | Preserve the whole source image within the requested bounds. |
+| `ASSET_FIT_MODE_COVER` | `2` | Fill the requested bounds, cropping when needed. |
 
 
 <a id="chatto-api-v1-RoomKind"></a>

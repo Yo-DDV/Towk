@@ -2,20 +2,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { Timestamp } from '@bufbuild/protobuf';
 import {
-  RoomTimelineAssetUrl,
-  RoomTimelineAttachment,
   RoomTimelineEvent,
-  RoomTimelineMessagePosted,
   RoomTimelinePage,
   RoomTimelineRoomEvent,
-  RoomTimelineVideoProcessing,
-  RoomTimelineVideoProcessingStatus,
-  RoomTimelineVideoVariant
+  RoomMessagePosted
 } from '@chatto/api-types/api/v1/room_timeline_pb';
+import {
+  Message,
+  MessageAssetUrl,
+  MessageAttachment,
+  MessageVideoProcessing,
+  MessageVideoProcessingStatus,
+  MessageVideoVariant
+} from '@chatto/api-types/api/v1/message_types_pb';
 import { User } from '@chatto/api-types/api/v1/users_pb';
 import {
   __resetUserSummaryCachesForTests,
-  getUserSummaryCache,
   primeUserSummaryCache
 } from '$lib/state/userSummaries.svelte';
 import {
@@ -27,7 +29,8 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   createConnectTransport: vi.fn(),
   handleAuthenticationRequired: vi.fn(),
-  resolveMessageLinkTarget: vi.fn(),
+  getMessage: vi.fn(),
+  batchGetUsers: vi.fn(),
   getThreadEvents: vi.fn(),
   getThreadEventsAround: vi.fn()
 }));
@@ -49,7 +52,9 @@ describe('createRoomTimelineAPI', () => {
     mocks.createClient.mockReset();
     mocks.createConnectTransport.mockReset();
     mocks.handleAuthenticationRequired.mockReset();
-    mocks.resolveMessageLinkTarget.mockReset();
+    mocks.getMessage.mockReset();
+    mocks.batchGetUsers.mockReset();
+    mocks.batchGetUsers.mockResolvedValue({ users: [] });
     mocks.getThreadEvents.mockReset();
     mocks.getThreadEventsAround.mockReset();
     __resetUserSummaryCachesForTests();
@@ -60,10 +65,17 @@ describe('createRoomTimelineAPI', () => {
       onUserSummaries: primeUserSummaryCache
     });
     mocks.createConnectTransport.mockReturnValue({ kind: 'transport' });
-    mocks.createClient.mockReturnValue({
-      resolveMessageLinkTarget: mocks.resolveMessageLinkTarget,
-      getThreadEvents: mocks.getThreadEvents,
-      getThreadEventsAround: mocks.getThreadEventsAround
+    mocks.createClient.mockImplementation((service) => {
+      if (service?.typeName === 'chatto.api.v1.UserService') {
+        return {
+          batchGetUsers: mocks.batchGetUsers
+        };
+      }
+      return {
+        getMessage: mocks.getMessage,
+        getThreadEvents: mocks.getThreadEvents,
+        getThreadEventsAround: mocks.getThreadEventsAround
+      };
     });
   });
 
@@ -143,29 +155,27 @@ describe('createRoomTimelineAPI', () => {
     );
   });
 
-  it('resolves message link targets with bearer auth', async () => {
-    mocks.resolveMessageLinkTarget.mockResolvedValue({
-      event: new RoomTimelineEvent({
+  it('gets messages with bearer auth', async () => {
+    mocks.getMessage.mockResolvedValue({
+      message: new Message({
         id: 'reply-1',
         actorId: 'u1',
-        event: {
-          case: 'messagePosted',
-          value: new RoomTimelineMessagePosted({
-            roomId: 'room-1',
-            body: 'thread reply'
-          })
-        }
-      }),
-      threadRootEventId: 'root-1',
-      includes: {
-        users: {
-          u1: new User({
+        roomId: 'room-1',
+        body: 'thread reply',
+        threadRootEventId: 'root-1'
+      })
+    });
+    mocks.batchGetUsers.mockResolvedValue({
+      users: [
+        {
+          user: {
             id: 'u1',
             login: 'alice',
-            displayName: 'Alice'
-          })
+            displayName: 'Alice',
+            deleted: false
+          }
         }
-      }
+      ]
     });
 
     const api = createRoomTimelineAPI({
@@ -174,12 +184,12 @@ describe('createRoomTimelineAPI', () => {
       bearerToken: 'remote-token'
     });
 
-    const target = await api.resolveMessageLinkTarget({
+    const message = await api.getMessage({
       roomId: 'room-1',
       eventId: 'reply-1'
     });
 
-    expect(mocks.resolveMessageLinkTarget).toHaveBeenCalledWith(
+    expect(mocks.getMessage).toHaveBeenCalledWith(
       {
         roomId: 'room-1',
         eventId: 'reply-1'
@@ -188,17 +198,16 @@ describe('createRoomTimelineAPI', () => {
         headers: { Authorization: 'Bearer remote-token' }
       }
     );
-    expect(target.threadRootEventId).toBe('root-1');
-    expect(target.event).toMatchObject({
+    expect(mocks.batchGetUsers).toHaveBeenCalledWith(
+      { userIds: ['u1'] },
+      {
+        headers: { Authorization: 'Bearer remote-token' }
+      }
+    );
+    expect(message).toMatchObject({
       id: 'reply-1',
       actor: { id: 'u1', displayName: 'Alice' },
-      event: { kind: 'messagePosted', body: 'thread reply' }
-    });
-    expect(getUserSummaryCache('remote').get('u1')).toMatchObject({
-      id: 'u1',
-      login: 'alice',
-      displayName: 'Alice',
-      avatarUrl: null
+      event: { kind: 'messagePosted', body: 'thread reply', threadRootEventId: 'root-1' }
     });
   });
 });
@@ -234,61 +243,66 @@ describe('roomTimelinePageToEventConnectionPage', () => {
           actorId: 'u1',
           event: {
             case: 'messagePosted',
-            value: new RoomTimelineMessagePosted({
-              roomId: 'room-1',
-              body: 'hello',
-              attachments: [
-                new RoomTimelineAttachment({
-                  id: 'a-video',
-                  filename: 'clip.mp4',
-                  contentType: 'video/mp4',
-                  width: 1280,
-                  height: 720,
-                  assetUrl: new RoomTimelineAssetUrl({
-                    url: '/assets/files/a-video',
-                    expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
-                  }),
-                  thumbnailAssetUrl: new RoomTimelineAssetUrl({
-                    url: '/assets/files/a-video/image/960x800/contain',
-                    expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
-                  }),
-                  videoProcessing: new RoomTimelineVideoProcessing({
-                    status: RoomTimelineVideoProcessingStatus.COMPLETED,
-                    durationMs: 1234n,
+            value: new RoomMessagePosted({
+              message: new Message({
+                id: 'm1',
+                roomId: 'room-1',
+                actorId: 'u1',
+                createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
+                body: 'hello',
+                attachments: [
+                  new MessageAttachment({
+                    id: 'a-video',
+                    filename: 'clip.mp4',
+                    contentType: 'video/mp4',
                     width: 1280,
                     height: 720,
-                    sourceAvailable: true,
-                    thumbnailAssetUrl: new RoomTimelineAssetUrl({
-                      url: '/assets/files/a-thumb',
+                    assetUrl: new MessageAssetUrl({
+                      url: '/assets/files/a-video',
                       expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
                     }),
-                    variants: [
-                      new RoomTimelineVideoVariant({
-                        quality: '720p',
-                        width: 1280,
-                        height: 720,
-                        size: 4567n,
-                        assetUrl: new RoomTimelineAssetUrl({
-                          url: '/assets/files/a-variant',
-                          expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                    thumbnailAssetUrl: new MessageAssetUrl({
+                      url: '/assets/files/a-video/image/960x800/contain',
+                      expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                    }),
+                    videoProcessing: new MessageVideoProcessing({
+                      status: MessageVideoProcessingStatus.COMPLETED,
+                      durationMs: 1234n,
+                      width: 1280,
+                      height: 720,
+                      sourceAvailable: true,
+                      thumbnailAssetUrl: new MessageAssetUrl({
+                        url: '/assets/files/a-thumb',
+                        expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                      }),
+                      variants: [
+                        new MessageVideoVariant({
+                          quality: '720p',
+                          width: 1280,
+                          height: 720,
+                          size: 4567n,
+                          assetUrl: new MessageAssetUrl({
+                            url: '/assets/files/a-variant',
+                            expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                          })
                         })
-                      })
-                    ]
+                      ]
+                    })
                   })
-                })
-              ],
-              replyCount: 1,
-              threadParticipantPreviewUserIds: ['u2'],
-              threadParticipantCount: 1,
-              viewerIsFollowingThread: true,
-              reactions: [
-                {
-                  emoji: 'thumbsup',
-                  count: 2,
-                  hasReacted: true,
-                  previewUserIds: ['u1', 'u2']
-                }
-              ]
+                ],
+                replyCount: 1,
+                threadParticipantPreviewUserIds: ['u2'],
+                threadParticipantCount: 1,
+                viewerIsFollowingThread: true,
+                reactions: [
+                  {
+                    emoji: 'thumbsup',
+                    count: 2,
+                    hasReacted: true,
+                    previewUserIds: ['u1', 'u2']
+                  }
+                ]
+              })
             })
           }
         }),

@@ -4,23 +4,18 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { Timestamp } from '@bufbuild/protobuf';
 import { FitMode } from '$lib/api-client/renderTypes';
 import {
-  AttachmentFitMode,
-  RefreshedAttachmentUrls,
+  AssetFitMode,
+  BatchGetAssetsResponse,
   RoomAttachmentListItem
 } from '@chatto/api-types/api/v1/attachments_pb';
-import {
-  BatchRefreshMessageAttachmentUrlsResponse,
-  RefreshedMessageAttachmentUrls,
-  RefreshMessageAttachmentUrlsResponse
-} from '@chatto/api-types/api/v1/messages_pb';
 import { ListRoomAttachmentsResponse } from '@chatto/api-types/api/v1/rooms_pb';
 import {
-  RoomTimelineAssetUrl,
-  RoomTimelineAttachment,
-  RoomTimelineVideoProcessing,
-  RoomTimelineVideoProcessingStatus,
-  RoomTimelineVideoVariant
-} from '@chatto/api-types/api/v1/room_timeline_pb';
+  MessageAssetUrl,
+  MessageAttachment,
+  MessageVideoProcessing,
+  MessageVideoProcessingStatus,
+  MessageVideoVariant
+} from '@chatto/api-types/api/v1/message_types_pb';
 import { createAttachmentAPI } from '$lib/api-client/attachments';
 
 const mocks = vi.hoisted(() => ({
@@ -28,8 +23,7 @@ const mocks = vi.hoisted(() => ({
   createConnectTransport: vi.fn(),
   handleAuthenticationRequired: vi.fn(),
   listRoomAttachments: vi.fn(),
-  refreshMessageAttachmentUrls: vi.fn(),
-  batchRefreshMessageAttachmentUrls: vi.fn()
+  batchGetAssets: vi.fn()
 }));
 
 vi.mock('@connectrpc/connect', async (importOriginal) => {
@@ -45,7 +39,7 @@ vi.mock('@connectrpc/connect-web', () => ({
 }));
 
 function assetUrl(url: string) {
-  return new RoomTimelineAssetUrl({
+  return new MessageAssetUrl({
     url,
     expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
   });
@@ -59,8 +53,7 @@ describe('createAttachmentAPI', () => {
 
     configureApiClientHooks({ onAuthenticationRequired: mocks.handleAuthenticationRequired });
     mocks.listRoomAttachments.mockReset();
-    mocks.refreshMessageAttachmentUrls.mockReset();
-    mocks.batchRefreshMessageAttachmentUrls.mockReset();
+    mocks.batchGetAssets.mockReset();
     mocks.createConnectTransport.mockReturnValue({ kind: 'transport' });
     mocks.createClient.mockImplementation((service) => {
       if (service.typeName === 'chatto.api.v1.RoomService') {
@@ -69,8 +62,7 @@ describe('createAttachmentAPI', () => {
         };
       }
       return {
-        refreshMessageAttachmentUrls: mocks.refreshMessageAttachmentUrls,
-        batchRefreshMessageAttachmentUrls: mocks.batchRefreshMessageAttachmentUrls
+        batchGetAssets: mocks.batchGetAssets
       };
     });
   });
@@ -84,7 +76,7 @@ describe('createAttachmentAPI', () => {
             messageEventId: 'event_2',
             threadRootEventId: 'event_1',
             createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
-            attachment: new RoomTimelineAttachment({
+            attachment: new MessageAttachment({
               id: 'att_video',
               filename: 'clip.mp4',
               contentType: 'video/mp4',
@@ -92,15 +84,15 @@ describe('createAttachmentAPI', () => {
               height: 720,
               assetUrl: assetUrl('/assets/files/att_video'),
               thumbnailAssetUrl: assetUrl('/assets/files/att_video/image/120x120/cover'),
-              videoProcessing: new RoomTimelineVideoProcessing({
-                status: RoomTimelineVideoProcessingStatus.COMPLETED,
+              videoProcessing: new MessageVideoProcessing({
+                status: MessageVideoProcessingStatus.COMPLETED,
                 durationMs: 1234n,
                 width: 1280,
                 height: 720,
                 sourceAvailable: true,
                 thumbnailAssetUrl: assetUrl('/assets/files/att_thumb'),
                 variants: [
-                  new RoomTimelineVideoVariant({
+                  new MessageVideoVariant({
                     quality: '720p',
                     width: 1280,
                     height: 720,
@@ -136,7 +128,7 @@ describe('createAttachmentAPI', () => {
       {
         roomId: 'room_1',
         page: { limit: 50, offset: 0 },
-        thumbnail: { width: 120, height: 120, fit: AttachmentFitMode.COVER }
+        thumbnail: { width: 120, height: 120, fit: AssetFitMode.COVER }
       },
       { headers: { Authorization: 'Bearer token' } }
     );
@@ -165,24 +157,27 @@ describe('createAttachmentAPI', () => {
     });
   });
 
-  it('refreshes message attachment URLs and maps video variants', async () => {
-    mocks.refreshMessageAttachmentUrls.mockResolvedValue(
-      new RefreshMessageAttachmentUrlsResponse({
-        attachments: [
-          new RefreshedAttachmentUrls({
-            attachmentId: 'att_1',
+  it('refreshes asset URLs and maps video variants', async () => {
+    mocks.batchGetAssets.mockResolvedValue(
+      new BatchGetAssetsResponse({
+        assets: [
+          new MessageAttachment({
+            id: 'att_1',
             assetUrl: assetUrl('/assets/files/att_1?fresh=1'),
             thumbnailAssetUrl: assetUrl('/assets/files/att_1/image/960x800/contain?fresh=1'),
-            videoThumbnailAssetUrl: assetUrl('/assets/files/thumb?fresh=1'),
-            variants: [
-              new RoomTimelineVideoVariant({
-                quality: '720p',
-                width: 1280,
-                height: 720,
-                size: 4567n,
-                assetUrl: assetUrl('/assets/files/variant?fresh=1')
-              })
-            ]
+            videoProcessing: new MessageVideoProcessing({
+              status: MessageVideoProcessingStatus.COMPLETED,
+              thumbnailAssetUrl: assetUrl('/assets/files/thumb?fresh=1'),
+              variants: [
+                new MessageVideoVariant({
+                  quality: '720p',
+                  width: 1280,
+                  height: 720,
+                  size: 4567n,
+                  assetUrl: assetUrl('/assets/files/variant?fresh=1')
+                })
+              ]
+            })
           })
         ]
       })
@@ -193,17 +188,17 @@ describe('createAttachmentAPI', () => {
       bearerToken: null
     });
 
-    const urls = await api.refreshMessageAttachmentUrls('room_1', 'event_1', {
+    const urls = await api.refreshAssetUrls('room_1', ['att_1'], {
       width: 960,
       height: 800,
       fit: FitMode.Contain
     });
 
-    expect(mocks.refreshMessageAttachmentUrls).toHaveBeenCalledWith(
+    expect(mocks.batchGetAssets).toHaveBeenCalledWith(
       {
         roomId: 'room_1',
-        eventId: 'event_1',
-        thumbnail: { width: 960, height: 800, fit: AttachmentFitMode.CONTAIN }
+        assetIds: ['att_1'],
+        thumbnail: { width: 960, height: 800, fit: AssetFitMode.CONTAIN }
       },
       { headers: undefined }
     );
@@ -216,19 +211,22 @@ describe('createAttachmentAPI', () => {
   });
 
   it('keeps missing refreshed attachment URLs nullable', async () => {
-    mocks.refreshMessageAttachmentUrls.mockResolvedValue(
-      new RefreshMessageAttachmentUrlsResponse({
-        attachments: [
-          new RefreshedAttachmentUrls({
-            attachmentId: 'att_1',
-            variants: [
-              new RoomTimelineVideoVariant({
-                quality: '720p',
-                width: 1280,
-                height: 720,
-                size: 4567n
-              })
-            ]
+    mocks.batchGetAssets.mockResolvedValue(
+      new BatchGetAssetsResponse({
+        assets: [
+          new MessageAttachment({
+            id: 'att_1',
+            videoProcessing: new MessageVideoProcessing({
+              status: MessageVideoProcessingStatus.COMPLETED,
+              variants: [
+                new MessageVideoVariant({
+                  quality: '720p',
+                  width: 1280,
+                  height: 720,
+                  size: 4567n
+                })
+              ]
+            })
           })
         ]
       })
@@ -239,7 +237,7 @@ describe('createAttachmentAPI', () => {
       bearerToken: null
     });
 
-    const urls = await api.refreshMessageAttachmentUrls('room_1', 'event_1', {
+    const urls = await api.refreshAssetUrls('room_1', ['att_1'], {
       width: 960,
       height: 800,
       fit: FitMode.Contain
@@ -250,23 +248,14 @@ describe('createAttachmentAPI', () => {
     expect(urls.get('att_1')?.variantAssetUrls.get('720p')).toBeNull();
   });
 
-  it('batch refreshes message attachment URLs', async () => {
-    mocks.batchRefreshMessageAttachmentUrls.mockResolvedValue(
-      new BatchRefreshMessageAttachmentUrlsResponse({
-        messages: [
-          new RefreshedMessageAttachmentUrls({
-            eventId: 'event_1',
-            attachments: [
-              new RefreshedAttachmentUrls({
-                attachmentId: 'att_1',
-                assetUrl: assetUrl('/assets/files/att_1?fresh=1'),
-                thumbnailAssetUrl: assetUrl('/assets/files/att_1/image/120x120/cover?fresh=1')
-              })
-            ]
-          }),
-          new RefreshedMessageAttachmentUrls({
-            eventId: 'event_2',
-            attachments: []
+  it('omits missing assets from refreshed URL results', async () => {
+    mocks.batchGetAssets.mockResolvedValue(
+      new BatchGetAssetsResponse({
+        assets: [
+          new MessageAttachment({
+            id: 'att_1',
+            assetUrl: assetUrl('/assets/files/att_1?fresh=1'),
+            thumbnailAssetUrl: assetUrl('/assets/files/att_1/image/120x120/cover?fresh=1')
           })
         ]
       })
@@ -277,9 +266,9 @@ describe('createAttachmentAPI', () => {
       bearerToken: 'token'
     });
 
-    const messages = await api.batchRefreshMessageAttachmentUrls(
+    const urls = await api.refreshAssetUrls(
       'room_1',
-      ['event_1', 'missing', 'event_2'],
+      ['att_1', 'missing'],
       {
         width: 120,
         height: 120,
@@ -287,19 +276,16 @@ describe('createAttachmentAPI', () => {
       }
     );
 
-    expect(mocks.batchRefreshMessageAttachmentUrls).toHaveBeenCalledWith(
+    expect(mocks.batchGetAssets).toHaveBeenCalledWith(
       {
         roomId: 'room_1',
-        eventIds: ['event_1', 'missing', 'event_2'],
-        thumbnail: { width: 120, height: 120, fit: AttachmentFitMode.COVER }
+        assetIds: ['att_1', 'missing'],
+        thumbnail: { width: 120, height: 120, fit: AssetFitMode.COVER }
       },
       { headers: { Authorization: 'Bearer token' } }
     );
-    expect(messages.get('event_1')?.get('att_1')?.assetUrl?.url).toBe(
-      '/assets/files/att_1?fresh=1'
-    );
-    expect(messages.get('event_2')?.size).toBe(0);
-    expect(messages.has('missing')).toBe(false);
+    expect(urls.get('att_1')?.assetUrl?.url).toBe('/assets/files/att_1?fresh=1');
+    expect(urls.has('missing')).toBe(false);
   });
 
   it('lists attachments with missing asset URLs as null', async () => {
@@ -308,14 +294,14 @@ describe('createAttachmentAPI', () => {
         attachments: [
           new RoomAttachmentListItem({
             messageEventId: 'event_1',
-            attachment: new RoomTimelineAttachment({
+            attachment: new MessageAttachment({
               id: 'att_1',
               filename: 'clip.mp4',
               contentType: 'video/mp4',
-              videoProcessing: new RoomTimelineVideoProcessing({
-                status: RoomTimelineVideoProcessingStatus.COMPLETED,
+              videoProcessing: new MessageVideoProcessing({
+                status: MessageVideoProcessingStatus.COMPLETED,
                 variants: [
-                  new RoomTimelineVideoVariant({
+                  new MessageVideoVariant({
                     quality: '720p',
                     width: 1280,
                     height: 720,

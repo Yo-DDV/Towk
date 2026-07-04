@@ -333,7 +333,7 @@ type NotificationItem struct {
 	// Creation time.
 	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	// User who triggered the notification, when still resolvable.
-	Actor *UserProfile `protobuf:"bytes,3,opt,name=actor,proto3" json:"actor,omitempty"`
+	Actor *User `protobuf:"bytes,3,opt,name=actor,proto3" json:"actor,omitempty"`
 	// Types that are valid to be assigned to Kind:
 	//
 	//	*NotificationItem_DirectMessage
@@ -389,7 +389,7 @@ func (x *NotificationItem) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *NotificationItem) GetActor() *UserProfile {
+func (x *NotificationItem) GetActor() *User {
 	if x != nil {
 		return x.Actor
 	}
@@ -577,8 +577,6 @@ type ListNotificationsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Page notifications, newest first.
 	Notifications []*NotificationItem `protobuf:"bytes,1,rep,name=notifications,proto3" json:"notifications,omitempty"`
-	// Current server display name for non-DM location labels.
-	ServerName string `protobuf:"bytes,4,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
 	// Page metadata.
 	Page          *PageInfo `protobuf:"bytes,5,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -620,13 +618,6 @@ func (x *ListNotificationsResponse) GetNotifications() []*NotificationItem {
 		return x.Notifications
 	}
 	return nil
-}
-
-func (x *ListNotificationsResponse) GetServerName() string {
-	if x != nil {
-		return x.ServerName
-	}
-	return ""
 }
 
 func (x *ListNotificationsResponse) GetPage() *PageInfo {
@@ -686,9 +677,7 @@ func (x *GetNotificationRequest) GetNotificationId() string {
 type GetNotificationResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Requested notification.
-	Notification *NotificationItem `protobuf:"bytes,1,opt,name=notification,proto3" json:"notification,omitempty"`
-	// Current server display name for non-DM location labels.
-	ServerName    string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	Notification  *NotificationItem `protobuf:"bytes,1,opt,name=notification,proto3" json:"notification,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -728,13 +717,6 @@ func (x *GetNotificationResponse) GetNotification() *NotificationItem {
 		return x.Notification
 	}
 	return nil
-}
-
-func (x *GetNotificationResponse) GetServerName() string {
-	if x != nil {
-		return x.ServerName
-	}
-	return ""
 }
 
 // Request pending notifications for a set of stable notification IDs.
@@ -790,8 +772,6 @@ type BatchGetNotificationsResponse struct {
 	// Found notifications. The server preserves first-seen request order and
 	// de-duplicates repeated IDs.
 	Notifications []*NotificationItem `protobuf:"bytes,1,rep,name=notifications,proto3" json:"notifications,omitempty"`
-	// Current server display name for non-DM location labels.
-	ServerName    string `protobuf:"bytes,2,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -833,20 +813,11 @@ func (x *BatchGetNotificationsResponse) GetNotifications() []*NotificationItem {
 	return nil
 }
 
-func (x *BatchGetNotificationsResponse) GetServerName() string {
-	if x != nil {
-		return x.ServerName
-	}
-	return ""
-}
-
 // Pending notification page scoped to one room.
 type ListRoomNotificationsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Page notifications, newest first.
 	Notifications []*NotificationItem `protobuf:"bytes,1,rep,name=notifications,proto3" json:"notifications,omitempty"`
-	// Current server display name for non-DM location labels.
-	ServerName string `protobuf:"bytes,4,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
 	// Page metadata.
 	Page          *PageInfo `protobuf:"bytes,5,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -888,13 +859,6 @@ func (x *ListRoomNotificationsResponse) GetNotifications() []*NotificationItem {
 		return x.Notifications
 	}
 	return nil
-}
-
-func (x *ListRoomNotificationsResponse) GetServerName() string {
-	if x != nil {
-		return x.ServerName
-	}
-	return ""
 }
 
 func (x *ListRoomNotificationsResponse) GetPage() *PageInfo {
@@ -1324,12 +1288,12 @@ const file_chatto_api_v1_notifications_proto_rawDesc = "" +
 	"\x15_thread_root_event_id\"i\n" +
 	"\x17RoomMessageNotification\x123\n" +
 	"\x04room\x18\x01 \x01(\v2\x1f.chatto.api.v1.NotificationRoomR\x04room\x12\x19\n" +
-	"\bevent_id\x18\x02 \x01(\tR\aeventId\"\xc0\x03\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\"\xb9\x03\n" +
 	"\x10NotificationItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
-	"created_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x120\n" +
-	"\x05actor\x18\x03 \x01(\v2\x1a.chatto.api.v1.UserProfileR\x05actor\x12Q\n" +
+	"created_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12)\n" +
+	"\x05actor\x18\x03 \x01(\v2\x13.chatto.api.v1.UserR\x05actor\x12Q\n" +
 	"\x0edirect_message\x18\n" +
 	" \x01(\v2(.chatto.api.v1.DirectMessageNotificationH\x00R\rdirectMessage\x12>\n" +
 	"\amention\x18\v \x01(\v2\".chatto.api.v1.MentionNotificationH\x00R\amention\x128\n" +
@@ -1340,30 +1304,22 @@ const file_chatto_api_v1_notifications_proto_rawDesc = "" +
 	"\x04page\x18\x03 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\x05limitR\x06offset\"\x8b\x01\n" +
 	"\x1cListRoomNotificationsRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12.\n" +
-	"\x04page\x18\x04 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05limitR\x06offset\"\xd3\x01\n" +
+	"\x04page\x18\x04 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05limitR\x06offset\"\xc5\x01\n" +
 	"\x19ListNotificationsResponse\x12E\n" +
-	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12\x1f\n" +
-	"\vserver_name\x18\x04 \x01(\tR\n" +
-	"serverName\x12+\n" +
-	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\vtotal_countR\bhas_more\"J\n" +
+	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12+\n" +
+	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_moreR\vserver_name\"J\n" +
 	"\x16GetNotificationRequest\x120\n" +
-	"\x0fnotification_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0enotificationId\"\x7f\n" +
+	"\x0fnotification_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0enotificationId\"q\n" +
 	"\x17GetNotificationResponse\x12C\n" +
-	"\fnotification\x18\x01 \x01(\v2\x1f.chatto.api.v1.NotificationItemR\fnotification\x12\x1f\n" +
-	"\vserver_name\x18\x02 \x01(\tR\n" +
-	"serverName\"[\n" +
+	"\fnotification\x18\x01 \x01(\v2\x1f.chatto.api.v1.NotificationItemR\fnotificationJ\x04\b\x02\x10\x03R\vserver_name\"[\n" +
 	"\x1cBatchGetNotificationsRequest\x12;\n" +
 	"\x10notification_ids\x18\x01 \x03(\tB\x10\xbaH\r\x92\x01\n" +
-	"\b\x01\x10d\"\x04r\x02\x10\x01R\x0fnotificationIds\"\x87\x01\n" +
+	"\b\x01\x10d\"\x04r\x02\x10\x01R\x0fnotificationIds\"y\n" +
 	"\x1dBatchGetNotificationsResponse\x12E\n" +
-	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12\x1f\n" +
-	"\vserver_name\x18\x02 \x01(\tR\n" +
-	"serverName\"\xd7\x01\n" +
+	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotificationsJ\x04\b\x02\x10\x03R\vserver_name\"\xc9\x01\n" +
 	"\x1dListRoomNotificationsResponse\x12E\n" +
-	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12\x1f\n" +
-	"\vserver_name\x18\x04 \x01(\tR\n" +
-	"serverName\x12+\n" +
-	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\vtotal_countR\bhas_more\"\x19\n" +
+	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12+\n" +
+	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_moreR\vserver_name\"\x19\n" +
 	"\x17HasNotificationsRequest\"G\n" +
 	"\x18HasNotificationsResponse\x12+\n" +
 	"\x11has_notifications\x18\x01 \x01(\bR\x10hasNotifications\"Q\n" +
@@ -1431,7 +1387,7 @@ var file_chatto_api_v1_notifications_proto_goTypes = []any{
 	(*DismissAllNotificationsRequest)(nil),     // 21: chatto.api.v1.DismissAllNotificationsRequest
 	(*DismissAllNotificationsResponse)(nil),    // 22: chatto.api.v1.DismissAllNotificationsResponse
 	(*timestamppb.Timestamp)(nil),              // 23: google.protobuf.Timestamp
-	(*UserProfile)(nil),                        // 24: chatto.api.v1.UserProfile
+	(*User)(nil),                               // 24: chatto.api.v1.User
 	(*PageRequest)(nil),                        // 25: chatto.api.v1.PageRequest
 	(*PageInfo)(nil),                           // 26: chatto.api.v1.PageInfo
 }
@@ -1440,7 +1396,7 @@ var file_chatto_api_v1_notifications_proto_depIdxs = []int32{
 	0,  // 1: chatto.api.v1.ReplyNotification.room:type_name -> chatto.api.v1.NotificationRoom
 	0,  // 2: chatto.api.v1.RoomMessageNotification.room:type_name -> chatto.api.v1.NotificationRoom
 	23, // 3: chatto.api.v1.NotificationItem.created_at:type_name -> google.protobuf.Timestamp
-	24, // 4: chatto.api.v1.NotificationItem.actor:type_name -> chatto.api.v1.UserProfile
+	24, // 4: chatto.api.v1.NotificationItem.actor:type_name -> chatto.api.v1.User
 	1,  // 5: chatto.api.v1.NotificationItem.direct_message:type_name -> chatto.api.v1.DirectMessageNotification
 	2,  // 6: chatto.api.v1.NotificationItem.mention:type_name -> chatto.api.v1.MentionNotification
 	3,  // 7: chatto.api.v1.NotificationItem.reply:type_name -> chatto.api.v1.ReplyNotification

@@ -33,6 +33,9 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// MessageServiceFetchLinkPreviewProcedure is the fully-qualified name of the MessageService's
+	// FetchLinkPreview RPC.
+	MessageServiceFetchLinkPreviewProcedure = "/chatto.api.v1.MessageService/FetchLinkPreview"
 	// MessageServiceCreateMessageProcedure is the fully-qualified name of the MessageService's
 	// CreateMessage RPC.
 	MessageServiceCreateMessageProcedure = "/chatto.api.v1.MessageService/CreateMessage"
@@ -48,15 +51,12 @@ const (
 	// MessageServiceDeleteLinkPreviewProcedure is the fully-qualified name of the MessageService's
 	// DeleteLinkPreview RPC.
 	MessageServiceDeleteLinkPreviewProcedure = "/chatto.api.v1.MessageService/DeleteLinkPreview"
-	// MessageServiceRefreshMessageAttachmentUrlsProcedure is the fully-qualified name of the
-	// MessageService's RefreshMessageAttachmentUrls RPC.
-	MessageServiceRefreshMessageAttachmentUrlsProcedure = "/chatto.api.v1.MessageService/RefreshMessageAttachmentUrls"
-	// MessageServiceBatchRefreshMessageAttachmentUrlsProcedure is the fully-qualified name of the
-	// MessageService's BatchRefreshMessageAttachmentUrls RPC.
-	MessageServiceBatchRefreshMessageAttachmentUrlsProcedure = "/chatto.api.v1.MessageService/BatchRefreshMessageAttachmentUrls"
-	// MessageServiceResolveMessageLinkTargetProcedure is the fully-qualified name of the
-	// MessageService's ResolveMessageLinkTarget RPC.
-	MessageServiceResolveMessageLinkTargetProcedure = "/chatto.api.v1.MessageService/ResolveMessageLinkTarget"
+	// MessageServiceGetMessageProcedure is the fully-qualified name of the MessageService's GetMessage
+	// RPC.
+	MessageServiceGetMessageProcedure = "/chatto.api.v1.MessageService/GetMessage"
+	// MessageServiceBatchGetMessagesProcedure is the fully-qualified name of the MessageService's
+	// BatchGetMessages RPC.
+	MessageServiceBatchGetMessagesProcedure = "/chatto.api.v1.MessageService/BatchGetMessages"
 	// MessageServiceAddReactionProcedure is the fully-qualified name of the MessageService's
 	// AddReaction RPC.
 	MessageServiceAddReactionProcedure = "/chatto.api.v1.MessageService/AddReaction"
@@ -67,6 +67,10 @@ const (
 
 // MessageServiceClient is a client for the chatto.api.v1.MessageService service.
 type MessageServiceClient interface {
+	// Fetches and caches metadata for a composer URL. Authentication is required
+	// to avoid exposing the preview fetcher as an unauthenticated network proxy.
+	// Successful responses include a short-lived token accepted by CreateMessage.
+	FetchLinkPreview(context.Context, *connect.Request[v1.FetchLinkPreviewRequest]) (*connect.Response[v1.FetchLinkPreviewResponse], error)
 	// Creates a message for the current user. The user must be a room member and
 	// must have message.post for room messages or message.post-in-thread for
 	// thread replies. Echoing a thread reply also requires message.echo and
@@ -83,24 +87,16 @@ type MessageServiceClient interface {
 	DeleteAttachment(context.Context, *connect.Request[v1.DeleteAttachmentRequest]) (*connect.Response[v1.DeleteAttachmentResponse], error)
 	// Removes the accepted link preview from the author's own message.
 	DeleteLinkPreview(context.Context, *connect.Request[v1.DeleteLinkPreviewRequest]) (*connect.Response[v1.DeleteLinkPreviewResponse], error)
-	// Refreshes signed URLs for the current attachments on one message.
-	// Authentication and room membership are required. Returns NOT_FOUND when the
-	// message does not exist, is not a current visible message, or belongs to a
-	// different room. Returns an empty attachment list when the message exists
-	// but currently has no attachments.
-	RefreshMessageAttachmentUrls(context.Context, *connect.Request[v1.RefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.RefreshMessageAttachmentUrlsResponse], error)
-	// Refreshes signed URLs for the current attachments on multiple messages in
-	// one room. Authentication and room membership are required. Missing,
-	// retracted, non-message, and wrong-room event IDs are omitted. Results
-	// preserve first-seen request order and repeated event IDs are de-duplicated.
-	// Existing visible messages with no current attachments are returned with an
-	// empty attachment list.
-	BatchRefreshMessageAttachmentUrls(context.Context, *connect.Request[v1.BatchRefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.BatchRefreshMessageAttachmentUrlsResponse], error)
-	// Resolves a permalink target to either the room timeline or a message
-	// thread, including thread-only replies that are not room timeline rows.
-	// Returns NOT_FOUND when the target message is missing or hidden and
-	// PERMISSION_DENIED when the room is inaccessible.
-	ResolveMessageLinkTarget(context.Context, *connect.Request[v1.ResolveMessageLinkTargetRequest]) (*connect.Response[v1.ResolveMessageLinkTargetResponse], error)
+	// Reads one renderable message, including current body, attachment metadata,
+	// link preview, reactions, and thread metadata. Authentication and room
+	// membership are required. Returns NOT_FOUND when the event does not exist,
+	// is not a message, has been retracted, or belongs to a different room.
+	GetMessage(context.Context, *connect.Request[v1.GetMessageRequest]) (*connect.Response[v1.GetMessageResponse], error)
+	// Reads many renderable messages in one room. Authentication and room
+	// membership are required. Missing, retracted, non-message, and wrong-room
+	// event IDs are omitted. Results preserve first-seen request order and
+	// repeated event IDs are de-duplicated.
+	BatchGetMessages(context.Context, *connect.Request[v1.BatchGetMessagesRequest]) (*connect.Response[v1.BatchGetMessagesResponse], error)
 	// Adds a reaction to a message. The user must be a room member and have
 	// message.react in the target room.
 	AddReaction(context.Context, *connect.Request[v1.AddReactionRequest]) (*connect.Response[v1.AddReactionResponse], error)
@@ -120,6 +116,12 @@ func NewMessageServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 	baseURL = strings.TrimRight(baseURL, "/")
 	messageServiceMethods := v1.File_chatto_api_v1_messages_proto.Services().ByName("MessageService").Methods()
 	return &messageServiceClient{
+		fetchLinkPreview: connect.NewClient[v1.FetchLinkPreviewRequest, v1.FetchLinkPreviewResponse](
+			httpClient,
+			baseURL+MessageServiceFetchLinkPreviewProcedure,
+			connect.WithSchema(messageServiceMethods.ByName("FetchLinkPreview")),
+			connect.WithClientOptions(opts...),
+		),
 		createMessage: connect.NewClient[v1.CreateMessageRequest, v1.CreateMessageResponse](
 			httpClient,
 			baseURL+MessageServiceCreateMessageProcedure,
@@ -150,22 +152,16 @@ func NewMessageServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(messageServiceMethods.ByName("DeleteLinkPreview")),
 			connect.WithClientOptions(opts...),
 		),
-		refreshMessageAttachmentUrls: connect.NewClient[v1.RefreshMessageAttachmentUrlsRequest, v1.RefreshMessageAttachmentUrlsResponse](
+		getMessage: connect.NewClient[v1.GetMessageRequest, v1.GetMessageResponse](
 			httpClient,
-			baseURL+MessageServiceRefreshMessageAttachmentUrlsProcedure,
-			connect.WithSchema(messageServiceMethods.ByName("RefreshMessageAttachmentUrls")),
+			baseURL+MessageServiceGetMessageProcedure,
+			connect.WithSchema(messageServiceMethods.ByName("GetMessage")),
 			connect.WithClientOptions(opts...),
 		),
-		batchRefreshMessageAttachmentUrls: connect.NewClient[v1.BatchRefreshMessageAttachmentUrlsRequest, v1.BatchRefreshMessageAttachmentUrlsResponse](
+		batchGetMessages: connect.NewClient[v1.BatchGetMessagesRequest, v1.BatchGetMessagesResponse](
 			httpClient,
-			baseURL+MessageServiceBatchRefreshMessageAttachmentUrlsProcedure,
-			connect.WithSchema(messageServiceMethods.ByName("BatchRefreshMessageAttachmentUrls")),
-			connect.WithClientOptions(opts...),
-		),
-		resolveMessageLinkTarget: connect.NewClient[v1.ResolveMessageLinkTargetRequest, v1.ResolveMessageLinkTargetResponse](
-			httpClient,
-			baseURL+MessageServiceResolveMessageLinkTargetProcedure,
-			connect.WithSchema(messageServiceMethods.ByName("ResolveMessageLinkTarget")),
+			baseURL+MessageServiceBatchGetMessagesProcedure,
+			connect.WithSchema(messageServiceMethods.ByName("BatchGetMessages")),
 			connect.WithClientOptions(opts...),
 		),
 		addReaction: connect.NewClient[v1.AddReactionRequest, v1.AddReactionResponse](
@@ -185,16 +181,21 @@ func NewMessageServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 
 // messageServiceClient implements MessageServiceClient.
 type messageServiceClient struct {
-	createMessage                     *connect.Client[v1.CreateMessageRequest, v1.CreateMessageResponse]
-	updateMessage                     *connect.Client[v1.UpdateMessageRequest, v1.UpdateMessageResponse]
-	deleteMessage                     *connect.Client[v1.DeleteMessageRequest, v1.DeleteMessageResponse]
-	deleteAttachment                  *connect.Client[v1.DeleteAttachmentRequest, v1.DeleteAttachmentResponse]
-	deleteLinkPreview                 *connect.Client[v1.DeleteLinkPreviewRequest, v1.DeleteLinkPreviewResponse]
-	refreshMessageAttachmentUrls      *connect.Client[v1.RefreshMessageAttachmentUrlsRequest, v1.RefreshMessageAttachmentUrlsResponse]
-	batchRefreshMessageAttachmentUrls *connect.Client[v1.BatchRefreshMessageAttachmentUrlsRequest, v1.BatchRefreshMessageAttachmentUrlsResponse]
-	resolveMessageLinkTarget          *connect.Client[v1.ResolveMessageLinkTargetRequest, v1.ResolveMessageLinkTargetResponse]
-	addReaction                       *connect.Client[v1.AddReactionRequest, v1.AddReactionResponse]
-	removeReaction                    *connect.Client[v1.RemoveReactionRequest, v1.RemoveReactionResponse]
+	fetchLinkPreview  *connect.Client[v1.FetchLinkPreviewRequest, v1.FetchLinkPreviewResponse]
+	createMessage     *connect.Client[v1.CreateMessageRequest, v1.CreateMessageResponse]
+	updateMessage     *connect.Client[v1.UpdateMessageRequest, v1.UpdateMessageResponse]
+	deleteMessage     *connect.Client[v1.DeleteMessageRequest, v1.DeleteMessageResponse]
+	deleteAttachment  *connect.Client[v1.DeleteAttachmentRequest, v1.DeleteAttachmentResponse]
+	deleteLinkPreview *connect.Client[v1.DeleteLinkPreviewRequest, v1.DeleteLinkPreviewResponse]
+	getMessage        *connect.Client[v1.GetMessageRequest, v1.GetMessageResponse]
+	batchGetMessages  *connect.Client[v1.BatchGetMessagesRequest, v1.BatchGetMessagesResponse]
+	addReaction       *connect.Client[v1.AddReactionRequest, v1.AddReactionResponse]
+	removeReaction    *connect.Client[v1.RemoveReactionRequest, v1.RemoveReactionResponse]
+}
+
+// FetchLinkPreview calls chatto.api.v1.MessageService.FetchLinkPreview.
+func (c *messageServiceClient) FetchLinkPreview(ctx context.Context, req *connect.Request[v1.FetchLinkPreviewRequest]) (*connect.Response[v1.FetchLinkPreviewResponse], error) {
+	return c.fetchLinkPreview.CallUnary(ctx, req)
 }
 
 // CreateMessage calls chatto.api.v1.MessageService.CreateMessage.
@@ -222,20 +223,14 @@ func (c *messageServiceClient) DeleteLinkPreview(ctx context.Context, req *conne
 	return c.deleteLinkPreview.CallUnary(ctx, req)
 }
 
-// RefreshMessageAttachmentUrls calls chatto.api.v1.MessageService.RefreshMessageAttachmentUrls.
-func (c *messageServiceClient) RefreshMessageAttachmentUrls(ctx context.Context, req *connect.Request[v1.RefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.RefreshMessageAttachmentUrlsResponse], error) {
-	return c.refreshMessageAttachmentUrls.CallUnary(ctx, req)
+// GetMessage calls chatto.api.v1.MessageService.GetMessage.
+func (c *messageServiceClient) GetMessage(ctx context.Context, req *connect.Request[v1.GetMessageRequest]) (*connect.Response[v1.GetMessageResponse], error) {
+	return c.getMessage.CallUnary(ctx, req)
 }
 
-// BatchRefreshMessageAttachmentUrls calls
-// chatto.api.v1.MessageService.BatchRefreshMessageAttachmentUrls.
-func (c *messageServiceClient) BatchRefreshMessageAttachmentUrls(ctx context.Context, req *connect.Request[v1.BatchRefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.BatchRefreshMessageAttachmentUrlsResponse], error) {
-	return c.batchRefreshMessageAttachmentUrls.CallUnary(ctx, req)
-}
-
-// ResolveMessageLinkTarget calls chatto.api.v1.MessageService.ResolveMessageLinkTarget.
-func (c *messageServiceClient) ResolveMessageLinkTarget(ctx context.Context, req *connect.Request[v1.ResolveMessageLinkTargetRequest]) (*connect.Response[v1.ResolveMessageLinkTargetResponse], error) {
-	return c.resolveMessageLinkTarget.CallUnary(ctx, req)
+// BatchGetMessages calls chatto.api.v1.MessageService.BatchGetMessages.
+func (c *messageServiceClient) BatchGetMessages(ctx context.Context, req *connect.Request[v1.BatchGetMessagesRequest]) (*connect.Response[v1.BatchGetMessagesResponse], error) {
+	return c.batchGetMessages.CallUnary(ctx, req)
 }
 
 // AddReaction calls chatto.api.v1.MessageService.AddReaction.
@@ -250,6 +245,10 @@ func (c *messageServiceClient) RemoveReaction(ctx context.Context, req *connect.
 
 // MessageServiceHandler is an implementation of the chatto.api.v1.MessageService service.
 type MessageServiceHandler interface {
+	// Fetches and caches metadata for a composer URL. Authentication is required
+	// to avoid exposing the preview fetcher as an unauthenticated network proxy.
+	// Successful responses include a short-lived token accepted by CreateMessage.
+	FetchLinkPreview(context.Context, *connect.Request[v1.FetchLinkPreviewRequest]) (*connect.Response[v1.FetchLinkPreviewResponse], error)
 	// Creates a message for the current user. The user must be a room member and
 	// must have message.post for room messages or message.post-in-thread for
 	// thread replies. Echoing a thread reply also requires message.echo and
@@ -266,24 +265,16 @@ type MessageServiceHandler interface {
 	DeleteAttachment(context.Context, *connect.Request[v1.DeleteAttachmentRequest]) (*connect.Response[v1.DeleteAttachmentResponse], error)
 	// Removes the accepted link preview from the author's own message.
 	DeleteLinkPreview(context.Context, *connect.Request[v1.DeleteLinkPreviewRequest]) (*connect.Response[v1.DeleteLinkPreviewResponse], error)
-	// Refreshes signed URLs for the current attachments on one message.
-	// Authentication and room membership are required. Returns NOT_FOUND when the
-	// message does not exist, is not a current visible message, or belongs to a
-	// different room. Returns an empty attachment list when the message exists
-	// but currently has no attachments.
-	RefreshMessageAttachmentUrls(context.Context, *connect.Request[v1.RefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.RefreshMessageAttachmentUrlsResponse], error)
-	// Refreshes signed URLs for the current attachments on multiple messages in
-	// one room. Authentication and room membership are required. Missing,
-	// retracted, non-message, and wrong-room event IDs are omitted. Results
-	// preserve first-seen request order and repeated event IDs are de-duplicated.
-	// Existing visible messages with no current attachments are returned with an
-	// empty attachment list.
-	BatchRefreshMessageAttachmentUrls(context.Context, *connect.Request[v1.BatchRefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.BatchRefreshMessageAttachmentUrlsResponse], error)
-	// Resolves a permalink target to either the room timeline or a message
-	// thread, including thread-only replies that are not room timeline rows.
-	// Returns NOT_FOUND when the target message is missing or hidden and
-	// PERMISSION_DENIED when the room is inaccessible.
-	ResolveMessageLinkTarget(context.Context, *connect.Request[v1.ResolveMessageLinkTargetRequest]) (*connect.Response[v1.ResolveMessageLinkTargetResponse], error)
+	// Reads one renderable message, including current body, attachment metadata,
+	// link preview, reactions, and thread metadata. Authentication and room
+	// membership are required. Returns NOT_FOUND when the event does not exist,
+	// is not a message, has been retracted, or belongs to a different room.
+	GetMessage(context.Context, *connect.Request[v1.GetMessageRequest]) (*connect.Response[v1.GetMessageResponse], error)
+	// Reads many renderable messages in one room. Authentication and room
+	// membership are required. Missing, retracted, non-message, and wrong-room
+	// event IDs are omitted. Results preserve first-seen request order and
+	// repeated event IDs are de-duplicated.
+	BatchGetMessages(context.Context, *connect.Request[v1.BatchGetMessagesRequest]) (*connect.Response[v1.BatchGetMessagesResponse], error)
 	// Adds a reaction to a message. The user must be a room member and have
 	// message.react in the target room.
 	AddReaction(context.Context, *connect.Request[v1.AddReactionRequest]) (*connect.Response[v1.AddReactionResponse], error)
@@ -299,6 +290,12 @@ type MessageServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewMessageServiceHandler(svc MessageServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	messageServiceMethods := v1.File_chatto_api_v1_messages_proto.Services().ByName("MessageService").Methods()
+	messageServiceFetchLinkPreviewHandler := connect.NewUnaryHandler(
+		MessageServiceFetchLinkPreviewProcedure,
+		svc.FetchLinkPreview,
+		connect.WithSchema(messageServiceMethods.ByName("FetchLinkPreview")),
+		connect.WithHandlerOptions(opts...),
+	)
 	messageServiceCreateMessageHandler := connect.NewUnaryHandler(
 		MessageServiceCreateMessageProcedure,
 		svc.CreateMessage,
@@ -329,22 +326,16 @@ func NewMessageServiceHandler(svc MessageServiceHandler, opts ...connect.Handler
 		connect.WithSchema(messageServiceMethods.ByName("DeleteLinkPreview")),
 		connect.WithHandlerOptions(opts...),
 	)
-	messageServiceRefreshMessageAttachmentUrlsHandler := connect.NewUnaryHandler(
-		MessageServiceRefreshMessageAttachmentUrlsProcedure,
-		svc.RefreshMessageAttachmentUrls,
-		connect.WithSchema(messageServiceMethods.ByName("RefreshMessageAttachmentUrls")),
+	messageServiceGetMessageHandler := connect.NewUnaryHandler(
+		MessageServiceGetMessageProcedure,
+		svc.GetMessage,
+		connect.WithSchema(messageServiceMethods.ByName("GetMessage")),
 		connect.WithHandlerOptions(opts...),
 	)
-	messageServiceBatchRefreshMessageAttachmentUrlsHandler := connect.NewUnaryHandler(
-		MessageServiceBatchRefreshMessageAttachmentUrlsProcedure,
-		svc.BatchRefreshMessageAttachmentUrls,
-		connect.WithSchema(messageServiceMethods.ByName("BatchRefreshMessageAttachmentUrls")),
-		connect.WithHandlerOptions(opts...),
-	)
-	messageServiceResolveMessageLinkTargetHandler := connect.NewUnaryHandler(
-		MessageServiceResolveMessageLinkTargetProcedure,
-		svc.ResolveMessageLinkTarget,
-		connect.WithSchema(messageServiceMethods.ByName("ResolveMessageLinkTarget")),
+	messageServiceBatchGetMessagesHandler := connect.NewUnaryHandler(
+		MessageServiceBatchGetMessagesProcedure,
+		svc.BatchGetMessages,
+		connect.WithSchema(messageServiceMethods.ByName("BatchGetMessages")),
 		connect.WithHandlerOptions(opts...),
 	)
 	messageServiceAddReactionHandler := connect.NewUnaryHandler(
@@ -361,6 +352,8 @@ func NewMessageServiceHandler(svc MessageServiceHandler, opts ...connect.Handler
 	)
 	return "/chatto.api.v1.MessageService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case MessageServiceFetchLinkPreviewProcedure:
+			messageServiceFetchLinkPreviewHandler.ServeHTTP(w, r)
 		case MessageServiceCreateMessageProcedure:
 			messageServiceCreateMessageHandler.ServeHTTP(w, r)
 		case MessageServiceUpdateMessageProcedure:
@@ -371,12 +364,10 @@ func NewMessageServiceHandler(svc MessageServiceHandler, opts ...connect.Handler
 			messageServiceDeleteAttachmentHandler.ServeHTTP(w, r)
 		case MessageServiceDeleteLinkPreviewProcedure:
 			messageServiceDeleteLinkPreviewHandler.ServeHTTP(w, r)
-		case MessageServiceRefreshMessageAttachmentUrlsProcedure:
-			messageServiceRefreshMessageAttachmentUrlsHandler.ServeHTTP(w, r)
-		case MessageServiceBatchRefreshMessageAttachmentUrlsProcedure:
-			messageServiceBatchRefreshMessageAttachmentUrlsHandler.ServeHTTP(w, r)
-		case MessageServiceResolveMessageLinkTargetProcedure:
-			messageServiceResolveMessageLinkTargetHandler.ServeHTTP(w, r)
+		case MessageServiceGetMessageProcedure:
+			messageServiceGetMessageHandler.ServeHTTP(w, r)
+		case MessageServiceBatchGetMessagesProcedure:
+			messageServiceBatchGetMessagesHandler.ServeHTTP(w, r)
 		case MessageServiceAddReactionProcedure:
 			messageServiceAddReactionHandler.ServeHTTP(w, r)
 		case MessageServiceRemoveReactionProcedure:
@@ -389,6 +380,10 @@ func NewMessageServiceHandler(svc MessageServiceHandler, opts ...connect.Handler
 
 // UnimplementedMessageServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedMessageServiceHandler struct{}
+
+func (UnimplementedMessageServiceHandler) FetchLinkPreview(context.Context, *connect.Request[v1.FetchLinkPreviewRequest]) (*connect.Response[v1.FetchLinkPreviewResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.FetchLinkPreview is not implemented"))
+}
 
 func (UnimplementedMessageServiceHandler) CreateMessage(context.Context, *connect.Request[v1.CreateMessageRequest]) (*connect.Response[v1.CreateMessageResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.CreateMessage is not implemented"))
@@ -410,16 +405,12 @@ func (UnimplementedMessageServiceHandler) DeleteLinkPreview(context.Context, *co
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.DeleteLinkPreview is not implemented"))
 }
 
-func (UnimplementedMessageServiceHandler) RefreshMessageAttachmentUrls(context.Context, *connect.Request[v1.RefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.RefreshMessageAttachmentUrlsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.RefreshMessageAttachmentUrls is not implemented"))
+func (UnimplementedMessageServiceHandler) GetMessage(context.Context, *connect.Request[v1.GetMessageRequest]) (*connect.Response[v1.GetMessageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.GetMessage is not implemented"))
 }
 
-func (UnimplementedMessageServiceHandler) BatchRefreshMessageAttachmentUrls(context.Context, *connect.Request[v1.BatchRefreshMessageAttachmentUrlsRequest]) (*connect.Response[v1.BatchRefreshMessageAttachmentUrlsResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.BatchRefreshMessageAttachmentUrls is not implemented"))
-}
-
-func (UnimplementedMessageServiceHandler) ResolveMessageLinkTarget(context.Context, *connect.Request[v1.ResolveMessageLinkTargetRequest]) (*connect.Response[v1.ResolveMessageLinkTargetResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.ResolveMessageLinkTarget is not implemented"))
+func (UnimplementedMessageServiceHandler) BatchGetMessages(context.Context, *connect.Request[v1.BatchGetMessagesRequest]) (*connect.Response[v1.BatchGetMessagesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.MessageService.BatchGetMessages is not implemented"))
 }
 
 func (UnimplementedMessageServiceHandler) AddReaction(context.Context, *connect.Request[v1.AddReactionRequest]) (*connect.Response[v1.AddReactionResponse], error) {

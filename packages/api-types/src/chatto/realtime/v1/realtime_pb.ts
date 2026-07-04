@@ -1371,7 +1371,7 @@ export class RealtimeTypingEvent extends Message<RealtimeTypingEvent> {
 /**
  * Presence-changed signal.
  *
- * The latest presence status is inline. Use `UserDirectoryService.GetUser` when
+ * The latest presence status is inline. Use `UserService.GetUser` when
  * the surrounding user profile or custom status also needs refreshing.
  *
  * @generated from message chatto.realtime.v1.RealtimePresenceChangedEvent
@@ -1861,8 +1861,8 @@ export class RealtimeRoomMarkedAsReadEvent extends Message<RealtimeRoomMarkedAsR
 /**
  * Server-profile signal.
  *
- * Public server profile fields are inline. Use `ServerService.GetServerState`
- * when authenticated clients need the broader server state snapshot.
+ * Public server profile fields are inline. Use `ServerDiscoveryService.GetServer`
+ * for public metadata and `ServerService.GetMotd` for the authenticated MOTD.
  *
  * @generated from message chatto.realtime.v1.RealtimeServerUpdatedEvent
  */
@@ -1929,8 +1929,8 @@ export class RealtimeServerUpdatedEvent extends Message<RealtimeServerUpdatedEve
 /**
  * User-profile signal.
  *
- * Basic profile fields are inline. Use `UserDirectoryService.GetUser` or
- * `UserDirectoryService.BatchGetUsers` for complete user-profile hydration.
+ * Basic profile fields are inline. Use `UserService.GetUser` or
+ * `UserService.BatchGetUsers` for complete user-profile hydration.
  *
  * @generated from message chatto.realtime.v1.RealtimeUserProfileUpdatedEvent
  */
@@ -1997,7 +1997,7 @@ export class RealtimeUserProfileUpdatedEvent extends Message<RealtimeUserProfile
 /**
  * User-custom-status set signal.
  *
- * The latest custom status is inline. Use `UserDirectoryService.GetUser` when
+ * The latest custom status is inline. Use `UserService.GetUser` when
  * clients need to refresh the complete user profile.
  *
  * @generated from message chatto.realtime.v1.RealtimeUserCustomStatusSetEvent
@@ -2065,7 +2065,7 @@ export class RealtimeUserCustomStatusSetEvent extends Message<RealtimeUserCustom
 /**
  * User-custom-status cleared signal.
  *
- * Clear local custom status for `user_id`. Use `UserDirectoryService.GetUser`
+ * Clear local custom status for `user_id`. Use `UserService.GetUser`
  * when clients need to refresh the complete user profile.
  *
  * @generated from message chatto.realtime.v1.RealtimeUserCustomStatusClearedEvent
@@ -2252,10 +2252,9 @@ export class RealtimeServerMemberDeletedEvent extends Message<RealtimeServerMemb
  * Asset-processing signal.
  *
  * Message attachments are message-owned subresources. When
- * `message_event_id` is known, refresh signed URLs with
- * `MessageService.RefreshMessageAttachmentUrls` or
- * `MessageService.BatchRefreshMessageAttachmentUrls`; otherwise refetch the
- * affected attachment list or timeline window.
+ * `message_event_id` is known, refetch message state with
+ * `MessageService.GetMessage` or `MessageService.BatchGetMessages`; otherwise
+ * refetch the affected attachment list or timeline window.
  *
  * @generated from message chatto.realtime.v1.RealtimeAssetProcessingEvent
  */
@@ -2315,9 +2314,8 @@ export class RealtimeAssetProcessingEvent extends Message<RealtimeAssetProcessin
  * Asset-deleted signal.
  *
  * Remove local attachment state by `asset_id`. When the owning message is known,
- * clients can refresh that message's attachment URLs through
- * `MessageService.RefreshMessageAttachmentUrls` or refetch the timeline
- * window.
+ * clients can refetch that message through `MessageService.GetMessage` or
+ * refetch the timeline window.
  *
  * @generated from message chatto.realtime.v1.RealtimeAssetDeletedEvent
  */
@@ -2431,7 +2429,7 @@ export class RealtimeCallEvent extends Message<RealtimeCallEvent> {
  *
  * Inline names are display hints. Hydrate referenced rooms through
  * `RoomDirectoryService.BatchGetRooms` and users through
- * `UserDirectoryService.BatchGetUsers` when local caches are missing or stale.
+ * `UserService.BatchGetUsers` when local caches are missing or stale.
  *
  * @generated from message chatto.realtime.v1.RealtimeMentionNotificationEvent
  */
@@ -2500,8 +2498,8 @@ export class RealtimeMentionNotificationEvent extends Message<RealtimeMentionNot
  *
  * Inline names and avatar URLs are display hints. Hydrate the DM room through
  * `RoomDirectoryService.GetRoom` or `RoomDirectoryService.BatchGetRooms`, and
- * the sender through `UserDirectoryService.GetUser` or
- * `UserDirectoryService.BatchGetUsers` when local caches are missing or stale.
+ * the sender through `UserService.GetUser` or `UserService.BatchGetUsers` when
+ * local caches are missing or stale.
  *
  * @generated from message chatto.realtime.v1.RealtimeNewDirectMessageNotificationEvent
  */

@@ -65,7 +65,9 @@ describe('createRoomDirectoryAPI', () => {
             archived: false,
             universal: true
           },
-          viewerState: { isMember: true, hasUnread: true, canJoinRoom: false }
+          isMember: true,
+          hasUnread: true,
+          canJoinRoom: false
         },
         {
           room: {
@@ -75,9 +77,11 @@ describe('createRoomDirectoryAPI', () => {
             archived: true,
             universal: false
           },
-          viewerState: { isMember: true, hasUnread: false, canJoinRoom: true }
+          isMember: true,
+          hasUnread: false,
+          canJoinRoom: true
         },
-        { viewerState: { hasUnread: true } }
+        { hasUnread: true }
       ]
     });
 
@@ -133,19 +137,17 @@ describe('createRoomDirectoryAPI', () => {
           archived: false,
           universal: true
         },
-        viewerState: {
-          isMember: true,
-          hasUnread: true,
-          canJoinRoom: false,
-          canPostMessage: true,
-          canPostInThread: true,
-          canAttach: false,
-          canReact: true,
-          canEchoMessage: true,
-          canManageOthersMessage: false,
-          canManageRoom: true,
-          canBanRoomMembers: false
-        }
+        isMember: true,
+        hasUnread: true,
+        canJoinRoom: false,
+        canPostMessage: true,
+        canPostInThread: true,
+        canAttach: false,
+        canReact: true,
+        canEchoMessage: true,
+        canManageOthersMessage: false,
+        canManageRoom: true,
+        canBanRoomMembers: false
       }
     });
 
@@ -219,19 +221,17 @@ describe('createRoomDirectoryAPI', () => {
             archived: false,
             universal: true
           },
-          viewerState: {
-            isMember: true,
-            hasUnread: false,
-            canJoinRoom: false,
-            canPostMessage: true,
-            canPostInThread: false,
-            canAttach: true,
-            canReact: true,
-            canEchoMessage: false,
-            canManageOthersMessage: false,
-            canManageRoom: false,
-            canBanRoomMembers: false
-          }
+          isMember: true,
+          hasUnread: false,
+          canJoinRoom: false,
+          canPostMessage: true,
+          canPostInThread: false,
+          canAttach: true,
+          canReact: true,
+          canEchoMessage: false,
+          canManageOthersMessage: false,
+          canManageRoom: false,
+          canBanRoomMembers: false
         }
       ]
     });
@@ -293,7 +293,7 @@ describe('createRoomDirectoryAPI', () => {
     const groups = await api.listRoomGroups();
 
     expect(mocks.listRoomGroups).toHaveBeenCalledWith(
-      { includeArchivedRooms: false },
+      {},
       { headers: { Authorization: 'Bearer token' } }
     );
     expect(groups).toEqual([
@@ -350,10 +350,7 @@ describe('createRoomDirectoryAPI', () => {
         items: []
       }
     ]);
-    expect(mocks.listRoomGroups).toHaveBeenCalledWith(
-      { includeArchivedRooms: false },
-      { headers: undefined }
-    );
+    expect(mocks.listRoomGroups).toHaveBeenCalledWith({}, { headers: undefined });
   });
 
   it('gets and batch gets room groups', async () => {
@@ -392,36 +389,12 @@ describe('createRoomDirectoryAPI', () => {
     ]);
 
     expect(mocks.getRoomGroup).toHaveBeenCalledWith(
-      { groupId: 'g1', includeArchivedRooms: false },
+      { groupId: 'g1' },
       { headers: { Authorization: 'Bearer token' } }
     );
     expect(mocks.batchGetRoomGroups).toHaveBeenCalledWith(
-      { groupIds: ['g1', 'missing'], includeArchivedRooms: false },
+      { groupIds: ['g1', 'missing'] },
       { headers: { Authorization: 'Bearer token' } }
-    );
-  });
-
-  it('can request archived room entries in room groups', async () => {
-    mocks.listRoomGroups.mockResolvedValue({ groups: [] });
-    mocks.getRoomGroup.mockResolvedValue({ group: undefined });
-    mocks.batchGetRoomGroups.mockResolvedValue({ groups: [] });
-    const api = createRoomDirectoryAPI({ baseUrl: '/api/connect', bearerToken: null });
-
-    await api.listRoomGroups({ includeArchivedRooms: true });
-    await api.getRoomGroup('g1', { includeArchivedRooms: true });
-    await api.batchGetRoomGroups(['g1'], { includeArchivedRooms: true });
-
-    expect(mocks.listRoomGroups).toHaveBeenCalledWith(
-      { includeArchivedRooms: true },
-      { headers: undefined }
-    );
-    expect(mocks.getRoomGroup).toHaveBeenCalledWith(
-      { groupId: 'g1', includeArchivedRooms: true },
-      { headers: undefined }
-    );
-    expect(mocks.batchGetRoomGroups).toHaveBeenCalledWith(
-      { groupIds: ['g1'], includeArchivedRooms: true },
-      { headers: undefined }
     );
   });
 

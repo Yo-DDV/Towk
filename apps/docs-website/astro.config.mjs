@@ -113,8 +113,8 @@ export default defineConfig({
             {
               label: "chatto.api.v1",
               items: [
+                "reference/connectrpc-api/assets",
                 "reference/connectrpc-api/asset-uploads",
-                "reference/connectrpc-api/link-previews",
                 "reference/connectrpc-api/messages",
                 "reference/connectrpc-api/account",
                 "reference/connectrpc-api/notification-preferences",
@@ -125,7 +125,7 @@ export default defineConfig({
                 "reference/connectrpc-api/rooms",
                 "reference/connectrpc-api/server",
                 "reference/connectrpc-api/threads",
-                "reference/connectrpc-api/user-directory",
+                "reference/connectrpc-api/users",
                 "reference/connectrpc-api/viewer",
                 "reference/connectrpc-api/calls",
               ],

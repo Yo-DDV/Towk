@@ -15,11 +15,24 @@ import (
 )
 
 type roomTimelineAssembler struct {
-	api *API
+	api       *API
+	thumbnail attachmentThumbnailRequest
 }
 
 func newRoomTimelineAssembler(api *API) *roomTimelineAssembler {
-	return &roomTimelineAssembler{api: api}
+	return newRoomTimelineAssemblerWithThumbnail(api, defaultTimelineAttachmentThumbnail())
+}
+
+func defaultTimelineAttachmentThumbnail() attachmentThumbnailRequest {
+	return attachmentThumbnailRequest{
+		width:  960,
+		height: 800,
+		fit:    "contain",
+	}
+}
+
+func newRoomTimelineAssemblerWithThumbnail(api *API, thumbnail attachmentThumbnailRequest) *roomTimelineAssembler {
+	return &roomTimelineAssembler{api: api, thumbnail: thumbnail}
 }
 
 // buildPage turns projected room timeline entries into the public Connect view.
@@ -28,32 +41,7 @@ func newRoomTimelineAssembler(api *API) *roomTimelineAssembler {
 // Hydrating them here keeps the public API free of per-field resolver N+1s
 // and gives future clients one renderable page per request.
 func (a *roomTimelineAssembler) buildPage(ctx context.Context, viewerID string, kind core.RoomKind, events []*core.RoomEvent, hasOlder, hasNewer bool) (*apiv1.RoomTimelinePage, error) {
-	ctx = core.WithDEKRequestCache(ctx)
-
-	messageIDs := make([]string, 0, len(events))
-	for _, event := range events {
-		if event.GetMessagePosted() != nil {
-			messageIDs = append(messageIDs, event.Id)
-		}
-	}
-
-	reactionsByMessageID, err := a.api.core.GetReactionsBatch(ctx, messageIDs)
-	if err != nil {
-		return nil, err
-	}
-
-	h := &timelineHydrator{
-		api:                  a.api,
-		ctx:                  ctx,
-		viewerID:             viewerID,
-		kind:                 kind,
-		reactionsByMessageID: reactionsByMessageID,
-		userIDs:              make(map[string]struct{}),
-	}
-
-	apiEvents, err := parallel.MapNonNil(ctx, maxConnectAPIHydrationConcurrency, events, func(ctx context.Context, _ int, event *core.RoomEvent) (*apiv1.RoomTimelineEvent, error) {
-		return h.event(ctx, event)
-	})
+	apiEvents, h, err := a.hydrateEvents(ctx, viewerID, kind, events)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +57,41 @@ func (a *roomTimelineAssembler) buildPage(ctx context.Context, viewerID string, 
 		HasNewer: hasNewer,
 		Includes: &apiv1.RoomTimelineIncludes{Users: users},
 	}, nil
+}
+
+func (a *roomTimelineAssembler) hydrateEvents(ctx context.Context, viewerID string, kind core.RoomKind, events []*core.RoomEvent) ([]*apiv1.RoomTimelineEvent, *timelineHydrator, error) {
+	ctx = core.WithDEKRequestCache(ctx)
+
+	messageIDs := make([]string, 0, len(events))
+	for _, event := range events {
+		if event.GetMessagePosted() != nil {
+			messageIDs = append(messageIDs, event.Id)
+		}
+	}
+
+	reactionsByMessageID, err := a.api.core.GetReactionsBatch(ctx, messageIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	h := &timelineHydrator{
+		api:                  a.api,
+		ctx:                  ctx,
+		viewerID:             viewerID,
+		kind:                 kind,
+		reactionsByMessageID: reactionsByMessageID,
+		userIDs:              make(map[string]struct{}),
+		thumbnail:            a.thumbnail,
+	}
+
+	apiEvents, err := parallel.MapNonNil(ctx, maxConnectAPIHydrationConcurrency, events, func(ctx context.Context, _ int, event *core.RoomEvent) (*apiv1.RoomTimelineEvent, error) {
+		return h.event(ctx, event)
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return apiEvents, h, nil
 }
 
 func (a *roomTimelineAssembler) buildThreadPage(ctx context.Context, viewerID string, kind core.RoomKind, root *core.RoomEvent, replies *core.RoomEventsResult, includeRoot bool) (*apiv1.RoomTimelinePage, error) {
@@ -107,6 +130,7 @@ func (a *roomTimelineAssembler) hydrateEvent(ctx context.Context, viewerID strin
 		kind:                 kind,
 		reactionsByMessageID: reactionsByMessageID,
 		userIDs:              make(map[string]struct{}),
+		thumbnail:            a.thumbnail,
 	}
 	apiEvent, err := h.event(ctx, &core.RoomEvent{Event: event})
 	if err != nil {
@@ -127,6 +151,7 @@ type timelineHydrator struct {
 	reactionsByMessageID map[string][]core.ReactionSummary
 	userMu               sync.Mutex
 	userIDs              map[string]struct{}
+	thumbnail            attachmentThumbnailRequest
 }
 
 func (h *timelineHydrator) event(ctx context.Context, event *core.RoomEvent) (*apiv1.RoomTimelineEvent, error) {
@@ -147,7 +172,9 @@ func (h *timelineHydrator) event(ctx context.Context, event *core.RoomEvent) (*a
 		if err != nil {
 			return nil, err
 		}
-		apiEvent.Event = &apiv1.RoomTimelineEvent_MessagePosted{MessagePosted: message}
+		apiEvent.Event = &apiv1.RoomTimelineEvent_MessagePosted{
+			MessagePosted: &apiv1.RoomMessagePosted{Message: message},
+		}
 	case *corev1.Event_RoomCreated:
 		apiEvent.Event = &apiv1.RoomTimelineEvent_RoomCreated{RoomCreated: roomEvent(payload.RoomCreated.GetRoomId())}
 	case *corev1.Event_RoomUpdated:
@@ -169,9 +196,12 @@ func (h *timelineHydrator) event(ctx context.Context, event *core.RoomEvent) (*a
 	return apiEvent, nil
 }
 
-func (h *timelineHydrator) messagePosted(ctx context.Context, event *core.RoomEvent, payload *corev1.MessagePostedEvent) (*apiv1.RoomTimelineMessagePosted, error) {
-	message := &apiv1.RoomTimelineMessagePosted{
+func (h *timelineHydrator) messagePosted(ctx context.Context, event *core.RoomEvent, payload *corev1.MessagePostedEvent) (*apiv1.Message, error) {
+	message := &apiv1.Message{
+		Id:                        event.Id,
 		RoomId:                    payload.GetRoomId(),
+		CreatedAt:                 event.CreatedAt,
+		ActorId:                   event.ActorId,
 		InReplyTo:                 payload.GetInReplyTo(),
 		ThreadRootEventId:         payload.GetInThread(),
 		EchoOfEventId:             payload.GetEchoOfEventId(),
@@ -220,8 +250,12 @@ func (h *timelineHydrator) messagePosted(ctx context.Context, event *core.RoomEv
 	return message, nil
 }
 
-func (h *timelineHydrator) attachments(roomID, messageEventID string, attachments []*corev1.Attachment) []*apiv1.RoomTimelineAttachment {
-	result := make([]*apiv1.RoomTimelineAttachment, 0, len(attachments))
+func (h *timelineHydrator) attachments(roomID, messageEventID string, attachments []*corev1.Attachment) []*apiv1.MessageAttachment {
+	result := make([]*apiv1.MessageAttachment, 0, len(attachments))
+	thumbnail := h.thumbnail
+	if thumbnail.width <= 0 || thumbnail.height <= 0 || thumbnail.fit == "" {
+		thumbnail = defaultTimelineAttachmentThumbnail()
+	}
 	for _, attachment := range attachments {
 		if attachment == nil {
 			continue
@@ -233,8 +267,8 @@ func (h *timelineHydrator) attachments(roomID, messageEventID string, attachment
 			attachment.MessageBodyId = messageEventID
 		}
 		assetURL := h.api.core.GetStableAttachmentAssetURL(attachment.Id, h.viewerID)
-		thumbnailURL := h.api.core.GetStableTransformedAttachmentAssetURL(attachment.Id, h.viewerID, 960, 800, "contain")
-		result = append(result, &apiv1.RoomTimelineAttachment{
+		thumbnailURL := h.api.core.GetStableTransformedAttachmentAssetURL(attachment.Id, h.viewerID, thumbnail.width, thumbnail.height, thumbnail.fit)
+		result = append(result, &apiv1.MessageAttachment{
 			Id:                attachment.Id,
 			Filename:          attachment.Filename,
 			ContentType:       attachment.ContentType,
@@ -248,7 +282,7 @@ func (h *timelineHydrator) attachments(roomID, messageEventID string, attachment
 	return result
 }
 
-func (h *timelineHydrator) videoProcessing(attachment *corev1.Attachment) *apiv1.RoomTimelineVideoProcessing {
+func (h *timelineHydrator) videoProcessing(attachment *corev1.Attachment) *apiv1.MessageVideoProcessing {
 	if attachment == nil || (!strings.HasPrefix(attachment.GetContentType(), "video/") && attachment.GetContentType() != "image/gif") {
 		return nil
 	}
@@ -263,8 +297,8 @@ func (h *timelineHydrator) videoProcessing(attachment *corev1.Attachment) *apiv1
 		if video == nil {
 			return nil
 		}
-		result := &apiv1.RoomTimelineVideoProcessing{
-			Status:          apiv1.RoomTimelineVideoProcessingStatus_ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_COMPLETED,
+		result := &apiv1.MessageVideoProcessing{
+			Status:          apiv1.MessageVideoProcessingStatus_MESSAGE_VIDEO_PROCESSING_STATUS_COMPLETED,
 			DurationMs:      video.GetDurationMs(),
 			Width:           video.GetWidth(),
 			Height:          video.GetHeight(),
@@ -287,7 +321,7 @@ func (h *timelineHydrator) videoProcessing(attachment *corev1.Attachment) *apiv1
 					size = asset.GetSize()
 				}
 			}
-			result.Variants = append(result.Variants, &apiv1.RoomTimelineVideoVariant{
+			result.Variants = append(result.Variants, &apiv1.MessageVideoVariant{
 				Quality:  variant.GetQuality(),
 				Width:    width,
 				Height:   height,
@@ -300,16 +334,16 @@ func (h *timelineHydrator) videoProcessing(attachment *corev1.Attachment) *apiv1
 
 	if failed := manifest.Failed; failed != nil {
 		reasonCode := assetProcessingFailureReasonCode(failed.GetFailureCode())
-		return &apiv1.RoomTimelineVideoProcessing{
-			Status:          apiv1.RoomTimelineVideoProcessingStatus_ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_FAILED,
+		return &apiv1.MessageVideoProcessing{
+			Status:          apiv1.MessageVideoProcessingStatus_MESSAGE_VIDEO_PROCESSING_STATUS_FAILED,
 			SourceAvailable: reasonCode != "original_missing" && h.assetSourceAvailable(attachment.GetId(), true),
 			ReasonCode:      reasonCode,
 		}
 	}
 
 	if manifest.Started != nil {
-		return &apiv1.RoomTimelineVideoProcessing{
-			Status:          apiv1.RoomTimelineVideoProcessingStatus_ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_PROCESSING,
+		return &apiv1.MessageVideoProcessing{
+			Status:          apiv1.MessageVideoProcessingStatus_MESSAGE_VIDEO_PROCESSING_STATUS_PROCESSING,
 			SourceAvailable: h.assetSourceAvailable(attachment.GetId(), true),
 		}
 	}
@@ -340,13 +374,13 @@ func (h *timelineHydrator) linkPreview(preview *corev1.LinkPreview) *apiv1.LinkP
 	return apiLinkPreview(h.api, preview)
 }
 
-func (h *timelineHydrator) reactions(messageEventID string) []*apiv1.RoomTimelineReaction {
+func (h *timelineHydrator) reactions(messageEventID string) []*apiv1.MessageReaction {
 	summaries := h.reactionsByMessageID[messageEventID]
-	result := make([]*apiv1.RoomTimelineReaction, 0, len(summaries))
+	result := make([]*apiv1.MessageReaction, 0, len(summaries))
 	for _, summary := range summaries {
 		previewUserIDs := firstN(summary.UserIDs, 5)
 		h.addUserIDs(previewUserIDs)
-		result = append(result, &apiv1.RoomTimelineReaction{
+		result = append(result, &apiv1.MessageReaction{
 			Emoji:          summary.Emoji,
 			Count:          int32(len(summary.UserIDs)),
 			HasReacted:     containsString(summary.UserIDs, h.viewerID),
@@ -376,15 +410,13 @@ func (h *timelineHydrator) users() (map[string]*apiv1.User, error) {
 		if user == nil {
 			user = core.DeletedUserReference(id)
 		}
-		summary := &apiv1.User{
-			Id:          user.Id,
-			Login:       user.Login,
-			DisplayName: user.DisplayName,
-			Deleted:     user.Deleted,
-		}
-		avatarURL, _ := h.api.core.GetUserAvatarURL(h.ctx, user.Id, &avatarWidth, &avatarHeight, "cover")
-		if avatarURL != "" {
-			summary.AvatarUrl = stringPtr(avatarURL)
+		summary, err := (&userService{api: h.api}).userSummary(h.ctx, user, &apiv1.UserAvatarOptions{
+			Width:  int32(avatarWidth),
+			Height: int32(avatarHeight),
+			Fit:    apiv1.UserAvatarFitMode_USER_AVATAR_FIT_MODE_COVER,
+		})
+		if err != nil {
+			return nil, err
 		}
 		result[id] = summary
 	}
@@ -414,8 +446,8 @@ func roomEvent(roomID string) *apiv1.RoomTimelineRoomEvent {
 	return &apiv1.RoomTimelineRoomEvent{RoomId: roomID}
 }
 
-func assetURLView(assetURL core.StableAssetURL) *apiv1.RoomTimelineAssetUrl {
-	return &apiv1.RoomTimelineAssetUrl{
+func assetURLView(assetURL core.StableAssetURL) *apiv1.MessageAssetUrl {
+	return &apiv1.MessageAssetUrl{
 		Url:       assetURL.URL,
 		ExpiresAt: timestamppb.New(assetURL.ExpiresAt),
 	}

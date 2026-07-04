@@ -58,19 +58,16 @@ describe('createNotificationAPI', () => {
   it('maps notification pages and sends bearer auth', async () => {
     mocks.listNotifications.mockResolvedValue({
       page: { totalCount: 2n, hasMore: true },
-      serverName: 'Remote',
       notifications: [
         {
           id: 'n1',
           createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
           actor: {
-            user: {
-              id: 'u1',
-              login: 'alice',
-              displayName: 'Alice',
-              deleted: false,
-              avatarUrl: 'https://cdn/avatar.webp'
-            },
+            id: 'u1',
+            login: 'alice',
+            displayName: 'Alice',
+            deleted: false,
+            avatarUrl: 'https://cdn/avatar.webp',
             presenceStatus: APIPresenceStatus.OFFLINE
           },
           kind: {
@@ -102,7 +99,6 @@ describe('createNotificationAPI', () => {
     expect(page).toEqual({
       totalCount: 2,
       hasMore: true,
-      serverName: 'Remote',
       items: [
         {
           kind: NotificationItemKind.Mention,
@@ -190,8 +186,8 @@ describe('createNotificationAPI', () => {
         }
       }
     };
-    mocks.getNotification.mockResolvedValue({ notification: item, serverName: 'Remote' });
-    mocks.batchGetNotifications.mockResolvedValue({ notifications: [item], serverName: 'Remote' });
+    mocks.getNotification.mockResolvedValue({ notification: item });
+    mocks.batchGetNotifications.mockResolvedValue({ notifications: [item] });
 
     const api = createNotificationAPI({
       baseUrl: 'https://remote.example.com/api/connect',
@@ -199,17 +195,13 @@ describe('createNotificationAPI', () => {
     });
 
     await expect(api.getNotification('n1')).resolves.toMatchObject({
-      item: {
-        kind: NotificationItemKind.Reply,
-        id: 'n1',
-        replyRoom: { id: 'room-1', name: 'general' }
-      },
-      serverName: 'Remote'
+      kind: NotificationItemKind.Reply,
+      id: 'n1',
+      replyRoom: { id: 'room-1', name: 'general' }
     });
-    await expect(api.batchGetNotifications(['n1', 'missing'])).resolves.toMatchObject({
-      items: [{ id: 'n1', kind: NotificationItemKind.Reply }],
-      serverName: 'Remote'
-    });
+    await expect(api.batchGetNotifications(['n1', 'missing'])).resolves.toEqual([
+      expect.objectContaining({ id: 'n1', kind: NotificationItemKind.Reply })
+    ]);
 
     expect(mocks.getNotification).toHaveBeenCalledWith(
       { notificationId: 'n1' },

@@ -10,7 +10,7 @@ import type {
   ListNotificationsResponse,
   NotificationItem as APINotificationItem,
 } from "@chatto/api-types/api/v1/notifications_pb";
-import type { UserProfile as APIUserProfile } from "@chatto/api-types/api/v1/users_pb";
+import type { User as APIUser } from "@chatto/api-types/api/v1/users_pb";
 import { PresenceStatus as APIPresenceStatus } from "@chatto/api-types/api/v1/presence_pb";
 import { PresenceStatus } from "./renderTypes.js";
 
@@ -96,17 +96,6 @@ export type NotificationPage = {
   items: NotificationItem[];
   totalCount: number;
   hasMore: boolean;
-  serverName: string | null;
-};
-
-export type NotificationItemResult = {
-  item: NotificationItem;
-  serverName: string | null;
-};
-
-export type NotificationItemsResult = {
-  items: NotificationItem[];
-  serverName: string | null;
 };
 
 export function createNotificationAPI(config: NotificationAPIConfig) {
@@ -151,16 +140,15 @@ export function createNotificationAPI(config: NotificationAPIConfig) {
 
     async getNotification(
       notificationId: string,
-    ): Promise<NotificationItemResult | null> {
+    ): Promise<NotificationItem | null> {
       try {
         const response = await client.getNotification(
           { notificationId },
           { headers: headers() },
         );
-        const item = response.notification
+        return response.notification
           ? notificationItem(response.notification)
           : null;
-        return item ? { item, serverName: response.serverName || null } : null;
       } catch (err) {
         if (err instanceof ConnectError && err.code === Code.NotFound) {
           return null;
@@ -171,18 +159,15 @@ export function createNotificationAPI(config: NotificationAPIConfig) {
 
     async batchGetNotifications(
       notificationIds: string[],
-    ): Promise<NotificationItemsResult> {
+    ): Promise<NotificationItem[]> {
       const response = await client.batchGetNotifications(
         { notificationIds },
         { headers: headers() },
       );
-      return {
-        items: response.notifications.flatMap((item) => {
-          const mapped = notificationItem(item);
-          return mapped ? [mapped] : [];
-        }),
-        serverName: response.serverName || null,
-      };
+      return response.notifications.flatMap((item) => {
+        const mapped = notificationItem(item);
+        return mapped ? [mapped] : [];
+      });
     },
 
     async hasNotifications(): Promise<boolean> {
@@ -226,7 +211,6 @@ function notificationPage(
     }),
     totalCount: Number(response.page?.totalCount ?? 0),
     hasMore: response.page?.hasMore ?? false,
-    serverName: response.serverName || null,
   };
 }
 
@@ -305,16 +289,15 @@ function notificationSummary(
 }
 
 function notificationActor(
-  actor: APIUserProfile | undefined,
+  actor: APIUser | undefined,
 ): NotificationActor | null {
-  const summary = actor?.user;
-  if (!actor || !summary) return null;
+  if (!actor) return null;
   return {
-    id: summary.id,
-    login: summary.login,
-    displayName: summary.displayName,
-    deleted: summary.deleted,
-    avatarUrl: summary.avatarUrl ?? null,
+    id: actor.id,
+    login: actor.login,
+    displayName: actor.displayName,
+    deleted: actor.deleted,
+    avatarUrl: actor.avatarUrl ?? null,
     presenceStatus: apiPresenceStatus(actor.presenceStatus),
     customStatus: actor.customStatus
       ? {

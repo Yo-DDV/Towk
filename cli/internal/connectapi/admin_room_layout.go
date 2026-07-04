@@ -13,6 +13,26 @@ type adminRoomLayoutService struct {
 	api *API
 }
 
+func (s *adminRoomLayoutService) ListRoomGroups(ctx context.Context, req *connect.Request[adminv1.ListRoomGroupsRequest]) (*connect.Response[adminv1.ListRoomGroupsResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	canManageRoles, err := s.api.core.CanManageRoles(ctx, caller.UserID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	if !canManageRoles {
+		return nil, connectError(core.ErrPermissionDenied)
+	}
+
+	groups, err := s.getAdminRoomLayoutGroups(ctx, caller.UserID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&adminv1.ListRoomGroupsResponse{Groups: groups}), nil
+}
+
 func (s *adminRoomLayoutService) CreateRoomGroup(ctx context.Context, req *connect.Request[adminv1.CreateRoomGroupRequest]) (*connect.Response[adminv1.CreateRoomGroupResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
@@ -169,7 +189,13 @@ func (s *adminRoomLayoutService) getAdminRoomLayoutGroups(ctx context.Context, u
 	}
 	apiGroups := make([]*adminv1.AdminRoomLayoutGroup, 0, len(groups))
 	for _, group := range groups {
-		apiGroups = append(apiGroups, apiAdminRoomLayoutGroup(group, roomsByID))
+		apiGroup := apiAdminRoomLayoutGroup(group, roomsByID)
+		canCreateRoom, err := s.api.core.CanCreateRoom(ctx, userID, core.KindChannel, group.GetId())
+		if err != nil {
+			return nil, err
+		}
+		apiGroup.CanCreateRoom = canCreateRoom
+		apiGroups = append(apiGroups, apiGroup)
 	}
 	return apiGroups, nil
 }

@@ -111,14 +111,49 @@ import ReleaseHero from "../../../components/release-notes/ReleaseHero.astro";
   and switch discovery clients to
   `chatto.discovery.v1.ServerDiscoveryService.GetServer`; if you tested against an
   earlier 0.4.0 beta, review the generated API reference again.
-- Server member reads moved from `ServerMemberService` to `ServerService`: replace
+- Authenticated server state was split: replace `ServerService.GetServerState` with
+  `ServerService.GetMotd` for the member-visible MOTD and
+  `ServerService.GetRuntimeConfig` for runtime settings. Public server metadata remains
+  available through `chatto.discovery.v1.ServerDiscoveryService.GetServer`.
+- Server-wide user/member reads moved to `UserService`: replace
   `ServerMemberService.ListMembers`, `GetMember`, and `BatchGetMembers` with
-  `ServerService.ListMembers`, `GetMember`, and `BatchGetMembers`.
+  `UserService.ListUsers`, `GetUser`, and `BatchGetUsers`. Replace
+  `UserDirectoryService.GetUser` and `BatchGetUsers` with `UserService.GetUser`
+  and `UserService.BatchGetUsers`.
+- `UserProfile` was folded into `User`. Presence and custom status now live
+  directly on `User`; `DirectoryMember.profile` is now `DirectoryMember.user`,
+  and notification actors, call participants, viewer profiles, and user
+  includes also return the canonical `User` shape.
 - Room member reads moved from `RoomMemberService` to `RoomService`: replace
   `RoomMemberService.ListMembers`, `GetMember`, and `BatchGetMembers` with
   `RoomService.ListMembers`, `GetMember`, and `BatchGetMembers`. Room moderation RPCs
   were also shortened from `RoomService.ListRoomBans`, `BanRoomMember`, and
   `UnbanRoomMember` to `ListBans`, `BanMember`, and `UnbanMember`.
+- Room directory responses now return `RoomWithViewerState` entries with viewer
+  state and capability fields next to `room`. Replace `DirectoryRoom.viewer_state.*`
+  reads with direct fields such as `is_member`, `has_unread`, and `can_join_room`.
+- Message attachment URL refreshes moved to room-scoped asset reads: replace
+  `MessageService.RefreshMessageAttachmentUrls` with `AssetService.GetAsset` and
+  `MessageService.BatchRefreshMessageAttachmentUrls` with `AssetService.BatchGetAssets`.
+  `MessageService.GetMessage` and `BatchGetMessages` still return message attachment
+  metadata, but custom thumbnail options belong to the asset read RPCs.
+- Message permalink resolution was folded into `MessageService.GetMessage`: replace
+  `MessageService.ResolveMessageLinkTarget` with `GetMessage` and use the returned
+  message's `thread_root_event_id` to decide whether to open a thread.
+- Link preview fetching was folded into `MessageService`: replace
+  `LinkPreviewService.FetchLinkPreview` with `MessageService.FetchLinkPreview`.
+  `CreateMessageRequest.link_preview` was replaced by `link_preview_token`; clients
+  should pass the `preview_token` returned by `FetchLinkPreview` instead of sending
+  preview metadata.
+- Message posting no longer has a server-side large-mention confirmation challenge.
+  Remove `CreateMessageRequest.mention_confirmation_token` and handle any role,
+  `@all`, or `@here` confirmation UX in the client before calling
+  `MessageService.CreateMessage`. `CreateMessageResponse`, `UpdateMessageResponse`,
+  `GetMessageResponse`, and `BatchGetMessagesResponse` now return canonical `Message`
+  data; hydrate user/member details through `UserService.GetUser` or `BatchGetUsers`
+  when needed.
+- Notification responses no longer include `server_name`; clients should use the
+  connected server metadata they already have for labels and grouping.
 - Root-grade account lifecycle automation has moved to the local operator socket and
   `chatto operator user ...` commands. Enable `[operator_api]` for those workflows and
   update automation that used the earlier public admin lifecycle RPCs.

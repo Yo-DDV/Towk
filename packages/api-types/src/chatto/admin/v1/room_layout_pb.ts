@@ -132,6 +132,13 @@ export class AdminRoomLayoutGroup extends Message<AdminRoomLayoutGroup> {
    */
   items: AdminRoomLayoutItem[] = [];
 
+  /**
+   * Whether the viewer can create rooms in this group.
+   *
+   * @generated from field: bool can_create_room = 6;
+   */
+  canCreateRoom = false;
+
   constructor(data?: PartialMessage<AdminRoomLayoutGroup>) {
     super();
     proto3.util.initPartial(data, this);
@@ -144,6 +151,7 @@ export class AdminRoomLayoutGroup extends Message<AdminRoomLayoutGroup> {
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "items", kind: "message", T: AdminRoomLayoutItem, repeated: true },
+    { no: 6, name: "can_create_room", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AdminRoomLayoutGroup {
@@ -160,6 +168,80 @@ export class AdminRoomLayoutGroup extends Message<AdminRoomLayoutGroup> {
 
   static equals(a: AdminRoomLayoutGroup | PlainMessage<AdminRoomLayoutGroup> | undefined, b: AdminRoomLayoutGroup | PlainMessage<AdminRoomLayoutGroup> | undefined): boolean {
     return proto3.util.equals(AdminRoomLayoutGroup, a, b);
+  }
+}
+
+/**
+ * Request for the server-admin room group layout.
+ *
+ * @generated from message chatto.admin.v1.ListRoomGroupsRequest
+ */
+export class ListRoomGroupsRequest extends Message<ListRoomGroupsRequest> {
+  constructor(data?: PartialMessage<ListRoomGroupsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.ListRoomGroupsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRoomGroupsRequest {
+    return new ListRoomGroupsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRoomGroupsRequest {
+    return new ListRoomGroupsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRoomGroupsRequest {
+    return new ListRoomGroupsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListRoomGroupsRequest | PlainMessage<ListRoomGroupsRequest> | undefined, b: ListRoomGroupsRequest | PlainMessage<ListRoomGroupsRequest> | undefined): boolean {
+    return proto3.util.equals(ListRoomGroupsRequest, a, b);
+  }
+}
+
+/**
+ * Server-admin room group layout response.
+ *
+ * @generated from message chatto.admin.v1.ListRoomGroupsResponse
+ */
+export class ListRoomGroupsResponse extends Message<ListRoomGroupsResponse> {
+  /**
+   * Ordered room groups, including archived rooms the caller can manage.
+   *
+   * @generated from field: repeated chatto.admin.v1.AdminRoomLayoutGroup groups = 1;
+   */
+  groups: AdminRoomLayoutGroup[] = [];
+
+  constructor(data?: PartialMessage<ListRoomGroupsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.ListRoomGroupsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "groups", kind: "message", T: AdminRoomLayoutGroup, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListRoomGroupsResponse {
+    return new ListRoomGroupsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListRoomGroupsResponse {
+    return new ListRoomGroupsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListRoomGroupsResponse {
+    return new ListRoomGroupsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListRoomGroupsResponse | PlainMessage<ListRoomGroupsResponse> | undefined, b: ListRoomGroupsResponse | PlainMessage<ListRoomGroupsResponse> | undefined): boolean {
+    return proto3.util.equals(ListRoomGroupsResponse, a, b);
   }
 }
 

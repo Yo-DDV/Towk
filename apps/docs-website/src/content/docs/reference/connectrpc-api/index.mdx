@@ -26,15 +26,15 @@ For example, public server discovery is:
 POST /api/connect/chatto.discovery.v1.ServerDiscoveryService/GetServer
 ```
 
-`chatto.discovery.v1` server discovery is unauthenticated. Most other RPCs require an `Authorization: Bearer <token>` header, a capability token carried in the request, or a browser session when called by the bundled web client.
+`chatto.discovery.v1` server discovery is unauthenticated. Most other documented ConnectRPC services require an `Authorization: Bearer <token>` header or a browser session when called by the bundled web client.
 
 ## Authentication And Permissions
 
 [ServerDiscoveryService.GetServer](/reference/connectrpc-api/server-discovery/#chatto-discovery-v1-ServerDiscoveryService-GetServer) is public so clients can discover branding, registration state, and login providers before a user signs in.
 
-`chatto.auth.v1` contains public auth flows with their own security model, such as pending external identity confirmation. Those RPCs are unauthenticated at the session layer but require a valid flow token in the request.
+`chatto.auth.v1` external-identity confirmation calls are public but require short-lived capability tokens produced by the browser auth flow. See [External Login Providers](/guides/integrations/external-login-providers/) for login-provider discovery and sign-in configuration.
 
-Most `chatto.api.v1` calls require an authenticated user. Non-browser clients should send `Authorization: Bearer <token>`; browser clients can use the active Chatto session. See [External Login Providers](/guides/integrations/external-login-providers/) for login-provider discovery and sign-in configuration.
+Most `chatto.api.v1` calls require an authenticated user. Non-browser clients should send `Authorization: Bearer <token>`; browser clients can use the active Chatto session.
 
 `chatto.admin.v1` calls require authentication. Mutating calls and sensitive reads require the relevant server permission; a few catalog/layout reads are intentionally available to any authenticated user so clients can render assigned roles and sidebar layout. See [Permissions & Roles](/guides/planning/permissions/) for the permission model.
 
@@ -51,8 +51,8 @@ The API is split by who uses each part and how clients connect to it.
 **`chatto.auth.v1`**
 
 - **Transport:** ConnectRPC unary RPCs.
-- **Covers:** Public auth flows with capability-token authorization, such as pending external identity confirmation.
-- **Contract:** Public auth-flow API for clients that do not have a normal Chatto session yet, or that are completing a browser handoff.
+- **Covers:** Public external-identity confirmation steps backed by short-lived capability tokens.
+- **Contract:** Narrow auth-flow API for the bundled client and compatible login integrations.
 
 **`chatto.api.v1`**
 
@@ -83,7 +83,7 @@ Chatto exposes unauthenticated gRPC-compatible reflection for the public Connect
 /api/connect/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo
 ```
 
-Reflection lets tools resolve service and message descriptors without a local copy of the `.proto` files. Chatto limits reflection to public `chatto.auth.v1`, `chatto.discovery.v1`, `chatto.api.v1`, and `chatto.admin.v1` descriptors plus required imports.
+Reflection lets tools resolve service and message descriptors without a local copy of the `.proto` files. Chatto limits reflection to public descriptors plus required imports.
 
 Because Chatto mounts ConnectRPC under `/api/connect`, use tools that accept a full Connect URL, such as `buf curl`. gRPC tools that only dial services at the host root need a proxy or path rewrite.
 
@@ -210,7 +210,7 @@ Use the service pages below for request and response fields. Shared messages and
 
 ### chatto.auth.v1
 
-- [ExternalIdentityAuthService](/reference/connectrpc-api/external-identity-auth/) - Capability-token external identity authentication RPCs.
+- [ExternalIdentityAuthService](/reference/connectrpc-api/external-identity-auth/) - Public external-identity confirmation and capability-token auth-flow RPCs.
 
 ### chatto.discovery.v1
 
@@ -218,9 +218,9 @@ Use the service pages below for request and response fields. Shared messages and
 
 ### chatto.api.v1
 
+- [AssetService](/reference/connectrpc-api/assets/) - Room-scoped asset metadata and signed URL read RPCs.
 - [AssetUploadService](/reference/connectrpc-api/asset-uploads/) - Chunked room-scoped attachment upload RPCs.
-- [LinkPreviewService](/reference/connectrpc-api/link-previews/) - Link preview fetch RPCs.
-- [MessageService](/reference/connectrpc-api/messages/) - Message creation, editing, deletion, permalink, reaction, link-preview, and attachment RPCs.
+- [MessageService](/reference/connectrpc-api/messages/) - Message creation, editing, deletion, composer link-preview, reaction, and attachment RPCs.
 - [MyAccountService](/reference/connectrpc-api/account/) - Self-service account, profile, avatar, presence, status, external identity, and settings RPCs for the authenticated user.
 - [NotificationPreferencesService](/reference/connectrpc-api/notification-preferences/) - Server and room notification preference RPCs.
 - [NotificationService](/reference/connectrpc-api/notifications/) - Notification listing, counts, checks, and dismissal RPCs.
@@ -228,9 +228,9 @@ Use the service pages below for request and response fields. Shared messages and
 - [RoleService](/reference/connectrpc-api/roles/) - Authenticated role catalog read RPCs.
 - [RoomDirectoryService](/reference/connectrpc-api/room-directory/) - Room navigation, room group, and room viewer-state RPCs.
 - [RoomService](/reference/connectrpc-api/rooms/) - Room lifecycle, timeline, read-state, membership, direct-message, typing indicator, and moderation RPCs.
-- [ServerService](/reference/connectrpc-api/server/) - Authenticated server profile, runtime configuration, and member directory RPCs.
+- [ServerService](/reference/connectrpc-api/server/) - Authenticated server MOTD and runtime configuration RPCs.
 - [ThreadService](/reference/connectrpc-api/threads/) - Thread timeline, read-state, follow, and followed-thread listing RPCs.
-- [UserDirectoryService](/reference/connectrpc-api/user-directory/) - Authenticated public user profile lookup RPCs.
+- [UserService](/reference/connectrpc-api/users/) - Authenticated server-wide user directory RPCs.
 - [ViewerService](/reference/connectrpc-api/viewer/) - Authenticated viewer profile, preferences, and capability RPCs.
 - [VoiceCallService](/reference/connectrpc-api/calls/) - Voice and video call state and token RPCs.
 

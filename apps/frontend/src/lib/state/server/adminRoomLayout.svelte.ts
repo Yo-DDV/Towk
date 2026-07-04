@@ -1,4 +1,3 @@
-import { adminRoomGroupsFromDirectoryGroups } from '$lib/api-client/adminRoomLayout';
 import type {
   AdminRoomGroup,
   AdminRoomInfo,
@@ -7,7 +6,6 @@ import type {
   AdminSidebarItem,
   AdminSidebarLinkInfo
 } from '$lib/api-client/adminRoomLayout';
-import type { RoomDirectoryAPI } from '$lib/api-client/roomDirectory';
 import type { RoomCommandAPI } from '$lib/api-client/rooms';
 import { RoomEventKind, roomEventKind, type RoomEventKindSource } from '$lib/render/eventKinds';
 import { SvelteMap } from 'svelte/reactivity';
@@ -242,11 +240,7 @@ export class AdminRoomLayoutStore {
 
   constructor(
     private readonly layoutAPI: AdminRoomLayoutAPI,
-    private readonly directoryAPI: Pick<RoomDirectoryAPI, 'listRoomGroups'>,
-    private readonly roomAPI: Pick<
-      RoomCommandAPI,
-      'updateRoom' | 'archiveRoom' | 'unarchiveRoom' | 'updateRoomUniversal'
-    >,
+    private readonly roomAPI: Pick<RoomCommandAPI, 'updateRoom' | 'archiveRoom' | 'unarchiveRoom'>,
     private readonly now: () => number = () => Date.now()
   ) {}
 
@@ -258,9 +252,7 @@ export class AdminRoomLayoutStore {
     const thisLoad = ++this.#loadId;
     this.isRefreshing = true;
     try {
-      const groups = adminRoomGroupsFromDirectoryGroups(
-        await this.directoryAPI.listRoomGroups({ includeArchivedRooms: true })
-      );
+      const groups = await this.layoutAPI.listRoomGroups();
       if (this.#loadId !== thisLoad) return;
 
       this.groups = normalizeGroups(groups);
@@ -391,7 +383,7 @@ export class AdminRoomLayoutStore {
   async updateRoomUniversal(roomId: string, isUniversal: boolean): Promise<StoreResult> {
     this.universalRoomId = roomId;
     try {
-      await this.roomAPI.updateRoomUniversal(roomId, isUniversal);
+      await this.roomAPI.updateRoom({ roomId, universal: isUniversal });
       this.markMutation();
       await this.refresh();
       return { ok: true };

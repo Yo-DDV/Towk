@@ -2,17 +2,17 @@ import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
 import { FitMode } from './renderTypes.js';
 import type { ExpiringAssetUrl, RefreshedAttachmentUrls } from './attachmentUrls.js';
 import {
-  AttachmentFitMode,
-  AttachmentThumbnailOptions
+  AssetFitMode,
+  AssetThumbnailOptions
 } from '@chatto/api-types/api/v1/attachments_pb';
-import { MessageService } from '@chatto/api-types/api/v1/messages_connect';
+import { AssetService } from '@chatto/api-types/api/v1/attachments_connect';
 import { RoomService } from '@chatto/api-types/api/v1/rooms_connect';
 import {
-  RoomTimelineVideoProcessingStatus,
-  type RoomTimelineAssetUrl,
-  type RoomTimelineAttachment,
-  type RoomTimelineVideoProcessing
-} from '@chatto/api-types/api/v1/room_timeline_pb';
+  MessageVideoProcessingStatus,
+  type MessageAssetUrl,
+  type MessageAttachment,
+  type MessageVideoProcessing
+} from '@chatto/api-types/api/v1/message_types_pb';
 
 export type AttachmentAPIConfig = {
   serverId?: string;
@@ -71,20 +71,15 @@ export type AttachmentAPI = {
     offset: number;
     thumbnail: AttachmentRefreshOptions;
   }): Promise<RoomFilesPage>;
-  refreshMessageAttachmentUrls(
+  refreshAssetUrls(
     roomId: string,
-    eventId: string,
+    assetIds: string[],
     thumbnail: AttachmentRefreshOptions
   ): Promise<Map<string, RefreshedAttachmentUrls>>;
-  batchRefreshMessageAttachmentUrls(
-    roomId: string,
-    eventIds: string[],
-    thumbnail: AttachmentRefreshOptions
-  ): Promise<Map<string, Map<string, RefreshedAttachmentUrls>>>;
 };
 
 export function createAttachmentAPI(config: AttachmentAPIConfig): AttachmentAPI {
-  const messages = createChattoClient(MessageService, config);
+  const assets = createChattoClient(AssetService, config);
   const rooms = createChattoClient(RoomService, config);
   const headers = () => authHeaders(config);
   return {
@@ -107,37 +102,18 @@ export function createAttachmentAPI(config: AttachmentAPIConfig): AttachmentAPI 
         return handleAuthError(config, err);
       }
     },
-    async refreshMessageAttachmentUrls(roomId, eventId, thumbnail) {
+    async refreshAssetUrls(roomId, assetIds, thumbnail) {
+      if (assetIds.length === 0) return new Map();
       try {
-        const response = await messages.refreshMessageAttachmentUrls(
+        const response = await assets.batchGetAssets(
           {
             roomId,
-            eventId,
+            assetIds,
             thumbnail: thumbnailOptions(thumbnail)
           },
           { headers: headers() }
         );
-        return refreshedAttachmentUrlMap(response.attachments);
-      } catch (err) {
-        return handleAuthError(config, err);
-      }
-    },
-    async batchRefreshMessageAttachmentUrls(roomId, eventIds, thumbnail) {
-      try {
-        const response = await messages.batchRefreshMessageAttachmentUrls(
-          {
-            roomId,
-            eventIds,
-            thumbnail: thumbnailOptions(thumbnail)
-          },
-          { headers: headers() }
-        );
-        return new Map(
-          response.messages.map((message) => [
-            message.eventId,
-            refreshedAttachmentUrlMap(message.attachments)
-          ])
-        );
+        return refreshedAttachmentUrlMap(response.assets);
       } catch (err) {
         return handleAuthError(config, err);
       }
@@ -146,26 +122,17 @@ export function createAttachmentAPI(config: AttachmentAPIConfig): AttachmentAPI 
 }
 
 function refreshedAttachmentUrlMap(
-  attachments: readonly {
-    attachmentId: string;
-    assetUrl?: RoomTimelineAssetUrl;
-    thumbnailAssetUrl?: RoomTimelineAssetUrl;
-    videoThumbnailAssetUrl?: RoomTimelineAssetUrl;
-    variants: readonly {
-      quality: string;
-      assetUrl?: RoomTimelineAssetUrl;
-    }[];
-  }[]
+  attachments: readonly MessageAttachment[]
 ): Map<string, RefreshedAttachmentUrls> {
   return new Map(
     attachments.map((attachment) => [
-      attachment.attachmentId,
+      attachment.id,
       {
         assetUrl: assetUrl(attachment.assetUrl),
         thumbnailAssetUrl: assetUrl(attachment.thumbnailAssetUrl),
-        videoThumbnailAssetUrl: assetUrl(attachment.videoThumbnailAssetUrl),
+        videoThumbnailAssetUrl: assetUrl(attachment.videoProcessing?.thumbnailAssetUrl),
         variantAssetUrls: new Map(
-          attachment.variants.map(
+          (attachment.videoProcessing?.variants ?? []).map(
             (variant) => [variant.quality, assetUrl(variant.assetUrl)] as const
           )
         )
@@ -174,11 +141,11 @@ function refreshedAttachmentUrlMap(
   );
 }
 
-function thumbnailOptions(options: AttachmentRefreshOptions): AttachmentThumbnailOptions {
-  return new AttachmentThumbnailOptions({
+function thumbnailOptions(options: AttachmentRefreshOptions): AssetThumbnailOptions {
+  return new AssetThumbnailOptions({
     width: options.width,
     height: options.height,
-    fit: options.fit === FitMode.Contain ? AttachmentFitMode.CONTAIN : AttachmentFitMode.COVER
+    fit: options.fit === FitMode.Contain ? AssetFitMode.CONTAIN : AssetFitMode.COVER
   });
 }
 
@@ -186,7 +153,7 @@ function roomFileItem(item: {
   messageEventId: string;
   threadRootEventId: string;
   createdAt?: { toDate(): Date };
-  attachment?: RoomTimelineAttachment;
+  attachment?: MessageAttachment;
 }): RoomFileItem {
   return {
     messageEventId: item.messageEventId,
@@ -196,7 +163,7 @@ function roomFileItem(item: {
   };
 }
 
-function attachment(value?: RoomTimelineAttachment): RoomFileItem['attachment'] {
+function attachment(value?: MessageAttachment): RoomFileItem['attachment'] {
   return {
     id: value?.id ?? '',
     filename: value?.filename ?? '',
@@ -210,7 +177,7 @@ function attachment(value?: RoomTimelineAttachment): RoomFileItem['attachment'] 
 }
 
 function videoProcessing(
-  value?: RoomTimelineVideoProcessing
+  value?: MessageVideoProcessing
 ): NonNullable<RoomFileItem['attachment']['videoProcessing']> | null {
   if (!value) return null;
   const status = videoProcessingStatus(value.status);
@@ -234,21 +201,21 @@ function videoProcessing(
 }
 
 function videoProcessingStatus(
-  status: RoomTimelineVideoProcessingStatus
+  status: MessageVideoProcessingStatus
 ): NonNullable<RoomFileItem['attachment']['videoProcessing']>['status'] | null {
   switch (status) {
-    case RoomTimelineVideoProcessingStatus.PROCESSING:
+    case MessageVideoProcessingStatus.PROCESSING:
       return 'PROCESSING';
-    case RoomTimelineVideoProcessingStatus.COMPLETED:
+    case MessageVideoProcessingStatus.COMPLETED:
       return 'COMPLETED';
-    case RoomTimelineVideoProcessingStatus.FAILED:
+    case MessageVideoProcessingStatus.FAILED:
       return 'FAILED';
     default:
       return null;
   }
 }
 
-function assetUrl(value?: RoomTimelineAssetUrl): ExpiringAssetUrl | null {
+function assetUrl(value?: MessageAssetUrl): ExpiringAssetUrl | null {
   if (!value) return null;
   return {
     url: value.url,

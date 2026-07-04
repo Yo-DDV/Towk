@@ -3,37 +3,25 @@ syntax = "proto3";
 package chatto.api.v1;
 
 import "buf/validate/validate.proto";
-import "chatto/api/v1/attachments.proto";
+import "chatto/api/v1/link_previews.proto";
+import "chatto/api/v1/message_types.proto";
 import "chatto/api/v1/reactions.proto";
-import "chatto/api/v1/room_timeline.proto";
-
-// Link preview metadata accepted when creating a message.
-//
-// This request-only shape intentionally excludes response-only fields such as
-// generated image URLs.
-message MessageLinkPreviewInput {
-  // Previewed URL.
-  string url = 1 [(buf.validate.field).string.min_len = 1];
-  // Page or embed title, when selected by the client.
-  optional string title = 2;
-  // Page or embed description, when selected by the client.
-  optional string description = 3;
-  // Existing server asset ID for the preview image, when selected by the client.
-  optional string image_asset_id = 4;
-  // Site name, when known.
-  optional string site_name = 5;
-  // Embed provider or type, when recognized.
-  optional string embed_type = 6;
-  // Provider-specific embed ID, when recognized.
-  optional string embed_id = 7;
-}
 
 // Request to create a message in a room or thread.
 message CreateMessageRequest {
+  // Field 8 was `link_preview`, a client-provided metadata message used before
+  // CreateMessage accepted only server-issued link preview tokens.
+  reserved 8;
+  reserved "link_preview";
   // Field 9 was `attachments`, inline attachment bytes accepted before
   // AssetUploadService moved uploads into a dedicated chunked API.
   reserved 9;
   reserved "attachments";
+  // Field 7 was `mention_confirmation_token`, used by a server-enforced large
+  // mention confirmation flow before role mention confirmation became a
+  // client-only composer affordance.
+  reserved 7;
+  reserved "mention_confirmation_token";
 
   // Required. Room where the message should be created.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
@@ -47,30 +35,25 @@ message CreateMessageRequest {
   string in_reply_to = 5;
   // True to also echo a thread reply into the main room timeline.
   bool also_send_to_channel = 6;
-  // Short-lived token returned by a prior mention confirmation challenge.
-  string mention_confirmation_token = 7;
-  // Link preview selected by the client.
-  MessageLinkPreviewInput link_preview = 8;
-}
-
-// Large mention confirmation details for a message that was not posted.
-message MentionConfirmationChallenge {
-  // Number of people the message would notify.
-  int32 recipient_count = 1;
-  // Short-lived token to send back with the same message after user approval.
-  string token = 2;
+  // Short-lived token returned by FetchLinkPreview for the selected URL. The
+  // server resolves the token to cached, server-fetched metadata during post.
+  string link_preview_token = 10;
 }
 
 // Result of creating a message.
 message CreateMessageResponse {
-  oneof result {
-    // Renderable timeline event for the created message.
-    RoomTimelineEvent event = 1;
-    // Challenge shown when a message would notify many people.
-    MentionConfirmationChallenge mention_confirmation = 2;
-  }
-  // Related entities needed to render event when a message was created.
-  RoomTimelineIncludes includes = 3;
+  // Field 2 was `mention_confirmation`, used by a server-enforced large
+  // mention confirmation flow before role mention confirmation became a
+  // client-only composer affordance.
+  reserved 2;
+  reserved "mention_confirmation";
+  // Field 3 was `includes`, used before create responses were narrowed to the
+  // generated message.
+  reserved 3;
+  reserved "includes";
+
+  // Renderable message created by the request.
+  Message message = 1;
 }
 
 // Request to patch a message.
@@ -88,12 +71,15 @@ message UpdateMessageRequest {
 
 // Result of editing a message.
 message UpdateMessageResponse {
+  // Field 3 was `includes`, used before update responses were narrowed to the
+  // edited message.
+  reserved 3;
+  reserved "includes";
+
   // True when the edit was accepted.
   bool updated = 1;
-  // Renderable timeline event after the edit.
-  RoomTimelineEvent event = 2;
-  // Related entities needed to render event after the edit.
-  RoomTimelineIncludes includes = 3;
+  // Renderable message after the edit.
+  Message message = 2;
 }
 
 // Request to retract a message.
@@ -142,27 +128,40 @@ message DeleteLinkPreviewResponse {
   bool deleted = 1;
 }
 
-// Request to refresh signed attachment URLs for one message.
-message RefreshMessageAttachmentUrlsRequest {
-  // Required room ID.
+// Request to read one visible message.
+message GetMessageRequest {
+  // Field 3 was `thumbnail`, used before custom attachment URL hydration moved
+  // to AssetService.
+  reserved 3;
+  reserved "thumbnail";
+
+  // Required. Room containing the message.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
-  // Required message event ID.
+  // Required. Message event ID.
   string event_id = 2 [(buf.validate.field).string.min_len = 1];
-  // Thumbnail URL options. Defaults are applied when absent.
-  AttachmentThumbnailOptions thumbnail = 3;
 }
 
-// Response containing fresh signed URLs for the current message attachments.
-message RefreshMessageAttachmentUrlsResponse {
-  // Fresh URL bundle for each current attachment on the message.
-  repeated RefreshedAttachmentUrls attachments = 1;
+// Response containing one renderable message.
+message GetMessageResponse {
+  // Field 2 was `includes`, used before message read responses were narrowed
+  // to messages.
+  reserved 2;
+  reserved "includes";
+
+  // Renderable message.
+  Message message = 1;
 }
 
-// Request to refresh signed attachment URLs for many messages in one room.
-message BatchRefreshMessageAttachmentUrlsRequest {
-  // Required room ID.
+// Request to read many visible messages in one room.
+message BatchGetMessagesRequest {
+  // Field 3 was `thumbnail`, used before custom attachment URL hydration moved
+  // to AssetService.
+  reserved 3;
+  reserved "thumbnail";
+
+  // Required. Room containing the messages.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
-  // Required message event IDs. Missing, retracted, non-message, and
+  // Required. Message event IDs. Missing, retracted, non-message, and
   // wrong-room event IDs are omitted from the response.
   repeated string event_ids = 2 [(buf.validate.field).repeated = {
     min_items: 1
@@ -171,26 +170,25 @@ message BatchRefreshMessageAttachmentUrlsRequest {
       string: {min_len: 1}
     }
   }];
-  // Thumbnail URL options. Defaults are applied when absent.
-  AttachmentThumbnailOptions thumbnail = 3;
 }
 
-// Fresh signed attachment URLs for one visible message.
-message RefreshedMessageAttachmentUrls {
-  // Message event ID these attachment URLs belong to.
-  string event_id = 1;
-  // Fresh URL bundle for each current attachment on the message.
-  repeated RefreshedAttachmentUrls attachments = 2;
-}
+// Response containing renderable messages.
+message BatchGetMessagesResponse {
+  // Field 2 was `includes`, used before message read responses were narrowed
+  // to messages.
+  reserved 2;
+  reserved "includes";
 
-// Response containing fresh signed URLs for many visible messages.
-message BatchRefreshMessageAttachmentUrlsResponse {
-  // Refreshed messages in first-seen request order.
-  repeated RefreshedMessageAttachmentUrls messages = 1;
+  // Renderable messages in first-seen request order.
+  repeated Message messages = 1;
 }
 
 // Creates messages in room and thread timelines.
 service MessageService {
+  // Fetches and caches metadata for a composer URL. Authentication is required
+  // to avoid exposing the preview fetcher as an unauthenticated network proxy.
+  // Successful responses include a short-lived token accepted by CreateMessage.
+  rpc FetchLinkPreview(FetchLinkPreviewRequest) returns (FetchLinkPreviewResponse);
   // Creates a message for the current user. The user must be a room member and
   // must have message.post for room messages or message.post-in-thread for
   // thread replies. Echoing a thread reply also requires message.echo and
@@ -207,24 +205,16 @@ service MessageService {
   rpc DeleteAttachment(DeleteAttachmentRequest) returns (DeleteAttachmentResponse);
   // Removes the accepted link preview from the author's own message.
   rpc DeleteLinkPreview(DeleteLinkPreviewRequest) returns (DeleteLinkPreviewResponse);
-  // Refreshes signed URLs for the current attachments on one message.
-  // Authentication and room membership are required. Returns NOT_FOUND when the
-  // message does not exist, is not a current visible message, or belongs to a
-  // different room. Returns an empty attachment list when the message exists
-  // but currently has no attachments.
-  rpc RefreshMessageAttachmentUrls(RefreshMessageAttachmentUrlsRequest) returns (RefreshMessageAttachmentUrlsResponse);
-  // Refreshes signed URLs for the current attachments on multiple messages in
-  // one room. Authentication and room membership are required. Missing,
-  // retracted, non-message, and wrong-room event IDs are omitted. Results
-  // preserve first-seen request order and repeated event IDs are de-duplicated.
-  // Existing visible messages with no current attachments are returned with an
-  // empty attachment list.
-  rpc BatchRefreshMessageAttachmentUrls(BatchRefreshMessageAttachmentUrlsRequest) returns (BatchRefreshMessageAttachmentUrlsResponse);
-  // Resolves a permalink target to either the room timeline or a message
-  // thread, including thread-only replies that are not room timeline rows.
-  // Returns NOT_FOUND when the target message is missing or hidden and
-  // PERMISSION_DENIED when the room is inaccessible.
-  rpc ResolveMessageLinkTarget(ResolveMessageLinkTargetRequest) returns (ResolveMessageLinkTargetResponse);
+  // Reads one renderable message, including current body, attachment metadata,
+  // link preview, reactions, and thread metadata. Authentication and room
+  // membership are required. Returns NOT_FOUND when the event does not exist,
+  // is not a message, has been retracted, or belongs to a different room.
+  rpc GetMessage(GetMessageRequest) returns (GetMessageResponse);
+  // Reads many renderable messages in one room. Authentication and room
+  // membership are required. Missing, retracted, non-message, and wrong-room
+  // event IDs are omitted. Results preserve first-seen request order and
+  // repeated event IDs are de-duplicated.
+  rpc BatchGetMessages(BatchGetMessagesRequest) returns (BatchGetMessagesResponse);
   // Adds a reaction to a message. The user must be a room member and have
   // message.react in the target room.
   rpc AddReaction(AddReactionRequest) returns (AddReactionResponse);

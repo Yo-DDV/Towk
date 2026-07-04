@@ -27,12 +27,10 @@ first consumer.
   typing operations; split a resource out only when it needs an independent
   resource identity, authorization model, or CRUD/batch surface.
 - A scoped lifecycle service may own the small resource reads that make that
-  scope complete. Server membership reads belong on `ServerService` because
-  every authenticated user is implicitly a server member and the reads share
-  the authenticated server scope. Room membership reads and commands belong on
-  `RoomService` because their authorization and state are room-scoped alongside
-  room lifecycle, timeline, moderation, attachments, read-state, and typing
-  operations.
+  scope complete. Server-wide user directory reads belong on `UserService`.
+  Room membership reads and commands belong on `RoomService` because their
+  authorization and state are room-scoped alongside room lifecycle, timeline,
+  moderation, attachments, read-state, and typing operations.
 - Once a service name carries the scope, use concise resource method names such
   as `ListMembers`, `GetMember`, and `BatchGetMembers` rather than repeating
   the scope in every RPC name.
@@ -60,8 +58,7 @@ first consumer.
 - Keep cursor/window APIs separate when the model is not offset pagination, for
   example timeline cursors or event-log sequence scans.
 - Reuse canonical user shapes when they fit:
-  - `User` for public identity fields.
-  - `UserProfile` when presence/custom status is part of the result.
+  - `User` for public identity, avatar, presence, and custom-status fields.
   - `DirectoryMember` for directory/member rows with roles and
     membership-oriented metadata.
 - Add a new user-shaped message only when shared shapes cannot represent the

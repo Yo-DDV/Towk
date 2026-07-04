@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { User as APIUser, UserProfile as APIUserProfile } from '@chatto/api-types/api/v1/users_pb';
+import { DirectoryMember as APIDirectoryMember } from '@chatto/api-types/api/v1/member_directory_pb';
+import { User as APIUser } from '@chatto/api-types/api/v1/users_pb';
 import { createUserAPI, mapUserSummary } from '$lib/api-client/users';
 
 const mocks = vi.hoisted(() => ({
@@ -30,7 +31,7 @@ describe('createUserAPI', () => {
   it('loads user summaries in batches and sends bearer auth', async () => {
     mocks.batchGetUsers.mockResolvedValue({
       users: [
-        new APIUserProfile({
+        new APIDirectoryMember({
           user: new APIUser({
             id: 'U1',
             login: 'alice',

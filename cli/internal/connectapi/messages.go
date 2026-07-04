@@ -20,32 +20,26 @@ func (s *messageService) CreateMessage(ctx context.Context, req *connect.Request
 		return nil, err
 	}
 
+	linkPreview, err := s.api.core.ResolveLinkPreviewToken(ctx, req.Msg.GetLinkPreviewToken())
+	if err != nil {
+		return nil, connectError(err)
+	}
+
 	result, err := s.api.core.Messages().PostMessage(ctx, core.MessagePostInput{
-		ActorID:                  caller.UserID,
-		RoomID:                   req.Msg.RoomId,
-		Body:                     req.Msg.Body,
-		AttachmentAssetIDs:       append([]string(nil), req.Msg.GetAttachmentAssetIds()...),
-		ThreadRootEventID:        req.Msg.ThreadRootEventId,
-		InReplyTo:                req.Msg.InReplyTo,
-		AlsoSendToChannel:        req.Msg.AlsoSendToChannel,
-		MentionConfirmationToken: req.Msg.MentionConfirmationToken,
-		LinkPreview:              apiMessageLinkPreviewToCore(req.Msg.LinkPreview),
+		ActorID:            caller.UserID,
+		RoomID:             req.Msg.RoomId,
+		Body:               req.Msg.Body,
+		AttachmentAssetIDs: append([]string(nil), req.Msg.GetAttachmentAssetIds()...),
+		ThreadRootEventID:  req.Msg.ThreadRootEventId,
+		InReplyTo:          req.Msg.InReplyTo,
+		AlsoSendToChannel:  req.Msg.AlsoSendToChannel,
+		LinkPreview:        linkPreview,
 	})
 	if err != nil {
 		return nil, connectError(err)
 	}
 	if result == nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("message create returned no result"))
-	}
-	if challenge := result.MentionConfirmation; challenge != nil {
-		return connect.NewResponse(&apiv1.CreateMessageResponse{
-			Result: &apiv1.CreateMessageResponse_MentionConfirmation{
-				MentionConfirmation: &apiv1.MentionConfirmationChallenge{
-					RecipientCount: int32(challenge.RecipientCount),
-					Token:          challenge.Token,
-				},
-			},
-		}), nil
 	}
 	if result.Event == nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("message create returned no event"))
@@ -56,13 +50,12 @@ func (s *messageService) CreateMessage(ctx context.Context, req *connect.Request
 	if room, err := s.api.core.FindRoomByID(ctx, roomID); err == nil && room != nil {
 		kind = core.KindOfRoom(room)
 	}
-	apiEvent, includes, err := s.hydratePostedEvent(ctx, caller.UserID, kind, result.Event)
+	apiEvent, err := s.hydratePostedEvent(ctx, caller.UserID, kind, result.Event)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.CreateMessageResponse{
-		Result:   &apiv1.CreateMessageResponse_Event{Event: apiEvent},
-		Includes: includes,
+		Message: messageFromTimelineEvent(apiEvent),
 	}), nil
 }
 
@@ -82,14 +75,13 @@ func (s *messageService) UpdateMessage(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, connectError(err)
 	}
-	apiEvent, includes, err := newRoomTimelineAssembler(s.api).hydrateEvent(ctx, caller.UserID, kind, event)
+	apiEvent, err := s.hydratePostedEvent(ctx, caller.UserID, kind, event)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.UpdateMessageResponse{
-		Updated:  true,
-		Event:    apiEvent,
-		Includes: includes,
+		Updated: true,
+		Message: messageFromTimelineEvent(apiEvent),
 	}), nil
 }
 
@@ -143,10 +135,10 @@ func (s *messageService) DeleteLinkPreview(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&apiv1.DeleteLinkPreviewResponse{Deleted: true}), nil
 }
 
-func (s *messageService) hydratePostedEvent(ctx context.Context, viewerID string, kind core.RoomKind, event *corev1.Event) (*apiv1.RoomTimelineEvent, *apiv1.RoomTimelineIncludes, error) {
+func (s *messageService) hydratePostedEvent(ctx context.Context, viewerID string, kind core.RoomKind, event *corev1.Event) (*apiv1.RoomTimelineEvent, error) {
 	reactionsByMessageID, err := s.api.core.GetReactionsBatch(ctx, []string{event.Id})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	h := &timelineHydrator{
 		api:                  s.api,
@@ -155,34 +147,22 @@ func (s *messageService) hydratePostedEvent(ctx context.Context, viewerID string
 		kind:                 kind,
 		reactionsByMessageID: reactionsByMessageID,
 		userIDs:              make(map[string]struct{}),
+		thumbnail:            defaultTimelineAttachmentThumbnail(),
 	}
 	apiEvent, err := h.event(ctx, &core.RoomEvent{Event: event})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	users, err := h.users()
-	if err != nil {
-		return nil, nil, err
-	}
-	return apiEvent, &apiv1.RoomTimelineIncludes{Users: users}, nil
+	return apiEvent, nil
 }
 
-func apiMessageLinkPreviewToCore(input *apiv1.MessageLinkPreviewInput) *corev1.LinkPreview {
-	if input == nil {
+func messageFromTimelineEvent(event *apiv1.RoomTimelineEvent) *apiv1.Message {
+	if event == nil {
 		return nil
 	}
-	preview := &corev1.LinkPreview{
-		Url:         input.GetUrl(),
-		Title:       input.GetTitle(),
-		Description: input.GetDescription(),
-		SiteName:    input.GetSiteName(),
-		EmbedType:   input.GetEmbedType(),
+	posted := event.GetMessagePosted()
+	if posted == nil {
+		return nil
 	}
-	if imageAssetID := input.GetImageAssetId(); imageAssetID != "" {
-		preview.ImageAssetId = &imageAssetID
-	}
-	if embedID := input.GetEmbedId(); embedID != "" {
-		preview.EmbedId = &embedID
-	}
-	return preview
+	return posted.GetMessage()
 }

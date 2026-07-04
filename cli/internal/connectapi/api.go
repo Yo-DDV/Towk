@@ -76,6 +76,7 @@ func (a *API) Handlers() []Handler {
 	}
 
 	accountPath, accountHandler := apiv1connect.NewMyAccountServiceHandler(&accountService{api: a}, uploadOptions...)
+	assetPath, assetHandler := apiv1connect.NewAssetServiceHandler(&assetService{api: a}, options...)
 	assetUploadPath, assetUploadHandler := apiv1connect.NewAssetUploadServiceHandler(&assetUploadService{api: a}, assetUploadOptions...)
 	adminDiagnosticsPath, adminDiagnosticsHandler := adminv1connect.NewAdminDiagnosticsServiceHandler(&adminDiagnosticsService{api: a}, options...)
 	adminEventLogPath, adminEventLogHandler := adminv1connect.NewAdminEventLogServiceHandler(&adminEventLogService{api: a}, options...)
@@ -83,10 +84,10 @@ func (a *API) Handlers() []Handler {
 	adminServerPath, adminServerHandler := adminv1connect.NewAdminServerServiceHandler(&serverService{api: a}, uploadOptions...)
 	serverDiscoveryPath, serverDiscoveryHandler := discoveryv1connect.NewServerDiscoveryServiceHandler(&serverDiscoveryService{api: a}, options...)
 	serverPath, serverHandler := apiv1connect.NewServerServiceHandler(&serverService{api: a}, options...)
+	userPath, userHandler := apiv1connect.NewUserServiceHandler(&userService{api: a}, options...)
 	viewerPath, viewerHandler := apiv1connect.NewViewerServiceHandler(&viewerService{api: a}, options...)
 	externalAuthPath, externalAuthHandler := authv1connect.NewExternalIdentityAuthServiceHandler(&externalIdentityAuthService{api: a}, options...)
 	permissionPath, permissionHandler := adminv1connect.NewAdminPermissionServiceHandler(&permissionService{api: a}, options...)
-	linkPreviewPath, linkPreviewHandler := apiv1connect.NewLinkPreviewServiceHandler(&linkPreviewService{api: a}, options...)
 	messagePath, messageHandler := apiv1connect.NewMessageServiceHandler(&messageService{api: a}, options...)
 	notificationPath, notificationHandler := apiv1connect.NewNotificationServiceHandler(&notificationService{api: a}, options...)
 	prefsPath, prefsHandler := apiv1connect.NewNotificationPreferencesServiceHandler(&notificationPreferencesService{api: a}, options...)
@@ -97,10 +98,10 @@ func (a *API) Handlers() []Handler {
 	roomDirectoryPath, roomDirectoryHandler := apiv1connect.NewRoomDirectoryServiceHandler(&roomDirectoryService{api: a}, options...)
 	adminRoomLayoutPath, adminRoomLayoutHandler := adminv1connect.NewAdminRoomLayoutServiceHandler(&adminRoomLayoutService{api: a}, options...)
 	threadPath, threadHandler := apiv1connect.NewThreadServiceHandler(&threadService{api: a}, options...)
-	userPath, userHandler := apiv1connect.NewUserDirectoryServiceHandler(&userService{api: a}, options...)
 	voicePath, voiceHandler := apiv1connect.NewVoiceCallServiceHandler(&voiceCallService{api: a}, options...)
 	handlers := []Handler{
 		{ServicePath: accountPath, Handler: accountHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
+		{ServicePath: assetPath, Handler: assetHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: assetUploadPath, Handler: assetUploadHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: adminDiagnosticsPath, Handler: adminDiagnosticsHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: adminEventLogPath, Handler: adminEventLogHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
@@ -108,11 +109,11 @@ func (a *API) Handlers() []Handler {
 		{ServicePath: adminRoomLayoutPath, Handler: adminRoomLayoutHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: adminMemberPath, Handler: adminMemberHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: externalAuthPath, Handler: externalAuthHandler, AuthPolicy: AuthPolicyPublic},
-		{ServicePath: linkPreviewPath, Handler: linkPreviewHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: messagePath, Handler: messageHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: notificationPath, Handler: notificationHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: serverDiscoveryPath, Handler: serverDiscoveryHandler, AuthPolicy: AuthPolicyPublic},
 		{ServicePath: serverPath, Handler: serverHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
+		{ServicePath: userPath, Handler: userHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: viewerPath, Handler: viewerHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: permissionPath, Handler: permissionHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: prefsPath, Handler: prefsHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
@@ -121,7 +122,6 @@ func (a *API) Handlers() []Handler {
 		{ServicePath: rolePath, Handler: roleHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: roomPath, Handler: roomHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: roomDirectoryPath, Handler: roomDirectoryHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
-		{ServicePath: userPath, Handler: userHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: threadPath, Handler: threadHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 		{ServicePath: voicePath, Handler: voiceHandler, AuthPolicy: AuthPolicyAuthenticatedUser},
 	}

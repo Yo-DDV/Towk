@@ -79,24 +79,56 @@ func (s *roomService) GetRoomEventsAround(ctx context.Context, req *connect.Requ
 	}), nil
 }
 
-func (s *messageService) ResolveMessageLinkTarget(ctx context.Context, req *connect.Request[apiv1.ResolveMessageLinkTargetRequest]) (*connect.Response[apiv1.ResolveMessageLinkTargetResponse], error) {
+func (s *messageService) GetMessage(ctx context.Context, req *connect.Request[apiv1.GetMessageRequest]) (*connect.Response[apiv1.GetMessageResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.api.core.RoomTimelineReads().ResolveMessageLinkTarget(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId)
+	result, err := s.api.core.RoomTimelineReads().GetMessage(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId)
 	if err != nil {
 		return nil, connectError(err)
 	}
-	event, includes, err := newRoomTimelineAssembler(s.api).hydrateEvent(ctx, caller.UserID, result.Kind, result.Event)
+	events, _, err := newRoomTimelineAssembler(s.api).hydrateEvents(ctx, caller.UserID, result.Kind, []*core.RoomEvent{{Event: result.Event}})
+	if err != nil {
+		return nil, connectError(err)
+	}
+	var message *apiv1.Message
+	if len(events) > 0 {
+		message = messageFromTimelineEvent(events[0])
+	}
+
+	return connect.NewResponse(&apiv1.GetMessageResponse{
+		Message: message,
+	}), nil
+}
+
+func (s *messageService) BatchGetMessages(ctx context.Context, req *connect.Request[apiv1.BatchGetMessagesRequest]) (*connect.Response[apiv1.BatchGetMessagesResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.api.core.RoomTimelineReads().BatchGetMessages(ctx, caller.UserID, req.Msg.RoomId, req.Msg.GetEventIds())
 	if err != nil {
 		return nil, connectError(err)
 	}
 
-	return connect.NewResponse(&apiv1.ResolveMessageLinkTargetResponse{
-		Event:             event,
-		ThreadRootEventId: result.ThreadRootEventID,
-		Includes:          includes,
+	events := make([]*core.RoomEvent, 0, len(result.Events))
+	for _, event := range result.Events {
+		events = append(events, &core.RoomEvent{Event: event})
+	}
+	apiEvents, _, err := newRoomTimelineAssembler(s.api).hydrateEvents(ctx, caller.UserID, result.Kind, events)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	messages := make([]*apiv1.Message, 0, len(apiEvents))
+	for _, event := range apiEvents {
+		if message := messageFromTimelineEvent(event); message != nil {
+			messages = append(messages, message)
+		}
+	}
+
+	return connect.NewResponse(&apiv1.BatchGetMessagesResponse{
+		Messages: messages,
 	}), nil
 }
 

@@ -297,7 +297,7 @@ message RealtimeTypingEvent {
 
 // Presence-changed signal.
 //
-// The latest presence status is inline. Use `UserDirectoryService.GetUser` when
+// The latest presence status is inline. Use `UserService.GetUser` when
 // the surrounding user profile or custom status also needs refreshing.
 message RealtimePresenceChangedEvent {
   // User whose presence changed.
@@ -406,8 +406,8 @@ message RealtimeRoomMarkedAsReadEvent {
 
 // Server-profile signal.
 //
-// Public server profile fields are inline. Use `ServerService.GetServerState`
-// when authenticated clients need the broader server state snapshot.
+// Public server profile fields are inline. Use `ServerDiscoveryService.GetServer`
+// for public metadata and `ServerService.GetMotd` for the authenticated MOTD.
 message RealtimeServerUpdatedEvent {
   // Server display name.
   string name = 1;
@@ -421,8 +421,8 @@ message RealtimeServerUpdatedEvent {
 
 // User-profile signal.
 //
-// Basic profile fields are inline. Use `UserDirectoryService.GetUser` or
-// `UserDirectoryService.BatchGetUsers` for complete user-profile hydration.
+// Basic profile fields are inline. Use `UserService.GetUser` or
+// `UserService.BatchGetUsers` for complete user-profile hydration.
 message RealtimeUserProfileUpdatedEvent {
   // User whose profile changed.
   string user_id = 1;
@@ -436,7 +436,7 @@ message RealtimeUserProfileUpdatedEvent {
 
 // User-custom-status set signal.
 //
-// The latest custom status is inline. Use `UserDirectoryService.GetUser` when
+// The latest custom status is inline. Use `UserService.GetUser` when
 // clients need to refresh the complete user profile.
 message RealtimeUserCustomStatusSetEvent {
   // User whose status changed.
@@ -451,7 +451,7 @@ message RealtimeUserCustomStatusSetEvent {
 
 // User-custom-status cleared signal.
 //
-// Clear local custom status for `user_id`. Use `UserDirectoryService.GetUser`
+// Clear local custom status for `user_id`. Use `UserService.GetUser`
 // when clients need to refresh the complete user profile.
 message RealtimeUserCustomStatusClearedEvent {
   // User whose status was cleared.
@@ -492,10 +492,9 @@ message RealtimeServerMemberDeletedEvent {
 // Asset-processing signal.
 //
 // Message attachments are message-owned subresources. When
-// `message_event_id` is known, refresh signed URLs with
-// `MessageService.RefreshMessageAttachmentUrls` or
-// `MessageService.BatchRefreshMessageAttachmentUrls`; otherwise refetch the
-// affected attachment list or timeline window.
+// `message_event_id` is known, refetch message state with
+// `MessageService.GetMessage` or `MessageService.BatchGetMessages`; otherwise
+// refetch the affected attachment list or timeline window.
 message RealtimeAssetProcessingEvent {
   // Room containing the message that owns the asset, when known.
   optional string room_id = 1;
@@ -508,9 +507,8 @@ message RealtimeAssetProcessingEvent {
 // Asset-deleted signal.
 //
 // Remove local attachment state by `asset_id`. When the owning message is known,
-// clients can refresh that message's attachment URLs through
-// `MessageService.RefreshMessageAttachmentUrls` or refetch the timeline
-// window.
+// clients can refetch that message through `MessageService.GetMessage` or
+// refetch the timeline window.
 message RealtimeAssetDeletedEvent {
   // Room containing the message that owned the asset, when known.
   optional string room_id = 1;
@@ -548,7 +546,7 @@ enum RealtimeCallEventSource {
 //
 // Inline names are display hints. Hydrate referenced rooms through
 // `RoomDirectoryService.BatchGetRooms` and users through
-// `UserDirectoryService.BatchGetUsers` when local caches are missing or stale.
+// `UserService.BatchGetUsers` when local caches are missing or stale.
 message RealtimeMentionNotificationEvent {
   // Room where the mention occurred.
   string room_id = 1;
@@ -564,8 +562,8 @@ message RealtimeMentionNotificationEvent {
 //
 // Inline names and avatar URLs are display hints. Hydrate the DM room through
 // `RoomDirectoryService.GetRoom` or `RoomDirectoryService.BatchGetRooms`, and
-// the sender through `UserDirectoryService.GetUser` or
-// `UserDirectoryService.BatchGetUsers` when local caches are missing or stale.
+// the sender through `UserService.GetUser` or `UserService.BatchGetUsers` when
+// local caches are missing or stale.
 message RealtimeNewDirectMessageNotificationEvent {
   // DM room ID.
   string room_id = 1;

@@ -3,11 +3,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { createMessageAPI } from '$lib/api-client/messages';
-import {
-  MentionConfirmationChallenge,
-  CreateMessageResponse,
-  UpdateMessageResponse
-} from '@chatto/api-types/api/v1/messages_pb';
+import { CreateMessageResponse, UpdateMessageResponse } from '@chatto/api-types/api/v1/messages_pb';
 import {
   AssetUpload,
   AssetUploadStatus,
@@ -16,12 +12,7 @@ import {
   UploadChunkResponse,
   UploadedAttachmentAsset
 } from '@chatto/api-types/api/v1/asset_uploads_pb';
-import {
-  RoomTimelineEvent,
-  RoomTimelineIncludes,
-  RoomTimelineMessagePosted
-} from '@chatto/api-types/api/v1/room_timeline_pb';
-import { User } from '@chatto/api-types/api/v1/users_pb';
+import { Message } from '@chatto/api-types/api/v1/message_types_pb';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -32,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   deleteMessage: vi.fn(),
   deleteAttachment: vi.fn(),
   deleteLinkPreview: vi.fn(),
+  batchGetUsers: vi.fn(),
   createUpload: vi.fn(),
   uploadChunk: vi.fn(),
   getUpload: vi.fn(),
@@ -62,6 +54,8 @@ describe('createMessageAPI', () => {
     mocks.deleteMessage.mockReset();
     mocks.deleteAttachment.mockReset();
     mocks.deleteLinkPreview.mockReset();
+    mocks.batchGetUsers.mockReset();
+    mocks.batchGetUsers.mockResolvedValue({ users: [] });
     mocks.createUpload.mockReset();
     mocks.uploadChunk.mockReset();
     mocks.getUpload.mockReset();
@@ -74,6 +68,11 @@ describe('createMessageAPI', () => {
           uploadChunk: mocks.uploadChunk,
           getUpload: mocks.getUpload,
           completeUpload: mocks.completeUpload
+        };
+      }
+      if (service?.typeName === 'chatto.api.v1.UserService') {
+        return {
+          batchGetUsers: mocks.batchGetUsers
         };
       }
       return {
@@ -89,33 +88,28 @@ describe('createMessageAPI', () => {
   it('posts a message with bearer auth and maps the renderable event response', async () => {
     mocks.createMessage.mockResolvedValue(
       new CreateMessageResponse({
-        result: {
-          case: 'event',
-          value: new RoomTimelineEvent({
-            id: 'evt-1',
-            actorId: 'user-1',
-            createdAt: Timestamp.fromDate(new Date('2026-06-20T10:00:00Z')),
-            event: {
-              case: 'messagePosted',
-              value: new RoomTimelineMessagePosted({
-                roomId: 'room-1',
-                body: 'hello',
-                viewerIsFollowingThread: true
-              })
-            }
-          })
-        },
-        includes: new RoomTimelineIncludes({
-          users: {
-            'user-1': new User({
-              id: 'user-1',
-              login: 'alice',
-              displayName: 'Alice'
-            })
-          }
+        message: new Message({
+          id: 'evt-1',
+          actorId: 'user-1',
+          createdAt: Timestamp.fromDate(new Date('2026-06-20T10:00:00Z')),
+          roomId: 'room-1',
+          body: 'hello',
+          viewerIsFollowingThread: true
         })
       })
     );
+    mocks.batchGetUsers.mockResolvedValue({
+      users: [
+        {
+          user: {
+            id: 'user-1',
+            login: 'alice',
+            displayName: 'Alice',
+            deleted: false
+          }
+        }
+      ]
+    });
 
     const api = createMessageAPI({
       serverId: 'remote',
@@ -129,15 +123,8 @@ describe('createMessageAPI', () => {
       threadRootEventId: 'root-1',
       inReplyTo: 'reply-1',
       alsoSendToChannel: true,
-      mentionConfirmationToken: 'confirm-token',
       linkPreview: {
-        url: 'https://example.test',
-        title: 'Example',
-        description: null,
-        siteName: 'Example Site',
-        imageAssetId: 'asset-1',
-        embedType: null,
-        embedId: null
+        previewToken: 'cht_LPpreviewtoken'
       }
     });
 
@@ -152,51 +139,25 @@ describe('createMessageAPI', () => {
         threadRootEventId: 'root-1',
         inReplyTo: 'reply-1',
         alsoSendToChannel: true,
-        mentionConfirmationToken: 'confirm-token',
-        linkPreview: expect.objectContaining({
-          url: 'https://example.test',
-          imageAssetId: 'asset-1'
-        })
+        linkPreviewToken: 'cht_LPpreviewtoken'
       }),
       {
         headers: { Authorization: 'Bearer remote-token' }
       }
     );
+    expect(mocks.batchGetUsers).toHaveBeenCalledWith(
+      { userIds: ['user-1'] },
+      {
+        headers: { Authorization: 'Bearer remote-token' }
+      }
+    );
     expect(result).toMatchObject({
-      kind: 'event',
       event: {
         id: 'evt-1',
         actor: { id: 'user-1', displayName: 'Alice' },
         event: { kind: 'messagePosted', body: 'hello' }
       }
     });
-  });
-
-  it('returns large mention confirmation challenges without treating them as errors', async () => {
-    mocks.createMessage.mockResolvedValue(
-      new CreateMessageResponse({
-        result: {
-          case: 'mentionConfirmation',
-          value: new MentionConfirmationChallenge({
-            recipientCount: 12,
-            token: 'confirm-token'
-          })
-        }
-      })
-    );
-
-    const api = createMessageAPI({
-      baseUrl: 'https://remote.example.test/api/connect',
-      bearerToken: null
-    });
-
-    await expect(api.createMessage({ roomId: 'room-1', body: '@all hello' })).resolves.toEqual({
-      kind: 'mentionConfirmation',
-      recipientCount: 12,
-      token: 'confirm-token',
-      attachmentAssetIds: []
-    });
-    expect(mocks.createMessage).toHaveBeenCalledWith(expect.anything(), { headers: undefined });
   });
 
   it('uploads browser files through AssetUploadService and posts attachment asset IDs', async () => {
@@ -244,20 +205,12 @@ describe('createMessageAPI', () => {
     );
     mocks.createMessage.mockResolvedValue(
       new CreateMessageResponse({
-        result: {
-          case: 'event',
-          value: new RoomTimelineEvent({
-            id: 'evt-attachment',
-            actorId: 'user-1',
-            event: {
-              case: 'messagePosted',
-              value: new RoomTimelineMessagePosted({
-                roomId: 'room-1',
-                body: 'with file'
-              })
-            }
-          })
-        }
+        message: new Message({
+          id: 'evt-attachment',
+          actorId: 'user-1',
+          roomId: 'room-1',
+          body: 'with file'
+        })
       })
     );
 
@@ -270,9 +223,12 @@ describe('createMessageAPI', () => {
     await api.createMessage({
       roomId: 'room-1',
       body: 'with file',
-      attachments: [file]
+      attachments: [file],
+      threadRootEventId: 'root-1',
+      alsoSendToChannel: true
     });
 
+    const uploadRequest = mocks.createUpload.mock.calls[0][0];
     expect(mocks.createUpload).toHaveBeenCalledWith(
       expect.objectContaining({
         roomId: 'room-1',
@@ -283,6 +239,8 @@ describe('createMessageAPI', () => {
       }),
       { headers: undefined }
     );
+    expect(uploadRequest.threadRootEventId).toBeUndefined();
+    expect(uploadRequest.alsoSendToChannel).toBeUndefined();
     expect(mocks.uploadChunk).toHaveBeenCalledWith(
       expect.objectContaining({
         uploadId: 'upload-note',
@@ -301,6 +259,8 @@ describe('createMessageAPI', () => {
     const request = mocks.createMessage.mock.calls[0][0];
     expect(request.attachmentAssetIds).toEqual(['asset-note']);
     expect(request.attachments).toBeUndefined();
+    expect(request.threadRootEventId).toBe('root-1');
+    expect(request.alsoSendToChannel).toBe(true);
   });
 
   it('marks the server authentication stale on unauthenticated Connect errors', async () => {
@@ -321,29 +281,27 @@ describe('createMessageAPI', () => {
     mocks.updateMessage.mockResolvedValue(
       new UpdateMessageResponse({
         updated: true,
-        event: new RoomTimelineEvent({
+        message: new Message({
           id: 'event-1',
           actorId: 'user-1',
           createdAt: Timestamp.fromDate(new Date('2026-06-20T10:00:00Z')),
-          event: {
-            case: 'messagePosted',
-            value: new RoomTimelineMessagePosted({
-              roomId: 'room-1',
-              body: 'edited'
-            })
-          }
-        }),
-        includes: new RoomTimelineIncludes({
-          users: {
-            'user-1': new User({
-              id: 'user-1',
-              login: 'alice',
-              displayName: 'Alice'
-            })
-          }
+          roomId: 'room-1',
+          body: 'edited'
         })
       })
     );
+    mocks.batchGetUsers.mockResolvedValue({
+      users: [
+        {
+          user: {
+            id: 'user-1',
+            login: 'alice',
+            displayName: 'Alice',
+            deleted: false
+          }
+        }
+      ]
+    });
 
     const api = createMessageAPI({
       baseUrl: 'https://remote.example.test/api/connect',
@@ -373,6 +331,10 @@ describe('createMessageAPI', () => {
         body: 'edited',
         alsoSendToChannel: false
       },
+      { headers: { Authorization: 'Bearer remote-token' } }
+    );
+    expect(mocks.batchGetUsers).toHaveBeenCalledWith(
+      { userIds: ['user-1'] },
       { headers: { Authorization: 'Bearer remote-token' } }
     );
   });

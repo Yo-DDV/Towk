@@ -2,7 +2,6 @@ package connectapi
 
 import (
 	"context"
-	"strings"
 
 	"connectrpc.com/connect"
 	"hmans.de/chatto/internal/core"
@@ -11,6 +10,10 @@ import (
 )
 
 type attachmentMapper struct {
+	api *API
+}
+
+type assetService struct {
 	api *API
 }
 
@@ -41,7 +44,7 @@ func (s *roomService) ListRoomAttachments(ctx context.Context, req *connect.Requ
 		return nil, connectError(err)
 	}
 
-	thumbnail := attachmentThumbnailOptions(req.Msg.Thumbnail)
+	thumbnail := assetThumbnailOptions(req.Msg.Thumbnail)
 	mapper := attachmentMapper{api: s.api}
 	attachments := make([]*apiv1.RoomAttachmentListItem, 0, len(result.Items))
 	for _, item := range result.Items {
@@ -62,97 +65,48 @@ func (s *roomService) ListRoomAttachments(ctx context.Context, req *connect.Requ
 	}), nil
 }
 
-func (s *messageService) RefreshMessageAttachmentUrls(ctx context.Context, req *connect.Request[apiv1.RefreshMessageAttachmentUrlsRequest]) (*connect.Response[apiv1.RefreshMessageAttachmentUrlsResponse], error) {
+func (s *assetService) GetAsset(ctx context.Context, req *connect.Request[apiv1.GetAssetRequest]) (*connect.Response[apiv1.GetAssetResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	attachments, err := s.api.core.MessageAttachments(ctx, core.MessageAttachmentsInput{
+	asset, err := s.api.core.GetRoomAsset(ctx, core.RoomAssetInput{
 		ActorID: caller.UserID,
 		RoomID:  req.Msg.RoomId,
-		EventID: req.Msg.EventId,
+		AssetID: req.Msg.AssetId,
 	})
 	if err != nil {
 		return nil, connectError(err)
 	}
-
-	thumbnail := attachmentThumbnailOptions(req.Msg.Thumbnail)
 	mapper := attachmentMapper{api: s.api}
-	items := make([]*apiv1.RefreshedAttachmentUrls, 0, len(attachments))
-	for _, attachment := range attachments {
-		if refreshed := mapper.refreshedAttachmentUrls(attachment, caller.UserID, thumbnail); refreshed != nil {
-			items = append(items, refreshed)
-		}
-	}
-
-	return connect.NewResponse(&apiv1.RefreshMessageAttachmentUrlsResponse{
-		Attachments: items,
+	return connect.NewResponse(&apiv1.GetAssetResponse{
+		Asset: mapper.attachment(asset, caller.UserID, assetThumbnailOptions(req.Msg.Thumbnail)),
 	}), nil
 }
 
-func (s *messageService) BatchRefreshMessageAttachmentUrls(ctx context.Context, req *connect.Request[apiv1.BatchRefreshMessageAttachmentUrlsRequest]) (*connect.Response[apiv1.BatchRefreshMessageAttachmentUrlsResponse], error) {
+func (s *assetService) BatchGetAssets(ctx context.Context, req *connect.Request[apiv1.BatchGetAssetsRequest]) (*connect.Response[apiv1.BatchGetAssetsResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	sets, err := s.api.core.BatchMessageAttachments(ctx, core.BatchMessageAttachmentsInput{
+	assets, err := s.api.core.BatchGetRoomAssets(ctx, core.BatchRoomAssetsInput{
 		ActorID:  caller.UserID,
 		RoomID:   req.Msg.RoomId,
-		EventIDs: req.Msg.GetEventIds(),
+		AssetIDs: req.Msg.GetAssetIds(),
 	})
 	if err != nil {
 		return nil, connectError(err)
 	}
-
-	thumbnail := attachmentThumbnailOptions(req.Msg.Thumbnail)
+	thumbnail := assetThumbnailOptions(req.Msg.Thumbnail)
 	mapper := attachmentMapper{api: s.api}
-	messages := make([]*apiv1.RefreshedMessageAttachmentUrls, 0, len(sets))
-	for _, set := range sets {
-		if set == nil {
-			continue
-		}
-		attachments := make([]*apiv1.RefreshedAttachmentUrls, 0, len(set.Attachments))
-		for _, attachment := range set.Attachments {
-			if refreshed := mapper.refreshedAttachmentUrls(attachment, caller.UserID, thumbnail); refreshed != nil {
-				attachments = append(attachments, refreshed)
-			}
-		}
-		messages = append(messages, &apiv1.RefreshedMessageAttachmentUrls{
-			EventId:     set.EventID,
-			Attachments: attachments,
-		})
+	out := make([]*apiv1.MessageAttachment, 0, len(assets))
+	for _, asset := range assets {
+		out = append(out, mapper.attachment(asset, caller.UserID, thumbnail))
 	}
-
-	return connect.NewResponse(&apiv1.BatchRefreshMessageAttachmentUrlsResponse{
-		Messages: messages,
-	}), nil
+	return connect.NewResponse(&apiv1.BatchGetAssetsResponse{Assets: out}), nil
 }
 
-func refreshedVideoVariants(processing *apiv1.RoomTimelineVideoProcessing) []*apiv1.RoomTimelineVideoVariant {
-	if processing == nil {
-		return nil
-	}
-	return processing.GetVariants()
-}
-
-func (s *attachmentMapper) refreshedAttachmentUrls(attachment *corev1.Attachment, viewerID string, thumbnail attachmentThumbnailRequest) *apiv1.RefreshedAttachmentUrls {
-	if attachment == nil {
-		return nil
-	}
-	video := (&timelineHydrator{
-		api:      s.api,
-		viewerID: viewerID,
-	}).videoProcessing(attachment)
-	return &apiv1.RefreshedAttachmentUrls{
-		AttachmentId:           attachment.Id,
-		AssetUrl:               assetURLView(s.api.core.GetStableAttachmentAssetURL(attachment.Id, viewerID)),
-		ThumbnailAssetUrl:      assetURLView(s.api.core.GetStableTransformedAttachmentAssetURL(attachment.Id, viewerID, thumbnail.width, thumbnail.height, thumbnail.fit)),
-		VideoThumbnailAssetUrl: s.videoThumbnailAssetURL(attachment, viewerID),
-		Variants:               refreshedVideoVariants(video),
-	}
-}
-
-func (s *attachmentMapper) attachment(attachment *corev1.Attachment, viewerID string, thumbnail attachmentThumbnailRequest) *apiv1.RoomTimelineAttachment {
+func (s *attachmentMapper) attachment(attachment *corev1.Attachment, viewerID string, thumbnail attachmentThumbnailRequest) *apiv1.MessageAttachment {
 	if attachment == nil {
 		return nil
 	}
@@ -160,7 +114,7 @@ func (s *attachmentMapper) attachment(attachment *corev1.Attachment, viewerID st
 		api:      s.api,
 		viewerID: viewerID,
 	}
-	return &apiv1.RoomTimelineAttachment{
+	return &apiv1.MessageAttachment{
 		Id:                attachment.Id,
 		Filename:          attachment.Filename,
 		ContentType:       attachment.ContentType,
@@ -172,22 +126,7 @@ func (s *attachmentMapper) attachment(attachment *corev1.Attachment, viewerID st
 	}
 }
 
-func (s *attachmentMapper) videoThumbnailAssetURL(attachment *corev1.Attachment, viewerID string) *apiv1.RoomTimelineAssetUrl {
-	if attachment == nil || (!strings.HasPrefix(attachment.GetContentType(), "video/") && attachment.GetContentType() != "image/gif") {
-		return nil
-	}
-	manifest, ok := s.api.core.Assets.VideoAttachmentManifest(attachment.GetId())
-	if !ok || manifest == nil || manifest.Succeeded == nil || manifest.Succeeded.GetVideo() == nil {
-		return nil
-	}
-	thumbnailID := manifest.Succeeded.GetVideo().GetThumbnailAssetId()
-	if thumbnailID == "" {
-		return nil
-	}
-	return assetURLView(s.api.core.GetStableAttachmentAssetURL(thumbnailID, viewerID))
-}
-
-func attachmentThumbnailOptions(options *apiv1.AttachmentThumbnailOptions) attachmentThumbnailRequest {
+func assetThumbnailOptions(options *apiv1.AssetThumbnailOptions) attachmentThumbnailRequest {
 	width, height := 120, 120
 	fit := "cover"
 	if options != nil {
@@ -198,9 +137,9 @@ func attachmentThumbnailOptions(options *apiv1.AttachmentThumbnailOptions) attac
 			height = int(options.GetHeight())
 		}
 		switch options.GetFit() {
-		case apiv1.AttachmentFitMode_ATTACHMENT_FIT_MODE_CONTAIN:
+		case apiv1.AssetFitMode_ASSET_FIT_MODE_CONTAIN:
 			fit = "contain"
-		case apiv1.AttachmentFitMode_ATTACHMENT_FIT_MODE_COVER:
+		case apiv1.AssetFitMode_ASSET_FIT_MODE_COVER:
 			fit = "cover"
 		}
 	}

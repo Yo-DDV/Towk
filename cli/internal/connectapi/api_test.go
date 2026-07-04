@@ -62,6 +62,7 @@ func TestAPIHandlers(t *testing.T) {
 
 	want := []string{
 		"/" + apiv1connect.MyAccountServiceName + "/",
+		"/" + apiv1connect.AssetServiceName + "/",
 		"/" + apiv1connect.AssetUploadServiceName + "/",
 		"/" + adminv1connect.AdminServerServiceName + "/",
 		"/" + authv1connect.ExternalIdentityAuthServiceName + "/",
@@ -71,7 +72,6 @@ func TestAPIHandlers(t *testing.T) {
 		"/" + adminv1connect.AdminUserServiceName + "/",
 		"/" + grpcreflect.ReflectV1AlphaServiceName + "/",
 		"/" + grpcreflect.ReflectV1ServiceName + "/",
-		"/" + apiv1connect.LinkPreviewServiceName + "/",
 		"/" + apiv1connect.MessageServiceName + "/",
 		"/" + apiv1connect.NotificationServiceName + "/",
 		"/" + apiv1connect.NotificationPreferencesServiceName + "/",
@@ -84,7 +84,7 @@ func TestAPIHandlers(t *testing.T) {
 		"/" + discoveryv1connect.ServerDiscoveryServiceName + "/",
 		"/" + apiv1connect.ServerServiceName + "/",
 		"/" + apiv1connect.ThreadServiceName + "/",
-		"/" + apiv1connect.UserDirectoryServiceName + "/",
+		"/" + apiv1connect.UserServiceName + "/",
 		"/" + apiv1connect.ViewerServiceName + "/",
 		"/" + apiv1connect.VoiceCallServiceName + "/",
 	}
@@ -106,6 +106,7 @@ func TestAPIHandlerAuthPolicies(t *testing.T) {
 
 	want := map[string]AuthPolicy{
 		"/" + apiv1connect.MyAccountServiceName + "/":               AuthPolicyAuthenticatedUser,
+		"/" + apiv1connect.AssetServiceName + "/":                   AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.AssetUploadServiceName + "/":             AuthPolicyAuthenticatedUser,
 		"/" + adminv1connect.AdminServerServiceName + "/":           AuthPolicyAuthenticatedUser,
 		"/" + authv1connect.ExternalIdentityAuthServiceName + "/":   AuthPolicyPublic,
@@ -115,7 +116,6 @@ func TestAPIHandlerAuthPolicies(t *testing.T) {
 		"/" + adminv1connect.AdminUserServiceName + "/":             AuthPolicyAuthenticatedUser,
 		"/" + grpcreflect.ReflectV1AlphaServiceName + "/":           AuthPolicyPublic,
 		"/" + grpcreflect.ReflectV1ServiceName + "/":                AuthPolicyPublic,
-		"/" + apiv1connect.LinkPreviewServiceName + "/":             AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.MessageServiceName + "/":                 AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.NotificationServiceName + "/":            AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.NotificationPreferencesServiceName + "/": AuthPolicyAuthenticatedUser,
@@ -128,7 +128,7 @@ func TestAPIHandlerAuthPolicies(t *testing.T) {
 		"/" + discoveryv1connect.ServerDiscoveryServiceName + "/":   AuthPolicyPublic,
 		"/" + apiv1connect.ServerServiceName + "/":                  AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.ThreadServiceName + "/":                  AuthPolicyAuthenticatedUser,
-		"/" + apiv1connect.UserDirectoryServiceName + "/":           AuthPolicyAuthenticatedUser,
+		"/" + apiv1connect.UserServiceName + "/":                    AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.ViewerServiceName + "/":                  AuthPolicyAuthenticatedUser,
 		"/" + apiv1connect.VoiceCallServiceName + "/":               AuthPolicyAuthenticatedUser,
 	}
@@ -220,8 +220,10 @@ func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {
 	mux := http.NewServeMux()
 	rolePath, roleHandler := apiv1connect.NewRoleServiceHandler(env.publicRoles, HandlerOptions()...)
 	roomDirectoryPath, roomDirectoryHandler := apiv1connect.NewRoomDirectoryServiceHandler(env.directory, HandlerOptions()...)
+	assetPath, assetHandler := apiv1connect.NewAssetServiceHandler(env.assets, HandlerOptions()...)
 	messagePath, messageHandler := apiv1connect.NewMessageServiceHandler(env.messages, HandlerOptions()...)
 	serverPath, serverHandler := apiv1connect.NewServerServiceHandler(env.serverState, HandlerOptions()...)
+	userPath, userHandler := apiv1connect.NewUserServiceHandler(env.users, HandlerOptions()...)
 	roomPath, roomHandler := apiv1connect.NewRoomServiceHandler(env.rooms, HandlerOptions()...)
 	notificationPath, notificationHandler := apiv1connect.NewNotificationServiceHandler(env.notifications, HandlerOptions()...)
 	voicePath, voiceHandler := apiv1connect.NewVoiceCallServiceHandler(env.voice, HandlerOptions()...)
@@ -229,8 +231,10 @@ func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {
 	adminServerPath, adminServerHandler := adminv1connect.NewAdminServerServiceHandler(env.serverState, HandlerOptions()...)
 	mux.Handle(rolePath, roleHandler)
 	mux.Handle(roomDirectoryPath, roomDirectoryHandler)
+	mux.Handle(assetPath, assetHandler)
 	mux.Handle(messagePath, messageHandler)
 	mux.Handle(serverPath, serverHandler)
+	mux.Handle(userPath, userHandler)
 	mux.Handle(roomPath, roomHandler)
 	mux.Handle(notificationPath, notificationHandler)
 	mux.Handle(voicePath, voiceHandler)
@@ -241,8 +245,9 @@ func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {
 
 	roles := apiv1connect.NewRoleServiceClient(ts.Client(), ts.URL)
 	roomDirectory := apiv1connect.NewRoomDirectoryServiceClient(ts.Client(), ts.URL)
+	assets := apiv1connect.NewAssetServiceClient(ts.Client(), ts.URL)
 	messages := apiv1connect.NewMessageServiceClient(ts.Client(), ts.URL)
-	serverMembers := apiv1connect.NewServerServiceClient(ts.Client(), ts.URL)
+	users := apiv1connect.NewUserServiceClient(ts.Client(), ts.URL)
 	rooms := apiv1connect.NewRoomServiceClient(ts.Client(), ts.URL)
 	notifications := apiv1connect.NewNotificationServiceClient(ts.Client(), ts.URL)
 	voice := apiv1connect.NewVoiceCallServiceClient(ts.Client(), ts.URL)
@@ -293,18 +298,18 @@ func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {
 		t.Fatalf("too-many BatchGetRoomGroups code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 
-	if _, err := serverMembers.BatchGetMembers(context.Background(), connect.NewRequest(&apiv1.BatchGetServerMembersRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("empty BatchGetServerMembers code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := users.BatchGetUsers(context.Background(), connect.NewRequest(&apiv1.BatchGetUsersRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty BatchGetUsers code = %v, want invalid_argument", connect.CodeOf(err))
 	}
-	if _, err := serverMembers.BatchGetMembers(context.Background(), connect.NewRequest(&apiv1.BatchGetServerMembersRequest{UserIds: []string{""}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("empty-id BatchGetServerMembers code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := users.BatchGetUsers(context.Background(), connect.NewRequest(&apiv1.BatchGetUsersRequest{UserIds: []string{""}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty-id BatchGetUsers code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 	tooManyUserIDs := make([]string, 101)
 	for i := range tooManyUserIDs {
 		tooManyUserIDs[i] = fmt.Sprintf("user-%d", i)
 	}
-	if _, err := serverMembers.BatchGetMembers(context.Background(), connect.NewRequest(&apiv1.BatchGetServerMembersRequest{UserIds: tooManyUserIDs})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("too-many BatchGetServerMembers code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := users.BatchGetUsers(context.Background(), connect.NewRequest(&apiv1.BatchGetUsersRequest{UserIds: tooManyUserIDs})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("too-many BatchGetUsers code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 
 	if _, err := rooms.BatchGetMembers(context.Background(), connect.NewRequest(&apiv1.BatchGetRoomMembersRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -337,21 +342,38 @@ func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {
 		t.Fatalf("too-many BatchGetNotifications code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 
-	if _, err := messages.BatchRefreshMessageAttachmentUrls(context.Background(), connect.NewRequest(&apiv1.BatchRefreshMessageAttachmentUrlsRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("empty BatchRefreshMessageAttachmentUrls code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := messages.BatchGetMessages(context.Background(), connect.NewRequest(&apiv1.BatchGetMessagesRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty BatchGetMessages code = %v, want invalid_argument", connect.CodeOf(err))
 	}
-	if _, err := messages.BatchRefreshMessageAttachmentUrls(context.Background(), connect.NewRequest(&apiv1.BatchRefreshMessageAttachmentUrlsRequest{RoomId: "room", EventIds: []string{""}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("empty-id BatchRefreshMessageAttachmentUrls code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := messages.BatchGetMessages(context.Background(), connect.NewRequest(&apiv1.BatchGetMessagesRequest{RoomId: "room", EventIds: []string{""}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty-id BatchGetMessages code = %v, want invalid_argument", connect.CodeOf(err))
 	}
-	if _, err := messages.BatchRefreshMessageAttachmentUrls(context.Background(), connect.NewRequest(&apiv1.BatchRefreshMessageAttachmentUrlsRequest{EventIds: []string{"event"}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("empty-room BatchRefreshMessageAttachmentUrls code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := messages.BatchGetMessages(context.Background(), connect.NewRequest(&apiv1.BatchGetMessagesRequest{EventIds: []string{"event"}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty-room BatchGetMessages code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 	tooManyEventIDs := make([]string, 101)
 	for i := range tooManyEventIDs {
 		tooManyEventIDs[i] = fmt.Sprintf("event-%d", i)
 	}
-	if _, err := messages.BatchRefreshMessageAttachmentUrls(context.Background(), connect.NewRequest(&apiv1.BatchRefreshMessageAttachmentUrlsRequest{RoomId: "room", EventIds: tooManyEventIDs})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("too-many BatchRefreshMessageAttachmentUrls code = %v, want invalid_argument", connect.CodeOf(err))
+	if _, err := messages.BatchGetMessages(context.Background(), connect.NewRequest(&apiv1.BatchGetMessagesRequest{RoomId: "room", EventIds: tooManyEventIDs})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("too-many BatchGetMessages code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+
+	if _, err := assets.BatchGetAssets(context.Background(), connect.NewRequest(&apiv1.BatchGetAssetsRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty BatchGetAssets code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := assets.BatchGetAssets(context.Background(), connect.NewRequest(&apiv1.BatchGetAssetsRequest{RoomId: "room", AssetIds: []string{""}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty-id BatchGetAssets code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	if _, err := assets.BatchGetAssets(context.Background(), connect.NewRequest(&apiv1.BatchGetAssetsRequest{AssetIds: []string{"asset"}})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("empty-room BatchGetAssets code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	tooManyAssetIDs := make([]string, 101)
+	for i := range tooManyAssetIDs {
+		tooManyAssetIDs[i] = fmt.Sprintf("asset-%d", i)
+	}
+	if _, err := assets.BatchGetAssets(context.Background(), connect.NewRequest(&apiv1.BatchGetAssetsRequest{RoomId: "room", AssetIds: tooManyAssetIDs})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("too-many BatchGetAssets code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 
 	if _, err := voice.GetActiveCall(context.Background(), connect.NewRequest(&apiv1.GetActiveCallRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
@@ -1016,7 +1038,7 @@ func TestOperatorUserServiceAssignRoleRejectsMissingUserWithoutPersistingRole(t 
 	}
 }
 
-func TestUserDirectoryServiceReadsPublicProfiles(t *testing.T) {
+func TestUserServiceGetUserReadsPublicUsers(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 
 	if _, err := env.users.GetUser(env.ctx, connect.NewRequest(&apiv1.GetUserRequest{Target: &apiv1.GetUserRequest_UserId{UserId: env.viewer.Id}})); connect.CodeOf(err) != connect.CodeUnauthenticated {
@@ -1035,8 +1057,8 @@ func TestUserDirectoryServiceReadsPublicProfiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetUser offline profile: %v", err)
 	}
-	if offlineResp.Msg.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_OFFLINE {
-		t.Fatalf("offline profile presence = %v, want OFFLINE", offlineResp.Msg.GetUser().GetPresenceStatus())
+	if offlineResp.Msg.GetUser().GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_OFFLINE {
+		t.Fatalf("offline profile presence = %v, want OFFLINE", offlineResp.Msg.GetUser().GetUser().GetPresenceStatus())
 	}
 
 	if _, err := env.core.SetUserCustomStatus(env.ctx, env.viewer.Id, "wave", "around", nil); err != nil {
@@ -1053,9 +1075,9 @@ func TestUserDirectoryServiceReadsPublicProfiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetUser: %v", err)
 	}
-	user := resp.Msg.GetUser()
-	summary := user.GetUser()
-	if summary.GetId() != env.viewer.Id || summary.GetLogin() != env.viewer.Login || summary.GetDisplayName() != env.viewer.DisplayName {
+	userRow := resp.Msg.GetUser()
+	user := userRow.GetUser()
+	if user.GetId() != env.viewer.Id || user.GetLogin() != env.viewer.Login || user.GetDisplayName() != env.viewer.DisplayName {
 		t.Fatalf("GetUser user = %+v, want viewer public profile", user)
 	}
 	if user.GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_ONLINE {
@@ -1063,6 +1085,9 @@ func TestUserDirectoryServiceReadsPublicProfiles(t *testing.T) {
 	}
 	if user.GetCustomStatus().GetText() != "around" {
 		t.Fatalf("CustomStatus = %+v, want status text", user.GetCustomStatus())
+	}
+	if roles := strings.Join(userRow.GetRoles(), ","); roles != "everyone,admin" {
+		t.Fatalf("GetUser roles = %q, want everyone,admin", roles)
 	}
 	batchResp, err := env.users.BatchGetUsers(ctx, connect.NewRequest(&apiv1.BatchGetUsersRequest{
 		UserIds: []string{env.viewer.Id, "missing-user", env.viewer.Id},
@@ -1072,8 +1097,8 @@ func TestUserDirectoryServiceReadsPublicProfiles(t *testing.T) {
 	}
 	if got := batchResp.Msg.GetUsers(); len(got) != 1 {
 		t.Fatalf("BatchGetUsers len = %d, want 1: %+v", len(got), got)
-	} else if got[0].GetUser().GetId() != env.viewer.Id || got[0].GetUser().GetLogin() != env.viewer.Login || got[0].GetUser().GetDisplayName() != env.viewer.DisplayName || got[0].GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_ONLINE {
-		t.Fatalf("BatchGetUsers user = %+v, want viewer profile", got[0])
+	} else if got[0].GetUser().GetId() != env.viewer.Id || got[0].GetUser().GetLogin() != env.viewer.Login || got[0].GetUser().GetDisplayName() != env.viewer.DisplayName || got[0].GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_ONLINE {
+		t.Fatalf("BatchGetUsers user = %+v, want viewer user profile", got[0])
 	}
 
 	byLoginResp, err := env.users.GetUser(ctx, connect.NewRequest(&apiv1.GetUserRequest{Target: &apiv1.GetUserRequest_Login{Login: env.viewer.Login}}))
@@ -1090,6 +1115,10 @@ func TestUserDirectoryServiceReadsPublicProfiles(t *testing.T) {
 
 	if _, err := env.users.GetUser(ctx, connect.NewRequest(&apiv1.GetUserRequest{Target: &apiv1.GetUserRequest_UserId{UserId: "missing-user"}})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("missing GetUser code = %v, want not found", connect.CodeOf(err))
+	}
+
+	if _, err := env.users.GetUser(ctx, connect.NewRequest(&apiv1.GetUserRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("missing GetUser target code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 }
 
@@ -1651,6 +1680,9 @@ func TestAdminRoomLayoutServiceCreateRoomGroupRequiresRoleManage(t *testing.T) {
 		t.Fatalf("CreateUser member: %v", err)
 	}
 
+	_, err = env.adminLayout.ListRoomGroups(withCaller(env.ctx, member), connect.NewRequest(&adminv1.ListRoomGroupsRequest{}))
+	requireConnectCode(t, err, connect.CodePermissionDenied)
+
 	_, err = env.adminLayout.CreateRoomGroup(withCaller(env.ctx, member), connect.NewRequest(&adminv1.CreateRoomGroupRequest{
 		Name:        "Operations",
 		Description: "Private operations rooms",
@@ -1659,6 +1691,9 @@ func TestAdminRoomLayoutServiceCreateRoomGroupRequiresRoleManage(t *testing.T) {
 
 	if err := env.core.GrantUserPermission(env.ctx, core.SystemActorID, env.viewer.Id, core.PermRoleManage); err != nil {
 		t.Fatalf("GrantUserPermission role.manage: %v", err)
+	}
+	if _, err := env.adminLayout.ListRoomGroups(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.ListRoomGroupsRequest{})); err != nil {
+		t.Fatalf("ListRoomGroups: %v", err)
 	}
 	resp, err := env.adminLayout.CreateRoomGroup(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.CreateRoomGroupRequest{
 		Name:        "Operations",
@@ -1772,8 +1807,7 @@ func TestViewerServiceGetViewerReturnsSelfScopedState(t *testing.T) {
 	}
 	user := resp.Msg.GetUser()
 	profile := user.GetProfile()
-	summary := profile.GetUser()
-	if summary.GetId() != env.viewer.Id || summary.GetLogin() != env.viewer.Login || summary.GetDisplayName() != env.viewer.DisplayName {
+	if profile.GetId() != env.viewer.Id || profile.GetLogin() != env.viewer.Login || profile.GetDisplayName() != env.viewer.DisplayName {
 		t.Fatalf("viewer user = %+v, want id/login/display name from fixture", user)
 	}
 	if !user.GetHasVerifiedEmail() {
@@ -2496,7 +2530,7 @@ func TestAdminUserServiceAssignsAndRevokesRoles(t *testing.T) {
 	}
 }
 
-func TestServerServiceGetServerStateReturnsAuthenticatedServerState(t *testing.T) {
+func TestServerServiceGetMotdAndRuntimeConfig(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	env.api.config = config.ChattoConfig{
 		Auth: config.AuthConfig{DirectRegistration: boolPtr(false)},
@@ -2520,38 +2554,40 @@ func TestServerServiceGetServerStateReturnsAuthenticatedServerState(t *testing.T
 		t.Fatalf("SetServerConfig: %v", err)
 	}
 
-	if _, err := env.serverState.GetServerState(env.ctx, connect.NewRequest(&apiv1.GetServerStateRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("unauthenticated GetServerState code = %v, want unauthenticated", connect.CodeOf(err))
+	if _, err := env.serverState.GetMotd(env.ctx, connect.NewRequest(&apiv1.GetMotdRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated GetMotd code = %v, want unauthenticated", connect.CodeOf(err))
+	}
+	if _, err := env.serverState.GetRuntimeConfig(env.ctx, connect.NewRequest(&apiv1.GetRuntimeConfigRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated GetRuntimeConfig code = %v, want unauthenticated", connect.CodeOf(err))
 	}
 
-	resp, err := env.serverState.GetServerState(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetServerStateRequest{}))
+	motdResp, err := env.serverState.GetMotd(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetMotdRequest{}))
 	if err != nil {
-		t.Fatalf("GetServerState: %v", err)
+		t.Fatalf("GetMotd: %v", err)
 	}
-	msg := resp.Msg
-	if msg.GetProfile().GetPublicProfile().GetName() != "Chatto" {
-		t.Fatalf("profile name = %q, want Chatto", msg.GetProfile().GetPublicProfile().GetName())
+	if motdResp.Msg.GetMotd() != "Authenticated MOTD" {
+		t.Fatalf("MOTD = %q, want Authenticated MOTD", motdResp.Msg.GetMotd())
 	}
-	if msg.GetProfile().GetMotd() != "Authenticated MOTD" {
-		t.Fatalf("profile MOTD = %q, want Authenticated MOTD", msg.GetProfile().GetMotd())
+
+	runtimeResp, err := env.serverState.GetRuntimeConfig(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRuntimeConfigRequest{}))
+	if err != nil {
+		t.Fatalf("GetRuntimeConfig: %v", err)
 	}
-	if !msg.GetRuntime().GetPushNotificationsEnabled() || msg.GetRuntime().GetVapidPublicKey() != "test-public-key" {
-		t.Fatalf("push fields = enabled %v key %q, want true/test-public-key", msg.GetRuntime().GetPushNotificationsEnabled(), msg.GetRuntime().GetVapidPublicKey())
+	runtime := runtimeResp.Msg.GetRuntime()
+	if !runtime.GetPushNotificationsEnabled() || runtime.GetVapidPublicKey() != "test-public-key" {
+		t.Fatalf("push fields = enabled %v key %q, want true/test-public-key", runtime.GetPushNotificationsEnabled(), runtime.GetVapidPublicKey())
 	}
-	if msg.GetRuntime().GetDirectRegistrationEnabled() {
-		t.Fatal("DirectRegistrationEnabled = true, want false")
-	}
-	if !msg.GetRuntime().GetVideoProcessingEnabled() {
+	if !runtime.GetVideoProcessingEnabled() {
 		t.Fatal("VideoProcessingEnabled = false, want true")
 	}
-	if msg.GetRuntime().GetLivekitUrl() != "wss://livekit.example.test" {
-		t.Fatalf("LivekitUrl = %q, want configured URL", msg.GetRuntime().GetLivekitUrl())
+	if runtime.GetLivekitUrl() != "wss://livekit.example.test" {
+		t.Fatalf("LivekitUrl = %q, want configured URL", runtime.GetLivekitUrl())
 	}
-	if msg.GetRuntime().GetMaxUploadSize() <= 0 || msg.GetRuntime().GetMaxVideoUploadSize() <= 0 {
-		t.Fatalf("upload sizes = %d/%d, want positive values", msg.GetRuntime().GetMaxUploadSize(), msg.GetRuntime().GetMaxVideoUploadSize())
+	if runtime.GetMaxUploadSize() <= 0 || runtime.GetMaxVideoUploadSize() <= 0 {
+		t.Fatalf("upload sizes = %d/%d, want positive values", runtime.GetMaxUploadSize(), runtime.GetMaxVideoUploadSize())
 	}
-	if msg.GetRuntime().GetMessageEditWindowSeconds() != int32(core.MessageEditWindow/time.Second) {
-		t.Fatalf("MessageEditWindowSeconds = %d, want %d", msg.GetRuntime().GetMessageEditWindowSeconds(), int32(core.MessageEditWindow/time.Second))
+	if runtime.GetMessageEditWindowSeconds() != int32(core.MessageEditWindow/time.Second) {
+		t.Fatalf("MessageEditWindowSeconds = %d, want %d", runtime.GetMessageEditWindowSeconds(), int32(core.MessageEditWindow/time.Second))
 	}
 }
 
@@ -2865,15 +2901,15 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 		t.Fatalf("UnarchiveRoom archived = true, want false")
 	}
 
-	universalResp, err := env.rooms.UpdateRoomUniversal(ctx, connect.NewRequest(&apiv1.UpdateRoomUniversalRequest{
+	universalResp, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
 		RoomId:    room.GetId(),
-		Universal: false,
+		Universal: boolPtr(false),
 	}))
 	if err != nil {
-		t.Fatalf("UpdateRoomUniversal: %v", err)
+		t.Fatalf("UpdateRoom universal: %v", err)
 	}
 	if universalResp.Msg.GetRoom().GetUniversal() {
-		t.Fatalf("UpdateRoomUniversal universal = true, want false")
+		t.Fatalf("UpdateRoom universal = true, want false")
 	}
 }
 
@@ -2944,7 +2980,7 @@ func TestRoomServiceMembershipAndModerationCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddMember: %v", err)
 	}
-	if addResp.Msg.GetMember().GetProfile().GetUser().GetId() != addTarget.Id {
+	if addResp.Msg.GetMember().GetUser().GetId() != addTarget.Id {
 		t.Fatalf("AddMember member = %+v, want target", addResp.Msg.GetMember())
 	}
 	if _, err := env.rooms.GetMember(ctx, connect.NewRequest(&apiv1.GetRoomMemberRequest{
@@ -3024,10 +3060,10 @@ func TestRoomServiceMembershipAndModerationCommands(t *testing.T) {
 	if listedBan.GetRoomId() != room.Id || listedBan.GetRoom().GetName() != room.Name {
 		t.Fatalf("ListBans room = %+v, want id %s name %q", listedBan.GetRoom(), room.Id, room.Name)
 	}
-	if listedBan.GetUserId() != target.Id || listedBan.GetUser().GetProfile().GetUser().GetDisplayName() != target.DisplayName {
+	if listedBan.GetUserId() != target.Id || listedBan.GetUser().GetUser().GetDisplayName() != target.DisplayName {
 		t.Fatalf("ListBans user = %+v, want target %s", listedBan.GetUser(), target.Id)
 	}
-	if listedBan.GetModeratorId() != env.viewer.Id || listedBan.GetModerator().GetProfile().GetUser().GetDisplayName() != env.viewer.DisplayName {
+	if listedBan.GetModeratorId() != env.viewer.Id || listedBan.GetModerator().GetUser().GetDisplayName() != env.viewer.DisplayName {
 		t.Fatalf("ListBans moderator = %+v, want viewer %s", listedBan.GetModerator(), env.viewer.Id)
 	}
 	if listedBan.GetReason() != "moderation test" {
@@ -3205,11 +3241,11 @@ func TestRoomServiceRejectsDMRooms(t *testing.T) {
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("UnarchiveRoom for DM code = %v, want invalid argument", connect.CodeOf(err))
 	}
-	if _, err := env.rooms.UpdateRoomUniversal(ctx, connect.NewRequest(&apiv1.UpdateRoomUniversalRequest{
+	if _, err := env.rooms.UpdateRoom(ctx, connect.NewRequest(&apiv1.UpdateRoomRequest{
 		RoomId:    dm.Id,
-		Universal: true,
+		Universal: boolPtr(true),
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("UpdateRoomUniversal for DM code = %v, want invalid argument", connect.CodeOf(err))
+		t.Fatalf("UpdateRoom universal for DM code = %v, want invalid argument", connect.CodeOf(err))
 	}
 	if _, err := env.rooms.AddMember(ctx, connect.NewRequest(&apiv1.AddMemberRequest{
 		RoomId: dm.Id,
@@ -3317,11 +3353,17 @@ func TestConnectServicesRejectDMOutsiders(t *testing.T) {
 	}))
 	checkInaccessible("ListRoomAttachments", err)
 
-	_, err = env.messages.RefreshMessageAttachmentUrls(ctx, connect.NewRequest(&apiv1.RefreshMessageAttachmentUrlsRequest{
+	_, err = env.assets.GetAsset(ctx, connect.NewRequest(&apiv1.GetAssetRequest{
+		RoomId:  dm.Id,
+		AssetId: "asset",
+	}))
+	checkInaccessible("GetAsset", err)
+
+	_, err = env.messages.GetMessage(ctx, connect.NewRequest(&apiv1.GetMessageRequest{
 		RoomId:  dm.Id,
 		EventId: root.Id,
 	}))
-	checkInaccessible("RefreshMessageAttachmentUrls", err)
+	checkInaccessible("GetMessage", err)
 
 	_, err = env.messages.AddReaction(ctx, connect.NewRequest(&apiv1.AddReactionRequest{
 		RoomId:         dm.Id,
@@ -3433,14 +3475,14 @@ func TestRoomDirectoryServiceListRoomsVisibilityAndDMs(t *testing.T) {
 	if dmRoom.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_DM {
 		t.Fatalf("DM kind = %v, want DM", dmRoom.GetRoom().GetKind())
 	}
-	if !dmRoom.GetViewerState().GetIsMember() {
-		t.Fatalf("DM viewer state IsMember = false, want true")
+	if !dmRoom.GetIsMember() {
+		t.Fatalf("DM IsMember = false, want true")
 	}
-	if !dmRoom.GetViewerState().GetCanListRoom() {
-		t.Fatalf("DM viewer state CanListRoom = false, want true")
+	if !dmRoom.GetCanListRoom() {
+		t.Fatalf("DM CanListRoom = false, want true")
 	}
-	if dmRoom.GetViewerState().GetCanJoinRoom() || dmRoom.GetViewerState().GetCanManageRoom() || dmRoom.GetViewerState().GetCanBanRoomMembers() {
-		t.Fatalf("DM viewer state exposes channel-only actions: %+v", dmRoom.GetViewerState())
+	if dmRoom.GetCanJoinRoom() || dmRoom.GetCanManageRoom() || dmRoom.GetCanBanRoomMembers() {
+		t.Fatalf("DM exposes channel-only actions: %+v", dmRoom)
 	}
 	batchResp, err := env.directory.BatchGetRooms(withCaller(env.ctx, caller), connect.NewRequest(&apiv1.BatchGetRoomsRequest{
 		RoomIds: []string{visible.Id, hidden.Id, dm.Id, visible.Id, "missing-room"},
@@ -3518,20 +3560,19 @@ func TestRoomDirectoryServiceViewerStateMatchesWritePreconditions(t *testing.T) 
 	if visibleRoom == nil {
 		t.Fatalf("visible room %s missing from directory response", visible.Id)
 	}
-	visibleState := visibleRoom.GetViewerState()
-	if visibleState.GetIsMember() {
+	if visibleRoom.GetIsMember() {
 		t.Fatalf("visible room IsMember = true, want false")
 	}
-	if !visibleState.GetCanJoinRoom() {
+	if !visibleRoom.GetCanJoinRoom() {
 		t.Fatalf("visible non-member CanJoinRoom = false, want true")
 	}
-	if visibleState.GetCanPostMessage() ||
-		visibleState.GetCanPostInThread() ||
-		visibleState.GetCanAttach() ||
-		visibleState.GetCanReact() ||
-		visibleState.GetCanEchoMessage() ||
-		visibleState.GetCanManageOthersMessage() {
-		t.Fatalf("visible non-member exposes member-only actions: %+v", visibleState)
+	if visibleRoom.GetCanPostMessage() ||
+		visibleRoom.GetCanPostInThread() ||
+		visibleRoom.GetCanAttach() ||
+		visibleRoom.GetCanReact() ||
+		visibleRoom.GetCanEchoMessage() ||
+		visibleRoom.GetCanManageOthersMessage() {
+		t.Fatalf("visible non-member exposes member-only actions: %+v", visibleRoom)
 	}
 	if _, ok := rooms[memberArchived.Id]; ok {
 		t.Fatalf("archived room %s appeared in directory response", memberArchived.Id)
@@ -3552,19 +3593,19 @@ func TestRoomDirectoryServiceViewerStateMatchesWritePreconditions(t *testing.T) 
 	if got := archivedBatchResp.Msg.GetRooms(); len(got) != 1 || got[0].GetRoom().GetId() != memberArchived.Id || !got[0].GetRoom().GetArchived() {
 		t.Fatalf("BatchGetRooms archived rooms = %+v, want archived member room", got)
 	}
-	archivedState := archivedResp.Msg.GetRoom().GetViewerState()
-	if !archivedState.GetIsMember() {
+	archivedRoom := archivedResp.Msg.GetRoom()
+	if !archivedRoom.GetIsMember() {
 		t.Fatalf("archived room IsMember = false, want true")
 	}
-	if archivedState.GetCanJoinRoom() ||
-		archivedState.GetCanPostMessage() ||
-		archivedState.GetCanPostInThread() ||
-		archivedState.GetCanAttach() ||
-		archivedState.GetCanReact() ||
-		archivedState.GetCanEchoMessage() {
-		t.Fatalf("archived room exposes unavailable actions: %+v", archivedState)
+	if archivedRoom.GetCanJoinRoom() ||
+		archivedRoom.GetCanPostMessage() ||
+		archivedRoom.GetCanPostInThread() ||
+		archivedRoom.GetCanAttach() ||
+		archivedRoom.GetCanReact() ||
+		archivedRoom.GetCanEchoMessage() {
+		t.Fatalf("archived room exposes unavailable actions: %+v", archivedRoom)
 	}
-	if !archivedState.GetCanManageOthersMessage() {
+	if !archivedRoom.GetCanManageOthersMessage() {
 		t.Fatalf("archived room CanManageOthersMessage = false, want true")
 	}
 }
@@ -3623,18 +3664,25 @@ func TestRoomDirectoryServiceListRoomGroupsFiltersHiddenRoomsAndKeepsLinks(t *te
 	if !roomGroupItemsContainSidebarLink(group.GetItems(), link.Id) {
 		t.Fatalf("sidebar link %s missing from group items", link.Id)
 	}
-	withArchivedResp, err := env.directory.ListRoomGroups(withCaller(env.ctx, caller), connect.NewRequest(&apiv1.ListRoomGroupsRequest{
-		IncludeArchivedRooms: true,
-	}))
+	if err := env.core.GrantUserPermission(env.ctx, core.SystemActorID, env.viewer.Id, core.PermRoleManage); err != nil {
+		t.Fatalf("GrantUserPermission role.manage: %v", err)
+	}
+	if err := env.core.GrantUserGroupPermission(env.ctx, core.SystemActorID, groupID, env.viewer.Id, core.PermRoomCreate); err != nil {
+		t.Fatalf("GrantUserGroupPermission admin room.create: %v", err)
+	}
+	adminLayoutResp, err := env.adminLayout.ListRoomGroups(withCaller(env.ctx, env.viewer), connect.NewRequest(&adminv1.ListRoomGroupsRequest{}))
 	if err != nil {
-		t.Fatalf("ListRoomGroups include archived: %v", err)
+		t.Fatalf("AdminRoomLayout ListRoomGroups: %v", err)
 	}
-	withArchivedGroup := findDirectoryGroup(withArchivedResp.Msg.GetGroups(), groupID)
-	if withArchivedGroup == nil {
-		t.Fatalf("group %s missing from include archived response", groupID)
+	adminLayoutGroup := findAdminRoomLayoutGroup(adminLayoutResp.Msg.GetGroups(), groupID)
+	if adminLayoutGroup == nil {
+		t.Fatalf("group %s missing from admin layout response", groupID)
 	}
-	if !roomGroupItemsContainRoom(withArchivedGroup.GetItems(), archived.Id) {
-		t.Fatalf("archived room %s missing from include archived group items", archived.Id)
+	if !adminRoomLayoutItemsContainRoom(adminLayoutGroup.GetItems(), archived.Id) {
+		t.Fatalf("archived room %s missing from admin layout group items", archived.Id)
+	}
+	if !adminLayoutGroup.GetCanCreateRoom() {
+		t.Fatalf("admin layout group CanCreateRoom = false after group grant, want true")
 	}
 	if err := env.core.GrantUserGroupPermission(env.ctx, core.SystemActorID, groupID, caller.Id, core.PermRoomCreate); err != nil {
 		t.Fatalf("GrantUserGroupPermission room.create: %v", err)
@@ -3726,17 +3774,17 @@ func TestRoomServiceJoinRoomGroup(t *testing.T) {
 	}
 }
 
-func TestServerServiceListMembers(t *testing.T) {
+func TestUserServiceListUsers(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 
-	if _, err := env.serverState.ListMembers(env.ctx, connect.NewRequest(&apiv1.ListServerMembersRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("unauthenticated ListMembers code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
+	if _, err := env.users.ListUsers(env.ctx, connect.NewRequest(&apiv1.ListUsersRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated ListUsers code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
 	}
-	if _, err := env.serverState.GetMember(env.ctx, connect.NewRequest(&apiv1.GetServerMemberRequest{UserId: env.viewer.Id})); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("unauthenticated GetMember code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
+	if _, err := env.users.GetUser(env.ctx, connect.NewRequest(&apiv1.GetUserRequest{Target: &apiv1.GetUserRequest_UserId{UserId: env.viewer.Id}})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated GetUser code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
 	}
-	if _, err := env.serverState.BatchGetMembers(env.ctx, connect.NewRequest(&apiv1.BatchGetServerMembersRequest{UserIds: []string{env.viewer.Id}})); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("unauthenticated BatchGetMembers code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
+	if _, err := env.users.BatchGetUsers(env.ctx, connect.NewRequest(&apiv1.BatchGetUsersRequest{UserIds: []string{env.viewer.Id}})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated BatchGetUsers code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
 	}
 
 	alice, err := env.core.CreateUser(env.ctx, core.SystemActorID, "member-alice", "Alice Member", "password")
@@ -3757,66 +3805,66 @@ func TestServerServiceListMembers(t *testing.T) {
 		t.Fatalf("AddVerifiedEmailDirect alice: %v", err)
 	}
 
-	resp, err := env.serverState.ListMembers(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.ListServerMembersRequest{
+	resp, err := env.users.ListUsers(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.ListUsersRequest{
 		Search: "member",
 		Page:   &apiv1.PageRequest{Limit: 1},
 	}))
 	if err != nil {
-		t.Fatalf("ListMembers: %v", err)
+		t.Fatalf("ListUsers: %v", err)
 	}
-	if resp.Msg.GetPage().GetTotalCount() != 2 || !resp.Msg.GetPage().GetHasMore() || len(resp.Msg.GetMembers()) != 1 {
-		t.Fatalf("first page = %+v, want total 2, hasMore true, one member", resp.Msg)
+	if resp.Msg.GetPage().GetTotalCount() != 2 || !resp.Msg.GetPage().GetHasMore() || len(resp.Msg.GetUsers()) != 1 {
+		t.Fatalf("first page = %+v, want total 2, hasMore true, one user", resp.Msg)
 	}
 
-	secondResp, err := env.serverState.ListMembers(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.ListServerMembersRequest{
+	secondResp, err := env.users.ListUsers(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.ListUsersRequest{
 		Search: "member",
 		Page:   &apiv1.PageRequest{Limit: 1, Offset: 1},
 	}))
 	if err != nil {
-		t.Fatalf("ListMembers second page: %v", err)
+		t.Fatalf("ListUsers second page: %v", err)
 	}
-	if secondResp.Msg.GetPage().GetHasMore() || len(secondResp.Msg.GetMembers()) != 1 {
-		t.Fatalf("second page = %+v, want hasMore false and one member", secondResp.Msg)
+	if secondResp.Msg.GetPage().GetHasMore() || len(secondResp.Msg.GetUsers()) != 1 {
+		t.Fatalf("second page = %+v, want hasMore false and one user", secondResp.Msg)
 	}
 
 	gotByID := map[string]*apiv1.DirectoryMember{}
-	for _, member := range append(resp.Msg.GetMembers(), secondResp.Msg.GetMembers()...) {
-		gotByID[member.GetProfile().GetUser().GetId()] = member
+	for _, user := range append(resp.Msg.GetUsers(), secondResp.Msg.GetUsers()...) {
+		gotByID[user.GetUser().GetId()] = user
 	}
-	if gotByID[alice.Id].GetProfile().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
-		t.Fatalf("alice presence = %v, want AWAY", gotByID[alice.Id].GetProfile().GetPresenceStatus())
+	if gotByID[alice.Id].GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
+		t.Fatalf("alice presence = %v, want AWAY", gotByID[alice.Id].GetUser().GetPresenceStatus())
 	}
-	if gotByID[bob.Id].GetProfile().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_OFFLINE {
-		t.Fatalf("bob presence = %v, want OFFLINE", gotByID[bob.Id].GetProfile().GetPresenceStatus())
+	if gotByID[bob.Id].GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_OFFLINE {
+		t.Fatalf("bob presence = %v, want OFFLINE", gotByID[bob.Id].GetUser().GetPresenceStatus())
 	}
 	if roles := strings.Join(gotByID[bob.Id].GetRoles(), ","); roles != "everyone,admin" {
 		t.Fatalf("bob roles = %q, want everyone,admin", roles)
 	}
 
-	getResp, err := env.serverState.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetServerMemberRequest{UserId: alice.Id}))
+	getResp, err := env.users.GetUser(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetUserRequest{Target: &apiv1.GetUserRequest_UserId{UserId: alice.Id}}))
 	if err != nil {
-		t.Fatalf("GetMember alice: %v", err)
+		t.Fatalf("GetUser alice: %v", err)
 	}
-	gotAlice := getResp.Msg.GetMember()
-	if gotAlice.GetProfile().GetUser().GetId() != alice.Id || gotAlice.GetProfile().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
-		t.Fatalf("GetMember alice = %+v, want hydrated away member", gotAlice)
+	gotAlice := getResp.Msg.GetUser()
+	if gotAlice.GetUser().GetId() != alice.Id || gotAlice.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
+		t.Fatalf("GetUser alice = %+v, want hydrated away user", gotAlice)
 	}
 	if gotAlice.ProtoReflect().Descriptor().Fields().ByName("verified_emails") != nil {
 		t.Fatal("DirectoryMember unexpectedly exposes verified_emails")
 	}
-	if _, err := env.serverState.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetServerMemberRequest{UserId: "missing-user"})); connect.CodeOf(err) != connect.CodeNotFound {
-		t.Fatalf("missing GetMember code = %v, want not_found", connect.CodeOf(err))
+	if _, err := env.users.GetUser(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetUserRequest{Target: &apiv1.GetUserRequest_UserId{UserId: "missing-user"}})); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("missing GetUser code = %v, want not_found", connect.CodeOf(err))
 	}
 
-	batchResp, err := env.serverState.BatchGetMembers(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.BatchGetServerMembersRequest{
+	batchResp, err := env.users.BatchGetUsers(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.BatchGetUsersRequest{
 		UserIds: []string{bob.Id, "missing-user", alice.Id, bob.Id},
 	}))
 	if err != nil {
-		t.Fatalf("BatchGetMembers: %v", err)
+		t.Fatalf("BatchGetUsers: %v", err)
 	}
-	gotBatch := batchResp.Msg.GetMembers()
-	if len(gotBatch) != 2 || gotBatch[0].GetProfile().GetUser().GetId() != bob.Id || gotBatch[1].GetProfile().GetUser().GetId() != alice.Id {
-		t.Fatalf("BatchGetMembers members = %+v, want bob,alice", gotBatch)
+	gotBatch := batchResp.Msg.GetUsers()
+	if len(gotBatch) != 2 || gotBatch[0].GetUser().GetId() != bob.Id || gotBatch[1].GetUser().GetId() != alice.Id {
+		t.Fatalf("BatchGetUsers users = %+v, want bob,alice", gotBatch)
 	}
 }
 
@@ -3866,7 +3914,7 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 		t.Fatalf("room member page = %+v, want one alice result", resp.Msg)
 	}
 	got := resp.Msg.GetMembers()[0]
-	if got.GetProfile().GetUser().GetId() != member.Id || got.GetProfile().GetUser().GetDisplayName() != "Room Alice" || got.GetProfile().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
+	if got.GetUser().GetId() != member.Id || got.GetUser().GetDisplayName() != "Room Alice" || got.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
 		t.Fatalf("room member = %+v, want hydrated Room Alice", got)
 	}
 
@@ -3874,7 +3922,7 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetMember: %v", err)
 	}
-	if got := getResp.Msg.GetMember(); got.GetProfile().GetUser().GetId() != member.Id || got.GetProfile().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
+	if got := getResp.Msg.GetMember(); got.GetUser().GetId() != member.Id || got.GetUser().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_DO_NOT_DISTURB {
 		t.Fatalf("GetMember member = %+v, want room member", got)
 	}
 	if _, err := env.rooms.GetMember(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.GetRoomMemberRequest{RoomId: room.Id, UserId: outsider.Id})); connect.CodeOf(err) != connect.CodeNotFound {
@@ -3889,7 +3937,7 @@ func TestRoomServiceListMembersRequiresMembership(t *testing.T) {
 		t.Fatalf("BatchGetMembers: %v", err)
 	}
 	gotBatch := batchResp.Msg.GetMembers()
-	if len(gotBatch) != 2 || gotBatch[0].GetProfile().GetUser().GetId() != member.Id || gotBatch[1].GetProfile().GetUser().GetId() != env.viewer.Id {
+	if len(gotBatch) != 2 || gotBatch[0].GetUser().GetId() != member.Id || gotBatch[1].GetUser().GetId() != env.viewer.Id {
 		t.Fatalf("BatchGetMembers members = %+v, want member,viewer", gotBatch)
 	}
 }
@@ -4006,7 +4054,7 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 		t.Fatalf("ListNotifications page = %+v, want total 2, has_more true, one item", listResp.Msg)
 	}
 	item := listResp.Msg.GetNotifications()[0]
-	if item.GetActor().GetUser().GetDisplayName() != "Notification Actor" || item.GetActor().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
+	if item.GetActor().GetDisplayName() != "Notification Actor" || item.GetActor().GetPresenceStatus() != apiv1.PresenceStatus_PRESENCE_STATUS_AWAY {
 		t.Fatalf("notification actor = %+v, want hydrated actor", item.GetActor())
 	}
 
@@ -4016,9 +4064,6 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	}
 	if got := getResp.Msg.GetNotification(); got.GetId() != mention.Id || got.GetMention().GetEventId() != "mention-event" || got.GetMention().GetThreadRootEventId() != "thread-root" {
 		t.Fatalf("GetNotification item = %+v, want mention", got)
-	}
-	if getResp.Msg.GetServerName() == "" {
-		t.Fatal("GetNotification server_name is empty")
 	}
 	if _, err := env.notifications.GetNotification(ctx, connect.NewRequest(&apiv1.GetNotificationRequest{NotificationId: "missing-notification"})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("missing GetNotification code = %v, want not_found", connect.CodeOf(err))
@@ -4033,9 +4078,6 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	gotBatch := batchResp.Msg.GetNotifications()
 	if len(gotBatch) != 2 || gotBatch[0].GetId() != mention.Id || gotBatch[1].GetId() != dm.Id {
 		t.Fatalf("BatchGetNotifications items = %+v, want mention,dm", gotBatch)
-	}
-	if batchResp.Msg.GetServerName() == "" {
-		t.Fatal("BatchGetNotifications server_name is empty")
 	}
 
 	roomResp, err := env.notifications.ListRoomNotifications(ctx, connect.NewRequest(&apiv1.ListRoomNotificationsRequest{RoomId: room.Id}))
@@ -4346,7 +4388,7 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 		t.Fatalf("ListCallParticipants: %v", err)
 	}
 	participants := participantsResp.Msg.GetParticipants()
-	if len(participants) != 1 || participants[0].GetUser().GetUser().GetId() != env.viewer.Id || participants[0].GetCallId() == "" || participants[0].GetJoinedAt() == nil {
+	if len(participants) != 1 || participants[0].GetUser().GetId() != env.viewer.Id || participants[0].GetCallId() == "" || participants[0].GetJoinedAt() == nil {
 		t.Fatalf("participants = %+v, want viewer participant with call metadata", participants)
 	}
 
@@ -4457,10 +4499,10 @@ func TestMyAccountServiceUpdatePresence(t *testing.T) {
 	}
 }
 
-func TestLinkPreviewServiceFetchLinkPreviewRequiresAuthAndMapsPreview(t *testing.T) {
+func TestMessageServiceFetchLinkPreviewRequiresAuthMapsPreviewAndPostsToken(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 
-	if _, err := env.linkPreviews.FetchLinkPreview(env.ctx, connect.NewRequest(&apiv1.FetchLinkPreviewRequest{Url: "https://example.test"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+	if _, err := env.messages.FetchLinkPreview(env.ctx, connect.NewRequest(&apiv1.FetchLinkPreviewRequest{Url: "https://example.test"})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("unauthenticated FetchLinkPreview code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
 	}
 
@@ -4492,7 +4534,7 @@ func TestLinkPreviewServiceFetchLinkPreviewRequiresAuthAndMapsPreview(t *testing
 	defer server.Close()
 	serverURL = server.URL
 
-	resp, err := env.linkPreviews.FetchLinkPreview(
+	resp, err := env.messages.FetchLinkPreview(
 		withCaller(env.ctx, env.viewer),
 		connect.NewRequest(&apiv1.FetchLinkPreviewRequest{Url: server.URL + "/article"}),
 	)
@@ -4514,6 +4556,31 @@ func TestLinkPreviewServiceFetchLinkPreviewRequiresAuthAndMapsPreview(t *testing
 	}
 	if !strings.Contains(preview.GetImageUrl(), preview.GetImageAssetId()) {
 		t.Fatalf("ImageUrl %q does not contain asset id %q", preview.GetImageUrl(), preview.GetImageAssetId())
+	}
+	if resp.Msg.GetPreviewToken() == "" {
+		t.Fatalf("PreviewToken is empty")
+	}
+
+	room := env.createJoinedRoom("message-preview-token")
+	createResp, err := env.messages.CreateMessage(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:           room.Id,
+		Body:             "message with preview",
+		LinkPreviewToken: resp.Msg.GetPreviewToken(),
+	}))
+	if err != nil {
+		t.Fatalf("CreateMessage with preview token: %v", err)
+	}
+	message := createResp.Msg.GetMessage()
+	if message == nil {
+		t.Fatalf("CreateMessage message = nil")
+	}
+	body, err := env.core.GetFullMessageBody(env.ctx, core.KindChannel, message.GetId())
+	if err != nil {
+		t.Fatalf("GetFullMessageBody: %v", err)
+	}
+	stored := body.LinkPreview
+	if stored == nil || stored.GetTitle() != "Connect Preview" || stored.GetDescription() != "Connect preview description" || stored.GetImageAssetId() == "" {
+		t.Fatalf("stored link preview = %+v", stored)
 	}
 }
 
@@ -4745,7 +4812,7 @@ func TestMessageServiceReactionOnEchoCanonicalizesToOriginal(t *testing.T) {
 	if echoEvent == nil || echoEvent.GetMessagePosted() == nil {
 		t.Fatalf("echo event %s missing from room page", echoID)
 	}
-	if got := echoEvent.GetMessagePosted().GetReactions(); len(got) != 1 || got[0].GetEmoji() != "thumbsup" || got[0].GetCount() != 1 || !got[0].GetHasReacted() {
+	if got := echoEvent.GetMessagePosted().GetMessage().GetReactions(); len(got) != 1 || got[0].GetEmoji() != "thumbsup" || got[0].GetCount() != 1 || !got[0].GetHasReacted() {
 		t.Fatalf("echo reactions = %+v, want thumbsup count 1 hasReacted", got)
 	}
 
@@ -4761,7 +4828,7 @@ func TestMessageServiceReactionOnEchoCanonicalizesToOriginal(t *testing.T) {
 	if replyEvent == nil || replyEvent.GetMessagePosted() == nil {
 		t.Fatalf("reply event %s missing from thread page", reply.Id)
 	}
-	if got := replyEvent.GetMessagePosted().GetReactions(); len(got) != 1 || got[0].GetEmoji() != "thumbsup" || got[0].GetCount() != 1 || !got[0].GetHasReacted() {
+	if got := replyEvent.GetMessagePosted().GetMessage().GetReactions(); len(got) != 1 || got[0].GetEmoji() != "thumbsup" || got[0].GetCount() != 1 || !got[0].GetHasReacted() {
 		t.Fatalf("reply reactions = %+v, want thumbsup count 1 hasReacted", got)
 	}
 }
@@ -4851,13 +4918,11 @@ func TestMessageServiceCreateMessageValidatesInput(t *testing.T) {
 			code: connect.CodeInvalidArgument,
 		},
 		{
-			name: "link preview URL too long",
+			name: "invalid link preview token",
 			req: &apiv1.CreateMessageRequest{
-				RoomId: room.Id,
-				Body:   "hello",
-				LinkPreview: &apiv1.MessageLinkPreviewInput{
-					Url: strings.Repeat("x", core.MaxLinkPreviewURLLength+1),
-				},
+				RoomId:           room.Id,
+				Body:             "hello",
+				LinkPreviewToken: "not-a-token",
 			},
 			code: connect.CodeInvalidArgument,
 		},
@@ -4892,7 +4957,7 @@ func TestMessageServiceCreateMessageInfersVideoProcessingAssetIDs(t *testing.T) 
 	}
 }
 
-func TestMessageServiceCreateMessageReturnsRenderableTimelineEvent(t *testing.T) {
+func TestMessageServiceCreateMessageReturnsRenderableMessage(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	room := env.createJoinedRoom("message-post-success")
 
@@ -4903,19 +4968,12 @@ func TestMessageServiceCreateMessageReturnsRenderableTimelineEvent(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	event := resp.Msg.GetEvent()
-	if event == nil {
-		t.Fatalf("CreateMessage event = nil, response = %+v", resp.Msg)
-	}
-	message := event.GetMessagePosted()
+	message := resp.Msg.GetMessage()
 	if message == nil {
-		t.Fatalf("CreateMessage payload = %T, want message_posted", event.GetEvent())
+		t.Fatalf("CreateMessage message = nil, response = %+v", resp.Msg)
 	}
 	if message.Body == nil || message.GetBody() != "hello over connect" {
 		t.Fatalf("message body = %q present=%v, want posted body", message.GetBody(), message.Body != nil)
-	}
-	if got := resp.Msg.GetIncludes().GetUsers()[env.viewer.Id]; got == nil || got.DisplayName != env.viewer.DisplayName {
-		t.Fatalf("included viewer = %+v, want %q", got, env.viewer.DisplayName)
 	}
 }
 
@@ -4931,9 +4989,9 @@ func TestMessageServiceCreateMessageUploadsAttachments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	message := resp.Msg.GetEvent().GetMessagePosted()
+	message := resp.Msg.GetMessage()
 	if message == nil {
-		t.Fatalf("CreateMessage payload = %T, want message_posted", resp.Msg.GetEvent().GetEvent())
+		t.Fatalf("CreateMessage message = nil, response = %+v", resp.Msg)
 	}
 	attachments := message.GetAttachments()
 	if len(attachments) != 1 {
@@ -4979,12 +5037,13 @@ func TestMessageServiceCreateMessageAttachmentPreflightDoesNotCreateAssets(t *te
 	}
 }
 
-func TestMessageServiceCreateMessageMentionConfirmationDoesNotCreateAssets(t *testing.T) {
+func TestMessageServiceCreateMessageBroadMentionWithAttachment(t *testing.T) {
 	env := newConnectAPITestEnv(t)
-	room := env.createJoinedRoom("upload-mention-confirm")
+	room := env.createJoinedRoom("upload-broad-mention")
 	ctx := withCaller(env.ctx, env.viewer)
 
-	for i := 0; i < core.LargeMentionNotificationThreshold+1; i++ {
+	const targetCount = 12
+	for i := 0; i < targetCount; i++ {
 		user, err := env.core.CreateUser(env.ctx, core.SystemActorID, "large-mention-target-"+strconv.Itoa(i), "Large Mention Target", "password")
 		if err != nil {
 			t.Fatalf("CreateUser target %d: %v", i, err)
@@ -4994,10 +5053,10 @@ func TestMessageServiceCreateMessageMentionConfirmationDoesNotCreateAssets(t *te
 		}
 	}
 
-	assetID := env.uploadAttachmentAsset(t, room.Id, "note.txt", "text/plain", []byte("challenged upload"))
+	assetID := env.uploadAttachmentAsset(t, room.Id, "note.txt", "text/plain", []byte("broad mention upload"))
 	before, err := env.core.GetAssetCount(env.ctx)
 	if err != nil {
-		t.Fatalf("GetAssetCount before challenged post: %v", err)
+		t.Fatalf("GetAssetCount before post: %v", err)
 	}
 	resp, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
 		RoomId:             room.Id,
@@ -5007,22 +5066,16 @@ func TestMessageServiceCreateMessageMentionConfirmationDoesNotCreateAssets(t *te
 	if err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	challenge := resp.Msg.GetMentionConfirmation()
-	if challenge == nil {
-		t.Fatalf("CreateMessage response = %+v, want mention confirmation", resp.Msg)
-	}
-	if challenge.GetRecipientCount() != int32(core.LargeMentionNotificationThreshold+1) {
-		t.Fatalf("RecipientCount = %d, want %d", challenge.GetRecipientCount(), core.LargeMentionNotificationThreshold+1)
-	}
-	if challenge.GetToken() == "" {
-		t.Fatal("confirmation token is empty")
+	message := resp.Msg.GetMessage()
+	if message == nil {
+		t.Fatalf("CreateMessage response = %+v, want message", resp.Msg)
 	}
 	after, err := env.core.GetAssetCount(env.ctx)
 	if err != nil {
-		t.Fatalf("GetAssetCount after challenged post: %v", err)
+		t.Fatalf("GetAssetCount after post: %v", err)
 	}
 	if after != before {
-		t.Fatalf("asset count after challenged message = %d, want unchanged %d", after, before)
+		t.Fatalf("asset count after message = %d, want unchanged %d", after, before)
 	}
 }
 
@@ -5078,13 +5131,12 @@ func TestMessageServiceCreateMessageValidationPreflightDoesNotCreateAssets(t *te
 			code: connect.CodeInvalidArgument,
 		},
 		{
-			name: "link preview URL too long",
+			name: "invalid link preview token",
 			req: &apiv1.CreateMessageRequest{
-				RoomId: room.Id,
-				Body:   "message with bad preview and file",
-				LinkPreview: &apiv1.MessageLinkPreviewInput{
-					Url: strings.Repeat("x", core.MaxLinkPreviewURLLength+1),
-				},
+				RoomId:             room.Id,
+				Body:               "message with bad preview and file",
+				AttachmentAssetIds: []string{"missing"},
+				LinkPreviewToken:   "not-a-token",
 			},
 			code: connect.CodeInvalidArgument,
 		},
@@ -5232,6 +5284,80 @@ func TestAssetUploadServiceChunkResumeCompleteAndCancel(t *testing.T) {
 	}
 }
 
+func TestAssetUploadServiceDoesNotRequireThreadPostPermission(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("asset-upload-thread-permission")
+	root := env.post(room.Id, env.viewer.Id, "root", "")
+	ctx := withCaller(env.ctx, env.viewer)
+	content := []byte("thread attachment")
+	sum := sha256.Sum256(content)
+
+	if err := env.core.DenyRoomPermission(env.ctx, core.SystemActorID, room.Id, core.RoleEveryone, core.PermMessagePostInThread); err != nil {
+		t.Fatalf("DenyRoomPermission thread post: %v", err)
+	}
+
+	created, err := env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
+		RoomId:      room.Id,
+		Filename:    "thread.txt",
+		ContentType: "text/plain",
+		Size:        int64(len(content)),
+		Sha256:      hex.EncodeToString(sum[:]),
+	}))
+	if err != nil {
+		t.Fatalf("CreateUpload with thread posting denied: %v", err)
+	}
+	if created.Msg.GetUpload().GetUploadId() == "" {
+		t.Fatal("CreateUpload upload id is empty")
+	}
+
+	_, err = env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:            room.Id,
+		Body:              "thread reply",
+		ThreadRootEventId: root.Id,
+	}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("CreateMessage thread reply code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	}
+}
+
+func TestAssetUploadServiceCompleteRechecksAttachmentPermission(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("upload-complete-permission")
+	ctx := withCaller(env.ctx, env.viewer)
+	content := []byte("attachment permission revoked")
+	sum := sha256.Sum256(content)
+
+	created, err := env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
+		RoomId:      room.Id,
+		Filename:    "revoked.txt",
+		ContentType: "text/plain",
+		Size:        int64(len(content)),
+		Sha256:      hex.EncodeToString(sum[:]),
+	}))
+	if err != nil {
+		t.Fatalf("CreateUpload: %v", err)
+	}
+	chunkSum := sha256.Sum256(content)
+	if _, err := env.assetUploads.UploadChunk(ctx, connect.NewRequest(&apiv1.UploadChunkRequest{
+		UploadId:    created.Msg.GetUpload().GetUploadId(),
+		Content:     content,
+		ChunkSha256: hex.EncodeToString(chunkSum[:]),
+	})); err != nil {
+		t.Fatalf("UploadChunk: %v", err)
+	}
+
+	if err := env.core.DenyRoomPermission(env.ctx, core.SystemActorID, room.Id, core.RoleEveryone, core.PermMessageAttach); err != nil {
+		t.Fatalf("DenyRoomPermission attach: %v", err)
+	}
+
+	_, err = env.assetUploads.CompleteUpload(ctx, connect.NewRequest(&apiv1.CompleteUploadRequest{
+		UploadId: created.Msg.GetUpload().GetUploadId(),
+	}))
+	if connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("CompleteUpload after attach permission revoked code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	}
+}
+
 func TestAssetUploadServiceRejectsChecksumOffsetAndIncompleteComplete(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	room := env.createJoinedRoom("asset-upload-validation")
@@ -5323,7 +5449,7 @@ func TestMessageServiceUpdateMessageAuthorAndRBAC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("author UpdateMessage: %v", err)
 	}
-	if authorResp.Msg.GetEvent().GetMessagePosted().GetBody() != "author edit" || authorResp.Msg.GetIncludes() == nil {
+	if !authorResp.Msg.GetUpdated() || authorResp.Msg.GetMessage().GetBody() != "author edit" {
 		t.Fatalf("author UpdateMessage response = %+v, want hydrated edited event", authorResp.Msg)
 	}
 	if body, err := env.core.GetMessageBody(env.ctx, core.KindChannel, original.Id); err != nil || body != "author edit" {
@@ -5625,7 +5751,7 @@ func TestRoomTimelineCursorFormatIsOpaqueAndVersioned(t *testing.T) {
 	}
 }
 
-func TestRoomAndMessageServicesListAndRefreshAttachments(t *testing.T) {
+func TestRoomMessageAndAssetServicesListAttachmentsGetMessagesAndGetAssets(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	room := env.createJoinedRoom("attachment-list")
 
@@ -5661,10 +5787,10 @@ func TestRoomAndMessageServicesListAndRefreshAttachments(t *testing.T) {
 	resp, err := env.rooms.ListRoomAttachments(ctx, connect.NewRequest(&apiv1.ListRoomAttachmentsRequest{
 		RoomId: room.Id,
 		Page:   &apiv1.PageRequest{Limit: 1},
-		Thumbnail: &apiv1.AttachmentThumbnailOptions{
+		Thumbnail: &apiv1.AssetThumbnailOptions{
 			Width:  120,
 			Height: 120,
-			Fit:    apiv1.AttachmentFitMode_ATTACHMENT_FIT_MODE_COVER,
+			Fit:    apiv1.AssetFitMode_ASSET_FIT_MODE_COVER,
 		},
 	}))
 	if err != nil {
@@ -5687,24 +5813,20 @@ func TestRoomAndMessageServicesListAndRefreshAttachments(t *testing.T) {
 		t.Fatal("created_at missing")
 	}
 
-	refresh, err := env.messages.RefreshMessageAttachmentUrls(ctx, connect.NewRequest(&apiv1.RefreshMessageAttachmentUrlsRequest{
+	get, err := env.messages.GetMessage(ctx, connect.NewRequest(&apiv1.GetMessageRequest{
 		RoomId:  room.Id,
 		EventId: reply.Id,
-		Thumbnail: &apiv1.AttachmentThumbnailOptions{
-			Width:  64,
-			Height: 64,
-			Fit:    apiv1.AttachmentFitMode_ATTACHMENT_FIT_MODE_CONTAIN,
-		},
 	}))
 	if err != nil {
-		t.Fatalf("RefreshMessageAttachmentUrls: %v", err)
+		t.Fatalf("GetMessage: %v", err)
 	}
-	if len(refresh.Msg.Attachments) != 1 {
-		t.Fatalf("refresh attachments = %d, want 1", len(refresh.Msg.Attachments))
+	getAttachments := get.Msg.GetMessage().GetAttachments()
+	if len(getAttachments) != 1 {
+		t.Fatalf("GetMessage attachments = %d, want 1", len(getAttachments))
 	}
-	fresh := refresh.Msg.Attachments[0]
-	if fresh.AttachmentId != threadAttachment.Id {
-		t.Fatalf("refresh attachment ID = %q, want %q", fresh.AttachmentId, threadAttachment.Id)
+	fresh := getAttachments[0]
+	if fresh.GetId() != threadAttachment.Id {
+		t.Fatalf("GetMessage attachment ID = %q, want %q", fresh.GetId(), threadAttachment.Id)
 	}
 	if fresh.GetAssetUrl().GetUrl() == "" || fresh.GetAssetUrl().GetExpiresAt() == nil {
 		t.Fatalf("fresh asset URL missing: %+v", fresh.GetAssetUrl())
@@ -5713,31 +5835,58 @@ func TestRoomAndMessageServicesListAndRefreshAttachments(t *testing.T) {
 		t.Fatalf("fresh thumbnail URL missing: %+v", fresh.GetThumbnailAssetUrl())
 	}
 
-	batch, err := env.messages.BatchRefreshMessageAttachmentUrls(ctx, connect.NewRequest(&apiv1.BatchRefreshMessageAttachmentUrlsRequest{
-		RoomId:   room.Id,
-		EventIds: []string{reply.Id, "missing-event", root.Id, reply.Id, empty.Id},
-		Thumbnail: &apiv1.AttachmentThumbnailOptions{
+	asset, err := env.assets.GetAsset(ctx, connect.NewRequest(&apiv1.GetAssetRequest{
+		RoomId:  room.Id,
+		AssetId: threadAttachment.Id,
+		Thumbnail: &apiv1.AssetThumbnailOptions{
 			Width:  64,
 			Height: 64,
-			Fit:    apiv1.AttachmentFitMode_ATTACHMENT_FIT_MODE_CONTAIN,
+			Fit:    apiv1.AssetFitMode_ASSET_FIT_MODE_CONTAIN,
 		},
 	}))
 	if err != nil {
-		t.Fatalf("BatchRefreshMessageAttachmentUrls: %v", err)
+		t.Fatalf("GetAsset: %v", err)
+	}
+	if got := asset.Msg.GetAsset().GetThumbnailAssetUrl().GetUrl(); !strings.Contains(got, "/64x64/contain") {
+		t.Fatalf("GetAsset thumbnail URL = %q, want 64x64 contain transform", got)
+	}
+
+	batch, err := env.messages.BatchGetMessages(ctx, connect.NewRequest(&apiv1.BatchGetMessagesRequest{
+		RoomId:   room.Id,
+		EventIds: []string{reply.Id, "missing-event", root.Id, reply.Id, empty.Id},
+	}))
+	if err != nil {
+		t.Fatalf("BatchGetMessages: %v", err)
 	}
 	if got := batch.Msg.GetMessages(); len(got) != 3 {
-		t.Fatalf("BatchRefreshMessageAttachmentUrls messages = %d, want 3", len(got))
+		t.Fatalf("BatchGetMessages messages = %d, want 3", len(got))
 	}
-	if batch.Msg.Messages[0].GetEventId() != reply.Id || len(batch.Msg.Messages[0].GetAttachments()) != 1 {
+	if batch.Msg.Messages[0].GetId() != reply.Id || len(batch.Msg.Messages[0].GetAttachments()) != 1 {
 		t.Fatalf("batch first = %+v, want reply with one attachment", batch.Msg.Messages[0])
 	}
-	if batch.Msg.Messages[1].GetEventId() != root.Id ||
+	if batch.Msg.Messages[1].GetId() != root.Id ||
 		len(batch.Msg.Messages[1].GetAttachments()) != 1 ||
-		batch.Msg.Messages[1].GetAttachments()[0].GetAttachmentId() != rootAttachment.Id {
+		batch.Msg.Messages[1].GetAttachments()[0].GetId() != rootAttachment.Id {
 		t.Fatalf("batch second = %+v, want root attachment", batch.Msg.Messages[1])
 	}
-	if batch.Msg.Messages[2].GetEventId() != empty.Id || len(batch.Msg.Messages[2].GetAttachments()) != 0 {
+	if batch.Msg.Messages[2].GetId() != empty.Id || len(batch.Msg.Messages[2].GetAttachments()) != 0 {
 		t.Fatalf("batch third = %+v, want empty message with no attachments", batch.Msg.Messages[2])
+	}
+
+	assets, err := env.assets.BatchGetAssets(ctx, connect.NewRequest(&apiv1.BatchGetAssetsRequest{
+		RoomId:   room.Id,
+		AssetIds: []string{threadAttachment.Id, "missing-asset", rootAttachment.Id, threadAttachment.Id},
+		Thumbnail: &apiv1.AssetThumbnailOptions{
+			Width:  64,
+			Height: 64,
+			Fit:    apiv1.AssetFitMode_ASSET_FIT_MODE_CONTAIN,
+		},
+	}))
+	if err != nil {
+		t.Fatalf("BatchGetAssets: %v", err)
+	}
+	if got := assets.Msg.GetAssets(); len(got) != 2 || got[0].GetId() != threadAttachment.Id || got[1].GetId() != rootAttachment.Id {
+		t.Fatalf("BatchGetAssets assets = %+v, want thread then root attachments", got)
 	}
 }
 
@@ -5777,22 +5926,23 @@ func TestRoomAndThreadTimelineHydratesMessagesWithoutClientNPlusOne(t *testing.T
 	if payload == nil {
 		t.Fatalf("root payload = nil, want message_posted")
 	}
-	if payload.Body == nil || payload.GetBody() != "root" {
-		t.Fatalf("message body present/body = %v/%q, want true/root", payload.Body != nil, payload.GetBody())
+	message := payload.GetMessage()
+	if message.Body == nil || message.GetBody() != "root" {
+		t.Fatalf("message body present/body = %v/%q, want true/root", message.Body != nil, message.GetBody())
 	}
-	if payload.ReplyCount != 1 {
-		t.Fatalf("reply count = %d, want 1", payload.ReplyCount)
+	if message.ReplyCount != 1 {
+		t.Fatalf("reply count = %d, want 1", message.ReplyCount)
 	}
-	if got := payload.ThreadParticipantCount; got != 1 {
+	if got := message.ThreadParticipantCount; got != 1 {
 		t.Fatalf("thread participant count = %d, want 1", got)
 	}
-	if got := payload.ThreadParticipantPreviewUserIds; len(got) != 1 || got[0] != replier.Id {
+	if got := message.ThreadParticipantPreviewUserIds; len(got) != 1 || got[0] != replier.Id {
 		t.Fatalf("thread participant preview = %v, want [%s]", got, replier.Id)
 	}
-	if len(payload.Reactions) != 1 {
-		t.Fatalf("reaction summaries = %d, want 1", len(payload.Reactions))
+	if len(message.Reactions) != 1 {
+		t.Fatalf("reaction summaries = %d, want 1", len(message.Reactions))
 	}
-	reaction := payload.Reactions[0]
+	reaction := message.Reactions[0]
 	if reaction.Emoji != "thumbsup" || reaction.Count != 2 || !reaction.HasReacted {
 		t.Fatalf("reaction = %+v, want thumbsup count 2 hasReacted true", reaction)
 	}
@@ -5914,63 +6064,62 @@ func TestRoomAndThreadTimelineGetThreadEventsAroundRootAndReply(t *testing.T) {
 	}
 }
 
-func TestRoomAndThreadTimelineResolveMessageLinkTarget(t *testing.T) {
+func TestRoomAndThreadTimelineGetMessageForPermalinks(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	room := env.createJoinedRoom("timeline-message-link")
 
 	root := env.post(room.Id, env.viewer.Id, "root", "")
 	reply := env.post(room.Id, env.viewer.Id, "reply", root.Id)
 
-	req := connect.NewRequest(&apiv1.ResolveMessageLinkTargetRequest{
+	req := connect.NewRequest(&apiv1.GetMessageRequest{
 		RoomId:  room.Id,
 		EventId: reply.Id,
 	})
-	if _, err := env.messages.ResolveMessageLinkTarget(env.ctx, req); connect.CodeOf(err) != connect.CodeUnauthenticated {
-		t.Fatalf("unauthenticated ResolveMessageLinkTarget code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
+	if _, err := env.messages.GetMessage(env.ctx, req); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated GetMessage code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
 	}
 
 	outsider, err := env.core.CreateUser(env.ctx, core.SystemActorID, "message-link-outsider", "Message Link Outsider", "password")
 	if err != nil {
 		t.Fatalf("CreateUser outsider: %v", err)
 	}
-	if _, err := env.messages.ResolveMessageLinkTarget(withCaller(env.ctx, outsider), req); connect.CodeOf(err) != connect.CodePermissionDenied {
-		t.Fatalf("non-member ResolveMessageLinkTarget code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	if _, err := env.messages.GetMessage(withCaller(env.ctx, outsider), req); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("non-member GetMessage code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
 	}
 
 	ctx := withCaller(env.ctx, env.viewer)
-	rootResp, err := env.messages.ResolveMessageLinkTarget(ctx, connect.NewRequest(&apiv1.ResolveMessageLinkTargetRequest{
+	rootResp, err := env.messages.GetMessage(ctx, connect.NewRequest(&apiv1.GetMessageRequest{
 		RoomId:  room.Id,
 		EventId: root.Id,
 	}))
 	if err != nil {
-		t.Fatalf("ResolveMessageLinkTarget root: %v", err)
+		t.Fatalf("GetMessage root: %v", err)
 	}
-	if rootResp.Msg.GetEvent().GetId() != root.Id || rootResp.Msg.GetThreadRootEventId() != "" {
-		t.Fatalf("root target = event %q thread %q, want event %q no thread", rootResp.Msg.GetEvent().GetId(), rootResp.Msg.GetThreadRootEventId(), root.Id)
+	rootMessage := rootResp.Msg.GetMessage()
+	if rootMessage.GetId() != root.Id || rootMessage.GetThreadRootEventId() != "" {
+		t.Fatalf("root message = event %q thread %q, want event %q no thread", rootMessage.GetId(), rootMessage.GetThreadRootEventId(), root.Id)
 	}
-	if rootResp.Msg.GetEvent().GetMessagePosted().GetBody() != "root" {
-		t.Fatalf("root body = %q, want root", rootResp.Msg.GetEvent().GetMessagePosted().GetBody())
-	}
-	if rootResp.Msg.GetIncludes().GetUsers()[env.viewer.Id] == nil {
-		t.Fatalf("root includes missing viewer %s", env.viewer.Id)
+	if rootMessage.GetBody() != "root" {
+		t.Fatalf("root body = %q, want root", rootMessage.GetBody())
 	}
 
-	replyResp, err := env.messages.ResolveMessageLinkTarget(ctx, connect.NewRequest(&apiv1.ResolveMessageLinkTargetRequest{
+	replyResp, err := env.messages.GetMessage(ctx, connect.NewRequest(&apiv1.GetMessageRequest{
 		RoomId:  room.Id,
 		EventId: reply.Id,
 	}))
 	if err != nil {
-		t.Fatalf("ResolveMessageLinkTarget reply: %v", err)
+		t.Fatalf("GetMessage reply: %v", err)
 	}
-	if replyResp.Msg.GetEvent().GetId() != reply.Id || replyResp.Msg.GetThreadRootEventId() != root.Id {
-		t.Fatalf("reply target = event %q thread %q, want event %q thread %q", replyResp.Msg.GetEvent().GetId(), replyResp.Msg.GetThreadRootEventId(), reply.Id, root.Id)
+	replyMessage := replyResp.Msg.GetMessage()
+	if replyMessage.GetId() != reply.Id || replyMessage.GetThreadRootEventId() != root.Id {
+		t.Fatalf("reply message = event %q thread %q, want event %q thread %q", replyMessage.GetId(), replyMessage.GetThreadRootEventId(), reply.Id, root.Id)
 	}
 
-	if _, err := env.messages.ResolveMessageLinkTarget(ctx, connect.NewRequest(&apiv1.ResolveMessageLinkTargetRequest{
+	if _, err := env.messages.GetMessage(ctx, connect.NewRequest(&apiv1.GetMessageRequest{
 		RoomId:  room.Id,
 		EventId: "missing-anchor",
 	})); connect.CodeOf(err) != connect.CodeNotFound {
-		t.Fatalf("missing target code = %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
+		t.Fatalf("missing message code = %v, want %v", connect.CodeOf(err), connect.CodeNotFound)
 	}
 }
 
@@ -6042,7 +6191,7 @@ func TestRoomAndThreadTimelineHydratesProcessedVideoAttachments(t *testing.T) {
 	if apiEvent == nil || apiEvent.GetMessagePosted() == nil {
 		t.Fatalf("message event %s not found in page", event.Id)
 	}
-	attachments := apiEvent.GetMessagePosted().GetAttachments()
+	attachments := apiEvent.GetMessagePosted().GetMessage().GetAttachments()
 	if len(attachments) != 1 {
 		t.Fatalf("attachments = %d, want 1", len(attachments))
 	}
@@ -6053,7 +6202,7 @@ func TestRoomAndThreadTimelineHydratesProcessedVideoAttachments(t *testing.T) {
 	if processing == nil {
 		t.Fatal("videoProcessing = nil, want completed manifest")
 	}
-	if processing.GetStatus() != apiv1.RoomTimelineVideoProcessingStatus_ROOM_TIMELINE_VIDEO_PROCESSING_STATUS_COMPLETED {
+	if processing.GetStatus() != apiv1.MessageVideoProcessingStatus_MESSAGE_VIDEO_PROCESSING_STATUS_COMPLETED {
 		t.Fatalf("videoProcessing status = %v, want COMPLETED", processing.GetStatus())
 	}
 	if processing.GetDurationMs() != 1234 || processing.GetWidth() != 1280 || processing.GetHeight() != 720 {
@@ -6688,10 +6837,10 @@ func TestThreadServiceListFollowedThreadsReturnsHydratedPage(t *testing.T) {
 		t.Fatalf("followed thread metadata = replies %d unread %v lastReplyAt %v, want replies 1 unread true lastReplyAt set", thread.GetReplyCount(), thread.GetHasUnread(), thread.GetLastReplyAt())
 	}
 	rootMessage := thread.GetRootMessage()
-	if rootMessage == nil || rootMessage.GetId() != root.Id || rootMessage.GetMessagePosted() == nil {
-		t.Fatalf("root message = %+v, want hydrated message_posted event %s", rootMessage, root.Id)
+	if rootMessage == nil || rootMessage.GetId() != root.Id {
+		t.Fatalf("root message = %+v, want hydrated message %s", rootMessage, root.Id)
 	}
-	if got := rootMessage.GetMessagePosted().GetBody(); got != "root body" {
+	if got := rootMessage.GetBody(); got != "root body" {
 		t.Fatalf("root message body = %q, want root body", got)
 	}
 	users := resp.Msg.GetIncludes().GetUsers()
@@ -6938,10 +7087,10 @@ type connectAPITestEnv struct {
 	adminEventLog    *adminEventLogService
 	adminLayout      *adminRoomLayoutService
 	adminUsers       *adminUserManagementService
+	assets           *assetService
 	assetUploads     *assetUploadService
 	directory        *roomDirectoryService
 	externalAuth     *externalIdentityAuthService
-	linkPreviews     *linkPreviewService
 	messages         *messageService
 	notifications    *notificationService
 	permissions      *permissionService
@@ -6991,10 +7140,10 @@ func newConnectAPITestEnv(t *testing.T) *connectAPITestEnv {
 		adminEventLog:    &adminEventLogService{api: api},
 		adminLayout:      &adminRoomLayoutService{api: api},
 		adminUsers:       &adminUserManagementService{api: api},
+		assets:           &assetService{api: api},
 		assetUploads:     &assetUploadService{api: api},
 		directory:        &roomDirectoryService{api: api},
 		externalAuth:     &externalIdentityAuthService{api: api},
-		linkPreviews:     &linkPreviewService{api: api},
 		messages:         &messageService{api: api},
 		notifications:    &notificationService{api: api},
 		permissions:      &permissionService{api: api},
@@ -7139,8 +7288,8 @@ func timelinePageEventIDs(page *apiv1.RoomTimelinePage) []string {
 	return ids
 }
 
-func directoryRoomsByID(rooms []*apiv1.DirectoryRoom) map[string]*apiv1.DirectoryRoom {
-	result := make(map[string]*apiv1.DirectoryRoom, len(rooms))
+func directoryRoomsByID(rooms []*apiv1.RoomWithViewerState) map[string]*apiv1.RoomWithViewerState {
+	result := make(map[string]*apiv1.RoomWithViewerState, len(rooms))
 	for _, room := range rooms {
 		if room == nil || room.GetRoom() == nil {
 			continue
@@ -7159,10 +7308,29 @@ func findDirectoryGroup(groups []*apiv1.RoomGroup, groupID string) *apiv1.RoomGr
 	return nil
 }
 
+func findAdminRoomLayoutGroup(groups []*adminv1.AdminRoomLayoutGroup, groupID string) *adminv1.AdminRoomLayoutGroup {
+	for _, group := range groups {
+		if group.GetId() == groupID {
+			return group
+		}
+	}
+	return nil
+}
+
 func roomGroupItemsContainRoom(items []*apiv1.RoomGroupItem, roomID string) bool {
 	for _, item := range items {
 		room := item.GetRoom()
 		if room != nil && room.GetRoom().GetId() == roomID {
+			return true
+		}
+	}
+	return false
+}
+
+func adminRoomLayoutItemsContainRoom(items []*adminv1.AdminRoomLayoutItem, roomID string) bool {
+	for _, item := range items {
+		room := item.GetRoom()
+		if room != nil && room.GetId() == roomID {
 			return true
 		}
 	}

@@ -15,6 +15,9 @@ const legacyRawReferencePath = path.join(
   repoRoot,
   'apps/docs-website/src/generated/connectrpc-api/index.raw.mdx'
 );
+const staleRawReferencePaths = [
+  legacyRawReferencePath
+];
 const outputDir = path.join(
   repoRoot,
   'apps/docs-website/src/content/docs/reference/connectrpc-api'
@@ -28,7 +31,7 @@ const categories = [
         name: 'ExternalIdentityAuthService',
         slug: 'external-identity-auth',
         title: 'External Identity Auth',
-        description: 'Capability-token external identity authentication RPCs.'
+        description: 'Public external-identity confirmation and capability-token auth-flow RPCs.'
       }
     ]
   },
@@ -47,22 +50,22 @@ const categories = [
     title: 'chatto.api.v1',
     services: [
       {
+        name: 'AssetService',
+        slug: 'assets',
+        title: 'Assets',
+        description: 'Room-scoped asset metadata and signed URL read RPCs.'
+      },
+      {
         name: 'AssetUploadService',
         slug: 'asset-uploads',
         title: 'Asset Uploads',
         description: 'Chunked room-scoped attachment upload RPCs.'
       },
       {
-        name: 'LinkPreviewService',
-        slug: 'link-previews',
-        title: 'Link Previews',
-        description: 'Link preview fetch RPCs.'
-      },
-      {
         name: 'MessageService',
         slug: 'messages',
         title: 'Messages',
-        description: 'Message creation, editing, deletion, permalink, reaction, link-preview, and attachment RPCs.'
+        description: 'Message creation, editing, deletion, composer link-preview, reaction, and attachment RPCs.'
       },
       {
         name: 'MyAccountService',
@@ -110,7 +113,7 @@ const categories = [
         name: 'ServerService',
         slug: 'server',
         title: 'Server',
-        description: 'Authenticated server profile, runtime configuration, and member directory RPCs.'
+        description: 'Authenticated server MOTD and runtime configuration RPCs.'
       },
       {
         name: 'ThreadService',
@@ -119,10 +122,10 @@ const categories = [
         description: 'Thread timeline, read-state, follow, and followed-thread listing RPCs.'
       },
       {
-        name: 'UserDirectoryService',
-        slug: 'user-directory',
-        title: 'User Directory',
-        description: 'Authenticated public user profile lookup RPCs.'
+        name: 'UserService',
+        slug: 'users',
+        title: 'Users',
+        description: 'Authenticated server-wide user directory RPCs.'
       },
       {
         name: 'ViewerService',
@@ -262,15 +265,15 @@ function renderLanding() {
     'POST /api/connect/chatto.discovery.v1.ServerDiscoveryService/GetServer',
     '```',
     '',
-    '`chatto.discovery.v1` server discovery is unauthenticated. Most other RPCs require an `Authorization: Bearer <token>` header, a capability token carried in the request, or a browser session when called by the bundled web client.',
+    '`chatto.discovery.v1` server discovery is unauthenticated. Most other documented ConnectRPC services require an `Authorization: Bearer <token>` header or a browser session when called by the bundled web client.',
     '',
     '## Authentication And Permissions',
     '',
     '[ServerDiscoveryService.GetServer](/reference/connectrpc-api/server-discovery/#chatto-discovery-v1-ServerDiscoveryService-GetServer) is public so clients can discover branding, registration state, and login providers before a user signs in.',
     '',
-    '`chatto.auth.v1` contains public auth flows with their own security model, such as pending external identity confirmation. Those RPCs are unauthenticated at the session layer but require a valid flow token in the request.',
+    '`chatto.auth.v1` external-identity confirmation calls are public but require short-lived capability tokens produced by the browser auth flow. See [External Login Providers](/guides/integrations/external-login-providers/) for login-provider discovery and sign-in configuration.',
     '',
-    'Most `chatto.api.v1` calls require an authenticated user. Non-browser clients should send `Authorization: Bearer <token>`; browser clients can use the active Chatto session. See [External Login Providers](/guides/integrations/external-login-providers/) for login-provider discovery and sign-in configuration.',
+    'Most `chatto.api.v1` calls require an authenticated user. Non-browser clients should send `Authorization: Bearer <token>`; browser clients can use the active Chatto session.',
     '',
     '`chatto.admin.v1` calls require authentication. Mutating calls and sensitive reads require the relevant server permission; a few catalog/layout reads are intentionally available to any authenticated user so clients can render assigned roles and sidebar layout. See [Permissions & Roles](/guides/planning/permissions/) for the permission model.',
     '',
@@ -287,8 +290,8 @@ function renderLanding() {
     '**`chatto.auth.v1`**',
     '',
     '- **Transport:** ConnectRPC unary RPCs.',
-    '- **Covers:** Public auth flows with capability-token authorization, such as pending external identity confirmation.',
-    '- **Contract:** Public auth-flow API for clients that do not have a normal Chatto session yet, or that are completing a browser handoff.',
+    '- **Covers:** Public external-identity confirmation steps backed by short-lived capability tokens.',
+    '- **Contract:** Narrow auth-flow API for the bundled client and compatible login integrations.',
     '',
     '**`chatto.api.v1`**',
     '',
@@ -319,7 +322,7 @@ function renderLanding() {
     '/api/connect/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo',
     '```',
     '',
-    'Reflection lets tools resolve service and message descriptors without a local copy of the `.proto` files. Chatto limits reflection to public `chatto.auth.v1`, `chatto.discovery.v1`, `chatto.api.v1`, and `chatto.admin.v1` descriptors plus required imports.',
+    'Reflection lets tools resolve service and message descriptors without a local copy of the `.proto` files. Chatto limits reflection to public descriptors plus required imports.',
     '',
     'Because Chatto mounts ConnectRPC under `/api/connect`, use tools that accept a full Connect URL, such as `buf curl`. gRPC tools that only dial services at the host root need a proxy or path rewrite.',
     '',
@@ -642,11 +645,13 @@ validateGeneratedPages(generatedPages);
 
 await mkdir(outputDir, { recursive: true });
 await removeStaleGeneratedPages(new Set(generatedPages.keys()));
-try {
-  await unlink(legacyRawReferencePath);
-} catch (error) {
-  if (error.code !== 'ENOENT') {
-    throw error;
+for (const staleRawReferencePath of staleRawReferencePaths) {
+  try {
+    await unlink(staleRawReferencePath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
   }
 }
 for (const [filename, content] of generatedPages.entries()) {

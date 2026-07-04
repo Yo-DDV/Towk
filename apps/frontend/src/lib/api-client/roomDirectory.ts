@@ -8,9 +8,9 @@ import {
 } from './connect.js';
 import { RoomDirectoryService } from '@chatto/api-types/api/v1/room_directory_connect';
 import type {
-  DirectoryRoom,
   RoomGroup,
-  RoomGroupItem
+  RoomGroupItem,
+  RoomWithViewerState
 } from '@chatto/api-types/api/v1/room_directory_pb';
 import { RoomDirectoryScope } from '@chatto/api-types/api/v1/room_directory_pb';
 import { RoomKind } from '@chatto/api-types/api/v1/rooms_pb';
@@ -67,10 +67,6 @@ export type DirectoryRoomGroup = {
   items: DirectoryRoomGroupItem[];
 };
 
-export type RoomGroupReadOptions = {
-  includeArchivedRooms?: boolean;
-};
-
 export { RoomDirectoryScope };
 export { RoomKind };
 
@@ -112,30 +108,18 @@ export function createRoomDirectoryAPI(config: RoomDirectoryAPIConfig) {
       }
     },
 
-    async listRoomGroups(options: RoomGroupReadOptions = {}): Promise<DirectoryRoomGroup[]> {
+    async listRoomGroups(): Promise<DirectoryRoomGroup[]> {
       try {
-        const response = await directory.listRoomGroups(
-          { includeArchivedRooms: options.includeArchivedRooms ?? false },
-          { headers: headers() }
-        );
+        const response = await directory.listRoomGroups({}, { headers: headers() });
         return response.groups.map(mapRoomGroup);
       } catch (err) {
         return handleAuthError(config, err);
       }
     },
 
-    async getRoomGroup(
-      groupId: string,
-      options: RoomGroupReadOptions = {}
-    ): Promise<DirectoryRoomGroup | null> {
+    async getRoomGroup(groupId: string): Promise<DirectoryRoomGroup | null> {
       try {
-        const response = await directory.getRoomGroup(
-          {
-            groupId,
-            includeArchivedRooms: options.includeArchivedRooms ?? false
-          },
-          { headers: headers() }
-        );
+        const response = await directory.getRoomGroup({ groupId }, { headers: headers() });
         return response.group ? mapRoomGroup(response.group) : null;
       } catch (err) {
         if (err instanceof ConnectError && err.code === Code.NotFound) {
@@ -145,18 +129,9 @@ export function createRoomDirectoryAPI(config: RoomDirectoryAPIConfig) {
       }
     },
 
-    async batchGetRoomGroups(
-      groupIds: string[],
-      options: RoomGroupReadOptions = {}
-    ): Promise<DirectoryRoomGroup[]> {
+    async batchGetRoomGroups(groupIds: string[]): Promise<DirectoryRoomGroup[]> {
       try {
-        const response = await directory.batchGetRoomGroups(
-          {
-            groupIds,
-            includeArchivedRooms: options.includeArchivedRooms ?? false
-          },
-          { headers: headers() }
-        );
+        const response = await directory.batchGetRoomGroups({ groupIds }, { headers: headers() });
         return response.groups.map(mapRoomGroup);
       } catch (err) {
         return handleAuthError(config, err);
@@ -167,24 +142,28 @@ export function createRoomDirectoryAPI(config: RoomDirectoryAPIConfig) {
 
 export type RoomDirectoryAPI = ReturnType<typeof createRoomDirectoryAPI>;
 
-function mapDirectoryRoomDetails(entry: DirectoryRoom | undefined): DirectoryRoomDetails | null {
-  const summary = entry ? mapDirectoryRoom(entry) : null;
+function mapDirectoryRoomDetails(
+  entry: RoomWithViewerState | undefined
+): DirectoryRoomDetails | null {
+  if (!entry) return null;
+
+  const summary = mapDirectoryRoom(entry);
   if (!summary) return null;
 
   return {
     ...summary,
-    canPostMessage: entry?.viewerState?.canPostMessage ?? false,
-    canPostInThread: entry?.viewerState?.canPostInThread ?? false,
-    canAttach: entry?.viewerState?.canAttach ?? false,
-    canReact: entry?.viewerState?.canReact ?? false,
-    canEchoMessage: entry?.viewerState?.canEchoMessage ?? false,
-    canManageOthersMessage: entry?.viewerState?.canManageOthersMessage ?? false,
-    canManageRoom: entry?.viewerState?.canManageRoom ?? false,
-    canBanRoomMembers: entry?.viewerState?.canBanRoomMembers ?? false
+    canPostMessage: entry.canPostMessage,
+    canPostInThread: entry.canPostInThread,
+    canAttach: entry.canAttach,
+    canReact: entry.canReact,
+    canEchoMessage: entry.canEchoMessage,
+    canManageOthersMessage: entry.canManageOthersMessage,
+    canManageRoom: entry.canManageRoom,
+    canBanRoomMembers: entry.canBanRoomMembers
   };
 }
 
-function mapDirectoryRoom(entry: DirectoryRoom): DirectoryRoomSummary | null {
+function mapDirectoryRoom(entry: RoomWithViewerState): DirectoryRoomSummary | null {
   if (!entry.room) return null;
   return {
     id: entry.room.id,
@@ -193,9 +172,9 @@ function mapDirectoryRoom(entry: DirectoryRoom): DirectoryRoomSummary | null {
     kind: entry.room.kind,
     archived: entry.room.archived,
     isUniversal: entry.room.universal,
-    isMember: entry.viewerState?.isMember ?? false,
-    hasUnread: entry.viewerState?.hasUnread ?? false,
-    canJoinRoom: entry.viewerState?.canJoinRoom ?? false
+    isMember: entry.isMember,
+    hasUnread: entry.hasUnread,
+    canJoinRoom: entry.canJoinRoom
   };
 }
 

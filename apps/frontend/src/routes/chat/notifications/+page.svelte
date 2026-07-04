@@ -173,6 +173,9 @@
       <div class="flex flex-col">
         {#each allNotifications as item (item.notification.id)}
           {@const actor = item.notification.actor ?? null}
+          {@const location = serverRegistry
+            .getStore(item.serverId)
+            .notifications.getLocationString(item.notification, item.serverName)}
           <div
             class="flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-surface-100"
             role="button"
@@ -189,15 +192,9 @@
               <p class="truncate">{item.notification.summary}</p>
               <p class="text-sm text-muted">
                 <span class="truncate">{item.serverHostname}</span>
-                {#if serverRegistry
-                  .getStore(item.serverId)
-                  .notifications.getLocationString(item.notification)}
+                {#if location}
                   <span class="mx-1">•</span>
-                  <span class="truncate"
-                    >{serverRegistry
-                      .getStore(item.serverId)
-                      .notifications.getLocationString(item.notification)}</span
-                  >
+                  <span class="truncate">{location}</span>
                 {/if}
                 <span class="mx-1">•</span>
                 {formatTime(item.notification.createdAt)}

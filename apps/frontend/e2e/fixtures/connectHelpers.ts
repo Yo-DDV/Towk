@@ -62,7 +62,7 @@ interface NotificationPreferenceResponse {
 }
 
 interface ListRoomsResponse {
-  rooms?: Array<{ room?: { id?: string; name?: string }; viewerState?: { hasUnread?: boolean } }>;
+  rooms?: Array<{ room?: { id?: string; name?: string }; hasUnread?: boolean }>;
 }
 
 interface ListRoomGroupsResponse {
@@ -86,7 +86,7 @@ interface ViewerResponse {
 }
 
 interface GetUserResponse {
-  user?: { id?: string };
+  user?: { profile?: { user?: { id?: string } } };
 }
 
 const notificationLevelToProtoName: Record<E2ENotificationLevel, string> = {
@@ -189,7 +189,7 @@ async function getRoomUnreadViaConnect(client: ConnectClient, roomId: string): P
   if (!room) {
     throw new Error(`Room "${roomId}" not found`);
   }
-  return room.viewerState?.hasUnread ?? false;
+  return room.hasUnread ?? false;
 }
 
 export async function waitForServerUnreadViaConnect(
@@ -231,7 +231,7 @@ export async function waitForUserDeletedViaConnect(
   timeout = DEFAULT_POLL_TIMEOUT
 ): Promise<void> {
   await expect(async () => {
-    const response = await connectPostResponse(page, 'chatto.api.v1.UserDirectoryService/GetUser', {
+    const response = await connectPostResponse(page, 'chatto.api.v1.UserService/GetUser', {
       userId
     });
     if (response.ok()) {
@@ -362,9 +362,9 @@ async function postMessageWithConnectInput(page: Page, input: ConnectRequest): P
     'chatto.api.v1.MessageService/CreateMessage',
     input
   );
-  const eventId = data.event?.id;
+  const eventId = data.message?.id;
   if (!eventId) {
-    throw new Error('CreateMessage did not return an event id');
+    throw new Error('CreateMessage did not return a message id');
   }
   return eventId;
 }

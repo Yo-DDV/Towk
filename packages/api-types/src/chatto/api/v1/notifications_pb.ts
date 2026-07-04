@@ -5,7 +5,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, Timestamp } from "@bufbuild/protobuf";
-import { UserProfile } from "./users_pb.js";
+import { User } from "./users_pb.js";
 import { PageInfo, PageRequest } from "./pagination_pb.js";
 
 /**
@@ -300,9 +300,9 @@ export class NotificationItem extends Message<NotificationItem> {
   /**
    * User who triggered the notification, when still resolvable.
    *
-   * @generated from field: chatto.api.v1.UserProfile actor = 3;
+   * @generated from field: chatto.api.v1.User actor = 3;
    */
-  actor?: UserProfile;
+  actor?: User;
 
   /**
    * @generated from oneof chatto.api.v1.NotificationItem.kind
@@ -351,7 +351,7 @@ export class NotificationItem extends Message<NotificationItem> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "created_at", kind: "message", T: Timestamp },
-    { no: 3, name: "actor", kind: "message", T: UserProfile },
+    { no: 3, name: "actor", kind: "message", T: User },
     { no: 10, name: "direct_message", kind: "message", T: DirectMessageNotification, oneof: "kind" },
     { no: 11, name: "mention", kind: "message", T: MentionNotification, oneof: "kind" },
     { no: 12, name: "reply", kind: "message", T: ReplyNotification, oneof: "kind" },
@@ -479,13 +479,6 @@ export class ListNotificationsResponse extends Message<ListNotificationsResponse
   notifications: NotificationItem[] = [];
 
   /**
-   * Current server display name for non-DM location labels.
-   *
-   * @generated from field: string server_name = 4;
-   */
-  serverName = "";
-
-  /**
    * Page metadata.
    *
    * @generated from field: chatto.api.v1.PageInfo page = 5;
@@ -501,7 +494,6 @@ export class ListNotificationsResponse extends Message<ListNotificationsResponse
   static readonly typeName = "chatto.api.v1.ListNotificationsResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "notifications", kind: "message", T: NotificationItem, repeated: true },
-    { no: 4, name: "server_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "page", kind: "message", T: PageInfo },
   ]);
 
@@ -576,13 +568,6 @@ export class GetNotificationResponse extends Message<GetNotificationResponse> {
    */
   notification?: NotificationItem;
 
-  /**
-   * Current server display name for non-DM location labels.
-   *
-   * @generated from field: string server_name = 2;
-   */
-  serverName = "";
-
   constructor(data?: PartialMessage<GetNotificationResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -592,7 +577,6 @@ export class GetNotificationResponse extends Message<GetNotificationResponse> {
   static readonly typeName = "chatto.api.v1.GetNotificationResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "notification", kind: "message", T: NotificationItem },
-    { no: 2, name: "server_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetNotificationResponse {
@@ -668,13 +652,6 @@ export class BatchGetNotificationsResponse extends Message<BatchGetNotifications
    */
   notifications: NotificationItem[] = [];
 
-  /**
-   * Current server display name for non-DM location labels.
-   *
-   * @generated from field: string server_name = 2;
-   */
-  serverName = "";
-
   constructor(data?: PartialMessage<BatchGetNotificationsResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -684,7 +661,6 @@ export class BatchGetNotificationsResponse extends Message<BatchGetNotifications
   static readonly typeName = "chatto.api.v1.BatchGetNotificationsResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "notifications", kind: "message", T: NotificationItem, repeated: true },
-    { no: 2, name: "server_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetNotificationsResponse {
@@ -718,13 +694,6 @@ export class ListRoomNotificationsResponse extends Message<ListRoomNotifications
   notifications: NotificationItem[] = [];
 
   /**
-   * Current server display name for non-DM location labels.
-   *
-   * @generated from field: string server_name = 4;
-   */
-  serverName = "";
-
-  /**
    * Page metadata.
    *
    * @generated from field: chatto.api.v1.PageInfo page = 5;
@@ -740,7 +709,6 @@ export class ListRoomNotificationsResponse extends Message<ListRoomNotifications
   static readonly typeName = "chatto.api.v1.ListRoomNotificationsResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "notifications", kind: "message", T: NotificationItem, repeated: true },
-    { no: 4, name: "server_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "page", kind: "message", T: PageInfo },
   ]);
 

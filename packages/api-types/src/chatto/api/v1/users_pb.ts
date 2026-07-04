@@ -100,7 +100,7 @@ export class UserAvatarOptions extends Message<UserAvatarOptions> {
 }
 
 /**
- * Public user identity fields.
+ * Public user fields.
  *
  * @generated from message chatto.api.v1.User
  */
@@ -140,6 +140,20 @@ export class User extends Message<User> {
    */
   avatarUrl?: string;
 
+  /**
+   * Current live presence status.
+   *
+   * @generated from field: chatto.api.v1.PresenceStatus presence_status = 6;
+   */
+  presenceStatus = PresenceStatus.UNSPECIFIED;
+
+  /**
+   * Custom profile status, when set.
+   *
+   * @generated from field: chatto.api.v1.CustomUserStatus custom_status = 7;
+   */
+  customStatus?: CustomUserStatus;
+
   constructor(data?: PartialMessage<User>) {
     super();
     proto3.util.initPartial(data, this);
@@ -153,6 +167,8 @@ export class User extends Message<User> {
     { no: 3, name: "display_name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "deleted", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
     { no: 5, name: "avatar_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "presence_status", kind: "enum", T: proto3.getEnumType(PresenceStatus) },
+    { no: 7, name: "custom_status", kind: "message", T: CustomUserStatus },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): User {
@@ -169,258 +185,5 @@ export class User extends Message<User> {
 
   static equals(a: User | PlainMessage<User> | undefined, b: User | PlainMessage<User> | undefined): boolean {
     return proto3.util.equals(User, a, b);
-  }
-}
-
-/**
- * Public user identity fields plus live profile state.
- *
- * @generated from message chatto.api.v1.UserProfile
- */
-export class UserProfile extends Message<UserProfile> {
-  /**
-   * Public identity fields.
-   *
-   * @generated from field: chatto.api.v1.User user = 1;
-   */
-  user?: User;
-
-  /**
-   * Current live presence status.
-   *
-   * @generated from field: chatto.api.v1.PresenceStatus presence_status = 2;
-   */
-  presenceStatus = PresenceStatus.UNSPECIFIED;
-
-  /**
-   * Custom profile status, when set.
-   *
-   * @generated from field: chatto.api.v1.CustomUserStatus custom_status = 3;
-   */
-  customStatus?: CustomUserStatus;
-
-  constructor(data?: PartialMessage<UserProfile>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "chatto.api.v1.UserProfile";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "user", kind: "message", T: User },
-    { no: 2, name: "presence_status", kind: "enum", T: proto3.getEnumType(PresenceStatus) },
-    { no: 3, name: "custom_status", kind: "message", T: CustomUserStatus },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UserProfile {
-    return new UserProfile().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UserProfile {
-    return new UserProfile().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UserProfile {
-    return new UserProfile().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: UserProfile | PlainMessage<UserProfile> | undefined, b: UserProfile | PlainMessage<UserProfile> | undefined): boolean {
-    return proto3.util.equals(UserProfile, a, b);
-  }
-}
-
-/**
- * Request one user by stable user ID or login identifier.
- *
- * @generated from message chatto.api.v1.GetUserRequest
- */
-export class GetUserRequest extends Message<GetUserRequest> {
-  /**
-   * @generated from oneof chatto.api.v1.GetUserRequest.target
-   */
-  target: {
-    /**
-     * Target stable user ID.
-     *
-     * @generated from field: string user_id = 1;
-     */
-    value: string;
-    case: "userId";
-  } | {
-    /**
-     * Target login identifier.
-     *
-     * @generated from field: string login = 3;
-     */
-    value: string;
-    case: "login";
-  } | { case: undefined; value?: undefined } = { case: undefined };
-
-  /**
-   * Optional avatar URL transform parameters. Omit for the original avatar URL.
-   *
-   * @generated from field: chatto.api.v1.UserAvatarOptions avatar = 2;
-   */
-  avatar?: UserAvatarOptions;
-
-  constructor(data?: PartialMessage<GetUserRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "chatto.api.v1.GetUserRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "user_id", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "target" },
-    { no: 3, name: "login", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "target" },
-    { no: 2, name: "avatar", kind: "message", T: UserAvatarOptions },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetUserRequest {
-    return new GetUserRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetUserRequest {
-    return new GetUserRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetUserRequest {
-    return new GetUserRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: GetUserRequest | PlainMessage<GetUserRequest> | undefined, b: GetUserRequest | PlainMessage<GetUserRequest> | undefined): boolean {
-    return proto3.util.equals(GetUserRequest, a, b);
-  }
-}
-
-/**
- * Request public user profiles for a set of stable user IDs.
- *
- * @generated from message chatto.api.v1.BatchGetUsersRequest
- */
-export class BatchGetUsersRequest extends Message<BatchGetUsersRequest> {
-  /**
-   * Required user IDs. Unknown IDs are omitted from the response.
-   *
-   * @generated from field: repeated string user_ids = 1;
-   */
-  userIds: string[] = [];
-
-  /**
-   * Optional avatar URL transform parameters. Omit for the original avatar URL.
-   *
-   * @generated from field: chatto.api.v1.UserAvatarOptions avatar = 2;
-   */
-  avatar?: UserAvatarOptions;
-
-  constructor(data?: PartialMessage<BatchGetUsersRequest>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "chatto.api.v1.BatchGetUsersRequest";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "user_ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 2, name: "avatar", kind: "message", T: UserAvatarOptions },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetUsersRequest {
-    return new BatchGetUsersRequest().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetUsersRequest {
-    return new BatchGetUsersRequest().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetUsersRequest {
-    return new BatchGetUsersRequest().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: BatchGetUsersRequest | PlainMessage<BatchGetUsersRequest> | undefined, b: BatchGetUsersRequest | PlainMessage<BatchGetUsersRequest> | undefined): boolean {
-    return proto3.util.equals(BatchGetUsersRequest, a, b);
-  }
-}
-
-/**
- * Public authenticated user profile response.
- *
- * @generated from message chatto.api.v1.GetUserResponse
- */
-export class GetUserResponse extends Message<GetUserResponse> {
-  /**
-   * Requested user.
-   *
-   * @generated from field: chatto.api.v1.UserProfile user = 1;
-   */
-  user?: UserProfile;
-
-  constructor(data?: PartialMessage<GetUserResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "chatto.api.v1.GetUserResponse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "user", kind: "message", T: UserProfile },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetUserResponse {
-    return new GetUserResponse().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetUserResponse {
-    return new GetUserResponse().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetUserResponse {
-    return new GetUserResponse().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: GetUserResponse | PlainMessage<GetUserResponse> | undefined, b: GetUserResponse | PlainMessage<GetUserResponse> | undefined): boolean {
-    return proto3.util.equals(GetUserResponse, a, b);
-  }
-}
-
-/**
- * Batch public user profile response.
- *
- * @generated from message chatto.api.v1.BatchGetUsersResponse
- */
-export class BatchGetUsersResponse extends Message<BatchGetUsersResponse> {
-  /**
-   * Found users. The server preserves first-seen request order and
-   * de-duplicates repeated IDs.
-   *
-   * @generated from field: repeated chatto.api.v1.UserProfile users = 1;
-   */
-  users: UserProfile[] = [];
-
-  constructor(data?: PartialMessage<BatchGetUsersResponse>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "chatto.api.v1.BatchGetUsersResponse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "users", kind: "message", T: UserProfile, repeated: true },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetUsersResponse {
-    return new BatchGetUsersResponse().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): BatchGetUsersResponse {
-    return new BatchGetUsersResponse().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): BatchGetUsersResponse {
-    return new BatchGetUsersResponse().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: BatchGetUsersResponse | PlainMessage<BatchGetUsersResponse> | undefined, b: BatchGetUsersResponse | PlainMessage<BatchGetUsersResponse> | undefined): boolean {
-    return proto3.util.equals(BatchGetUsersResponse, a, b);
   }
 }

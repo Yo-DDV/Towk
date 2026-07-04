@@ -27,9 +27,9 @@ func (s *roomDirectoryService) ListRooms(ctx context.Context, req *connect.Reque
 		return nil, connectError(err)
 	}
 
-	apiRooms := make([]*apiv1.DirectoryRoom, 0, len(rooms))
+	apiRooms := make([]*apiv1.RoomWithViewerState, 0, len(rooms))
 	for _, room := range rooms {
-		apiRooms = append(apiRooms, apiDirectoryRoom(room))
+		apiRooms = append(apiRooms, apiRoomWithViewerState(room))
 	}
 
 	return connect.NewResponse(&apiv1.ListRoomsResponse{Rooms: apiRooms}), nil
@@ -41,9 +41,7 @@ func (s *roomDirectoryService) ListRoomGroups(ctx context.Context, req *connect.
 		return nil, err
 	}
 
-	groups, err := s.api.core.RoomDirectoryReads().ListRoomGroups(ctx, caller.UserID, core.RoomDirectoryGroupOptions{
-		IncludeArchivedRooms: req.Msg.GetIncludeArchivedRooms(),
-	})
+	groups, err := s.api.core.RoomDirectoryReads().ListRoomGroups(ctx, caller.UserID, core.RoomDirectoryGroupOptions{})
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -61,9 +59,7 @@ func (s *roomDirectoryService) GetRoomGroup(ctx context.Context, req *connect.Re
 		return nil, err
 	}
 
-	group, err := s.api.core.RoomDirectoryReads().GetRoomGroup(ctx, caller.UserID, req.Msg.GetGroupId(), core.RoomDirectoryGroupOptions{
-		IncludeArchivedRooms: req.Msg.GetIncludeArchivedRooms(),
-	})
+	group, err := s.api.core.RoomDirectoryReads().GetRoomGroup(ctx, caller.UserID, req.Msg.GetGroupId(), core.RoomDirectoryGroupOptions{})
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -76,9 +72,7 @@ func (s *roomDirectoryService) BatchGetRoomGroups(ctx context.Context, req *conn
 		return nil, err
 	}
 
-	groups, err := s.api.core.RoomDirectoryReads().BatchGetRoomGroups(ctx, caller.UserID, req.Msg.GetGroupIds(), core.RoomDirectoryGroupOptions{
-		IncludeArchivedRooms: req.Msg.GetIncludeArchivedRooms(),
-	})
+	groups, err := s.api.core.RoomDirectoryReads().BatchGetRoomGroups(ctx, caller.UserID, req.Msg.GetGroupIds(), core.RoomDirectoryGroupOptions{})
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -100,7 +94,7 @@ func (s *roomDirectoryService) GetRoom(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, connectError(err)
 	}
-	return connect.NewResponse(&apiv1.GetRoomResponse{Room: apiDirectoryRoom(room)}), nil
+	return connect.NewResponse(&apiv1.GetRoomResponse{Room: apiRoomWithViewerState(room)}), nil
 }
 
 func (s *roomDirectoryService) BatchGetRooms(ctx context.Context, req *connect.Request[apiv1.BatchGetRoomsRequest]) (*connect.Response[apiv1.BatchGetRoomsResponse], error) {
@@ -114,25 +108,20 @@ func (s *roomDirectoryService) BatchGetRooms(ctx context.Context, req *connect.R
 		return nil, connectError(err)
 	}
 
-	apiRooms := make([]*apiv1.DirectoryRoom, 0, len(rooms))
+	apiRooms := make([]*apiv1.RoomWithViewerState, 0, len(rooms))
 	for _, room := range rooms {
-		apiRooms = append(apiRooms, apiDirectoryRoom(room))
+		apiRooms = append(apiRooms, apiRoomWithViewerState(room))
 	}
 	return connect.NewResponse(&apiv1.BatchGetRoomsResponse{Rooms: apiRooms}), nil
 }
 
-func apiDirectoryRoom(room *core.DirectoryRoom) *apiv1.DirectoryRoom {
+func apiRoomWithViewerState(room *core.DirectoryRoom) *apiv1.RoomWithViewerState {
 	if room == nil {
 		return nil
 	}
-	return &apiv1.DirectoryRoom{
-		Room:        apiRoom(room.Room),
-		ViewerState: apiRoomViewerState(room.ViewerState),
-	}
-}
-
-func apiRoomViewerState(state core.DirectoryRoomViewerState) *apiv1.RoomViewerState {
-	return &apiv1.RoomViewerState{
+	state := room.ViewerState
+	return &apiv1.RoomWithViewerState{
+		Room:                   apiRoom(room.Room),
 		IsMember:               state.IsMember,
 		HasUnread:              state.HasUnread,
 		CanListRoom:            state.CanListRoom,
@@ -164,7 +153,7 @@ func apiRoomGroup(group *core.DirectoryRoomGroup) *apiv1.RoomGroup {
 		switch {
 		case item.Room != nil:
 			apiGroup.Items = append(apiGroup.Items, &apiv1.RoomGroupItem{
-				Item: &apiv1.RoomGroupItem_Room{Room: apiDirectoryRoom(item.Room)},
+				Item: &apiv1.RoomGroupItem_Room{Room: apiRoomWithViewerState(item.Room)},
 			})
 		case item.SidebarLink != nil:
 			apiGroup.Items = append(apiGroup.Items, &apiv1.RoomGroupItem{

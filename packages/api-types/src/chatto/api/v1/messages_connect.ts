@@ -3,9 +3,9 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { BatchRefreshMessageAttachmentUrlsRequest, BatchRefreshMessageAttachmentUrlsResponse, CreateMessageRequest, CreateMessageResponse, DeleteAttachmentRequest, DeleteAttachmentResponse, DeleteLinkPreviewRequest, DeleteLinkPreviewResponse, DeleteMessageRequest, DeleteMessageResponse, RefreshMessageAttachmentUrlsRequest, RefreshMessageAttachmentUrlsResponse, UpdateMessageRequest, UpdateMessageResponse } from "./messages_pb.js";
+import { FetchLinkPreviewRequest, FetchLinkPreviewResponse } from "./link_previews_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
-import { ResolveMessageLinkTargetRequest, ResolveMessageLinkTargetResponse } from "./room_timeline_pb.js";
+import { BatchGetMessagesRequest, BatchGetMessagesResponse, CreateMessageRequest, CreateMessageResponse, DeleteAttachmentRequest, DeleteAttachmentResponse, DeleteLinkPreviewRequest, DeleteLinkPreviewResponse, DeleteMessageRequest, DeleteMessageResponse, GetMessageRequest, GetMessageResponse, UpdateMessageRequest, UpdateMessageResponse } from "./messages_pb.js";
 import { AddReactionRequest, AddReactionResponse, RemoveReactionRequest, RemoveReactionResponse } from "./reactions_pb.js";
 
 /**
@@ -16,6 +16,19 @@ import { AddReactionRequest, AddReactionResponse, RemoveReactionRequest, RemoveR
 export const MessageService = {
   typeName: "chatto.api.v1.MessageService",
   methods: {
+    /**
+     * Fetches and caches metadata for a composer URL. Authentication is required
+     * to avoid exposing the preview fetcher as an unauthenticated network proxy.
+     * Successful responses include a short-lived token accepted by CreateMessage.
+     *
+     * @generated from rpc chatto.api.v1.MessageService.FetchLinkPreview
+     */
+    fetchLinkPreview: {
+      name: "FetchLinkPreview",
+      I: FetchLinkPreviewRequest,
+      O: FetchLinkPreviewResponse,
+      kind: MethodKind.Unary,
+    },
     /**
      * Creates a message for the current user. The user must be a room member and
      * must have message.post for room messages or message.post-in-thread for
@@ -78,48 +91,31 @@ export const MessageService = {
       kind: MethodKind.Unary,
     },
     /**
-     * Refreshes signed URLs for the current attachments on one message.
-     * Authentication and room membership are required. Returns NOT_FOUND when the
-     * message does not exist, is not a current visible message, or belongs to a
-     * different room. Returns an empty attachment list when the message exists
-     * but currently has no attachments.
+     * Reads one renderable message, including current body, attachment metadata,
+     * link preview, reactions, and thread metadata. Authentication and room
+     * membership are required. Returns NOT_FOUND when the event does not exist,
+     * is not a message, has been retracted, or belongs to a different room.
      *
-     * @generated from rpc chatto.api.v1.MessageService.RefreshMessageAttachmentUrls
+     * @generated from rpc chatto.api.v1.MessageService.GetMessage
      */
-    refreshMessageAttachmentUrls: {
-      name: "RefreshMessageAttachmentUrls",
-      I: RefreshMessageAttachmentUrlsRequest,
-      O: RefreshMessageAttachmentUrlsResponse,
+    getMessage: {
+      name: "GetMessage",
+      I: GetMessageRequest,
+      O: GetMessageResponse,
       kind: MethodKind.Unary,
     },
     /**
-     * Refreshes signed URLs for the current attachments on multiple messages in
-     * one room. Authentication and room membership are required. Missing,
-     * retracted, non-message, and wrong-room event IDs are omitted. Results
-     * preserve first-seen request order and repeated event IDs are de-duplicated.
-     * Existing visible messages with no current attachments are returned with an
-     * empty attachment list.
+     * Reads many renderable messages in one room. Authentication and room
+     * membership are required. Missing, retracted, non-message, and wrong-room
+     * event IDs are omitted. Results preserve first-seen request order and
+     * repeated event IDs are de-duplicated.
      *
-     * @generated from rpc chatto.api.v1.MessageService.BatchRefreshMessageAttachmentUrls
+     * @generated from rpc chatto.api.v1.MessageService.BatchGetMessages
      */
-    batchRefreshMessageAttachmentUrls: {
-      name: "BatchRefreshMessageAttachmentUrls",
-      I: BatchRefreshMessageAttachmentUrlsRequest,
-      O: BatchRefreshMessageAttachmentUrlsResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * Resolves a permalink target to either the room timeline or a message
-     * thread, including thread-only replies that are not room timeline rows.
-     * Returns NOT_FOUND when the target message is missing or hidden and
-     * PERMISSION_DENIED when the room is inaccessible.
-     *
-     * @generated from rpc chatto.api.v1.MessageService.ResolveMessageLinkTarget
-     */
-    resolveMessageLinkTarget: {
-      name: "ResolveMessageLinkTarget",
-      I: ResolveMessageLinkTargetRequest,
-      O: ResolveMessageLinkTargetResponse,
+    batchGetMessages: {
+      name: "BatchGetMessages",
+      I: BatchGetMessagesRequest,
+      O: BatchGetMessagesResponse,
       kind: MethodKind.Unary,
     },
     /**

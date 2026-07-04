@@ -1919,7 +1919,7 @@ func (x *RealtimeTypingEvent) GetThreadRootEventId() string {
 
 // Presence-changed signal.
 //
-// The latest presence status is inline. Use `UserDirectoryService.GetUser` when
+// The latest presence status is inline. Use `UserService.GetUser` when
 // the surrounding user profile or custom status also needs refreshing.
 type RealtimePresenceChangedEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2465,8 +2465,8 @@ func (x *RealtimeRoomMarkedAsReadEvent) GetRoomId() string {
 
 // Server-profile signal.
 //
-// Public server profile fields are inline. Use `ServerService.GetServerState`
-// when authenticated clients need the broader server state snapshot.
+// Public server profile fields are inline. Use `ServerDiscoveryService.GetServer`
+// for public metadata and `ServerService.GetMotd` for the authenticated MOTD.
 type RealtimeServerUpdatedEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Server display name.
@@ -2541,8 +2541,8 @@ func (x *RealtimeServerUpdatedEvent) GetBannerUrl() string {
 
 // User-profile signal.
 //
-// Basic profile fields are inline. Use `UserDirectoryService.GetUser` or
-// `UserDirectoryService.BatchGetUsers` for complete user-profile hydration.
+// Basic profile fields are inline. Use `UserService.GetUser` or
+// `UserService.BatchGetUsers` for complete user-profile hydration.
 type RealtimeUserProfileUpdatedEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User whose profile changed.
@@ -2617,7 +2617,7 @@ func (x *RealtimeUserProfileUpdatedEvent) GetAvatarUrl() string {
 
 // User-custom-status set signal.
 //
-// The latest custom status is inline. Use `UserDirectoryService.GetUser` when
+// The latest custom status is inline. Use `UserService.GetUser` when
 // clients need to refresh the complete user profile.
 type RealtimeUserCustomStatusSetEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2693,7 +2693,7 @@ func (x *RealtimeUserCustomStatusSetEvent) GetExpiresAt() *timestamppb.Timestamp
 
 // User-custom-status cleared signal.
 //
-// Clear local custom status for `user_id`. Use `UserDirectoryService.GetUser`
+// Clear local custom status for `user_id`. Use `UserService.GetUser`
 // when clients need to refresh the complete user profile.
 type RealtimeUserCustomStatusClearedEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -2901,10 +2901,9 @@ func (x *RealtimeServerMemberDeletedEvent) GetUserId() string {
 // Asset-processing signal.
 //
 // Message attachments are message-owned subresources. When
-// `message_event_id` is known, refresh signed URLs with
-// `MessageService.RefreshMessageAttachmentUrls` or
-// `MessageService.BatchRefreshMessageAttachmentUrls`; otherwise refetch the
-// affected attachment list or timeline window.
+// `message_event_id` is known, refetch message state with
+// `MessageService.GetMessage` or `MessageService.BatchGetMessages`; otherwise
+// refetch the affected attachment list or timeline window.
 type RealtimeAssetProcessingEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Room containing the message that owns the asset, when known.
@@ -2971,9 +2970,8 @@ func (x *RealtimeAssetProcessingEvent) GetMessageEventId() string {
 // Asset-deleted signal.
 //
 // Remove local attachment state by `asset_id`. When the owning message is known,
-// clients can refresh that message's attachment URLs through
-// `MessageService.RefreshMessageAttachmentUrls` or refetch the timeline
-// window.
+// clients can refetch that message through `MessageService.GetMessage` or
+// refetch the timeline window.
 type RealtimeAssetDeletedEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Room containing the message that owned the asset, when known.
@@ -3100,7 +3098,7 @@ func (x *RealtimeCallEvent) GetSource() RealtimeCallEventSource {
 //
 // Inline names are display hints. Hydrate referenced rooms through
 // `RoomDirectoryService.BatchGetRooms` and users through
-// `UserDirectoryService.BatchGetUsers` when local caches are missing or stale.
+// `UserService.BatchGetUsers` when local caches are missing or stale.
 type RealtimeMentionNotificationEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Room where the mention occurred.
@@ -3177,8 +3175,8 @@ func (x *RealtimeMentionNotificationEvent) GetActorDisplayName() string {
 //
 // Inline names and avatar URLs are display hints. Hydrate the DM room through
 // `RoomDirectoryService.GetRoom` or `RoomDirectoryService.BatchGetRooms`, and
-// the sender through `UserDirectoryService.GetUser` or
-// `UserDirectoryService.BatchGetUsers` when local caches are missing or stale.
+// the sender through `UserService.GetUser` or `UserService.BatchGetUsers` when
+// local caches are missing or stale.
 type RealtimeNewDirectMessageNotificationEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// DM room ID.

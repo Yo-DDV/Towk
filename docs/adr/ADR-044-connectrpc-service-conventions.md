@@ -66,8 +66,8 @@ scope belongs in the service name when it makes the resource easier to reason
 about; once the service carries that scope, RPC names can stay concise. Small
 adjacent resources should stay on an existing scoped lifecycle service when
 they share the same authorization boundary and make that service more complete:
-server membership rows live on `ServerService.ListMembers` / `GetMember` /
-`BatchGetMembers`, and room member reads live on `RoomService.ListMembers` /
+server-wide user directory rows live on `UserService.ListUsers` / `GetUser` /
+`BatchGetUsers`, and room member reads live on `RoomService.ListMembers` /
 `GetMember` / `BatchGetMembers`. Room membership commands also stay on
 `RoomService` alongside room lifecycle, timeline, read-state, attachments,
 typing, and moderation.
@@ -105,7 +105,7 @@ do not need N+1 RPC calls.
 
 Repeated public semantics should use shared protobuf shapes instead of service-local copies. Offset-based list RPCs use `PageRequest page` and return `PageInfo page` unless they need a cursor/window model such as room timeline reads. Singular lookup RPCs return `NOT_FOUND` when the requested resource is absent. Batch/list RPCs may omit missing resources or return empty lists. Optional response fields should represent a successful nullable result, not a hidden not-found status.
 
-Public user-shaped payloads should reuse the narrowest canonical shape that represents their semantics. `User` is the lightweight identity shape for embeds and include maps. `UserProfile` adds live presence and custom status for user-directory, notification, and call surfaces. Member rows, `ViewerUser`, and `AdminMember` remain separate because they carry membership, self-service, and admin-only fields with different visibility rules. Membership row services should be named by their scope, for example server members versus room members, rather than by the implementation concept of a directory.
+Public user-shaped payloads should reuse the narrowest canonical shape that represents their semantics. `User` is the canonical public user shape for identity, avatar, presence, and custom status, including embeds and include maps. Member rows, `ViewerUser`, and `AdminMember` remain separate because they carry membership, self-service, and admin-only fields with different visibility rules. Membership row services should be named by their scope, for example server members versus room members, rather than by the implementation concept of a directory.
 
 `connectapi.API.Handlers()` is the authoritative registry for mounted ConnectRPC services. Each registered handler includes:
 

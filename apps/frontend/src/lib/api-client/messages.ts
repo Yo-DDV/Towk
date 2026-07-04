@@ -1,8 +1,7 @@
 import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
 import type { LinkPreviewInput, RoomEventView } from './renderTypes.js';
 import { MessageService } from '@chatto/api-types/api/v1/messages_connect';
-import { MessageLinkPreviewInput } from '@chatto/api-types/api/v1/messages_pb';
-import { roomTimelineEventToRawEvent } from './roomTimeline.js';
+import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
 import { createAssetUploadAPI } from './assetUploads.js';
 
 export type MessageAPIConfig = {
@@ -20,7 +19,6 @@ export type CreateMessageInput = {
   threadRootEventId?: string | null;
   inReplyTo?: string | null;
   alsoSendToChannel?: boolean;
-  mentionConfirmationToken?: string | null;
   linkPreview?: LinkPreviewInput | null;
 };
 
@@ -31,17 +29,9 @@ export type UpdateMessageInput = {
   alsoSendToChannel?: boolean;
 };
 
-export type CreateMessageResult =
-  | {
-      kind: 'event';
-      event: RoomEventView | null;
-    }
-  | {
-      kind: 'mentionConfirmation';
-      recipientCount: number;
-      token: string;
-      attachmentAssetIds: string[];
-    };
+export type CreateMessageResult = {
+  event: RoomEventView | null;
+};
 
 export type UpdateMessageResult = {
   updated: boolean;
@@ -66,32 +56,17 @@ export function createMessageAPI(config: MessageAPIConfig) {
             threadRootEventId: input.threadRootEventId ?? '',
             inReplyTo: input.inReplyTo ?? '',
             alsoSendToChannel: input.alsoSendToChannel ?? false,
-            mentionConfirmationToken: input.mentionConfirmationToken ?? '',
-            linkPreview: messageLinkPreviewInput(input.linkPreview)
+            linkPreviewToken: input.linkPreview?.previewToken ?? ''
           },
           { headers: headers() }
         );
 
-        if (response.result.case === 'mentionConfirmation') {
-          return {
-            kind: 'mentionConfirmation',
-            recipientCount: response.result.value.recipientCount,
-            token: response.result.value.token,
-            attachmentAssetIds: [...(input.attachmentAssetIds ?? []), ...uploadedAttachmentAssetIds]
-          };
-        }
-
-        if (response.result.case === 'event') {
-          return {
-            kind: 'event',
-            event: roomTimelineEventToRawEvent(
-              response.result.value,
-              response.includes?.users ?? {}
-            ) as RoomEventView | null
-          };
-        }
-
-        return { kind: 'event', event: null };
+        const users = await timelineUsersForMessages(config, response.message ? [response.message] : []);
+        return {
+          event: response.message
+            ? (messageToRawEvent(response.message, users) as RoomEventView | null)
+            : null
+        };
       } catch (err) {
         return handleAuthError(config, err);
       }
@@ -117,13 +92,11 @@ export function createMessageAPI(config: MessageAPIConfig) {
         const response = await client.updateMessage(request, {
           headers: headers()
         });
+        const users = await timelineUsersForMessages(config, response.message ? [response.message] : []);
         return {
           updated: response.updated,
-          event: response.event
-            ? (roomTimelineEventToRawEvent(
-                response.event,
-                response.includes?.users ?? {}
-              ) as RoomEventView | null)
+          event: response.message
+            ? (messageToRawEvent(response.message, users) as RoomEventView | null)
             : null
         };
       } catch (err) {
@@ -178,24 +151,9 @@ async function uploadMessageAttachments(config: MessageAPIConfig, input: CreateM
     files.map((file) =>
       uploads.uploadAttachment({
         roomId: input.roomId,
-        file,
-        threadRootEventId: input.threadRootEventId,
-        alsoSendToChannel: input.alsoSendToChannel
+        file
       })
     )
   );
   return assets.map((asset) => asset.assetId);
-}
-
-function messageLinkPreviewInput(input: LinkPreviewInput | null | undefined) {
-  if (!input) return undefined;
-  return new MessageLinkPreviewInput({
-    url: input.url,
-    title: input.title ?? undefined,
-    description: input.description ?? undefined,
-    siteName: input.siteName ?? undefined,
-    imageAssetId: input.imageAssetId ?? undefined,
-    embedType: input.embedType ?? undefined,
-    embedId: input.embedId ?? undefined
-  });
 }
