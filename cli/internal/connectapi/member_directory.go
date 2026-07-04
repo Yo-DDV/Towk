@@ -17,15 +17,7 @@ const (
 	maxMemberDirectoryLimit     = 500
 )
 
-type serverMemberService struct {
-	api *API
-}
-
-type roomMemberService struct {
-	api *API
-}
-
-func (s *serverMemberService) ListMembers(ctx context.Context, req *connect.Request[apiv1.ListServerMembersRequest]) (*connect.Response[apiv1.ListServerMembersResponse], error) {
+func (s *serverService) ListMembers(ctx context.Context, req *connect.Request[apiv1.ListServerMembersRequest]) (*connect.Response[apiv1.ListServerMembersResponse], error) {
 	if _, err := requireCaller(ctx); err != nil {
 		return nil, err
 	}
@@ -64,7 +56,7 @@ func (s *serverMemberService) ListMembers(ctx context.Context, req *connect.Requ
 	}), nil
 }
 
-func (s *serverMemberService) GetMember(ctx context.Context, req *connect.Request[apiv1.GetServerMemberRequest]) (*connect.Response[apiv1.GetServerMemberResponse], error) {
+func (s *serverService) GetMember(ctx context.Context, req *connect.Request[apiv1.GetServerMemberRequest]) (*connect.Response[apiv1.GetServerMemberResponse], error) {
 	if _, err := requireCaller(ctx); err != nil {
 		return nil, err
 	}
@@ -76,7 +68,7 @@ func (s *serverMemberService) GetMember(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&apiv1.GetServerMemberResponse{Member: member}), nil
 }
 
-func (s *serverMemberService) BatchGetMembers(ctx context.Context, req *connect.Request[apiv1.BatchGetServerMembersRequest]) (*connect.Response[apiv1.BatchGetServerMembersResponse], error) {
+func (s *serverService) BatchGetMembers(ctx context.Context, req *connect.Request[apiv1.BatchGetServerMembersRequest]) (*connect.Response[apiv1.BatchGetServerMembersResponse], error) {
 	if _, err := requireCaller(ctx); err != nil {
 		return nil, err
 	}
@@ -101,7 +93,7 @@ func (s *serverMemberService) BatchGetMembers(ctx context.Context, req *connect.
 	return connect.NewResponse(&apiv1.BatchGetServerMembersResponse{Members: members}), nil
 }
 
-func (s *roomMemberService) ListMembers(ctx context.Context, req *connect.Request[apiv1.ListRoomMembersRequest]) (*connect.Response[apiv1.ListRoomMembersResponse], error) {
+func (s *roomService) ListMembers(ctx context.Context, req *connect.Request[apiv1.ListRoomMembersRequest]) (*connect.Response[apiv1.ListRoomMembersResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
@@ -150,7 +142,7 @@ func (s *roomMemberService) ListMembers(ctx context.Context, req *connect.Reques
 	}), nil
 }
 
-func (s *roomMemberService) GetMember(ctx context.Context, req *connect.Request[apiv1.GetRoomMemberRequest]) (*connect.Response[apiv1.GetRoomMemberResponse], error) {
+func (s *roomService) GetMember(ctx context.Context, req *connect.Request[apiv1.GetRoomMemberRequest]) (*connect.Response[apiv1.GetRoomMemberResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
@@ -171,7 +163,7 @@ func (s *roomMemberService) GetMember(ctx context.Context, req *connect.Request[
 	return connect.NewResponse(&apiv1.GetRoomMemberResponse{Member: member}), nil
 }
 
-func (s *roomMemberService) BatchGetMembers(ctx context.Context, req *connect.Request[apiv1.BatchGetRoomMembersRequest]) (*connect.Response[apiv1.BatchGetRoomMembersResponse], error) {
+func (s *roomService) BatchGetMembers(ctx context.Context, req *connect.Request[apiv1.BatchGetRoomMembersRequest]) (*connect.Response[apiv1.BatchGetRoomMembersResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err

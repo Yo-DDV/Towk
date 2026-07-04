@@ -748,15 +748,7 @@ const file_chatto_api_v1_member_directory_proto_rawDesc = "" +
 	"\buser_ids\x18\x02 \x03(\tB\x10\xbaH\r\x92\x01\n" +
 	"\b\x01\x10d\"\x04r\x02\x10\x01R\auserIds\"W\n" +
 	"\x1bBatchGetRoomMembersResponse\x128\n" +
-	"\amembers\x18\x01 \x03(\v2\x1e.chatto.api.v1.DirectoryMemberR\amembers2\xc1\x02\n" +
-	"\x13ServerMemberService\x12`\n" +
-	"\vListMembers\x12'.chatto.api.v1.ListServerMembersRequest\x1a(.chatto.api.v1.ListServerMembersResponse\x12Z\n" +
-	"\tGetMember\x12%.chatto.api.v1.GetServerMemberRequest\x1a&.chatto.api.v1.GetServerMemberResponse\x12l\n" +
-	"\x0fBatchGetMembers\x12+.chatto.api.v1.BatchGetServerMembersRequest\x1a,.chatto.api.v1.BatchGetServerMembersResponse2\xb3\x02\n" +
-	"\x11RoomMemberService\x12\\\n" +
-	"\vListMembers\x12%.chatto.api.v1.ListRoomMembersRequest\x1a&.chatto.api.v1.ListRoomMembersResponse\x12V\n" +
-	"\tGetMember\x12#.chatto.api.v1.GetRoomMemberRequest\x1a$.chatto.api.v1.GetRoomMemberResponse\x12h\n" +
-	"\x0fBatchGetMembers\x12).chatto.api.v1.BatchGetRoomMembersRequest\x1a*.chatto.api.v1.BatchGetRoomMembersResponseB\xb0\x01\n" +
+	"\amembers\x18\x01 \x03(\v2\x1e.chatto.api.v1.DirectoryMemberR\amembersB\xb0\x01\n" +
 	"\x11com.chatto.api.v1B\x14MemberDirectoryProtoP\x01Z/hmans.de/chatto/internal/pb/chatto/api/v1;apiv1\xa2\x02\x03CAX\xaa\x02\rChatto.Api.V1\xca\x02\rChatto\\Api\\V1\xe2\x02\x19Chatto\\Api\\V1\\GPBMetadata\xea\x02\x0fChatto::Api::V1b\x06proto3"
 
 var (
@@ -804,20 +796,8 @@ var file_chatto_api_v1_member_directory_proto_depIdxs = []int32{
 	16, // 9: chatto.api.v1.ListRoomMembersResponse.page:type_name -> chatto.api.v1.PageInfo
 	0,  // 10: chatto.api.v1.GetRoomMemberResponse.member:type_name -> chatto.api.v1.DirectoryMember
 	0,  // 11: chatto.api.v1.BatchGetRoomMembersResponse.members:type_name -> chatto.api.v1.DirectoryMember
-	1,  // 12: chatto.api.v1.ServerMemberService.ListMembers:input_type -> chatto.api.v1.ListServerMembersRequest
-	3,  // 13: chatto.api.v1.ServerMemberService.GetMember:input_type -> chatto.api.v1.GetServerMemberRequest
-	5,  // 14: chatto.api.v1.ServerMemberService.BatchGetMembers:input_type -> chatto.api.v1.BatchGetServerMembersRequest
-	7,  // 15: chatto.api.v1.RoomMemberService.ListMembers:input_type -> chatto.api.v1.ListRoomMembersRequest
-	9,  // 16: chatto.api.v1.RoomMemberService.GetMember:input_type -> chatto.api.v1.GetRoomMemberRequest
-	11, // 17: chatto.api.v1.RoomMemberService.BatchGetMembers:input_type -> chatto.api.v1.BatchGetRoomMembersRequest
-	2,  // 18: chatto.api.v1.ServerMemberService.ListMembers:output_type -> chatto.api.v1.ListServerMembersResponse
-	4,  // 19: chatto.api.v1.ServerMemberService.GetMember:output_type -> chatto.api.v1.GetServerMemberResponse
-	6,  // 20: chatto.api.v1.ServerMemberService.BatchGetMembers:output_type -> chatto.api.v1.BatchGetServerMembersResponse
-	8,  // 21: chatto.api.v1.RoomMemberService.ListMembers:output_type -> chatto.api.v1.ListRoomMembersResponse
-	10, // 22: chatto.api.v1.RoomMemberService.GetMember:output_type -> chatto.api.v1.GetRoomMemberResponse
-	12, // 23: chatto.api.v1.RoomMemberService.BatchGetMembers:output_type -> chatto.api.v1.BatchGetRoomMembersResponse
-	18, // [18:24] is the sub-list for method output_type
-	12, // [12:18] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
 	12, // [12:12] is the sub-list for extension type_name
 	12, // [12:12] is the sub-list for extension extendee
 	0,  // [0:12] is the sub-list for field type_name
@@ -838,7 +818,7 @@ func file_chatto_api_v1_member_directory_proto_init() {
 			NumEnums:      0,
 			NumMessages:   13,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   0,
 		},
 		GoTypes:           file_chatto_api_v1_member_directory_proto_goTypes,
 		DependencyIndexes: file_chatto_api_v1_member_directory_proto_depIdxs,

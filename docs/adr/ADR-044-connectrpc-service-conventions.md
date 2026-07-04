@@ -63,12 +63,14 @@ Service boundaries should optimize for API comprehension. Prefer explicit
 resource-and-scope service names over broad catch-all services when the scoped
 resources have distinct authorization, visibility, or absence semantics. The
 scope belongs in the service name when it makes the resource easier to reason
-about; once the service carries that scope, RPC names can stay concise. For
-example, server membership rows and room membership rows are easier to discover
-as `ServerMemberService.ListMembers` / `GetMember` / `BatchGetMembers` and
-`RoomMemberService.ListMembers` / `GetMember` / `BatchGetMembers` than as one
-generic member directory service with every method carrying the scope. This
-explicitness is preferred over minimizing the number of generated services.
+about; once the service carries that scope, RPC names can stay concise. Small
+adjacent resources should stay on an existing scoped lifecycle service when
+they share the same authorization boundary and make that service more complete:
+server membership rows live on `ServerService.ListMembers` / `GetMember` /
+`BatchGetMembers`, and room member reads live on `RoomService.ListMembers` /
+`GetMember` / `BatchGetMembers`. Room membership commands also stay on
+`RoomService` alongside room lifecycle, timeline, read-state, attachments,
+typing, and moderation.
 
 Public resource messages should be canonical per resource. Add narrower,
 expanded, or package-specific messages only when visibility, security, lifecycle,

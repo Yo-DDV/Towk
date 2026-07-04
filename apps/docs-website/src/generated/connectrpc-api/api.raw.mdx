@@ -952,221 +952,6 @@ Result of fetching link preview metadata.
 | `preview` | [`LinkPreview`](#chatto-api-v1-LinkPreview) | Preview metadata, or absent when the URL cannot be previewed. |
 
 
-<a id="chatto-api-v1-RoomMemberService"></a>
-
-## RoomMemberService
-
-Reads explicit room members.
-
-<a id="chatto-api-v1-RoomMemberService-ListMembers"></a>
-
-### ListMembers
-
-Lists explicit members of a room. The caller must be a member of the room.
-
-```http
-POST /api/connect/chatto.api.v1.RoomMemberService/ListMembers
-```
-
-<a id="chatto-api-v1-ListRoomMembersRequest"></a>
-
-#### Input: ListRoomMembersRequest
-
-Request for members of one room.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Required. Room whose explicit members should be listed. |
-| `search` | `string` | Optional case-insensitive search against login and display name. |
-| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 20 results when absent or limit is zero. |
-
-
-<a id="chatto-api-v1-ListRoomMembersResponse"></a>
-
-#### Result: ListRoomMembersResponse
-
-Room member page.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Members in the requested page. |
-| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
-
-
-<a id="chatto-api-v1-RoomMemberService-GetMember"></a>
-
-### GetMember
-
-Gets one explicit member of a room. The caller must be a member of the
-room. Returns NOT_FOUND when the target is unknown or not a room member.
-
-```http
-POST /api/connect/chatto.api.v1.RoomMemberService/GetMember
-```
-
-<a id="chatto-api-v1-GetRoomMemberRequest"></a>
-
-#### Input: GetRoomMemberRequest
-
-Request one member of one room by stable user ID.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Required room ID. |
-| `user_id` | `string` | Required target user ID. |
-
-
-<a id="chatto-api-v1-GetRoomMemberResponse"></a>
-
-#### Result: GetRoomMemberResponse
-
-Room member response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `member` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Requested room member. |
-
-
-<a id="chatto-api-v1-RoomMemberService-BatchGetMembers"></a>
-
-### BatchGetMembers
-
-Gets explicit room member rows for multiple users. The caller must be a
-member of the room.
-
-```http
-POST /api/connect/chatto.api.v1.RoomMemberService/BatchGetMembers
-```
-
-<a id="chatto-api-v1-BatchGetRoomMembersRequest"></a>
-
-#### Input: BatchGetRoomMembersRequest
-
-Request room member rows for a set of stable user IDs.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `room_id` | `string` | Required room ID. |
-| `user_ids` | `repeated string` | Required target user IDs. Unknown IDs and users that are not members of the room are omitted from the response. |
-
-
-<a id="chatto-api-v1-BatchGetRoomMembersResponse"></a>
-
-#### Result: BatchGetRoomMembersResponse
-
-Batch room member response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Found members. The server preserves first-seen request order and de-duplicates repeated IDs. |
-
-
-<a id="chatto-api-v1-ServerMemberService"></a>
-
-## ServerMemberService
-
-Reads authenticated server members.
-
-<a id="chatto-api-v1-ServerMemberService-ListMembers"></a>
-
-### ListMembers
-
-Lists authenticated server members. Every authenticated user is a server
-member; admin-sensitive fields stay out of this public row shape.
-
-```http
-POST /api/connect/chatto.api.v1.ServerMemberService/ListMembers
-```
-
-<a id="chatto-api-v1-ListServerMembersRequest"></a>
-
-#### Input: ListServerMembersRequest
-
-Request for server members visible to the authenticated user.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `search` | `string` | Optional case-insensitive search against login and display name. |
-| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 20 results when absent or limit is zero. |
-
-
-<a id="chatto-api-v1-ListServerMembersResponse"></a>
-
-#### Result: ListServerMembersResponse
-
-Server member page.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Members in the requested page. |
-| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
-
-
-<a id="chatto-api-v1-ServerMemberService-GetMember"></a>
-
-### GetMember
-
-Gets one authenticated server member. Returns NOT_FOUND when the user ID is
-unknown.
-
-```http
-POST /api/connect/chatto.api.v1.ServerMemberService/GetMember
-```
-
-<a id="chatto-api-v1-GetServerMemberRequest"></a>
-
-#### Input: GetServerMemberRequest
-
-Request one authenticated server member by stable user ID.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user_id` | `string` | Required target user ID. |
-
-
-<a id="chatto-api-v1-GetServerMemberResponse"></a>
-
-#### Result: GetServerMemberResponse
-
-Server member response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `member` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Requested member. |
-
-
-<a id="chatto-api-v1-ServerMemberService-BatchGetMembers"></a>
-
-### BatchGetMembers
-
-Gets authenticated server member rows for multiple users.
-
-```http
-POST /api/connect/chatto.api.v1.ServerMemberService/BatchGetMembers
-```
-
-<a id="chatto-api-v1-BatchGetServerMembersRequest"></a>
-
-#### Input: BatchGetServerMembersRequest
-
-Request server member rows for a set of stable user IDs.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `user_ids` | `repeated string` | Required target user IDs. Unknown IDs are omitted from the response. |
-
-
-<a id="chatto-api-v1-BatchGetServerMembersResponse"></a>
-
-#### Result: BatchGetServerMembersResponse
-
-Batch server member response.
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Found members. The server preserves first-seen request order and de-duplicates repeated IDs. |
-
-
 <a id="chatto-api-v1-MessageService"></a>
 
 ## MessageService
@@ -2307,20 +2092,193 @@ Result of leaving a room.
 | `left` | `bool` | True when the current user is no longer an explicit member after the call. |
 
 
-<a id="chatto-api-v1-RoomService-ListRoomBans"></a>
+<a id="chatto-api-v1-RoomService-ListMembers"></a>
 
-### ListRoomBans
+### ListMembers
+
+Lists explicit members of a room. The caller must be a member of the room.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/ListMembers
+```
+
+<a id="chatto-api-v1-ListRoomMembersRequest"></a>
+
+#### Input: ListRoomMembersRequest
+
+Request for members of one room.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required. Room whose explicit members should be listed. |
+| `search` | `string` | Optional case-insensitive search against login and display name. |
+| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 20 results when absent or limit is zero. |
+
+
+<a id="chatto-api-v1-ListRoomMembersResponse"></a>
+
+#### Result: ListRoomMembersResponse
+
+Room member page.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Members in the requested page. |
+| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
+
+
+<a id="chatto-api-v1-RoomService-GetMember"></a>
+
+### GetMember
+
+Gets one explicit member of a room. The caller must be a member of the
+room. Returns NOT_FOUND when the target is unknown or not a room member.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/GetMember
+```
+
+<a id="chatto-api-v1-GetRoomMemberRequest"></a>
+
+#### Input: GetRoomMemberRequest
+
+Request one member of one room by stable user ID.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required room ID. |
+| `user_id` | `string` | Required target user ID. |
+
+
+<a id="chatto-api-v1-GetRoomMemberResponse"></a>
+
+#### Result: GetRoomMemberResponse
+
+Room member response.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `member` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Requested room member. |
+
+
+<a id="chatto-api-v1-RoomService-BatchGetMembers"></a>
+
+### BatchGetMembers
+
+Gets explicit room member rows for multiple users. The caller must be a
+member of the room.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/BatchGetMembers
+```
+
+<a id="chatto-api-v1-BatchGetRoomMembersRequest"></a>
+
+#### Input: BatchGetRoomMembersRequest
+
+Request room member rows for a set of stable user IDs.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required room ID. |
+| `user_ids` | `repeated string` | Required target user IDs. Unknown IDs and users that are not members of the room are omitted from the response. |
+
+
+<a id="chatto-api-v1-BatchGetRoomMembersResponse"></a>
+
+#### Result: BatchGetRoomMembersResponse
+
+Batch room member response.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Found members. The server preserves first-seen request order and de-duplicates repeated IDs. |
+
+
+<a id="chatto-api-v1-RoomService-AddMember"></a>
+
+### AddMember
+
+Adds a user as an explicit member of a channel room. The caller must be
+allowed to manage the room. Direct-message and universal rooms cannot be
+managed this way.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/AddMember
+```
+
+<a id="chatto-api-v1-AddMemberRequest"></a>
+
+#### Input: AddMemberRequest
+
+Request to add a user to a channel room.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required. Channel room to add the user to. |
+| `user_id` | `string` | Required. User to add as an explicit room member. |
+
+
+<a id="chatto-api-v1-AddMemberResponse"></a>
+
+#### Result: AddMemberResponse
+
+Result of adding a user to a room.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `member` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Added room member. |
+
+
+<a id="chatto-api-v1-RoomService-RemoveMember"></a>
+
+### RemoveMember
+
+Removes a user from a channel room's explicit members. The caller must be
+allowed to manage the room. Direct-message and universal rooms cannot be
+managed this way.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/RemoveMember
+```
+
+<a id="chatto-api-v1-RemoveMemberRequest"></a>
+
+#### Input: RemoveMemberRequest
+
+Request to remove a user from a channel room.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Required. Channel room to remove the user from. |
+| `user_id` | `string` | Required. User to remove from the room's explicit members. |
+
+
+<a id="chatto-api-v1-RemoveMemberResponse"></a>
+
+#### Result: RemoveMemberResponse
+
+Result of removing a user from a room.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `removed` | `bool` | True when an explicit room membership was removed by this call. |
+
+
+<a id="chatto-api-v1-RoomService-ListBans"></a>
+
+### ListBans
 
 Lists active channel room bans. The caller must be allowed to moderate room
 membership bans.
 
 ```http
-POST /api/connect/chatto.api.v1.RoomService/ListRoomBans
+POST /api/connect/chatto.api.v1.RoomService/ListBans
 ```
 
-<a id="chatto-api-v1-ListRoomBansRequest"></a>
+<a id="chatto-api-v1-ListBansRequest"></a>
 
-#### Input: ListRoomBansRequest
+#### Input: ListBansRequest
 
 Request to list active room bans.
 
@@ -2330,9 +2288,9 @@ Request to list active room bans.
 | `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults are applied when absent or limit is zero. |
 
 
-<a id="chatto-api-v1-ListRoomBansResponse"></a>
+<a id="chatto-api-v1-ListBansResponse"></a>
 
-#### Result: ListRoomBansResponse
+#### Result: ListBansResponse
 
 Active room bans visible to the current moderator.
 
@@ -2534,20 +2492,20 @@ local notification state need to be reconciled.
 | `previous_last_read_at` | `google.protobuf.Timestamp` | Previous room read timestamp, when one existed. |
 
 
-<a id="chatto-api-v1-RoomService-BanRoomMember"></a>
+<a id="chatto-api-v1-RoomService-BanMember"></a>
 
-### BanRoomMember
+### BanMember
 
 Bans a member from a channel room. Direct-message rooms cannot be moderated
 this way, and the target must currently be a room member.
 
 ```http
-POST /api/connect/chatto.api.v1.RoomService/BanRoomMember
+POST /api/connect/chatto.api.v1.RoomService/BanMember
 ```
 
-<a id="chatto-api-v1-BanRoomMemberRequest"></a>
+<a id="chatto-api-v1-BanMemberRequest"></a>
 
-#### Input: BanRoomMemberRequest
+#### Input: BanMemberRequest
 
 Request to ban a member from a channel room.
 
@@ -2559,9 +2517,9 @@ Request to ban a member from a channel room.
 | `expires_at` | `google.protobuf.Timestamp` | Optional future time when the ban expires. |
 
 
-<a id="chatto-api-v1-BanRoomMemberResponse"></a>
+<a id="chatto-api-v1-BanMemberResponse"></a>
 
-#### Result: BanRoomMemberResponse
+#### Result: BanMemberResponse
 
 Result of banning a room member.
 
@@ -2570,20 +2528,20 @@ Result of banning a room member.
 | `banned` | `bool` | True when the ban operation completed. |
 
 
-<a id="chatto-api-v1-RoomService-UnbanRoomMember"></a>
+<a id="chatto-api-v1-RoomService-UnbanMember"></a>
 
-### UnbanRoomMember
+### UnbanMember
 
 Removes an active channel room ban. Calling this when no active ban exists
 is allowed and still returns success.
 
 ```http
-POST /api/connect/chatto.api.v1.RoomService/UnbanRoomMember
+POST /api/connect/chatto.api.v1.RoomService/UnbanMember
 ```
 
-<a id="chatto-api-v1-UnbanRoomMemberRequest"></a>
+<a id="chatto-api-v1-UnbanMemberRequest"></a>
 
-#### Input: UnbanRoomMemberRequest
+#### Input: UnbanMemberRequest
 
 Request to remove a channel room ban.
 
@@ -2594,9 +2552,9 @@ Request to remove a channel room ban.
 | `reason` | `string` | Required moderator-entered reason stored for audit. |
 
 
-<a id="chatto-api-v1-UnbanRoomMemberResponse"></a>
+<a id="chatto-api-v1-UnbanMemberResponse"></a>
 
-#### Result: UnbanRoomMemberResponse
+#### Result: UnbanMemberResponse
 
 Result of removing a room ban.
 
@@ -2824,7 +2782,8 @@ Visible room batch response for direct room hydration.
 
 ## ServerService
 
-Provides authenticated server profile and runtime configuration.
+Provides authenticated server profile, runtime configuration, and public
+server member reads.
 
 <a id="chatto-api-v1-ServerService-GetServerState"></a>
 
@@ -2855,6 +2814,106 @@ Authenticated server state used by the web client and public API clients.
 | --- | --- | --- |
 | `profile` | [`ServerProfile`](#chatto-api-v1-ServerProfile) | Authenticated server profile and branding. |
 | `runtime` | [`ServerRuntimeConfig`](#chatto-api-v1-ServerRuntimeConfig) | Authenticated runtime settings used by clients. |
+
+
+<a id="chatto-api-v1-ServerService-ListMembers"></a>
+
+### ListMembers
+
+Lists authenticated server members. Every authenticated user is a server
+member; admin-sensitive fields stay out of this public row shape.
+
+```http
+POST /api/connect/chatto.api.v1.ServerService/ListMembers
+```
+
+<a id="chatto-api-v1-ListServerMembersRequest"></a>
+
+#### Input: ListServerMembersRequest
+
+Request for server members visible to the authenticated user.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `search` | `string` | Optional case-insensitive search against login and display name. |
+| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 20 results when absent or limit is zero. |
+
+
+<a id="chatto-api-v1-ListServerMembersResponse"></a>
+
+#### Result: ListServerMembersResponse
+
+Server member page.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Members in the requested page. |
+| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | Page metadata. |
+
+
+<a id="chatto-api-v1-ServerService-GetMember"></a>
+
+### GetMember
+
+Gets one authenticated server member. Returns NOT_FOUND when the user ID is
+unknown.
+
+```http
+POST /api/connect/chatto.api.v1.ServerService/GetMember
+```
+
+<a id="chatto-api-v1-GetServerMemberRequest"></a>
+
+#### Input: GetServerMemberRequest
+
+Request one authenticated server member by stable user ID.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user_id` | `string` | Required target user ID. |
+
+
+<a id="chatto-api-v1-GetServerMemberResponse"></a>
+
+#### Result: GetServerMemberResponse
+
+Server member response.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `member` | [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Requested member. |
+
+
+<a id="chatto-api-v1-ServerService-BatchGetMembers"></a>
+
+### BatchGetMembers
+
+Gets authenticated server member rows for multiple users.
+
+```http
+POST /api/connect/chatto.api.v1.ServerService/BatchGetMembers
+```
+
+<a id="chatto-api-v1-BatchGetServerMembersRequest"></a>
+
+#### Input: BatchGetServerMembersRequest
+
+Request server member rows for a set of stable user IDs.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user_ids` | `repeated string` | Required target user IDs. Unknown IDs are omitted from the response. |
+
+
+<a id="chatto-api-v1-BatchGetServerMembersResponse"></a>
+
+#### Result: BatchGetServerMembersResponse
+
+Batch server member response.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `members` | repeated [`DirectoryMember`](#chatto-api-v1-DirectoryMember) | Found members. The server preserves first-seen request order and de-duplicates repeated IDs. |
 
 
 <a id="chatto-api-v1-ThreadService"></a>

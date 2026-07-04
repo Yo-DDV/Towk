@@ -101,28 +101,16 @@ const categories = [
         description: 'Room navigation, room group, and room viewer-state RPCs.'
       },
       {
-        name: 'RoomMemberService',
-        slug: 'room-members',
-        title: 'Room Members',
-        description: 'Room-scoped member directory RPCs.'
-      },
-      {
         name: 'RoomService',
         slug: 'rooms',
         title: 'Rooms',
         description: 'Room lifecycle, timeline, read-state, membership, direct-message, typing indicator, and moderation RPCs.'
       },
       {
-        name: 'ServerMemberService',
-        slug: 'server-members',
-        title: 'Server Members',
-        description: 'Server-scoped member directory RPCs.'
-      },
-      {
         name: 'ServerService',
         slug: 'server',
         title: 'Server',
-        description: 'Authenticated server profile and runtime configuration RPCs.'
+        description: 'Authenticated server profile, runtime configuration, and member directory RPCs.'
       },
       {
         name: 'ThreadService',
