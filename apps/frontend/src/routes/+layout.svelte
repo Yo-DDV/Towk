@@ -1,5 +1,6 @@
 <script lang="ts">
   import { afterNavigate, goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
   import { page } from '$app/state';
   import * as m from '$lib/i18n/messages';
   import { onNotificationClick } from '$lib/notifications/pushNotifications';
@@ -14,11 +15,9 @@
   import { usePageTitle, usePinchZoomPrevention, useVisualViewport } from '$lib/hooks';
   import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import { chatRoomIdFromRoute } from '$lib/navigation/chatRoomRoute';
-  import { installAssetProxyResyncHandler, syncAssetProxyServers } from '$lib/pwa/assetProxy';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { provideAppUiState } from '$lib/state/appUi.svelte';
-  import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { useServerRegistry } from '$lib/state/server/useServerRegistry.svelte';
   import { ToastContainer } from '$lib/ui/toast';
   import { AppHeader, Frame } from '$lib/ui';
@@ -49,21 +48,6 @@
     appUi.setActiveServer(activeServerId);
   });
 
-  $effect(() => {
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
-      return;
-    }
-
-    const sync = () => syncAssetProxyServers(serverRegistry.servers);
-    sync();
-    const stopResync = installAssetProxyResyncHandler(() => serverRegistry.servers);
-    navigator.serviceWorker.addEventListener('controllerchange', sync);
-    return () => {
-      navigator.serviceWorker.removeEventListener('controllerchange', sync);
-      stopResync();
-    };
-  });
-
   // Route push-notification clicks via SvelteKit's client-side navigation
   // instead of letting the SW do a full document navigation. Same-URL
   // clicks become a no-op; cross-URL clicks just update the route.
@@ -73,8 +57,7 @@
         const target = new URL(url);
         if (target.origin !== window.location.origin) return;
         prepareUiForNotificationPath(appUi, target.pathname);
-        // eslint-disable-next-line svelte/no-navigation-without-resolve -- service worker notification data is same-origin and already resolved
-        return goto(target.pathname + target.search + target.hash);
+        return goto(resolve((target.pathname + target.search + target.hash) as '/'));
       } catch {
         // Ignore malformed URLs from the SW.
       }
