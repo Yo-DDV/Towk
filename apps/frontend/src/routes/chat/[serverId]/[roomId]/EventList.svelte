@@ -485,10 +485,29 @@
   }
 
   let softRefreshInFlight = false;
+  const MIN_BROWSER_WAKE_REFRESH_HIDDEN_MS = 5_000;
+
+  function isShortBrowserWake(signal: ResumeSignal): boolean {
+    if (signal.source !== 'browser') return false;
+    if (signal.reason !== 'visibility' && signal.reason !== 'pageshow') return false;
+    return (
+      signal.hiddenDurationMs !== null &&
+      signal.hiddenDurationMs < MIN_BROWSER_WAKE_REFRESH_HIDDEN_MS
+    );
+  }
 
   async function refreshAfterPossibleMiss(signal: ResumeSignal): Promise<boolean> {
     if (softRefreshInFlight) return false;
     if (isLoading && virtualItems.length === 0) return false;
+    if (isShortBrowserWake(signal)) {
+      console.debug('[room-refresh] skipped short browser wake refresh', {
+        roomId,
+        reason: signal.reason,
+        hiddenDurationMs: signal.hiddenDurationMs,
+        epoch: signal.epoch
+      });
+      return false;
+    }
 
     const bottomDistance = distanceFromBottom();
     const wasAtBottom =
@@ -526,6 +545,14 @@
         return false;
       }
       onSoftRefresh?.(result, anchor !== null);
+      if (!result.changed) {
+        console.debug('[room-refresh] event list refresh completed unchanged', {
+          roomId,
+          result,
+          itemCount: virtualItems.length
+        });
+        return true;
+      }
       await tick();
       await new Promise((resolve) => requestAnimationFrame(resolve));
 

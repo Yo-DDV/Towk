@@ -171,8 +171,6 @@
       if (currentUser.user && actorId !== currentUser.user.id) {
         if (appState.isPresent) {
           void unread.markAsRead(threadRootEventId, serverEvent.id);
-        } else {
-          unread.noteAwayEvent(serverEvent.id);
         }
       }
     }

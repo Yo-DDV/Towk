@@ -20,11 +20,12 @@
 
   const unread = useUnreadMarker(() => targetId, {
     markAsRead: (target, upToEventId) => markAsRead(target, upToEventId),
-    markerWindowFromReadResult: (result): UnreadMarkerWindow | null => {
+    markerWindowFromReadResult: (result, markedAtMs): UnreadMarkerWindow | null => {
       if (!result.previousLastReadAt || !result.lastReadAt) return null;
+      if (result.previousLastReadAt === result.lastReadAt) return null;
       return {
         afterTime: result.previousLastReadAt,
-        beforeTime: result.lastReadAt
+        beforeTime: markedAtMs
       };
     }
   });

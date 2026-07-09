@@ -57,7 +57,6 @@ vi.mock('$lib/hooks', () => ({
       unreadMarkerEventId: null,
       unreadMarkerWindow: null,
       markAsRead: options.markAsRead,
-      noteAwayEvent: vi.fn(),
       setUnreadMarkerEventId: vi.fn(),
       clearUnreadMarker: vi.fn()
     };

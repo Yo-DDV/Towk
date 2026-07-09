@@ -31,6 +31,7 @@ export type RefreshCurrentWindowResult = {
   hasOlder: boolean;
   hasNewer: boolean;
   refreshed: boolean;
+  changed: boolean;
 };
 
 function eventCacheKey(roomId: string, eventId: string): string {
@@ -39,6 +40,53 @@ function eventCacheKey(roomId: string, eventId: string): string {
 
 function compareEventCreatedAt(a: RoomEventView, b: RoomEventView): number {
   return Date.parse(a.createdAt) - Date.parse(b.createdAt);
+}
+
+function sortRoomEventList(events: RoomEventView[]): RoomEventView[] {
+  return events
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => compareEventCreatedAt(a.event, b.event) || a.index - b.index)
+    .map(({ event }) => event);
+}
+
+function sortThreadEventList(events: RoomEventView[], threadRootEventId: string): RoomEventView[] {
+  return events
+    .map((event, index) => ({ event, index }))
+    .sort((a, b) => {
+      const aIsRoot = a.event.id === threadRootEventId;
+      const bIsRoot = b.event.id === threadRootEventId;
+      if (aIsRoot && !bIsRoot) return -1;
+      if (!aIsRoot && bIsRoot) return 1;
+
+      const byCreatedAt = compareEventCreatedAt(a.event, b.event);
+      return byCreatedAt || a.index - b.index;
+    })
+    .map(({ event }) => event);
+}
+
+function eventFingerprint(event: RoomEventView): string {
+  return JSON.stringify(event);
+}
+
+function sameEventList(a: readonly RoomEventView[], b: readonly RoomEventView[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id) return false;
+    if (eventFingerprint(a[i]) !== eventFingerprint(b[i])) return false;
+  }
+  return true;
+}
+
+function isContinuityEvent(
+  event: RoomEventView,
+  scope: MessageScope | null,
+  threadRootEventId: string
+): boolean {
+  return scope !== 'thread' || event.id !== threadRootEventId;
+}
+
+function skippedRefreshResult(): RefreshCurrentWindowResult {
+  return { hasOlder: false, hasNewer: false, refreshed: false, changed: false };
 }
 
 function isMessagePostedPayload(
@@ -513,7 +561,7 @@ export class MessagesStore {
    * have missed subscription events.
    */
   async refreshCurrentWindow(anchorEventId?: string | null): Promise<RefreshCurrentWindowResult> {
-    if (!this.scope || !this.roomId) return { hasOlder: false, hasNewer: false, refreshed: false };
+    if (!this.scope || !this.roomId) return skippedRefreshResult();
 
     const thisLoad = this.startLoad();
     const existingBeforeFetch = new SvelteSet(this.events.map((e) => e.id));
@@ -575,9 +623,9 @@ export class MessagesStore {
       });
       return result;
     } catch (error) {
-      if (this.isStale(thisLoad)) return { hasOlder: false, hasNewer: false, refreshed: false };
+      if (this.isStale(thisLoad)) return skippedRefreshResult();
       console.error('MessagesStore: refreshCurrentWindow failed:', error);
-      return { hasOlder: false, hasNewer: false, refreshed: false };
+      return skippedRefreshResult();
     }
   }
 
@@ -888,14 +936,30 @@ export class MessagesStore {
       hasOlder?: boolean;
     },
     existingBeforeFetch: ReadonlySet<string>,
-    options: { preserveExistingWindow?: boolean } = {}
-  ): void {
+    options: { preserveExistingWindow?: boolean; latestSnapshot?: boolean } = {}
+  ): boolean {
     const fetched = unmask(connection.events);
     const newSeen = new SvelteSet<string>();
     const merged: RoomEventView[] = [];
     const previousOldestCursor = this.oldestCursor;
     const previousNewestCursor = this.newestCursor;
     const previousHasReachedStart = this.hasReachedStart;
+    const hasExistingContinuityEvents = this.events.some(
+      (event) =>
+        existingBeforeFetch.has(event.id) &&
+        isContinuityEvent(event, this.scope, this.threadRootEventId)
+    );
+    const hasFetchedOverlap = fetched.some(
+      (event) =>
+        existingBeforeFetch.has(event.id) &&
+        isContinuityEvent(event, this.scope, this.threadRootEventId)
+    );
+    const discontinuousLatestSnapshot =
+      !!options.preserveExistingWindow &&
+      !!options.latestSnapshot &&
+      !!connection.hasOlder &&
+      hasExistingContinuityEvents &&
+      !hasFetchedOverlap;
 
     for (const e of fetched) {
       if (newSeen.has(e.id)) continue;
@@ -908,18 +972,35 @@ export class MessagesStore {
     // fetched window so returning from another tab does not visually collapse a
     // long scrolled buffer.
     for (const e of this.events) {
-      if (!options.preserveExistingWindow && existingBeforeFetch.has(e.id)) continue;
+      if (
+        (!options.preserveExistingWindow || discontinuousLatestSnapshot) &&
+        existingBeforeFetch.has(e.id)
+      ) {
+        continue;
+      }
       if (newSeen.has(e.id)) continue;
       newSeen.add(e.id);
       merged.push(e);
     }
 
-    this.events = merged;
-    if (this.scope === 'room') this.sortRoomEvents();
-    this.seenIds = newSeen;
-    if (options.preserveExistingWindow) {
+    const nextEvents =
+      this.scope === 'room'
+        ? sortRoomEventList(merged)
+        : this.scope === 'thread'
+          ? sortThreadEventList(merged, this.threadRootEventId)
+          : merged;
+    const changed = !sameEventList(this.events, nextEvents);
+
+    if (changed) {
+      this.events = nextEvents;
+      this.seenIds = newSeen;
+    }
+
+    if (options.preserveExistingWindow && !discontinuousLatestSnapshot) {
       this.oldestCursor = previousOldestCursor ?? connection.startCursor ?? undefined;
-      this.newestCursor = previousNewestCursor ?? connection.endCursor ?? undefined;
+      this.newestCursor = options.latestSnapshot
+        ? (connection.endCursor ?? previousNewestCursor ?? undefined)
+        : (previousNewestCursor ?? connection.endCursor ?? undefined);
       this.hasReachedStart = previousHasReachedStart || !(connection.hasOlder ?? false);
     } else {
       this.oldestCursor = connection.startCursor ?? undefined;
@@ -928,11 +1009,14 @@ export class MessagesStore {
     }
     console.debug('[room-refresh] snapshot applied', {
       fetchedCount: fetched.length,
-      preservedExistingCount: merged.length - fetched.length,
+      preservedExistingCount: nextEvents.length - fetched.length,
+      changed,
+      discontinuousLatestSnapshot,
       eventCount: this.events.length,
       hasOlder: connection.hasOlder ?? false,
       hasReachedStart: this.hasReachedStart
     });
+    return changed;
   }
 
   private async refreshRoomLatest(
@@ -944,9 +1028,12 @@ export class MessagesStore {
       limit: PAGE_SIZE
     });
 
-    if (this.isStale(thisLoad)) return { hasOlder: false, hasNewer: false, refreshed: false };
-    this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch);
-    return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true };
+    if (this.isStale(thisLoad)) return skippedRefreshResult();
+    const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
+      preserveExistingWindow: true,
+      latestSnapshot: true
+    });
+    return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true, changed };
   }
 
   private async refreshRoomAround(
@@ -960,11 +1047,11 @@ export class MessagesStore {
       limit: PAGE_SIZE
     });
 
-    if (this.isStale(thisLoad)) return { hasOlder: false, hasNewer: false, refreshed: false };
-    this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
+    if (this.isStale(thisLoad)) return skippedRefreshResult();
+    const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: true
     });
-    return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true };
+    return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true, changed };
   }
 
   private async refreshThreadWindow(
@@ -984,12 +1071,12 @@ export class MessagesStore {
           threadRootEventId: this.threadRootEventId,
           limit: PAGE_SIZE
         });
-    if (this.isStale(thisLoad)) return { hasOlder: false, hasNewer: false, refreshed: false };
-    this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
-      preserveExistingWindow: anchorEventId !== null && anchorEventId !== this.threadRootEventId
+    if (this.isStale(thisLoad)) return skippedRefreshResult();
+    const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
+      preserveExistingWindow: anchorEventId === null || anchorEventId !== this.threadRootEventId,
+      latestSnapshot: anchorEventId === null
     });
-    this.sortThreadEvents();
-    return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true };
+    return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true, changed };
   }
 
   private resetAndFetchLatest(): void {
@@ -1089,24 +1176,10 @@ export class MessagesStore {
   }
 
   private sortThreadEvents(): void {
-    this.events = this.events
-      .map((event, index) => ({ event, index }))
-      .sort((a, b) => {
-        const aIsRoot = a.event.id === this.threadRootEventId;
-        const bIsRoot = b.event.id === this.threadRootEventId;
-        if (aIsRoot && !bIsRoot) return -1;
-        if (!aIsRoot && bIsRoot) return 1;
-
-        const byCreatedAt = compareEventCreatedAt(a.event, b.event);
-        return byCreatedAt || a.index - b.index;
-      })
-      .map(({ event }) => event);
+    this.events = sortThreadEventList(this.events, this.threadRootEventId);
   }
 
   private sortRoomEvents(): void {
-    this.events = this.events
-      .map((event, index) => ({ event, index }))
-      .sort((a, b) => compareEventCreatedAt(a.event, b.event) || a.index - b.index)
-      .map(({ event }) => event);
+    this.events = sortRoomEventList(this.events);
   }
 }

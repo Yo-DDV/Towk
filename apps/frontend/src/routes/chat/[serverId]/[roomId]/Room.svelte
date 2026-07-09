@@ -6,7 +6,6 @@
   import MessageComposer, {
     type MessageComposerApi
   } from '$lib/components/composer/MessageComposer.svelte';
-  import type { EventEnvelope } from '$lib/eventBus.svelte';
   import { createRoleAPI } from '$lib/api-client/roles';
   import {
     useRoomData,
@@ -46,7 +45,7 @@
   import { serverStorageKey } from '$lib/storage/serverStorage';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
-  import { isMessagePostedEvent, RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
+  import { isMessagePostedEvent } from '$lib/render/eventKinds';
   import { onDestroy, tick } from 'svelte';
   import { fly } from 'svelte/transition';
   import RoomEventsPane from './RoomEventsPane.svelte';
@@ -297,34 +296,6 @@
     }
   }
 
-  function scopedRoomId(event: EventEnvelope['event']): string | null {
-    if (!event || !('roomId' in event) || typeof event.roomId !== 'string') return null;
-    return event.roomId;
-  }
-
-  function shouldRevealAwaySeparator(event: EventEnvelope): boolean {
-    const eventData = event.event;
-    if (!eventData) return false;
-    if (event.actorId === currentUser.user?.id) return false;
-
-    switch (roomEventKind(eventData)) {
-      case RoomEventKind.MessagePosted:
-        if (!isMessagePostedEvent(eventData)) return false;
-        return (
-          eventData.roomId === roomId && (!!eventData.echoOfEventId || !eventData.threadRootEventId)
-        );
-      case RoomEventKind.UserJoinedRoom:
-      case RoomEventKind.UserLeftRoom:
-      case RoomEventKind.RoomUpdated:
-      case RoomEventKind.RoomDeleted:
-      case RoomEventKind.RoomArchived:
-      case RoomEventKind.RoomUnarchived:
-        return scopedRoomId(eventData) === roomId;
-      default:
-        return false;
-    }
-  }
-
   // Keep the server read cursor in sync with incoming root messages. Other
   // users' messages mark the room read while the user is actually present;
   // own messages are already auto-marked read by the post mutation.
@@ -332,10 +303,6 @@
     roomFilesStore.ingestServerEvent(event);
     roomMembersStore.ingestServerEvent(event);
     if (!event.event) return;
-
-    if (!appState.isPresent && shouldRevealAwaySeparator(event)) {
-      unread.noteAwayEvent(event.id);
-    }
 
     if (isMessagePostedEvent(event.event) && event.event.roomId === roomId) {
       const actorId = event.actorId;

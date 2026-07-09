@@ -31,11 +31,12 @@ export function useRoomUnread(getProps: () => { roomId: string }) {
         return null;
       }
     },
-    markerWindowFromReadResult: (result: MarkRoomAsReadResult) => {
+    markerWindowFromReadResult: (result: MarkRoomAsReadResult, markedAtMs: number) => {
       if (!result.previousLastReadAt || !result.lastReadAt) return null;
+      if (result.previousLastReadAt === result.lastReadAt) return null;
       return {
         afterTime: result.previousLastReadAt,
-        beforeTime: result.lastReadAt
+        beforeTime: markedAtMs
       };
     }
   });
@@ -48,7 +49,6 @@ export function useRoomUnread(getProps: () => { roomId: string }) {
       return unread.unreadMarkerWindow;
     },
     markRoomAsRead: unread.markAsRead,
-    noteAwayEvent: unread.noteAwayEvent,
     setUnreadMarkerEventId: unread.setUnreadMarkerEventId,
     clearUnreadMarker: unread.clearUnreadMarker
   };
