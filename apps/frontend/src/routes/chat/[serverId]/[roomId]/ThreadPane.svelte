@@ -186,16 +186,26 @@
   let isFollowingThread = $state(false);
   let _followSeededForThread = '';
   let _followSubFiredForThread = '';
+  let threadFollowRequestId = 0;
+  let isThreadFollowPending = $state(false);
+
+  function setAuthoritativeThreadFollowState(value: boolean) {
+    threadFollowRequestId += 1;
+    isThreadFollowPending = false;
+    isFollowingThread = value;
+  }
 
   $effect(() => {
     const threadId = threadRootEventId;
 
     if (threadId !== _followSeededForThread) {
+      threadFollowRequestId += 1;
+      isThreadFollowPending = false;
       // Only reset if the subscription hasn't already authoritatively set the
       // state for this thread (auto-follow can fire before the initial query
       // resolves).
       if (_followSubFiredForThread !== threadId) {
-        isFollowingThread = false;
+        setAuthoritativeThreadFollowState(false);
       }
 
       // Wait until data has loaded before reading follow state
@@ -204,7 +214,7 @@
         if (_followSubFiredForThread !== threadId) {
           const rootEvent = threadEvents.find((e) => e.id === threadId);
           if (isMessagePostedEvent(rootEvent?.event)) {
-            isFollowingThread = rootEvent.event.viewerIsFollowingThread ?? false;
+            setAuthoritativeThreadFollowState(rootEvent.event.viewerIsFollowingThread ?? false);
           }
         }
       }
@@ -212,8 +222,14 @@
   });
 
   async function toggleThreadFollow() {
+    if (isThreadFollowPending) return;
+
     const wasFollowing = isFollowingThread;
-    isFollowingThread = !wasFollowing;
+    const nextFollowing = !wasFollowing;
+    const requestId = ++threadFollowRequestId;
+
+    isThreadFollowPending = true;
+    isFollowingThread = nextFollowing;
 
     try {
       const conn = connection();
@@ -222,12 +238,13 @@
         baseUrl: conn.connectBaseUrl,
         bearerToken: conn.bearerToken
       });
-      if (wasFollowing) {
-        await api.unfollowThread({ roomId, threadRootEventId });
-      } else {
-        await api.followThread({ roomId, threadRootEventId });
-      }
+      const input = { roomId, threadRootEventId };
+      const result = wasFollowing ? await api.unfollowThread(input) : await api.followThread(input);
+      if (threadFollowRequestId !== requestId) return;
+      setAuthoritativeThreadFollowState(result.following);
     } catch {
+      if (threadFollowRequestId !== requestId) return;
+      isThreadFollowPending = false;
       isFollowingThread = wasFollowing;
     }
   }
@@ -236,7 +253,7 @@
   $effect(() =>
     onThreadFollowChanged((update) => {
       if (update.threadRootEventId === threadRootEventId) {
-        isFollowingThread = update.isFollowing;
+        setAuthoritativeThreadFollowState(update.isFollowing);
         _followSubFiredForThread = update.threadRootEventId;
       }
     })
@@ -276,6 +293,7 @@
         label={isFollowingThread ? m['room.thread.unfollow']() : m['room.thread.follow']()}
         tone={isFollowingThread ? 'active' : 'default'}
         onclick={toggleThreadFollow}
+        disabled={isThreadFollowPending}
       />
       <HeaderIconButton icon="uil--times" label={m['room.thread.close']()} onclick={onClose} />
     {/snippet}

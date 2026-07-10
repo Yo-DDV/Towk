@@ -328,9 +328,13 @@
   // Overridable derived state: backing event data is the default, while
   // mutations/live events can update the row immediately.
   let isFollowingThread = $derived(messageEvent?.viewerIsFollowingThread ?? false);
+  let threadFollowRequestId = 0;
+  let isThreadFollowPending = $state(false);
 
   function setThreadFollowState(value: boolean) {
     if (!event) return;
+    threadFollowRequestId += 1;
+    isThreadFollowPending = false;
     isFollowingThread = value;
     messageStore?.setThreadRootFollowState(event.id, value);
   }
@@ -345,9 +349,15 @@
 
   async function toggleThreadFollow(e: MouseEvent) {
     e.stopPropagation();
+    if (!event || isThreadFollowPending) return;
+
     const wasFollowing = isFollowingThread;
     const nextFollowing = !wasFollowing;
-    setThreadFollowState(nextFollowing);
+    const requestId = ++threadFollowRequestId;
+    const optimistic = messageStore?.beginOptimisticThreadFollow(event.id, nextFollowing);
+
+    isThreadFollowPending = true;
+    isFollowingThread = nextFollowing;
 
     try {
       const conn = connection();
@@ -356,14 +366,15 @@
         baseUrl: conn.connectBaseUrl,
         bearerToken: conn.bearerToken
       });
-      if (wasFollowing) {
-        await api.unfollowThread({ roomId, threadRootEventId: event.id });
-      } else {
-        await api.followThread({ roomId, threadRootEventId: event.id });
-      }
-      setThreadFollowState(nextFollowing);
+      const input = { roomId, threadRootEventId: event.id };
+      const result = wasFollowing ? await api.unfollowThread(input) : await api.followThread(input);
+      if (threadFollowRequestId !== requestId) return;
+      setThreadFollowState(result.following);
     } catch {
-      setThreadFollowState(wasFollowing);
+      if (threadFollowRequestId !== requestId) return;
+      isThreadFollowPending = false;
+      isFollowingThread = wasFollowing;
+      optimistic?.rollback();
     }
   }
 
@@ -871,6 +882,7 @@
             canReact={roomPermissions.canReact}
             {messageStore}
             {isFollowingThread}
+            {isThreadFollowPending}
             onToggleThreadFollow={hasReplies ? toggleThreadFollow : undefined}
             onOpenThread={onOpenThread ? handleOpenThread : undefined}
             onOpenEmojiPicker={roomPermissions.canReact ? openEmojiPickerFromEvent : undefined}
