@@ -1,8 +1,48 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
   <title id="title">Towk mark</title>
-  <desc id="desc">A connected letter T shaped from two conversation paths.</desc>
-  <rect width="256" height="256" rx="56" fill="#0b1020"/>
-  <path d="M49 55h158a16 16 0 0 1 16 16v17a16 16 0 0 1-16 16h-55v78a24 24 0 0 1-24 24 24 24 0 0 1-24-24v-78H49a16 16 0 0 1-16-16V71a16 16 0 0 1 16-16Z" fill="#43d8b0"/>
-  <path d="M55 127h28v23a14 14 0 0 1-14 14H55l-22 20v-43a14 14 0 0 1 14-14h8Zm146 0h-28v23a14 14 0 0 0 14 14h14l22 20v-43a14 14 0 0 0-14-14h-8Z" fill="#7867f2"/>
-  <circle cx="128" cy="79.5" r="8" fill="#0b1020"/>
+  <desc id="desc">An orange letter T flanked by symmetrical graphite message-bubble wings.</desc>
+  <defs>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc48a"/>
+      <stop offset="0.48" stop-color="#ff7a3d"/>
+      <stop offset="1" stop-color="#d8491f"/>
+    </linearGradient>
+    <linearGradient id="graphite" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e4e6eb"/>
+      <stop offset="0.45" stop-color="#9ba0aa"/>
+      <stop offset="1" stop-color="#555a65"/>
+    </linearGradient>
+    <filter id="lift" x="-25%" y="-25%" width="150%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+    <filter id="warmth" x="-35%" y="-35%" width="170%" height="180%">
+      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#ff5a1f" flood-opacity="0.22"/>
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+    <g id="wing">
+      <g transform="rotate(18 60 108)">
+        <rect x="18" y="92" width="86" height="32" rx="12"/>
+        <path d="m77 120 21 19-6-23Z" stroke="none"/>
+      </g>
+    </g>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="#05050a"/>
+  <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="2"/>
+
+  <g fill="url(#graphite)" stroke="#fff" stroke-opacity="0.18" stroke-width="1" filter="url(#lift)">
+    <use href="#wing" transform="translate(18 6) scale(.82 .9)"/>
+    <use href="#wing" transform="translate(238 6) scale(-.82 .9)"/>
+  </g>
+
+  <path
+    d="M79 48h98c5 0 8 3 8 8v20c0 5-3 8-8 8h-31v103l-18 20-18-20V84H79c-5 0-8-3-8-8V56c0-5 3-8 8-8Z"
+    fill="url(#orange)"
+    stroke="#ffebd2"
+    stroke-opacity="0.38"
+    stroke-width="1.5"
+    filter="url(#warmth)"
+  />
+  <path d="M80 50h96c3 0 5 2 5 5v2H75v-2c0-3 2-5 5-5Z" fill="#fff" opacity="0.22"/>
+  <path d="m128 202 14-16V84h4v103l-18 20Z" fill="#8a2608" opacity="0.28"/>
 </svg>
