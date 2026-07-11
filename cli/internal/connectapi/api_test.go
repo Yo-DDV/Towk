@@ -443,8 +443,8 @@ func TestServerDiscoveryServiceGetServerPublicMetadata(t *testing.T) {
 	}
 
 	msg := resp.Msg
-	if msg.GetProfile().GetName() != "Chatto" {
-		t.Fatalf("profile name = %q, want Chatto", msg.GetProfile().GetName())
+	if msg.GetProfile().GetName() != "Towk" {
+		t.Fatalf("profile name = %q, want Towk", msg.GetProfile().GetName())
 	}
 	if msg.GetProfile().GetVersion() != "9.8.7" {
 		t.Fatalf("profile version = %q, want 9.8.7", msg.GetProfile().GetVersion())
@@ -1966,23 +1966,23 @@ func TestMyAccountServiceSetsPassword(t *testing.T) {
 		t.Fatalf("VerifyPassword: %v", err)
 	}
 	if _, err := env.account.UpdatePassword(ctx, connect.NewRequest(&apiv1.UpdatePasswordRequest{
-		Password: "anotherpassword456",
+		Password: "placeholder",
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("second UpdatePassword without current code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 	if _, err := env.account.UpdatePassword(ctx, connect.NewRequest(&apiv1.UpdatePasswordRequest{
-		Password:        "anotherpassword456",
+		Password:        "placeholder",
 		CurrentPassword: "wrongpassword",
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("second UpdatePassword wrong current code = %v, want invalid_argument", connect.CodeOf(err))
 	}
 	if _, err := env.account.UpdatePassword(ctx, connect.NewRequest(&apiv1.UpdatePasswordRequest{
-		Password:        "anotherpassword456",
+		Password:        "placeholder",
 		CurrentPassword: "newpassword456",
 	})); err != nil {
 		t.Fatalf("UpdatePassword with current: %v", err)
 	}
-	if _, err := env.core.VerifyPassword(env.ctx, passwordless.Login, "anotherpassword456"); err != nil {
+	if _, err := env.core.VerifyPassword(env.ctx, passwordless.Login, "placeholder"); err != nil {
 		t.Fatalf("VerifyPassword changed: %v", err)
 	}
 }
@@ -2154,7 +2154,7 @@ func TestAdminUserServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	}
 	if _, err := env.adminUsers.UpdateUserPassword(withCaller(env.ctx, accountManager), connect.NewRequest(&adminv1.UpdateUserPasswordRequest{
 		UserId:   target.Id,
-		Password: "accountmanagerpass456",
+		Password: "placeholder",
 	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("account manager stale UpdateUserPassword code = %v, want failed_precondition", connect.CodeOf(err))
 	}
@@ -2164,7 +2164,7 @@ func TestAdminUserServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	}
 	accountManagerResp, err := env.adminUsers.UpdateUserPassword(withBearerCredential(env.ctx, accountManager, accountManagerToken), connect.NewRequest(&adminv1.UpdateUserPasswordRequest{
 		UserId:   target.Id,
-		Password: "accountmanagerpass456",
+		Password: "placeholder",
 	}))
 	if err != nil {
 		t.Fatalf("account manager UpdateUserPassword: %v", err)
@@ -2172,7 +2172,7 @@ func TestAdminUserServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	if got := accountManagerResp.Msg.GetMember().GetUser().GetId(); got != target.Id {
 		t.Fatalf("account manager password member ID = %q, want %q", got, target.Id)
 	}
-	if _, err := env.core.VerifyPassword(env.ctx, target.Login, "accountmanagerpass456"); err != nil {
+	if _, err := env.core.VerifyPassword(env.ctx, target.Login, "placeholder"); err != nil {
 		t.Fatalf("account-manager-set password should verify: %v", err)
 	}
 
@@ -2227,7 +2227,7 @@ func TestAdminUserServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	}
 	passwordResp, err := env.adminUsers.UpdateUserPassword(adminCtx, connect.NewRequest(&adminv1.UpdateUserPasswordRequest{
 		UserId:   target.Id,
-		Password: "adminpassword456",
+		Password: "placeholder",
 	}))
 	if err != nil {
 		t.Fatalf("UpdateUserPassword: %v", err)
@@ -2235,7 +2235,7 @@ func TestAdminUserServiceUpdatesUsersAndClearsCooldown(t *testing.T) {
 	if got := passwordResp.Msg.GetMember().GetUser().GetId(); got != target.Id {
 		t.Fatalf("password member ID = %q, want %q", got, target.Id)
 	}
-	if _, err := env.core.VerifyPassword(env.ctx, "managed-target", "adminpassword456"); err != nil {
+	if _, err := env.core.VerifyPassword(env.ctx, "managed-target", "placeholder"); err != nil {
 		t.Fatalf("admin password should verify: %v", err)
 	}
 
@@ -2615,7 +2615,7 @@ func TestAdminServerServiceUpdateServerConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetServerConfig: %v", err)
 	}
-	if initialResp.Msg.GetConfig().GetServerName() != "" || initialResp.Msg.GetPublicProfile().GetName() != "Chatto" {
+	if initialResp.Msg.GetConfig().GetServerName() != "" || initialResp.Msg.GetPublicProfile().GetName() != "Towk" {
 		t.Fatalf("initial server config response = %+v", initialResp.Msg)
 	}
 
@@ -7384,13 +7384,13 @@ func TestConnectErrorMapping(t *testing.T) {
 }
 
 func TestSafeInternalErrorForLogRedactsSensitiveSubstrings(t *testing.T) {
-	err := errors.New("failed for email=person@example.test token=cht_ATabcdef123456 redirect=https://chat.example.test/callback?code=secret&state=s url=https://chat.example.test/path?code=secret&state=s and raw other@example.test")
+	err := errors.New("failed for email=person@example.test token=placeholder redirect=https://chat.example.test/callback?code=secret&state=s url=https://chat.example.test/path?code=secret&state=s and raw other@example.test")
 
 	got := safeInternalErrorForLog(err)
 	for _, forbidden := range []string{
 		"person@example.test",
 		"other@example.test",
-		"cht_ATabcdef123456",
+		"placeholder",
 		"code=secret",
 		"state=s",
 	} {

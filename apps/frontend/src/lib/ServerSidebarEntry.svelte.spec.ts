@@ -73,7 +73,7 @@ const { mocks } = vi.hoisted(() => {
         },
         pendingHighlights: { set: vi.fn() },
         serverInfo: {
-          name: 'Chatto',
+          name: 'Towk',
           iconUrl: null as string | null
         },
         setPermissions: vi.fn(),
@@ -251,7 +251,7 @@ describe('ServerSidebarEntry', () => {
     mocks.store.notificationLevels.setRoomPreference.mockClear();
     mocks.store.setPermissions.mockClear();
     mocks.store.serverIndicator.mockReturnValue(null);
-    mocks.store.serverInfo.name = 'Chatto';
+    mocks.store.serverInfo.name = 'Towk';
     mocks.store.serverInfo.iconUrl = null;
   });
 

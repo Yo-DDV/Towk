@@ -18,7 +18,7 @@ runs:
   steps:
     - name: Cache Go modules
       if: inputs.install-cli-deps == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/go/pkg/mod
         key: go-mod-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cli/go.sum') }}
@@ -27,7 +27,7 @@ runs:
 
     - name: Cache Go build artifacts
       if: inputs.install-cli-deps == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/.cache/go-build
         key: go-build-${{ github.job }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('cli/go.sum', 'cli/**/*.go', 'proto/**/*.go', 'proto/**/*.proto', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'apps/frontend/package.json', 'apps/frontend/src/**', 'apps/frontend/static/**', 'apps/frontend/svelte.config.js', 'apps/frontend/tsconfig.json', 'apps/frontend/vite.config.ts', 'mise.toml') }}
@@ -38,14 +38,14 @@ runs:
     # mise-action installs mise and the tools defined in mise.toml (Go, Node)
     # with automatic caching of the tool installations
     - name: Setup mise
-      uses: jdx/mise-action@v4
+      uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
       with:
         experimental: true
 
     # pnpm is not available as a mise plugin, so install via npm (comes with Node)
     - name: Install pnpm
       if: inputs.install-frontend-deps == 'true'
-      uses: pnpm/action-setup@v5
+      uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
     - name: Resolve pnpm store path
       if: inputs.install-frontend-deps == 'true'
@@ -55,7 +55,7 @@ runs:
 
     - name: Cache pnpm store
       if: inputs.install-frontend-deps == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ${{ steps.pnpm-store.outputs.path }}
         key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}

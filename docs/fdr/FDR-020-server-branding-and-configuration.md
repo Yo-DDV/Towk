@@ -1,15 +1,15 @@
 # FDR-020: Server Branding & Configuration
 
 **Status:** Active
-**Last reviewed:** 2026-06-06
+**Last reviewed:** 2026-07-11
 
 ## Overview
 
-Operators can customize how their Chatto server presents itself. The server's name, description, welcome message, logo, banner, and message-of-the-day are all editable from the admin UI and visible to members and visitors. A small number of operational knobs (blocked usernames, etc.) live in the same config surface.
+Operators can customize how their Towk server presents itself. The server's name, description, welcome message, logo, banner, and message-of-the-day are all editable from the admin UI and visible to members and visitors. A small number of operational knobs (blocked usernames, etc.) live in the same config surface.
 
 ## Behavior
 
-- **Server name** — appears in page titles, the chat header, and OG metadata. Defaults to "Chatto".
+- **Server name** — appears in page titles, the chat header, and OG metadata. Defaults to "Towk".
 - **Description** — used in OG metadata for link previews when sharing the server URL.
 - **Welcome message** — shown on the login page. Markdown is supported.
 - **MOTD (message of the day)** — appears in a banner across the top of the chat surface for all members. Broadcasts to live clients when changed.
@@ -68,11 +68,17 @@ Operators can customize how their Chatto server presents itself. The server's na
 **Why:** The frontend needs to know the window to render countdown timers and disable the edit affordance at the right moment, so exposing it through the public API is necessary. But making it operator-tunable opens space for inconsistent UX across servers without clear benefit — and the value isn't sensitive enough to need server-by-server control.
 **Tradeoff:** Operators who want a different window have to recompile. If demand emerges this can be promoted to a config field cheaply.
 
+### 9. Product defaults are Towk while compatibility identifiers remain stable
+
+**Decision:** Fresh servers, the PWA manifest, page-title fallbacks, authentication email fallbacks, OpenGraph metadata, and the CLI presentation use Towk. Existing configured server names are preserved. Protocol packages, storage subjects, environment aliases, the `chatto` executable alias, and metrics names remain unchanged under ADR-049.
+**Why:** A fresh installation must present a coherent independent product without silently rewriting durable deployments or breaking operational integrations.
+**Tradeoff:** Operators will continue to see selected inherited identifiers in configuration, telemetry, and integration code until each one has a versioned migration or a deliberate long-term compatibility decision.
+
 ## Permissions
 
 - `server.manage` — gates presentation, branding, and security-list mutations (`updateServerConfig`, `admin.updateBlockedUsernames`, `uploadServerLogo`, `uploadServerBanner`, `deleteServerLogo`, `deleteServerBanner`).
 
 ## Related
 
-- **ADRs:** ADR-012 (two-tier real-time events), ADR-033 (event-sourced state with projections), ADR-035 (per-aggregate phased migration)
+- **ADRs:** ADR-012 (two-tier real-time events), ADR-033 (event-sourced state with projections), ADR-035 (per-aggregate phased migration), ADR-049 (Towk product identity and compatibility boundary)
 - **FDRs:** FDR-001 (Roles & Permissions), FDR-004 (Message Editing & Deletion), FDR-008 (File Attachments & Video Processing), FDR-021 (Admin Dashboard & System Monitoring)

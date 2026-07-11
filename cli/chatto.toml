@@ -1,4 +1,4 @@
-# Chatto Config for local development
+# Towk configuration for local development
 
 [general]
 log_level = 'debug'
@@ -44,32 +44,18 @@ max_upload_size = '25MB'
 enabled = true
 ttl = '7d'
 
-[[auth.providers]]
-id = 'chatto-hub'
-type = 'oidc'
-label = 'Chatto Hub'
-issuer_url = 'https://chatto.id/realms/chatto-hub'
-client_id = 'chatto-dev'
-client_secret = 'iARXOaPkiIDxdNRX2N9uJmQf0aXIfwUE'
-# request_email defaults to false and keeps the OIDC flow email-less; Chatto
-# will still match accounts by issuer + subject. Set true to request email.
-# request_email = true
-# auto_provision allows unlinked provider identities to create passwordless
-# accounts after an explicit confirmation screen.
-auto_provision = false
-
 [smtp]
 enabled = true
 host = '127.0.0.1'
 port = 1025
 tls = 'opportunistic'
-from = 'chatto-dev@chatto.localhost'
+from = 'towk-dev@towk.localhost'
 
 [push]
 enabled = true
 vapid_public_key = 'BKBVYBi1oSQ0rOjiS86KCNa2VfxnH03kON54RUqm3X7Q2JQMBkspTHlgBo27OV3wfcX36cxVyJ2h2I_Zd4Yz_DI'
 vapid_private_key = 'rOYtIsUZwE3_91odhvbJX7W6sEFjxCAPeC1FO3CtPEc'
-vapid_subject = 'mailto:dev@chatto.run'
+vapid_subject = 'mailto:dev@towk.localhost'
 
 [video]
 enabled = true
@@ -105,4 +91,4 @@ email = 'bob@example.com'
 password = 'foobar123'
 
 [bootstrap.server]
-name = 'Local Development'
+name = 'Towk Development'

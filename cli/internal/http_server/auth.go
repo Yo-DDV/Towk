@@ -34,7 +34,7 @@ func (s *HTTPServer) authEmailServerName(ctx context.Context) string {
 			return name
 		}
 	}
-	return "Chatto"
+	return "Towk"
 }
 
 func (s *HTTPServer) emailOTPExpirationText() string {

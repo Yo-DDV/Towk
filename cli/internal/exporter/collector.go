@@ -30,13 +30,13 @@ func newCollector(server *Server) *collector {
 		server: server,
 		buildInfo: prometheus.NewDesc(
 			"chatto_exporter_build_info",
-			"Build information for this Chatto exporter.",
+			"Build information for this Towk exporter.",
 			[]string{"version"},
 			nil,
 		),
 		ready: prometheus.NewDesc(
 			"chatto_exporter_ready",
-			"Whether the Chatto exporter has completed initial EVT replay and can collect deployment-wide metrics.",
+			"Whether the Towk exporter has completed initial EVT replay and can collect deployment-wide metrics.",
 			nil,
 			nil,
 		),
@@ -48,7 +48,7 @@ func newCollector(server *Server) *collector {
 		),
 		scrapeError: prometheus.NewDesc(
 			"chatto_exporter_scrape_error",
-			"Whether a Chatto exporter collector failed during this scrape.",
+			"Whether a Towk exporter collector failed during this scrape.",
 			[]string{"collector"},
 			nil,
 		),

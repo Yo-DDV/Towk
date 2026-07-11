@@ -218,7 +218,7 @@ func (p *ConfigProjection) EffectiveServerName() string {
 	if p.server.serverName != "" {
 		return p.server.serverName
 	}
-	return "Chatto"
+	return "Towk"
 }
 
 func (p *ConfigProjection) EffectiveWelcomeMessage() string {

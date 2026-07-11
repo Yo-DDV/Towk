@@ -113,8 +113,8 @@ function runThemeScript({
 
 describe('app.html metadata', () => {
   it('defines theme colors matching the outer frame background colors', () => {
-    expect(metaContent('theme-color', 'light')).toBe('#e5e7eb');
-    expect(metaContent('theme-color', 'dark')).toBe('#262626');
+    expect(metaContent('theme-color', 'light')).toBe('#f7f9fc');
+    expect(metaContent('theme-color', 'dark')).toBe('#0b1020');
   });
 
   it('declares the Safari apple touch icon with an explicit size', () => {
@@ -176,7 +176,7 @@ describe('app.html theme bootstrap', () => {
     });
 
     expect(root.dataset.theme).toBe('light');
-    expect(root.style.backgroundColor).toBe('#f3f4f6');
+    expect(root.style.backgroundColor).toBe('#f7f9fc');
     expect(root.style.colorScheme).toBe('light');
   });
 

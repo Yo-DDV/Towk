@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Towk mark</title>
+  <desc id="desc">A connected letter T shaped from two conversation paths.</desc>
+  <rect width="256" height="256" rx="56" fill="#0b1020"/>
+  <path d="M49 55h158a16 16 0 0 1 16 16v17a16 16 0 0 1-16 16h-55v78a24 24 0 0 1-24 24 24 24 0 0 1-24-24v-78H49a16 16 0 0 1-16-16V71a16 16 0 0 1 16-16Z" fill="#43d8b0"/>
+  <path d="M55 127h28v23a14 14 0 0 1-14 14H55l-22 20v-43a14 14 0 0 1 14-14h8Zm146 0h-28v23a14 14 0 0 0 14 14h14l22 20v-43a14 14 0 0 0-14-14h-8Z" fill="#7867f2"/>
+  <circle cx="128" cy="79.5" r="8" fill="#0b1020"/>
+</svg>

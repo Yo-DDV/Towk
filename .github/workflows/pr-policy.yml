@@ -1,0 +1,42 @@
+name: contribution policy
+
+on: # zizmor: ignore[dangerous-triggers] metadata-only; no checkout, untrusted execution, secrets, or write permission
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  metadata:
+    name: Pull request metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate title, branch, body, and attestations
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const failures = [];
+            const title = pr.title.trim();
+            const body = pr.body || '';
+            const branch = pr.head.ref;
+
+            if (!/^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?!?: .+/.test(title)) {
+              failures.push('Use a Conventional Commit pull request title.');
+            }
+
+            if (/(^|[/_-])(codex|openai|chatgpt|claude|anthropic|ai-agent|agent-ia|assistant-ia)([/_-]|$)/i.test(branch)) {
+              failures.push('Rename the branch to a product or problem-focused name.');
+            }
+
+            for (const heading of ['## Summary', '## Risk and compatibility', '## Verification', '## Checklist']) {
+              if (!body.includes(heading)) failures.push(`Missing required section: ${heading}`);
+            }
+
+            if (/- \[ \]/.test(body)) {
+              failures.push('Complete every pull request checklist item before review.');
+            }
+
+            if (failures.length) core.setFailed(failures.join('\n'));

@@ -1,20 +1,20 @@
 name: Bug report
-description: Report a reproducible problem in Chatto.
-title: "[Bug]: "
+description: Report a reproducible problem in Towk.
+title: "fix: "
+labels: [bug, needs-triage]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting a bug. Please redact private data before submitting.
-
-        Do not include tokens, passwords, auth codes, reset links, email addresses, raw IPs, full query strings, OAuth/OIDC subjects, private chat content, or unredacted screenshots.
+        Search existing reports first. Remove secrets, personal data, private messages,
+        production logs, and unredacted screenshots. Report vulnerabilities privately
+        through the Security tab instead of this form.
 
   - type: textarea
     id: summary
     attributes:
       label: Summary
-      description: What went wrong?
-      placeholder: Chatto fails to ...
+      description: What went wrong, and what user or operator impact did it have?
     validations:
       required: true
 
@@ -22,15 +22,14 @@ body:
     id: area
     attributes:
       label: Affected area
-      description: Pick the closest area. Use "Not sure" if the boundary is unclear.
       options:
-        - Frontend / browser app
+        - Frontend / PWA
         - Backend / API
-        - Auth / OAuth / OIDC
-        - Realtime / notifications / LiveKit
+        - Authentication / authorization
+        - Realtime / notifications / calls
         - Deployment / configuration
         - Backup / restore / migration
-        - Documentation
+        - Documentation / contribution workflow
         - Not sure
     validations:
       required: true
@@ -38,52 +37,29 @@ body:
   - type: input
     id: version
     attributes:
-      label: Chatto version
-      description: Include the release tag, Docker image tag, commit SHA, or `chatto version` output.
-      placeholder: v0.x.y, ghcr.io/...:v0.x.y, or commit SHA
-    validations:
-      required: true
-
-  - type: dropdown
-    id: deployment
-    attributes:
-      label: Deployment type
-      description: How is Chatto running?
-      options:
-        - Single binary with embedded NATS
-        - Docker Compose
-        - Kubernetes
-        - Development checkout
-        - Chatto Cloud
-        - Other / not sure
+      label: Towk version
+      description: Provide the release, image digest, or full commit SHA.
+      placeholder: v0.x.y, sha256:..., or 40-character commit SHA
     validations:
       required: true
 
   - type: textarea
-    id: deployment_details
+    id: environment
     attributes:
-      label: Deployment details
-      description: Share relevant redacted config, reverse proxy details, external NATS/S3/LiveKit/auth setup, and recent upgrade path.
+      label: Redacted environment
       placeholder: |
-        - Install method:
-        - Reverse proxy / TLS:
-        - NATS: embedded or external
-        - Object storage: NATS or S3-compatible
-        - Auth providers:
-        - Upgraded from:
+        Deployment method:
+        OS and architecture:
+        Browser/device/PWA mode:
+        Reverse proxy, NATS, S3, LiveKit, or identity provider when relevant:
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: reproduce
     attributes:
-      label: Steps to reproduce
-      description: Give exact steps. Include account role/permissions only if relevant, without naming real users.
-      placeholder: |
-        1. Start Chatto with ...
-        2. Sign in as a user with ...
-        3. Open ...
-        4. Observe ...
+      label: Minimal reproduction
+      description: Give exact steps using synthetic data.
     validations:
       required: true
 
@@ -91,55 +67,25 @@ body:
     id: expected
     attributes:
       label: Expected behavior
-      description: What should have happened instead?
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
-      description: What happened? Include exact error text when safe to share.
+      label: Actual behavior and safe evidence
+      description: Include only the smallest redacted log or screenshot needed.
     validations:
       required: true
-
-  - type: textarea
-    id: client_environment
-    attributes:
-      label: Client environment
-      description: Complete this for browser, mobile, PWA, or desktop-client issues.
-      placeholder: |
-        - OS:
-        - Browser and version:
-        - Device type:
-        - Installed PWA: yes/no
-        - Reproduces in another browser/device: yes/no/not tested
-    validations:
-      required: false
-
-  - type: textarea
-    id: logs
-    attributes:
-      label: Redacted logs or console output
-      description: Paste only the relevant excerpt. Redact private data and secrets before submitting.
-      render: shell
-    validations:
-      required: false
-
-  - type: textarea
-    id: screenshots
-    attributes:
-      label: Redacted screenshots or screen recordings
-      description: Attach visuals only when they help explain the issue. Redact private chat content, user names, emails, URLs, and tokens.
-    validations:
-      required: false
 
   - type: checkboxes
     id: checklist
     attributes:
-      label: Submission checklist
+      label: Required checks
       options:
-        - label: I have removed or redacted private data, secrets, tokens, private chat content, and identifying user information.
+        - label: I searched existing issues and reproduced this on the stated Towk version.
           required: true
-        - label: I have included the Chatto version or commit SHA.
+        - label: I removed secrets, personal data, private content, and identifying logs or screenshots.
+          required: true
+        - label: I read the contribution policy and am accountable for this report, including any agent-assisted content.
           required: true

@@ -38,13 +38,11 @@ func init() {
 }
 
 var banner = `
-   ::::::::  :::    :::     ::: ::::::::::: ::::::::::: ::::::::
-  :+:    :+: :+:    :+:   :+: :+:   :+:         :+:    :+:    :+:
-  +:+        +:+    +:+  +:+   +:+  +:+         +:+    +:+    +:+
-  +#+        +#++:++#++ +#++:++#++: +#+         +#+    +#+    +:+
-  +#+        +#+    +#+ +#+     +#+ +#+         +#+    +#+    +#+
-  #+#    #+# #+#    #+# #+#     #+# #+#         #+#    #+#    #+#
-   ########  ###    ### ###     ### ###         ###     ########
+  _______        __
+ /_  __/ |      / /__
+  / /  | | /| / / _ \
+ / /   | |/ |/ /  __/
+/_/    |__/|__/\___/   TOWK
 `
 
 var configFile string
@@ -52,7 +50,7 @@ var configFile string
 var runCmd = &cobra.Command{
 	Use:     "run",
 	Aliases: []string{"start"},
-	Short:   "Runs the chatto server",
+	Short:   "Runs the Towk server",
 	Run: func(cmd *cobra.Command, args []string) {
 		runServer(configFile)
 	},

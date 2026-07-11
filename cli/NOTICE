@@ -1,6 +1,12 @@
 Chatto
 Copyright 2026 ChattoCorp GmbH
 
+Towk modifications
+Copyright 2026 Yo-DDV and Towk contributors
+
+Towk is an independent project based on Chatto. It is not endorsed, sponsored,
+operated, or supported by ChattoCorp GmbH.
+
 This product includes third-party open source software. This notice lists
 direct dependencies, shipped browser assets, and upstream NOTICE text known to
 apply to the Chatto server, CLI, frontend, and documentation website.

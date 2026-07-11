@@ -12,7 +12,7 @@ var Version = "dev"
 
 var rootCmd = &cobra.Command{
 	Use:           "chatto",
-	Short:         "Run and manage a Chatto server",
+	Short:         "Run and manage a Towk server",
 	Long:          rootBanner(Version),
 	Version:       Version,
 	SilenceUsage:  true,
@@ -34,6 +34,6 @@ func SetVersion(v string) {
 }
 
 func rootBanner(version string) string {
-	return fmt.Sprintf(`Chatto is a self-hostable chat server for teams and communities.
-Version: %s | Self-hosting docs: https://docs.chatto.run`, version)
+	return fmt.Sprintf(`Towk is a self-hosted communication workspace for teams and communities.
+Version: %s | Project: https://github.com/Yo-DDV/towk`, version)
 }

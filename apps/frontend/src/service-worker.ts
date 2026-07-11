@@ -2,10 +2,10 @@
 /// <reference types="@sveltejs/kit" />
 
 /**
- * Service Worker for Chatto's PWA shell and push notifications.
+ * Service Worker for Towk's PWA shell and push notifications.
  *
  * Keeps the app shell available during offline launches while leaving live
- * Chatto data on the network. It also handles Web Push notifications and
+ * Towk data on the network. It also handles Web Push notifications and
  * notification-click navigation.
  */
 

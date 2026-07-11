@@ -292,8 +292,8 @@ func TestConnectServerDiscoveryServiceGetServer(t *testing.T) {
 		}
 
 		msg := resp.Msg
-		if msg.GetProfile().GetName() != "Chatto" {
-			t.Fatalf("profile name = %q, want Chatto", msg.GetProfile().GetName())
+		if msg.GetProfile().GetName() != "Towk" {
+			t.Fatalf("profile name = %q, want Towk", msg.GetProfile().GetName())
 		}
 		if msg.GetProfile().GetVersion() != "1.2.3" {
 			t.Fatalf("profile version = %q, want 1.2.3", msg.GetProfile().GetVersion())
@@ -343,8 +343,8 @@ func TestConnectServerDiscoveryServiceGetServer(t *testing.T) {
 		if err := proto.Unmarshal(data, &msg); err != nil {
 			t.Fatalf("unmarshal response: %v", err)
 		}
-		if msg.GetProfile().GetName() != "Chatto" {
-			t.Fatalf("profile name = %q, want Chatto", msg.GetProfile().GetName())
+		if msg.GetProfile().GetName() != "Towk" {
+			t.Fatalf("profile name = %q, want Towk", msg.GetProfile().GetName())
 		}
 	})
 
@@ -379,8 +379,8 @@ func TestConnectServerDiscoveryServiceGetServer(t *testing.T) {
 		if err := protojson.Unmarshal(data, &msg); err != nil {
 			t.Fatalf("unmarshal response: %v", err)
 		}
-		if msg.GetProfile().GetName() != "Chatto" || msg.GetLogin().GetAuthorizeUrl() != "/oauth/authorize" {
-			t.Fatalf("response = %+v, want Chatto metadata", &msg)
+		if msg.GetProfile().GetName() != "Towk" || msg.GetLogin().GetAuthorizeUrl() != "/oauth/authorize" {
+			t.Fatalf("response = %+v, want Towk metadata", &msg)
 		}
 	})
 

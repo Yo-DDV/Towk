@@ -43,8 +43,8 @@ func TestRootHelpShowsBannerAndNoResetCommand(t *testing.T) {
 
 	help := out.String()
 	for _, want := range []string{
-		"Chatto is a self-hostable chat server for teams and communities.",
-		"Version: 9.8.7-test | Self-hosting docs: https://docs.chatto.run",
+		"Towk is a self-hosted communication workspace for teams and communities.",
+		"Version: 9.8.7-test | Project: https://github.com/Yo-DDV/towk",
 	} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("root help missing %q:\n%s", want, help)

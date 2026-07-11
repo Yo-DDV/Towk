@@ -173,9 +173,9 @@ describe('AddServerDialog', () => {
     container.querySelector('form')!.requestSubmit();
 
     await vi.waitFor(() => {
-      expect(container.querySelector<HTMLButtonElement>('button[type="submit"]')?.textContent).toMatch(
-        /^\s*Sign in\s*$/
-      );
+      expect(
+        container.querySelector<HTMLButtonElement>('button[type="submit"]')?.textContent
+      ).toMatch(/^\s*Sign in\s*$/);
     });
 
     container.querySelector('form')!.requestSubmit();
@@ -191,7 +191,7 @@ describe('AddServerDialog', () => {
     });
   });
 
-  it('shows an error when the probe response is not a Chatto server', async () => {
+  it('shows an error when the probe response is not a Towk server', async () => {
     globalThis.fetch = vi.fn(async () =>
       makeProbeResponse({ unrelated: true })
     ) as unknown as typeof fetch;
@@ -208,7 +208,7 @@ describe('AddServerDialog', () => {
     container.querySelector('form')!.requestSubmit();
 
     await vi.waitFor(() => {
-      expect(container.textContent).toContain('does not appear to be a Chatto server');
+      expect(container.textContent).toContain('does not appear to be a Towk server');
     });
   });
 

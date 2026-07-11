@@ -2,12 +2,13 @@
   import type { Snippet } from 'svelte';
   import { getAuthServerInfo } from './authServerInfo';
   import ServerBranding from './ServerBranding.svelte';
+  import { PRODUCT_NAME } from '$lib/product';
 
   let { children }: { children: Snippet } = $props();
 
   const getServerInfo = getAuthServerInfo();
   const serverInfo = $derived(getServerInfo());
-  const serverName = $derived(serverInfo?.name ?? 'Chatto');
+  const serverName = $derived(serverInfo?.name ?? PRODUCT_NAME);
   const iconUrl = $derived(serverInfo?.iconUrl ?? null);
   const bannerUrl = $derived(serverInfo?.bannerUrl ?? null);
   const description = $derived(serverInfo?.description ?? null);

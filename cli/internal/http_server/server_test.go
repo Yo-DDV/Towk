@@ -1923,7 +1923,7 @@ func TestAuthRoutes_Register_EmailContainsValidCode(t *testing.T) {
 	}
 
 	// Verify email content
-	if !strings.Contains(msg.Body, "Welcome to Chatto!") {
+	if !strings.Contains(msg.Body, "Welcome to Towk!") {
 		t.Error("Expected welcome message in email body")
 	}
 	if !strings.Contains(msg.Body, "15 minutes") {
@@ -2000,8 +2000,8 @@ func TestAuthRoutes_ForgotPassword_SendsEmail(t *testing.T) {
 	if !strings.Contains(email.Body, "1 hour") {
 		t.Errorf("Expected email body to mention 1-hour expiration")
 	}
-	if strings.Contains(email.Body, "The Chatto Team") {
-		t.Errorf("Expected password reset email not to use generic Chatto signoff, got: %s", email.Body)
+	if strings.Contains(email.Body, "The Towk Team") {
+		t.Errorf("Expected password reset email not to use generic Towk signoff, got: %s", email.Body)
 	}
 }
 

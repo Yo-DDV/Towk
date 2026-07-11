@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Chatto. Maintained by release-please from the
+All notable changes to Towk. Maintained by release-please from the
 conventional-commit messages on `main` — do not edit by hand.
 
 ## [0.4.7](https://github.com/chattocorp/chatto/compare/v0.4.6...v0.4.7) (2026-07-11)
