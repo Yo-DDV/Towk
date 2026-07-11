@@ -14,6 +14,7 @@ path = [
   "apps/frontend/**",
   "CHANGELOG.md",
   "CONTRIBUTING.md",
+  "DESIGN.md",
   "docs/**",
   "docker/Dockerfile.frontend.prebuilt",
   "docker/Dockerfile.frontend.prebuilt.dockerignore",
