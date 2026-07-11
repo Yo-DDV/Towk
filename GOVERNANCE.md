@@ -43,6 +43,17 @@ The owner may apply an emergency security fix with an auditable follow-up when
 normal review would materially increase harm. Emergency access is not a shortcut
 for routine work.
 
+## Releases
+
+Maintainers prepare a release pull request through the manual `prepare release`
+workflow. After that pull request is merged, the resulting signed-off tag is
+released by `release Towk`, automatically on a human-pushed tag or through its
+manual tag input. The release workflow accepts only v-prefixed semantic versions
+whose commit is contained in `main`, builds from that tag, attaches checksummed
+archives, records provenance attestations, and publishes the draft only after
+all steps succeed. Container images use the separate scanned and attested Towk
+image workflow; a binary release does not implicitly promote an unscanned image.
+
 ## Upstream relationship
 
 Towk selects changes from Chatto through the process in [UPSTREAM.md](UPSTREAM.md).

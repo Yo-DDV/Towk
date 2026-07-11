@@ -1,0 +1,48 @@
+name: Feature proposal
+description: Propose a scoped Towk product improvement.
+title: "feat: "
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user or operator problem without prescribing a solution first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What observable behavior would solve the problem?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and tradeoffs
+      description: Include workarounds and why they are insufficient.
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and operations
+      description: Consider APIs, stored data, mixed versions, mobile/PWA use, deployment, security, and rollback.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Required checks
+      options:
+        - label: I searched existing issues, FDRs, ADRs, and the roadmap.
+          required: true
+        - label: I did not include secrets, personal data, private content, or confidential plans.
+          required: true
+        - label: I read the contribution policy and am accountable for this proposal, including any agent-assisted content.
+          required: true
