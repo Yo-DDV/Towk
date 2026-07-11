@@ -12,9 +12,7 @@ on:
         type: string
 
 permissions:
-  attestations: write
-  contents: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: release-${{ inputs.tag || github.ref_name }}
@@ -24,6 +22,10 @@ jobs:
   release:
     name: Build, attest, and publish release
     if: github.repository == 'Yo-DDV/towk'
+    permissions:
+      attestations: write # Publish provenance for the release archives.
+      contents: write # Create, attach assets to, and publish the GitHub release.
+      id-token: write # Obtain the OIDC identity required for provenance signing.
     runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.tag || github.ref_name }}

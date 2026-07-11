@@ -5,8 +5,12 @@ on: # zizmor: ignore[dangerous-triggers] metadata-only; no checkout, untrusted e
     types: [opened, edited, reopened, synchronize]
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: read # Read repository metadata; the workflow never checks out code.
+  pull-requests: read # Validate title, branch, body, and checklist metadata.
+
+concurrency:
+  group: contribution-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   metadata:

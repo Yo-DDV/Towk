@@ -4,14 +4,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+  contents: read
+
+concurrency:
+  group: prepare-release-main
+  cancel-in-progress: false
 
 jobs:
   release-please:
     name: Prepare release pull request
     if: github.repository == 'Yo-DDV/towk'
+    permissions:
+      contents: write # Update the release manifest and changelog branch.
+      issues: write # Maintain release labels and linked issue metadata.
+      pull-requests: write # Create or update the release pull request.
     runs-on: ubuntu-latest
     steps:
       - name: Create or update the release pull request
