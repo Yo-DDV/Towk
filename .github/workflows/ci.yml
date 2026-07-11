@@ -28,6 +28,7 @@ permissions:
 
 jobs:
   license-check:
+    name: license-check
     # runs-on: ubicloud-standard-4
     runs-on: ubuntu-latest
     steps:
@@ -45,6 +46,7 @@ jobs:
         run: mise license-check
 
   codegen-proto-drift:
+    name: codegen-proto-drift
     # runs-on: ubicloud-standard-4
     runs-on: ubuntu-latest
     steps:
@@ -99,6 +101,7 @@ jobs:
           fi
 
   test-frontend-unit:
+    name: test-frontend-unit
     # runs-on: ubicloud-standard-4
     runs-on: ubuntu-latest
     steps:
@@ -134,6 +137,7 @@ jobs:
         run: pnpm run test:frontend
 
   test-cli:
+    name: test-cli
     # runs-on: ubicloud-standard-4
     runs-on: ubuntu-latest
     steps:
@@ -184,7 +188,9 @@ jobs:
         run: mise build-e2e-server
 
       - name: Run E2E tests
-        run: cd apps/frontend && pnpm exec playwright test --grep-invert @ffmpeg --shard=${{ matrix.shard }}/4
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: cd apps/frontend && pnpm exec playwright test --grep-invert @ffmpeg --shard="${SHARD}/4"
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -195,6 +201,7 @@ jobs:
           retention-days: 14
 
   test-e2e-media:
+    name: test-e2e-media
     # runs-on: ubicloud-standard-4
     runs-on: ubuntu-latest
     steps:
