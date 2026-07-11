@@ -1,7 +1,29 @@
-FROM alpine:3.22
+FROM --platform=$BUILDPLATFORM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS nats-builder
 
 ARG NATS_CLI_VERSION=0.4.0
+ARG NATS_CLI_COMMIT=21e276a53dc7ff2b73e67c3ab39303d0c3a1f831
+ARG NATS_CLI_SOURCE_SHA256=1b6bc3141de529c3a1a8ebc5a96732082d56a54772ecfe2473e336d0d4a5857e
+ARG TARGETOS
 ARG TARGETARCH
+
+RUN set -eux; \
+ apk add --no-cache curl; \
+ curl -fsSL -o /tmp/natscli.tar.gz \
+      "https://codeload.github.com/nats-io/natscli/tar.gz/${NATS_CLI_COMMIT}"; \
+ echo "${NATS_CLI_SOURCE_SHA256}  /tmp/natscli.tar.gz" | sha256sum -c -; \
+ mkdir /src; \
+ tar -xzf /tmp/natscli.tar.gz -C /src --strip-components=1; \
+ cd /src; \
+ go get golang.org/x/crypto@v0.53.0 golang.org/x/net@v0.55.0; \
+ CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" go build -trimpath \
+      -ldflags="-s -w -X main.version=${NATS_CLI_VERSION}" \
+      -o /out/nats ./nats; \
+ cp /src/LICENSE /out/NATS-CLI-LICENSE; \
+ go version -m /out/nats | grep -F 'golang.org/x/crypto' | grep -F 'v0.53.0'; \
+ go version -m /out/nats | grep -F 'golang.org/x/net' | grep -F 'v0.55.0'
+
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+
 ARG CHATTO_UID=1000
 ARG CHATTO_GID=1000
 
@@ -19,28 +41,11 @@ RUN set -eux; \
       su-exec \
       tzdata
 
-# Bundle the NATS CLI so operators can inspect the same NATS server Chatto uses
+# Bundle the NATS CLI so operators can inspect the same NATS server Towk uses
 # with `docker exec <container> nats ...`. A wrapper maps Chatto's connection
 # environment to the CLI without writing runtime configuration files.
-RUN set -eux; \
- apk add --no-cache --virtual .build-deps curl unzip; \
- case "$TARGETARCH" in \
-      amd64) arch=amd64 ;; \
-      arm64) arch=arm64 ;; \
-      *) echo "unsupported arch: $TARGETARCH" >&2; exit 1 ;; \
-    esac; \
- archive="nats-${NATS_CLI_VERSION}-linux-${arch}.zip"; \
- curl -fsSL -o "/tmp/${archive}" \
-      "https://github.com/nats-io/natscli/releases/download/v${NATS_CLI_VERSION}/${archive}"; \
- curl -fsSL -o /tmp/nats-SHA256SUMS \
-      "https://github.com/nats-io/natscli/releases/download/v${NATS_CLI_VERSION}/SHA256SUMS"; \
- cd /tmp; \
- grep "  ${archive}$" nats-SHA256SUMS | sha256sum -c -; \
- mkdir -p /usr/local/libexec; \
- unzip -j "/tmp/${archive}" "*/nats" -d /usr/local/libexec/; \
- chmod +x /usr/local/libexec/nats; \
- rm "/tmp/${archive}" /tmp/nats-SHA256SUMS; \
- apk del .build-deps
+COPY --from=nats-builder /out/nats /usr/local/libexec/nats
+COPY --from=nats-builder /out/NATS-CLI-LICENSE /usr/share/doc/nats-cli/LICENSE
 
 # Create the default runtime user and writable paths. PUID/PGID can remap this
 # user at container startup; mounted directories are not recursively chowned.
