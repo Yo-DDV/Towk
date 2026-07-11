@@ -12,6 +12,10 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 path = [
   "apps/docs-website/**",
   "apps/frontend/**",
+  "branding/**",
+  "CODE_OF_CONDUCT.md",
+  "GOVERNANCE.md",
+  "SUPPORT.md",
   "CHANGELOG.md",
   "CONTRIBUTING.md",
   "DESIGN.md",
@@ -37,6 +41,32 @@ path = [
 ]
 SPDX-FileCopyrightText = "2026 ChattoCorp GmbH"
 SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  "branding/**",
+  "CODE_OF_CONDUCT.md",
+  "CONTRIBUTING.md",
+  "GOVERNANCE.md",
+  "LICENSING.md",
+  "README.md",
+  "SECURITY.md",
+  "SUPPORT.md",
+]
+SPDX-FileCopyrightText = "2026 Yo-DDV and Towk contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+  ".github/copilot-instructions.md",
+  "AGENTS.md",
+  "FORK.md",
+  "NOTICE",
+  "SOURCE.md",
+  "UPSTREAM.md",
+]
+SPDX-FileCopyrightText = "2026 Yo-DDV and Towk contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
 path = "LICENSE"

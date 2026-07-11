@@ -1,9 +1,23 @@
-# Accès au code source
+# Corresponding source
 
-Le serveur et la CLI sont distribués sous AGPL-3.0-or-later. Les surfaces explicitement listées dans `REUSE.toml`, notamment le frontend, la documentation et l’API publique, sont sous Apache-2.0.
+The server and CLI are distributed under AGPL-3.0-or-later. Surfaces explicitly
+listed in `REUSE.toml`, including the frontend, documentation, public API, and
+examples, are distributed under Apache-2.0.
 
-Le code source correspondant au pilote est publié dans :
+Towk source is published at:
 
-<https://github.com/Yo-DDV/chatto-responsive>
+<https://github.com/Yo-DDV/towk>
 
-L’image OCI expose le commit exact dans `org.opencontainers.image.revision` et le dépôt dans `org.opencontainers.image.source`. Pour reproduire une version, utiliser le tag immuable et vérifier le digest, puis checkout le SHA indiqué. Les fichiers `NOTICE`, `LICENSING.md`, `REUSE.toml` et `LICENSES/` font partie de la distribution et ne doivent pas être retirés.
+Every OCI image must expose its exact Git commit in
+`org.opencontainers.image.revision` and this repository in
+`org.opencontainers.image.source`. To reproduce a deployed version:
+
+1. record the immutable image digest;
+2. read the `org.opencontainers.image.revision` annotation;
+3. check out that exact commit from the public repository;
+4. follow the build instructions stored at that revision.
+
+`NOTICE`, `LICENSING.md`, `REUSE.toml`, `LICENSE`, and `LICENSES/` are part of
+the distribution and must not be removed. A network deployment of a modified
+AGPL-covered service must provide its users a prominent path to the
+corresponding source for the version they are using.

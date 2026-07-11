@@ -1,79 +1,110 @@
-# Contributing
+# Contributing to Towk
 
-Chatto is not accepting outside contributions at this time, but feedback, bug reports, and ideas are welcome by [email](mailto:hendrik.mans@chattocorp.eu), or just drop by our [Chatto HQ community server](https://chat.chatto.run/).
+Towk welcomes bug reports, design discussions, documentation, translations,
+tests, and code. Contributions may be prepared manually or with coding agents;
+the same quality, security, licensing, and review requirements apply.
 
-## Agentic Engineering
+By participating, you agree to the [Code of Conduct](CODE_OF_CONDUCT.md) and the
+project governance in [GOVERNANCE.md](GOVERNANCE.md).
 
-Chatto is intentionally developed with coding agents, and the tracked agent
-workflow files in `.agents/`, `.claude/`, and `.conductor/` are part of how we
-document and operate the project. They are public on purpose: they show the
-coding conventions, review habits, maintenance workflows, and local workspace
-setup we expect agents to follow.
+## Before you start
 
-If you explore the codebase, report an issue, or prepare a patch, we encourage
-you to work agentically: give your agent the repository instructions, ask it to
-read the relevant FDRs/ADRs/docs before changing behavior, and have it run the
-narrowest meaningful checks for its change. Keep personal credentials,
-machine-specific settings, and private prompts out of tracked files; use local
-settings such as `.conductor/settings.local.toml` or your tool's user-level
-configuration for those.
+1. Search existing issues, pull requests, ADRs, and FDRs.
+2. Open an issue before large features, protocol changes, migrations, or new
+   dependencies. Small, well-scoped fixes may go directly to a pull request.
+3. Read [AGENTS.md](AGENTS.md) and any path-specific `AGENTS.md` files.
+4. Keep one pull request focused on one coherent outcome.
 
-## Local Development with Conductor or Paseo
+Do not submit secrets, personal data, private messages, production databases,
+raw production logs, or unredacted screenshots. Report vulnerabilities through
+the private route in [SECURITY.md](SECURITY.md), never through a public issue.
 
-[Conductor](https://conductor.build) and Paseo workspaces run the live local development stack. The default Conductor `chatto` run script in `.conductor/settings.toml` and the Paseo `dev` service in `paseo.json` both delegate to `mise dev`. The mise task uses Conductor's assigned `$CONDUCTOR_PORT`, Paseo's assigned `$PASEO_PORT`, or `4000` outside either tool, then reserves the next ports for bundled services:
+## Development setup
 
-| Port                              | Process                                       |
-| --------------------------------- | --------------------------------------------- |
-| `$CONDUCTOR_PORT` / `$PASEO_PORT` | Vite frontend (user-facing URL)               |
-| `+1`                              | Chatto backend webserver                      |
-| `+2`                              | Embedded NATS                                 |
-| `+3`                              | Prometheus metrics                            |
-| `+4`                              | Deployment-wide exporter metrics              |
-
-The repository-level Conductor settings are shared in `.conductor/settings.toml`, and the repository-level Paseo settings are shared in `paseo.json`. Both wire per-workspace ports before starting the backend and frontend development servers so multiple workspaces can run side by side. Conductor also exposes a `docs-website` run script, and Paseo exposes a separate `dev-docs-website` service; both are backed by `mise dev-docs-website` and reuse the workspace base port for the docs website. Put machine-specific Conductor overrides in `.conductor/settings.local.toml`; that file is gitignored and wins over shared settings on your machine. Conductor also reads `.worktreeinclude` to copy gitignored local environment files, such as `.env` and `.env.*`, into new workspaces.
-
-## Developing Outside of Conductor
-
-Use `mise` for local tool versions and tasks:
+Towk uses [mise](https://mise.jdx.dev/) to provision tools and run tasks:
 
 ```sh
 mise trust
 mise run setup
-```
-
-To run the same live development stack Conductor and Paseo use:
-
-```sh
 mise dev
 ```
 
-To run the docs website development server on the workspace base port:
+Without a workspace-specific port, the web app is available at
+<http://localhost:4000>. The local bootstrap users below are for development
+only and must never be reused in a public deployment.
 
-```sh
-mise dev-docs-website
-```
+| Login | Email | Password | Role |
+|---|---|---|---|
+| `alice` | `alice@example.com` | `foobar123` | owner |
+| `bob` | `bob@example.com` | `foobar123` | user |
 
-To run the bundled executable without live reloads:
-
-```sh
-mise run chatto run
-```
-
-To check SPDX/REUSE license metadata:
+Useful repository tasks include:
 
 ```sh
 mise license-check
+mise test-cli
+mise test-frontend
+mise test-e2e
+mise test
+mise build
 ```
 
-When both `CONDUCTOR_PORT` and `PASEO_PORT` are unset, `mise dev` uses `4000` for the Vite frontend, `4001` for the Chatto backend, `4002` for embedded NATS, `4003` for Prometheus metrics, and `4004` for exporter metrics. `mise dev-docs-website` uses `4000` for the docs website. `mise run chatto run` still uses the bundled-binary port layout: `4000` for Chatto, `4001` for embedded NATS, `4002` for Prometheus metrics, and `4003` for exporter metrics. Pass explicit CLI arguments after the task name, for example `mise chatto version`.
+Run the narrowest test that can fail while iterating. Before submission, run
+the complete matrix required for the surfaces changed and report exactly what
+was and was not run.
 
-## Local Bootstrap Users
+## Contribution requirements
 
-Local development instances are bootstrapped from `cli/chatto.toml` when the server is otherwise empty.
+- Use a short-lived branch and Conventional Commits.
+- Add or update tests for behavior changes and regression fixes.
+- Update public docs, FDRs, ADRs, glossary, migration notes, and notices when
+  the change affects them.
+- Preserve compatibility contracts unless a reviewed, versioned migration with
+  rollback is part of the change.
+- Keep generated files synchronized with their source and name the generator.
+- Use only code, assets, and data you have the right to contribute under the
+  applicable license in [LICENSING.md](LICENSING.md).
+- Do not weaken a test, scanner, branch rule, permission, or audit trail merely
+  to make a check pass.
 
-| Login   | Email               | Password    | Role  |
-| ------- | ------------------- | ----------- | ----- |
-| `alice` | `alice@example.com` | `foobar123` | owner |
-| `bob`   | `bob@example.com`   | `foobar123` | user  |
+Pull request titles use Conventional Commit syntax, such as `fix(api): reject
+expired sessions` or `feat(frontend): add room shortcuts`. The pull request body
+must describe the outcome, risks, compatibility impact, test evidence, and any
+residual gap. Link the relevant issue and decision records.
 
-Use `alice` when you need server administration access.
+## Contributions prepared with coding agents
+
+The contributor opening the pull request remains accountable for every line,
+dependency, asset, claim, and test result, regardless of the tools used.
+Agent-assisted contributions must also meet these rules:
+
+1. Give the tool the tracked repository guidance before it changes files.
+2. Constrain the task and review the complete diff, including generated files.
+3. Verify facts against current code and primary documentation; generated text
+   and previous session notes are not evidence.
+4. Reproduce the reported tests in the submitted checkout. Never claim a check
+   ran when it did not, and never hide a failing or skipped check.
+5. Inspect for fabricated APIs, dependencies, licenses, citations, security
+   properties, migration guarantees, and performance claims.
+6. Keep prompts, transcripts, credentials, private context, tool caches, and
+   machine-specific configuration out of the repository.
+7. Do not let multiple tools write overlapping files concurrently.
+8. Stop and request human review for destructive migrations, secret handling,
+   release publication, production access, or ambiguous legal provenance.
+
+The project does not require disclosure of a particular editor or assistant.
+It does require truthful provenance, human review, and reproducible evidence.
+Submissions that bypass this policy may be closed until they are independently
+reviewed and corrected.
+
+## Review and acceptance
+
+Maintainers review correctness, product fit, security, accessibility,
+compatibility, operational safety, documentation, and license provenance. A
+green CI run is necessary but not sufficient. Maintainers may request a smaller
+change, an ADR/FDR, migration proof, or an independent test.
+
+Submitting a contribution licenses it under the license applicable to the file
+or path and certifies that you have the right to do so. Towk uses an inbound
+equals outbound model and does not require a separate contributor license
+agreement at this time.
