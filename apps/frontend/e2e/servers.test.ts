@@ -8,6 +8,7 @@ import {
 } from './fixtures/multiServer';
 import type { ServerInfo } from './fixtures/server';
 import { TIMEOUTS } from './constants';
+import { escapeRegExp } from './fixtures/regex';
 
 test.describe('Add Server (sidebar entry point)', () => {
 	test('sidebar "+" opens the Add Server dialog', async ({ page, chatPage }) => {
@@ -56,7 +57,7 @@ test.describe('Leave Server', () => {
 
 		// Navigate into the remote server.
 		await remoteSidebarIcon.click();
-		await page.waitForURL(new RegExp(`/chat/${remoteHostname.replace(/\./g, '\\.')}`));
+		await page.waitForURL(new RegExp(`/chat/${escapeRegExp(remoteHostname)}`));
 
 		// The leave-server affordance was removed from the server header.
 		await expect(page.getByTitle('Leave server')).not.toBeVisible();
@@ -71,7 +72,7 @@ test.describe('Leave Server', () => {
 		const remoteUser = await createUserOnRemote(baseURL, 'remoteuser-signout', 'password123');
 		await connectRemoteInstance(page, { ...remoteServer!, baseURL }, remoteUser.userId);
 
-		await page.waitForURL(new RegExp(`/chat/${remoteHostname.replace(/\./g, '\\.')}`));
+		await page.waitForURL(new RegExp(`/chat/${escapeRegExp(remoteHostname)}`));
 		await page.getByTitle('Sign out').click();
 		await expect(page.getByRole('dialog')).toBeVisible({ timeout: TIMEOUTS.UI_FAST });
 		await page.getByRole('button', { name: 'Current Server' }).click();
@@ -95,7 +96,7 @@ test.describe('Leave Server', () => {
 		const remoteUser = await createUserOnRemote(baseURL, 'remoteuser-dead', 'password123');
 		await connectRemoteInstance(page, { ...remoteServer!, baseURL }, remoteUser.userId);
 
-		await page.waitForURL(new RegExp(`/chat/${remoteHostname.replace(/\./g, '\\.')}`));
+		await page.waitForURL(new RegExp(`/chat/${escapeRegExp(remoteHostname)}`));
 		await stopSecondServer(remoteServer!, testInfo);
 		remoteServer = undefined;
 

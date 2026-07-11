@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { TIMEOUTS } from '../constants';
 import * as routes from '../routes';
+import { escapeRegExp } from '../fixtures/regex';
 
 /**
  * Page object for the unified server-admin interface (/chat/-/server-admin).
@@ -193,8 +194,7 @@ export class AdminPage {
    * Permission rows are div containers with the permission name and Grant/Deny checkboxes.
    */
   getPermissionRow(permission: string): Locator {
-    // Escape dots for regex and use anchors for exact match
-    const escapedPermission = permission.replace(/\./g, '\\.');
+    const escapedPermission = escapeRegExp(permission);
     return this.page
       .locator('.font-medium')
       .filter({ hasText: new RegExp(`^${escapedPermission}$`) })

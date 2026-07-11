@@ -8,10 +8,26 @@ const VERIFIER_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 
 /** Generate a cryptographically random code verifier (43-128 chars, RFC 7636). */
 export function generateCodeVerifier(): string {
-	const bytes = crypto.getRandomValues(new Uint8Array(VERIFIER_LENGTH));
-	return Array.from(bytes)
-		.map((b) => VERIFIER_CHARSET[b % VERIFIER_CHARSET.length])
-		.join('');
+	return randomString(VERIFIER_LENGTH, VERIFIER_CHARSET);
+}
+
+function randomString(length: number, charset: string): string {
+	if (charset.length === 0 || charset.length > 256) {
+		throw new RangeError('charset must contain between 1 and 256 characters');
+	}
+
+	const unbiasedLimit = 256 - (256 % charset.length);
+	let result = '';
+	while (result.length < length) {
+		const remaining = length - result.length;
+		const bytes = crypto.getRandomValues(new Uint8Array(Math.max(16, remaining * 2)));
+		for (const byte of bytes) {
+			if (byte >= unbiasedLimit) continue;
+			result += charset[byte % charset.length];
+			if (result.length === length) break;
+		}
+	}
+	return result;
 }
 
 /** Compute the S256 code challenge: base64url(SHA-256(verifier)). */
