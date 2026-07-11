@@ -1,0 +1,54 @@
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
+
+ARG NATS_CLI_VERSION=0.4.0
+ARG NATS_CLI_SHA256_AMD64=8dbd437c826b953dbd7432cf890ef22ba3c33dccc3dce5e71b3e8d055427849c
+ARG NATS_CLI_SHA256_ARM64=9ce0c8a6653cd697d0b32687fcb53b59c13a2ad7a6ade7af8ad8a1c0f7357a87
+ARG TARGETARCH
+ARG CHATTO_UID=1000
+ARG CHATTO_GID=1000
+
+ENV HOME=/home/chatto
+
+RUN set -eux; \
+    apk add --no-cache \
+      ca-certificates \
+      ffmpeg \
+      shadow \
+      su-exec \
+      tzdata
+
+RUN set -eux; \
+    apk add --no-cache --virtual .build-deps curl unzip; \
+    case "$TARGETARCH" in \
+      amd64) arch=amd64; checksum="$NATS_CLI_SHA256_AMD64" ;; \
+      arm64) arch=arm64; checksum="$NATS_CLI_SHA256_ARM64" ;; \
+      *) echo "unsupported arch: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    archive="nats-${NATS_CLI_VERSION}-linux-${arch}.zip"; \
+    curl -fsSL -o "/tmp/${archive}" \
+      "https://github.com/nats-io/natscli/releases/download/v${NATS_CLI_VERSION}/${archive}"; \
+    echo "${checksum}  /tmp/${archive}" | sha256sum -c -; \
+    mkdir -p /usr/local/libexec; \
+    unzip -j "/tmp/${archive}" "*/nats" -d /usr/local/libexec/; \
+    chmod +x /usr/local/libexec/nats; \
+    rm "/tmp/${archive}"; \
+    apk del .build-deps
+
+RUN set -eux; \
+    addgroup -g "$CHATTO_GID" chatto; \
+    adduser -D -u "$CHATTO_UID" -G chatto -h "$HOME" -s /sbin/nologin chatto; \
+    mkdir -p /config /data; \
+    chown chatto:chatto /config /data "$HOME"
+
+COPY chatto /chatto
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY docker/nats-wrapper.sh /usr/local/bin/nats
+COPY LICENSES/AGPL-3.0-or-later.txt /usr/share/doc/chatto/LICENSE
+COPY NOTICE /usr/share/doc/chatto/NOTICE
+RUN chmod +x /chatto /usr/local/bin/docker-entrypoint.sh /usr/local/bin/nats
+
+WORKDIR /
+EXPOSE 4000
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["start", "-c", "/config/chatto.toml"]
