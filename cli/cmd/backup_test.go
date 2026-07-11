@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,6 +19,50 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"hmans.de/chatto/internal/testutil"
 )
+
+func TestReadTarGzRejectsUnsafeEntryPaths(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{
+		"../escape",
+		"safe/../../escape",
+		"safe..name",
+		filepath.Join(string(os.PathSeparator), "tmp", "escape"),
+	}
+
+	for _, entryName := range tests {
+		entryName := entryName
+		t.Run(entryName, func(t *testing.T) {
+			t.Parallel()
+
+			var archive bytes.Buffer
+			gzWriter := gzip.NewWriter(&archive)
+			tarWriter := tar.NewWriter(gzWriter)
+			content := []byte("must not be written")
+			if err := tarWriter.WriteHeader(&tar.Header{
+				Name:     entryName,
+				Mode:     0600,
+				Size:     int64(len(content)),
+				Typeflag: tar.TypeReg,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tarWriter.Write(content); err != nil {
+				t.Fatal(err)
+			}
+			if err := tarWriter.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if err := gzWriter.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := readTarGz(bytes.NewReader(archive.Bytes()), t.TempDir()); err == nil {
+				t.Fatalf("readTarGz accepted unsafe entry %q", entryName)
+			}
+		})
+	}
+}
 
 func TestSkipReason(t *testing.T) {
 	tests := []struct {

@@ -8,6 +8,7 @@ import type { ServerInfo } from './fixtures/server';
 import { DMPage } from './pages/DMPage';
 import * as routes from './routes';
 import { TIMEOUTS } from './constants';
+import { escapeRegExp } from './fixtures/regex';
 
 interface FreshPageSession {
   context: BrowserContext;
@@ -320,7 +321,7 @@ test.describe('Add Server - Remote Auth Flow', () => {
 
     // Post-PR(a) the OAuth callback drops the user directly into the
     // newly-added remote instance's chat tree (`/chat/<hostname>/...`).
-    const remoteHostnameEsc = remoteHostname.replace(/\./g, '\\.');
+    const remoteHostnameEsc = escapeRegExp(remoteHostname);
     await page.waitForURL(new RegExp(`/chat/${remoteHostnameEsc}(/|$)`), {
       timeout: TIMEOUTS.COMPLEX_OPERATION
     });

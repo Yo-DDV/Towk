@@ -501,7 +501,13 @@ func readTarGz(r io.Reader, destDir string) error {
 			return fmt.Errorf("failed to read tar entry: %w", err)
 		}
 
-		// Prevent path traversal attacks
+		// Tar paths are untrusted. Reject absolute paths and every occurrence of
+		// ".." before the name reaches a filesystem operation. The conservative
+		// substring check also keeps this guard obvious to static analyzers.
+		if header.Name == "" || filepath.IsAbs(header.Name) || strings.Contains(header.Name, "..") {
+			return fmt.Errorf("invalid tar entry path: %s", header.Name)
+		}
+
 		target := filepath.Join(destDir, header.Name)
 		if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(destDir)+string(os.PathSeparator)) && filepath.Clean(target) != filepath.Clean(destDir) {
 			return fmt.Errorf("invalid tar entry path: %s", header.Name)
