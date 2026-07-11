@@ -228,7 +228,7 @@ ADR-027 — only user-facing copy says "server".
           <div class="truncate text-lg font-semibold">{probedInfo.name}</div>
           <div class="truncate text-sm text-muted">{hostnameOf(probedUrl)}</div>
           {#if probedInfo.version}
-            <div class="text-xs text-muted/70">Chatto v{probedInfo.version}</div>
+            <div class="text-xs text-muted/70">Towk v{probedInfo.version}</div>
           {/if}
           {#if probedInfo.description}
             <p class="mt-2 text-sm text-muted">{probedInfo.description}</p>

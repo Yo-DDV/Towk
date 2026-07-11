@@ -3,6 +3,7 @@
  */
 
 import { getPublicServerInfo, type PublicServerInfo } from '$lib/api-client/server';
+import { PRODUCT_NAME } from '$lib/product';
 import {
   getAuthenticatedServerState,
   type AuthenticatedServerState,
@@ -15,7 +16,7 @@ export class ServerInfoState {
   #apiConfig?: ServerStateAPIConfig;
   #getAuthenticatedServerState: (config: ServerStateAPIConfig) => Promise<AuthenticatedServerState>;
 
-  name = $state('Chatto');
+  name = $state(PRODUCT_NAME);
   motd = $state<string | null>(null);
   welcomeMessage = $state<string | null>(null);
   description = $state<string | null>(null);
@@ -43,7 +44,7 @@ export class ServerInfoState {
    * Human-readable label for this server, used in log messages so console
    * errors can be traced back to a specific server. Pass the URL (or any
    * stable identifier) — used purely for diagnostics.
-  */
+   */
   constructor(
     label = 'unknown',
     publicServerInfoLoader = getPublicServerInfo,

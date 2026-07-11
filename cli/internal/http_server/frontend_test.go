@@ -190,14 +190,14 @@ func TestServiceWorkerETag(t *testing.T) {
 
 func TestDynamicPWAManifest(t *testing.T) {
 	staticManifest := []byte(`{
-  "name": "Chatto",
+  "name": "Towk",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ],
   "shortcuts": [
     {
-      "name": "Open Chatto",
+      "name": "Open Towk",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
@@ -414,10 +414,10 @@ func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
 	mockFS := fstest.MapFS{
 		"manifest.webmanifest": &fstest.MapFile{
 			Data: []byte(`{
-  "name": "Chatto",
+  "name": "Towk",
   "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }],
   "shortcuts": [
-    { "name": "Open Chatto", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+    { "name": "Open Towk", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }] }
   ]
 }`),
 		},

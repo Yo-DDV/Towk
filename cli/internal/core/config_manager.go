@@ -217,10 +217,10 @@ func (cm *ConfigManager) GetEffectiveWelcomeMessage(_ context.Context) (string, 
 }
 
 // GetEffectiveServerName returns the server name from the projection,
-// falling back to "Chatto" if unset.
+// falling back to "Towk" if unset.
 func (cm *ConfigManager) GetEffectiveServerName(_ context.Context) (string, error) {
 	if cm.projection == nil {
-		return "Chatto", nil
+		return "Towk", nil
 	}
 	return cm.projection.EffectiveServerName(), nil
 }

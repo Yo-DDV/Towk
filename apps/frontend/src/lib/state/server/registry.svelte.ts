@@ -4,9 +4,10 @@ import { serverConnectionManager } from './serverConnection.svelte';
 import { eventBusManager } from './eventBus.svelte';
 import { Codecs, globalSlot } from '$lib/storage/slot';
 import { getPublicServerInfo } from '$lib/api-client/server';
+import { PRODUCT_NAME } from '$lib/product';
 
 /**
- * A registered Chatto server in the multi-server client.
+ * A registered Towk server in the multi-server client.
  */
 export interface RegisteredServer {
 	/** Local slug (derived from hostname, e.g., "chat-example-com") */
@@ -85,7 +86,7 @@ const serversSlot = globalSlot(
 
 
 /**
- * Client-side registry of connected Chatto servers.
+ * Client-side registry of connected Towk servers.
  * Owns both registration data and per-server state stores.
  *
  * Registration and store creation are atomic — when a server is added,
@@ -142,14 +143,14 @@ class ServerRegistry {
 	}
 
 	/**
-	 * Auto-register the origin server as a Chatto server.
+	 * Auto-register the origin server as a Towk server.
 	 *
 	 * When `knownServer` is true (e.g., cookie-authenticated user), registers
 	 * synchronously with a placeholder name — the store's serverInfo.init()
 	 * fetches the real name.
 	 *
 	 * When `knownServer` is false, probes ServerDiscoveryService.GetServer first.
-	 * If it responds, the origin is a Chatto server — register it. If it fails
+	 * If it responds, the origin is a Towk server — register it. If it fails
 	 * (static hosting), nothing happens.
 	 *
 	 * No-ops if the origin is already registered (e.g., from localStorage).
@@ -167,14 +168,14 @@ class ServerRegistry {
 		const origin = window.location.origin;
 
 		if (knownServer) {
-			// Synchronous registration — we already know it's a Chatto server
+			// Synchronous registration — we already know it's a Towk server
 			const id = generateServerId(origin, this.servers.map((s) => s.id));
-			this.#registerOrigin(id, origin, 'Chatto', null);
+			this.#registerOrigin(id, origin, PRODUCT_NAME, null);
 			this.originProbed = true;
 			return;
 		}
 
-		// Async probe — detect if the origin is a Chatto server
+		// Async probe — detect if the origin is a Towk server
 		getPublicServerInfo(origin)
 			.then((info) => {
 				if (this.originServer) return; // Registered while we were fetching
@@ -183,11 +184,11 @@ class ServerRegistry {
 					origin,
 					this.servers.map((s) => s.id)
 				);
-				this.#registerOrigin(id, origin, info.name || 'Chatto', info.iconUrl ?? null);
+				this.#registerOrigin(id, origin, info.name || PRODUCT_NAME, info.iconUrl ?? null);
 				this.settleOriginUnauthenticated();
 			})
 			.catch(() => {
-				// Not a Chatto server — ignore
+				// Not a Towk server — ignore
 			})
 			.finally(() => {
 				this.originProbed = true;
@@ -223,7 +224,7 @@ class ServerRegistry {
 		if (!origin) {
 			const originUrl = window.location.origin;
 			const id = generateServerId(originUrl, this.servers.map((s) => s.id));
-			this.#registerOrigin(id, originUrl, 'Chatto', null, token, user);
+			this.#registerOrigin(id, originUrl, PRODUCT_NAME, null, token, user);
 			this.originProbed = true;
 			return;
 		}

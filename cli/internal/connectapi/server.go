@@ -41,7 +41,7 @@ func (a *API) effectiveServerName(ctx context.Context) string {
 			return n
 		}
 	}
-	return "Chatto"
+	return "Towk"
 }
 
 func (a *API) serverProfile(ctx context.Context, options serverProfileOptions) (*apiv1.ServerPublicProfile, error) {

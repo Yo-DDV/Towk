@@ -398,18 +398,18 @@ func TestConfigManager_GetEffectiveServerName(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	t.Run("returns 'Chatto' when not configured", func(t *testing.T) {
+	t.Run("returns 'Towk' when not configured", func(t *testing.T) {
 
 		name, err := core.configManager.GetEffectiveServerName(ctx)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if name != "Chatto" {
-			t.Errorf("expected 'Chatto', got '%s'", name)
+		if name != "Towk" {
+			t.Errorf("expected 'Towk', got '%s'", name)
 		}
 	})
 
-	t.Run("returns 'Chatto' when configured with empty name", func(t *testing.T) {
+	t.Run("returns 'Towk' when configured with empty name", func(t *testing.T) {
 		core.configManager.SetServerConfig(ctx, "test", &configv1.ServerConfig{
 			ServerName: "",
 		})
@@ -418,8 +418,8 @@ func TestConfigManager_GetEffectiveServerName(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if name != "Chatto" {
-			t.Errorf("expected 'Chatto', got '%s'", name)
+		if name != "Towk" {
+			t.Errorf("expected 'Towk', got '%s'", name)
 		}
 	})
 

@@ -24,7 +24,7 @@ func TestServerConfigProjection_FreshState(t *testing.T) {
 	require.Nil(t, cfg)
 
 	// Effective accessors fall back to defaults pre-config.
-	require.Equal(t, "Chatto", p.EffectiveServerName())
+	require.Equal(t, "Towk", p.EffectiveServerName())
 	require.Equal(t, "", p.EffectiveWelcomeMessage())
 	require.Equal(t, "", p.EffectiveMOTD())
 	require.Equal(t, DefaultDescription, p.EffectiveDescription())
@@ -77,7 +77,7 @@ func TestServerConfigProjection_AppliesSemanticConfigEvents(t *testing.T) {
 	}}, 3))
 	cfg = p.Get()
 	require.Equal(t, "", cfg.ServerName)
-	require.Equal(t, "Chatto", p.EffectiveServerName())
+	require.Equal(t, "Towk", p.EffectiveServerName())
 	require.Equal(t, "semantic motd", p.EffectiveMOTD())
 }
 

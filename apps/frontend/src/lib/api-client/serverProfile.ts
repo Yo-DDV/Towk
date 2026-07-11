@@ -32,12 +32,13 @@ type ServerProfileLike =
 export function mapServerProfile(profile: ServerProfileLike): ServerProfile {
   const publicProfile = profile?.publicProfile ?? profile;
   return {
-    name: publicProfile?.name || "Chatto",
-    version: publicProfile?.version || "",
+    name: publicProfile?.name || PRODUCT_NAME,
+    version: publicProfile?.version || '',
     logoUrl: publicProfile?.logoUrl ?? null,
     bannerUrl: publicProfile?.bannerUrl ?? null,
     welcomeMessage: publicProfile?.welcomeMessage ?? null,
     description: publicProfile?.description ?? null,
-    motd: profile?.motd ?? null,
+    motd: profile?.motd ?? null
   };
 }
+import { PRODUCT_NAME } from '$lib/product';

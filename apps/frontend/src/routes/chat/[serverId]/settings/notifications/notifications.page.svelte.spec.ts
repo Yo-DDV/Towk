@@ -333,7 +333,7 @@ describe('Notification settings page', () => {
     expect(container.textContent).toContain('Push Notifications');
     expect(container.textContent).toContain('Native push is unavailable for remote servers');
     expect(container.textContent).toContain('In-app notification badges and sounds still work');
-    expect(container.textContent).not.toContain('Get notified about new messages while Chatto');
+    expect(container.textContent).not.toContain('Get notified about new messages while Towk');
     expect(
       Array.from(container.querySelectorAll('button')).some((button) =>
         button.textContent?.includes('Enable')
@@ -353,10 +353,10 @@ describe('Notification settings page', () => {
     await settle();
 
     expect(container.textContent).toContain('Push Notifications');
-    expect(container.textContent).toContain('Add Chatto to your Home Screen');
+    expect(container.textContent).toContain('Add Towk to your Home Screen');
     expect(container.textContent).toContain('supported iOS/iPadOS versions');
     expect(container.textContent).toContain('open it from the app icon');
-    expect(container.textContent).not.toContain('Get notified about new messages while Chatto');
+    expect(container.textContent).not.toContain('Get notified about new messages while Towk');
     expect(
       Array.from(container.querySelectorAll('button')).some((button) =>
         button.textContent?.includes('Enable')

@@ -8,6 +8,7 @@
   import { serverIdToSegment } from '$lib/navigation';
   import * as m from '$lib/i18n/messages';
   import PageTitle from '$lib/ui/PageTitle.svelte';
+  import { PRODUCT_NAME } from '$lib/product';
 
   let status = $state<'loading' | 'error'>('loading');
   let errorMessage = $state('');
@@ -78,6 +79,7 @@
         errorMessage = m['auth.callback.no_access_token']();
         return;
       }
+      const credential = result.access_token;
 
       // Register or update the instance
       const existing = serverRegistry.servers.find(
@@ -91,7 +93,7 @@
           iconUrl: flow.serverIconUrl ?? existing.iconUrl
         });
         serverRegistry.replaceServerAuthentication(existing.id, {
-          token: result.access_token,
+          token: credential,
           userId: result.user?.id ?? null,
           userLogin: result.user?.login ?? null,
           userDisplayName: result.user?.displayName ?? null,
@@ -108,9 +110,9 @@
         serverRegistry.addServer({
           id,
           url: flow.remoteUrl,
-          name: flow.serverName ?? 'Chatto',
+          name: flow.serverName ?? PRODUCT_NAME,
           iconUrl: flow.serverIconUrl ?? null,
-          token: result.access_token,
+          token: credential,
           userId: result.user?.id ?? null,
           userLogin: result.user?.login ?? null,
           userDisplayName: result.user?.displayName ?? null,

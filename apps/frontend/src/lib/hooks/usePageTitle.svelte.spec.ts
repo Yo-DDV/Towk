@@ -97,12 +97,12 @@ describe('usePageTitle', () => {
     cleanup();
   });
 
-  it('falls back to Chatto without an origin server', () => {
+  it('falls back to Towk without an origin server', () => {
     setServers([]);
     titleState.setPageTitle('Sign In');
     const { getTitle, cleanup } = createTitleGetter();
 
-    expect(getTitle()).toBe('Sign In | Chatto');
+    expect(getTitle()).toBe('Sign In | Towk');
 
     cleanup();
   });

@@ -113,7 +113,7 @@ func (s *Server) Run(ctx context.Context) error {
 		return nil
 	})
 	g.Go(func() error {
-		s.logger.Info("Starting Chatto exporter", "url", s.url())
+		s.logger.Info("Starting Towk exporter", "url", s.url())
 		err := httpServer.ListenAndServe()
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil

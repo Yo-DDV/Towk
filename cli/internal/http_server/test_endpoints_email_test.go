@@ -46,8 +46,8 @@ func TestAuthRoutes_TestEmailEndpoint(t *testing.T) {
 	if emailResult["to"] != "testendpoint@example.com" {
 		t.Errorf("Expected to: testendpoint@example.com, got %v", emailResult["to"])
 	}
-	if emailResult["subject"] != "Complete your registration for Chatto" {
-		t.Errorf("Expected subject: 'Complete your registration for Chatto', got %v", emailResult["subject"])
+	if emailResult["subject"] != "Complete your registration for Towk" {
+		t.Errorf("Expected subject: 'Complete your registration for Towk', got %v", emailResult["subject"])
 	}
 
 	// Test DELETE /auth/test/emails
