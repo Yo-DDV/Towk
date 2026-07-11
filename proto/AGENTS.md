@@ -17,7 +17,7 @@ For public API packages:
   unauthenticated discovery/bootstrap ConnectRPC API consistency rules.
 - Follow [chatto/realtime/v1/AGENTS.md](chatto/realtime/v1/AGENTS.md) for the
   realtime WebSocket protobuf protocol.
-- Write comments for API consumers, not Chatto maintainers.
+- Write comments for API consumers, not Towk maintainers.
 - Every public service, RPC, message, enum, enum value, and important field
   should have useful comments.
 - Explain what the call reads or changes, required IDs, pagination/cursor

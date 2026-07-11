@@ -30,7 +30,7 @@ type DirectoryMember struct {
 	// Public user fields.
 	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// Explicit roles assigned to the user. Member listings include the virtual
-	// `everyone` role for parity with Chatto's permission model.
+	// `everyone` role for parity with Towk's permission model.
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
 	// Account creation time when known.
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`

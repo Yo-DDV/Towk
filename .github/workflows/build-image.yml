@@ -150,17 +150,17 @@ jobs:
           done
 
       - name: Attest amd64 SBOM
-        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
-          subject-name: ${{ env.IMAGE }}:${{ steps.metadata.outputs.version }}-amd64
+          subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.publish.outputs.amd64_digest }}
           sbom-path: .context/towk-image/reports/sbom-amd64.cdx.json
           push-to-registry: true
 
       - name: Attest arm64 SBOM
-        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
         with:
-          subject-name: ${{ env.IMAGE }}:${{ steps.metadata.outputs.version }}-arm64
+          subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.publish.outputs.arm64_digest }}
           sbom-path: .context/towk-image/reports/sbom-arm64.cdx.json
           push-to-registry: true

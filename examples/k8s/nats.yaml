@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nats
-  namespace: chatto
+  namespace: towk
 spec:
   selector:
     app: nats
@@ -19,7 +19,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: nats
-  namespace: chatto
+  namespace: towk
 spec:
   serviceName: nats
   replicas: 1
@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: nats
-          image: nats:latest
+          image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
           args:
             - "--jetstream"
             - "--store_dir=/data"
@@ -43,7 +43,7 @@ spec:
             - name: NATS_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: chatto-config
+                  name: towk-config
                   key: NATS_TOKEN
           ports:
             - containerPort: 4222

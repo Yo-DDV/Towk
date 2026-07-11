@@ -1,21 +1,21 @@
 ---
 title: Security & Privacy
-description: An overview of Chatto's authentication, authorization, encryption, and privacy model.
+description: An overview of Towk's authentication, authorization, encryption, and privacy model.
 ---
 
 import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-This page describes the security and privacy features built into Chatto today.
+This page describes the security and privacy features built into Towk today.
 
 <Aside type="caution">
-  Chatto is alpha software. The model described here reflects the current implementation and may change. See [the project README](https://github.com/chattocorp/chatto) for the latest stability statement.
+  Towk is alpha software. The model described here reflects the current implementation and may change. See [the project README](https://github.com/Yo-DDV/Towk) for the latest stability statement.
 </Aside>
 
 ## Authentication
 
 ### Password storage
 
-Passwords are hashed with **bcrypt** at the library default cost. Chatto enforces a minimum length of 8 characters and a maximum length of 128 bytes so bcrypt never silently truncates user input.
+Passwords are hashed with **bcrypt** at the library default cost. Towk enforces a minimum length of 8 characters and a maximum length of 128 bytes so bcrypt never silently truncates user input.
 
 Password hash changes are durable user events in the `EVT` stream and are read through the user projection. Raw passwords are never written to storage, audit events, logs, or live subscriptions. Password changes and resets also advance the user's auth generation, so older first-party session credentials, bearer tokens, and OAuth authorization codes are rejected.
 
@@ -23,7 +23,7 @@ Login comparison runs bcrypt against a dummy hash for unknown users and OAuth-on
 
 ### Sessions and tokens
 
-Chatto issues **opaque bearer tokens**, not JWTs. Bearer-token and same-origin cookie-session handles are stored as typed runtime credentials in `RUNTIME_STATE` under HMAC-derived `session.{hmac}` keys, with a sliding TTL: every successful validation re-puts the entry, extending its expiry. Revocation is a single KV delete -- there is no signed-but-still-valid window to worry about. Deprecated legacy cookie-session records remain readable for now so upgrades do not sign out existing browser sessions.
+Towk issues **opaque bearer tokens**, not JWTs. Bearer-token and same-origin cookie-session handles are stored as typed runtime credentials in `RUNTIME_STATE` under HMAC-derived `session.{hmac}` keys, with a sliding TTL: every successful validation re-puts the entry, extending its expiry. Revocation is a single KV delete -- there is no signed-but-still-valid window to worry about. Deprecated legacy cookie-session records remain readable for now so upgrades do not sign out existing browser sessions.
 
 Browser sessions use signed cookies with the following options:
 
@@ -35,7 +35,7 @@ Browser sessions use signed cookies with the following options:
 | `Path`     | `/`                                     |
 | `MaxAge`   | 90 days                                 |
 
-Session cookies are always signed with `webserver.cookie_signing_secret`. They are additionally **encrypted** if `webserver.cookie_encryption_secret` is set. When the encryption secret is missing, Chatto logs a startup warning — running `chatto init` on a fresh server generates both secrets automatically.
+Session cookies are always signed with `webserver.cookie_signing_secret`. They are additionally **encrypted** if `webserver.cookie_encryption_secret` is set. When the encryption secret is missing, Towk logs a startup warning — running `chatto init` on a fresh server generates both secrets automatically.
 
 New browser session cookies store only an opaque runtime credential handle. The user ID, source, auth generation, and fresh-auth metadata live in the server-side `session.{hmac}` runtime credential record.
 
@@ -49,9 +49,9 @@ The registration endpoint always returns `200 OK` regardless of whether the emai
 
 Reset tokens have a 1-hour TTL and expire automatically via NATS KV TTL — no scheduled cleanup is required. A reset request for an unknown address returns the same response as a successful one.
 
-### Chatto frontend OAuth redirects
+### Towk frontend OAuth redirects
 
-When a Chatto frontend connects to another Chatto server, it uses `/oauth/authorize` with PKCE to mint a bearer token for that remote server. The remote server only redirects authorization codes back to trusted frontend origins.
+When a Towk frontend connects to another Towk server, it uses `/oauth/authorize` with PKCE to mint a bearer token for that remote server. The remote server only redirects authorization codes back to trusted frontend origins.
 
 For a known hosted frontend, list the exact callback origin:
 
@@ -60,14 +60,14 @@ For a known hosted frontend, list the exact callback origin:
 oauth_redirect_origins = ["https://app.example.com"]
 ```
 
-You can also allow any valid HTTPS Chatto frontend to connect:
+You can also allow any valid HTTPS Towk frontend to connect:
 
 ```toml
 [webserver]
 oauth_redirect_origins = ["*"]
 ```
 
-Use `*` only when you intentionally want open connectivity. It allows any HTTPS origin to start a Chatto OAuth authorization request. PKCE prevents passive interception of the code, and Chatto still shows the user a consent screen for each redirect origin, but a malicious site can initiate its own flow and ask a logged-in user to approve it. If the user approves, that site receives an authorization code it can exchange for a bearer token.
+Use `*` only when you intentionally want open connectivity. It allows any HTTPS origin to start a Towk OAuth authorization request. PKCE prevents passive interception of the code, and Towk still shows the user a consent screen for each redirect origin, but a malicious site can initiate its own flow and ask a logged-in user to approve it. If the user approves, that site receives an authorization code it can exchange for a bearer token.
 
 <Aside type="caution">
   `webserver.allowed_origins = ["*"]` is different. That wildcard only affects CORS and WebSocket access; it does not trust OAuth redirect callbacks. Use `webserver.oauth_redirect_origins` for OAuth callback trust.
@@ -75,21 +75,21 @@ Use `*` only when you intentionally want open connectivity. It allows any HTTPS 
 
 ## Authorization
 
-Chatto enforces access control at the **API boundary**: ConnectRPC services require authentication by default unless they are explicitly public, and public operation models check permissions before touching domain state.
+Towk enforces access control at the **API boundary**: ConnectRPC services require authentication by default unless they are explicitly public, and public operation models check permissions before touching domain state.
 
-Chatto uses a role-based permission system with four built-in roles (everyone / moderator / admin / owner), custom roles, room-specific overrides, and per-user grants and denies. The full model is covered on its own page:
+Towk uses a role-based permission system with four built-in roles (everyone / moderator / admin / owner), custom roles, room-specific overrides, and per-user grants and denies. The full model is covered on its own page:
 
 <LinkCard
   title="Permissions & Roles"
   href="/guides/operations/permissions/"
-  description="Roles, explicit grants and denies, owner recovery, common patterns, and how Chatto resolves any given permission check."
+  description="Roles, explicit grants and denies, owner recovery, common patterns, and how Towk resolves any given permission check."
 />
 
 ### Initial ownership
 
 The first owner is designated via `owners.emails` in `chatto.toml`. The match runs against **verified** emails only, so claiming an address you can't receive mail at won't grant you ownership. When a matching email is verified, the user is auto-promoted to the owner role — no restart required.
 
-Owners are effective-owner overrides: they are allowed for every normal RBAC permission, and their permissions are virtual rather than stored as editable grants. Roles still have display order, but Chatto does not use role position as an authorization rank. See the [permissions guide](/guides/operations/permissions/) for the full resolution model.
+Owners are effective-owner overrides: they are allowed for every normal RBAC permission, and their permissions are virtual rather than stored as editable grants. Roles still have display order, but Towk does not use role position as an authorization rank. See the [permissions guide](/guides/operations/permissions/) for the full resolution model.
 
 ### The privacy boundary
 
@@ -99,7 +99,7 @@ See [Encryption at Rest and Data Erasure](/guides/operations/privacy-erasure/) f
 
 ## Encryption and Data Erasure
 
-Chatto encrypts message text and selected durable user-PII fields before writing them to storage. Attachments, avatars, event metadata, and many other records are outside that field-level envelope. Account deletion attempts to crypto-shred the protected fields' keys and separately remove user-owned asset bytes.
+Towk encrypts message text and selected durable user-PII fields before writing them to storage. Attachments, avatars, event metadata, and many other records are outside that field-level envelope. Account deletion attempts to crypto-shred the protected fields' keys and separately remove user-owned asset bytes.
 
 <LinkCard
   title="Encryption at Rest and Data Erasure"
@@ -109,19 +109,19 @@ Chatto encrypts message text and selected durable user-PII fields before writing
 
 ### Transport (TLS)
 
-Chatto has **built-in Let's Encrypt** support via Go's `autocert` package — no Caddy or external reverse proxy required for HTTPS. When `webserver.tls.enabled = true`:
+Towk has **built-in Let's Encrypt** support via Go's `autocert` package — no Caddy or external reverse proxy required for HTTPS. When `webserver.tls.enabled = true`:
 
 - Certificates are obtained and renewed automatically for the configured domain.
 - `MinVersion: TLS 1.2` is enforced.
 - Plain HTTP requests are 301-redirected to HTTPS (except ACME challenges).
 
-TLS is **not required**. Chatto can also run plain HTTP, which is useful for local development or when you terminate TLS at your own proxy. If you terminate TLS upstream, make sure `webserver.url` starts with `https://` so the `Secure` cookie flag is set correctly.
+TLS is **not required**. Towk can also run plain HTTP, which is useful for local development or when you terminate TLS at your own proxy. If you terminate TLS upstream, make sure `webserver.url` starts with `https://` so the `Secure` cookie flag is set correctly.
 
-`webserver.url` is also the trusted public origin for generated absolute API and asset URLs. Chatto does not implicitly trust `X-Forwarded-Proto` or similar proxy headers for public URL generation; reverse-proxy deployments should set `webserver.url` to the external HTTPS origin.
+`webserver.url` is also the trusted public origin for generated absolute API and asset URLs. Towk does not implicitly trust `X-Forwarded-Proto` or similar proxy headers for public URL generation; reverse-proxy deployments should set `webserver.url` to the external HTTPS origin.
 
 ## Backup security
 
-Backups encrypt with [age](https://age-encryption.org) when you pass `--encrypt`. Passing `--include-keys` also includes Chatto's built-in key-encryption-key bucket and makes the archive capable of restoring protected message text and user PII:
+Backups encrypt with [age](https://age-encryption.org) when you pass `--encrypt`. Passing `--include-keys` also includes Towk's built-in key-encryption-key bucket and makes the archive capable of restoring protected message text and user PII:
 
 ```bash
 chatto backup -c chatto.toml --encrypt --include-keys
@@ -148,17 +148,17 @@ enabled = true
 socket_path = "/tmp/chatto/operator.sock"
 ```
 
-Chatto serves only `chatto.operator.v1` on the operator socket, and the public web listener never mounts the Operator API. The inverse is also true: the operator socket does not serve public or admin ConnectRPC services. The socket mode is fixed at `0600`, and the parent directory must be private to the Chatto process user. This is intentional defense in depth, so normal public reverse-proxy routing for Chatto's web UI and public APIs cannot accidentally expose root-grade bootstrap access.
+Towk serves only `chatto.operator.v1` on the operator socket, and the public web listener never mounts the Operator API. The inverse is also true: the operator socket does not serve public or admin ConnectRPC services. The socket mode is fixed at `0600`, and the parent directory must be private to the Towk process user. This is intentional defense in depth, so normal public reverse-proxy routing for Towk's web UI and public APIs cannot accidentally expose root-grade bootstrap access.
 
 The `chatto operator ...` CLI reads the socket path from `--operator-socket`, `CHATTO_OPERATOR_API_SOCKET_PATH`, or `chatto.toml`, falling back to `/tmp/chatto/operator.sock`. In Docker, run the command inside the container with `docker exec` or mount the socket path into a trusted sidecar/container with matching filesystem permissions. See [Operator CLI](/guides/operations/operator-cli/) for command examples.
 
-Operator actions are attributed to Chatto's system actor, not to an in-app user or RBAC role. Keep the socket path private to the Chatto process and explicitly trusted automation; for password workflows, prefer `--password-stdin` and `--password-file` over direct secret flags.
+Operator actions are attributed to Towk's system actor, not to an in-app user or RBAC role. Keep the socket path private to the Towk process and explicitly trusted automation; for password workflows, prefer `--password-stdin` and `--password-file` over direct secret flags.
 
 ### Public API
 
 The public request/response API is ConnectRPC under `/api/connect`, with protobuf definitions published in the API reference. Authorization is enforced by the API handlers and shared operation models, so sensitive operations remain permission-gated even though the API shape is documented.
 
-If you want a private server where no unauthenticated traffic reaches Chatto, place Chatto behind an authenticating reverse proxy.
+If you want a private server where no unauthenticated traffic reaches Towk, place Towk behind an authenticating reverse proxy.
 
 ### Request limits
 
@@ -170,7 +170,7 @@ ConnectRPC requests have explicit read limits:
 | Upload request body           | Config-derived | Allows configured attachment uploads plus protobuf overhead |
 | Room event pagination limit   | 500 per field  | Bounds historical room event windows and jump-to-message reads |
 
-There is **no per-IP or per-user rate limiting** at the application layer. If you expose Chatto on the public internet, a request-rate limiter (e.g. Caddy `rate_limit`, Cloudflare, or an upstream WAF) is recommended.
+There is **no per-IP or per-user rate limiting** at the application layer. If you expose Towk on the public internet, a request-rate limiter (e.g. Caddy `rate_limit`, Cloudflare, or an upstream WAF) is recommended.
 
 ### CORS and WebSockets
 
@@ -178,7 +178,7 @@ CORS allows the configured `webserver.url`, the local listen port (for developme
 
 Realtime WebSocket connections perform the same origin check before the upgrade is accepted.
 
-OAuth redirect callbacks use a separate trust list, `webserver.oauth_redirect_origins`. See [Chatto frontend OAuth redirects](#chatto-frontend-oauth-redirects).
+OAuth redirect callbacks use a separate trust list, `webserver.oauth_redirect_origins`. See [Towk frontend OAuth redirects](#chatto-frontend-oauth-redirects).
 
 ## HTTP security headers
 
@@ -190,7 +190,7 @@ Every frontend response sets:
 | `X-Frame-Options`         | `DENY`                             |
 | `Referrer-Policy`         | `strict-origin-when-cross-origin`  |
 
-Original attachment responses also set `X-Content-Type-Options: nosniff`. Uploaded active document formats such as HTML, XHTML, SVG, and XML are served with `Content-Security-Policy: sandbox`; S3-backed files of those types stream through Chatto instead of redirecting directly to object storage so that policy is preserved.
+Original attachment responses also set `X-Content-Type-Options: nosniff`. Uploaded active document formats such as HTML, XHTML, SVG, and XML are served with `Content-Security-Policy: sandbox`; S3-backed files of those types stream through Towk instead of redirecting directly to object storage so that policy is preserved.
 
 For HSTS, CSP, and other policy headers, add them at your reverse proxy.
 

@@ -1,11 +1,11 @@
 ---
 title: Server Operations
-description: Day-to-day operations for Chatto admins and self-hosters, including diagnostics, metrics, backups, upgrades, and recovery.
+description: Day-to-day operations for Towk admins and self-hosters, including diagnostics, metrics, backups, upgrades, and recovery.
 ---
 
 import { Aside, CardGrid, LinkCard, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Running Chatto is mostly about keeping the process healthy, watching storage growth, testing backups, and knowing which tool to use when an account or deployment needs repair.
+Running Towk is mostly about keeping the process healthy, watching storage growth, testing backups, and knowing which tool to use when an account or deployment needs repair.
 
 ## Operator Surfaces
 
@@ -25,7 +25,7 @@ The system pages expose operational metadata, not conversation content; they do 
 
 ## Metrics
 
-Enable the per-process metrics listener when you want Prometheus scraping for one running Chatto process:
+Enable the per-process metrics listener when you want Prometheus scraping for one running Towk process:
 
 <Tabs>
 <TabItem label="TOML">
@@ -73,7 +73,7 @@ Backups are not optional for live servers. At minimum:
 
 1. Schedule encrypted backups.
 2. Decide whether normal backups include encryption keys.
-3. Store backup archives away from the Chatto data directory.
+3. Store backup archives away from the Towk data directory.
 4. Run a restore test before you rely on the backup.
 5. Keep backup retention aligned with account-deletion expectations.
 
@@ -95,7 +95,7 @@ enabled = true
 socket_path = "/tmp/chatto/operator.sock"
 ```
 
-Run `chatto operator` as the same OS user as the Chatto process, or through `docker compose exec` as the `chatto` user in container deployments.
+Run `chatto operator` as the same OS user as the Towk process, or through `docker compose exec` as the `chatto` user in container deployments.
 
 Use it for tasks such as:
 
@@ -107,7 +107,7 @@ Use it for tasks such as:
 - deleting an account
 
 <Aside type="danger">
-  Treat operator socket access like root access to Chatto. Do not mount the socket into untrusted containers or expose it over TCP.
+  Treat operator socket access like root access to Towk. Do not mount the socket into untrusted containers or expose it over TCP.
 </Aside>
 
 ## Upgrade Practice
@@ -124,7 +124,7 @@ Use it for tasks such as:
 <CardGrid>
   <LinkCard title="Backup & Restore" href="/guides/operations/backup-restore/" description="Backup, restore, key export, and disaster recovery procedures." />
   <LinkCard title="Operator CLI" href="/guides/operations/operator-cli/" description="Local recovery and bootstrap commands." />
-  <LinkCard title="High Availability" href="/guides/infrastructure/high-availability/" description="Run Chatto with replicated infrastructure." />
+  <LinkCard title="High Availability" href="/guides/infrastructure/high-availability/" description="Run Towk with replicated infrastructure." />
   <LinkCard title="Horizontal Scaling" href="/guides/infrastructure/horizontal-scaling/" description="Scale server processes and externalize runtime dependencies." />
   <LinkCard title="Environment Variables" href="/reference/environment-variables/#metrics" description="Metrics, exporter, and operator API configuration reference." />
 </CardGrid>

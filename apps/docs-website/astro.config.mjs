@@ -2,9 +2,11 @@
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 
+const docsSite = process.env.TOWK_DOCS_SITE;
+
 // https://astro.build/config
 export default defineConfig({
-  site: "https://docs.chatto.run",
+  ...(docsSite ? { site: docsSite } : {}),
   redirects: {
     "/getting-started/overview": "/getting-started/introduction",
     "/guides/deployment-read-this-first": "/guides/deployment/read-this-first",
@@ -26,14 +28,14 @@ export default defineConfig({
     "/guides/s3-storage": "/guides/infrastructure/s3-storage",
     "/guides/video-processing": "/guides/infrastructure/video-processing",
     "/guides/voice-calls": "/guides/infrastructure/voice-calls",
-    "/guides/integrating-with-chatto": "/guides/integrations/chatto-api",
+    "/guides/integrating-with-chatto": "/guides/integrations/towk-api",
     "/guides/external-login-providers": "/guides/integrations/external-login-providers",
   },
   integrations: [
     starlight({
-      title: "Chatto",
+      title: "Towk",
       customCss: ["./src/custom.css"],
-      routeMiddleware: "./src/routeData.ts",
+      ...(docsSite ? { routeMiddleware: "./src/routeData.ts" } : {}),
       components: {
         SocialIcons: "./src/components/SocialIcons.astro",
       },
@@ -41,7 +43,7 @@ export default defineConfig({
         {
           icon: "github",
           label: "GitHub",
-          href: "https://github.com/chattocorp/chatto",
+          href: "https://github.com/Yo-DDV/Towk",
         },
       ],
       sidebar: [
@@ -91,13 +93,13 @@ export default defineConfig({
         {
           label: "Integrations",
           items: [
-            "guides/integrations/chatto-api",
+            "guides/integrations/towk-api",
             "guides/integrations/external-login-providers",
             "guides/integrations/pocket-id",
           ],
         },
         {
-          label: "Releases",
+          label: "Upstream Release History",
           items: ["releases/0-4-0", "releases/0-3-0", "releases/0-2-0"],
         },
         {

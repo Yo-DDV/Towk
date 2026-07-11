@@ -3,7 +3,6 @@ import config from "virtual:starlight/user-config";
 import { Icon } from "@astrojs/starlight/components";
 
 const links = config.social || [];
-const communityHref = "https://chat.chatto.run/";
 ---
 
 {
@@ -18,11 +17,6 @@ const communityHref = "https://chat.chatto.run/";
     </>
   )
 }
-<a href={communityHref} class="community-link">
-  <span class="sr-only">Official Chatto Community</span>
-  <span aria-hidden="true">Community</span>
-</a>
-
 <style>
   @layer starlight.core {
     a {
@@ -39,18 +33,5 @@ const communityHref = "https://chat.chatto.run/";
       margin: -0.5em;
     }
 
-    .community-link {
-      border: 1px solid var(--sl-color-gray-5);
-      border-radius: 999rem;
-      font-size: var(--sl-text-sm);
-      font-weight: 600;
-      line-height: 1;
-      padding: 0.45rem 0.7rem;
-      white-space: nowrap;
-    }
-
-    .community-link:hover {
-      border-color: var(--sl-color-text-accent);
-    }
   }
 </style>

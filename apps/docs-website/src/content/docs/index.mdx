@@ -1,21 +1,18 @@
 ---
-title: Chatto Self-Hosting Documentation
-description: A real-time chat application built for simplicity and scalability.
+title: Towk self-hosting documentation
+description: Operate and integrate the Towk self-hosted communication workspace.
 template: splash
 hero:
-  tagline: A fully-featured, compact, and really, <i>really</i> snappy team chat server that you can host on your own infrastructure.
+  tagline: Your conversations. Your infrastructure.
   actions:
-    - text: Get Started
+    - text: Get started
       link: /getting-started/introduction/
       icon: right-arrow
       variant: primary
-    - text: Release Notes
-      link: /releases/0-4-0/
-      variant: secondary
     - text: View on GitHub
-      link: https://github.com/chattocorp/chatto
+      link: https://github.com/Yo-DDV/Towk
       icon: external
-      variant: minimal
+      variant: secondary
 ---
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components";
@@ -23,60 +20,65 @@ import HomeScreenshot from "../../components/HomeScreenshot.astro";
 
 <HomeScreenshot />
 
-## Key Features
+## What Towk provides
 
-- **A fully-featured chat experience**: all the features you've come to love (or not) from other chat apps, but without the bloat. Yes, including **file sharing**, **video embeds**, and **voice/video calls** with **screen sharing**!
-- **It's just a single binary**: start simple by throwing the executable on your favorite server -- no separate database required. or scale out with Docker Compose, Kubernetes, or your company's weird homegrown deployment system.
-- **Flexible permissions and roles**: server operators get fine-grained control over who can do what and where. Keep your server simple with just a few channels, or go full monty with hundreds of rooms sorted into room groups, each acting as a permission boundary.
-- **It's crazy fast**: both the backend and the frontend are compact, light on resource usage, and optimized for snappy performance. No, seriously. We really did go hard on performance. Maybe a little too hard.
-- **Focus on data protection and privacy**: Chatto encrypts message text and selected durable account fields with per-user keys, supports crypto-shredding during account deletion, and documents the fields and assets outside that encryption boundary.
+- **Rooms, direct messages, threads, reactions, search, and notifications** in
+  one responsive web client.
+- **File sharing and media handling**, with NATS storage by default and optional
+  S3-compatible object storage.
+- **Voice and video calls with screen sharing** through an operator-managed
+  LiveKit deployment.
+- **Roles and scoped permissions** for communities ranging from a few rooms to
+  larger structured workspaces.
+- **A compact self-hosted runtime** that can start with embedded NATS and grow to
+  external NATS, multiple replicas, and dedicated infrastructure.
+- **A documented privacy boundary**, including per-user encryption for message
+  text and selected account fields plus crypto-shredding during account deletion.
 
-## Get Started
+Towk is pre-1.0 software. Pin the exact revision you deploy, keep tested
+backups, and review changes before upgrading.
+
+## Start here
 
 <CardGrid>
   <LinkCard
     title="Introduction"
     href="/getting-started/introduction/"
-    description="What Chatto is, what it is not, and what to expect today."
+    description="Understand the product, its maturity, and its relationship to Chatto."
   />
   <LinkCard
     title="Quick Start"
     href="/getting-started/quick-start/"
-    description="Get Chatto running in a few minutes."
-  />
-  <LinkCard
-    title="Building Your Community Structure"
-    href="/guides/operations/community-structure/"
-    description="Plan room groups, universal rooms, permissions, roles, and server branding before inviting members."
-  />
-  <LinkCard
-    title="Server Operations"
-    href="/guides/operations/server-operations/"
-    description="Use the admin dashboard, event log, metrics, exporter, backups, and operator CLI for day-to-day operations."
-  />
-  <LinkCard
-    title="Notifications & Web Push"
-    href="/guides/operations/notifications-web-push/"
-    description="Configure persistent notifications, Web Push, VAPID keys, DND behavior, and device expectations."
-  />
-  <LinkCard
-    title="Media & Attachments"
-    href="/guides/infrastructure/media-attachments/"
-    description="Understand uploads, image transforms, room files, link previews, S3 storage, and video processing."
+    description="Build and run a local Towk server from source."
   />
   <LinkCard
     title="Docker Compose"
     href="/guides/deployment/docker-compose/"
-    description="Deploy with Docker Compose for production."
+    description="Deploy Towk, NATS, LiveKit, and Caddy on one host."
   />
   <LinkCard
-    title="Standalone Binary"
-    href="/guides/deployment/binary/"
-    description="Run Chatto as a single executable."
+    title="Community Structure"
+    href="/guides/operations/community-structure/"
+    description="Plan rooms, groups, roles, permissions, and server branding."
   />
   <LinkCard
-    title="Kubernetes"
-    href="/guides/deployment/kubernetes/"
-    description="Current status and requirements for Kubernetes deployments."
+    title="Server Operations"
+    href="/guides/operations/server-operations/"
+    description="Monitor, diagnose, back up, and operate a Towk server."
+  />
+  <LinkCard
+    title="Notifications & Web Push"
+    href="/guides/operations/notifications-web-push/"
+    description="Configure persistent notifications, VAPID keys, and device behavior."
+  />
+  <LinkCard
+    title="Media & Attachments"
+    href="/guides/infrastructure/media-attachments/"
+    description="Configure uploads, transforms, link previews, and storage."
+  />
+  <LinkCard
+    title="API Reference"
+    href="/reference/connectrpc-api/"
+    description="Build clients against the versioned ConnectRPC and realtime surfaces."
   />
 </CardGrid>

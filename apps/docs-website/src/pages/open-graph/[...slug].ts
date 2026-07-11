@@ -9,7 +9,7 @@ const pages = Object.fromEntries(
     {
       title: data.title,
       description:
-        data.description ?? "Self-hosting documentation for Chatto.",
+        data.description ?? "Self-hosting documentation for Towk.",
     },
   ]),
 );
@@ -35,9 +35,9 @@ const wrapText = (value: string, maxLineLength: number) => {
 
 const formatTitle = (title: string) => {
   const spacedTitle = title.replace(/([a-z\d])([A-Z])/g, "$1 $2");
-  const brandedTitle = spacedTitle.startsWith("Chatto")
+  const brandedTitle = spacedTitle.startsWith("Towk")
     ? spacedTitle
-    : `Chatto · ${spacedTitle}`;
+    : `Towk · ${spacedTitle}`;
   return wrapText(brandedTitle, 24);
 };
 

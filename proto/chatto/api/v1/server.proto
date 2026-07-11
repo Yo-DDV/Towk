@@ -6,7 +6,7 @@ import "chatto/api/v1/common.proto";
 
 // Public server profile, identity, and branding fields.
 message ServerPublicProfile {
-  // Display name of the Chatto server.
+  // Display name of the Towk server.
   string name = 1;
   // Server software version.
   string version = 2;

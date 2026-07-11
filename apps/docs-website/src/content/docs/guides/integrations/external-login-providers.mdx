@@ -1,14 +1,14 @@
 ---
 title: External Login Providers
-description: Configure OIDC, GitHub, GitLab, Google, or Discord sign-in for a Chatto server.
+description: Configure OIDC, GitHub, GitLab, Google, or Discord sign-in for a Towk server.
 ---
 
 import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Chatto can consume external OAuth and OIDC providers for sign-in. Providers are configured in `chatto.toml` as repeated `[[auth.providers]]` tables, and the login page renders one button per configured provider.
+Towk can consume external OAuth and OIDC providers for sign-in. Providers are configured in `chatto.toml` as repeated `[[auth.providers]]` tables, and the login page renders one button per configured provider.
 
 <Aside type="note">
-  Chatto acts as an OAuth/OIDC client here. This does not change Chatto's own OAuth authorization endpoint used by Chatto frontends when they connect to a server.
+  Towk acts as an OAuth/OIDC client here. This does not change Towk's own OAuth authorization endpoint used by Towk frontends when they connect to a server.
 </Aside>
 
 ## Supported providers
@@ -24,7 +24,7 @@ Chatto can consume external OAuth and OIDC providers for sign-in. Providers are 
 Other provider types are not exposed as curated providers yet. Use `oidc` for standards-compatible OIDC providers.
 
 <Aside type="tip" title="Self-hosted OIDC providers">
-  Options you may want to explore include [Pocket ID](https://pocket-id.org/), [Kanidm](https://kanidm.com/), [VoidAuth](https://github.com/voidauth/voidauth), [Portier](https://portier.github.io/), [Authelia](https://www.authelia.com/), [Dex](https://dexidp.io/), [Authentik](https://goauthentik.io/), and [Keycloak](https://www.keycloak.org/). Their account models and OIDC capabilities differ, so confirm that your chosen provider supports Chatto's generic OIDC configuration.
+  Options you may want to explore include [Pocket ID](https://pocket-id.org/), [Kanidm](https://kanidm.com/), [VoidAuth](https://github.com/voidauth/voidauth), [Portier](https://portier.github.io/), [Authelia](https://www.authelia.com/), [Dex](https://dexidp.io/), [Authentik](https://goauthentik.io/), and [Keycloak](https://www.keycloak.org/). Their account models and OIDC capabilities differ, so confirm that your chosen provider supports Towk's generic OIDC configuration.
 </Aside>
 
 ## Provider IDs
@@ -55,9 +55,9 @@ For example, a provider with `id = "github-main"` on `https://chat.example.com` 
 https://chat.example.com/auth/providers/github-main/callback
 ```
 
-Chatto derives the callback from `webserver.url`, so set that value to the public HTTPS origin of your server.
+Towk derives the callback from `webserver.url`, so set that value to the public HTTPS origin of your server.
 
-For older OIDC client registrations, Chatto also serves `/auth/oidc` and `/auth/oidc/callback` as compatibility aliases for the configured OIDC provider. New registrations should use the provider-specific callback URL.
+For older OIDC client registrations, Towk also serves `/auth/oidc` and `/auth/oidc/callback` as compatibility aliases for the configured OIDC provider. New registrations should use the provider-specific callback URL.
 
 ## Configuration
 
@@ -71,17 +71,17 @@ url = "https://chat.example.com"
 [[auth.providers]]
 id = "chatto-hub"
 type = "oidc"
-label = "Chatto Hub"
-issuer_url = "https://hub.chatto.dev"
+label = "Towk Hub"
+issuer_url = "https://id.example.com"
 client_id = "..."
 client_secret = "..."
 # Keep false for invite-only/account-linking deployments.
 auto_provision = false
 ```
 
-`issuer_url` must be an absolute `http` or `https` URL. Chatto uses OIDC discovery from that issuer and verifies the ID token before matching the external identity.
+`issuer_url` must be an absolute `http` or `https` URL. Towk uses OIDC discovery from that issuer and verifies the ID token before matching the external identity.
 
-By default, Chatto does not request email claims from OIDC providers:
+By default, Towk does not request email claims from OIDC providers:
 
 ```toml
 [[auth.providers]]
@@ -94,7 +94,7 @@ client_secret = "..."
 auto_provision = true
 ```
 
-Email-less accounts can sign in, link identities, and count toward `limits.max_users` through the linked OIDC subject. They do not receive a Chatto verified email unless the provider later returns an explicitly verified email claim.
+Email-less accounts can sign in, link identities, and count toward `limits.max_users` through the linked OIDC subject. They do not receive a Towk verified email unless the provider later returns an explicitly verified email claim.
 
 </TabItem>
 <TabItem label="Environment">
@@ -104,8 +104,8 @@ For container platforms, configure providers with counted environment variables.
 ```bash
 CHATTO_AUTH_PROVIDERS_0_ID=chatto-hub
 CHATTO_AUTH_PROVIDERS_0_TYPE=oidc
-CHATTO_AUTH_PROVIDERS_0_LABEL="Chatto Hub"
-CHATTO_AUTH_PROVIDERS_0_ISSUER_URL=https://hub.chatto.dev
+CHATTO_AUTH_PROVIDERS_0_LABEL="Towk Hub"
+CHATTO_AUTH_PROVIDERS_0_ISSUER_URL=https://id.example.com
 CHATTO_AUTH_PROVIDERS_0_CLIENT_ID=...
 CHATTO_AUTH_PROVIDERS_0_CLIENT_SECRET=...
 CHATTO_AUTH_PROVIDERS_0_REQUEST_EMAIL=false
@@ -123,14 +123,14 @@ Supported fields are `ID`, `TYPE`, `LABEL`, `CLIENT_ID`, `CLIENT_SECRET`, `ISSUE
 
 Any `CHATTO_AUTH_PROVIDERS_<index>_*` variables replace providers from `chatto.toml`.
 
-Chatto also accepts the older single-provider OIDC variables for compatibility:
+Towk also accepts the older single-provider OIDC variables for compatibility:
 
 ```bash
 CHATTO_AUTH_OIDC_ENABLED=true
-CHATTO_AUTH_OIDC_ISSUER_URL=https://hub.chatto.dev
+CHATTO_AUTH_OIDC_ISSUER_URL=https://id.example.com
 CHATTO_AUTH_OIDC_CLIENT_ID=...
 CHATTO_AUTH_OIDC_CLIENT_SECRET=...
-# CHATTO_AUTH_OIDC_LABEL="Chatto Hub"
+# CHATTO_AUTH_OIDC_LABEL="Towk Hub"
 ```
 
 Those legacy variables create one `oidc` provider with `id = "oidc"`. Do not combine counted `CHATTO_AUTH_PROVIDERS_<index>_*` variables with `CHATTO_AUTH_OIDC_ENABLED`.
@@ -204,7 +204,7 @@ auto_provision = false
 
 ## Scopes
 
-By default, Chatto requests the minimum provider scopes needed to identify the
+By default, Towk requests the minimum provider scopes needed to identify the
 provider account. Email scopes are only requested when `request_email = true`.
 
 | Type             | Scopes when `request_email = false` | Scopes when `request_email = true` |
@@ -227,9 +227,9 @@ client_secret = "..."
 scopes = ["openid", "profile", "groups"]
 ```
 
-For OIDC providers, Chatto always includes `openid` even if you omit it from a custom scope list.
+For OIDC providers, Towk always includes `openid` even if you omit it from a custom scope list.
 
-`request_email` defaults to `false`. Set `request_email = true` to request provider email scopes. For OIDC, the default request is `openid profile`; Chatto can create, link, and sign in accounts from the provider `sub` without receiving an email claim.
+`request_email` defaults to `false`. Set `request_email = true` to request provider email scopes. For OIDC, the default request is `openid profile`; Towk can create, link, and sign in accounts from the provider `sub` without receiving an email claim.
 
 ## Auto-provisioning
 
@@ -242,17 +242,17 @@ Auto-provisioning never silently merges by email. If a person already has a loca
 
 ## Account matching
 
-Chatto matches external logins by provider identity, not by email address.
+Towk matches external logins by provider identity, not by email address.
 
 - OIDC providers are matched by verified issuer URL plus subject.
 - OAuth-only providers are matched by the configured provider ID plus provider user ID.
 - Email claims are optional profile data and are not used to pick an account.
 
-If a provider callback returns an identity that is not linked to an account, Chatto does not silently pick an account by email.
+If a provider callback returns an identity that is not linked to an account, Towk does not silently pick an account by email.
 
 Set `auto_provision = true` on a provider to allow new users from that provider to create accounts. If `auto_provision` is omitted or `false`, an unlinked provider identity cannot create an account.
 
-Existing users can link providers from their account settings. Linking requires the user to already be signed in, lets Chatto create a short-lived provider link-start URL, and asks the user to confirm the pending link after the provider callback. Pending create and link tokens are short-lived and scoped to that specific action.
+Existing users can link providers from their account settings. Linking requires the user to already be signed in, lets Towk create a short-lived provider link-start URL, and asks the user to confirm the pending link after the provider callback. Pending create and link tokens are short-lived and scoped to that specific action.
 
 Accounts created through an email-less provider are passwordless until the user adds a password in account settings. Password reset by email requires a verified email address, so operators running SSO without email should keep at least one trusted provider link available for affected users.
 
@@ -260,15 +260,15 @@ Accounts created through an email-less provider are passwordless until the user 
 
 A linked external identity is a verified sign-in factor. It is enough for login and for `limits.max_users`, even when the provider did not return an email address.
 
-A Chatto verified email is stricter. Chatto creates one from a provider email only when the provider adapter has an explicit verification signal:
+A Towk verified email is stricter. Towk creates one from a provider email only when the provider adapter has an explicit verification signal:
 
-| Provider | When Chatto stores a verified email |
+| Provider | When Towk stores a verified email |
 | -------- | ----------------------------------- |
 | `oidc` | `email` is present and `email_verified = true` |
 | `github` | The GitHub emails API returns a verified primary email |
 | `google` | Goth profile data includes `verified_email` or `email_verified` |
 | `discord` | Goth profile data includes `verified = true` |
-| `gitlab` | Not currently promoted to a Chatto verified email |
+| `gitlab` | Not currently promoted to a Towk verified email |
 
 Verified email matters for email password reset and for `owners.emails` owner promotion. A linked SSO identity alone does not match `owners.emails`.
 

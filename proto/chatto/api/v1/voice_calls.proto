@@ -7,7 +7,7 @@ import "chatto/api/v1/rooms.proto";
 import "chatto/api/v1/users.proto";
 import "google/protobuf/timestamp.proto";
 
-// Voice-call request/response APIs backed by Chatto call-state projections.
+// Voice-call request/response APIs backed by Towk call-state projections.
 service VoiceCallService {
   // Lists member channel rooms that currently have active calls as a finite
   // runtime snapshot. Rooms the caller is not a member of are omitted.

@@ -58,7 +58,7 @@ func (*GetSystemInfoRequest) Descriptor() ([]byte, []int) {
 	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{0}
 }
 
-// Owner-only operational diagnostics for the Chatto server.
+// Owner-only operational diagnostics for the Towk server.
 type GetSystemInfoResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Broker connection, account, and JetStream state.
@@ -122,7 +122,7 @@ type AdminSystemInfo struct {
 	Account *AdminAccountInfo `protobuf:"bytes,2,opt,name=account,proto3" json:"account,omitempty"`
 	// JetStream stream and consumer diagnostics.
 	Nats *AdminNatsStats `protobuf:"bytes,3,opt,name=nats,proto3" json:"nats,omitempty"`
-	// Aggregate Chatto object counts.
+	// Aggregate Towk object counts.
 	Stats         *AdminServerStats `protobuf:"bytes,4,opt,name=stats,proto3" json:"stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -189,7 +189,7 @@ func (x *AdminSystemInfo) GetStats() *AdminServerStats {
 // Current NATS server connection metadata.
 type AdminConnectionInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Whether Chatto is currently connected to NATS.
+	// Whether Towk is currently connected to NATS.
 	Connected bool `protobuf:"varint,1,opt,name=connected,proto3" json:"connected,omitempty"`
 	// Connected NATS server ID.
 	ServerId string `protobuf:"bytes,2,opt,name=server_id,json=serverId,proto3" json:"server_id,omitempty"`
@@ -386,7 +386,7 @@ func (x *AdminAccountInfo) GetConsumersUsed() int32 {
 	return 0
 }
 
-// Aggregate Chatto object counts.
+// Aggregate Towk object counts.
 type AdminServerStats struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Registered user count.

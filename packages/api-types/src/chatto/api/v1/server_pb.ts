@@ -14,7 +14,7 @@ import { ProviderMetadata } from "./common_pb.js";
  */
 export class ServerPublicProfile extends Message<ServerPublicProfile> {
   /**
-   * Display name of the Chatto server.
+   * Display name of the Towk server.
    *
    * @generated from field: string name = 1;
    */

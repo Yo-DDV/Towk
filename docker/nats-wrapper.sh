@@ -1,5 +1,5 @@
 #!/bin/sh
-# Make the bundled NATS CLI use Chatto's connection settings without writing a
+# Make the bundled NATS CLI use Towk's connection settings without writing a
 # CLI context into the container. Explicit NATS connection settings take
 # precedence and leave the entire connection setup under operator control.
 set -eu

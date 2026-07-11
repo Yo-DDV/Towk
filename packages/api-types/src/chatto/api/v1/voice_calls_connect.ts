@@ -7,7 +7,7 @@ import { BatchGetActiveCallsRequest, BatchGetActiveCallsResponse, GetActiveCallR
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
- * Voice-call request/response APIs backed by Chatto call-state projections.
+ * Voice-call request/response APIs backed by Towk call-state projections.
  *
  * @generated from service chatto.api.v1.VoiceCallService
  */

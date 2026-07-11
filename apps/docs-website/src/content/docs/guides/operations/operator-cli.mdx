@@ -3,9 +3,9 @@ title: Operator CLI
 description: Local recovery and bootstrap commands with chatto operator.
 ---
 
-`chatto operator` is Chatto's local, root-equivalent operations CLI. Use it for bootstrap, recovery, and scripted user administration when an in-app admin session is unavailable or not appropriate.
+`chatto operator` is Towk's local, root-equivalent operations CLI. Use it for bootstrap, recovery, and scripted user administration when an in-app admin session is unavailable or not appropriate.
 
-Operator commands talk to the running Chatto process over a Unix socket. They do not open a second NATS/Core writer, and they do not use Chatto sessions, bearer tokens, cookies, RBAC roles, or CORS.
+Operator commands talk to the running Towk process over a Unix socket. They do not open a second NATS/Core writer, and they do not use Towk sessions, bearer tokens, cookies, RBAC roles, or CORS.
 
 ## Enable the Operator API
 
@@ -17,11 +17,11 @@ enabled = true
 socket_path = "/tmp/chatto/operator.sock"
 ```
 
-The socket mode is always `0600`. The socket parent directory must be owned by the Chatto process user and private to that user. Chatto refuses to start when an existing socket has a different mode or when the parent directory is group/other-accessible.
+The socket mode is always `0600`. The socket parent directory must be owned by the Towk process user and private to that user. Towk refuses to start when an existing socket has a different mode or when the parent directory is group/other-accessible.
 
 ## Run Commands
 
-On a host install, run commands as the same OS user that runs Chatto:
+On a host install, run commands as the same OS user that runs Towk:
 
 ```sh
 chatto operator user list
@@ -29,12 +29,12 @@ chatto operator user list --search alice@example.com
 chatto operator user set-password USER_ID
 ```
 
-In Docker Compose, exec into the running Chatto container as the `chatto` user:
+In Docker Compose, exec into the running Towk container as the `chatto` user:
 
 ```sh
-docker compose exec -u chatto chatto /chatto operator user list
-docker compose exec -u chatto chatto /chatto operator user list --search alice@example.com
-docker compose exec -u chatto chatto /chatto operator user set-password USER_ID
+docker compose exec -u chatto towk /chatto operator user list
+docker compose exec -u chatto towk /chatto operator user list --search alice@example.com
+docker compose exec -u chatto towk /chatto operator user set-password USER_ID
 ```
 
 Use `--operator-socket` or `CHATTO_OPERATOR_API_SOCKET_PATH` only when the socket path differs from config/defaults.
@@ -64,6 +64,6 @@ For password automation, prefer `--password-stdin` or `--password-file` over `--
 
 ## Security Notes
 
-Treat operator socket access like root access to Chatto. A process that can use the socket can create users, reset passwords, assign roles, and delete accounts.
+Treat operator socket access like root access to Towk. A process that can use the socket can create users, reset passwords, assign roles, and delete accounts.
 
-Do not mount or publish the socket unless the target container or host is fully trusted. If you need remote automation, run it through a trusted local agent on the Chatto host rather than exposing the socket over a network boundary.
+Do not mount or publish the socket unless the target container or host is fully trusted. If you need remote automation, run it through a trusted local agent on the Towk host rather than exposing the socket over a network boundary.

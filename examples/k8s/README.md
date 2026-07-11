@@ -1,9 +1,9 @@
-# Chatto Kubernetes Example
+# Towk Kubernetes Example
 
-This example deploys a clustered Chatto setup on Kubernetes with:
+This example deploys a clustered Towk setup on Kubernetes with:
 
 - **NATS** - StatefulSet with persistent storage
-- **Chatto** - Deployment with 3 replicas
+- **Towk** - Deployment with 3 replicas
 - **Ingress** - For external access with TLS
 
 ## Prerequisites
@@ -79,18 +79,18 @@ The included `ingress.yaml` is already configured to use cert-manager. After app
 
 ```bash
 # Check certificate status
-kubectl -n chatto get certificate
-kubectl -n chatto describe certificate chatto-tls
+kubectl -n towk get certificate
+kubectl -n towk describe certificate towk-tls
 ```
 
 ## Files
 
 | File             | Description                                        |
 | ---------------- | -------------------------------------------------- |
-| `namespace.yaml` | Dedicated namespace for Chatto                     |
+| `namespace.yaml` | Dedicated namespace for Towk                     |
 | `secrets.yaml`   | **Central config** - all environment variables     |
 | `nats.yaml`      | NATS StatefulSet (sources token from secret)       |
-| `chatto.yaml`    | Chatto Deployment (sources all config from secret) |
+| `towk.yaml`    | Towk Deployment (sources all config from secret) |
 | `ingress.yaml`   | Ingress for external access                        |
 
 ## Configuration
@@ -126,7 +126,7 @@ Update these values:
 kubectl apply -f namespace.yaml
 kubectl apply -f secrets.local.yaml
 kubectl apply -f nats.yaml
-kubectl apply -f chatto.yaml
+kubectl apply -f towk.yaml
 kubectl apply -f ingress.local.yaml
 ```
 
@@ -134,31 +134,31 @@ kubectl apply -f ingress.local.yaml
 
 ```bash
 # Check status
-kubectl -n chatto get pods
-kubectl -n chatto get svc
-kubectl -n chatto get ingress
+kubectl -n towk get pods
+kubectl -n towk get svc
+kubectl -n towk get ingress
 
 # View logs
-kubectl -n chatto logs -f deployment/chatto
+kubectl -n towk logs -f deployment/towk
 
 # Scale replicas
-kubectl -n chatto scale deployment/chatto --replicas=5
+kubectl -n towk scale deployment/towk --replicas=5
 
 # Rolling restart
-kubectl -n chatto rollout restart deployment/chatto
+kubectl -n towk rollout restart deployment/towk
 
 # Watch rollout status
-kubectl -n chatto rollout status deployment/chatto
+kubectl -n towk rollout status deployment/towk
 ```
 
 ## Updating
 
 ```bash
 # Update to a new image
-kubectl -n chatto set image deployment/chatto chatto=ghcr.io/chattocorp/chatto:v1.2.3
+kubectl -n towk set image deployment/towk towk=ghcr.io/yo-ddv/towk:<immutable-tag>@sha256:<digest>
 
 # Or update the manifest and apply
-kubectl apply -f chatto.yaml
+kubectl apply -f towk.yaml
 ```
 
 The deployment uses a rolling update strategy with `maxUnavailable: 0` to ensure zero-downtime updates.
@@ -172,26 +172,26 @@ NATS uses a PersistentVolumeClaim for data persistence. The default request is 1
 **Pods not starting**: Check events and logs:
 
 ```bash
-kubectl -n chatto describe pod <pod-name>
-kubectl -n chatto logs <pod-name>
+kubectl -n towk describe pod <pod-name>
+kubectl -n towk logs <pod-name>
 ```
 
-**Chatto can't connect to NATS**: Ensure NATS is running and the token matches:
+**Towk can't connect to NATS**: Ensure NATS is running and the token matches:
 
 ```bash
-kubectl -n chatto get pods -l app=nats
-kubectl -n chatto logs statefulset/nats
+kubectl -n towk get pods -l app=nats
+kubectl -n towk logs statefulset/nats
 ```
 
 **Ingress not working**: Verify your Ingress controller is installed and check the ingress status:
 
 ```bash
-kubectl -n chatto describe ingress chatto
+kubectl -n towk describe ingress towk
 ```
 
 **TLS issues**: If using cert-manager, check certificate status:
 
 ```bash
-kubectl -n chatto get certificate
-kubectl -n chatto describe certificate chatto-tls
+kubectl -n towk get certificate
+kubectl -n towk describe certificate towk-tls
 ```

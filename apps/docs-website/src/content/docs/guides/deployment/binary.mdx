@@ -1,6 +1,6 @@
 ---
 title: Standalone Binary
-description: How to deploy Chatto as a standalone binary.
+description: How to deploy Towk as a standalone binary.
 ---
 
 import {
@@ -13,24 +13,24 @@ import {
 import ArchDiagram from "../../../../components/diagrams/BinaryDiagram.astro";
 
 <Aside type="caution">
-  While it is totally possible to host Chatto just using the binary (it will
+  While it is totally possible to host Towk just using the binary (it will
   even terminate TLS for you if you want!), it is heavily recommended to make
   use of the provided Docker image through [Docker
   Compose](/guides/deployment/docker-compose/), [Kubernetes](/guides/deployment/kubernetes/), or
   another container runtime of your choice.
 </Aside>
 
-Chatto ships as a single binary with an embedded NATS server and built-in Let's Encrypt TLS. No reverse proxy, no external database — just one process serving everything. Alternatively, spin it up on any port and use your existing reverse proxy to wire things up and terminate TLS.
+Towk ships as a single binary with an embedded NATS server and built-in Let's Encrypt TLS. No reverse proxy, no external database — just one process serving everything. Alternatively, spin it up on any port and use your existing reverse proxy to wire things up and terminate TLS.
 
 ## Architecture
 
 <ArchDiagram />
 
-The Chatto binary includes an embedded NATS server with JetStream for storage. It expects a `chatto.toml` configuration file (you can generate one using `chatto init`), and stores all data in a `./data/` directory.
+The Towk binary includes an embedded NATS server with JetStream for storage. It expects a `chatto.toml` configuration file (you can generate one using `chatto init`), and stores all data in a `./data/` directory.
 
 ## Prerequisites
 
-- A server with Chatto installed. Use `brew install chattocorp/tap/chatto` on macOS or Linux with Homebrew, or download the Linux, macOS, or FreeBSD archive from [GitHub Releases](https://github.com/chattocorp/chatto/releases).
+- A Towk binary built from a reviewed source commit. The [quick start](/getting-started/quick-start/) shows the pinned toolchain and build command. Stable binary releases and a Homebrew formula are not currently published.
 - A domain pointing to your server (e.g., `chat.example.com`)
 - Firewall allowing inbound TCP 80 and 443
 
@@ -42,7 +42,7 @@ For production use, please review the file and **at least**:
 
 - configure SMTP credentials
 - set `webserver.url` to your public URL
-- review `webserver.tls` if you want Chatto to terminate TLS
+- review `webserver.tls` if you want Towk to terminate TLS
 
 It is also strongly recommended that you:
 
@@ -57,18 +57,18 @@ It is also strongly recommended that you:
 For production use on Linux, create a systemd unit to manage the process:
 
 ```ini
-# /etc/systemd/system/chatto.service
+# /etc/systemd/system/towk.service
 [Unit]
-Description=Chatto
+Description=Towk communication workspace
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=chatto
-Group=chatto
-WorkingDirectory=/opt/chatto
-ExecStart=/opt/chatto/chatto run -c chatto.toml
+User=towk
+Group=towk
+WorkingDirectory=/opt/towk
+ExecStart=/opt/towk/chatto run -c chatto.toml
 Restart=always
 RestartSec=5
 AmbientCapabilities=CAP_NET_BIND_SERVICE
@@ -78,14 +78,14 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl enable --now chatto
+sudo systemctl enable --now towk
 ```
 
 <Aside type="tip">
   Using `AmbientCapabilities=CAP_NET_BIND_SERVICE` in the unit file grants the
   capability at runtime, so you don't need to `setcap` the binary separately.
   This is the preferred approach when using systemd. You only need these when
-  running Chatto on a port lower than 1024.
+  running Towk on a port lower than 1024.
 </Aside>
 
 ## Adding Voice and Video Calls
@@ -93,7 +93,7 @@ sudo systemctl enable --now chatto
 The standalone binary doesn't include LiveKit. To add voice and video calls, you have two options:
 
 1. **Switch to Docker Compose** (recommended) — the [Docker Compose guide](/guides/deployment/docker-compose/) includes LiveKit out of the box.
-2. **Run LiveKit separately** — install and run a [LiveKit server](https://docs.livekit.io/home/self-hosting/local/) alongside Chatto, then configure the LiveKit environment variables.
+2. **Run LiveKit separately** — install and run a [LiveKit server](https://docs.livekit.io/home/self-hosting/local/) alongside Towk, then configure the LiveKit environment variables.
 
 <CardGrid>
   <LinkCard
@@ -109,6 +109,6 @@ The standalone binary doesn't include LiveKit. To add voice and video calls, you
   <LinkCard
     title="Backup & Restore"
     href="/guides/operations/backup-restore/"
-    description="How to back up and restore your Chatto data."
+    description="How to back up and restore your Towk data."
   />
 </CardGrid>

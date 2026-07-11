@@ -42,7 +42,7 @@ RUN set -eux; \
       tzdata
 
 # Bundle the NATS CLI so operators can inspect the same NATS server Towk uses
-# with `docker exec <container> nats ...`. A wrapper maps Chatto's connection
+# with `docker exec <container> nats ...`. A wrapper maps Towk's connection
 # environment to the CLI without writing runtime configuration files.
 COPY --from=nats-builder /out/nats /usr/local/libexec/nats
 COPY --from=nats-builder /out/NATS-CLI-LICENSE /usr/share/doc/nats-cli/LICENSE

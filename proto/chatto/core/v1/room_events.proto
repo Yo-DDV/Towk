@@ -111,11 +111,11 @@ message ServerMemberDeletedEvent {
 
 enum CallParticipantEventSource {
   CALL_PARTICIPANT_EVENT_SOURCE_UNSPECIFIED = 0;
-  // The user explicitly requested the transition through Chatto.
+  // The user explicitly requested the transition through Towk.
   CALL_PARTICIPANT_EVENT_SOURCE_USER = 1;
   // LiveKit reported the transition through a webhook.
   CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT = 2;
-  // Chatto reconciled its local projection against LiveKit's current room state.
+  // Towk reconciled its local projection against LiveKit's current room state.
   CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION = 3;
 }
 

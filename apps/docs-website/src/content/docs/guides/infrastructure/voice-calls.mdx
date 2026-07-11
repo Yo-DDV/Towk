@@ -1,29 +1,29 @@
 ---
 title: Voice & Video Calls
-description: How to set up and configure voice and video call capabilities in Chatto using LiveKit.
+description: How to set up and configure voice and video call capabilities in Towk using LiveKit.
 ---
 
 import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Chatto supports real-time voice and video calls inside rooms using [LiveKit](https://livekit.io/), an open-source WebRTC media server. When enabled, any room member can start or join a call directly from the room header.
+Towk supports real-time voice and video calls inside rooms using [LiveKit](https://livekit.io/), an open-source WebRTC media server. When enabled, any room member can start or join a call directly from the room header.
 
 ## How It Works
 
-LiveKit runs as a **separate service** alongside Chatto. Chatto handles authentication and call state, while LiveKit handles the WebRTC media transport:
+LiveKit runs as a **separate service** alongside Towk. Towk handles authentication and call state, while LiveKit handles the WebRTC media transport:
 
 1. A user joins the call from the room header.
-2. Chatto verifies the user's room membership and generates a short-lived LiveKit JWT token.
-3. The user's browser connects directly to the LiveKit server using the token and a per-call E2EE key from Chatto.
+2. Towk verifies the user's room membership and generates a short-lived LiveKit JWT token.
+3. The user's browser connects directly to the LiveKit server using the token and a per-call E2EE key from Towk.
 4. Other room members see active call indicators update in real time.
 
-Calls are **implicit** — there's no "start call" action. The first person to join creates the call and a fresh E2EE key; when the last person leaves, the call ends and Chatto shreds that key.
+Calls are **implicit** — there's no "start call" action. The first person to join creates the call and a fresh E2EE key; when the last person leaves, the call ends and Towk shreds that key.
 
-Chatto records call start/join/leave/end facts durably and reconciles active participants against LiveKit webhooks, so call indicators recover after server restarts. These call facts update the active call UI without appearing as room timeline messages. LiveKit media is end-to-end encrypted by current Chatto clients; older clients that do not support this call encryption cannot decode encrypted media.
+Towk records call start/join/leave/end facts durably and reconciles active participants against LiveKit webhooks, so call indicators recover after server restarts. These call facts update the active call UI without appearing as room timeline messages. LiveKit media is end-to-end encrypted by current Towk clients; older clients that do not support this call encryption cannot decode encrypted media.
 
 ## Requirements
 
 - A running [LiveKit server](https://docs.livekit.io/home/self-hosting/local/) (self-hosted or cloud)
-- An API key and secret configured on both the LiveKit server and Chatto
+- An API key and secret configured on both the LiveKit server and Towk
 
 ## Setup
 
@@ -45,7 +45,7 @@ Chatto records call start/join/leave/end facts durably and reconciles active par
 
    For production, see the [LiveKit self-hosting guide](https://docs.livekit.io/home/self-hosting/local/).
 
-2. **Configure Chatto**
+2. **Configure Towk**
 
    Add a `[livekit]` section to your `chatto.toml`:
 
@@ -83,7 +83,7 @@ Chatto records call start/join/leave/end facts durably and reconciles active par
 
 3. **Configure LiveKit webhooks**
 
-   LiveKit must send webhook events to Chatto so it can track who's in a call. Add the webhook URL to your LiveKit server config (`livekit.yaml`):
+   LiveKit must send webhook events to Towk so it can track who's in a call. Add the webhook URL to your LiveKit server config (`livekit.yaml`):
 
    ```yaml
    webhook:
@@ -94,7 +94,7 @@ Chatto records call start/join/leave/end facts durably and reconciles active par
 
    For local development with `livekit-server --dev`, the `--dev` flag disables webhooks. That is useful for testing local media connectivity, but active-call indicators and participant reconciliation require webhook delivery in normal deployments.
 
-4. **Restart Chatto**
+4. **Restart Towk**
 
    Calls will be available immediately. Call controls appear in room headers when LiveKit is configured.
 
@@ -109,7 +109,7 @@ Use `wss://` (WebSocket Secure) URLs in production. Plain `ws://` should only be
 - **Network**: Users connect directly to the LiveKit server from their browsers. Make sure your LiveKit server is reachable from the public internet (or your private network, for internal deployments). HTTPS/WebSocket signaling and WebRTC media use different routes, as described below.
 - **TURN/STUN**: LiveKit includes a built-in TURN server for NAT traversal. TURN/UDP on port 3478 helps many NAT traversal failures; networks that block UDP entirely need TURN/TLS, often on port 443.
 - **Scaling**: A single LiveKit server handles hundreds of concurrent participants for typical small deployments. For larger deployments, LiveKit supports multi-node clustering with Redis.
-- **End-to-end encryption**: Chatto enables LiveKit E2EE automatically for clients. No additional LiveKit server configuration is required.
+- **End-to-end encryption**: Towk enables LiveKit E2EE automatically for clients. No additional LiveKit server configuration is required.
 - **API Secret**: Keep your API secret confidential. It's used to sign JWT tokens and should never be exposed to clients.
 
 ### Network Paths and Ports

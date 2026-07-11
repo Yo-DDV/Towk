@@ -6,7 +6,7 @@ option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 
 // UserKeyEncryptionKey is the built-in KMS storage record for opaque kek.*
 // refs in ENCRYPTION_KEYS. It is a local implementation detail; external KMS
-// backends may not store key-encryption-key material in Chatto at all.
+// backends may not store key-encryption-key material in Towk at all.
 message UserKeyEncryptionKey {
   bytes key = 1;
   string algorithm = 2;

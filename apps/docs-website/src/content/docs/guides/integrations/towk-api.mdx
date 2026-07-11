@@ -1,14 +1,14 @@
 ---
-title: Integrating With Chatto
-description: Use Chatto's ConnectRPC APIs, realtime WebSocket protocol, server discovery, and operator automation surfaces.
+title: Integrating With Towk
+description: Use Towk's ConnectRPC APIs, realtime WebSocket protocol, server discovery, and operator automation surfaces.
 ---
 
 import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-Chatto exposes typed protobuf APIs for clients, bots, tools, and operator automation. Start with the [ConnectRPC API overview](/reference/connectrpc-api/) to explore the available services and methods. Use the public ConnectRPC API for normal integrations, the realtime WebSocket protocol for live updates, and the local operator socket only for trusted recovery workflows.
+Towk exposes typed protobuf APIs for clients, bots, tools, and operator automation. Start with the [ConnectRPC API overview](/reference/connectrpc-api/) to explore the available services and methods. Use the public ConnectRPC API for normal integrations, the realtime WebSocket protocol for live updates, and the local operator socket only for trusted recovery workflows.
 
 <Aside type="caution">
-  Chatto is still pre-1.0. Public APIs are documented, but breaking changes can happen in the `0.x` line. Pin server versions for production integrations and read release notes before upgrading.
+  Towk is still pre-1.0. Public APIs are documented, but breaking changes can happen in the `0.x` line. Pin server versions for production integrations and read release notes before upgrading.
 </Aside>
 
 ## API Surfaces
@@ -33,7 +33,7 @@ Discovery is also the right place for custom clients to learn public server iden
 | Client shape | Credential |
 | ------------ | ---------- |
 | Same-origin browser app | HTTP-only cookie session, with bearer token support in the bundled client. |
-| Cross-origin Chatto frontend | OAuth authorization code with PKCE, then opaque bearer token. |
+| Cross-origin Towk frontend | OAuth authorization code with PKCE, then opaque bearer token. |
 | Bot or service integration | Opaque bearer token from an authorized flow. |
 | Local recovery automation | Operator socket, not user auth. |
 

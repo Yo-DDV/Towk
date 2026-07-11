@@ -5,8 +5,10 @@ automation.
 
 ## Files
 
-- `Dockerfile.goreleaser` builds the backend release image that GoReleaser
-  publishes as `ghcr.io/chattocorp/chatto`. The release image uses
+- `Dockerfile.towk` is the fork-owned, pinned image definition used by the
+  scanned and attested `ghcr.io/yo-ddv/towk` publication workflow.
+- `Dockerfile.goreleaser` keeps a compatible backend release-image context for
+  local and CI validation. It uses
   `/config/chatto.toml` as its default config path and `/data` as the embedded
   NATS data directory. It defaults the runtime user to `1000:1000` and supports
   `PUID`/`PGID` environment variables for matching host volume ownership.
@@ -14,13 +16,14 @@ automation.
   the runtime user/group and drops privileges before starting the `chatto`
   binary. It does not recursively change ownership of mounted operator
   directories.
-- `nats-wrapper.sh` makes the bundled NATS CLI use Chatto's runtime NATS
+- `nats-wrapper.sh` makes the bundled NATS CLI use Towk's runtime NATS
   environment without writing a CLI context. Explicit `NATS_URL` or
   `NATS_CONTEXT` settings leave connection configuration under operator control.
 - `nats-wrapper_test.sh` verifies the wrapper's derived connection settings and
   explicit operator overrides.
-- `Dockerfile.frontend.prebuilt` packages the already-built frontend static
-  files into the release-only `ghcr.io/chattocorp/chatto-client` image.
+- `Dockerfile.frontend.prebuilt` packages already-built frontend static files
+  for operators who need a separate client image. Towk does not currently
+  publish a public `towk-client` image.
 - `Dockerfile.dev` is the backend development image for containerized local or
   cluster development.
 - `Dockerfile.frontend.dev` is the frontend development image used by
