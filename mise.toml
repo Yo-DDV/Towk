@@ -1,7 +1,7 @@
 [tools]
 actionlint = "latest"
 buf = "latest"
-go = "1.26.2"
+go = "1.26.5"
 goreleaser = "latest"
 "github:axllent/mailpit" = "1.30.4"
 "github:livekit/livekit" = "1.13.3"

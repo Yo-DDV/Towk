@@ -23,6 +23,11 @@ updates:
       timezone: Europe/Paris
     open-pull-requests-limit: 10
     labels: [dependencies, javascript]
+    # esrap 2.2.13 emits invalid JavaScript for optional TypeScript parameters
+    # in Svelte components. Keep the matching pnpm override until upstream fixes it.
+    ignore:
+      - dependency-name: esrap
+        versions: ["2.2.13"]
     groups:
       production-dependencies:
         dependency-type: production

@@ -17,6 +17,13 @@
     "test:frontend": "pnpm run build:api-types && pnpm --filter chatto-frontend exec vitest --run"
   },
   "pnpm": {
+    "overrides": {
+      "cookie": "0.7.2",
+      "esbuild": "0.28.1",
+      "esrap": "2.2.8",
+      "js-yaml": "4.2.0",
+      "ws": "8.21.0"
+    },
     "onlyBuiltDependencies": [
       "@parcel/watcher",
       "esbuild",
