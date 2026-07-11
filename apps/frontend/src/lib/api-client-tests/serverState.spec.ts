@@ -235,7 +235,7 @@ describe('getAuthenticatedServerState', () => {
     expect(mocks.getMotd).toHaveBeenCalledWith({}, { headers: undefined });
     expect(mocks.getRuntimeConfig).toHaveBeenCalledWith({}, { headers: undefined });
     expect(mocks.getViewer).toHaveBeenCalledWith({}, { headers: undefined });
-    expect(state.name).toBe('Chatto');
+    expect(state.name).toBe('Towk');
     expect(state.version).toBe('');
     expect(state.logoUrl).toBeNull();
     expect(state.bannerUrl).toBeNull();

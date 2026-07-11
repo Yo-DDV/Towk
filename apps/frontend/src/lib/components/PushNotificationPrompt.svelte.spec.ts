@@ -117,9 +117,9 @@ describe('PushNotificationPrompt', () => {
     const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
     await settle();
 
-    expect(container.textContent).toContain('Add Chatto to your Home Screen');
+    expect(container.textContent).toContain('Add Towk to your Home Screen');
     expect(container.textContent).toContain('supported iOS/iPadOS versions');
-    expect(container.textContent).toContain('open Chatto from its Home Screen icon');
+    expect(container.textContent).toContain('open Towk from its Home Screen icon');
     expect(container.textContent).not.toContain('Get notified about DMs, mentions, and replies');
     expect(
       Array.from(container.querySelectorAll('button')).some((button) =>
