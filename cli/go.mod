@@ -54,7 +54,7 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0
 	github.com/yuin/goldmark v1.8.2
 	golang.org/x/crypto v0.53.0
-	golang.org/x/image v0.41.0
+	golang.org/x/image v0.43.0
 	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.21.0
@@ -152,7 +152,7 @@ require (
 	github.com/nats-io/jwt/v2 v2.8.2 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/opencontainers/runc v1.3.3 // indirect
+	github.com/opencontainers/runc v1.3.6 // indirect
 	github.com/pion/datachannel v1.6.0 // indirect
 	github.com/pion/dtls/v3 v3.1.2 // indirect
 	github.com/pion/ice/v4 v4.2.6 // indirect
