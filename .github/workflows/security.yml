@@ -49,7 +49,11 @@ jobs:
 
       - name: Build Go analysis target
         if: matrix.language == 'go'
+        env:
+          GOCACHE: ${{ runner.temp }}/codeql-go-build-cache
         run: |
+          rm -rf "$GOCACHE"
+          mkdir -p "$GOCACHE"
           mise build-frontend
           cd cli
           go build ./...
