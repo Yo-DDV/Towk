@@ -1,10 +1,10 @@
-# Chatto Docker Compose Example
+# Towk Docker Compose Example
 
-This example deploys a clustered Chatto setup with:
+This example deploys a clustered Towk setup with:
 
 - **NATS** - Message broker with JetStream persistence
 - **LiveKit** - WebRTC media server for voice and video calls
-- **Chatto** - App server connecting to external NATS
+- **Towk** - App server connecting to external NATS
 - **Caddy** - Reverse proxy with automatic HTTPS and load balancing
 
 ## Quick Start
@@ -14,7 +14,7 @@ ports listed below, then run:
 
 ```bash
 ./init-env.sh chat.example.com admin@example.com
-# Replace the CHATTO_SMTP_* placeholders in .env, then:
+# Set TOWK_IMAGE and replace the CHATTO_SMTP_* placeholders in .env, then:
 docker compose up -d
 ```
 
@@ -35,15 +35,15 @@ matching proxy route when using a different name.
 
 ## Why This Example Runs NATS Separately
 
-Chatto can embed NATS in its own process, which is ideal for the smallest binary
+Towk can embed NATS in its own process, which is ideal for the smallest binary
 setup. This Compose example runs NATS JetStream separately so you can restart or
-replace Chatto without restarting its data store, scale Chatto to multiple
+replace Towk without restarting its data store, scale Towk to multiple
 replicas, and move to a NATS cluster later.
 
-You are not locked into either model. Chatto's backup command creates a portable
+You are not locked into either model. Towk's backup command creates a portable
 JetStream archive that can be restored into embedded or external NATS, making it
 straightforward to move between binary, Compose, and clustered deployments. See
-the [Backup & Restore guide](https://docs.chatto.run/guides/operations/backup-restore/) for
+the [Backup & Restore guide](../../apps/docs-website/src/content/docs/guides/operations/backup-restore.mdx) for
 the migration workflow and encryption-key guidance.
 
 ## Using Your Existing Reverse Proxy
@@ -54,7 +54,7 @@ and configure two routes:
 
 | Public endpoint | Destination | Purpose |
 | --- | --- | --- |
-| Your Chatto HTTPS hostname | `chatto:4000` | Chatto web app, ConnectRPC APIs, realtime connections, and the LiveKit webhook |
+| Your Towk HTTPS hostname | `towk:4000` | Towk web app, ConnectRPC APIs, realtime connections, and the LiveKit webhook |
 | Your LiveKit secure WebSocket hostname | `livekit:7880` | LiveKit API and WebSocket signaling |
 
 The hostnames can be any names you control. Both need publicly trusted TLS
@@ -63,7 +63,7 @@ above. If it runs on the Docker host, publish both upstreams on loopback:
 
 ```yaml
 services:
-  chatto:
+  towk:
     ports:
       - "127.0.0.1:4000:4000"
   livekit:
@@ -77,7 +77,7 @@ LiveKit media `ports` mappings described below.
 ## What the Included Caddy Does
 
 When you do not already have a proxy, the included Caddy service obtains the
-certificates, configures both HTTP routes, and load-balances Chatto replicas.
+certificates, configures both HTTP routes, and load-balances Towk replicas.
 It does not carry WebRTC media. The standard Caddy image is an HTTP server and
 does not include the optional Caddy L4 plugin.
 
@@ -85,7 +85,7 @@ Preserve these public ports when using Caddy or your own proxy:
 
 | Public endpoint | Destination | Purpose |
 | --- | --- | --- |
-| Your Chatto and LiveKit hostnames (TCP 443) | Your HTTP proxy | HTTPS and secure WebSocket traffic |
+| Your Towk and LiveKit hostnames (TCP 443) | Your HTTP proxy | HTTPS and secure WebSocket traffic |
 | TCP 7881 | `livekit:7881` | WebRTC media fallback when direct UDP is unavailable |
 | UDP 3478 | `livekit:3478` | LiveKit's embedded TURN/STUN relay |
 | UDP 50000-50200 | Same ports on `livekit` | Direct WebRTC media |
@@ -95,7 +95,7 @@ the ACME HTTP challenge. Your replacement proxy may use a different certificate
 flow. TLS for both HTTPS endpoints must use a publicly trusted certificate.
 
 The Compose `ports` entries publish LiveKit media directly on the host, so no L4
-Caddy configuration is needed. Do not expose NATS port 4222 publicly; Chatto and
+Caddy configuration is needed. Do not expose NATS port 4222 publicly; Towk and
 NATS communicate only over the private Compose network.
 
 ## Configuration
@@ -106,7 +106,7 @@ NATS communicate only over the private Compose network.
    ./init-env.sh chat.example.com admin@example.com
    ```
 
-   Replace `chat.example.com` with your Chatto domain and `admin@example.com`
+   Replace `chat.example.com` with your Towk domain and `admin@example.com`
    with the email address you will use for the first account.
 
    The script is the recommended setup path. It writes `.env` and
@@ -114,7 +114,7 @@ NATS communicate only over the private Compose network.
    values aligned:
 
    - `NATS_TOKEN` and `CHATTO_NATS_CLIENT_TOKEN`
-   - Chatto cookie, core, and asset signing secrets
+   - Towk cookie, core, and asset signing secrets
    - `CHATTO_LIVEKIT_API_KEY` / `CHATTO_LIVEKIT_API_SECRET`
    - The matching LiveKit `keys:` and webhook URL
 
@@ -122,10 +122,11 @@ NATS communicate only over the private Compose network.
 
    In most cases, you should only need to change:
 
+   - `TOWK_IMAGE` - Immutable Towk tag and digest from the repository Packages page.
    - `PUBLIC_URL` - Your domain (e.g., `chat.example.com`)
-   - `CHATTO_OWNERS_EMAILS` - Comma-separated verified email addresses that should become Chatto owners. Include the email address you will use for the first account.
+   - `CHATTO_OWNERS_EMAILS` - Comma-separated verified email addresses that should become Towk owners. Include the email address you will use for the first account.
    - `CHATTO_SMTP_*` - Required for direct email/password registration, email verification, and password reset.
-   - `PUID` and `PGID` - Optional host user/group IDs for files Chatto writes to mounted volumes. Defaults to `1000:1000`.
+   - `PUID` and `PGID` - Optional host user/group IDs for files Towk writes to mounted volumes. Defaults to `1000:1000`.
    - `CHATTO_OPERATOR_API_*` - Enables the private in-container operator socket used by `chatto operator ...`.
 
    Leave `LIVEKIT_CONFIG_FILE=./livekit.generated.yaml` unless you deliberately
@@ -138,7 +139,7 @@ NATS communicate only over the private Compose network.
 You usually do not need to. If you manage secrets elsewhere, start with:
 
 ```bash
-cp .env.example .env
+cp env.example .env
 ```
 
 Fill in the placeholders and make sure the LiveKit key and secret are the same
@@ -155,10 +156,10 @@ docker compose up -d
 docker compose logs -f
 
 # View logs for a specific service
-docker compose logs -f chatto
+docker compose logs -f towk
 
 # Restart a service
-docker compose restart chatto
+docker compose restart towk
 
 # Stop the stack
 docker compose down
@@ -171,7 +172,7 @@ docker compose down -v
 
 ```bash
 # Scale to 5 replicas
-docker compose up -d --scale chatto=5
+docker compose up -d --scale towk=5
 ```
 
 Caddy discovers the replicas through Docker's internal DNS and distributes new
@@ -198,28 +199,27 @@ UDP media ports.
 
 ## Inspecting NATS
 
-The Chatto image includes the `nats` CLI and writes a context for the runtime
-NATS connection. Run it as the `chatto` user so the CLI reads the context from
-`/home/chatto`:
+The Towk image includes the `nats` CLI. Its wrapper maps the runtime NATS
+environment into the CLI without writing a persistent CLI context:
 
 ```bash
-docker compose exec -u chatto chatto nats stream ls
+docker compose exec -u chatto towk nats stream ls
 ```
 
 ## Operator Commands
 
-The generated `.env` enables the local operator API socket inside the Chatto
+The generated `.env` enables the local operator API socket inside the Towk
 container. Run operator commands as the `chatto` user and use `list --search`
 to find a stable user ID before mutating an account:
 
 ```bash
-docker compose exec -u chatto chatto /chatto operator user list
-docker compose exec -u chatto chatto /chatto operator user list --search admin@example.com
-docker compose exec -u chatto chatto /chatto operator user set-password USER_ID
+docker compose exec -u chatto towk /chatto operator user list
+docker compose exec -u chatto towk /chatto operator user list --search admin@example.com
+docker compose exec -u chatto towk /chatto operator user set-password USER_ID
 ```
 
 Do not mount or publish the operator socket unless the target container or host
-is fully trusted; socket access is root-equivalent Chatto authority.
+is fully trusted; socket access is root-equivalent Towk authority.
 
 ## Updating
 
@@ -239,21 +239,21 @@ Data is persisted in Docker volumes:
 
 ## Disabling Voice and Video Calls
 
-If you don't need calls, remove the `livekit` service from `compose.yml`, delete the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`), remove the `livekit.*` block from the `Caddyfile`, remove LiveKit from `chatto.depends_on` and `caddy.depends_on`, and remove the LiveKit environment variables from `.env`. You can then close TCP 7881 and UDP 3478 and 50000-50200 and remove the `livekit.*` DNS record.
+If you don't need calls, remove the `livekit` service from `compose.yml`, delete the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`), remove the `livekit.*` block from the `Caddyfile`, remove LiveKit from `towk.depends_on` and `caddy.depends_on`, and remove the LiveKit environment variables from `.env`. You can then close TCP 7881 and UDP 3478 and 50000-50200 and remove the `livekit.*` DNS record.
 
 ## Troubleshooting
 
-**Chatto can't connect to NATS**: Ensure `NATS_TOKEN` and `CHATTO_NATS_CLIENT_TOKEN` match in your `.env` file.
+**Towk can't connect to NATS**: Ensure `NATS_TOKEN` and `CHATTO_NATS_CLIENT_TOKEN` match in your `.env` file.
 
 **Registration says email delivery is not configured**: Configure the `CHATTO_SMTP_*` settings in `.env`. Direct email/password registration sends a code by email.
 
-**The first account is not an owner**: Ensure `CHATTO_OWNERS_EMAILS` contains that account's verified email address. Chatto assigns matching owner roles when the email is verified and on server boot.
+**The first account is not an owner**: Ensure `CHATTO_OWNERS_EMAILS` contains that account's verified email address. Towk assigns matching owner roles when the email is verified and on server boot.
 
 **Caddy not getting certificates**: Ensure your domain's DNS points to your server and ports 80/443 are open.
 
-**Container startup order issues**: The `depends_on` with `condition: service_healthy` ensures NATS and LiveKit are ready before Chatto starts.
+**Container startup order issues**: The `depends_on` with `condition: service_healthy` ensures NATS and LiveKit are ready before Towk starts.
 
-**Calls not working**: Ensure the LiveKit API key/secret in `.env` matches the `keys:` section in the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`). Also verify the webhook URL points to your Chatto instance. Make sure `CHATTO_LIVEKIT_URL` uses the public `wss://livekit.` subdomain (not the internal Docker hostname), since browsers connect to it directly.
+**Calls not working**: Ensure the LiveKit API key/secret in `.env` matches the `keys:` section in the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`). Also verify the webhook URL points to your Towk instance. Make sure `CHATTO_LIVEKIT_URL` uses the public `wss://livekit.` subdomain (not the internal Docker hostname), since browsers connect to it directly.
 
 **LiveKit media ports**: The example exposes UDP 50000-50200 for direct WebRTC media, UDP 3478 for LiveKit's embedded TURN/STUN relay, and TCP 7881 as a media fallback. Ensure your firewall allows all three.
 

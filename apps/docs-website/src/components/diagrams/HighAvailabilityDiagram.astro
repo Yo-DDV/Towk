@@ -10,8 +10,8 @@ import Dot from './Dot.astro';
 
   <Region x={300} y={15} w={385} h={270} label="NATS CLUSTER (RAFT CONSENSUS)" />
 
-  <Box type="chatto" x={16} y={50} label="Chatto" sublabel="replica 1" />
-  <Box type="chatto" x={16} y={195} label="Chatto" sublabel="replica 2" />
+  <Box type="chatto" x={16} y={50} label="Towk" sublabel="replica 1" />
+  <Box type="chatto" x={16} y={195} label="Towk" sublabel="replica 2" />
 
   <Box type="nats-leader" x={325} y={50} w={130} label="nats-1" sublabel="leader" />
   <Box type="nats" x={325} y={195} w={130} label="nats-2" sublabel="follower" />
@@ -19,7 +19,7 @@ import Dot from './Dot.astro';
 
   <text class="proto" x="510" y="82" text-anchor="middle">replication</text>
 
-  <!-- Connections: Chatto ↔ NATS (dual lines) -->
+  <!-- Connections: Towk ↔ NATS (dual lines) -->
   <path id="p-c1-nats" class="conn" d="M156,74 L323,74"/>
   <path id="p-nats-c1" class="conn" d="M323,80 L156,80"/>
   <path id="p-c2-nats" class="conn" d="M156,219 L323,219"/>
@@ -30,7 +30,7 @@ import Dot from './Dot.astro';
   <path id="p-n1-n3" class="conn-repl" d="M455,90 L533,135"/>
   <path id="p-n2-n3" class="conn-repl" d="M455,210 L533,165"/>
 
-  <!-- Chatto ↔ NATS: staggered with varied timing -->
+  <!-- Towk ↔ NATS: staggered with varied timing -->
   <Dot path="p-c1-nats" color="blue" dur="1.7s" />
   <Dot path="p-c1-nats" color="blue" r={2} dur="2.3s" begin="0.9s" opacity={0.6} />
   <Dot path="p-nats-c1" color="blue" dur="1.9s" begin="0.4s" />

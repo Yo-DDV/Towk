@@ -7,7 +7,7 @@
   --chatto-heading-font: "Fraunces Variable", serif;
   --sl-text-body: 1.1rem;
 
-  /* Sky blue accent — matches Chatto frontend (sky-600 light / sky-400 dark) */
+  /* Sky blue accent — matches Towk frontend (sky-600 light / sky-400 dark) */
   --sl-color-accent-low: hsl(200, 80%, 92%);
   --sl-color-accent: hsl(200, 98%, 39%);
   --sl-color-accent-high: hsl(200, 95%, 24%);
@@ -28,7 +28,7 @@ h2 {
   --sl-color-accent: hsl(198, 93%, 60%);
   --sl-color-accent-high: hsl(198, 80%, 82%);
 
-  /* Neutral grays — matches Chatto dark mode (neutral-800/900) */
+  /* Neutral grays — matches Towk dark mode (neutral-800/900) */
   --sl-color-gray-1: hsl(0, 0%, 90%);
   --sl-color-gray-2: hsl(0, 0%, 72%);
   --sl-color-gray-3: hsl(0, 0%, 55%);

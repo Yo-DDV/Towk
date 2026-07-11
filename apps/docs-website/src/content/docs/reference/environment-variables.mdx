@@ -1,6 +1,6 @@
 ---
 title: Environment Variables
-description: All environment variables for configuring Chatto.
+description: All environment variables for configuring Towk.
 ---
 
 import EnvVar from '../../../components/EnvVar.astro';
@@ -14,13 +14,13 @@ Every `chatto.toml` setting can be overridden with an environment variable. The 
 </EnvVar>
 
 <EnvVar name="CHATTO_LOG_FORMAT" toml="general.log_format" default="auto">
-  Log output format. Values: `auto`, `text`, `json`, `logfmt`. `auto` uses text when Chatto is attached to a terminal and JSON otherwise. Use `json` for Loki/Grafana ingestion so each log line includes a structured `level` field.
+  Log output format. Values: `auto`, `text`, `json`, `logfmt`. `auto` uses text when Towk is attached to a terminal and JSON otherwise. Use `json` for Loki/Grafana ingestion so each log line includes a structured `level` field.
 </EnvVar>
 
 ## Web Server
 
 <EnvVar name="CHATTO_WEBSERVER_URL" toml="webserver.url" required>
-  Public URL of the server, used for absolute links, public API asset URLs, and OAuth redirects. Set this to the external HTTPS origin when Chatto runs behind a reverse proxy; forwarded proxy headers are not trusted for public URL generation.
+  Public URL of the server, used for absolute links, public API asset URLs, and OAuth redirects. Set this to the external HTTPS origin when Towk runs behind a reverse proxy; forwarded proxy headers are not trusted for public URL generation.
 </EnvVar>
 
 <EnvVar name="CHATTO_WEBSERVER_PORT" toml="webserver.port" default="4000">
@@ -48,12 +48,12 @@ Every `chatto.toml` setting can be overridden with an environment variable. The 
 </EnvVar>
 
 <EnvVar name="CHATTO_WEBSERVER_OAUTH_REDIRECT_ORIGINS" toml="webserver.oauth_redirect_origins">
-  Comma-separated list of origins allowed for Chatto OAuth redirect callbacks when another Chatto frontend connects to this server. Use exact HTTPS origins, such as `https://app.example.com`, when you operate a known frontend. Set to `*` if you intentionally want any valid HTTPS Chatto frontend to connect. This is convenient for open federation-style alpha deployments, but it lets any HTTPS site start an authorization request and ask the user to approve sending an authorization code back to that site. See the [Security guide](/guides/operations/security/#chatto-frontend-oauth-redirects) for the risk tradeoff.
+  Comma-separated list of origins allowed for Towk OAuth redirect callbacks when another Towk frontend connects to this server. Use exact HTTPS origins, such as `https://app.example.com`, when you operate a known frontend. Set to `*` if you intentionally want any valid HTTPS Towk frontend to connect. This is convenient for open federation-style alpha deployments, but it lets any HTTPS site start an authorization request and ask the user to approve sending an authorization code back to that site. See the [Security guide](/guides/operations/security/#chatto-frontend-oauth-redirects) for the risk tradeoff.
 </EnvVar>
 
 ### TLS
 
-Built-in automatic TLS via Let's Encrypt. When enabled, Chatto handles certificate provisioning and renewal automatically.
+Built-in automatic TLS via Let's Encrypt. When enabled, Towk handles certificate provisioning and renewal automatically.
 
 <EnvVar name="CHATTO_WEBSERVER_TLS_ENABLED" toml="webserver.tls.enabled" default="false">
   Enable automatic TLS via Let's Encrypt. Requires ports 80 and 443 (or custom ports configured below).
@@ -99,7 +99,7 @@ Built-in automatic TLS via Let's Encrypt. When enabled, Chatto handles certifica
 
 ## Exporter
 
-The exporter exposes deployment-wide Chatto metrics. Run it as `chatto exporter` against external NATS or an exposed embedded NATS TCP listener, or set `exporter.enabled = true` to embed it inside `chatto run` for single-process installs. Clustered deployments should enable the embedded exporter on at most one replica.
+The exporter exposes deployment-wide Towk metrics. Run it as `chatto exporter` against external NATS or an exposed embedded NATS TCP listener, or set `exporter.enabled = true` to embed it inside `chatto run` for single-process installs. Clustered deployments should enable the embedded exporter on at most one replica.
 
 <EnvVar name="CHATTO_EXPORTER_ENABLED" toml="exporter.enabled" default="false">
   Start the deployment-wide Prometheus exporter inside `chatto run`.
@@ -194,7 +194,7 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 </EnvVar>
 
 <EnvVar name="CHATTO_CORE_ASSETS_S3_PATH_STYLE" toml="core.assets.s3.path_style" default="auto">
-  Override S3 URL addressing. By default, Chatto uses virtual-hosted addressing for AWS S3 endpoints and path-style addressing for custom S3-compatible endpoints.
+  Override S3 URL addressing. By default, Towk uses virtual-hosted addressing for AWS S3 endpoints and path-style addressing for custom S3-compatible endpoints.
 </EnvVar>
 
 ### Image Cache
@@ -236,7 +236,7 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 </EnvVar>
 
 <EnvVar name="CHATTO_NATS_EMBEDDED_AUTH_TOKEN" toml="nats.embedded.auth_token">
-  Auth token for the embedded NATS server. When the embedded TCP port is enabled, Chatto derives matching `nats.client` defaults for CLI/admin commands unless you override them explicitly.
+  Auth token for the embedded NATS server. When the embedded TCP port is enabled, Towk derives matching `nats.client` defaults for CLI/admin commands unless you override them explicitly.
 </EnvVar>
 
 ### Client
@@ -308,14 +308,14 @@ Supported provider types are `oidc`, `github`, `gitlab`, `google`, and `discord`
   Counted environment-variable equivalent of repeated `[[auth.providers]]` tables. Indexes start at `0` and must not have gaps. Supported fields are `ID`, `TYPE`, `LABEL`, `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_URL`, `SCOPES`, `REQUEST_EMAIL`, `AUTO_PROVISION`, and `PROVIDER_OPTIONS_<KEY>`.
 </EnvVar>
 
-For compatibility with older single-provider OIDC deployments, Chatto also accepts `CHATTO_AUTH_OIDC_ENABLED`, `CHATTO_AUTH_OIDC_ISSUER_URL`, `CHATTO_AUTH_OIDC_CLIENT_ID`, `CHATTO_AUTH_OIDC_CLIENT_SECRET`, and optional `CHATTO_AUTH_OIDC_LABEL`. These create one `oidc` provider with `id = "oidc"`. Do not combine them with counted `CHATTO_AUTH_PROVIDERS_<index>_*` variables.
+For compatibility with older single-provider OIDC deployments, Towk also accepts `CHATTO_AUTH_OIDC_ENABLED`, `CHATTO_AUTH_OIDC_ISSUER_URL`, `CHATTO_AUTH_OIDC_CLIENT_ID`, `CHATTO_AUTH_OIDC_CLIENT_SECRET`, and optional `CHATTO_AUTH_OIDC_LABEL`. These create one `oidc` provider with `id = "oidc"`. Do not combine them with counted `CHATTO_AUTH_PROVIDERS_<index>_*` variables.
 
 ```toml
 [[auth.providers]]
 id = "chatto-hub"
 type = "oidc"
-label = "Chatto Hub"
-issuer_url = "https://hub.chatto.dev"
+label = "Towk Hub"
+issuer_url = "https://id.example.com"
 client_id = "..."
 client_secret = "..."
 auto_provision = false
@@ -323,7 +323,7 @@ auto_provision = false
 
 Provider IDs are used in login URLs and external identity links, so do not change them after users link accounts through that provider.
 
-`request_email` defaults to `false`, so Chatto does not request provider email scopes unless you opt in. Set `request_email = true` when you want provider-verified email claims. OIDC providers can run with only `openid profile`; Chatto links and signs in accounts by issuer and subject even when no email claim is returned.
+`request_email` defaults to `false`, so Towk does not request provider email scopes unless you opt in. Set `request_email = true` when you want provider-verified email claims. OIDC providers can run with only `openid profile`; Towk links and signs in accounts by issuer and subject even when no email claim is returned.
 
 Set `auto_provision = true` only for providers whose users should be allowed to create accounts. Unlinked identities from providers without auto-provisioning can still be linked by existing signed-in users from account settings.
 
@@ -344,7 +344,7 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_SMTP_TLS" toml="smtp.tls" default="mandatory">
-  SMTP TLS policy. Use `mandatory` to require STARTTLS on port `587`, or `implicit` for SMTPS on port `465`. When this value is omitted or left as `mandatory`, Chatto automatically uses implicit TLS for port `465`. Use `opportunistic` only when the SMTP server cannot support mandatory STARTTLS and plaintext fallback is explicitly acceptable.
+  SMTP TLS policy. Use `mandatory` to require STARTTLS on port `587`, or `implicit` for SMTPS on port `465`. When this value is omitted or left as `mandatory`, Towk automatically uses implicit TLS for port `465`. Use `opportunistic` only when the SMTP server cannot support mandatory STARTTLS and plaintext fallback is explicitly acceptable.
 </EnvVar>
 
 <EnvVar name="CHATTO_SMTP_TLS_SERVER_NAME" toml="smtp.tls_server_name">
@@ -392,11 +392,11 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_FFMPEG_PATH" toml="video.ffmpeg_path">
-  Path to the `ffmpeg` binary. If not set, Chatto looks for `ffmpeg` in `PATH`.
+  Path to the `ffmpeg` binary. If not set, Towk looks for `ffmpeg` in `PATH`.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_FFPROBE_PATH" toml="video.ffprobe_path">
-  Path to the `ffprobe` binary. If not set, Chatto looks for `ffprobe` in `PATH`.
+  Path to the `ffprobe` binary. If not set, Towk looks for `ffprobe` in `PATH`.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_MAX_CONCURRENT" toml="video.max_concurrent" default="2">
@@ -434,7 +434,7 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_LIVEKIT_SERVER_ID" toml="livekit.server_id">
-  Unique identifier for this Chatto server, prefixed to deterministic LiveKit room names. This value must match across replicas of one Chatto server, and should differ only across different Chatto servers sharing the same LiveKit cluster. When empty, room names use the unprefixed format. The old `CHATTO_LIVEKIT_INSTANCE_ID` / `livekit.instance_id` name is still accepted as a deprecated alias.
+  Unique identifier for this Towk server, prefixed to deterministic LiveKit room names. This value must match across replicas of one Towk server, and should differ only across different Towk servers sharing the same LiveKit cluster. When empty, room names use the unprefixed format. The old `CHATTO_LIVEKIT_INSTANCE_ID` / `livekit.instance_id` name is still accepted as a deprecated alias.
 </EnvVar>
 
 <EnvVar name="CHATTO_LIVEKIT_INSTANCE_ID" toml="livekit.instance_id">
@@ -442,7 +442,7 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_LIVEKIT_WEBHOOK_API_KEY" toml="livekit.webhook_api_key">
-  API key that LiveKit uses to sign webhook requests. When multiple Chatto servers share a LiveKit cluster, the webhook signing key may differ from the per-server API key. Falls back to `CHATTO_LIVEKIT_API_KEY` when not set.
+  API key that LiveKit uses to sign webhook requests. When multiple Towk servers share a LiveKit cluster, the webhook signing key may differ from the per-server API key. Falls back to `CHATTO_LIVEKIT_API_KEY` when not set.
 </EnvVar>
 
 <EnvVar name="CHATTO_LIVEKIT_WEBHOOK_API_SECRET" toml="livekit.webhook_api_secret">

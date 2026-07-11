@@ -70,7 +70,7 @@ transitions from a previous call in the same room.
 
 ### RealtimeClientFrame
 
-Client-to-server frame for Chatto's protobuf WebSocket realtime protocol.
+Client-to-server frame for Towk's protobuf WebSocket realtime protocol.
 
 Clients send binary protobuf frames to `/api/realtime`. The first frame must
 be `hello`; after the server replies with `hello`, clients send
@@ -433,7 +433,7 @@ The latest universal flag is inline. Hydrate the rest of the visible room with
 
 ### RealtimeServerFrame
 
-Server-to-client frame for Chatto's protobuf WebSocket realtime protocol.
+Server-to-client frame for Towk's protobuf WebSocket realtime protocol.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -454,7 +454,7 @@ Initial server hello.
 | Field | Type | Description |
 | --- | --- | --- |
 | `protocol_version` | `uint32` | Protocol version accepted by the server. |
-| `server_version` | `string` | Chatto server software version. |
+| `server_version` | `string` | Towk server software version. |
 | `heartbeat_interval_seconds` | `uint32` | Approximate heartbeat interval clients should expect. |
 | `capabilities` | `repeated string` | Stable protocol capability keys supported by this server. Current keys: `chatto.realtime.events.live.v1`, `chatto.realtime.heartbeat.v1`, and `chatto.realtime.ping.v1`. |
 
@@ -627,6 +627,6 @@ Source that produced a realtime voice-call transition.
 | Name | Number | Description |
 | --- | --- | --- |
 | `REALTIME_CALL_EVENT_SOURCE_UNSPECIFIED` | `0` | No call event source was specified. |
-| `REALTIME_CALL_EVENT_SOURCE_USER` | `1` | The user explicitly requested the transition through Chatto. |
+| `REALTIME_CALL_EVENT_SOURCE_USER` | `1` | The user explicitly requested the transition through Towk. |
 | `REALTIME_CALL_EVENT_SOURCE_LIVEKIT` | `2` | LiveKit reported the transition through a webhook. |
-| `REALTIME_CALL_EVENT_SOURCE_RECONCILIATION` | `3` | Chatto reconciled its local state against LiveKit's current room state. |
+| `REALTIME_CALL_EVENT_SOURCE_RECONCILIATION` | `3` | Towk reconciled its local state against LiveKit's current room state. |

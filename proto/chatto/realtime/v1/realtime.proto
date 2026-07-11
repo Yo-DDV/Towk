@@ -7,7 +7,7 @@ import "chatto/api/v1/presence.proto";
 import "chatto/api/v1/viewer.proto";
 import "google/protobuf/timestamp.proto";
 
-// Client-to-server frame for Chatto's protobuf WebSocket realtime protocol.
+// Client-to-server frame for Towk's protobuf WebSocket realtime protocol.
 //
 // Clients send binary protobuf frames to `/api/realtime`. The first frame must
 // be `hello`; after the server replies with `hello`, clients send
@@ -26,7 +26,7 @@ message RealtimeClientFrame {
   }
 }
 
-// Server-to-client frame for Chatto's protobuf WebSocket realtime protocol.
+// Server-to-client frame for Towk's protobuf WebSocket realtime protocol.
 message RealtimeServerFrame {
   oneof frame {
     // Confirms protocol version, server version, and capabilities.
@@ -64,7 +64,7 @@ message RealtimeServerHello {
 
   // Protocol version accepted by the server.
   uint32 protocol_version = 1;
-  // Chatto server software version.
+  // Towk server software version.
   string server_version = 2;
   // Approximate heartbeat interval clients should expect.
   uint32 heartbeat_interval_seconds = 4;
@@ -534,11 +534,11 @@ message RealtimeCallEvent {
 enum RealtimeCallEventSource {
   // No call event source was specified.
   REALTIME_CALL_EVENT_SOURCE_UNSPECIFIED = 0;
-  // The user explicitly requested the transition through Chatto.
+  // The user explicitly requested the transition through Towk.
   REALTIME_CALL_EVENT_SOURCE_USER = 1;
   // LiveKit reported the transition through a webhook.
   REALTIME_CALL_EVENT_SOURCE_LIVEKIT = 2;
-  // Chatto reconciled its local state against LiveKit's current room state.
+  // Towk reconciled its local state against LiveKit's current room state.
   REALTIME_CALL_EVENT_SOURCE_RECONCILIATION = 3;
 }
 

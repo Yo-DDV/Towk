@@ -23,7 +23,7 @@ const (
 
 // UserKeyEncryptionKey is the built-in KMS storage record for opaque kek.*
 // refs in ENCRYPTION_KEYS. It is a local implementation detail; external KMS
-// backends may not store key-encryption-key material in Chatto at all.
+// backends may not store key-encryption-key material in Towk at all.
 type UserKeyEncryptionKey struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           []byte                 `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`

@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: chatto-client
-  namespace: chatto-client
+  name: towk-client
+  namespace: towk-client
 spec:
   selector:
-    app: chatto-client
+    app: towk-client
   ports:
     - port: 80
       targetPort: 80
@@ -13,21 +13,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chatto-client
-  namespace: chatto-client
+  name: towk-client
+  namespace: towk-client
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: chatto-client
+      app: towk-client
   template:
     metadata:
       labels:
-        app: chatto-client
+        app: towk-client
     spec:
       containers:
-        - name: chatto-client
-          image: ghcr.io/chattocorp/chatto-client:latest
+        - name: towk-client
+          # Build the standalone frontend image locally before applying this example.
+          image: towk-client:local
+          imagePullPolicy: Never
           ports:
             - containerPort: 80
           lifecycle:

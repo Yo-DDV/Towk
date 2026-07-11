@@ -483,7 +483,7 @@ surfaces.
 | Field | Type | Description |
 | --- | --- | --- |
 | `user` | [`User`](#chatto-api-v1-User) | Public user fields. |
-| `roles` | `repeated string` | Explicit roles assigned to the user. Member listings include the virtual `everyone` role for parity with Chatto's permission model. |
+| `roles` | `repeated string` | Explicit roles assigned to the user. Member listings include the virtual `everyone` role for parity with Towk's permission model. |
 | `created_at` | `google.protobuf.Timestamp` | Account creation time when known. |
 
 <a id="chatto-api-v1-RoomMessagePosted"></a>
@@ -791,7 +791,7 @@ Public server profile, identity, and branding fields.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `name` | `string` | Display name of the Chatto server. |
+| `name` | `string` | Display name of the Towk server. |
 | `version` | `string` | Server software version. |
 | `logo_url` | `optional string` | Optional server logo URL. |
 | `banner_url` | `optional string` | Optional server banner URL. |
@@ -887,7 +887,7 @@ Current NATS server connection metadata.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `connected` | `bool` | Whether Chatto is currently connected to NATS. |
+| `connected` | `bool` | Whether Towk is currently connected to NATS. |
 | `server_id` | `string` | Connected NATS server ID. |
 | `server_name` | `string` | Connected NATS server name. |
 | `version` | `string` | Connected NATS server version. |
@@ -995,7 +995,7 @@ Event-sourced projection health and memory estimates.
 
 ### AdminServerStats
 
-Aggregate Chatto object counts.
+Aggregate Towk object counts.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -1014,7 +1014,7 @@ Broker and application diagnostics shown on the server admin system page.
 | `connection` | [`AdminConnectionInfo`](#chatto-admin-v1-AdminConnectionInfo) | Current NATS server connection metadata. |
 | `account` | [`AdminAccountInfo`](#chatto-admin-v1-AdminAccountInfo) | JetStream account limits and usage. |
 | `nats` | [`AdminNatsStats`](#chatto-admin-v1-AdminNatsStats) | JetStream stream and consumer diagnostics. |
-| `stats` | [`AdminServerStats`](#chatto-admin-v1-AdminServerStats) | Aggregate Chatto object counts. |
+| `stats` | [`AdminServerStats`](#chatto-admin-v1-AdminServerStats) | Aggregate Towk object counts. |
 
 <a id="chatto-admin-v1-AdminEventLogEntry"></a>
 

@@ -1,17 +1,17 @@
 ---
 title: Video Processing
-description: How to enable and configure video processing in Chatto.
+description: How to enable and configure video processing in Towk.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
-Chatto can transcode uploaded videos into multiple quality variants for adaptive playback. When a user uploads a video, the server generates optimized versions (e.g. 720p, 480p) and a thumbnail, then serves them through a built-in video player.
+Towk can transcode uploaded videos into multiple quality variants for adaptive playback. When a user uploads a video, the server generates optimized versions (e.g. 720p, 480p) and a thumbnail, then serves them through a built-in video player.
 
 ## Prerequisites
 
-Video processing requires **ffmpeg** and **ffprobe** to be installed on the server. The official Chatto Docker image includes both.
+Video processing requires **ffmpeg** and **ffprobe** to be installed on the server. The official Towk Docker image includes both.
 
-If you're running Chatto outside Docker, install ffmpeg through your system's package manager:
+If you're running Towk outside Docker, install ffmpeg through your system's package manager:
 
 ```bash
 # Debian/Ubuntu
@@ -42,10 +42,10 @@ Or set the environment variable:
 CHATTO_VIDEO_ENABLED=true
 ```
 
-That's it. Chatto will auto-detect `ffmpeg` and `ffprobe` from your `PATH`.
+That's it. Towk will auto-detect `ffmpeg` and `ffprobe` from your `PATH`.
 
 <Aside>
-  When video processing is disabled (the default), Chatto rejects new video uploads in the composer and API. Enabling processing allows video uploads and adds transcoding, adaptive playback, and thumbnail generation.
+  When video processing is disabled (the default), Towk rejects new video uploads in the composer and API. Enabling processing allows video uploads and adds transcoding, adaptive playback, and thumbnail generation.
 </Aside>
 
 ## Configuration Options
@@ -87,7 +87,7 @@ ffprobe_path = "/usr/local/bin/ffprobe"
 1. A user uploads a video through the chat composer
 2. The original file is stored immediately and the message is posted
 3. The video appears with a "Processing..." indicator
-4. In the background, Chatto transcodes the video into multiple quality variants and generates a thumbnail
+4. In the background, Towk transcodes the video into multiple quality variants and generates a thumbnail
 5. Once processing completes, the player switches to adaptive playback with quality selection
 
 If processing fails (e.g. corrupt file, unsupported codec), the user sees an error message and can try uploading again.

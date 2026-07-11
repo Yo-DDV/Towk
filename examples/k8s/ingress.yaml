@@ -2,8 +2,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: chatto
-  namespace: chatto
+  name: towk
+  namespace: towk
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
@@ -11,7 +11,7 @@ spec:
   tls:
     - hosts:
         - chat.example.com  # Change to your domain
-      secretName: chatto-tls
+      secretName: towk-tls
   rules:
     - host: chat.example.com  # Change to your domain
       http:
@@ -20,6 +20,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: chatto
+                name: towk
                 port:
                   number: 4000

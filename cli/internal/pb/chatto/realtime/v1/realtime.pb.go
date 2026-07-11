@@ -29,11 +29,11 @@ type RealtimeCallEventSource int32
 const (
 	// No call event source was specified.
 	RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_UNSPECIFIED RealtimeCallEventSource = 0
-	// The user explicitly requested the transition through Chatto.
+	// The user explicitly requested the transition through Towk.
 	RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_USER RealtimeCallEventSource = 1
 	// LiveKit reported the transition through a webhook.
 	RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_LIVEKIT RealtimeCallEventSource = 2
-	// Chatto reconciled its local state against LiveKit's current room state.
+	// Towk reconciled its local state against LiveKit's current room state.
 	RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_RECONCILIATION RealtimeCallEventSource = 3
 )
 
@@ -80,7 +80,7 @@ func (RealtimeCallEventSource) EnumDescriptor() ([]byte, []int) {
 	return file_chatto_realtime_v1_realtime_proto_rawDescGZIP(), []int{0}
 }
 
-// Client-to-server frame for Chatto's protobuf WebSocket realtime protocol.
+// Client-to-server frame for Towk's protobuf WebSocket realtime protocol.
 //
 // Clients send binary protobuf frames to `/api/realtime`. The first frame must
 // be `hello`; after the server replies with `hello`, clients send
@@ -186,7 +186,7 @@ func (*RealtimeClientFrame_SubscribeEvents) isRealtimeClientFrame_Frame() {}
 
 func (*RealtimeClientFrame_Ping) isRealtimeClientFrame_Frame() {}
 
-// Server-to-client frame for Chatto's protobuf WebSocket realtime protocol.
+// Server-to-client frame for Towk's protobuf WebSocket realtime protocol.
 type RealtimeServerFrame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Frame:
@@ -416,7 +416,7 @@ type RealtimeServerHello struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Protocol version accepted by the server.
 	ProtocolVersion uint32 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
-	// Chatto server software version.
+	// Towk server software version.
 	ServerVersion string `protobuf:"bytes,2,opt,name=server_version,json=serverVersion,proto3" json:"server_version,omitempty"`
 	// Approximate heartbeat interval clients should expect.
 	HeartbeatIntervalSeconds uint32 `protobuf:"varint,4,opt,name=heartbeat_interval_seconds,json=heartbeatIntervalSeconds,proto3" json:"heartbeat_interval_seconds,omitempty"`

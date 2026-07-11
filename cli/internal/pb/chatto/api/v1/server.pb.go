@@ -24,7 +24,7 @@ const (
 // Public server profile, identity, and branding fields.
 type ServerPublicProfile struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Display name of the Chatto server.
+	// Display name of the Towk server.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Server software version.
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`

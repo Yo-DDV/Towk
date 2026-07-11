@@ -1,6 +1,6 @@
 services:
   nats:
-    image: nats:latest
+    image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
     command: ["--jetstream", "--store_dir=/data", "--auth=${NATS_TOKEN}"]
     volumes:
       - nats_data:/data
@@ -11,7 +11,7 @@ services:
       retries: 3
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.13.3@sha256:483b8b7b5b0654f91f1e8bdc7b46fcd37fd9911612ecf627f97e3185a89825bd
     command:
       - --config
       - /etc/livekit.yaml
@@ -29,8 +29,8 @@ services:
       timeout: 3s
       retries: 3
 
-  chatto:
-    image: ghcr.io/chattocorp/chatto:latest
+  towk:
+    image: ${TOWK_IMAGE:?Set TOWK_IMAGE to an immutable ghcr.io/yo-ddv/towk tag and digest}
     env_file: .env
     environment:
       PUID: "${PUID:-1000}"
@@ -44,7 +44,7 @@ services:
       - "4000"
 
   caddy:
-    image: caddy:latest
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     ports:
       - "80:80"
       - "443:443"
@@ -55,7 +55,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - chatto
+      - towk
       - livekit
 
 volumes:

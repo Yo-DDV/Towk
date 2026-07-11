@@ -1,6 +1,6 @@
 # Instructions for Agents Working in `apps/docs-website/`
 
-The docs website is Chatto's public documentation site, built with Astro and
+The docs website is Towk's public documentation site, built with Astro and
 Starlight.
 
 ## Audience
@@ -35,7 +35,7 @@ Starlight.
 
 ## Terminology
 
-- Use "server" or "Chatto server" for a deployment.
+- Use "server" or "Towk server" for a deployment.
 - Use "server process" or "replica" for one running binary behind a load
   balancer.
 - Keep literal config names containing `instance` unchanged.

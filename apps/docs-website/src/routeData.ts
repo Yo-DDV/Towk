@@ -32,10 +32,10 @@ export const onRequest = defineRouteMiddleware(({ locals, site }) => {
 
   const title = route.entry.data.title;
   const description =
-    route.entry.data.description ?? "Self-hosting documentation for Chatto.";
+    route.entry.data.description ?? "Self-hosting documentation for Towk.";
   const imageSlug = route.id || "index";
   const imageUrl = new URL(`/open-graph/${imageSlug}.png`, site).href;
-  const imageAlt = `Preview of ${title} in the Chatto documentation.`;
+  const imageAlt = `Preview of ${title} in the Towk documentation.`;
 
   upsertMeta(route.head, "property", "og:type", route.id ? "article" : "website");
   upsertMeta(route.head, "property", "og:image", imageUrl);

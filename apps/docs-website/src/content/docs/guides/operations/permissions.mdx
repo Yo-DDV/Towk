@@ -1,11 +1,11 @@
 ---
 title: Permissions & Roles
-description: How Chatto decides who can do what through roles, permissions, room overrides, and owner recovery.
+description: How Towk decides who can do what through roles, permissions, room overrides, and owner recovery.
 ---
 
 import { Aside, LinkCard } from "@astrojs/starlight/components";
 
-Chatto's permissions system is built around two ideas: **roles** group people, and **permissions** describe capabilities. Every authenticated user has the implicit `everyone` role and may have additional roles such as `moderator`, `admin`, custom roles, or `owner`.
+Towk's permissions system is built around two ideas: **roles** group people, and **permissions** describe capabilities. Every authenticated user has the implicit `everyone` role and may have additional roles such as `moderator`, `admin`, custom roles, or `owner`.
 
 The current model is intentionally simple:
 
@@ -16,7 +16,7 @@ The current model is intentionally simple:
 
 ## Built-in roles
 
-Every Chatto server starts with four system roles. You cannot delete them.
+Every Towk server starts with four system roles. You cannot delete them.
 
 | Role          | Default behavior |
 | ------------- | ---------------- |
@@ -29,11 +29,11 @@ Roles still have a numeric position for display order and legacy event compatibi
 
 ## How a permission check works
 
-When a user tries to do something, Chatto resolves the decision like this:
+When a user tries to do something, Towk resolves the decision like this:
 
 1. **DM privacy boundary.** Some moderation-style permissions are always denied inside DMs. Owners do not get to browse or moderate other people's private conversations.
 2. **Owner override.** Effective owners are allowed for every normal RBAC permission.
-3. **Deny-wins resolution.** For non-owners, Chatto collects applicable user and role decisions at server, group, and room scope. If any applicable decision is a deny, the action is denied.
+3. **Deny-wins resolution.** For non-owners, Towk collects applicable user and role decisions at server, group, and room scope. If any applicable decision is a deny, the action is denied.
 4. **Allow if granted.** If there is no deny and at least one applicable allow, the action is allowed.
 5. **Default deny.** If nothing grants the permission, the action is denied.
 
@@ -137,7 +137,7 @@ Use `owners.emails` in `chatto.toml` as the recovery path. The email must be ver
 
 ## DM privacy
 
-DMs use the same permission names where they make sense, but Chatto keeps a hard privacy boundary around private conversations. Moderation and room-administration permissions such as `message.manage`, `message.echo`, `room.manage`, `room.list`, and `room.create` are denied in DMs regardless of role grants.
+DMs use the same permission names where they make sense, but Towk keeps a hard privacy boundary around private conversations. Moderation and room-administration permissions such as `message.manage`, `message.echo`, `room.manage`, `room.list`, and `room.create` are denied in DMs regardless of role grants.
 
 Access to a DM comes from being a participant in that conversation. Owners cannot read into DMs or moderate DM contents unless they are a participant and the action is a normal participant action.
 
@@ -153,11 +153,11 @@ Access to a DM comes from being a participant in that conversation. Owners canno
 | Set per-user overrides | Admin UI -> **Members -> [user]** |
 
 <Aside type="caution">
-  Treat `owners.emails` as the lockout recovery path. Chatto does not expose an operator command to wipe and reseed RBAC state in normal deployments.
+  Treat `owners.emails` as the lockout recovery path. Towk does not expose an operator command to wipe and reseed RBAC state in normal deployments.
 </Aside>
 
 <LinkCard
   title="Security & Privacy"
   href="/guides/operations/security/"
-  description="Authentication, encryption, the privacy boundary, and how Chatto handles secrets."
+  description="Authentication, encryption, the privacy boundary, and how Towk handles secrets."
 />

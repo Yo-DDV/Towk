@@ -1,5 +1,5 @@
 #!/bin/sh
-# Apply the configured runtime user and start Chatto.
+# Apply the configured runtime user and start Towk.
 set -eu
 
 if [ "$(id -u)" = "0" ]; then

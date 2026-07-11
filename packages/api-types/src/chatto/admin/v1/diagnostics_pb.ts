@@ -40,7 +40,7 @@ export class GetSystemInfoRequest extends Message<GetSystemInfoRequest> {
 }
 
 /**
- * Owner-only operational diagnostics for the Chatto server.
+ * Owner-only operational diagnostics for the Towk server.
  *
  * @generated from message chatto.admin.v1.GetSystemInfoResponse
  */
@@ -116,7 +116,7 @@ export class AdminSystemInfo extends Message<AdminSystemInfo> {
   nats?: AdminNatsStats;
 
   /**
-   * Aggregate Chatto object counts.
+   * Aggregate Towk object counts.
    *
    * @generated from field: chatto.admin.v1.AdminServerStats stats = 4;
    */
@@ -160,7 +160,7 @@ export class AdminSystemInfo extends Message<AdminSystemInfo> {
  */
 export class AdminConnectionInfo extends Message<AdminConnectionInfo> {
   /**
-   * Whether Chatto is currently connected to NATS.
+   * Whether Towk is currently connected to NATS.
    *
    * @generated from field: bool connected = 1;
    */
@@ -332,7 +332,7 @@ export class AdminAccountInfo extends Message<AdminAccountInfo> {
 }
 
 /**
- * Aggregate Chatto object counts.
+ * Aggregate Towk object counts.
  *
  * @generated from message chatto.admin.v1.AdminServerStats
  */

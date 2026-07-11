@@ -14,7 +14,7 @@
 
 ## Gate 2 — Pilote deployment host
 
-- NATS, Chatto et LiveKit épinglés ;
+- NATS, Towk et LiveKit épinglés ;
 - routage HTTPS/WSS exclusivement via HAProxy `edge-router` ;
 - média LiveKit sur des ports L4 dédiés sans collision ;
 - sauvegarde et restauration isolée testées.

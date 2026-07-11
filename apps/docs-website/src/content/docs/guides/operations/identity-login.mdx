@@ -5,7 +5,7 @@ description: Configure local accounts, SMTP email flows, external login provider
 
 import { Aside, CardGrid, LinkCard, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Chatto supports local password accounts, email verification and reset flows, external OAuth/OIDC providers, explicit account linking, and owner recovery through verified email addresses.
+Towk supports local password accounts, email verification and reset flows, external OAuth/OIDC providers, explicit account linking, and owner recovery through verified email addresses.
 
 ## Choose Your Account Model
 
@@ -32,7 +32,7 @@ port = 587
 tls = "mandatory"
 username = "chatto@example.com"
 password = "<generate-me>"
-from = "Chatto <chatto@example.com>"
+from = "Towk <chatto@example.com>"
 ```
 
 </TabItem>
@@ -45,7 +45,7 @@ CHATTO_SMTP_PORT=587
 CHATTO_SMTP_TLS=mandatory
 CHATTO_SMTP_USERNAME=chatto@example.com
 CHATTO_SMTP_PASSWORD=<generate-me>
-CHATTO_SMTP_FROM="Chatto <chatto@example.com>"
+CHATTO_SMTP_FROM="Towk <chatto@example.com>"
 ```
 
 </TabItem>
@@ -75,14 +75,14 @@ Provider IDs are durable local identifiers. Do not change a provider ID after us
 
 ## Account Creation And Linking
 
-Chatto does not silently merge accounts by email. External identities link by verified issuer or provider namespace plus provider subject.
+Towk does not silently merge accounts by email. External identities link by verified issuer or provider namespace plus provider subject.
 
 | Flow | Behavior |
 | ---- | -------- |
-| New external identity with `auto_provision = true` | User confirms account creation before Chatto creates the account. |
+| New external identity with `auto_provision = true` | User confirms account creation before Towk creates the account. |
 | New external identity with `auto_provision = false` | Login does not create an account automatically. |
 | Existing signed-in user starts linking | User confirms the link through a short-lived capability flow. |
-| Disconnecting a provider | Chatto refuses to remove the last sign-in method from a passwordless account. |
+| Disconnecting a provider | Towk refuses to remove the last sign-in method from a passwordless account. |
 
 This avoids accidental account takeover through recycled or unverified email addresses.
 
@@ -95,7 +95,7 @@ Set owner recovery emails in `chatto.toml`:
 emails = ["admin@example.com"]
 ```
 
-The email must be verified by the user before Chatto treats the user as an effective owner. Owners are recovery-grade: they virtually receive every normal permission and cannot be locked out through ordinary RBAC denies.
+The email must be verified by the user before Towk treats the user as an effective owner. Owners are recovery-grade: they virtually receive every normal permission and cannot be locked out through ordinary RBAC denies.
 
 <Aside type="tip">
   Keep at least one owner recovery email controlled by the server operator, not only by an external identity provider account.
@@ -103,7 +103,7 @@ The email must be verified by the user before Chatto treats the user as an effec
 
 ## Sessions And Logout
 
-Chatto uses opaque runtime credentials, not JWTs. Browser sessions use signed HTTP-only cookies for same-origin flows and bearer tokens for registered cross-origin server connections. Password resets, password changes, external identity disconnects, and account deletion revoke older credentials through the user's auth generation.
+Towk uses opaque runtime credentials, not JWTs. Browser sessions use signed HTTP-only cookies for same-origin flows and bearer tokens for registered cross-origin server connections. Password resets, password changes, external identity disconnects, and account deletion revoke older credentials through the user's auth generation.
 
 Operators do not normally manage sessions directly. Use password reset, password set, account deletion, or future dedicated revocation tooling when you need to force a credential cutoff.
 

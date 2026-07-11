@@ -25,11 +25,11 @@ type CallParticipantEventSource int32
 
 const (
 	CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_UNSPECIFIED CallParticipantEventSource = 0
-	// The user explicitly requested the transition through Chatto.
+	// The user explicitly requested the transition through Towk.
 	CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER CallParticipantEventSource = 1
 	// LiveKit reported the transition through a webhook.
 	CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT CallParticipantEventSource = 2
-	// Chatto reconciled its local projection against LiveKit's current room state.
+	// Towk reconciled its local projection against LiveKit's current room state.
 	CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION CallParticipantEventSource = 3
 )
 

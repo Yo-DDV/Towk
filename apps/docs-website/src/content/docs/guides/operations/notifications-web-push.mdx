@@ -1,15 +1,15 @@
 ---
 title: Notifications & Web Push
-description: Configure Chatto notifications, Web Push, VAPID keys, device behavior, and operator expectations.
+description: Configure Towk notifications, Web Push, VAPID keys, device behavior, and operator expectations.
 ---
 
 import { Aside, CardGrid, LinkCard, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Chatto has persistent in-app notifications and optional browser Web Push. Operators configure whether push is available; members decide which rooms, threads, and devices should alert them.
+Towk has persistent in-app notifications and optional browser Web Push. Operators configure whether push is available; members decide which rooms, threads, and devices should alert them.
 
 ## How Notifications Work
 
-Chatto creates persistent notifications for attention-worthy events:
+Towk creates persistent notifications for attention-worthy events:
 
 | Event | Default behavior |
 | ----- | ---------------- |
@@ -37,7 +37,7 @@ Muted rooms suppress mentions too. Treat mute as "leave this room out of my atte
 
 ## Do Not Disturb
 
-Do Not Disturb does not discard notifications. Chatto still records the pending notification and updates counts, but suppresses interruptive delivery while the user is in DND:
+Do Not Disturb does not discard notifications. Towk still records the pending notification and updates counts, but suppresses interruptive delivery while the user is in DND:
 
 - no notification sound
 - no Web Push delivery
@@ -47,7 +47,7 @@ This preserves "review later" behavior without waking the user's devices.
 
 ## Enable Web Push
 
-Web Push is disabled until you provide VAPID keys. Without push config, Chatto hides the push UI entirely.
+Web Push is disabled until you provide VAPID keys. Without push config, Towk hides the push UI entirely.
 
 Generate VAPID keys:
 
@@ -55,7 +55,7 @@ Generate VAPID keys:
 npx web-push generate-vapid-keys
 ```
 
-Then configure Chatto:
+Then configure Towk:
 
 <Tabs>
 <TabItem label="TOML">
@@ -87,14 +87,14 @@ Use a `mailto:` or HTTPS contact URI for `vapid_subject`. Keep the private key s
 
 Each browser or installed PWA creates its own subscription. A user can have multiple subscribed devices, and each device receives the same push notification.
 
-When a user reopens Chatto, the app refreshes the server's stored subscription for that browser. Expired subscriptions are cleaned up automatically when push providers report them as gone.
+When a user reopens Towk, the app refreshes the server's stored subscription for that browser. Expired subscriptions are cleaned up automatically when push providers report them as gone.
 
-Chatto sends regular notifications in a declarative-compatible Web Push format, with service-worker reconciliation where available and declarative display/badge fallback where supported. Operators do not need to change VAPID keys or push configuration for this behavior.
+Towk sends regular notifications in a declarative-compatible Web Push format, with service-worker reconciliation where available and declarative display/badge fallback where supported. Operators do not need to change VAPID keys or push configuration for this behavior.
 
 On iOS and iPadOS, Web Push works only for supported Home Screen web apps. Safari tabs that are not installed as an app may not receive native push.
 
 <Aside type="note">
-  In multi-server use, native Web Push registration is offered only for the server that served the installed web app. Remote servers can still update in-app badges and play sounds while Chatto is open.
+  In multi-server use, native Web Push registration is offered only for the server that served the installed web app. Remote servers can still update in-app badges and play sounds while Towk is open.
 </Aside>
 
 ## Operator Checklist

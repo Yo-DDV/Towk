@@ -1,11 +1,11 @@
 ---
 title: Building Your Community Structure
-description: Plan rooms, room groups, universal rooms, roles, permissions, and server branding for a self-hosted Chatto server.
+description: Plan rooms, room groups, universal rooms, roles, permissions, and server branding for a self-hosted Towk server.
 ---
 
 import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-Set up the shape of your Chatto server before you invite a large group of members. The important choices are room layout, default access, announcement channels, roles, and the public identity of the server.
+Set up the shape of your Towk server before you invite a large group of members. The important choices are room layout, default access, announcement channels, roles, and the public identity of the server.
 
 ## First-Day Checklist
 
@@ -42,7 +42,7 @@ Good universal-room candidates:
 | `#general` | Everyone can participate unless your community is invite-only or segmented. |
 | `#rules` | Everyone sees it; posts are restricted. |
 
-Universal rooms do not write one membership record per user. Chatto derives effective membership from the room's `room.join` permission and active room bans. If you later disable Universal, previous explicit memberships remain intact.
+Universal rooms do not write one membership record per user. Towk derives effective membership from the room's `room.join` permission and active room bans. If you later disable Universal, previous explicit memberships remain intact.
 
 <Aside type="tip">
   Members cannot leave a universal room. Tell members to mute noisy universal rooms instead of trying to leave them.
@@ -60,7 +60,7 @@ Start broad and add local exceptions:
 | One exceptional user | User permission override |
 | Reusable staff capability | Custom role |
 
-Avoid server-scope denies unless you really want to block a capability everywhere. Chatto uses deny-wins resolution, so a broad deny can be hard to reason about later.
+Avoid server-scope denies unless you really want to block a capability everywhere. Towk uses deny-wins resolution, so a broad deny can be hard to reason about later.
 
 ## Common Structures
 

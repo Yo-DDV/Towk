@@ -5,7 +5,7 @@ package chatto.admin.v1;
 // Request to read owner-only server diagnostics.
 message GetSystemInfoRequest {}
 
-// Owner-only operational diagnostics for the Chatto server.
+// Owner-only operational diagnostics for the Towk server.
 message GetSystemInfoResponse {
   // Broker connection, account, and JetStream state.
   AdminSystemInfo system_info = 1;
@@ -21,13 +21,13 @@ message AdminSystemInfo {
   AdminAccountInfo account = 2;
   // JetStream stream and consumer diagnostics.
   AdminNatsStats nats = 3;
-  // Aggregate Chatto object counts.
+  // Aggregate Towk object counts.
   AdminServerStats stats = 4;
 }
 
 // Current NATS server connection metadata.
 message AdminConnectionInfo {
-  // Whether Chatto is currently connected to NATS.
+  // Whether Towk is currently connected to NATS.
   bool connected = 1;
   // Connected NATS server ID.
   string server_id = 2;
@@ -61,7 +61,7 @@ message AdminAccountInfo {
   int32 consumers_used = 8;
 }
 
-// Aggregate Chatto object counts.
+// Aggregate Towk object counts.
 message AdminServerStats {
   // Registered user count.
   int32 user_count = 1;

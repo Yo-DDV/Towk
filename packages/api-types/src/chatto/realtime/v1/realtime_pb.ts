@@ -23,7 +23,7 @@ export enum RealtimeCallEventSource {
   UNSPECIFIED = 0,
 
   /**
-   * The user explicitly requested the transition through Chatto.
+   * The user explicitly requested the transition through Towk.
    *
    * @generated from enum value: REALTIME_CALL_EVENT_SOURCE_USER = 1;
    */
@@ -37,7 +37,7 @@ export enum RealtimeCallEventSource {
   LIVEKIT = 2,
 
   /**
-   * Chatto reconciled its local state against LiveKit's current room state.
+   * Towk reconciled its local state against LiveKit's current room state.
    *
    * @generated from enum value: REALTIME_CALL_EVENT_SOURCE_RECONCILIATION = 3;
    */
@@ -52,7 +52,7 @@ proto3.util.setEnumType(RealtimeCallEventSource, "chatto.realtime.v1.RealtimeCal
 ]);
 
 /**
- * Client-to-server frame for Chatto's protobuf WebSocket realtime protocol.
+ * Client-to-server frame for Towk's protobuf WebSocket realtime protocol.
  *
  * Clients send binary protobuf frames to `/api/realtime`. The first frame must
  * be `hello`; after the server replies with `hello`, clients send
@@ -121,7 +121,7 @@ export class RealtimeClientFrame extends Message<RealtimeClientFrame> {
 }
 
 /**
- * Server-to-client frame for Chatto's protobuf WebSocket realtime protocol.
+ * Server-to-client frame for Towk's protobuf WebSocket realtime protocol.
  *
  * @generated from message chatto.realtime.v1.RealtimeServerFrame
  */
@@ -284,7 +284,7 @@ export class RealtimeServerHello extends Message<RealtimeServerHello> {
   protocolVersion = 0;
 
   /**
-   * Chatto server software version.
+   * Towk server software version.
    *
    * @generated from field: string server_version = 2;
    */

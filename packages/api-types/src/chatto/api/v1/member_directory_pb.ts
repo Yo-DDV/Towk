@@ -24,7 +24,7 @@ export class DirectoryMember extends Message<DirectoryMember> {
 
   /**
    * Explicit roles assigned to the user. Member listings include the virtual
-   * `everyone` role for parity with Chatto's permission model.
+   * `everyone` role for parity with Towk's permission model.
    *
    * @generated from field: repeated string roles = 2;
    */

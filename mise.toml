@@ -249,7 +249,7 @@ exec pnpm astro dev --host 127.0.0.1 --port "$docs_website_port"
 """
 
 [tasks.chatto]
-description = "Build and run the bundled Chatto CLI command with workspace-safe ports"
+description = "Build and run the bundled Towk CLI command with workspace-safe ports"
 depends = ["build-dev-cli"]
 dir = "cli"
 env = {

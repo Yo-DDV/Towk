@@ -1,6 +1,6 @@
 # Glossary
 
-The canonical vocabulary for Chatto: UI surfaces, product concepts, authorization terms, and backend infrastructure. One line per entry (occasionally one short paragraph) — just enough to recognize the word and know where to read more.
+The canonical vocabulary for Towk: UI surfaces, product concepts, authorization terms, and backend infrastructure. One line per entry (occasionally one short paragraph) — just enough to recognize the word and know where to read more.
 
 This document is **also a naming surface**: when we need a name for a thing we're building, we add it here first. That's how vocabulary stays consistent across code, UI, docs, and conversation.
 
@@ -36,7 +36,7 @@ Names for visible surfaces and component groupings. When a name here disagrees w
 
 User-facing concepts. If a user might say the word, it goes here.
 
-**Server** — Top-level Chatto deployment: one process, one NATS account, one membership boundary. Formerly called *Instance* in the codebase. See [ADR-029](adr/ADR-029-instance-to-server-rename.md).
+**Server** — Top-level Towk deployment: one process, one NATS account, one membership boundary. Formerly called *Instance* in the codebase. See [ADR-029](adr/ADR-029-instance-to-server-rename.md).
 
 **Space** — Legacy tier between server and room. Being consolidated into the server concept; in most deployments there is exactly one space per server (the *primary space*). See [ADR-027](adr/ADR-027-instance-space-server-consolidation.md).
 
@@ -78,7 +78,7 @@ User-facing concepts. If a user might say the word, it goes here.
 
 ## Authorization
 
-Chatto's RBAC model. Read top-to-bottom — terms build on each other.
+Towk's RBAC model. Read top-to-bottom — terms build on each other.
 
 **RBAC (Role-Based Access Control)** — The model: roles bundle permissions, users hold roles, and direct user overrides can grant or deny exceptions. See [ADR-040](adr/ADR-040-permission-only-rbac-with-owner-override.md).
 
@@ -110,27 +110,27 @@ Infrastructure jargon. If only contributors say the word, it goes here.
 
 **ChattoCore** — Go package (`cli/internal/core`) that owns domain models, projections, and NATS access. Low-level helpers are not public transport entry points and may assume their caller has already authorized the operation; public ConnectRPC paths should delegate to core operation models that own authorization before domain state changes. See [ADR-044](adr/ADR-044-connectrpc-service-conventions.md).
 
-**System actor** — Synthetic actor ID used when Chatto itself, bootstrap code, or trusted operator automation performs a domain write. It is not a login-capable user account.
+**System actor** — Synthetic actor ID used when Towk itself, bootstrap code, or trusted operator automation performs a domain write. It is not a login-capable user account.
 
 **Admin API** — Public ConnectRPC administrative surface in `chatto.admin.v1`. On the public web listener it uses normal user authentication and RBAC. It is separate from the local Operator API. See [FDR-028](fdr/FDR-028-operator-api-and-cli.md).
 
 **Operator API** — Root-equivalent local ConnectRPC surface in `chatto.operator.v1`, served only on the configured Unix socket. Socket filesystem permissions are the access boundary; anyone who can connect to the socket can perform operator actions as the system actor. See [FDR-028](fdr/FDR-028-operator-api-and-cli.md).
 
-**Operator socket** — Unix socket configured by `[operator_api].socket_path` / `CHATTO_OPERATOR_API_SOCKET_PATH`. `chatto operator ...` uses it to send root-equivalent commands to the already-running Chatto process without opening a second store writer.
+**Operator socket** — Unix socket configured by `[operator_api].socket_path` / `CHATTO_OPERATOR_API_SOCKET_PATH`. `chatto operator ...` uses it to send root-equivalent commands to the already-running Towk process without opening a second store writer.
 
-**NATS** — Messaging system Chatto uses for pubsub and persistence. Runs embedded in the single binary by default.
+**NATS** — Messaging system Towk uses for pubsub and persistence. Runs embedded in the single binary by default.
 
-**JetStream** — NATS's persistence layer (streams + KV buckets). Chatto's primary data store. See [ADR-001](adr/ADR-001-nats-jetstream-as-primary-data-store.md).
+**JetStream** — NATS's persistence layer (streams + KV buckets). Towk's primary data store. See [ADR-001](adr/ADR-001-nats-jetstream-as-primary-data-store.md).
 
-**Stream** — JetStream append-only log. Chatto's event-sourcing stream is `EVT`, which stores durable domain facts. See [ADR-033](adr/ADR-033-event-sourced-state-with-projections.md) and [ARCHITECTURE.md](ARCHITECTURE.md#nats-resource-inventory).
+**Stream** — JetStream append-only log. Towk's event-sourcing stream is `EVT`, which stores durable domain facts. See [ADR-033](adr/ADR-033-event-sourced-state-with-projections.md) and [ARCHITECTURE.md](ARCHITECTURE.md#nats-resource-inventory).
 
-**KV (Key-Value Bucket)** — JetStream-backed key/value store. Chatto uses several current buckets, especially `RUNTIME_STATE`, `MEMORY_CACHE`, and `ENCRYPTION_KEYS`; event-sourced domain state is sourced from `EVT`. See [ADR-033](adr/ADR-033-event-sourced-state-with-projections.md).
+**KV (Key-Value Bucket)** — JetStream-backed key/value store. Towk uses several current buckets, especially `RUNTIME_STATE`, `MEMORY_CACHE`, and `ENCRYPTION_KEYS`; event-sourced domain state is sourced from `EVT`. See [ADR-033](adr/ADR-033-event-sourced-state-with-projections.md).
 
 **Subject** — NATS message topic. Current durable facts use `evt.{aggregateType}.{aggregateId}.{eventType}`; transient sync uses `live.sync.…`; committed EVT facts are internally republished on `live.evt.…`. See [`cli/AGENTS.md`](../cli/AGENTS.md) and [ARCHITECTURE.md](ARCHITECTURE.md#evt-subject-patterns).
 
 **Event** — Durable domain fact stored on `EVT` using the `corev1.Event` wrapper. Contrast with *Live Event*.
 
-**Projection** — In-memory read model rebuilt from `EVT` and owned independently by each Chatto process. Projections serve current-state and timeline reads while `EVT` remains the source of truth. See [ADR-033](adr/ADR-033-event-sourced-state-with-projections.md).
+**Projection** — In-memory read model rebuilt from `EVT` and owned independently by each Towk process. Projections serve current-state and timeline reads while `EVT` remains the source of truth. See [ADR-033](adr/ADR-033-event-sourced-state-with-projections.md).
 
 **Auth generation** — Per-user authentication epoch derived from durable user events. Cookie sessions, bearer tokens, and OAuth authorization codes are valid only when their stored generation matches the user's current generation. See [FDR-023](fdr/FDR-023-authentication-and-sessions.md).
 
@@ -138,10 +138,10 @@ Infrastructure jargon. If only contributors say the word, it goes here.
 
 **Live Event** — Transient `corev1.LiveEvent` published on `live.sync.>` (typing, notification sync, voice-call presence). Durable EVT facts reach live subscribers through the internal `live.evt.>` republish path after server-side projection readiness and authorization checks.
 
-**Republish** — JetStream feature that mirrors accepted stream messages onto another NATS subject. Chatto uses it to expose committed EVT facts on `live.evt.>`; `myEvents` treats that as an internal feed, not a client contract. See [`cli/AGENTS.md`](../cli/AGENTS.md).
+**Republish** — JetStream feature that mirrors accepted stream messages onto another NATS subject. Towk uses it to expose committed EVT facts on `live.evt.>`; `myEvents` treats that as an internal feed, not a client contract. See [`cli/AGENTS.md`](../cli/AGENTS.md).
 
 **OCC (Optimistic Concurrency Control)** — Publishing with an expected stream sequence so concurrent writers don't clobber each other. Used for message posting. See [ADR-016](adr/ADR-016-occ-for-message-publishing.md).
 
-**Nanoid** — Short URL-safe unique ID format. All Chatto entities are prefixed (`usr_…`, `rm_…`, `srv_…`). See [ADR-022](adr/ADR-022-nanoid-with-entity-prefixes.md).
+**Nanoid** — Short URL-safe unique ID format. All Towk entities are prefixed (`usr_…`, `rm_…`, `srv_…`). See [ADR-022](adr/ADR-022-nanoid-with-entity-prefixes.md).
 
 **Crypto-shredding** — Deleting a user's data by destroying the app-owned DEK refs and KMS wrapping-key refs that protect their encrypted content rather than mutating storage. See [ADR-007](adr/ADR-007-per-user-encryption-with-crypto-shredding.md).

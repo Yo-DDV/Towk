@@ -3,7 +3,7 @@ apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: redirect-https
-  namespace: chatto-client
+  namespace: towk-client
 spec:
   redirectScheme:
     scheme: https
@@ -12,25 +12,25 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: chatto-client
-  namespace: chatto-client
+  name: towk-client
+  namespace: towk-client
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    traefik.ingress.kubernetes.io/router.middlewares: chatto-client-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: towk-client-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - chatto.cc
-      secretName: chatto-client-tls
+        - towk.cc
+      secretName: towk-client-tls
   rules:
-    - host: chatto.cc
+    - host: towk.cc
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: chatto-client
+                name: towk-client
                 port:
                   number: 80

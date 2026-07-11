@@ -1,66 +1,75 @@
 ---
 title: Quick Start
-description: Get Chatto running in under five minutes.
+description: Build and run a local Towk server from the public source repository.
 ---
 
-import { CardGrid, LinkCard, Steps } from "@astrojs/starlight/components";
+import { Aside, CardGrid, LinkCard, Steps } from "@astrojs/starlight/components";
 
-### First Things First
+Towk can run as one binary with an embedded NATS data store. The following path
+is intended for local evaluation; use the deployment guides for an
+Internet-facing server.
 
-Alright, here's some stuff you should know before diving in. Please do not skip this part! You will have a significantly easier time setting up Chatto:
-
-- Chatto is extremely compact; it's **just a single binary** (or Docker image) that you spin up to get a functional chat server.
-- It can be configured through a **config file** (`chatto.toml`) or through **environment variables**.
-- You can let Chatto store uploaded files, or **configure an S3 compatible object store**.
-- Voice and video calls are powered by [LiveKit](https://github.com/livekit/livekit), which you will **need to deploy separately** (but don't worry, we'll guide you through it.) LiveKit is **fully optional**; if you don't need call functionality, you can safely skip it.
-
-We've saved the most important fact for last. Read it thoroughly, then read it again, because if you don't, you _will_ eventually lose your data:
-
-- **Chatto does not use a database**. Instead, it persists its data in something called [NATS](https://nats.io/). For simple single-process deployments, Chatto can **run an embedded NATS server**; but if you want to move to multiple processes (either for scaling, redundancy, or zero-downtime updates), you will need to set up and run a separate NATS server. (This is also very easy, and we'll guide you through it. Also, you can move from one setup to the other easily, so it's not a big decision you need to make beforehand.)
-
-That's it. For now. Let's dive in.
-
-### Try Chatto
-
-The quickest and easiest way to give Chatto a try is to just download the executable and run it. Setting up a proper production environment can be a little more involved (depending on your requirements), but if you just want to test the waters, this will get you up and running within minutes.
+<Aside type="note">
+  Towk does not currently publish stable binary releases or a Homebrew formula.
+  Build from a reviewed source commit, or use an immutable image tag from the
+  repository's Packages page once available. Do not substitute an upstream
+  Chatto binary and present it as a Towk release.
+</Aside>
 
 <Steps>
 
-1. **Install Chatto:**
+1. **Clone the Towk repository**
 
    ```bash
-   brew install chattocorp/tap/chatto
+   git clone https://github.com/Yo-DDV/Towk.git
+   cd Towk
    ```
 
-   If you don't have Homebrew, download the Linux, macOS, or FreeBSD archive for your platform from [GitHub Releases](https://github.com/chattocorp/chatto/releases). Support for more package managers will be added with time!
+2. **Install the pinned development toolchain**
 
-2. **Generate a configuration file:**
-
-   Move to an empty directory and have Chatto generate a configuration file:
+   Install [mise](https://mise.jdx.dev/), review `mise.toml`, then run:
 
    ```bash
-   chatto init
+   mise trust
+   mise install
+   mise run build-dev-cli
    ```
 
-   This creates a `chatto.toml` with random secrets for cookie signing, cookie encryption, runtime-token verifiers, asset signing, and NATS authentication.
-
-   **Take a minute to review this file.** It's already a working configuration, but you may want to customize some things. You will _definitely_ want to provide SMTP credentials.
-
-3. **Start the server:**
+3. **Generate a local configuration**
 
    ```bash
-   chatto run
+   mkdir -p .local/quick-start
+   cd .local/quick-start
+   ../../cli/bin/chatto init
    ```
 
-4. **Open your browser** to [http://localhost:4000](http://localhost:4000) (or whatever port you configured in the configuration file.)
+   The command creates the compatibility-named `chatto.toml` file with random
+   signing, encryption, runtime-token, asset, and NATS secrets. Keep that file
+   private and review it before exposing the server.
+
+4. **Start Towk**
+
+   ```bash
+   ../../cli/bin/chatto run -c chatto.toml
+   ```
+
+5. **Open the local server**
+
+   Visit [http://localhost:4000](http://localhost:4000). Stop the process with
+   `Ctrl-C` when finished.
 
 </Steps>
 
-The generated `chatto.toml` contains a sane set of defaults to get you started. After getting to know your new Chatto server for a little bit, it is **strongly recommended** to review and fine-tune this file, especially if you're interested in support for video uploads, push notifications, SSO, or voice and video calls.
+The local configuration uses embedded NATS. Uploaded files also use NATS unless
+you configure S3-compatible storage. Voice and video calls require a separate
+[LiveKit](https://github.com/livekit/livekit) server; they can remain disabled
+for this evaluation.
 
-## Next Steps
+## Next steps
 
-You will probably want to deploy Chatto in a manner that makes it reachable from the Internet, possibly from a VPS, a Kubernetes cluster, or similar; please move on to our Deployment guides section that will guide you through various different setups.
+Before a durable deployment, decide how you will handle TLS, SMTP, backups,
+owner recovery, external NATS, object storage, calls, push notifications, and
+monitoring.
 
 <CardGrid>
   <LinkCard
@@ -71,16 +80,16 @@ You will probably want to deploy Chatto in a manner that makes it reachable from
   <LinkCard
     title="Docker Compose"
     href="/guides/deployment/docker-compose/"
-    description="Recommended self-hosting setup with Chatto, NATS, LiveKit, and Caddy."
+    description="Run Towk, NATS, LiveKit, and Caddy on one server."
   />
   <LinkCard
     title="Standalone Binary"
     href="/guides/deployment/binary/"
-    description="Run Chatto directly as a single binary with embedded NATS."
+    description="Operate a source-built Towk binary with embedded NATS."
   />
   <LinkCard
     title="Kubernetes"
     href="/guides/deployment/kubernetes/"
-    description="Current Kubernetes guidance and requirements for scaled deployments."
+    description="Review the requirements for a scaled deployment."
   />
 </CardGrid>
