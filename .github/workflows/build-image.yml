@@ -120,7 +120,7 @@ jobs:
               --input "/reports/image-${arch}.tar" \
               --format json \
               --output "/reports/trivy-${arch}.json" \
-              --severity CRITICAL \
+              --severity HIGH,CRITICAL \
               --ignore-unfixed \
               --exit-code 1
           done
@@ -142,9 +142,9 @@ jobs:
           for arch in amd64 arm64; do
             tag="${IMAGE}:${VERSION}-${arch}"
             docker load --input ".context/towk-image/reports/image-${arch}.tar"
-            push_output="$(docker push "$tag")"
-            printf '%s\n' "$push_output"
-            digest="$(printf '%s\n' "$push_output" | sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' | tail -n 1)"
+            docker push "$tag"
+            digest="$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}')"
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
             test -n "$digest"
             echo "${arch}_digest=$digest" >> "$GITHUB_OUTPUT"
           done
