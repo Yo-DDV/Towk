@@ -15,6 +15,7 @@ examples/dockercompose/livekit.generated.yaml
 
 # Build output
 /dist/
+/.context/
 
 # Test results
 test-results/

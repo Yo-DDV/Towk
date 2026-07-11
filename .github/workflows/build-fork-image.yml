@@ -1,0 +1,206 @@
+name: build fork image
+
+on: # zizmor: ignore[dangerous-triggers] guarded below to successful push runs from this repository's main branch
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: fork-image-${{ github.event.workflow_run.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-scan-publish:
+    name: Build, scan, attest, and publish the fork image
+    if: >-
+      github.repository == 'Yo-DDV/chatto-responsive' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == 'Yo-DDV/chatto-responsive' &&
+      github.event.workflow_run.head_branch == 'main'))
+    permissions:
+      attestations: write # Required by the GitHub artifact attestation actions.
+      contents: read
+      id-token: write # Required for the Sigstore identity token used by attestations.
+      packages: write # Required only to push scanned images and attestations to GHCR.
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGE: ghcr.io/yo-ddv/chatto-responsive
+      SYFT_IMAGE: anchore/syft:v1.46.0@sha256:473a60e3a58e29aca3aedb3e99e787bb4ef273917e44d10fcbea4330a07320bb
+      TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
+    steps:
+      - name: Checkout exact source revision
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+          ref: ${{ env.SOURCE_SHA }}
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
+
+      - name: Set up arm64 emulation
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Prepare immutable image contexts
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_version="$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' cli/version.go)"
+          test -n "$base_version"
+          short_sha="${SOURCE_SHA:0:8}"
+          version="${base_version}-dev-${short_sha}"
+          created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+
+          mkdir -p .context/fork-image/reports
+          for arch in amd64 arm64; do
+            context=".context/fork-image/linux-${arch}"
+            mkdir -p "$context/docker" "$context/LICENSES"
+            cp docker/Dockerfile.fork "$context/Dockerfile"
+            cp docker/docker-entrypoint.sh "$context/docker/docker-entrypoint.sh"
+            cp docker/nats-wrapper.sh "$context/docker/nats-wrapper.sh"
+            cp LICENSES/AGPL-3.0-or-later.txt "$context/LICENSES/AGPL-3.0-or-later.txt"
+            cp NOTICE "$context/NOTICE"
+            (
+              cd cli
+              CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath \
+                -ldflags="-s -w -X main.Version=${version}" \
+                -o "../$context/chatto" .
+            )
+          done
+
+      - name: Build exact archives for analysis and publication
+        env:
+          CREATED: ${{ steps.metadata.outputs.created }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            context=".context/fork-image/linux-${arch}"
+            docker buildx build \
+              --platform "linux/${arch}" \
+              --file "$context/Dockerfile" \
+              --tag "${IMAGE}:${VERSION}-${arch}" \
+              --label "org.opencontainers.image.source=https://github.com/Yo-DDV/chatto-responsive" \
+              --label "org.opencontainers.image.revision=${SOURCE_SHA}" \
+              --label "org.opencontainers.image.version=${VERSION}" \
+              --label "org.opencontainers.image.created=${CREATED}" \
+              --label "org.opencontainers.image.licenses=AGPL-3.0-or-later" \
+              --label "org.opencontainers.image.title=Chatto Responsive" \
+              --label "org.opencontainers.image.description=Pilot image built from the Yo-DDV Chatto fork" \
+              --output "type=docker,dest=.context/fork-image/reports/image-${arch}.tar" \
+              "$context"
+          done
+
+      - name: Generate SBOMs and scan both architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          reports="$PWD/.context/fork-image/reports"
+          for arch in amd64 arm64; do
+            docker run --rm -v "$reports:/reports" "$SYFT_IMAGE" \
+              "docker-archive:/reports/image-${arch}.tar" \
+              -o "cyclonedx-json=/reports/sbom-${arch}.cdx.json"
+            docker run --rm -v "$reports:/reports" "$TRIVY_IMAGE" image \
+              --input "/reports/image-${arch}.tar" \
+              --format json \
+              --output "/reports/trivy-${arch}.json" \
+              --severity CRITICAL \
+              --ignore-unfixed \
+              --exit-code 1
+          done
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish the exact scanned architecture images
+        id: publish
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            tag="${IMAGE}:${VERSION}-${arch}"
+            docker load --input ".context/fork-image/reports/image-${arch}.tar"
+            push_output="$(docker push "$tag")"
+            printf '%s\n' "$push_output"
+            digest="$(printf '%s\n' "$push_output" | sed -n 's/.*digest: \(sha256:[0-9a-f]\{64\}\).*/\1/p' | tail -n 1)"
+            test -n "$digest"
+            echo "${arch}_digest=$digest" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Attest amd64 SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        with:
+          subject-name: ${{ env.IMAGE }}:${{ steps.metadata.outputs.version }}-amd64
+          subject-digest: ${{ steps.publish.outputs.amd64_digest }}
+          sbom-path: .context/fork-image/reports/sbom-amd64.cdx.json
+          push-to-registry: true
+
+      - name: Attest arm64 SBOM
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        with:
+          subject-name: ${{ env.IMAGE }}:${{ steps.metadata.outputs.version }}-arm64
+          subject-digest: ${{ steps.publish.outputs.arm64_digest }}
+          sbom-path: .context/fork-image/reports/sbom-arm64.cdx.json
+          push-to-registry: true
+
+      - name: Publish immutable multi-platform tag
+        id: manifest
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${IMAGE}:${VERSION}"
+          docker buildx imagetools create \
+            --tag "$tag" \
+            "${tag}-amd64" \
+            "${tag}-arm64"
+          digest="$(docker buildx imagetools inspect "$tag" --format '{{.Manifest.Digest}}')"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Fork image"
+            echo
+            echo "\`$tag\`"
+            echo
+            echo "Digest: \`$digest\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Attest multi-platform build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
+
+      - name: Upload SBOM and vulnerability reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: fork-image-security-${{ env.SOURCE_SHA }}
+          path: |
+            .context/fork-image/reports/sbom-*.cdx.json
+            .context/fork-image/reports/trivy-*.json
+          if-no-files-found: warn
+          retention-days: 30

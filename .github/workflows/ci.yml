@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   build-main-image-contexts:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'chattocorp/chatto' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
       image-version: ${{ steps.production-image-contexts.outputs.version }}
@@ -276,7 +276,7 @@ jobs:
           retention-days: 14
 
   publish-main-image:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'chattocorp/chatto' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - build-main-image-contexts
       - license-check
