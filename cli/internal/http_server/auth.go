@@ -102,7 +102,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		// Clear the session cookie
 		session.Clear()
 		session.Save()
-		clearCSRFCookie(c)
+		s.clearCSRFCookie(c)
 
 		// Publish session terminated events so other tabs/devices disconnect.
 		for userID := range loggedOutUserIDs {
@@ -253,7 +253,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			}
 			session.Clear()
 			_ = session.Save()
-			clearCSRFCookie(c)
+			s.clearCSRFCookie(c)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 			return
 		}
@@ -266,7 +266,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			}
 			session.Clear()
 			_ = session.Save()
-			clearCSRFCookie(c)
+			s.clearCSRFCookie(c)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 			return
 		}
@@ -528,7 +528,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			_ = s.core.RevokeCookieSession(ctx, user.Id, cookieCredential.sessionID)
 			session.Clear()
 			_ = session.Save()
-			clearCSRFCookie(c)
+			s.clearCSRFCookie(c)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 			return
 		}
@@ -547,7 +547,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			_ = s.core.RevokeCookieSession(ctx, user.Id, cookieCredential.sessionID)
 			session.Clear()
 			_ = session.Save()
-			clearCSRFCookie(c)
+			s.clearCSRFCookie(c)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 			return
 		}
