@@ -8,21 +8,41 @@ import (
 	"time"
 )
 
-// privateIPBlocks contains CIDR ranges for private/reserved IP addresses.
+// privateIPBlocks contains non-public CIDR ranges that must never be reached by
+// the link preview fetcher. The list includes private networks as well as
+// shared, documentation, benchmarking, multicast, and reserved address space.
 var privateIPBlocks []*net.IPNet
 
 func init() {
 	// Initialize private IP blocks
 	cidrs := []string{
-		"0.0.0.0/8",      // "This network" (RFC1122) - routes to localhost on Linux
-		"127.0.0.0/8",    // IPv4 loopback
-		"10.0.0.0/8",     // RFC1918
-		"172.16.0.0/12",  // RFC1918
-		"192.168.0.0/16", // RFC1918
-		"169.254.0.0/16", // RFC3927 link-local
-		"::1/128",        // IPv6 loopback
-		"fe80::/10",      // IPv6 link-local
-		"fc00::/7",       // IPv6 unique local
+		"0.0.0.0/8",       // "This network" (RFC1122) - routes to localhost on Linux
+		"127.0.0.0/8",     // IPv4 loopback
+		"10.0.0.0/8",      // RFC1918
+		"100.64.0.0/10",   // RFC6598 shared address space, including provider metadata endpoints
+		"172.16.0.0/12",   // RFC1918
+		"192.168.0.0/16",  // RFC1918
+		"169.254.0.0/16",  // RFC3927 link-local
+		"192.0.0.0/24",    // IETF protocol assignments
+		"192.0.2.0/24",    // TEST-NET-1
+		"192.88.99.0/24",  // Deprecated 6to4 relay anycast
+		"198.18.0.0/15",   // Benchmarking
+		"198.51.100.0/24", // TEST-NET-2
+		"203.0.113.0/24",  // TEST-NET-3
+		"224.0.0.0/4",     // IPv4 multicast
+		"240.0.0.0/4",     // IPv4 reserved and limited broadcast
+		"::1/128",         // IPv6 loopback
+		"64:ff9b::/96",    // IPv4/IPv6 translation
+		"64:ff9b:1::/48",  // Local-use IPv4/IPv6 translation
+		"100::/64",        // Discard-only
+		"2001::/23",       // IETF protocol assignments
+		"2001:db8::/32",   // Documentation
+		"2002::/16",       // Deprecated 6to4
+		"3fff::/20",       // Documentation
+		"fe80::/10",       // IPv6 link-local
+		"fec0::/10",       // Deprecated IPv6 site-local
+		"fc00::/7",        // IPv6 unique local
+		"ff00::/8",        // IPv6 multicast
 	}
 
 	for _, cidr := range cidrs {
@@ -39,12 +59,17 @@ func init() {
 // built with the test_endpoints build tag.
 var allowLocalhost bool
 
-// isPrivateIP checks if an IP address is in a private/reserved range.
+// isPrivateIP checks whether an IP address is unsuitable for public link
+// previews. Only globally routable unicast addresses outside the explicit
+// special-use ranges are accepted.
 func isPrivateIP(ip net.IP) bool {
 	if ip.IsLoopback() {
 		return !allowLocalhost
 	}
 	if ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	if !ip.IsGlobalUnicast() {
 		return true
 	}
 
