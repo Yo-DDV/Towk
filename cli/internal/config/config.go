@@ -415,11 +415,57 @@ func (c *AssetsCacheConfig) TTLOrDefault() time.Duration {
 
 // AssetsConfig contains settings for asset storage (attachments, thumbnails, etc.).
 type AssetsConfig struct {
-	SigningSecret  string            `toml:"signing_secret" env:"CHATTO_CORE_ASSETS_SIGNING_SECRET" comment:"Secret for signing asset URLs. NEVER SHARE THIS!\nIf it leaks, regenerate it. Existing signed URLs will become invalid but will be regenerated on next request."`
-	MaxUploadSize  datasize.ByteSize `toml:"max_upload_size" env:"CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE" comment:"Maximum size for uploaded files. Supports human-readable formats like '25 MB', '25MB', '25MiB'."`
-	StorageBackend StorageBackend    `toml:"storage_backend" env:"CHATTO_CORE_ASSETS_STORAGE_BACKEND" comment:"Where to store new uploads: 'nats' (default) or 's3'. Existing assets are served from their original location regardless of this setting."`
-	S3             S3Config          `toml:"s3,commented" comment:"S3-compatible storage configuration. Only used when storage_backend = 's3'."`
-	Cache          AssetsCacheConfig `toml:"cache" comment:"Caching configuration for resized images."`
+	SigningSecret  string                  `toml:"signing_secret" env:"CHATTO_CORE_ASSETS_SIGNING_SECRET" comment:"Secret for signing asset URLs. NEVER SHARE THIS!\nIf it leaks, regenerate it. Existing signed URLs will become invalid but will be regenerated on next request."`
+	MaxUploadSize  datasize.ByteSize       `toml:"max_upload_size" env:"CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE" comment:"Maximum size for uploaded files. Supports human-readable formats like '25 MB', '25MB', '25MiB'."`
+	StorageBackend StorageBackend          `toml:"storage_backend" env:"CHATTO_CORE_ASSETS_STORAGE_BACKEND" comment:"Where to store new uploads: 'nats' (default) or 's3'. Existing assets are served from their original location regardless of this setting."`
+	S3             S3Config                `toml:"s3,commented" comment:"S3-compatible storage configuration. Only used when storage_backend = 's3'."`
+	Cache          AssetsCacheConfig       `toml:"cache" comment:"Caching configuration for resized images."`
+	LinkPreviews   LinkPreviewAssetsConfig `toml:"link_previews,commented" comment:"Bounded storage, request limits, and pending lifecycle for fetched link-preview images."`
+}
+
+// LinkPreviewAssetsConfig bounds remotely fetched preview images independently
+// from user uploads and other server assets.
+type LinkPreviewAssetsConfig struct {
+	MaxStoreBytes datasize.ByteSize `toml:"max_store_bytes,commented" env:"CHATTO_CORE_ASSETS_LINK_PREVIEWS_MAX_STORE_BYTES" comment:"Hard JetStream storage quota for link-preview images. Default: 1 GB."`
+	FetchWindow   Duration          `toml:"fetch_window,commented" env:"CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_WINDOW" comment:"Fixed distributed request-limit window. Default: 15m."`
+	FetchPerIP    int               `toml:"fetch_per_ip,commented" env:"CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_IP" comment:"Link-preview fetch requests per source IP and window. Default: 100."`
+	FetchPerUser  int               `toml:"fetch_per_user,commented" env:"CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_USER" comment:"Link-preview fetch requests per authenticated user and window. Default: 30."`
+	PendingTTL    Duration          `toml:"pending_ttl,commented" env:"CHATTO_CORE_ASSETS_LINK_PREVIEWS_PENDING_TTL" comment:"How long an unclaimed preview image remains available for cached composer flows. Must be at least 25h. Default: 25h."`
+}
+
+func (c *LinkPreviewAssetsConfig) MaxStoreBytesOrDefault() int64 {
+	if c.MaxStoreBytes == 0 {
+		return int64(datasize.GB)
+	}
+	return int64(c.MaxStoreBytes)
+}
+
+func (c *LinkPreviewAssetsConfig) FetchWindowOrDefault() time.Duration {
+	if c.FetchWindow == 0 {
+		return 15 * time.Minute
+	}
+	return c.FetchWindow.Duration()
+}
+
+func (c *LinkPreviewAssetsConfig) FetchPerIPOrDefault() int {
+	if c.FetchPerIP == 0 {
+		return 100
+	}
+	return c.FetchPerIP
+}
+
+func (c *LinkPreviewAssetsConfig) FetchPerUserOrDefault() int {
+	if c.FetchPerUser == 0 {
+		return 30
+	}
+	return c.FetchPerUser
+}
+
+func (c *LinkPreviewAssetsConfig) PendingTTLOrDefault() time.Duration {
+	if c.PendingTTL == 0 {
+		return 25 * time.Hour
+	}
+	return c.PendingTTL.Duration()
 }
 
 // CoreConfig contains settings for the Towk core service.
@@ -1262,6 +1308,18 @@ func (c *ChattoConfig) Validate() error {
 	// Asset cache configuration
 	if c.Core.Assets.Cache.Enabled && c.Core.Assets.Cache.TTL.Duration() < 0 {
 		errs = append(errs, "core.assets.cache.ttl must be positive when cache is enabled")
+	}
+	if c.Core.Assets.LinkPreviews.FetchWindow.Duration() < 0 {
+		errs = append(errs, "core.assets.link_previews.fetch_window must be positive when set")
+	}
+	if c.Core.Assets.LinkPreviews.FetchPerIP < 0 {
+		errs = append(errs, "core.assets.link_previews.fetch_per_ip must be positive when set")
+	}
+	if c.Core.Assets.LinkPreviews.FetchPerUser < 0 {
+		errs = append(errs, "core.assets.link_previews.fetch_per_user must be positive when set")
+	}
+	if pendingTTL := c.Core.Assets.LinkPreviews.PendingTTL.Duration(); pendingTTL != 0 && pendingTTL < 25*time.Hour {
+		errs = append(errs, "core.assets.link_previews.pending_ttl must be at least 25h")
 	}
 
 	// Storage backend validation

@@ -18,7 +18,7 @@ Members can attach files through drag-and-drop, paste, or the file picker when t
 | Videos | Accepted only when video processing is enabled. |
 | Animated GIFs | Uploaded as images when video processing is disabled; routed through video processing when enabled. |
 | Avatars, logos, banners | Stored in the same asset system but gated by profile or admin permissions. |
-| Link-preview images | Downloaded, bounded, stored, and served through the configured storage backend. |
+| Link-preview images | Downloaded, converted to a size-limited WebP, and stored in a dedicated quota-bounded NATS object store. |
 
 Default upload limits are 25 MB for non-video files and 100 MB for videos when video processing is enabled.
 
@@ -44,9 +44,9 @@ Use this as a member convenience surface, not as a permanent document-management
 
 ## Link Previews
 
-Towk fetches link-preview metadata when a user composes a message with a URL. Preview images are persisted through the asset backend, so S3-backed deployments store preview media alongside uploaded files.
+Towk fetches link-preview metadata when a user composes a message with a URL. New preview images use the dedicated `LINK_PREVIEW_ASSETS` NATS object store even when ordinary uploads use S3. This isolates remotely fetched content behind a hard quota. A same-ID `SERVER_ASSETS` object link lets older replicas serve new preview images during rolling upgrades and rollback without duplicating bytes; older S3 and legacy `SERVER_ASSETS` preview objects also remain readable after upgrade.
 
-The fetcher is designed to be SSRF-safe and caches successful and failed lookups for bounded periods. Operators do not need a separate preview worker.
+The fetcher is designed to be SSRF-safe, rejects images above 10 million decoded pixels, limits the encoded WebP to 1 MiB, coalesces concurrent requests for the same URL, and runs at most two remote fetches per process. It caches successful and failed lookups for bounded periods and applies shared source-IP and user request budgets. An elected cleanup pass waits for projection replay, preserves images referenced by current messages even when lifecycle metadata is stale or missing after restore, repairs interrupted claims, and removes expired unclaimed or no-longer-referenced objects. Operators do not need a separate preview worker.
 
 ## Storage Backend Choice
 

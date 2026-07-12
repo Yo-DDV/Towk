@@ -204,6 +204,10 @@ func (m *RoomModel) latestBody(eventID string) (*corev1.MessageBody, bool, bool)
 	return m.timeline.LatestBody(eventID)
 }
 
+func (m *RoomModel) currentLinkPreviewAssetIDs() map[string]struct{} {
+	return m.timeline.CurrentLinkPreviewAssetIDs()
+}
+
 func (m *RoomModel) currentRoomAttachmentMessages(roomID string) []projectedRoomAttachmentMessage {
 	return m.timeline.CurrentRoomAttachmentMessages(roomID)
 }

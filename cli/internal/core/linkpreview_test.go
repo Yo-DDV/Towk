@@ -44,7 +44,7 @@ func TestLinkPreviewImageStorageAndRetrieval(t *testing.T) {
 	serverURL = server.URL
 	url := server.URL + "/article"
 
-	preview, err := core.GetLinkPreview(ctx, url)
+	preview, err := core.GetLinkPreview(ctx, "preview-user", url)
 	require.NoError(t, err, "GetLinkPreview should succeed")
 	require.NotNil(t, preview, "Preview should not be nil")
 
@@ -110,9 +110,9 @@ func TestLinkPreviewImageStorageAndRetrieval(t *testing.T) {
 	require.Equal(t, "WEBP", string(data[8:12]), "Should have WEBP magic number")
 }
 
-func TestLinkPreviewImageUsesS3WhenConfigured(t *testing.T) {
+func TestLinkPreviewImageUsesDedicatedStoreWhenS3Configured(t *testing.T) {
 	ctx := context.Background()
-	core, _, s3Client, rawS3Client, _ := setupTestCoreWithS3PathPrefix(t, "tenant-a/chatto")
+	core, _, _, _, _ := setupTestCoreWithS3PathPrefix(t, "tenant-a/chatto")
 
 	restoreLocalhost := linkpreview.AllowLocalhostForTesting()
 	defer restoreLocalhost()
@@ -141,7 +141,7 @@ func TestLinkPreviewImageUsesS3WhenConfigured(t *testing.T) {
 	defer server.Close()
 	serverURL = server.URL
 
-	preview, err := core.GetLinkPreview(ctx, server.URL+"/article")
+	preview, err := core.GetLinkPreview(ctx, "preview-user", server.URL+"/article")
 	require.NoError(t, err)
 	require.NotNil(t, preview)
 	require.Equal(t, "S3 Link Preview", preview.Title)
@@ -149,19 +149,14 @@ func TestLinkPreviewImageUsesS3WhenConfigured(t *testing.T) {
 	require.NotNil(t, preview.GetImageAsset(), "ImageAsset should be populated")
 	require.Equal(t, preview.GetImageAssetId(), preview.GetImageAsset().GetId())
 	require.Equal(t, "image/webp", preview.GetImageAsset().GetContentType())
-	require.NotNil(t, preview.GetImageAsset().GetS3(), "S3-backed preview should carry S3 storage pointer")
-	require.Equal(t, preview.GetImageAssetId(), preview.GetImageAsset().GetS3().GetKey())
+	require.NotNil(t, preview.GetImageAsset().GetNats(), "preview should carry a NATS storage pointer")
+	require.Equal(t, preview.GetImageAssetId(), preview.GetImageAsset().GetNats().GetKey())
 
-	_, err = core.storage.serverAssets.Get(ctx, preview.GetImageAssetId())
-	require.Error(t, err, "link preview image should not be stored in SERVER_ASSETS when S3 is configured")
-
-	logicalS3Key := S3KeyServerAsset(preview.GetImageAssetId())
-	if _, err := s3Client.StatObject(ctx, logicalS3Key); err != nil {
-		t.Fatalf("logical S3 stat failed: %v", err)
-	}
-	if _, err := rawS3Client.StatObject(ctx, "tenant-a/chatto/"+logicalS3Key); err != nil {
-		t.Fatalf("raw physical S3 stat failed: %v", err)
-	}
+	previewBytes, err := core.storage.linkPreviewAssets.GetBytes(ctx, preview.GetImageAssetId())
+	require.NoError(t, err, "link preview image should use the bounded dedicated store")
+	legacyBytes, err := core.storage.serverAssets.GetBytes(ctx, preview.GetImageAssetId())
+	require.NoError(t, err, "older replicas should read new preview images through SERVER_ASSETS")
+	require.Equal(t, previewBytes, legacyBytes, "SERVER_ASSETS compatibility link should resolve the dedicated object")
 
 	reader, info, err := core.GetServerAssetFromAnyBackend(ctx, preview.GetImageAssetId())
 	require.NoError(t, err)

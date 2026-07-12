@@ -461,6 +461,38 @@ func (p *RoomTimelineProjection) LatestBody(eventID string) (body *corev1.Messag
 	return nil, false, true
 }
 
+// CurrentLinkPreviewAssetIDs returns the preview images referenced by current,
+// visible message bodies. One snapshot keeps cleanup O(messages + objects)
+// instead of scanning the entire timeline once per stored object.
+func (p *RoomTimelineProjection) CurrentLinkPreviewAssetIDs() map[string]struct{} {
+	p.RLock()
+	defer p.RUnlock()
+	assetIDs := make(map[string]struct{})
+	for eventID, body := range p.latestBody {
+		if body == nil {
+			continue
+		}
+		if _, retracted := p.retractedFlags[eventID]; retracted {
+			continue
+		}
+		if _, hidden := p.hiddenEchoes[eventID]; hidden {
+			continue
+		}
+		preview := body.GetLinkPreview()
+		if preview == nil {
+			continue
+		}
+		assetID := preview.GetImageAssetId()
+		if assetID == "" && preview.GetImageAsset() != nil {
+			assetID = preview.GetImageAsset().GetId()
+		}
+		if assetID != "" {
+			assetIDs[assetID] = struct{}{}
+		}
+	}
+	return assetIDs
+}
+
 // CurrentRoomAttachmentMessages returns current, visible messages whose latest
 // body references attachments. Results are newest message first.
 func (p *RoomTimelineProjection) CurrentRoomAttachmentMessages(roomID string) []projectedRoomAttachmentMessage {

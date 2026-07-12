@@ -518,6 +518,29 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	}
 
 	eventID := NewEventID()
+	claimedLinkPreviewAssetID := ""
+	linkPreviewClaimStarted := false
+	if linkPreview != nil {
+		claimedLinkPreviewAssetID = linkPreview.GetImageAssetId()
+		if claimedLinkPreviewAssetID == "" && linkPreview.GetImageAsset() != nil {
+			claimedLinkPreviewAssetID = linkPreview.GetImageAsset().GetId()
+		}
+		if claimedLinkPreviewAssetID != "" {
+			managed, err := c.beginLinkPreviewAssetClaim(ctx, claimedLinkPreviewAssetID, eventID)
+			if err != nil {
+				c.logger.Warn("Dropping unclaimable link preview image while retaining preview metadata",
+					"asset_id", claimedLinkPreviewAssetID,
+					"message_event_id", eventID,
+					"error", err)
+				linkPreview = proto.Clone(linkPreview).(*corev1.LinkPreview)
+				linkPreview.ImageAssetId = nil
+				linkPreview.ImageAsset = nil
+				claimedLinkPreviewAssetID = ""
+			} else {
+				linkPreviewClaimStarted = managed
+			}
+		}
+	}
 	bodyEventID := NewEventID()
 	messageBody := &corev1.MessageBody{
 		CreatedAt:   timestamppb.New(now),
@@ -526,6 +549,9 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 		LinkPreview: linkPreview,
 	}
 	if err := c.encryptMessageBody(ctx, messageBody, room_id, eventID, bodyEventID, body); err != nil {
+		if linkPreviewClaimStarted {
+			_ = c.abortLinkPreviewAssetClaim(context.WithoutCancel(ctx), claimedLinkPreviewAssetID, eventID)
+		}
 		return nil, err
 	}
 	bodyEventEvent := newEvent(user_id, &corev1.Event{
@@ -597,7 +623,31 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	agg := events.RoomAggregate(room_id)
 	sequenceID, err := c.appendMessageWithOptionalThreadCreated(ctx, agg, bodyEventEvent, event, threadCreatedEvent, inThread)
 	if err != nil {
+		if linkPreviewClaimStarted {
+			_ = c.handleFailedLinkPreviewAppend(context.WithoutCancel(ctx), claimedLinkPreviewAssetID, eventID, sequenceID)
+			if sequenceID != 0 {
+				// A non-zero sequence proves the batch is durable; only the
+				// projection wait failed. Never roll the image back to pending.
+				// Leaving it claiming is safe and the elected cleanup pass repairs
+				// it from the projected body once replay catches up.
+				c.logger.Warn("Message committed before projection wait failed; retaining link preview claim for repair",
+					"asset_id", claimedLinkPreviewAssetID,
+					"message_event_id", eventID,
+					"sequence_id", sequenceID,
+					"error", err)
+			}
+		}
 		return nil, fmt.Errorf("failed to publish message event: %w", err)
+	}
+	if linkPreviewClaimStarted {
+		if err := c.finalizeLinkPreviewAssetClaim(context.WithoutCancel(ctx), claimedLinkPreviewAssetID, eventID); err != nil {
+			// The cleanup pass repairs this exact crash/error window from the
+			// projected durable body before it considers physical deletion.
+			c.logger.Warn("Failed to finalize link preview image claim; cleanup will repair it",
+				"asset_id", claimedLinkPreviewAssetID,
+				"message_event_id", eventID,
+				"error", err)
+		}
 	}
 	// Also wait for ThreadProjection if this is a thread reply, so a
 	// subsequent thread-pane fetch from the same request sees it.
