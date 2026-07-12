@@ -1990,6 +1990,11 @@ func TestMyAccountServiceSetsPassword(t *testing.T) {
 func TestMyAccountServiceDeletesAvatarAndAccount(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)
+	staleToken, err := env.core.CreateAuthTokenWithSource(env.ctx, env.viewer.Id, "session_rotation")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource stale: %v", err)
+	}
+	staleCtx := withBearerCredential(env.ctx, env.viewer, staleToken)
 
 	if _, err := env.account.UploadAvatar(env.ctx, connect.NewRequest(&apiv1.UploadAvatarRequest{
 		Image: &apiv1.ImageUpload{Image: connectAPITestPNG()},
@@ -2025,7 +2030,41 @@ func TestMyAccountServiceDeletesAvatarAndAccount(t *testing.T) {
 		t.Fatalf("DeleteAvatar avatar URL = %q, want nil", deleteAvatarResp.Msg.GetUser().GetAvatarUrl())
 	}
 
-	tokenResp, err := env.account.RequestAccountDeletion(ctx, connect.NewRequest(&apiv1.RequestAccountDeletionRequest{}))
+	blocked, err := env.core.CreateUser(env.ctx, core.SystemActorID, "deletion-blocked", "Deletion Blocked", "password")
+	if err != nil {
+		t.Fatalf("CreateUser blocked: %v", err)
+	}
+	if _, err := env.core.CreateServerRole(env.ctx, core.SystemActorID, "no-self-delete", "No self delete", ""); err != nil {
+		t.Fatalf("CreateServerRole no-self-delete: %v", err)
+	}
+	if err := env.core.DenyServerPermission(env.ctx, core.SystemActorID, "no-self-delete", core.PermUserDeleteSelf); err != nil {
+		t.Fatalf("DenyServerPermission user.delete-self: %v", err)
+	}
+	if err := env.core.AssignServerRole(env.ctx, core.SystemActorID, blocked.Id, "no-self-delete"); err != nil {
+		t.Fatalf("AssignServerRole no-self-delete: %v", err)
+	}
+	blockedToken, err := env.core.CreateAuthTokenWithSource(env.ctx, blocked.Id, "test_login")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource blocked: %v", err)
+	}
+	if _, err := env.account.RequestAccountDeletion(withBearerCredential(env.ctx, blocked, blockedToken), connect.NewRequest(&apiv1.RequestAccountDeletionRequest{})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("permission-denied RequestAccountDeletion code = %v, want permission_denied", connect.CodeOf(err))
+	}
+
+	if _, err := env.account.RequestAccountDeletion(ctx, connect.NewRequest(&apiv1.RequestAccountDeletionRequest{})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("credential-less RequestAccountDeletion code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, err := env.account.RequestAccountDeletion(staleCtx, connect.NewRequest(&apiv1.RequestAccountDeletionRequest{})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale RequestAccountDeletion code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, err := env.account.RequestAccountDeletion(staleCtx, connect.NewRequest(&apiv1.RequestAccountDeletionRequest{
+		CurrentPassword: "wrong-password",
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("wrong-password RequestAccountDeletion code = %v, want invalid_argument", connect.CodeOf(err))
+	}
+	tokenResp, err := env.account.RequestAccountDeletion(staleCtx, connect.NewRequest(&apiv1.RequestAccountDeletionRequest{
+		CurrentPassword: "password",
+	}))
 	if err != nil {
 		t.Fatalf("RequestAccountDeletion: %v", err)
 	}
@@ -2035,8 +2074,24 @@ func TestMyAccountServiceDeletesAvatarAndAccount(t *testing.T) {
 	if _, err := env.account.DeleteMyAccount(ctx, connect.NewRequest(&apiv1.DeleteMyAccountRequest{})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("empty DeleteMyAccount code = %v, want invalid_argument", connect.CodeOf(err))
 	}
+	if _, err := env.account.DeleteMyAccount(ctx, connect.NewRequest(&apiv1.DeleteMyAccountRequest{
+		ConfirmationToken: tokenResp.Msg.GetConfirmationToken(),
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("credential-less DeleteMyAccount code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if err := env.core.AssignServerRole(env.ctx, core.SystemActorID, env.viewer.Id, "no-self-delete"); err != nil {
+		t.Fatalf("AssignServerRole viewer no-self-delete: %v", err)
+	}
+	if _, err := env.account.DeleteMyAccount(staleCtx, connect.NewRequest(&apiv1.DeleteMyAccountRequest{
+		ConfirmationToken: tokenResp.Msg.GetConfirmationToken(),
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("revoked-permission DeleteMyAccount code = %v, want permission_denied", connect.CodeOf(err))
+	}
+	if err := env.core.RevokeServerRole(env.ctx, core.SystemActorID, env.viewer.Id, "no-self-delete"); err != nil {
+		t.Fatalf("RevokeServerRole viewer no-self-delete: %v", err)
+	}
 
-	deleteResp, err := env.account.DeleteMyAccount(ctx, connect.NewRequest(&apiv1.DeleteMyAccountRequest{
+	deleteResp, err := env.account.DeleteMyAccount(staleCtx, connect.NewRequest(&apiv1.DeleteMyAccountRequest{
 		ConfirmationToken: tokenResp.Msg.GetConfirmationToken(),
 	}))
 	if err != nil {

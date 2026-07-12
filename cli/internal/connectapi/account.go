@@ -150,10 +150,20 @@ func (s *accountService) UpdateSettings(ctx context.Context, req *connect.Reques
 	}), nil
 }
 
-func (s *accountService) RequestAccountDeletion(ctx context.Context, _ *connect.Request[apiv1.RequestAccountDeletionRequest]) (*connect.Response[apiv1.RequestAccountDeletionResponse], error) {
+func (s *accountService) RequestAccountDeletion(ctx context.Context, req *connect.Request[apiv1.RequestAccountDeletionRequest]) (*connect.Response[apiv1.RequestAccountDeletionResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
+	}
+	canDelete, err := s.api.core.CanDeleteUser(ctx, caller.UserID, caller.UserID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	if !canDelete {
+		return nil, connectError(core.ErrPermissionDenied)
+	}
+	if err := s.api.requireFreshCredential(ctx, caller, req.Msg.GetCurrentPassword()); err != nil {
+		return nil, connectError(err)
 	}
 
 	token, err := s.api.core.CreateAccountDeletionToken(ctx, caller.UserID)
@@ -172,6 +182,16 @@ func (s *accountService) DeleteMyAccount(ctx context.Context, req *connect.Reque
 	}
 	if req.Msg.GetConfirmationToken() == "" {
 		return nil, invalidArgument("confirmation_token is required")
+	}
+	canDelete, err := s.api.core.CanDeleteUser(ctx, caller.UserID, caller.UserID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	if !canDelete {
+		return nil, connectError(core.ErrPermissionDenied)
+	}
+	if err := s.api.requireFreshCredential(ctx, caller, ""); err != nil {
+		return nil, connectError(err)
 	}
 
 	if err := s.api.core.ValidateAccountDeletionToken(ctx, req.Msg.GetConfirmationToken(), caller.UserID); err != nil {

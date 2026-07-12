@@ -507,11 +507,14 @@ func (x *UpdateSettingsResponse) GetSettings() *UserSettings {
 }
 
 // Request a short-lived confirmation token for deleting the authenticated
-// account.
+// account. The runtime credential must be fresh; current_password can refresh
+// a stale credential for password-backed accounts.
 type RequestAccountDeletionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Current password used only when the runtime credential is no longer fresh.
+	CurrentPassword string `protobuf:"bytes,1,opt,name=current_password,json=currentPassword,proto3" json:"current_password,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RequestAccountDeletionRequest) Reset() {
@@ -542,6 +545,13 @@ func (x *RequestAccountDeletionRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RequestAccountDeletionRequest.ProtoReflect.Descriptor instead.
 func (*RequestAccountDeletionRequest) Descriptor() ([]byte, []int) {
 	return file_chatto_api_v1_account_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *RequestAccountDeletionRequest) GetCurrentPassword() string {
+	if x != nil {
+		return x.CurrentPassword
+	}
+	return ""
 }
 
 // Result of issuing an account deletion confirmation token.
@@ -590,7 +600,9 @@ func (x *RequestAccountDeletionResponse) GetConfirmationToken() string {
 	return ""
 }
 
-// Request to permanently delete the authenticated account.
+// Request to permanently delete the authenticated account. The caller must
+// still hold user.delete-self, present a fresh runtime credential, and provide
+// the confirmation token issued for this account.
 type DeleteMyAccountRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Confirmation token obtained from RequestAccountDeletion.
@@ -714,8 +726,9 @@ const file_chatto_api_v1_account_proto_rawDesc = "" +
 	"\t_timezoneB\x0e\n" +
 	"\f_time_format\"Q\n" +
 	"\x16UpdateSettingsResponse\x127\n" +
-	"\bsettings\x18\x01 \x01(\v2\x1b.chatto.api.v1.UserSettingsR\bsettings\"\x1f\n" +
-	"\x1dRequestAccountDeletionRequest\"O\n" +
+	"\bsettings\x18\x01 \x01(\v2\x1b.chatto.api.v1.UserSettingsR\bsettings\"T\n" +
+	"\x1dRequestAccountDeletionRequest\x123\n" +
+	"\x10current_password\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\x0fcurrentPassword\"O\n" +
 	"\x1eRequestAccountDeletionResponse\x12-\n" +
 	"\x12confirmation_token\x18\x01 \x01(\tR\x11confirmationToken\"G\n" +
 	"\x16DeleteMyAccountRequest\x12-\n" +

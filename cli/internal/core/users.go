@@ -1260,19 +1260,25 @@ const AccountDeletionTokenTTL = 15 * time.Minute
 
 // AccountDeletionToken represents a token used to confirm account deletion.
 type AccountDeletionToken struct {
-	UserID    string    `json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
+	UserID         string    `json:"user_id"`
+	AuthGeneration uint64    `json:"auth_generation"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 // CreateAccountDeletionToken generates a confirmation token for account deletion.
 // The token is stored in RUNTIME_STATE and must be provided to DeleteUser within the TTL.
 func (c *ChattoCore) CreateAccountDeletionToken(ctx context.Context, userID string) (string, error) {
+	authGeneration, err := c.CurrentAuthGeneration(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("read account deletion auth generation: %w", err)
+	}
 	token := NewAccountDeletionToken()
 	createdAt := time.Now()
 
 	tokenData := AccountDeletionToken{
-		UserID:    userID,
-		CreatedAt: createdAt,
+		UserID:         userID,
+		AuthGeneration: authGeneration,
+		CreatedAt:      createdAt,
 	}
 
 	data, err := json.Marshal(tokenData)
@@ -1323,11 +1329,22 @@ func (c *ChattoCore) ValidateAccountDeletionToken(ctx context.Context, token, us
 	if tokenData.UserID != userID {
 		return ErrPermissionDenied
 	}
+	currentAuthGeneration, err := c.CurrentAuthGeneration(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("read account deletion auth generation: %w", err)
+	}
+	if tokenData.AuthGeneration != currentAuthGeneration {
+		_ = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
+		return ErrTokenNotFound
+	}
 
-	// Consume the token (delete it)
-	if err := c.storage.runtimeStateKV.Delete(ctx, key); err != nil {
-		c.logger.Warn("Failed to delete consumed account deletion token", "error", err)
-		// Continue anyway - the token was valid
+	// Atomically consume the token. Concurrent callers must not both pass the
+	// destructive-operation confirmation boundary.
+	if err := c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision())); err != nil {
+		if isRuntimeStateKeyAbsent(err) || isRuntimeStateRevisionConflict(err) {
+			return ErrTokenNotFound
+		}
+		return fmt.Errorf("consume account deletion token: %w", err)
 	}
 
 	return nil
