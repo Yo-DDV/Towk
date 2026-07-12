@@ -45,6 +45,8 @@ This document uses the canonical terms from the [glossary](GLOSSARY.md), especia
 
 ## NATS Authentication
 
+Key files: [`cli/internal/config/config.go`](../cli/internal/config/config.go), [`cli/pkg/natsauth/natsauth.go`](../cli/pkg/natsauth/natsauth.go), [`cli/internal/runtimeunit/runtimeunit.go`](../cli/internal/runtimeunit/runtimeunit.go)
+
 Towk supports embedded NATS for single-process/self-hosted installs and external NATS for clustered deployments. Embedded NATS is configured under `[nats.embedded]`; when the embedded TCP listener is enabled, `ReadConfig` derives matching `[nats.client]` defaults for CLI/admin commands. External NATS connections are configured explicitly via `[nats.client]`.
 
 | Method        | Config                                  | Description                                                       |
@@ -66,8 +68,14 @@ When using embedded NATS (default), `chatto init` generates:
 
 For connecting to an external NATS cluster:
 1. Set `nats.embedded.enabled = false`
-2. Set `nats.client.url` to the external NATS URL(s)
+2. Set `nats.client.url` to `tls://` or `wss://` external NATS URL(s), or set
+   `nats.client.ca_cert` to force TLS with a private CA
 3. Set `nats.client.auth_method` plus the matching credential field (`token`, `username`/`password`, `credentials_file`, or `nkey_seed`)
+
+Plaintext `nats://` and `ws://` endpoints are accepted automatically only on
+loopback. An isolated internal network can opt in with
+`nats.client.allow_insecure = true`, but this sends NATS credentials and Towk
+data without transport encryption and is not a production default.
 
 ## Architecture & APIs
 

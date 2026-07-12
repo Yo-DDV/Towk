@@ -113,6 +113,11 @@ Update these values (generate secrets with `openssl rand -hex 32`):
 - `CHATTO_CORE_SECRET_KEY` - Bearer-token and account-flow verifier key
 - `CHATTO_CORE_ASSETS_SIGNING_SECRET` - Asset URL signing secret
 
+The sample NATS StatefulSet uses plaintext inside the cluster network and opts
+in with `CHATTO_NATS_CLIENT_ALLOW_INSECURE=true`. Production clusters should
+enable NATS TLS, use a `tls://` client URL (and a private CA when needed), then
+remove that override.
+
 ### ingress.local.yaml
 
 Update these values:

@@ -19,6 +19,9 @@ automation.
 - `nats-wrapper.sh` makes the bundled NATS CLI use Towk's runtime NATS
   environment without writing a CLI context. Explicit `NATS_URL` or
   `NATS_CONTEXT` settings leave connection configuration under operator control.
+  Derived non-loopback URLs must use TLS unless
+  `CHATTO_NATS_CLIENT_ALLOW_INSECURE=true`; for a private CA, pass an explicit
+  `NATS_URL=tls://...` and `NATS_CA=/path/to/ca.pem` to the CLI.
 - `nats-wrapper_test.sh` verifies the wrapper's derived connection settings and
   explicit operator overrides.
 - `Dockerfile.frontend.prebuilt` packages already-built frontend static files

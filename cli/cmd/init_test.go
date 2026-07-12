@@ -144,6 +144,9 @@ func TestInitGeneratesCoreSecret(t *testing.T) {
 	if !strings.Contains(rawText, "\n# [nats.client]\n") {
 		t.Fatal("generated config should include a commented external NATS client example")
 	}
+	if !strings.Contains(rawText, "tls://nats.example.com:4222") {
+		t.Fatal("generated external NATS example should require TLS")
+	}
 	if strings.Contains(rawText, "\n[nats.client]\n") {
 		t.Fatal("generated embedded config should not include an active [nats.client] table")
 	}

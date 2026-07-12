@@ -25,6 +25,21 @@ creds=/run/chatto.creds
 context=
 args=stream ls' \
     CHATTO_NATS_CLIENT_URL="nats://chatto:4222" \
+    CHATTO_NATS_CLIENT_ALLOW_INSECURE="true" \
+    CHATTO_NATS_CLIENT_CREDENTIALS_FILE="/run/chatto.creds"
+
+assert_wrapper 'url=nats://chatto:4222
+creds=
+context=
+args=stream ls' \
+    CHATTO_NATS_CLIENT_URL="nats://chatto:4222" \
+    CHATTO_NATS_CLIENT_ALLOW_INSECURE="TRUE"
+
+assert_wrapper 'url=tls://nats.example.com:4222
+creds=/run/chatto.creds
+context=
+args=stream ls' \
+    CHATTO_NATS_CLIENT_URL="tls://nats.example.com:4222" \
     CHATTO_NATS_CLIENT_CREDENTIALS_FILE="/run/chatto.creds"
 
 assert_wrapper 'url=nats://operator:4222
@@ -42,3 +57,21 @@ args=stream ls' \
     CHATTO_NATS_CLIENT_URL="nats://chatto:4222" \
     CHATTO_NATS_CLIENT_CREDENTIALS_FILE="/run/chatto.creds" \
     NATS_CONTEXT="operator"
+
+if env -i PATH="$PATH" \
+    CHATTO_NATS_CLIENT_URL="nats://nats.example.com:4222" \
+    CHATTO_NATS_CLIENT_CREDENTIALS_FILE="/run/chatto.creds" \
+    sh "$tmp/nats-wrapper.sh" stream ls >"$tmp/rejected.out" 2>"$tmp/rejected.err"; then
+    printf '%s\n' 'expected plaintext external NATS URL to be rejected' >&2
+    exit 1
+fi
+grep -F 'refusing plaintext NATS CLI connection' "$tmp/rejected.err" >/dev/null
+
+if env -i PATH="$PATH" \
+    CHATTO_NATS_CLIENT_URL="http://nats.example.com:4222" \
+    CHATTO_NATS_CLIENT_ALLOW_INSECURE="true" \
+    sh "$tmp/nats-wrapper.sh" stream ls >"$tmp/invalid.out" 2>"$tmp/invalid.err"; then
+    printf '%s\n' 'expected unsupported NATS URL scheme to be rejected' >&2
+    exit 1
+fi
+grep -F 'invalid NATS CLI URL' "$tmp/invalid.err" >/dev/null

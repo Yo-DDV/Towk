@@ -40,6 +40,11 @@ setup. This Compose example runs NATS JetStream separately so you can restart or
 replace Towk without restarting its data store, scale Towk to multiple
 replicas, and move to a NATS cluster later.
 
+The generated `.env` explicitly permits plaintext NATS only because traffic
+stays inside this isolated Compose network. For multi-host or otherwise shared
+networks, configure NATS TLS and replace the internal `nats://` URL with
+`tls://`; do not carry `CHATTO_NATS_CLIENT_ALLOW_INSECURE=true` into that setup.
+
 You are not locked into either model. Towk's backup command creates a portable
 JetStream archive that can be restored into embedded or external NATS, making it
 straightforward to move between binary, Compose, and clustered deployments. See
