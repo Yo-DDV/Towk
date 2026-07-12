@@ -315,7 +315,8 @@ func S3KeyAttachment(attachmentID string) string {
 	return fmt.Sprintf("attachments/%s", attachmentID)
 }
 
-// S3KeyServerAsset returns the S3 key for a server asset (avatar, logo, banner, link preview image).
+// S3KeyServerAsset returns the S3 key for a server asset (avatar, logo,
+// banner, or a legacy link-preview image).
 // Format: instance/{assetId}
 // This matches the NATS key format so HTTP handlers can probe both backends with the same key.
 func S3KeyServerAsset(assetID string) string {

@@ -7463,6 +7463,7 @@ func TestConnectErrorMapping(t *testing.T) {
 		{"message too long", core.ErrMessageTooLong, connect.CodeInvalidArgument},
 		{"invalid argument", core.ErrInvalidArgument, connect.CodeInvalidArgument},
 		{"limit exceeded", core.ErrLimitExceeded, connect.CodeResourceExhausted},
+		{"link preview rate limit exceeded", core.ErrLinkPreviewRateLimitExceeded, connect.CodeResourceExhausted},
 		{"string length", &core.StringLengthError{Field: "field", Max: 10}, connect.CodeInvalidArgument},
 		{"room archived", core.ErrRoomArchived, connect.CodeFailedPrecondition},
 		{"edit window expired", core.ErrEditWindowExpired, connect.CodeFailedPrecondition},

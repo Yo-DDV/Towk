@@ -41,6 +41,16 @@ func TestImageProcessingRejectsOversizedDecodedDimensions(t *testing.T) {
 	}
 }
 
+func TestValidateImagePixelLimitSupportsSurfaceSpecificBudget(t *testing.T) {
+	data := createPNGHeader(4_000, 2_501)
+	if err := ValidateImagePixelLimit(data, 10_000_000); err == nil {
+		t.Fatal("ValidateImagePixelLimit accepted image above the surface-specific budget")
+	}
+	if err := ValidateImagePixelLimit(data, 11_000_000); err != nil {
+		t.Fatalf("ValidateImagePixelLimit rejected image within budget: %v", err)
+	}
+}
+
 func TestTransformImageRejectsTooManyAnimationFrames(t *testing.T) {
 	data := createAnimatedGIF(1, 1, MaxAnimatedImageFrames+1)
 	if _, err := TransformImage(data, 1, 1, FitContain); err == nil {

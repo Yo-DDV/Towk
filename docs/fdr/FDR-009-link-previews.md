@@ -1,7 +1,7 @@
 # FDR-009: Link Previews
 
 **Status:** Active
-**Last reviewed:** 2026-07-04
+**Last reviewed:** 2026-07-12
 
 ## Overview
 
@@ -17,6 +17,8 @@ When a message contains a URL, Towk can attach a preview card with the page's ti
 - When the server returns a preview to the composer, it also returns a short-lived opaque preview token.
 - When the message is sent, the client sends only the preview token. The server resolves the token to cached, server-fetched metadata and stores that metadata as part of the message body.
 - Stored preview metadata is size-limited before storage: URL 2,048 bytes, title 300 bytes, description 1,000 bytes, image asset ID 15 bytes, site name 200 bytes, embed type 64 bytes, and embed ID 256 bytes.
+- Authenticated preview fetches use fixed-window budgets shared by every replica, with separate source-IP and user dimensions.
+- Each process coalesces concurrent requests for the same normalized URL, runs at most two remote preview fetches at once, and rejects preview images above 10 million decoded pixels before allocating the full pixel buffer.
 - After posting, the message author can delete the preview from the message without deleting the message.
 
 ## Design Decisions
@@ -47,9 +49,9 @@ When a message contains a URL, Towk can attach a preview card with the page's ti
 
 ### 5. Preview images are downloaded, resized, and stored as persisted assets
 
-**Decision:** Preview images are fetched once, resized to 1200×630 max, converted to WebP, and stored through the configured persisted asset backend (S3 when configured, otherwise NATS `SERVER_ASSETS`). Sent message bodies carry the preview image as `LinkPreview.image_asset` (`AssetRecord`); `image_asset_id` remains as a compatibility field for older stored previews.
+**Decision:** Preview images are fetched once, resized to 1200×630 max, converted to WebP with a 1 MiB encoded-output limit, and stored in the dedicated NATS `LINK_PREVIEW_ASSETS` object store. A same-ID cross-bucket object link in `SERVER_ASSETS` lets older replicas read newly fetched images during rolling upgrades and rollback without duplicating the payload. Sent message bodies carry the preview image as `LinkPreview.image_asset` (`AssetRecord`); `image_asset_id` remains as a compatibility field for older stored previews. Existing previews in S3 or `SERVER_ASSETS` remain readable through compatibility probes.
 **Why:** Hot-linking preview images from third-party sites means broken previews when those sites change URLs, plus a privacy leak (the third party sees each preview fetch). Storing locally fixes both.
-**Tradeoff:** Per-server storage cost. Acceptable given the small fixed size cap and the fact that posted message previews should not lose images just because a cache expired.
+**Tradeoff:** Preview images stay in NATS even when uploaded files use S3. This deliberately gives the fetcher an isolated hard quota and lifecycle instead of allowing third-party URLs to consume the general upload bucket without a bound.
 
 ### 6. Message posting uses server-issued preview tokens
 
@@ -63,9 +65,15 @@ When a message contains a URL, Towk can attach a preview card with the page's ti
 **Why:** Even though metadata is server-fetched, it is persisted with the message body. Bounding it keeps a single message from carrying arbitrarily large URL metadata.
 **Tradeoff:** A page with unusually large metadata requires the server fetch/cache layer to trim or omit the preview before sending.
 
+### 8. Preview image storage has a claim lifecycle and hard quota
+
+**Decision:** New image objects start as `pending` in `RUNTIME_STATE`, move through an OCC-protected `claiming` state bound to the message event ID, and become `claimed` after the message append succeeds. The elected `asset_cleanup` worker waits for projection replay, repairs missing same-ID compatibility links in `SERVER_ASSETS`, then uses an OCC-protected `deleting` state before removing unclaimed objects and their links after the composer/cache grace period or claimed objects that no current projected message references. A current projected message reference always wins over lifecycle state, including missing or stale lifecycle metadata after independently snapshoted resources are restored. If a process stops after appending the message but before finalizing the claim, cleanup repairs the state from the projected message before considering deletion. The object store has a configurable 1 GB default `MaxBytes` quota; fetch budgets default to 100 requests per source IP and 30 per authenticated user in 15 minutes.
+**Why:** Fetching before message creation is necessary for the composer, but it creates abuse, memory-pressure, snapshot-consistency, and crash windows. The state machine prevents a legitimate posted preview from being deleted, while singleflight, local concurrency, decoded/encoded size caps, request budgets, cleanup, and the global quota bound CPU, memory, object count, and disk use.
+**Tradeoff:** A saturated preview quota temporarily suppresses new preview images until old unreferenced objects are reclaimed or an operator raises the quota. Messages and text-only previews continue to work.
+
 ## Permissions
 
-- Any authenticated user can fetch a link preview.
+- Any authenticated user can fetch a link preview within the shared source-IP and user budgets.
 - Only the message author can delete a preview from their message.
 
 ## Related

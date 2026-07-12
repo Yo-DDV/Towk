@@ -59,7 +59,14 @@ func (c *ChattoCore) ReserveAuthAttempt(ctx context.Context, endpoint AuthRateLi
 
 	var longestRetry time.Duration
 	for _, dimension := range dimensions {
-		retryAfter, err := c.reserveAuthRateLimitDimension(ctx, endpoint, dimension.name, dimension.subject, dimension.limit)
+		key := c.authRateLimitKey(endpoint, dimension.name, dimension.subject)
+		retryAfter, err := c.reserveFixedWindowRateLimit(
+			ctx,
+			key,
+			dimension.limit,
+			c.config.AuthRateLimit.WindowOrDefault(),
+			ErrAuthRateLimitExceeded,
+		)
 		if retryAfter > longestRetry {
 			longestRetry = retryAfter
 		}
@@ -115,54 +122,55 @@ func (c *ChattoCore) authRateLimitKey(endpoint AuthRateLimitEndpoint, dimension,
 	return authRateLimitKeyPrefix + string(endpoint) + "." + dimension + "." + hash
 }
 
-func (c *ChattoCore) reserveAuthRateLimitDimension(ctx context.Context, endpoint AuthRateLimitEndpoint, dimension, subject string, limit int) (time.Duration, error) {
-	window := c.config.AuthRateLimit.WindowOrDefault()
-	key := c.authRateLimitKey(endpoint, dimension, subject)
+func (c *ChattoCore) reserveFixedWindowRateLimit(ctx context.Context, key string, limit int, window time.Duration, exceeded error) (time.Duration, error) {
+	if limit <= 0 || window <= 0 {
+		return 0, nil
+	}
 	for range authRateLimitMaxRetries {
 		now := time.Now()
 		entry, err := c.storage.runtimeStateKV.Get(ctx, key)
 		if err != nil {
 			if !isRuntimeStateKeyAbsent(err) {
-				return 0, fmt.Errorf("read auth rate limit: %w", err)
+				return 0, fmt.Errorf("read rate limit: %w", err)
 			}
 			counter := authRateLimitCounter{Count: 1, WindowStart: now}
 			data, marshalErr := json.Marshal(counter)
 			if marshalErr != nil {
-				return 0, fmt.Errorf("marshal auth rate limit: %w", marshalErr)
+				return 0, fmt.Errorf("marshal rate limit: %w", marshalErr)
 			}
 			if _, createErr := c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(window)); createErr == nil {
 				return 0, nil
 			} else if errors.Is(createErr, jetstream.ErrKeyExists) {
 				continue
 			} else {
-				return 0, fmt.Errorf("create auth rate limit: %w", createErr)
+				return 0, fmt.Errorf("create rate limit: %w", createErr)
 			}
 		}
 
 		var counter authRateLimitCounter
 		if err := json.Unmarshal(entry.Value(), &counter); err != nil {
-			return 0, fmt.Errorf("unmarshal auth rate limit: %w", err)
+			return 0, fmt.Errorf("unmarshal rate limit: %w", err)
 		}
 		windowEnd := counter.WindowStart.Add(window)
 		if counter.WindowStart.IsZero() || !now.Before(windowEnd) {
 			counter = authRateLimitCounter{Count: 1, WindowStart: now}
 		} else if counter.Count >= limit {
-			return max(windowEnd.Sub(now), time.Second), ErrAuthRateLimitExceeded
+			return max(windowEnd.Sub(now), time.Second), exceeded
 		} else {
 			counter.Count++
 		}
 
 		data, err := json.Marshal(counter)
 		if err != nil {
-			return 0, fmt.Errorf("marshal auth rate limit: %w", err)
+			return 0, fmt.Errorf("marshal rate limit: %w", err)
 		}
 		if _, err := c.updateRuntimeStateTokenTTL(ctx, key, data, entry.Revision(), window); err == nil {
 			return 0, nil
 		} else if isRuntimeStateRevisionConflict(err) {
 			continue
 		} else {
-			return 0, fmt.Errorf("update auth rate limit: %w", err)
+			return 0, fmt.Errorf("update rate limit: %w", err)
 		}
 	}
-	return 0, fmt.Errorf("auth rate limit update conflict after %d retries", authRateLimitMaxRetries)
+	return 0, fmt.Errorf("rate limit update conflict after %d retries", authRateLimitMaxRetries)
 }

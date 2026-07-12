@@ -208,6 +208,9 @@ func TestNewChattoCore_DoesNotProvisionLegacyImportResourcesOnFreshBoot(t *testi
 	if _, err := core.js.ObjectStore(ctx, "SERVER_ASSETS"); err != nil {
 		t.Fatalf("SERVER_ASSETS lookup error = %v", err)
 	}
+	if _, err := core.js.ObjectStore(ctx, "LINK_PREVIEW_ASSETS"); err != nil {
+		t.Fatalf("LINK_PREVIEW_ASSETS lookup error = %v", err)
+	}
 }
 
 // ============================================================================

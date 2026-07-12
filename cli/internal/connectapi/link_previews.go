@@ -9,11 +9,12 @@ import (
 )
 
 func (s *messageService) FetchLinkPreview(ctx context.Context, req *connect.Request[apiv1.FetchLinkPreviewRequest]) (*connect.Response[apiv1.FetchLinkPreviewResponse], error) {
-	if _, err := requireCaller(ctx); err != nil {
+	caller, err := requireCaller(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	preview, err := s.api.core.GetLinkPreview(ctx, req.Msg.Url)
+	preview, err := s.api.core.GetLinkPreview(ctx, caller.UserID, req.Msg.Url)
 	if err != nil {
 		return nil, connectError(err)
 	}
