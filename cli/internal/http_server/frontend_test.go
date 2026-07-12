@@ -3,6 +3,7 @@ package http_server
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -406,6 +408,17 @@ func TestServeSPAFallback(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.Equal(t, "Failed to load application", w.Body.String())
 	})
+}
+
+func TestEmbeddedWebUIContainsReleaseAssets(t *testing.T) {
+	clientFS, err := fs.Sub(embeddedWebUIFS, ".client")
+	require.NoError(t, err)
+
+	for _, file := range []string{"200.html", "manifest.webmanifest"} {
+		content, readErr := fs.ReadFile(clientFS, file)
+		require.NoErrorf(t, readErr, "release frontend asset %q must be embedded", file)
+		require.NotEmptyf(t, content, "release frontend asset %q must not be empty", file)
+	}
 }
 
 func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
