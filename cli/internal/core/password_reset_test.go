@@ -272,6 +272,31 @@ func TestChattoCore_ResetPassword(t *testing.T) {
 	})
 }
 
+func TestChattoCore_ResetPasswordWithPassword(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	user, err := core.CreateUser(ctx, SystemActorID, "reset-plaintext", "Reset Plaintext", "oldpassword")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := core.AddVerifiedEmailDirect(ctx, user.Id, "reset-plaintext@example.com"); err != nil {
+		t.Fatalf("AddVerifiedEmailDirect: %v", err)
+	}
+	token, err := core.CreatePasswordResetToken(ctx, "reset-plaintext@example.com")
+	if err != nil {
+		t.Fatalf("CreatePasswordResetToken: %v", err)
+	}
+	if err := core.ResetPasswordWithPassword(ctx, token, "newpassword123"); err != nil {
+		t.Fatalf("ResetPasswordWithPassword: %v", err)
+	}
+	if _, err := core.VerifyPassword(ctx, user.Login, "newpassword123"); err != nil {
+		t.Fatalf("VerifyPassword after reset: %v", err)
+	}
+	if err := core.ResetPasswordWithPassword(ctx, "invalid-token", "anotherpassword123"); !errors.Is(err, ErrPasswordResetTokenNotFound) {
+		t.Fatalf("invalid token error = %v, want ErrPasswordResetTokenNotFound", err)
+	}
+}
+
 func TestChattoCore_PasswordResetTokenExpiration(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

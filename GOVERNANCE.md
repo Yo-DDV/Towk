@@ -1,29 +1,29 @@
 # Towk governance
 
 Towk is an independent, community-visible project maintained in the open. The
-project optimizes for self-hosters, safe evolution, clear ownership, and an
+project optimizes for self-hosters, safe evolution, clear ownership and an
 auditable relationship with its upstream foundation.
 
 ## Roles
 
-- **Contributors** report issues, participate in design, and submit changes.
+- **Reporters** submit bugs, proposals and questions through GitHub Issues.
 - **Reviewers** provide evidence-based technical review but cannot merge solely
   on their own review when a separate maintainer review is required.
 - **Maintainers** triage work, protect compatibility and security boundaries,
-  manage releases, and merge accepted changes.
+  implement or assign accepted work, manage releases and merge changes.
 - **Project owner** appoints maintainers, resolves governance deadlocks, and is
   accountable for repository administration and trademark decisions.
 
-Roles are earned through sustained, constructive contributions. Access follows
+Roles are earned through sustained, constructive participation. Access follows
 least privilege and may be removed when inactive or when project security
 requires it.
 
 ## Decision process
 
-Routine fixes are decided through pull request review. User-visible behavior is
-recorded in an FDR; cross-cutting architecture, compatibility, storage,
-security, or deployment choices are recorded in an ADR. Significant proposals
-should start as an issue so affected users can comment before implementation.
+Public proposals start as issues. Maintainers decide routine fixes through issue
+triage and protected pull-request review. User-visible behavior is recorded in
+an FDR; cross-cutting architecture, compatibility, storage, security or
+deployment choices are recorded in an ADR.
 
 The project seeks rough consensus, but consensus does not mean unanimity. The
 responsible maintainer records the decision and rationale. The project owner is
@@ -35,6 +35,9 @@ legal, safety, or trademark risk is involved.
 - `main` is protected and accepts changes through pull requests.
 - Required checks, resolved review conversations, and a current branch are
   mandatory before merge.
+- Public participation is issue-only. Unsolicited external pull requests are
+  closed automatically; maintainer and approved automation pull requests remain
+  subject to every branch rule and required check.
 - Releases are created only from reviewed commits by Towk-owned workflows.
 - Force pushes and branch deletion are disabled on protected release branches.
 - Security-sensitive access and automation permissions are reviewed regularly.
@@ -56,16 +59,17 @@ image workflow; a binary release does not implicitly promote an unscanned image.
 
 ## Upstream relationship
 
-Towk selects changes from Chatto through the process in [UPSTREAM.md](UPSTREAM.md).
-Upstream authorship and license notices are preserved. Towk makes its own product,
-release, support, and compatibility decisions and does not imply upstream
-endorsement. The canonical Towk repository is standalone; its archived historical
-fork is retained only as an audit record. See [PROVENANCE.md](PROVENANCE.md) and
+Towk selects changes from its upstream foundation through the process in
+[UPSTREAM.md](UPSTREAM.md). Upstream authorship and license notices are
+preserved. Towk makes its own product, release, support and compatibility
+decisions and does not imply upstream endorsement. The canonical repository is
+standalone; its archived historical fork is retained only as an audit record.
+See [PROVENANCE.md](PROVENANCE.md) and
 [ADR-050](docs/adr/ADR-050-standalone-repository-with-selective-upstream-integration.md).
 
 ## Changes to governance
 
-Governance changes use a public pull request with a rationale and an explicit
-review period appropriate to their impact. Changes to licensing, ownership,
-trademark policy, or maintainer authority require approval from the project
-owner.
+Governance proposals use a public issue with a rationale and an explicit review
+period appropriate to their impact. The resulting maintainer pull request links
+that issue. Changes to licensing, ownership, trademark policy or maintainer
+authority require approval from the project owner.

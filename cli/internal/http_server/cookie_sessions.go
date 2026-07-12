@@ -47,7 +47,7 @@ func (s *HTTPServer) createConnectBrowserSession(c *gin.Context, userID, source 
 		Revoke: func(ctx context.Context) error {
 			_ = s.core.RevokeCookieSession(ctx, userID, cookieCredential.sessionID)
 			clearCookieSessionAuth(session)
-			clearCSRFCookie(c)
+			s.clearCSRFCookie(c)
 			return nil
 		},
 	}

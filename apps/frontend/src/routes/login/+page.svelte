@@ -172,6 +172,12 @@
 {#if isStandalone}
   <AuthLayout>
     <div class="flex flex-col items-center gap-6 text-center">
+      <img
+        src="/icons/symbol-256.png"
+        alt=""
+        aria-hidden="true"
+        class="h-20 w-20 object-contain"
+      />
       <h1 class="text-2xl font-bold">{m['auth.login.welcome_title']()}</h1>
       <p class="text-muted">
         {m['auth.login.welcome_description']()}

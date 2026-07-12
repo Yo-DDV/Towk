@@ -523,6 +523,6 @@ export async function connectRemoteInstance(
   // tree on success — `/chat/<hostname>/...` (post-PR(a) there is no
   // `/chat/spaces` landing). The hostname is whatever segment was passed
   // in (typically "127.0.0.1").
-  const hostnameOnly = hostname.split(':')[0]!.replace(/\./g, '\\.');
+  const hostnameOnly = hostname.split(':')[0]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   await page.waitForURL(new RegExp(`/chat/${hostnameOnly}(/|$)`));
 }
