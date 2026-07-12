@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 	"hmans.de/chatto/internal/authctx"
 	"hmans.de/chatto/internal/core"
 	"hmans.de/chatto/internal/email"
@@ -176,6 +176,17 @@ func (s *HTTPServer) setupAuthRoutes() {
 
 		// Verify credentials by login name
 		ctx := c.Request.Context()
+		retryAfter, err := s.core.ReserveAuthAttempt(ctx, core.AuthRateLimitLogin, login)
+		if err != nil {
+			if errors.Is(err, core.ErrAuthRateLimitExceeded) {
+				setAuthRetryAfter(c, retryAfter)
+				c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many login attempts. Try again later."})
+				return
+			}
+			log.Error("Failed to reserve login rate limit", "error", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication is temporarily unavailable"})
+			return
+		}
 		user, authGeneration, err := s.core.VerifyPasswordWithAuthGeneration(ctx, login, loginRequest.Password)
 		if err != nil {
 			if auditErr := s.core.RecordLoginFailed(ctx, login); auditErr != nil {
@@ -261,6 +272,9 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		log.Info("User logged in successfully", "userId", user.Id)
+		if err := s.core.ClearAuthIdentifierLimit(ctx, core.AuthRateLimitLogin, login); err != nil {
+			log.Warn("Failed to clear successful login rate limit", "error", err)
+		}
 
 		response := gin.H{
 			"success": true,
@@ -655,6 +669,18 @@ func (s *HTTPServer) setupAuthRoutes() {
 
 		ctx := c.Request.Context()
 		normalizedEmail := strings.ToLower(strings.TrimSpace(req.Email))
+		retryAfter, reserveErr := s.core.ReserveAuthAttempt(ctx, core.AuthRateLimitForgotPassword, normalizedEmail)
+		if reserveErr != nil {
+			if errors.Is(reserveErr, core.ErrAuthRateLimitExceeded) {
+				setAuthRetryAfter(c, retryAfter)
+			} else {
+				log.Error("Failed to reserve forgot-password rate limit", "error", reserveErr)
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"message": "If that email is registered, you will receive a password reset link.",
+			})
+			return
+		}
 
 		// Create token (returns empty string if email not found - no error)
 		token, err := s.core.CreatePasswordResetToken(ctx, normalizedEmail)
@@ -705,17 +731,21 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		ctx := c.Request.Context()
-
-		// Hash the new password
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		retryAfter, err := s.core.ReserveAuthAttempt(ctx, core.AuthRateLimitResetPassword, req.Token)
 		if err != nil {
-			log.Error("Failed to hash password", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process password"})
+			if errors.Is(err, core.ErrAuthRateLimitExceeded) {
+				setAuthRetryAfter(c, retryAfter)
+				c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many reset attempts. Try again later."})
+				return
+			}
+			log.Error("Failed to reserve reset-password rate limit", "error", err)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Password reset is temporarily unavailable"})
 			return
 		}
 
-		// Reset password (validates token, updates password, deletes token)
-		err = s.core.ResetPassword(ctx, req.Token, string(hashedPassword))
+		// Validate the token before paying the bcrypt cost, then atomically consume
+		// it inside the existing reset transaction.
+		err = s.core.ResetPasswordWithPassword(ctx, req.Token, req.Password)
 		if err != nil {
 			if errors.Is(err, core.ErrPasswordResetTokenNotFound) || errors.Is(err, core.ErrPasswordResetTokenExpired) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset link"})
@@ -732,6 +762,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 
 	// Register test endpoints if built with -tags test_endpoints
 	registerTestEndpoints(auth, s)
+}
+
+func setAuthRetryAfter(c *gin.Context, retryAfter time.Duration) {
+	seconds := max(int64((retryAfter+time.Second-1)/time.Second), 1)
+	c.Header("Retry-After", strconv.FormatInt(seconds, 10))
 }
 
 // isValidLogin validates that a login name meets the requirements:

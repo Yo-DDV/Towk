@@ -73,6 +73,7 @@ type WebserverConfig struct {
 	Port                   int       `toml:"port" env:"CHATTO_WEBSERVER_PORT" comment:"Port for the webserver to listen on."`
 	AllowedOrigins         []string  `toml:"allowed_origins" env:"CHATTO_WEBSERVER_ALLOWED_ORIGINS" comment:"Origins allowed for cross-server browser API access. Use [\"*\"] to allow bearer-token clients without cookies; use exact origins to allow credentialed CORS/WebSocket access. Exact non-wildcard entries are also trusted for OAuth redirect callbacks."`
 	OAuthRedirectOrigins   []string  `toml:"oauth_redirect_origins" env:"CHATTO_WEBSERVER_OAUTH_REDIRECT_ORIGINS" comment:"Additional origins trusted only for OAuth redirect callbacks. Leave empty unless another web origin must complete OAuth. Use exact HTTPS origins in production; loopback development origins may use HTTP."`
+	TrustedProxies         []string  `toml:"trusted_proxies" env:"CHATTO_WEBSERVER_TRUSTED_PROXIES" comment:"Proxy IP addresses or CIDRs allowed to supply X-Forwarded-For/X-Real-IP. Empty by default, so forwarded client-IP headers are ignored. Configure only proxies you operate."`
 	WebSocketCompression   *bool     `toml:"websocket_compression" env:"CHATTO_WEBSERVER_WEBSOCKET_COMPRESSION" comment:"Enable WebSocket compression for eligible realtime frames. Default: true."`
 	RequestLogging         *bool     `toml:"request_logging" env:"CHATTO_WEBSERVER_REQUEST_LOGGING" comment:"Log HTTP requests. Successful requests are debug-level; 4xx responses are warnings; 5xx responses are errors. Useful for debugging but can be noisy in production. Default: false."`
 	CookieSigningSecret    string    `toml:"cookie_signing_secret" env:"CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET" comment:"Secret for signing session cookies. NEVER SHARE THIS!\nIf it leaks, change it immediately, but please note that all existing sessions will become invalid."`
@@ -423,13 +424,14 @@ type AssetsConfig struct {
 
 // CoreConfig contains settings for the Towk core service.
 type CoreConfig struct {
-	SecretKey    string         `toml:"secret_key" env:"CHATTO_CORE_SECRET_KEY" comment:"Server-wide secret for deriving HMAC verifiers for bearer tokens and account-flow credentials. NEVER SHARE THIS!\nIf it changes, existing bearer tokens and pending registration, verification, password reset, account deletion, and OAuth authorization-code credentials become invalid."`
-	Assets       AssetsConfig   `toml:"assets"`
-	AuthTokenTTL time.Duration  `toml:"-" env:"-"` // Set by caller from AuthConfig.TokenTTLOrDefault()
-	EmailOTP     EmailOTPConfig `toml:"-" env:"-"` // Set by caller from AuthConfig.EmailOTP
-	Replicas     int            `toml:"-" env:"-"` // Set by caller from NATSConfig.ReplicasOrDefault()
-	Limits       LimitsConfig   `toml:"-" env:"-"` // Set by caller from ChattoConfig.Limits
-	Owners       OwnersConfig   `toml:"-" env:"-"` // Set by caller from ChattoConfig.Owners — used by core to auto-promote on email verification
+	SecretKey     string              `toml:"secret_key" env:"CHATTO_CORE_SECRET_KEY" comment:"Server-wide secret for deriving HMAC verifiers for bearer tokens and account-flow credentials. NEVER SHARE THIS!\nIf it changes, existing bearer tokens and pending registration, verification, password reset, account deletion, and OAuth authorization-code credentials become invalid."`
+	Assets        AssetsConfig        `toml:"assets"`
+	AuthTokenTTL  time.Duration       `toml:"-" env:"-"` // Set by caller from AuthConfig.TokenTTLOrDefault()
+	EmailOTP      EmailOTPConfig      `toml:"-" env:"-"` // Set by caller from AuthConfig.EmailOTP
+	AuthRateLimit AuthRateLimitConfig `toml:"-" env:"-"` // Set by caller from AuthConfig.RateLimit
+	Replicas      int                 `toml:"-" env:"-"` // Set by caller from NATSConfig.ReplicasOrDefault()
+	Limits        LimitsConfig        `toml:"-" env:"-"` // Set by caller from ChattoConfig.Limits
+	Owners        OwnersConfig        `toml:"-" env:"-"` // Set by caller from ChattoConfig.Owners — used by core to auto-promote on email verification
 }
 
 const (
@@ -498,7 +500,78 @@ type AuthConfig struct {
 	DirectRegistration *bool                `toml:"direct_registration" env:"CHATTO_AUTH_DIRECT_REGISTRATION" comment:"Enable direct (email/password) registration. When false, users can only sign in via SSO providers. Default: true."`
 	TokenTTL           Duration             `toml:"token_ttl,commented" env:"CHATTO_AUTH_TOKEN_TTL" comment:"TTL for bearer auth tokens. Supports human-readable durations like '90d', '2160h'. Default: 90d."`
 	EmailOTP           EmailOTPConfig       `toml:"email_otp,commented" comment:"Email OTP guardrails for registration and email verification."`
+	RateLimit          AuthRateLimitConfig  `toml:"rate_limit,commented" comment:"Distributed abuse limits for password login and password-reset endpoints."`
 	Providers          []AuthProviderConfig `toml:"providers" comment:"External login providers. Configure as repeated [[auth.providers]] tables."`
+}
+
+// AuthRateLimitConfig controls distributed authentication abuse limits. Each
+// limit applies independently per endpoint/window to the source IP fingerprint
+// and normalized identifier fingerprint.
+type AuthRateLimitConfig struct {
+	Enabled             *bool    `toml:"enabled,commented" env:"CHATTO_AUTH_RATE_LIMIT_ENABLED" comment:"Enable distributed login/password-reset abuse limits. Default: true."`
+	Window              Duration `toml:"window,commented" env:"CHATTO_AUTH_RATE_LIMIT_WINDOW" comment:"Fixed rate-limit window. Default: 15m."`
+	LoginPerIP          int      `toml:"login_per_ip,commented" env:"CHATTO_AUTH_RATE_LIMIT_LOGIN_PER_IP" comment:"Password-login attempts per source IP and window. Default: 100."`
+	LoginPerIdentifier  int      `toml:"login_per_identifier,commented" env:"CHATTO_AUTH_RATE_LIMIT_LOGIN_PER_IDENTIFIER" comment:"Password-login attempts per normalized identifier and window. Default: 10."`
+	ForgotPerIP         int      `toml:"forgot_per_ip,commented" env:"CHATTO_AUTH_RATE_LIMIT_FORGOT_PER_IP" comment:"Forgot-password requests per source IP and window. Default: 30."`
+	ForgotPerIdentifier int      `toml:"forgot_per_identifier,commented" env:"CHATTO_AUTH_RATE_LIMIT_FORGOT_PER_IDENTIFIER" comment:"Forgot-password requests per normalized email and window. Default: 3."`
+	ResetPerIP          int      `toml:"reset_per_ip,commented" env:"CHATTO_AUTH_RATE_LIMIT_RESET_PER_IP" comment:"Password-reset submissions per source IP and window. Default: 30."`
+	ResetPerToken       int      `toml:"reset_per_token,commented" env:"CHATTO_AUTH_RATE_LIMIT_RESET_PER_TOKEN" comment:"Password-reset submissions per opaque token and window. Default: 5."`
+}
+
+func (c *AuthRateLimitConfig) EnabledOrDefault() bool {
+	if c.Enabled == nil {
+		return true
+	}
+	return *c.Enabled
+}
+
+func (c *AuthRateLimitConfig) WindowOrDefault() time.Duration {
+	if c.Window == 0 {
+		return 15 * time.Minute
+	}
+	return c.Window.Duration()
+}
+
+func (c *AuthRateLimitConfig) LoginPerIPOrDefault() int {
+	if c.LoginPerIP == 0 {
+		return 100
+	}
+	return c.LoginPerIP
+}
+
+func (c *AuthRateLimitConfig) LoginPerIdentifierOrDefault() int {
+	if c.LoginPerIdentifier == 0 {
+		return 10
+	}
+	return c.LoginPerIdentifier
+}
+
+func (c *AuthRateLimitConfig) ForgotPerIPOrDefault() int {
+	if c.ForgotPerIP == 0 {
+		return 30
+	}
+	return c.ForgotPerIP
+}
+
+func (c *AuthRateLimitConfig) ForgotPerIdentifierOrDefault() int {
+	if c.ForgotPerIdentifier == 0 {
+		return 3
+	}
+	return c.ForgotPerIdentifier
+}
+
+func (c *AuthRateLimitConfig) ResetPerIPOrDefault() int {
+	if c.ResetPerIP == 0 {
+		return 30
+	}
+	return c.ResetPerIP
+}
+
+func (c *AuthRateLimitConfig) ResetPerTokenOrDefault() int {
+	if c.ResetPerToken == 0 {
+		return 5
+	}
+	return c.ResetPerToken
 }
 
 // EmailOTPConfig controls registration and email-verification one-time-password guardrails.
@@ -929,6 +1002,18 @@ func embeddedNATSClientURL(cfg EmbeddedNATSConfig) string {
 // Validate checks the configuration for errors and returns a descriptive error if any are found.
 func (c *ChattoConfig) Validate() error {
 	var errs []string
+	for i, trustedProxy := range c.Webserver.TrustedProxies {
+		trustedProxy = strings.TrimSpace(trustedProxy)
+		if trustedProxy == "" {
+			errs = append(errs, fmt.Sprintf("webserver.trusted_proxies[%d] must not be empty", i))
+			continue
+		}
+		if net.ParseIP(trustedProxy) == nil {
+			if _, _, err := net.ParseCIDR(trustedProxy); err != nil {
+				errs = append(errs, fmt.Sprintf("webserver.trusted_proxies[%d] must be an IP address or CIDR", i))
+			}
+		}
+	}
 
 	// Required fields
 	if err := validateHexSecret("webserver.cookie_signing_secret", c.Webserver.CookieSigningSecret, true); err != nil {
@@ -1085,6 +1170,25 @@ func (c *ChattoConfig) Validate() error {
 	}
 	if c.Auth.EmailOTP.MaxWrongAttempts < 0 {
 		errs = append(errs, "auth.email_otp.max_wrong_attempts must be positive when set")
+	}
+	if c.Auth.RateLimit.Window.Duration() < 0 {
+		errs = append(errs, "auth.rate_limit.window must be positive when set")
+	}
+	rateLimits := []struct {
+		name  string
+		value int
+	}{
+		{"login_per_ip", c.Auth.RateLimit.LoginPerIP},
+		{"login_per_identifier", c.Auth.RateLimit.LoginPerIdentifier},
+		{"forgot_per_ip", c.Auth.RateLimit.ForgotPerIP},
+		{"forgot_per_identifier", c.Auth.RateLimit.ForgotPerIdentifier},
+		{"reset_per_ip", c.Auth.RateLimit.ResetPerIP},
+		{"reset_per_token", c.Auth.RateLimit.ResetPerToken},
+	}
+	for _, limit := range rateLimits {
+		if limit.value < 0 {
+			errs = append(errs, "auth.rate_limit."+limit.name+" must be positive when set")
+		}
 	}
 
 	// TLS configuration

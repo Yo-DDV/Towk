@@ -119,6 +119,8 @@ TLS is **not required**. Towk can also run plain HTTP, which is useful for local
 
 `webserver.url` is also the trusted public origin for generated absolute API and asset URLs. Towk does not implicitly trust `X-Forwarded-Proto` or similar proxy headers for public URL generation; reverse-proxy deployments should set `webserver.url` to the external HTTPS origin.
 
+Towk also ignores forwarded client-IP headers by default. If a reverse proxy connects directly to Towk, list only that proxy's IP address or network in `webserver.trusted_proxies`. Towk then accepts `X-Forwarded-For` / `X-Real-IP` only through that trusted hop for audit fingerprints and authentication rate limits. Never use a broad CIDR unless every address in it is an operated proxy that overwrites incoming forwarding headers.
+
 ## Backup security
 
 Backups encrypt with [age](https://age-encryption.org) when you pass `--encrypt`. Passing `--include-keys` also includes Towk's built-in key-encryption-key bucket and makes the archive capable of restoring protected message text and user PII:
@@ -170,7 +172,9 @@ ConnectRPC requests have explicit read limits:
 | Upload request body           | Config-derived | Allows configured attachment uploads plus protobuf overhead |
 | Room event pagination limit   | 500 per field  | Bounds historical room event windows and jump-to-message reads |
 
-There is **no per-IP or per-user rate limiting** at the application layer. If you expose Towk on the public internet, a request-rate limiter (e.g. Caddy `rate_limit`, Cloudflare, or an upstream WAF) is recommended.
+Password login, forgot-password, and reset-password endpoints have application-level fixed-window limits shared across all Towk replicas. The defaults are 15-minute windows with separate budgets per source IP and normalized login/email/reset token. Login and reset respond with `429` plus `Retry-After`; forgot-password preserves its generic `200` response and stops sending reset email after the budget is exhausted. Configure these limits under `auth.rate_limit` or with `CHATTO_AUTH_RATE_LIMIT_*` variables.
+
+These controls protect authentication work, not the entire HTTP surface or volumetric denial-of-service. If you expose Towk on the public internet, keep an upstream request-rate limiter such as Caddy `rate_limit`, Cloudflare, or a WAF.
 
 ### CORS and WebSockets
 
