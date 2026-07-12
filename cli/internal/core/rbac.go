@@ -212,6 +212,9 @@ func (c *ChattoCore) AssignServerRole(ctx context.Context, actorID, userID, role
 	}})
 
 	if _, err := c.appendRBACEvent(ctx, event, func() error {
+		if err := c.requireOwnerRoleMutationActor(ctx, actorID, roleName); err != nil {
+			return err
+		}
 		if _, ok := c.RBAC.GetRole(roleName); !ok {
 			return ErrRoleNotFound
 		}
@@ -244,6 +247,9 @@ func (c *ChattoCore) AssignServerRoleToExistingUser(ctx context.Context, actorID
 	}})
 
 	if _, err := c.appendRBACEventWithUserCheck(ctx, userID, event, func() error {
+		if err := c.requireOwnerRoleMutationActor(ctx, actorID, roleName); err != nil {
+			return err
+		}
 		if _, ok := c.RBAC.GetRole(roleName); !ok {
 			return ErrRoleNotFound
 		}
@@ -264,8 +270,10 @@ func (c *ChattoCore) AssignServerRoleToExistingUser(ctx context.Context, actorID
 
 // RevokeServerRole removes an role from a user.
 // The role must exist (system or custom). The everyone role cannot be revoked (it's implicit).
-// Authorization is enforced by the API boundary (`role.assign`). The only
-// service-level guard is self-owner lockout prevention.
+// Authorization is normally enforced by the API boundary (`role.assign`).
+// Owner-role mutations additionally require an effective owner or the trusted
+// system actor inside the OCC loop so concurrent owner changes cannot bypass
+// the authority boundary.
 func (c *ChattoCore) RevokeServerRole(ctx context.Context, actorID, userID, roleName string) error {
 	if roleName == RoleEveryone {
 		return ErrImplicitRole
@@ -276,6 +284,9 @@ func (c *ChattoCore) RevokeServerRole(ctx context.Context, actorID, userID, role
 	}})
 
 	if _, err := c.appendRBACEvent(ctx, event, func() error {
+		if err := c.requireOwnerRoleMutationActor(ctx, actorID, roleName); err != nil {
+			return err
+		}
 		if roleName == RoleOwner && actorID == userID {
 			return ErrCannotRevokeSelfAdmin
 		}
@@ -305,6 +316,9 @@ func (c *ChattoCore) RevokeServerRoleFromExistingUser(ctx context.Context, actor
 	}})
 
 	if _, err := c.appendRBACEventWithUserCheck(ctx, userID, event, func() error {
+		if err := c.requireOwnerRoleMutationActor(ctx, actorID, roleName); err != nil {
+			return err
+		}
 		if roleName == RoleOwner && actorID == userID {
 			return ErrCannotRevokeSelfAdmin
 		}
@@ -317,6 +331,24 @@ func (c *ChattoCore) RevokeServerRoleFromExistingUser(ctx context.Context, actor
 	}
 
 	c.logger.Info("Revoked role", "role", roleName, "user_id", userID, "actor_id", actorID)
+	return nil
+}
+
+// requireOwnerRoleMutationActor protects the owner authority boundary at the
+// durable mutation layer. Callers invoke it from the RBAC OCC callback after
+// the projection has caught up, so an actor concurrently stripped of owner
+// authority cannot still commit a stale owner mutation on retry.
+func (c *ChattoCore) requireOwnerRoleMutationActor(ctx context.Context, actorID, roleName string) error {
+	if roleName != RoleOwner || actorID == SystemActorID {
+		return nil
+	}
+	isOwner, err := c.IsServerOwner(ctx, actorID)
+	if err != nil {
+		return fmt.Errorf("check owner role mutation actor: %w", err)
+	}
+	if !isOwner {
+		return ErrPermissionDenied
+	}
 	return nil
 }
 

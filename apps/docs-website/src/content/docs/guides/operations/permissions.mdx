@@ -69,7 +69,7 @@ Room-relevant permissions such as `message.post`, `message.attach`, `message.rea
 | `room.manage` | Configure, rename, archive, or delete rooms. |
 | `room.ban-member` | Ban members from channel rooms. |
 | `role.manage` | Create, edit, delete, reorder roles, and edit role permissions. |
-| `role.assign` | Assign or revoke roles for users. |
+| `role.assign` | Assign or revoke roles for users except `owner`; owner mutations require an effective owner with a fresh credential. |
 | `user.manage-accounts` | Create users, edit account identity, reset passwords, attach verified emails, and clear login cooldowns. |
 | `user.manage-permissions` | Edit direct per-user permission overrides. |
 | `user.delete-any` | Delete any user's account. |

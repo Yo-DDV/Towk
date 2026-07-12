@@ -42,6 +42,7 @@
 
   const serverPerms = getServerPermissions();
   const canAdminManageAccounts = $derived(serverPerms.current.canAdminManageAccounts);
+  const canMutateOwnerRole = $derived(serverPerms.current.canAdminViewSystem);
 
   let member = $state<AdminMember | null>(null);
   let allRoles = $state<AdminRoleDetails[]>([]);
@@ -281,7 +282,7 @@
   }
 
   async function toggleRole(roleName: string, currentlyHas: boolean) {
-    if (!member) return;
+    if (!member || (roleName === 'owner' && !canMutateOwnerRole)) return;
 
     updating = roleName;
     error = null;
@@ -568,12 +569,20 @@
             {@const isUpdating = updating === role.name}
             {@const isSelfProtectedRole =
               isSelf && (role.name === 'admin' || role.name === 'owner') && has}
-            {@const isDisabled = !canAssignRoles || isImplicit || isUpdating || isSelfProtectedRole}
+            {@const ownerRoleRequiresOwner = role.name === 'owner' && !canMutateOwnerRole}
+            {@const isDisabled =
+              !canAssignRoles ||
+              isImplicit ||
+              isUpdating ||
+              isSelfProtectedRole ||
+              ownerRoleRequiresOwner}
             {@const tooltip = isImplicit
               ? m['admin.members.implicit_role_tooltip']()
               : isSelfProtectedRole
                 ? m['admin.members.cannot_revoke_own_role']({ role: role.displayName })
-                : ''}
+                : ownerRoleRequiresOwner
+                  ? m['admin.members.owner_role_requires_owner']()
+                  : ''}
 
             <div
               class={[

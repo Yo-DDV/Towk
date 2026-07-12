@@ -10,7 +10,7 @@ See [`.agents/skills/fdr/SKILL.md`](../../.agents/skills/fdr/SKILL.md) for the F
 
 | # | Feature | Status | Last reviewed |
 |---|---------|--------|---------------|
-| [FDR-001](FDR-001-roles-and-permissions.md) | Roles & Permissions (RBAC) | Active | 2026-06-16 |
+| [FDR-001](FDR-001-roles-and-permissions.md) | Roles & Permissions (RBAC) | Active | 2026-07-12 |
 | [FDR-002](FDR-002-replies-and-threads.md) | Replies & Threads | Active | 2026-05-19 |
 | [FDR-003](FDR-003-thread-reply-echo.md) | Thread Reply Echo | Active | 2026-06-01 |
 | [FDR-004](FDR-004-message-editing-and-deletion.md) | Message Editing & Deletion | Active | 2026-07-10 |
@@ -30,7 +30,7 @@ See [`.agents/skills/fdr/SKILL.md`](../../.agents/skills/fdr/SKILL.md) for the F
 | [FDR-018](FDR-018-account-lifecycle.md) | Account Lifecycle | Active | 2026-07-10 |
 | [FDR-019](FDR-019-room-lifecycle.md) | Room Lifecycle | Active | 2026-07-04 |
 | [FDR-020](FDR-020-server-branding-and-configuration.md) | Server Branding & Configuration | Active | 2026-06-06 |
-| [FDR-021](FDR-021-admin-dashboard.md) | Admin Dashboard & System Monitoring | Active | 2026-06-15 |
+| [FDR-021](FDR-021-admin-dashboard.md) | Admin Dashboard & System Monitoring | Active | 2026-07-12 |
 | [FDR-022](FDR-022-user-profile.md) | User Profile | Active | 2026-06-23 |
 | [FDR-023](FDR-023-authentication-and-sessions.md) | Authentication & Sessions | Active | 2026-06-19 |
 | [FDR-024](FDR-024-permission-inspection-tool.md) | Permission Inspection Tool | Active | 2026-06-15 |

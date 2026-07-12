@@ -1,7 +1,7 @@
 # FDR-001: Roles & Permissions (RBAC)
 
 **Status:** Active
-**Last reviewed:** 2026-06-17
+**Last reviewed:** 2026-07-12
 
 ## Overview
 
@@ -17,6 +17,8 @@ Towk controls who can do what through role-based access control. Every authentic
 - Server admins can drag-and-drop to reorder custom roles. System role positions are fixed for ordering consistency.
 - Custom role display names are limited to 80 bytes; descriptions are limited to 500 bytes.
 - Owners are always granted all permissions. An effective owner is either assigned the durable `owner` role or has a verified email listed in `owners.emails` in `chatto.toml`.
+- Assigning or revoking the `owner` role is an owner-only, fresh-authenticated action. A grant of `role.assign` can manage every other assignable role but cannot create or remove owners.
+- Owner mutations are serialized against the full RBAC aggregate. Concurrent attempts by owners to remove each other cannot leave the server without an effective owner through the public admin API.
 - Owner permissions are virtual rather than persisted defaults: fresh servers do not seed editable owner permission rows, and the admin UI shows owner permissions as read-only green checks.
 - RBAC editor and inspection APIs are exposed through ConnectRPC admin services. Admin entry is authenticated, and individual operations keep narrower gates such as `role.manage`, `role.assign`, `user.manage-accounts`, `user.manage-permissions`, or `room.manage`.
 - Roles have a `pingable` setting that controls whether `@role` pings notify assigned room members. Fresh servers seed `moderator` as pingable and leave `owner`, `admin`, and `everyone` unpingable.
@@ -54,11 +56,11 @@ Towk controls who can do what through role-based access control. Every authentic
 **Why:** The config is the emergency recovery path. Even if the durable `owner` role is removed, a verified configured owner remains able to recover access.
 **Tradeoff:** Removing an email from `owners.emails` now matters at the next permission check; durable owner role assignments may still need separate cleanup.
 
-### 6. Target-user mutations are permission-gated
+### 6. Target-user mutations are permission-gated, with an owner boundary
 
-**Decision:** Mutations that target another user require concrete permissions, not actor-vs-target rank checks. Role assignment uses `role.assign`; account lifecycle and recovery operations use `user.manage-accounts`; direct user permission overrides use `user.manage-permissions`; room bans use `room.ban-member`.
-**Why:** The single-server model no longer needs rank hierarchy to protect separate spaces. Concrete permissions are easier to audit and explain.
-**Tradeoff:** Permissions must be granted thoughtfully: a user with `role.assign` can assign roles to any target, and a user with `room.ban-member` can ban any non-owner-protected room member.
+**Decision:** Mutations that target another user require concrete permissions, not actor-vs-target rank checks. Role assignment uses `role.assign`; account lifecycle and recovery operations use `user.manage-accounts`; direct user permission overrides use `user.manage-permissions`; room bans use `room.ban-member`. The `owner` role is the exception: only an effective owner with a fresh credential, or a trusted system maintenance path, may assign or revoke it. The owner check is repeated inside the RBAC optimistic-concurrency loop.
+**Why:** The single-server model does not need a general role hierarchy, but ownership controls every permission and therefore cannot be delegated through an ordinary grantable permission. Rechecking after RBAC catch-up prevents two concurrent owners from both committing stale revocations.
+**Tradeoff:** Delegated role managers cannot promote an owner. Recovery instead uses an existing effective owner, the configured `owners.emails` path, or trusted operator maintenance.
 
 ### 7. RBAC state is event-sourced
 

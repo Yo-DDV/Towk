@@ -36,6 +36,12 @@ Use a permission-only RBAC model for everyone except effective owners.
   `role.assign` gates role assignment, `user.manage-accounts` gates account
   lifecycle and recovery actions, `room.ban-member` gates room bans, and
   `user.manage-permissions` gates direct per-user permission overrides.
+- Mutating the `owner` role is the deliberate exception to permission-only
+  delegation. Assignment and revocation require an effective owner plus a
+  fresh credential at the public API boundary, or the trusted system actor for
+  bootstrap and recovery. The effective-owner check runs inside the RBAC OCC
+  loop after projection catch-up, so concurrent owner changes cannot commit
+  using stale authority.
 - Default channel-room member permissions are granted at server scope on
   `everyone`, so normal rooms work immediately. Room and group decisions are
   local exceptions; the built-in announcements room adds a room-level
@@ -49,6 +55,10 @@ This supersedes ADR-005.
   everyone else is permission-based.
 - Custom roles and per-user overrides cover ordinary moderation and
   administration cases without role-rank comparisons.
+- A delegated role manager cannot promote themselves or another account to
+  owner, nor remove an owner. Ordinary public API races between owners preserve
+  an effective owner; configured `owners.emails` and trusted system maintenance
+  remain the recovery paths.
 - `#announcements` works by a local room-level `everyone` deny for
   `message.post`. Because deny-wins is literal, that deny blocks every
   non-owner in the room.

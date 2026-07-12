@@ -72,9 +72,11 @@ type AdminUserServiceClient interface {
 	GetMember(context.Context, *connect.Request[v1.GetMemberRequest]) (*connect.Response[v1.GetMemberResponse], error)
 	// Gets server member rows for multiple users. Requires admin.view-users.
 	BatchGetMembers(context.Context, *connect.Request[v1.BatchGetMembersRequest]) (*connect.Response[v1.BatchGetMembersResponse], error)
-	// Assigns a role to a user. Requires role.assign.
+	// Assigns a role to a user. Requires role.assign. Assigning owner also
+	// requires an effective owner with a fresh credential.
 	AssignRole(context.Context, *connect.Request[v1.AssignRoleRequest]) (*connect.Response[v1.AssignRoleResponse], error)
-	// Revokes a role from a user. Requires role.assign.
+	// Revokes a role from a user. Requires role.assign. Revoking owner also
+	// requires an effective owner with a fresh credential.
 	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.RevokeRoleResponse], error)
 	// Updates another user's login and/or display name as an admin action.
 	// Requires user.manage-accounts; the caller cannot target their own account.
@@ -228,9 +230,11 @@ type AdminUserServiceHandler interface {
 	GetMember(context.Context, *connect.Request[v1.GetMemberRequest]) (*connect.Response[v1.GetMemberResponse], error)
 	// Gets server member rows for multiple users. Requires admin.view-users.
 	BatchGetMembers(context.Context, *connect.Request[v1.BatchGetMembersRequest]) (*connect.Response[v1.BatchGetMembersResponse], error)
-	// Assigns a role to a user. Requires role.assign.
+	// Assigns a role to a user. Requires role.assign. Assigning owner also
+	// requires an effective owner with a fresh credential.
 	AssignRole(context.Context, *connect.Request[v1.AssignRoleRequest]) (*connect.Response[v1.AssignRoleResponse], error)
-	// Revokes a role from a user. Requires role.assign.
+	// Revokes a role from a user. Requires role.assign. Revoking owner also
+	// requires an effective owner with a fresh credential.
 	RevokeRole(context.Context, *connect.Request[v1.RevokeRoleRequest]) (*connect.Response[v1.RevokeRoleResponse], error)
 	// Updates another user's login and/or display name as an admin action.
 	// Requires user.manage-accounts; the caller cannot target their own account.

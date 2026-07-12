@@ -50,7 +50,8 @@ export const AdminUserService = {
       kind: MethodKind.Unary,
     },
     /**
-     * Assigns a role to a user. Requires role.assign.
+     * Assigns a role to a user. Requires role.assign. Assigning owner also
+     * requires an effective owner with a fresh credential.
      *
      * @generated from rpc chatto.admin.v1.AdminUserService.AssignRole
      */
@@ -61,7 +62,8 @@ export const AdminUserService = {
       kind: MethodKind.Unary,
     },
     /**
-     * Revokes a role from a user. Requires role.assign.
+     * Revokes a role from a user. Requires role.assign. Revoking owner also
+     * requires an effective owner with a fresh credential.
      *
      * @generated from rpc chatto.admin.v1.AdminUserService.RevokeRole
      */

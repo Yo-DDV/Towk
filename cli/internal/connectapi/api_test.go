@@ -2522,6 +2522,50 @@ func TestAdminUserServiceAssignsAndRevokesRoles(t *testing.T) {
 	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("self admin RevokeRole code = %v, want failed_precondition", connect.CodeOf(err))
 	}
+	if _, err := env.adminUsers.AssignRole(withCaller(env.ctx, admin), connect.NewRequest(&adminv1.AssignRoleRequest{
+		UserId:   target.Id,
+		RoleName: core.RoleOwner,
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("non-owner AssignRole code = %v, want permission_denied before fresh-auth", connect.CodeOf(err))
+	}
+
+	owner, err := env.core.CreateUser(env.ctx, core.SystemActorID, "admin-role-owner", "Admin Role Owner", "password")
+	if err != nil {
+		t.Fatalf("CreateUser owner: %v", err)
+	}
+	if err := env.core.AssignOwnerRole(env.ctx, owner.Id); err != nil {
+		t.Fatalf("AssignOwnerRole: %v", err)
+	}
+	staleOwnerCtx := withCaller(env.ctx, owner)
+	if _, err := env.adminUsers.AssignRole(staleOwnerCtx, connect.NewRequest(&adminv1.AssignRoleRequest{
+		UserId:   target.Id,
+		RoleName: core.RoleOwner,
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale owner AssignRole code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	ownerToken, err := env.core.CreateAuthTokenWithSource(env.ctx, owner.Id, "password_login")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource owner: %v", err)
+	}
+	freshOwnerCtx := withBearerCredential(env.ctx, owner, ownerToken)
+	if _, err := env.adminUsers.AssignRole(freshOwnerCtx, connect.NewRequest(&adminv1.AssignRoleRequest{
+		UserId:   target.Id,
+		RoleName: core.RoleOwner,
+	})); err != nil {
+		t.Fatalf("fresh owner AssignRole: %v", err)
+	}
+	if _, err := env.adminUsers.RevokeRole(staleOwnerCtx, connect.NewRequest(&adminv1.RevokeRoleRequest{
+		UserId:   target.Id,
+		RoleName: core.RoleOwner,
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale owner RevokeRole code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, err := env.adminUsers.RevokeRole(freshOwnerCtx, connect.NewRequest(&adminv1.RevokeRoleRequest{
+		UserId:   target.Id,
+		RoleName: core.RoleOwner,
+	})); err != nil {
+		t.Fatalf("fresh owner RevokeRole: %v", err)
+	}
 }
 
 func TestServerServiceGetMotdAndRuntimeConfig(t *testing.T) {

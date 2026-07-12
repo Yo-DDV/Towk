@@ -218,9 +218,11 @@ service AdminUserService {
   rpc GetMember(GetMemberRequest) returns (GetMemberResponse);
   // Gets server member rows for multiple users. Requires admin.view-users.
   rpc BatchGetMembers(BatchGetMembersRequest) returns (BatchGetMembersResponse);
-  // Assigns a role to a user. Requires role.assign.
+  // Assigns a role to a user. Requires role.assign. Assigning owner also
+  // requires an effective owner with a fresh credential.
   rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse);
-  // Revokes a role from a user. Requires role.assign.
+  // Revokes a role from a user. Requires role.assign. Revoking owner also
+  // requires an effective owner with a fresh credential.
   rpc RevokeRole(RevokeRoleRequest) returns (RevokeRoleResponse);
   // Updates another user's login and/or display name as an admin action.
   // Requires user.manage-accounts; the caller cannot target their own account.

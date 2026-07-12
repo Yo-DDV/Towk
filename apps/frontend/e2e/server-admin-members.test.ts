@@ -9,6 +9,7 @@ import {
 } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
 import * as routes from './routes';
+import { connectPost } from './fixtures/connectHelpers';
 
 interface TestServer {
   id: string;
@@ -30,13 +31,14 @@ async function createSecondTestUser(page: Page): Promise<TestUser> {
     displayName: `Second User ${timestamp}`,
     password: 'testpassword123'
   };
+	const { password } = testUser;
 
   const createUserResponse = await page.request.post('/auth/test/create-user', {
     headers: { 'Content-Type': 'application/json' },
     data: {
       login: testUser.login,
       displayName: testUser.displayName,
-      password: testUser.password
+      password
     }
   });
 
@@ -217,6 +219,29 @@ test.describe('Server Admin Members', () => {
       // Should see at least one checkbox (role assignment control)
       await expect(page.locator('input[type="checkbox"]').first()).toBeVisible();
     });
+
+		test('admin can manage ordinary roles but not the owner role', async ({ serverAdminPage }) => {
+			const { page } = serverAdminPage;
+			const server = await usePrimaryServerViaAPI(page);
+			const admin = await createSecondTestUser(page);
+			const target = await createSecondTestUser(page);
+			await connectPost(page, 'chatto.admin.v1.AdminUserService/AssignRole', {
+				userId: admin.id,
+				roleName: 'admin'
+			});
+
+			await logoutUser(page);
+			await loginUser(page, admin.login, admin.password);
+			await serverAdminPage.gotoMemberDetails(server.id, target.id!);
+
+			const ownerRole = page.getByRole('checkbox', { name: 'Owner' });
+			await expect(ownerRole).toBeDisabled();
+			await expect(ownerRole.locator('..')).toHaveAttribute(
+				'title',
+				'Only an owner can assign or revoke the owner role'
+			);
+			await expect(page.getByRole('checkbox', { name: 'Moderator' })).toBeEnabled();
+		});
 
     test('back to members button works', async ({ serverAdminPage }) => {
       const { page } = serverAdminPage;

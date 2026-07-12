@@ -124,6 +124,18 @@ func (s *adminUserManagementService) AssignRole(ctx context.Context, req *connec
 	if req.Msg.GetRoleName() == "" {
 		return nil, invalidArgument("role_name is required")
 	}
+	if req.Msg.GetRoleName() == core.RoleOwner {
+		isOwner, err := s.api.core.IsServerOwner(ctx, caller.UserID)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !isOwner {
+			return nil, connectError(core.ErrPermissionDenied)
+		}
+		if err := s.api.requireFreshCredential(ctx, caller, ""); err != nil {
+			return nil, connectError(err)
+		}
+	}
 	if err := s.api.core.AdminAssignServerRole(ctx, caller.UserID, req.Msg.GetUserId(), req.Msg.GetRoleName()); err != nil {
 		return nil, connectError(err)
 	}
@@ -144,6 +156,18 @@ func (s *adminUserManagementService) RevokeRole(ctx context.Context, req *connec
 	}
 	if req.Msg.GetRoleName() == "" {
 		return nil, invalidArgument("role_name is required")
+	}
+	if req.Msg.GetRoleName() == core.RoleOwner {
+		isOwner, err := s.api.core.IsServerOwner(ctx, caller.UserID)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !isOwner {
+			return nil, connectError(core.ErrPermissionDenied)
+		}
+		if err := s.api.requireFreshCredential(ctx, caller, ""); err != nil {
+			return nil, connectError(err)
+		}
 	}
 	if err := s.api.core.AdminRevokeServerRole(ctx, caller.UserID, req.Msg.GetUserId(), req.Msg.GetRoleName()); err != nil {
 		return nil, connectError(err)

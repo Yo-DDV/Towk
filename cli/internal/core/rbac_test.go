@@ -1049,10 +1049,10 @@ func TestChattoCore_AssignServerRole_PermissionOnly(t *testing.T) {
 		t.Fatalf("Failed to create target: %v", err)
 	}
 
-	t.Run("admin can assign owner role when API gate permits the call", func(t *testing.T) {
+	t.Run("admin cannot assign owner role", func(t *testing.T) {
 		err := core.AssignServerRole(ctx, admin.Id, target.Id, RoleOwner)
-		if err != nil {
-			t.Fatalf("AssignServerRole: %v", err)
+		if !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AssignServerRole err = %v, want ErrPermissionDenied", err)
 		}
 	})
 
@@ -1077,15 +1077,26 @@ func TestChattoCore_AssignServerRole_PermissionOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("admin can self-assign owner when API gate permits the call", func(t *testing.T) {
-		err := core.AssignServerRole(ctx, admin.Id, admin.Id, RoleOwner)
+	t.Run("owner can assign owner role", func(t *testing.T) {
+		err := core.AssignServerRole(ctx, owner.Id, target.Id, RoleOwner)
 		if err != nil {
 			t.Fatalf("AssignServerRole: %v", err)
 		}
 	})
 
+	t.Run("admin cannot self-assign owner", func(t *testing.T) {
+		err := core.AssignServerRole(ctx, admin.Id, admin.Id, RoleOwner)
+		if !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AssignServerRole err = %v, want ErrPermissionDenied", err)
+		}
+	})
+
 	t.Run("system actor can assign owner role", func(t *testing.T) {
-		err := core.AssignServerRole(ctx, SystemActorID, target.Id, RoleOwner)
+		systemTarget, err := core.CreateUser(ctx, SystemActorID, "assign-system-target", "System Target", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		err = core.AssignServerRole(ctx, SystemActorID, systemTarget.Id, RoleOwner)
 		if err != nil {
 			t.Fatalf("Expected system actor to assign owner role: %v", err)
 		}
@@ -1147,9 +1158,25 @@ func TestChattoCore_RevokeServerRole_PermissionOnly(t *testing.T) {
 		t.Fatalf("Failed to assign moderator: %v", err)
 	}
 
-	t.Run("admin can revoke owner role when API gate permits the call", func(t *testing.T) {
+	t.Run("admin cannot revoke owner role", func(t *testing.T) {
 		err := core.RevokeServerRole(ctx, admin.Id, owner.Id, RoleOwner)
+		if !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("RevokeServerRole err = %v, want ErrPermissionDenied", err)
+		}
+		if !core.RBAC.HasRole(owner.Id, RoleOwner) {
+			t.Fatal("owner role was revoked after denied mutation")
+		}
+	})
+
+	t.Run("owner can revoke another owner role", func(t *testing.T) {
+		otherOwner, err := core.CreateUser(ctx, SystemActorID, "revoke-owner2", "Owner2", "password123")
 		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		if err := core.AssignServerRole(ctx, SystemActorID, otherOwner.Id, RoleOwner); err != nil {
+			t.Fatalf("AssignServerRole: %v", err)
+		}
+		if err := core.RevokeServerRole(ctx, owner.Id, otherOwner.Id, RoleOwner); err != nil {
 			t.Fatalf("RevokeServerRole: %v", err)
 		}
 	})
@@ -1960,6 +1987,64 @@ func TestChattoCore_RevokeRole_CanDemotePeerWhenAPIGatePermits(t *testing.T) {
 	}
 }
 
+func TestChattoCore_ConcurrentOwnerRevocationsPreserveAnOwner(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	ownerA, err := core.CreateUser(ctx, SystemActorID, "concurrent-owner-a", "Owner A", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser owner A: %v", err)
+	}
+	ownerB, err := core.CreateUser(ctx, SystemActorID, "concurrent-owner-b", "Owner B", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser owner B: %v", err)
+	}
+	if err := core.AssignServerRole(ctx, SystemActorID, ownerA.Id, RoleOwner); err != nil {
+		t.Fatalf("Assign owner A: %v", err)
+	}
+	if err := core.AssignServerRole(ctx, SystemActorID, ownerB.Id, RoleOwner); err != nil {
+		t.Fatalf("Assign owner B: %v", err)
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, mutation := range []struct{ actor, target string }{
+		{actor: ownerA.Id, target: ownerB.Id},
+		{actor: ownerB.Id, target: ownerA.Id},
+	} {
+		wg.Add(1)
+		go func(actor, target string) {
+			defer wg.Done()
+			<-start
+			errs <- core.RevokeServerRole(ctx, actor, target, RoleOwner)
+		}(mutation.actor, mutation.target)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	succeeded := 0
+	denied := 0
+	for err := range errs {
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, ErrPermissionDenied):
+			denied++
+		default:
+			t.Fatalf("concurrent revoke error = %v", err)
+		}
+	}
+	if succeeded != 1 || denied != 1 {
+		t.Fatalf("concurrent results success=%d denied=%d, want 1/1", succeeded, denied)
+	}
+	owners := core.RBAC.GetRoleUsers(RoleOwner)
+	if len(owners) != 1 {
+		t.Fatalf("owner users = %v, want exactly one", owners)
+	}
+}
+
 func TestChattoCore_RevokeRole_AdminCanDemoteLowerRankedUser(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
@@ -2550,10 +2635,10 @@ func TestChattoCore_AssignRole_PermissionOnly(t *testing.T) {
 		core.RevokeServerRole(ctx, owner, regular, RoleModerator)
 	})
 
-	t.Run("moderator can assign owner role when caller gate permits the call", func(t *testing.T) {
+	t.Run("moderator cannot assign owner role", func(t *testing.T) {
 		err := core.AssignServerRole(ctx, mod, regular, RoleOwner)
-		if err != nil {
-			t.Fatalf("AssignServerRole: %v", err)
+		if !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AssignServerRole err = %v, want ErrPermissionDenied", err)
 		}
 	})
 

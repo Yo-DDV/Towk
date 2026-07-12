@@ -1,7 +1,7 @@
 # FDR-021: Admin Dashboard & System Monitoring
 
 **Status:** Active
-**Last reviewed:** 2026-06-20
+**Last reviewed:** 2026-07-12
 
 ## Overview
 
@@ -11,7 +11,7 @@ The admin section gives owners and admins visibility into the server's operation
 
 - The admin UI lives under `/chat/[serverId]/server-admin/`. Non-admins see an "access denied" panel; the server-header gear entry point is hidden from them.
 - Admin-capable users enter through the gear icon in the server name pane header. Once inside server-admin, the server sidebar switches from room navigation to the admin section navigation with a Back to Server affordance.
-- **Users page** — paginated list of all server members with login, email, roles, verification status. Admins can edit profiles, assign roles, suspend, or delete users when they hold the relevant permission.
+- **Users page** — paginated list of all server members with login, email, roles, verification status. Admins can edit profiles, assign non-owner roles, suspend, or delete users when they hold the relevant permission. Owner-role changes remain owner-only and require fresh authentication.
 - **System Info page** — owner-only page showing backing message-broker connection status, storage account limits and current usage, stream/consumer health, projection health (lag, entry counts, and rough memory estimates), and `AdminDiagnosticsService.GetSystemInfo` stats (user count, channel room count, DM room count).
 - **Audit log page** — chronological diagnostic event-log view for forensic review, grouped by event creation date. The list view uses `AdminEventLogService.ListEvents`; the detail view uses `AdminEventLogService.GetEvent` to show the raw payload JSON for human inspection.
 - The audit log UI can be filtered by exact event type and exact actor ID. Event type suggestions come from the admin event-log API; the actor field reuses the server member lookup but still accepts synthetic actor IDs such as `system:bootstrap`. The API also supports inclusive created-at bounds for callers, but the server-admin page does not expose time-range controls.
@@ -67,7 +67,7 @@ The admin section gives owners and admins visibility into the server's operation
 - `admin.view-users` — gates user-management views, admin-only affordances, and user-sensitive fields such as other users' verified email addresses and login cooldowns. The underlying `server.members` directory query remains authenticated-user visible; see FDR-025.
 - System diagnostics are owner-only; `admin.view-system` is exposed only as a viewer capability key, not as a grantable RBAC permission.
 - `admin.view-audit` — gates admin event log, event type, and event detail reads.
-- `role.assign` — gates user role assignment and revocation.
+- `role.assign` — gates ordinary user role assignment and revocation. The `owner` role additionally requires an effective owner with a fresh credential.
 - `user.manage-accounts` — gates user creation, cross-user identity edits, password resets, verified-email attachment, and login-cooldown resets.
 
 ## Related

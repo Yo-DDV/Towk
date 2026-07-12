@@ -1924,6 +1924,31 @@ func TestChattoCore_AdminRoleAssignmentAuthorization(t *testing.T) {
 		}
 	})
 
+	t.Run("admin cannot mutate owner role through admin service", func(t *testing.T) {
+		c, _ := setupTestCore(t)
+		ctx := testContext(t)
+		admin, err := c.CreateUser(ctx, SystemActorID, "adminrole-owner-boundary-admin", "Admin", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser admin: %v", err)
+		}
+		if err := c.AssignAdminRole(ctx, admin.Id); err != nil {
+			t.Fatalf("AssignAdminRole: %v", err)
+		}
+		target, err := c.CreateUser(ctx, SystemActorID, "adminrole-owner-boundary-target", "Target", "password123")
+		if err != nil {
+			t.Fatalf("CreateUser target: %v", err)
+		}
+		if err := c.AdminAssignServerRole(ctx, admin.Id, target.Id, RoleOwner); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AdminAssignServerRole owner err = %v, want ErrPermissionDenied", err)
+		}
+		if err := c.AssignServerRole(ctx, SystemActorID, target.Id, RoleOwner); err != nil {
+			t.Fatalf("Assign target owner: %v", err)
+		}
+		if err := c.AdminRevokeServerRole(ctx, admin.Id, target.Id, RoleOwner); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("AdminRevokeServerRole owner err = %v, want ErrPermissionDenied", err)
+		}
+	})
+
 	t.Run("missing target user does not persist role facts", func(t *testing.T) {
 		c, _ := setupTestCore(t)
 		ctx := testContext(t)

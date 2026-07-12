@@ -1174,6 +1174,7 @@ const msg_admin_members_implicit_role_tooltip = (): LocalizedString => messages(
 const msg_admin_members_cannot_revoke_own_role = (
   inputs: Parameters<LocaleMessages['admin_members_cannot_revoke_own_role']>[0]
 ): LocalizedString => messages().admin_members_cannot_revoke_own_role(inputs);
+const msg_admin_members_owner_role_requires_owner = (): LocalizedString => messages().admin_members_owner_role_requires_owner(empty());
 const msg_admin_members_edit = (): LocalizedString => messages().admin_members_edit(empty());
 const msg_admin_members_assigned_role = (
   inputs: Parameters<LocaleMessages['admin_members_assigned_role']>[0]
@@ -2463,6 +2464,7 @@ export { msg_admin_members_assign_roles_description as 'admin.members.assign_rol
 export { msg_admin_members_view_roles_description as 'admin.members.view_roles_description' };
 export { msg_admin_members_implicit_role_tooltip as 'admin.members.implicit_role_tooltip' };
 export { msg_admin_members_cannot_revoke_own_role as 'admin.members.cannot_revoke_own_role' };
+export { msg_admin_members_owner_role_requires_owner as 'admin.members.owner_role_requires_owner' };
 export { msg_admin_members_edit as 'admin.members.edit' };
 export { msg_admin_members_assigned_role as 'admin.members.assigned_role' };
 export { msg_admin_members_removed_role as 'admin.members.removed_role' };
