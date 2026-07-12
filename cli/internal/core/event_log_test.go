@@ -2,10 +2,10 @@ package core
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -38,11 +38,16 @@ func TestStreamMsgToEventLogEntryRedactsPasswordHashWithoutMutatingEvent(t *test
 		t.Fatalf("streamMsgToEventLogEntry: %v", err)
 	}
 
-	if strings.Contains(entry.PayloadJSON, "passwordHash") || strings.Contains(entry.PayloadJSON, "bcrypt-derived-secret") {
-		t.Fatalf("PayloadJSON exposes password hash material: %s", entry.PayloadJSON)
+	var auditEvent corev1.Event
+	if err := protojson.Unmarshal([]byte(entry.PayloadJSON), &auditEvent); err != nil {
+		t.Fatalf("PayloadJSON is not valid event JSON: %v", err)
 	}
-	if !strings.Contains(entry.PayloadJSON, `"userId": "user-1"`) || !strings.Contains(entry.PayloadJSON, `"preserveExistingCredentials": true`) {
+	auditPasswordChange := auditEvent.GetUserPasswordHashChanged()
+	if auditPasswordChange == nil || auditPasswordChange.GetUserId() != "user-1" || !auditPasswordChange.GetPreserveExistingCredentials() {
 		t.Fatalf("PayloadJSON lost non-secret audit facts: %s", entry.PayloadJSON)
+	}
+	if len(auditPasswordChange.GetPasswordHash()) != 0 {
+		t.Fatalf("PayloadJSON exposes password hash material: %s", entry.PayloadJSON)
 	}
 	if !bytes.Equal(event.GetUserPasswordHashChanged().GetPasswordHash(), passwordHash) {
 		t.Fatalf("durable event password hash was mutated: %q", event.GetUserPasswordHashChanged().GetPasswordHash())
