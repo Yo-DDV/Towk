@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,110 @@ import (
 
 	"hmans.de/chatto/internal/config"
 )
+
+func TestWriteNewConfigFileCreatesSecureFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "chatto.toml")
+	if err := writeNewConfigFile(path, []byte("secret")); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "secret" {
+		t.Fatalf("content = %q, want secret", data)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("mode = %o, want 600", got)
+	}
+}
+
+func TestWriteNewConfigFileDoesNotReplaceExistingPath(t *testing.T) {
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		name  string
+		setup func(path string) (target string)
+	}{
+		{
+			name: "regular file",
+			setup: func(path string) string {
+				if err := os.WriteFile(path, []byte("existing"), 0644); err != nil {
+					t.Fatal(err)
+				}
+				return path
+			},
+		},
+		{
+			name: "symlink",
+			setup: func(path string) string {
+				target := filepath.Join(dir, "target")
+				if err := os.WriteFile(target, []byte("existing"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, path); err != nil {
+					t.Skipf("symlinks unavailable: %v", err)
+				}
+				return target
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(dir, strings.ReplaceAll(tc.name, " ", "-")+".toml")
+			target := tc.setup(path)
+			if err := writeNewConfigFile(path, []byte("replacement")); !errors.Is(err, os.ErrExist) {
+				t.Fatalf("error = %v, want os.ErrExist", err)
+			}
+			data, err := os.ReadFile(target)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != "existing" {
+				t.Fatalf("existing content changed to %q", data)
+			}
+		})
+	}
+}
+
+func TestWriteNewConfigFileAllowsOnlyOneConcurrentCreator(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "chatto.toml")
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for _, data := range [][]byte{[]byte("first"), []byte("second")} {
+		data := data
+		go func() {
+			<-start
+			results <- writeNewConfigFile(path, data)
+		}()
+	}
+	close(start)
+
+	var successes, existing int
+	for range 2 {
+		err := <-results
+		switch {
+		case err == nil:
+			successes++
+		case errors.Is(err, os.ErrExist):
+			existing++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if successes != 1 || existing != 1 {
+		t.Fatalf("successes=%d existing=%d, want 1 each", successes, existing)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "first" && string(data) != "second" {
+		t.Fatalf("content = %q, want one complete writer", data)
+	}
+}
 
 func TestInitGeneratesCoreSecret(t *testing.T) {
 	tmpDir := t.TempDir()
