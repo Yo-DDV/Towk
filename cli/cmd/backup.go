@@ -354,13 +354,8 @@ func backupStream(ctx context.Context, mgr *jsm.Manager, streamName, streamsDir 
 
 	streamDir := filepath.Join(streamsDir, streamName)
 
-	var bytesReceived uint64
-
-	_, err = stream.SnapshotToDirectory(ctx, streamDir,
+	progress, err := stream.SnapshotToDirectory(ctx, streamDir,
 		jsm.SnapshotConsumers(),
-		jsm.SnapshotNotify(func(p jsm.SnapshotProgress) {
-			bytesReceived = p.BytesReceived()
-		}),
 	)
 	if err != nil {
 		log.Error("Failed to snapshot stream", "name", streamName, "error", err)
@@ -371,6 +366,7 @@ func backupStream(ctx context.Context, mgr *jsm.Manager, streamName, streamsDir 
 		}
 	}
 
+	bytesReceived := progress.BytesReceived()
 	log.Info(fmt.Sprintf("%s  Done: %s", prefix, formatBytes(bytesReceived)))
 
 	return StreamBackupInfo{
