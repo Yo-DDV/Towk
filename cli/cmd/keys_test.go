@@ -151,9 +151,13 @@ func TestKeysExportImportRoundTrip(t *testing.T) {
 
 	// --- Export keys ---
 
-	exported, err := exportAllKeys(ctx, srcKV)
+	selection, err := exportAllKeys(ctx, srcKV)
 	if err != nil {
 		t.Fatal("exportAllKeys failed:", err)
+	}
+	exported := selection.Keys
+	if selection.SkippedWrappedDEKs != 0 || selection.SkippedCallKeys != 0 {
+		t.Fatalf("unexpected skipped records: wrapped_deks=%d call_keys=%d", selection.SkippedWrappedDEKs, selection.SkippedCallKeys)
 	}
 
 	if len(exported) != len(testKeys) {
@@ -367,14 +371,6 @@ func TestExportAllKeysRejectsInvalidBucketRecords(t *testing.T) {
 	defer cancel()
 
 	_, _, js := startTestNATS(t)
-	malformedDEK, err := proto.Marshal(&corev1.UserDataEncryptionKey{
-		EncryptedContentKey: []byte("wrapped"),
-		WrappingAlgorithm:   kms.AlgorithmBuiltinXChaCha20Poly1305V1,
-		WrappingKeyRef:      "kek.valid",
-	})
-	if err != nil {
-		t.Fatal("marshal malformed DEK:", err)
-	}
 	for _, test := range []struct {
 		name string
 		ref  string
@@ -382,7 +378,6 @@ func TestExportAllKeysRejectsInvalidBucketRecords(t *testing.T) {
 	}{
 		{name: "unknown prefix", ref: "other.bad", data: []byte("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")},
 		{name: "malformed kek", ref: "kek.bad", data: []byte("short")},
-		{name: "malformed dek", ref: "dek.bad", data: malformedDEK},
 		{name: "malformed user", ref: "user.bad", data: []byte("short")},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -400,5 +395,40 @@ func TestExportAllKeysRejectsInvalidBucketRecords(t *testing.T) {
 				t.Fatal("exportAllKeys should reject invalid bucket record")
 			}
 		})
+	}
+}
+
+func TestExportAllKeysSkipsNonKEKRecordsWithoutBlockingKEKs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, _, js := startTestNATS(t)
+	kv, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{
+		Bucket:  "ENCRYPTION_KEYS_MIXED",
+		Storage: jetstream.FileStorage,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	records := map[string][]byte{
+		"kek.valid":        []byte("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"),
+		"dek.legacy":       []byte("legacy wrapped DEK"),
+		"call.e2ee.active": []byte("short-lived call key"),
+	}
+	for ref, data := range records {
+		if _, err := kv.Put(ctx, ref, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	selection, err := exportAllKeys(ctx, kv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(selection.Keys) != 1 || selection.Keys[0].KeyRef != "kek.valid" {
+		t.Fatalf("exported keys = %#v, want only kek.valid", selection.Keys)
+	}
+	if selection.SkippedWrappedDEKs != 1 || selection.SkippedCallKeys != 1 {
+		t.Fatalf("skipped wrapped_deks=%d call_keys=%d, want 1/1", selection.SkippedWrappedDEKs, selection.SkippedCallKeys)
 	}
 }
