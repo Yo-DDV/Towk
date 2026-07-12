@@ -84,18 +84,11 @@ mise build
 Run the narrowest relevant task while iterating, then the complete required
 matrix before opening a pull request.
 
-## Deployments
+## Releases and deployment
 
-The repository contains a reproducible pilot stack and Towk-owned image pipeline.
-Images are built from this repository, scanned before publication, and tied to an
-exact commit through OCI metadata, SBOM and provenance attestations.
-
-- [Deployment overview](ops/deployment/README.md)
-- [Deployment procedure](ops/deployment/DEPLOYMENT.md)
-- [Backup and restore](ops/deployment/BACKUP-RESTORE.md)
-- [Rollback](ops/deployment/ROLLBACK.md)
-- [Troubleshooting](ops/deployment/TROUBLESHOOTING.md)
-- [Corresponding source](SOURCE.md)
+Towk images are built from this repository, scanned before publication, and tied
+to an exact commit through OCI metadata, SBOM and provenance attestations. See
+[Corresponding source](SOURCE.md) for the source lookup contract.
 
 Do not deploy floating upstream images as a Towk release. Production and durable
 pilots should use an immutable Towk tag or digest.
