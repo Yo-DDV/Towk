@@ -24,9 +24,10 @@ import (
 )
 
 var (
-	restoreConfigFile string
-	restoreConflict   string
-	restorePassphrase string
+	restoreConfigFile     string
+	restoreConflict       string
+	restorePassphrase     string
+	restorePassphraseFile string
 )
 
 var restoreCmd = &cobra.Command{
@@ -54,7 +55,9 @@ func init() {
 	rootCmd.AddCommand(restoreCmd)
 	restoreCmd.Flags().StringVarP(&restoreConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
 	restoreCmd.Flags().StringVar(&restoreConflict, "conflict", "error", "conflict handling: error, skip, overwrite")
-	restoreCmd.Flags().StringVar(&restorePassphrase, "passphrase", "", "decryption passphrase for encrypted backups (if not set, prompts interactively)")
+	restoreCmd.Flags().StringVar(&restorePassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
+	restoreCmd.Flags().StringVar(&restorePassphraseFile, "passphrase-file", "", "read decryption passphrase from a private regular file")
+	_ = restoreCmd.Flags().MarkDeprecated("passphrase", "use --passphrase-file, standard input, or the interactive prompt")
 }
 
 func runRestore(cmd *cobra.Command, args []string) error {
@@ -96,7 +99,7 @@ func runRestore(cmd *cobra.Command, args []string) error {
 
 	if encrypted {
 		log.Info("Archive is encrypted, decryption required")
-		passphrase, err := getPassphrase(restorePassphrase, "Enter passphrase for backup decryption: ", false)
+		passphrase, err := getPassphrase(restorePassphrase, restorePassphraseFile, "Enter passphrase for backup decryption: ", false)
 		if err != nil {
 			return fmt.Errorf("failed to read passphrase: %w", err)
 		}

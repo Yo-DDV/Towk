@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,63 @@ import (
 	"hmans.de/chatto/internal/kms"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
+
+func TestGetPassphraseRejectsProcessArgument(t *testing.T) {
+	passphrase, err := getPassphrase("exposed-secret", "", "", false)
+	if err == nil {
+		t.Fatal("process-argument passphrase should be rejected")
+	}
+	if passphrase != "" {
+		t.Fatal("rejected process-argument passphrase should not be returned")
+	}
+}
+
+func TestReadPassphraseFileRequiresPrivateRegularFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "passphrase")
+	if err := os.WriteFile(path, []byte("file-secret\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := readPassphraseFile(path); err != nil || got != "file-secret" {
+		t.Fatalf("readPassphraseFile() = %q, %v", got, err)
+	}
+
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(path, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readPassphraseFile(path); err == nil {
+			t.Fatal("group/world-readable passphrase file should be rejected")
+		}
+		if err := os.Chmod(path, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	symlink := filepath.Join(dir, "passphrase-link")
+	if err := os.Symlink(path, symlink); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := readPassphraseFile(symlink); err == nil {
+		t.Fatal("symlink passphrase file should be rejected")
+	}
+}
+
+func TestReadPassphraseFileRejectsMultilineAndOversizedInput(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "passphrase")
+	if err := os.WriteFile(path, []byte("first\nsecond\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readPassphraseFile(path); err == nil {
+		t.Fatal("multiline passphrase file should be rejected")
+	}
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", maxPassphraseFileBytes+1)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readPassphraseFile(path); err == nil {
+		t.Fatal("oversized passphrase file should be rejected")
+	}
+}
 
 func TestEncryptDecryptKeysRoundTrip(t *testing.T) {
 	keys := []ExportedKey{

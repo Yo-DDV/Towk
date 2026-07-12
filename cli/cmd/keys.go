@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -41,9 +42,10 @@ type ExportedKey struct {
 }
 
 var (
-	keysConfigFile string
-	keysOutput     string
-	keysPassphrase string
+	keysConfigFile     string
+	keysOutput         string
+	keysPassphrase     string
+	keysPassphraseFile string
 )
 
 var keysCmd = &cobra.Command{
@@ -92,11 +94,15 @@ func init() {
 
 	keysExportCmd.Flags().StringVarP(&keysConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
 	keysExportCmd.Flags().StringVarP(&keysOutput, "output", "o", "", "output file path (required)")
-	keysExportCmd.Flags().StringVar(&keysPassphrase, "passphrase", "", "encryption passphrase (if not set, prompts interactively)")
+	keysExportCmd.Flags().StringVar(&keysPassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
+	keysExportCmd.Flags().StringVar(&keysPassphraseFile, "passphrase-file", "", "read encryption passphrase from a private regular file")
+	_ = keysExportCmd.Flags().MarkDeprecated("passphrase", "use --passphrase-file, standard input, or the interactive prompt")
 	_ = keysExportCmd.MarkFlagRequired("output")
 
 	keysImportCmd.Flags().StringVarP(&keysConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
-	keysImportCmd.Flags().StringVar(&keysPassphrase, "passphrase", "", "decryption passphrase (if not set, prompts interactively)")
+	keysImportCmd.Flags().StringVar(&keysPassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
+	keysImportCmd.Flags().StringVar(&keysPassphraseFile, "passphrase-file", "", "read decryption passphrase from a private regular file")
+	_ = keysImportCmd.Flags().MarkDeprecated("passphrase", "use --passphrase-file, standard input, or the interactive prompt")
 }
 
 func runKeysExport(cmd *cobra.Command, args []string) {
@@ -105,7 +111,7 @@ func runKeysExport(cmd *cobra.Command, args []string) {
 		log.Fatal("Failed to read configuration", "error", err)
 	}
 
-	passphrase, err := getPassphrase(keysPassphrase, "Enter passphrase for key export: ", true)
+	passphrase, err := getPassphrase(keysPassphrase, keysPassphraseFile, "Enter passphrase for key export: ", true)
 	if err != nil {
 		log.Fatal("Failed to read passphrase", "error", err)
 	}
@@ -162,7 +168,7 @@ func runKeysImport(cmd *cobra.Command, args []string) {
 		log.Fatal("Failed to read configuration", "error", err)
 	}
 
-	passphrase, err := getPassphrase(keysPassphrase, "Enter passphrase for key import: ", false)
+	passphrase, err := getPassphrase(keysPassphrase, keysPassphraseFile, "Enter passphrase for key import: ", false)
 	if err != nil {
 		log.Fatal("Failed to read passphrase", "error", err)
 	}
@@ -396,11 +402,58 @@ func decryptKeysFromFile(filePath, passphrase string) ([]ExportedKey, error) {
 	return export.Keys, nil
 }
 
-// getPassphrase reads a passphrase from the flag value, stdin pipe, or interactive prompt.
+const maxPassphraseFileBytes = 64 * 1024
+
+func readPassphraseFile(path string) (string, error) {
+	pathInfo, err := os.Lstat(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect passphrase file: %w", err)
+	}
+	if !pathInfo.Mode().IsRegular() {
+		return "", fmt.Errorf("passphrase file must be a regular file, not a symlink or special file")
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open passphrase file: %w", err)
+	}
+	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect opened passphrase file: %w", err)
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(pathInfo, openedInfo) {
+		return "", fmt.Errorf("passphrase file changed while it was being opened")
+	}
+	if runtime.GOOS != "windows" && openedInfo.Mode().Perm()&0077 != 0 {
+		return "", fmt.Errorf("passphrase file permissions must not grant group or other access")
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxPassphraseFileBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("failed to read passphrase file: %w", err)
+	}
+	if len(data) > maxPassphraseFileBytes {
+		return "", fmt.Errorf("passphrase file exceeds %d bytes", maxPassphraseFileBytes)
+	}
+	passphrase := strings.TrimRight(string(data), "\r\n")
+	if passphrase == "" {
+		return "", fmt.Errorf("passphrase cannot be empty")
+	}
+	if strings.ContainsAny(passphrase, "\r\n") {
+		return "", fmt.Errorf("passphrase file must contain a single line")
+	}
+	return passphrase, nil
+}
+
+// getPassphrase reads a passphrase from a private file, stdin pipe, or interactive prompt.
 // If confirm is true, prompts for confirmation (export use case) — only in interactive mode.
-func getPassphrase(flagValue string, prompt string, confirm bool) (string, error) {
+func getPassphrase(flagValue, filePath, prompt string, confirm bool) (string, error) {
 	if flagValue != "" {
-		return flagValue, nil
+		return "", fmt.Errorf("--passphrase is unsafe because process arguments may be visible; use --passphrase-file, standard input, or the interactive prompt")
+	}
+	if filePath != "" {
+		return readPassphraseFile(filePath)
 	}
 
 	// If stdin is piped, read a single line from it (no confirmation possible).
