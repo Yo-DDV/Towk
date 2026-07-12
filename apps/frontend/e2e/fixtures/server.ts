@@ -72,7 +72,7 @@ export interface StartServerOptions {
 }
 
 /**
- * Spawns a Chatto server for a specific test.
+ * Spawns a Towk server for a specific test.
  * Uses environment variables to override ports.
  */
 export async function startServer(
@@ -136,7 +136,7 @@ export async function startServer(
 }
 
 /**
- * Stops a Chatto server and cleans up its data directory.
+ * Stops a Towk server and cleans up its data directory.
  */
 export async function stopServer(server: ServerInfo, testInfo: TestInfo): Promise<void> {
   const dataDir = path.join(__dirname, `data-${testInfo.testId.replace(/[^a-zA-Z0-9]/g, '-')}`);

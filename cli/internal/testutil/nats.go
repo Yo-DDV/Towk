@@ -56,7 +56,7 @@ func StartNATS(t testing.TB) (*server.Server, *nats.Conn) {
 }
 
 // StartSharedNATS returns a fresh in-process connection to a package-shared
-// embedded NATS server. It removes Chatto's known JetStream resources before
+// embedded NATS server. It removes Towk's known JetStream resources before
 // returning so callers can create a fresh ChattoCore without paying per-test
 // server startup cost.
 //
@@ -99,8 +99,8 @@ func ShutdownSharedNATS() {
 	sharedNATSOnce = sync.Once{}
 }
 
-// ResetChattoJetStream deletes the durable resources Chatto test cores create.
-// It deliberately targets current Chatto resource names rather than deleting
+// ResetChattoJetStream deletes the durable resources Towk test cores create.
+// It deliberately targets current Towk resource names rather than deleting
 // every stream in the account, so ad-hoc test streams remain opt-in.
 func ResetChattoJetStream(t testing.TB, nc *nats.Conn) {
 	t.Helper()

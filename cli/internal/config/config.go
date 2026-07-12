@@ -89,7 +89,7 @@ type MetricsConfig struct {
 	Pprof       bool   `toml:"pprof,commented" env:"CHATTO_METRICS_PPROF" comment:"Expose Go pprof debug endpoints on the metrics listener under /debug/pprof/. Default: false."`
 }
 
-// ExporterConfig controls deployment-wide Prometheus metrics for a Chatto instance.
+// ExporterConfig controls deployment-wide Prometheus metrics for a Towk instance.
 type ExporterConfig struct {
 	Enabled           bool     `toml:"enabled" env:"CHATTO_EXPORTER_ENABLED" comment:"Start the deployment-wide Prometheus exporter from chatto run. Default: false."`
 	BindAddress       string   `toml:"bind_address,commented" env:"CHATTO_EXPORTER_BIND_ADDRESS" comment:"Address to bind the exporter listener. Default: 127.0.0.1 (localhost only)."`
@@ -421,7 +421,7 @@ type AssetsConfig struct {
 	Cache          AssetsCacheConfig `toml:"cache" comment:"Caching configuration for resized images."`
 }
 
-// CoreConfig contains settings for the Chatto core service.
+// CoreConfig contains settings for the Towk core service.
 type CoreConfig struct {
 	SecretKey    string         `toml:"secret_key" env:"CHATTO_CORE_SECRET_KEY" comment:"Server-wide secret for deriving HMAC verifiers for bearer tokens and account-flow credentials. NEVER SHARE THIS!\nIf it changes, existing bearer tokens and pending registration, verification, password reset, account deletion, and OAuth authorization-code credentials become invalid."`
 	Assets       AssetsConfig   `toml:"assets"`
@@ -459,7 +459,7 @@ type AuthProviderConfig struct {
 	ClientSecret    string            `toml:"client_secret" comment:"OAuth/OIDC client secret. NEVER SHARE THIS!"`
 	IssuerURL       string            `toml:"issuer_url,commented" comment:"OIDC issuer URL. Required when type = 'oidc'."`
 	Scopes          []string          `toml:"scopes,commented" comment:"Optional OAuth scopes. Defaults are provider-specific."`
-	RequestEmail    *bool             `toml:"request_email,commented" comment:"Whether to request email scopes for providers that support it. Default: false. Chatto still matches by provider subject without an email claim."`
+	RequestEmail    *bool             `toml:"request_email,commented" comment:"Whether to request email scopes for providers that support it. Default: false. Towk still matches by provider subject without an email claim."`
 	AutoProvision   *bool             `toml:"auto_provision,commented" comment:"Whether unlinked external identities may create a new passwordless account after explicit confirmation. Default: false. The linked provider identity counts as a verified sign-in factor."`
 	ProviderOptions map[string]string `toml:"provider_options,commented" comment:"Provider-specific options reserved for future use."`
 }
@@ -581,7 +581,7 @@ func (c *AuthConfig) PublicProviders() []AuthProviderConfig {
 
 type EmbeddedNATSConfig struct {
 	Enabled     bool   `toml:"enabled" env:"CHATTO_NATS_EMBEDDED_ENABLED" comment:"Enable embedded NATS server."`
-	Port        int    `toml:"port,commented" env:"CHATTO_NATS_EMBEDDED_PORT" comment:"Uncomment to expose embedded NATS over TCP for nats CLI/admin commands. When left commented, Chatto connects in-process and no NATS port is opened."`
+	Port        int    `toml:"port,commented" env:"CHATTO_NATS_EMBEDDED_PORT" comment:"Uncomment to expose embedded NATS over TCP for nats CLI/admin commands. When left commented, Towk connects in-process and no NATS port is opened."`
 	BindAddress string `toml:"bind_address,commented" env:"CHATTO_NATS_EMBEDDED_BIND_ADDRESS" comment:"Address to bind NATS ports. Default: 127.0.0.1 (localhost only)."`
 	HTTPPort    int    `toml:"http_port,commented" env:"CHATTO_NATS_EMBEDDED_HTTP_PORT" comment:"NATS monitoring/stats HTTP port. Set to 0 to disable."`
 	DataDir     string `toml:"data_dir" env:"CHATTO_NATS_EMBEDDED_DATA_DIR" comment:"Directory where the embedded NATS server stores its data."`
@@ -671,7 +671,7 @@ func (c *LimitsConfig) MaxUsersOrDefault() int {
 // A user with a matching verified email is treated as having all instance
 // permissions (owner-level), which includes access to /admin routes. This is
 // the operator-driven mechanism for designating an server owner — useful
-// for both Chatto Cloud (the control plane writes the customer's email here at
+// for both Towk Cloud (the control plane writes the customer's email here at
 // provision time) and self-hosters (who set their own email here in chatto.toml).
 type OwnersConfig struct {
 	Emails []string `toml:"emails" env:"CHATTO_OWNERS_EMAILS" comment:"Email addresses that confer owner status. Users with these verified emails get full instance access, including /admin routes."`
@@ -784,7 +784,7 @@ type LiveKitConfig struct {
 	APIKey           string `toml:"api_key" env:"CHATTO_LIVEKIT_API_KEY" comment:"LiveKit API key."`
 	APISecret        string `toml:"api_secret" env:"CHATTO_LIVEKIT_API_SECRET" comment:"LiveKit API secret. NEVER SHARE THIS!"`
 	WebhookURL       string `toml:"webhook_url" env:"CHATTO_LIVEKIT_WEBHOOK_URL" comment:"URL where LiveKit sends webhook events. Defaults to {webserver.url}/webhooks/livekit."`
-	ServerID         string `toml:"server_id,commented" env:"CHATTO_LIVEKIT_SERVER_ID" comment:"Unique identifier for this server, prefixed to LiveKit room names. Required when multiple Chatto servers share the same LiveKit cluster."`
+	ServerID         string `toml:"server_id,commented" env:"CHATTO_LIVEKIT_SERVER_ID" comment:"Unique identifier for this server, prefixed to LiveKit room names. Required when multiple Towk servers share the same LiveKit cluster."`
 	InstanceID       string `toml:"instance_id,commented" env:"CHATTO_LIVEKIT_INSTANCE_ID" comment:"Deprecated alias for server_id. Prefer server_id / CHATTO_LIVEKIT_SERVER_ID."`
 	WebhookAPIKey    string `toml:"webhook_api_key,commented" env:"CHATTO_LIVEKIT_WEBHOOK_API_KEY" comment:"API key LiveKit uses to sign webhooks. Falls back to api_key if not set. Required when the webhook signing key differs from the per-server API key."`
 	WebhookAPISecret string `toml:"webhook_api_secret,commented" env:"CHATTO_LIVEKIT_WEBHOOK_API_SECRET" comment:"API secret for webhook signature validation. Falls back to api_secret if not set."`
@@ -889,7 +889,8 @@ func (c *ChattoConfig) ApplyDefaults() {
 			}
 		}
 		if c.NATS.Client.AuthMethod == NATSAuthToken && c.NATS.Client.Token == "" {
-			c.NATS.Client.Token = c.NATS.Embedded.AuthToken
+			embeddedAuth := c.NATS.Embedded.AuthToken
+			c.NATS.Client.Token = embeddedAuth
 		}
 	}
 
@@ -1269,7 +1270,7 @@ func applyAuthProviderEnv(cfg *ChattoConfig) error {
 	}
 	label := os.Getenv("CHATTO_AUTH_OIDC_LABEL")
 	if label == "" {
-		label = "Chatto Hub"
+		label = "Towk Hub"
 	}
 	cfg.Auth.Providers = []AuthProviderConfig{{
 		ID:           "oidc",

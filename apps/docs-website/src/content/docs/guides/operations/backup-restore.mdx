@@ -66,7 +66,7 @@ When the embedded TCP listener is enabled, Towk derives matching `nats.client` s
 chatto backup -c chatto.toml
 
 # Custom output path
-chatto backup -c chatto.toml -o /mnt/backups/chatto-daily.tar.gz
+chatto backup -c chatto.toml -o /mnt/backups/towk-daily.tar.gz
 ```
 
 ### Encrypted backups
@@ -87,7 +87,7 @@ For scripted or automated backups, pass the passphrase via flag or pipe it from 
 chatto backup -c chatto.toml --encrypt --include-keys --passphrase "$BACKUP_PASSPHRASE"
 
 # Or pipe from a secrets manager
-vault kv get -field=passphrase secret/chatto | chatto backup -c chatto.toml --encrypt --include-keys
+vault kv get -field=passphrase secret/towk | chatto backup -c chatto.toml --encrypt --include-keys
 ```
 
 <Aside type="caution">
@@ -176,7 +176,7 @@ For scripted/automated backups, pass the passphrase via flag or pipe it from std
 chatto keys export -c chatto.toml -o keys.backup --passphrase "$KEY_BACKUP_PASSPHRASE"
 
 # Or pipe from a secrets manager
-vault kv get -field=passphrase secret/chatto | chatto keys export -c chatto.toml -o keys.backup
+vault kv get -field=passphrase secret/towk | chatto keys export -c chatto.toml -o keys.backup
 ```
 
 ### Importing keys
@@ -227,9 +227,9 @@ Here's a complete monolithic backup script suitable for a cron job:
 #!/bin/bash
 set -euo pipefail
 
-CONFIG="/etc/chatto/chatto.toml"
-BACKUP_DIR="/mnt/backups/chatto"
-PASSPHRASE_FILE="/etc/chatto/backup-passphrase"  # chmod 600
+CONFIG="/etc/towk/chatto.toml"
+BACKUP_DIR="/mnt/backups/towk"
+PASSPHRASE_FILE="/etc/towk/backup-passphrase"  # chmod 600
 RETENTION_DAYS=14
 
 # Read passphrase from file

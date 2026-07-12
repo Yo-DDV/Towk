@@ -61,7 +61,7 @@ A user's profile carries the public identity they present to the rest of the ser
 ### 7. Cross-user edits gated by `user.manage-accounts`
 
 **Decision:** Admin updates to other users' profiles require `user.manage-accounts` for cross-user edits. Self-edits bypass that permission because they're privilege-neutral identity edits.
-**Why:** Chatto's simplified RBAC model is permission-based for everyone except effective owners, who are protected by the owner override rather than target-rank gates.
+**Why:** Towk's simplified RBAC model is permission-based for everyone except effective owners, who are protected by the owner override rather than target-rank gates.
 **Tradeoff:** A user with `user.manage-accounts` can edit any target user's profile.
 
 ### 8. Custom status is durable profile metadata, not presence

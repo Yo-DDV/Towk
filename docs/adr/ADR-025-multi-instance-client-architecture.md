@@ -6,15 +6,15 @@ Accepted
 
 ## Context
 
-Chatto's frontend was originally designed as a single-instance client — the SPA was always served by the Chatto instance it connected to, and all state (auth, spaces, rooms, notifications) was implicitly scoped to that one server.
+Towk's frontend was originally designed as a single-instance client — the SPA was always served by the Towk instance it connected to, and all state (auth, spaces, rooms, notifications) was implicitly scoped to that one server.
 
-Users wanted to connect to multiple Chatto instances from a single client (similar to how Discord or Slack allow multiple workspaces). This required rethinking how the frontend manages authentication, state, and routing.
+Users wanted to connect to multiple Towk instances from a single client (similar to how Discord or Slack allow multiple workspaces). This required rethinking how the frontend manages authentication, state, and routing.
 
 ## Decision
 
 ### Instance-Agnostic UI
 
-The frontend is instance-agnostic by default. It doesn't assume it's served by a Chatto instance. Instead:
+The frontend is instance-agnostic by default. It doesn't assume it's served by a Towk instance. Instead:
 
 1. **Probe-based origin detection**: On init, call `chatto.discovery.v1.ServerDiscoveryService.GetServer` on the current origin. If it responds, auto-register the origin as an instance. If it fails (static hosting), skip.
 2. **No `isHome` flag**: The origin instance is identified by comparing `instance.url` to `window.location.origin` at runtime — no stored flag.
@@ -50,8 +50,8 @@ Bearer tokens use NATS KV TTL (default 90 days). Each successful `ValidateAuthTo
 
 ### Positive
 
-- Users can connect to multiple Chatto instances from one client
-- The SPA can be served statically (CDN) without a Chatto backend
+- Users can connect to multiple Towk instances from one client
+- The SPA can be served statically (CDN) without a Towk backend
 - No special-casing for "home" vs "remote" — all instances use the same code paths
 - Token sliding window means active users never get surprise logouts
 
@@ -64,7 +64,7 @@ Bearer tokens use NATS KV TTL (default 90 days). Each successful `ValidateAuthTo
   the multi-server client.
 - `chatto.discovery.v1.ServerDiscoveryService.GetServer` is the only ConnectRPC endpoint with unconditional wildcard CORS — rich data needed pre-registration must go there, not in authenticated ConnectRPC calls
 - Separately hosted multi-instance frontends must be listed explicitly in each remote server's `webserver.oauth_redirect_origins` or exact `webserver.allowed_origins` before OAuth authorization codes can redirect back to them; wildcard CORS does not imply OAuth redirect trust. `oauth_redirect_origins = ["*"]` exists only as a temporary controlled-alpha escape hatch.
-- Users approve the first OAuth authorization for each trusted client origin; Chatto remembers that consent per user + origin instead of relying on an operator-managed OAuth client registry
+- Users approve the first OAuth authorization for each trusted client origin; Towk remembers that consent per user + origin instead of relying on an operator-managed OAuth client registry
 - The probe is async for unauthenticated users, so the origin may not be registered by the time the first render completes
 
 ### Trade-offs

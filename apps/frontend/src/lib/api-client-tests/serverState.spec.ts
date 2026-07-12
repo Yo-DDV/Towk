@@ -77,7 +77,7 @@ describe('getAuthenticatedServerState', () => {
   it('loads authenticated server state and maps optional and int64 fields', async () => {
     mocks.getServer.mockResolvedValue({
       profile: {
-        name: 'Remote Chatto',
+        name: 'Remote Towk',
         version: '9.8.7',
         logoUrl: 'https://cdn/logo.webp',
         bannerUrl: 'https://cdn/banner.webp',
@@ -150,7 +150,7 @@ describe('getAuthenticatedServerState', () => {
       { headers: { Authorization: 'Bearer token' } }
     );
     expect(state).toEqual({
-      name: 'Remote Chatto',
+      name: 'Remote Towk',
       version: '9.8.7',
       logoUrl: 'https://cdn/logo.webp',
       bannerUrl: 'https://cdn/banner.webp',

@@ -86,7 +86,7 @@
       return;
     }
 
-    // Handle link clicks. Only allow-listed Chatto chat routes navigate in-app;
+    // Handle link clicks. Only allow-listed Towk chat routes navigate in-app;
     // other same-origin URLs stay out-of-band to avoid message-link abuse.
     const anchor = target.closest('a');
     if (anchor?.href) {

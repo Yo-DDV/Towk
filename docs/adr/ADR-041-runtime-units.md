@@ -1,10 +1,10 @@
-# ADR-041: Runtime Units for Optional Chatto Processes
+# ADR-041: Runtime Units for Optional Towk Processes
 
 **Date:** 2026-06-21
 
 ## Context
 
-Chatto is growing beyond a single web/API process. Some capabilities should be
+Towk is growing beyond a single web/API process. Some capabilities should be
 able to run as independent processes in production while still being easy for
 single-process self-hosters to run from `chatto run`.
 
@@ -18,13 +18,13 @@ Examples include:
   derivative generation
 
 These processes need common configuration loading, logging, NATS connection
-setup, graceful shutdown, and access to shared Chatto infrastructure. At the
+setup, graceful shutdown, and access to shared Towk infrastructure. At the
 same time, they must not casually call `ChattoCore.Run`, because the main core
 boot path legitimately performs boot-time mutations and repair work.
 
 ## Decision
 
-Introduce **runtime units** as the convention for optional Chatto processes.
+Introduce **runtime units** as the convention for optional Towk processes.
 
 A runtime unit:
 

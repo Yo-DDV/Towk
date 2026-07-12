@@ -365,13 +365,13 @@ describe('onNotificationClick', () => {
     serviceWorker.dispatchMessage({
       data: {
         type: 'notification-click',
-        url: 'https://chatto.example/chat/-/room-1'
+        url: 'https://towk.example/chat/-/room-1'
       },
       ports: [responsePort as unknown as MessagePort]
     });
 
     await Promise.resolve();
-    expect(callback).toHaveBeenCalledWith('https://chatto.example/chat/-/room-1');
+    expect(callback).toHaveBeenCalledWith('https://towk.example/chat/-/room-1');
     expect(responsePort.postMessage).not.toHaveBeenCalled();
 
     navigation.resolve();
@@ -395,7 +395,7 @@ describe('onNotificationClick', () => {
     serviceWorker.dispatchMessage({
       data: {
         type: 'notification-click',
-        url: 'https://chatto.example/chat/-/room-1'
+        url: 'https://towk.example/chat/-/room-1'
       },
       ports: [responsePort as unknown as MessagePort]
     });

@@ -40,7 +40,7 @@ after media load failures.
 **Update (2026-07-02):** The signed locator route was removed before 0.4.0.
 Protected attachments now use stable `/assets/files/{assetId}` paths with
 `AssetAccessTicket` authorization for originals, image derivatives, thumbnails,
-and video derivatives. Chatto streams protected bytes by default and only
+and video derivatives. Towk streams protected bytes by default and only
 redirects heavy passive originals to short-lived S3 URLs after authorizing the
 stable asset request.
 

@@ -2,13 +2,13 @@ import {
   authHeaders,
   Code,
   ConnectError,
-  createChattoClient,
+  createTowkClient,
   type ConnectAPIConfig,
 } from "./connect.js";
-import { UserService } from "@chatto/api-types/api/v1/member_directory_connect";
-import { RoomService } from "@chatto/api-types/api/v1/rooms_connect";
-import type { DirectoryMember as APIDirectoryMember } from "@chatto/api-types/api/v1/member_directory_pb";
-import { PresenceStatus as APIPresenceStatus } from "@chatto/api-types/api/v1/presence_pb";
+import { UserService } from "@towk/api-types/api/v1/member_directory_connect";
+import { RoomService } from "@towk/api-types/api/v1/rooms_connect";
+import type { DirectoryMember as APIDirectoryMember } from "@towk/api-types/api/v1/member_directory_pb";
+import { PresenceStatus as APIPresenceStatus } from "@towk/api-types/api/v1/presence_pb";
 import { PresenceStatus } from "./renderTypes.js";
 
 export type MemberDirectoryAPIConfig = ConnectAPIConfig;
@@ -36,8 +36,8 @@ export type MemberDirectoryPage = {
 };
 
 export function createMemberDirectoryAPI(config: MemberDirectoryAPIConfig) {
-  const users = createChattoClient(UserService, config);
-  const rooms = createChattoClient(RoomService, config);
+  const users = createTowkClient(UserService, config);
+  const rooms = createTowkClient(RoomService, config);
   const headers = () => authHeaders(config);
 
   return {

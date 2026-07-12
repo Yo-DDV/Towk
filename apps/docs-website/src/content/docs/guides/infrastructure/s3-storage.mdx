@@ -27,8 +27,8 @@ Set the storage backend to `s3` and provide your bucket credentials:
 ```bash
 CHATTO_CORE_ASSETS_STORAGE_BACKEND=s3
 CHATTO_CORE_ASSETS_S3_ENDPOINT=s3.amazonaws.com
-CHATTO_CORE_ASSETS_S3_BUCKET=chatto-assets
-CHATTO_CORE_ASSETS_S3_PATH_PREFIX=production/chatto
+CHATTO_CORE_ASSETS_S3_BUCKET=towk-assets
+CHATTO_CORE_ASSETS_S3_PATH_PREFIX=production/towk
 CHATTO_CORE_ASSETS_S3_REGION=eu-central-1
 CHATTO_CORE_ASSETS_S3_ACCESS_KEY_ID=your-access-key
 CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY=your-secret-key
@@ -41,8 +41,8 @@ storage_backend = "s3"
 
 [core.assets.s3]
 endpoint = "s3.amazonaws.com"
-bucket = "chatto-assets"
-path_prefix = "production/chatto"
+bucket = "towk-assets"
+path_prefix = "production/towk"
 region = "eu-central-1"
 access_key_id = "your-access-key"
 secret_access_key = "your-secret-key"
@@ -74,7 +74,7 @@ Any service that implements the S3 API works with Towk. Towk uses path-style URL
 ```bash
 CHATTO_CORE_ASSETS_STORAGE_BACKEND=s3
 CHATTO_CORE_ASSETS_S3_ENDPOINT=your-account-id.r2.cloudflarestorage.com
-CHATTO_CORE_ASSETS_S3_BUCKET=chatto-assets
+CHATTO_CORE_ASSETS_S3_BUCKET=towk-assets
 CHATTO_CORE_ASSETS_S3_ACCESS_KEY_ID=your-access-key
 CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY=your-secret-key
 ```
@@ -83,7 +83,7 @@ CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY=your-secret-key
 ```bash
 CHATTO_CORE_ASSETS_STORAGE_BACKEND=s3
 CHATTO_CORE_ASSETS_S3_ENDPOINT=s3.eu-central-1.wasabisys.com
-CHATTO_CORE_ASSETS_S3_BUCKET=chatto-assets
+CHATTO_CORE_ASSETS_S3_BUCKET=towk-assets
 CHATTO_CORE_ASSETS_S3_REGION=eu-central-1
 CHATTO_CORE_ASSETS_S3_ACCESS_KEY_ID=your-access-key
 CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY=your-secret-key
@@ -93,7 +93,7 @@ CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY=your-secret-key
 ```bash
 CHATTO_CORE_ASSETS_STORAGE_BACKEND=s3
 CHATTO_CORE_ASSETS_S3_ENDPOINT=s3.us-west-004.backblazeb2.com
-CHATTO_CORE_ASSETS_S3_BUCKET=chatto-assets
+CHATTO_CORE_ASSETS_S3_BUCKET=towk-assets
 CHATTO_CORE_ASSETS_S3_REGION=us-west-004
 CHATTO_CORE_ASSETS_S3_ACCESS_KEY_ID=your-access-key
 CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY=your-secret-key

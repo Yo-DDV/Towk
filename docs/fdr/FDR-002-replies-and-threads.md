@@ -5,7 +5,7 @@
 
 ## Overview
 
-Chatto messages can link to one another via reply attribution, and they can live inside threads — conversations branching off a root message. Replies and threads are independent concepts: a message can reply without being in a thread, or live in a thread without referencing a specific parent. Rooms can be configured to promote one shape over another.
+Towk messages can link to one another via reply attribution, and they can live inside threads — conversations branching off a root message. Replies and threads are independent concepts: a message can reply without being in a thread, or live in a thread without referencing a specific parent. Rooms can be configured to promote one shape over another.
 
 ## Behavior
 

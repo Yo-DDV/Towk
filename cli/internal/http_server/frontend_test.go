@@ -584,7 +584,7 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.Contains(t, csp, "media-src 'self' blob: http: https:")
 		assert.Contains(t, csp, "frame-src https://www.youtube-nocookie.com")
 		assert.Contains(t, csp, "require-trusted-types-for 'script'")
-		assert.Contains(t, csp, "trusted-types chatto-markdown-html")
+		assert.Contains(t, csp, "trusted-types towk-markdown-html")
 		assert.NotContains(t, csp, "trusted-types default")
 	})
 }

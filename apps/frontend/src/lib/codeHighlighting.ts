@@ -1,5 +1,5 @@
 import { createLowlight } from 'lowlight';
-import { aliasesByLanguage, languageAliases } from 'virtual:chatto-highlight-language-metadata';
+import { aliasesByLanguage, languageAliases } from 'virtual:towk-highlight-language-metadata';
 import type { LanguageFn } from 'highlight.js';
 
 type HighlightLanguageModule = {

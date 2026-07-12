@@ -3,12 +3,12 @@
 **Date:** 2026-05-24
 
 **Status update:** The 0.1.x event-sourcing rollout has completed across the
-existing Chatto servers, and the pre-0.1 boot importers plus ES boot verifier
+existing Towk servers, and the pre-0.1 boot importers plus ES boot verifier
 were removed on 2026-06-12.
 
 ## Context
 
-The move to event sourcing ([ADR-033](ADR-033-event-sourced-state-with-projections.md)) cannot ship as a single big-bang change. Chatto has live deployments with real user data; migration must preserve every record. There are also too many aggregates (rooms, memberships, users, RBAC, threads, reactions, read state, messages, …) to migrate atomically, and each has its own quirks (encryption, bulk operations, cross-references).
+The move to event sourcing ([ADR-033](ADR-033-event-sourced-state-with-projections.md)) cannot ship as a single big-bang change. Towk has live deployments with real user data; migration must preserve every record. There are also too many aggregates (rooms, memberships, users, RBAC, threads, reactions, read state, messages, …) to migrate atomically, and each has its own quirks (encryption, bulk operations, cross-references).
 
 A staged, per-aggregate approach is required. The questions this ADR settles:
 
@@ -121,7 +121,7 @@ restore-and-fix-forward, not automatic rollback.
 
 An earlier design proposed serving reads from both KV and projection in parallel during a burn-in period, with a divergence counter to validate correctness before cutover. We are not doing this. The rationale:
 
-- Chatto is alpha. Test-based validation of projection correctness is consistent with the project posture.
+- Towk is alpha. Test-based validation of projection correctness is consistent with the project posture.
 - Each migration is small (one aggregate). The blast radius of a bad cutover is bounded.
 - Building and operating the divergence path is non-trivial and would slow every migration.
 - If a specific migration is later judged high-risk (most plausibly: messages), we add shadow reads for that one aggregate without committing to it as the default.

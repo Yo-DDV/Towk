@@ -1,11 +1,11 @@
 ---
-name: "chatto-release-checklist"
-description: "Run before making a new Chatto release. Compares the candidate version with stable and prerelease baselines, writes a developer checklist and separate user-facing announcement to .context/, and reports API changes separately."
+name: "towk-release-checklist"
+description: "Run before making a new Towk release. Compares the candidate version with stable and prerelease baselines, writes a developer checklist and separate user-facing announcement to .context/, and reports API changes separately."
 ---
 
-# Chatto Release Checklist
+# Towk Release Checklist
 
-Use this skill when preparing, reviewing, or announcing a new Chatto release.
+Use this skill when preparing, reviewing, or announcing a new Towk release.
 
 This is a pre-release review workflow. Do not create tags, edit GitHub releases, push, or publish artifacts unless the user explicitly asks for that after seeing the checklist.
 
@@ -57,7 +57,7 @@ If the candidate version already has a tag, compare `<baseline>..<candidate-tag>
    - Build an evidence map that links major announcement bullets to PRs, commits, or docs. Keep this map in the developer checklist, not the announcement.
 3. Review API changes separately:
    - Public ConnectRPC/protobuf API: inspect diffs under `proto/chatto/api/v1/`, generated frontend files under `apps/frontend/src/lib/pb/chatto/api/v1/`, generated Go files under `cli/internal/pb/chatto/api/v1/`, and generated docs under `apps/docs-website/src/content/docs/reference/connectrpc-api/`.
-   - Persisted protobuf/event shapes: inspect `proto/chatto/core/v1/` and call out higher-risk persisted EVT/RUNTIME_STATE compatibility changes. When these files change, read `proto/AGENTS.md` and use `chatto-event-sourcing` guidance. Check removed fields, reused tags/oneof numbers, reserved or retired tags, replay compatibility, and old self-hosted event streams.
+   - Persisted protobuf/event shapes: inspect `proto/chatto/core/v1/` and call out higher-risk persisted EVT/RUNTIME_STATE compatibility changes. When these files change, read `proto/AGENTS.md` and use `towk-event-sourcing` guidance. Check removed fields, reused tags/oneof numbers, reserved or retired tags, replay compatibility, and old self-hosted event streams.
    - Realtime websocket API: inspect `proto/chatto/api/v1/realtime.proto`, `cli/internal/http_server/realtime.go`, `cli/internal/core/my_events_model.go`, and frontend event-bus/client code under `apps/frontend/src/lib/state/server/`.
    - Retired legacy API compatibility: only call this out when a release removes, reintroduces, or changes compatibility behavior for retired public API clients. The current public API is ConnectRPC plus `/api/realtime`.
    - Server discovery and stable HTTP surfaces: inspect `GET /api/server` implementation in `cli/internal/http_server/server_info.go`, matching tests, and frontend client code in `apps/frontend/src/lib/api/server.ts`.
@@ -83,7 +83,7 @@ The announcement file must speak only to users, self-hosters, admins, and client
 Use this Markdown structure:
 
 ```md
-# Chatto <version> Release Checklist
+# Towk <version> Release Checklist
 
 Compared stable baseline `<stable-baseline>` to `<candidate-ref>` on <YYYY-MM-DD>.
 Prerelease baseline: `<prerelease-baseline-or-none>`.
@@ -178,7 +178,7 @@ Prerelease baseline: `<prerelease-baseline-or-none>`.
 Write this structure to `.context/release-announcement-<version>.md`:
 
 ```md
-# Chatto <version>
+# Towk <version>
 
 <A short human-facing opening paragraph suitable for users, admins, self-hosters, and client developers. Keep it concise and concrete. Qualify "new" or "first" claims as "since <stable-baseline>" or "for beta users" when needed.>
 
@@ -210,4 +210,4 @@ Keep announcement wording user-facing. Avoid maintainer-only phrases like "confi
 - Always tell the user the exact checklist and announcement paths.
 - Summarize the candidate version, stable baseline tag, prerelease baseline tag when applicable, readiness status, and API-change classification in the final response.
 - If no API changes are found, say so explicitly and mention which surfaces were checked.
-- If the user later wants to update a GitHub release body, use the `chatto-release-notes` skill after this checklist is reviewed.
+- If the user later wants to update a GitHub release body, use the `towk-release-notes` skill after this checklist is reviewed.

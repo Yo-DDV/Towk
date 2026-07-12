@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto's frontend is a browser SPA that communicates through HTTP APIs plus a realtime websocket. The WebSocket upgrade is an HTTP request, which means the browser automatically includes same-origin cookies.
+Towk's frontend is a browser SPA that communicates through HTTP APIs plus a realtime websocket. The WebSocket upgrade is an HTTP request, which means the browser automatically includes same-origin cookies.
 
 Authentication approaches for WebSocket:
 

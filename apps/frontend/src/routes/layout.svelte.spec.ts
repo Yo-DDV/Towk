@@ -46,7 +46,7 @@ vi.mock('$app/state', () => ({
 }));
 
 vi.mock('$lib/hooks', () => ({
-  usePageTitle: () => () => 'Chatto',
+  usePageTitle: () => () => 'Towk',
   usePinchZoomPrevention: vi.fn(),
   useVisualViewport: vi.fn()
 }));

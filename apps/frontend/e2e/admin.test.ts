@@ -644,7 +644,7 @@ test.describe('Instance Settings', () => {
     await adminPage.gotoServerSettings();
 
     // Set MOTD with markdown
-    await adminPage.fillServerSettings({ motd: 'Welcome to **Chatto**!' });
+    await adminPage.fillServerSettings({ motd: 'Welcome to **Towk**!' });
     await adminPage.saveServerSettings();
 
     // Navigate to chat and check MOTD is rendered
@@ -652,8 +652,8 @@ test.describe('Instance Settings', () => {
 
     // Wait for the markdown to render (it's async)
     await expect(page.getByTestId('motd-content')).toBeVisible();
-    // The markdown should render **Chatto** as bold
-    await expect(page.getByTestId('motd-content').locator('strong')).toHaveText('Chatto');
+    // The markdown should render **Towk** as bold
+    await expect(page.getByTestId('motd-content').locator('strong')).toHaveText('Towk');
   });
 
   test('instance config changes update other connected clients in real-time', async ({

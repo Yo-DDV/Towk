@@ -5,7 +5,7 @@ import {
   createExternalIdentityAPI,
   createExternalIdentityFlowAPI
 } from '$lib/api-client/externalIdentities';
-import { ExternalIdentityFlowKind } from '@chatto/api-types/chatto/auth/v1/external_identity_auth_pb';
+import { ExternalIdentityFlowKind } from '@towk/api-types/chatto/auth/v1/external_identity_auth_pb';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),

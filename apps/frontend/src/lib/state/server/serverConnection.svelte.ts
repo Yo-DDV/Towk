@@ -257,7 +257,7 @@ export class ServerConnection {
 }
 
 /**
- * Manages Connect/realtime connection state for multiple Chatto instances.
+ * Manages Connect/realtime connection state for multiple Towk instances.
  * The origin connection is created eagerly; remote connections are created
  * lazily on first access.
  */

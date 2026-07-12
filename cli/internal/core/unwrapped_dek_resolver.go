@@ -77,7 +77,7 @@ type unwrappedDEKResolver struct {
 }
 
 // newUnwrappedDEKResolver creates a resolver backed by the configured KMS
-// wrapper and Chatto-owned DEK record store.
+// wrapper and Towk-owned DEK record store.
 func newUnwrappedDEKResolver(keyWrapper kms.KeyWrapper, dekStore dekstore.Reader) *unwrappedDEKResolver {
 	return &unwrappedDEKResolver{
 		keyWrapper: keyWrapper,

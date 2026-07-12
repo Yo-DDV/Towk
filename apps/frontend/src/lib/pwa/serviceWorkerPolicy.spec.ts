@@ -5,7 +5,7 @@ import {
   shouldUseOfflineShellFallback
 } from './serviceWorkerPolicy';
 
-const ORIGIN = 'https://chatto.example';
+const ORIGIN = 'https://towk.example';
 const SHELL_ASSETS = new Set([
   '/manifest.webmanifest',
   '/icons/icon-192.png',

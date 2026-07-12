@@ -30,9 +30,9 @@ const (
 	cacheControlRevalidate = "no-cache, must-revalidate"
 	// Hashed assets (in _app/) are immutable - cache for 1 year
 	cacheControlImmutable = "public, max-age=31536000, immutable"
-	// Report-only CSP preserves Chatto's multi-server client model while surfacing
+	// Report-only CSP preserves Towk's multi-server client model while surfacing
 	// violations during development/staging before we consider enforcement.
-	contentSecurityPolicyReportOnly = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'; require-trusted-types-for 'script'; trusted-types chatto-markdown-html"
+	contentSecurityPolicyReportOnly = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'; require-trusted-types-for 'script'; trusted-types towk-markdown-html"
 )
 
 const defaultAppleTouchIconHref = "/icons/apple-touch-icon.png"

@@ -9,7 +9,7 @@ export type RoomMessageMutatedDetail = {
   reason: RoomMessageMutationReason;
 };
 
-export const ROOM_MESSAGE_MUTATED_EVENT = 'chatto:room-message-mutated';
+export const ROOM_MESSAGE_MUTATED_EVENT = 'towk:room-message-mutated';
 
 export function notifyRoomMessageMutated(detail: RoomMessageMutatedDetail): void {
   if (typeof window === 'undefined') return;

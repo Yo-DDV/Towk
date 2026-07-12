@@ -1,7 +1,7 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
-import { NotificationLevel } from '@chatto/api-types/api/v1/notification_preferences_pb';
+import { NotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
 import {
   getServerNotificationPreference,
   updateRoomNotificationPreference,

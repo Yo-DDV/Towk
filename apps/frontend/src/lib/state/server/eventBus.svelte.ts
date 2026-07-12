@@ -23,7 +23,7 @@ import {
   RealtimeClientHello,
   RealtimeServerFrame,
   RealtimeSubscribeEvents
-} from '@chatto/api-types/realtime/v1/realtime_pb';
+} from '@towk/api-types/realtime/v1/realtime_pb';
 import type { ServerConnection } from './serverConnection.svelte';
 
 const DEFAULT_HEARTBEAT_STALL_MS = 75_000;

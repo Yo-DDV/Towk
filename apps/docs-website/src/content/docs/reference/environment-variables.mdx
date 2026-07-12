@@ -48,7 +48,7 @@ Every `chatto.toml` setting can be overridden with an environment variable. The 
 </EnvVar>
 
 <EnvVar name="CHATTO_WEBSERVER_OAUTH_REDIRECT_ORIGINS" toml="webserver.oauth_redirect_origins">
-  Comma-separated list of origins allowed for Towk OAuth redirect callbacks when another Towk frontend connects to this server. Use exact HTTPS origins, such as `https://app.example.com`, when you operate a known frontend. Set to `*` if you intentionally want any valid HTTPS Towk frontend to connect. This is convenient for open federation-style alpha deployments, but it lets any HTTPS site start an authorization request and ask the user to approve sending an authorization code back to that site. See the [Security guide](/guides/operations/security/#chatto-frontend-oauth-redirects) for the risk tradeoff.
+  Comma-separated list of origins allowed for Towk OAuth redirect callbacks when another Towk frontend connects to this server. Use exact HTTPS origins, such as `https://app.example.com`, when you operate a known frontend. Set to `*` if you intentionally want any valid HTTPS Towk frontend to connect. This is convenient for open federation-style alpha deployments, but it lets any HTTPS site start an authorization request and ask the user to approve sending an authorization code back to that site. See the [Security guide](/guides/operations/security/#towk-frontend-oauth-redirects) for the risk tradeoff.
 </EnvVar>
 
 ### TLS
@@ -312,7 +312,7 @@ For compatibility with older single-provider OIDC deployments, Towk also accepts
 
 ```toml
 [[auth.providers]]
-id = "chatto-hub"
+id = "towk-hub"
 type = "oidc"
 label = "Towk Hub"
 issuer_url = "https://id.example.com"

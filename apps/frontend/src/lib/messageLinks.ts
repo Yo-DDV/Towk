@@ -183,8 +183,8 @@ export async function copyMessageLinkToClipboard(
 /**
  * Classify message-body URLs that may navigate in the current tab.
  *
- * This deliberately allows only registered-server Chatto room, thread, and
- * message URLs with Chatto-looking IDs. Other URLs, such as settings or admin
+ * This deliberately allows only registered-server Towk room, thread, and
+ * message URLs with Towk-looking IDs. Other URLs, such as settings or admin
  * pages, should keep opening out-of-band like external links.
  */
 export function classifyMessageBodyChatLink(
@@ -252,7 +252,7 @@ export function classifyMessageBodyChatLink(
 
 /**
  * Parse a URL (absolute or relative) and return message link details if it
- * matches the Chatto message link pattern. Returns null for any non-match.
+ * matches the Towk message link pattern. Returns null for any non-match.
  *
  * Resolves the server segment against the registry when possible so the
  * caller can tell whether the link points at a known (reachable) server.

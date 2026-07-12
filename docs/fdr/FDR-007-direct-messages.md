@@ -5,7 +5,7 @@
 
 ## Overview
 
-Users can start a direct conversation (1-to-1 or small group, up to 10 participants) with anyone they can see in a server. DMs are rooms with `kind: dm`: they use the same message, thread, reaction, attachment, notification, unread, and live-delivery machinery as channel rooms, while applying a smaller DM-specific creation and privacy policy. Each Chatto server has its own DM scope; there is currently no cross-server "unified DM inbox".
+Users can start a direct conversation (1-to-1 or small group, up to 10 participants) with anyone they can see in a server. DMs are rooms with `kind: dm`: they use the same message, thread, reaction, attachment, notification, unread, and live-delivery machinery as channel rooms, while applying a smaller DM-specific creation and privacy policy. Each Towk server has its own DM scope; there is currently no cross-server "unified DM inbox".
 
 ## Behavior
 
@@ -43,7 +43,7 @@ Users can start a direct conversation (1-to-1 or small group, up to 10 participa
 
 ### 4. Per-server scope (no unified inbox)
 
-**Decision:** Each Chatto server's DMs are scoped to that server. There's no cross-server aggregation that shows "all your DMs across all the servers you're connected to" in one inbox.
+**Decision:** Each Towk server's DMs are scoped to that server. There's no cross-server aggregation that shows "all your DMs across all the servers you're connected to" in one inbox.
 **Why:** A unified inbox was tried and removed. The complexity of cross-server aggregation (auth, real-time aggregation, navigation routing) outweighed the benefit for the current user base, which mostly works in one server at a time.
 **Tradeoff:** Users in multiple servers have to switch servers to see DMs in each. If a unified inbox is reintroduced, this FDR needs a rewrite.
 

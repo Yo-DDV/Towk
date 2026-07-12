@@ -6,7 +6,7 @@
 
 ## Context
 
-At the time of this decision, Chatto had two API surfaces that invoked business logic:
+At the time of this decision, Towk had two API surfaces that invoked business logic:
 
 1. **GraphQL** — user-facing, untrusted callers (browser clients)
 2. **NATS request-reply** — internal/extension API, trusted callers (background jobs, NATS handlers, webhooks)

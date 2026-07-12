@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto browser clients need to render room attachments from the origin server
+Towk browser clients need to render room attachments from the origin server
 and from remote registered servers. Native media elements cannot reliably attach
 registered-server bearer tokens or cross-site cookies to those subresource
 requests, so attachment URLs use per-user asset access tickets.
@@ -18,7 +18,7 @@ components still had to refresh asset URLs through `AssetService`.
 
 ## Decision
 
-Render browser media with the direct ticketed asset URLs issued by Chatto:
+Render browser media with the direct ticketed asset URLs issued by Towk:
 `/assets/files/{assetId}?access={ticket}` and derivative URLs under the same
 stable path. Relative asset URLs are resolved against the server that owns the
 message or room-file item, so remote-server images, audio, and video keep
@@ -45,7 +45,7 @@ ADR-039 is superseded.
 - **Protected asset bodies remain uncached by the browser-visible response
   policy.** Originals and derivatives continue to use `private, no-store`
   unless served through the explicit server-side transform cache.
-- **Heavy passive S3-backed originals may redirect.** Chatto authorizes the
+- **Heavy passive S3-backed originals may redirect.** Towk authorizes the
   stable asset request first, then may return a short-lived presigned object URL
   for video, audio, or large passive files. Active document types still stream
-  through Chatto so sandbox headers are applied.
+  through Towk so sandbox headers are applied.

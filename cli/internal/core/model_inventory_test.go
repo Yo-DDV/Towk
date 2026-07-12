@@ -44,7 +44,7 @@ func TestModelInventoryUsesStableKeys(t *testing.T) {
 	}
 
 	for key, name := range map[string]string{
-		"chatto_core":                    "Chatto Core",
+		"chatto_core":                    "Towk Core",
 		"event_publisher":                "Event Publisher",
 		"config_model":                   "Config Model",
 		"config_manager":                 "Config Manager",

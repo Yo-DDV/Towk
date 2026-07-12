@@ -1,10 +1,10 @@
-import { authHeaders, createChattoClient } from './connect.js';
-import { MyAccountService } from '@chatto/api-types/api/v1/account_connect';
-import type { User as APIUser } from '@chatto/api-types/api/v1/users_pb';
+import { authHeaders, createTowkClient } from './connect.js';
+import { MyAccountService } from '@towk/api-types/api/v1/account_connect';
+import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import {
   TimeFormat as APITimeFormat,
   type UserSettings as APIUserSettings
-} from '@chatto/api-types/api/v1/viewer_pb';
+} from '@towk/api-types/api/v1/viewer_pb';
 import { TimeFormat } from './renderTypes.js';
 
 export type AccountAPIConfig = {
@@ -41,7 +41,7 @@ export type UpdatePasswordInput = {
 };
 
 export function createAccountAPI(config: AccountAPIConfig) {
-  const client = createChattoClient(MyAccountService, config);
+  const client = createTowkClient(MyAccountService, config);
   const headers = () => authHeaders(config);
 
   return {

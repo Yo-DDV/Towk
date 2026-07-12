@@ -656,7 +656,7 @@ const ServerAssetSignResource = "server"
 const AssetAccessTicketTTL = 24 * time.Hour
 
 // S3AssetRedirectTTL bounds direct object-store redirects for heavy original
-// asset responses. Chatto authorizes the request first, then hands browsers a
+// asset responses. Towk authorizes the request first, then hands browsers a
 // short-lived S3 URL only for cases where proxying the bytes would be costly.
 const S3AssetRedirectTTL = 5 * time.Minute
 

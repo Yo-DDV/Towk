@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto stores binary assets: user avatars, space icons, and message attachments. The storage backend must work out of the box for small self-hosted instances but scale for larger deployments with terabytes of files.
+Towk stores binary assets: user avatars, space icons, and message attachments. The storage backend must work out of the box for small self-hosted instances but scale for larger deployments with terabytes of files.
 
 The options are:
 

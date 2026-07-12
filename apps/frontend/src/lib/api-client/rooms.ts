@@ -2,13 +2,13 @@ import {
   authHeaders,
   Code,
   ConnectError,
-  createChattoClient,
+  createTowkClient,
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
 import { Timestamp } from '@bufbuild/protobuf';
-import { RoomService } from '@chatto/api-types/api/v1/rooms_connect';
-import type { Room, RoomBan as APIRoomBan } from '@chatto/api-types/api/v1/rooms_pb';
+import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
+import type { Room, RoomBan as APIRoomBan } from '@towk/api-types/api/v1/rooms_pb';
 import { mapDirectoryMember, type DirectoryMember } from './memberDirectory.js';
 
 export type { ConnectAPIConfig } from './connect.js';
@@ -87,7 +87,7 @@ function roomValidationError(err: unknown, input: { name?: string; description?:
 }
 
 export function createRoomCommandAPI(config: ConnectAPIConfig) {
-  const rooms = createChattoClient(RoomService, config);
+  const rooms = createTowkClient(RoomService, config);
   const headers = () => authHeaders(config);
 
   return {

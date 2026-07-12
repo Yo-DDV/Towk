@@ -2,7 +2,7 @@
  * Push notifications module.
  *
  * Manages Web Push subscriptions for receiving notifications outside an open
- * Chatto page. Uses the Service Worker and Web Push API; platform delivery is
+ * Towk page. Uses the Service Worker and Web Push API; platform delivery is
  * still treated as a notification trigger rather than authoritative app state.
  */
 

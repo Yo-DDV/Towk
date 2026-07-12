@@ -8,7 +8,7 @@
 
 ## Context
 
-Chatto currently has a two-layer top-level hierarchy: an **Instance** is the deployment-wide container (one per process / NATS account), and a **Space** is a membership group within an instance. Most concerns are duplicated across both layers:
+Towk currently has a two-layer top-level hierarchy: an **Instance** is the deployment-wide container (one per process / NATS account), and a **Space** is a membership group within an instance. Most concerns are duplicated across both layers:
 
 - Two parallel RBAC systems with overlapping role names (`instance-owner` vs `owner`, `instance-admin` vs `admin`, etc.) — see ADR-005 and `instance_rbac.go` / `space_rbac.go`.
 - Two membership models: a user belongs to an instance _and_ separately joins each space.

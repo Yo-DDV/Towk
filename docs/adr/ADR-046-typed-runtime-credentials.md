@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto currently authenticates runtime requests through two persisted credential
+Towk currently authenticates runtime requests through two persisted credential
 models:
 
 - Bearer auth token records under `RUNTIME_STATE` `session.{hmac}` keys.
@@ -20,7 +20,7 @@ and bearer tokens as separate runtime models makes it easy for one path to drift
 from the other.
 
 The frontend's multi-server model still depends on bearer credentials. A single
-Chatto client can register multiple servers, store one opaque credential per
+Towk client can register multiple servers, store one opaque credential per
 server, and send that credential to the selected server's ConnectRPC and realtime
 endpoints. Cookies cannot replace that because browser cookies are origin-scoped
 and are not a reliable transport for remote registered servers.
@@ -32,17 +32,17 @@ ordinary browser navigation.
 
 ## Decision
 
-Chatto will converge on one persisted runtime credential model with explicit
+Towk will converge on one persisted runtime credential model with explicit
 credential types. The stored runtime credential is the source of truth; bearer
 headers and browser cookies are presentation mechanisms for that credential.
 
 The credential types are:
 
-- `first_party_session`: a user session issued by Chatto's own password,
+- `first_party_session`: a user session issued by Towk's own password,
   registration, bootstrap, or external-provider login flows. These credentials
   may be presented either as an opaque bearer token or through a same-origin
   HTTP-only cookie carrying an opaque credential handle.
-- `oauth_access_token`: a delegated access token issued by Chatto's OAuth
+- `oauth_access_token`: a delegated access token issued by Towk's OAuth
   authorization-code exchange for a trusted client origin. These credentials may
   authenticate normal API and realtime requests, but they are not first-party
   sessions and cannot satisfy or acquire fresh-auth status.

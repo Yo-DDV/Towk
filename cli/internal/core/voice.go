@@ -49,7 +49,7 @@ func ParseParticipantMetadata(metadata string) participantMetadata {
 
 // LiveKitRoomName constructs a deterministic LiveKit room name from space and room IDs.
 // When serverID is non-empty, the room name is prefixed with "{serverID}." so the
-// webhook bridge can route events to the correct Chatto server in shared deployments.
+// webhook bridge can route events to the correct Towk server in shared deployments.
 // Authorization: Caller must verify room membership before calling.
 func LiveKitRoomName(serverID, spaceID, roomID string, callID ...string) string {
 	base := spaceID + "_" + roomID
@@ -70,9 +70,9 @@ func ParseLiveKitRoomName(lkRoomName string) (spaceID, roomID string) {
 	return spaceID, roomID
 }
 
-// ParseLiveKitRoomIdentity extracts the space ID, room ID, and optional Chatto
+// ParseLiveKitRoomIdentity extracts the space ID, room ID, and optional Towk
 // call ID from a LiveKit room name. New room names append "@{callId}" so LiveKit
-// room_finished events can be tied to one Chatto call session; names without
+// room_finished events can be tied to one Towk call session; names without
 // a suffix are accepted for compatibility with older active LiveKit rooms.
 func ParseLiveKitRoomIdentity(lkRoomName string) (spaceID, roomID, callID string) {
 	name := lkRoomName

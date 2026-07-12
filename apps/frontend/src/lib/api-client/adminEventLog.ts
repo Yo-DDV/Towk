@@ -3,10 +3,10 @@ import {
   authHeaders,
   Code,
   ConnectError,
-  createChattoClient,
+  createTowkClient,
 } from "./connect.js";
-import { AdminEventLogService } from "@chatto/api-types/admin/v1/event_log_connect";
-import type { AdminEventLogEntry as APIAdminEventLogEntry } from "@chatto/api-types/admin/v1/event_log_pb";
+import { AdminEventLogService } from "@towk/api-types/admin/v1/event_log_connect";
+import type { AdminEventLogEntry as APIAdminEventLogEntry } from "@towk/api-types/admin/v1/event_log_pb";
 
 export type AdminEventLogAPIConfig = {
   baseUrl: string;
@@ -53,7 +53,7 @@ export const EMPTY_ADMIN_EVENT_LOG_FILTER: AdminEventLogFilter = {
 };
 
 export function createAdminEventLogAPI(config: AdminEventLogAPIConfig) {
-  const client = createChattoClient(AdminEventLogService, config);
+  const client = createTowkClient(AdminEventLogService, config);
   const headers = () => authHeaders(config);
 
   return {

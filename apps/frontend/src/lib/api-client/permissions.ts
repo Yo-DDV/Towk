@@ -1,5 +1,5 @@
-import { authHeaders, createChattoClient } from './connect.js';
-import { AdminPermissionService } from '@chatto/api-types/admin/v1/permissions_connect';
+import { authHeaders, createTowkClient } from './connect.js';
+import { AdminPermissionService } from '@towk/api-types/admin/v1/permissions_connect';
 import {
   PermissionDecision,
   PermissionScopeKind,
@@ -11,7 +11,7 @@ import {
   type TierRole as APITierRole,
   type TierRoles as APITierRoles,
   type UserPermissionMatrix as APIUserPermissionMatrix
-} from '@chatto/api-types/admin/v1/permissions_pb';
+} from '@towk/api-types/admin/v1/permissions_pb';
 
 export type PermissionAPIConfig = {
   baseUrl: string;
@@ -102,7 +102,7 @@ export type UserPermissionDecisions = {
 };
 
 export function createPermissionAPI(config: PermissionAPIConfig) {
-  const client = createChattoClient(AdminPermissionService, config);
+  const client = createTowkClient(AdminPermissionService, config);
   const headers = () => authHeaders(config);
 
   return {

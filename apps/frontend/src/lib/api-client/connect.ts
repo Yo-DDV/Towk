@@ -24,7 +24,7 @@ export function connectEndpoint(baseUrl: string): string {
   return new URL("/api/connect", baseUrl).toString();
 }
 
-export function createChattoTransport(
+export function createTowkTransport(
   config: { baseUrl: string },
   options: { useBinaryFormat?: boolean } = {},
 ): Transport {
@@ -34,20 +34,20 @@ export function createChattoTransport(
   });
 }
 
-export function createChattoClient<T extends ServiceType>(
+export function createTowkClient<T extends ServiceType>(
   service: T,
   config: { baseUrl: string },
 ): Client<T> {
-  return createClient(service, createChattoTransport(config));
+  return createClient(service, createTowkTransport(config));
 }
 
-export function createPublicChattoClient<T extends ServiceType>(
+export function createPublicTowkClient<T extends ServiceType>(
   service: T,
   baseUrl: string,
 ): Client<T> {
   return createClient(
     service,
-    createChattoTransport(
+    createTowkTransport(
       { baseUrl: connectEndpoint(baseUrl) },
       { useBinaryFormat: false },
     ),

@@ -1,15 +1,15 @@
 ---
 name: "glossary"
-description: "Maintain Chatto's glossary of terms in docs/GLOSSARY.md. Look up a term, add a new one, or audit the glossary against the codebase, FDRs, and ADRs for missing or stale entries."
+description: "Maintain Towk's glossary of terms in docs/GLOSSARY.md. Look up a term, add a new one, or audit the glossary against the codebase, FDRs, and ADRs for missing or stale entries."
 ---
 
 # Glossary
 
-The canonical vocabulary for Chatto. Lives at `docs/GLOSSARY.md`, organised into four sections — UI, Product, Authorization, Backend — siblings of [FDRs](../../../docs/fdr/INDEX.md) and [ADRs](../../../docs/adr/INDEX.md).
+The canonical vocabulary for Towk. Lives at `docs/GLOSSARY.md`, organised into four sections — UI, Product, Authorization, Backend — siblings of [FDRs](../../../docs/fdr/INDEX.md) and [ADRs](../../../docs/adr/INDEX.md).
 
 ## What the Glossary Is
 
-- A **reference** for what a word means in Chatto's context — internal jargon, product nouns, renamed concepts, acronyms.
+- A **reference** for what a word means in Towk's context — internal jargon, product nouns, renamed concepts, acronyms.
 - A **naming surface**: when there's a thing-without-a-name, we add it here first. The glossary leads, the code follows. If a file or component disagrees with the glossary, the file is what should rename.
 - One line per entry, occasionally one short paragraph. Longer concepts link to the FDR/ADR/rules file that owns them.
 
@@ -17,7 +17,7 @@ The canonical vocabulary for Chatto. Lives at `docs/GLOSSARY.md`, organised into
 
 - **NOT** a tutorial. Don't explain *how* something works — FDRs, ADRs, and `docs/ARCHITECTURE.md` are for that.
 - **NOT** an API reference. No function signatures, no transport-specific API types, no proto fields.
-- **NOT** a dictionary of standard tech terms. Define "Republish" (a Chatto-specific use of a JetStream feature). Don't define "PostgreSQL" or "WebSocket".
+- **NOT** a dictionary of standard tech terms. Define "Republish" (a Towk-specific use of a JetStream feature). Don't define "PostgreSQL" or "WebSocket".
 - **NOT** a changelog. When a term is renamed, rewrite the entry. Don't append "previously known as…" unless old names still appear in stable identifiers (stream names, KV keys, config keys).
 
 ## Sections
@@ -103,7 +103,7 @@ When scouting for missing terms:
 
 When *not* to add:
 
-- Standard tech terms with no Chatto-specific meaning ("PostgreSQL", "WebSocket").
+- Standard tech terms with no Towk-specific meaning ("PostgreSQL", "WebSocket").
 - Type names, function names, file paths — those belong in code, not a glossary.
 - Anything one Google search would answer.
 
@@ -111,5 +111,5 @@ When *not* to add:
 
 - **Before any edits**: read the existing `docs/GLOSSARY.md`. The file is short enough to load entirely.
 - **Cross-link aggressively**: a glossary entry is most useful as a jumping-off point. If there's an FDR or ADR for the term, link it.
-- **One entry per concept**, even with multiple names. Pick the canonical name as the heading; mention aliases in the body if useful (e.g. `**Server** — Top-level Chatto deployment. Formerly called *Instance* in the codebase.`).
+- **One entry per concept**, even with multiple names. Pick the canonical name as the heading; mention aliases in the body if useful (e.g. `**Server** — Top-level Towk deployment. Formerly called *Instance* in the codebase.`).
 - **Glossary > code on naming**: when an entry contradicts a component or file name in the codebase, note "(pending rename)" in the entry. The follow-up is to rename the code, not the entry.

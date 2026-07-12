@@ -1,15 +1,15 @@
-import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
 import { FitMode } from './renderTypes.js';
 import type { ExpiringAssetUrl, RefreshedAttachmentUrls } from './attachmentUrls.js';
-import { ImageFitMode, ImageTransformOptions } from '@chatto/api-types/api/v1/common_pb';
-import { AssetService } from '@chatto/api-types/api/v1/attachments_connect';
-import type { Asset } from '@chatto/api-types/api/v1/attachments_pb';
-import { RoomService } from '@chatto/api-types/api/v1/rooms_connect';
+import { ImageFitMode, ImageTransformOptions } from '@towk/api-types/api/v1/common_pb';
+import { AssetService } from '@towk/api-types/api/v1/attachments_connect';
+import type { Asset } from '@towk/api-types/api/v1/attachments_pb';
+import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
 import {
   MessageVideoProcessingStatus,
   type MessageAssetUrl,
   type MessageVideoProcessing
-} from '@chatto/api-types/api/v1/message_types_pb';
+} from '@towk/api-types/api/v1/message_types_pb';
 
 export type AttachmentAPIConfig = {
   serverId?: string;
@@ -76,8 +76,8 @@ export type AttachmentAPI = {
 };
 
 export function createAttachmentAPI(config: AttachmentAPIConfig): AttachmentAPI {
-  const assets = createChattoClient(AssetService, config);
-  const rooms = createChattoClient(RoomService, config);
+  const assets = createTowkClient(AssetService, config);
+  const rooms = createTowkClient(RoomService, config);
   const headers = () => authHeaders(config);
   return {
     async listRoomAttachments({ roomId, limit, offset, thumbnail }) {

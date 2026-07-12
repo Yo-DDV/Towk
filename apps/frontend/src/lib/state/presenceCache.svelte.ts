@@ -10,7 +10,7 @@ export type PresenceCacheScope = {
 /**
  * Server-scoped cache for live user presence updates.
  *
- * Presence is server-wide, not global across Chatto servers. A user can have
+ * Presence is server-wide, not global across Towk servers. A user can have
  * different ids on different servers, and two servers can also contain the
  * same user id string. Cache entries therefore include both server id and user
  * id so avatar dots always read the presence for the active server.

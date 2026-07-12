@@ -4,7 +4,7 @@
 
 ## Context
 
-Events in Chatto were historically identified by two values: a NanoID (`event.id`) and a JetStream stream sequence number (`sequence_id`). The sequence number was populated at read time from JetStream metadata and exposed through the then-current public API as `SpaceEvent.sequenceId`.
+Events in Towk were historically identified by two values: a NanoID (`event.id`) and a JetStream stream sequence number (`sequence_id`). The sequence number was populated at read time from JetStream metadata and exposed through the then-current public API as `SpaceEvent.sequenceId`.
 
 This created several problems:
 

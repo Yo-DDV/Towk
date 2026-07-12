@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto's event-sourced message model currently treats threads as a derived view
+Towk's event-sourced message model currently treats threads as a derived view
 over room message events:
 
 - root messages are `MessagePostedEvent` facts on
@@ -106,7 +106,7 @@ lifecycle semantics that no longer fit a room-owned consistency boundary.
 - Forum mode can add room configuration and richer thread projections without
   changing where thread replies are written.
 - The room aggregate remains the hot write subject for all activity inside a
-  room. This is acceptable for Chatto's current deployment scale and simpler
+  room. This is acceptable for Towk's current deployment scale and simpler
   than splitting threads prematurely.
 - A future split into thread aggregates remains possible, but it would be a
   deliberate migration of the room-owned thread event model rather than an

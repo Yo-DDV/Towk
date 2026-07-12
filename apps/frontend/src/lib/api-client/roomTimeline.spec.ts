@@ -1,5 +1,5 @@
 import { Timestamp } from '@bufbuild/protobuf';
-import { Message } from '@chatto/api-types/api/v1/message_types_pb';
+import { Message } from '@towk/api-types/api/v1/message_types_pb';
 import { describe, expect, it } from 'vitest';
 import { messagePostedPayload } from './roomTimeline';
 

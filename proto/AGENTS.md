@@ -103,7 +103,7 @@ For public API packages:
   `BatchGet*` and list methods may omit missing or inaccessible resources, but
   document that behavior on the RPC.
 - Generated public docs and TypeScript bindings are part of the API surface.
-  When adding public RPCs, regenerate `@chatto/api-types` and docs in the same
+  When adding public RPCs, regenerate `@towk/api-types` and docs in the same
   change. Do not recreate a handwritten API-client package; bundled frontend
   adapters belong under `apps/frontend/src/lib/api-client`.
 

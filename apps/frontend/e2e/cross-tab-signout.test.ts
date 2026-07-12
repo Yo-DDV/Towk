@@ -116,7 +116,7 @@ test.describe('Cross-Tab Sign-Out', () => {
       // Notify other tabs before the logout request invalidates this page's
       // session and the app may redirect it away.
       await page.evaluate(() => {
-        const ch = new BroadcastChannel('chatto-session');
+        const ch = new BroadcastChannel('towk-session');
         ch.postMessage({ type: 'logout' });
         ch.close();
       });

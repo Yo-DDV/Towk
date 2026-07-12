@@ -4,7 +4,7 @@
 
 ## Context
 
-ADR-042 moves Chatto toward protobuf-first public APIs served over ConnectRPC for request/response operations. The first migrated services established useful patterns, but the project now needs those patterns written down before the migration grows.
+ADR-042 moves Towk toward protobuf-first public APIs served over ConnectRPC for request/response operations. The first migrated services established useful patterns, but the project now needs those patterns written down before the migration grows.
 
 Without a shared convention, new ConnectRPC methods can drift in several risky ways:
 
@@ -14,7 +14,7 @@ Without a shared convention, new ConnectRPC methods can drift in several risky w
 - request-size limits, protobuf validation, and error mapping can diverge service by service;
 - generated public API docs and client bindings can fall out of sync with service implementation.
 
-ConnectRPC should remain a transport boundary. Chatto's domain behavior still belongs in core models and projections, especially for event-sourced writes where authorization, OCC, projection readiness, and replay compatibility must stay consistent.
+ConnectRPC should remain a transport boundary. Towk's domain behavior still belongs in core models and projections, especially for event-sourced writes where authorization, OCC, projection readiness, and replay compatibility must stay consistent.
 
 ## Decision
 
@@ -25,7 +25,7 @@ not implementation workflow.
 
 `chatto.discovery.v1` is the narrow unauthenticated bootstrap and
 capability-token surface. It is for calls a client can make before it has a
-normal Chatto session, such as server metadata/login discovery and pending
+normal Towk session, such as server metadata/login discovery and pending
 external-identity confirmation. It is not a home for ordinary authenticated
 read-only APIs.
 
@@ -34,7 +34,7 @@ read-only APIs.
 Public API packages should be resource-complete within their domain. The
 `chatto.discovery.v1`, `chatto.api.v1`, `chatto.admin.v1`, and
 `chatto.realtime.v1` surfaces are not shaped only around the bundled frontend's
-current screens. When Chatto exposes a resource publicly, the service should
+current screens. When Towk exposes a resource publicly, the service should
 provide the natural discovery, public, administrative, or realtime operations
 for that resource unless an operation is intentionally unsupported and
 documented. The absence of a current bundled frontend caller is not enough

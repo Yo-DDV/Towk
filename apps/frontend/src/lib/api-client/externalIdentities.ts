@@ -1,19 +1,19 @@
 import {
   authHeaders,
-  createChattoClient,
+  createTowkClient,
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
-import { ExternalIdentityAuthService } from '@chatto/api-types/chatto/auth/v1/external_identity_auth_connect';
+import { ExternalIdentityAuthService } from '@towk/api-types/chatto/auth/v1/external_identity_auth_connect';
 import {
   ExternalIdentityFlowKind,
   type PendingExternalIdentity as APIPendingExternalIdentity
-} from '@chatto/api-types/chatto/auth/v1/external_identity_auth_pb';
-import { MyAccountService } from '@chatto/api-types/api/v1/account_connect';
+} from '@towk/api-types/chatto/auth/v1/external_identity_auth_pb';
+import { MyAccountService } from '@towk/api-types/api/v1/account_connect';
 import {
   type ExternalIdentityProvider as APIExternalIdentityProvider,
   type LinkedExternalIdentity as APILinkedExternalIdentity
-} from '@chatto/api-types/api/v1/external_identities_pb';
+} from '@towk/api-types/api/v1/external_identities_pb';
 
 export type ExternalIdentityFlowAPIConfig = {
   baseUrl?: string;
@@ -62,7 +62,7 @@ export type CreatedExternalIdentityAccount = {
 };
 
 export function createExternalIdentityFlowAPI(config: ExternalIdentityFlowAPIConfig = {}) {
-  const client = createChattoClient(ExternalIdentityAuthService, {
+  const client = createTowkClient(ExternalIdentityAuthService, {
     baseUrl: config.baseUrl ?? '/api/connect'
   });
 
@@ -96,7 +96,7 @@ export function createExternalIdentityFlowAPI(config: ExternalIdentityFlowAPICon
 }
 
 export function createExternalIdentityAPI(config: ExternalIdentityAPIConfig) {
-  const client = createChattoClient(MyAccountService, config);
+  const client = createTowkClient(MyAccountService, config);
   const headers = () => authHeaders(config);
 
   return {

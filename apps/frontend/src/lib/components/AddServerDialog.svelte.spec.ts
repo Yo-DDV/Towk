@@ -54,7 +54,7 @@ describe('AddServerDialog', () => {
     globalThis.fetch = vi.fn(async () =>
       makeProbeResponse({
         profile: {
-          name: 'Remote Chatto',
+          name: 'Remote Towk',
           version: '0.0.150'
         },
         login: {
@@ -92,16 +92,16 @@ describe('AddServerDialog', () => {
 
     // The server-supplied name appears in the (visually-marked) preview
     // card, not in any action button.
-    expect(container.textContent).toContain('Remote Chatto');
+    expect(container.textContent).toContain('Remote Towk');
     expect(container.textContent).toContain('chat.example.com');
   });
 
-  it('handles the real chat.chatto.run response shape', async () => {
+  it('handles the real chat.towk.example response shape', async () => {
     const realResponse = {
       profile: {
-        name: 'Official Chatto Community',
+        name: 'Official Towk Community',
         version: '0.0.150',
-        welcomeMessage: 'Welcome to the official Chatto community instance.'
+        welcomeMessage: 'Welcome to the official Towk community instance.'
       },
       login: {
         directRegistrationEnabled: true,
@@ -129,7 +129,7 @@ describe('AddServerDialog', () => {
     });
 
     const input = container.querySelector<HTMLInputElement>('#add-server-url')!;
-    input.value = 'chat.chatto.run';
+    input.value = 'chat.towk.example';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     flushSync();
 
@@ -141,7 +141,7 @@ describe('AddServerDialog', () => {
     });
     // Server-supplied name renders inside the preview card body but not
     // inside any action button (anti-impersonation).
-    expect(container.textContent).toContain('Official Chatto Community');
+    expect(container.textContent).toContain('Official Towk Community');
 
     expect(onclose).not.toHaveBeenCalled();
     expect(visible).toBe(true);
@@ -151,7 +151,7 @@ describe('AddServerDialog', () => {
     globalThis.fetch = vi.fn(async () =>
       makeProbeResponse({
         profile: {
-          name: 'Remote Chatto',
+          name: 'Remote Towk',
           version: '0.0.150',
           logoUrl: 'https://chat.example.com/logo.png'
         },
@@ -184,7 +184,7 @@ describe('AddServerDialog', () => {
       expect(startServerOAuthFlowMock).toHaveBeenCalledWith(
         'https://chat.example.com',
         expect.objectContaining({
-          name: 'Remote Chatto',
+          name: 'Remote Towk',
           authorizeUrl: '/oauth/authorize'
         })
       );
@@ -201,7 +201,7 @@ describe('AddServerDialog', () => {
     });
 
     const input = container.querySelector<HTMLInputElement>('#add-server-url')!;
-    input.value = 'https://not-chatto.example.com';
+    input.value = 'https://not-towk.example.com';
     input.dispatchEvent(new Event('input', { bubbles: true }));
     flushSync();
 

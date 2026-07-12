@@ -1,6 +1,6 @@
-import { authHeaders, createChattoClient, handleAuthError } from "./connect.js";
-import { MyAccountService } from "@chatto/api-types/api/v1/account_connect";
-import { PresenceStatus } from "@chatto/api-types/api/v1/presence_pb";
+import { authHeaders, createTowkClient, handleAuthError } from "./connect.js";
+import { MyAccountService } from "@towk/api-types/api/v1/account_connect";
+import { PresenceStatus } from "@towk/api-types/api/v1/presence_pb";
 
 export type PresenceAPIConfig = {
   serverId?: string;
@@ -12,7 +12,7 @@ export type PresenceAPIConfig = {
 export { PresenceStatus as APIPresenceStatus };
 
 export function createPresenceAPI(config: PresenceAPIConfig) {
-  const client = createChattoClient(MyAccountService, config);
+  const client = createTowkClient(MyAccountService, config);
   const headers = () => authHeaders(config);
   return {
     async updatePresence(

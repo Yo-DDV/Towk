@@ -74,7 +74,7 @@ Users can mention users, roles, and room-scoped virtual groups with `@handle` sy
 
 ### 8. Direct thread mentions can subscribe the recipient
 
-**Decision:** When a direct `@username` mention is delivered inside a thread, Chatto writes a thread-follow event for the mentioned user only if they have no prior follow state for it. An explicit unfollow suppresses mention-driven re-follow, but the mention notification is still created when normal notification rules allow it.
+**Decision:** When a direct `@username` mention is delivered inside a thread, Towk writes a thread-follow event for the mentioned user only if they have no prior follow state for it. An explicit unfollow suppresses mention-driven re-follow, but the mention notification is still created when normal notification rules allow it.
 **Why:** A direct thread mention usually means the thread now concerns the recipient, so it should appear in My Threads by default. An explicit unfollow is a stronger preference and should not be undone by someone else's later mention.
 **Tradeoff:** Broadcast and role mentions do not populate My Threads for every recipient; authors who need someone to track a thread should mention that user directly.
 

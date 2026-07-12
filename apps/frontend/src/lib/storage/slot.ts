@@ -5,7 +5,7 @@
  * `Codec<T>`, fall back to a typed default on missing/corrupt data, and
  * swallow SSR (`localStorage === undefined`) and quota errors at the edge.
  *
- * Build items through the factories, which encode Chatto's namespacing:
+ * Build items through the factories, which encode Towk's namespacing:
  *
  * - `globalSlot('foo', …)` → `chatto:foo`
  * - `serverSlot(serverId, 'foo', …)` → `chatto:i:{serverId}:foo`

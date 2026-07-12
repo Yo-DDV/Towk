@@ -4,7 +4,7 @@
 
 ## Context
 
-Every entity in Chatto (users, spaces, rooms, events, assets, notifications) needs a unique identifier. The options include UUIDs (128-bit, standard but verbose), auto-incrementing integers (simple but leak ordering and count), and NanoID (compact, customizable alphabet, configurable entropy).
+Every entity in Towk (users, spaces, rooms, events, assets, notifications) needs a unique identifier. The options include UUIDs (128-bit, standard but verbose), auto-incrementing integers (simple but leak ordering and count), and NanoID (compact, customizable alphabet, configurable entropy).
 
 Additionally, when debugging production issues or reading logs, it's helpful to immediately know what *type* of entity an ID refers to without additional context.
 

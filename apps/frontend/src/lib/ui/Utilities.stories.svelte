@@ -2,7 +2,7 @@
   import { defineMeta } from '@storybook/addon-svelte-csf';
 
   const componentDescription = `
-  Shared Tailwind utilities that are part of Chatto's visual system but are not
+  Shared Tailwind utilities that are part of Towk's visual system but are not
   owned by a single Svelte component. Reach for these before repeating a long
   shell, menu, or icon-button class string in feature code.
   `.trim();

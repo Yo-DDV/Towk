@@ -1,8 +1,8 @@
-import { authHeaders, createChattoClient } from './connect.js';
-import { AdminServerService } from '@chatto/api-types/admin/v1/server_connect';
-import { ServerService } from '@chatto/api-types/api/v1/server_state_connect';
-import { ServerDiscoveryService } from '@chatto/api-types/chatto/discovery/v1/server_connect';
-import { ViewerService } from '@chatto/api-types/api/v1/viewer_connect';
+import { authHeaders, createTowkClient } from './connect.js';
+import { AdminServerService } from '@towk/api-types/admin/v1/server_connect';
+import { ServerService } from '@towk/api-types/api/v1/server_state_connect';
+import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_connect';
+import { ViewerService } from '@towk/api-types/api/v1/viewer_connect';
 import { mapServerProfile, type ServerProfile } from './serverProfile.js';
 
 export type ServerStateAPIConfig = {
@@ -80,10 +80,10 @@ function mapViewerCapabilities(
 }
 
 function serverClients(config: ServerStateAPIConfig) {
-  const discovery = createChattoClient(ServerDiscoveryService, config);
-  const server = createChattoClient(ServerService, config);
-  const viewer = createChattoClient(ViewerService, config);
-  const adminServer = createChattoClient(AdminServerService, config);
+  const discovery = createTowkClient(ServerDiscoveryService, config);
+  const server = createTowkClient(ServerService, config);
+  const viewer = createTowkClient(ViewerService, config);
+  const adminServer = createTowkClient(AdminServerService, config);
   const headers = authHeaders(config);
   return { discovery, server, viewer, adminServer, headers };
 }

@@ -1,5 +1,5 @@
-import { authHeaders, createChattoClient } from "./connect.js";
-import { PushNotificationService } from "@chatto/api-types/api/v1/push_notifications_connect";
+import { authHeaders, createTowkClient } from "./connect.js";
+import { PushNotificationService } from "@towk/api-types/api/v1/push_notifications_connect";
 
 export type PushNotificationAPIConfig = {
   baseUrl: string;
@@ -15,7 +15,7 @@ export type SubscribePushInput = {
 };
 
 export function createPushNotificationAPI(config: PushNotificationAPIConfig) {
-  const client = createChattoClient(PushNotificationService, config);
+  const client = createTowkClient(PushNotificationService, config);
   const headers = () => authHeaders(config);
 
   return {

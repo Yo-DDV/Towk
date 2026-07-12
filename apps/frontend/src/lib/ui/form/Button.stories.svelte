@@ -112,7 +112,7 @@
     }
   }}
 >
-  <Button href="https://www.chatto.run" variant="secondary">Visit chatto.run</Button>
+  <Button href="https://towk.example" variant="secondary">Visit Towk</Button>
 </Story>
 
 <Story

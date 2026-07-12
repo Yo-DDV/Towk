@@ -861,7 +861,7 @@
           </div>
         {/if}
 
-        <!-- Embedded Chatto message link previews -->
+        <!-- Embedded Towk message link previews -->
         {#each embeddedMessageLinks as link, i (link.messageId + ':' + i)}
           <div class="mt-2">
             <MessagePreviewCard {link} />

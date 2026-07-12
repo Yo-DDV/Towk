@@ -8,7 +8,7 @@ import { ROOM_MEMBERS_PAGE_SIZE, type RoomMember } from '$lib/state/room/members
 import type { PresenceCache } from '$lib/state/presenceCache.svelte';
 import type { RoomData } from '$lib/hooks/useRoomData.svelte';
 import { PresenceStatus } from '$lib/render/types';
-import { RoomKind } from '@chatto/api-types/api/v1/rooms_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import RoomSidebarTestHarness from './RoomSidebarTestHarness.svelte';
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -1209,7 +1209,7 @@ describe('RoomSidebar', () => {
     expect(memberDirectoryMocks.listRoomMembers).toHaveBeenCalledTimes(1);
   });
 
-  it('clears the member search with the Chatto-styled clear button without refetching', async () => {
+  it('clears the member search with the Towk-styled clear button without refetching', async () => {
     memberDirectoryMocks.listRoomMembers.mockResolvedValueOnce(
       memberPage([member(1), { ...member(2), displayName: 'Boris Member' }])
     );

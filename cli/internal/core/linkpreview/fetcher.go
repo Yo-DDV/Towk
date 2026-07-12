@@ -38,7 +38,7 @@ const (
 )
 
 // ErrUnavailable marks URLs that were fetched or inspected successfully enough
-// to know that Chatto cannot produce a useful preview for them.
+// to know that Towk cannot produce a useful preview for them.
 var ErrUnavailable = errors.New("link preview unavailable")
 
 // StoreImageFunc persists a processed preview image under the supplied asset ID.

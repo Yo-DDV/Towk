@@ -31,7 +31,7 @@ describe('getPublicServerInfo', () => {
   it('loads public server metadata and maps the shared profile', async () => {
     mocks.getServer.mockResolvedValue({
       profile: {
-        name: 'Remote Chatto',
+        name: 'Remote Towk',
         version: '9.8.7',
         logoUrl: 'https://cdn/logo.webp',
         bannerUrl: 'https://cdn/banner.webp',
@@ -45,7 +45,7 @@ describe('getPublicServerInfo', () => {
           {
             id: 'hub',
             type: 'oidc',
-            label: 'Chatto Hub',
+            label: 'Towk Hub',
             loginUrl: '/auth/providers/hub'
           }
         ]
@@ -60,7 +60,7 @@ describe('getPublicServerInfo', () => {
     });
     expect(mocks.getServer).toHaveBeenCalledWith({}, { signal: undefined });
     expect(info).toEqual({
-      name: 'Remote Chatto',
+      name: 'Remote Towk',
       version: '9.8.7',
       authorizeUrl: '/oauth/authorize',
       directRegistrationEnabled: true,
@@ -72,7 +72,7 @@ describe('getPublicServerInfo', () => {
         {
           id: 'hub',
           type: 'oidc',
-          label: 'Chatto Hub',
+          label: 'Towk Hub',
           loginUrl: '/auth/providers/hub'
         }
       ]
@@ -82,14 +82,14 @@ describe('getPublicServerInfo', () => {
   it('uses profile defaults when optional public profile fields are absent', async () => {
     mocks.getServer.mockResolvedValue({
       profile: {
-        name: 'Chatto',
+        name: 'Towk',
         version: ''
       },
       login: {}
     });
 
     await expect(getPublicServerInfo('https://chat.example.test')).resolves.toMatchObject({
-      name: 'Chatto',
+      name: 'Towk',
       welcomeMessage: null,
       description: null,
       iconUrl: null,

@@ -46,13 +46,13 @@ Any authenticated user can browse the server's member directory — a paginated 
 ### 5. All authenticated users can browse member profiles
 
 **Decision:** No special permission required; any authenticated user can list members or look up a member by stable user ID.
-**Why:** Chatto's privacy model treats user identity (login, display name, avatar) as public to other members. Hiding members from members would be incongruent — they'd see each other in messages anyway. Operators who want a fully private member list would need a different feature.
+**Why:** Towk's privacy model treats user identity (login, display name, avatar) as public to other members. Hiding members from members would be incongruent — they'd see each other in messages anyway. Operators who want a fully private member list would need a different feature.
 **Tradeoff:** Bot accounts or system users (if introduced) would surface in normal listings. The admin UI may still require admin permissions to reach its member-management page, but the underlying directory query remains available to authenticated users.
 
 ### 6. Implicit membership, no explicit member records
 
 **Decision:** After the #330 consolidation, every authenticated user is implicitly a member of the server. There's no `ServerMembership` record; the user list *is* the member list.
-**Why:** Explicit memberships would require a join-leave workflow that didn't exist (Chatto's earlier design assumed everyone-is-a-member). Removing them reduced storage and code paths without losing functionality. See ADR-027.
+**Why:** Explicit memberships would require a join-leave workflow that didn't exist (Towk's earlier design assumed everyone-is-a-member). Removing them reduced storage and code paths without losing functionality. See ADR-027.
 **Tradeoff:** No way to mark someone as "a user on this server but not currently a member". For operators who need that, the suspension flow (FDR-001's user-level deny pattern) handles it.
 
 ## Permissions

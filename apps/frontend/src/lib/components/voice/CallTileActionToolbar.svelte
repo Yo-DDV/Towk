@@ -1,7 +1,7 @@
 <!--
 @component
 
-Hover toolbar for call participant tiles. It intentionally reuses Chatto's
+Hover toolbar for call participant tiles. It intentionally reuses Towk's
 quiet surface and border language instead of media-player chrome.
 -->
 <script lang="ts">

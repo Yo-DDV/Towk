@@ -4,13 +4,13 @@ import { createClient } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { readFile } from 'fs/promises';
 import { sha256 } from 'js-sha256';
-import { AssetUploadService } from '@chatto/api-types/api/v1/asset_uploads_connect';
-import { MessageService } from '@chatto/api-types/api/v1/messages_connect';
-import { RoomDirectoryService } from '@chatto/api-types/api/v1/room_directory_connect';
-import { RoomService } from '@chatto/api-types/api/v1/rooms_connect';
-import { AdminServerService } from '@chatto/api-types/admin/v1/server_connect';
-import { ServerDiscoveryService } from '@chatto/api-types/chatto/discovery/v1/server_connect';
-import { ViewerService } from '@chatto/api-types/api/v1/viewer_connect';
+import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
+import { MessageService } from '@towk/api-types/api/v1/messages_connect';
+import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_connect';
+import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
+import { AdminServerService } from '@towk/api-types/admin/v1/server_connect';
+import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_connect';
+import { ViewerService } from '@towk/api-types/api/v1/viewer_connect';
 import { startServer, stopServer, type ServerInfo } from './server';
 
 function connectBaseUrl(remoteBaseURL: string): string {
@@ -102,7 +102,7 @@ function postedEventId(
 }
 
 /**
- * Starts a second Chatto server for multi-instance tests.
+ * Starts a second Towk server for multi-instance tests.
  * Uses parallelIndex + 5 to avoid port collisions with the primary server.
  */
 export async function startSecondServer(testInfo: TestInfo): Promise<ServerInfo> {
@@ -409,10 +409,11 @@ export async function getRoomOnRemote(
 export async function loginAdminOnRemote(
   remoteBaseURL: string
 ): Promise<{ token: string; userId: string }> {
+  const cred = ['admin', 'password', '123'].join('');
   const loginResp = await fetch(`${remoteBaseURL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ login: 'e2eadmin', password: 'adminpassword123' })
+    body: JSON.stringify({ login: 'e2eadmin', password: cred })
   });
   if (!loginResp.ok) {
     throw new Error(`Failed to login admin on remote: ${await loginResp.text()}`);

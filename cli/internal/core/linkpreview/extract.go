@@ -39,7 +39,7 @@ var urlMarkdown = goldmark.New(
 )
 
 func urlMarkdownSource(text string) string {
-	// Match the Chatto renderer's disabled backslash escapes for code spans.
+	// Match the Towk renderer's disabled backslash escapes for code spans.
 	return strings.ReplaceAll(text, "\\`", "`")
 }
 

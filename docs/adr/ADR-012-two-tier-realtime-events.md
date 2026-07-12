@@ -12,7 +12,7 @@ ADR-033, and ADR-034.
 
 ## Context
 
-Chatto's real-time events span a wide spectrum of persistence and frequency requirements. Messages, joins, room lifecycle events, reactions, and other durable room facts must be durably stored and replayable. Typing indicators, presence changes, and notification sync signals are ephemeral - they matter for the current moment but have no audit or replay value.
+Towk's real-time events span a wide spectrum of persistence and frequency requirements. Messages, joins, room lifecycle events, reactions, and other durable room facts must be durably stored and replayable. Typing indicators, presence changes, and notification sync signals are ephemeral - they matter for the current moment but have no audit or replay value.
 
 Publishing all events to JetStream would waste storage on high-frequency transient signals. Using only bare NATS pub/sub would lose ordering guarantees and replay for messages.
 

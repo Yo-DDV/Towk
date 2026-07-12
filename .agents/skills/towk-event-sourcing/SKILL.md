@@ -1,11 +1,11 @@
 ---
-name: "chatto-event-sourcing"
-description: "Use when designing, implementing, reviewing, debugging, or documenting Chatto event-sourced domain behavior, including EVT subjects, aggregate boundaries, Services, projections, optimistic concurrency control, read-your-writes, live/reconnect delivery, replay compatibility, migration safety, and rollback/deployment implications."
+name: "towk-event-sourcing"
+description: "Use when designing, implementing, reviewing, debugging, or documenting Towk event-sourced domain behavior, including EVT subjects, aggregate boundaries, Services, projections, optimistic concurrency control, read-your-writes, live/reconnect delivery, replay compatibility, migration safety, and rollback/deployment implications."
 ---
 
-# Chatto Event Sourcing
+# Towk Event Sourcing
 
-Use this skill whenever touching durable domain state in Chatto. It is a guardrail checklist for the event-sourced architecture, not a replacement for the architecture docs.
+Use this skill whenever touching durable domain state in Towk. It is a guardrail checklist for the event-sourced architecture, not a replacement for the architecture docs.
 
 ## Start Here
 

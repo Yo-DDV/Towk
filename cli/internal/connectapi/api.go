@@ -14,7 +14,7 @@ import (
 	"hmans.de/chatto/internal/pb/chatto/operator/v1/operatorv1connect"
 )
 
-// Prefix is the HTTP mount point for Chatto's ConnectRPC public API.
+// Prefix is the HTTP mount point for Towk's ConnectRPC public API.
 const Prefix = "/api/connect"
 
 // MaxRequestMessageBytes caps individual inbound protobuf messages. ConnectRPC
@@ -40,7 +40,7 @@ type Handler struct {
 	AuthPolicy  AuthPolicy
 }
 
-// API owns Chatto's ConnectRPC service implementations. It deliberately has no
+// API owns Towk's ConnectRPC service implementations. It deliberately has no
 // dependency on the Gin HTTP server so API methods stay transport-package local.
 type API struct {
 	core    *core.ChattoCore
@@ -52,7 +52,7 @@ func New(core *core.ChattoCore, config config.ChattoConfig, version string) *API
 	return &API{core: core, config: config, version: version}
 }
 
-// HandlerOptions returns the common Connect handler options used for Chatto's
+// HandlerOptions returns the common Connect handler options used for Towk's
 // public API. HTTP middleware that writes Connect errors should use the same
 // options so errors are encoded consistently with the generated handlers.
 func HandlerOptions() []connect.HandlerOption {

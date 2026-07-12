@@ -1,4 +1,4 @@
-// Package dekstore stores Chatto-owned data-encryption-key records.
+// Package dekstore stores Towk-owned data-encryption-key records.
 package dekstore
 
 import (

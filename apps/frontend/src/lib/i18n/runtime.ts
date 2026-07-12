@@ -21,7 +21,7 @@ export function getBrowserLocale(): string {
 }
 
 /**
- * Combine Chatto's selected language with the browser's region for Intl formatting.
+ * Combine Towk's selected language with the browser's region for Intl formatting.
  *
  * Paraglide locales are language-only (for example, `en`), which would otherwise
  * make Intl fall back to US conventions instead of the browser's `en-GB` region.

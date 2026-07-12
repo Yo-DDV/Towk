@@ -52,7 +52,7 @@ describe('syncServiceWorkerNotificationBadgeState', () => {
     syncServiceWorkerNotificationBadgeState({ kind: 'count', count: 3 });
 
     expect(postMessage).toHaveBeenCalledWith({
-      type: 'chatto-badge-state',
+      type: 'towk-badge-state',
       badgeIntent: { kind: 'count', count: 3 },
       notificationCount: 3,
       serviceWorkerAppBadgeEnabled: false
@@ -65,7 +65,7 @@ describe('syncServiceWorkerNotificationBadgeState', () => {
     syncServiceWorkerNotificationBadgeState({ kind: 'flag' });
 
     expect(postMessage).toHaveBeenCalledWith({
-      type: 'chatto-badge-state',
+      type: 'towk-badge-state',
       badgeIntent: { kind: 'flag' },
       notificationCount: 1,
       serviceWorkerAppBadgeEnabled: true
@@ -79,7 +79,7 @@ describe('syncServiceWorkerNotificationBadgeState', () => {
     await vi.waitFor(() => expect(activePostMessage).toHaveBeenCalledOnce());
 
     expect(activePostMessage).toHaveBeenCalledWith({
-      type: 'chatto-badge-state',
+      type: 'towk-badge-state',
       badgeIntent: { kind: 'clear' },
       notificationCount: 0,
       serviceWorkerAppBadgeEnabled: true
@@ -106,7 +106,7 @@ describe('syncServiceWorkerNotificationBadgeState', () => {
 
     expect(replacementPostMessage).toHaveBeenCalledOnce();
     expect(replacementPostMessage).toHaveBeenCalledWith({
-      type: 'chatto-badge-state',
+      type: 'towk-badge-state',
       badgeIntent: { kind: 'clear' },
       notificationCount: 0,
       serviceWorkerAppBadgeEnabled: true

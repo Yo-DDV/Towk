@@ -7,10 +7,10 @@ const generalEng: Searchable = {
   serverName: 'Work'
 };
 
-const generalChatto: Searchable = {
+const generalTowk: Searchable = {
   label: 'general',
-  detail: 'Chatto Community',
-  serverName: 'Chatto Community'
+  detail: 'Towk Community',
+  serverName: 'Towk Community'
 };
 
 const random: Searchable = {
@@ -35,23 +35,23 @@ describe('scoreItem', () => {
   });
 
   it('matches a single token against the instance name', () => {
-    expect(scoreItem('chatto', generalChatto)).not.toBeNull();
+    expect(scoreItem('towk', generalTowk)).not.toBeNull();
   });
 
   it('requires every token to match somewhere', () => {
-    expect(scoreItem('general xyz', generalChatto)).toBeNull();
+    expect(scoreItem('general xyz', generalTowk)).toBeNull();
   });
 
   it('matches multi-token query across label and detail/instance', () => {
-    // The motivating case: "general chatto" should match the room in
-    // Chatto Community but not the one in Engineering / Work.
-    expect(scoreItem('general chatto', generalChatto)).not.toBeNull();
-    expect(scoreItem('general chatto', generalEng)).toBeNull();
+    // The motivating case: "general towk" should match the room in
+    // Towk Community but not the one in Engineering / Work.
+    expect(scoreItem('general towk', generalTowk)).not.toBeNull();
+    expect(scoreItem('general towk', generalEng)).toBeNull();
   });
 
   it('is order-independent across tokens', () => {
-    const forward = scoreItem('general chatto', generalChatto);
-    const reverse = scoreItem('chatto general', generalChatto);
+    const forward = scoreItem('general towk', generalTowk);
+    const reverse = scoreItem('towk general', generalTowk);
     expect(forward).not.toBeNull();
     expect(reverse).not.toBeNull();
     // Same tokens, same per-token best — total should match.
@@ -72,8 +72,8 @@ describe('scoreItem', () => {
   });
 
   it('a label match beats a detail-only match for tie-breaking similar items', () => {
-    // generalEng (label "general") vs generalChatto (label "general"); query
+    // generalEng (label "general") vs generalTowk (label "general"); query
     // "general" alone — both match in label, scores equal.
-    expect(scoreItem('general', generalEng)).toBe(scoreItem('general', generalChatto));
+    expect(scoreItem('general', generalEng)).toBe(scoreItem('general', generalTowk));
   });
 });

@@ -569,7 +569,7 @@ func oauthErrorRedirectURL(redirectURI, state, code, description string) (string
 }
 
 // setOAuthTokenCORS sets CORS headers for the token endpoint.
-// Wildcard origin — this endpoint is called cross-origin by any Chatto client.
+// Wildcard origin — this endpoint is called cross-origin by any Towk client.
 func setOAuthTokenCORS(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")

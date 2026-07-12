@@ -1,14 +1,14 @@
 import {
   authHeaders,
-  createChattoClient,
+  createTowkClient,
   handleAuthError,
   type ConnectAPIConfig as BaseConnectAPIConfig
 } from './connect.js';
-import { NotificationPreferencesService } from '@chatto/api-types/api/v1/notification_preferences_connect';
+import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_connect';
 import {
   NotificationLevel,
   type NotificationPreference as APINotificationPreference
-} from '@chatto/api-types/api/v1/notification_preferences_pb';
+} from '@towk/api-types/api/v1/notification_preferences_pb';
 
 export type ConnectAPIConfig = BaseConnectAPIConfig & {
   serverId: string;
@@ -80,7 +80,7 @@ export async function updateRoomNotificationPreference(
 }
 
 function createNotificationPreferencesClient(config: ConnectAPIConfig) {
-  return createChattoClient(NotificationPreferencesService, config);
+  return createTowkClient(NotificationPreferencesService, config);
 }
 
 function connectHeaders(config: ConnectAPIConfig) {

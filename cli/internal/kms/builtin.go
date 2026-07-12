@@ -1,4 +1,4 @@
-// Package kms defines Chatto's key-wrapping boundary.
+// Package kms defines Towk's key-wrapping boundary.
 package kms
 
 import (
@@ -44,7 +44,7 @@ type WrappedContentKey struct {
 	Metadata            []byte
 }
 
-// KeyWrapper is the key-only KMS boundary used by Chatto core.
+// KeyWrapper is the key-only KMS boundary used by Towk core.
 type KeyWrapper interface {
 	CreateKey(ctx context.Context, owner string) (string, error)
 	KeyExists(ctx context.Context, keyRef string) (bool, error)
@@ -67,7 +67,7 @@ type LegacyKeyProvider interface {
 	LegacyUserKey(ctx context.Context, userID string) ([]byte, error)
 }
 
-// Builtin is Chatto's default in-process KMS.
+// Builtin is Towk's default in-process KMS.
 type Builtin struct {
 	kv     jetstream.KeyValue
 	logger *log.Logger

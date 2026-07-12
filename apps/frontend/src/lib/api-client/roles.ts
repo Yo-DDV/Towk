@@ -2,13 +2,13 @@ import {
   authHeaders,
   Code,
   ConnectError,
-  createChattoClient,
+  createTowkClient,
 } from "./connect.js";
-import { AdminRoleService } from "@chatto/api-types/admin/v1/roles_connect";
-import type { AdminRole as APIAdminRole } from "@chatto/api-types/admin/v1/roles_pb";
-import { RoleService } from "@chatto/api-types/api/v1/roles_connect";
-import type { Role as APIRole } from "@chatto/api-types/api/v1/roles_pb";
-import type { User as APIUser } from "@chatto/api-types/api/v1/users_pb";
+import { AdminRoleService } from "@towk/api-types/admin/v1/roles_connect";
+import type { AdminRole as APIAdminRole } from "@towk/api-types/admin/v1/roles_pb";
+import { RoleService } from "@towk/api-types/api/v1/roles_connect";
+import type { Role as APIRole } from "@towk/api-types/api/v1/roles_pb";
+import type { User as APIUser } from "@towk/api-types/api/v1/users_pb";
 
 export type RoleAPIConfig = {
   baseUrl: string;
@@ -59,8 +59,8 @@ export type UpdateRoleInput = {
 };
 
 export function createRoleAPI(config: RoleAPIConfig) {
-  const client = createChattoClient(RoleService, config);
-  const adminClient = createChattoClient(AdminRoleService, config);
+  const client = createTowkClient(RoleService, config);
+  const adminClient = createTowkClient(AdminRoleService, config);
   const headers = () => authHeaders(config);
 
   return {

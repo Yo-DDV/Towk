@@ -18,7 +18,7 @@ const (
 	MentionHandleHere = "here"
 )
 
-// IsVirtualMentionHandle reports whether a handle is owned by Chatto rather
+// IsVirtualMentionHandle reports whether a handle is owned by Towk rather
 // than by a user or role. Handles are matched case-insensitively.
 func IsVirtualMentionHandle(handle string) bool {
 	switch strings.ToLower(handle) {
@@ -150,7 +150,7 @@ var mentionMarkdown = goldmark.New(
 )
 
 func mentionMarkdownSource(body string) string {
-	// Chatto's message renderer disables Markdown backslash escapes, so
+	// Towk's message renderer disables Markdown backslash escapes, so
 	// \` still participates in code-span parsing and \@alice still contains
 	// a visible mention boundary. Goldmark's inline loop hardcodes backslash
 	// escaping, so normalize just those cases for mention extraction.

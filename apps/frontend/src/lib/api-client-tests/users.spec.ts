@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { DirectoryMember as APIDirectoryMember } from '@chatto/api-types/api/v1/member_directory_pb';
-import { User as APIUser } from '@chatto/api-types/api/v1/users_pb';
+import { DirectoryMember as APIDirectoryMember } from '@towk/api-types/api/v1/member_directory_pb';
+import { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import { createUserAPI, mapUserSummary } from '$lib/api-client/users';
 
 const mocks = vi.hoisted(() => ({

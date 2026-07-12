@@ -110,7 +110,7 @@ describe('ServerInfoState.init()', () => {
     const loader = vi
       .fn<() => Promise<PublicServerInfo>>()
       .mockRejectedValue(new Error('[Network] Failed to fetch'));
-    const state = new ServerInfoState('https://chatto.run', loader);
+    const state = new ServerInfoState('https://towk.example', loader);
 
     await state.init();
 
@@ -118,20 +118,20 @@ describe('ServerInfoState.init()', () => {
     expect(state.error).toBe('[Network] Failed to fetch');
     expect(state.name).toBe('Towk'); // product default unchanged
     expect(consoleError).toHaveBeenCalledTimes(1);
-    expect(consoleError.mock.calls[0][0]).toContain('https://chatto.run');
+    expect(consoleError.mock.calls[0][0]).toContain('https://towk.example');
     expect(consoleError.mock.calls[0][0]).toContain('failed to load server info');
   });
 
   it('logs and sets error when the Connect loader rejects', async () => {
     const loader = vi.fn<() => Promise<PublicServerInfo>>().mockRejectedValue(new Error('boom'));
-    const state = new ServerInfoState('https://chatto.run', loader);
+    const state = new ServerInfoState('https://towk.example', loader);
 
     await state.init();
 
     expect(state.loading).toBe(false);
     expect(state.error).toBe('boom');
     expect(consoleError).toHaveBeenCalledTimes(1);
-    expect(consoleError.mock.calls[0][0]).toContain('https://chatto.run');
+    expect(consoleError.mock.calls[0][0]).toContain('https://towk.example');
     expect(consoleError.mock.calls[0][0]).toContain('failed to load server info');
   });
 

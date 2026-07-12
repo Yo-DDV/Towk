@@ -4,13 +4,13 @@
 
 ## Context
 
-Chatto now uses protobuf definitions as the source of truth for its public
+Towk now uses protobuf definitions as the source of truth for its public
 request/response API and realtime WebSocket frames. The bundled frontend is the
 first and most complete consumer, but the API is also meant for integrations,
 bots, tooling, SDKs, and alternate clients.
 
 The project is still pre-1.0, so it can make intentional breaking changes.
-However, Chatto is public, self-hosted, and some deployments track moving
+However, Towk is public, self-hosted, and some deployments track moving
 images. Mixed client/server versions can exist even before 1.0, and API
 compatibility needs to be explicit enough that contributors know when they are
 changing an integration contract.
@@ -26,7 +26,7 @@ which parts of the protobuf API carry which stability promise?
 
 ## Decision
 
-Chatto defines five public API stability tiers:
+Towk defines five public API stability tiers:
 
 1. **Auth API**: `chatto.auth.v1` ConnectRPC services for public
    authentication flows with a distinct capability-token security model, such
