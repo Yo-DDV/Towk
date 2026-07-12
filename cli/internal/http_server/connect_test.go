@@ -2,8 +2,10 @@ package http_server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -748,6 +750,78 @@ func TestBearerPresentedCredentialPreservesStorageFailure(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("bearerPresentedCredential err = %v, want context canceled", err)
 	}
+}
+
+func TestExplicitAuthorizationNeverFallsBackToCookie(t *testing.T) {
+	ts, client, chattoCore := setupTestHTTPServerWithHook(t, func(s *HTTPServer) {
+		s.setupConnectAPI()
+	})
+	ctx := testContext(t)
+	user, err := chattoCore.CreateUser(ctx, core.SystemActorID, "auth-precedence", "Auth Precedence", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	loginBody, err := json.Marshal(map[string]string{"login": user.GetLogin(), "password": "password123"})
+	if err != nil {
+		t.Fatalf("marshal login body: %v", err)
+	}
+	loginResp, err := client.Post(ts.URL+"/auth/login", "application/json", bytes.NewReader(loginBody))
+	if err != nil {
+		t.Fatalf("login: %v", err)
+	}
+	loginResp.Body.Close()
+	if loginResp.StatusCode != http.StatusOK {
+		t.Fatalf("login status = %d, want %d", loginResp.StatusCode, http.StatusOK)
+	}
+
+	viewer := apiv1connect.NewViewerServiceClient(client, ts.URL+connectAPIPrefix)
+	if _, err := viewer.GetViewer(ctx, connect.NewRequest(&apiv1.GetViewerRequest{})); err != nil {
+		t.Fatalf("cookie precondition GetViewer: %v", err)
+	}
+
+	for _, authorization := range []string{
+		"Bearer invalid-explicit-token",
+		"Bearer ",
+		"Basic dXNlcjpwYXNzd29yZA==",
+	} {
+		t.Run(authorization, func(t *testing.T) {
+			req := connect.NewRequest(&apiv1.GetViewerRequest{})
+			req.Header().Set("Authorization", authorization)
+			_, err := viewer.GetViewer(ctx, req)
+			if connect.CodeOf(err) != connect.CodeUnauthenticated {
+				t.Fatalf("GetViewer with Authorization %q err = %v, want unauthenticated", authorization, err)
+			}
+		})
+	}
+
+	other, err := chattoCore.CreateUser(ctx, core.SystemActorID, "auth-precedence-other", "Auth Precedence Other", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(other): %v", err)
+	}
+	otherToken, err := chattoCore.CreateAuthToken(ctx, other.GetId())
+	if err != nil {
+		t.Fatalf("CreateAuthToken(other): %v", err)
+	}
+	t.Run("bearer scheme is case insensitive", func(t *testing.T) {
+		req := connect.NewRequest(&apiv1.GetViewerRequest{})
+		req.Header().Set("Authorization", "bearer "+otherToken)
+		resp, err := viewer.GetViewer(ctx, req)
+		if err != nil {
+			t.Fatalf("GetViewer: %v", err)
+		}
+		if got := resp.Msg.GetUser().GetProfile().GetId(); got != other.GetId() {
+			t.Fatalf("viewer user = %q, want explicit bearer user %q", got, other.GetId())
+		}
+	})
+	t.Run("multiple authorization headers fail closed", func(t *testing.T) {
+		req := connect.NewRequest(&apiv1.GetViewerRequest{})
+		req.Header().Add("Authorization", "Bearer "+otherToken)
+		req.Header().Add("Authorization", "Bearer attacker-controlled")
+		_, err := viewer.GetViewer(ctx, req)
+		if connect.CodeOf(err) != connect.CodeUnauthenticated {
+			t.Fatalf("GetViewer with duplicate Authorization err = %v, want unauthenticated", err)
+		}
+	})
 }
 
 func TestConnectRequestBaseURLTrustModel(t *testing.T) {

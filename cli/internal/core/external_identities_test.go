@@ -1,10 +1,12 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -165,6 +167,118 @@ func TestChattoCore_PendingExternalIdentityLinkStart(t *testing.T) {
 	}
 	if _, err := core.ConsumePendingExternalIdentityLinkStart(ctx, token); !errors.Is(err, ErrExternalIdentityFlowNotFound) {
 		t.Fatalf("ConsumePendingExternalIdentityLinkStart after delete error = %v, want ErrExternalIdentityFlowNotFound", err)
+	}
+}
+
+func TestChattoCore_ConsumePendingExternalIdentityLinkStartConcurrent(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	token, err := core.CreatePendingExternalIdentityLinkStart(ctx, "github-main", "/chat/-/settings/account", "U1")
+	if err != nil {
+		t.Fatalf("CreatePendingExternalIdentityLinkStart: %v", err)
+	}
+
+	const callers = 16
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := core.ConsumePendingExternalIdentityLinkStart(ctx, token)
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	succeeded := 0
+	for err := range errs {
+		if err == nil {
+			succeeded++
+			continue
+		}
+		if !errors.Is(err, ErrExternalIdentityFlowNotFound) {
+			t.Fatalf("ConsumePendingExternalIdentityLinkStart error = %v, want not found", err)
+		}
+	}
+	if succeeded != 1 {
+		t.Fatalf("successful consumers = %d, want exactly 1", succeeded)
+	}
+}
+
+func TestChattoCore_ConsumePendingExternalIdentityFlowConcurrent(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		create  func(*ChattoCore, context.Context) (string, error)
+		consume func(*ChattoCore, context.Context, string) (*PendingExternalIdentityFlow, error)
+	}{
+		{
+			name: "create account",
+			create: func(core *ChattoCore, ctx context.Context) (string, error) {
+				return core.CreatePendingExternalIdentityCreateFlow(ctx, PendingExternalIdentityFlow{
+					ProviderID: "github-main", ProviderType: "github", Issuer: "github-main", Subject: "create-once",
+				})
+			},
+			consume: func(core *ChattoCore, ctx context.Context, token string) (*PendingExternalIdentityFlow, error) {
+				return core.ConsumePendingExternalIdentityCreateFlow(ctx, token)
+			},
+		},
+		{
+			name: "link account",
+			create: func(core *ChattoCore, ctx context.Context) (string, error) {
+				return core.CreatePendingExternalIdentityLinkFlow(ctx, PendingExternalIdentityFlow{
+					ProviderID: "discord-main", ProviderType: "discord", Issuer: "discord-main", Subject: "link-once",
+				}, "U1")
+			},
+			consume: func(core *ChattoCore, ctx context.Context, token string) (*PendingExternalIdentityFlow, error) {
+				return core.ConsumePendingExternalIdentityLinkFlow(ctx, token)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			core, _ := setupTestCore(t)
+			ctx := testContext(t)
+			token, err := tc.create(core, ctx)
+			if err != nil {
+				t.Fatalf("create flow: %v", err)
+			}
+
+			const callers = 16
+			start := make(chan struct{})
+			errs := make(chan error, callers)
+			var wg sync.WaitGroup
+			for range callers {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					<-start
+					_, err := tc.consume(core, ctx, token)
+					errs <- err
+				}()
+			}
+			close(start)
+			wg.Wait()
+			close(errs)
+
+			succeeded := 0
+			for err := range errs {
+				if err == nil {
+					succeeded++
+					continue
+				}
+				if !errors.Is(err, ErrExternalIdentityFlowNotFound) {
+					t.Fatalf("consume flow error = %v, want not found", err)
+				}
+			}
+			if succeeded != 1 {
+				t.Fatalf("successful consumers = %d, want exactly 1", succeeded)
+			}
+		})
 	}
 }
 

@@ -50,12 +50,18 @@ func (s *HTTPServer) injectUserIntoContext(c *gin.Context) *http.Request {
 }
 
 func (s *HTTPServer) presentedCredentialFromRequest(c *gin.Context) (presentedRuntimeCredential, bool, error) {
-	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
-		if token, ok := strings.CutPrefix(authHeader, "Bearer "); ok && strings.TrimSpace(token) != "" {
-			if credential, ok, err := s.bearerPresentedCredential(c.Request.Context(), strings.TrimSpace(token)); ok || err != nil {
-				return credential, ok, err
-			}
+	authHeaders, authorizationPresent := c.Request.Header[http.CanonicalHeaderKey("Authorization")]
+	if authorizationPresent {
+		if len(authHeaders) != 1 {
+			return presentedRuntimeCredential{}, false, nil
 		}
+		parts := strings.Fields(authHeaders[0])
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			return presentedRuntimeCredential{}, false, nil
+		}
+		// An explicitly presented credential is authoritative. Invalid bearer
+		// credentials must not silently inherit an ambient browser cookie.
+		return s.bearerPresentedCredential(c.Request.Context(), parts[1])
 	}
 
 	return s.cookiePresentedCredential(c)
