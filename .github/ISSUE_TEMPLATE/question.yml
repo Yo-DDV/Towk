@@ -1,0 +1,66 @@
+name: Usage or self-hosting question
+description: Ask a focused question about running, configuring, or using Towk.
+title: "[Question]: "
+labels: [question, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues and documentation first. Do not include credentials, personal data, private messages, raw production logs, or unredacted screenshots.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation or upgrade
+        - Configuration
+        - Authentication or identity
+        - Messaging, files, or notifications
+        - Voice or video
+        - Backup, restore, or storage
+        - API or integration
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Towk version
+      description: Provide an immutable tag, commit SHA, or image digest when relevant.
+      placeholder: v0.x.y, commit SHA, or sha256:...
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      description: Describe the intended outcome and the exact point where you need guidance.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you already tried?
+      description: Include relevant documentation links and redacted configuration excerpts.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Redacted environment
+      description: Include deployment model, browser or client, and relevant dependencies without hostnames, addresses, tokens, or user identifiers.
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues and documentation.
+          required: true
+        - label: I removed secrets, personal data, private content, and unredacted production details.
+          required: true
+        - label: This is not a vulnerability report. I will use private vulnerability reporting for security issues.
+          required: true

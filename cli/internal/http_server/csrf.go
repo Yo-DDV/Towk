@@ -212,7 +212,15 @@ func (s *HTTPServer) setCSRFCookie(c *gin.Context, token string) {
 	)
 }
 
-func clearCSRFCookie(c *gin.Context) {
+func (s *HTTPServer) clearCSRFCookie(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(csrfCookieName, "", -1, "/", "", false, false)
+	c.SetCookie(
+		csrfCookieName,
+		"",
+		-1,
+		"/",
+		"",
+		strings.HasPrefix(s.config.Webserver.URL, "https"),
+		false,
+	)
 }
