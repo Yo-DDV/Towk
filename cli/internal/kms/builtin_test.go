@@ -61,6 +61,7 @@ func TestBuiltinWrapUnwrapAndShred(t *testing.T) {
 	require.Equal(t, contentKey, unwrapped)
 
 	require.NoError(t, k.ShredKey(ctx, keyRef))
+	require.NoError(t, k.ShredKey(ctx, keyRef), "shredding an already-missing key must be idempotent")
 	exists, err = k.KeyExists(ctx, keyRef)
 	require.NoError(t, err)
 	require.False(t, exists)
