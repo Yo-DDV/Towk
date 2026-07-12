@@ -155,6 +155,20 @@ describe('root layout mobile sidebar animation', () => {
     resetSidebar();
   });
 
+  it('renders a public corresponding-source link in the app header', async () => {
+    const { container } = renderLayout();
+    await tick();
+
+    const sourceLink = q(
+      container,
+      '[data-testid="corresponding-source-link"]'
+    ) as HTMLAnchorElement | null;
+    expect(sourceLink).not.toBeNull();
+    expect(sourceLink?.href).toBe('https://github.com/Yo-DDV/towk');
+    expect(sourceLink?.target).toBe('_blank');
+    expect(sourceLink?.rel).toContain('noopener');
+  });
+
   it('keeps edge target presses from bubbling to app-level outside-click handlers', async () => {
     const { container } = renderLayout();
     const onWindowPointerDown = vi.fn();

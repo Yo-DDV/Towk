@@ -767,6 +767,9 @@ const msg_ui_quick_switcher_shortcut = (): LocalizedString => messages().ui_quic
 const msg_ui_realtime_paused = (): LocalizedString => messages().ui_realtime_paused(empty());
 const msg_ui_update_available = (): LocalizedString => messages().ui_update_available(empty());
 const msg_ui_reload = (): LocalizedString => messages().ui_reload(empty());
+const msg_ui_corresponding_source = (
+  inputs: Parameters<LocaleMessages['ui_corresponding_source']>[0]
+): LocalizedString => messages().ui_corresponding_source(inputs);
 const msg_ui_sign_out = (): LocalizedString => messages().ui_sign_out(empty());
 const msg_ui_close = (): LocalizedString => messages().ui_close(empty());
 const msg_ui_auth_status_origin_title = (): LocalizedString => messages().ui_auth_status_origin_title(empty());
@@ -2099,6 +2102,7 @@ export { msg_ui_quick_switcher_shortcut as 'ui.quick_switcher_shortcut' };
 export { msg_ui_realtime_paused as 'ui.realtime_paused' };
 export { msg_ui_update_available as 'ui.update_available' };
 export { msg_ui_reload as 'ui.reload' };
+export { msg_ui_corresponding_source as 'ui.corresponding_source' };
 export { msg_ui_sign_out as 'ui.sign_out' };
 export { msg_ui_close as 'ui.close' };
 export { msg_ui_auth_status_origin_title as 'ui.auth_status.origin_title' };

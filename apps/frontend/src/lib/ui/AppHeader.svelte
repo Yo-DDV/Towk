@@ -4,16 +4,21 @@
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
-  import { version } from '$app/environment';
+  import { version as frontendVersion } from '$app/environment';
   import { sidebarNav, quickSwitcher } from '$lib/state/globals.svelte';
   import * as m from '$lib/i18n/messages';
   import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import MotdContent from '$lib/ui/MotdContent.svelte';
+  import { sourcePathForVersion } from '$lib/source';
 
   // MOTD follows the active server; the connection-lost icon below stays
   // bound to the origin store since it reflects the SPA host's own connection.
   const motd = $derived(serverRegistry.tryGetStore(getActiveServer())?.serverInfo.motd);
   const originStore = $derived(serverRegistry.tryGetStore(serverRegistry.originServer?.id ?? ''));
+  const deployedVersion = $derived(originStore?.serverInfo.version || frontendVersion);
+  const correspondingSourcePath = $derived(
+    originStore?.serverInfo.version ? sourcePathForVersion(originStore.serverInfo.version) : ''
+  );
 
   // Aggregate notification count across all servers.
   const totalNotificationCount = $derived(
@@ -96,8 +101,16 @@
 
   <!-- Actions: Version + Logout -->
   <div class="flex items-center gap-3">
-    {#if version}
-      <span class="text-text/50">v{version}</span>
+    {#if deployedVersion}
+      <a
+        href={`https://github.com/Yo-DDV/towk${correspondingSourcePath}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        data-testid="corresponding-source-link"
+        class="text-text/60 underline decoration-dotted underline-offset-2 hover:text-text"
+        aria-label={m['ui.corresponding_source']({ version: deployedVersion })}
+        title={m['ui.corresponding_source']({ version: deployedVersion })}
+      >v{deployedVersion}</a>
     {/if}
 
     {#if hasInstances}

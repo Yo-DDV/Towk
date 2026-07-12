@@ -8,6 +8,7 @@
     "realtime_paused": "Real-time updates paused. Reconnecting...",
     "update_available": "A new version is available",
     "reload": "Reload",
+    "corresponding_source": "View corresponding source for Towk {version}",
     "sign_out": "Sign out",
     "close": "Close",
     "auth_status": {

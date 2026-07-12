@@ -38,6 +38,7 @@ describe('ServerInfoState.init()', () => {
     expect(state.loading).toBe(false);
     expect(state.error).toBeNull();
     expect(state.name).toBe('Acme');
+    expect(state.version).toBe('test');
     expect(state.welcomeMessage).toBe('welcome');
     expect(state.description).toBe('a server for acme');
     expect(state.directRegistrationEnabled).toBe(false);
@@ -86,6 +87,7 @@ describe('ServerInfoState.init()', () => {
     const loader = vi.fn<() => Promise<PublicServerInfo>>().mockResolvedValue(
       publicServerInfo({
         name: 'Fresh',
+        version: '1.2.3-dev-abcdef12',
         directRegistrationEnabled: true,
         welcomeMessage: 'fresh welcome',
         description: 'fresh description',
@@ -100,6 +102,7 @@ describe('ServerInfoState.init()', () => {
 
     expect(state.loading).toBe(false);
     expect(state.name).toBe('Fresh');
+    expect(state.version).toBe('1.2.3-dev-abcdef12');
     expect(state.welcomeMessage).toBe('fresh welcome');
     expect(state.description).toBe('fresh description');
     expect(state.iconUrl).toBe('https://fresh-icon');

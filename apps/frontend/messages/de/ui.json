@@ -8,6 +8,7 @@
     "realtime_paused": "Echtzeitaktualisierungen pausiert. Verbindung wird wiederhergestellt...",
     "update_available": "Eine neue Version ist verfügbar",
     "reload": "Neu laden",
+    "corresponding_source": "Zugehörigen Towk-Quellcode für {version} anzeigen",
     "sign_out": "Abmelden",
     "close": "Schließen",
     "auth_status": {
