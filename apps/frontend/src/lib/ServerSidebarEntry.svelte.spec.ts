@@ -74,7 +74,9 @@ const { mocks } = vi.hoisted(() => {
         pendingHighlights: { set: vi.fn() },
         serverInfo: {
           name: 'Towk',
-          iconUrl: null as string | null
+          iconUrl: null as string | null,
+          loading: false,
+          error: null as string | null
         },
         setPermissions: vi.fn(),
         serverIndicator: vi.fn().mockReturnValue(null)
@@ -253,6 +255,9 @@ describe('ServerSidebarEntry', () => {
     mocks.store.serverIndicator.mockReturnValue(null);
     mocks.store.serverInfo.name = 'Towk';
     mocks.store.serverInfo.iconUrl = null;
+    mocks.store.serverInfo.loading = false;
+    mocks.store.serverInfo.error = null;
+    mocks.server.name = 'Remote Towk';
   });
 
   afterEach(() => {
@@ -282,6 +287,38 @@ describe('ServerSidebarEntry', () => {
     expect(mocks.store.notifications.fetch).not.toHaveBeenCalled();
   });
 
+  it('replaces a legacy registered name after public server info loads', async () => {
+    mocks.store.isAuthenticated = false;
+    mocks.server.name = 'Chatto';
+    mocks.store.serverInfo.name = 'Towk';
+
+    const { container } = render(ServerSidebarEntry, {
+      props: {
+        serverId: 'remote'
+      }
+    });
+
+    await expect
+      .element(q(container, '[data-testid="server-icon"]'))
+      .toHaveAttribute('aria-label', 'Towk');
+  });
+
+  it('keeps the registered name while public server info is unresolved', async () => {
+    mocks.store.isAuthenticated = false;
+    mocks.server.name = 'Remote Towk';
+    mocks.store.serverInfo.loading = true;
+
+    const { container } = render(ServerSidebarEntry, {
+      props: {
+        serverId: 'remote'
+      }
+    });
+
+    await expect
+      .element(q(container, '[data-testid="server-icon"]'))
+      .toHaveAttribute('aria-label', 'Remote Towk');
+  });
+
   it('keeps a failed server in the gutter as a dimmed icon', async () => {
     mocks.getAuthenticatedServerState.mockRejectedValue(new Error('connection refused'));
 
@@ -299,8 +336,8 @@ describe('ServerSidebarEntry', () => {
     const icon = q(container, '[data-testid="server-icon"]');
     await expect.element(icon).toBeInTheDocument();
     await expect.element(icon).toHaveClass('opacity-40');
-    await expect.element(icon).toHaveAttribute('title', 'Remote Towk (connection unavailable)');
-    expect(container.textContent).toContain('R');
+    await expect.element(icon).toHaveAttribute('title', 'Towk (connection unavailable)');
+    expect(container.textContent).toContain('T');
   });
 
   it('removes the dimmed state after sidebar init succeeds', async () => {
