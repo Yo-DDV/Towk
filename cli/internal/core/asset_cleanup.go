@@ -23,6 +23,18 @@ func (s *AssetModel) runCleanupLoop(ctx context.Context) error {
 	if err := s.consumeAssetCleanup(ctx); err != nil {
 		s.logger.Warn("Asset cleanup pass failed", "error", err)
 	}
+	// Preview reachability comes from the current room-body projection. Never
+	// inspect it during cold replay: an empty projection would make every old
+	// claimed preview look unreferenced and eligible for physical deletion.
+	if s.waitForPreviewProjectionReady == nil {
+		return fmt.Errorf("link preview cleanup projection gate is not configured")
+	}
+	if err := s.waitForPreviewProjectionReady(ctx); err != nil {
+		return fmt.Errorf("wait for projections before link preview cleanup: %w", err)
+	}
+	if err := s.cleanupExpiredLinkPreviewAssets(ctx, time.Now()); err != nil {
+		s.logger.Warn("Link preview cleanup pass failed", "error", err)
+	}
 	ticker := time.NewTicker(s.cleanupPollEvery)
 	defer ticker.Stop()
 
@@ -33,6 +45,9 @@ func (s *AssetModel) runCleanupLoop(ctx context.Context) error {
 		case <-ticker.C:
 			if err := s.consumeAssetCleanup(ctx); err != nil {
 				s.logger.Warn("Asset cleanup pass failed", "error", err)
+			}
+			if err := s.cleanupExpiredLinkPreviewAssets(ctx, time.Now()); err != nil {
+				s.logger.Warn("Link preview cleanup pass failed", "error", err)
 			}
 		}
 	}

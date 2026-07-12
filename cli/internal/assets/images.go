@@ -70,6 +70,25 @@ func readAndValidateImage(input io.Reader, maxBytes int64) ([]byte, error) {
 }
 
 func validateDecodedImageSize(data []byte) error {
+	if err := ValidateImagePixelLimit(data, MaxDecodedImagePixels); err != nil {
+		return err
+	}
+	if len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a") {
+		if _, err := inspectGIFFrames(data); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateImagePixelLimit inspects image metadata without decoding full pixel
+// buffers and rejects dimensions that exceed maxPixels. Callers with a tighter
+// memory budget, such as remote link previews, can enforce a lower surface-
+// specific limit before invoking the shared image pipeline.
+func ValidateImagePixelLimit(data []byte, maxPixels int64) error {
+	if maxPixels <= 0 {
+		return fmt.Errorf("maximum image pixel count must be positive")
+	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to decode image configuration: %w", err)
@@ -78,13 +97,8 @@ func validateDecodedImageSize(data []byte) error {
 		return fmt.Errorf("image dimensions %dx%d exceed the supported limit", config.Width, config.Height)
 	}
 	pixels := int64(config.Width) * int64(config.Height)
-	if pixels > MaxDecodedImagePixels {
-		return fmt.Errorf("image contains %d pixels, exceeding the supported limit of %d", pixels, MaxDecodedImagePixels)
-	}
-	if len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a") {
-		if _, err := inspectGIFFrames(data); err != nil {
-			return err
-		}
+	if pixels > maxPixels {
+		return fmt.Errorf("image contains %d pixels, exceeding the supported limit of %d", pixels, maxPixels)
 	}
 	return nil
 }

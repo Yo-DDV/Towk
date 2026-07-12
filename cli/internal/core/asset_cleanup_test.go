@@ -287,6 +287,8 @@ func TestAssetCleanupLeaseProcessesNonHolderCommitsAndHandsOver(t *testing.T) {
 	second.assetModel.cleanupLease = newAssetCleanupTestLease(t, second, "second")
 	first.assetModel.cleanupPollEvery = 10 * time.Millisecond
 	second.assetModel.cleanupPollEvery = 10 * time.Millisecond
+	first.assetModel.waitForPreviewProjectionReady = func(context.Context) error { return nil }
+	second.assetModel.waitForPreviewProjectionReady = func(context.Context) error { return nil }
 
 	acquired, err := first.assetModel.cleanupLease.TryAcquire(ctx)
 	if err != nil || !acquired {

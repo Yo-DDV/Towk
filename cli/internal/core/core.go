@@ -551,9 +551,13 @@ func (c *ChattoCore) ShouldUseS3() bool {
 	return c.config.Assets.StorageBackend == config.StorageBackendS3 && c.s3Client != nil
 }
 
-// GetLinkPreview fetches link preview metadata for a URL.
+// GetLinkPreview fetches link preview metadata for a URL on behalf of an
+// authenticated actor.
 // Results are cached server-side. Returns nil if the URL cannot be previewed.
-func (c *ChattoCore) GetLinkPreview(ctx context.Context, url string) (*corev1.LinkPreview, error) {
+func (c *ChattoCore) GetLinkPreview(ctx context.Context, actorID, url string) (*corev1.LinkPreview, error) {
+	if _, err := c.ReserveLinkPreviewFetch(ctx, actorID); err != nil {
+		return nil, err
+	}
 	// Check cache first
 	cached, err := c.linkPreviewCache.Get(ctx, url)
 	if errors.Is(err, linkpreview.ErrCachedFailure) {
@@ -561,7 +565,7 @@ func (c *ChattoCore) GetLinkPreview(ctx context.Context, url string) (*corev1.Li
 		return nil, nil
 	}
 	if err != nil {
-		c.logger.Warn("Failed to get cached link preview", "url", url, "error", err)
+		c.logger.Warn("Failed to get cached link preview", "origin", linkpreview.SafeLogOrigin(url), "error", err)
 		// Continue to fetch - don't fail on cache errors
 	}
 	if cached != nil {
@@ -571,9 +575,13 @@ func (c *ChattoCore) GetLinkPreview(ctx context.Context, url string) (*corev1.Li
 	// Fetch the preview
 	result, err := c.linkPreviewFetcher.Fetch(ctx, url)
 	if err != nil {
-		// Cache the failure to avoid repeated fetches
-		_ = c.linkPreviewCache.SetFailure(ctx, url, err.Error())
 		if errors.Is(err, linkpreview.ErrUnavailable) {
+			// Cache only a verified upstream/content failure. Local cancellation,
+			// storage pressure, or internal errors must not let one requester
+			// poison the shared URL cache for every user.
+			cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+			defer cancel()
+			_ = c.linkPreviewCache.SetFailure(cacheCtx, url, "unavailable")
 			return nil, nil
 		}
 		return nil, err
@@ -583,7 +591,7 @@ func (c *ChattoCore) GetLinkPreview(ctx context.Context, url string) (*corev1.Li
 
 	// Cache the result
 	if err := c.linkPreviewCache.Set(ctx, url, preview); err != nil {
-		c.logger.Warn("Failed to cache link preview", "url", url, "error", err)
+		c.logger.Warn("Failed to cache link preview", "origin", linkpreview.SafeLogOrigin(url), "error", err)
 	}
 
 	return preview, nil
@@ -623,7 +631,7 @@ func (c *ChattoCore) HydrateLinkPreviewImageAsset(ctx context.Context, preview *
 			return nil
 		}
 	} else if err != nil && !errors.Is(err, linkpreview.ErrCachedFailure) {
-		c.logger.Debug("Failed to hydrate link preview image asset from cache", "url", preview.GetUrl(), "error", err)
+		c.logger.Debug("Failed to hydrate link preview image asset from cache", "origin", linkpreview.SafeLogOrigin(preview.GetUrl()), "error", err)
 	}
 
 	asset, err := c.ServerAssetRecordFromAnyBackend(ctx, imageAssetID, "link-preview.webp")
@@ -646,32 +654,35 @@ func (c *ChattoCore) storeLinkPreviewImage(ctx context.Context, assetID string, 
 		ContentType: contentType,
 		Size:        int64(len(data)),
 	}
-	if c.ShouldUseS3() {
-		s3Key := S3KeyServerAsset(assetID)
-		if _, err := c.s3Client.PutObjectFromBytes(ctx, s3Key, data, contentType); err != nil {
-			return nil, fmt.Errorf("upload link preview image to S3: %w", err)
-		}
-		asset.Storage = &corev1.AssetRecord_S3{S3: &corev1.S3Asset{
-			Key:    assetID,
-			Bucket: proto.String(c.s3Client.Bucket()),
-		}}
-		c.logger.Debug("Stored link preview image in S3", "asset_id", assetID, "size", len(data))
-		return asset, nil
-	}
-
 	meta := jetstream.ObjectMeta{
 		Name: assetID,
 		Headers: map[string][]string{
 			"Content-Type": {contentType},
 		},
 	}
-	info, err := c.storage.serverAssets.Put(ctx, meta, bytes.NewReader(data))
+	info, err := c.storage.linkPreviewAssets.Put(ctx, meta, bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("upload link preview image to SERVER_ASSETS: %w", err)
+		return nil, fmt.Errorf("upload link preview image to LINK_PREVIEW_ASSETS: %w", err)
+	}
+	if err := c.recordPendingLinkPreviewAsset(ctx, assetID, info.ModTime); err != nil {
+		deleteErr := c.storage.linkPreviewAssets.Delete(ctx, assetID)
+		return nil, errors.Join(fmt.Errorf("record pending link preview image: %w", err), deleteErr)
+	}
+	if err := c.ensureLinkPreviewCompatibilityLink(ctx, info); err != nil {
+		lifecycleErr := c.storage.runtimeStateKV.Delete(ctx, linkPreviewAssetKey(assetID))
+		if isRuntimeStateKeyAbsent(lifecycleErr) {
+			lifecycleErr = nil
+		}
+		deleteErr := c.storage.linkPreviewAssets.Delete(ctx, assetID)
+		return nil, errors.Join(
+			fmt.Errorf("create SERVER_ASSETS compatibility link: %w", err),
+			lifecycleErr,
+			deleteErr,
+		)
 	}
 	asset.Size = int64(info.Size)
 	asset.Storage = &corev1.AssetRecord_Nats{Nats: &corev1.NATSAsset{Key: assetID}}
-	c.logger.Debug("Stored link preview image in SERVER_ASSETS", "asset_id", assetID, "size", len(data))
+	c.logger.Debug("Stored link preview image in LINK_PREVIEW_ASSETS", "asset_id", assetID, "size", len(data))
 	return asset, nil
 }
 
@@ -685,6 +696,22 @@ type ServerAssetInfo struct {
 // server-asset backends. It is primarily for legacy ID-only server-scoped
 // assets that need to be rehydrated into richer metadata.
 func (c *ChattoCore) ServerAssetRecordFromAnyBackend(ctx context.Context, assetID, filename string) (*corev1.AssetRecord, error) {
+	if obj, err := c.storage.linkPreviewAssets.Get(ctx, assetID); err == nil {
+		defer obj.Close()
+		info, _ := obj.Info()
+		contentType := info.Headers.Get("Content-Type")
+		if contentType == "" {
+			contentType = "application/octet-stream"
+		}
+		return &corev1.AssetRecord{
+			Id:          assetID,
+			Filename:    filename,
+			ContentType: contentType,
+			Size:        int64(info.Size),
+			Storage:     &corev1.AssetRecord_Nats{Nats: &corev1.NATSAsset{Key: assetID}},
+		}, nil
+	}
+
 	obj, err := c.storage.serverAssets.Get(ctx, assetID)
 	if err == nil {
 		if closer, ok := obj.(io.Closer); ok {
@@ -732,10 +759,19 @@ func (c *ChattoCore) ServerAssetRecordFromAnyBackend(ctx context.Context, assetI
 }
 
 // GetServerAssetFromAnyBackend retrieves a server asset by probing both NATS and S3 backends.
-// It tries the canonical SERVER_ASSETS NATS object store first, then S3.
+// It tries the bounded link-preview store, the canonical SERVER_ASSETS NATS
+// object store, then S3 for legacy preview objects.
 // Returns a reader for the asset content and metadata.
 // The caller is responsible for closing the reader if it implements io.Closer.
 func (c *ChattoCore) GetServerAssetFromAnyBackend(ctx context.Context, assetID string) (io.Reader, *ServerAssetInfo, error) {
+	if obj, err := c.storage.linkPreviewAssets.Get(ctx, assetID); err == nil {
+		info, _ := obj.Info()
+		return obj, &ServerAssetInfo{
+			Size:        int64(info.Size),
+			ContentType: info.Headers.Get("Content-Type"),
+		}, nil
+	}
+
 	obj, err := c.storage.serverAssets.Get(ctx, assetID)
 	if err == nil {
 		info, _ := obj.Info()
@@ -842,6 +878,9 @@ func (c *ChattoCore) Ready(ctx context.Context) error {
 	}
 	if _, err := c.storage.serverEvtStream.Info(ctx); err != nil {
 		return fmt.Errorf("EVT not ready: %w", err)
+	}
+	if _, err := c.storage.linkPreviewAssets.Status(ctx); err != nil {
+		return fmt.Errorf("LINK_PREVIEW_ASSETS not ready: %w", err)
 	}
 	if err := c.ProjectionHealthError(); err != nil {
 		return fmt.Errorf("projection unhealthy: %w", err)
@@ -1134,8 +1173,9 @@ type storage struct {
 	encryptionKV   jetstream.KeyValue // ENCRYPTION_KEYS - KMS KEKs (excluded from backups)
 	runtimeStateKV jetstream.KeyValue // RUNTIME_STATE  - persisted latest-value runtime/user state + wrapped app DEKs
 
-	serverAssets    jetstream.ObjectStore // SERVER_ASSETS - all NATS-backed asset binaries
-	serverEvtStream jetstream.Stream      // EVT       - event-sourcing log (ADR-033/034).
+	serverAssets      jetstream.ObjectStore // SERVER_ASSETS - user and server asset binaries
+	linkPreviewAssets jetstream.ObjectStore // LINK_PREVIEW_ASSETS - bounded fetched preview images
+	serverEvtStream   jetstream.Stream      // EVT       - event-sourcing log (ADR-033/034).
 
 	memoryCacheKV   jetstream.KeyValue    // MEMORY_CACHE - volatile, memory-backed runtime cache state
 	imageCacheStore jetstream.ObjectStore // Optional: cached resized images (nil if disabled)
@@ -1207,10 +1247,24 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		}
 	}
 
+	linkPreviewAssets, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.ObjectStore, error) {
+		return js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
+			Bucket:      "LINK_PREVIEW_ASSETS",
+			Description: "Bounded remotely fetched link-preview images",
+			Storage:     jetstream.FileStorage,
+			Compression: true,
+			MaxBytes:    cfg.Assets.LinkPreviews.MaxStoreBytesOrDefault(),
+			Replicas:    cfg.Replicas,
+		})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create LINK_PREVIEW_ASSETS object store: %w", err)
+	}
+
 	serverAssets, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.ObjectStore, error) {
 		return js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
 			Bucket:      "SERVER_ASSETS",
-			Description: "Server asset binaries (avatars, branding, link previews, attachments)",
+			Description: "Server asset binaries (avatars, branding, attachments, and legacy link previews)",
 			Storage:     jetstream.FileStorage,
 			Compression: true,
 			Replicas:    cfg.Replicas,
@@ -1249,12 +1303,13 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	}
 
 	return &storage{
-		encryptionKV:    encryptionKV,
-		runtimeStateKV:  runtimeStateKV,
-		serverAssets:    serverAssets,
-		serverEvtStream: serverEvtStream,
-		memoryCacheKV:   memoryCacheKV,
-		imageCacheStore: imageCacheStore,
+		encryptionKV:      encryptionKV,
+		runtimeStateKV:    runtimeStateKV,
+		serverAssets:      serverAssets,
+		linkPreviewAssets: linkPreviewAssets,
+		serverEvtStream:   serverEvtStream,
+		memoryCacheKV:     memoryCacheKV,
+		imageCacheStore:   imageCacheStore,
 	}, nil
 }
 

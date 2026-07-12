@@ -211,6 +211,28 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
   Time-to-live for cached images. Supports durations like `7d`, `1w`, `168h`.
 </EnvVar>
 
+### Link Preview Storage
+
+<EnvVar name="CHATTO_CORE_ASSETS_LINK_PREVIEWS_MAX_STORE_BYTES" toml="core.assets.link_previews.max_store_bytes" default="1 GB">
+  Hard JetStream quota for fetched preview images. This dedicated store is used even when ordinary uploads use S3.
+</EnvVar>
+
+<EnvVar name="CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_WINDOW" toml="core.assets.link_previews.fetch_window" default="15m">
+  Shared fixed-window duration for authenticated preview-fetch limits.
+</EnvVar>
+
+<EnvVar name="CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_IP" toml="core.assets.link_previews.fetch_per_ip" default="100">
+  Preview-fetch requests allowed per trusted source-IP fingerprint and window across all replicas.
+</EnvVar>
+
+<EnvVar name="CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_USER" toml="core.assets.link_previews.fetch_per_user" default="30">
+  Preview-fetch requests allowed per authenticated user and window across all replicas.
+</EnvVar>
+
+<EnvVar name="CHATTO_CORE_ASSETS_LINK_PREVIEWS_PENDING_TTL" toml="core.assets.link_previews.pending_ttl" default="25h">
+  Grace period for composer-fetched images that no message claims. Values below 25 hours are rejected so the lifecycle cannot expire before the positive metadata cache.
+</EnvVar>
+
 ## NATS
 
 <EnvVar name="CHATTO_NATS_REPLICAS" toml="nats.replicas" default="1">
