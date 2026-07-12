@@ -5,7 +5,6 @@
   import { serverIdToSegment } from '$lib/navigation';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
-  import { PRODUCT_NAME } from '$lib/product';
   import { createEventBusHandlerRegistrar } from '$lib/eventBus.svelte';
   import { isMessagePostedEvent, RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
   import { getAuthenticatedServerState } from '$lib/api-client/serverState';
@@ -69,7 +68,9 @@
 
   const iconServer = $derived.by(() => {
     const refreshedName =
-      stores.serverInfo.name !== PRODUCT_NAME ? stores.serverInfo.name : undefined;
+      !stores.serverInfo.loading && stores.serverInfo.error === null
+        ? stores.serverInfo.name
+        : undefined;
     return {
       name: displayName || refreshedName || registeredServer?.name || stores.serverInfo.name,
       logoUrl:
