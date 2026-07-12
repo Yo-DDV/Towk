@@ -212,10 +212,13 @@ describe('createAccountAPI', () => {
       bearerToken: null
     });
 
-    await expect(api.requestAccountDeletion()).resolves.toBe('AD-token');
+    await expect(api.requestAccountDeletion('current-password')).resolves.toBe('AD-token');
     await expect(api.deleteMyAccount('AD-token')).resolves.toBe(true);
 
-    expect(mocks.requestAccountDeletion).toHaveBeenCalledWith({}, { headers: undefined });
+    expect(mocks.requestAccountDeletion).toHaveBeenCalledWith(
+      { currentPassword: 'current-password' },
+      { headers: undefined }
+    );
     expect(mocks.deleteMyAccount).toHaveBeenCalledWith(
       { confirmationToken: 'AD-token' },
       { headers: undefined }

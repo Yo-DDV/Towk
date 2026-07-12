@@ -58,6 +58,60 @@ func TestChattoCore_CreateUser(t *testing.T) {
 	}
 }
 
+func TestChattoCore_AccountDeletionTokenIsGenerationBoundAndConsumedOnce(t *testing.T) {
+	c, _ := setupTestCore(t)
+	ctx := testContext(t)
+	user, err := c.CreateUser(ctx, SystemActorID, "delete-token-bound", "Delete Token Bound", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	token, err := c.CreateAccountDeletionToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAccountDeletionToken concurrent: %v", err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results <- c.ValidateAccountDeletionToken(ctx, token, user.Id)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var consumed, rejected int
+	for validationErr := range results {
+		switch {
+		case validationErr == nil:
+			consumed++
+		case errors.Is(validationErr, ErrTokenNotFound):
+			rejected++
+		default:
+			t.Fatalf("ValidateAccountDeletionToken concurrent err = %v", validationErr)
+		}
+	}
+	if consumed != 1 || rejected != 1 {
+		t.Fatalf("concurrent token results = consumed %d rejected %d, want 1/1", consumed, rejected)
+	}
+
+	staleToken, err := c.CreateAccountDeletionToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAccountDeletionToken stale: %v", err)
+	}
+	if err := c.SetPasswordHash(ctx, user.Id, "newpassword456"); err != nil {
+		t.Fatalf("SetPasswordHash: %v", err)
+	}
+	if err := c.ValidateAccountDeletionToken(ctx, staleToken, user.Id); !errors.Is(err, ErrTokenNotFound) {
+		t.Fatalf("generation-stale token err = %v, want ErrTokenNotFound", err)
+	}
+}
+
 func TestChattoCore_CreateUserUsesProvidedActorID(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

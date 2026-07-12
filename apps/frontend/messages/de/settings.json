@@ -342,6 +342,8 @@
         "delete_profile": "dein Profil, Avatar und zugehörige Daten werden gelöscht",
         "confirm_label": "Gib DELETE ein, um zu bestätigen",
         "confirm_placeholder": "DELETE",
+        "fresh_auth_intro": "Bestätige dein aktuelles Passwort, bevor du dieses Konto löschst.",
+        "fresh_auth_required": "Melde dich erneut an, bevor du dieses Konto löschst.",
         "cancel": "Abbrechen",
         "deleting": "Wird gelöscht..."
       }

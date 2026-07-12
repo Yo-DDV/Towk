@@ -443,11 +443,19 @@ export class UpdateSettingsResponse extends Message<UpdateSettingsResponse> {
 
 /**
  * Request a short-lived confirmation token for deleting the authenticated
- * account.
+ * account. The runtime credential must be fresh; current_password can refresh
+ * a stale credential for password-backed accounts.
  *
  * @generated from message chatto.api.v1.RequestAccountDeletionRequest
  */
 export class RequestAccountDeletionRequest extends Message<RequestAccountDeletionRequest> {
+  /**
+   * Current password used only when the runtime credential is no longer fresh.
+   *
+   * @generated from field: string current_password = 1;
+   */
+  currentPassword = "";
+
   constructor(data?: PartialMessage<RequestAccountDeletionRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -456,6 +464,7 @@ export class RequestAccountDeletionRequest extends Message<RequestAccountDeletio
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "chatto.api.v1.RequestAccountDeletionRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "current_password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RequestAccountDeletionRequest {
@@ -517,7 +526,9 @@ export class RequestAccountDeletionResponse extends Message<RequestAccountDeleti
 }
 
 /**
- * Request to permanently delete the authenticated account.
+ * Request to permanently delete the authenticated account. The caller must
+ * still hold user.delete-self, present a fresh runtime credential, and provide
+ * the confirmation token issued for this account.
  *
  * @generated from message chatto.api.v1.DeleteMyAccountRequest
  */

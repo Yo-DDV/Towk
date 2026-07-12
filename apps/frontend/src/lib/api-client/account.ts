@@ -89,8 +89,13 @@ export function createAccountAPI(config: AccountAPIConfig) {
       return userSettings(response.settings);
     },
 
-    async requestAccountDeletion(): Promise<string> {
-      return (await client.requestAccountDeletion({}, { headers: headers() })).confirmationToken;
+    async requestAccountDeletion(currentPassword?: string): Promise<string> {
+      return (
+        await client.requestAccountDeletion(
+          { currentPassword: currentPassword ?? '' },
+          { headers: headers() }
+        )
+      ).confirmationToken;
     },
 
     async deleteMyAccount(confirmationToken: string): Promise<boolean> {

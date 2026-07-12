@@ -573,7 +573,12 @@ POST /api/connect/chatto.api.v1.MyAccountService/RequestAccountDeletion
 #### Input: RequestAccountDeletionRequest
 
 Request a short-lived confirmation token for deleting the authenticated
-account.
+account. The runtime credential must be fresh; current_password can refresh
+a stale credential for password-backed accounts.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `current_password` | `string` | Current password used only when the runtime credential is no longer fresh. |
 
 
 <a id="chatto-api-v1-RequestAccountDeletionResponse"></a>
@@ -601,7 +606,9 @@ POST /api/connect/chatto.api.v1.MyAccountService/DeleteMyAccount
 
 #### Input: DeleteMyAccountRequest
 
-Request to permanently delete the authenticated account.
+Request to permanently delete the authenticated account. The caller must
+still hold user.delete-self, present a fresh runtime credential, and provide
+the confirmation token issued for this account.
 
 | Field | Type | Description |
 | --- | --- | --- |

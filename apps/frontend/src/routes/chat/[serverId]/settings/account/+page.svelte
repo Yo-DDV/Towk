@@ -46,6 +46,8 @@
   // Modal state
   let showDeleteModal = $state(false);
   let confirmText = $state('');
+  let deleteCurrentPassword = $state('');
+  let deleteNeedsFreshAuth = $state(false);
   let isDeleting = $state(false);
   let error = $state('');
   let ssoProviders = $state.raw<ExternalIdentityProviderInfo[]>([]);
@@ -69,7 +71,9 @@
   let passwordError = $state('');
   let passwordSubmitting = $state(false);
 
-  const canDelete = $derived(confirmText === 'DELETE');
+  const canDelete = $derived(
+    confirmText === 'DELETE' && (!deleteNeedsFreshAuth || deleteCurrentPassword !== '')
+  );
   const hasPassword = $derived(currentUser.user?.hasPassword ?? false);
   const passwordSchema = z.string().min(8, m['common.validation.password_min']());
   const passwordValidationError = $derived(
@@ -395,6 +399,8 @@
 
   function openDeleteModal() {
     confirmText = '';
+    deleteCurrentPassword = '';
+    deleteNeedsFreshAuth = false;
     error = '';
     showDeleteModal = true;
   }
@@ -402,6 +408,8 @@
   function closeDeleteModal() {
     showDeleteModal = false;
     confirmText = '';
+    deleteCurrentPassword = '';
+    deleteNeedsFreshAuth = false;
     error = '';
   }
 
@@ -413,7 +421,9 @@
 
     try {
       // Step 1: Request a confirmation token (XSS protection)
-      const confirmationToken = await accountAPI().requestAccountDeletion();
+      const confirmationToken = await accountAPI().requestAccountDeletion(
+        deleteNeedsFreshAuth ? deleteCurrentPassword : undefined
+      );
       if (!confirmationToken) {
         error = m['settings.account.delete_request_failed']();
         return;
@@ -433,7 +443,20 @@
         error = m['settings.account.delete_failed']();
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : m['settings.account.delete_failed']();
+      if (
+        err instanceof ConnectError &&
+        err.code === Code.FailedPrecondition &&
+        hasPassword &&
+        !deleteNeedsFreshAuth
+      ) {
+        deleteNeedsFreshAuth = true;
+        deleteCurrentPassword = '';
+        error = '';
+      } else if (err instanceof ConnectError && err.code === Code.FailedPrecondition) {
+        error = m['settings.account.delete_modal.fresh_auth_required']();
+      } else {
+        error = err instanceof Error ? err.message : m['settings.account.delete_failed']();
+      }
     } finally {
       isDeleting = false;
     }
@@ -779,6 +802,18 @@
       disabled={isDeleting}
       autocomplete="off"
     />
+
+    {#if deleteNeedsFreshAuth}
+      <p class="text-sm text-muted">{m['settings.account.delete_modal.fresh_auth_intro']()}</p>
+      <TextInput
+        id="delete-current-password"
+        label={m['settings.account.password.current_label']()}
+        type="password"
+        bind:value={deleteCurrentPassword}
+        disabled={isDeleting}
+        autocomplete="current-password"
+      />
+    {/if}
 
     {#if error}
       <FormError {error} />
