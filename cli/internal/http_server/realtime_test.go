@@ -35,6 +35,46 @@ func TestRealtimeAuthenticatedUserPreservesAuthenticationValidationError(t *test
 	}
 }
 
+func TestRealtimeWebSocketConnectionLimitRejectsAndReleases(t *testing.T) {
+	env := setupWebSocketTestServerWithMaxConnections(t, 1)
+	first := env.dialRealtime(t)
+
+	wsURL := "ws" + strings.TrimPrefix(env.server.URL, "http") + realtimePath
+	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err == nil {
+		t.Fatal("second realtime connection should be rejected while the only slot is occupied")
+	}
+	if resp == nil {
+		t.Fatalf("second dial returned no HTTP response: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("second dial status = %d, want 503", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Retry-After"); got != "1" {
+		t.Fatalf("Retry-After = %q, want 1", got)
+	}
+
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		conn, retryResp, retryErr := websocket.DefaultDialer.Dial(wsURL, nil)
+		if retryErr == nil {
+			_ = conn.Close()
+			break
+		}
+		if retryResp != nil {
+			_ = retryResp.Body.Close()
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("connection slot was not released after close: %v", retryErr)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 type websocketWireRecorder struct {
 	net.Conn
 	mu    sync.Mutex

@@ -75,6 +75,7 @@ type WebserverConfig struct {
 	OAuthRedirectOrigins   []string  `toml:"oauth_redirect_origins" env:"CHATTO_WEBSERVER_OAUTH_REDIRECT_ORIGINS" comment:"Additional origins trusted only for OAuth redirect callbacks. Leave empty unless another web origin must complete OAuth. Use exact HTTPS origins in production; loopback development origins may use HTTP."`
 	TrustedProxies         []string  `toml:"trusted_proxies" env:"CHATTO_WEBSERVER_TRUSTED_PROXIES" comment:"Proxy IP addresses or CIDRs allowed to supply X-Forwarded-For/X-Real-IP. Empty by default, so forwarded client-IP headers are ignored. Configure only proxies you operate."`
 	WebSocketCompression   *bool     `toml:"websocket_compression" env:"CHATTO_WEBSERVER_WEBSOCKET_COMPRESSION" comment:"Enable WebSocket compression for eligible realtime frames. Default: true."`
+	MaxRealtimeConnections int       `toml:"max_realtime_connections,commented" env:"CHATTO_WEBSERVER_MAX_REALTIME_CONNECTIONS" comment:"Maximum concurrent realtime WebSocket connections per Towk process. Default: 4096."`
 	RequestLogging         *bool     `toml:"request_logging" env:"CHATTO_WEBSERVER_REQUEST_LOGGING" comment:"Log HTTP requests. Successful requests are debug-level; 4xx responses are warnings; 5xx responses are errors. Useful for debugging but can be noisy in production. Default: false."`
 	CookieSigningSecret    string    `toml:"cookie_signing_secret" env:"CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET" comment:"Secret for signing session cookies. NEVER SHARE THIS!\nIf it leaks, change it immediately, but please note that all existing sessions will become invalid."`
 	CookieEncryptionSecret string    `toml:"cookie_encryption_secret" env:"CHATTO_WEBSERVER_COOKIE_ENCRYPTION_SECRET" comment:"Optional hex-encoded secret used to encrypt session cookies (in addition to signing). Must decode to 16, 24, or 32 bytes (AES-128/192/256). If unset, cookies are signed but not encrypted — anything ever written to the session is readable by anyone who steals the cookie."`
@@ -303,6 +304,13 @@ func (c *WebserverConfig) WebSocketCompressionEnabled() bool {
 		return true
 	}
 	return *c.WebSocketCompression
+}
+
+func (c *WebserverConfig) MaxRealtimeConnectionsOrDefault() int {
+	if c.MaxRealtimeConnections <= 0 {
+		return 4096
+	}
+	return c.MaxRealtimeConnections
 }
 
 // RequestLoggingEnabled returns whether HTTP request logging is enabled (default: false)
@@ -1125,6 +1133,9 @@ func (c *ChattoConfig) Validate() error {
 	}
 	if c.Webserver.Port == 0 && !c.Webserver.TLS.Enabled {
 		errs = append(errs, "webserver.port is required when TLS is disabled")
+	}
+	if c.Webserver.MaxRealtimeConnections < 0 {
+		errs = append(errs, "webserver.max_realtime_connections must be greater than zero when set")
 	}
 	if c.Metrics.Enabled {
 		if c.Metrics.Port < 0 || c.Metrics.Port > 65535 {

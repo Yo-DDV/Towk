@@ -39,6 +39,10 @@ Every `chatto.toml` setting can be overridden with an environment variable. The 
   Negotiate WebSocket compression. The realtime server compresses frames of at least 1 KiB with a Huffman-only encoder; smaller invalidation and heartbeat frames stay uncompressed and do not instantiate server-side compressor state.
 </EnvVar>
 
+<EnvVar name="CHATTO_WEBSERVER_MAX_REALTIME_CONNECTIONS" toml="webserver.max_realtime_connections" default="4096">
+  Maximum concurrent realtime WebSocket connections accepted by each Towk process. Increase this only after sizing memory and file-descriptor limits; replicas enforce the limit independently.
+</EnvVar>
+
 <EnvVar name="CHATTO_WEBSERVER_REQUEST_LOGGING" toml="webserver.request_logging" default="false">
   Log HTTP requests. Successful requests are debug-level and require `CHATTO_LOG_LEVEL=debug`; 4xx and 5xx responses remain visible at warning and error levels.
 </EnvVar>
