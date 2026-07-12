@@ -83,10 +83,10 @@ You'll be prompted to enter and confirm the passphrase.
 
 Encrypted backups use `.tar.gz.age` as the file extension. The encryption format is [age](https://age-encryption.org) — a modern, audited file encryption tool. This means you can also inspect or decrypt your backups using the standalone `age` CLI if needed (see [Using the age CLI](#using-the-age-cli) below).
 
-For scripted or automated backups, pass the passphrase via flag or pipe it from stdin:
+For scripted or automated backups, use a secret-mounted private file or pipe the passphrase from stdin. Passphrase values are rejected in process arguments because they may be exposed by process listings and shell history:
 
 ```bash
-chatto backup -c chatto.toml --encrypt --include-keys --passphrase "$BACKUP_PASSPHRASE"
+chatto backup -c chatto.toml --encrypt --include-keys --passphrase-file "$BACKUP_PASSPHRASE_FILE"
 
 # Or pipe from a secrets manager
 vault kv get -field=passphrase secret/towk | chatto backup -c chatto.toml --encrypt --include-keys
@@ -126,10 +126,10 @@ Restore accepts regular files and directories only, rejects unsafe manifest and 
    chatto restore backup.tar.gz.age -c chatto.toml
    ```
 
-   You can also pass the passphrase via flag:
+   You can also read the passphrase from a private regular file (`chmod 600` on Unix):
 
    ```bash
-   chatto restore backup.tar.gz.age -c chatto.toml --passphrase "$BACKUP_PASSPHRASE"
+   chatto restore backup.tar.gz.age -c chatto.toml --passphrase-file "$BACKUP_PASSPHRASE_FILE"
    ```
 
 3. **Start Towk normally**
@@ -174,10 +174,10 @@ chatto keys export -c chatto.toml -o keys.backup
 
 You'll be prompted for a passphrase. The export file is encrypted using age, so it's safe to store — but use a strong passphrase.
 
-For scripted/automated backups, pass the passphrase via flag or pipe it from stdin:
+For scripted/automated backups, use a secret-mounted private file or pipe the passphrase from stdin:
 
 ```bash
-chatto keys export -c chatto.toml -o keys.backup --passphrase "$KEY_BACKUP_PASSPHRASE"
+chatto keys export -c chatto.toml -o keys.backup --passphrase-file "$KEY_BACKUP_PASSPHRASE_FILE"
 
 # Or pipe from a secrets manager
 vault kv get -field=passphrase secret/towk | chatto keys export -c chatto.toml -o keys.backup
@@ -233,17 +233,14 @@ set -euo pipefail
 
 CONFIG="/etc/towk/chatto.toml"
 BACKUP_DIR="/mnt/backups/towk"
-PASSPHRASE_FILE="/etc/towk/backup-passphrase"  # chmod 600
+PASSPHRASE_FILE="/etc/towk/backup-passphrase"  # regular file, chmod 600
 RETENTION_DAYS=14
-
-# Read passphrase from file
-PASSPHRASE=$(cat "$PASSPHRASE_FILE")
 
 # Create timestamped encrypted backup with keys included
 TIMESTAMP=$(date -u +%Y-%m-%dT%H-%M-%SZ)
 BACKUP_FILE="$BACKUP_DIR/$TIMESTAMP.tar.gz.age"
 
-chatto backup -c "$CONFIG" --encrypt --include-keys --passphrase "$PASSPHRASE" -o "$BACKUP_FILE"
+chatto backup -c "$CONFIG" --encrypt --include-keys --passphrase-file "$PASSPHRASE_FILE" -o "$BACKUP_FILE"
 
 # Remove backups older than retention period
 find "$BACKUP_DIR" -name "*.age" -mtime +$RETENTION_DAYS -delete
@@ -254,8 +251,8 @@ echo "Backup complete: $BACKUP_FILE"
 For split data and key backups, run a key export with the same retention policy:
 
 ```bash
-chatto backup -c "$CONFIG" --encrypt --passphrase "$PASSPHRASE" -o "$BACKUP_FILE"
-chatto keys export -c "$CONFIG" -o "$BACKUP_DIR/$TIMESTAMP-keys.age" --passphrase "$PASSPHRASE"
+chatto backup -c "$CONFIG" --encrypt --passphrase-file "$PASSPHRASE_FILE" -o "$BACKUP_FILE"
+chatto keys export -c "$CONFIG" -o "$BACKUP_DIR/$TIMESTAMP-keys.age" --passphrase-file "$PASSPHRASE_FILE"
 ```
 
 ## Using the age CLI

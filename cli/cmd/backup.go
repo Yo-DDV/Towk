@@ -50,11 +50,12 @@ type BackupStats struct {
 }
 
 var (
-	backupConfigFile  string
-	backupOutput      string
-	backupEncrypt     bool
-	backupPassphrase  string
-	backupIncludeKeys bool
+	backupConfigFile     string
+	backupOutput         string
+	backupEncrypt        bool
+	backupPassphrase     string
+	backupPassphraseFile string
+	backupIncludeKeys    bool
 )
 
 const (
@@ -99,7 +100,9 @@ func init() {
 	backupCmd.Flags().StringVarP(&backupConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
 	backupCmd.Flags().StringVarP(&backupOutput, "output", "o", "", "output path for the backup archive (default: backups/<timestamp>.tar.gz)")
 	backupCmd.Flags().BoolVar(&backupEncrypt, "encrypt", false, "encrypt the backup with a passphrase (age encryption)")
-	backupCmd.Flags().StringVar(&backupPassphrase, "passphrase", "", "encryption passphrase (if not set, prompts interactively)")
+	backupCmd.Flags().StringVar(&backupPassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
+	backupCmd.Flags().StringVar(&backupPassphraseFile, "passphrase-file", "", "read encryption passphrase from a private regular file")
+	_ = backupCmd.Flags().MarkDeprecated("passphrase", "use --passphrase-file, standard input, or the interactive prompt")
 	backupCmd.Flags().BoolVar(&backupIncludeKeys, "include-keys", false, "include KV_ENCRYPTION_KEYS in the archive (treat the archive as sensitive)")
 }
 
@@ -115,7 +118,7 @@ func runBackup(cmd *cobra.Command, args []string) {
 	var passphrase string
 	if backupEncrypt {
 		var err error
-		passphrase, err = getPassphrase(backupPassphrase, "Enter passphrase for backup encryption: ", true)
+		passphrase, err = getPassphrase(backupPassphrase, backupPassphraseFile, "Enter passphrase for backup encryption: ", true)
 		if err != nil {
 			log.Fatal("Failed to read passphrase", "error", err)
 		}
