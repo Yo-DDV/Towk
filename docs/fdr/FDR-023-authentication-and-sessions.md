@@ -1,7 +1,7 @@
 # FDR-023: Authentication & Sessions
 
 **Status:** Active
-**Last reviewed:** 2026-06-30
+**Last reviewed:** 2026-07-12
 
 ## Overview
 
@@ -23,6 +23,7 @@ Towk authenticates users with typed opaque runtime credentials. API and multi-se
 - **Session refresh** — runtime credentials use a sliding-window TTL: each successful validation rewrites the `RUNTIME_STATE` entry with a fresh per-key TTL. Cookie sessions also rotate their opaque browser cookie handle near the browser cookie's fixed expiry, preserving fresh-auth metadata while deleting the old credential best-effort.
 - **Password and account lifecycle revocation** — password resets, password changes, external identity disconnects, and account deletion advance the user's auth generation through durable `EVT` user events. Cookie sessions, bearer tokens, and OAuth authorization codes store the auth generation they were issued against; validation waits the user projection to the current auth-generation events and rejects credentials from older generations. Adding the first password to a passwordless account marks the password event to preserve existing credentials and does not advance auth generation. Generation `0` is reserved for pre-field legacy runtime credentials and is upgraded on validation when the credential is not older than the current revoking password event. User-wide cleanup scans `session.*` by presentation to delete cookie and bearer runtime credentials, plus legacy `cookie_session.*` records while they remain readable.
 - **Password reset tokens** — reset links are backed by `RUNTIME_STATE` HMAC-derived `password_reset.{hmac}` records with a 1-hour per-key TTL. Raw reset tokens and links are never written to `EVT` or backup archives.
+- **Authentication abuse limits** — password login, forgot-password requests, and reset-password submissions have fixed-window limits shared by every Towk replica. Limits apply independently to the source IP and normalized account-flow identifier. Login and reset return `429` with `Retry-After` when exhausted; forgot-password keeps its enumeration-safe `200` response while suppressing further email delivery. A successful password login clears only that account's login budget, not the source-IP budget. Operators can tune or disable these limits through `auth.rate_limit` / `CHATTO_AUTH_RATE_LIMIT_*`.
 - **Server version handshake** — the WebSocket `connection_ack` payload includes the server's version. The frontend uses this to detect deployed-version drift and prompt the user to refresh.
 - **Auth audit facts** — successful cookie/provider logins, failed password login attempts, logout completion, bearer-token issuance/revocation, OAuth consent decisions, OAuth authorization-code issuance/exchange, registration-code issuance, email-verification-code issuance, password-reset link issuance, and password-reset completion are appended to `EVT` for admin audit-log inspection. Payloads carry safe request metadata only: capped user agent, HMAC-hashed IP, and hashed identifiers where needed.
 
@@ -95,6 +96,12 @@ Towk authenticates users with typed opaque runtime credentials. API and multi-se
 **Tradeoff:** Failed-login and unknown-code exchange attempts intentionally do not reveal whether the submitted identifier or code matched an account. Admins get timing, request metadata, and stable hashes for known-user workflows, not raw credential guesses.
 
 **OTP guardrails:** Registration and authenticated email-verification OTPs share `RUNTIME_STATE` `email_otp.*` records. By default, throttling is enabled and each challenge allows at most ten successfully delivered codes and five wrong-code attempts in its 15-minute TTL window; operators can tune or disable these throttles through `auth.email_otp` / `CHATTO_AUTH_EMAIL_OTP_*`. Exhaustion blocks fresh codes for that challenge until TTL. If email delivery fails, the just-created OTP record is cancelled and does not count against the issued-code limit.
+
+### 9a. Distributed authentication abuse limits
+
+**Decision:** Password login and password-reset flows reserve attempts in shared fixed windows before password hashing or email delivery. Source-IP and identifier budgets are independent, opaque, and configurable. Forwarded client-IP headers affect these budgets only when the immediate proxy is explicitly trusted by the operator.
+**Why:** Process-local counters can be bypassed by switching replicas, and untrusted forwarding headers let a client forge a fresh IP for every request. Shared revision-checked counters preserve one deployment-wide budget while HMAC-derived identifiers avoid storing submitted login names, emails, tokens, or raw IPs.
+**Tradeoff:** Fixed windows are intentionally simpler than a sliding algorithm and can produce a short boundary burst. Identifier limits can temporarily block a targeted account, so successful login clears that identifier budget while the broader IP budget remains in force. Operators should keep an upstream limiter for non-authentication endpoints and volumetric attacks.
 
 ### 10. Short-lived auth codes in runtime state
 

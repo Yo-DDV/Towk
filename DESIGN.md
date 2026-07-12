@@ -15,25 +15,31 @@ sessions. It is a working communication surface, not a marketing dashboard.
 - Display name: **Towk**
 - Product line: **Your conversations. Your infrastructure.**
 - Voice: concise, warm, technically honest
-- Mark: two connected conversation paths forming a compact `T`
-- Avoid: cat imagery, upstream purple cube artwork, ornamental gradients, fake
-  activity, or claims not supported by the current product
+- Mark: the exact v2 orange `T` with symmetrical silver conversation wings
+- Logo usage: dark wordmark on light backgrounds, light wordmark on dark
+  backgrounds, and the standalone symbol only at 32 px or larger
+- Avoid: redrawing or simplifying the mark, changing its type or spacing,
+  stretching it, adding effects, cat imagery, upstream purple cube artwork,
+  fake activity, or claims not supported by the current product
 
 ## Palette
 
 | Token | Value | Use |
 |---|---:|---|
-| Ink | `#0B1020` | dark surfaces and primary text |
-| Paper | `#F7F9FC` | light application background |
-| Mint | `#43D8B0` | primary action and live state |
-| Violet | `#7867F2` | secondary identity accent |
-| Sky | `#4AA8FF` | links and informational state |
-| Amber | `#F4B860` | warning state |
-| Rose | `#F26D7D` | destructive and error state |
+| Dark canvas | `#03040B` | dark brand backgrounds |
+| Light canvas | `#F8F9FB` | light brand backgrounds |
+| Light wordmark | `#F5F4F4` | wordmark on dark backgrounds |
+| Dark wordmark | `#141821` | wordmark on light backgrounds |
+| Orange highlight | `#F9A763` | upper mark highlight |
+| Orange mid | `#E8783B` | primary mark color |
+| Orange shadow | `#C25224` | lower mark depth |
+| Silver highlight | `#C7C5C2` | wing highlight |
+| Silver mid | `#989AA0` | primary wing color |
+| Silver shadow | `#717277` | wing depth |
 
-Existing semantic application tokens remain authoritative for component states.
-Brand colors enter through shared tokens; components must not hard-code the table
-above independently.
+Existing semantic application tokens remain authoritative for actions, status,
+links, warnings, errors, and application surfaces. The brand palette governs
+official artwork; it does not remap functional UI colors by itself.
 
 ## Typography and geometry
 

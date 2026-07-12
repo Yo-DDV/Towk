@@ -51,6 +51,10 @@ Every `chatto.toml` setting can be overridden with an environment variable. The 
   Comma-separated list of origins allowed for Towk OAuth redirect callbacks when another Towk frontend connects to this server. Use exact HTTPS origins, such as `https://app.example.com`, when you operate a known frontend. Set to `*` if you intentionally want any valid HTTPS Towk frontend to connect. This is convenient for open federation-style alpha deployments, but it lets any HTTPS site start an authorization request and ask the user to approve sending an authorization code back to that site. See the [Security guide](/guides/operations/security/#towk-frontend-oauth-redirects) for the risk tradeoff.
 </EnvVar>
 
+<EnvVar name="CHATTO_WEBSERVER_TRUSTED_PROXIES" toml="webserver.trusted_proxies">
+  Comma-separated proxy IP addresses or CIDRs allowed to supply `X-Forwarded-For` and `X-Real-IP`. Empty by default, so Towk uses the direct peer address and ignores forwarded client-IP headers. Configure only proxies you operate and that overwrite incoming forwarding headers.
+</EnvVar>
+
 ### TLS
 
 Built-in automatic TLS via Let's Encrypt. When enabled, Towk handles certificate provisioning and renewal automatically.
@@ -297,6 +301,38 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 
 <EnvVar name="CHATTO_AUTH_EMAIL_OTP_MAX_WRONG_ATTEMPTS" toml="auth.email_otp.max_wrong_attempts" default="5">
   Maximum wrong-code submissions allowed for the same email challenge before the challenge is exhausted until its TTL expires.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_ENABLED" toml="auth.rate_limit.enabled" default="true">
+  Enable deployment-wide abuse limits for password login, forgot-password, and reset-password endpoints.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_WINDOW" toml="auth.rate_limit.window" default="15m">
+  Fixed window used by authentication limits. Counters are shared by all replicas and expire automatically.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_LOGIN_PER_IP" toml="auth.rate_limit.login_per_ip" default="100">
+  Maximum password-login attempts from one source-IP fingerprint per window.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_LOGIN_PER_IDENTIFIER" toml="auth.rate_limit.login_per_identifier" default="10">
+  Maximum password-login attempts for one normalized login identifier per window. A successful login clears this identifier budget.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_FORGOT_PER_IP" toml="auth.rate_limit.forgot_per_ip" default="30">
+  Maximum forgot-password requests from one source-IP fingerprint per window.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_FORGOT_PER_IDENTIFIER" toml="auth.rate_limit.forgot_per_identifier" default="3">
+  Maximum forgot-password requests for one normalized email per window. Exhaustion keeps the generic success response but suppresses email delivery.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_RESET_PER_IP" toml="auth.rate_limit.reset_per_ip" default="30">
+  Maximum reset-password submissions from one source-IP fingerprint per window.
+</EnvVar>
+
+<EnvVar name="CHATTO_AUTH_RATE_LIMIT_RESET_PER_TOKEN" toml="auth.rate_limit.reset_per_token" default="5">
+  Maximum reset-password submissions for one opaque reset token per window.
 </EnvVar>
 
 ### External Login Providers

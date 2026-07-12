@@ -62,8 +62,8 @@ export const { getStaticPaths, GET } = await OGImageRoute({
       [20, 24, 32],
     ],
     logo: {
-      path: "./src/assets/opengraph-logo.png",
-      size: [64, 64],
+      path: "./src/assets/towk-symbol.png",
+      size: [96, 96],
     },
     padding: 72,
     fonts: [

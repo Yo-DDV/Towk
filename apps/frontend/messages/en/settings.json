@@ -342,6 +342,8 @@
         "delete_profile": "Delete your profile, avatar, and associated data",
         "confirm_label": "Type DELETE to confirm",
         "confirm_placeholder": "DELETE",
+        "fresh_auth_intro": "Confirm your current password before deleting this account.",
+        "fresh_auth_required": "Sign in again before deleting this account.",
         "cancel": "Cancel",
         "deleting": "Deleting..."
       }

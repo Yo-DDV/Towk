@@ -89,8 +89,12 @@ message UpdateSettingsResponse {
 }
 
 // Request a short-lived confirmation token for deleting the authenticated
-// account.
-message RequestAccountDeletionRequest {}
+// account. The runtime credential must be fresh; current_password can refresh
+// a stale credential for password-backed accounts.
+message RequestAccountDeletionRequest {
+  // Current password used only when the runtime credential is no longer fresh.
+  string current_password = 1 [(buf.validate.field).string.max_len = 128];
+}
 
 // Result of issuing an account deletion confirmation token.
 message RequestAccountDeletionResponse {
@@ -98,7 +102,9 @@ message RequestAccountDeletionResponse {
   string confirmation_token = 1;
 }
 
-// Request to permanently delete the authenticated account.
+// Request to permanently delete the authenticated account. The caller must
+// still hold user.delete-self, present a fresh runtime credential, and provide
+// the confirmation token issued for this account.
 message DeleteMyAccountRequest {
   // Confirmation token obtained from RequestAccountDeletion.
   string confirmation_token = 1;

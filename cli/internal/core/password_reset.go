@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
+	"golang.org/x/crypto/bcrypt"
 
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -148,6 +149,23 @@ func (c *ChattoCore) ValidatePasswordResetToken(ctx context.Context, token strin
 		return "", err
 	}
 	return tokenData.UserID, nil
+}
+
+// ResetPasswordWithPassword validates the cheap token lookup before paying the
+// bcrypt cost. ResetPassword performs the revision-checked token claim and
+// durable password event append after the hash has been produced.
+func (c *ChattoCore) ResetPasswordWithPassword(ctx context.Context, token, password string) error {
+	if err := ValidatePassword(password); err != nil {
+		return err
+	}
+	if _, _, err := c.getPasswordResetToken(ctx, token); err != nil {
+		return err
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash reset password: %w", err)
+	}
+	return c.ResetPassword(ctx, token, string(hash))
 }
 
 // ResetPassword validates the token, updates the user's password, and deletes the token.
