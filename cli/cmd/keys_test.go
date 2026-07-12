@@ -67,6 +67,50 @@ func TestEncryptDecryptKeysRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEncryptKeysToFileReplacesSymlinkWithoutTouchingTarget(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	dest := filepath.Join(dir, "keys.age")
+	if err := os.WriteFile(target, []byte("do not overwrite"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, dest); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	if err := encryptKeysToFile(nil, "test-passphrase", dest); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != "do not overwrite" {
+		t.Fatalf("symlink target changed: data=%q err=%v", got, err)
+	}
+	info, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.Mode().IsRegular() {
+		t.Fatalf("destination mode = %v, want regular file", info.Mode())
+	}
+}
+
+func TestEncryptKeysToFileRestrictsExistingDestination(t *testing.T) {
+	dest := filepath.Join(t.TempDir(), "keys.age")
+	if err := os.WriteFile(dest, []byte("old"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := encryptKeysToFile(nil, "test-passphrase", dest); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0600 {
+		t.Fatalf("destination mode = %o, want 600", got)
+	}
+}
+
 func TestKeysExportImportRoundTrip(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

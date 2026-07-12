@@ -319,31 +319,24 @@ func encryptKeysToFile(keys []ExportedKey, passphrase, filePath string) error {
 		return fmt.Errorf("failed to marshal keys: %w", err)
 	}
 
-	outFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer outFile.Close()
-
 	recipient, err := age.NewScryptRecipient(passphrase)
 	if err != nil {
 		return fmt.Errorf("failed to create age recipient: %w", err)
 	}
 
-	w, err := age.Encrypt(outFile, recipient)
-	if err != nil {
-		return fmt.Errorf("failed to initialize encryption: %w", err)
-	}
-
-	if _, err := w.Write(plaintext); err != nil {
-		return fmt.Errorf("failed to write encrypted data: %w", err)
-	}
-
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("failed to finalize encryption: %w", err)
-	}
-
-	return nil
+	return writeFileAtomically(filePath, func(outFile io.Writer) error {
+		w, err := age.Encrypt(outFile, recipient)
+		if err != nil {
+			return fmt.Errorf("failed to initialize encryption: %w", err)
+		}
+		if _, err := w.Write(plaintext); err != nil {
+			return fmt.Errorf("failed to write encrypted data: %w", err)
+		}
+		if err := w.Close(); err != nil {
+			return fmt.Errorf("failed to finalize encryption: %w", err)
+		}
+		return nil
+	})
 }
 
 // decryptKeysFromFile reads an age-encrypted key export and decrypts it.

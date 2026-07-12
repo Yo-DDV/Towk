@@ -417,7 +417,7 @@ func classifyStream(name string) string {
 
 // createTarGz creates a .tar.gz archive from a directory.
 func createTarGz(sourceDir, destFile string) error {
-	return writeArchiveAtomically(destFile, func(outFile io.Writer) error {
+	return writeFileAtomically(destFile, func(outFile io.Writer) error {
 		return writeTarGz(sourceDir, outFile)
 	})
 }
@@ -429,7 +429,7 @@ func createEncryptedTarGz(sourceDir, destFile, passphrase string) error {
 		return fmt.Errorf("failed to create age recipient: %w", err)
 	}
 
-	return writeArchiveAtomically(destFile, func(outFile io.Writer) error {
+	return writeFileAtomically(destFile, func(outFile io.Writer) error {
 		ageWriter, err := age.Encrypt(outFile, recipient)
 		if err != nil {
 			return fmt.Errorf("failed to initialize encryption: %w", err)
@@ -444,10 +444,10 @@ func createEncryptedTarGz(sourceDir, destFile, passphrase string) error {
 	})
 }
 
-func writeArchiveAtomically(destFile string, write func(io.Writer) error) (err error) {
+func writeFileAtomically(destFile string, write func(io.Writer) error) (err error) {
 	tempFile, err := os.CreateTemp(filepath.Dir(destFile), "."+filepath.Base(destFile)+".tmp-*")
 	if err != nil {
-		return fmt.Errorf("failed to create temporary archive file: %w", err)
+		return fmt.Errorf("failed to create temporary output file: %w", err)
 	}
 	tempPath := tempFile.Name()
 	defer func() {
@@ -457,30 +457,30 @@ func writeArchiveAtomically(destFile string, write func(io.Writer) error) (err e
 		}
 	}()
 	if err = tempFile.Chmod(0600); err != nil {
-		return fmt.Errorf("failed to secure temporary archive file: %w", err)
+		return fmt.Errorf("failed to secure temporary output file: %w", err)
 	}
 	if err = write(tempFile); err != nil {
 		return err
 	}
 	if err = tempFile.Sync(); err != nil {
-		return fmt.Errorf("failed to sync archive file: %w", err)
+		return fmt.Errorf("failed to sync output file: %w", err)
 	}
 	if err = tempFile.Close(); err != nil {
-		return fmt.Errorf("failed to close archive file: %w", err)
+		return fmt.Errorf("failed to close output file: %w", err)
 	}
 	if err = os.Rename(tempPath, destFile); err != nil {
-		return fmt.Errorf("failed to publish archive atomically: %w", err)
+		return fmt.Errorf("failed to publish output file atomically: %w", err)
 	}
 	parent, err := os.Open(filepath.Dir(destFile))
 	if err != nil {
-		return fmt.Errorf("failed to open archive directory for sync: %w", err)
+		return fmt.Errorf("failed to open output directory for sync: %w", err)
 	}
 	if err = parent.Sync(); err != nil {
 		parent.Close()
-		return fmt.Errorf("failed to sync archive directory: %w", err)
+		return fmt.Errorf("failed to sync output directory: %w", err)
 	}
 	if err = parent.Close(); err != nil {
-		return fmt.Errorf("failed to close archive directory: %w", err)
+		return fmt.Errorf("failed to close output directory: %w", err)
 	}
 	return nil
 }
