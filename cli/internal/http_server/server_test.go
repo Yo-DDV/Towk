@@ -521,6 +521,43 @@ func TestAuthRoutes_Login_InvalidCredentials(t *testing.T) {
 	}
 }
 
+func TestAuthRoutes_LoginRateLimitIsNormalizedAndReturnsRetryAfter(t *testing.T) {
+	ts, client, chattoCore := setupTestHTTPServer(t)
+	ctx := testContext(t)
+	if _, err := chattoCore.CreateUser(ctx, "system", "rateuser", "Rate User", "correctpassword"); err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	for i := 0; i < 10; i++ {
+		identifier := "rateuser"
+		if i%2 == 1 {
+			identifier = " RATEUSER "
+		}
+		body, _ := json.Marshal(map[string]string{"login": identifier, "password": "wrongpassword"})
+		resp, err := client.Post(ts.URL+"/auth/login", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("login attempt %d: %v", i+1, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("login attempt %d status = %d, want 401", i+1, resp.StatusCode)
+		}
+	}
+
+	body, _ := json.Marshal(map[string]string{"login": "RateUser", "password": "wrongpassword"})
+	resp, err := client.Post(ts.URL+"/auth/login", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("limited login: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("limited login status = %d, want 429", resp.StatusCode)
+	}
+	if resp.Header.Get("Retry-After") == "" {
+		t.Fatal("limited login missing Retry-After")
+	}
+}
+
 func TestAuthRoutes_Login_NonexistentUser(t *testing.T) {
 	ts, client, _ := setupTestHTTPServer(t)
 
@@ -2096,6 +2133,71 @@ func TestAuthRoutes_ForgotPassword_NoEnumeration(t *testing.T) {
 	// No email should be sent for non-existent address
 	if mockMailer.LastMessage() != nil {
 		t.Error("Should not send email for non-existent address")
+	}
+}
+
+func TestAuthRoutes_ForgotPasswordRateLimitKeepsGenericResponseAndStopsMail(t *testing.T) {
+	ts, client, chattoCore, mockMailer := setupTestHTTPServerWithMailer(t)
+	ctx := testContext(t)
+	user, err := chattoCore.CreateUser(ctx, "system", "forgot-rate", "Forgot Rate", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := chattoCore.AddVerifiedEmailDirect(ctx, user.Id, "forgot-rate@example.com"); err != nil {
+		t.Fatalf("AddVerifiedEmailDirect: %v", err)
+	}
+
+	var limited *http.Response
+	for i := 0; i < 4; i++ {
+		body, _ := json.Marshal(map[string]string{"email": "FORGOT-RATE@example.com"})
+		resp, err := client.Post(ts.URL+"/auth/forgot-password", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("forgot-password attempt %d: %v", i+1, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("forgot-password attempt %d status = %d, want 200", i+1, resp.StatusCode)
+		}
+		if i == 3 {
+			limited = resp
+		} else {
+			resp.Body.Close()
+		}
+	}
+	defer limited.Body.Close()
+	if limited.Header.Get("Retry-After") == "" {
+		t.Fatal("limited forgot-password response missing Retry-After")
+	}
+	if got := len(mockMailer.Messages()); got != 3 {
+		t.Fatalf("password-reset emails = %d, want 3", got)
+	}
+}
+
+func TestAuthRoutes_ResetPasswordRateLimitRejectsRepeatedInvalidToken(t *testing.T) {
+	ts, client, _, _ := setupTestHTTPServerWithMailer(t)
+	for i := 0; i < 5; i++ {
+		body, _ := json.Marshal(map[string]string{"token": "PR-invalid-rate-token", "password": "newpassword456"})
+		resp, err := client.Post(ts.URL+"/auth/reset-password", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("reset attempt %d: %v", i+1, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("reset attempt %d status = %d, want 400", i+1, resp.StatusCode)
+		}
+	}
+
+	body, _ := json.Marshal(map[string]string{"token": "PR-invalid-rate-token", "password": "newpassword456"})
+	resp, err := client.Post(ts.URL+"/auth/reset-password", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("limited reset: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("limited reset status = %d, want 429", resp.StatusCode)
+	}
+	if resp.Header.Get("Retry-After") == "" {
+		t.Fatal("limited reset missing Retry-After")
 	}
 }
 
