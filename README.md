@@ -1,5 +1,9 @@
 <div align="center">
-  <img src="branding/towk-wordmark.svg" alt="Towk" width="520" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/towk-horizontal-on-dark.webp" />
+    <source media="(prefers-color-scheme: light)" srcset="branding/towk-horizontal-on-light.webp" />
+    <img src="branding/towk-horizontal-on-light.webp" alt="Towk" width="520" />
+  </picture>
 
   <p><strong>Your conversations. Your infrastructure.</strong></p>
 
