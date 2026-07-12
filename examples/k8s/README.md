@@ -9,6 +9,7 @@ This example deploys a clustered Towk setup on Kubernetes with:
 ## Prerequisites
 
 - Kubernetes cluster (1.19+)
+- A CNI that enforces Kubernetes NetworkPolicy
 - kubectl configured
 - An Ingress controller (e.g., ingress-nginx, Traefik)
 - Optional: cert-manager for automatic TLS
@@ -91,6 +92,7 @@ kubectl -n towk describe certificate towk-tls
 | `secrets.yaml`   | **Central config** - all environment variables     |
 | `nats.yaml`      | NATS StatefulSet (sources token from secret)       |
 | `towk.yaml`    | Towk Deployment (sources all config from secret) |
+| `network-policy.yaml` | Default-deny and least-access network policies |
 | `ingress.yaml`   | Ingress for external access                        |
 
 ## Configuration
@@ -113,10 +115,38 @@ Update these values (generate secrets with `openssl rand -hex 32`):
 - `CHATTO_CORE_SECRET_KEY` - Bearer-token and account-flow verifier key
 - `CHATTO_CORE_ASSETS_SIGNING_SECRET` - Asset URL signing secret
 
-The sample NATS StatefulSet uses plaintext inside the cluster network and opts
-in with `CHATTO_NATS_CLIENT_ALLOW_INSECURE=true`. Production clusters should
-enable NATS TLS, use a `tls://` client URL (and a private CA when needed), then
-remove that override.
+### NATS TLS secret
+
+The manifests require a TLS certificate for the internal DNS name `nats` and
+the CA that issued it. Create the secret before deploying the workloads:
+
+```bash
+kubectl -n towk create secret generic nats-tls \
+  --from-file=tls.crt=./nats-server.crt \
+  --from-file=tls.key=./nats-server.key \
+  --from-file=ca.crt=./nats-ca.crt
+```
+
+The NATS monitoring listener binds only to loopback and is not exposed by a
+Service. Health probes execute inside the container.
+
+### Network policy labels
+
+Label the namespace that runs your ingress controller before applying the
+policies. For the default k3s Traefik installation:
+
+```bash
+kubectl label namespace kube-system \
+  networking.towk.io/ingress=true \
+  networking.towk.io/dns=true
+```
+
+On clusters where DNS and the ingress controller run in different namespaces,
+apply only the matching label to each namespace.
+
+The default egress policy permits NATS, cluster DNS and public HTTPS only. Add
+explicit destinations for private SMTP, OIDC, S3 or other services required by
+your deployment. Do not remove the default-deny policy as a shortcut.
 
 ### ingress.local.yaml
 
@@ -130,6 +160,7 @@ Update these values:
 ```bash
 kubectl apply -f namespace.yaml
 kubectl apply -f secrets.local.yaml
+kubectl apply -f network-policy.yaml
 kubectl apply -f nats.yaml
 kubectl apply -f towk.yaml
 kubectl apply -f ingress.local.yaml

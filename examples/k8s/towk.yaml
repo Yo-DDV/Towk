@@ -25,6 +25,7 @@ spec:
       labels:
         app: towk
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -41,11 +42,18 @@ spec:
           envFrom:
             - secretRef:
                 name: towk-config
+          env:
+            - name: CHATTO_NATS_CLIENT_CA_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: nats-tls
+                  key: ca.crt
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
+            readOnlyRootFilesystem: true
           resources:
             requests:
               cpu: 100m
@@ -69,6 +77,12 @@ spec:
               path: /healthz
               port: 4000
             periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
   strategy:
     type: RollingUpdate
     rollingUpdate:
