@@ -68,7 +68,7 @@ generated protobuf clients, Vitest browser tests, Playwright e2e, and Storybook.
   authorization rules in UI code.
 - When Go permission/shared types change, run `mise codegen-types`.
 - Public ConnectRPC/protobuf clients live in the workspace package
-  `@chatto/api-types`; keep generated files in sync with `mise codegen-proto`.
+  `@towk/api-types`; keep generated files in sync with `mise codegen-proto`.
 
 ## UI And Styling
 
@@ -153,7 +153,7 @@ generated protobuf clients, Vitest browser tests, Playwright e2e, and Storybook.
 - Use `expect.element(...)` for DOM assertions and flush after Svelte state
   mutations when needed.
 - E2E runs locally without Docker/Tilt/OrbStack; Playwright starts its own
-  embedded-NATS Chatto binary.
+  embedded-NATS Towk binary.
 - Prefer targeted e2e runs before the full suite:
 
 ```sh
@@ -176,7 +176,7 @@ mise test-e2e
 - Use addon-svelte-csf v5 conventions; pass `asChild` on `<Story>` blocks that
   contain markup.
 - Stories should document behavior through realistic variants, not long prose.
-- The app preview uses Chatto tokens; do not retint Storybook manager/docs chrome.
+- The app preview uses Towk tokens; do not retint Storybook manager/docs chrome.
 
 ## PWA And Assets
 

@@ -1,8 +1,8 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
-import { RoomDirectoryScope } from '@chatto/api-types/api/v1/room_directory_pb';
-import { RoomKind } from '@chatto/api-types/api/v1/rooms_pb';
+import { RoomDirectoryScope } from '@towk/api-types/api/v1/room_directory_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { createRoomDirectoryAPI } from '$lib/api-client/roomDirectory';
 
 const Permission = {

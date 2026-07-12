@@ -1,6 +1,6 @@
-import { authHeaders, createChattoClient, handleAuthError } from "./connect.js";
-import { MessageService } from "@chatto/api-types/api/v1/messages_connect";
-import type { MessageReaction } from "@chatto/api-types/api/v1/message_types_pb";
+import { authHeaders, createTowkClient, handleAuthError } from "./connect.js";
+import { MessageService } from "@towk/api-types/api/v1/messages_connect";
+import type { MessageReaction } from "@towk/api-types/api/v1/message_types_pb";
 
 export type ConnectAPIConfig = {
   serverId?: string;
@@ -33,7 +33,7 @@ export type RemoveReactionResult = {
 };
 
 export function createReactionAPI(config: ConnectAPIConfig) {
-  const client = createChattoClient(MessageService, config);
+  const client = createTowkClient(MessageService, config);
   const headers = () => authHeaders(config);
   return {
     async addReaction(input: ReactionInput): Promise<AddReactionResult> {

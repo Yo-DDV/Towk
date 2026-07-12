@@ -99,13 +99,13 @@ func newChattoCollector(server *HTTPServer) *chattoCollector {
 
 		buildInfo: prometheus.NewDesc(
 			"chatto_build_info",
-			"Build information for this Chatto process.",
+			"Build information for this Towk process.",
 			[]string{"version"},
 			nil,
 		),
 		ready: prometheus.NewDesc(
 			"chatto_ready",
-			"Whether this Chatto process is ready to serve application traffic.",
+			"Whether this Towk process is ready to serve application traffic.",
 			nil,
 			nil,
 		),
@@ -147,7 +147,7 @@ func newChattoCollector(server *HTTPServer) *chattoCollector {
 		),
 		modelInfo: prometheus.NewDesc(
 			"chatto_model_info",
-			"Registered core model in this Chatto process.",
+			"Registered core model in this Towk process.",
 			[]string{"model"},
 			nil,
 		),
@@ -243,7 +243,7 @@ func newChattoCollector(server *HTTPServer) *chattoCollector {
 		),
 		scrapeError: prometheus.NewDesc(
 			"chatto_metrics_scrape_error",
-			"Whether a Chatto metrics collector failed during this scrape.",
+			"Whether a Towk metrics collector failed during this scrape.",
 			[]string{"collector"},
 			nil,
 		),

@@ -8,7 +8,7 @@
 
 Chat messages have two fundamentally different lifecycles: the *event* (who posted, when, in which room, in reply to what) is immutable, but the *content* (body text, attachments, link previews) is mutable — users can edit and delete messages. JetStream streams are append-only logs; updating a message in-place would require rewriting the stream.
 
-Additionally, Chatto supports thread-reply echo ("also send to channel"), where the same message body appears in both the thread and the room timeline as two distinct events. And GDPR crypto-shredding needs to efficiently destroy all of a user's message content without touching the event stream.
+Additionally, Towk supports thread-reply echo ("also send to channel"), where the same message body appears in both the thread and the room timeline as two distinct events. And GDPR crypto-shredding needs to efficiently destroy all of a user's message content without touching the event stream.
 
 ## Decision
 

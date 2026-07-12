@@ -1,9 +1,9 @@
-import { authHeaders, createChattoClient } from "./connect.js";
-import { AdminUserService } from "@chatto/api-types/admin/v1/members_connect";
-import type { AdminMember as APIAdminMember } from "@chatto/api-types/admin/v1/members_pb";
-import type { AdminRole as APIAdminRole } from "@chatto/api-types/admin/v1/roles_pb";
-import type { Role as APIRole } from "@chatto/api-types/api/v1/roles_pb";
-import type { User as APIUser } from "@chatto/api-types/api/v1/users_pb";
+import { authHeaders, createTowkClient } from "./connect.js";
+import { AdminUserService } from "@towk/api-types/admin/v1/members_connect";
+import type { AdminMember as APIAdminMember } from "@towk/api-types/admin/v1/members_pb";
+import type { AdminRole as APIAdminRole } from "@towk/api-types/admin/v1/roles_pb";
+import type { Role as APIRole } from "@towk/api-types/api/v1/roles_pb";
+import type { User as APIUser } from "@towk/api-types/api/v1/users_pb";
 
 export type AdminUserManagementAPIConfig = {
   baseUrl: string;
@@ -88,7 +88,7 @@ export type AdminRoleMutationResult = {
 export function createAdminUserManagementAPI(
   config: AdminUserManagementAPIConfig,
 ) {
-  const client = createChattoClient(AdminUserService, config);
+  const client = createTowkClient(AdminUserService, config);
   const headers = () => authHeaders(config);
 
   return {

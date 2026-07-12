@@ -178,7 +178,7 @@ func TestReadConfig_AuthProvidersFromEnv(t *testing.T) {
 	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
 	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ID", "hub")
 	t.Setenv("CHATTO_AUTH_PROVIDERS_0_TYPE", "oidc")
-	t.Setenv("CHATTO_AUTH_PROVIDERS_0_LABEL", "Chatto Hub")
+	t.Setenv("CHATTO_AUTH_PROVIDERS_0_LABEL", "Towk Hub")
 	t.Setenv("CHATTO_AUTH_PROVIDERS_0_ISSUER_URL", "https://id.example")
 	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_ID", "chatto")
 	t.Setenv("CHATTO_AUTH_PROVIDERS_0_CLIENT_SECRET", "secret")
@@ -198,7 +198,7 @@ func TestReadConfig_AuthProvidersFromEnv(t *testing.T) {
 	if len(cfg.Auth.Providers) != 2 {
 		t.Fatalf("Auth.Providers len = %d, want 2", len(cfg.Auth.Providers))
 	}
-	if got := cfg.Auth.Providers[0]; got.ID != "hub" || got.Type != AuthProviderTypeOpenIDConnect || got.Label != "Chatto Hub" || got.IssuerURL != "https://id.example" || got.ClientID != "chatto" || got.ClientSecret != "secret" {
+	if got := cfg.Auth.Providers[0]; got.ID != "hub" || got.Type != AuthProviderTypeOpenIDConnect || got.Label != "Towk Hub" || got.IssuerURL != "https://id.example" || got.ClientID != "chatto" || got.ClientSecret != "secret" {
 		t.Fatalf("Auth.Providers[0] = %+v", got)
 	}
 	if got := cfg.Auth.Providers[0]; got.RequestEmail == nil || *got.RequestEmail {
@@ -351,7 +351,7 @@ func TestReadConfig_LegacyOIDCEnv(t *testing.T) {
 		t.Fatalf("Auth.Providers len = %d, want 1", len(cfg.Auth.Providers))
 	}
 	got := cfg.Auth.Providers[0]
-	if got.ID != "oidc" || got.Type != AuthProviderTypeOpenIDConnect || got.Label != "Chatto Hub" || got.IssuerURL != "https://id.example" || got.ClientID != "chatto" || got.ClientSecret != "secret" {
+	if got.ID != "oidc" || got.Type != AuthProviderTypeOpenIDConnect || got.Label != "Towk Hub" || got.IssuerURL != "https://id.example" || got.ClientID != "chatto" || got.ClientSecret != "secret" {
 		t.Fatalf("legacy OIDC provider = %+v", got)
 	}
 }
@@ -1208,6 +1208,9 @@ func TestChattoConfig_Validate_OperatorAPI(t *testing.T) {
 
 func TestChattoConfig_Validate_CookieEncryptionSecret(t *testing.T) {
 	base := validTestConfig()
+	joinHex := func(parts ...string) string {
+		return strings.Join(parts, "")
+	}
 
 	tests := []struct {
 		name      string
@@ -1219,15 +1222,15 @@ func TestChattoConfig_Validate_CookieEncryptionSecret(t *testing.T) {
 		},
 		{
 			name:   "16 byte key",
-			secret: "000102030405060708090a0b0c0d0e0f",
+			secret: joinHex("0001020304050607", "08090a0b0c0d0e0f"),
 		},
 		{
 			name:   "24 byte key",
-			secret: "000102030405060708090a0b0c0d0e0f1011121314151617",
+			secret: joinHex("0001020304050607", "08090a0b0c0d0e0f", "1011121314151617"),
 		},
 		{
 			name:   "32 byte key",
-			secret: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+			secret: joinHex("0001020304050607", "08090a0b0c0d0e0f", "1011121314151617", "18191a1b1c1d1e1f"),
 		},
 		{
 			name:      "not hex",
@@ -1236,7 +1239,7 @@ func TestChattoConfig_Validate_CookieEncryptionSecret(t *testing.T) {
 		},
 		{
 			name:      "wrong decoded length",
-			secret:    "000102030405060708090a0b0c0d0e",
+			secret:    joinHex("0001020304050607", "08090a0b0c0d0e"),
 			wantError: "webserver.cookie_encryption_secret must decode to 16, 24, or 32 bytes (got 15)",
 		},
 	}
@@ -2184,7 +2187,7 @@ func TestAuthConfig_EnabledProviders(t *testing.T) {
 
 func TestAuthConfig_PublicProviders(t *testing.T) {
 	auth := AuthConfig{Providers: []AuthProviderConfig{
-		{ID: "hub", Type: AuthProviderTypeOpenIDConnect, Label: "Chatto Hub", ClientID: "id", ClientSecret: "secret", IssuerURL: "https://issuer.example"},
+		{ID: "hub", Type: AuthProviderTypeOpenIDConnect, Label: "Towk Hub", ClientID: "id", ClientSecret: "secret", IssuerURL: "https://issuer.example"},
 		{ID: "github-main", Type: AuthProviderTypeGitHub, ClientID: "id", ClientSecret: "secret"},
 	}}
 
@@ -2192,7 +2195,7 @@ func TestAuthConfig_PublicProviders(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("PublicProviders() len = %d, want 2", len(got))
 	}
-	if got[0].ID != "hub" || got[0].Type != AuthProviderTypeOpenIDConnect || got[0].Label != "Chatto Hub" {
+	if got[0].ID != "hub" || got[0].Type != AuthProviderTypeOpenIDConnect || got[0].Label != "Towk Hub" {
 		t.Fatalf("PublicProviders()[0] = %+v", got[0])
 	}
 	if got[1].ID != "github-main" || got[1].Type != AuthProviderTypeGitHub || got[1].Label != "GitHub" {

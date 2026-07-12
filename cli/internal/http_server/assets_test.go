@@ -666,7 +666,7 @@ func TestAsset_StableS3ImageStreamsThroughChattoByDefault(t *testing.T) {
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected S3 image to stream through Chatto with 200, got %d", resp.StatusCode)
+		t.Fatalf("Expected S3 image to stream through Towk with 200, got %d", resp.StatusCode)
 	}
 	if got := resp.Header.Get("Location"); got != "" {
 		t.Fatalf("Expected no redirect Location for ordinary S3 image, got %q", got)

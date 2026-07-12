@@ -5,7 +5,7 @@
 
 ## Overview
 
-When a message contains a URL, Chatto can attach a preview card with the page's title, description, site name, and image. Previews are fetched client-driven while the user is composing — the user sees the preview before sending and can dismiss it.
+When a message contains a URL, Towk can attach a preview card with the page's title, description, site name, and image. Previews are fetched client-driven while the user is composing — the user sees the preview before sending and can dismiss it.
 
 ## Behavior
 

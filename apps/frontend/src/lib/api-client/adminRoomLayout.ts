@@ -1,12 +1,12 @@
-import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
-import { AdminRoomLayoutService } from '@chatto/api-types/admin/v1/room_layout_connect';
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
+import { AdminRoomLayoutService } from '@towk/api-types/admin/v1/room_layout_connect';
 import {
   AdminRoomLayoutItemKind,
   type AdminRoomLayoutGroup as APIAdminRoomLayoutGroup,
   type AdminRoomLayoutItem as APIAdminRoomLayoutItem
-} from '@chatto/api-types/admin/v1/room_layout_pb';
+} from '@towk/api-types/admin/v1/room_layout_pb';
 import type { DirectorySidebarLink } from './roomDirectory.js';
-import type { Room } from '@chatto/api-types/api/v1/rooms_pb';
+import type { Room } from '@towk/api-types/api/v1/rooms_pb';
 
 export type AdminRoomLayoutAPIConfig = {
   serverId?: string;
@@ -55,7 +55,7 @@ export type AdminRoomLayoutItemMutationInput = {
 };
 
 export function createAdminRoomLayoutAPI(config: AdminRoomLayoutAPIConfig) {
-  const layout = createChattoClient(AdminRoomLayoutService, config);
+  const layout = createTowkClient(AdminRoomLayoutService, config);
   const headers = () => authHeaders(config);
   return {
     async listRoomGroups(): Promise<AdminRoomGroup[]> {

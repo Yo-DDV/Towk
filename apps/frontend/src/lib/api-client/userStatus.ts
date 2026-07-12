@@ -1,11 +1,11 @@
 import {
   authHeaders,
-  createChattoClient,
+  createTowkClient,
   handleAuthError,
   type ConnectAPIConfig,
 } from "./connect.js";
 import { Timestamp } from "@bufbuild/protobuf";
-import { MyAccountService } from "@chatto/api-types/api/v1/account_connect";
+import { MyAccountService } from "@towk/api-types/api/v1/account_connect";
 
 export type CustomUserStatusAPIConfig = ConnectAPIConfig & {
   serverId: string;
@@ -59,7 +59,7 @@ export async function deleteCustomStatus(
 }
 
 function createUserStatusClient(config: CustomUserStatusAPIConfig) {
-  return createChattoClient(MyAccountService, config);
+  return createTowkClient(MyAccountService, config);
 }
 
 function apiStatus(

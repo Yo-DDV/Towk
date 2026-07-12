@@ -1,6 +1,6 @@
-import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
-import { ThreadService } from '@chatto/api-types/api/v1/threads_connect';
-import type { User } from '@chatto/api-types/api/v1/users_pb';
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
+import { ThreadService } from '@towk/api-types/api/v1/threads_connect';
+import type { User } from '@towk/api-types/api/v1/users_pb';
 import type { RawEvent } from './events.js';
 import { messageToRawEvent } from './roomTimeline.js';
 
@@ -39,7 +39,7 @@ export type ThreadFollowResult = {
 };
 
 export function createThreadAPI(config: ConnectAPIConfig) {
-  const client = createChattoClient(ThreadService, config);
+  const client = createTowkClient(ThreadService, config);
   const headers = () => authHeaders(config);
   return {
     async listFollowedThreads(input: {

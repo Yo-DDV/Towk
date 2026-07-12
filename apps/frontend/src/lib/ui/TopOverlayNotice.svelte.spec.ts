@@ -19,7 +19,7 @@ describe('TopOverlayNotice', () => {
     const { container } = render(TopOverlayNotice, {
       props: {
         title: 'Enable push notifications',
-        message: 'Get notified when Chatto is closed.',
+        message: 'Get notified when Towk is closed.',
         primaryAction: {
           label: 'Enable',
           onclick: primary
@@ -32,7 +32,7 @@ describe('TopOverlayNotice', () => {
     });
 
     expect(container.textContent).toContain('Enable push notifications');
-    expect(container.textContent).toContain('Get notified when Chatto is closed.');
+    expect(container.textContent).toContain('Get notified when Towk is closed.');
     expect(container.querySelector('section')).toHaveClass('menu');
     expect(container.querySelector('.menu-section')).not.toBeNull();
     expect(container.firstElementChild?.className).toContain('safe-area-inset-top');

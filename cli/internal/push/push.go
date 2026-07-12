@@ -337,7 +337,7 @@ func buildNotificationURL(baseURL, roomID, threadRootID, highlightEventID string
 }
 
 // BuildPayloadFromNotification creates a push payload from a notification.
-// The baseURL is used to build navigation URLs (e.g., "https://chatto.example.com").
+// The baseURL is used to build navigation URLs (e.g., "https://towk.example.com").
 // The optional payloadCtx provides message preview and room name for richer notifications.
 func BuildPayloadFromNotification(notif *corev1.Notification, actorDisplayName, baseURL string, payloadCtx *PayloadContext) *Payload {
 	payload := &Payload{

@@ -1,6 +1,6 @@
-import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
 import type { LinkPreviewInput, RoomEventView } from './renderTypes.js';
-import { MessageService } from '@chatto/api-types/api/v1/messages_connect';
+import { MessageService } from '@towk/api-types/api/v1/messages_connect';
 import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
 import { createAssetUploadAPI } from './assetUploads.js';
 
@@ -39,7 +39,7 @@ export type UpdateMessageResult = {
 };
 
 export function createMessageAPI(config: MessageAPIConfig) {
-  const client = createChattoClient(MessageService, config);
+  const client = createTowkClient(MessageService, config);
   const headers = () => authHeaders(config);
   return {
     async createMessage(input: CreateMessageInput): Promise<CreateMessageResult> {

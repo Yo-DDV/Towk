@@ -28,7 +28,7 @@ export default defineConfig({
     "/guides/s3-storage": "/guides/infrastructure/s3-storage",
     "/guides/video-processing": "/guides/infrastructure/video-processing",
     "/guides/voice-calls": "/guides/infrastructure/voice-calls",
-    "/guides/integrating-with-chatto": "/guides/integrations/towk-api",
+    "/guides/integrating-with-towk": "/guides/integrations/towk-api",
     "/guides/external-login-providers": "/guides/integrations/external-login-providers",
   },
   integrations: [

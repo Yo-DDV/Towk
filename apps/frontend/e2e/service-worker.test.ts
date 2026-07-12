@@ -22,7 +22,7 @@ type BadgeStateSnapshot = {
   serviceWorkerAppBadgeEnabled: boolean | null;
 };
 
-const BADGE_STATE_CACHE_NAME = 'chatto-badge-state-v2';
+const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const BADGE_STATE_REQUEST = '/__chatto/foreground-badge-intent';
 
 test('service worker caches only the app shell and serves it offline', async ({
@@ -40,7 +40,7 @@ test('service worker caches only the app shell and serves it offline', async ({
   await requestNetworkOnlyPaths(page);
 
   const onlineCacheSnapshot = await cacheSnapshot(page);
-  expect(onlineCacheSnapshot.cacheNames.some((name) => name.startsWith('chatto-shell-'))).toBe(
+  expect(onlineCacheSnapshot.cacheNames.some((name) => name.startsWith('towk-shell-'))).toBe(
     true
   );
   expect(onlineCacheSnapshot.rootShellCached).toBe(true);
@@ -109,7 +109,7 @@ test('browser-tab badge-state messages do not crash service worker badging', asy
   }
 
   await postBadgeStateMessage(page, {
-    type: 'chatto-badge-state',
+    type: 'towk-badge-state',
     notificationCount: 3,
     serviceWorkerAppBadgeEnabled: false
   });
@@ -130,7 +130,7 @@ test('browser-tab badge-state messages do not crash service worker badging', asy
   });
 
   await postBadgeStateMessage(page, {
-    type: 'chatto-badge-state',
+    type: 'towk-badge-state',
     notificationCount: 2
   });
   await expectBadgeState(page, {
@@ -141,7 +141,7 @@ test('browser-tab badge-state messages do not crash service worker badging', asy
   await expectPageStillResponsive(page);
 
   await postBadgeStateMessage(page, {
-    type: 'chatto-badge-state',
+    type: 'towk-badge-state',
     notificationCount: 0,
     serviceWorkerAppBadgeEnabled: false
   });
@@ -236,7 +236,7 @@ async function clearBadgeStateCache(page: Page) {
 async function postBadgeStateMessage(
   page: Page,
   message: {
-    type: 'chatto-badge-state';
+    type: 'towk-badge-state';
     notificationCount: number;
     serviceWorkerAppBadgeEnabled?: boolean;
   }

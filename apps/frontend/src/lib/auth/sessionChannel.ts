@@ -6,7 +6,7 @@
  * SessionTerminatedEvent which handles cross-device and admin-initiated logout.
  */
 
-const CHANNEL_NAME = 'chatto-session';
+const CHANNEL_NAME = 'towk-session';
 
 let channel: BroadcastChannel | null = null;
 

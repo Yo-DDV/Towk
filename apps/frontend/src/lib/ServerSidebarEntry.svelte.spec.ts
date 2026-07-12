@@ -34,7 +34,7 @@ const { mocks } = vi.hoisted(() => {
       server: {
         id: 'remote',
         url: 'https://remote.example.com',
-        name: 'Remote Chatto',
+        name: 'Remote Towk',
         iconUrl: null,
         token: 'token',
         userId: 'user-1',
@@ -299,7 +299,7 @@ describe('ServerSidebarEntry', () => {
     const icon = q(container, '[data-testid="server-icon"]');
     await expect.element(icon).toBeInTheDocument();
     await expect.element(icon).toHaveClass('opacity-40');
-    await expect.element(icon).toHaveAttribute('title', 'Remote Chatto (connection unavailable)');
+    await expect.element(icon).toHaveAttribute('title', 'Remote Towk (connection unavailable)');
     expect(container.textContent).toContain('R');
   });
 

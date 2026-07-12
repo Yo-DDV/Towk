@@ -9,7 +9,7 @@ access tickets (ADR-032, ADR-047, FDR-008).
 
 ## Context
 
-Chatto serves user-uploaded images (avatars, attachments) and supports on-demand resizing and cropping. The transform parameters (width, height, crop mode) are specified in the URL. Without protection, any client could request arbitrarily large or unusual transformations, consuming server CPU and memory.
+Towk serves user-uploaded images (avatars, attachments) and supports on-demand resizing and cropping. The transform parameters (width, height, crop mode) are specified in the URL. Without protection, any client could request arbitrarily large or unusual transformations, consuming server CPU and memory.
 
 The options are:
 

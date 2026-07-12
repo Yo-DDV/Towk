@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { tick } from 'svelte';
 import { q } from '$lib/test-utils';
-import { RoomKind } from '@chatto/api-types/api/v1/rooms_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import {
   consumePendingRoomSidebarPanel,
@@ -638,7 +638,7 @@ describe('Room local message echo', () => {
     mocks.timeline.getRoomEventsAround.mockClear();
 
     window.dispatchEvent(
-      new CustomEvent('chatto:room-message-mutated', {
+      new CustomEvent('towk:room-message-mutated', {
         detail: {
           roomId: 'room-1',
           eventId: 'msg-local',
@@ -668,7 +668,7 @@ describe('Room local message echo', () => {
     mocks.timeline.getRoomEventsAround.mockClear();
 
     window.dispatchEvent(
-      new CustomEvent('chatto:room-message-mutated', {
+      new CustomEvent('towk:room-message-mutated', {
         detail: {
           roomId: 'room-1',
           eventId: 'original-reply',
@@ -698,7 +698,7 @@ describe('Room local message echo', () => {
     mocks.timeline.getRoomEventsAround.mockClear();
 
     window.dispatchEvent(
-      new CustomEvent('chatto:room-message-mutated', {
+      new CustomEvent('towk:room-message-mutated', {
         detail: {
           roomId: 'room-1',
           eventId: 'echo-local',

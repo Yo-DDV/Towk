@@ -1535,17 +1535,17 @@ describe('MessageComposer', () => {
 
       const hrefInput = q(container, 'input[aria-label="Link URL"]') as HTMLInputElement;
       await expect.element(hrefInput).toHaveValue('https://example.com');
-      await changeInputValue(hrefInput, 'https://chatto.test/docs');
+      await changeInputValue(hrefInput, 'https://towk.test/docs');
 
       await vi.waitFor(() =>
-        expect(editor.querySelector('a')?.getAttribute('href')).toBe('https://chatto.test/docs')
+        expect(editor.querySelector('a')?.getAttribute('href')).toBe('https://towk.test/docs')
       );
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 
       await vi.waitFor(() => expect(mutationMock).toHaveBeenCalledOnce());
       expect(mutationMock.mock.calls[0][1].input).toMatchObject({
         roomId,
-        body: '[example](https://chatto.test/docs)'
+        body: '[example](https://towk.test/docs)'
       });
     });
 

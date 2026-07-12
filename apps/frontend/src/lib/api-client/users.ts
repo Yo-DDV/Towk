@@ -1,7 +1,7 @@
-import { authHeaders, createChattoClient } from "./connect.js";
-import { UserService } from "@chatto/api-types/api/v1/member_directory_connect";
-import type { DirectoryMember as APIDirectoryMember } from "@chatto/api-types/api/v1/member_directory_pb";
-import type { User as APIUser } from "@chatto/api-types/api/v1/users_pb";
+import { authHeaders, createTowkClient } from "./connect.js";
+import { UserService } from "@towk/api-types/api/v1/member_directory_connect";
+import type { DirectoryMember as APIDirectoryMember } from "@towk/api-types/api/v1/member_directory_pb";
+import type { User as APIUser } from "@towk/api-types/api/v1/users_pb";
 
 export type UserAPIConfig = {
   baseUrl: string;
@@ -18,7 +18,7 @@ export type UserSummary = {
 };
 
 export function createUserAPI(config: UserAPIConfig) {
-  const client = createChattoClient(UserService, config);
+  const client = createTowkClient(UserService, config);
   const headers = () => authHeaders(config);
 
   return {

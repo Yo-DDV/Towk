@@ -59,7 +59,7 @@ var (
 
 var backupCmd = &cobra.Command{
 	Use:   "backup",
-	Short: "Create a backup of all Chatto data",
+	Short: "Create a backup of all Towk data",
 	Long: `Creates a complete backup of all NATS JetStream data including:
 - Instance-level KV buckets (users, spaces, memberships)
 - Instance event streams (audit trail)

@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto's earlier RBAC resolver used role position as part of authorization:
+Towk's earlier RBAC resolver used role position as part of authorization:
 higher-ranked role decisions could override lower-ranked decisions, and many
 targeted operations required both a permission and a strict actor-vs-target
 rank comparison. That model fit the older multi-space design, but it became
@@ -25,7 +25,7 @@ The main pressure points were:
 Use a permission-only RBAC model for everyone except effective owners.
 
 - Effective owners are users with the durable `owner` role or a verified email
-  matching `owners.emails` in Chatto configuration. Owners are always granted
+  matching `owners.emails` in Towk configuration. Owners are always granted
   all permissions regardless of stored allow/deny state.
 - For non-owners, permission resolution is deny-wins: any applicable user or
   role deny blocks the permission; otherwise any applicable allow grants it;

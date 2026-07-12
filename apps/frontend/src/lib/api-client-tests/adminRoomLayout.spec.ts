@@ -1,7 +1,7 @@
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
-import { AdminRoomLayoutItemKind } from '@chatto/api-types/admin/v1/room_layout_pb';
+import { AdminRoomLayoutItemKind } from '@towk/api-types/admin/v1/room_layout_pb';
 import { createAdminRoomLayoutAPI } from '$lib/api-client/adminRoomLayout';
 
 const mocks = vi.hoisted(() => ({

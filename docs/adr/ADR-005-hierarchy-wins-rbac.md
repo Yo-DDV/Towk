@@ -6,7 +6,7 @@
 
 ## Context
 
-Chatto needs a permission system that supports per-room overrides (e.g., an announcements channel where only moderators can post) without requiring special-case code for each scenario. Users can have multiple roles, and roles can explicitly grant or deny permissions.
+Towk needs a permission system that supports per-room overrides (e.g., an announcements channel where only moderators can post) without requiring special-case code for each scenario. Users can have multiple roles, and roles can explicitly grant or deny permissions.
 
 Common resolution strategies:
 

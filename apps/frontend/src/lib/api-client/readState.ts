@@ -1,6 +1,6 @@
-import { authHeaders, createChattoClient, handleAuthError } from "./connect.js";
-import { RoomService } from "@chatto/api-types/api/v1/rooms_connect";
-import { ThreadService } from "@chatto/api-types/api/v1/threads_connect";
+import { authHeaders, createTowkClient, handleAuthError } from "./connect.js";
+import { RoomService } from "@towk/api-types/api/v1/rooms_connect";
+import { ThreadService } from "@towk/api-types/api/v1/threads_connect";
 
 export type ConnectAPIConfig = {
   serverId?: string;
@@ -19,8 +19,8 @@ export type MarkThreadAsReadResult = {
 };
 
 export function createReadStateAPI(config: ConnectAPIConfig) {
-  const rooms = createChattoClient(RoomService, config);
-  const threads = createChattoClient(ThreadService, config);
+  const rooms = createTowkClient(RoomService, config);
+  const threads = createTowkClient(ThreadService, config);
   const headers = () => authHeaders(config);
   return {
     async markRoomAsRead(input: {

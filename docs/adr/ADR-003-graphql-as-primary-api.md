@@ -6,7 +6,7 @@
 
 ## Context
 
-Chatto's frontend needs to query structured data (users, spaces, rooms, messages), perform mutations (post message, join room, update settings), and receive real-time updates (new messages, presence changes, typing indicators). The API must support all three patterns efficiently.
+Towk's frontend needs to query structured data (users, spaces, rooms, messages), perform mutations (post message, join room, update settings), and receive real-time updates (new messages, presence changes, typing indicators). The API must support all three patterns efficiently.
 
 Options considered:
 

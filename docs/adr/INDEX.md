@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory contains Architecture Decision Records (ADRs) for the Chatto project. ADRs document significant architectural decisions along with their context and consequences.
+This directory contains Architecture Decision Records (ADRs) for the Towk project. ADRs document significant architectural decisions along with their context and consequences.
 
 For more about ADRs, see [Michael Nygard's article](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions).
 
@@ -48,7 +48,7 @@ For more about ADRs, see [Michael Nygard's article](https://cognitect.com/blog/2
 | [ADR-038](ADR-038-room-owned-thread-state.md) | Room-Owned Thread State | 2026-06-05 |
 | [ADR-039](ADR-039-service-worker-virtual-asset-urls.md) | Service Worker Virtual Asset URLs with Ticketed Fallback | 2026-06-08 |
 | [ADR-040](ADR-040-permission-only-rbac-with-owner-override.md) | Permission-Only RBAC with Owner Override | 2026-06-15 |
-| [ADR-041](ADR-041-runtime-units.md) | Runtime Units for Optional Chatto Processes | 2026-06-21 |
+| [ADR-041](ADR-041-runtime-units.md) | Runtime Units for Optional Towk Processes | 2026-06-21 |
 | [ADR-042](ADR-042-protobuf-first-public-api.md) | Protobuf-First Public API with ConnectRPC and Realtime WebSocket | 2026-06-22 |
 | [ADR-043](ADR-043-client-shell-internationalization.md) | Client-Shell Internationalization | 2026-06-22 |
 | [ADR-044](ADR-044-connectrpc-service-conventions.md) | ConnectRPC Service Conventions | 2026-06-25 |

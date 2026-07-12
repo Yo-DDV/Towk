@@ -434,7 +434,7 @@ describe('ModalContainer message mutation modals', () => {
       previewUrl: 'https://example.test/article'
     };
     const listener = vi.fn();
-    window.addEventListener('chatto:room-message-mutated', listener);
+    window.addEventListener('towk:room-message-mutated', listener);
 
     try {
       const { container } = render(ModalContainer);
@@ -454,7 +454,7 @@ describe('ModalContainer message mutation modals', () => {
         reason: 'link-preview-deleted'
       });
     } finally {
-      window.removeEventListener('chatto:room-message-mutated', listener);
+      window.removeEventListener('towk:room-message-mutated', listener);
     }
   });
 });

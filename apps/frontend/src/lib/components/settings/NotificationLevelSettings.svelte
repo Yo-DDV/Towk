@@ -21,7 +21,7 @@ These preferences are server-side and sync across devices.
   } from '$lib/api-client/notificationPreferences';
   import { createRoomDirectoryAPI, RoomDirectoryScope } from '$lib/api-client/roomDirectory';
   import { getViewerStateViaConnect } from '$lib/api-client/viewer';
-  import { NotificationLevel as ApiNotificationLevel } from '@chatto/api-types/api/v1/notification_preferences_pb';
+  import { NotificationLevel as ApiNotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
 
   const serverId = getActiveServer();
   const notificationLevelStore = serverRegistry.getStore(serverId).notificationLevels;

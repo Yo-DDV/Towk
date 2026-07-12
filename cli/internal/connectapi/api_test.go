@@ -425,7 +425,7 @@ func TestServerDiscoveryServiceGetServerPublicMetadata(t *testing.T) {
 	api := New(nil, config.ChattoConfig{
 		Auth: config.AuthConfig{
 			Providers: []config.AuthProviderConfig{
-				{ID: "hub provider", Type: config.AuthProviderTypeOpenIDConnect, Label: "Chatto Hub"},
+				{ID: "hub provider", Type: config.AuthProviderTypeOpenIDConnect, Label: "Towk Hub"},
 			},
 		},
 	}, "9.8.7")

@@ -88,7 +88,7 @@ func runServer(configPath string) {
 	}()
 
 	// Conductor stops foreground run scripts with SIGHUP before escalating.
-	// Chatto has no reload-on-HUP behavior, so treat it as graceful shutdown
+	// Towk has no reload-on-HUP behavior, so treat it as graceful shutdown
 	// alongside the usual terminal and supervisor stop signals.
 	shutdownSignals := runtimeunit.ShutdownSignals()
 	signalLog := make(chan os.Signal, 1)
@@ -132,7 +132,7 @@ func runServer(configPath string) {
 	}
 	defer runtimeunit.CloseNATSConnection(nc)
 
-	// Create Chatto core
+	// Create Towk core
 	cfg.Core.AuthTokenTTL = cfg.Auth.TokenTTLOrDefault()
 	cfg.Core.EmailOTP = cfg.Auth.EmailOTP
 	cfg.Core.Replicas = cfg.NATS.ReplicasOrDefault()
@@ -140,7 +140,7 @@ func runServer(configPath string) {
 	cfg.Core.Owners = cfg.Owners
 	chattoCore, err := core.NewChattoCore(ctx, nc, cfg.Core)
 	if err != nil {
-		log.Error("Failed to create Chatto core", "error", err)
+		log.Error("Failed to create Towk core", "error", err)
 		exitCode = 1
 		return
 	}

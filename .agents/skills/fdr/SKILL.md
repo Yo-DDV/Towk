@@ -1,11 +1,11 @@
 ---
 name: "fdr"
-description: "Keep track of Chatto's features as Feature Decision Records (FDRs) \u2014 one structured document per feature capturing behavior, design decisions, and rationale. Replaces the older agent-docs/features/ system."
+description: "Keep track of Towk's features as Feature Decision Records (FDRs) \u2014 one structured document per feature capturing behavior, design decisions, and rationale. Replaces the older agent-docs/features/ system."
 ---
 
 # Feature Decision Records (FDRs)
 
-Manage Chatto's features as structured markdown documents in `docs/fdr/`. Each FDR captures what a feature does from a user perspective **and** the design decisions that shaped it, with rationale.
+Manage Towk's features as structured markdown documents in `docs/fdr/`. Each FDR captures what a feature does from a user perspective **and** the design decisions that shaped it, with rationale.
 
 ## What an FDR Is
 

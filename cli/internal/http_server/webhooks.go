@@ -117,7 +117,7 @@ func liveKitParticipantLeftIsConnectionHandoff(participant *livekit.ParticipantI
 	if participant == nil {
 		return false
 	}
-	// Chatto call membership is user-scoped, while LiveKit duplicate-identity
+	// Towk call membership is user-scoped, while LiveKit duplicate-identity
 	// replacement is connection-scoped. A new tab/device taking over the same
 	// user identity should not become a durable domain leave.
 	return participant.GetDisconnectReason() == livekit.DisconnectReason_DUPLICATE_IDENTITY

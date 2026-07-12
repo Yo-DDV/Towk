@@ -33,7 +33,7 @@ function ogPage(opts: {
 
 /**
  * Starts a lightweight HTTP server that serves pages with known OpenGraph metadata.
- * Used by e2e tests so the Chatto server can fetch link previews from localhost
+ * Used by e2e tests so the Towk server can fetch link previews from localhost
  * instead of hitting the real internet.
  *
  * Routes:

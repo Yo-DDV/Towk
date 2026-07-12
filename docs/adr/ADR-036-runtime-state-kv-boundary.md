@@ -4,12 +4,12 @@
 
 ## Context
 
-[ADR-033](ADR-033-event-sourced-state-with-projections.md) moves Chatto's
+[ADR-033](ADR-033-event-sourced-state-with-projections.md) moves Towk's
 content and domain state to `EVT`, with projections derived from that event
 history. Not every durable value belongs in that log. Some state is operational
 or user-runtime state: it needs to survive process restarts, but it is a
 latest-value cursor, token, job status, cache marker, or runtime preference
-rather than reconstructable Chatto content.
+rather than reconstructable Towk content.
 
 Historically these values have lived in a mix of buckets:
 
@@ -30,13 +30,13 @@ Persist all non-content runtime state in one JetStream KV bucket named
 
 The storage boundary is:
 
-- If a value is needed to reconstruct Chatto content or domain state, it belongs
+- If a value is needed to reconstruct Towk content or domain state, it belongs
   in `EVT`.
 - If a value is durable latest-value runtime/user/operational state, it belongs
   in `RUNTIME_STATE`.
 - If a value is purely transient process state, it can remain in memory or a
   memory-backed KV bucket. Shared volatile cache state that must be visible
-  across Chatto processes belongs in `MEMORY_CACHE`.
+  across Towk processes belongs in `MEMORY_CACHE`.
 - If a value is binary/object data, it belongs in the appropriate object store.
 - Administrator-managed configuration stays in the existing configuration
   buckets because it is configuration, not runtime state.
@@ -68,7 +68,7 @@ Current occupants include:
   records and deletes entries whose stored user ID matches.
 - Legacy embedded-SPA cookie-session records:
   `cookie_session.{userId}.{sessionHmac}`. Current code no longer writes this
-  shape, and the keyspace is deprecated. Chatto still validates and cleans it up
+  shape, and the keyspace is deprecated. Towk still validates and cleans it up
   during the typed runtime credential rollout so upgrades do not invalidate
   existing sessions. The value is a `CookieSession` protobuf containing
   `user_id`, `created_at`, `expires_at`, source, safe request metadata, and the

@@ -2,20 +2,20 @@ import {
   authHeaders,
   Code,
   ConnectError,
-  createChattoClient,
+  createTowkClient,
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
-import { RoomDirectoryService } from '@chatto/api-types/api/v1/room_directory_connect';
+import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_connect';
 import type {
   RoomGroup,
   RoomGroupItem,
   RoomGroupViewerState,
   RoomViewerState,
   RoomWithViewerState
-} from '@chatto/api-types/api/v1/room_directory_pb';
-import { RoomDirectoryScope } from '@chatto/api-types/api/v1/room_directory_pb';
-import { RoomKind } from '@chatto/api-types/api/v1/rooms_pb';
+} from '@towk/api-types/api/v1/room_directory_pb';
+import { RoomDirectoryScope } from '@towk/api-types/api/v1/room_directory_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 
 export type RoomDirectoryAPIConfig = ConnectAPIConfig;
 
@@ -86,7 +86,7 @@ const RoomPermission = {
 } as const;
 
 export function createRoomDirectoryAPI(config: RoomDirectoryAPIConfig) {
-  const directory = createChattoClient(RoomDirectoryService, config);
+  const directory = createTowkClient(RoomDirectoryService, config);
   const headers = () => authHeaders(config);
 
   return {

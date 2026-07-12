@@ -1,5 +1,5 @@
-import { authHeaders, createChattoClient } from "./connect.js";
-import { AdminDiagnosticsService } from "@chatto/api-types/admin/v1/diagnostics_connect";
+import { authHeaders, createTowkClient } from "./connect.js";
+import { AdminDiagnosticsService } from "@towk/api-types/admin/v1/diagnostics_connect";
 
 export type AdminDiagnosticsAPIConfig = {
   baseUrl: string;
@@ -109,7 +109,7 @@ export type AdminProjectionMetric = {
 };
 
 function adminDiagnosticsClient(config: AdminDiagnosticsAPIConfig) {
-  const client = createChattoClient(AdminDiagnosticsService, config);
+  const client = createTowkClient(AdminDiagnosticsService, config);
   const headers = authHeaders(config);
   return { client, headers };
 }

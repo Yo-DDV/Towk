@@ -1,5 +1,5 @@
 {
-  "name": "chatto-frontend",
+  "name": "towk-frontend",
   "private": true,
   "version": "0.4.7",
   "license": "Apache-2.0",
@@ -18,7 +18,7 @@
     "test": "npm run test:unit -- --run && npm run test:e2e",
     "test:e2e": "playwright test",
     "storybook": "storybook dev -p 6006 --no-open",
-    "build-storybook": "pnpm --filter @chatto/api-types build && storybook build"
+    "build-storybook": "pnpm --filter @towk/api-types build && storybook build"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.1",
@@ -85,7 +85,7 @@
   },
   "dependencies": {
     "@bufbuild/protobuf": "^1.10.0",
-    "@chatto/api-types": "workspace:*",
+    "@towk/api-types": "workspace:*",
     "@connectrpc/connect": "^1.7.0",
     "@connectrpc/connect-web": "^1.7.0",
     "gemoji": "^8.1.0",

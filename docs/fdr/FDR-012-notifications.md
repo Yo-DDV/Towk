@@ -5,7 +5,7 @@
 
 ## Overview
 
-Chatto has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, replies to their own messages, new posts in threads they follow, and (optionally) all messages in rooms they've subscribed to. Notification levels are configurable per space and per room.
+Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, replies to their own messages, new posts in threads they follow, and (optionally) all messages in rooms they've subscribed to. Notification levels are configurable per space and per room.
 
 ## Behavior
 
@@ -69,7 +69,7 @@ Per space and per room, the user picks one of four levels:
 composer asks for confirmation before sending them, and muted recipients still
 do not receive notifications. The server does not require a confirmation token
 from API callers.
-**Why:** Chatto needs explicit operational pings for small teams and rooms, but broad pings should be deliberate in the main client. Keeping the safeguard in the client avoids making the integration API carry a client-shaped confirmation token that does not provide meaningful abuse protection.
+**Why:** Towk needs explicit operational pings for small teams and rooms, but broad pings should be deliberate in the main client. Keeping the safeguard in the client avoids making the integration API carry a client-shaped confirmation token that does not provide meaningful abuse protection.
 **Tradeoff:** Operators and integrations can force attention in a room unless recipients have muted it. This is acceptable because mute remains authoritative and integrations can add their own policy or UX friction where appropriate.
 
 ### 6. ALL_MESSAGES is a per-room subscription, not a per-message setting
@@ -86,7 +86,7 @@ from API callers.
 
 ### 8. No parallel mention-status flag
 
-**Decision:** @mention orange dots are derived from pending mention notifications. Chatto does not maintain a separate `room_mention_status.*` flag.
+**Decision:** @mention orange dots are derived from pending mention notifications. Towk does not maintain a separate `room_mention_status.*` flag.
 **Why:** The separate flag duplicated notification state and had to be cleared in lockstep with notification dismissals and room reads. A single pending-notification model gives one source of truth for mention, reply, DM, and all-message attention indicators.
 **Tradeoff:** Pending mention dots now have the same retention and dismissal semantics as notifications. This is deliberate: a mention that is no longer a pending notification is no longer pending attention.
 
@@ -98,9 +98,9 @@ from API callers.
 
 ### 10. Do Not Disturb silences alert delivery
 
-**Decision:** Do Not Disturb is checked at notification creation time. While the recipient has live DND presence, Chatto still creates the persistent notification and publishes a silent live sync event, but it suppresses legacy attention live events, notification sounds, and web push delivery.
+**Decision:** Do Not Disturb is checked at notification creation time. While the recipient has live DND presence, Towk still creates the persistent notification and publishes a silent live sync event, but it suppresses legacy attention live events, notification sounds, and web push delivery.
 **Why:** DND means "do not interrupt me now", not "discard things I should review later". Storing the notification preserves missed activity in the notification center and sidebar counts, while the silent marker lets clients update state without making noise.
-**Tradeoff:** A user may see badge/sidebar changes while actively viewing Chatto in DND. That is less disruptive than sound or push, and it avoids losing important mentions or DMs.
+**Tradeoff:** A user may see badge/sidebar changes while actively viewing Towk in DND. That is less disruptive than sound or push, and it avoids losing important mentions or DMs.
 
 ## Permissions
 

@@ -1,9 +1,9 @@
 ---
-name: "chatto-security-review"
-description: "Perform a comprehensive security review of the Chatto codebase. Launch multiple exploration agents in parallel to examine different security aspects, then have an adversarial reviewer verify and challenge the findings."
+name: "towk-security-review"
+description: "Perform a comprehensive security review of the Towk codebase. Launch multiple exploration agents in parallel to examine different security aspects, then have an adversarial reviewer verify and challenge the findings."
 ---
 
-Perform a comprehensive, multi-agent security review of the Chatto codebase. Use the methodology below — it is designed to maximize coverage and minimize false positives.
+Perform a comprehensive, multi-agent security review of the Towk codebase. Use the methodology below — it is designed to maximize coverage and minimize false positives.
 
 ## Phase 1: Parallel Specialized Review Agents
 

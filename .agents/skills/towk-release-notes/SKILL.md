@@ -1,9 +1,9 @@
 ---
-name: "chatto-release-notes"
-description: "Create or update Chatto docs website release pages by comparing release-please state, tags, commits, changelog entries, and PRs"
+name: "towk-release-notes"
+description: "Create or update Towk docs website release pages by comparing release-please state, tags, commits, changelog entries, and PRs"
 ---
 
-Generate or update user-facing release pages for Chatto minor releases.
+Generate or update user-facing release pages for Towk minor releases.
 
 Release notes now live in the docs website, not in local `.context` Markdown
 files or GitHub release bodies. The output is one MDX page per minor release,
@@ -21,7 +21,7 @@ title, description, hero, and version text dotted (`0.4.0`).
 
 Write only for:
 
-- Chatto users.
+- Towk users.
 - Self-hosters, server operators, and admins.
 
 Do not list changes that do not affect either group. Skip routine refactors,
@@ -32,7 +32,7 @@ Name the specific actor whenever one is known. Prefer "users", "members",
 "operators", "admins", or "integration authors" over generic actor wording.
 
 API changes belong on these pages only when they affect self-hosters or
-integration authors running against their own Chatto servers. Phrase them as
+integration authors running against their own Towk servers. Phrase them as
 operator or integration impact, not as maintainer implementation detail. Do not
 mention generated package moves, import paths, or internal client extraction
 unless external integration authors must take action.
@@ -186,13 +186,13 @@ gh pr view <number> --json title,body,url
 
 ```mdx
 ---
-title: Chatto <version> (unreleased)
-description: Unreleased release notes for Chatto <version>.
+title: Towk <version> (unreleased)
+description: Unreleased release notes for Towk <version>.
 ---
 ```
 
 For already shipped stable releases, remove `(unreleased)` from the title and
-use `Release notes for Chatto <version>.` as the description.
+use `Release notes for Towk <version>.` as the description.
 
 - Import the release-note components from
   `../../../components/release-notes/...`.
@@ -204,7 +204,7 @@ use `Release notes for Chatto <version>.` as the description.
   release shape clear.
 - Add a self-hosters/integrators section only when there are changes that affect
   server operators, admins, or integration authors. Use `## Running and
-  Integrating Chatto` by default unless a more specific title fits the release
+  Integrating Towk` by default unless a more specific title fits the release
   better.
 - Use one `ReleaseFeatureCard` per notable feature.
 - Keep feature card body text concise and scannable. Use one short paragraph:
@@ -333,10 +333,10 @@ new page. Preserve existing order and labels.
 - Do not write meta copy about the release page itself. Do not frame summaries
   as an explanation of what the page or release notes cover; describe the
   release directly instead.
-- Avoid self-referential filler such as "Chatto adds", "Chatto moves", or
-  "Chatto now". The page is already about Chatto. Prefer direct subject-first
+- Avoid self-referential filler such as "Towk adds", "Towk moves", or
+  "Towk now". The page is already about Towk. Prefer direct subject-first
   copy such as "Presence now shows up..." or "The public API has moved...".
-- Use "server" or "Chatto server" for deployments.
+- Use "server" or "Towk server" for deployments.
 - Use "self-hosters" sparingly; prefer "operators" when the sentence is about
   operating a running deployment.
 - Mention breaking changes and upgrade work only when they affect server
@@ -349,7 +349,7 @@ new page. Preserve existing order and labels.
   UI strings now use message catalogs." Leave implementation coverage for
   upgrade notes, reference docs, or the generated GitHub release.
 - For performance cards, name the user/operator-visible improvement and keep it
-  in the right audience section. In `## Running and Integrating Chatto`, focus
+  in the right audience section. In `## Running and Integrating Towk`, focus
   on operator outcomes such as faster startup, replay, backup, restore,
   deployment, or resource use. Put frontend-only loading wins in a user-facing
   section only when users will actually notice them. Prefer titles like "Faster

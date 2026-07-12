@@ -9,12 +9,12 @@ import { defineConfig, type Plugin } from 'vite';
 import { playwright } from '@vitest/browser-playwright';
 
 // Backend target for dev proxy. Set CHATTO_BACKEND_URL to proxy to a remote
-// backend (e.g. "https://dev.chatto.run") instead of a local one.
+// backend (e.g. "https://dev.towk.example") instead of a local one.
 const backendTarget =
   process.env.CHATTO_BACKEND_URL ||
   `http://localhost:${process.env.CHATTO_WEBSERVER_PORT || '4000'}`;
 const tiptapDeps = ['@tiptap/pm/state'];
-const highlightLanguageMetadataModule = 'virtual:chatto-highlight-language-metadata';
+const highlightLanguageMetadataModule = 'virtual:towk-highlight-language-metadata';
 const resolvedHighlightLanguageMetadataModule = `\0${highlightLanguageMetadataModule}`;
 
 function normalizeHighlightLanguageToken(value: string): string | null {
@@ -94,7 +94,7 @@ function highlightLanguageMetadata(): Plugin {
   let generatedCode: string | null = null;
 
   return {
-    name: 'chatto-highlight-language-metadata',
+    name: 'towk-highlight-language-metadata',
     resolveId(id) {
       return id === highlightLanguageMetadataModule
         ? resolvedHighlightLanguageMetadataModule

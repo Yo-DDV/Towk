@@ -9,7 +9,7 @@ WORKDIR /app
 # Layer 1: deps (cached unless lockfile changes)
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/frontend/package.json apps/frontend/package.json
-RUN pnpm config set store-dir /pnpm-store && pnpm install --frozen-lockfile --filter chatto-frontend...
+RUN pnpm config set store-dir /pnpm-store && pnpm install --frozen-lockfile --filter towk-frontend...
 
 # Layer 2: source
 COPY apps/frontend apps/frontend

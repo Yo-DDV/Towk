@@ -4,7 +4,7 @@
 The "Add Server" dialog. Two stages in one modal:
 
 1. URL — collects a hostname/URL and probes ServerDiscoveryService.GetServer
-   to confirm it's a Chatto server.
+   to confirm it's a Towk server.
 2. Preview — shows what was found (name, hostname, version) so the user
    can confirm before being bounced to the remote's OAuth login. On
    submit it kicks off the OAuth PKCE flow and redirects.

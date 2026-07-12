@@ -6,7 +6,7 @@ import (
 	"hmans.de/chatto/internal/runtimeunit"
 )
 
-// Unit runs the deployment-wide Prometheus exporter as a Chatto runtime unit.
+// Unit runs the deployment-wide Prometheus exporter as a Towk runtime unit.
 type Unit struct{}
 
 func (Unit) Name() string {

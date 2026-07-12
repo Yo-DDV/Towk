@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto's web client increasingly needs interactions that feel instant, such as
+Towk's web client increasingly needs interactions that feel instant, such as
 message reactions and small per-viewer state changes. The authoritative state
 still comes from ConnectRPC projected rows and live/refetch delivery. If
 optimistic UI code mutates projected rows directly without a shared convention,

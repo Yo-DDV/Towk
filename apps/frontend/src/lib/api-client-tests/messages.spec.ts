@@ -3,16 +3,16 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { createMessageAPI } from '$lib/api-client/messages';
-import { CreateMessageResponse, UpdateMessageResponse } from '@chatto/api-types/api/v1/messages_pb';
+import { CreateMessageResponse, UpdateMessageResponse } from '@towk/api-types/api/v1/messages_pb';
 import {
   AssetUpload,
   AssetUploadStatus,
   CompleteUploadResponse,
   CreateUploadResponse,
   UploadChunkResponse
-} from '@chatto/api-types/api/v1/asset_uploads_pb';
-import { Asset } from '@chatto/api-types/api/v1/attachments_pb';
-import { Message } from '@chatto/api-types/api/v1/message_types_pb';
+} from '@towk/api-types/api/v1/asset_uploads_pb';
+import { Asset } from '@towk/api-types/api/v1/attachments_pb';
+import { Message } from '@towk/api-types/api/v1/message_types_pb';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),

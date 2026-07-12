@@ -12,7 +12,7 @@ import {
   RealtimeServerHello,
   RealtimeServerUpdatedEvent,
   RealtimeSubscribed
-} from '@chatto/api-types/realtime/v1/realtime_pb';
+} from '@towk/api-types/realtime/v1/realtime_pb';
 import { eventBusManager, setRealtimeSocketFactoryForTests } from './eventBus.svelte';
 import type { ConnectionStatus, ServerConnection } from './serverConnection.svelte';
 
@@ -57,7 +57,7 @@ class FakeRealtimeSocket {
 class FakeServerConnection {
   status: ConnectionStatus = $state('connecting');
   reconnectCount = $state(0);
-  realtimeUrl = 'ws://chatto.test/api/realtime';
+  realtimeUrl = 'ws://towk.test/api/realtime';
   bearerToken: string | null = 'token-1';
   client = {};
   statusUpdates: ConnectionStatus[] = [];

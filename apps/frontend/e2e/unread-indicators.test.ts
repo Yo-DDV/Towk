@@ -453,7 +453,7 @@ test.describe('Room unread separator', () => {
         await roomPage.sendMessage(awayMessage);
 
         // The message streams in over the live subscription, but the in-room
-        // separator is deferred so Chatto does not visibly repaint the marker
+        // separator is deferred so Towk does not visibly repaint the marker
         // while the user is away.
         await roomPage2.expectMessageVisible(awayMessage);
         await expect(async () => {

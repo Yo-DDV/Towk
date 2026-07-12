@@ -278,7 +278,7 @@ function renderPage(title, description, body) {
 
 function renderLanding() {
   const lines = [
-    'Chatto exposes a protobuf-first integration API over ConnectRPC at `/api/connect`. Use it for bots, integrations, admin tooling, and alternate clients that need the same public contract as the bundled web app.',
+    'Towk exposes a protobuf-first integration API over ConnectRPC at `/api/connect`. Use it for bots, integrations, admin tooling, and alternate clients that need the same public contract as the bundled web app.',
     '',
     'ConnectRPC lets the same generated protobuf service work with the Connect, gRPC, and gRPC-Web protocols. For simple debugging you can also call unary RPCs as JSON over HTTP.',
     '',
@@ -290,7 +290,7 @@ function renderLanding() {
     'https://chat.example.com/api/connect/<fully-qualified-service>/<method>',
     '```',
     '',
-    'Replace `chat.example.com` with the host of the Chatto server you want to interact with.',
+    'Replace `chat.example.com` with the host of the Towk server you want to interact with.',
     '',
     'For example, public server discovery is:',
     '',
@@ -306,7 +306,7 @@ function renderLanding() {
     '',
     '`chatto.auth.v1` external-identity confirmation calls are public but require short-lived capability tokens produced by the browser auth flow. See [External Login Providers](/guides/integrations/external-login-providers/) for login-provider discovery and sign-in configuration.',
     '',
-    'Most `chatto.api.v1` calls require an authenticated user. Non-browser clients should send `Authorization: Bearer <token>`; browser clients can use the active Chatto session.',
+    'Most `chatto.api.v1` calls require an authenticated user. Non-browser clients should send `Authorization: Bearer <token>`; browser clients can use the active Towk session.',
     '',
     '`chatto.admin.v1` calls require authentication. Mutating calls and sensitive reads require the relevant server permission; a few catalog/layout reads are intentionally available to any authenticated user so clients can render assigned roles and sidebar layout. See [Permissions & Roles](/guides/operations/permissions/) for the permission model.',
     '',
@@ -318,7 +318,7 @@ function renderLanding() {
     '',
     '- **Transport:** ConnectRPC unary RPCs.',
     '- **Covers:** Pre-authentication bootstrap, such as server metadata and login discovery.',
-    '- **Contract:** Public discovery API for clients that do not have a normal Chatto session yet.',
+    '- **Contract:** Public discovery API for clients that do not have a normal Towk session yet.',
     '',
     '**`chatto.auth.v1`**',
     '',
@@ -348,16 +348,16 @@ function renderLanding() {
     '',
     '## Reflection',
     '',
-    'Chatto exposes unauthenticated gRPC-compatible reflection for the public ConnectRPC API:',
+    'Towk exposes unauthenticated gRPC-compatible reflection for the public ConnectRPC API:',
     '',
     '```txt',
     '/api/connect/grpc.reflection.v1.ServerReflection/ServerReflectionInfo',
     '/api/connect/grpc.reflection.v1alpha.ServerReflection/ServerReflectionInfo',
     '```',
     '',
-    'Reflection lets tools resolve service and message descriptors without a local copy of the `.proto` files. Chatto limits reflection to public descriptors plus required imports.',
+    'Reflection lets tools resolve service and message descriptors without a local copy of the `.proto` files. Towk limits reflection to public descriptors plus required imports.',
     '',
-    'Because Chatto mounts ConnectRPC under `/api/connect`, use tools that accept a full Connect URL, such as `buf curl`. gRPC tools that only dial services at the host root need a proxy or path rewrite.',
+    'Because Towk mounts ConnectRPC under `/api/connect`, use tools that accept a full Connect URL, such as `buf curl`. gRPC tools that only dial services at the host root need a proxy or path rewrite.',
     '',
     '## Usage Examples',
     '',
@@ -421,7 +421,7 @@ function renderLanding() {
     '  https://chat.example.com/api/connect/chatto.discovery.v1.ServerDiscoveryService/GetServer',
     '```',
     '',
-    '`get-server.bin` contains a protobuf-encoded `GetServerResponse`. Decode it with generated code or a protobuf tool that has the Chatto schema.',
+    '`get-server.bin` contains a protobuf-encoded `GetServerResponse`. Decode it with generated code or a protobuf tool that has the Towk schema.',
     '',
     '### Generated TypeScript client',
     '',
@@ -468,7 +468,7 @@ function renderLanding() {
     '',
     'Package names such as `chatto.auth.v1`, `chatto.discovery.v1`, `chatto.api.v1`, and `chatto.admin.v1` identify the public API contract that clients integrate with.',
     '',
-    'Chatto is still pre-1.0, so public API details may change between releases. Check this reference for the Chatto server version you target, and use generated clients that match that server version.',
+    'Towk is still pre-1.0, so public API details may change between releases. Check this reference for the Towk server version you target, and use generated clients that match that server version.',
     '',
     'If you call the API directly, ignore unknown fields when possible. Treat documented enum values, error codes, and permission requirements as part of the integration contract.',
     '',
@@ -494,7 +494,7 @@ function renderLanding() {
   ];
   return renderPage(
     'API Overview',
-    "Overview of Chatto's public protobuf API.",
+    "Overview of Towk's public protobuf API.",
     lines.join('\n')
   );
 }
@@ -504,7 +504,7 @@ function renderServicePage(service, serviceSections) {
     rewriteServiceTypeLinks(serviceSections.get(service.name).content)
   );
   const body = [
-    `Chatto exposes this service below \`/api/connect\`.`,
+    `Towk exposes this service below \`/api/connect\`.`,
     '',
     'Shared message and enum definitions are documented in [Shared Types And Enums](/reference/connectrpc-api/types/).',
     '',
@@ -535,7 +535,7 @@ function renderTypesPage(typeSections, enumSections) {
 
   return renderPage(
     'Shared Types And Enums',
-    'Generated shared message and enum reference for Chatto ConnectRPC services.',
+    'Generated shared message and enum reference for Towk ConnectRPC services.',
     body.join('\n\n')
   );
 }
@@ -549,7 +549,7 @@ function renderRealtimePage(typeSections, enumSections) {
     .map(([, section]) => rewriteRealtimeExternalLinks(section.content));
 
   const body = [
-    'Chatto exposes realtime updates at `GET /api/realtime` using binary protobuf frames from `chatto.realtime.v1`.',
+    'Towk exposes realtime updates at `GET /api/realtime` using binary protobuf frames from `chatto.realtime.v1`.',
     '',
     'Realtime frames are documented separately from ConnectRPC services because they are exchanged over a long-lived WebSocket session rather than `/api/connect` RPC methods.',
     '',
@@ -564,7 +564,7 @@ function renderRealtimePage(typeSections, enumSections) {
 
   return renderPage(
     'Realtime WebSocket Protocol',
-    'Generated protobuf frame reference for the Chatto realtime WebSocket API.',
+    'Generated protobuf frame reference for the Towk realtime WebSocket API.',
     body.join('\n\n')
   );
 }

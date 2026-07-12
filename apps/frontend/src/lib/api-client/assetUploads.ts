@@ -1,8 +1,8 @@
 import { sha256 } from 'js-sha256';
-import { AssetUploadService } from '@chatto/api-types/api/v1/asset_uploads_connect';
+import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
 import {
   authHeaders,
-  createChattoClient,
+  createTowkClient,
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
@@ -25,7 +25,7 @@ export type UploadAttachmentOptions = {
 const fallbackChunkSize = 512 * 1024;
 
 export function createAssetUploadAPI(config: ConnectAPIConfig) {
-  const client = createChattoClient(AssetUploadService, config);
+  const client = createTowkClient(AssetUploadService, config);
   const headers = () => authHeaders(config);
 
   return {

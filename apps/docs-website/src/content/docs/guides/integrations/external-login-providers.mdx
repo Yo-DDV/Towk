@@ -34,7 +34,7 @@ Every provider needs a stable `id`. The ID appears in login URLs and is stored i
 Use short, URL-safe IDs that describe the local provider slot:
 
 ```toml
-id = "chatto-hub"
+id = "towk-hub"
 id = "github-main"
 id = "staff-google"
 ```
@@ -69,7 +69,7 @@ For older OIDC client registrations, Towk also serves `/auth/oidc` and `/auth/oi
 url = "https://chat.example.com"
 
 [[auth.providers]]
-id = "chatto-hub"
+id = "towk-hub"
 type = "oidc"
 label = "Towk Hub"
 issuer_url = "https://id.example.com"
@@ -102,7 +102,7 @@ Email-less accounts can sign in, link identities, and count toward `limits.max_u
 For container platforms, configure providers with counted environment variables. Each provider uses `CHATTO_AUTH_PROVIDERS_<index>_<field>`, with indexes starting at `0` and no gaps:
 
 ```bash
-CHATTO_AUTH_PROVIDERS_0_ID=chatto-hub
+CHATTO_AUTH_PROVIDERS_0_ID=towk-hub
 CHATTO_AUTH_PROVIDERS_0_TYPE=oidc
 CHATTO_AUTH_PROVIDERS_0_LABEL="Towk Hub"
 CHATTO_AUTH_PROVIDERS_0_ISSUER_URL=https://id.example.com
@@ -219,7 +219,7 @@ You can override scopes per provider:
 
 ```toml
 [[auth.providers]]
-id = "chatto-hub"
+id = "towk-hub"
 type = "oidc"
 issuer_url = "https://id.example.com"
 client_id = "..."
@@ -287,4 +287,4 @@ curl -X POST https://chat.example.com/api/connect/chatto.discovery.v1.ServerDisc
   --data '{}'
 ```
 
-Provider IDs stay provider-specific, so an OIDC provider can use an ID such as `chatto-hub` while reporting its provider `type` as `oidc`.
+Provider IDs stay provider-specific, so an OIDC provider can use an ID such as `towk-hub` while reporting its provider `type` as `oidc`.

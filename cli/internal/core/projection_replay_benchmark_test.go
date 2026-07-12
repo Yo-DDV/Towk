@@ -67,7 +67,7 @@ func BenchmarkProjectionReplay(b *testing.B) {
 // BenchmarkProjectionRetainedHeap reports live Go heap after a full replay,
 // startup-only dedupe state release, and forced GC. Run it with
 // -benchtime=1x: retaining more than one replay in a benchmark iteration would
-// measure a workload that does not exist in a Chatto process.
+// measure a workload that does not exist in a Towk process.
 func BenchmarkProjectionRetainedHeap(b *testing.B) {
 	if b.N != 1 {
 		b.Skip("run with -benchtime=1x")

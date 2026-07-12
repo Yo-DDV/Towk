@@ -1,4 +1,4 @@
-Chatto
+Towk
 Copyright 2026 ChattoCorp GmbH
 
 Towk modifications
@@ -9,7 +9,7 @@ operated, or supported by ChattoCorp GmbH.
 
 This product includes third-party open source software. This notice lists
 direct dependencies, shipped browser assets, and upstream NOTICE text known to
-apply to the Chatto server, CLI, frontend, and documentation website.
+apply to the Towk server, CLI, frontend, and documentation website.
 
 Dependency manifests and lockfiles in this repository remain the authoritative
 set of third-party packages, including transitive dependencies, used to build

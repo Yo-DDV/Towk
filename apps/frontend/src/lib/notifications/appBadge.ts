@@ -60,7 +60,7 @@ function legacyNotificationCount(intent: AppBadgeIntent): number {
 }
 
 type ServiceWorkerBadgeStateMessage = {
-  type: 'chatto-badge-state';
+  type: 'towk-badge-state';
   badgeIntent: AppBadgeIntent;
   notificationCount: number;
   serviceWorkerAppBadgeEnabled: boolean;
@@ -90,7 +90,7 @@ export function syncServiceWorkerNotificationBadgeState(intent: AppBadgeIntent):
 
   const normalized = normalizeBadgeIntent(intent);
   const message: ServiceWorkerBadgeStateMessage = {
-    type: 'chatto-badge-state',
+    type: 'towk-badge-state',
     badgeIntent: normalized,
     // Kept as a best-effort fallback for older active service workers.
     notificationCount: legacyNotificationCount(normalized),

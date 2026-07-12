@@ -23,7 +23,7 @@ type Server struct {
 }
 
 // NewServer starts a small in-memory, path-style S3-compatible server for
-// tests that exercise Chatto's AWS SDK-backed S3 client. It implements only the
+// tests that exercise Towk's AWS SDK-backed S3 client. It implements only the
 // bucket and object operations the codebase uses in tests.
 func NewServer(t testing.TB) *Server {
 	t.Helper()

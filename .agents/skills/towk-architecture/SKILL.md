@@ -1,5 +1,5 @@
 ---
-name: "chatto-architecture"
+name: "towk-architecture"
 description: "Update docs/ARCHITECTURE.md to reflect the current state of the codebase by examining code and documentation."
 ---
 

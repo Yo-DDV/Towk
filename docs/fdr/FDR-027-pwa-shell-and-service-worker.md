@@ -5,7 +5,7 @@
 
 ## Overview
 
-Chatto ships a service worker so the installed web app can launch reliably and handle push notifications. The worker caches the SPA fallback shell and SvelteKit build assets during install, then caches static PWA assets when the browser actually requests them. The web manifest stays network-only because the server may generate it from current public server branding. The worker deliberately does not cache chat data, API responses, live-event traffic, or protected uploaded asset bodies.
+Towk ships a service worker so the installed web app can launch reliably and handle push notifications. The worker caches the SPA fallback shell and SvelteKit build assets during install, then caches static PWA assets when the browser actually requests them. The web manifest stays network-only because the server may generate it from current public server branding. The worker deliberately does not cache chat data, API responses, live-event traffic, or protected uploaded asset bodies.
 
 Offline support means the app can open and show its normal disconnected state instead of the browser's generic offline page. It does not mean offline message history, offline search, or an outbox for composing messages while disconnected.
 
@@ -15,9 +15,9 @@ Reconnect catch-up is owned by the foreground web app, not the service worker. W
 
 - The service worker is registered by SvelteKit in production builds.
 - On install, the worker caches the SPA fallback shell and SvelteKit build assets required to boot it.
-- On activate, old Chatto shell caches are deleted and the new worker claims open clients.
+- On activate, old Towk shell caches are deleted and the new worker claims open clients.
 - Known shell assets are served cache-first from the versioned cache; static PWA assets other than the web manifest are cached lazily on first request.
-- The served web manifest and Apple touch icon metadata use the uploaded server logo when one exists, falling back to bundled Chatto icons otherwise.
+- The served web manifest and Apple touch icon metadata use the uploaded server logo when one exists, falling back to bundled Towk icons otherwise.
 - Same-origin navigations are network-first, falling back to the cached SPA shell only when the network fails.
 - API, auth, OAuth, webhook, uploaded-asset, web-manifest, non-GET, and cross-origin requests are network-only.
 - Protected uploaded asset loads use direct signed asset URLs owned by the foreground app. The worker does not receive registered-server API bearer tokens, does not proxy asset requests, and does not cache protected asset bodies.
@@ -29,7 +29,7 @@ Reconnect catch-up is owned by the foreground web app, not the service worker. W
 ### 1. Shell-only caching
 
 **Decision:** Cache only the app shell and static PWA assets that do not depend on current server state. Build assets required to boot the shell are cached during install, while static PWA assets are cached lazily after install. The web manifest remains network-only.
-**Why:** Chatto is a real-time chat app. Serving stale messages, permissions, assets, or notification state as if they were live would be worse than showing the disconnected state.
+**Why:** Towk is a real-time chat app. Serving stale messages, permissions, assets, or notification state as if they were live would be worse than showing the disconnected state.
 **Tradeoff:** Offline launches do not show recent rooms or messages unless the live app already has that state in memory, and full static asset coverage accumulates as the app requests assets. The install manifest may be unavailable while offline, but installed apps already have their manifest metadata. This keeps the data model honest while avoiding install-time requests for icons and unrelated static files.
 
 ### 2. Versioned cache names

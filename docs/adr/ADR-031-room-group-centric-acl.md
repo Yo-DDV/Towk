@@ -12,7 +12,7 @@ The post-#330 RBAC model resolves room-scope permissions through a single hierar
 
 - **Implicit `everyone` constrains deny semantics.** Every authenticated user implicitly carries `everyone`, so any deny attached to `everyone` catches moderators and admins too. ADR-040 intentionally adopts deny-wins semantics; announcement-style rooms are modeled by omitting the room-level `everyone` allow instead of denying it.
 
-Chatto is at alpha. The three known production-shaped servers can absorb a `chatto reset rbac` on upgrade. This is a one-time opportunity to reshape the model before the room-groups feature lands rather than to layer over it.
+Towk is at alpha. The three known production-shaped servers can absorb a `chatto reset rbac` on upgrade. This is a one-time opportunity to reshape the model before the room-groups feature lands rather than to layer over it.
 
 A long design discussion considered alternatives — ReBAC/Zanzibar (overkill for chat's flat-ish structure), policy-as-code (incompatible with operator-configurable self-hosting), capability tokens (wrong fit for server-state-owns-everything chat). The model that best matches both the room-groups requirement and operators' actual mental model ("look at the room/category to know what's allowed there") is channel-centric ACLs as used by Discord and similar chat systems.
 
@@ -84,7 +84,7 @@ Existing servers reset RBAC on upgrade (`chatto reset rbac` already exists for r
 - Server-scope perms migrate untouched.
 - DM rooms and the `dmBoundaryDeniedPermissions` list are untouched; `dm.*` permissions are retired separately by ADR-037.
 
-The three known production-shaped Chatto servers absorb this. Out-of-the-box behavior after migration matches today's defaults.
+The three known production-shaped Towk servers absorb this. Out-of-the-box behavior after migration matches today's defaults.
 
 ## Consequences
 

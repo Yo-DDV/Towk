@@ -13,7 +13,7 @@ describe('LinkPreviewState', () => {
     vi.useRealTimers();
   });
 
-  it('does not fetch OpenGraph data for Chatto message links', async () => {
+  it('does not fetch OpenGraph data for Towk message links', async () => {
     vi.useFakeTimers();
     const fetchLinkPreview = vi.fn<FetchLinkPreview>();
     const state = new LinkPreviewState(() => apiWithFetch(fetchLinkPreview));

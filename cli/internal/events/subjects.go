@@ -511,7 +511,7 @@ func RBACServerAggregate() Aggregate {
 }
 
 // RBACScopedAggregate is the typed constructor for scoped RBAC decisions. The
-// scope ID is a Chatto entity ID, whose prefix already encodes whether it is a
+// scope ID is a Towk entity ID, whose prefix already encodes whether it is a
 // room (R...) or group (G...).
 func RBACScopedAggregate(scopeID string) Aggregate {
 	if scopeID == "" {

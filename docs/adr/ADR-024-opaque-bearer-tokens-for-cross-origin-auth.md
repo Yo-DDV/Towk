@@ -12,7 +12,7 @@ ADR-017 established cookie-based sessions as the sole authentication mechanism. 
 - `SameSite=Lax` blocks cross-origin POST requests from sending cookies
 - The cookie signing secret is instance-specific
 
-To enable a multi-instance client — where a single frontend connects to multiple Chatto backends — we need an authentication mechanism that works across origins.
+To enable a multi-instance client — where a single frontend connects to multiple Towk backends — we need an authentication mechanism that works across origins.
 
 ### Options considered
 
@@ -20,7 +20,7 @@ To enable a multi-instance client — where a single frontend connects to multip
 - Self-contained (no server-side lookup needed for validation)
 - Standard format with broad library support
 - Requires key rotation, clock synchronization, and a blocklist for revocation
-- Chatto already performs a KV lookup per request to load the user, so JWT's "no server lookup" advantage provides no real benefit
+- Towk already performs a KV lookup per request to load the user, so JWT's "no server lookup" advantage provides no real benefit
 
 **Opaque tokens in NATS KV:**
 - Simple random strings stored as keys in a KV bucket
@@ -52,7 +52,7 @@ Issuance and explicit revocation append safe audit facts to `EVT` with source/re
 1. Check `Authorization: Bearer <token>` header → validate token → load user
 2. Fall back to session cookie (existing behavior, unchanged)
 
-**OAuth authorization for cross-origin Chatto clients:**
+**OAuth authorization for cross-origin Towk clients:**
 - Clients start at `/oauth/authorize` with `response_type=code`, PKCE `code_challenge`, and a callback `redirect_uri`.
 - The server only accepts redirect URI origins it trusts: the configured `webserver.url` origin, explicit `webserver.allowed_origins` entries, explicit `webserver.oauth_redirect_origins` entries, and loopback development origins. The wildcard CORS default (`allowed_origins = ["*"]`) does not authorize OAuth redirects.
 - `oauth_redirect_origins = ["*"]` is an OAuth-specific temporary escape hatch for controlled alpha deployments: it accepts any otherwise valid HTTPS redirect origin while preserving loopback HTTP/HTTPS development redirects. This reopens the authorization-code exfiltration risk that exact origin trust is meant to reduce, so production deployments should prefer exact origins or a narrow trusted frontend origin.
@@ -68,5 +68,5 @@ Issuance and explicit revocation append safe audit facts to `EVT` with source/re
 - **Instant revocation**: Deleting a KV key immediately invalidates the token. No blocklist management or "wait for JWT expiry" window.
 - **One KV lookup per request**: Token validation requires a `Get` on `RUNTIME_STATE`, but this is negligible given we already do a user load per authenticated request.
 - **No reverse index**: user-wide cleanup does a `session.*` prefix scan and matches the stored user ID. The revocation guarantee comes from the token's stored auth generation being compared to the current user auth generation, so concurrent issuance cannot survive by missing the scan. A secondary index can be added later if token counts make scans too expensive.
-- **OAuth redirect setup**: A separately hosted Chatto frontend must be configured in `webserver.oauth_redirect_origins` or as an exact `webserver.allowed_origins` entry on each server it connects to. This adds an operator step, but prevents malicious sites from using `/oauth/authorize` as a logged-in user's bearer-token minting oracle. During controlled alpha use, `oauth_redirect_origins = ["*"]` can temporarily trade that protection for connectivity.
-- **No client registry**: Chatto does not require `client_id` registration for this flow. Any version-compatible Chatto client may connect once its origin is trusted and the user consents.
+- **OAuth redirect setup**: A separately hosted Towk frontend must be configured in `webserver.oauth_redirect_origins` or as an exact `webserver.allowed_origins` entry on each server it connects to. This adds an operator step, but prevents malicious sites from using `/oauth/authorize` as a logged-in user's bearer-token minting oracle. During controlled alpha use, `oauth_redirect_origins = ["*"]` can temporarily trade that protection for connectivity.
+- **No client registry**: Towk does not require `client_id` registration for this flow. Any version-compatible Towk client may connect once its origin is trusted and the user consents.

@@ -6,7 +6,7 @@ import {
   RoomTimelinePage,
   RoomTimelineRoomEvent,
   RoomMessagePosted
-} from '@chatto/api-types/api/v1/room_timeline_pb';
+} from '@towk/api-types/api/v1/room_timeline_pb';
 import {
   Message,
   MessageAssetUrl,
@@ -14,8 +14,8 @@ import {
   MessageVideoProcessing,
   MessageVideoProcessingStatus,
   MessageVideoVariant
-} from '@chatto/api-types/api/v1/message_types_pb';
-import { User } from '@chatto/api-types/api/v1/users_pb';
+} from '@towk/api-types/api/v1/message_types_pb';
+import { User } from '@towk/api-types/api/v1/users_pb';
 import {
   __resetUserSummaryCachesForTests,
   primeUserSummaryCache

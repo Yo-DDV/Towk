@@ -5,24 +5,24 @@
 
 ## Overview
 
-Users can opt in to receive notifications through the browser's W3C Web Push system, so they get pinged for DMs, mentions, and replies even when the Chatto tab isn't open. Push is opt-in per device, requires operator configuration (VAPID keys), and piggybacks on the persistent notification system (see FDR-012).
+Users can opt in to receive notifications through the browser's W3C Web Push system, so they get pinged for DMs, mentions, and replies even when the Towk tab isn't open. Push is opt-in per device, requires operator configuration (VAPID keys), and piggybacks on the persistent notification system (see FDR-012).
 
 ## Behavior
 
 - The browser prompts the user for notification permission when they enable push.
 - If push is configured and supported, signed-in users who have not made a browser permission choice see a small top-overlay prompt offering to enable push or opt out of future prompts on that device.
 - On granting permission, the browser creates a subscription using the server's VAPID public key. The subscription details (endpoint URL, keys) are sent to the server and stored.
-- When a signed-in user opens Chatto and browser notification permission is already granted, Chatto refreshes the server's copy of the current browser subscription without prompting again.
+- When a signed-in user opens Towk and browser notification permission is already granted, Towk refreshes the server's copy of the current browser subscription without prompting again.
 - A browser push endpoint is active for only the account that most recently registered it. Switching accounts in the same browser transfers delivery to the current account; stale records for the previous account are not delivered.
-- In multi-server mode, native Web Push controls are shown only for the server that served the installed app. Remote servers can still update in-app notification badges and sounds while Chatto is open, but they do not offer direct browser push registration from another server's app origin.
-- On iOS/iPadOS, Web Push is available only for Home Screen web apps on supported versions. Chatto treats Web Push as a notification trigger rather than authoritative app state and reconciles pending-notification count, native notifications, and dock badge state when the app is open.
+- In multi-server mode, native Web Push controls are shown only for the server that served the installed app. Remote servers can still update in-app notification badges and sounds while Towk is open, but they do not offer direct browser push registration from another server's app origin.
+- On iOS/iPadOS, Web Push is available only for Home Screen web apps on supported versions. Towk treats Web Push as a notification trigger rather than authoritative app state and reconciles pending-notification count, native notifications, and dock badge state when the app is open.
 - Stored subscription fields are bounded: endpoint 4,096 bytes, public key 256 bytes, auth secret 128 bytes, and user agent 512 bytes.
 - A user can have multiple devices subscribed simultaneously — every device receives every push.
-- Push payloads include a mutable declarative-compatible notification envelope with a title, a truncated message preview (max 100 chars, broken at word boundaries), a navigation URL, and the pending app badge count when available. The legacy root fields remain present so older Chatto service workers can display the same notification during upgrades.
+- Push payloads include a mutable declarative-compatible notification envelope with a title, a truncated message preview (max 100 chars, broken at word boundaries), a navigation URL, and the pending app badge count when available. The legacy root fields remain present so older Towk service workers can display the same notification during upgrades.
 - Clicking a push notification navigates to the relevant room, thread, or DM.
 - Dismissing a notification in one place sends a "dismiss" action push to other devices, closing the system notification there too.
-- Immediately before a regular push is sent, Chatto confirms that the notification is still pending and the exact prepared subscription is still active. This prevents slower asynchronous creation delivery from overtaking a dismissal or subscription rotation.
-- While the PWA is open, its pending-notification state is authoritative for the app icon badge. Chatto sends that state to both the page and service-worker Badging APIs and replays it when service-worker control becomes available or changes.
+- Immediately before a regular push is sent, Towk confirms that the notification is still pending and the exact prepared subscription is still active. This prevents slower asynchronous creation delivery from overtaking a dismissal or subscription rotation.
+- While the PWA is open, its pending-notification state is authoritative for the app icon badge. Towk sends that state to both the page and service-worker Badging APIs and replays it when service-worker control becomes available or changes.
 - Expired or invalid subscriptions (browsers report 404/410 on push delivery) are cleaned up automatically.
 - Deleting the user account removes all push subscriptions.
 - If the server isn't configured with VAPID keys, the push UI is hidden entirely — no opt-in prompt, no settings toggle.
@@ -39,7 +39,7 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 **Decision:** Each browser subscription is stored in `RUNTIME_STATE` as its own record, identified by a hash of the push endpoint URL. A separate OCC-protected claim makes the exact current record active for only one account at a time.
 **Why:** The same user might be subscribed from a laptop and a phone, and pushing to both is the expected behavior. A browser can also retain the same endpoint while the person signs out and into another account; exclusive ownership prevents pushes for the previous account from leaking into that shared browser. Tying the claim to the subscription revision also prevents a stale unsubscribe from releasing newly rotated credentials.
-**Tradeoff:** Old non-owner records can remain stored but inert until normal unsubscribe or account cleanup. Records created by older versions have no claim and do not deliver until the browser reopens Chatto and performs its normal startup registration.
+**Tradeoff:** Old non-owner records can remain stored but inert until normal unsubscribe or account cleanup. Records created by older versions have no claim and do not deliver until the browser reopens Towk and performs its normal startup registration.
 
 ### 3. VAPID with self-managed keys
 
@@ -63,7 +63,7 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 **Decision:** Browser/OS notification permission is the user-facing source of truth. When a signed-in client starts and permission is already granted, it idempotently saves the current browser subscription to the server.
 **Why:** Browsers, especially installed PWAs, can rotate or invalidate push subscriptions around updates. Refreshing the server-side delivery cache at startup is simpler and more reliable than depending on foreground delivery of subscription-change events.
-**Tradeoff:** A user who grants permission but never reopens Chatto after a browser-side subscription change will not be repaired until the next app launch. That is acceptable because opening the app is the point where Chatto can reliably observe and refresh the current browser state.
+**Tradeoff:** A user who grants permission but never reopens Towk after a browser-side subscription change will not be repaired until the next app launch. That is acceptable because opening the app is the point where Towk can reliably observe and refresh the current browser state.
 
 ### 7. Local opt-out for the push prompt
 
@@ -73,14 +73,14 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 ### 8. Origin-bound native push registration
 
-**Decision:** Direct browser push registration is offered only for the Chatto server that served the installed web app.
-**Why:** A browser push subscription belongs to a service worker origin and is created with a single application server key. Registering arbitrary remote servers from another server's app origin would imply cross-origin routing and VAPID-key behavior that Chatto has not designed yet.
-**Tradeoff:** Users connected to remote servers do not get native OS notifications for those servers through this app origin. They still get realtime in-app badges and notification sounds while Chatto is open, and remote-native push can be revisited with an explicit relay or shared-key design.
+**Decision:** Direct browser push registration is offered only for the Towk server that served the installed web app.
+**Why:** A browser push subscription belongs to a service worker origin and is created with a single application server key. Registering arbitrary remote servers from another server's app origin would imply cross-origin routing and VAPID-key behavior that Towk has not designed yet.
+**Tradeoff:** Users connected to remote servers do not get native OS notifications for those servers through this app origin. They still get realtime in-app badges and notification sounds while Towk is open, and remote-native push can be revisited with an explicit relay or shared-key design.
 
 ### 9. Declarative-compatible payloads with service-worker fallback
 
-**Decision:** Regular push notifications use a mutable Declarative Web Push JSON envelope while keeping the older Chatto root fields in the same payload.
-**Why:** Modern browsers can display the standard declarative notification if the service worker is unavailable, while browsers with the Chatto worker installed still dispatch a push event so the worker can keep badge and click reconciliation behavior intact. Older browsers and already-installed Chatto service workers keep using the legacy root fields.
+**Decision:** Regular push notifications use a mutable Declarative Web Push JSON envelope while keeping the older Towk root fields in the same payload.
+**Why:** Modern browsers can display the standard declarative notification if the service worker is unavailable, while browsers with the Towk worker installed still dispatch a push event so the worker can keep badge and click reconciliation behavior intact. Older browsers and already-installed Towk service workers keep using the legacy root fields.
 **Tradeoff:** Payloads duplicate a small amount of title/body/navigation data and include WebKit's `app_badge` field when the count is available. That is preferable to a flag-day service-worker rollout, a second subscription path, or losing badge reconciliation on declarative-capable installed PWAs.
 
 ### 10. Late delivery and badge-state revalidation
@@ -91,7 +91,7 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 ## Permissions
 
-No Chatto-side permission gates push. The OS and browser permissions are the only user-facing gates; Chatto's stored subscriptions are a refreshed delivery cache.
+No Towk-side permission gates push. The OS and browser permissions are the only user-facing gates; Towk's stored subscriptions are a refreshed delivery cache.
 
 ## Related
 

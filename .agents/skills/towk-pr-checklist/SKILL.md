@@ -1,9 +1,9 @@
 ---
-name: "chatto-pr-checklist"
-description: "Pre-merge PR checklist for the Chatto codebase. Contains instructions for tasks that must run before a PR is merged. This skill should automatically run when a PR is opened."
+name: "towk-pr-checklist"
+description: "Pre-merge PR checklist for the Towk codebase. Contains instructions for tasks that must run before a PR is merged. This skill should automatically run when a PR is opened."
 ---
 
-# Chatto PR Checklist
+# Towk PR Checklist
 
 Please check the current branch/PR against the following. Please make sure to only output actionable items; if one area does not require further action, don't say so, just omit it. The user should receive a list of actionable todos.
 

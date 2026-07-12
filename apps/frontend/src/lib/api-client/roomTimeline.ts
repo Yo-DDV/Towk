@@ -1,22 +1,22 @@
 import { notifyUserSummaries } from './hooks.js';
-import { authHeaders, createChattoClient, handleAuthError } from './connect.js';
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
 import type { RawEvent, EventConnectionPage, UserSummaryForCache } from './events.js';
 import { RoomEventKind } from './eventKinds.js';
 import { PresenceStatus, type RoomEventView } from './renderTypes.js';
-import { MessageService } from '@chatto/api-types/api/v1/messages_connect';
-import { RoomService } from '@chatto/api-types/api/v1/rooms_connect';
-import { ThreadService } from '@chatto/api-types/api/v1/threads_connect';
+import { MessageService } from '@towk/api-types/api/v1/messages_connect';
+import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
+import { ThreadService } from '@towk/api-types/api/v1/threads_connect';
 import { createUserAPI } from './users.js';
-import { RoomTimelinePage } from '@chatto/api-types/api/v1/room_timeline_pb';
-import type { LinkPreview } from '@chatto/api-types/api/v1/link_previews_pb';
-import { MessageVideoProcessingStatus } from '@chatto/api-types/api/v1/message_types_pb';
+import { RoomTimelinePage } from '@towk/api-types/api/v1/room_timeline_pb';
+import type { LinkPreview } from '@towk/api-types/api/v1/link_previews_pb';
+import { MessageVideoProcessingStatus } from '@towk/api-types/api/v1/message_types_pb';
 import type {
   Message,
   MessageAssetUrl,
   MessageVideoProcessing
-} from '@chatto/api-types/api/v1/message_types_pb';
-import type { RoomTimelineEvent } from '@chatto/api-types/api/v1/room_timeline_pb';
-import type { User } from '@chatto/api-types/api/v1/users_pb';
+} from '@towk/api-types/api/v1/message_types_pb';
+import type { RoomTimelineEvent } from '@towk/api-types/api/v1/room_timeline_pb';
+import type { User } from '@towk/api-types/api/v1/users_pb';
 
 export type RoomTimelineAPIConfig = {
   serverId?: string;
@@ -55,9 +55,9 @@ export type RoomTimelineAPI = {
 };
 
 export function createRoomTimelineAPI(config: RoomTimelineAPIConfig): RoomTimelineAPI {
-  const messages = createChattoClient(MessageService, config);
-  const rooms = createChattoClient(RoomService, config);
-  const threads = createChattoClient(ThreadService, config);
+  const messages = createTowkClient(MessageService, config);
+  const rooms = createTowkClient(RoomService, config);
+  const threads = createTowkClient(ThreadService, config);
   const headers = () => authHeaders(config);
   return {
     async getRoomEvents({ roomId, limit, before, after }) {

@@ -7,15 +7,15 @@ import {
   Asset,
   BatchGetAssetsResponse,
   RoomAttachmentListItem
-} from '@chatto/api-types/api/v1/attachments_pb';
-import { ImageFitMode } from '@chatto/api-types/api/v1/common_pb';
-import { ListRoomAttachmentsResponse } from '@chatto/api-types/api/v1/rooms_pb';
+} from '@towk/api-types/api/v1/attachments_pb';
+import { ImageFitMode } from '@towk/api-types/api/v1/common_pb';
+import { ListRoomAttachmentsResponse } from '@towk/api-types/api/v1/rooms_pb';
 import {
   MessageAssetUrl,
   MessageVideoProcessing,
   MessageVideoProcessingStatus,
   MessageVideoVariant
-} from '@chatto/api-types/api/v1/message_types_pb';
+} from '@towk/api-types/api/v1/message_types_pb';
 import { createAttachmentAPI } from '$lib/api-client/attachments';
 
 const mocks = vi.hoisted(() => ({

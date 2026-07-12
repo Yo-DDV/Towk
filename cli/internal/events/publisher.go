@@ -1,4 +1,4 @@
-// Package events is the internal event-sourcing framework for Chatto.
+// Package events is the internal event-sourcing framework for Towk.
 //
 // It wraps the EVT JetStream stream into a discipline:
 //   - Every publish is OCC. There is no non-OCC publish primitive.

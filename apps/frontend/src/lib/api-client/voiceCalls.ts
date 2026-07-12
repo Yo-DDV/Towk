@@ -1,5 +1,5 @@
-import { authHeaders, Code, ConnectError, createChattoClient } from './connect.js';
-import { VoiceCallService } from '@chatto/api-types/api/v1/voice_calls_connect';
+import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
+import { VoiceCallService } from '@towk/api-types/api/v1/voice_calls_connect';
 
 export type VoiceCallAPIConfig = {
   baseUrl: string;
@@ -46,7 +46,7 @@ type APICallParticipant = {
 };
 
 export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
-  const client = createChattoClient(VoiceCallService, config);
+  const client = createTowkClient(VoiceCallService, config);
   const headers = () => authHeaders(config);
 
   return {

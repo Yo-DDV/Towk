@@ -29,7 +29,7 @@ import (
 // ChattoCore
 // ============================================================================
 
-// ChattoCore is the central hub for all Chatto operations.
+// ChattoCore is the central hub for all Towk operations.
 // It provides a unified API for spaces, users, rooms, and messages,
 // managing current JetStream resources internally.
 type ChattoCore struct {
@@ -1092,7 +1092,7 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 	core.PresenceHub = core.presenceModel.hub
 	core.myEventsModel = NewMyEventsModel(core)
 	core.models = []modelRegistration{
-		{key: "chatto_core", name: "Chatto Core"},
+		{key: "chatto_core", name: "Towk Core"},
 		{key: "event_publisher", name: "Event Publisher"},
 		{key: "config_model", name: "Config Model", legacyServiceKey: "config_service"},
 		{key: "config_manager", name: "Config Manager"},
@@ -1129,7 +1129,7 @@ func (c *ChattoCore) Subscribe(ctx context.Context, subject string, handler nats
 // Storage
 // ============================================================================
 
-// storage encapsulates JetStream resources used by Chatto Core.
+// storage encapsulates JetStream resources used by Towk Core.
 type storage struct {
 	encryptionKV   jetstream.KeyValue // ENCRYPTION_KEYS - KMS KEKs (excluded from backups)
 	runtimeStateKV jetstream.KeyValue // RUNTIME_STATE  - persisted latest-value runtime/user state + wrapped app DEKs

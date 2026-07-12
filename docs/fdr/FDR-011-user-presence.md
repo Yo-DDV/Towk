@@ -5,7 +5,7 @@
 
 ## Overview
 
-Every user has a presence status visible to others as a colored dot on their avatar: **Online**, **Away**, **Do Not Disturb**, or **Offline**. Presence is server-wide — a user has one status per Chatto server, not per space or room.
+Every user has a presence status visible to others as a colored dot on their avatar: **Online**, **Away**, **Do Not Disturb**, or **Offline**. Presence is server-wide — a user has one status per Towk server, not per space or room.
 
 ## Behavior
 
@@ -60,7 +60,7 @@ Every user has a presence status visible to others as a colored dot on their ava
 
 ### 7. Per-server tracking, with frontend coordination across servers
 
-**Decision:** Each connected Chatto server tracks its own presence. The frontend's auto-away detector broadcasts the new status to all connected servers in parallel.
+**Decision:** Each connected Towk server tracks its own presence. The frontend's auto-away detector broadcasts the new status to all connected servers in parallel.
 **Why:** Servers are independent and shouldn't have to coordinate among themselves — that would require cross-server discovery and trust. The client is already connected to all of them and can coordinate cheaply. See ADR-025.
 **Tradeoff:** A user signed in from two different devices to the same server may have competing presence writers; the latest write wins until TTL expiry.
 

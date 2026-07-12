@@ -1,8 +1,8 @@
-import { authHeaders, createChattoClient } from './connect.js';
-import { ViewerService } from '@chatto/api-types/api/v1/viewer_connect';
-import { PresenceStatus as APIPresenceStatus } from '@chatto/api-types/api/v1/presence_pb';
-import { NotificationLevel as APINotificationLevel } from '@chatto/api-types/api/v1/notification_preferences_pb';
-import { TimeFormat as APITimeFormat } from '@chatto/api-types/api/v1/viewer_pb';
+import { authHeaders, createTowkClient } from './connect.js';
+import { ViewerService } from '@towk/api-types/api/v1/viewer_connect';
+import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
+import { NotificationLevel as APINotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
+import { TimeFormat as APITimeFormat } from '@towk/api-types/api/v1/viewer_pb';
 import { NotificationLevel, PresenceStatus, TimeFormat } from './renderTypes.js';
 
 export type ViewerAPIConfig = {
@@ -77,7 +77,7 @@ const capabilityKeys = {
 } as const;
 
 export async function getViewerStateViaConnect(config: ViewerAPIConfig): Promise<ViewerState> {
-  const client = createChattoClient(ViewerService, config);
+  const client = createTowkClient(ViewerService, config);
   const response = await client.getViewer(
     {},
     {

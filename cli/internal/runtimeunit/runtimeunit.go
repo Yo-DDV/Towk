@@ -19,7 +19,7 @@ import (
 	"hmans.de/chatto/pkg/natsauth"
 )
 
-// Unit is a Chatto runtime unit that can run either as its own process or
+// Unit is a Towk runtime unit that can run either as its own process or
 // embedded under `chatto run` after the main process has established config and
 // NATS access.
 type Unit interface {
@@ -68,13 +68,13 @@ func Run(ctx context.Context, env Env, unit Unit) error {
 	return unit.Run(ctx, env)
 }
 
-// ShutdownSignals returns the process signals Chatto treats as graceful stop
+// ShutdownSignals returns the process signals Towk treats as graceful stop
 // requests for long-running runtime processes.
 func ShutdownSignals() []os.Signal {
 	return []os.Signal{syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM}
 }
 
-// NotifyContext returns a context cancelled by Chatto's graceful shutdown
+// NotifyContext returns a context cancelled by Towk's graceful shutdown
 // signals.
 func NotifyContext(parent context.Context) (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(parent, ShutdownSignals()...)
@@ -89,7 +89,7 @@ func RequireStandaloneNATSClientURL(cfg config.ChattoConfig, unitName string) er
 	return fmt.Errorf("%s needs a NATS client URL. Configure external NATS under [nats.client], or enable nats.embedded.port so chatto can derive nats.client.url for the embedded server", unitName)
 }
 
-// ConnectToNATS establishes a NATS connection for Chatto runtime processes.
+// ConnectToNATS establishes a NATS connection for Towk runtime processes.
 // When embeddedNATS is non-nil, the connection is in-process and intended only
 // for `chatto run` and units embedded within it.
 func ConnectToNATS(ctx context.Context, cfg config.ChattoConfig, embeddedNATS *server.Server) (*nats.Conn, error) {

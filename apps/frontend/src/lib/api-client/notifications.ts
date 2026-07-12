@@ -1,12 +1,12 @@
-import { authHeaders, Code, ConnectError, createChattoClient } from './connect.js';
-import { NotificationService } from '@chatto/api-types/api/v1/notifications_connect';
+import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
+import { NotificationService } from '@towk/api-types/api/v1/notifications_connect';
 import type {
   ListRoomNotificationsResponse,
   ListNotificationsResponse,
   NotificationItem as APINotificationItem
-} from '@chatto/api-types/api/v1/notifications_pb';
-import type { User as APIUser } from '@chatto/api-types/api/v1/users_pb';
-import { PresenceStatus as APIPresenceStatus } from '@chatto/api-types/api/v1/presence_pb';
+} from '@towk/api-types/api/v1/notifications_pb';
+import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
+import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { PresenceStatus } from './renderTypes.js';
 
 export type NotificationAPIConfig = {
@@ -93,7 +93,7 @@ export type NotificationPage = {
 };
 
 export function createNotificationAPI(config: NotificationAPIConfig) {
-  const client = createChattoClient(NotificationService, config);
+  const client = createTowkClient(NotificationService, config);
   const headers = () => authHeaders(config);
   const listRoomNotificationCounts = async (): Promise<Record<string, number>> => {
     const response = await client.listRoomNotificationCounts({}, { headers: headers() });

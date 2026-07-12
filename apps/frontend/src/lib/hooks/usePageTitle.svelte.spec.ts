@@ -72,7 +72,7 @@ function createTitleGetter() {
 
 beforeEach(() => {
   titleState.clearPageTitle();
-  setServers([{ id: 'origin', name: 'Chatto Test', origin: true }]);
+  setServers([{ id: 'origin', name: 'Towk Test', origin: true }]);
 });
 
 afterEach(() => {
@@ -83,7 +83,7 @@ describe('usePageTitle', () => {
   it('uses the origin server name as the base title', () => {
     const { getTitle, cleanup } = createTitleGetter();
 
-    expect(getTitle()).toBe('Chatto Test');
+    expect(getTitle()).toBe('Towk Test');
 
     cleanup();
   });
@@ -92,7 +92,7 @@ describe('usePageTitle', () => {
     titleState.setPageTitle('Overview');
     const { getTitle, cleanup } = createTitleGetter();
 
-    expect(getTitle()).toBe('Overview | Chatto Test');
+    expect(getTitle()).toBe('Overview | Towk Test');
 
     cleanup();
   });
@@ -109,14 +109,14 @@ describe('usePageTitle', () => {
 
   it('prefixes authenticated notification counts across servers', () => {
     setServers([
-      { id: 'origin', name: 'Chatto Test', count: 2, origin: true },
+      { id: 'origin', name: 'Towk Test', count: 2, origin: true },
       { id: 'remote', name: 'Remote', count: 3 },
       { id: 'signed-out', name: 'Signed Out', count: 99, isAuthenticated: false }
     ]);
     titleState.setPageTitle('Overview');
     const { getTitle, cleanup } = createTitleGetter();
 
-    expect(getTitle()).toBe('(5) Overview | Chatto Test');
+    expect(getTitle()).toBe('(5) Overview | Towk Test');
 
     cleanup();
   });
@@ -126,11 +126,11 @@ describe('usePageTitle', () => {
 
     titleState.setPageTitle('Overview');
     flushSync();
-    expect(getTitle()).toBe('Overview | Chatto Test');
+    expect(getTitle()).toBe('Overview | Towk Test');
 
     titleState.setPageTitle('#general - Test Space');
     flushSync();
-    expect(getTitle()).toBe('#general - Test Space | Chatto Test');
+    expect(getTitle()).toBe('#general - Test Space | Towk Test');
 
     cleanup();
   });

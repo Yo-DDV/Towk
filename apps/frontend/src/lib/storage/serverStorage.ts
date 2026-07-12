@@ -1,6 +1,6 @@
 /**
  * Utility for namespacing localStorage keys by instance ID.
- * Prevents data collisions when multiple Chatto instances share a browser.
+ * Prevents data collisions when multiple Towk instances share a browser.
  */
 
 /**

@@ -1,5 +1,5 @@
-import { createPublicChattoClient } from './connect.js';
-import { ServerDiscoveryService } from '@chatto/api-types/chatto/discovery/v1/server_connect';
+import { createPublicTowkClient } from './connect.js';
+import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_connect';
 import { mapServerProfile } from './serverProfile.js';
 
 export type PublicAuthProvider = {
@@ -25,7 +25,7 @@ export async function getPublicServerInfo(
   baseUrl: string,
   options: { signal?: AbortSignal } = {}
 ): Promise<PublicServerInfo> {
-  const client = createPublicChattoClient(ServerDiscoveryService, baseUrl);
+  const client = createPublicTowkClient(ServerDiscoveryService, baseUrl);
   const response = await client.getServer({}, { signal: options.signal });
   if (!response.profile?.name) {
     throw new Error('This does not appear to be a Towk server.');

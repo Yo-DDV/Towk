@@ -3,16 +3,16 @@
 **Date:** 2026-03-01
 
 **Update:** ADR-033, ADR-034, and ADR-036 changed the storage pattern inside
-NATS/JetStream. The foundational decision here still stands: Chatto uses
+NATS/JetStream. The foundational decision here still stands: Towk uses
 NATS/JetStream, NATS object stores, and NATS Core rather than adding a separate
 database or broker. The current domain source of truth is now the `EVT` stream
 with in-memory projections; latest-value runtime state lives in `RUNTIME_STATE`.
 
 ## Context
 
-Chatto needs persistent storage for messages, user profiles, space/room configuration, memberships, permissions, and more. The conventional choice would be a relational database (PostgreSQL, SQLite) or a document store (MongoDB), paired with a separate pub/sub system for real-time event delivery.
+Towk needs persistent storage for messages, user profiles, space/room configuration, memberships, permissions, and more. The conventional choice would be a relational database (PostgreSQL, SQLite) or a document store (MongoDB), paired with a separate pub/sub system for real-time event delivery.
 
-However, Chatto's core goal is a single self-hosted executable with minimal operational overhead. Running a separate database adds deployment complexity, backup coordination, and connection management. Additionally, the chat domain is inherently event-driven — messages are events, presence is events, typing indicators are events — so the storage and pub/sub layers serve the same data.
+However, Towk's core goal is a single self-hosted executable with minimal operational overhead. Running a separate database adds deployment complexity, backup coordination, and connection management. Additionally, the chat domain is inherently event-driven — messages are events, presence is events, typing indicators are events — so the storage and pub/sub layers serve the same data.
 
 ## Decision
 

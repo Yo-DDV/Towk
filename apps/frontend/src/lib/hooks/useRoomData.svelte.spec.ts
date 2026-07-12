@@ -1,7 +1,7 @@
 import { flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PresenceStatus } from '$lib/render/types';
-import { RoomKind } from '@chatto/api-types/api/v1/rooms_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { useRoomData } from './useRoomData.svelte';
 import { createMemberDirectoryAPI } from '$lib/api-client/memberDirectory';
 import { createRoomDirectoryAPI } from '$lib/api-client/roomDirectory';

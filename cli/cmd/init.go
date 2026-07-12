@@ -148,11 +148,11 @@ func addAuthProviderExamples(tomlText string) string {
 	const providerExamples = `# External login providers. Uncomment and adapt one or more [[auth.providers]] tables.
 #
 # [[auth.providers]]
-# id = 'chatto-hub'
+# id = 'towk-hub'
 # type = 'oidc'
-# label = 'Chatto Hub'
-# issuer_url = 'https://id.example.com/realms/chatto'
-# client_id = 'chatto'
+# label = 'Towk Hub'
+# issuer_url = 'https://id.example.com/realms/towk'
+# client_id = 'towk'
 # client_secret = 'replace-me'
 # request_email = true
 #

@@ -1,5 +1,5 @@
 /**
- * Shared constants for the Chatto frontend.
+ * Shared constants for the Towk frontend.
  */
 
 /**

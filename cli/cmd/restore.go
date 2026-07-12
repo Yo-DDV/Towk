@@ -31,14 +31,14 @@ var (
 var restoreCmd = &cobra.Command{
 	Use:   "restore <archive>",
 	Short: "Restore a backup archive",
-	Long: `Restores a Chatto backup created by 'chatto backup'.
+	Long: `Restores a Towk backup created by 'chatto backup'.
 
 For embedded NATS: starts a temporary NATS server, restores all streams,
-then shuts down. Make sure Chatto is not running (the data directory
+then shuts down. Make sure Towk is not running (the data directory
 must not be locked by another process).
 
 For external NATS: connects to the running NATS server via the client
-config. Make sure the Chatto application is stopped to avoid concurrent
+config. Make sure the Towk application is stopped to avoid concurrent
 writes during restore.
 
 Conflict handling:

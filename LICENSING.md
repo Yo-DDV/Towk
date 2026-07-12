@@ -1,11 +1,11 @@
 # Licensing
 
-Chatto uses per-file SPDX license metadata following the
+Towk uses per-file SPDX license metadata following the
 [REUSE](https://reuse.software/) specification. The canonical machine-readable
 license boundary is in [REUSE.toml](REUSE.toml).
 
 The default repository license is the GNU Affero General Public License version
-3 or any later version (`AGPL-3.0-or-later`). This covers the Chatto server,
+3 or any later version (`AGPL-3.0-or-later`). This covers the Towk server,
 CLI, and bundled server release artifacts unless a more specific license is
 declared.
 

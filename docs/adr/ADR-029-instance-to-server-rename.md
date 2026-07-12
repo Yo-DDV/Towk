@@ -6,7 +6,7 @@
 
 ## Context
 
-Chatto's user-facing terminology has been "server" for a long time — admin UI strings, marketing pages, docs, and ADR-027 all use it. The codebase still says "instance" everywhere, a leftover from the very early days when each Chatto deployment was framed as an "instance" of the app.
+Towk's user-facing terminology has been "server" for a long time — admin UI strings, marketing pages, docs, and ADR-027 all use it. The codebase still says "instance" everywhere, a leftover from the very early days when each Towk deployment was framed as an "instance" of the app.
 
 The split has bitten us repeatedly:
 

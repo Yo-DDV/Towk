@@ -24,9 +24,11 @@ import {
 
 declare const self: ServiceWorkerGlobalScope;
 
-const CACHE_PREFIX = 'chatto-shell';
+const CACHE_PREFIX = 'towk-shell';
 const CACHE_NAME = `${CACHE_PREFIX}-${version}`;
-const BADGE_STATE_CACHE_NAME = 'chatto-badge-state-v2';
+const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
+const LEGACY_CACHE_PREFIXES = ['chatto-shell'];
+const LEGACY_CACHE_NAMES = ['chatto-badge-state-v2'];
 const SHELL_ASSETS = new Set([...build, ...files, OFFLINE_SHELL_PATH]);
 const PRECACHE_ASSETS = Array.from(new Set([...build, OFFLINE_SHELL_PATH, '/']));
 
@@ -61,7 +63,10 @@ self.addEventListener('activate', (event) => {
       await Promise.all(
         cacheNames
           .filter(
-            (cacheName) => cacheName.startsWith(`${CACHE_PREFIX}-`) && cacheName !== CACHE_NAME
+            (cacheName) =>
+              (cacheName.startsWith(`${CACHE_PREFIX}-`) && cacheName !== CACHE_NAME) ||
+              LEGACY_CACHE_PREFIXES.some((prefix) => cacheName.startsWith(`${prefix}-`)) ||
+              LEGACY_CACHE_NAMES.includes(cacheName)
           )
           .map((cacheName) => caches.delete(cacheName))
       );
@@ -193,7 +198,7 @@ type PushEventWithDeclarativeNotification = PushEvent & {
 
 function handleBadgeStateMessage(event: ExtendableMessageEvent): boolean {
   const message = event.data as Record<string, unknown> | undefined;
-  if (!message || message.type !== 'chatto-badge-state') return false;
+  if (!message || message.type !== 'towk-badge-state') return false;
 
   const badgeIntent =
     normalizeUnknownBadgeIntent(message.badgeIntent) ??

@@ -5,7 +5,7 @@ import {
   type NotificationClickClient
 } from './notificationClick.worker';
 
-const ORIGIN = 'https://chatto.example';
+const ORIGIN = 'https://towk.example';
 const TARGET_URL = `${ORIGIN}/chat/-/room-1?highlight=event-1`;
 
 function createAcknowledgingMessageChannel() {

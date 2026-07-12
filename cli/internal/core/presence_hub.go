@@ -28,7 +28,7 @@ type PresenceSubscription struct {
 }
 
 // PresenceHub runs a single MEMORY_CACHE watcher on presence.> and fans out
-// per-user presence updates. Each Chatto process has one PresenceHub instance,
+// per-user presence updates. Each Towk process has one PresenceHub instance,
 // reducing KV watcher count from O(users × spaces) to 1 per process.
 type PresenceHub struct {
 	memoryCacheKV jetstream.KeyValue

@@ -20,7 +20,7 @@ const (
 var providerAvatarClient = linkpreview.NewSSRFSafeClient(providerAvatarFetchTimeout)
 
 // ImportUserAvatarFromURL downloads a remote provider avatar and stores it as a
-// Chatto-managed user avatar asset.
+// Towk-managed user avatar asset.
 func (c *ChattoCore) ImportUserAvatarFromURL(ctx context.Context, userID, avatarURL string) error {
 	u, err := url.Parse(avatarURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {

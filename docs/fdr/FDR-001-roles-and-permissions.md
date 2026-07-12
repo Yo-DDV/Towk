@@ -5,7 +5,7 @@
 
 ## Overview
 
-Chatto controls who can do what through role-based access control. Every authenticated user holds one or more roles; each role grants or denies specific permissions. Permissions can also be overridden per room-group and per room, giving operators fine-grained control without inventing parallel role systems.
+Towk controls who can do what through role-based access control. Every authenticated user holds one or more roles; each role grants or denies specific permissions. Permissions can also be overridden per room-group and per room, giving operators fine-grained control without inventing parallel role systems.
 
 ## Behavior
 
@@ -63,7 +63,7 @@ Chatto controls who can do what through role-based access control. Every authent
 ### 7. RBAC state is event-sourced
 
 **Decision:** Role definitions, role order, assignments, and explicit permission decisions are durable events, with reads served from an in-memory RBAC projection.
-**Why:** This aligns RBAC with Chatto's current event-sourced architecture and makes authorization reads rebuildable from the deployment event log. See ADR-033 and ADR-035.
+**Why:** This aligns RBAC with Towk's current event-sourced architecture and makes authorization reads rebuildable from the deployment event log. See ADR-033 and ADR-035.
 **Tradeoff:** Writes must append events and wait for local projection catch-up before returning, so mutation paths need optimistic concurrency handling instead of direct state writes.
 
 User-triggered RBAC events are audit facts as well as state facts, so their event envelope actor is the user who performed the operation. Core APIs still accept `SystemActorID` for trusted non-user paths such as bootstrapping default roles and permissions.

@@ -4,7 +4,7 @@
 
 ## Context
 
-Chatto's design goal is a single self-hosted executable. The frontend is a SvelteKit application. The question is how to serve it:
+Towk's design goal is a single self-hosted executable. The frontend is a SvelteKit application. The question is how to serve it:
 
 - **Separate static hosting**: Deploy frontend to a CDN or static file server. Simple but breaks the single-binary goal and requires operators to manage two deployments.
 - **SSR with Node.js**: Run SvelteKit's Node adapter alongside Go. Requires a second runtime, complicates the binary, adds operational overhead.

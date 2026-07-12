@@ -1,4 +1,4 @@
-// Package service defines the interface for Chatto runnable services.
+// Package service defines the interface for Towk runnable services.
 //
 // All long-running components (NATS micro services, HTTP server, etc.) implement
 // this interface, allowing them to be orchestrated uniformly by the start command.
@@ -7,7 +7,7 @@ package service
 
 import "context"
 
-// Service represents a runnable Chatto service.
+// Service represents a runnable Towk service.
 //
 // Services are started by calling Run, which blocks until the context is
 // cancelled or an error occurs. Services should perform graceful shutdown

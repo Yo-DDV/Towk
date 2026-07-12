@@ -55,13 +55,13 @@ var keysCmd = &cobra.Command{
 var keysExportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export encryption keys",
-	Long: `Exports all Chatto encryption key records to a file, encrypted with a passphrase.
+	Long: `Exports all Towk encryption key records to a file, encrypted with a passphrase.
 
 The export file is encrypted using age (age-encryption.org) and contains
 the key-encryption keys needed to unwrap encrypted message bodies and durable
 user PII. Wrapped app DEK records live in RUNTIME_STATE and are included in
 normal data backups. Store this file securely — anyone with the file,
-passphrase, and data backup can decrypt encrypted Chatto content.
+passphrase, and data backup can decrypt encrypted Towk content.
 
 Use together with 'chatto backup' for complete disaster recovery:
   1. chatto backup -c chatto.toml
@@ -72,7 +72,7 @@ Use together with 'chatto backup' for complete disaster recovery:
 var keysImportCmd = &cobra.Command{
 	Use:   "import <file>",
 	Short: "Import encryption keys",
-	Long: `Imports Chatto encryption key records from a file created by 'chatto keys export'.
+	Long: `Imports Towk encryption key records from a file created by 'chatto keys export'.
 
 By default, existing records are NOT overwritten. Records are only imported
 when the destination bucket does not already contain that key ref.

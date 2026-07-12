@@ -3,7 +3,7 @@ import { Timestamp } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { PresenceStatus } from '$lib/api-client/renderTypes';
-import { PresenceStatus as APIPresenceStatus } from '@chatto/api-types/api/v1/presence_pb';
+import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { createRoomCommandAPI } from '$lib/api-client/rooms';
 
 const mocks = vi.hoisted(() => ({

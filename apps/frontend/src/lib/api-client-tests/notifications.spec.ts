@@ -1,7 +1,7 @@
 import { Timestamp } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PresenceStatus as APIPresenceStatus } from '@chatto/api-types/api/v1/presence_pb';
+import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { PresenceStatus } from '$lib/api-client/renderTypes';
 import { createNotificationAPI, NotificationItemKind } from '$lib/api-client/notifications';
 

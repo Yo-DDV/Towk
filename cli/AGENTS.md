@@ -5,7 +5,7 @@ authorization, live events, backup/restore, and backend tests.
 
 ## Non-Negotiables
 
-- Chatto is multi-replica software. Never rely on process-local serialization
+- Towk is multi-replica software. Never rely on process-local serialization
   for correctness.
 - NATS JetStream/KV is the primary data store. Use JetStream OCC or KV
   `Create`/revision `Update` for uniqueness and cross-replica invariants.
@@ -121,7 +121,7 @@ authorization, live events, backup/restore, and backend tests.
   room, so kick/leave revokes future fetches.
 - URLs are per-user and intentionally not shared/CDN-cacheable. Treat leaked URLs
   as usable until expiry or membership loss.
-- Chatto streams protected asset bytes by default. It may redirect heavy passive
+- Towk streams protected asset bytes by default. It may redirect heavy passive
   originals such as video, audio, and large files to short-lived presigned S3
   URLs after the same authorization check.
 - The legacy `/assets/attachments/{signedLocator}` route has been removed; do

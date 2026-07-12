@@ -1,7 +1,7 @@
 <!--
 @component
 
-Displays a preview card for a Chatto message link (e.g. pasted in the composer
+Displays a preview card for a Towk message link (e.g. pasted in the composer
 or embedded in a posted message). The message is fetched through the appropriate
 instance's Connect timeline API; if it can't be loaded (not found, no permission,
 unknown instance) the component renders nothing.

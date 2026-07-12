@@ -54,7 +54,7 @@ func setupOAuthServer(t *testing.T) *HTTPServer {
 	s := &HTTPServer{
 		config: config.ChattoConfig{
 			Webserver: config.WebserverConfig{
-				URL: "https://chatto.example",
+				URL: "https://towk.example",
 			},
 		},
 		nc:      nc,
@@ -123,7 +123,7 @@ func TestOAuthAuthorize_ValidParams(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/oauth/authorize?"+url.Values{
 		"response_type":         {"code"},
-		"redirect_uri":          {"https://chatto.example/servers/callback"},
+		"redirect_uri":          {"https://towk.example/servers/callback"},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
 		"state":                 {"random123"},
@@ -153,7 +153,7 @@ func TestOAuthAuthorize_MissingParams(t *testing.T) {
 		{
 			"missing response_type",
 			url.Values{
-				"redirect_uri":          {"https://chatto.example/servers/callback"},
+				"redirect_uri":          {"https://towk.example/servers/callback"},
 				"code_challenge":        {"challenge"},
 				"code_challenge_method": {"S256"},
 			},
@@ -172,7 +172,7 @@ func TestOAuthAuthorize_MissingParams(t *testing.T) {
 			"missing code_challenge",
 			url.Values{
 				"response_type":         {"code"},
-				"redirect_uri":          {"https://chatto.example/servers/callback"},
+				"redirect_uri":          {"https://towk.example/servers/callback"},
 				"code_challenge_method": {"S256"},
 			},
 			"invalid_request",
@@ -181,7 +181,7 @@ func TestOAuthAuthorize_MissingParams(t *testing.T) {
 			"wrong code_challenge_method",
 			url.Values{
 				"response_type":         {"code"},
-				"redirect_uri":          {"https://chatto.example/servers/callback"},
+				"redirect_uri":          {"https://towk.example/servers/callback"},
 				"code_challenge":        {"challenge"},
 				"code_challenge_method": {"plain"},
 			},
@@ -219,7 +219,7 @@ func TestOAuthAuthorize_InvalidRedirectURI(t *testing.T) {
 		{"unconfigured HTTPS origin", "https://evil.example/callback"},
 		{"no scheme", "example.com/callback"},
 		{"ftp scheme", "ftp://example.com/callback"},
-		{"fragment", "https://chatto.example/callback#frag"},
+		{"fragment", "https://towk.example/callback#frag"},
 	}
 
 	for _, tt := range tests {
@@ -946,7 +946,7 @@ func TestIsValidRedirectURI(t *testing.T) {
 		uri  string
 		want bool
 	}{
-		{"https://chatto.example/callback", true},
+		{"https://towk.example/callback", true},
 		{"https://client.example/callback", true},
 		{"https://oauth-client.example/callback", true},
 		{"http://localhost:3000/callback", true},
@@ -960,7 +960,7 @@ func TestIsValidRedirectURI(t *testing.T) {
 		{"example.com/callback", false},
 		{"/callback", false},
 		{"https://user:pass@client.example/callback", false},
-		{"https://chatto.example/callback#fragment", false},
+		{"https://towk.example/callback#fragment", false},
 		{"", false},
 	}
 

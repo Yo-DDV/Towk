@@ -6,7 +6,7 @@
 
 ## Context
 
-Chatto needs to store ordered event logs for room messages and space lifecycle events. A single global stream would require all consumers to scan all messages across all spaces, creating contention. Per-room streams would create too many JetStream streams for large instances with thousands of rooms.
+Towk needs to store ordered event logs for room messages and space lifecycle events. A single global stream would require all consumers to scan all messages across all spaces, creating contention. Per-room streams would create too many JetStream streams for large instances with thousands of rooms.
 
 ## Decision
 
@@ -28,5 +28,5 @@ Streams and buckets are created lazily on first access and cached in-process usi
 - **Per-space sequence counters**: JetStream's sequence numbers are per-stream, so `DeliverByStartSequencePolicy` works within a space. Pagination and catchup are naturally scoped.
 - **Lazy initialization avoids startup cost**: Streams and buckets are created on first use, not at space creation time. This means a space with no messages yet has no JetStream overhead.
 - **Naming convention is load-bearing**: Backup/restore tooling, admin monitoring, and stream cleanup all depend on the `SPACE_{id}_*` naming pattern. Changing it would require migration tooling.
-- **More streams than a single-stream design**: A Chatto instance with 1,000 spaces has 1,000+ JetStream streams. NATS handles this well, but it's more than a single-stream architecture.
+- **More streams than a single-stream design**: A Towk instance with 1,000 spaces has 1,000+ JetStream streams. NATS handles this well, but it's more than a single-stream architecture.
 - **Cross-space queries are expensive**: Finding "all messages by user X" requires iterating every space's stream. This is an acceptable tradeoff since cross-space queries are rare (admin/moderation only).

@@ -1,4 +1,4 @@
-const MARKDOWN_POLICY_NAME = 'chatto-markdown-html';
+const MARKDOWN_POLICY_NAME = 'towk-markdown-html';
 const POLICY_CACHE_KEY = '__chattoMarkdownTrustedTypesPolicy';
 
 type TrustedHTMLValue = string | { toString(): string };
@@ -36,7 +36,7 @@ function getMarkdownPolicy(): TrustedTypePolicy | null {
 }
 
 /**
- * Trusts HTML produced by Chatto's markdown renderer and its reviewed
+ * Trusts HTML produced by Towk's markdown renderer and its reviewed
  * post-processing steps. Do not use this for raw user-authored HTML.
  */
 export function trustedMarkdownHtml(html: string): TrustedHTMLValue {

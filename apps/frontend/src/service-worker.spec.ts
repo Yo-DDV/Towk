@@ -84,7 +84,7 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
   const clearAppBadge = vi.fn(async () => {});
 
   vi.stubGlobal('self', {
-    location: { origin: 'https://chatto.example' },
+    location: { origin: 'https://towk.example' },
     registration,
     clients,
     skipWaiting: vi.fn(),
@@ -138,7 +138,7 @@ describe('service worker badge orchestration', () => {
 
     const messageDispatch = worker.getPendingDispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 0,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -153,7 +153,7 @@ describe('service worker badge orchestration', () => {
           title: 'New notification',
           body: 'Hello',
           tag: 'notification-1',
-          url: 'https://chatto.example/chat/-/room-1'
+          url: 'https://towk.example/chat/-/room-1'
         })
       }
     });
@@ -169,7 +169,7 @@ describe('service worker badge orchestration', () => {
       tag: 'notification-1',
       data: {
         notificationId: undefined,
-        url: 'https://chatto.example/chat/-/room-1'
+        url: 'https://towk.example/chat/-/room-1'
       }
     });
     expect(nativeNotification.close).not.toHaveBeenCalled();
@@ -181,7 +181,7 @@ describe('service worker badge orchestration', () => {
 
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 0,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -196,13 +196,13 @@ describe('service worker badge orchestration', () => {
             title: 'Declarative notification',
             body: 'Opened by the browser or worker fallback',
             tag: 'notification-2',
-            icon: 'https://chatto.example/icons/icon-192.png',
-            badge: 'https://chatto.example/icons/icon-192.png',
+            icon: 'https://towk.example/icons/icon-192.png',
+            badge: 'https://towk.example/icons/icon-192.png',
             app_badge: '5',
-            navigate: 'https://chatto.example/chat/-/room-2?highlight=event-2',
+            navigate: 'https://towk.example/chat/-/room-2?highlight=event-2',
             data: {
               notificationId: 'notif-2',
-              url: 'https://chatto.example/chat/-/room-2?highlight=event-2'
+              url: 'https://towk.example/chat/-/room-2?highlight=event-2'
             }
           }
         })
@@ -212,12 +212,12 @@ describe('service worker badge orchestration', () => {
     expect(worker.setAppBadge).toHaveBeenCalledWith(5);
     expect(worker.registration.showNotification).toHaveBeenCalledWith('Declarative notification', {
       body: 'Opened by the browser or worker fallback',
-      icon: 'https://chatto.example/icons/icon-192.png',
-      badge: 'https://chatto.example/icons/icon-192.png',
+      icon: 'https://towk.example/icons/icon-192.png',
+      badge: 'https://towk.example/icons/icon-192.png',
       tag: 'notification-2',
       data: {
         notificationId: 'notif-2',
-        url: 'https://chatto.example/chat/-/room-2?highlight=event-2'
+        url: 'https://towk.example/chat/-/room-2?highlight=event-2'
       }
     });
   });
@@ -227,7 +227,7 @@ describe('service worker badge orchestration', () => {
 
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 0,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -244,10 +244,10 @@ describe('service worker badge orchestration', () => {
             body: 'Hello from a DM',
             tag: 'dm-event-1',
             app_badge: '1',
-            navigate: 'https://chatto.example/chat/-/dm-room-1',
+            navigate: 'https://towk.example/chat/-/dm-room-1',
             data: {
               notificationId: 'notif-dm-1',
-              url: 'https://chatto.example/chat/-/dm-room-1'
+              url: 'https://towk.example/chat/-/dm-room-1'
             }
           }
         })
@@ -274,7 +274,7 @@ describe('service worker badge orchestration', () => {
 
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 0,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -286,12 +286,12 @@ describe('service worker badge orchestration', () => {
         title: 'Mutable declarative notification',
         body: 'Handled through PushEvent.notification',
         tag: 'notification-3',
-        icon: 'https://chatto.example/icons/icon-192.png',
-        badge: 'https://chatto.example/icons/icon-192.png',
+        icon: 'https://towk.example/icons/icon-192.png',
+        badge: 'https://towk.example/icons/icon-192.png',
         app_badge: 3,
         data: {
           notificationId: 'notif-3',
-          url: 'https://chatto.example/chat/-/room-3?highlight=event-3'
+          url: 'https://towk.example/chat/-/room-3?highlight=event-3'
         }
       }
     });
@@ -300,12 +300,12 @@ describe('service worker badge orchestration', () => {
       'Mutable declarative notification',
       {
         body: 'Handled through PushEvent.notification',
-        icon: 'https://chatto.example/icons/icon-192.png',
-        badge: 'https://chatto.example/icons/icon-192.png',
+        icon: 'https://towk.example/icons/icon-192.png',
+        badge: 'https://towk.example/icons/icon-192.png',
         tag: 'notification-3',
         data: {
           notificationId: 'notif-3',
-          url: 'https://chatto.example/chat/-/room-3?highlight=event-3'
+          url: 'https://towk.example/chat/-/room-3?highlight=event-3'
         }
       }
     );
@@ -314,7 +314,7 @@ describe('service worker badge orchestration', () => {
 
   it('uses declarative navigate as the fallback notification click URL', async () => {
     const worker = await importServiceWorker();
-    const targetUrl = 'https://chatto.example/chat/-/room-2?highlight=event-2';
+    const targetUrl = 'https://towk.example/chat/-/room-2?highlight=event-2';
 
     await worker.dispatch('push', {
       data: {
@@ -347,7 +347,7 @@ describe('service worker badge orchestration', () => {
 
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 3,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -357,7 +357,7 @@ describe('service worker badge orchestration', () => {
     await worker.dispatch('notificationclick', {
       notification: {
         close: vi.fn(),
-        data: { url: 'https://chatto.example/chat/-/room-1' }
+        data: { url: 'https://towk.example/chat/-/room-1' }
       }
     });
 
@@ -372,7 +372,7 @@ describe('service worker badge orchestration', () => {
     const worker = await importServiceWorker();
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 0,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -387,7 +387,7 @@ describe('service worker badge orchestration', () => {
       await worker.dispatch('notificationclick', {
         notification: {
           close: vi.fn(),
-          data: { url: 'https://chatto.example/chat/-/room-1' }
+          data: { url: 'https://towk.example/chat/-/room-1' }
         }
       });
 
@@ -405,7 +405,7 @@ describe('service worker badge orchestration', () => {
 
     await firstWorker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 3,
         serviceWorkerAppBadgeEnabled: true
       }
@@ -418,7 +418,7 @@ describe('service worker badge orchestration', () => {
     await restartedWorker.dispatch('notificationclick', {
       notification: {
         close: vi.fn(),
-        data: { url: 'https://chatto.example/chat/-/room-1' }
+        data: { url: 'https://towk.example/chat/-/room-1' }
       }
     });
 
@@ -431,7 +431,7 @@ describe('service worker badge orchestration', () => {
 
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 3,
         serviceWorkerAppBadgeEnabled: false
       }
@@ -441,7 +441,7 @@ describe('service worker badge orchestration', () => {
     await worker.dispatch('notificationclick', {
       notification: {
         close: vi.fn(),
-        data: { url: 'https://chatto.example/chat/-/room-1' }
+        data: { url: 'https://towk.example/chat/-/room-1' }
       }
     });
 
@@ -455,7 +455,7 @@ describe('service worker badge orchestration', () => {
 
     await worker.dispatch('message', {
       data: {
-        type: 'chatto-badge-state',
+        type: 'towk-badge-state',
         notificationCount: 1,
         serviceWorkerAppBadgeEnabled: true
       }

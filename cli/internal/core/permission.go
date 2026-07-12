@@ -112,7 +112,7 @@ const (
 	// ===== User Management Permissions =====
 	//
 	// "User" is the canonical namespace for user-administration actions.
-	// In Chatto's single-server model, "remove a member from the server"
+	// In Towk's single-server model, "remove a member from the server"
 	// and "delete a user account" mean the same thing — there's no other
 	// server they could be a member of. We use `user.*` as the
 	// administration namespace and `member.*` doesn't exist.

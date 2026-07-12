@@ -1,6 +1,6 @@
-import { authHeaders, createChattoClient, handleAuthError } from "./connect.js";
-import { MessageService } from "@chatto/api-types/api/v1/messages_connect";
-import type { LinkPreview } from "@chatto/api-types/api/v1/link_previews_pb";
+import { authHeaders, createTowkClient, handleAuthError } from "./connect.js";
+import { MessageService } from "@towk/api-types/api/v1/messages_connect";
+import type { LinkPreview } from "@towk/api-types/api/v1/link_previews_pb";
 
 export type LinkPreviewAPIConfig = {
   serverId?: string;
@@ -22,7 +22,7 @@ export type ComposerLinkPreview = {
 };
 
 export function createLinkPreviewAPI(config: LinkPreviewAPIConfig) {
-  const client = createChattoClient(MessageService, config);
+  const client = createTowkClient(MessageService, config);
   const headers = () => authHeaders(config);
   return {
     async fetchLinkPreview(url: string): Promise<ComposerLinkPreview | null> {

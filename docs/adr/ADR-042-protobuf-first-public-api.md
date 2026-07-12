@@ -6,27 +6,27 @@
 
 ## Context
 
-GraphQL gave Chatto a fast early path for typed queries, mutations, and subscriptions from the embedded web client. It is now a poor fit for the direction of the product:
+GraphQL gave Towk a fast early path for typed queries, mutations, and subscriptions from the embedded web client. It is now a poor fit for the direction of the product:
 
-- Chatto needs a stable public integration surface for bots, SDKs, tooling, and alternate clients.
+- Towk needs a stable public integration surface for bots, SDKs, tooling, and alternate clients.
 - Mixed-version clients are becoming normal because users can self-host and separately hosted clients may connect to older servers.
 - GraphQL query validation makes additive schema changes riskier for multi-server clients than they should be.
-- GraphQL subscriptions are not an ideal long-running realtime transport for Chatto's single app-session live-event stream.
-- Chatto's backend is already event-sourced and protobuf-based internally, but GraphQL forces an additional schema and generated model layer at the public boundary.
+- GraphQL subscriptions are not an ideal long-running realtime transport for Towk's single app-session live-event stream.
+- Towk's backend is already event-sourced and protobuf-based internally, but GraphQL forces an additional schema and generated model layer at the public boundary.
 - JSON field names, nullability, enum strings, and error shapes become a long-lived public contract as soon as they are exposed.
 
-Chatto needs a public API contract that is typed, efficient, SDK-friendly, and compatible with its command/projection/live-event architecture. The contract should not expose storage internals such as raw EVT messages, NATS subjects, or JetStream sequence numbers.
+Towk needs a public API contract that is typed, efficient, SDK-friendly, and compatible with its command/projection/live-event architecture. The contract should not expose storage internals such as raw EVT messages, NATS subjects, or JetStream sequence numbers.
 
 ## Decision
 
-Chatto will move toward a protobuf-first public API.
+Towk will move toward a protobuf-first public API.
 
 Public API `.proto` files will be the authoritative contract for the next API generation. They should live separately from persisted event protos, for example under `proto/chatto/api/v1/`. Public API messages may reuse concepts from core models, but they are compatibility contracts for callers and must not simply expose durable EVT payloads.
 
 The API has two primary transports:
 
 1. **ConnectRPC over HTTP** for request/response service calls.
-2. **A Chatto-defined protobuf WebSocket protocol** for long-lived realtime delivery.
+2. **A Towk-defined protobuf WebSocket protocol** for long-lived realtime delivery.
 
 ConnectRPC over HTTP is the canonical transport for requestful interactions:
 
@@ -35,7 +35,7 @@ ConnectRPC over HTTP is the canonical transport for requestful interactions:
 - admin and tooling operations,
 - bounded streaming operations such as imports, exports, uploads, downloads, or progress reporting.
 
-Chatto will not use ConnectRPC streaming as the primary app-session realtime subscription mechanism. Connect streaming remains available for bounded flows, but long-lived live-event delivery needs app-level control over resume, heartbeat, cancellation, reconnect, backpressure, and multiplexing semantics.
+Towk will not use ConnectRPC streaming as the primary app-session realtime subscription mechanism. Connect streaming remains available for bounded flows, but long-lived live-event delivery needs app-level control over resume, heartbeat, cancellation, reconnect, backpressure, and multiplexing semantics.
 
 The realtime WebSocket protocol will use binary protobuf frames. Its initial required scope is:
 
@@ -68,7 +68,7 @@ The public API contract moves from GraphQL schema files to protobuf service and 
 
 Generated clients become a first-class part of the API strategy. Bots and integrations should normally use generated SDKs rather than hand-written HTTP calls. This makes strongly typed Go, TypeScript, Python, Rust, mobile, and other clients more realistic.
 
-The first-party web client gets a cleaner split between request/response operations and app-session realtime delivery. The live connection can be designed around Chatto's actual needs instead of fitting them through GraphQL subscriptions or generic HTTP streaming.
+The first-party web client gets a cleaner split between request/response operations and app-session realtime delivery. The live connection can be designed around Towk's actual needs instead of fitting them through GraphQL subscriptions or generic HTTP streaming.
 
 Connect JSON keeps casual `curl`-style integrations possible without creating separate REST compatibility endpoints.
 

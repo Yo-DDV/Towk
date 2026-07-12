@@ -280,7 +280,7 @@ func TestNormalizeVAPIDSubject(t *testing.T) {
 }
 
 func TestBuildPayloadFromNotification(t *testing.T) {
-	baseURL := "https://chatto.example.com"
+	baseURL := "https://towk.example.com"
 
 	t.Run("builds DM message payload without context", func(t *testing.T) {
 		notif := &corev1.Notification{
@@ -307,7 +307,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Tag != "dm-event-789" {
 			t.Errorf("Expected tag 'dm-event-789', got %s", payload.Tag)
 		}
-		if payload.URL != "https://chatto.example.com/chat/-/dm-room-456" {
+		if payload.URL != "https://towk.example.com/chat/-/dm-room-456" {
 			t.Errorf("Expected URL for DM room, got %s", payload.URL)
 		}
 		if payload.NotificationID != "notif-123" {
@@ -355,7 +355,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Body != "" {
 			t.Errorf("Expected empty body, got %s", payload.Body)
 		}
-		if payload.URL != "https://chatto.example.com/chat/-/room-2?highlight=event-3" {
+		if payload.URL != "https://towk.example.com/chat/-/room-2?highlight=event-3" {
 			t.Errorf("Expected URL with highlight param, got %s", payload.URL)
 		}
 	})
@@ -395,7 +395,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 
 		payload := BuildPayloadFromNotification(notif, "Charlie", baseURL, nil)
 
-		if payload.URL != "https://chatto.example.com/chat/-/room-2" {
+		if payload.URL != "https://towk.example.com/chat/-/room-2" {
 			t.Errorf("Expected URL without event param, got %s", payload.URL)
 		}
 	})
@@ -414,7 +414,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 
 		payload := BuildPayloadFromNotification(notif, "Bob", baseURL, nil)
 
-		expectedURL := "https://chatto.example.com/chat/-/room-2/thread-root?highlight=mention-event"
+		expectedURL := "https://towk.example.com/chat/-/room-2/thread-root?highlight=mention-event"
 		if payload.URL != expectedURL {
 			t.Errorf("Expected URL %s, got %s", expectedURL, payload.URL)
 		}
@@ -445,7 +445,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 			t.Errorf("Expected tag 'reply-reply-event', got %s", payload.Tag)
 		}
 		// Room-level reply navigates to room with highlight
-		if payload.URL != "https://chatto.example.com/chat/-/room-y?highlight=reply-event" {
+		if payload.URL != "https://towk.example.com/chat/-/room-y?highlight=reply-event" {
 			t.Errorf("Expected URL for room with highlight, got %s", payload.URL)
 		}
 	})
@@ -469,7 +469,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 			t.Errorf("Expected '@Diana replied to you', got %s", payload.Title)
 		}
 		// Thread reply: navigate to thread root and highlight the reply event itself.
-		expectedURL := "https://chatto.example.com/chat/-/room-y/thread-root?highlight=reply-event"
+		expectedURL := "https://towk.example.com/chat/-/room-y/thread-root?highlight=reply-event"
 		if payload.URL != expectedURL {
 			t.Errorf("Expected URL %s, got %s", expectedURL, payload.URL)
 		}
@@ -544,7 +544,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Tag != "room-message-room-event" {
 			t.Errorf("Expected tag 'room-message-room-event', got %s", payload.Tag)
 		}
-		expectedURL := "https://chatto.example.com/chat/-/room-news?highlight=room-event"
+		expectedURL := "https://towk.example.com/chat/-/room-news?highlight=room-event"
 		if payload.URL != expectedURL {
 			t.Errorf("Expected URL %s, got %s", expectedURL, payload.URL)
 		}
@@ -563,7 +563,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 
 		payload := BuildPayloadFromNotification(notif, "Bob", baseURL, nil)
 
-		expectedURL := "https://chatto.example.com/chat/-/room%20with%20spaces?highlight=event%2Bplus"
+		expectedURL := "https://towk.example.com/chat/-/room%20with%20spaces?highlight=event%2Bplus"
 		if payload.URL != expectedURL {
 			t.Errorf("Expected URL %s, got %s", expectedURL, payload.URL)
 		}
@@ -595,7 +595,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 
 		payload := BuildPayloadFromNotification(notif, "Test", baseURL, nil)
 
-		expectedIcon := "https://chatto.example.com/icons/icon-192.png"
+		expectedIcon := "https://towk.example.com/icons/icon-192.png"
 		if payload.Icon != expectedIcon {
 			t.Errorf("Expected icon %s, got %s", expectedIcon, payload.Icon)
 		}

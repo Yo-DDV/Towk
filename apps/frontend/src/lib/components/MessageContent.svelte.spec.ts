@@ -21,7 +21,7 @@ vi.mock('$app/navigation', () => ({
 
 vi.mock('$lib/navigation', () => ({
   serverIdToSegment: (serverId: string) =>
-    serverId === 'origin' ? '-' : serverId === 'chatto-run' ? 'chat.chatto.run' : serverId,
+    serverId === 'origin' ? '-' : serverId === 'towk-example' ? 'chat.towk.example' : serverId,
   segmentToServerId: mocks.segmentToServerId
 }));
 
@@ -35,13 +35,13 @@ vi.mock('$lib/state/server/registry.svelte', () => ({
     getServer: (serverId: string) =>
       serverId === 'origin'
         ? { id: 'origin', url: window.location.origin }
-        : serverId === 'chatto-run'
-          ? { id: 'chatto-run', url: 'https://chat.chatto.run' }
+        : serverId === 'towk-example'
+          ? { id: 'towk-example', url: 'https://chat.towk.example' }
           : undefined,
     get servers() {
       return [
         { id: 'origin', url: window.location.origin },
-        { id: 'chatto-run', url: 'https://chat.chatto.run' }
+        { id: 'towk-example', url: 'https://chat.towk.example' }
       ];
     }
   }
@@ -459,15 +459,15 @@ describe('MessageContent component', () => {
     expect(window.open).not.toHaveBeenCalled();
   });
 
-  it('navigates registered external Chatto message URLs in the current tab', async () => {
-    const href = `https://chat.chatto.run/chat/-/${channelRoomId}/m/${messageId}`;
+  it('navigates registered external Towk message URLs in the current tab', async () => {
+    const href = `https://chat.towk.example/chat/-/${channelRoomId}/m/${messageId}`;
     const { container } = renderMessage(`[message](${href})`);
 
     await expect.poll(() => q(container, 'a')).toBeTruthy();
     q(container, 'a')!.click();
 
     expect(mocks.goto).toHaveBeenCalledWith(
-      `/chat/chat.chatto.run/${channelRoomId}/m/${messageId}`
+      `/chat/chat.towk.example/${channelRoomId}/m/${messageId}`
     );
     expect(window.open).not.toHaveBeenCalled();
   });

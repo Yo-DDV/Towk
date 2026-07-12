@@ -48,15 +48,15 @@ importers:
       '@bufbuild/protobuf':
         specifier: ^1.10.0
         version: 1.10.0
-      '@chatto/api-types':
-        specifier: workspace:*
-        version: link:../../packages/api-types
       '@connectrpc/connect':
         specifier: ^1.7.0
         version: 1.7.0(@bufbuild/protobuf@1.10.0)
       '@connectrpc/connect-web':
         specifier: ^1.7.0
         version: 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@towk/api-types':
+        specifier: workspace:*
+        version: link:../../packages/api-types
       gemoji:
         specifier: ^8.1.0
         version: 8.1.0
