@@ -962,6 +962,15 @@ func TestWebserverConfig_WebSocketCompressionEnabled(t *testing.T) {
 	}
 }
 
+func TestWebserverConfig_MaxRealtimeConnectionsOrDefault(t *testing.T) {
+	if got := (&WebserverConfig{}).MaxRealtimeConnectionsOrDefault(); got != 4096 {
+		t.Fatalf("default max realtime connections = %d, want 4096", got)
+	}
+	if got := (&WebserverConfig{MaxRealtimeConnections: 17}).MaxRealtimeConnectionsOrDefault(); got != 17 {
+		t.Fatalf("configured max realtime connections = %d, want 17", got)
+	}
+}
+
 func TestMetricsConfig_Defaults(t *testing.T) {
 	cfg := MetricsConfig{}
 

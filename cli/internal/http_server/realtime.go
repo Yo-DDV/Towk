@@ -45,6 +45,7 @@ func (s *HTTPServer) setupRealtimeAPI(allowedOrigins []string) {
 	}
 
 	writeBufferPool := &sync.Pool{}
+	connectionSlots := make(chan struct{}, s.config.Webserver.MaxRealtimeConnectionsOrDefault())
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:    realtimeReadBufferBytes,
 		WriteBufferSize:   realtimeWriteBufferBytes,
@@ -56,6 +57,14 @@ func (s *HTTPServer) setupRealtimeAPI(allowedOrigins []string) {
 	}
 
 	s.router.GET(realtimePath, func(c *gin.Context) {
+		select {
+		case connectionSlots <- struct{}{}:
+			defer func() { <-connectionSlots }()
+		default:
+			c.Header("Retry-After", "1")
+			c.AbortWithStatus(http.StatusServiceUnavailable)
+			return
+		}
 		req := s.injectUserIntoContext(c)
 		conn, err := upgrader.Upgrade(c.Writer, req, nil)
 		if err != nil {

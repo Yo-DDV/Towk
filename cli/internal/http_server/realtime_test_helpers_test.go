@@ -30,6 +30,10 @@ type wsTestEnv struct {
 }
 
 func setupWebSocketTestServer(t testing.TB) *wsTestEnv {
+	return setupWebSocketTestServerWithMaxConnections(t, 0)
+}
+
+func setupWebSocketTestServerWithMaxConnections(t testing.TB, maxConnections int) *wsTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -65,8 +69,9 @@ func setupWebSocketTestServer(t testing.TB) *wsTestEnv {
 		config: config.ChattoConfig{
 			Auth: config.AuthConfig{},
 			Webserver: config.WebserverConfig{
-				URL:                 "http://localhost:4000",
-				CookieSigningSecret: "test-secret-key-32-bytes-long!!",
+				URL:                    "http://localhost:4000",
+				CookieSigningSecret:    "test-secret-key-32-bytes-long!!",
+				MaxRealtimeConnections: maxConnections,
 			},
 			Core: coreConfig,
 		},
