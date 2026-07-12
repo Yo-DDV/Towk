@@ -7,6 +7,7 @@ import {
   generateState,
   saveFlowState
 } from '$lib/oauth/pkce';
+import { buildServerOAuthAuthorizeUrl } from '$lib/oauth/authorizeUrl';
 import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
 import { clearCachedUser } from './loadAuth';
 
@@ -23,6 +24,14 @@ export async function startServerOAuthFlow(
   const state = generateState();
   const redirectUri = `${window.location.origin}/servers/callback`;
 
+  const authorizeUrl = buildServerOAuthAuthorizeUrl(serverUrl, serverInfo.authorizeUrl, {
+    response_type: 'code',
+    redirect_uri: redirectUri,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    state
+  });
+
   saveFlowState({
     verifier,
     state,
@@ -31,15 +40,7 @@ export async function startServerOAuthFlow(
     serverIconUrl: serverInfo.iconUrl ?? null
   });
 
-  const params = new URLSearchParams({
-    response_type: 'code',
-    redirect_uri: redirectUri,
-    code_challenge: challenge,
-    code_challenge_method: 'S256',
-    state
-  });
-
-  window.location.href = `${serverUrl}${serverInfo.authorizeUrl}?${params}`;
+  window.location.href = authorizeUrl;
 }
 
 export async function startRemoteReauthentication(server: RegisteredServer): Promise<void> {
@@ -57,10 +58,13 @@ export function beginOriginReauthentication(): void {
   clearCachedUser();
   serverRegistry.clearOriginAuthentication();
 
-  const redirect = resolve('/login') + '?' + new URLSearchParams({
-    error: 'authentication_required',
-    redirect: path
-  });
+  const redirect =
+    resolve('/login') +
+    '?' +
+    new URLSearchParams({
+      error: 'authentication_required',
+      redirect: path
+    });
   // eslint-disable-next-line svelte/no-navigation-without-resolve -- base route is resolved above; query parameters preserve the current app path
   void goto(redirect, { invalidateAll: true });
 }
