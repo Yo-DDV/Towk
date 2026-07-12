@@ -134,6 +134,7 @@ func runServer(configPath string) {
 
 	// Create Towk core
 	cfg.Core.AuthTokenTTL = cfg.Auth.TokenTTLOrDefault()
+	cfg.Core.AuthTokenAbsoluteTTL = cfg.Auth.TokenAbsoluteTTLOrDefault()
 	cfg.Core.EmailOTP = cfg.Auth.EmailOTP
 	cfg.Core.AuthRateLimit = cfg.Auth.RateLimit
 	cfg.Core.Replicas = cfg.NATS.ReplicasOrDefault()

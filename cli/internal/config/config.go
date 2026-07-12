@@ -220,6 +220,27 @@ func validateAbsoluteHTTPURL(name, raw string) error {
 	return nil
 }
 
+// SecureCookies returns the validated cookie transport policy. A configured
+// public HTTPS origin covers reverse-proxy TLS termination; direct automatic
+// TLS also requires Secure cookies even when no public URL is configured.
+func (c *WebserverConfig) SecureCookies() (bool, error) {
+	if c.URL == "" {
+		return c.TLS.Enabled, nil
+	}
+	if err := validateAbsoluteHTTPURL("webserver.url", c.URL); err != nil {
+		return false, err
+	}
+	u, err := url.Parse(c.URL)
+	if err != nil {
+		return false, fmt.Errorf("webserver.url is invalid: %w", err)
+	}
+	secure := u.Scheme == "https"
+	if c.TLS.Enabled && !secure {
+		return false, fmt.Errorf("webserver.url must use https when webserver.tls.enabled is true")
+	}
+	return secure, nil
+}
+
 func validateOrigin(name, raw string, allowWildcard bool, requireHTTPSExceptLoopback bool) error {
 	raw = strings.TrimSpace(raw)
 	if allowWildcard && raw == "*" {
@@ -470,14 +491,15 @@ func (c *LinkPreviewAssetsConfig) PendingTTLOrDefault() time.Duration {
 
 // CoreConfig contains settings for the Towk core service.
 type CoreConfig struct {
-	SecretKey     string              `toml:"secret_key" env:"CHATTO_CORE_SECRET_KEY" comment:"Server-wide secret for deriving HMAC verifiers for bearer tokens and account-flow credentials. NEVER SHARE THIS!\nIf it changes, existing bearer tokens and pending registration, verification, password reset, account deletion, and OAuth authorization-code credentials become invalid."`
-	Assets        AssetsConfig        `toml:"assets"`
-	AuthTokenTTL  time.Duration       `toml:"-" env:"-"` // Set by caller from AuthConfig.TokenTTLOrDefault()
-	EmailOTP      EmailOTPConfig      `toml:"-" env:"-"` // Set by caller from AuthConfig.EmailOTP
-	AuthRateLimit AuthRateLimitConfig `toml:"-" env:"-"` // Set by caller from AuthConfig.RateLimit
-	Replicas      int                 `toml:"-" env:"-"` // Set by caller from NATSConfig.ReplicasOrDefault()
-	Limits        LimitsConfig        `toml:"-" env:"-"` // Set by caller from ChattoConfig.Limits
-	Owners        OwnersConfig        `toml:"-" env:"-"` // Set by caller from ChattoConfig.Owners — used by core to auto-promote on email verification
+	SecretKey            string              `toml:"secret_key" env:"CHATTO_CORE_SECRET_KEY" comment:"Server-wide secret for deriving HMAC verifiers for bearer tokens and account-flow credentials. NEVER SHARE THIS!\nIf it changes, existing bearer tokens and pending registration, verification, password reset, account deletion, and OAuth authorization-code credentials become invalid."`
+	Assets               AssetsConfig        `toml:"assets"`
+	AuthTokenTTL         time.Duration       `toml:"-" env:"-"` // Set by caller from AuthConfig.TokenTTLOrDefault()
+	AuthTokenAbsoluteTTL time.Duration       `toml:"-" env:"-"` // Set by caller from AuthConfig.TokenAbsoluteTTLOrDefault()
+	EmailOTP             EmailOTPConfig      `toml:"-" env:"-"` // Set by caller from AuthConfig.EmailOTP
+	AuthRateLimit        AuthRateLimitConfig `toml:"-" env:"-"` // Set by caller from AuthConfig.RateLimit
+	Replicas             int                 `toml:"-" env:"-"` // Set by caller from NATSConfig.ReplicasOrDefault()
+	Limits               LimitsConfig        `toml:"-" env:"-"` // Set by caller from ChattoConfig.Limits
+	Owners               OwnersConfig        `toml:"-" env:"-"` // Set by caller from ChattoConfig.Owners — used by core to auto-promote on email verification
 }
 
 const (
@@ -544,7 +566,8 @@ func IsAllowedAuthProviderType(providerType string) bool {
 
 type AuthConfig struct {
 	DirectRegistration *bool                `toml:"direct_registration" env:"CHATTO_AUTH_DIRECT_REGISTRATION" comment:"Enable direct (email/password) registration. When false, users can only sign in via SSO providers. Default: true."`
-	TokenTTL           Duration             `toml:"token_ttl,commented" env:"CHATTO_AUTH_TOKEN_TTL" comment:"TTL for bearer auth tokens. Supports human-readable durations like '90d', '2160h'. Default: 90d."`
+	TokenTTL           Duration             `toml:"token_ttl,commented" env:"CHATTO_AUTH_TOKEN_TTL" comment:"Sliding inactivity TTL for bearer and cookie runtime credentials. Supports human-readable durations like '90d', '2160h'. Default: 90d."`
+	TokenAbsoluteTTL   Duration             `toml:"token_absolute_ttl,commented" env:"CHATTO_AUTH_TOKEN_ABSOLUTE_TTL" comment:"Maximum non-renewable lifetime for one bearer token or cookie-session family. Must be at least token_ttl. Default: 365d."`
 	EmailOTP           EmailOTPConfig       `toml:"email_otp,commented" comment:"Email OTP guardrails for registration and email verification."`
 	RateLimit          AuthRateLimitConfig  `toml:"rate_limit,commented" comment:"Distributed abuse limits for password login and password-reset endpoints."`
 	Providers          []AuthProviderConfig `toml:"providers" comment:"External login providers. Configure as repeated [[auth.providers]] tables."`
@@ -660,12 +683,22 @@ func (c *EmailOTPConfig) MaxWrongAttemptsOrDefault() int {
 	return c.MaxWrongAttempts
 }
 
-// TokenTTLOrDefault returns the configured bearer token TTL, or 90 days if not set.
+// TokenTTLOrDefault returns the configured runtime credential inactivity TTL,
+// or 90 days if not set.
 func (c *AuthConfig) TokenTTLOrDefault() time.Duration {
 	if c.TokenTTL == 0 {
 		return 90 * 24 * time.Hour
 	}
 	return c.TokenTTL.Duration()
+}
+
+// TokenAbsoluteTTLOrDefault returns the maximum lifetime of a runtime
+// credential family, or 365 days if not set.
+func (c *AuthConfig) TokenAbsoluteTTLOrDefault() time.Duration {
+	if c.TokenAbsoluteTTL == 0 {
+		return 365 * 24 * time.Hour
+	}
+	return c.TokenAbsoluteTTL.Duration()
 }
 
 // DirectRegistrationOrDefault returns whether direct (email/password) registration is enabled (default: true).
@@ -1138,11 +1171,9 @@ func (c *ChattoConfig) Validate() error {
 		errs = append(errs, "nats.replicas must be 1, 3, or 5 (odd numbers for quorum)")
 	}
 
-	// URL format
-	if c.Webserver.URL != "" {
-		if err := validateAbsoluteHTTPURL("webserver.url", c.Webserver.URL); err != nil {
-			errs = append(errs, err.Error())
-		}
+	// URL format and cookie transport policy.
+	if _, err := c.Webserver.SecureCookies(); err != nil {
+		errs = append(errs, err.Error())
 	}
 	if c.NATS.Client.URL != "" {
 		if _, err := url.Parse(c.NATS.Client.URL); err != nil {
@@ -1158,6 +1189,18 @@ func (c *ChattoConfig) Validate() error {
 		if err := validateOrigin("webserver.oauth_redirect_origins", origin, true, true); err != nil {
 			errs = append(errs, err.Error())
 		}
+	}
+
+	if c.Auth.TokenTTL != 0 && c.Auth.TokenTTL.Duration() <= 0 {
+		errs = append(errs, "auth.token_ttl must be positive when set")
+	}
+	if c.Auth.TokenAbsoluteTTL != 0 && c.Auth.TokenAbsoluteTTL.Duration() <= 0 {
+		errs = append(errs, "auth.token_absolute_ttl must be positive when set")
+	}
+	if c.Auth.TokenTTLOrDefault() > 0 &&
+		c.Auth.TokenAbsoluteTTLOrDefault() > 0 &&
+		c.Auth.TokenAbsoluteTTLOrDefault() < c.Auth.TokenTTLOrDefault() {
+		errs = append(errs, "auth.token_absolute_ttl must be greater than or equal to auth.token_ttl")
 	}
 
 	// Log level

@@ -47,9 +47,10 @@ The credential types are:
   authenticate normal API and realtime requests, but they are not first-party
   sessions and cannot satisfy or acquire fresh-auth status.
 
-Fresh-auth metadata, auth generation, source, request metadata, expiry, sliding
-TTL behavior, validation, and revocation eligibility belong to the typed runtime
-credential record. HTTP edge code may still extract credentials differently from
+Fresh-auth metadata, auth generation, source, request metadata, credential and
+family creation times, sliding inactivity expiry, absolute family expiry,
+validation, and revocation eligibility belong to the typed runtime credential
+record. HTTP edge code may still extract credentials differently from
 `Authorization` headers and signed browser cookies, but both presentations must
 normalize to the same validated runtime-credential result before user context,
 logout, audit, realtime subscription, CSRF binding, or session-termination
@@ -80,7 +81,9 @@ Migration is phased:
 5. Keep cookie rotation, revocation, logout audit, live session termination, and
    auth-context injection on the shared credential path once the presentation
    channel has been checked.
-6. Keep legacy record validation and cleanup until existing TTLs expire or a
+6. Preserve the original runtime-credential family creation time across cookie
+   handle rotation so no presentation path can reset absolute expiry.
+7. Keep legacy record validation and cleanup until existing TTLs expire or a
    documented pre-1.0 compatibility cutoff removes them. The
    `cookie_session.*` keyspace is deprecated compatibility-only storage and must
    not receive new writes.

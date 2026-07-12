@@ -821,10 +821,12 @@ func TestCookieSessionRotationClearsStaleGeneration(t *testing.T) {
 			return
 		}
 
+		ttl := s.config.Auth.TokenTTLOrDefault()
+		createdAt := time.Now().Add(-7 * ttl / 8)
 		staleRecord := &corev1.CookieSession{
 			UserId:         user.Id,
-			CreatedAt:      timestamppb.New(time.Now().Add(-time.Hour)),
-			ExpiresAt:      timestamppb.New(time.Now().Add(time.Hour)),
+			CreatedAt:      timestamppb.New(createdAt),
+			ExpiresAt:      timestamppb.New(createdAt.Add(ttl)),
 			Source:         "password_login",
 			AuthGeneration: authGeneration,
 		}
@@ -844,6 +846,27 @@ func TestCookieSessionRotationClearsStaleGeneration(t *testing.T) {
 
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("stale rotation status = %d, want 204: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestShouldRotateCookieSessionStopsAtAbsoluteClamp(t *testing.T) {
+	ttl := time.Hour
+	createdAt := time.Now().Add(-50 * time.Minute)
+
+	fullWindow := &corev1.CookieSession{
+		CreatedAt: timestamppb.New(createdAt),
+		ExpiresAt: timestamppb.New(createdAt.Add(ttl)),
+	}
+	if !shouldRotateCookieSession(fullWindow, ttl) {
+		t.Fatal("full inactivity window near expiry should rotate")
+	}
+
+	absoluteClamped := &corev1.CookieSession{
+		CreatedAt: timestamppb.New(createdAt),
+		ExpiresAt: timestamppb.New(time.Now().Add(5 * time.Minute)),
+	}
+	if shouldRotateCookieSession(absoluteClamped, ttl) {
+		t.Fatal("absolute-clamped cookie session must not rotate")
 	}
 }
 

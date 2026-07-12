@@ -55,6 +55,106 @@ func TestChattoCore_CreateAuthTokenRejectsEmptyUser(t *testing.T) {
 	}
 }
 
+func TestChattoCore_ValidateAuthTokenRejectsAbsoluteExpiry(t *testing.T) {
+	core, _ := setupTestCore(t)
+	core.config.AuthTokenTTL = time.Hour
+	core.config.AuthTokenAbsoluteTTL = 2 * time.Hour
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "absolute-expiry-user", "Absolute Expiry User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token, err := core.CreateAuthToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken: %v", err)
+	}
+
+	key := core.authTokenKey(token)
+	entry, err := core.storage.runtimeStateKV.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("get token: %v", err)
+	}
+	var data AuthTokenData
+	if err := json.Unmarshal(entry.Value(), &data); err != nil {
+		t.Fatalf("unmarshal token: %v", err)
+	}
+	data.CreatedAt = time.Now().Add(-2*time.Hour - time.Minute)
+	data.FamilyCreatedAt = data.CreatedAt
+	value, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal expired token: %v", err)
+	}
+	if _, err := core.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), time.Hour); err != nil {
+		t.Fatalf("store expired token: %v", err)
+	}
+
+	if _, err := core.ValidateAuthToken(ctx, token); !errors.Is(err, ErrAuthTokenNotFound) {
+		t.Fatalf("ValidateAuthToken err = %v, want ErrAuthTokenNotFound", err)
+	}
+	if _, err := core.storage.runtimeStateKV.Get(ctx, key); !errors.Is(err, jetstream.ErrKeyNotFound) && !errors.Is(err, jetstream.ErrKeyDeleted) {
+		t.Fatalf("expired token still present: %v", err)
+	}
+}
+
+func TestChattoCore_ValidateAuthTokenClampsSlidingTTLToAbsoluteExpiry(t *testing.T) {
+	core, _ := setupTestCore(t)
+	core.config.AuthTokenTTL = 90 * time.Minute
+	core.config.AuthTokenAbsoluteTTL = 2 * time.Hour
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "absolute-clamp-user", "Absolute Clamp User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	token, err := core.CreateAuthToken(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("CreateAuthToken: %v", err)
+	}
+
+	key := core.authTokenKey(token)
+	entry, err := core.storage.runtimeStateKV.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("get token: %v", err)
+	}
+	var data AuthTokenData
+	if err := json.Unmarshal(entry.Value(), &data); err != nil {
+		t.Fatalf("unmarshal token: %v", err)
+	}
+	data.CreatedAt = time.Now().Add(-90 * time.Minute)
+	data.FamilyCreatedAt = data.CreatedAt
+	value, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal token: %v", err)
+	}
+	if _, err := core.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), core.authTokenTTL()); err != nil {
+		t.Fatalf("store token: %v", err)
+	}
+
+	if _, err := core.ValidateAuthToken(ctx, token); err != nil {
+		t.Fatalf("ValidateAuthToken: %v", err)
+	}
+	entry, err = core.storage.runtimeStateKV.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("get refreshed token: %v", err)
+	}
+	stream, err := core.js.Stream(ctx, "KV_RUNTIME_STATE")
+	if err != nil {
+		t.Fatalf("get RUNTIME_STATE stream: %v", err)
+	}
+	msg, err := stream.GetMsg(ctx, entry.Revision())
+	if err != nil {
+		t.Fatalf("get refreshed token message: %v", err)
+	}
+	ttl, err := time.ParseDuration(msg.Header.Get(jetstream.MsgTTLHeader))
+	if err != nil {
+		t.Fatalf("parse refreshed token TTL: %v", err)
+	}
+	if ttl < 25*time.Minute || ttl > 31*time.Minute {
+		t.Fatalf("refreshed token TTL = %v, want about 30m absolute remainder", ttl)
+	}
+}
+
 func TestChattoCore_BearerTokenFreshAuth(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

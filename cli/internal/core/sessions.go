@@ -56,23 +56,58 @@ func (c *ChattoCore) CreateCookieSession(ctx context.Context, userID, source str
 // authGeneration.
 func (c *ChattoCore) CreateCookieSessionForGeneration(ctx context.Context, userID, source string, authGeneration uint64) (string, *corev1.CookieSession, error) {
 	now := time.Now()
-	return c.createCookieSessionForGeneration(ctx, userID, source, authGeneration, now, freshAuthMethodForSource(source), source)
+	return c.createCookieSessionForGeneration(ctx, userID, source, authGeneration, now, freshAuthMethodForSource(source), source, now)
 }
 
-func (c *ChattoCore) CreateCookieSessionForGenerationPreservingFreshAuth(ctx context.Context, userID, source string, authGeneration uint64, previous *corev1.CookieSession) (string, *corev1.CookieSession, error) {
+// RotateCookieSession creates a new cookie handle while preserving the original
+// credential-family creation time and fresh-auth evidence. This lets browser
+// cookie rotation extend inactivity expiry without resetting absolute expiry.
+func (c *ChattoCore) RotateCookieSession(ctx context.Context, userID, oldSessionID string, previous *corev1.CookieSession) (string, *corev1.CookieSession, error) {
+	if userID == "" || oldSessionID == "" || previous == nil {
+		return "", nil, ErrCookieSessionNotFound
+	}
+	authGeneration := previous.GetAuthGeneration()
+	familyCreatedAt := time.Time{}
 	var freshAuthAt time.Time
 	var freshAuthMethod, freshAuthSource string
-	if previous != nil {
-		if previous.GetFreshAuthAt() != nil {
-			freshAuthAt = previous.GetFreshAuthAt().AsTime()
-		}
-		freshAuthMethod = previous.GetFreshAuthMethod()
-		freshAuthSource = previous.GetFreshAuthSource()
+	if previous.GetCreatedAt() != nil {
+		familyCreatedAt = previous.GetCreatedAt().AsTime()
 	}
-	return c.createCookieSessionForGeneration(ctx, userID, source, authGeneration, freshAuthAt, freshAuthMethod, freshAuthSource)
+	if previous.GetFreshAuthAt() != nil {
+		freshAuthAt = previous.GetFreshAuthAt().AsTime()
+	}
+	freshAuthMethod = previous.GetFreshAuthMethod()
+	freshAuthSource = previous.GetFreshAuthSource()
+
+	entry, err := c.storage.runtimeStateKV.Get(ctx, c.authTokenKey(oldSessionID))
+	if err == nil {
+		var tokenData AuthTokenData
+		if err := json.Unmarshal(entry.Value(), &tokenData); err != nil {
+			_ = c.storage.runtimeStateKV.Delete(ctx, c.authTokenKey(oldSessionID), jetstream.LastRevision(entry.Revision()))
+			return "", nil, ErrCookieSessionNotFound
+		}
+		if tokenData.UserID != userID ||
+			tokenData.kindOrDefault() != AuthTokenKindFirstPartySession ||
+			tokenData.presentationOrDefault() != AuthTokenPresentationCookie {
+			return "", nil, ErrCookieSessionNotFound
+		}
+		if tokenData.AuthGeneration != 0 || authGeneration == 0 {
+			authGeneration = tokenData.AuthGeneration
+		}
+		familyCreatedAt = tokenData.familyCreatedAtOrDefault()
+		freshAuthAt = tokenData.FreshAuthAt
+		freshAuthMethod = tokenData.FreshAuthMethod
+		freshAuthSource = tokenData.FreshAuthSource
+	} else if !errors.Is(err, jetstream.ErrKeyNotFound) && !errors.Is(err, jetstream.ErrKeyDeleted) {
+		return "", nil, fmt.Errorf("get cookie session for rotation: %w", err)
+	}
+	if familyCreatedAt.IsZero() || !time.Now().Before(familyCreatedAt.Add(c.authTokenAbsoluteTTL())) {
+		return "", nil, ErrCookieSessionNotFound
+	}
+	return c.createCookieSessionForGeneration(ctx, userID, "session_rotation", authGeneration, freshAuthAt, freshAuthMethod, freshAuthSource, familyCreatedAt)
 }
 
-func (c *ChattoCore) createCookieSessionForGeneration(ctx context.Context, userID, source string, authGeneration uint64, freshAuthAt time.Time, freshAuthMethod, freshAuthSource string) (string, *corev1.CookieSession, error) {
+func (c *ChattoCore) createCookieSessionForGeneration(ctx context.Context, userID, source string, authGeneration uint64, freshAuthAt time.Time, freshAuthMethod, freshAuthSource string, familyCreatedAt time.Time) (string, *corev1.CookieSession, error) {
 	if userID == "" {
 		return "", nil, ErrCookieSessionNotFound
 	}
@@ -86,13 +121,14 @@ func (c *ChattoCore) createCookieSessionForGeneration(ctx context.Context, userI
 	sessionID := NewAuthToken()
 	now := time.Now()
 	tokenData := AuthTokenData{
-		UserID:         userID,
-		Kind:           AuthTokenKindFirstPartySession,
-		Presentation:   AuthTokenPresentationCookie,
-		Source:         source,
-		Request:        auditRequestMetadata(ctx),
-		CreatedAt:      now,
-		AuthGeneration: authGeneration,
+		UserID:          userID,
+		Kind:            AuthTokenKindFirstPartySession,
+		Presentation:    AuthTokenPresentationCookie,
+		Source:          source,
+		Request:         auditRequestMetadata(ctx),
+		CreatedAt:       now,
+		FamilyCreatedAt: familyCreatedAt,
+		AuthGeneration:  authGeneration,
 	}
 	if !freshAuthAt.IsZero() {
 		tokenData.FreshAuthAt = freshAuthAt
@@ -106,7 +142,11 @@ func (c *ChattoCore) createCookieSessionForGeneration(ctx context.Context, userI
 	}
 
 	key := c.authTokenKey(sessionID)
-	if _, err := c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(c.cookieSessionTTL())); err != nil {
+	initialTTL, ok := c.runtimeCredentialRefreshTTL(tokenData, AuthTokenPresentationCookie, now)
+	if !ok {
+		return "", nil, ErrCookieSessionNotFound
+	}
+	if _, err := c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(initialTTL)); err != nil {
 		return "", nil, fmt.Errorf("failed to store cookie session: %w", err)
 	}
 
@@ -219,10 +259,15 @@ func (c *ChattoCore) cookieSessionRecordFromAuthTokenData(tokenData AuthTokenDat
 }
 
 func (c *ChattoCore) cookieSessionRecordFromValidatedCredential(credential ValidatedRuntimeCredential) *corev1.CookieSession {
+	expiresAt := credential.CreatedAt.Add(c.cookieSessionTTL())
+	absoluteExpiresAt := credential.FamilyCreatedAt.Add(c.authTokenAbsoluteTTL())
+	if !credential.FamilyCreatedAt.IsZero() && absoluteExpiresAt.Before(expiresAt) {
+		expiresAt = absoluteExpiresAt
+	}
 	record := &corev1.CookieSession{
 		UserId:         credential.UserID,
 		CreatedAt:      timestamppb.New(credential.CreatedAt),
-		ExpiresAt:      timestamppb.New(credential.CreatedAt.Add(c.cookieSessionTTL())),
+		ExpiresAt:      timestamppb.New(expiresAt),
 		Source:         credential.Source,
 		Request:        credential.Request,
 		AuthGeneration: credential.AuthGeneration,

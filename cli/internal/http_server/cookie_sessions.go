@@ -177,7 +177,7 @@ func (s *HTTPServer) rotateCookieSessionIfNeeded(c *gin.Context, userID, oldSess
 		return
 	}
 
-	newSessionID, _, err := s.core.CreateCookieSessionForGenerationPreservingFreshAuth(c.Request.Context(), userID, "session_rotation", record.GetAuthGeneration(), record)
+	newSessionID, _, err := s.core.RotateCookieSession(c.Request.Context(), userID, oldSessionID, record)
 	if err != nil {
 		log.Warn("Failed to rotate cookie session", "userId", userID, "error", err)
 		if errors.Is(err, core.ErrCookieSessionNotFound) {
@@ -202,7 +202,13 @@ func (s *HTTPServer) rotateCookieSessionIfNeeded(c *gin.Context, userID, oldSess
 }
 
 func shouldRotateCookieSession(record *corev1.CookieSession, ttl time.Duration) bool {
-	if record == nil || record.GetExpiresAt() == nil || ttl <= 0 {
+	if record == nil || record.GetCreatedAt() == nil || record.GetExpiresAt() == nil || ttl <= 0 {
+		return false
+	}
+	// A record that expires before its full inactivity window is already
+	// clamped by the absolute family lifetime. Rotating it cannot extend that
+	// boundary and would only churn handles on every request near expiry.
+	if record.GetExpiresAt().AsTime().Before(record.GetCreatedAt().AsTime().Add(ttl)) {
 		return false
 	}
 	return time.Until(record.GetExpiresAt().AsTime()) <= ttl/4

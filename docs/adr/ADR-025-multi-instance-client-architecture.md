@@ -44,7 +44,7 @@ Each server state store has permission and viewer-capability state loaded from C
 
 ### Sliding Window Token Expiry
 
-Bearer tokens use NATS KV TTL (default 90 days). Each successful `ValidateAuthToken` re-puts the entry to reset the TTL. Tokens expire after the configured duration of *inactivity*, not from creation time. Active users are never logged out.
+Bearer tokens use a NATS KV sliding inactivity TTL (default 90 days). Each successful `ValidateAuthToken` re-puts the entry only for the lesser of that inactivity window and the remaining absolute family lifetime (default 365 days). Active users therefore avoid routine inactivity logout but must eventually reauthenticate.
 
 ## Consequences
 
@@ -53,7 +53,8 @@ Bearer tokens use NATS KV TTL (default 90 days). Each successful `ValidateAuthTo
 - Users can connect to multiple Towk instances from one client
 - The SPA can be served statically (CDN) without a Towk backend
 - No special-casing for "home" vs "remote" — all instances use the same code paths
-- Token sliding window means active users never get surprise logouts
+- Token inactivity refresh avoids routine logouts, while the absolute family
+  lifetime eventually requires explicit server reauthentication
 
 ### Negative
 
