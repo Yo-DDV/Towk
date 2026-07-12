@@ -4,6 +4,8 @@ import { MessageService } from '@towk/api-types/api/v1/messages_connect';
 import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
 import { createAssetUploadAPI } from './assetUploads.js';
 
+export const MAX_MESSAGE_ATTACHMENTS = 10;
+
 export type MessageAPIConfig = {
   serverId?: string;
   baseUrl: string;
@@ -44,6 +46,7 @@ export function createMessageAPI(config: MessageAPIConfig) {
   return {
     async createMessage(input: CreateMessageInput): Promise<CreateMessageResult> {
       try {
+        validateMessageAttachments(input);
         const uploadedAttachmentAssetIds = await uploadMessageAttachments(config, input);
         const response = await client.createMessage(
           {
@@ -141,6 +144,17 @@ export function createMessageAPI(config: MessageAPIConfig) {
       }
     }
   };
+}
+
+function validateMessageAttachments(input: CreateMessageInput): void {
+  const existingAssetIds = input.attachmentAssetIds ?? [];
+  const pendingFiles = input.attachments ?? [];
+  if (existingAssetIds.length + pendingFiles.length > MAX_MESSAGE_ATTACHMENTS) {
+    throw new RangeError(`message attachment count exceeds ${MAX_MESSAGE_ATTACHMENTS}`);
+  }
+  if (new Set(existingAssetIds).size !== existingAssetIds.length) {
+    throw new RangeError('message attachment asset IDs must be unique');
+  }
 }
 
 async function uploadMessageAttachments(config: MessageAPIConfig, input: CreateMessageInput) {

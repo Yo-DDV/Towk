@@ -18,6 +18,26 @@ const (
 	maxHistoricalMessageLimit     = 500
 )
 
+func validateMessageAttachmentAssetIDs(assetIDs []string) error {
+	if len(assetIDs) > MaxMessageAttachmentAssetIDs {
+		return invalidArgument(fmt.Sprintf("message attachment asset IDs exceed maximum count of %d", MaxMessageAttachmentAssetIDs))
+	}
+	seen := make(map[string]struct{}, len(assetIDs))
+	for _, assetID := range assetIDs {
+		if assetID == "" {
+			return invalidArgument("message attachment asset ID must not be empty")
+		}
+		if len(assetID) > MaxMessageAttachmentAssetIDLength {
+			return invalidArgument(fmt.Sprintf("message attachment asset ID exceeds maximum length of %d bytes", MaxMessageAttachmentAssetIDLength))
+		}
+		if _, exists := seen[assetID]; exists {
+			return invalidArgument("message attachment asset IDs must be unique")
+		}
+		seen[assetID] = struct{}{}
+	}
+	return nil
+}
+
 type postMessageOptions struct {
 	videoProcessingAssetIDs map[string]struct{}
 }
@@ -392,6 +412,9 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	if len(body) > MaxMessageBodyLength {
 		return nil, ErrMessageTooLong
 	}
+	if err := validateMessageAttachmentAssetIDs(assetIDs); err != nil {
+		return nil, err
+	}
 	if err := validateLinkPreview(linkPreview); err != nil {
 		return nil, err
 	}
@@ -415,36 +438,45 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// the id here). Missing ids are dropped with a warning rather than
 	// failing the post — the user already typed and clicked Send; a transient
 	// projection lag for one attachment is better swallowed than fatal.
-	resolvedAssets := make([]*corev1.Attachment, 0, len(assetIDs))
-	resolvedAssetIDs := make([]string, 0, len(assetIDs))
+	assetReferences := c.assetLifecycle().AssetReferences(assetIDs)
+	resolvedAssets := make([]*corev1.Attachment, 0, len(assetReferences))
+	resolvedAssetIDs := make([]string, 0, len(assetReferences))
+	unknownCount := 0
+	wrongRoomCount := 0
+	expiredCount := 0
+	invalidMetadataCount := 0
+	assetValidationNow := time.Now()
 	for _, id := range assetIDs {
-		if id == "" {
+		reference, ok := assetReferences[id]
+		if !ok || reference.Creation == nil || reference.Creation.GetAsset() == nil {
+			unknownCount++
 			continue
 		}
-		declared, ok := c.assetLifecycle().AssetCreation(id)
-		if !ok || declared == nil || declared.GetAsset() == nil {
-			c.logger.Warn("PostMessage references unknown asset; dropping",
-				"asset_id", id, "room_id", room_id, "actor_id", user_id)
+		if reference.RoomID != room_id {
+			wrongRoomCount++
 			continue
 		}
-		assetRoomID, ok := c.assetLifecycle().AssetRoomID(id)
-		if !ok || assetRoomID != room_id {
-			c.logger.Warn("PostMessage references asset outside room; dropping",
-				"asset_id", id, "asset_room_id", assetRoomID, "room_id", room_id, "actor_id", user_id)
+		if expiresAt := reference.Creation.GetPendingExpiresAt(); expiresAt != nil && !expiresAt.AsTime().After(assetValidationNow) {
+			expiredCount++
 			continue
 		}
-		if expiresAt := declared.GetPendingExpiresAt(); expiresAt != nil && !expiresAt.AsTime().After(time.Now()) {
-			c.logger.Warn("PostMessage references expired pending asset; dropping",
-				"asset_id", id, "room_id", room_id, "actor_id", user_id)
-			continue
-		}
-		att := attachmentFromAsset(declared.GetAsset())
+		att := attachmentFromAsset(reference.Creation.GetAsset())
 		if att == nil {
+			invalidMetadataCount++
 			continue
 		}
 		att.RoomId = room_id
 		resolvedAssets = append(resolvedAssets, att)
 		resolvedAssetIDs = append(resolvedAssetIDs, id)
+	}
+	if droppedCount := unknownCount + wrongRoomCount + expiredCount + invalidMetadataCount; droppedCount > 0 {
+		c.logger.Warn("PostMessage dropped invalid attachment references",
+			"requested_count", len(assetIDs),
+			"resolved_count", len(resolvedAssetIDs),
+			"unknown_count", unknownCount,
+			"wrong_room_count", wrongRoomCount,
+			"expired_count", expiredCount,
+			"invalid_metadata_count", invalidMetadataCount)
 	}
 	if !hasBody && len(resolvedAssetIDs) == 0 {
 		return nil, invalidArgument("message must have either body or attachments")

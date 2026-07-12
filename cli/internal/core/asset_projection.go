@@ -21,6 +21,13 @@ type AssetProjection struct {
 	deletedAssetRoom map[string]string
 }
 
+// AssetReference is a point-in-time projection snapshot used to resolve a
+// bounded batch of message attachment IDs without one lock acquisition per ID.
+type AssetReference struct {
+	Creation *corev1.AssetCreatedEvent
+	RoomID   string
+}
+
 func NewAssetProjection() *AssetProjection {
 	return &AssetProjection{
 		replayGuard:      newProjectionReplayGuard(),
@@ -149,6 +156,32 @@ func (p *AssetProjection) AssetCreation(assetID string) (*corev1.AssetCreatedEve
 		return nil, false
 	}
 	return proto.Clone(declared).(*corev1.AssetCreatedEvent), true
+}
+
+// AssetReferences resolves unique asset IDs under one projection read lock.
+// Missing and deleted IDs are omitted, and returned events are cloned.
+func (p *AssetProjection) AssetReferences(assetIDs []string) map[string]AssetReference {
+	p.RLock()
+	defer p.RUnlock()
+
+	references := make(map[string]AssetReference, len(assetIDs))
+	for _, assetID := range assetIDs {
+		if assetID == "" {
+			continue
+		}
+		if _, resolved := references[assetID]; resolved {
+			continue
+		}
+		declared := p.assetCreations[assetID]
+		if declared == nil {
+			continue
+		}
+		references[assetID] = AssetReference{
+			Creation: proto.Clone(declared).(*corev1.AssetCreatedEvent),
+			RoomID:   p.assetRoomIDLocked(assetID),
+		}
+	}
+	return references
 }
 
 func (p *AssetProjection) AssetRoomID(assetID string) (string, bool) {

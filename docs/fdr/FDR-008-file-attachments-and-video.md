@@ -1,7 +1,7 @@
 # FDR-008: File Attachments & Video Processing
 
 **Status:** Active
-**Last reviewed:** 2026-07-10
+**Last reviewed:** 2026-07-12
 
 ## Overview
 
@@ -11,7 +11,7 @@ Users can attach files to messages — images, videos, documents — via drag-an
 
 - The composer accepts files via drag-and-drop, paste, and a file picker button when the viewer has `message.attach`.
 - Draft attachments persist across room switches inside the same session.
-- Message attachments are uploaded through `chatto.api.v1.AssetUploadService` before message creation. The browser sends bounded unary chunks with SHA-256 checksums, then calls `MessageService.CreateMessage` with completed attachment asset IDs.
+- Message attachments are uploaded through `chatto.api.v1.AssetUploadService` before message creation. The browser sends bounded unary chunks with SHA-256 checksums, then calls `MessageService.CreateMessage` with at most 10 unique completed attachment asset IDs.
 - Default upload size limits: 25 MB for general files, 100 MB for videos when video processing is enabled.
 - Video uploads require server-side video processing to be enabled. When it is disabled, the composer rejects `video/*` files immediately and the message-post API rejects them before storage.
 - Images are inspected for dimensions at upload time and can be resized at render time via URL parameters (width, height, fit mode). Public attachment and avatar APIs expose transform parameters; public server branding images expose canonical URLs only.
@@ -31,7 +31,7 @@ Users can attach files to messages — images, videos, documents — via drag-an
 
 ### 1. Attachment uploads use chunked ConnectRPC sessions
 
-**Decision:** Public message attachment uploads use `AssetUploadService`: `CreateUpload`, `UploadChunk`, `GetUpload`, `CompleteUpload`, and `CancelUpload`. Chunks are bounded unary ConnectRPC requests instead of browser client-streaming RPCs. Each upload declares the final file size and lowercase SHA-256 digest, each chunk carries its offset and chunk SHA-256, and `CompleteUpload` verifies the assembled digest before creating the durable asset. `CreateMessage` accepts only completed, room-matching attachment asset IDs.
+**Decision:** Public message attachment uploads use `AssetUploadService`: `CreateUpload`, `UploadChunk`, `GetUpload`, `CompleteUpload`, and `CancelUpload`. Chunks are bounded unary ConnectRPC requests instead of browser client-streaming RPCs. Each upload declares the final file size and lowercase SHA-256 digest, each chunk carries its offset and chunk SHA-256, and `CompleteUpload` verifies the assembled digest before creating the durable asset. `CreateMessage` accepts at most 10 unique completed, room-matching attachment asset IDs of at most 15 bytes. The core repeats the count, uniqueness, and ID-length checks for non-Connect callers, resolves the bounded set under one projection read lock, and emits at most one aggregate warning when invalid references are dropped.
 **Why:** Attachments should remain inside the protobuf/ConnectRPC API surface instead of introducing a second REST upload endpoint. Unary chunks work with the current browser Connect stack and give resumable progress through the committed offset.
 **Tradeoff:** Clients must hash the full file before completion and issue several RPCs for larger files. Temporary chunks and open sessions need cleanup if the browser disappears before completion.
 
