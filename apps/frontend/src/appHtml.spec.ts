@@ -165,6 +165,15 @@ describe('app.html metadata', () => {
     expect(metadata.width).toBe(32);
     expect(metadata.height).toBe(32);
   });
+
+  it('keeps the in-app product symbol at its canonical size', async () => {
+    const metadata = await sharp(
+      fileURLToPath(new URL('../static/icons/symbol-256.png', import.meta.url))
+    ).metadata();
+
+    expect(metadata.width).toBe(256);
+    expect(metadata.height).toBe(256);
+  });
 });
 
 describe('app.html theme bootstrap', () => {
