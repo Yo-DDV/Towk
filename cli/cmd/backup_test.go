@@ -112,14 +112,14 @@ func TestSecureBackupStagingRestrictsFiles(t *testing.T) {
 	}
 }
 
-func TestWriteArchiveAtomically(t *testing.T) {
+func TestWriteFileAtomically(t *testing.T) {
 	dir := t.TempDir()
 	dest := filepath.Join(dir, "backup.tar.gz")
 	if err := os.WriteFile(dest, []byte("old"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	wantErr := errors.New("write failed")
-	if err := writeArchiveAtomically(dest, func(w io.Writer) error {
+	if err := writeFileAtomically(dest, func(w io.Writer) error {
 		_, _ = w.Write([]byte("partial"))
 		return wantErr
 	}); !errors.Is(err, wantErr) {
@@ -129,7 +129,7 @@ func TestWriteArchiveAtomically(t *testing.T) {
 		t.Fatalf("destination changed after failed write: data=%q err=%v", data, err)
 	}
 
-	if err := writeArchiveAtomically(dest, func(w io.Writer) error {
+	if err := writeFileAtomically(dest, func(w io.Writer) error {
 		_, err := w.Write([]byte("complete"))
 		return err
 	}); err != nil {
