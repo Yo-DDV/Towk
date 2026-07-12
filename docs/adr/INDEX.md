@@ -57,3 +57,4 @@ For more about ADRs, see [Michael Nygard's article](https://cognitect.com/blog/2
 | [ADR-047](ADR-047-direct-ticketed-asset-urls.md) | Direct Ticketed Asset URLs for Browser Media | 2026-07-05 |
 | [ADR-048](ADR-048-frontend-optimistic-ui.md) | Frontend Optimistic UI Uses Scoped Provisional Patches | 2026-07-09 |
 | [ADR-049](ADR-049-towk-product-identity-and-compatibility-boundary.md) | Towk Product Identity with an Explicit Upstream Compatibility Boundary | 2026-07-11 |
+| [ADR-050](ADR-050-standalone-repository-with-selective-upstream-integration.md) | Standalone Repository with Selective Upstream Integration | 2026-07-12 |

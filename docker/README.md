@@ -5,7 +5,7 @@ automation.
 
 ## Files
 
-- `Dockerfile.towk` is the fork-owned, pinned image definition used by the
+- `Dockerfile.towk` is the Towk-owned, pinned image definition used by the
   scanned and attested `ghcr.io/yo-ddv/towk` publication workflow.
 - `Dockerfile.goreleaser` keeps a compatible backend release-image context for
   local and CI validation. It uses

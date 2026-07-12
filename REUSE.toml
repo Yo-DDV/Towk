@@ -26,6 +26,7 @@ path = [
   "LICENSING.md",
   "packages/api-types/**",
   "README.md",
+  "ROADMAP.md",
   "SECURITY.md",
   "proto/AGENTS.md",
   "proto/buf.gen.yaml",
@@ -50,8 +51,11 @@ path = [
   "GOVERNANCE.md",
   "LICENSING.md",
   "README.md",
+  "ROADMAP.md",
   "SECURITY.md",
   "SUPPORT.md",
+  "docs/adr/ADR-049-towk-product-identity-and-compatibility-boundary.md",
+  "docs/adr/ADR-050-standalone-repository-with-selective-upstream-integration.md",
 ]
 SPDX-FileCopyrightText = "2026 Yo-DDV and Towk contributors"
 SPDX-License-Identifier = "Apache-2.0"
@@ -60,8 +64,8 @@ SPDX-License-Identifier = "Apache-2.0"
 path = [
   ".github/copilot-instructions.md",
   "AGENTS.md",
-  "FORK.md",
   "NOTICE",
+  "PROVENANCE.md",
   "SOURCE.md",
   "UPSTREAM.md",
 ]
