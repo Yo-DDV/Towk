@@ -17,6 +17,7 @@ export class ServerInfoState {
   #getAuthenticatedServerState: (config: ServerStateAPIConfig) => Promise<AuthenticatedServerState>;
 
   name = $state(PRODUCT_NAME);
+  version = $state('');
   motd = $state<string | null>(null);
   welcomeMessage = $state<string | null>(null);
   description = $state<string | null>(null);
@@ -85,6 +86,7 @@ export class ServerInfoState {
       const info = await this.#getPublicServerInfo(this.#label);
       this.error = null;
       this.name = info.name;
+      this.version = info.version;
       this.welcomeMessage = info.welcomeMessage;
       this.description = info.description;
       this.iconUrl = info.iconUrl;
