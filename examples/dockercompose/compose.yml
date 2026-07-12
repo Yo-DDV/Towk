@@ -1,11 +1,19 @@
 services:
   nats:
     image: nats:2.14.3-alpine@sha256:c11af972c99ae542de8925e6a7d9c533aa1eb039660420d2074beed6089b3bf0
-    command: ["--jetstream", "--store_dir=/data", "--auth=${NATS_TOKEN}"]
+    command: ["--jetstream", "--store_dir=/data", "--auth=${NATS_TOKEN}", "--http_port=8222"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777
     volumes:
       - nats_data:/data
     healthcheck:
-      test: ["CMD", "nats-server", "--help"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8222/healthz"]
       interval: 5s
       timeout: 3s
       retries: 3
@@ -15,6 +23,15 @@ services:
     command:
       - --config
       - /etc/livekit.yaml
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 512
+    mem_limit: 2g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     ports:
       - "50000-50200:50000-50200/udp"  # WebRTC media (UDP, must be direct)
       - "7881:7881/tcp"  # WebRTC media fallback when UDP is unavailable
@@ -31,10 +48,16 @@ services:
 
   towk:
     image: ${TOWK_IMAGE:?Set TOWK_IMAGE to an immutable ghcr.io/yo-ddv/towk tag and digest}
+    user: "${PUID:-1000}:${PGID:-1000}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 512
+    mem_limit: 2g
+    cpus: 2.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
     env_file: .env
-    environment:
-      PUID: "${PUID:-1000}"
-      PGID: "${PGID:-1000}"
     depends_on:
       nats:
         condition: service_healthy
@@ -42,9 +65,24 @@ services:
         condition: service_healthy
     expose:
       - "4000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:4000/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
 
   caddy:
     image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
     ports:
       - "80:80"
       - "443:443"
@@ -55,8 +93,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - towk
-      - livekit
+      towk:
+        condition: service_healthy
+      livekit:
+        condition: service_healthy
 
 volumes:
   nats_data:

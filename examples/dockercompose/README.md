@@ -103,6 +103,19 @@ The Compose `ports` entries publish LiveKit media directly on the host, so no L4
 Caddy configuration is needed. Do not expose NATS port 4222 publicly; Towk and
 NATS communicate only over the private Compose network.
 
+## Runtime hardening
+
+The example drops all Linux capabilities, enables `no-new-privileges`, uses
+read-only root filesystems and bounds processes, memory and CPU. Caddy retains
+only `NET_BIND_SERVICE` so it can listen on ports 80 and 443. Named volumes and
+size-limited `tmpfs` mounts provide the writable paths required by NATS, Caddy
+and Towk's private operator socket.
+
+Towk and LiveKit run directly as UID/GID `1000:1000` by default. Set `PUID` and
+`PGID` before the first start if your environment requires different numeric
+IDs. Existing named volumes may need their ownership adjusted before changing
+those values.
+
 ## Configuration
 
 1. Generate `.env` and the LiveKit config:
@@ -192,6 +205,10 @@ docker compose config
 
 # Confirm all containers are running or healthy
 docker compose ps
+
+# Confirm the effective runtime restrictions
+docker compose exec nats sh -c 'grep -E "^(NoNewPrivs|CapEff):" /proc/1/status'
+docker compose exec towk sh -c 'grep -E "^(NoNewPrivs|CapEff):" /proc/1/status'
 
 # Check both HTTPS endpoints
 curl --fail --silent --show-error --output /dev/null https://chat.example.com
