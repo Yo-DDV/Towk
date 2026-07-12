@@ -19,6 +19,7 @@ import (
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core/linkpreview"
 	"hmans.de/chatto/internal/dekstore"
+	"hmans.de/chatto/internal/encryption"
 	"hmans.de/chatto/internal/events"
 	"hmans.de/chatto/internal/kms"
 	"hmans.de/chatto/internal/lease"
@@ -466,6 +467,8 @@ func (c *ChattoCore) deleteEncryptionKeyOnly(ctx context.Context, keyRef string)
 	return c.encryption.keyWrapper.ShredKey(ctx, keyRef)
 }
 
+var errUserKeyAlreadyShredded = errors.New("user key already shredded")
+
 func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, userID string) error {
 	if c.encryption.keyWrapper == nil {
 		return nil // Encryption not configured
@@ -476,6 +479,8 @@ func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, use
 	}
 
 	contentKeyRefs := c.ContentKeys.ContentKeyRefs(userID)
+	_, userExists := c.Users.Get(userID)
+	hasShredEvidence := userExists || len(contentKeyRefs) > 0
 	keyRefs := make(map[string]struct{})
 	keyRefs[kms.LegacyUserKeyRef(userID)] = struct{}{}
 	for _, keyRef := range c.ContentKeys.KeyRefs(userID) {
@@ -489,6 +494,12 @@ func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, use
 		}
 		stored, err := c.encryption.contentKeys.Get(ctx, contentKeyRef)
 		if err != nil {
+			if errors.Is(err, encryption.ErrKeyNotFound) {
+				// A previous attempt can stop after purging a DEK but before
+				// recording the durable shred event. The event-sourced reference
+				// remains sufficient evidence to finish that interrupted attempt.
+				continue
+			}
 			return fmt.Errorf("failed to load DEK %s before shredding: %w", contentKeyRef, err)
 		}
 		if wrappingKeyRef := stored.GetWrappingKeyRef(); wrappingKeyRef != "" {
@@ -496,14 +507,9 @@ func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, use
 		}
 	}
 
-	shredded := false
-	for _, contentKeyRef := range contentKeyRefs {
-		if err := c.encryption.contentKeys.Shred(ctx, contentKeyRef); err != nil {
-			return err
-		}
-		shredded = true
-	}
-
+	// Shred every KEK before purging any DEK record. If the process stops in
+	// between, the persisted DEKs retain alternate wrapping-key refs and a
+	// retry can still discover the complete key set.
 	for keyRef := range keyRefs {
 		exists, err := c.encryption.keyWrapper.KeyExists(ctx, keyRef)
 		if err != nil {
@@ -512,12 +518,18 @@ func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, use
 		if !exists {
 			continue
 		}
+		hasShredEvidence = true
 		if err := c.encryption.keyWrapper.ShredKey(ctx, keyRef); err != nil {
 			return err
 		}
-		shredded = true
 	}
-	if !shredded {
+
+	for _, contentKeyRef := range contentKeyRefs {
+		if err := c.encryption.contentKeys.Shred(ctx, contentKeyRef); err != nil {
+			return err
+		}
+	}
+	if !hasShredEvidence {
 		return nil
 	}
 	forgetDEKRequestCacheUser(ctx, userID)
@@ -527,7 +539,15 @@ func (c *ChattoCore) DeleteUserEncryptionKeyAs(ctx context.Context, actorID, use
 			UserKeyShredded: &corev1.UserKeyShreddedEvent{UserId: userID},
 		},
 	})
-	seq, err := c.appendUserEvent(ctx, userID, event, "", nil)
+	seq, err := c.appendUserEvent(ctx, userID, event, "", func() error {
+		if c.Users.KeyShredded(userID) {
+			return errUserKeyAlreadyShredded
+		}
+		return nil
+	})
+	if errors.Is(err, errUserKeyAlreadyShredded) {
+		seq, err = c.EventPublisher.LastSubjectSeq(ctx, events.UserAggregate(userID).SubjectFor(event))
+	}
 	if err != nil {
 		return fmt.Errorf("failed to record user key shred event: %w", err)
 	}

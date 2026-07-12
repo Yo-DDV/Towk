@@ -40,6 +40,19 @@ func (w delayedKeyWrapper) UnwrapContentKey(ctx context.Context, keyRef string, 
 	return w.KeyWrapper.UnwrapContentKey(ctx, keyRef, wrapped, aad)
 }
 
+type failingShredKeyWrapper struct {
+	kms.KeyWrapper
+	keyRef string
+	err    error
+}
+
+func (w failingShredKeyWrapper) ShredKey(ctx context.Context, keyRef string) error {
+	if w.keyRef == "" || w.keyRef == keyRef {
+		return w.err
+	}
+	return w.KeyWrapper.ShredKey(ctx, keyRef)
+}
+
 // setupTestCoreWithEncryption creates a ChattoCore for encryption tests.
 func setupTestCoreWithEncryption(t testing.TB) *ChattoCore {
 	t.Helper()
@@ -458,6 +471,138 @@ func TestDeleteUserEncryptionKey_UsesStoredDEKWrappingRefs(t *testing.T) {
 	exists, err = core.encryption.keyWrapper.KeyExists(ctx, storedWrappingKeyRef)
 	require.NoError(t, err)
 	require.False(t, exists, "stored DEK wrapping key ref should also be shredded")
+}
+
+func TestDeleteUserEncryptionKey_RecoversAfterKeysWereAlreadyShredded(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "shredrecovery", "Shred Recovery", "password123")
+	require.NoError(t, err)
+	room, err := core.CreateRoom(ctx, user.Id, KindChannel, "", "General", "General chat")
+	require.NoError(t, err)
+	message, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Secret message content", nil, "", "", nil, false)
+	require.NoError(t, err)
+
+	contentKeyRefs := core.ContentKeys.ContentKeyRefs(user.Id)
+	keyRefs := core.ContentKeys.KeyRefs(user.Id)
+	require.NotEmpty(t, contentKeyRefs)
+	require.NotEmpty(t, keyRefs)
+	for _, keyRef := range keyRefs {
+		require.NoError(t, core.encryption.keyWrapper.ShredKey(ctx, keyRef))
+	}
+	for _, contentKeyRef := range contentKeyRefs {
+		require.NoError(t, core.encryption.contentKeys.Shred(ctx, contentKeyRef))
+	}
+
+	shredSubject := events.UserAggregate(user.Id).Subject(events.EventUserKeyShredded)
+	shredEvents, _, err := core.EventPublisher.SubjectEvents(ctx, shredSubject)
+	require.NoError(t, err)
+	require.Empty(t, shredEvents, "precondition: simulated interruption must precede the durable shred event")
+
+	require.NoError(t, core.DeleteUserEncryptionKeyAs(ctx, user.Id, user.Id))
+
+	shredEvents, _, err = core.EventPublisher.SubjectEvents(ctx, shredSubject)
+	require.NoError(t, err)
+	require.Len(t, shredEvents, 1)
+	body, err := core.GetFullMessageBodyByEventID(ctx, message.Id)
+	require.NoError(t, err)
+	require.Nil(t, body, "recovery must publish the tombstone signal even when key bytes are already gone")
+}
+
+func TestDeleteUserEncryptionKey_PreservesDEKRecordsUntilEveryKEKIsShredded(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "shredordering", "Shred Ordering", "password123")
+	require.NoError(t, err)
+	contentKeyEvent, ok := core.ContentKeys.Active(user.Id, corev1.UserDEKPurpose_USER_DEK_PURPOSE_MESSAGE_BODY)
+	require.True(t, ok)
+	contentKeyRef := contentKeyEvent.GetContentKeyRef()
+	eventKeyRef := contentKeyEvent.GetWrappingKeyRef()
+
+	storedKeyRef, err := core.encryption.keyWrapper.CreateKey(ctx, user.Id)
+	require.NoError(t, err)
+	stored, err := core.encryption.contentKeys.Get(ctx, contentKeyRef)
+	require.NoError(t, err)
+	stored.WrappingKeyRef = storedKeyRef
+	data, err := proto.Marshal(stored)
+	require.NoError(t, err)
+	_, err = core.storage.runtimeStateKV.Put(ctx, contentKeyRef, data)
+	require.NoError(t, err)
+
+	baseWrapper := core.encryption.keyWrapper
+	shredErr := fmt.Errorf("injected partial key shred failure")
+	core.encryption.keyWrapper = failingShredKeyWrapper{
+		KeyWrapper: baseWrapper,
+		keyRef:     eventKeyRef,
+		err:        shredErr,
+	}
+	require.ErrorIs(t, core.DeleteUserEncryptionKeyAs(ctx, user.Id, user.Id), shredErr)
+	_, err = core.encryption.contentKeys.Get(ctx, contentKeyRef)
+	require.NoError(t, err, "DEK record must retain its alternate wrapping ref while any KEK remains")
+
+	core.encryption.keyWrapper = baseWrapper
+	require.NoError(t, core.DeleteUserEncryptionKeyAs(ctx, user.Id, user.Id))
+	for _, keyRef := range []string{eventKeyRef, storedKeyRef} {
+		exists, err := baseWrapper.KeyExists(ctx, keyRef)
+		require.NoError(t, err)
+		require.False(t, exists, "retry must finish shredding key %s", keyRef)
+	}
+	_, err = core.encryption.contentKeys.Get(ctx, contentKeyRef)
+	require.ErrorIs(t, err, encryption.ErrKeyNotFound)
+}
+
+func TestDeleteUserEncryptionKey_ConcurrentRetriesPublishOneEvent(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "shredconcurrent", "Shred Concurrent", "password123")
+	require.NoError(t, err)
+
+	const callers = 8
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- core.DeleteUserEncryptionKeyAs(ctx, user.Id, user.Id)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	shredEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserKeyShredded))
+	require.NoError(t, err)
+	require.Len(t, shredEvents, 1, "concurrent idempotent retries must converge on one durable shred event")
+}
+
+func TestDeleteUser_FailsClosedWhenCryptoShreddingFails(t *testing.T) {
+	core := setupTestCoreWithEncryption(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, "system", "shredfailure", "Shred Failure", "password123")
+	require.NoError(t, err)
+	shredErr := fmt.Errorf("injected key shred failure")
+	core.encryption.keyWrapper = failingShredKeyWrapper{
+		KeyWrapper: core.encryption.keyWrapper,
+		err:        shredErr,
+	}
+
+	err = core.DeleteUser(ctx, user.Id, user.Id)
+	require.ErrorIs(t, err, shredErr)
+	_, err = core.GetUser(ctx, user.Id)
+	require.NoError(t, err, "account must remain active when crypto-shredding did not complete")
+	deletedEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.UserAggregate(user.Id).Subject(events.EventUserAccountDeleted))
+	require.NoError(t, err)
+	require.Empty(t, deletedEvents, "account deletion must not be recorded after crypto-shredding fails")
 }
 
 func TestDeleteUserEncryptionKey_ShredsLegacyUserKeyRef(t *testing.T) {

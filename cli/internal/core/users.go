@@ -1366,8 +1366,7 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 	// record the durable shred signal projections use to tombstone messages
 	// before decrypting.
 	if err := c.DeleteUserEncryptionKeyAs(ctx, actorID, userID); err != nil {
-		c.logger.Warn("Failed to delete encryption key", "user_id", userID, "error", err)
-		// Continue - this is best-effort
+		return fmt.Errorf("crypto-shred user data: %w", err)
 	}
 
 	if deleted := c.DeleteMessageOwnedAssetsForUser(ctx, actorID, userID); deleted > 0 {

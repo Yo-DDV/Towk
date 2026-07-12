@@ -33,6 +33,7 @@ type UserProjection struct {
 type projectedUser struct {
 	user               *corev1.User
 	deleted            bool
+	keyShredded        bool
 	avatar             *corev1.AssetRecord
 	passwordHash       []byte
 	passwordSetAt      time.Time
@@ -186,6 +187,7 @@ func (p *UserProjection) applyAccountCreated(eventID string, e *corev1.UserAccou
 		CreatedAt:   envelopeCreatedAt,
 	}
 	u.deleted = false
+	u.keyShredded = false
 	if login != "" {
 		p.loginIndex[strings.ToLower(login)] = e.GetUserId()
 	}
@@ -458,6 +460,7 @@ func (p *UserProjection) applyKeyShredded(e *corev1.UserKeyShreddedEvent) {
 	}
 	delete(p.dekEvents, e.GetUserId())
 	u := p.ensureUserLocked(e.GetUserId())
+	u.keyShredded = true
 	if u.user != nil && u.user.GetLogin() != "" {
 		delete(p.loginIndex, strings.ToLower(u.user.GetLogin()))
 	}
@@ -479,6 +482,16 @@ func (p *UserProjection) applyKeyShredded(e *corev1.UserKeyShreddedEvent) {
 	u.externalIdentities = make(map[string]ExternalIdentity)
 	u.oauthConsent = make(map[string]struct{})
 	u.loginChanged = time.Time{}
+}
+
+// KeyShredded reports whether the durable crypto-shred fact has reached the
+// user projection. Callers use it under the user aggregate OCC boundary to
+// make destructive retries idempotent across replicas.
+func (p *UserProjection) KeyShredded(userID string) bool {
+	p.RLock()
+	defer p.RUnlock()
+	u := p.users[userID]
+	return u != nil && u.keyShredded
 }
 
 func cloneUserWithActiveStatus(user *corev1.User, now time.Time) *corev1.User {

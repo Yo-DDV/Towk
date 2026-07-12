@@ -50,6 +50,7 @@ type KeyWrapper interface {
 	KeyExists(ctx context.Context, keyRef string) (bool, error)
 	WrapContentKey(ctx context.Context, keyRef string, contentKey, aad []byte) (*WrappedContentKey, error)
 	UnwrapContentKey(ctx context.Context, keyRef string, wrapped WrappedContentKey, aad []byte) ([]byte, error)
+	// ShredKey permanently deletes a KEK and must succeed when it is already absent.
 	ShredKey(ctx context.Context, keyRef string) error
 }
 
@@ -354,7 +355,7 @@ func (b *Builtin) UnwrapContentKey(ctx context.Context, keyRef string, wrapped W
 	return encryption.UnwrapContentKey(kek, wrapped.EncryptedContentKey, wrapped.Nonce, aad)
 }
 
-// ShredKey permanently removes a KEK.
+// ShredKey permanently removes a KEK. Repeating the operation is a no-op.
 func (b *Builtin) ShredKey(ctx context.Context, keyRef string) error {
 	if err := ValidateKeyRef(keyRef); err != nil {
 		return err
