@@ -3,8 +3,10 @@ package cmd
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,12 +27,6 @@ var initCmd = &cobra.Command{
 		configPath := initConfigFile
 		if configPath == "" {
 			configPath = "chatto.toml"
-		}
-
-		// Check if config file already exists
-		if _, err := os.Stat(configPath); err == nil {
-			log.Error("Config file already exists, aborting to prevent overwrite", "path", configPath)
-			os.Exit(1)
 		}
 
 		// Generate a random session signing secret (32 bytes = 256 bits)
@@ -136,11 +132,50 @@ var initCmd = &cobra.Command{
 		text := addAuthProviderExamples(string(b))
 		text = addEmailOTPDefaults(text)
 
-		if err := os.WriteFile(configPath, []byte(text), 0600); err != nil {
+		if err := writeNewConfigFile(configPath, []byte(text)); errors.Is(err, os.ErrExist) {
+			log.Fatal("Config file already exists, aborting to prevent overwrite", "path", configPath)
+		} else if err != nil {
 			log.Fatal("Failed to write config file", "error", err)
 		}
 		fmt.Printf("Configuration written to %s\n", configPath)
 	},
+}
+
+func writeNewConfigFile(path string, data []byte) (err error) {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to create config file: %w", err)
+	}
+	removeOnError := true
+	defer func() {
+		_ = file.Close()
+		if removeOnError {
+			_ = os.Remove(path)
+		}
+	}()
+
+	if _, err = file.Write(data); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+	if err = file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync config file: %w", err)
+	}
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("failed to close config file: %w", err)
+	}
+	parent, err := os.Open(filepath.Dir(path))
+	if err != nil {
+		return fmt.Errorf("failed to open config directory for sync: %w", err)
+	}
+	if err = parent.Sync(); err != nil {
+		_ = parent.Close()
+		return fmt.Errorf("failed to sync config directory: %w", err)
+	}
+	if err = parent.Close(); err != nil {
+		return fmt.Errorf("failed to close config directory: %w", err)
+	}
+	removeOnError = false
+	return nil
 }
 
 func addAuthProviderExamples(tomlText string) string {
