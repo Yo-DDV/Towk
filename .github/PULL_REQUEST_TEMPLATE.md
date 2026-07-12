@@ -1,5 +1,8 @@
 ## Summary
 
+> Maintainer and approved automation changes only. Public participation is
+> accepted through GitHub Issues; unsolicited external pull requests are closed.
+
 Describe the user or operator outcome and the smallest coherent change that
 produces it. Link issues, FDRs, ADRs, or upstream commits when relevant.
 
