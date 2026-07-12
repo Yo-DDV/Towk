@@ -104,6 +104,7 @@ func (s *HTTPServer) setupOIDCRoutes() {
 	}
 
 	auth := s.router.Group("/auth")
+	auth.Use(limitLegacyRequestBody())
 	auth.Use(func(c *gin.Context) {
 		s.requestContextWithAuditMetadata(c)
 		c.Next()
@@ -646,7 +647,9 @@ func (s *HTTPServer) redirectPendingExternalIdentity(c *gin.Context, session ses
 		c.Redirect(http.StatusTemporaryRedirect, "/login?error=provider_failed")
 		return
 	}
-	c.Redirect(http.StatusTemporaryRedirect, "/sso/confirm?token="+url.QueryEscape(token))
+	query := url.Values{}
+	query.Set("token", token)
+	c.Redirect(http.StatusTemporaryRedirect, "/sso/confirm?"+query.Encode())
 }
 
 func providerReturnPath(session sessions.Session, fallback string) string {
