@@ -113,11 +113,14 @@ func (c *ChattoCore) ConsumePendingExternalIdentityLinkStart(ctx context.Context
 		return nil, fmt.Errorf("unmarshal external identity link start: %w", err)
 	}
 	if time.Since(start.CreatedAt) > ExternalIdentityFlowTTL {
-		_ = c.storage.runtimeStateKV.Delete(ctx, key)
+		_ = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
 		return nil, ErrExternalIdentityFlowExpired
 	}
-	if err := c.storage.runtimeStateKV.Delete(ctx, key); err != nil && !errors.Is(err, jetstream.ErrKeyNotFound) && !errors.Is(err, jetstream.ErrKeyDeleted) {
-		return nil, fmt.Errorf("delete external identity link start: %w", err)
+	if err := c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision())); err != nil {
+		if isRuntimeStateKeyAbsent(err) || isRuntimeStateRevisionConflict(err) {
+			return nil, ErrExternalIdentityFlowNotFound
+		}
+		return nil, fmt.Errorf("consume external identity link start: %w", err)
 	}
 	return &start, nil
 }
@@ -204,6 +207,19 @@ func (c *ChattoCore) GetPendingExternalIdentityCreateFlow(ctx context.Context, t
 	return flow, nil
 }
 
+// ConsumePendingExternalIdentityCreateFlow atomically claims a one-time
+// account-creation capability. Across replicas, exactly one caller can receive
+// the flow; later callers observe ErrExternalIdentityFlowNotFound.
+func (c *ChattoCore) ConsumePendingExternalIdentityCreateFlow(ctx context.Context, token string) (*PendingExternalIdentityFlow, error) {
+	return c.consumePendingExternalIdentityFlowByKey(ctx, c.externalIdentityCreateTokenKey(token), ExternalIdentityFlowKindCreate)
+}
+
+// ConsumePendingExternalIdentityLinkFlow atomically claims a one-time account
+// linking capability. Across replicas, exactly one caller can receive the flow.
+func (c *ChattoCore) ConsumePendingExternalIdentityLinkFlow(ctx context.Context, token string) (*PendingExternalIdentityFlow, error) {
+	return c.consumePendingExternalIdentityFlowByKey(ctx, c.externalIdentityLinkTokenKey(token), ExternalIdentityFlowKindLink)
+}
+
 func (c *ChattoCore) GetPendingExternalIdentityLinkFlow(ctx context.Context, token, userID string) (*PendingExternalIdentityFlow, error) {
 	flow, err := c.getPendingExternalIdentityFlowByKey(ctx, c.externalIdentityLinkTokenKey(token))
 	if err != nil {
@@ -219,22 +235,47 @@ func (c *ChattoCore) GetPendingExternalIdentityLinkFlow(ctx context.Context, tok
 }
 
 func (c *ChattoCore) getPendingExternalIdentityFlowByKey(ctx context.Context, key string) (*PendingExternalIdentityFlow, error) {
+	flow, _, err := c.pendingExternalIdentityFlowByKey(ctx, key)
+	return flow, err
+}
+
+func (c *ChattoCore) pendingExternalIdentityFlowByKey(ctx context.Context, key string) (*PendingExternalIdentityFlow, uint64, error) {
 	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, jetstream.ErrKeyNotFound) || errors.Is(err, jetstream.ErrKeyDeleted) {
-			return nil, ErrExternalIdentityFlowNotFound
+			return nil, 0, ErrExternalIdentityFlowNotFound
 		}
-		return nil, fmt.Errorf("get external identity flow: %w", err)
+		return nil, 0, fmt.Errorf("get external identity flow: %w", err)
 	}
 	var flow PendingExternalIdentityFlow
 	if err := json.Unmarshal(entry.Value(), &flow); err != nil {
-		return nil, fmt.Errorf("unmarshal external identity flow: %w", err)
+		return nil, 0, fmt.Errorf("unmarshal external identity flow: %w", err)
 	}
 	if time.Since(flow.CreatedAt) > ExternalIdentityFlowTTL {
-		_ = c.storage.runtimeStateKV.Delete(ctx, key)
-		return nil, ErrExternalIdentityFlowExpired
+		_ = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
+		return nil, 0, ErrExternalIdentityFlowExpired
 	}
-	return &flow, nil
+	return &flow, entry.Revision(), nil
+}
+
+func (c *ChattoCore) consumePendingExternalIdentityFlowByKey(ctx context.Context, key, expectedKind string) (*PendingExternalIdentityFlow, error) {
+	flow, revision, err := c.pendingExternalIdentityFlowByKey(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if flow.Kind != expectedKind {
+		return nil, ErrExternalIdentityFlowWrongKind
+	}
+	if expectedKind == ExternalIdentityFlowKindLink && flow.BoundUserID == "" {
+		return nil, ErrExternalIdentityFlowUserBound
+	}
+	if err := c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(revision)); err != nil {
+		if isRuntimeStateKeyAbsent(err) || isRuntimeStateRevisionConflict(err) {
+			return nil, ErrExternalIdentityFlowNotFound
+		}
+		return nil, fmt.Errorf("consume external identity flow: %w", err)
+	}
+	return flow, nil
 }
 
 func (c *ChattoCore) DeletePendingExternalIdentityFlow(ctx context.Context, token string) error {

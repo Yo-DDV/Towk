@@ -28,7 +28,7 @@ func (s *externalIdentityAuthService) GetPendingExternalIdentity(ctx context.Con
 }
 
 func (s *externalIdentityAuthService) CreateExternalIdentityAccount(ctx context.Context, req *connect.Request[authv1.CreateExternalIdentityAccountRequest]) (*connect.Response[authv1.CreateExternalIdentityAccountResponse], error) {
-	flow, err := s.api.core.GetPendingExternalIdentityCreateFlow(ctx, req.Msg.GetToken())
+	flow, err := s.api.core.ConsumePendingExternalIdentityCreateFlow(ctx, req.Msg.GetToken())
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -53,9 +53,6 @@ func (s *externalIdentityAuthService) CreateExternalIdentityAccount(ctx context.
 		}
 		return nil, connectError(err)
 	}
-	if err := s.api.core.DeletePendingExternalIdentityFlow(ctx, req.Msg.GetToken()); err != nil {
-		return nil, connectError(err)
-	}
 	return connect.NewResponse(&authv1.CreateExternalIdentityAccountResponse{
 		UserId: user.GetId(),
 		Login:  user.GetLogin(),
@@ -74,15 +71,12 @@ func externalIdentityCreateDisplayName(login, hint string) string {
 }
 
 func (s *externalIdentityAuthService) ConfirmExternalIdentityLink(ctx context.Context, req *connect.Request[authv1.ConfirmExternalIdentityLinkRequest]) (*connect.Response[authv1.ConfirmExternalIdentityLinkResponse], error) {
-	flow, err := s.api.core.GetPendingExternalIdentityFlow(ctx, req.Msg.GetToken())
+	flow, err := s.api.core.ConsumePendingExternalIdentityLinkFlow(ctx, req.Msg.GetToken())
 	if err != nil {
 		return nil, connectError(err)
 	}
 	identity, err := s.api.core.ConfirmPendingExternalIdentityLink(ctx, flow)
 	if err != nil {
-		return nil, connectError(err)
-	}
-	if err := s.api.core.DeletePendingExternalIdentityFlow(ctx, req.Msg.GetToken()); err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&authv1.ConfirmExternalIdentityLinkResponse{
