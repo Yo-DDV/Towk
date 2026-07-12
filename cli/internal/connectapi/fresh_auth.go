@@ -2,7 +2,6 @@ package connectapi
 
 import (
 	"context"
-	"errors"
 
 	"hmans.de/chatto/internal/authctx"
 	"hmans.de/chatto/internal/core"
@@ -14,22 +13,17 @@ func (a *API) requireFreshCredential(ctx context.Context, caller Caller, current
 		return core.ErrFreshAuthRequired
 	}
 
-	if err := a.requireCredentialFresh(ctx, credential); err == nil {
+	if currentPassword != "" {
+		if err := a.core.VerifyUserPassword(ctx, caller.UserID, currentPassword); err != nil {
+			return err
+		}
+		if err := a.markCredentialFresh(ctx, credential, "password", "current_password"); err != nil {
+			return err
+		}
 		return nil
-	} else if !errors.Is(err, core.ErrFreshAuthRequired) {
-		return err
 	}
 
-	if currentPassword == "" {
-		return core.ErrFreshAuthRequired
-	}
-	if err := a.core.VerifyUserPassword(ctx, caller.UserID, currentPassword); err != nil {
-		return err
-	}
-	if err := a.markCredentialFresh(ctx, credential, "password", "current_password"); err != nil {
-		return err
-	}
-	return nil
+	return a.requireCredentialFresh(ctx, credential)
 }
 
 func (a *API) requireCredentialFresh(ctx context.Context, credential authctx.RuntimeCredential) error {

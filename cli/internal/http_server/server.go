@@ -109,6 +109,9 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 
 	// Create Gin router with Recovery middleware, and optionally Logger
 	router := gin.New()
+	if err := router.SetTrustedProxies(cfg.Config.Webserver.TrustedProxies); err != nil {
+		return nil, fmt.Errorf("configure trusted proxies: %w", err)
+	}
 	router.Use(gin.Recovery())
 	if cfg.Config.Webserver.RequestLoggingEnabled() {
 		router.Use(requestLogger(logger))

@@ -745,7 +745,7 @@ func (s *HTTPServer) completeProviderLogin(c *gin.Context, session sessions.Sess
 		_ = s.core.RevokeCookieSession(ctx, userID, cookieCredential.sessionID)
 		session.Clear()
 		_ = session.Save()
-		clearCSRFCookie(c)
+		s.clearCSRFCookie(c)
 		return fmt.Errorf("create csrf token: %w", err)
 	}
 	if err := s.core.RecordLoginSucceeded(ctx, userID, providerConfig.Type+":"+providerConfig.ID); err != nil {
@@ -754,7 +754,7 @@ func (s *HTTPServer) completeProviderLogin(c *gin.Context, session sessions.Sess
 		_ = s.core.RevokeCookieSession(ctx, userID, cookieCredential.sessionID)
 		session.Clear()
 		_ = session.Save()
-		clearCSRFCookie(c)
+		s.clearCSRFCookie(c)
 		return fmt.Errorf("append login audit event: %w", err)
 	}
 

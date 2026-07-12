@@ -73,6 +73,23 @@ SPDX-FileCopyrightText = "2026 Yo-DDV and Towk contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 [[annotations]]
+path = [
+  "apps/docs-website/public/apple-touch-icon.png",
+  "apps/docs-website/public/favicon.ico",
+  "apps/docs-website/src/assets/towk-symbol.png",
+  "apps/frontend/static/icons/apple-touch-icon.png",
+  "apps/frontend/static/icons/favicon.png",
+  "apps/frontend/static/icons/icon-192.png",
+  "apps/frontend/static/icons/icon-512.png",
+  "apps/frontend/static/icons/icon-maskable-192.png",
+  "apps/frontend/static/icons/icon-maskable-512.png",
+  "apps/frontend/static/icons/symbol-256.png",
+  "favicon.png",
+]
+SPDX-FileCopyrightText = "2026 Yo-DDV and Towk contributors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
 path = "LICENSE"
 SPDX-FileCopyrightText = "2007 Free Software Foundation, Inc."
 SPDX-License-Identifier = "AGPL-3.0-or-later"

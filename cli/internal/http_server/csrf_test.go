@@ -87,7 +87,7 @@ func setupCSRFTestServer(t *testing.T) (*httptest.Server, *http.Client) {
 		session := sessions.Default(c)
 		session.Clear()
 		_ = session.Save()
-		clearCSRFCookie(c)
+		s.clearCSRFCookie(c)
 		c.String(http.StatusOK, "logged out")
 	})
 	router.POST("/auth/verify-email/request-code", func(c *gin.Context) {
@@ -138,6 +138,42 @@ func csrfCookieValue(t *testing.T, client *http.Client, serverURL string) string
 	}
 	t.Fatal("CSRF cookie was not set")
 	return ""
+}
+
+func TestClearCSRFCookieMatchesWebserverSecurity(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, test := range []struct {
+		name       string
+		webserver  string
+		wantSecure bool
+	}{
+		{name: "HTTP", webserver: "http://localhost:4000", wantSecure: false},
+		{name: "HTTPS", webserver: "https://towk.example", wantSecure: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(recorder)
+			server := &HTTPServer{
+				config: config.ChattoConfig{
+					Webserver: config.WebserverConfig{URL: test.webserver},
+				},
+			}
+
+			server.clearCSRFCookie(context)
+
+			cookies := recorder.Result().Cookies()
+			if len(cookies) != 1 {
+				t.Fatalf("cookie count = %d, want 1", len(cookies))
+			}
+			if cookies[0].Secure != test.wantSecure {
+				t.Fatalf("Secure = %t, want %t", cookies[0].Secure, test.wantSecure)
+			}
+			if cookies[0].MaxAge >= 0 {
+				t.Fatalf("MaxAge = %d, want expired cookie", cookies[0].MaxAge)
+			}
+		})
+	}
 }
 
 func TestCSRFMiddleware(t *testing.T) {

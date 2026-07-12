@@ -23,7 +23,14 @@ compatibility identifiers listed above.
 
 ## Asset cleanup
 
-The obsolete `chatto_light.png`, `chatto_dark.png`, `chatto-icon.png`, and `chatto-icon-maskable.png` assets were removed after a repository-wide reference check returned no remaining consumers. The documentation screenshots and Open Graph image are generated from the Towk identity; the frontend manifest icons already use the Towk mark.
+The obsolete `chatto_light.png`, `chatto_dark.png`, `chatto-icon.png`, and
+`chatto-icon-maskable.png` assets were removed after a repository-wide reference
+check returned no remaining consumers. README artwork selects the exact v2
+horizontal logo for the viewer's light or dark theme. The documentation header,
+favicons, Apple touch icon, Open Graph cards, frontend manifest icons, maskable
+icon, browser favicon, and notification icon fallback use the matching exact v2
+symbol assets. Product screenshots continue to show each server's configurable
+server logo rather than replacing it with the Towk product mark.
 
 ## Release boundary
 

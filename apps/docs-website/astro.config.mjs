@@ -34,6 +34,21 @@ export default defineConfig({
   integrations: [
     starlight({
       title: "Towk",
+      logo: {
+        src: "./src/assets/towk-symbol.png",
+        alt: "",
+      },
+      favicon: "/favicon.ico",
+      head: [
+        {
+          tag: "link",
+          attrs: {
+            rel: "apple-touch-icon",
+            sizes: "180x180",
+            href: "/apple-touch-icon.png",
+          },
+        },
+      ],
       customCss: ["./src/custom.css"],
       ...(docsSite ? { routeMiddleware: "./src/routeData.ts" } : {}),
       components: {

@@ -3,6 +3,3 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/Yo-DDV/towk/security/advisories/new
     about: Report a vulnerability privately. Do not open a public issue.
-  - name: Questions and ideas
-    url: https://github.com/Yo-DDV/towk/discussions
-    about: Ask for help or discuss an early idea before filing an issue.

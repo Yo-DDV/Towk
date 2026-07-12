@@ -556,6 +556,7 @@ func TestReadConfig_OAuthRedirectOriginsFromTOMLAndEnv(t *testing.T) {
 port = 5000
 cookie_signing_secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 oauth_redirect_origins = ["https://client.example"]
+trusted_proxies = ["127.0.0.1", "10.0.0.0/8"]
 
 [core]
 secret_key = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
@@ -574,14 +575,21 @@ signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddee
 	if got, want := strings.Join(cfg.Webserver.OAuthRedirectOrigins, ","), "https://client.example"; got != want {
 		t.Fatalf("expected TOML oauth_redirect_origins %q, got %q", want, got)
 	}
+	if got, want := strings.Join(cfg.Webserver.TrustedProxies, ","), "127.0.0.1,10.0.0.0/8"; got != want {
+		t.Fatalf("expected TOML trusted_proxies %q, got %q", want, got)
+	}
 
 	t.Setenv("CHATTO_WEBSERVER_OAUTH_REDIRECT_ORIGINS", "*")
+	t.Setenv("CHATTO_WEBSERVER_TRUSTED_PROXIES", "192.0.2.10,2001:db8::/32")
 	cfg, err = ReadConfig("")
 	if err != nil {
 		t.Fatalf("ReadConfig() with env override failed: %v", err)
 	}
 	if got, want := strings.Join(cfg.Webserver.OAuthRedirectOrigins, ","), "*"; got != want {
 		t.Fatalf("expected env oauth_redirect_origins %q, got %q", want, got)
+	}
+	if got, want := strings.Join(cfg.Webserver.TrustedProxies, ","), "192.0.2.10,2001:db8::/32"; got != want {
+		t.Fatalf("expected env trusted_proxies %q, got %q", want, got)
 	}
 }
 
@@ -1295,7 +1303,15 @@ func TestChattoConfig_Validate_URLsAndOrigins(t *testing.T) {
 				c.Webserver.URL = "https://chat.example"
 				c.Webserver.AllowedOrigins = []string{"https://client.example", "http://localhost:5173", "*"}
 				c.Webserver.OAuthRedirectOrigins = []string{"https://client.example", "http://localhost:5173", "*"}
+				c.Webserver.TrustedProxies = []string{"127.0.0.1", "10.0.0.0/8", "2001:db8::/32"}
 			},
+		},
+		{
+			name: "trusted proxy requires IP or CIDR",
+			modify: func(c *ChattoConfig) {
+				c.Webserver.TrustedProxies = []string{"proxy.internal"}
+			},
+			wantError: "webserver.trusted_proxies[0] must be an IP address or CIDR",
 		},
 		{
 			name: "webserver URL requires http or https",
@@ -1686,6 +1702,69 @@ func TestReadConfig_EmailOTPFromEnv(t *testing.T) {
 	}
 	if got := cfg.Auth.EmailOTP.MaxWrongAttemptsOrDefault(); got != 3 {
 		t.Errorf("CHATTO_AUTH_EMAIL_OTP_MAX_WRONG_ATTEMPTS = %d, want 3", got)
+	}
+}
+
+func TestReadConfig_AuthRateLimitFromTOMLAndEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change to temp directory: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(originalDir) })
+
+	configContent := `
+[webserver]
+port = 4000
+cookie_signing_secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+[core]
+secret_key = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+
+[core.assets]
+signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+
+[auth.rate_limit]
+enabled = false
+window = "20m"
+login_per_ip = 90
+login_per_identifier = 9
+forgot_per_ip = 20
+forgot_per_identifier = 2
+reset_per_ip = 10
+reset_per_token = 4
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "chatto.toml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	cfg, err := ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig() failed: %v", err)
+	}
+	if cfg.Auth.RateLimit.EnabledOrDefault() || cfg.Auth.RateLimit.WindowOrDefault() != 20*time.Minute ||
+		cfg.Auth.RateLimit.LoginPerIPOrDefault() != 90 || cfg.Auth.RateLimit.LoginPerIdentifierOrDefault() != 9 ||
+		cfg.Auth.RateLimit.ForgotPerIPOrDefault() != 20 || cfg.Auth.RateLimit.ForgotPerIdentifierOrDefault() != 2 ||
+		cfg.Auth.RateLimit.ResetPerIPOrDefault() != 10 || cfg.Auth.RateLimit.ResetPerTokenOrDefault() != 4 {
+		t.Fatalf("Auth.RateLimit from TOML = %+v", cfg.Auth.RateLimit)
+	}
+
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_ENABLED", "true")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_WINDOW", "30m")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_LOGIN_PER_IP", "80")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_LOGIN_PER_IDENTIFIER", "8")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_FORGOT_PER_IP", "18")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_FORGOT_PER_IDENTIFIER", "3")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_RESET_PER_IP", "12")
+	t.Setenv("CHATTO_AUTH_RATE_LIMIT_RESET_PER_TOKEN", "6")
+	cfg, err = ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig() with env override failed: %v", err)
+	}
+	if !cfg.Auth.RateLimit.EnabledOrDefault() || cfg.Auth.RateLimit.WindowOrDefault() != 30*time.Minute ||
+		cfg.Auth.RateLimit.LoginPerIPOrDefault() != 80 || cfg.Auth.RateLimit.LoginPerIdentifierOrDefault() != 8 ||
+		cfg.Auth.RateLimit.ForgotPerIPOrDefault() != 18 || cfg.Auth.RateLimit.ForgotPerIdentifierOrDefault() != 3 ||
+		cfg.Auth.RateLimit.ResetPerIPOrDefault() != 12 || cfg.Auth.RateLimit.ResetPerTokenOrDefault() != 6 {
+		t.Fatalf("Auth.RateLimit from env = %+v", cfg.Auth.RateLimit)
 	}
 }
 
@@ -2182,6 +2261,41 @@ func TestAuthConfig_EnabledProviders(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAuthRateLimitConfigDefaultsAndValidation(t *testing.T) {
+	defaults := AuthRateLimitConfig{}
+	if !defaults.EnabledOrDefault() {
+		t.Fatal("authentication rate limiting must default to enabled")
+	}
+	if got := defaults.WindowOrDefault(); got != 15*time.Minute {
+		t.Fatalf("WindowOrDefault() = %v, want 15m", got)
+	}
+	if got := defaults.LoginPerIPOrDefault(); got != 100 {
+		t.Fatalf("LoginPerIPOrDefault() = %d, want 100", got)
+	}
+	if got := defaults.LoginPerIdentifierOrDefault(); got != 10 {
+		t.Fatalf("LoginPerIdentifierOrDefault() = %d, want 10", got)
+	}
+	if got := defaults.ForgotPerIPOrDefault(); got != 30 {
+		t.Fatalf("ForgotPerIPOrDefault() = %d, want 30", got)
+	}
+	if got := defaults.ForgotPerIdentifierOrDefault(); got != 3 {
+		t.Fatalf("ForgotPerIdentifierOrDefault() = %d, want 3", got)
+	}
+	if got := defaults.ResetPerIPOrDefault(); got != 30 {
+		t.Fatalf("ResetPerIPOrDefault() = %d, want 30", got)
+	}
+	if got := defaults.ResetPerTokenOrDefault(); got != 5 {
+		t.Fatalf("ResetPerTokenOrDefault() = %d, want 5", got)
+	}
+
+	cfg := validTestConfig()
+	cfg.Auth.RateLimit.LoginPerIdentifier = -1
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), "auth.rate_limit.login_per_identifier must be positive when set") {
+		t.Fatalf("Validate() error = %v, want negative rate-limit error", err)
 	}
 }
 

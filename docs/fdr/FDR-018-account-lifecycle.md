@@ -1,7 +1,7 @@
 # FDR-018: Account Lifecycle
 
 **Status:** Active
-**Last reviewed:** 2026-07-10
+**Last reviewed:** 2026-07-12
 
 ## Overview
 
@@ -28,9 +28,9 @@ This FDR covers the user account from registration through deletion: signup, ema
 ### Account deletion
 
 - The user requests deletion via Account Settings.
-- A two-step confirmation flow asks the user to type a confirmation string before the deletion executes.
+- A two-step confirmation flow asks the user to type a confirmation string before the deletion executes. Both confirmation-token issuance and deletion require `user.delete-self` and a fresh runtime credential; password-backed accounts can refresh a stale credential by proving the current password.
 - Account deletion confirmation-token issuance is recorded in the EVT audit log with expiry and safe request metadata; the raw token is not recorded.
-- The account deletion confirmation token itself lives in `RUNTIME_STATE` under an HMAC-derived key with a 15-minute per-key TTL.
+- The account deletion confirmation token itself lives in `RUNTIME_STATE` under an HMAC-derived key with a 15-minute per-key TTL. It is bound to the user's authentication generation and consumed with a revision-checked KV delete, so password/recovery changes invalidate it and concurrent requests cannot both pass confirmation.
 - On deletion, the server: removes the user's profile data, deletes their avatar, shreds the user's app-owned DEK refs from `RUNTIME_STATE` and KMS wrapping-key refs from `ENCRYPTION_KEYS`, records `UserKeyShreddedEvent` on the user aggregate, records durable deletion facts for message-owned assets and derivatives, and revokes all their sessions and bearer tokens. An elected cleanup worker retries physical removal for current message-owned asset deletion facts.
 - After deletion, all messages the user ever posted are tombstoned by projection before decryption and cryptographically unreadable. Timeline clients apply the normal deleted-message retention rule, so placeholders without current attachments, previews, reactions, or thread replies disappear after one hour.
 - New durable user events store login, display name, and verified email as encrypted PII payloads. Projections decrypt them while the user's key exists and skip rebuilding them after crypto-shredding.
@@ -58,9 +58,9 @@ This FDR covers the user account from registration through deletion: signup, ema
 
 ### 3. Two-step deletion confirmation
 
-**Decision:** Account deletion requires the user to type a confirmation phrase, not just click a button. The `requestAccountDeletion` mutation sets up the flow; `deleteMyAccount` finalises it.
-**Why:** Deletion is irreversible (the encryption key is destroyed; messages can't be recovered). A single misclick can't be allowed to trigger that. The phrase-typing step also defends against XSS triggering the mutation without the user's awareness — content scripts can't fill the phrase from the actual user.
-**Tradeoff:** Slightly more UI work. Worth it for the irreversibility.
+**Decision:** Account deletion requires the user to type a confirmation phrase, not just click a button. The `requestAccountDeletion` mutation sets up the flow; `deleteMyAccount` finalises it. The server checks `user.delete-self` and fresh authentication at both boundaries, and rechecks permission before consuming the generation-bound token with KV optimistic concurrency control.
+**Why:** Deletion is irreversible (the encryption key is destroyed; messages can't be recovered). A single misclick, stale authenticated session, revoked self-deletion capability, or stolen confirmation token cannot be allowed to trigger it. The phrase-typing step also requires deliberate user interaction.
+**Tradeoff:** Stale sessions need a current-password proof or a new sign-in before deletion. Passwordless users whose session is no longer fresh must sign in again through their provider.
 
 ### 4. Crypto-shredding instead of message deletion
 
@@ -94,7 +94,7 @@ This FDR covers the user account from registration through deletion: signup, ema
 
 ## Permissions
 
-- Self: anyone authenticated can update their own profile (FDR-022), add or remove their own emails, and delete their own account.
+- Self: anyone authenticated can update their own profile (FDR-022) and add or remove their own emails. Account deletion additionally requires `user.delete-self`, a fresh runtime credential, and the short-lived confirmation token.
 - `user.delete-any` — admin permission to delete other users' accounts.
 - `user.delete-self` — gates own-account deletion. Granted to `everyone` by default; operators can revoke to lock down self-deletion.
 
