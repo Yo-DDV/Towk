@@ -1658,6 +1658,9 @@ func TestChattoCore_AdminUpdateUserAuthorization(t *testing.T) {
 		var found bool
 		for _, entry := range log.Entries {
 			if strings.Contains(entry.PayloadJSON, target.Id) {
+				if strings.Contains(entry.PayloadJSON, "passwordHash") || strings.Contains(entry.PayloadJSON, "$2") {
+					t.Fatalf("admin password reset audit entry exposes password hash material: %s", entry.PayloadJSON)
+				}
 				found = true
 				break
 			}
