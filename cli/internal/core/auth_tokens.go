@@ -57,6 +57,7 @@ type AuthTokenData struct {
 	Source          string                       `json:"source,omitempty"`
 	Request         *corev1.AuditRequestMetadata `json:"request,omitempty"`
 	CreatedAt       time.Time                    `json:"created_at"`
+	FamilyCreatedAt time.Time                    `json:"family_created_at,omitempty"`
 	AuthGeneration  uint64                       `json:"auth_generation,omitempty"`
 	FreshAuthAt     time.Time                    `json:"fresh_auth_at,omitempty"`
 	FreshAuthMethod string                       `json:"fresh_auth_method,omitempty"`
@@ -73,6 +74,7 @@ type ValidatedRuntimeCredential struct {
 	Source          string
 	Request         *corev1.AuditRequestMetadata
 	CreatedAt       time.Time
+	FamilyCreatedAt time.Time
 	AuthGeneration  uint64
 	FreshAuthAt     time.Time
 	FreshAuthMethod string
@@ -109,6 +111,7 @@ func validatedRuntimeCredentialFromAuthToken(handle string, data AuthTokenData) 
 		Source:          data.Source,
 		Request:         data.Request,
 		CreatedAt:       data.CreatedAt,
+		FamilyCreatedAt: data.familyCreatedAtOrDefault(),
 		AuthGeneration:  data.AuthGeneration,
 		FreshAuthAt:     data.FreshAuthAt,
 		FreshAuthMethod: data.FreshAuthMethod,
@@ -125,6 +128,32 @@ func (c *ChattoCore) authTokenTTL() time.Duration {
 		return c.config.AuthTokenTTL
 	}
 	return 90 * 24 * time.Hour
+}
+
+func (c *ChattoCore) authTokenAbsoluteTTL() time.Duration {
+	if c.config.AuthTokenAbsoluteTTL != 0 {
+		return c.config.AuthTokenAbsoluteTTL
+	}
+	return 365 * 24 * time.Hour
+}
+
+func (d AuthTokenData) familyCreatedAtOrDefault() time.Time {
+	if !d.FamilyCreatedAt.IsZero() {
+		return d.FamilyCreatedAt
+	}
+	return d.CreatedAt
+}
+
+func (c *ChattoCore) runtimeCredentialRefreshTTL(data AuthTokenData, presentation AuthTokenPresentation, now time.Time) (time.Duration, bool) {
+	familyCreatedAt := data.familyCreatedAtOrDefault()
+	if data.CreatedAt.IsZero() || familyCreatedAt.IsZero() || familyCreatedAt.After(data.CreatedAt) {
+		return 0, false
+	}
+	absoluteRemaining := familyCreatedAt.Add(c.authTokenAbsoluteTTL()).Sub(now)
+	if absoluteRemaining <= 0 {
+		return 0, false
+	}
+	return min(c.runtimeCredentialTTL(presentation), absoluteRemaining), true
 }
 
 func (c *ChattoCore) authTokenKey(token string) string {
@@ -172,6 +201,16 @@ func (c *ChattoCore) ValidatePresentedRuntimeCredential(ctx context.Context, han
 		_ = c.storage.runtimeStateKV.Delete(ctx, key)
 		return ValidatedRuntimeCredential{}, ErrAuthTokenNotFound
 	}
+	now := time.Now()
+	refreshTTL, withinAbsoluteLifetime := c.runtimeCredentialRefreshTTL(tokenData, presentation, now)
+	if !withinAbsoluteLifetime {
+		_ = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
+		return ValidatedRuntimeCredential{}, ErrAuthTokenNotFound
+	}
+	familyCreatedAtWasMissing := tokenData.FamilyCreatedAt.IsZero()
+	if familyCreatedAtWasMissing {
+		tokenData.FamilyCreatedAt = tokenData.CreatedAt
+	}
 
 	validation, err := c.ValidateRuntimeCredential(ctx, RuntimeCredential{
 		UserID:         tokenData.UserID,
@@ -185,13 +224,13 @@ func (c *ChattoCore) ValidatePresentedRuntimeCredential(ctx context.Context, han
 		_ = c.storage.runtimeStateKV.Delete(ctx, key)
 		return ValidatedRuntimeCredential{}, ErrAuthTokenNotFound
 	}
-	if validation.ShouldPersistAuthGeneration {
+	if validation.ShouldPersistAuthGeneration || familyCreatedAtWasMissing {
 		tokenData.AuthGeneration = validation.AuthGeneration
 		if value, err := json.Marshal(tokenData); err == nil {
-			_, _ = c.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), c.runtimeCredentialTTL(presentation))
+			_, _ = c.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), refreshTTL)
 		}
 	} else {
-		_, _ = c.updateRuntimeStateTokenTTL(ctx, key, entry.Value(), entry.Revision(), c.runtimeCredentialTTL(presentation))
+		_, _ = c.updateRuntimeStateTokenTTL(ctx, key, entry.Value(), entry.Revision(), refreshTTL)
 	}
 
 	return validatedRuntimeCredentialFromAuthToken(handle, tokenData), nil
@@ -232,13 +271,14 @@ func (c *ChattoCore) CreateAuthTokenWithSourceGeneration(ctx context.Context, us
 	createdAt := time.Now()
 	key := c.authTokenKey(token)
 	tokenData := AuthTokenData{
-		UserID:         userID,
-		Kind:           authTokenKindForSource(source),
-		Presentation:   AuthTokenPresentationBearer,
-		Source:         source,
-		Request:        auditRequestMetadata(ctx),
-		CreatedAt:      createdAt,
-		AuthGeneration: authGeneration,
+		UserID:          userID,
+		Kind:            authTokenKindForSource(source),
+		Presentation:    AuthTokenPresentationBearer,
+		Source:          source,
+		Request:         auditRequestMetadata(ctx),
+		CreatedAt:       createdAt,
+		FamilyCreatedAt: createdAt,
+		AuthGeneration:  authGeneration,
 	}
 	if sourceGrantsInitialFreshAuth(source) {
 		tokenData.FreshAuthAt = createdAt
@@ -251,7 +291,11 @@ func (c *ChattoCore) CreateAuthTokenWithSourceGeneration(ctx context.Context, us
 		return "", fmt.Errorf("failed to marshal auth token: %w", err)
 	}
 
-	_, err = c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(c.authTokenTTL()))
+	initialTTL, ok := c.runtimeCredentialRefreshTTL(tokenData, AuthTokenPresentationBearer, createdAt)
+	if !ok {
+		return "", ErrAuthTokenNotFound
+	}
+	_, err = c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(initialTTL))
 	if err != nil {
 		return "", fmt.Errorf("failed to store auth token: %w", err)
 	}
@@ -266,9 +310,8 @@ func (c *ChattoCore) CreateAuthTokenWithSourceGeneration(ctx context.Context, us
 // ValidateAuthToken checks if a bearer token is valid and returns the associated user ID.
 // Returns ErrAuthTokenNotFound if the token doesn't exist (or has expired via NATS TTL).
 //
-// Sliding window: each successful validation rewrites the entry to reset the NATS KV TTL.
-// This means the token only expires after the configured TTL of *inactivity* — active
-// users are never logged out.
+// Each successful validation refreshes the sliding inactivity TTL without
+// extending the credential past its configured absolute family lifetime.
 func (c *ChattoCore) ValidateAuthToken(ctx context.Context, token string) (string, error) {
 	credential, err := c.ValidatePresentedRuntimeCredential(ctx, token, AuthTokenPresentationBearer)
 	if err != nil {

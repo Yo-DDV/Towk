@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -212,7 +211,11 @@ func (s *HTTPServer) setupRoutes() error {
 		s.logger.Warn("webserver.cookie_encryption_secret is not set; session cookies are signed but NOT encrypted. Run `chatto init` on a fresh server to generate one, or add a hex-encoded 32-byte value to chatto.toml.")
 		sessionStore = cookie.NewStore(authKey)
 	}
-	sessionStore.Options(cookieSessionOptions(s.config.Auth.TokenTTLOrDefault(), strings.HasPrefix(s.config.Webserver.URL, "https")))
+	secureCookies, err := s.config.Webserver.SecureCookies()
+	if err != nil {
+		return err
+	}
+	sessionStore.Options(cookieSessionOptions(s.config.Auth.TokenTTLOrDefault(), secureCookies))
 	sessionStore = newDebugSessionStore(sessionStore, s.logger)
 	s.router.Use(sessions.Sessions("chatto_session", sessionStore))
 

@@ -86,6 +86,92 @@ func TestChattoCore_CreateAndValidateCookieSession(t *testing.T) {
 	}
 }
 
+func TestChattoCore_RotateCookieSessionPreservesAbsoluteFamilyLifetime(t *testing.T) {
+	core, _ := setupTestCore(t)
+	core.config.AuthTokenTTL = time.Hour
+	core.config.AuthTokenAbsoluteTTL = 3 * time.Hour
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "cookie-family-user", "Cookie Family User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	sessionID, record, err := core.CreateCookieSession(ctx, user.Id, "password_login")
+	if err != nil {
+		t.Fatalf("CreateCookieSession: %v", err)
+	}
+	key := core.authTokenKey(sessionID)
+	entry, err := core.storage.runtimeStateKV.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("get cookie credential: %v", err)
+	}
+	var data AuthTokenData
+	if err := json.Unmarshal(entry.Value(), &data); err != nil {
+		t.Fatalf("unmarshal cookie credential: %v", err)
+	}
+	familyCreatedAt := time.Now().Add(-2 * time.Hour).UTC()
+	data.FamilyCreatedAt = familyCreatedAt
+	value, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal cookie credential: %v", err)
+	}
+	if _, err := core.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), time.Hour); err != nil {
+		t.Fatalf("store cookie credential: %v", err)
+	}
+
+	rotatedID, _, err := core.RotateCookieSession(ctx, user.Id, sessionID, record)
+	if err != nil {
+		t.Fatalf("RotateCookieSession: %v", err)
+	}
+	rotated := readAuthTokenData(t, core, rotatedID)
+	if !rotated.FamilyCreatedAt.Equal(familyCreatedAt) {
+		t.Fatalf("rotated family created at = %v, want %v", rotated.FamilyCreatedAt, familyCreatedAt)
+	}
+	if !rotated.CreatedAt.After(data.CreatedAt) {
+		t.Fatalf("rotated credential created at = %v, want after %v", rotated.CreatedAt, data.CreatedAt)
+	}
+}
+
+func TestChattoCore_ValidateCookieCredentialRejectsAbsoluteExpiry(t *testing.T) {
+	core, _ := setupTestCore(t)
+	core.config.AuthTokenTTL = time.Hour
+	core.config.AuthTokenAbsoluteTTL = 2 * time.Hour
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "expired-cookie-family-user", "Expired Cookie Family User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	sessionID, _, err := core.CreateCookieSession(ctx, user.Id, "password_login")
+	if err != nil {
+		t.Fatalf("CreateCookieSession: %v", err)
+	}
+	key := core.authTokenKey(sessionID)
+	entry, err := core.storage.runtimeStateKV.Get(ctx, key)
+	if err != nil {
+		t.Fatalf("get cookie credential: %v", err)
+	}
+	var data AuthTokenData
+	if err := json.Unmarshal(entry.Value(), &data); err != nil {
+		t.Fatalf("unmarshal cookie credential: %v", err)
+	}
+	data.FamilyCreatedAt = time.Now().Add(-3 * time.Hour)
+	value, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal cookie credential: %v", err)
+	}
+	if _, err := core.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), time.Hour); err != nil {
+		t.Fatalf("store cookie credential: %v", err)
+	}
+
+	if _, err := core.ValidateCookieCredential(ctx, sessionID); !errors.Is(err, ErrCookieSessionNotFound) {
+		t.Fatalf("ValidateCookieCredential err = %v, want ErrCookieSessionNotFound", err)
+	}
+	if _, err := core.storage.runtimeStateKV.Get(ctx, key); !errors.Is(err, jetstream.ErrKeyNotFound) && !errors.Is(err, jetstream.ErrKeyDeleted) {
+		t.Fatalf("expired cookie credential still present: %v", err)
+	}
+}
+
 func TestChattoCore_CreateCookieSessionRejectsEmptyUser(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
@@ -112,9 +198,26 @@ func TestChattoCore_CookieSessionFreshAuth(t *testing.T) {
 	}
 
 	created.FreshAuthAt = timestamppb.New(time.Now().Add(-FreshAuthWindow - time.Minute))
-	rotatedID, rotated, err := core.CreateCookieSessionForGenerationPreservingFreshAuth(ctx, user.Id, "session_rotation", created.GetAuthGeneration(), created)
+	key := core.authTokenKey(sessionID)
+	entry, err := core.storage.runtimeStateKV.Get(ctx, key)
 	if err != nil {
-		t.Fatalf("CreateCookieSessionForGenerationPreservingFreshAuth: %v", err)
+		t.Fatalf("get cookie credential: %v", err)
+	}
+	var tokenData AuthTokenData
+	if err := json.Unmarshal(entry.Value(), &tokenData); err != nil {
+		t.Fatalf("unmarshal cookie credential: %v", err)
+	}
+	tokenData.FreshAuthAt = created.GetFreshAuthAt().AsTime()
+	value, err := json.Marshal(tokenData)
+	if err != nil {
+		t.Fatalf("marshal cookie credential: %v", err)
+	}
+	if _, err := core.updateRuntimeStateTokenTTL(ctx, key, value, entry.Revision(), core.cookieSessionTTL()); err != nil {
+		t.Fatalf("store cookie credential: %v", err)
+	}
+	rotatedID, rotated, err := core.RotateCookieSession(ctx, user.Id, sessionID, created)
+	if err != nil {
+		t.Fatalf("RotateCookieSession: %v", err)
 	}
 	if rotated.GetFreshAuthAt() == nil || !rotated.GetFreshAuthAt().AsTime().Equal(created.GetFreshAuthAt().AsTime()) {
 		t.Fatalf("rotated fresh auth at = %v, want %v", rotated.GetFreshAuthAt(), created.GetFreshAuthAt())

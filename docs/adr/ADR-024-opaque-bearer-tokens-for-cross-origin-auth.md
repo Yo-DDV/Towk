@@ -46,11 +46,15 @@ Use opaque bearer tokens stored in NATS KV. Tokens are issued alongside existing
 - Cleaned up for a whole user by scanning `session.*` records, matching the stored user ID, and deleting each match; password resets, password changes, and account deletion use this path after advancing the user's auth generation
 
 Issuance and explicit revocation append safe audit facts to `EVT` with source/reason and request metadata. The raw bearer token and token-key HMAC are never copied into the event log.
-- Auto-expired via NATS KV per-key TTL (default 90 days, configurable via `auth.token_ttl`)
+- Auto-expired via NATS KV per-key sliding inactivity TTL (default 90 days,
+  configurable via `auth.token_ttl`) without exceeding the non-renewable
+  absolute lifetime (default 365 days, configurable via
+  `auth.token_absolute_ttl`)
 
 **Auth middleware priority:**
-1. Check `Authorization: Bearer <token>` header → validate token → load user
-2. Fall back to session cookie (existing behavior, unchanged)
+1. If `Authorization` is present, require exactly one valid Bearer credential;
+   malformed, unsupported, duplicated, or invalid explicit credentials fail closed.
+2. Fall back to the session cookie only when `Authorization` is absent.
 
 **OAuth authorization for cross-origin Towk clients:**
 - Clients start at `/oauth/authorize` with `response_type=code`, PKCE `code_challenge`, and a callback `redirect_uri`.
@@ -64,7 +68,7 @@ Issuance and explicit revocation append safe audit facts to `EVT` with source/re
 
 - **Cross-origin clients become possible**: Clients that can obtain a bearer token through a trusted OAuth redirect or another authentication flow can authenticate with an HTTP header. This unblocks the multi-instance client epic without trusting arbitrary web origins.
 - **Cookie auth is unchanged**: The embedded SPA continues to work exactly as before. No migration needed for existing deployments.
-- **No token refresh complexity**: Long-lived tokens with server-side TTL are simple. If a token expires, the client re-authenticates. No refresh token dance.
+- **No token refresh complexity**: Opaque tokens keep server-side inactivity and absolute expiry. When either boundary is reached, the client uses the existing explicit reauthentication flow; there is no refresh token dance.
 - **Instant revocation**: Deleting a KV key immediately invalidates the token. No blocklist management or "wait for JWT expiry" window.
 - **One KV lookup per request**: Token validation requires a `Get` on `RUNTIME_STATE`, but this is negligible given we already do a user load per authenticated request.
 - **No reverse index**: user-wide cleanup does a `session.*` prefix scan and matches the stored user ID. The revocation guarantee comes from the token's stored auth generation being compared to the current user auth generation, so concurrent issuance cannot survive by missing the scan. A secondary index can be added later if token counts make scans too expensive.

@@ -146,17 +146,19 @@ func TestClearCSRFCookieMatchesWebserverSecurity(t *testing.T) {
 	for _, test := range []struct {
 		name       string
 		webserver  string
+		directTLS  bool
 		wantSecure bool
 	}{
 		{name: "HTTP", webserver: "http://localhost:4000", wantSecure: false},
 		{name: "HTTPS", webserver: "https://towk.example", wantSecure: true},
+		{name: "direct TLS without public URL", directTLS: true, wantSecure: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
 			server := &HTTPServer{
 				config: config.ChattoConfig{
-					Webserver: config.WebserverConfig{URL: test.webserver},
+					Webserver: config.WebserverConfig{URL: test.webserver, TLS: config.TLSConfig{Enabled: test.directTLS}},
 				},
 			}
 

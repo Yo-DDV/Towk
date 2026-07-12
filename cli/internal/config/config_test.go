@@ -1454,6 +1454,100 @@ func TestChattoConfig_Validate_URLsAndOrigins(t *testing.T) {
 	}
 }
 
+func TestWebserverConfig_SecureCookies(t *testing.T) {
+	tests := []struct {
+		name       string
+		url        string
+		directTLS  bool
+		wantSecure bool
+		wantError  string
+	}{
+		{name: "plain HTTP", url: "http://chat.example", wantSecure: false},
+		{name: "HTTPS behind proxy", url: "https://chat.example", wantSecure: true},
+		{name: "direct TLS without public URL", directTLS: true, wantSecure: true},
+		{name: "local HTTP without public URL", wantSecure: false},
+		{name: "direct TLS with HTTPS public URL", url: "https://chat.example", directTLS: true, wantSecure: true},
+		{name: "direct TLS rejects HTTP public URL", url: "http://chat.example", directTLS: true, wantError: "webserver.url must use https when webserver.tls.enabled is true"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := WebserverConfig{URL: tt.url, TLS: TLSConfig{Enabled: tt.directTLS}}
+			got, err := cfg.SecureCookies()
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+					t.Fatalf("SecureCookies error = %v, want %q", err, tt.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SecureCookies: %v", err)
+			}
+			if got != tt.wantSecure {
+				t.Fatalf("SecureCookies = %t, want %t", got, tt.wantSecure)
+			}
+		})
+	}
+}
+
+func TestChattoConfig_Validate_AuthTokenLifetimes(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*ChattoConfig)
+		wantError string
+	}{
+		{name: "defaults"},
+		{
+			name: "custom valid lifetimes",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Auth.TokenTTL = Duration(30 * 24 * time.Hour)
+				cfg.Auth.TokenAbsoluteTTL = Duration(180 * 24 * time.Hour)
+			},
+		},
+		{
+			name: "negative inactivity lifetime",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Auth.TokenTTL = Duration(-time.Hour)
+			},
+			wantError: "auth.token_ttl must be positive when set",
+		},
+		{
+			name: "negative absolute lifetime",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Auth.TokenAbsoluteTTL = Duration(-time.Hour)
+			},
+			wantError: "auth.token_absolute_ttl must be positive when set",
+		},
+		{
+			name: "absolute lifetime shorter than inactivity lifetime",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Auth.TokenTTL = Duration(30 * 24 * time.Hour)
+				cfg.Auth.TokenAbsoluteTTL = Duration(7 * 24 * time.Hour)
+			},
+			wantError: "auth.token_absolute_ttl must be greater than or equal to auth.token_ttl",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			if tt.configure != nil {
+				tt.configure(&cfg)
+			}
+			err := cfg.Validate()
+			if tt.wantError == "" {
+				if err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("Validate error = %v, want %q", err, tt.wantError)
+			}
+		})
+	}
+}
+
 func TestChattoConfig_Validate_EnabledIntegrationsRequireWebserverURL(t *testing.T) {
 	tests := []struct {
 		name      string

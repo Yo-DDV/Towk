@@ -23,7 +23,7 @@ Login comparison runs bcrypt against a dummy hash for unknown users and OAuth-on
 
 ### Sessions and tokens
 
-Towk issues **opaque bearer tokens**, not JWTs. Bearer-token and same-origin cookie-session handles are stored as typed runtime credentials in `RUNTIME_STATE` under HMAC-derived `session.{hmac}` keys, with a sliding TTL: every successful validation re-puts the entry, extending its expiry. Revocation is a single KV delete -- there is no signed-but-still-valid window to worry about. Deprecated legacy cookie-session records remain readable for now so upgrades do not sign out existing browser sessions.
+Towk issues **opaque bearer tokens**, not JWTs. Bearer-token and same-origin cookie-session handles are stored as typed runtime credentials in `RUNTIME_STATE` under HMAC-derived `session.{hmac}` keys. Successful validation refreshes the sliding inactivity TTL (90 days by default) only up to the non-renewable absolute family lifetime (365 days by default). Cookie-handle rotation preserves that family boundary. Revocation is a single KV delete -- there is no signed-but-still-valid window to worry about. Deprecated legacy cookie-session records remain readable for now so upgrades do not sign out existing browser sessions.
 
 Browser sessions use signed cookies with the following options:
 
@@ -31,9 +31,9 @@ Browser sessions use signed cookies with the following options:
 | ---------- | --------------------------------------- |
 | `HttpOnly` | `true`                                  |
 | `SameSite` | `Lax`                                   |
-| `Secure`   | `true` when `webserver.url` is `https://` |
+| `Secure`   | `true` when `webserver.url` is HTTPS or Towk terminates TLS directly |
 | `Path`     | `/`                                     |
-| `MaxAge`   | 90 days                                 |
+| `MaxAge`   | `auth.token_ttl` (90 days by default)   |
 
 Session cookies are always signed with `webserver.cookie_signing_secret`. They are additionally **encrypted** if `webserver.cookie_encryption_secret` is set. When the encryption secret is missing, Towk logs a startup warning — running `chatto init` on a fresh server generates both secrets automatically.
 
@@ -115,7 +115,7 @@ Towk has **built-in Let's Encrypt** support via Go's `autocert` package — no C
 - `MinVersion: TLS 1.2` is enforced.
 - Plain HTTP requests are 301-redirected to HTTPS (except ACME challenges).
 
-TLS is **not required**. Towk can also run plain HTTP, which is useful for local development or when you terminate TLS at your own proxy. If you terminate TLS upstream, make sure `webserver.url` starts with `https://` so the `Secure` cookie flag is set correctly.
+TLS is **not required**. Towk can also run plain HTTP, which is useful for local development. If you terminate TLS upstream, set `webserver.url` to the external HTTPS origin so cookies are marked `Secure`. When Towk terminates TLS directly, cookies are secure even if `webserver.url` is omitted; configuring an HTTP public URL together with direct TLS is rejected as incoherent.
 
 `webserver.url` is also the trusted public origin for generated absolute API and asset URLs. Towk does not implicitly trust `X-Forwarded-Proto` or similar proxy headers for public URL generation; reverse-proxy deployments should set `webserver.url` to the external HTTPS origin.
 

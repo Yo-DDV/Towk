@@ -61,10 +61,12 @@ Current occupants include:
   90-day TTL.
 - Web Push subscriptions: `push_subscription.{userId}.{endpointHash}`.
 - Runtime credential verifiers: `session.{hmac}`, with per-key
-  `auth.token_ttl` sliding-window expiry. Values include credential kind
+  `auth.token_ttl` sliding inactivity expiry capped by
+  `auth.token_absolute_ttl`. Values include credential kind
   (`first_party_session` or `oauth_access_token`), presentation (`bearer` or
-  `cookie`), source, safe request metadata, fresh-auth metadata, and the user
-  auth generation they were issued against. User-wide cleanup scans these
+  `cookie`), source, safe request metadata, fresh-auth metadata, credential and
+  family creation times, and the user auth generation they were issued against.
+  Cookie-handle rotation preserves the family creation time. User-wide cleanup scans these
   records and deletes entries whose stored user ID matches.
 - Legacy embedded-SPA cookie-session records:
   `cookie_session.{userId}.{sessionHmac}`. Current code no longer writes this

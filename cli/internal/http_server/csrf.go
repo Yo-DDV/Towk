@@ -207,7 +207,7 @@ func (s *HTTPServer) setCSRFCookie(c *gin.Context, token string) {
 		60*60*24*90,
 		"/",
 		"",
-		strings.HasPrefix(s.config.Webserver.URL, "https"),
+		s.secureCookieTransport(),
 		false,
 	)
 }
@@ -220,7 +220,12 @@ func (s *HTTPServer) clearCSRFCookie(c *gin.Context) {
 		-1,
 		"/",
 		"",
-		strings.HasPrefix(s.config.Webserver.URL, "https"),
+		s.secureCookieTransport(),
 		false,
 	)
+}
+
+func (s *HTTPServer) secureCookieTransport() bool {
+	secure, err := s.config.Webserver.SecureCookies()
+	return err == nil && secure
 }
