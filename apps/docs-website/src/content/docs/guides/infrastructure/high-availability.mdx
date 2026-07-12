@@ -142,13 +142,16 @@ Disable embedded NATS and point Towk at your cluster:
 
 ```bash
 CHATTO_NATS_EMBEDDED_ENABLED=false
-CHATTO_NATS_CLIENT_URL=nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222
+CHATTO_NATS_CLIENT_URL=tls://nats-1.example.com:4222,tls://nats-2.example.com:4222,tls://nats-3.example.com:4222
 CHATTO_NATS_CLIENT_AUTH_METHOD=token
 CHATTO_NATS_CLIENT_TOKEN=your-shared-token
 CHATTO_NATS_REPLICAS=3
 ```
 
 Listing multiple URLs gives the client failover — if one node is down, it connects to another.
+Use certificates trusted by the system, or set `CHATTO_NATS_CLIENT_CA_CERT`
+to your private CA certificate. Towk rejects plaintext non-loopback endpoints
+unless you explicitly enable the isolated-network escape hatch.
 
 ## Failure Scenarios
 

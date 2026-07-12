@@ -126,6 +126,8 @@ func TestReadConfig_WithoutConfigFile(t *testing.T) {
 	t.Setenv("CHATTO_WEBSERVER_COOKIE_ENCRYPTION_SECRET", "000102030405060708090a0b0c0d0e0f")
 	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
 	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_NATS_CLIENT_URL", "nats://nats.internal:4222")
+	t.Setenv("CHATTO_NATS_CLIENT_ALLOW_INSECURE", "true")
 
 	// ReadConfig should succeed even without chatto.toml
 	cfg, err := ReadConfig("")
@@ -139,6 +141,9 @@ func TestReadConfig_WithoutConfigFile(t *testing.T) {
 	}
 	if cfg.Webserver.CookieSigningSecret != "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
 		t.Errorf("expected cookie secret to be set from env var")
+	}
+	if cfg.NATS.Client.URL != "nats://nats.internal:4222" || !cfg.NATS.Client.AllowInsecure {
+		t.Fatalf("NATS client env override = URL %q, allow_insecure %t", cfg.NATS.Client.URL, cfg.NATS.Client.AllowInsecure)
 	}
 	if cfg.Webserver.CookieEncryptionSecret != "000102030405060708090a0b0c0d0e0f" {
 		t.Errorf("expected cookie encryption secret to be set from env var")
@@ -1710,6 +1715,59 @@ func TestChattoConfig_Validate_NATSClientTokenMatchesEmbedded(t *testing.T) {
 	err := cfg.Validate()
 	if err == nil || !strings.Contains(err.Error(), "nats.client.token must match nats.embedded.auth_token") {
 		t.Fatalf("Validate() error = %v, want NATS token mismatch", err)
+	}
+}
+
+func TestChattoConfig_Validate_NATSClientTransportSecurity(t *testing.T) {
+	tests := []struct {
+		name      string
+		client    NATSClientConfig
+		wantError string
+	}{
+		{
+			name:   "external TLS URL",
+			client: NATSClientConfig{URL: "tls://nats.example.com:4222"},
+		},
+		{
+			name:   "loopback plaintext URL",
+			client: NATSClientConfig{URL: "nats://127.0.0.1:4222"},
+		},
+		{
+			name: "custom CA forces TLS",
+			client: NATSClientConfig{
+				URL:    "nats://nats.internal:4222",
+				CACert: "configured-ca",
+			},
+		},
+		{
+			name: "explicit insecure override",
+			client: NATSClientConfig{
+				URL:           "nats://nats:4222",
+				AllowInsecure: true,
+			},
+		},
+		{
+			name:      "external plaintext URL",
+			client:    NATSClientConfig{URL: "nats://nats.example.com:4222"},
+			wantError: "refusing plaintext NATS connection",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			cfg.NATS.Client = tt.client
+			err := cfg.Validate()
+			if tt.wantError == "" {
+				if err != nil {
+					t.Fatalf("Validate() unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.wantError)
+			}
+		})
 	}
 }
 

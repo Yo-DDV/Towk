@@ -7,6 +7,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
+	"net/url"
+	"strings"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nkeys"
@@ -25,6 +28,11 @@ const (
 
 // Config holds the parameters needed to build NATS authentication + TLS options.
 type Config struct {
+	// ServerURL is the comma-separated NATS server pool passed to nats.Connect.
+	// When set, ConnectOptions rejects plaintext non-loopback endpoints unless
+	// AllowInsecure explicitly opts into that risk.
+	ServerURL string
+
 	AuthMethod      AuthMethod
 	Token           string
 	Username        string
@@ -37,10 +45,19 @@ type Config struct {
 	// connection. When empty, no TLS option is added — the connection uses
 	// system defaults (which kick in automatically if the URL is tls://).
 	CACert string
+
+	// AllowInsecure permits plaintext connections to non-loopback endpoints.
+	// It should only be used on an isolated, trusted network because NATS
+	// credentials and application data otherwise cross the network unencrypted.
+	AllowInsecure bool
 }
 
 // ConnectOptions returns NATS connection options for the given auth + TLS configuration.
 func ConnectOptions(cfg Config) ([]nats.Option, error) {
+	if err := ValidateTransportSecurity(cfg); err != nil {
+		return nil, err
+	}
+
 	opts, err := authOptions(cfg)
 	if err != nil {
 		return nil, err
@@ -55,6 +72,59 @@ func ConnectOptions(cfg Config) ([]nats.Option, error) {
 	}
 
 	return opts, nil
+}
+
+// ValidateTransportSecurity rejects plaintext NATS connections to non-loopback
+// endpoints unless the operator explicitly opted into that risk. A custom CA
+// causes nats.Secure to protect the whole server pool, including nats:// URLs.
+func ValidateTransportSecurity(cfg Config) error {
+	if strings.TrimSpace(cfg.ServerURL) == "" {
+		return nil
+	}
+
+	for i, raw := range strings.Split(cfg.ServerURL, ",") {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return fmt.Errorf("nats transport: empty server URL at position %d", i+1)
+		}
+
+		candidate := raw
+		if !strings.Contains(candidate, "://") {
+			candidate = "nats://" + candidate
+		}
+		u, err := url.Parse(candidate)
+		if err != nil {
+			return fmt.Errorf("nats transport: invalid server URL at position %d", i+1)
+		}
+
+		host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+		if host == "" {
+			return fmt.Errorf("nats transport: missing host at position %d", i+1)
+		}
+
+		scheme := strings.ToLower(u.Scheme)
+		switch scheme {
+		case "tls", "wss":
+			continue
+		case "nats", "ws":
+		default:
+			return fmt.Errorf("nats transport: unsupported NATS URL scheme %q at position %d", scheme, i+1)
+		}
+
+		if cfg.CACert != "" || cfg.AllowInsecure {
+			continue
+		}
+		if host == "localhost" {
+			continue
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			continue
+		}
+
+		return fmt.Errorf("nats transport: refusing plaintext NATS connection to a non-loopback endpoint; use tls:// or wss://, configure nats.client.ca_cert, or set nats.client.allow_insecure = true only for an isolated trusted network")
+	}
+
+	return nil
 }
 
 // authOptions returns the auth-method-specific connection options.

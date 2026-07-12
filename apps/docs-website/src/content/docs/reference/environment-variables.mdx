@@ -268,7 +268,7 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 ### Client
 
 <EnvVar name="CHATTO_NATS_CLIENT_URL" toml="nats.client.url">
-  NATS server URL to connect to when using external NATS or an exposed embedded TCP listener. Supports comma-separated URLs for cluster failover (e.g., `nats://n1:4222,nats://n2:4222`).
+  NATS server URL to connect to when using external NATS or an exposed embedded TCP listener. Non-loopback endpoints require TLS through `tls://`, `wss://`, or `CHATTO_NATS_CLIENT_CA_CERT`. Supports comma-separated URLs for cluster failover (e.g., `tls://n1.example.com:4222,tls://n2.example.com:4222`).
 </EnvVar>
 
 <EnvVar name="CHATTO_NATS_CLIENT_AUTH_METHOD" toml="nats.client.auth_method">
@@ -297,6 +297,10 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 
 <EnvVar name="CHATTO_NATS_CLIENT_CA_CERT" toml="nats.client.ca_cert">
   PEM-encoded CA certificate for verifying the NATS server's TLS certificate. When set, the NATS client connection uses TLS.
+</EnvVar>
+
+<EnvVar name="CHATTO_NATS_CLIENT_ALLOW_INSECURE" toml="nats.client.allow_insecure" default="false">
+  Allow plaintext NATS connections to non-loopback endpoints. Use this only on an isolated, trusted network: credentials and Towk data otherwise cross the network unencrypted.
 </EnvVar>
 
 ## Authentication

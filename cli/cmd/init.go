@@ -112,7 +112,7 @@ var initCmd = &cobra.Command{
 			NATS: config.NATSConfig{
 				Replicas: 1,
 				Client: config.NATSClientConfig{
-					URL:        "nats://nats.example.com:4222",
+					URL:        "tls://nats.example.com:4222",
 					AuthMethod: config.NATSAuthToken,
 					Token:      "replace-me",
 				},

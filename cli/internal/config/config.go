@@ -761,7 +761,7 @@ const (
 
 // NATSClientConfig contains settings for connecting to an external NATS server.
 type NATSClientConfig struct {
-	URL             string         `toml:"url" env:"CHATTO_NATS_CLIENT_URL" comment:"NATS server URL. Use a comma-separated list for cluster failover, e.g. nats://n1:4222,nats://n2:4222."`
+	URL             string         `toml:"url" env:"CHATTO_NATS_CLIENT_URL" comment:"NATS server URL. Non-loopback endpoints require TLS via tls://, wss://, or ca_cert. Use a comma-separated list for cluster failover."`
 	AuthMethod      NATSAuthMethod `toml:"auth_method" env:"CHATTO_NATS_CLIENT_AUTH_METHOD" comment:"Authentication method for the external NATS server: none, token, userpass, credentials, or nkey."`
 	Token           string         `toml:"token" env:"CHATTO_NATS_CLIENT_TOKEN" comment:"Token for token auth. Only used when auth_method = 'token'. NEVER SHARE THIS!"`
 	Username        string         `toml:"username,commented" env:"CHATTO_NATS_CLIENT_USERNAME" comment:"Username for userpass auth. Only used when auth_method = 'userpass'."`
@@ -769,11 +769,13 @@ type NATSClientConfig struct {
 	CredentialsFile string         `toml:"credentials_file,commented" env:"CHATTO_NATS_CLIENT_CREDENTIALS_FILE" comment:"Path to a NATS .creds file. Only used when auth_method = 'credentials'."`
 	NKeySeed        string         `toml:"nkey_seed,commented" env:"CHATTO_NATS_CLIENT_NKEY_SEED" comment:"NKey seed. Only used when auth_method = 'nkey'. NEVER SHARE THIS!"`
 	CACert          string         `toml:"ca_cert,commented" env:"CHATTO_NATS_CLIENT_CA_CERT" comment:"PEM-encoded CA certificate for verifying the NATS server's TLS certificate. When set, the connection uses TLS."`
+	AllowInsecure   bool           `toml:"allow_insecure,commented" env:"CHATTO_NATS_CLIENT_ALLOW_INSECURE" comment:"DANGER: Allow plaintext NATS to non-loopback endpoints. Use only on an isolated, trusted network; credentials and data are otherwise unencrypted."`
 }
 
 // NATSAuthConfig returns the auth configuration suitable for natsauth.ConnectOptions.
 func (c *NATSClientConfig) NATSAuthConfig() natsauth.Config {
 	return natsauth.Config{
+		ServerURL:       c.URL,
 		AuthMethod:      c.AuthMethod,
 		Token:           c.Token,
 		Username:        c.Username,
@@ -781,6 +783,7 @@ func (c *NATSClientConfig) NATSAuthConfig() natsauth.Config {
 		CredentialsFile: c.CredentialsFile,
 		NKeySeed:        c.NKeySeed,
 		CACert:          c.CACert,
+		AllowInsecure:   c.AllowInsecure,
 	}
 }
 
@@ -1176,8 +1179,8 @@ func (c *ChattoConfig) Validate() error {
 		errs = append(errs, err.Error())
 	}
 	if c.NATS.Client.URL != "" {
-		if _, err := url.Parse(c.NATS.Client.URL); err != nil {
-			errs = append(errs, fmt.Sprintf("nats.client.url is invalid: %v", err))
+		if err := natsauth.ValidateTransportSecurity(c.NATS.Client.NATSAuthConfig()); err != nil {
+			errs = append(errs, err.Error())
 		}
 	}
 	for _, origin := range c.Webserver.AllowedOrigins {
