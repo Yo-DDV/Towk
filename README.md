@@ -86,7 +86,7 @@ matrix before opening a pull request.
 
 ## Deployments
 
-The repository contains a reproducible pilot stack and fork-owned image pipeline.
+The repository contains a reproducible pilot stack and Towk-owned image pipeline.
 Images are built from this repository, scanned before publication, and tied to an
 exact commit through OCI metadata, SBOM and provenance attestations.
 
@@ -128,12 +128,13 @@ unredacted screenshots in reports.
 
 - `main` is protected; changes land through pull requests and required checks.
 - Conventional Commits are used for commits and pull request titles.
+- The canonical repository is standalone and has no GitHub fork-network link.
 - Upstream changes are selected and reviewed; they are not merged automatically.
 - Release artifacts are produced only by Towk-owned workflows and namespaces.
 - Durable product and architecture choices are recorded in FDRs and ADRs.
 
-See [GOVERNANCE.md](GOVERNANCE.md), [UPSTREAM.md](UPSTREAM.md), and
-[ROADMAP.md](ROADMAP.md).
+See [GOVERNANCE.md](GOVERNANCE.md), [PROVENANCE.md](PROVENANCE.md),
+[UPSTREAM.md](UPSTREAM.md), and [ROADMAP.md](ROADMAP.md).
 
 ## License and origin
 

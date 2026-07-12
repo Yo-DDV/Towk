@@ -23,12 +23,12 @@ notices must survive the rebranding.
 
 ## Decision
 
-Towk is the only product identity used on surfaces controlled by this fork:
+Towk is the only product identity used on surfaces controlled by this project:
 
 - repository name, description, topics, README, issue and pull request copy;
 - default server name, PWA metadata, icons, page titles, user-facing errors,
   documentation site, container labels, package names, and release notes;
-- fork-owned images, deployment examples, support and contribution policy.
+- Towk-owned images, deployment examples, support and contribution policy.
 
 Chatto remains named only where one of these conditions applies:
 

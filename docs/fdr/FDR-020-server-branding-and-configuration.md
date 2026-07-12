@@ -80,5 +80,5 @@ Operators can customize how their Towk server presents itself. The server's name
 
 ## Related
 
-- **ADRs:** ADR-012 (two-tier real-time events), ADR-033 (event-sourced state with projections), ADR-035 (per-aggregate phased migration), ADR-049 (Towk product identity and compatibility boundary)
+- **ADRs:** ADR-012 (two-tier real-time events), ADR-033 (event-sourced state with projections), ADR-035 (per-aggregate phased migration), ADR-049 (Towk product identity and compatibility boundary), ADR-050 (standalone repository with selective upstream integration)
 - **FDRs:** FDR-001 (Roles & Permissions), FDR-004 (Message Editing & Deletion), FDR-008 (File Attachments & Video Processing), FDR-021 (Admin Dashboard & System Monitoring)

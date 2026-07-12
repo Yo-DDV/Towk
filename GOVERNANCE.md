@@ -59,7 +59,9 @@ image workflow; a binary release does not implicitly promote an unscanned image.
 Towk selects changes from Chatto through the process in [UPSTREAM.md](UPSTREAM.md).
 Upstream authorship and license notices are preserved. Towk makes its own product,
 release, support, and compatibility decisions and does not imply upstream
-endorsement.
+endorsement. The canonical Towk repository is standalone; its archived historical
+fork is retained only as an audit record. See [PROVENANCE.md](PROVENANCE.md) and
+[ADR-050](docs/adr/ADR-050-standalone-repository-with-selective-upstream-integration.md).
 
 ## Changes to governance
 
