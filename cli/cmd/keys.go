@@ -55,12 +55,13 @@ var keysCmd = &cobra.Command{
 var keysExportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Export encryption keys",
-	Long: `Exports all Towk encryption key records to a file, encrypted with a passphrase.
+	Long: `Exports durable Towk key-encryption-key records to a file, encrypted with a passphrase.
 
 The export file is encrypted using age (age-encryption.org) and contains
 the key-encryption keys needed to unwrap encrypted message bodies and durable
 user PII. Wrapped app DEK records live in RUNTIME_STATE and are included in
-normal data backups. Store this file securely — anyone with the file,
+normal data backups. Legacy wrapped DEKs and short-lived call encryption keys
+found in ENCRYPTION_KEYS are skipped. Store this file securely — anyone with the file,
 passphrase, and data backup can decrypt encrypted Towk content.
 
 Use together with 'chatto backup' for complete disaster recovery:
@@ -126,9 +127,16 @@ func runKeysExport(cmd *cobra.Command, args []string) {
 		log.Fatal("Failed to open ENCRYPTION_KEYS bucket", "error", err)
 	}
 
-	keys, err := exportAllKeys(ctx, kv)
+	selection, err := exportAllKeys(ctx, kv)
 	if err != nil {
 		log.Fatal("Failed to export keys", "error", err)
+	}
+	keys := selection.Keys
+	if selection.SkippedWrappedDEKs > 0 {
+		log.Warn("Skipped legacy wrapped DEK records; wrapped DEKs are restored with data backups", "skipped_wrapped_deks", selection.SkippedWrappedDEKs)
+	}
+	if selection.SkippedCallKeys > 0 {
+		log.Warn("Skipped short-lived call encryption keys; active calls must establish fresh keys after restore", "skipped_call_keys", selection.SkippedCallKeys)
 	}
 
 	log.Info("Exported keys", "count", len(keys))
@@ -272,24 +280,38 @@ func importKeys(ctx context.Context, kv jetstream.KeyValue, keys []ExportedKey) 
 	return imported, skippedExisting, skippedWrappedDEKs, nil
 }
 
-// exportAllKeys reads KEK entries from the ENCRYPTION_KEYS KV bucket.
-func exportAllKeys(ctx context.Context, kv jetstream.KeyValue) ([]ExportedKey, error) {
+type keyExportSelection struct {
+	Keys               []ExportedKey
+	SkippedWrappedDEKs int
+	SkippedCallKeys    int
+}
+
+// exportAllKeys selects durable KEK entries from the mixed ENCRYPTION_KEYS KV bucket.
+func exportAllKeys(ctx context.Context, kv jetstream.KeyValue) (keyExportSelection, error) {
 	keys, err := kv.Keys(ctx)
 	if err != nil {
 		if errors.Is(err, jetstream.ErrNoKeysFound) {
-			return nil, nil
+			return keyExportSelection{}, nil
 		}
-		return nil, fmt.Errorf("failed to list keys: %w", err)
+		return keyExportSelection{}, fmt.Errorf("failed to list keys: %w", err)
 	}
 
-	var exported []ExportedKey
+	selection := keyExportSelection{}
 	for _, key := range keys {
+		switch {
+		case strings.HasPrefix(key, "dek."):
+			selection.SkippedWrappedDEKs++
+			continue
+		case kms.IsCallKeyRef(key):
+			selection.SkippedCallKeys++
+			continue
+		}
 		entry, err := kv.Get(ctx, key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get key %s: %w", key, err)
+			return keyExportSelection{}, fmt.Errorf("failed to get key %s: %w", key, err)
 		}
 		if err := validateKEKRecord(key, entry.Value()); err != nil {
-			return nil, fmt.Errorf("invalid ENCRYPTION_KEYS record %s: %w", key, err)
+			return keyExportSelection{}, fmt.Errorf("invalid ENCRYPTION_KEYS record %s: %w", key, err)
 		}
 
 		exportedKey := ExportedKey{
@@ -299,10 +321,10 @@ func exportAllKeys(ctx context.Context, kv jetstream.KeyValue) ([]ExportedKey, e
 		if strings.HasPrefix(key, "user.") {
 			exportedKey.UserID = strings.TrimPrefix(key, "user.")
 		}
-		exported = append(exported, exportedKey)
+		selection.Keys = append(selection.Keys, exportedKey)
 	}
 
-	return exported, nil
+	return selection, nil
 }
 
 // encryptKeysToFile encrypts keys with age and writes them to a file.
