@@ -531,6 +531,10 @@ func (s *AssetModel) AssetCreation(assetID string) (*corev1.AssetCreatedEvent, b
 	return s.Assets.AssetCreation(assetID)
 }
 
+func (s *AssetModel) AssetReferences(assetIDs []string) map[string]AssetReference {
+	return s.Assets.AssetReferences(assetIDs)
+}
+
 func (s *AssetModel) AssetRoomID(assetID string) (string, bool) {
 	return s.Assets.AssetRoomID(assetID)
 }

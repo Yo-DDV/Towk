@@ -519,6 +519,53 @@ func TestChattoCore_PostMessage_BodyTooLong(t *testing.T) {
 	})
 }
 
+func TestChattoCore_PostMessage_AttachmentAssetIDsAreBounded(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	room, err := core.CreateRoom(ctx, "test-user", KindChannel, "", "attachment-limits", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	user, err := core.CreateUser(ctx, SystemActorID, "attachmentlimits", "Attachment Limits", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		assetIDs    []string
+		wantInvalid bool
+	}{
+		{name: "at limit", assetIDs: make([]string, MaxMessageAttachmentAssetIDs)},
+		{name: "too many", assetIDs: make([]string, MaxMessageAttachmentAssetIDs+1), wantInvalid: true},
+		{name: "empty id", assetIDs: []string{""}, wantInvalid: true},
+		{name: "oversized ascii id", assetIDs: []string{strings.Repeat("a", MaxMessageAttachmentAssetIDLength+1)}, wantInvalid: true},
+		{name: "oversized multibyte id", assetIDs: []string{strings.Repeat("é", MaxMessageAttachmentAssetIDLength/2+1)}, wantInvalid: true},
+		{name: "duplicate id", assetIDs: []string{"A-duplicate", "A-duplicate"}, wantInvalid: true},
+	}
+	for testIndex := 0; testIndex < 2; testIndex++ {
+		for i := range tests[testIndex].assetIDs {
+			tests[testIndex].assetIDs[i] = fmt.Sprintf("A-%d", i)
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "bounded", tt.assetIDs, "", "", nil, false)
+			if tt.wantInvalid && !errors.Is(err, ErrInvalidArgument) {
+				t.Fatalf("PostMessage error = %v, want ErrInvalidArgument", err)
+			}
+			if !tt.wantInvalid && err != nil {
+				t.Fatalf("PostMessage error = %v, want success", err)
+			}
+		})
+	}
+}
+
 func TestChattoCore_EditMessage_BodyTooLong(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

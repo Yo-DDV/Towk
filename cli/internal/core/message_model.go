@@ -158,6 +158,9 @@ func (s *MessageModel) validatePostBeforeUpload(ctx context.Context, input Messa
 	if len(input.Body) > MaxMessageBodyLength {
 		return ErrMessageTooLong
 	}
+	if err := validateMessageAttachmentAssetIDs(input.AttachmentAssetIDs); err != nil {
+		return err
+	}
 	if err := validateLinkPreview(input.LinkPreview); err != nil {
 		return err
 	}
@@ -468,15 +471,16 @@ func (s *MessageModel) videoProcessingAssetIDsForPost(input MessagePostInput) []
 	for _, assetID := range input.VideoProcessingAssetIDs {
 		add(assetID)
 	}
+	assetReferences := s.core.assetLifecycle().AssetReferences(input.AttachmentAssetIDs)
 	for _, assetID := range input.AttachmentAssetIDs {
 		if _, ok := seen[assetID]; ok || assetID == "" {
 			continue
 		}
-		declared, ok := s.core.assetLifecycle().AssetCreation(assetID)
-		if !ok || declared == nil {
+		reference, ok := assetReferences[assetID]
+		if !ok || reference.Creation == nil {
 			continue
 		}
-		if AttachmentNeedsVideoProcessing(attachmentFromAsset(declared.GetAsset()), false) {
+		if AttachmentNeedsVideoProcessing(attachmentFromAsset(reference.Creation.GetAsset()), false) {
 			add(assetID)
 		}
 	}

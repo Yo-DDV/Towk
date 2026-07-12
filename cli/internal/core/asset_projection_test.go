@@ -35,6 +35,33 @@ func TestAssetProjectionReadsCanonicalAndLegacyLifecycleEvents(t *testing.T) {
 	}
 }
 
+func TestAssetProjectionAssetReferencesBatchReturnsClonedRoomSnapshots(t *testing.T) {
+	projection := NewAssetProjection()
+	if err := projection.Apply(testCoreAssetCreatedEvent("R-assets", "A-one", "image/png"), 1); err != nil {
+		t.Fatalf("Apply A-one: %v", err)
+	}
+	if err := projection.Apply(testCoreAssetCreatedEvent("R-other", "A-two", "text/plain"), 2); err != nil {
+		t.Fatalf("Apply A-two: %v", err)
+	}
+
+	got := projection.AssetReferences([]string{"A-one", "missing", "A-one", "A-two"})
+	if len(got) != 2 {
+		t.Fatalf("AssetReferences len = %d, want 2", len(got))
+	}
+	if got["A-one"].RoomID != "R-assets" || got["A-one"].Creation.GetAsset().GetContentType() != "image/png" {
+		t.Fatalf("A-one reference = %+v", got["A-one"])
+	}
+	if got["A-two"].RoomID != "R-other" {
+		t.Fatalf("A-two room = %q, want R-other", got["A-two"].RoomID)
+	}
+
+	got["A-one"].Creation.RoomId = "mutated"
+	again := projection.AssetReferences([]string{"A-one"})
+	if again["A-one"].RoomID != "R-assets" || again["A-one"].Creation.GetRoomId() != "R-assets" {
+		t.Fatalf("projection snapshot mutated through caller: %+v", again["A-one"])
+	}
+}
+
 func TestAssetProjectionTerminalProcessingStateDoesNotRegress(t *testing.T) {
 	projection := NewAssetProjection()
 	if err := projection.Apply(testCoreAssetCreatedEvent("R-assets", "A-video", "video/mp4"), 1); err != nil {

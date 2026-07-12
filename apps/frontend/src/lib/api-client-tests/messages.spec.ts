@@ -2,7 +2,7 @@ import { Timestamp } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
-import { createMessageAPI } from '$lib/api-client/messages';
+import { createMessageAPI, MAX_MESSAGE_ATTACHMENTS } from '$lib/api-client/messages';
 import { CreateMessageResponse, UpdateMessageResponse } from '@towk/api-types/api/v1/messages_pb';
 import {
   AssetUpload,
@@ -260,6 +260,23 @@ describe('createMessageAPI', () => {
     expect(request.attachments).toBeUndefined();
     expect(request.threadRootEventId).toBe('root-1');
     expect(request.alsoSendToChannel).toBe(true);
+  });
+
+  it('rejects too many attachments before starting any upload', async () => {
+    const api = createMessageAPI({
+      baseUrl: 'https://remote.example.test/api/connect',
+      bearerToken: null
+    });
+    const attachments = Array.from(
+      { length: MAX_MESSAGE_ATTACHMENTS + 1 },
+      (_, index) => new File(['x'], `file-${index}.txt`, { type: 'text/plain' })
+    );
+
+    await expect(
+      api.createMessage({ roomId: 'room-1', body: 'bounded', attachments })
+    ).rejects.toThrow(`message attachment count exceeds ${MAX_MESSAGE_ATTACHMENTS}`);
+    expect(mocks.createUpload).not.toHaveBeenCalled();
+    expect(mocks.createMessage).not.toHaveBeenCalled();
   });
 
   it('marks the server authentication stale on unauthenticated Connect errors', async () => {
