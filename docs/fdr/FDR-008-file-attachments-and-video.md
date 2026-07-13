@@ -127,7 +127,7 @@ Primary compatibility evidence:
 
 **Why:** Per-file and per-message limits do not bound cumulative instance storage or abandoned in-progress chunks. A server-side object-store quota makes the failure authoritative even when a client bypasses the browser, and `CreateOrUpdateObjectStore` applies the configured limit to existing deployments.
 
-**Tradeoff:** Exhausting the shared store blocks every new write that uses `SERVER_ASSETS`, including temporary S3 upload chunks, until space is reclaimed or the quota is raised. Operators must still provision disk alerts, retention, backups, and an independent bucket quota for S3. See the [NATS Go object-store configuration](https://github.com/nats-io/nats.go/blob/v1.52.0/jetstream/object.go) and [NATS server maximum-bytes enforcement](https://github.com/nats-io/nats-server/blob/v2.12.1/server/stream.go).
+**Tradeoff:** Exhausting the shared store blocks every new write that uses `SERVER_ASSETS`, including temporary S3 upload chunks, until space is reclaimed or the quota is raised. Operators must still provision disk alerts, retention, backups, and an independent bucket quota for S3. See the [NATS Go object-store configuration](https://github.com/nats-io/nats.go/blob/v1.52.0/jetstream/object.go) and [NATS server maximum-bytes enforcement](https://github.com/nats-io/nats-server/blob/v2.14.3/server/stream.go).
 
 ## Permissions
 
