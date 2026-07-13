@@ -65,11 +65,11 @@ test.describe('User Settings - Display', () => {
       return marker;
     });
 
-    await page.getByRole('radio', { name: 'Deutsch' }).click();
-    await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible({
+    await page.getByRole('radio', { name: 'Français' }).click();
+    await expect(page.getByRole('heading', { name: 'Affichage' })).toBeVisible({
       timeout: TIMEOUTS.UI_STANDARD
     });
-    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
     await expect
       .poll(() =>
         page.evaluate(
@@ -81,9 +81,21 @@ test.describe('User Settings - Display', () => {
       .toBe(pageMarker);
 
     await page.reload();
+    await expect(page.getByRole('heading', { name: 'Affichage' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+    await expect(page.getByRole('radio', { name: 'Français' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+
+    await page.getByRole('radio', { name: 'Deutsch' }).click();
     await expect(page.getByRole('heading', { name: 'Darstellung' })).toBeVisible({
       timeout: TIMEOUTS.UI_STANDARD
     });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+
+    await page.reload();
     await expect(page.getByRole('radio', { name: 'Deutsch' })).toHaveAttribute(
       'aria-checked',
       'true'
