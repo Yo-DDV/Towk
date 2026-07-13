@@ -1301,6 +1301,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 			Description: "Server asset binaries (avatars, branding, attachments, and legacy link previews)",
 			Storage:     jetstream.FileStorage,
 			Compression: true,
+			MaxBytes:    cfg.Assets.MaxStoreBytesOrDefault(),
 			Replicas:    cfg.Replicas,
 		})
 	})

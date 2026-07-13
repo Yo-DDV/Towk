@@ -171,6 +171,10 @@ The exporter exposes deployment-wide Towk metrics. Run it as `towk exporter` aga
   Max upload size for images and non-video files (e.g., `25MB`, `25 MiB`). Videos use a separate limit — see `CHATTO_VIDEO_MAX_UPLOAD_SIZE`.
 </EnvVar>
 
+<EnvVar name="CHATTO_CORE_ASSETS_MAX_STORE_BYTES" toml="core.assets.max_store_bytes" default="10 GB">
+  Hard JetStream quota for `SERVER_ASSETS`. It covers NATS-backed assets and temporary upload chunks, including chunks awaiting completion when S3 is the final backend. It does not limit the external S3 bucket.
+</EnvVar>
+
 <EnvVar name="CHATTO_CORE_ASSETS_STORAGE_BACKEND" toml="core.assets.storage_backend" default="nats">
   Storage backend for persisted assets. Values: `nats`, `s3`.
 </EnvVar>

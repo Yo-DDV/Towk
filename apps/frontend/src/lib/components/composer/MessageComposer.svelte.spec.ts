@@ -229,6 +229,18 @@ function pasteText(target: HTMLElement, text: string) {
   );
 }
 
+function pasteLocalFileReference(target: HTMLElement, uri: string) {
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData('text/uri-list', uri);
+  target.dispatchEvent(
+    new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dataTransfer
+    })
+  );
+}
+
 async function findEditor(container: Element, testid = 'message-input'): Promise<HTMLElement> {
   await vi.waitFor(() => expect(q(container, `[data-testid="${testid}"]`)).toBeTruthy(), {
     timeout: 5000
@@ -608,6 +620,21 @@ describe('MessageComposer', () => {
 
       expect(prepareFilesMock).not.toHaveBeenCalled();
       expect(q(container, 'img')).toBeNull();
+    });
+
+    it('blocks inaccessible local file URIs instead of pasting a local path', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      pasteLocalFileReference(editor, 'file:///home/yoan/Documents/private-report.pdf');
+
+      await vi.waitFor(() =>
+        expect(getToasts().map((item) => item.message)).toContain(
+          'The browser did not provide the copied file. Drag it into the conversation or use Attach file.'
+        )
+      );
+      expect(editor.textContent).not.toContain('/home/yoan/Documents/private-report.pdf');
+      expect(prepareFilesMock).not.toHaveBeenCalled();
     });
 
     it('ignores externally added files when uploads are not allowed', async () => {

@@ -2,6 +2,7 @@ import { toast } from '$lib/ui/toast';
 import { prepareFiles } from '$lib/attachments/prepareFiles';
 import {
   hasBlockedExecutableMetadata,
+  hasUnsafeAttachmentFilename,
   isBlockedExecutableFile,
   MAX_MESSAGE_ATTACHMENTS
 } from '$lib/attachments/filePolicy';
@@ -44,6 +45,10 @@ export class AttachmentsState {
     const limits = this.getLimits();
     const accepted: File[] = [];
     for (const file of files) {
+      if (hasUnsafeAttachmentFilename(file.name)) {
+        toast.error(m['room.attachment.invalid_filename']());
+        continue;
+      }
       if (hasBlockedExecutableMetadata(file)) {
         toast.error(m['room.attachment.executable_not_allowed']({ filename: file.name }));
         continue;

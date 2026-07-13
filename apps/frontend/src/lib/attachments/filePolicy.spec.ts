@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBlockedExecutableFile } from './filePolicy';
+import { hasUnsafeAttachmentFilename, isBlockedExecutableFile } from './filePolicy';
 
 function file(bytes: number[], name: string, type = 'application/octet-stream'): File {
   return new File([new Uint8Array(bytes)], name, { type });
@@ -12,11 +12,22 @@ describe('attachment executable policy', () => {
     ['start.ps1', 'text/plain'],
     ['start.sh', 'text/plain'],
     ['launch.command', 'text/plain'],
+    ['launch.js', 'text/javascript'],
+    ['launch.py', 'text/x-python'],
+    ['launch.scpt', 'application/octet-stream'],
+    ['launch.workflow', 'application/octet-stream'],
+    ['launch.url', 'text/plain'],
+    ['library.dylib', 'application/octet-stream'],
+    ['library.so', 'application/octet-stream'],
     ['Main.class', 'application/octet-stream'],
     ['mobile.apk', 'application/zip'],
     ['module.wasm', 'application/octet-stream']
   ])('blocks executable metadata for %s', async (name, type) => {
     await expect(isBlockedExecutableFile(file([1, 2, 3], name, type))).resolves.toBe(true);
+  });
+
+  it('blocks bidirectional filename controls that can disguise an executable extension', async () => {
+    expect(hasUnsafeAttachmentFilename('invoice\u202Eexe.pdf')).toBe(true);
   });
 
   it.each([

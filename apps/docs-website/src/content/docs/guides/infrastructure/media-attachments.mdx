@@ -11,6 +11,8 @@ Towk can handle ordinary file uploads, images, avatars, server branding images, 
 
 Members can attach files through drag-and-drop, paste, or the file picker when they have `message.attach` and the relevant posting permission.
 
+On Windows, macOS, and Linux, Towk accepts every file object the browser exposes from the native clipboard. This covers Chromium's desktop implementations, Firefox's native file paste, and WebKit/Safari on macOS. Current Firefox implementations on macOS and Linux can expose only the first native file, and current non-Cocoa WebKit does not expose native clipboard files. Towk never reads a local path itself: if the clipboard contains a local file reference but the browser withholds the file, the composer consumes the reference, displays an error, and leaves the path out of the message. Drag-and-drop and the picker remain available in that case.
+
 | Asset type | Behavior |
 | ---------- | -------- |
 | Images | Dimensions are inspected, image URLs can request resized WebP variants, and thumbnails are cached when enabled. |
@@ -25,6 +27,8 @@ Members can attach files through drag-and-drop, paste, or the file picker when t
 Default upload limits are 25 MB for non-video files and 100 MB for videos when video processing is enabled.
 
 Each message is limited to 10 attachments. Upload sessions use 512 KiB chunks, expire after 15 minutes while open, and unclaimed completed assets expire after 24 hours. These application bounds complement, but do not replace, the storage quota and request-rate controls of the NATS, S3, reverse-proxy, or WAF layer.
+
+`SERVER_ASSETS` also has a hard 10 GB JetStream quota by default. Configure it with `core.assets.max_store_bytes` or `CHATTO_CORE_ASSETS_MAX_STORE_BYTES`. The limit covers NATS-backed assets and temporary upload chunks; when S3 is enabled, the final bucket still needs its own provider-side quota and monitoring. Lowering the NATS limit preserves existing objects and blocks new writes until usage is back under the limit.
 
 The executable policy is defense in depth, not a malware scanner. Filename extensions and browser MIME types are untrusted hints; the server normalizes bounded metadata and inspects the checksum-verified payload before it creates an asset. Towk deliberately does not unpack archives, so archive-bomb expansion is outside the upload path.
 

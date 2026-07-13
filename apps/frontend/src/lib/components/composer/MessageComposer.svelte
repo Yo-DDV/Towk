@@ -22,6 +22,7 @@
   } from '$lib/state/room';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
   import { prefersTouchActions } from '$lib/utils/inputCapabilities';
+  import { readClipboardFiles } from '$lib/attachments/clipboardFiles';
   import { hasVisibleContent } from '$lib/validation';
   import { extractMentions, hasRoleOrVirtualMention } from '$lib/mentions';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -436,32 +437,27 @@
     onReady?.({ addFiles, focus, insertQuote });
   });
 
-  function filesFromClipboard(data: DataTransfer | null): File[] {
-    if (!data) return [];
-
-    const files = Array.from(data.files);
-    if (files.length > 0) return files;
-
-    return Array.from(data.items)
-      .filter((item) => item.kind === 'file')
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => file !== null);
-  }
-
   // Intercept file references before TipTap processes the paste. Text-only
   // clipboard payloads remain under TipTap's normal paste handling.
   function handlePaste(event: ClipboardEvent): boolean {
-    // Don't accept file attachments in edit mode (editMessage only supports text)
-    if (isEditing) return false;
+    const clipboard = readClipboardFiles(event.clipboardData);
+    if (clipboard.files.length === 0 && !clipboard.hasLocalFileReference) return false;
 
-    const pastedFiles = filesFromClipboard(event.clipboardData);
-
-    if (pastedFiles.length > 0) {
-      if (!canAttach) return true;
-      void attachments.stageFiles(pastedFiles);
-      return true; // Prevent TipTap from processing the paste
+    if (isEditing) {
+      toast.error(m['room.attachment.edit_not_supported']());
+      return true;
     }
-    return false; // Let TipTap handle text pastes
+    if (!canAttach) {
+      toast.error(m['room.attachment.not_permitted']());
+      return true;
+    }
+    if (clipboard.files.length > 0) {
+      void attachments.stageFiles(clipboard.files);
+      return true;
+    }
+
+    toast.error(m['room.attachment.clipboard_unavailable']());
+    return true;
   }
 
   // Collapse runs of 3+ newlines down to 2 (one blank line max).

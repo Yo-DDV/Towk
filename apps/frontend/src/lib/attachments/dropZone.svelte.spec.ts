@@ -88,6 +88,27 @@ describe('dropZone attachment', () => {
       expect(onDragStateChange).toHaveBeenCalledTimes(2);
     });
 
+    it('does not let an unmatched dragleave poison the next file drag', () => {
+      const onDragStateChange = vi.fn();
+      attach({ onDrop: () => {}, onDragStateChange });
+
+      host.dispatchEvent(dragEvent('dragleave'));
+      host.dispatchEvent(dragEvent('dragenter'));
+
+      expect(onDragStateChange).toHaveBeenCalledOnce();
+      expect(onDragStateChange).toHaveBeenLastCalledWith(true);
+    });
+
+    it('clears drag state when the browser hides transfer types on dragleave', () => {
+      const onDragStateChange = vi.fn();
+      attach({ onDrop: () => {}, onDragStateChange });
+
+      host.dispatchEvent(dragEvent('dragenter'));
+      host.dispatchEvent(dragEvent('dragleave', { types: [] }));
+
+      expect(onDragStateChange).toHaveBeenLastCalledWith(false);
+    });
+
     it('ignores non-file drags (no Files in types)', () => {
       const onDragStateChange = vi.fn();
       attach({ onDrop: () => {}, onDragStateChange });
@@ -195,6 +216,17 @@ describe('dropZone attachment', () => {
       const ev = dragEvent('drop', { files: [file('a.png', 'image/png')] });
       host.dispatchEvent(ev);
       expect(ev.defaultPrevented).toBe(true);
+    });
+
+    it('does not intercept ordinary text drops', () => {
+      const onDrop = vi.fn();
+      attach({ onDrop, acceptedTypes: ['*/*'] });
+
+      const ev = dragEvent('drop', { types: ['text/plain'] });
+      host.dispatchEvent(ev);
+
+      expect(ev.defaultPrevented).toBe(false);
+      expect(onDrop).not.toHaveBeenCalled();
     });
   });
 

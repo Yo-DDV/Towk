@@ -15,42 +15,78 @@ const (
 )
 
 var blockedAttachmentExecutableExtensions = map[string]struct{}{
-	"aab": {}, "apk": {}, "appimage": {}, "appx": {}, "appxbundle": {},
-	"bash": {}, "bat": {}, "class": {}, "cmd": {}, "com": {}, "command": {},
-	"cpl": {}, "deb": {}, "desktop": {}, "dex": {}, "dll": {}, "dmg": {},
-	"docm": {}, "dotm": {}, "ear": {}, "exe": {}, "fish": {}, "gadget": {},
-	"hta": {}, "ipa": {}, "jar": {}, "jnlp": {},
-	"lnk": {}, "msi": {}, "msix": {}, "msixbundle": {}, "msp": {}, "ocx": {},
-	"pif": {}, "pkg": {}, "potm": {}, "ppam": {}, "ppsm": {},
-	"pptm": {}, "ps1": {}, "psm1": {}, "reg": {}, "rpm": {}, "run": {},
-	"scf": {}, "scr": {}, "sh": {}, "sldm": {}, "swf": {}, "sys": {}, "vbe": {},
-	"vbs": {}, "vsto": {}, "war": {}, "wasm": {}, "wsf": {}, "wsh": {},
-	"xlam": {}, "xll": {}, "xlsm": {}, "xltm": {}, "zsh": {},
+	"aab": {}, "action": {}, "ade": {}, "adp": {}, "apk": {}, "app": {},
+	"application": {}, "appimage": {}, "applescript": {}, "appx": {}, "appxbundle": {},
+	"asp": {}, "aspx": {}, "bash": {}, "bat": {}, "bundle": {}, "cgi": {},
+	"chm": {}, "cjs": {}, "class": {}, "cmd": {}, "com": {}, "command": {},
+	"cpl": {}, "csh": {}, "deb": {}, "desktop": {}, "dex": {}, "dll": {}, "dmg": {},
+	"docm": {}, "dotm": {}, "dylib": {}, "ear": {}, "exe": {}, "fish": {}, "fxp": {},
+	"gadget": {}, "hta": {}, "inf": {}, "ins": {}, "ipa": {}, "isp": {}, "its": {},
+	"jar": {}, "jnlp": {}, "js": {}, "jse": {}, "jsp": {}, "kext": {}, "ko": {},
+	"ksh": {}, "lnk": {}, "lua": {}, "mda": {}, "mde": {}, "mjs": {}, "msc": {},
+	"msh": {}, "msh1": {}, "msh1xml": {}, "msh2": {}, "msh2xml": {}, "mshxml": {},
+	"msi": {}, "msix": {}, "msixbundle": {}, "msp": {}, "mst": {}, "ocx": {},
+	"osax": {}, "phar": {}, "php": {}, "pif": {}, "pkg": {}, "pl": {}, "plugin": {},
+	"potm": {}, "ppam": {}, "ppsm": {}, "pptm": {}, "prf": {}, "prg": {},
+	"ps1": {}, "ps1xml": {}, "ps2": {}, "ps2xml": {}, "psc1": {}, "psc2": {},
+	"psd1": {}, "psm1": {}, "pssc": {}, "py": {}, "pyc": {}, "pyo": {}, "pyw": {},
+	"rb": {}, "reg": {}, "rpm": {}, "run": {}, "scf": {}, "scpt": {}, "scptd": {},
+	"scr": {}, "sct": {}, "sh": {}, "shb": {}, "shs": {}, "sldm": {}, "so": {},
+	"swf": {}, "sys": {}, "tcl": {}, "tcsh": {}, "url": {}, "vb": {}, "vbe": {},
+	"vbp": {}, "vbs": {}, "vsmacros": {}, "vsto": {}, "war": {}, "wasm": {},
+	"workflow": {}, "ws": {}, "wsc": {}, "wsf": {}, "wsh": {}, "xlam": {},
+	"xbap": {}, "xll": {}, "xlsm": {}, "xltm": {}, "xpc": {}, "zsh": {},
 }
 
 var blockedAttachmentExecutableMIMETypes = map[string]struct{}{
+	"application/ecmascript":                        {},
+	"application/javascript":                        {},
 	"application/java-archive":                      {},
 	"application/vnd.android.package-archive":       {},
 	"application/vnd.microsoft.portable-executable": {},
 	"application/vnd.microsoft.windows-executable":  {},
 	"application/wasm":                              {},
+	"application/vnd.apple.installer+xml":           {},
+	"application/vnd.debian.binary-package":         {},
+	"application/x-apple-diskimage":                 {},
 	"application/x-bat":                             {},
+	"application/x-bytecode.python":                 {},
+	"application/x-csh":                             {},
+	"application/x-deb":                             {},
+	"application/x-desktop":                         {},
 	"application/x-dosexec":                         {},
 	"application/x-elf":                             {},
 	"application/x-executable":                      {},
+	"application/x-httpd-php":                       {},
 	"application/x-java-archive":                    {},
+	"application/x-java-jnlp-file":                  {},
+	"application/x-lua":                             {},
 	"application/x-mach-binary":                     {},
 	"application/x-ms-application":                  {},
 	"application/x-ms-shortcut":                     {},
 	"application/x-msdownload":                      {},
 	"application/x-msdos-program":                   {},
 	"application/x-msi":                             {},
+	"application/x-perl":                            {},
+	"application/x-pie-executable":                  {},
 	"application/x-powershell":                      {},
+	"application/x-python":                          {},
+	"application/x-python-code":                     {},
+	"application/x-redhat-package-manager":          {},
+	"application/x-rpm":                             {},
+	"application/x-ruby":                            {},
 	"application/x-sh":                              {},
 	"application/x-sharedlib":                       {},
 	"application/x-shellscript":                     {},
 	"application/x-shockwave-flash":                 {},
+	"text/ecmascript":                               {},
+	"text/javascript":                               {},
+	"text/x-applescript":                            {},
+	"text/x-lua":                                    {},
+	"text/x-perl":                                   {},
 	"text/x-powershell":                             {},
+	"text/x-python":                                 {},
+	"text/x-ruby":                                   {},
 	"text/x-shellscript":                            {},
 }
 
@@ -78,7 +114,7 @@ func normalizeAttachmentUploadMetadata(filename, contentType string) (string, st
 	if !utf8.ValidString(filename) || len(filename) > maxAttachmentFilenameBytes {
 		return "", "", invalidArgument(fmt.Sprintf("filename exceeds maximum length of %d bytes", maxAttachmentFilenameBytes))
 	}
-	if filename == "." || filename == ".." || strings.ContainsAny(filename, `/\`) || containsAttachmentControlCharacter(filename) {
+	if filename == "." || filename == ".." || strings.ContainsAny(filename, `/\`) || containsAttachmentControlCharacter(filename) || containsAttachmentFilenameSpoofingCharacter(filename) {
 		return "", "", invalidArgument("filename contains unsupported characters")
 	}
 
@@ -115,6 +151,16 @@ func attachmentFilenameExtension(filename string) string {
 
 func containsAttachmentControlCharacter(value string) bool {
 	return strings.ContainsFunc(value, func(r rune) bool { return r < 0x20 || r == 0x7f })
+}
+
+func containsAttachmentFilenameSpoofingCharacter(value string) bool {
+	return strings.ContainsFunc(value, func(r rune) bool {
+		return r == '\u061c' ||
+			(r >= '\u200b' && r <= '\u200f') ||
+			(r >= '\u202a' && r <= '\u202e') ||
+			(r >= '\u2060' && r <= '\u206f') ||
+			r == '\ufeff'
+	})
 }
 
 func validateAttachmentExecutableContent(reader io.ReadSeeker) error {

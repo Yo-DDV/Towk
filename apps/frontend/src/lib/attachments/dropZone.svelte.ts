@@ -21,7 +21,9 @@ export function dropZone(options: {
 
     function isValidDrag(e: DragEvent): boolean {
       // Check if the drag contains files
-      return e.dataTransfer?.types.includes('Files') ?? false;
+      return (
+        e.dataTransfer?.types.includes('Files') === true || (e.dataTransfer?.files.length ?? 0) > 0
+      );
     }
 
     function matchesMimeType(file: File, patterns: string[]): boolean {
@@ -57,10 +59,13 @@ export function dropZone(options: {
       }
     }
 
-    function handleDragLeave(e: DragEvent) {
-      if (!isValidDrag(e)) return;
+    function handleDragLeave(_e: DragEvent) {
+      // Some desktop browsers clear DataTransfer.types on dragleave. The
+      // counter itself proves that a file drag entered this zone, while this
+      // guard prevents an unmatched leave from poisoning the next drag.
+      if (dragCounter === 0) return;
 
-      dragCounter--;
+      dragCounter = Math.max(0, dragCounter - 1);
 
       if (dragCounter === 0) {
         options.onDragStateChange?.(false);
@@ -68,6 +73,10 @@ export function dropZone(options: {
     }
 
     function handleDrop(e: DragEvent) {
+      // Preserve the browser/editor's normal handling for dropped text and
+      // URLs. Only a real file drop belongs to this attachment.
+      if (!isValidDrag(e)) return;
+
       e.preventDefault();
       dragCounter = 0;
       options.onDragStateChange?.(false);

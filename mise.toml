@@ -92,15 +92,8 @@ run = { task = "codegen-*" }
 
 [tasks.sync-cli-legal]
 description = "Copy root legal files into the CLI module for go:embed"
-run = [
-    "mkdir -p cli/cmd/embedded",
-    "cp LICENSES/AGPL-3.0-or-later.txt cli/LICENSE",
-    "cp NOTICE cli/NOTICE",
-    "cp LICENSES/AGPL-3.0-or-later.txt cli/cmd/embedded/LICENSE",
-    "cp LICENSES/Apache-2.0.txt cli/cmd/embedded/Apache-2.0",
-    "cp NOTICE cli/cmd/embedded/NOTICE",
-]
-sources = ["LICENSES/AGPL-3.0-or-later.txt", "LICENSES/Apache-2.0.txt", "NOTICE"]
+run = "node tools/sync-cli-legal.mjs"
+sources = ["LICENSES/AGPL-3.0-or-later.txt", "LICENSES/Apache-2.0.txt", "NOTICE", "tools/sync-cli-legal.mjs"]
 outputs = ["cli/LICENSE", "cli/NOTICE", "cli/cmd/embedded/LICENSE", "cli/cmd/embedded/Apache-2.0", "cli/cmd/embedded/NOTICE"]
 
 [tasks.build]
@@ -121,10 +114,7 @@ dir = "apps/frontend"
 run = [
     "pnpm svelte-kit sync",
     "pnpm build",
-    "touch build/.mise-build-stamp",
-    "rm -rf ../../cli/internal/http_server/.client",
-    "cp -r build ../../cli/internal/http_server/.client",
-    "touch ../../cli/internal/http_server/.client/.gitkeep",
+    "node ../../tools/install-frontend-build.mjs",
 ]
 sources = [
     "../../.npmrc",
@@ -142,6 +132,7 @@ sources = [
     "svelte.config.js",
     "tsconfig.json",
     "vite.config.ts",
+    "../../tools/install-frontend-build.mjs",
 ]
 outputs = ["build/.mise-build-stamp", "../../cli/internal/http_server/.client/.gitkeep"]
 
@@ -166,12 +157,14 @@ outputs = ["bin/towk", "bin/chatto"]
 description = "Build the E2E test server binary with dev bootstrap and test endpoints enabled"
 depends = ["setup-cli", "build-frontend"]
 dir = "cli"
+env = { CGO_ENABLED = "0" }
 # `bootstrap` enables the [bootstrap] section in chatto.toml, which seeds
 # the e2eadmin user the harness logs in as. `test_endpoints` exposes the
 # test-only HTTP endpoints (e.g. /auth/test/create-user) used by per-test
 # fixtures. Deliberately scoped — the e2e binary should NOT pull in any
 # future broader dev-only code that might land under a separate tag.
-run = "CGO_ENABLED=0 go build -trimpath -tags 'bootstrap test_endpoints' -ldflags '-s -w' -o ../apps/frontend/e2e/fixtures/bin/chatto ."
+run = "go build -trimpath -tags 'bootstrap test_endpoints' -ldflags '-s -w' -o ../apps/frontend/e2e/fixtures/bin/chatto ."
+run_windows = '''go build -trimpath -tags "bootstrap test_endpoints" -ldflags "-s -w" -o ../apps/frontend/e2e/fixtures/bin/chatto.exe .'''
 sources = [
     "**/*.go",
     "cmd/embedded/LICENSE",
@@ -179,7 +172,7 @@ sources = [
     "cmd/embedded/NOTICE",
     "internal/http_server/.client/**/*",
 ]
-outputs = ["../apps/frontend/e2e/fixtures/bin/chatto"]
+outputs = ["../apps/frontend/e2e/fixtures/bin/chatto*"]
 
 [tasks.storybook]
 description = "Run the Storybook design-system catalog on the workspace port"
