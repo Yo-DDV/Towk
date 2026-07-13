@@ -94,6 +94,7 @@
         "copy_link_title": "Copier le lien vers ce message",
         "in_reply_to": "en réponse à",
         "reply_preview_fallback": "Message",
+        "edited": "(modifié)",
         "deleted": "Ce message a été supprimé."
       }
     },

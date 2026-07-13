@@ -94,6 +94,7 @@
         "copy_link_title": "Click to copy link to this message",
         "in_reply_to": "in reply to",
         "reply_preview_fallback": "Message",
+        "edited": "(edited)",
         "deleted": "This message has been deleted."
       }
     },

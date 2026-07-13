@@ -655,6 +655,7 @@ const msg_room_message_meta_reaction_users_more = (
 const msg_room_message_meta_copy_link_title = (): LocalizedString => messages().room_message_meta_copy_link_title(empty());
 const msg_room_message_meta_in_reply_to = (): LocalizedString => messages().room_message_meta_in_reply_to(empty());
 const msg_room_message_meta_reply_preview_fallback = (): LocalizedString => messages().room_message_meta_reply_preview_fallback(empty());
+const msg_room_message_meta_edited = (): LocalizedString => messages().room_message_meta_edited(empty());
 const msg_room_message_meta_deleted = (): LocalizedString => messages().room_message_meta_deleted(empty());
 const msg_room_attachment_delete_title = (): LocalizedString => messages().room_attachment_delete_title(empty());
 const msg_room_attachment_delete_prompt = (): LocalizedString => messages().room_attachment_delete_prompt(empty());
@@ -2011,6 +2012,7 @@ export { msg_room_message_meta_reaction_users_more as 'room.message.meta.reactio
 export { msg_room_message_meta_copy_link_title as 'room.message.meta.copy_link_title' };
 export { msg_room_message_meta_in_reply_to as 'room.message.meta.in_reply_to' };
 export { msg_room_message_meta_reply_preview_fallback as 'room.message.meta.reply_preview_fallback' };
+export { msg_room_message_meta_edited as 'room.message.meta.edited' };
 export { msg_room_message_meta_deleted as 'room.message.meta.deleted' };
 export { msg_room_attachment_delete_title as 'room.attachment.delete_title' };
 export { msg_room_attachment_delete_prompt as 'room.attachment.delete_prompt' };
