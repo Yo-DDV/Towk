@@ -190,15 +190,23 @@ OAuth redirect callbacks use a separate trust list, `webserver.oauth_redirect_or
 
 Every frontend response sets:
 
-| Header                    | Value                              |
-| ------------------------- | ---------------------------------- |
-| `X-Content-Type-Options`  | `nosniff`                          |
-| `X-Frame-Options`         | `DENY`                             |
-| `Referrer-Policy`         | `strict-origin-when-cross-origin`  |
+| Header                      | Value                                                             |
+| --------------------------- | ----------------------------------------------------------------- |
+| `X-Content-Type-Options`    | `nosniff`                                                         |
+| `X-Frame-Options`           | `DENY`                                                            |
+| `Referrer-Policy`           | `strict-origin-when-cross-origin`                                 |
+| `Content-Security-Policy`   | Enforced Towk policy restricting scripts, frames, media, and network destinations |
+| `Strict-Transport-Security` | `max-age=31536000`                                                |
 
 Original attachment responses also set `X-Content-Type-Options: nosniff`. Uploaded active document formats such as HTML, XHTML, SVG, and XML are served with `Content-Security-Policy: sandbox`; S3-backed files of those types stream through Towk instead of redirecting directly to object storage so that policy is preserved.
 
-For HSTS, CSP, and other policy headers, add them at your reverse proxy.
+Preserve these headers when a reverse proxy terminates TLS. Browsers honor HSTS
+only when the response is received over HTTPS. You can add stricter deployment-
+specific policy at the proxy, but do not weaken or replace Towk's CSP without
+testing the login, multi-server, media, editor, and service-worker flows.
+Trusted Types enforcement is intentionally deferred until the rich-text editor
+can supply `TrustedHTML` to every DOM parsing sink; enabling it prematurely
+prevents the message composer from mounting.
 
 ## Secret and key storage
 
