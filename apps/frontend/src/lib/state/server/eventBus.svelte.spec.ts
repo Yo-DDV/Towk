@@ -379,6 +379,48 @@ describe('eventBusManager realtime transport', () => {
     expect(sockets).toHaveLength(1);
   });
 
+  it('clamps server-requested reconnect delays to a safe timer range', async () => {
+    vi.useFakeTimers();
+    const { socket } = await startAndSubscribeWithHeartbeatInterval(30);
+
+    await socket.receive(
+      serverFrame({
+        case: 'close',
+        value: new RealtimeClose({
+          code: 'maintenance',
+          reconnect: true,
+          retryAfterMs: 0xffffffff
+        })
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(sockets).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sockets).toHaveLength(2);
+  });
+
+  it('applies a local minimum to immediate server reconnect requests', async () => {
+    vi.useFakeTimers();
+    const { socket } = await startAndSubscribe();
+
+    await socket.receive(
+      serverFrame({
+        case: 'close',
+        value: new RealtimeClose({
+          code: 'retry',
+          reconnect: true,
+          retryAfterMs: 0
+        })
+      })
+    );
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(sockets).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sockets).toHaveLength(2);
+  });
+
   it('re-notifies catch-up handlers after the projection grace period', async () => {
     vi.useFakeTimers();
     const { socket } = await startAndSubscribe();

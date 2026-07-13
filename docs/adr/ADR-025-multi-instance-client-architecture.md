@@ -60,9 +60,10 @@ Bearer tokens use a NATS KV sliding inactivity TTL (default 90 days). Each succe
 
 - Registered-instance bearer tokens in `localStorage` are vulnerable to XSS (cookie auth is not)
 - This makes XSS prevention part of the auth boundary. The shipped frontend sets
-  a report-only CSP with Trusted Types reporting so deployments can surface
-  dangerous script and DOM-sink patterns before policy enforcement is viable for
-  the multi-server client.
+  an enforced CSP. The policy still permits the inline script and style forms
+  required by the current static client. Trusted Types enforcement is also
+  deferred until the rich-text editor supplies `TrustedHTML` to its DOM parsing
+  sinks, so both remain separate hardening steps.
 - `chatto.discovery.v1.ServerDiscoveryService.GetServer` is the only ConnectRPC endpoint with unconditional wildcard CORS — rich data needed pre-registration must go there, not in authenticated ConnectRPC calls
 - Separately hosted multi-instance frontends must be listed explicitly in each remote server's `webserver.oauth_redirect_origins` or exact `webserver.allowed_origins` before OAuth authorization codes can redirect back to them; wildcard CORS does not imply OAuth redirect trust. `oauth_redirect_origins = ["*"]` exists only as a temporary controlled-alpha escape hatch.
 - Users approve the first OAuth authorization for each trusted client origin; Towk remembers that consent per user + origin instead of relying on an operator-managed OAuth client registry

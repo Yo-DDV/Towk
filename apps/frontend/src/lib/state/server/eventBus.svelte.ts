@@ -32,6 +32,8 @@ const MISSED_HEARTBEATS_BEFORE_STALL = 3;
 const HEARTBEAT_WATCHDOG_MS = 15_000;
 const CATCH_UP_RETRY_MS = 2_500;
 const RECONNECT_WAIT_MS = 5_000;
+const MIN_SERVER_RECONNECT_WAIT_MS = 1_000;
+const MAX_SERVER_RECONNECT_WAIT_MS = 60_000;
 
 type RealtimeMessageEvent = { data: ArrayBuffer | Blob | Uint8Array };
 type RealtimeCloseEvent = { code?: number; reason?: string };
@@ -83,6 +85,13 @@ function subscribeEventsFrame(): Uint8Array {
 function heartbeatStallMsForInterval(seconds: number): number {
   if (seconds <= 0) return DEFAULT_HEARTBEAT_STALL_MS;
   return Math.max(MIN_HEARTBEAT_STALL_MS, seconds * MISSED_HEARTBEATS_BEFORE_STALL * 1000);
+}
+
+function normalizeServerReconnectWaitMs(delayMs: number): number {
+  return Math.min(
+    MAX_SERVER_RECONNECT_WAIT_MS,
+    Math.max(MIN_SERVER_RECONNECT_WAIT_MS, Math.trunc(delayMs))
+  );
 }
 
 class EventBusManager {
@@ -287,7 +296,7 @@ class EventBusManager {
                 scheduleReconnect(
                   'server requested close',
                   'subscription-ended',
-                  frame.frame.value.retryAfterMs
+                  normalizeServerReconnectWaitMs(frame.frame.value.retryAfterMs)
                 );
               } else {
                 serverConnection.setRealtimeConnectionStatus('disconnected', reconnectAttempts);

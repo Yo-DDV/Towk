@@ -29,10 +29,9 @@ const (
 	// Service worker bytes should be revalidated without forcing a full refetch
 	cacheControlRevalidate = "no-cache, must-revalidate"
 	// Hashed assets (in _app/) are immutable - cache for 1 year
-	cacheControlImmutable = "public, max-age=31536000, immutable"
-	// Report-only CSP preserves Towk's multi-server client model while surfacing
-	// violations during development/staging before we consider enforcement.
-	contentSecurityPolicyReportOnly = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'; require-trusted-types-for 'script'; trusted-types towk-markdown-html"
+	cacheControlImmutable   = "public, max-age=31536000, immutable"
+	contentSecurityPolicy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'"
+	strictTransportSecurity = "max-age=31536000"
 )
 
 const defaultAppleTouchIconHref = "/icons/apple-touch-icon.png"
@@ -47,7 +46,8 @@ func setFrontendSecurityHeaders(c *gin.Context) {
 	c.Header("X-Content-Type-Options", "nosniff")
 	c.Header("X-Frame-Options", "DENY")
 	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-	c.Header("Content-Security-Policy-Report-Only", contentSecurityPolicyReportOnly)
+	c.Header("Content-Security-Policy", contentSecurityPolicy)
+	c.Header("Strict-Transport-Security", strictTransportSecurity)
 }
 
 // extractImmutableETag extracts an ETag from a SvelteKit immutable asset path.
