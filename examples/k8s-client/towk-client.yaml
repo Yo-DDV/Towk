@@ -25,6 +25,15 @@ spec:
       labels:
         app: towk-client
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 101
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: towk-client
           # Build the standalone frontend image locally before applying this example.
@@ -32,6 +41,12 @@ spec:
           imagePullPolicy: Never
           ports:
             - containerPort: 80
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
           lifecycle:
             preStop:
               exec:
@@ -52,6 +67,20 @@ spec:
               path: /
               port: 80
             periodSeconds: 10
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
   strategy:
     type: RollingUpdate
     rollingUpdate:

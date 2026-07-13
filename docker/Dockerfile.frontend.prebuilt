@@ -7,4 +7,7 @@ COPY apps/frontend/build /usr/share/nginx/html
 COPY LICENSES/Apache-2.0.txt /usr/share/doc/chatto-client/LICENSE
 COPY NOTICE /usr/share/doc/chatto-client/NOTICE
 
+RUN chown nginx:nginx /run
+
+USER 100:101
 EXPOSE 80
