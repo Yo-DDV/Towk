@@ -245,7 +245,7 @@ func ensureInList(list []string, id string) []string {
 // notifyDMParticipants sends notifications to all DM participants except the sender.
 // This creates persistent notifications (for bell icon) and publishes live events.
 // This is best-effort - failures are logged but don't affect message posting.
-func (c *ChattoCore) notifyDMParticipants(ctx context.Context, roomID, senderID, eventID string) {
+func (c *ChattoCore) notifyDMParticipants(ctx context.Context, roomID, senderID, eventID, inThread string) {
 	participants, err := c.GetRoomMembersList(ctx, KindDM, roomID)
 	if err != nil {
 		c.logger.Warn("Failed to get DM participants for notification",
@@ -274,8 +274,9 @@ func (c *ChattoCore) notifyDMParticipants(ctx context.Context, roomID, senderID,
 		created, createErr := c.CreateNotification(ctx, participantID, senderID, &corev1.Notification{
 			Notification: &corev1.Notification_DmMessage{
 				DmMessage: &corev1.DMMessageNotification{
-					RoomId:  roomID,
-					EventId: eventID,
+					RoomId:   roomID,
+					EventId:  eventID,
+					InThread: inThread,
 				},
 			},
 		})

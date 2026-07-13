@@ -29,6 +29,13 @@ export class DirectMessageNotification extends Message<DirectMessageNotification
    */
   room?: RoomSummary;
 
+  /**
+   * Thread root event ID when the DM was posted inside a thread.
+   *
+   * @generated from field: optional string thread_root_event_id = 4;
+   */
+  threadRootEventId?: string;
+
   constructor(data?: PartialMessage<DirectMessageNotification>) {
     super();
     proto3.util.initPartial(data, this);
@@ -39,6 +46,7 @@ export class DirectMessageNotification extends Message<DirectMessageNotification
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 2, name: "event_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "room", kind: "message", T: RoomSummary },
+    { no: 4, name: "thread_root_event_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DirectMessageNotification {

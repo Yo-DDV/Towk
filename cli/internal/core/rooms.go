@@ -409,7 +409,6 @@ func (c *ChattoCore) DeleteRoom(ctx context.Context, actorID string, kind RoomKi
 	if err != nil {
 		return err
 	}
-
 	event := newEvent(actorID, &corev1.Event{
 		Event: &corev1.Event_RoomDeleted{
 			RoomDeleted: &corev1.RoomDeletedEvent{
@@ -464,6 +463,7 @@ func (c *ChattoCore) DeleteRoom(ctx context.Context, actorID string, kind RoomKi
 			return err
 		}
 	}
+	c.DismissRoomNotificationsForAllUsers(ctx, room_id)
 	return nil
 }
 

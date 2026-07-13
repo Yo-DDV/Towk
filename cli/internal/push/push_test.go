@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -18,6 +19,7 @@ import (
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/charmbracelet/log"
+	"github.com/rivo/uniseg"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"hmans.de/chatto/internal/config"
@@ -26,6 +28,37 @@ import (
 
 type contextBlockingHTTPClient struct {
 	started chan struct{}
+}
+
+type inertRoundTripper struct{}
+
+func (inertRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("unused")
+}
+
+func TestNewPushHTTPClientAcceptsCustomDefaultTransport(t *testing.T) {
+	original := http.DefaultTransport
+	http.DefaultTransport = inertRoundTripper{}
+	t.Cleanup(func() { http.DefaultTransport = original })
+
+	client := newPushHTTPClient()
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.Proxy != nil {
+		t.Fatal("push transport inherited a proxy function")
+	}
+	if transport.DialContext == nil {
+		t.Fatal("push transport has no public-address dialer")
+	}
+	request, err := http.NewRequest(http.MethodPost, "https://push.example.test/redirected", nil)
+	if err != nil {
+		t.Fatalf("create redirect request: %v", err)
+	}
+	if err := client.CheckRedirect(request, nil); !errors.Is(err, http.ErrUseLastResponse) {
+		t.Fatalf("redirect policy error = %v, want http.ErrUseLastResponse", err)
+	}
 }
 
 func (c *contextBlockingHTTPClient) Do(req *http.Request) (*http.Response, error) {
@@ -290,8 +323,9 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 			CreatedAt:   timestamppb.Now(),
 			Notification: &corev1.Notification_DmMessage{
 				DmMessage: &corev1.DMMessageNotification{
-					RoomId:  "dm-room-456",
-					EventId: "event-789",
+					RoomId:   "dm-room-456",
+					EventId:  "event-789",
+					InThread: "thread-root",
 				},
 			},
 		}
@@ -307,8 +341,8 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Tag != "dm-event-789" {
 			t.Errorf("Expected tag 'dm-event-789', got %s", payload.Tag)
 		}
-		if payload.URL != "https://towk.example.com/chat/-/dm-room-456" {
-			t.Errorf("Expected URL for DM room, got %s", payload.URL)
+		if payload.URL != "https://towk.example.com/chat/-/dm-room-456/thread-root?highlight=event-789" {
+			t.Errorf("Expected URL for highlighted DM message, got %s", payload.URL)
 		}
 		if payload.NotificationID != "notif-123" {
 			t.Errorf("Expected notificationId 'notif-123', got %s", payload.NotificationID)
@@ -726,6 +760,23 @@ func TestTruncatePreview(t *testing.T) {
 			t.Errorf("Expected ellipsis at end")
 		}
 	})
+
+	t.Run("preserves multi-code-point emoji graphemes", func(t *testing.T) {
+		family := "👨‍👩‍👧‍👦"
+		result := truncatePreview(strings.Repeat(family, maxPreviewLength+1))
+
+		if result != strings.Repeat(family, maxPreviewLength)+"…" {
+			t.Fatalf("truncatePreview split or changed an emoji grapheme")
+		}
+		graphemes := uniseg.NewGraphemes(result)
+		count := 0
+		for graphemes.Next() {
+			count++
+		}
+		if count != maxPreviewLength+1 {
+			t.Fatalf("preview grapheme count = %d, want %d", count, maxPreviewLength+1)
+		}
+	})
 }
 
 func TestSendResult(t *testing.T) {
@@ -927,6 +978,32 @@ func TestSendToMany(t *testing.T) {
 		t.Fatalf("maximum concurrent requests = %d, want at most %d", got, maxConcurrentPushRequests)
 	} else if got < 2 {
 		t.Fatalf("maximum concurrent requests = %d, want concurrent fanout", got)
+	}
+}
+
+func TestIsPublicPushAddress(t *testing.T) {
+	tests := []struct {
+		address string
+		want    bool
+	}{
+		{address: "8.8.8.8", want: true},
+		{address: "2606:4700:4700::1111", want: true},
+		{address: "127.0.0.1"},
+		{address: "10.0.0.1"},
+		{address: "169.254.169.254"},
+		{address: "100.64.0.1"},
+		{address: "198.18.0.1"},
+		{address: "::1"},
+		{address: "fd00::1"},
+		{address: "fe80::1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			if got := isPublicPushAddress(netip.MustParseAddr(tt.address)); got != tt.want {
+				t.Fatalf("isPublicPushAddress(%s) = %t, want %t", tt.address, got, tt.want)
+			}
+		})
 	}
 }
 

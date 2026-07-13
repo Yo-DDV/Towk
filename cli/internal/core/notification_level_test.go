@@ -491,6 +491,163 @@ func TestChattoCore_NormalNotifiesOnlyMentionsInRoomsAndAlwaysNotifiesDMs(t *tes
 	assertNotificationKinds(t, core, ctx, recipient.Id, "dm_message")
 }
 
+func TestChattoCore_ChannelNotificationLevelAndMembershipMatrix(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	author, err := core.CreateUser(ctx, SystemActorID, "channel-matrix-author", "Channel Matrix Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	recipient, err := core.CreateUser(ctx, SystemActorID, "channel-matrix-recipient", "Channel Matrix Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	outsider, err := core.CreateUser(ctx, SystemActorID, "channel-matrix-outsider", "Channel Matrix Outsider", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(outsider): %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "channel-matrix-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, userID := range []string{author.Id, recipient.Id} {
+		if _, err := core.JoinRoom(ctx, userID, KindChannel, userID, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", userID, err)
+		}
+	}
+
+	postAndAssert := func(body string, want ...string) {
+		t.Helper()
+		if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, body, nil, "", "", nil, false); err != nil {
+			t.Fatalf("PostMessage(%q): %v", body, err)
+		}
+		assertNotificationKinds(t, core, ctx, recipient.Id, want...)
+		assertNotificationKinds(t, core, ctx, outsider.Id)
+		assertNotificationKinds(t, core, ctx, author.Id)
+		if _, err := core.DismissAllNotifications(ctx, recipient.Id); err != nil {
+			t.Fatalf("DismissAllNotifications(recipient): %v", err)
+		}
+	}
+
+	postAndAssert("default joined member", "room_message")
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
+	postAndAssert("normal plain message")
+	postAndAssert("normal direct @channel-matrix-recipient and broad @all", "mention")
+
+	if err := core.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(MUTED): %v", err)
+	}
+	postAndAssert("muted @channel-matrix-recipient")
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(MUTED): %v", err)
+	}
+	if err := core.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(ALL_MESSAGES): %v", err)
+	}
+	postAndAssert("room all overrides server muted", "room_message")
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(ALL_MESSAGES): %v", err)
+	}
+	if err := core.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(NORMAL): %v", err)
+	}
+	postAndAssert("room normal overrides server all")
+}
+
+func TestChattoCore_NotificationPreferenceDowngradeReconcilesPendingEntries(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	author, err := core.CreateUser(ctx, SystemActorID, "downgrade-author", "Downgrade Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	recipient, err := core.CreateUser(ctx, SystemActorID, "downgrade-recipient", "Downgrade Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "downgrade-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, userID := range []string{author.Id, recipient.Id} {
+		if _, err := core.JoinRoom(ctx, userID, KindChannel, userID, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", userID, err)
+		}
+	}
+
+	plain, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "plain pending message", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(plain): %v", err)
+	}
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "@downgrade-recipient pending mention", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(mention): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "mention", "room_message")
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "mention")
+
+	created, err := core.CreateNotification(ctx, recipient.Id, author.Id, &corev1.Notification{
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{RoomId: room.Id, EventId: plain.Id},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification after downgrade: %v", err)
+	}
+	if created != nil {
+		t.Fatalf("late room notification survived NORMAL downgrade: %+v", created)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "mention")
+
+	if err := core.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(MUTED): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id)
+
+	if err := core.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(ALL_MESSAGES): %v", err)
+	}
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(MUTED): %v", err)
+	}
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "room override stays audible", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(room override): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "room_message")
+
+	if err := core.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(NORMAL): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id)
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL for DM): %v", err)
+	}
+	dm, _, err := core.FindOrCreateDM(ctx, author.Id, []string{recipient.Id})
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+	if _, err := core.PostMessage(ctx, KindDM, dm.Id, author.Id, "normal still receives DM", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(DM): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "dm_message")
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(MUTED for DM): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id)
+}
+
 func assertNotificationKinds(t *testing.T, core *ChattoCore, ctx context.Context, userID string, want ...string) {
 	t.Helper()
 	notifications, err := core.GetNotifications(ctx, userID)
@@ -551,6 +708,57 @@ func TestChattoCore_DefaultAllMessagesDoesNotDuplicateThreadEcho(t *testing.T) {
 	}
 	if len(notifications) != 1 {
 		t.Fatalf("notifications for one echoed reply = %d, want exactly 1: %+v", len(notifications), notifications)
+	}
+	roomMessage := notifications[0].GetRoomMessage()
+	if roomMessage == nil || roomMessage.GetEventId() != reply.Id || roomMessage.GetInThread() != root.Id {
+		t.Fatalf("notification = %+v, want original reply %s in thread %s", notifications[0], reply.Id, root.Id)
+	}
+}
+
+func TestChattoCore_DefaultAllMessagesDoesNotRenotifyWhenThreadEchoIsEnabledLater(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	recipient, err := core.CreateUser(ctx, SystemActorID, "edit-echo-recipient", "Edit Echo Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	author, err := core.CreateUser(ctx, SystemActorID, "edit-echo-author", "Edit Echo Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "edit-echo-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, userID := range []string{recipient.Id, author.Id} {
+		if _, err := core.JoinRoom(ctx, userID, KindChannel, userID, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", userID, err)
+		}
+	}
+
+	root, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "thread root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(root): %v", err)
+	}
+	if _, err := core.DismissAllNotifications(ctx, recipient.Id); err != nil {
+		t.Fatalf("DismissAllNotifications(recipient): %v", err)
+	}
+
+	reply, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "thread reply", nil, root.Id, "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(reply): %v", err)
+	}
+	if err := core.EditMessage(ctx, author.Id, KindChannel, room.Id, reply.Id, "thread reply with echo", WithMessageChannelEcho(true)); err != nil {
+		t.Fatalf("EditMessage(enable echo): %v", err)
+	}
+
+	notifications, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications: %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("notifications after enabling echo = %d, want exactly 1: %+v", len(notifications), notifications)
 	}
 	roomMessage := notifications[0].GetRoomMessage()
 	if roomMessage == nil || roomMessage.GetEventId() != reply.Id || roomMessage.GetInThread() != root.Id {

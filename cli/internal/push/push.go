@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -17,6 +19,7 @@ import (
 
 	webpush "github.com/SherClockHolmes/webpush-go"
 	"github.com/charmbracelet/log"
+	"github.com/rivo/uniseg"
 
 	"hmans.de/chatto/internal/config"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -48,9 +51,96 @@ func NewSender(cfg config.PushConfig, logger *log.Logger) *Sender {
 	return &Sender{
 		config:       cfg,
 		logger:       logger,
-		httpClient:   &http.Client{Timeout: pushRequestTimeout},
+		httpClient:   newPushHTTPClient(),
 		requestSlots: make(chan struct{}, maxConcurrentPushRequests),
 	}
+}
+
+func newPushHTTPClient() *http.Client {
+	transport, ok := http.DefaultTransport.(*http.Transport)
+	if ok {
+		transport = transport.Clone()
+	} else {
+		// Applications are allowed to replace http.DefaultTransport with any
+		// RoundTripper. Keep the standard library defaults without assuming its
+		// concrete type so push initialization cannot panic in an embedding host.
+		transport = &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           (&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+	}
+	// Push endpoints are browser-issued public HTTPS URLs. Bypassing ambient
+	// proxy variables keeps endpoint validation effective and avoids delegating
+	// target resolution to a proxy that may reach private networks.
+	transport.Proxy = nil
+	transport.DialContext = dialPublicPushAddress
+	return &http.Client{
+		Timeout:       pushRequestTimeout,
+		Transport:     transport,
+		CheckRedirect: rejectPushRedirect,
+	}
+}
+
+func rejectPushRedirect(_ *http.Request, _ []*http.Request) error {
+	// Browser-issued push endpoints are final HTTPS destinations. Refusing
+	// redirects prevents a compromised endpoint from downgrading or replaying
+	// the encrypted request and VAPID metadata to a different origin.
+	return http.ErrUseLastResponse
+}
+
+func dialPublicPushAddress(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, fmt.Errorf("invalid push service address: %w", err)
+	}
+	addresses, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("resolve push service address: %w", err)
+	}
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("push service address resolved to no IPs")
+	}
+	for _, resolved := range addresses {
+		if !isPublicPushAddress(resolved) {
+			return nil, fmt.Errorf("push service address resolved to a non-public IP")
+		}
+	}
+
+	dialer := &net.Dialer{}
+	var lastErr error
+	for _, resolved := range addresses {
+		connection, err := dialer.DialContext(ctx, network, net.JoinHostPort(resolved.String(), port))
+		if err == nil {
+			return connection, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("connect to push service: %w", lastErr)
+}
+
+func isPublicPushAddress(address netip.Addr) bool {
+	address = address.Unmap()
+	if !address.IsValid() || !address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() || address.IsLinkLocalUnicast() || address.IsUnspecified() {
+		return false
+	}
+	if address.Is4() {
+		for _, prefix := range []netip.Prefix{
+			netip.MustParsePrefix("100.64.0.0/10"),
+			netip.MustParsePrefix("192.0.0.0/24"),
+			netip.MustParsePrefix("198.18.0.0/15"),
+			netip.MustParsePrefix("240.0.0.0/4"),
+		} {
+			if prefix.Contains(address) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // Payload represents the data sent in a push notification.
@@ -140,23 +230,30 @@ type PayloadContext struct {
 	RoomName string
 }
 
-// maxPreviewLength is the maximum length for message previews
+// maxPreviewLength is the maximum number of user-perceived characters kept in
+// message previews before the ellipsis.
 const maxPreviewLength = 100
 
-// truncatePreview truncates a message to maxPreviewLength with ellipsis
+// truncatePreview truncates a message to maxPreviewLength grapheme clusters so
+// accents, emoji modifiers, and zero-width-joiner emoji sequences stay intact.
 func truncatePreview(text string) string {
-	if len(text) <= maxPreviewLength {
+	graphemes := uniseg.NewGraphemes(text)
+	clusters := make([]string, 0, maxPreviewLength+1)
+	for graphemes.Next() {
+		clusters = append(clusters, graphemes.Str())
+	}
+	if len(clusters) <= maxPreviewLength {
 		return text
 	}
 	// Find a good break point (space) near the limit
 	breakPoint := maxPreviewLength
 	for i := maxPreviewLength - 1; i > maxPreviewLength-20 && i > 0; i-- {
-		if text[i] == ' ' {
+		if strings.TrimSpace(clusters[i]) == "" {
 			breakPoint = i
 			break
 		}
 	}
-	return text[:breakPoint] + "…"
+	return strings.Join(clusters[:breakPoint], "") + "…"
 }
 
 // SendResult contains the result of a push notification send attempt.
@@ -359,7 +456,7 @@ func BuildPayloadFromNotification(notif *corev1.Notification, actorDisplayName, 
 		payload.Title = fmt.Sprintf("@%s sent you a new DM", actorDisplayName)
 		payload.Body = preview
 		payload.Tag = "dm-" + n.DmMessage.EventId
-		payload.URL = buildNotificationURL(baseURL, n.DmMessage.RoomId, "", "")
+		payload.URL = buildNotificationURL(baseURL, n.DmMessage.RoomId, n.DmMessage.InThread, n.DmMessage.EventId)
 
 	case *corev1.Notification_Mention:
 		if roomName != "" {

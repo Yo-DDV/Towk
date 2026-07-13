@@ -68,6 +68,7 @@ func (c *ChattoCore) SetSpaceNotificationLevel(ctx context.Context, userID strin
 		return fmt.Errorf("failed to set server notification level: %w", err)
 	}
 	if !changed {
+		c.DismissIneligibleNotifications(ctx, userID, "")
 		return nil
 	}
 
@@ -77,6 +78,7 @@ func (c *ChattoCore) SetSpaceNotificationLevel(ctx context.Context, userID strin
 	if effectiveLevel == corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
 		effectiveLevel = DefaultNotificationLevel
 	}
+	c.DismissIneligibleNotifications(ctx, userID, "")
 	c.publishNotificationLevelChangedEvent(ctx, userID, "", level, effectiveLevel)
 
 	return nil
@@ -124,6 +126,7 @@ func (c *ChattoCore) SetRoomNotificationLevel(ctx context.Context, userID, roomI
 		return fmt.Errorf("failed to set room notification level: %w", err)
 	}
 	if !changed {
+		c.DismissIneligibleNotifications(ctx, userID, roomID)
 		return nil
 	}
 
@@ -134,6 +137,7 @@ func (c *ChattoCore) SetRoomNotificationLevel(ctx context.Context, userID, roomI
 		c.logger.Warn("Failed to resolve effective notification level", "error", err)
 		effectiveLevel = level
 	}
+	c.DismissIneligibleNotifications(ctx, userID, roomID)
 	c.publishNotificationLevelChangedEvent(ctx, userID, roomID, level, effectiveLevel)
 
 	return nil

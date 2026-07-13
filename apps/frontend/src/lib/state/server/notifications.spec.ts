@@ -152,6 +152,24 @@ describe('NotificationStore', () => {
     expect(store.unreadNotificationCount).toBe(1);
   });
 
+  it('reports a newly hydrated fallback notification when the singular read fails', async () => {
+    const liveNotification = mention('fallback-live');
+    const api = makeAPI({
+      notifications: page([liveNotification]),
+      getNotification: () => {
+        throw new Error('singular read unavailable');
+      }
+    });
+    const store = new NotificationStore(api);
+
+    await expect(store.addNotification(liveNotification.id)).resolves.toBe(true);
+
+    expect(api.listNotifications).toHaveBeenCalledOnce();
+    expect(store.notifications.map((notification) => notification.id)).toEqual([
+      liveNotification.id
+    ]);
+  });
+
   it('does not let an in-flight fetch restore an optimistically dismissed notification', async () => {
     const response = deferred<NotificationPage>();
     const api = makeAPI();
@@ -311,7 +329,9 @@ describe('NotificationStore', () => {
       createdAt: new Date().toISOString(),
       actor: null,
       summary: 'sent you a message',
-      room: { id: 'dm-room' }
+      room: { id: 'dm-room' },
+      eventId: 'dm-event',
+      dmInThread: 'dm-thread-root'
     } as unknown as NotificationItem;
 
     const store = new NotificationStore(makeAPI());
@@ -325,6 +345,56 @@ describe('NotificationStore', () => {
     });
     expect(store.hasThreadNotification('thread-root')).toBe(true);
     expect(store.hasDMRoomNotification('dm-room')).toBe(true);
+    expect(notificationTarget(dm)).toMatchObject({
+      isDM: true,
+      roomId: 'dm-room',
+      eventId: 'dm-event',
+      threadRootId: 'dm-thread-root'
+    });
+    expect(store.getCleanPath('origin', dm)).toBe('/chat/-/dm-room/dm-thread-root');
+    expect(store.getNavigationPath('origin', dm)).toBe(
+      '/chat/-/dm-room/dm-thread-root?highlight=dm-event'
+    );
+  });
+
+  it('marks threads for mentions, replies, and all-message notifications', () => {
+    const threadMention = {
+      ...mention('thread-mention-indicator'),
+      mentionInThread: 'thread-mention-root'
+    } as NotificationItem;
+    const threadReply = {
+      kind: NotificationItemKind.Reply,
+      id: 'thread-reply-indicator',
+      createdAt: new Date().toISOString(),
+      actor: null,
+      summary: 'replied to you',
+      replyRoom: { id: 'r1', name: 'general' },
+      replyEventId: 'reply-event',
+      inReplyToId: 'parent-event',
+      replyInThread: 'thread-reply-root'
+    } as NotificationItem;
+    const threadRoomMessage = {
+      kind: NotificationItemKind.RoomMessage,
+      id: 'thread-room-message-indicator',
+      createdAt: new Date().toISOString(),
+      actor: null,
+      summary: 'posted a message',
+      roomMsgRoom: { id: 'r1', name: 'general' },
+      roomMsgEventId: 'room-message-event',
+      roomMsgInThread: 'thread-room-message-root'
+    } as NotificationItem;
+    const store = new NotificationStore(makeAPI());
+    store.notifications = [threadMention, threadReply, threadRoomMessage];
+
+    expect([...store.threadsWithNotifications]).toEqual([
+      'thread-mention-root',
+      'thread-reply-root',
+      'thread-room-message-root'
+    ]);
+    expect(store.hasThreadNotification('thread-mention-root')).toBe(true);
+    expect(store.hasThreadNotification('thread-reply-root')).toBe(true);
+    expect(store.hasThreadNotification('thread-room-message-root')).toBe(true);
+    expect(store.hasThreadNotification('unrelated-thread')).toBe(false);
   });
 
   it('retains existing notifications when the server returns an API error', async () => {

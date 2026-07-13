@@ -21,6 +21,7 @@ function createMemoryBadgeIntentStorage(): ForegroundBadgeIntentStorage {
   let badgeIntent: { kind: 'clear' } | { kind: 'flag' } | { kind: 'count'; count: number } | null =
     null;
   let serviceWorkerAppBadgeEnabled = false;
+  let lastPushAppBadgeCount: number | null = null;
   return {
     async readForegroundBadgeIntent() {
       return badgeIntent;
@@ -31,9 +32,16 @@ function createMemoryBadgeIntentStorage(): ForegroundBadgeIntentStorage {
     async writeForegroundNotificationState(intent, enabled) {
       badgeIntent = intent;
       serviceWorkerAppBadgeEnabled = enabled;
+      lastPushAppBadgeCount = null;
     },
     async clearForegroundBadgeIntent() {
       badgeIntent = null;
+    },
+    async readLastPushAppBadgeCount() {
+      return lastPushAppBadgeCount;
+    },
+    async writeLastPushAppBadgeCount(notificationCount) {
+      lastPushAppBadgeCount = notificationCount;
     }
   };
 }
@@ -417,6 +425,70 @@ describe('ServiceWorkerBadgeCoordinator', () => {
 
     expect(badgeNavigator.setAppBadge).toHaveBeenCalledWith(1);
     expect(badgeNavigator.clearAppBadge).toHaveBeenCalledOnce();
+  });
+
+  it('does not let out-of-order regular pushes regress an exact app badge count', async () => {
+    const registration = {
+      getNotifications: vi.fn(async () => [])
+    };
+    const badgeNavigator = {
+      setAppBadge: vi.fn(async () => {}),
+      clearAppBadge: vi.fn(async () => {})
+    };
+    const coordinator = new ServiceWorkerBadgeCoordinator(registration, badgeNavigator);
+
+    await coordinator.setPushAppBadgeCount(4);
+    await coordinator.setPushAppBadgeCount(2);
+
+    expect(badgeNavigator.setAppBadge).toHaveBeenNthCalledWith(1, 4);
+    expect(badgeNavigator.setAppBadge).toHaveBeenNthCalledWith(2, 4);
+  });
+
+  it('does not let a delayed push regress the badge after a service worker restart', async () => {
+    const registration = {
+      getNotifications: vi.fn(async () => [])
+    };
+    const badgeNavigator = {
+      setAppBadge: vi.fn(async () => {}),
+      clearAppBadge: vi.fn(async () => {})
+    };
+    const foregroundBadgeIntentStorage = createMemoryBadgeIntentStorage();
+
+    const firstCoordinator = new ServiceWorkerBadgeCoordinator(
+      registration,
+      badgeNavigator,
+      foregroundBadgeIntentStorage
+    );
+    await firstCoordinator.applyForegroundNotificationCount(0, {
+      serviceWorkerAppBadgeEnabled: true
+    });
+    badgeNavigator.clearAppBadge.mockClear();
+    await firstCoordinator.setPushAppBadgeCount(4);
+    await new ServiceWorkerBadgeCoordinator(
+      registration,
+      badgeNavigator,
+      foregroundBadgeIntentStorage
+    ).setPushAppBadgeCount(2);
+
+    expect(badgeNavigator.setAppBadge).toHaveBeenNthCalledWith(1, 4);
+    expect(badgeNavigator.setAppBadge).toHaveBeenNthCalledWith(2, 4);
+  });
+
+  it('allows an authoritative dismiss reconciliation to start a lower push-count window', async () => {
+    const registration = {
+      getNotifications: vi.fn(async () => [])
+    };
+    const badgeNavigator = {
+      setAppBadge: vi.fn(async () => {}),
+      clearAppBadge: vi.fn(async () => {})
+    };
+    const coordinator = new ServiceWorkerBadgeCoordinator(registration, badgeNavigator);
+
+    await coordinator.setPushAppBadgeCount(4);
+    await coordinator.reconcileAfterDismissPush();
+    await coordinator.setPushAppBadgeCount(2);
+
+    expect(badgeNavigator.setAppBadge).toHaveBeenLastCalledWith(2);
   });
 
   it('does not let a persisted foreground clear hide remaining native notifications', async () => {

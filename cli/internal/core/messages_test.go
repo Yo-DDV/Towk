@@ -410,6 +410,50 @@ func TestChattoCore_MessageBodyEventsAreSecureDeletedAfterEditAndDelete(t *testi
 	}
 }
 
+func TestChattoCore_DeleteMessageDismissesPendingNotification(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	author, err := core.CreateUser(ctx, "system", "delete-notification-author", "Delete Notification Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser author: %v", err)
+	}
+	recipient, err := core.CreateUser(ctx, "system", "delete-notification-recipient", "Delete Notification Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser recipient: %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "delete-notification", "Delete notification")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := core.AddMember(ctx, author.Id, KindChannel, room.Id, recipient.Id); err != nil {
+		t.Fatalf("AddMember recipient: %v", err)
+	}
+
+	posted, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "delete me", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	before, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications before delete: %v", err)
+	}
+	if len(before) != 1 || notificationTargetEventID(before[0]) != posted.Id {
+		t.Fatalf("notifications before delete = %+v, want posted event", before)
+	}
+
+	if err := core.DeleteMessage(ctx, author.Id, KindChannel, room.Id, posted.Id); err != nil {
+		t.Fatalf("DeleteMessage: %v", err)
+	}
+	after, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications after delete: %v", err)
+	}
+	if len(after) != 0 {
+		t.Fatalf("notifications after delete = %d, want 0", len(after))
+	}
+}
+
 func TestChattoCore_PostMessage_ConcurrentOCC(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

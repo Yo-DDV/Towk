@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -385,7 +386,9 @@ func TestChattoCore_PostMessage_Threading(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create user2: %v", err)
 		}
-		core.JoinRoom(ctx, user.Id, KindChannel, user2.Id, room.Id)
+		if _, err := core.JoinRoom(ctx, user2.Id, KindChannel, user2.Id, room.Id); err != nil {
+			t.Fatalf("Failed to join user2 to room: %v", err)
+		}
 
 		// Post a new root message
 		rootEvent, err := core.PostMessage(ctx, KindChannel, room.Id, user.Id, "Thread for participants test", nil, "", "", nil, false)
@@ -1553,9 +1556,9 @@ func TestChattoCore_PostMessage_EchoMentionNotification(t *testing.T) {
 
 	t.Run("echo with mention produces exactly one notification", func(t *testing.T) {
 		// Subscribe to live mention events for the target user
-		mentionCount := 0
+		var mentionCount atomic.Int32
 		sub, err := nc.Subscribe(subjects.LiveSyncUserEvent(target.Id, "mentioned"), func(msg *nats.Msg) {
-			mentionCount++
+			mentionCount.Add(1)
 		})
 		if err != nil {
 			t.Fatalf("Failed to subscribe: %v", err)
@@ -1582,8 +1585,8 @@ func TestChattoCore_PostMessage_EchoMentionNotification(t *testing.T) {
 		time.Sleep(500 * time.Millisecond)
 
 		// Should have received exactly 1 live mention event (not 2)
-		if mentionCount != 1 {
-			t.Errorf("Expected exactly 1 live mention event, got %d", mentionCount)
+		if got := mentionCount.Load(); got != 1 {
+			t.Errorf("Expected exactly 1 live mention event, got %d", got)
 		}
 
 		// Should have exactly 1 persistent notification
@@ -1807,7 +1810,7 @@ func TestChattoCore_PostMessage_InReplyToNotification(t *testing.T) {
 		}
 	})
 
-	t.Run("thread mention keeps existing follower notification", func(t *testing.T) {
+	t.Run("thread mention deduplicates an existing follower notification", func(t *testing.T) {
 		// Clear existing notifications
 		core.DismissAllNotifications(ctx, alice.Id)
 
@@ -1842,8 +1845,8 @@ func TestChattoCore_PostMessage_InReplyToNotification(t *testing.T) {
 		if mentionCount != 1 {
 			t.Errorf("Expected 1 thread mention notification, got %d", mentionCount)
 		}
-		if threadReplyCount != 1 {
-			t.Errorf("Expected 1 followed-thread notification, got %d", threadReplyCount)
+		if threadReplyCount != 0 {
+			t.Errorf("Expected no duplicate followed-thread notification, got %d", threadReplyCount)
 		}
 	})
 

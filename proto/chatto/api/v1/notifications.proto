@@ -17,6 +17,8 @@ message DirectMessageNotification {
   string event_id = 2;
   // DM room where the message was posted.
   RoomSummary room = 3;
+  // Thread root event ID when the DM was posted inside a thread.
+  optional string thread_root_event_id = 4;
 }
 
 // Mention notification payload.

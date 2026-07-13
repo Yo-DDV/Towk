@@ -26,6 +26,21 @@ describe('RoomUnreadStore', () => {
     expect(store.roomIsUnread('dm')).toBe(true);
   });
 
+  it('filters concrete and unknown unread state through an attention policy', () => {
+    const store = new RoomUnreadStore();
+    store.initRooms(
+      [
+        { id: 'muted', hasUnread: true },
+        { id: 'audible', hasUnread: true }
+      ],
+      true
+    );
+
+    expect(store.hasAnyUnreadMatching((roomId) => roomId === 'audible', false)).toBe(true);
+    expect(store.hasAnyUnreadMatching(() => false, false)).toBe(false);
+    expect(store.hasAnyUnreadMatching(() => false, true)).toBe(true);
+  });
+
   it('hides unread state immediately and restores it on rollback', () => {
     const store = new RoomUnreadStore();
     store.setRoomUnread('room-1', true);

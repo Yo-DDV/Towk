@@ -8,6 +8,10 @@
 
 import { createPushNotificationAPI } from '$lib/api-client/pushNotifications';
 import {
+  clearBadge,
+  syncServiceWorkerNotificationBadgeState
+} from '$lib/notifications/appBadge';
+import {
   NOTIFICATION_CLICK_ACK_MESSAGE_TYPE,
   NOTIFICATION_CLICK_MESSAGE_TYPE
 } from '$lib/pwa/notificationClick.worker';
@@ -16,6 +20,12 @@ import { serverConnectionManager } from '$lib/state/server/serverConnection.svel
 type EnsureRegisteredOptions = {
   prompt: boolean;
 };
+
+let registrationQueue: Promise<void> = Promise.resolve();
+let registrationGeneration = 0;
+let registrationsSuspended = false;
+const registeredVapidKeyStorageKey = 'towk:push:registered-vapid-public-key';
+let registeredVapidKeyFallback: string | null = null;
 
 export type PushCapability = 'supported' | 'ios_home_screen_required' | 'unsupported';
 
@@ -139,6 +149,9 @@ export async function ensureRegistered(
   vapidPublicKey: string,
   options: EnsureRegisteredOptions
 ): Promise<boolean> {
+  if (registrationsSuspended) {
+    return false;
+  }
   if (!isSupported()) {
     console.warn('Push notifications not supported');
     return false;
@@ -157,28 +170,76 @@ export async function ensureRegistered(
     return false;
   }
 
+  const generation = registrationGeneration;
+  const run = registrationQueue.then(
+    () => registerGrantedSubscription(vapidPublicKey, generation),
+    () => registerGrantedSubscription(vapidPublicKey, generation)
+  );
+  registrationQueue = run.then(
+    () => undefined,
+    () => undefined
+  );
+  return run;
+}
+
+async function registerGrantedSubscription(
+  vapidPublicKey: string,
+  generation: number
+): Promise<boolean> {
+  if (!registrationIsCurrent(generation) || Notification.permission !== 'granted') {
+    return false;
+  }
+
   const registration = await getServiceWorkerRegistration();
   if (!registration) {
     console.error('No service worker registration');
     return false;
   }
 
+  let subscription: PushSubscription | null = null;
+  let createdSubscription = false;
   try {
-    let subscription = await registration.pushManager.getSubscription();
-    let createdSubscription = false;
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+    subscription = await registration.pushManager.getSubscription();
+
+    if (
+      subscription &&
+      !subscriptionUsesApplicationServerKey(subscription, applicationServerKey, vapidPublicKey)
+    ) {
+      const staleEndpoint = subscription.endpoint;
+      await subscription.unsubscribe();
+      try {
+        await originPushAPI().unsubscribe(staleEndpoint);
+      } catch (error) {
+        // The obsolete browser subscription is already revoked. Its server
+        // record is best-effort cleanup and will also disappear on a 404/410.
+        console.error('Failed to remove obsolete push subscription from server:', error);
+      }
+      subscription = null;
+    }
+
+    if (!registrationIsCurrent(generation) || Notification.permission !== 'granted') {
+      return false;
+    }
 
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        applicationServerKey
       });
       createdSubscription = true;
+    }
+
+    if (!registrationIsCurrent(generation) || Notification.permission !== 'granted') {
+      if (createdSubscription) await subscription.unsubscribe();
+      return false;
     }
 
     // Extract subscription details
     const json = subscription.toJSON();
     if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
       console.error('Invalid push subscription');
+      await revokeSubscription(subscription);
       return false;
     }
 
@@ -197,11 +258,87 @@ export async function ensureRegistered(
       return false;
     }
 
+    rememberRegisteredVapidPublicKey(vapidPublicKey);
+
+    if (!registrationIsCurrent(generation) || Notification.permission !== 'granted') {
+      await revokeSubscription(subscription);
+      return false;
+    }
+
     return true;
   } catch (error) {
     console.error('Failed to subscribe to push:', error);
+    if (createdSubscription && subscription) {
+      try {
+        await subscription.unsubscribe();
+      } catch (cleanupError) {
+        console.error('Failed to clean up incomplete push subscription:', cleanupError);
+      }
+    }
     return false;
   }
+}
+
+function subscriptionUsesApplicationServerKey(
+  subscription: PushSubscription,
+  expected: Uint8Array<ArrayBuffer>,
+  expectedEncoded: string
+): boolean {
+  const current = subscription.options?.applicationServerKey;
+  // Some implementations do not expose this option. Persisting the public
+  // VAPID key after a successful server registration lets us still detect a
+  // later rotation. A pre-migration subscription without either proof is
+  // replaced once, then remains stable on subsequent launches.
+  if (!current) return registeredVapidPublicKey() === expectedEncoded;
+
+  const actual = new Uint8Array(current);
+  if (actual.length !== expected.length) return false;
+  return actual.every((value, index) => value === expected[index]);
+}
+
+function registeredVapidPublicKey(): string | null {
+  try {
+    return window.localStorage.getItem(registeredVapidKeyStorageKey) ?? registeredVapidKeyFallback;
+  } catch {
+    return registeredVapidKeyFallback;
+  }
+}
+
+function rememberRegisteredVapidPublicKey(vapidPublicKey: string): void {
+  registeredVapidKeyFallback = vapidPublicKey;
+  try {
+    window.localStorage.setItem(registeredVapidKeyStorageKey, vapidPublicKey);
+  } catch {
+    // The in-memory fallback still prevents churn during this page lifetime.
+  }
+}
+
+function registrationIsCurrent(generation: number): boolean {
+  return !registrationsSuspended && generation === registrationGeneration;
+}
+
+async function revokeSubscription(subscription: PushSubscription): Promise<boolean> {
+  const endpoint = subscription.endpoint;
+  let browserRemoved = false;
+  try {
+    browserRemoved = await subscription.unsubscribe();
+  } catch (error) {
+    console.error('Failed to unsubscribe browser push subscription:', error);
+  }
+
+  // Browser revocation is the privacy boundary and must not depend on a live
+  // authenticated API session. Server cleanup remains best-effort; a stale
+  // record is also removed on the next 404/410 response from the push service.
+  void originPushAPI()
+    .unsubscribe(endpoint)
+    .then((removed) => {
+      if (!removed) console.error('Failed to remove push subscription from server');
+    })
+    .catch((error) => {
+      console.error('Failed to remove push subscription from server:', error);
+    });
+
+  return browserRemoved;
 }
 
 /**
@@ -223,28 +360,51 @@ export async function subscribe(vapidPublicKey: string): Promise<boolean> {
  * @returns true if unsubscription was successful
  */
 export async function unsubscribe(): Promise<boolean> {
+  registrationGeneration += 1;
   const subscription = await getSubscription();
   if (!subscription) {
     // Already unsubscribed
     return true;
   }
 
-  try {
-    // Remove from server first
-    const removed = await originPushAPI().unsubscribe(subscription.endpoint);
+  return revokeSubscription(subscription);
+}
 
-    if (!removed) {
-      console.error('Failed to remove push subscription from server');
-      // Continue to unsubscribe from browser anyway
+async function clearLocalNotificationSurfaces(): Promise<void> {
+  // This is an authoritative account boundary. Reset the worker's persisted
+  // push count as well as the currently rendered badge so a later push cannot
+  // resurrect attention belonging to the signed-out account.
+  syncServiceWorkerNotificationBadgeState({ kind: 'clear' });
+
+  const registration = await getServiceWorkerRegistration();
+  if (registration) {
+    try {
+      const notifications = await registration.getNotifications();
+      for (const notification of notifications) {
+        try {
+          notification.close();
+        } catch {
+          // Continue closing the remaining notifications.
+        }
+      }
+    } catch {
+      // Browser-native notification cleanup is best-effort at sign-out.
     }
-
-    // Unsubscribe from browser
-    await subscription.unsubscribe();
-    return true;
-  } catch (error) {
-    console.error('Failed to unsubscribe from push:', error);
-    return false;
   }
+
+  await clearBadge();
+}
+
+/**
+ * Stop automatic reconciliation before an origin-account sign-out and revoke
+ * the browser endpoint even if the authenticated server call is already lost.
+ * A hard navigation resets this module for the next authenticated session.
+ */
+export async function unsubscribeForSignOut(): Promise<boolean> {
+  registrationsSuspended = true;
+  registrationGeneration += 1;
+  const [subscription] = await Promise.all([getSubscription(), clearLocalNotificationSurfaces()]);
+  return subscription ? revokeSubscription(subscription) : true;
 }
 
 function originPushAPI() {

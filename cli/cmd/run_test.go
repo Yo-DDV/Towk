@@ -1,14 +1,96 @@
 package cmd
 
 import (
+	"context"
+	"errors"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/push"
 	"hmans.de/chatto/internal/runtimeunit"
 	"hmans.de/chatto/internal/testutil"
 )
+
+type stalePushDeliveryState struct {
+	pending   *corev1.Notification
+	getErr    error
+	deleted   []string
+	deleteErr error
+}
+
+func (s *stalePushDeliveryState) GetNotification(context.Context, string, string) (*corev1.Notification, error) {
+	return s.pending, s.getErr
+}
+
+func (s *stalePushDeliveryState) DeletePushSubscription(_ context.Context, _ string, endpoint string) error {
+	s.deleted = append(s.deleted, endpoint)
+	return s.deleteErr
+}
+
+type stalePushBatchSender struct {
+	payloads []*push.Payload
+	results  []*push.SendResult
+}
+
+func (s *stalePushBatchSender) SendToMany(_ context.Context, _ []*corev1.PushSubscription, payload *push.Payload) []*push.SendResult {
+	s.payloads = append(s.payloads, payload)
+	return s.results
+}
+
+func TestCompensateStalePushDelivery(t *testing.T) {
+	notification := &corev1.Notification{
+		Id:          "notification-1",
+		RecipientId: "user-1",
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{RoomId: "room-1", EventId: "event-1"},
+		},
+	}
+	subscriptions := []*corev1.PushSubscription{{Endpoint: "https://push.example/sub"}}
+	logger := log.New(io.Discard)
+
+	t.Run("keeps a still-pending delivery", func(t *testing.T) {
+		state := &stalePushDeliveryState{pending: notification}
+		sender := &stalePushBatchSender{}
+
+		compensateStalePushDelivery(context.Background(), state, sender, notification, subscriptions, logger)
+
+		if len(sender.payloads) != 0 {
+			t.Fatalf("cleanup payload count = %d, want 0", len(sender.payloads))
+		}
+	})
+
+	t.Run("dismisses a delivery that became stale", func(t *testing.T) {
+		state := &stalePushDeliveryState{}
+		sender := &stalePushBatchSender{results: []*push.SendResult{{
+			Endpoint: subscriptions[0].Endpoint,
+			Gone:     true,
+		}}}
+
+		compensateStalePushDelivery(context.Background(), state, sender, notification, subscriptions, logger)
+
+		if len(sender.payloads) != 1 || sender.payloads[0].Action != "dismiss" || sender.payloads[0].Tag != "room-message-event-1" {
+			t.Fatalf("cleanup payloads = %+v, want one matching dismiss", sender.payloads)
+		}
+		if len(state.deleted) != 1 || state.deleted[0] != subscriptions[0].Endpoint {
+			t.Fatalf("deleted subscriptions = %v, want endpoint cleanup", state.deleted)
+		}
+	})
+
+	t.Run("fails closed when pending state cannot be read", func(t *testing.T) {
+		state := &stalePushDeliveryState{getErr: errors.New("state unavailable")}
+		sender := &stalePushBatchSender{}
+
+		compensateStalePushDelivery(context.Background(), state, sender, notification, subscriptions, logger)
+
+		if len(sender.payloads) != 0 {
+			t.Fatalf("cleanup payload count = %d, want 0", len(sender.payloads))
+		}
+	})
+}
 
 func TestEffectiveLogFormat(t *testing.T) {
 	tests := []struct {
@@ -48,7 +130,7 @@ func TestShouldPrintBannerOnlyForTextLogs(t *testing.T) {
 	}
 }
 
-func TestPushNotificationUsesCountBadgeOnlyForDMs(t *testing.T) {
+func TestPushNotificationUsesCountBadgeForEveryPersistentNotificationType(t *testing.T) {
 	tests := []struct {
 		name         string
 		notification *corev1.Notification
@@ -70,6 +152,7 @@ func TestPushNotificationUsesCountBadgeOnlyForDMs(t *testing.T) {
 					Mention: &corev1.MentionNotification{RoomId: "room-1", EventId: "event-1"},
 				},
 			},
+			want: true,
 		},
 		{
 			name: "reply",
@@ -78,6 +161,7 @@ func TestPushNotificationUsesCountBadgeOnlyForDMs(t *testing.T) {
 					Reply: &corev1.ReplyNotification{RoomId: "room-1", EventId: "event-1"},
 				},
 			},
+			want: true,
 		},
 		{
 			name: "room message",
@@ -89,7 +173,9 @@ func TestPushNotificationUsesCountBadgeOnlyForDMs(t *testing.T) {
 					},
 				},
 			},
+			want: true,
 		},
+		{name: "nil", notification: nil, want: false},
 	}
 
 	for _, tt := range tests {

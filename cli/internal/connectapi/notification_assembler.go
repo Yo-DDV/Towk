@@ -62,12 +62,14 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 		if err != nil {
 			return nil, err
 		}
-		item.Kind = &apiv1.NotificationItem_DirectMessage{
-			DirectMessage: &apiv1.DirectMessageNotification{
-				EventId: payload.DmMessage.GetEventId(),
-				Room:    room,
-			},
+		directMessage := &apiv1.DirectMessageNotification{
+			EventId: payload.DmMessage.GetEventId(),
+			Room:    room,
 		}
+		if threadID := payload.DmMessage.GetInThread(); threadID != "" {
+			directMessage.ThreadRootEventId = &threadID
+		}
+		item.Kind = &apiv1.NotificationItem_DirectMessage{DirectMessage: directMessage}
 	case *corev1.Notification_Mention:
 		room, err := a.room(ctx, payload.Mention.GetRoomId())
 		if err != nil {
