@@ -344,6 +344,7 @@
         "delete_messages": "Exclua todas as suas mensagens (o conteúdo será irrecuperável)",
         "delete_profile": "Exclua seu perfil, avatar e dados associados",
         "confirm_label": "Digite {confirmation} para confirmar",
+        "confirmation_token": "EXCLUIR",
         "fresh_auth_intro": "Confirme sua senha atual antes de excluir esta conta.",
         "fresh_auth_required": "Faça login novamente antes de excluir esta conta.",
         "cancel": "Cancelar",

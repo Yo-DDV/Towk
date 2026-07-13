@@ -393,6 +393,7 @@ const msg_settings_account_delete_modal_delete_profile = (): LocalizedString => 
 const msg_settings_account_delete_modal_confirm_label = (
   inputs: Parameters<LocaleMessages['settings_account_delete_modal_confirm_label']>[0]
 ): LocalizedString => messages().settings_account_delete_modal_confirm_label(inputs);
+const msg_settings_account_delete_modal_confirmation_token = (): LocalizedString => messages().settings_account_delete_modal_confirmation_token(empty());
 const msg_settings_account_delete_modal_fresh_auth_intro = (): LocalizedString => messages().settings_account_delete_modal_fresh_auth_intro(empty());
 const msg_settings_account_delete_modal_fresh_auth_required = (): LocalizedString => messages().settings_account_delete_modal_fresh_auth_required(empty());
 const msg_settings_account_delete_modal_cancel = (): LocalizedString => messages().settings_account_delete_modal_cancel(empty());
@@ -1939,6 +1940,7 @@ export { msg_settings_account_delete_modal_remove_from_rooms as 'settings.accoun
 export { msg_settings_account_delete_modal_delete_messages as 'settings.account.delete_modal.delete_messages' };
 export { msg_settings_account_delete_modal_delete_profile as 'settings.account.delete_modal.delete_profile' };
 export { msg_settings_account_delete_modal_confirm_label as 'settings.account.delete_modal.confirm_label' };
+export { msg_settings_account_delete_modal_confirmation_token as 'settings.account.delete_modal.confirmation_token' };
 export { msg_settings_account_delete_modal_fresh_auth_intro as 'settings.account.delete_modal.fresh_auth_intro' };
 export { msg_settings_account_delete_modal_fresh_auth_required as 'settings.account.delete_modal.fresh_auth_required' };
 export { msg_settings_account_delete_modal_cancel as 'settings.account.delete_modal.cancel' };
