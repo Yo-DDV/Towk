@@ -14,6 +14,7 @@ const backendTarget =
   process.env.CHATTO_BACKEND_URL ||
   `http://localhost:${process.env.CHATTO_WEBSERVER_PORT || '4000'}`;
 const tiptapDeps = ['@tiptap/pm/state'];
+const testBrowser = (process.env.VITEST_BROWSER ?? 'chromium') as 'chromium' | 'firefox' | 'webkit';
 const highlightLanguageMetadataModule = 'virtual:towk-highlight-language-metadata';
 const resolvedHighlightLanguageMetadataModule = `\0${highlightLanguageMetadataModule}`;
 
@@ -216,7 +217,7 @@ export default defineConfig({
             enabled: true,
             provider: playwright(),
             headless: !process.env.SHOW_BROWSER,
-            instances: [{ browser: 'chromium' }]
+            instances: [{ browser: testBrowser }]
           },
           include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
           exclude: ['src/lib/server/**'],

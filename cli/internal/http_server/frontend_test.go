@@ -590,6 +590,8 @@ func TestSecurityHeaders(t *testing.T) {
 		assert.Empty(t, w.Header().Get("Content-Security-Policy-Report-Only"))
 		assert.Equal(t, strictTransportSecurity, w.Header().Get("Strict-Transport-Security"))
 		assert.Contains(t, csp, "default-src 'self'")
+		assert.Contains(t, csp, "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'")
+		assert.NotContains(t, csp, " 'unsafe-eval'")
 		assert.Contains(t, csp, "connect-src 'self' http: https: ws: wss:")
 		assert.Contains(t, csp, "img-src 'self' data: blob: http: https:")
 		assert.Contains(t, csp, "media-src 'self' blob: http: https:")
