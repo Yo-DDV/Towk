@@ -3,6 +3,7 @@ import { test } from './setup';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { withServerUser } from './fixtures/serverUser';
 import { TIMEOUTS } from './constants';
+import * as routes from './routes';
 
 test.describe('Up arrow to edit last message', () => {
   test('pressing up arrow on empty input edits last message', async ({
@@ -241,6 +242,39 @@ test.describe('Message editing', () => {
     // Verify "(edited)" indicator appears
     const editedMsg = roomPage.getMessage(editedMessage);
     await editedMsg.expectEdited();
+  });
+
+  test('edited marker follows the selected French locale', async ({ page, chatPage, roomPage }) => {
+    await createAndLoginTestUser(page);
+    await page.goto(routes.settingsPreferences);
+    await expect(page.getByRole('heading', { name: 'Display' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+
+    await page.getByRole('radio', { name: 'Français' }).click();
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
+
+    const originalMessage = `Marqueur modifie original ${Date.now()}`;
+    await roomPage.sendMessage(originalMessage);
+
+    await roomPage.messageInput.clear();
+    await roomPage.messageInput.focus();
+    await roomPage.pressUpArrow();
+    await expect(roomPage.composer).toHaveText(originalMessage);
+
+    const editedMessage = `Marqueur modifie final ${Date.now()}`;
+    await roomPage.composer.fill(editedMessage);
+    await roomPage.composer.press('Enter');
+
+    await roomPage.expectMessageVisible(editedMessage);
+    await roomPage.expectMessageNotVisible(originalMessage);
+
+    const editedMsg = roomPage.getMessage(editedMessage);
+    await editedMsg.expectEdited('(modifié)');
+    await editedMsg.expectNotEdited('(edited)');
   });
 
   test('user can cancel editing with Escape', async ({ page, chatPage, roomPage }) => {
