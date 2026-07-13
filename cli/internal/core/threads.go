@@ -251,7 +251,9 @@ func setRoomEventsResultCursors(result *RoomEventsResult) {
 	result.EndCursorSeq = result.Events[len(result.Events)-1].Sequence
 }
 
-// notifyThreadFollowers creates persistent notifications for all thread followers when someone replies.
+// notifyThreadFollowers creates persistent notifications for thread followers
+// whose effective room level is ALL_MESSAGES when someone replies. DM replies
+// remain covered independently by the unconditional DM participant fanout.
 // Followers are users who have explicitly or automatically followed the thread (stored in RUNTIME KV).
 // Users in skipIDs are excluded (e.g., already notified via inReplyTo).
 // This is best-effort - failures are logged but don't affect message posting.
@@ -286,12 +288,16 @@ func (c *ChattoCore) notifyThreadFollowers(ctx context.Context, kind RoomKind, r
 			continue
 		}
 
-		// Skip if user has muted this room
+		// NORMAL is intentionally mention-only in channel rooms. A followed
+		// thread does not widen that explicit opt-down back to ambient replies.
 		level, err := c.GetEffectiveNotificationLevel(ctx, followerID, roomID)
 		if err != nil {
-			c.logger.Warn("Failed to get notification level for thread follower, continuing",
+			c.logger.Warn("Failed to get notification level for thread follower, skipping",
 				"user_id", followerID, "error", err)
-		} else if level == corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED {
+			continue
+		}
+		if level == corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED ||
+			(kind != KindDM && level != corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES) {
 			continue
 		}
 
@@ -331,8 +337,10 @@ func (c *ChattoCore) notifyThreadFollowers(ctx context.Context, kind RoomKind, r
 	return notifiedUserIDs
 }
 
-// notifyInReplyToAuthor creates a persistent notification for the author of a message
-// that received a reply (via inReplyTo). Works for both room-level and in-thread replies.
+// notifyInReplyToAuthor creates a persistent notification for the author of a
+// message that received a reply (via inReplyTo) when the effective channel-room
+// level is ALL_MESSAGES. DM replies remain covered independently by the
+// unconditional DM participant fanout.
 // Returns the notified user ID so the caller can add it to the already-notified set,
 // or empty string if no notification was sent.
 // This is best-effort - failures are logged but don't affect message posting.
@@ -363,12 +371,16 @@ func (c *ChattoCore) notifyInReplyToAuthor(ctx context.Context, kind RoomKind, r
 		}
 	}
 
-	// Skip if user has muted this room
+	// NORMAL is mention-only in channel rooms, including replies addressed to a
+	// specific message. ALL_MESSAGES keeps the richer reply notification type.
 	level, err := c.GetEffectiveNotificationLevel(ctx, originalAuthorID, roomID)
 	if err != nil {
-		c.logger.Warn("Failed to get notification level for in-reply-to author, continuing",
+		c.logger.Warn("Failed to get notification level for in-reply-to author, skipping",
 			"user_id", originalAuthorID, "error", err)
-	} else if level == corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED {
+		return ""
+	}
+	if level == corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED ||
+		(kind != KindDM && level != corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES) {
 		return ""
 	}
 

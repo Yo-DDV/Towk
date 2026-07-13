@@ -5,12 +5,12 @@
 
 ## Overview
 
-Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, replies to their own messages, new posts in threads they follow, and all messages in rooms they have joined by default. Notification levels are configurable per server and per room.
+Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, and every root or thread message in rooms using the default ALL_MESSAGES level. Notification levels are configurable per server and per room.
 
 ## Behavior
 
 - A bell icon shows an unread count and opens the notification center listing recent notifications.
-- A notification appears for: a DM message, a mention that resolves to the user, a reply to one of the user's messages, a new reply in a thread the user follows, or any root or thread message in a room set to ALL_MESSAGES.
+- A notification appears for every non-muted DM, for a mention that resolves to the user in a NORMAL or ALL_MESSAGES channel room, or for every root and thread message in a channel room set to ALL_MESSAGES. Replies and followed threads do not bypass an explicit NORMAL opt-down unless the reply also mentions the recipient.
 - Mention notifications may come from direct `@username`, role `@role`, `@all`, or `@here` mentions. The bundled composer asks for confirmation before sending role, `@all`, or `@here` mentions, while API callers can post authorized messages directly.
 - Notifications auto-expire after 90 days.
 - Dismissing a notification removes it everywhere — across all the user's open tabs and devices.
@@ -26,8 +26,8 @@ Per space and per room, the user picks one of four levels:
 
 - **DEFAULT** — inherit from the parent (room → server → system default of ALL_MESSAGES).
 - **MUTED** — suppress everything for this scope, including @mentions. The room doesn't even show as unread in the sidebar.
-- **NORMAL** — notifications for mentions, DMs, and thread replies. Users can choose this to reduce ambient message notifications.
-- **ALL_MESSAGES** — like NORMAL plus every root and thread message in the room.
+- **NORMAL** — unread markers remain visible, but channel-room notifications are limited to mentions. Direct messages still notify unless their room is explicitly muted.
+- **ALL_MESSAGES** — a notification for every root and thread message in the room, with richer mention or reply notification types used where applicable.
 
 An absent stored preference resolves to ALL_MESSAGES at read and delivery time. This semantic default applies equally to existing and newly created accounts without rewriting event history. Explicit NORMAL, MUTED, and room overrides remain authoritative user choices.
 
@@ -36,7 +36,7 @@ An absent stored preference resolves to ALL_MESSAGES at read and delivery time. 
 - Posting a reply in a thread automatically subscribes the user to that thread's reply notifications.
 - A direct `@username` mention in a thread subscribes the mentioned user if they have never followed or explicitly unfollowed that thread before. Role mentions, `@all`, and `@here` notify according to mention rules but do not subscribe recipients.
 - Thread followers can manually unfollow, and non-posters can manually follow.
-- Followers receive a notification for new replies in the thread (skipping their own).
+- Followers receive a notification for new replies only when their effective room level is ALL_MESSAGES (skipping their own). Following still keeps the thread in My Threads when the user has opted down to NORMAL.
 - Thread notifications respect room mute: a muted room produces no thread notifications even for followed threads.
 
 ## Design Decisions

@@ -221,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Marcadores não lidos + menções, DMs e respostas do tópico"
+          "description": "Marcadores não lidos; notificações apenas para menções. Mensagens diretas sempre geram notificações"
         },
         "all_messages": {
           "label": "Todas as mensagens",
-          "description": "Normal + notificação para cada nova mensagem"
+          "description": "Uma notificação para cada nova mensagem em salas e tópicos dos quais participa"
         }
       },
       "sound": {

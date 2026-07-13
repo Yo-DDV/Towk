@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -423,6 +424,90 @@ func TestChattoCore_DefaultAllMessagesNotifiesJoinedChannelMembers(t *testing.T)
 	}
 	if len(notifications) != 0 {
 		t.Fatalf("notifications after explicit NORMAL = %d, want none", len(notifications))
+	}
+}
+
+func TestChattoCore_NormalNotifiesOnlyMentionsInRoomsAndAlwaysNotifiesDMs(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	recipient, err := core.CreateUser(ctx, SystemActorID, "normal-mentions-recipient", "Normal Mentions Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	author, err := core.CreateUser(ctx, SystemActorID, "normal-mentions-author", "Normal Mentions Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "normal-mentions-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, userID := range []string{recipient.Id, author.Id} {
+		if _, err := core.JoinRoom(ctx, userID, KindChannel, userID, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", userID, err)
+		}
+	}
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
+
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "plain room message", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(plain): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id)
+
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "hello @normal-mentions-recipient", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(mention): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "mention")
+	if _, err := core.DismissAllNotifications(ctx, recipient.Id); err != nil {
+		t.Fatalf("DismissAllNotifications(mention): %v", err)
+	}
+
+	root, err := core.PostMessage(ctx, KindChannel, room.Id, recipient.Id, "thread root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(thread root): %v", err)
+	}
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "plain thread reply", nil, root.Id, root.Id, nil, false); err != nil {
+		t.Fatalf("PostMessage(thread reply): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id)
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "thread mention @normal-mentions-recipient", nil, root.Id, "", nil, false); err != nil {
+		t.Fatalf("PostMessage(thread mention): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "mention")
+	if _, err := core.DismissAllNotifications(ctx, recipient.Id); err != nil {
+		t.Fatalf("DismissAllNotifications(thread mention): %v", err)
+	}
+
+	dm, _, err := core.FindOrCreateDM(ctx, author.Id, []string{recipient.Id})
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+	if _, err := core.PostMessage(ctx, KindDM, dm.Id, author.Id, "direct message", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(DM): %v", err)
+	}
+	assertNotificationKinds(t, core, ctx, recipient.Id, "dm_message")
+}
+
+func assertNotificationKinds(t *testing.T, core *ChattoCore, ctx context.Context, userID string, want ...string) {
+	t.Helper()
+	notifications, err := core.GetNotifications(ctx, userID)
+	if err != nil {
+		t.Fatalf("GetNotifications(%s): %v", userID, err)
+	}
+	got := make([]string, 0, len(notifications))
+	for _, notification := range notifications {
+		got = append(got, notificationTypeName(notification))
+	}
+	if len(got) != len(want) {
+		t.Fatalf("notification kinds = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("notification kinds = %v, want %v", got, want)
+		}
 	}
 }
 

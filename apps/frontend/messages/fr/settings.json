@@ -221,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Indicateurs de messages non lus, mentions, messages directs et réponses aux fils"
+          "description": "Indicateurs de messages non lus ; notifications uniquement pour les mentions. Les messages directs sont toujours notifiés"
         },
         "all_messages": {
           "label": "Tous les messages",
-          "description": "Mode normal avec une notification pour chaque nouveau message"
+          "description": "Une notification pour chaque nouveau message dans les salons rejoints et les fils"
         }
       },
       "sound": {

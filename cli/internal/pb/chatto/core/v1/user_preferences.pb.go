@@ -83,9 +83,10 @@ const (
 	NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED NotificationLevel = 0
 	// Suppress all notifications and unread markers.
 	NotificationLevel_NOTIFICATION_LEVEL_MUTED NotificationLevel = 1
-	// Standard behavior: unread markers + notifications for mentions/DMs/threads.
+	// Standard behavior: unread markers plus mention-only room notifications.
+	// Direct-message rooms still notify for every message unless explicitly muted.
 	NotificationLevel_NOTIFICATION_LEVEL_NORMAL NotificationLevel = 2
-	// Like NORMAL, plus a notification for every new root message in the room.
+	// Notify for every new root and thread message in the room.
 	NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES NotificationLevel = 3
 )
 

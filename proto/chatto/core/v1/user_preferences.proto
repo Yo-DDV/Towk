@@ -21,9 +21,10 @@ enum NotificationLevel {
   NOTIFICATION_LEVEL_UNSPECIFIED = 0;
   // Suppress all notifications and unread markers.
   NOTIFICATION_LEVEL_MUTED = 1;
-  // Standard behavior: unread markers + notifications for mentions/DMs/threads.
+  // Standard behavior: unread markers plus mention-only room notifications.
+  // Direct-message rooms still notify for every message unless explicitly muted.
   NOTIFICATION_LEVEL_NORMAL = 2;
-  // Like NORMAL, plus a notification for every new root message in the room.
+  // Notify for every new root and thread message in the room.
   NOTIFICATION_LEVEL_ALL_MESSAGES = 3;
 }
 

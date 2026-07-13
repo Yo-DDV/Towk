@@ -221,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Ungelesen-Markierungen + Erwähnungen, DMs und Thread-Antworten"
+          "description": "Ungelesen-Markierungen; Benachrichtigungen nur bei Erwähnungen. Direktnachrichten lösen immer Benachrichtigungen aus"
         },
         "all_messages": {
           "label": "Alle Nachrichten",
-          "description": "Normal + Benachrichtigung für jede neue Nachricht"
+          "description": "Eine Benachrichtigung für jede neue Nachricht in beigetretenen Räumen und Threads"
         }
       },
       "sound": {

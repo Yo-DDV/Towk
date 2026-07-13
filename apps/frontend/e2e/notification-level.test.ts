@@ -31,9 +31,11 @@ test.describe('Notification Level - Notifications Settings', () => {
     // Verify the three server-level option labels are visible
     await expect(page.getByText('No notifications or unread markers')).toBeVisible();
     await expect(
-      page.getByText('Unread markers + mentions, DMs, and thread replies')
+      page.getByText('Unread markers; notifications only for mentions. DMs always notify')
     ).toBeVisible();
-    await expect(page.getByText('Normal + notification for every new message')).toBeVisible();
+    await expect(
+      page.getByText('A notification for every new message in joined rooms and threads')
+    ).toBeVisible();
 
     // Verify room overrides section is visible
     await expect(page.getByText('Room Overrides')).toBeVisible();
