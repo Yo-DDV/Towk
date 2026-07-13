@@ -94,8 +94,10 @@
         "copy_link_title": "Haga clic para copiar el enlace a este mensaje.",
         "in_reply_to": "en respuesta a",
         "reply_preview_fallback": "Mensaje",
+        "edited": "(editado)",
         "deleted": "Este mensaje ha sido eliminado."
-      }
+      },
+      "start_marker": "Este es el inicio de esta conversación."
     },
     "attachment": {
       "delete_title": "Eliminar archivo adjunto",
@@ -137,7 +139,13 @@
       "in_voice_call": "En una llamada de voz",
       "in_video_call": "En una videollamada",
       "ban_failed": "No se pudo bloquear al miembro en la sala",
-      "ban_success": "{name} fue bloqueado en la sala"
+      "ban_success": "{name} fue bloqueado en la sala",
+      "show_members": "Mostrar miembros",
+      "hide_members": "Ocultar miembros",
+      "show_files": "Mostrar archivos",
+      "hide_files": "Ocultar archivos",
+      "show_call": "Mostrar llamada",
+      "hide_call": "Ocultar llamada"
     },
     "title": {
       "direct_message": "Mensaje directo"
@@ -154,6 +162,22 @@
     "jump_to_present": "Saltar al presente",
     "jump_failed": "No se pudo saltar a ese mensaje.",
     "unread_separator": "Nuevos mensajes",
-    "close_extras": "Cerrar extras de la sala"
+    "close_extras": "Cerrar extras de la sala",
+    "system_group": {
+      "joined_room_one": "se unió a la sala",
+      "joined_room_many": "se unieron a la sala",
+      "left_room_one": "salió de la sala",
+      "left_room_many": "salieron de la sala",
+      "and": "y",
+      "show_less": "mostrar menos",
+      "other_one": "{count} más",
+      "other_many": "{count} más"
+    },
+    "system_event": {
+      "joined_room": "se unió a la sala",
+      "left_room": "salió de la sala",
+      "archived_room": "archivó la sala",
+      "unarchived_room": "desarchivó la sala"
+    }
   }
 }

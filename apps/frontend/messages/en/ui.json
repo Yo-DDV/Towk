@@ -54,7 +54,8 @@
     "image_modal": {
       "previous": "Previous image",
       "next": "Next image",
-      "fallback_alt": "Image"
+      "fallback_alt": "Image",
+      "open_original": "Open original"
     },
     "toast": {
       "dismiss": "Dismiss notification"
@@ -84,6 +85,10 @@
       "yesterday": "Yesterday",
       "this_week": "This week",
       "this_month": "This month"
+    },
+    "user_combobox": {
+      "empty": "No users found",
+      "clear_actor": "Clear actor"
     }
   }
 }

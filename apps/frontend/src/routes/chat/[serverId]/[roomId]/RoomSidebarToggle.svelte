@@ -10,6 +10,7 @@ Room header affordance for opening or hiding room extras panels.
 - `mode` - Responsive visibility for the toggle group.
 -->
 <script lang="ts">
+  import * as m from '$lib/i18n/messages';
   import type { RoomSidebarPanel } from './RoomSidebar.svelte';
 
   let {
@@ -29,26 +30,26 @@ Room header affordance for opening or hiding room extras panels.
   const panelDefinitions: {
     id: RoomSidebarPanel;
     icon: string;
-    showLabel: string;
-    hideLabel: string;
+    showLabel: () => string;
+    hideLabel: () => string;
   }[] = [
     {
       id: 'members',
       icon: 'uil--users-alt',
-      showLabel: 'Show members',
-      hideLabel: 'Hide members'
+      showLabel: m['room.sidebar.show_members'],
+      hideLabel: m['room.sidebar.hide_members']
     },
     {
       id: 'files',
       icon: 'uil--paperclip',
-      showLabel: 'Show files',
-      hideLabel: 'Hide files'
+      showLabel: m['room.sidebar.show_files'],
+      hideLabel: m['room.sidebar.hide_files']
     },
     {
       id: 'call',
       icon: 'uil--phone',
-      showLabel: 'Show call',
-      hideLabel: 'Hide call'
+      showLabel: m['room.sidebar.show_call'],
+      hideLabel: m['room.sidebar.hide_call']
     }
   ];
 
@@ -74,6 +75,7 @@ Room header affordance for opening or hiding room extras panels.
 >
   {#each visiblePanels as panel (panel.id)}
     {@const isActive = activePanel === panel.id}
+    {@const label = isActive ? panel.hideLabel() : panel.showLabel()}
     {@const isActiveCallPanel = panel.id === 'call' && hasActiveCall}
     {@const shouldPulseCallIcon = isActiveCallPanel && !isActive}
     <button
@@ -84,8 +86,8 @@ Room header affordance for opening or hiding room extras panels.
         isActiveCallPanel && 'text-accent'
       ]}
       onclick={() => onToggle(panel.id)}
-      title={isActive ? panel.hideLabel : panel.showLabel}
-      aria-label={isActive ? panel.hideLabel : panel.showLabel}
+      title={label}
+      aria-label={label}
       aria-pressed={isActive}
     >
       <span class="relative inline-flex">

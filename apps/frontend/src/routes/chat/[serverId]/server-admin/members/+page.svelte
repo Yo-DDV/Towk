@@ -18,6 +18,7 @@
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { formatDate as formatDateUtil } from '$lib/utils/formatTime';
   import { getLocale } from '$lib/i18n/runtime';
+  import { localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
 
   const userSettings = getUserSettings();
@@ -130,7 +131,7 @@
 
   function getRoleDisplayName(roleName: string): string {
     const role = roles.find((r) => r.name === roleName);
-    return role?.displayName || roleName;
+    return localizedRoleDisplayName(roleName, role?.displayName);
   }
 
   function formatDate(dateStr: string | null | undefined): string {

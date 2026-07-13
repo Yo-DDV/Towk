@@ -82,7 +82,30 @@
           "title": "Permissões do usuário",
           "description": "Controle a conta do usuário e as operações de permissão por usuário. Qualquer negação de não proprietário cancela concessões"
         }
-      }
+      },
+      "state_allow": "Permitir",
+      "state_deny": "Negar",
+      "state_neutral": "Sem decisão",
+      "scope_title": "{label} ({kind})",
+      "no_scopes_available": "Não há âmbitos disponíveis para {subject}.",
+      "about_permission": "Sobre {permission}",
+      "subject_generic": "este sujeito",
+      "subject_user": "este utilizador",
+      "subject_role": "esta função",
+      "role_manage_title": "{role} — clicar para gerir",
+      "owner_always_granted_permission": "A função Proprietário recebe sempre {permission}",
+      "override_for_role_permission": "Substituir por {state} para {role} em {permission}",
+      "no_override_for_role_permission": "Sem substituição para {role} em {permission}",
+      "inheriting_from": "herda {state} de {source}",
+      "allow_owners_all": "Permitir (os proprietários recebem sempre todas as permissões)",
+      "owner_permissions_not_editable": "As permissões da função Proprietário não são editáveis",
+      "override_at_this_tier": "{state} (substituição neste nível)",
+      "inherits_from": "Herda {state} de {source}",
+      "subject_always_granted_at_scope": "{subject} recebe sempre {permission} em {scope}",
+      "override_for_permission_scope": "Substituir por {state} para {permission} em {scope}",
+      "no_override_effective_scope": "Sem substituição para {permission} em {scope}; estado efetivo: {state}",
+      "subject_override_at_scope": "{state} (substituição de {subject} em {scope})",
+      "effective_inherited": "Estado efetivo: {state} (herdado)"
     },
     "permission_descriptions": {
       "server_manage": "Atualizar as configurações do servidor (nome, descrição, logotipo)",
@@ -106,6 +129,24 @@
       "user_delete_self": "Exclua sua própria conta",
       "user_manage_accounts": "Crie usuários, edite a identidade da conta, redefina senhas, anexe e-mails verificados e limpe os tempos de espera de login",
       "user_manage_permissions": "Editar substituições de permissão diretas por usuário"
+    },
+    "system_roles": {
+      "owner": {
+        "display_name": "Proprietário",
+        "description": "Controlo completo do servidor"
+      },
+      "admin": {
+        "display_name": "Administrador",
+        "description": "Acesso administrativo completo ao servidor"
+      },
+      "moderator": {
+        "display_name": "Moderador",
+        "description": "Acesso de leitura aos painéis de administração sem permissões de gestão"
+      },
+      "everyone": {
+        "display_name": "Todos os membros",
+        "description": "Todos os utilizadores autenticados"
+      }
     }
   }
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { flushSync } from 'svelte';
+import { setLocale } from '$lib/i18n/runtime';
 import PermissionMatrix from './PermissionMatrix.svelte';
 
 type TierRoles = {
@@ -77,7 +78,8 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
   })
 }));
 
-beforeEach(() => {
+beforeEach(async () => {
+  await setLocale('en');
   nextTierRoles = HAPPY_TIER_ROLES;
   permissionMocks.getRolePermissionTierMatrix.mockReset();
   permissionMocks.getRolePermissionTierMatrix.mockImplementation(async () => nextTierRoles);
@@ -101,7 +103,7 @@ describe('PermissionMatrix', () => {
 
     const tables = container.querySelectorAll('table');
     expect(tables.length).toBeGreaterThan(0);
-    // "Permission" + "@owner" + "@admin" + "@moderator" per category panel;
+    // "Permission" + localized owner/admin/moderator per category panel;
     // two categories ('message' and 'room'), so 8 header cells total.
     expect(container.querySelectorAll('thead th').length).toBe(8);
     expect(container.querySelectorAll('tbody tr').length).toBe(2);
@@ -136,7 +138,7 @@ describe('PermissionMatrix', () => {
     const buttons = Array.from(
       container.querySelectorAll('thead button')
     ) as HTMLButtonElement[];
-    const adminHeader = buttons.find((b) => b.textContent?.trim() === '@admin');
+    const adminHeader = buttons.find((b) => b.textContent?.trim() === 'Admin');
     expect(adminHeader).toBeDefined();
     adminHeader!.click();
     flushSync();
@@ -156,10 +158,25 @@ describe('PermissionMatrix', () => {
     await settle();
 
     const headerCells = Array.from(container.querySelectorAll('thead th'));
-    const adminTh = headerCells.find((th) => th.textContent?.includes('@admin')) as HTMLElement;
-    const modTh = headerCells.find((th) => th.textContent?.includes('@moderator')) as HTMLElement;
+    const adminTh = headerCells.find((th) => th.textContent?.includes('Admin')) as HTMLElement;
+    const modTh = headerCells.find((th) => th.textContent?.includes('Moderator')) as HTMLElement;
     expect(adminTh.querySelector('button')).toBeNull();
     expect(modTh.querySelector('button')).not.toBeNull();
+  });
+
+  it('localizes persisted system role headers in the active locale', async () => {
+    await setLocale('fr');
+    const { container } = render(PermissionMatrix, { props: { spaceId: 'space-1' } });
+    await settle();
+
+    const headerText = Array.from(container.querySelectorAll('thead th')).map((th) =>
+      th.textContent?.trim()
+    );
+    expect(headerText).toContain('Administrateur');
+    expect(headerText).toContain('Modérateur');
+    expect(headerText).toContain('Propriétaire');
+    expect(headerText).not.toContain('@admin');
+    expect(headerText).not.toContain('@moderator');
   });
 
   it('renders owner cells as read-only effective allows', async () => {

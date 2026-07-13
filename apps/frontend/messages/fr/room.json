@@ -96,7 +96,8 @@
         "reply_preview_fallback": "Message",
         "edited": "(modifié)",
         "deleted": "Ce message a été supprimé."
-      }
+      },
+      "start_marker": "C’est le début de cette conversation."
     },
     "attachment": {
       "delete_title": "Supprimer la pièce jointe",
@@ -138,7 +139,13 @@
       "in_voice_call": "En appel vocal",
       "in_video_call": "En appel vidéo",
       "ban_failed": "Impossible de bannir ce membre du salon",
-      "ban_success": "{name} a été banni du salon"
+      "ban_success": "{name} a été banni du salon",
+      "show_members": "Afficher les membres",
+      "hide_members": "Masquer les membres",
+      "show_files": "Afficher les fichiers",
+      "hide_files": "Masquer les fichiers",
+      "show_call": "Afficher l’appel",
+      "hide_call": "Masquer l’appel"
     },
     "title": {
       "direct_message": "Message direct"
@@ -155,6 +162,22 @@
     "jump_to_present": "Revenir aux messages récents",
     "jump_failed": "Impossible d'accéder à ce message.",
     "unread_separator": "Nouveaux messages",
-    "close_extras": "Fermer le volet du salon"
+    "close_extras": "Fermer le volet du salon",
+    "system_group": {
+      "joined_room_one": "a rejoint le salon",
+      "joined_room_many": "ont rejoint le salon",
+      "left_room_one": "a quitté le salon",
+      "left_room_many": "ont quitté le salon",
+      "and": "et",
+      "show_less": "afficher moins",
+      "other_one": "{count} autre",
+      "other_many": "{count} autres"
+    },
+    "system_event": {
+      "joined_room": "a rejoint le salon",
+      "left_room": "a quitté le salon",
+      "archived_room": "a archivé le salon",
+      "unarchived_room": "a désarchivé le salon"
+    }
   }
 }

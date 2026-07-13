@@ -1,2 +1,5 @@
-export const UNIVERSAL_ROOM_HELP_TEXT =
-  'All server members (given the permission) automatically are members of this room.';
+import * as m from '$lib/i18n/messages';
+
+export function getUniversalRoomHelpText(): string {
+  return m['room.create.universal_description']();
+}

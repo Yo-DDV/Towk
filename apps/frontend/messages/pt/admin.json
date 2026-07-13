@@ -105,7 +105,14 @@
       "edit": "Editar",
       "assigned_role": "Função {role} atribuída",
       "removed_role": "Função {role} removida",
-      "role_update_failed": "Falha ao atualizar atribuição de função"
+      "role_update_failed": "Falha ao atualizar atribuição de função",
+      "invalid_display_name": "Nome de apresentação inválido",
+      "invalid_username": "Nome de utilizador inválido",
+      "update_user_failed": "Não foi possível atualizar o utilizador",
+      "user_updated": "Utilizador atualizado",
+      "clear_cooldown_failed": "Não foi possível repor o prazo de alteração do nome de utilizador",
+      "cooldown_cleared": "Prazo de alteração do nome de utilizador reposto",
+      "user_permission_overrides_hint": "Substituições de permissões para esta conta. Qualquer negação aplicável prevalece sobre as concessões; usa com moderação para exceções por utilizador, como suspensões ou elevações pontuais."
     },
     "member_detail": {
       "no_self_rename": "Nenhuma renomeação automática registrada.",
@@ -143,7 +150,13 @@
       "no_users_with_role": "Nenhum usuário tem esta função",
       "server_tier_intro": "Esta página é para permissões de função na camada de servidor: padrões amplos que se aplicam antes de substituições específicas da sala.",
       "server_tier_rooms_hint": "Use Salas para substituições por grupo e por sala.",
-      "server_tier_denies_hint": "Use negações deliberadamente: negar a todos em uma sala bloqueia todas as permissões herdadas naquele nível."
+      "server_tier_denies_hint": "Use negações deliberadamente: negar a todos em uma sala bloqueia todas as permissões herdadas naquele nível.",
+      "server_not_found": "Servidor não encontrado",
+      "update_role_failed": "Não foi possível atualizar a função",
+      "update_role_ping_failed": "Não foi possível atualizar a definição de menções da função",
+      "role_pings_enabled": "Menções da função ativadas",
+      "role_pings_disabled": "Menções da função desativadas",
+      "delete_role_failed": "Não foi possível eliminar a função"
     },
     "rooms_admin": {
       "title": "Salas",

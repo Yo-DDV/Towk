@@ -21,6 +21,7 @@
   import { getAvatarInitials } from '$lib/utils/initials';
   import { formatDate, formatDateTime } from '$lib/utils/formatTime';
   import { getLocale } from '$lib/i18n/runtime';
+  import { localizedRoleDisplayName } from '$lib/rbacLabels';
   import { getLiveLogin } from '$lib/state/userProfiles.svelte';
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import * as m from '$lib/i18n/messages';
@@ -131,7 +132,7 @@
     if (displayNameModified) {
       const v = validateAndNormalizeDisplayName(editDisplayName);
       if (!v.valid || v.normalized === undefined) {
-        identityError = v.error ?? 'Invalid display name';
+        identityError = v.error ?? m['admin.members.invalid_display_name']();
         return;
       }
       input.displayName = v.normalized;
@@ -140,7 +141,7 @@
     if (loginModified) {
       const v = validateAndNormalizeLogin(editLogin);
       if (!v.valid || v.normalized === undefined) {
-        identityError = v.error ?? 'Invalid username';
+        identityError = v.error ?? m['admin.members.invalid_username']();
         return;
       }
       input.login = v.normalized;
@@ -151,7 +152,7 @@
     try {
       updated = await adminUsersAPI().updateUser(input);
     } catch (err) {
-      identityError = err instanceof Error ? err.message : 'Failed to update user';
+      identityError = err instanceof Error ? err.message : m['admin.members.update_user_failed']();
     }
     savingIdentity = false;
 
@@ -163,7 +164,7 @@
       member = { ...member, login: updated.login, displayName: updated.displayName };
       editLogin = updated.login;
       editDisplayName = updated.displayName;
-      toast.success('User updated');
+      toast.success(m['admin.members.user_updated']());
       // Refetch so the rest of the page (live-login lookups, role assignments)
       // sees the new identity without a manual reload.
       await loadData();
@@ -185,7 +186,8 @@
     try {
       cleared = await adminUsersAPI().clearUsernameCooldown(member.id);
     } catch (err) {
-      identityError = err instanceof Error ? err.message : 'Failed to clear username cooldown';
+      identityError =
+        err instanceof Error ? err.message : m['admin.members.clear_cooldown_failed']();
     }
     clearingCooldown = false;
 
@@ -193,7 +195,7 @@
       return;
     }
     lastLoginChange = null;
-    toast.success('Username change cooldown cleared');
+    toast.success(m['admin.members.cooldown_cleared']());
   }
 
   async function setMemberPassword(e?: Event) {
@@ -237,7 +239,7 @@
 
   function getRoleDisplayName(roleName: string): string {
     const role = allRoles.find((r) => r.name === roleName);
-    return role?.displayName || roleName;
+    return localizedRoleDisplayName(roleName, role?.displayName);
   }
 
   function getRolePosition(roleName: string): number {
@@ -579,7 +581,9 @@
             {@const tooltip = isImplicit
               ? m['admin.members.implicit_role_tooltip']()
               : isSelfProtectedRole
-                ? m['admin.members.cannot_revoke_own_role']({ role: role.displayName })
+                ? m['admin.members.cannot_revoke_own_role']({
+                    role: getRoleDisplayName(role.name)
+                  })
                 : ownerRoleRequiresOwner
                   ? m['admin.members.owner_role_requires_owner']()
                   : ''}
@@ -609,7 +613,7 @@
                   onchange={() => toggleRole(role.name, has)}
                 />
                 <div class="flex-1">
-                  <div class="font-medium">{role.displayName}</div>
+                  <div class="font-medium">{getRoleDisplayName(role.name)}</div>
                   {#if isImplicit}
                     <div class="text-xs text-muted">
                       {m['admin.members.implicit_all_members']()}
@@ -636,8 +640,7 @@
       {#if canManageUserPermissions}
         <!-- Per-user permission overrides. -->
         <Hint>
-          User-level overrides for this account. Any applicable deny wins over grants; use sparingly
-          for per-user exceptions like suspensions or one-off elevations.
+          {m['admin.members.user_permission_overrides_hint']()}
         </Hint>
         <UserPermissionsMatrix {userId} />
       {/if}

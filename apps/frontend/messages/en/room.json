@@ -96,7 +96,8 @@
         "reply_preview_fallback": "Message",
         "edited": "(edited)",
         "deleted": "This message has been deleted."
-      }
+      },
+      "start_marker": "This is the beginning of this conversation."
     },
     "attachment": {
       "delete_title": "Delete Attachment",
@@ -138,7 +139,13 @@
       "in_voice_call": "In a voice call",
       "in_video_call": "In a video call",
       "ban_failed": "Failed to ban member from room",
-      "ban_success": "Banned {name} from room"
+      "ban_success": "Banned {name} from room",
+      "show_members": "Show members",
+      "hide_members": "Hide members",
+      "show_files": "Show files",
+      "hide_files": "Hide files",
+      "show_call": "Show call",
+      "hide_call": "Hide call"
     },
     "title": {
       "direct_message": "Direct Message"
@@ -155,6 +162,22 @@
     "jump_to_present": "Jump to Present",
     "jump_failed": "Could not jump to that message.",
     "unread_separator": "New messages",
-    "close_extras": "Close room extras"
+    "close_extras": "Close room extras",
+    "system_group": {
+      "joined_room_one": "joined the room",
+      "joined_room_many": "joined the room",
+      "left_room_one": "left the room",
+      "left_room_many": "left the room",
+      "and": "and",
+      "show_less": "show less",
+      "other_one": "{count} other",
+      "other_many": "{count} others"
+    },
+    "system_event": {
+      "joined_room": "joined the room",
+      "left_room": "left the room",
+      "archived_room": "archived the room",
+      "unarchived_room": "unarchived the room"
+    }
   }
 }

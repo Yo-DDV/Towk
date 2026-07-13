@@ -96,7 +96,8 @@
         "reply_preview_fallback": "Nachricht",
         "edited": "(bearbeitet)",
         "deleted": "Diese Nachricht wurde gelöscht."
-      }
+      },
+      "start_marker": "Dies ist der Anfang dieser Unterhaltung."
     },
     "attachment": {
       "delete_title": "Anhang löschen",
@@ -138,7 +139,13 @@
       "in_voice_call": "In einem Sprachanruf",
       "in_video_call": "In einem Videoanruf",
       "ban_failed": "Mitglied konnte nicht aus dem Raum gesperrt werden",
-      "ban_success": "{name} wurde aus dem Raum gesperrt"
+      "ban_success": "{name} wurde aus dem Raum gesperrt",
+      "show_members": "Mitglieder anzeigen",
+      "hide_members": "Mitglieder ausblenden",
+      "show_files": "Dateien anzeigen",
+      "hide_files": "Dateien ausblenden",
+      "show_call": "Anruf anzeigen",
+      "hide_call": "Anruf ausblenden"
     },
     "title": {
       "direct_message": "Direktnachricht"
@@ -155,6 +162,22 @@
     "jump_to_present": "Zur Gegenwart springen",
     "jump_failed": "Zu dieser Nachricht konnte nicht gesprungen werden.",
     "unread_separator": "Neue Nachrichten",
-    "close_extras": "Raumdetails schließen"
+    "close_extras": "Raumdetails schließen",
+    "system_group": {
+      "joined_room_one": "ist dem Raum beigetreten",
+      "joined_room_many": "sind dem Raum beigetreten",
+      "left_room_one": "hat den Raum verlassen",
+      "left_room_many": "haben den Raum verlassen",
+      "and": "und",
+      "show_less": "weniger anzeigen",
+      "other_one": "{count} weitere Person",
+      "other_many": "{count} weitere"
+    },
+    "system_event": {
+      "joined_room": "ist dem Raum beigetreten",
+      "left_room": "hat den Raum verlassen",
+      "archived_room": "hat den Raum archiviert",
+      "unarchived_room": "hat den Raum wiederhergestellt"
+    }
   }
 }

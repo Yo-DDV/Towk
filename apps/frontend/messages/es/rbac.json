@@ -82,7 +82,30 @@
           "title": "Permisos de usuario",
           "description": "Controle la cuenta de usuario y las operaciones de permisos por usuario. Cualquier denegación que no sea el propietario cancela las subvenciones."
         }
-      }
+      },
+      "state_allow": "Permitir",
+      "state_deny": "Denegar",
+      "state_neutral": "Sin decisión",
+      "scope_title": "{label} ({kind})",
+      "no_scopes_available": "No hay ámbitos disponibles para {subject}.",
+      "about_permission": "Acerca de {permission}",
+      "subject_generic": "este sujeto",
+      "subject_user": "este usuario",
+      "subject_role": "este rol",
+      "role_manage_title": "{role} — haz clic para gestionar",
+      "owner_always_granted_permission": "El rol Propietario siempre recibe {permission}",
+      "override_for_role_permission": "Sobrescribir con {state} para {role} en {permission}",
+      "no_override_for_role_permission": "Sin sobrescritura para {role} en {permission}",
+      "inheriting_from": "hereda {state} de {source}",
+      "allow_owners_all": "Permitir (los propietarios siempre reciben todos los permisos)",
+      "owner_permissions_not_editable": "Los permisos del rol Propietario no son editables",
+      "override_at_this_tier": "{state} (sobrescritura en este nivel)",
+      "inherits_from": "Hereda {state} de {source}",
+      "subject_always_granted_at_scope": "{subject} siempre recibe {permission} en {scope}",
+      "override_for_permission_scope": "Sobrescribir con {state} para {permission} en {scope}",
+      "no_override_effective_scope": "Sin sobrescritura para {permission} en {scope}; estado efectivo: {state}",
+      "subject_override_at_scope": "{state} (sobrescritura de {subject} en {scope})",
+      "effective_inherited": "Estado efectivo: {state} (heredado)"
     },
     "permission_descriptions": {
       "server_manage": "Actualizar la configuración del servidor (nombre, descripción, logotipo)",
@@ -106,6 +129,24 @@
       "user_delete_self": "Eliminar tu propia cuenta",
       "user_manage_accounts": "Cree usuarios, edite la identidad de la cuenta, restablezca contraseñas, adjunte correos electrónicos verificados y borre los tiempos de reutilización de inicio de sesión.",
       "user_manage_permissions": "Editar anulaciones de permisos directos por usuario"
+    },
+    "system_roles": {
+      "owner": {
+        "display_name": "Propietario",
+        "description": "Control completo del servidor"
+      },
+      "admin": {
+        "display_name": "Administrador",
+        "description": "Acceso administrativo completo al servidor"
+      },
+      "moderator": {
+        "display_name": "Moderador",
+        "description": "Acceso de lectura a los paneles de administración sin permisos de gestión"
+      },
+      "everyone": {
+        "display_name": "Todos los miembros",
+        "description": "Todos los usuarios autenticados"
+      }
     }
   }
 }
