@@ -24,17 +24,17 @@
     "password_min_placeholder": "Al menos 8 caracteres",
     "password_confirm_placeholder": "Introduce la contraseña nuevamente",
     "validation": {
-      "email": "Por favor, introduce una dirección de correo electrónico válida",
+      "email": "Introduce una dirección de correo electrónico válida",
       "password_min": "Debe tener al menos 8 caracteres.",
       "username_min": "Debe tener al menos 2 caracteres",
       "username_max": "Debe tener como máximo 32 caracteres.",
       "username_charset": "Sólo letras, números, puntos, guiones y guiones bajos.",
       "username_no_consecutive_periods": "No se permiten periodos consecutivos",
       "passwords_match": "Las contraseñas no coinciden",
-      "fix_errors": "Por favor corrija los errores anteriores"
+      "fix_errors": "Corrige los errores anteriores"
     },
     "error": {
-      "network": "Error de red. Por favor inténtalo de nuevo.",
+      "network": "Error de red. Inténtalo de nuevo.",
       "generic": "Algo salió mal",
       "unexpected_server_response": "Respuesta inesperada del servidor. Inténtalo de nuevo.",
       "client_not_configured": "Este cliente no está configurado. Recarga la aplicación.",

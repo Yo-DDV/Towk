@@ -24,7 +24,7 @@
     "password_min_placeholder": "Pelo menos 8 caracteres",
     "password_confirm_placeholder": "Digite a senha novamente",
     "validation": {
-      "email": "Por favor insira um endereço de e-mail válido",
+      "email": "Insira um endereço de e-mail válido",
       "password_min": "Deve ter pelo menos 8 caracteres",
       "username_min": "Deve ter pelo menos 2 caracteres",
       "username_max": "Deve ter no máximo 32 caracteres",
@@ -34,7 +34,7 @@
       "fix_errors": "Corrija os erros acima"
     },
     "error": {
-      "network": "Erro de rede. Por favor, tente novamente.",
+      "network": "Erro de rede. Tente novamente.",
       "generic": "Algo deu errado",
       "unexpected_server_response": "Resposta inesperada do servidor. Tente novamente.",
       "client_not_configured": "Este cliente não está configurado. Recarregue o aplicativo.",

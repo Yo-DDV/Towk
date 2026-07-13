@@ -21,8 +21,8 @@
     "join": {
       "title": "Entrar na sala",
       "action": "Entrar na sala",
-      "prompt": "Junte-se a #{room} para ler e participar desta sala.",
-      "inline_prompt": "Junte-se a esta sala para ler e participar.",
+      "prompt": "Entre em #{room} para ler e participar desta sala.",
+      "inline_prompt": "Entre nesta sala para ler e participar.",
       "success": "Você entrou em #{room}",
       "success_generic": "Você entrou na sala",
       "failed": "Falha ao entrar na sala",
@@ -36,9 +36,9 @@
       "failed": "Falha ao sair da sala"
     },
     "directory": {
-      "universal_title": "As salas universais são unidas automaticamente",
+      "universal_title": "Você entra automaticamente nas salas universais",
       "joined": "Entrou",
-      "leave": "Deixar",
+      "leave": "Sair",
       "restricted_title": "Você não tem permissão para entrar nesta sala",
       "search_placeholder": "Pesquisar salas...",
       "empty": "Ainda não há salas neste servidor.",
@@ -47,7 +47,7 @@
       "joined_title": "Você entrou em #{room}; clique para sair",
       "leaving": "Saindo",
       "joining": "Entrando",
-      "join": "Juntar",
+      "join": "Entrar",
       "restricted": "Restrito",
       "join_all": "Entrar em todas",
       "already_in_group": "Você já está em todas as salas de {group}",
@@ -114,7 +114,7 @@
       "download_label": "Baixar {filename}",
       "image_refresh_failed": "Não foi possível atualizar o link da imagem",
       "download_refresh_failed": "Não foi possível atualizar o link de download",
-      "video_uploads_disabled": "Uploads de vídeo estão desativados neste servidor.",
+      "video_uploads_disabled": "Envios de vídeo estão desativados neste servidor.",
       "prepare_failed": "Não foi possível preparar o anexo",
       "too_large": "{filename} é grande demais ({size}). Máximo: {max}."
     },
@@ -157,7 +157,7 @@
       "hide_call": "Ocultar chamada"
     },
     "title": {
-      "direct_message": "Mensagem Direta"
+      "direct_message": "Mensagem direta"
     },
     "thread": {
       "title": "Tópico em #{room}",

@@ -28,7 +28,7 @@
     "welcome_message_help": "Exibido na página de login. Suporta remarcação.",
     "logo_description": "Envie um logotipo para o seu servidor. As imagens serão redimensionadas para 512x512 pixels.",
     "banner_description": "Envie um banner para o seu servidor. O banner também é usado como imagem de pré-visualização de links; as imagens serão redimensionadas para 1200x630 pixels (a proporção padrão do OpenGraph).",
-    "uploading": "Fazendo upload...",
+    "uploading": "Enviando...",
     "removing": "Removendo...",
     "remove": "Remover",
     "invalid_image": "Selecione um arquivo de imagem",

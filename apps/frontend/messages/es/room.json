@@ -13,7 +13,7 @@
       "name_required": "El nombre de la sala es obligatorio.",
       "name_too_long": "El nombre de la sala debe tener {max} caracteres como máximo.",
       "description_too_long": "La descripción de la sala debe tener {max} caracteres como máximo.",
-      "missing_group": "Elija un grupo de salas antes de crear una sala.",
+      "missing_group": "Elige un grupo de salas antes de crear una sala.",
       "failed": "No se pudo crear la sala",
       "creating": "Creando...",
       "submit": "Crear sala"
@@ -44,7 +44,7 @@
       "empty": "Aún no hay salas en este servidor.",
       "no_results": "Ninguna sala coincide con tu filtro.",
       "universal": "Universal",
-      "joined_title": "Te uniste a #{room}; haz clic para salir",
+      "joined_title": "Te has unido a #{room}; haz clic para salir",
       "leaving": "Saliendo",
       "joining": "Uniéndose",
       "join": "Unirse",
@@ -97,7 +97,7 @@
         "add_reaction_label": "Añadir reacción {emoji} ({count})",
         "remove_reaction_label": "Eliminar la reacción {emoji} ({count})",
         "reaction_users_more": "+ {count} más",
-        "copy_link_title": "Haga clic para copiar el enlace a este mensaje.",
+        "copy_link_title": "Haz clic para copiar el enlace a este mensaje.",
         "in_reply_to": "en respuesta a",
         "reply_preview_fallback": "Mensaje",
         "edited": "(editado)",
@@ -107,7 +107,7 @@
     },
     "attachment": {
       "delete_title": "Eliminar archivo adjunto",
-      "delete_prompt": "¿Está seguro de que desea eliminar este archivo adjunto? Esto no se puede deshacer.",
+      "delete_prompt": "¿Seguro que quieres eliminar este archivo adjunto? Esto no se puede deshacer.",
       "delete_label": "Eliminar archivo adjunto",
       "delete_failed": "No se pudo eliminar el archivo adjunto",
       "view_label": "Ver {filename}",
@@ -120,7 +120,7 @@
     },
     "link_preview": {
       "delete_title": "Eliminar vista previa del enlace",
-      "delete_prompt": "¿Está seguro de que desea eliminar la vista previa de este enlace? Esto no se puede deshacer.",
+      "delete_prompt": "¿Seguro que quieres eliminar la vista previa de este enlace? Esto no se puede deshacer.",
       "delete_failed": "No se pudo eliminar la vista previa del enlace"
     },
     "sidebar": {

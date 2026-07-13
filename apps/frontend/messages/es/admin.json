@@ -150,7 +150,7 @@
       "no_users_with_role": "Ningún usuario tiene este rol",
       "server_tier_intro": "Esta página es para permisos de roles a nivel de servidor: valores predeterminados amplios que se aplican antes de las anulaciones específicas de la sala.",
       "server_tier_rooms_hint": "Usa Salas para las excepciones por grupo y por sala.",
-      "server_tier_denies_hint": "Utilice denegaciones deliberadamente: negar a todas las personas en una sala bloquea todos los permisos heredados en ese nivel.",
+      "server_tier_denies_hint": "Usa las denegaciones deliberadamente: negar a todas las personas en una sala bloquea todos los permisos heredados en ese nivel.",
       "server_not_found": "Servidor no encontrado",
       "update_role_failed": "No se pudo actualizar el rol",
       "update_role_ping_failed": "No se pudo actualizar la configuración de menciones del rol",

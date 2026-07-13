@@ -71,9 +71,9 @@
       "7d": "7 dias",
       "30d": "30 dias",
       "indefinite": "Sin caducidad",
-      "custom": "Costumbre",
+      "custom": "Personalizado",
       "custom_label": "Caducidad personalizada",
-      "error_required": "Elija una fecha de vencimiento.",
+      "error_required": "Elige una fecha de vencimiento.",
       "error_invalid": "Introduzca una caducidad válida.",
       "error_future": "El vencimiento debe ser en el futuro."
     },

@@ -23,7 +23,7 @@
         "change": "Cambiar avatar",
         "removing": "Eliminando...",
         "remove": "Eliminar",
-        "invalid_type": "Por favor seleccione un archivo de imagen",
+        "invalid_type": "Selecciona un archivo de imagen",
         "too_large": "La imagen debe tener menos de 10 MB.",
         "uploaded": "Avatar subido exitosamente",
         "upload_failed": "No se pudo cargar el avatar",
@@ -32,17 +32,17 @@
       },
       "display_name": {
         "label": "Nombre para mostrar",
-        "placeholder": "Ingrese su nombre para mostrar",
+        "placeholder": "Introduce tu nombre para mostrar",
         "invalid": "Nombre para mostrar no válido"
       },
       "username": {
         "label": "Nombre de usuario",
-        "placeholder": "Ingrese su nombre de usuario",
+        "placeholder": "Introduce tu nombre de usuario",
         "invalid": "Nombre de usuario no válido",
         "cooldown_error": "Solo puedes cambiar tu nombre de usuario una vez cada 30 días. Inténtalo de nuevo en {remaining}.",
         "cooldown_notice": "Puedes cambiar tu nombre de usuario nuevamente en {remaining}.",
         "confirm_title": "Cambiar nombre de usuario",
-        "confirm_prompt": "¿Está seguro de que desea cambiar su nombre de usuario a @{login}?",
+        "confirm_prompt": "¿Seguro que quieres cambiar tu nombre de usuario a @{login}?",
         "confirm_cooldown": "Solo puedes cambiar tu nombre de usuario una vez cada 30 días.",
         "confirm_button": "Cambiar nombre de usuario"
       },
@@ -70,7 +70,7 @@
           "four_hours": "4 horas",
           "tomorrow": "Mañana",
           "never": "no borrar",
-          "custom": "Costumbre",
+          "custom": "Personalizado",
           "custom_date": "tiempo de limpieza personalizado"
         },
         "suggestions": "Sugerencias",
@@ -80,7 +80,7 @@
           "out_for_lunch": "fuera a almorzar",
           "vacation": "Vacaciones",
           "sick": "Enfermo",
-          "custom": "Costumbre"
+          "custom": "Personalizado"
         },
         "emoji_required": "Elige un emoji para tu estado",
         "text_required": "Introducir texto de estado",
@@ -95,7 +95,7 @@
         "button": "Presencia: {status}",
         "title": "Presencia",
         "auto": "En línea",
-        "away": "Lejos",
+        "away": "Ausente",
         "do_not_disturb": "No molestar",
         "offline": "Desconectado",
         "invisible": "Aparecer sin conexión"
@@ -111,7 +111,7 @@
         "title": "Tema",
         "system": {
           "label": "Sistema",
-          "description": "Siga la apariencia de su navegador o sistema operativo"
+          "description": "Sigue la apariencia de tu navegador o sistema operativo"
         },
         "light": {
           "label": "Claro",
@@ -133,18 +133,18 @@
       },
       "timezone": {
         "title": "Zona horaria",
-        "description": "Configure su zona horaria para mostrar marcas de tiempo en su hora local. Déjelo vacío para usar el predeterminado de su navegador.",
+        "description": "Configura tu zona horaria para mostrar marcas de tiempo en tu hora local. Déjalo vacío para usar el valor predeterminado de tu navegador.",
         "browser_default": "Navegador predeterminado",
         "clear": "Borrar zona horaria (use el navegador predeterminado)",
-        "invalid": "Seleccione una zona horaria válida de la lista",
-        "more_results": "{count} más - escriba para limitar los resultados",
+        "invalid": "Selecciona una zona horaria válida de la lista",
+        "more_results": "{count} más - escribe para limitar los resultados",
         "current_time": "Hora local: {time}"
       },
       "time_format": {
         "title": "Formato de hora",
         "browser_default": {
           "label": "Navegador predeterminado",
-          "description": "Utilice la configuración regional de su navegador para determinar el formato de 12 o 24 horas."
+          "description": "Usa la configuración regional de tu navegador para determinar el formato de 12 o 24 horas."
         },
         "12h": {
           "label": "12 horas",
@@ -167,29 +167,29 @@
         "not_configured": "Las notificaciones push no están configuradas en este servidor",
         "not_supported": "Las notificaciones push no son compatibles con este navegador.",
         "ios_home_screen_title": "Agrega Towk a tu pantalla de inicio",
-        "ios_home_screen_description": "En versiones compatibles de iOS/iPadOS, agregue Towk a la pantalla de inicio y ábrala desde el ícono de la aplicación para habilitar las notificaciones automáticas.",
+        "ios_home_screen_description": "En versiones compatibles de iOS/iPadOS, agrega Towk a la pantalla de inicio y ábrela desde el icono de la aplicación para activar las notificaciones push.",
         "blocked_title": "Notificaciones push bloqueadas",
-        "blocked_description": "Habilite las notificaciones en su navegador o en la configuración del sistema operativo, luego abra Towk nuevamente.",
+        "blocked_description": "Activa las notificaciones en tu navegador o en la configuración del sistema operativo y luego abre Towk de nuevo.",
         "enabled_title": "Notificaciones push habilitadas",
         "enabled_description": "Towk usa el permiso de notificaciones del navegador o del sistema operativo como interruptor. Para desactivar las notificaciones, desactívalas para este sitio en la configuración del navegador o del sistema operativo.",
         "enable_title": "Habilitar notificaciones push",
-        "enable_description": "Reciba notificaciones sobre mensajes nuevos mientras Towk esté cerrado o ejecutándose en segundo plano.",
+        "enable_description": "Recibe notificaciones sobre mensajes nuevos mientras Towk esté cerrado o ejecutándose en segundo plano.",
         "enable_button": "Permitir",
         "enabling": "Habilitando...",
-        "blocked_error": "Las notificaciones automáticas están bloqueadas en la configuración de su navegador o sistema operativo.",
-        "enable_failed": "No se pudieron habilitar las notificaciones automáticas. Por favor inténtalo de nuevo.",
-        "enable_error": "Se produjo un error al habilitar las notificaciones push",
+        "blocked_error": "Las notificaciones push están bloqueadas en la configuración de tu navegador o sistema operativo.",
+        "enable_failed": "No se pudieron activar las notificaciones push. Inténtalo de nuevo.",
+        "enable_error": "Se produjo un error al activar las notificaciones push",
         "remote_title": "Las notificaciones push nativas no están disponibles para servidores remotos",
         "remote_description": "Esta aplicación instalada solo puede registrar notificaciones push del navegador con el servidor que la proporcionó. Los sonidos y los distintivos de notificación en la aplicación siguen funcionando para este servidor mientras Towk está abierto."
       },
       "push_prompt": {
         "title": "Habilitar notificaciones push",
-        "message": "Reciba notificaciones sobre DMs, menciones y respuestas.",
+        "message": "Recibe notificaciones sobre DMs, menciones y respuestas.",
         "ios_home_screen_title": "Agrega Towk a tu pantalla de inicio",
-        "ios_home_screen_message": "En versiones compatibles de iOS/iPadOS, abra Towk desde el ícono de su pantalla de inicio antes de habilitar las notificaciones automáticas.",
+        "ios_home_screen_message": "En versiones compatibles de iOS/iPadOS, abre Towk desde el icono de tu pantalla de inicio antes de activar las notificaciones push.",
         "enabled": "Notificaciones push habilitadas",
-        "blocked": "Las notificaciones automáticas están bloqueadas en la configuración de su navegador o sistema operativo",
-        "enable_failed": "No se pudieron habilitar las notificaciones automáticas",
+        "blocked": "Las notificaciones push están bloqueadas en la configuración de tu navegador o sistema operativo",
+        "enable_failed": "No se pudieron activar las notificaciones push",
         "enabling": "Habilitando...",
         "enable": "Permitir",
         "dismiss": "No, gracias"
@@ -201,13 +201,13 @@
         "room_updated": "Nivel de notificación de sala actualizado",
         "update_failed": "No se pudo actualizar",
         "server_title": "Nivel de notificación del servidor",
-        "server_description": "Controla cómo recibe notificaciones para todas las salas de este servidor. Las salas individuales pueden anular esta configuración.",
+        "server_description": "Controla cómo recibes notificaciones para todas las salas de este servidor. Las salas individuales pueden anular esta configuración.",
         "room_title": "Excepciones por sala",
         "room_description": "Sobrescribe el ajuste del servidor para salas concretas. Las salas en \"Predeterminado\" heredan el ajuste del servidor ({level}).",
         "effective": "Efectivo: {level}",
         "default": {
           "label": "Por defecto",
-          "description": "Utilice el valor predeterminado heredado"
+          "description": "Usa el valor predeterminado heredado"
         },
         "muted": {
           "label": "Apagado",
@@ -225,7 +225,7 @@
       "sound": {
         "title": "Sonido de notificación",
         "shape_title": "Forma de sonido",
-        "preview": "Avance",
+        "preview": "Vista previa",
         "reset": "Reiniciar",
         "off": "Apagado",
         "volume": "Volumen",
@@ -280,41 +280,41 @@
       "username": "Nombre de usuario",
       "display_name": "Nombre para mostrar",
       "danger_title": "Zona de peligro",
-      "danger_description": "La eliminación de su cuenta es permanente y no se puede deshacer. Todos tus datos serán eliminados.",
+      "danger_description": "La eliminación de tu cuenta es permanente y no se puede deshacer. Todos tus datos serán eliminados.",
       "delete_button": "Eliminar cuenta",
       "delete_failed": "No se pudo eliminar la cuenta",
       "delete_request_failed": "No se pudo solicitar la eliminación de la cuenta",
       "password": {
         "title": "Contraseña",
-        "add_description": "Agregue una contraseña para que pueda iniciar sesión directamente y desconectar su último proveedor SSO.",
-        "change_description": "Cambie la contraseña utilizada para el inicio de sesión directo.",
+        "add_description": "Agrega una contraseña para poder iniciar sesión directamente y desconectar tu último proveedor SSO.",
+        "change_description": "Cambia la contraseña utilizada para el inicio de sesión directo.",
         "current_label": "Contraseña actual",
-        "current_required": "Ingrese su contraseña actual.",
+        "current_required": "Introduce tu contraseña actual.",
         "add_button": "Agregar contraseña",
         "change_button": "Cambiar la contraseña",
         "saving": "Guardando contraseña...",
         "saved": "Contraseña agregada",
         "changed": "Contraseña cambiada",
         "save_failed": "No se pudo guardar la contraseña",
-        "fresh_auth_required": "Inicie sesión nuevamente antes de agregar una contraseña.",
+        "fresh_auth_required": "Inicia sesión de nuevo antes de agregar una contraseña.",
         "already_set": "Esta cuenta ya tiene una contraseña."
       },
       "sso": {
         "title": "Inicio de sesión único",
         "loading": "Cargando proveedores de inicio de sesión...",
         "load_failed": "No se pudieron cargar los proveedores de inicio de sesión",
-        "none_configured": "No se configuran proveedores de inicio de sesión externos.",
+        "none_configured": "No hay proveedores de inicio de sesión externos configurados.",
         "linked": "Vinculado",
         "not_linked": "No vinculado",
-        "link_button": "Enlace",
+        "link_button": "Vincular",
         "link_failed": "No se pudo vincular el proveedor de inicio de sesión",
-        "fresh_auth_required": "Inicie sesión nuevamente antes de vincular otro proveedor.",
+        "fresh_auth_required": "Inicia sesión de nuevo antes de vincular otro proveedor.",
         "provider_unconfigured": "Proveedor ya no configurado",
         "disconnect_button": "Desconectar",
         "disconnecting": "Desconectando...",
         "disconnect_failed": "No se pudo desconectar el proveedor de inicio de sesión",
-        "disconnect_last_method": "Agregue una contraseña u otro método de inicio de sesión antes de desconectar este proveedor.",
-        "disconnect_fresh_auth_required": "Inicie sesión nuevamente antes de desconectar este proveedor.",
+        "disconnect_last_method": "Agrega una contraseña u otro método de inicio de sesión antes de desconectar este proveedor.",
+        "disconnect_fresh_auth_required": "Inicia sesión de nuevo antes de desconectar este proveedor.",
         "disconnect_modal": {
           "title": "Desconectar proveedor",
           "body": "¿Desconectar {provider} de esta cuenta?",
@@ -322,16 +322,16 @@
         },
         "disconnect_blocked_modal": {
           "title": "El proveedor no se puede desconectar",
-          "body": "{provider} es su único método de inicio de sesión. Agregue una contraseña o vincule otro proveedor primero."
+          "body": "{provider} es tu único método de inicio de sesión. Agrega una contraseña o vincula otro proveedor primero."
         },
         "fresh_auth_modal": {
-          "title": "Confirmar Contraseña",
-          "body": "Ingrese su contraseña actual antes de vincular {provider}.",
+          "title": "Confirmar contraseña",
+          "body": "Introduce tu contraseña actual antes de vincular {provider}.",
           "action": "Continuar"
         },
         "disconnect_fresh_auth_modal": {
-          "title": "Confirmar Contraseña",
-          "body": "Ingrese su contraseña actual antes de desconectar {provider}.",
+          "title": "Confirmar contraseña",
+          "body": "Introduce tu contraseña actual antes de desconectar {provider}.",
           "action": "Desconectar"
         }
       },
@@ -339,13 +339,13 @@
         "title": "Eliminar cuenta",
         "warning_label": "Advertencia:",
         "warning_text": "Esta acción es permanente y no se puede deshacer.",
-        "intro": "Esto eliminará permanentemente su cuenta y:",
+        "intro": "Esto eliminará permanentemente tu cuenta y:",
         "remove_from_rooms": "Quitarte de todos los espacios y salas",
         "delete_messages": "Elimina todos tus mensajes (el contenido será irrecuperable)",
         "delete_profile": "Elimina tu perfil, avatar y datos asociados",
         "confirm_label": "Escribe {confirmation} para confirmar",
-        "fresh_auth_intro": "Confirme su contraseña actual antes de eliminar esta cuenta.",
-        "fresh_auth_required": "Inicie sesión nuevamente antes de eliminar esta cuenta.",
+        "fresh_auth_intro": "Confirma tu contraseña actual antes de eliminar esta cuenta.",
+        "fresh_auth_required": "Inicia sesión de nuevo antes de eliminar esta cuenta.",
         "cancel": "Cancelar",
         "deleting": "Eliminando..."
       }
