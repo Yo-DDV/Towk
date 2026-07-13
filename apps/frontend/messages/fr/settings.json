@@ -15,29 +15,29 @@
       "avatar": {
         "title": "Avatar",
         "drop_title": "Déposer l'image",
-        "drop_subtitle": "Téléchargez en tant qu'avatar",
+        "drop_subtitle": "Téléverser comme avatar",
         "alt": "Votre avatar",
-        "description": "Téléchargez un avatar. Les images seront redimensionnées à 256x256 pixels.",
-        "uploading": "Téléchargement...",
-        "upload": "Télécharger l'avatar",
+        "description": "Téléversez un avatar. Les images seront redimensionnées à 256 × 256 pixels.",
+        "uploading": "Téléversement...",
+        "upload": "Téléverser l'avatar",
         "change": "Changer d'avatar",
         "removing": "Suppression...",
         "remove": "Retirer",
         "invalid_type": "Veuillez sélectionner un fichier image",
         "too_large": "L'image doit faire moins de 10 Mo",
-        "uploaded": "Avatar téléchargé avec succès",
-        "upload_failed": "Échec du téléchargement de l'avatar",
+        "uploaded": "Avatar téléversé",
+        "upload_failed": "Impossible de téléverser l'avatar",
         "removed": "Avatar supprimé",
         "delete_failed": "Échec de la suppression de l'avatar"
       },
       "display_name": {
         "label": "Nom d'affichage",
-        "placeholder": "Entrez votre nom d'affichage",
+        "placeholder": "Saisissez votre nom d'affichage",
         "invalid": "Nom d'affichage invalide"
       },
       "username": {
         "label": "Nom d'utilisateur",
-        "placeholder": "Entrez votre nom d'utilisateur",
+        "placeholder": "Saisissez votre nom d'utilisateur",
         "invalid": "Nom d'utilisateur invalide",
         "cooldown_error": "Vous ne pouvez modifier votre nom d'utilisateur qu'une fois tous les 30 jours. Réessayez dans {remaining}.",
         "cooldown_notice": "Vous pouvez à nouveau modifier votre nom d'utilisateur dans {remaining}.",
@@ -61,7 +61,7 @@
           "placeholder": "Mode concentration"
         },
         "expires_at": {
-          "label": "Effacer automatiquement à"
+          "label": "Effacer automatiquement le"
         },
         "expiry": {
           "today": "Aujourd'hui",
@@ -135,7 +135,7 @@
         "browser_default": "Par défaut du navigateur",
         "clear": "Effacer le fuseau horaire (utiliser les valeurs par défaut du navigateur)",
         "invalid": "Veuillez sélectionner un fuseau horaire valide dans la liste",
-        "more_results": "{count} résultats supplémentaires, saisissez du texte pour affiner",
+        "more_results": "Résultats supplémentaires : {count}. Saisissez du texte pour affiner la recherche",
         "current_time": "Heure locale : {time}"
       },
       "time_format": {
@@ -178,11 +178,11 @@
         "enable_failed": "Échec de l'activation des notifications push. Veuillez réessayer.",
         "enable_error": "Une erreur s'est produite lors de l'activation des notifications push",
         "remote_title": "Les notifications push natives ne sont pas disponibles pour les serveurs distants",
-        "remote_description": "Cette application installée ne peut enregistrer les notifications push du navigateur qu'avec le serveur qui l'a servie. Les badges et les sons de notification dans l'application fonctionnent toujours pour ce serveur lorsque Towk est ouvert."
+        "remote_description": "Cette application installée ne peut enregistrer les notifications push du navigateur qu'auprès du serveur qui l'a fournie. Les badges et les sons intégrés continuent de fonctionner pour ce serveur lorsque Towk est ouvert."
       },
       "push_prompt": {
         "title": "Activer les notifications push",
-        "message": "Recevez les messages directs, les mentions et les réponses.",
+        "message": "Recevez une notification pour les messages directs, les mentions et les réponses.",
         "ios_home_screen_title": "Ajoutez Towk à votre écran d'accueil",
         "ios_home_screen_message": "Sur les versions iOS/iPadOS prises en charge, ouvrez Towk à partir de son icône sur l'écran d'accueil avant d'activer les notifications push.",
         "enabled": "Notifications push activées",
@@ -199,7 +199,7 @@
         "room_updated": "Niveau de notification du salon mis à jour",
         "update_failed": "Échec de la mise à jour",
         "server_title": "Niveau de notification du serveur",
-        "server_description": "Contrôle la façon dont vous recevez des notifications pour tous les salons de ce serveur. Les salons individuels peuvent remplacer ce paramètre.",
+        "server_description": "Ce niveau s'applique à tous les salons du serveur. Chaque salon peut définir une exception.",
         "room_title": "Exceptions par salon",
         "room_description": "Remplacez le paramètre au niveau du serveur pour les salons individuels. Les salons définis sur « Par défaut » héritent du paramètre du serveur ({level}).",
         "effective": "En vigueur : {level}",
@@ -208,7 +208,7 @@
           "description": "Utiliser la valeur par défaut héritée"
         },
         "muted": {
-          "label": "Muet",
+          "label": "Silencieux",
           "description": "Aucune notification ni marqueur non lu"
         },
         "normal": {
@@ -244,7 +244,7 @@
           "silent": "Silencieux",
           "ding": "Ding",
           "chime_up": "Carillon montant",
-          "chime_down": "Carillon qui tombe",
+          "chime_down": "Carillon descendant",
           "pop": "Pop discret",
           "bubble": "Bulle",
           "retro": "Bip rétro",
@@ -302,24 +302,24 @@
         "loading": "Chargement des fournisseurs d'authentification...",
         "load_failed": "Échec du chargement des fournisseurs d'authentification",
         "none_configured": "Aucun fournisseur de connexion externe n’est configuré.",
-        "linked": "Lié",
-        "not_linked": "Non lié",
+        "linked": "Associé",
+        "not_linked": "Non associé",
         "link_button": "Associer",
         "link_failed": "Échec de l'association du fournisseur d'authentification",
-        "fresh_auth_required": "Connectez-vous à nouveau avant de lier un autre fournisseur.",
+        "fresh_auth_required": "Connectez-vous à nouveau avant d'associer un autre fournisseur.",
         "provider_unconfigured": "Le fournisseur n'est plus configuré",
-        "disconnect_button": "Déconnecter",
-        "disconnecting": "Déconnexion...",
-        "disconnect_failed": "Échec de la déconnexion du fournisseur de connexion",
-        "disconnect_last_method": "Ajoutez un mot de passe ou une autre méthode de connexion avant de déconnecter ce fournisseur.",
-        "disconnect_fresh_auth_required": "Reconnectez-vous avant de déconnecter ce fournisseur.",
+        "disconnect_button": "Dissocier",
+        "disconnecting": "Dissociation...",
+        "disconnect_failed": "Impossible de dissocier le fournisseur d'authentification",
+        "disconnect_last_method": "Ajoutez un mot de passe ou une autre méthode de connexion avant de dissocier ce fournisseur.",
+        "disconnect_fresh_auth_required": "Reconnectez-vous avant de dissocier ce fournisseur.",
         "disconnect_modal": {
-          "title": "Déconnecter le fournisseur",
-          "body": "Déconnecter {provider} de ce compte ?",
-          "action": "Déconnecter"
+          "title": "Dissocier le fournisseur",
+          "body": "Dissocier {provider} de ce compte ?",
+          "action": "Dissocier"
         },
         "disconnect_blocked_modal": {
-          "title": "Le fournisseur ne peut pas être déconnecté",
+          "title": "Le fournisseur ne peut pas être dissocié",
           "body": "{provider} est votre seule méthode de connexion. Ajoutez un mot de passe ou associez d'abord un autre fournisseur."
         },
         "fresh_auth_modal": {
@@ -329,20 +329,19 @@
         },
         "disconnect_fresh_auth_modal": {
           "title": "Confirmer le mot de passe",
-          "body": "Entrez votre mot de passe actuel avant de déconnecter {provider}.",
-          "action": "Déconnecter"
+          "body": "Entrez votre mot de passe actuel avant de dissocier {provider}.",
+          "action": "Dissocier"
         }
       },
       "delete_modal": {
         "title": "Supprimer le compte",
         "warning_label": "Avertissement :",
-        "warning_text": "Cette action est permanente et ne peut être annulée.",
+        "warning_text": "Cette action est définitive et irréversible.",
         "intro": "Cela supprimera définitivement votre compte et :",
         "remove_from_rooms": "Vous retirer de tous les espaces et salons",
         "delete_messages": "Supprimer tous vos messages (leur contenu sera irrécupérable)",
         "delete_profile": "Supprimer votre profil, votre avatar et les données associées",
-        "confirm_label": "Saisissez SUPPRIMER pour confirmer",
-        "confirm_placeholder": "SUPPRIMER",
+        "confirm_label": "Saisissez {confirmation} pour confirmer",
         "fresh_auth_intro": "Confirmez votre mot de passe actuel avant de supprimer ce compte.",
         "fresh_auth_required": "Connectez-vous à nouveau avant de supprimer ce compte.",
         "cancel": "Annuler",

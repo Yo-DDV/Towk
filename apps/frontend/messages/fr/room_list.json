@@ -2,15 +2,15 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "room_list": {
     "active_call": "Appel actif",
-    "call_participants": "{count} participants à l’appel",
-    "go_to_notifications": "Accéder aux {count} notifications",
+    "call_participants": "Participants à l'appel : {count}",
+    "go_to_notifications": "Accéder aux notifications ({count})",
     "notifications": "{count} notifications",
     "unread_messages": "Messages non lus",
-    "go_to_dm_notifications": "Accéder aux {count} notifications de messages directs",
-    "new_direct_messages": "{count} nouveaux messages directs",
+    "go_to_dm_notifications": "Accéder aux notifications de messages directs ({count})",
+    "new_direct_messages": "Nouveaux messages directs : {count}",
     "direct_messages": "Messages directs",
     "empty_title": "Aucun salon pour le moment",
-    "empty_prefix": "Vous n'avez rejoint aucun salon sur ce serveur. Dirigez-vous vers le",
+    "empty_prefix": "Vous n'avez rejoint aucun salon sur ce serveur. Ouvrez la page",
     "empty_overview": "Aperçu",
     "empty_suffix": "pour parcourir l’annuaire et rejoindre les salons qui vous intéressent."
   }

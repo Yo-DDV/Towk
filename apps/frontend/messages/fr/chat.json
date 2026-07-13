@@ -34,13 +34,13 @@
       "add_server": "Ajouter un serveur"
     },
     "threads": {
-      "title": "Mes discussions",
-      "subtitle": "Sujets que vous suivez",
+      "title": "Mes fils",
+      "subtitle": "Fils que vous suivez",
       "filter_label": "Filtrer les fils de discussion",
       "filter_all": "Tous",
-      "filter_unread": "Non lu",
+      "filter_unread": "Non lus",
       "empty_title": "Aucun fil de discussion suivi",
-      "empty_body": "Les discussions que vous suivez apparaîtront ici. Vous suivez automatiquement les discussions auxquelles vous participez.",
+      "empty_body": "Les fils que vous suivez apparaîtront ici. Vous suivez automatiquement ceux auxquels vous participez.",
       "no_unread_loaded": "Aucun fil de discussion non lu chargé",
       "all_caught_up": "Vous êtes à jour",
       "loaded_count": "{loaded} fils suivis chargés sur {total}.",

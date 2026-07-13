@@ -796,9 +796,11 @@
 
     <TextInput
       id="delete-confirm"
-      label={m['settings.account.delete_modal.confirm_label']()}
+      label={m['settings.account.delete_modal.confirm_label']({
+        confirmation: 'DELETE'
+      })}
       bind:value={confirmText}
-      placeholder={m['settings.account.delete_modal.confirm_placeholder']()}
+      placeholder="DELETE"
       disabled={isDeleting}
       autocomplete="off"
     />
