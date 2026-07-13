@@ -18,8 +18,8 @@ proof explicitly.
 
 ## Checklist
 
-- [ ] I read `CONTRIBUTING.md`, `AGENTS.md`, and relevant path guidance.
-- [ ] I reviewed the complete diff, including generated and agent-assisted output.
+- [ ] I read `CONTRIBUTING.md` and the relevant ADR/FDR or architecture guidance.
+- [ ] I reviewed the complete diff, including generated output.
 - [ ] I have the right to submit every code, text, data, and asset change.
 - [ ] I added or updated tests and documentation where behavior changed.
 - [ ] I did not include secrets, personal data, private logs, prompts, or transcripts.

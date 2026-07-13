@@ -1,7 +1,0 @@
-interface:
-  display_name: "Towk Release Checklist"
-  short_description: "Prepare release checklist and announcement"
-  default_prompt: "Use $towk-release-checklist to prepare the developer checklist and user-facing announcement for the current Towk version."
-
-policy:
-  allow_implicit_invocation: true

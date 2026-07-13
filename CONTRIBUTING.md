@@ -68,8 +68,9 @@ mise test
 mise build
 ```
 
-Maintainer changes must follow [AGENTS.md](AGENTS.md), relevant path guidance,
-the pull-request template and the applicable licensing rules in
-[LICENSING.md](LICENSING.md). A green CI run is necessary but not sufficient:
-review still covers product fit, security, accessibility, compatibility,
-operational safety, documentation and provenance.
+Maintainer changes must follow this guide, the pull-request template, the
+applicable licensing rules in [LICENSING.md](LICENSING.md), and the design
+records in [docs/adr/](docs/adr/) and [docs/fdr/](docs/fdr/) when they apply. A
+green CI run is necessary but not sufficient: review still covers product fit,
+security, accessibility, compatibility, operational safety, documentation and
+provenance.

@@ -4,7 +4,14 @@ node_modules
 .DS_Store
 Thumbs.db
 .playwright-mcp
-.conductor/settings.local.toml
+
+# Local workspace configuration
+.agents/
+.claude/
+.codex/
+.conductor/
+.mcp.json
+.worktreeinclude
 
 # Env
 .env
@@ -28,6 +35,4 @@ examples/dockercompose/livekit.generated.yaml
 # Test results
 test-results/
 
-.claude/worktrees/
-.claude/scheduled_tasks.lock
 /cli/cmd/embedded/

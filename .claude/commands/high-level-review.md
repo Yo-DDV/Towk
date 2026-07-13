@@ -1,1 +1,0 @@
-Please perform a high-level review of the current codebase, using subagents as needed. Your focus is on overall architecture and structure. Please identify any potential issues or areas for improvement. Summarize your findings and recommendations in a concise report.
