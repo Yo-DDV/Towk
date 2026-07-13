@@ -22,7 +22,9 @@ function loadLocaleModule(locale: Locale): Promise<LocaleMessages> {
   const loading =
     locale === 'de'
       ? (import('$lib/paraglide/messages/de.js') as Promise<LocaleMessages>)
-      : Promise.resolve(enMessages);
+      : locale === 'fr'
+        ? (import('$lib/paraglide/messages/fr.js') as Promise<LocaleMessages>)
+        : Promise.resolve(enMessages);
 
   loadedLocales.set(locale, loading);
   return loading;
@@ -199,6 +201,7 @@ const msg_settings_preferences_language_title = (): LocalizedString => messages(
 const msg_settings_preferences_language_description = (): LocalizedString => messages().settings_preferences_language_description(empty());
 const msg_settings_preferences_language_english = (): LocalizedString => messages().settings_preferences_language_english(empty());
 const msg_settings_preferences_language_german = (): LocalizedString => messages().settings_preferences_language_german(empty());
+const msg_settings_preferences_language_french = (): LocalizedString => messages().settings_preferences_language_french(empty());
 const msg_settings_preferences_timezone_title = (): LocalizedString => messages().settings_preferences_timezone_title(empty());
 const msg_settings_preferences_timezone_description = (): LocalizedString => messages().settings_preferences_timezone_description(empty());
 const msg_settings_preferences_timezone_browser_default = (): LocalizedString => messages().settings_preferences_timezone_browser_default(empty());
@@ -380,8 +383,9 @@ const msg_settings_account_delete_modal_intro = (): LocalizedString => messages(
 const msg_settings_account_delete_modal_remove_from_rooms = (): LocalizedString => messages().settings_account_delete_modal_remove_from_rooms(empty());
 const msg_settings_account_delete_modal_delete_messages = (): LocalizedString => messages().settings_account_delete_modal_delete_messages(empty());
 const msg_settings_account_delete_modal_delete_profile = (): LocalizedString => messages().settings_account_delete_modal_delete_profile(empty());
-const msg_settings_account_delete_modal_confirm_label = (): LocalizedString => messages().settings_account_delete_modal_confirm_label(empty());
-const msg_settings_account_delete_modal_confirm_placeholder = (): LocalizedString => messages().settings_account_delete_modal_confirm_placeholder(empty());
+const msg_settings_account_delete_modal_confirm_label = (
+  inputs: Parameters<LocaleMessages['settings_account_delete_modal_confirm_label']>[0]
+): LocalizedString => messages().settings_account_delete_modal_confirm_label(inputs);
 const msg_settings_account_delete_modal_fresh_auth_intro = (): LocalizedString => messages().settings_account_delete_modal_fresh_auth_intro(empty());
 const msg_settings_account_delete_modal_fresh_auth_required = (): LocalizedString => messages().settings_account_delete_modal_fresh_auth_required(empty());
 const msg_settings_account_delete_modal_cancel = (): LocalizedString => messages().settings_account_delete_modal_cancel(empty());
@@ -1623,6 +1627,7 @@ export { msg_settings_preferences_language_title as 'settings.preferences.langua
 export { msg_settings_preferences_language_description as 'settings.preferences.language.description' };
 export { msg_settings_preferences_language_english as 'settings.preferences.language.english' };
 export { msg_settings_preferences_language_german as 'settings.preferences.language.german' };
+export { msg_settings_preferences_language_french as 'settings.preferences.language.french' };
 export { msg_settings_preferences_timezone_title as 'settings.preferences.timezone.title' };
 export { msg_settings_preferences_timezone_description as 'settings.preferences.timezone.description' };
 export { msg_settings_preferences_timezone_browser_default as 'settings.preferences.timezone.browser_default' };
@@ -1789,7 +1794,6 @@ export { msg_settings_account_delete_modal_remove_from_rooms as 'settings.accoun
 export { msg_settings_account_delete_modal_delete_messages as 'settings.account.delete_modal.delete_messages' };
 export { msg_settings_account_delete_modal_delete_profile as 'settings.account.delete_modal.delete_profile' };
 export { msg_settings_account_delete_modal_confirm_label as 'settings.account.delete_modal.confirm_label' };
-export { msg_settings_account_delete_modal_confirm_placeholder as 'settings.account.delete_modal.confirm_placeholder' };
 export { msg_settings_account_delete_modal_fresh_auth_intro as 'settings.account.delete_modal.fresh_auth_intro' };
 export { msg_settings_account_delete_modal_fresh_auth_required as 'settings.account.delete_modal.fresh_auth_required' };
 export { msg_settings_account_delete_modal_cancel as 'settings.account.delete_modal.cancel' };

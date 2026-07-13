@@ -211,6 +211,10 @@
     {
       value: 'de',
       label: m['settings.preferences.language.german']()
+    },
+    {
+      value: 'fr',
+      label: m['settings.preferences.language.french']()
     }
   ] satisfies Array<{
     value: Locale;

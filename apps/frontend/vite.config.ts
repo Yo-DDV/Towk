@@ -137,6 +137,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('src/lib/paraglide/messages/de.js')) return 'i18n-de';
+          if (id.includes('src/lib/paraglide/messages/fr.js')) return 'i18n-fr';
         },
         experimentalMinChunkSize: 20_000
       }

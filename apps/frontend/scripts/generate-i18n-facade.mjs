@@ -58,7 +58,9 @@ const lines = [
   '  const loading =',
   "    locale === 'de'",
   "      ? (import('$lib/paraglide/messages/de.js') as Promise<LocaleMessages>)",
-  '      : Promise.resolve(enMessages);',
+  "      : locale === 'fr'",
+  "        ? (import('$lib/paraglide/messages/fr.js') as Promise<LocaleMessages>)",
+  '        : Promise.resolve(enMessages);',
   '',
   '  loadedLocales.set(locale, loading);',
   '  return loading;',
@@ -100,9 +102,7 @@ for (const functionName of functionNames) {
   const isEmpty = typeNames.get(inputsName) === '{}';
 
   if (isEmpty) {
-    lines.push(
-      `const ${constName} = (): LocalizedString => messages().${functionName}(empty());`
-    );
+    lines.push(`const ${constName} = (): LocalizedString => messages().${functionName}(empty());`);
   } else {
     lines.push(
       `const ${constName} = (`,

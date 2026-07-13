@@ -1,0 +1,15 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "quick_switcher": {
+    "placeholder": "Accéder à un serveur, un salon ou une conversation...",
+    "no_results": "Aucun résultat",
+    "recent": "Récent",
+    "kind": {
+      "destination": "Aller à",
+      "server": "Serveur",
+      "room": "Salon",
+      "dm": "DM",
+      "user": "Utilisateur"
+    }
+  }
+}

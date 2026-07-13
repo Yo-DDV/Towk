@@ -105,8 +105,8 @@ generated protobuf clients, Vitest browser tests, Playwright e2e, and Storybook.
 
 ## Internationalization
 
-- New or changed user-visible strings go through Paraglide catalogs with both
-  English and German entries. Follow ADR-043.
+- New or changed user-visible strings go through Paraglide catalogs with
+  English, German, and French entries. Follow ADR-043.
 - Import product messages from `$lib/i18n/messages`, not generated Paraglide
   internals.
 - Use nested keys grouped by feature/surface; do not use English sentences as

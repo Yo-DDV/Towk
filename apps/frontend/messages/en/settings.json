@@ -126,7 +126,8 @@
         "title": "Language",
         "description": "Choose the language for this browser.",
         "english": "English",
-        "german": "Deutsch"
+        "german": "Deutsch",
+        "french": "Français"
       },
       "timezone": {
         "title": "Timezone",
@@ -340,8 +341,7 @@
         "remove_from_rooms": "Remove you from all spaces and rooms",
         "delete_messages": "Delete all your messages (content will be unrecoverable)",
         "delete_profile": "Delete your profile, avatar, and associated data",
-        "confirm_label": "Type DELETE to confirm",
-        "confirm_placeholder": "DELETE",
+        "confirm_label": "Type {confirmation} to confirm",
         "fresh_auth_intro": "Confirm your current password before deleting this account.",
         "fresh_auth_required": "Sign in again before deleting this account.",
         "cancel": "Cancel",
