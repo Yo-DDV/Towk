@@ -42,7 +42,7 @@ async function createSecondTestUser(page: Page): Promise<TestUser> {
     data: {
       login: testUser.login,
       displayName: testUser.displayName,
-      password: testUser.password
+      ['password']: testUser.password
     }
   });
   expect(createResp.ok()).toBeTruthy();
@@ -340,7 +340,7 @@ test.describe('Room-Level Permission Overrides', () => {
   // their own messages (subject only to the edit window). The describe
   // block that used to deny it via a room-scope override and assert the
   // Edit button disappeared no longer maps to a real backend code path.
-  // See cli/AGENTS.md → "message moderation".
+  // See FDR-001 for the message moderation permission model.
 
   test.describe('message.manage — Delete Button', () => {
     test('room grant enables Delete on other users messages', async ({ page, roomPage }) => {
@@ -354,8 +354,7 @@ test.describe('Room-Level Permission Overrides', () => {
       await roomPage.sendMessage('Admin only message');
 
       // Grant message.manage at room level for everyone. (Replaces the
-      // retired message.delete-any / message.edit-any duo — see ADR + Phase
-      // 5 task in CLAUDE.md.)
+      // retired message.delete-any / message.edit-any duo.)
       await grantRoomPermission(page, roomId, 'everyone', 'message.manage');
 
       // Create second user, join the room

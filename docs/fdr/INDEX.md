@@ -4,7 +4,7 @@ This directory contains Feature Decision Records (FDRs) for Towk. Each FDR docum
 
 FDRs are siblings of the [Architecture Decision Records](../adr/INDEX.md). ADRs cover cross-cutting architectural choices; FDRs cover individual features and the design decisions specific to them.
 
-See [`.agents/skills/fdr/SKILL.md`](../../.agents/skills/fdr/SKILL.md) for the FDR template, writing style, and maintenance workflow.
+New FDRs should follow the structure and tone of the existing records in this directory.
 
 ## Features
 

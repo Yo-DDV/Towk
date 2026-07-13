@@ -131,5 +131,5 @@ review.
 Buf breaking checks will catch many tag, type, enum, service, and method
 compatibility mistakes. They will not catch every semantic break, such as a
 changed error code or pagination interpretation, so reviewers still need to
-apply the API conventions in `proto/AGENTS.md` and the package-local
-instructions.
+apply ADR-044, this ADR, and the existing package conventions in the protobuf
+comments.
