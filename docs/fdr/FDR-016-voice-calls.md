@@ -1,7 +1,7 @@
 # FDR-016: Voice Calls
 
 **Status:** Active
-**Last reviewed:** 2026-07-01
+**Last reviewed:** 2026-07-13
 
 ## Overview
 
@@ -22,6 +22,7 @@ Rooms support real-time voice conversations with optional camera video and video
 - A member's join/leave updates active call indicators and participant lists, but call lifecycle and participant transitions are not shown as room timeline messages. Explicit user intent is recorded immediately, and LiveKit webhooks/reconciliation confirm or correct the active participant projection.
 - Losing room membership also removes the user from the room's active call. This includes voluntarily leaving the room, being removed by a moderator, being banned, and account-deletion cleanup. Towk records the call leave from the membership transition and best-effort asks LiveKit to disconnect the participant; if that LiveKit removal fails, the room membership change still succeeds and reconciliation can catch up later.
 - Joined call participants hear fixed synthesized cues from durable participant join/leave events, including their own join/leave events and other participants in the same active call. These call cues are separate from configurable notification sounds and do not use notification sound filters; `CallEndedEvent` does not play a separate cue.
+- Microphones request browser echo cancellation and noise suppression, mono 48 kHz voice capture, and disabled automatic gain control. A same-origin AudioWorklet/WASM processor adds local background-noise suppression without sending microphone audio to another service. RNNoise is used at 48 kHz and SpeexDSP is used at other browser audio-context rates.
 - The first join starts a call session, creates fresh per-call E2EE key material, and records durable call lifecycle facts. The final leave ends the call, records the end fact, and shreds the call key.
 - Hanging up disconnects from LiveKit and clears the participant from everyone else's view.
 - New clients always enable LiveKit E2EE before connecting. Towk distributes a KMS-backed per-call shared key with the LiveKit join token; the raw key is never written to EVT and is shredded when the call ends.
@@ -52,7 +53,7 @@ Rooms support real-time voice conversations with optional camera video and video
 ### 4. Audio tracks must be explicitly attached
 
 **Decision:** The frontend listens for `RoomEvent.TrackSubscribed` and calls `track.attach()` to wire LiveKit audio into a hidden `<audio>` element. On leave or `TrackUnsubscribed`, it calls `track.detach()`.
-**Why:** LiveKit delivers audio data over WebRTC, but the browser doesn't autoplay it without an attached element. Without explicit attach, the UI looks like everything works — participant rings even animate — but nobody hears anything. The pattern lives in `apps/frontend/src/lib/state/voiceCall.svelte.ts`; any refactor that touches LiveKit subscription handling needs to keep the `track.attach()` / `track.detach()` calls intact.
+**Why:** LiveKit delivers audio data over WebRTC, but the browser doesn't autoplay it without an attached element. Without explicit attach, the UI looks like everything works — participant rings even animate — but nobody hears anything. The pattern lives in `apps/frontend/src/lib/state/server/voiceCall.svelte.ts`; any refactor that touches LiveKit subscription handling needs to keep the `track.attach()` / `track.detach()` calls intact.
 **Tradeoff:** A subtle requirement that's easy to miss when refactoring; the skill warns explicitly.
 
 ### 5. Speaking indicators use neutral inline glyphs
@@ -90,6 +91,12 @@ Rooms support real-time voice conversations with optional camera video and video
 **Decision:** `voiceCallToken` returns both `token` and `e2eeKey`. The first join for a room creates a new call ID and per-call E2EE key through Towk's KMS boundary, stores the raw key in `ENCRYPTION_KEYS` under `call.e2ee.{callId}`, and records only the key ref in `CallStartedEvent`. The final leave records `CallEndedEvent` and shreds the key ref. The frontend creates an `ExternalE2EEKeyProvider`, configures the LiveKit E2EE worker, sets the key, enables E2EE, then connects.
 **Why:** LiveKit E2EE key generation/distribution is application responsibility. Towk already authorizes token access by room membership, so the token resolver is the narrow place to distribute the shared call key. Keeping the raw key out of EVT and normal backups avoids turning event-log copies into permanent decrypt material for captured media.
 **Tradeoff:** Always-on E2EE breaks media compatibility with older clients that do not enable E2EE. Restoring a backup without `ENCRYPTION_KEYS` cannot recover active call keys; active calls should be considered interrupted across such restores.
+
+### 11. Voice capture combines portable browser constraints with local suppression
+
+**Decision:** Every microphone track requests `echoCancellation: true`, `noiseSuppression: true`, `autoGainControl: false`, mono capture, and a preferred 48 kHz sample rate. These remain non-mandatory media constraints so a browser or device that cannot honor one preference does not block the call. Towk then attaches a self-hosted LiveKit track processor from `apps/frontend/src/lib/audio/backgroundNoiseSuppression.ts`: RNNoise handles 48 kHz contexts and SpeexDSP handles other rates. The worklet and WASM files are emitted with the frontend and fetched from the Towk origin only. A worklet initialization or runtime failure falls back to a transparent Web Audio path while retaining browser-native processing and a live microphone track.
+**Why:** Chromium and Firefox expose the standard noise-suppression and automatic-gain constraints, while WebKit exposes echo cancellation but does not currently expose those two controls. The local processor gives modern Chromium, Firefox, and WebKit PWA engines a common background-noise layer, including Safari where the native noise-suppression constraint is unavailable. Towk does not add software automatic gain control and asks engines that expose it to disable it. Keeping the processor local preserves call E2EE and avoids a cloud dependency, external audio upload, or runtime CDN. The served CSP permits only the narrow `wasm-unsafe-eval` source expression required for WebAssembly compilation; JavaScript `unsafe-eval` remains disallowed.
+**Tradeoff:** Browser media constraints are preferences, so Towk cannot promise that a platform-hidden hardware/DSP stage disables gain control. Exact constraints were rejected because they can make microphone acquisition fail on otherwise usable devices. AudioWorklet/WASM availability is also a browser capability boundary; transparent fallback favors call continuity when it is absent or blocked. The processor adds roughly 210 kB of WASM plus 78 kB of worklet JavaScript, loaded only when a microphone track starts.
 
 ## Permissions
 

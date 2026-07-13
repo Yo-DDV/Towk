@@ -308,6 +308,24 @@ describe('VoiceCallState', () => {
     expect(Room.getLocalDevices).not.toHaveBeenCalledWith('videoinput', true);
   });
 
+  it('configures portable background noise suppression without automatic gain control', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(lastRoomOptions).toMatchObject({
+      audioCaptureDefaults: {
+        autoGainControl: false,
+        echoCancellation: true,
+        noiseSuppression: true,
+        processor: {
+          name: 'towk-background-noise-suppression'
+        }
+      }
+    });
+  });
+
   it('joins muted when microphone enable fails without enabling the camera', async () => {
     microphoneFailure = new Error('microphone unavailable');
     const client = createVoiceCallClient();

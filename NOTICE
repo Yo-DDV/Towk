@@ -79,6 +79,11 @@ Frontend and Documentation Components:
 - Parcel watcher (https://github.com/parcel-bundler/watcher) - MIT License
 - Playwright (https://playwright.dev/) - Apache License 2.0
 - Prettier and plugins (https://prettier.io/) - MIT License
+- sapphi-red Web Noise Suppressor
+  (https://github.com/sapphi-red/web-noise-suppressor) - MIT License; its
+  shipped WebAssembly/worklet assets include Shiguredo rnnoise-wasm under
+  Apache License 2.0, RNNoise under the BSD 3-Clause License, and SpeexDSP
+  under the BSD 3-Clause License
 - Sharp image toolkit (https://sharp.pixelplumbing.com/) - Apache License 2.0
 - Storybook packages (https://storybook.js.org/) - MIT License
 - Svelte, SvelteKit, Svelte check, and Svelte tooling
@@ -120,6 +125,72 @@ This product includes software developed at SoundCloud Ltd.
 Twirp:
 Twirp
 Copyright 2018 Twitch Interactive, Inc. All Rights Reserved.
+
+sapphi-red Web Noise Suppressor:
+Copyright 2022 翠 / green
+
+RNNoise:
+Copyright 2007-2017, 2024 Jean-Marc Valin
+Copyright 2023 Amazon
+Copyright 2017 Mozilla
+Copyright 2005-2017 Xiph.Org Foundation
+Copyright 2003-2004 Mark Borgerding
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+- Neither the name of the Xiph.Org Foundation nor the names of its contributors
+  may be used to endorse or promote products derived from this software without
+  specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+SpeexDSP:
+Copyright 2002-2008 Xiph.org Foundation
+Copyright 2002-2008 Jean-Marc Valin
+Copyright 2005-2007 Analog Devices Inc.
+Copyright 2005-2008 Commonwealth Scientific and Industrial Research
+Organisation (CSIRO)
+Copyright 1993, 2002, 2006 David Rowe
+Copyright 2003 EpicGames
+Copyright 1992-1994 Jutta Degener, Carsten Bormann
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+  this list of conditions and the following disclaimer.
+- Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+- Neither the name of the Xiph.org Foundation nor the names of its contributors
+  may be used to endorse or promote products derived from this software without
+  specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS BE LIABLE FOR ANY
+DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Trademark Notice:
 Chatto's source code uses mixed licensing. The default repository license is

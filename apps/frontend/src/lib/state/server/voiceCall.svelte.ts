@@ -20,6 +20,7 @@ import {
 } from 'livekit-client';
 import { toast } from '$lib/ui/toast';
 import { playCallSound } from '$lib/audio/callSounds';
+import { createVoiceAudioCaptureOptions } from '$lib/audio/backgroundNoiseSuppression';
 import * as m from '$lib/i18n/messages';
 import type { VoiceCallAPI } from '$lib/api-client/voiceCalls';
 
@@ -385,11 +386,7 @@ export class VoiceCallState {
           keyProvider,
           worker: this.e2eeWorker
         },
-        audioCaptureDefaults: {
-          autoGainControl: true,
-          echoCancellation: true,
-          noiseSuppression: true
-        },
+        audioCaptureDefaults: createVoiceAudioCaptureOptions(),
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution
         },
