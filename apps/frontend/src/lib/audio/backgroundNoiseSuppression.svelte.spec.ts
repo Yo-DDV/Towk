@@ -17,7 +17,7 @@ afterEach(async () => {
 });
 
 describe('background noise suppression', () => {
-  it('requests voice-safe native capture settings and an enhanced processor', () => {
+  it('requests voice-safe native capture settings without automatic gain control', () => {
     const options = createVoiceAudioCaptureOptions();
 
     expect(options).toMatchObject({
@@ -25,11 +25,9 @@ describe('background noise suppression', () => {
       channelCount: 1,
       echoCancellation: true,
       noiseSuppression: true,
-      sampleRate: 48_000,
-      processor: {
-        name: 'towk-background-noise-suppression'
-      }
+      sampleRate: 48_000
     });
+    expect(options).not.toHaveProperty('processor');
   });
 
   it('loads the local RNNoise worklet at 48 kHz', async () => {

@@ -1,6 +1,7 @@
 import type {
   AudioCaptureOptions,
   AudioProcessorOptions,
+  LocalAudioTrack,
   Track,
   TrackProcessor
 } from 'livekit-client';
@@ -27,19 +28,31 @@ let speexBinaryPromise: Promise<ArrayBuffer> | undefined;
  * browser's echo and noise processing.
  */
 export function createVoiceAudioCaptureOptions(): AudioCaptureOptions {
-  const options: AudioCaptureOptions = {
+  return {
     autoGainControl: false,
     channelCount: 1,
     echoCancellation: true,
     noiseSuppression: true,
     sampleRate: RNNOISE_SAMPLE_RATE
   };
+}
 
-  if (BackgroundNoiseSuppressionProcessor.isSupported) {
-    options.processor = new BackgroundNoiseSuppressionProcessor();
-  }
+/**
+ * Attach enhanced suppression after LiveKit has created the local audio track.
+ *
+ * LiveKit 2.x applies processors inside createLocalTracks() before it assigns
+ * the Room AudioContext to LocalAudioTrack. Passing the processor as a capture
+ * default therefore rejects microphone startup. At this point the track is
+ * already owned by LocalParticipant and has the AudioContext required by the
+ * processor. Device restarts remain managed by LiveKit through restart().
+ */
+export async function ensureBackgroundNoiseSuppression(
+  track: Pick<LocalAudioTrack, 'getProcessor' | 'setProcessor'>
+): Promise<void> {
+  if (track.getProcessor()?.name === 'towk-background-noise-suppression') return;
+  if (!BackgroundNoiseSuppressionProcessor.isSupported) return;
 
-  return options;
+  await track.setProcessor(new BackgroundNoiseSuppressionProcessor());
 }
 
 /**

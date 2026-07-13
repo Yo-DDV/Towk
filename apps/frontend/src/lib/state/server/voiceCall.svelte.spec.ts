@@ -42,6 +42,18 @@ let connectFailure: Error | null = null;
 let connectGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let microphoneGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let microphoneFailure: Error | null = null;
+let microphoneProcessor: { name: string } | null = null;
+let microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
+  microphoneProcessor = processor;
+});
+let microphonePublication: {
+  isMuted: boolean;
+  track: {
+    source: string;
+    getProcessor: () => { name: string } | null;
+    setProcessor: typeof microphoneSetProcessor;
+  };
+} | null = null;
 let cameraGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let cameraFailure: Error | null = null;
 let screenShareGate: { promise: Promise<void>; resolve: () => void } | null = null;
@@ -50,7 +62,12 @@ let switchActiveDeviceFailure: Error | null = null;
 let roomEventHandlers = new Map<string, (...args: unknown[]) => void>();
 let localTrackPublications: Array<{
   isMuted: boolean;
-  track: { source: string; mediaStreamTrack?: MediaStreamTrack };
+  track: {
+    source: string;
+    mediaStreamTrack?: MediaStreamTrack;
+    getProcessor?: () => { name: string } | null;
+    setProcessor?: typeof microphoneSetProcessor;
+  };
 }> = [];
 let mockRemoteParticipants = new Map<string, unknown>();
 
@@ -89,6 +106,19 @@ vi.mock('livekit-client', () => {
           roomEventHandlers.get('MediaDevicesError')?.(microphoneFailure, 'audioinput');
           throw microphoneFailure;
         }
+        if (enabled && !microphonePublication) {
+          microphonePublication = {
+            isMuted: false,
+            track: {
+              source: 'microphone',
+              getProcessor: () => microphoneProcessor,
+              setProcessor: microphoneSetProcessor
+            }
+          };
+        } else if (microphonePublication) {
+          microphonePublication.isMuted = !enabled;
+        }
+        return microphonePublication;
       }),
       setCameraEnabled: vi.fn(async (enabled: boolean) => {
         calls.push(`setCameraEnabled:${enabled}`);
@@ -244,6 +274,11 @@ describe('VoiceCallState', () => {
     connectGate = null;
     microphoneGate = null;
     microphoneFailure = null;
+    microphoneProcessor = null;
+    microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
+      microphoneProcessor = processor;
+    });
+    microphonePublication = null;
     cameraGate = null;
     cameraFailure = null;
     screenShareGate = null;
@@ -318,12 +353,28 @@ describe('VoiceCallState', () => {
       audioCaptureDefaults: {
         autoGainControl: false,
         echoCancellation: true,
-        noiseSuppression: true,
-        processor: {
-          name: 'towk-background-noise-suppression'
-        }
+        noiseSuppression: true
       }
     });
+    expect(lastRoomOptions?.audioCaptureDefaults).not.toHaveProperty('processor');
+    expect(microphoneSetProcessor).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'towk-background-noise-suppression' })
+    );
+  });
+
+  it('mutes the microphone if enhanced suppression cannot be attached', async () => {
+    microphoneSetProcessor.mockRejectedValueOnce(new Error('processor unavailable'));
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenNthCalledWith(1, true);
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenNthCalledWith(2, false);
+    expect(state.isMuted).toBe(true);
+    expect(toastMocks.error).toHaveBeenCalledWith(
+      'Could not start your microphone. You joined muted.'
+    );
   });
 
   it('joins muted when microphone enable fails without enabling the camera', async () => {
@@ -532,6 +583,18 @@ describe('VoiceCallState', () => {
 
     expect(state.isMicrophonePending).toBe(false);
     expect(state.isMuted).toBe(true);
+  });
+
+  it('keeps the same noise processor across microphone mute and unmute', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    await state.toggleMute();
+    await state.toggleMute();
+
+    expect(state.isMuted).toBe(false);
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
   });
 
   it('keeps camera pending until LiveKit applies the toggle', async () => {
