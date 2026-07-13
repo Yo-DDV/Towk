@@ -17,7 +17,7 @@ Reconnect catch-up is owned by the foreground web app, not the service worker. W
 - On install, the worker caches the SPA fallback shell and SvelteKit build assets required to boot it.
 - On activate, old Towk shell caches are deleted and the new worker claims open clients.
 - Known shell assets are served cache-first from the versioned cache; static PWA assets other than the web manifest are cached lazily on first request.
-- The served web manifest and Apple touch icon metadata use the uploaded server logo when one exists, falling back to bundled Towk icons otherwise.
+- The served web manifest prefers the uploaded server logo when one exists, but keeps bundled Towk PNG icons as installable fallbacks. Apple touch icon metadata uses the uploaded server logo when available and falls back to the bundled Towk icon otherwise.
 - Same-origin navigations are network-first, falling back to the cached SPA shell only when the network fails.
 - API, auth, OAuth, webhook, uploaded-asset, web-manifest, non-GET, and cross-origin requests are network-only.
 - Protected uploaded asset loads use direct signed asset URLs owned by the foreground app. The worker does not receive registered-server API bearer tokens, does not proxy asset requests, and does not cache protected asset bodies.
@@ -52,9 +52,9 @@ Reconnect catch-up is owned by the foreground web app, not the service worker. W
 
 ### 5. Install metadata follows server branding
 
-**Decision:** The HTTP frontend server generates the web manifest from the bundled manifest and swaps in transformed server-logo URLs for install icons when a logo is configured. The served HTML similarly replaces the Apple touch icon link with a fixed-size server-logo transform.
+**Decision:** The HTTP frontend server generates the web manifest from the bundled manifest and prepends transformed server-logo URLs for install icons when a logo is configured, while preserving the bundled PNG manifest icons as acceptable browser fallbacks. The served HTML similarly replaces the Apple touch icon link with a fixed-size server-logo transform.
 **Why:** Self-hosted servers should install with their own visible identity without requiring a custom frontend build.
-**Tradeoff:** Browsers decide when to refresh installed PWA metadata, so existing installs may keep the previous icon until the browser updates the manifest or the user reinstalls the app.
+**Tradeoff:** Browsers decide when to refresh installed PWA metadata, so existing installs may keep the previous icon until the browser updates the manifest or the user reinstalls the app. When a server logo transform is not accepted as an install icon by a browser, the static Towk PNG fallback preserves installability.
 
 ## Related
 
