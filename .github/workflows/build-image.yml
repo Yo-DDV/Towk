@@ -1,27 +1,23 @@
 name: build Towk image
 
-on: # zizmor: ignore[dangerous-triggers] guarded below to successful push runs from this repository's main branch
-  workflow_run:
-    workflows: [ci]
-    types: [completed]
+on:
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Optional exact commit SHA to package. Leave empty to use the selected workflow ref."
+        required: false
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: towk-image-${{ github.event.workflow_run.head_sha || github.sha }}
+  group: towk-image-${{ inputs.source_sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
   build-scan-publish:
     name: Build, scan, attest, and publish Towk
-    if: >-
-      github.repository == 'Yo-DDV/towk' &&
-      (github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == 'Yo-DDV/towk' &&
-      github.event.workflow_run.head_branch == 'main'))
+    if: github.repository == 'Yo-DDV/towk'
     permissions:
       attestations: write # Required by the GitHub artifact attestation actions.
       contents: read
@@ -29,11 +25,17 @@ jobs:
       packages: write # Required only to push scanned images and attestations to GHCR.
     runs-on: ubuntu-latest
     env:
-      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
       IMAGE: ghcr.io/yo-ddv/towk
       SYFT_IMAGE: anchore/syft:v1.46.0@sha256:473a60e3a58e29aca3aedb3e99e787bb4ef273917e44d10fcbea4330a07320bb
       TRIVY_IMAGE: aquasec/trivy:0.72.0@sha256:cffe3f5161a47a6823fbd23d985795b3ed72a4c806da4c4df16266c02accdd6f
     steps:
+      - name: Validate package source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
       - name: Checkout exact source revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

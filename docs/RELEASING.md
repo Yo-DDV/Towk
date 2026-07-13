@@ -2,8 +2,9 @@
 
 Towk prepares releases from protected `main`. The current release workflow
 publishes signed source-built CLI archives and checksums for an existing
-`vMAJOR.MINOR.PATCH` tag. The separate image workflow publishes scanned,
-attested, commit-derived development image tags after successful `main` CI.
+`vMAJOR.MINOR.PATCH` tag. The separate image workflow is manual: it publishes
+scanned, attested, commit-derived development image tags only when a maintainer
+explicitly requests a container package.
 Stable container aliases are not currently published.
 
 ## Prepare the release pull request
@@ -42,7 +43,12 @@ attestations. Never reuse or move a published tag.
 ## Container images
 
 `.github/workflows/build-image.yml` builds amd64 and arm64 images from the exact
-successful `main` revision. It scans both archives before pushing them, attaches
-SBOM attestations, and creates one immutable multi-platform development tag.
+commit SHA selected by manual workflow dispatch. It scans both archives before
+pushing them, attaches SBOM attestations, and creates one immutable
+multi-platform development tag.
 Documentation and deployments must use that exact tag and digest until a
 separate reviewed change introduces stable release aliases.
+
+Merging a pull request into `main` does not publish a new container image by
+itself. Run the image workflow only when the project intentionally wants to
+refresh the public package.
