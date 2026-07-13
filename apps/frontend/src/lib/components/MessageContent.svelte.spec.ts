@@ -1,6 +1,8 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import '../../app.css';
+import { loadLocaleMessages } from '$lib/i18n/messages';
+import { setReactiveLocale } from '$lib/i18n/state.svelte';
 import { q } from '$lib/test-utils';
 import type { RoomMember } from '$lib/mentions';
 import { PresenceStatus } from '$lib/render/types';
@@ -86,17 +88,21 @@ function computedBorderColorFor(property: string): string {
   return color;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   mocks.goto.mockReset();
   mocks.segmentToServerId.mockReset();
   mocks.segmentToServerId.mockImplementation((segment: string) =>
     segment === '-' ? 'origin' : null
   );
   vi.spyOn(window, 'open').mockImplementation(() => null);
+  await loadLocaleMessages('en');
+  setReactiveLocale('en');
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
+  await loadLocaleMessages('en');
+  setReactiveLocale('en');
 });
 
 describe('renderMarkdown', () => {
@@ -384,6 +390,25 @@ describe('MessageContent component', () => {
     await expect.poll(() => q(container, 'strong')).toBeTruthy();
     expect(q(container, 'strong')?.textContent).toBe('fsdf');
     expect(container.textContent).toContain('fsdfsd fsdffdsf (edited)');
+  });
+
+  it('localizes the edited marker in French and German', async () => {
+    await loadLocaleMessages('fr');
+    setReactiveLocale('fr');
+
+    const { container } = render(MessageContent, {
+      props: {
+        body: 'bonjour',
+        edited: true
+      }
+    });
+
+    await expect.poll(() => q(container, '.edited-marker')?.textContent).toBe('(modifié)');
+
+    await loadLocaleMessages('de');
+    setReactiveLocale('de');
+
+    await expect.poll(() => q(container, '.edited-marker')?.textContent).toBe('(bearbeitet)');
   });
 
   it('applies prose classes for typography', async () => {
