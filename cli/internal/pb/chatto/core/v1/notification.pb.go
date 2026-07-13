@@ -379,14 +379,15 @@ func (x *ReplyNotification) GetInThread() string {
 
 // RoomMessageNotification is created for users with ALL_MESSAGES notification level.
 // The recipient is any room member with the ALL_MESSAGES level, except the author.
-// Only fires for root messages (thread replies do not generate ALL_MESSAGES
-// notifications), so no in_thread field is needed.
 type RoomMessageNotification struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Room where the message was posted
 	RoomId string `protobuf:"bytes,2,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	// Event ID of the message
-	EventId       string `protobuf:"bytes,3,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	EventId string `protobuf:"bytes,3,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	// Thread root event ID when the message was posted inside a thread.
+	// Empty for root messages and channel echoes.
+	InThread      string `protobuf:"bytes,4,opt,name=in_thread,json=inThread,proto3" json:"in_thread,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -435,6 +436,13 @@ func (x *RoomMessageNotification) GetEventId() string {
 	return ""
 }
 
+func (x *RoomMessageNotification) GetInThread() string {
+	if x != nil {
+		return x.InThread
+	}
+	return ""
+}
+
 var File_chatto_core_v1_notification_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_notification_proto_rawDesc = "" +
@@ -463,10 +471,11 @@ const file_chatto_core_v1_notification_proto_rawDesc = "" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x03 \x01(\tR\aeventId\x12#\n" +
 	"\x0ein_reply_to_id\x18\x04 \x01(\tR\vinReplyToId\x12\x1b\n" +
-	"\tin_thread\x18\x05 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_id\"]\n" +
+	"\tin_thread\x18\x05 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_id\"z\n" +
 	"\x17RoomMessageNotification\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x19\n" +
-	"\bevent_id\x18\x03 \x01(\tR\aeventIdJ\x04\b\x01\x10\x02R\bspace_idB\xb4\x01\n" +
+	"\bevent_id\x18\x03 \x01(\tR\aeventId\x12\x1b\n" +
+	"\tin_thread\x18\x04 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_idB\xb4\x01\n" +
 	"\x12com.chatto.core.v1B\x11NotificationProtoP\x01Z1hmans.de/chatto/internal/pb/chatto/core/v1;corev1\xa2\x02\x03CCX\xaa\x02\x0eChatto.Core.V1\xca\x02\x0eChatto\\Core\\V1\xe2\x02\x1aChatto\\Core\\V1\\GPBMetadata\xea\x02\x10Chatto::Core::V1b\x06proto3"
 
 var (

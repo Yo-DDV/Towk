@@ -34,7 +34,7 @@ export enum NotificationLevel {
   MUTED = 2,
 
   /**
-   * Notify according to the normal room rules.
+   * Notify only for mentions in channel rooms; direct messages still notify.
    *
    * @generated from enum value: NOTIFICATION_LEVEL_NORMAL = 3;
    */

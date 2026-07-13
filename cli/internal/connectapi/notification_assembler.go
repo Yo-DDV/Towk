@@ -100,12 +100,14 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 		if err != nil {
 			return nil, err
 		}
-		item.Kind = &apiv1.NotificationItem_RoomMessage{
-			RoomMessage: &apiv1.RoomMessageNotification{
-				Room:    room,
-				EventId: payload.RoomMessage.GetEventId(),
-			},
+		roomMessage := &apiv1.RoomMessageNotification{
+			Room:    room,
+			EventId: payload.RoomMessage.GetEventId(),
 		}
+		if threadID := payload.RoomMessage.GetInThread(); threadID != "" {
+			roomMessage.ThreadRootEventId = &threadID
+		}
+		item.Kind = &apiv1.NotificationItem_RoomMessage{RoomMessage: roomMessage}
 	default:
 		return nil, fmt.Errorf("unknown notification type %T", notification.GetNotification())
 	}

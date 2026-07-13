@@ -184,7 +184,10 @@
       },
       "push_prompt": {
         "title": "Activer les notifications push",
-        "message": "Recevez une notification pour les messages directs, les mentions et les réponses.",
+        "message": "Recevez une alerte pour chaque nouveau message de salon et message direct lorsque Towk est fermé ou en arrière-plan.",
+        "blocked_title": "Les notifications push sont bloquées",
+        "blocked_message": "Towk ne peut pas vous prévenir des nouveaux messages de salon et messages directs lorsqu'il est fermé. Activez les notifications dans les paramètres du navigateur ou du système.",
+        "blocked_action": "Comment les activer",
         "ios_home_screen_title": "Ajoutez Towk à votre écran d'accueil",
         "ios_home_screen_message": "Sur les versions iOS/iPadOS prises en charge, ouvrez Towk à partir de son icône sur l'écran d'accueil avant d'activer les notifications push.",
         "enabled": "Notifications push activées",
@@ -192,7 +195,10 @@
         "enable_failed": "Échec de l'activation des notifications push",
         "enabling": "Activation...",
         "enable": "Activer",
-        "dismiss": "Non merci"
+        "dismiss": "Plus tard",
+        "confirm_title": "Continuer sans notifications ?",
+        "confirm_message": "Vous risquez de manquer de nouveaux messages de salon et messages directs lorsque Towk est fermé. Towk vous le rappellera plus tard. Voulez-vous vraiment continuer ?",
+        "confirm_action": "Continuer sans notifications"
       },
       "levels": {
         "loading": "Chargement...",
@@ -215,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Indicateurs de messages non lus, mentions, messages directs et réponses aux fils"
+          "description": "Indicateurs de messages non lus ; notifications uniquement pour les mentions. Les messages directs sont toujours notifiés"
         },
         "all_messages": {
           "label": "Tous les messages",
-          "description": "Mode normal avec une notification pour chaque nouveau message"
+          "description": "Une notification pour chaque nouveau message dans les salons rejoints et les fils"
         }
       },
       "sound": {

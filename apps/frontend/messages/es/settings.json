@@ -184,7 +184,10 @@
       },
       "push_prompt": {
         "title": "Habilitar notificaciones push",
-        "message": "Recibe notificaciones sobre DMs, menciones y respuestas.",
+        "message": "Recibe avisos de cada mensaje nuevo de canal y directo cuando Towk esté cerrado o en segundo plano.",
+        "blocked_title": "Las notificaciones push están bloqueadas",
+        "blocked_message": "Towk no puede avisarte de mensajes nuevos de canal y directos cuando está cerrado. Activa las notificaciones en la configuración del navegador o del sistema operativo.",
+        "blocked_action": "Cómo activarlas",
         "ios_home_screen_title": "Agrega Towk a tu pantalla de inicio",
         "ios_home_screen_message": "En versiones compatibles de iOS/iPadOS, abre Towk desde el icono de tu pantalla de inicio antes de activar las notificaciones push.",
         "enabled": "Notificaciones push habilitadas",
@@ -192,7 +195,10 @@
         "enable_failed": "No se pudieron activar las notificaciones push",
         "enabling": "Habilitando...",
         "enable": "Permitir",
-        "dismiss": "No, gracias"
+        "dismiss": "Ahora no",
+        "confirm_title": "¿Continuar sin notificaciones?",
+        "confirm_message": "Puedes perderte mensajes nuevos de canal y directos cuando Towk esté cerrado. Towk te lo recordará más adelante. ¿Seguro que quieres continuar?",
+        "confirm_action": "Continuar sin notificaciones"
       },
       "levels": {
         "loading": "Cargando...",
@@ -215,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Marcadores no leídos + menciones, DMs y respuestas de hilos"
+          "description": "Marcadores de no leídos; notificaciones solo por menciones. Los mensajes directos siempre generan notificaciones"
         },
         "all_messages": {
           "label": "Todos los mensajes",
-          "description": "Normal + notificación por cada mensaje nuevo"
+          "description": "Una notificación por cada mensaje nuevo en salas e hilos a los que te has unido"
         }
       },
       "sound": {

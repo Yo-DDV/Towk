@@ -1,16 +1,17 @@
 # FDR-013: Web Push Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-10
+**Last reviewed:** 2026-07-13
 
 ## Overview
 
-Users can opt in to receive notifications through the browser's W3C Web Push system, so they get pinged for DMs, mentions, and replies even when the Towk tab isn't open. Push is opt-in per device, requires operator configuration (VAPID keys), and piggybacks on the persistent notification system (see FDR-012).
+Users can opt in to receive notifications through the browser's W3C Web Push system, so persistent notifications for joined-room messages, DMs, mentions, and replies can reach them even when the Towk tab isn't open. Push permission remains opt-in per device, requires operator configuration (VAPID keys), and piggybacks on the persistent notification system (see FDR-012).
 
 ## Behavior
 
 - The browser prompts the user for notification permission when they enable push.
-- If push is configured and supported, signed-in users who have not made a browser permission choice see a small top-overlay prompt offering to enable push or opt out of future prompts on that device.
+- If push is configured and supported, signed-in users without permission see a small, non-blocking top-overlay prompt. Choosing "not now" opens a second confirmation before snoozing the reminder for seven days on that device.
+- A denied permission produces a warning with browser/OS recovery guidance. Towk refreshes permission state when the app regains focus or becomes visible, so revoking a previously granted permission restores the warning immediately.
 - On granting permission, the browser creates a subscription using the server's VAPID public key. The subscription details (endpoint URL, keys) are sent to the server and stored.
 - When a signed-in user opens Towk and browser notification permission is already granted, Towk refreshes the server's copy of the current browser subscription without prompting again.
 - A browser push endpoint is active for only the account that most recently registered it. Switching accounts in the same browser transfers delivery to the current account; stale records for the previous account are not delivered.
@@ -65,11 +66,11 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 **Why:** Browsers, especially installed PWAs, can rotate or invalidate push subscriptions around updates. Refreshing the server-side delivery cache at startup is simpler and more reliable than depending on foreground delivery of subscription-change events.
 **Tradeoff:** A user who grants permission but never reopens Towk after a browser-side subscription change will not be repaired until the next app launch. That is acceptable because opening the app is the point where Towk can reliably observe and refresh the current browser state.
 
-### 7. Local opt-out for the push prompt
+### 7. Confirmed, periodic local reminders for disabled push
 
-**Decision:** The enable-push prompt is device-local and can be dismissed without changing server-side notification settings.
-**Why:** Whether push is useful depends on the device. Dismissing the prompt on a desktop browser should not suppress the prompt on an iOS PWA where push may be more valuable.
-**Tradeoff:** The same user may see the prompt again on another browser or device. That is intentional; each device has its own push subscription and OS permission.
+**Decision:** The enable-push prompt is device-local and non-blocking. Dismissing it requires confirmation and snoozes it for seven days instead of suppressing it forever. A previously granted permission that becomes unavailable clears the snooze and restores the warning.
+**Why:** Missing push means the user cannot receive message alerts while Towk is closed, so the consequence should remain visible without taking control away from the user. Device-local cadence matches the browser permission and subscription boundary.
+**Tradeoff:** Users who deliberately keep notifications disabled see a weekly reminder on each affected device. They can continue using Towk after confirming their choice; Towk never bypasses or repeatedly invokes the native permission prompt without a user action.
 
 ### 8. Origin-bound native push registration
 

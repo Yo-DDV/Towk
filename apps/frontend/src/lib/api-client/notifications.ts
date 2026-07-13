@@ -78,6 +78,7 @@ export type RoomMessageNotificationItem = {
   summary: string;
   roomMsgRoom: { id: string; name: string } | null;
   roomMsgEventId: string;
+  roomMsgInThread?: string | null;
 };
 
 export type NotificationItem =
@@ -226,7 +227,8 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         roomMsgRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
-        roomMsgEventId: item.kind.value.eventId
+        roomMsgEventId: item.kind.value.eventId,
+        roomMsgInThread: item.kind.value.threadRootEventId ?? null
       };
     default:
       return null;

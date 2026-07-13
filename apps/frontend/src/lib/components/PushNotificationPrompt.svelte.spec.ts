@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { flushSync } from 'svelte';
 import PushNotificationPrompt from './PushNotificationPrompt.svelte';
@@ -71,14 +71,18 @@ describe('PushNotificationPrompt', () => {
     mocks.toastError.mockReset();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('shows the prompt when push is configured, supported, and permission is unset', async () => {
     const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
     await settle();
 
     expect(container.textContent).toContain('Enable push notifications');
-    expect(container.textContent).toContain('DMs, mentions, and replies');
+    expect(container.textContent).toContain('every new channel and direct message');
     await expect.element(buttonWithText(container, 'Enable')).toBeVisible();
-    await expect.element(buttonWithText(container, 'No thanks')).toBeVisible();
+    await expect.element(buttonWithText(container, 'Not now')).toBeVisible();
   });
 
   it('does not show when permission is already granted', async () => {
@@ -90,24 +94,71 @@ describe('PushNotificationPrompt', () => {
     expect(container.textContent).not.toContain('Enable push notifications');
   });
 
-  it('persists opt-out for the current server and user', async () => {
+  it('requires confirmation and snoozes reminders instead of permanently opting out', async () => {
+    const now = 1_750_000_000_000;
+    vi.spyOn(Date, 'now').mockReturnValue(now);
     const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
     await settle();
 
-    buttonWithText(container, 'No thanks').click();
+    buttonWithText(container, 'Not now').click();
+    await settle();
+
+    expect(container.textContent).toContain('Continue without notifications?');
+    expect(localStorage.getItem('chatto:i:origin:user:user-1:pushPromptSnoozedUntil')).toBeNull();
+
+    buttonWithText(container, 'Continue without notifications').click();
     await settle();
 
     expect(container.textContent).not.toContain('Enable push notifications');
-    expect(localStorage.getItem('chatto:i:origin:user:user-1:pushPromptDismissed')).toBe('1');
+    expect(Number(localStorage.getItem('chatto:i:origin:user:user-1:pushPromptSnoozedUntil'))).toBe(
+      now + 7 * 24 * 60 * 60 * 1000
+    );
   });
 
-  it('does not show after the user opted out locally', async () => {
+  it('shows again when a previous reminder snooze has expired', async () => {
+    const now = 1_750_000_000_000;
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    localStorage.setItem('chatto:i:origin:user:user-1:pushPromptSnoozedUntil', String(now - 1));
+
+    const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
+    await settle();
+
+    expect(container.textContent).toContain('Enable push notifications');
+  });
+
+  it('does not honor the legacy permanent dismissal flag', async () => {
     localStorage.setItem('chatto:i:origin:user:user-1:pushPromptDismissed', '1');
 
     const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
     await settle();
 
-    expect(container.textContent).not.toContain('Enable push notifications');
+    expect(container.textContent).toContain('Enable push notifications');
+    expect(localStorage.getItem('chatto:i:origin:user:user-1:pushPromptDismissed')).toBeNull();
+  });
+
+  it('warns when browser notification permission is blocked', async () => {
+    mocks.getPermission.mockReturnValue('denied');
+
+    const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
+    await settle();
+
+    expect(container.textContent).toContain('Push notifications are blocked');
+    expect(container.textContent).toContain('new channel and direct messages');
+    await expect.element(buttonWithText(container, 'How to enable')).toBeVisible();
+    await expect.element(buttonWithText(container, 'Not now')).toBeVisible();
+  });
+
+  it('reappears immediately when a previously granted permission is lost', async () => {
+    mocks.getPermission.mockReturnValue('granted');
+    const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
+    await settle();
+    expect(container.textContent).not.toContain('Push notifications are blocked');
+
+    mocks.getPermission.mockReturnValue('denied');
+    window.dispatchEvent(new Event('focus'));
+    await settle();
+
+    expect(container.textContent).toContain('Push notifications are blocked');
   });
 
   it('shows iOS Home Screen guidance without registering push', async () => {
@@ -120,7 +171,7 @@ describe('PushNotificationPrompt', () => {
     expect(container.textContent).toContain('Add Towk to your Home Screen');
     expect(container.textContent).toContain('supported iOS/iPadOS versions');
     expect(container.textContent).toContain('open Towk from its Home Screen icon');
-    expect(container.textContent).not.toContain('Get notified about DMs, mentions, and replies');
+    expect(container.textContent).not.toContain('every new channel and direct message');
     expect(
       Array.from(container.querySelectorAll('button')).some((button) =>
         button.textContent?.includes('Enable')

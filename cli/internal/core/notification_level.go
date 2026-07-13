@@ -16,7 +16,7 @@ import (
 // or for a specific room. They are stored as semantic user config events on the
 // user's config aggregate.
 //
-// Inheritance: room-level → server-level → NORMAL (system default).
+// Inheritance: room-level → server-level → ALL_MESSAGES (system default).
 //
 // Transitional layering note: the low-level ChattoCore helpers in this file
 // predate the ConnectRPC API and mostly perform projected reads, config writes,
@@ -24,6 +24,11 @@ import (
 // transports should enter through NotificationPreferencesModel instead, so
 // operation authZ and response shaping do not drift across public transports.
 // ============================================================================
+
+// DefaultNotificationLevel is the effective level for users without an explicit
+// server or room preference. Keeping the default centralized ensures existing
+// and newly created accounts inherit the same behavior without a data backfill.
+const DefaultNotificationLevel = corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES
 
 // GetSpaceNotificationLevel returns the user's server-wide notification level.
 // Returns NOTIFICATION_LEVEL_UNSPECIFIED if no preference is set.
@@ -70,7 +75,7 @@ func (c *ChattoCore) SetSpaceNotificationLevel(ctx context.Context, userID strin
 
 	effectiveLevel := level
 	if effectiveLevel == corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
-		effectiveLevel = corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL
+		effectiveLevel = DefaultNotificationLevel
 	}
 	c.publishNotificationLevelChangedEvent(ctx, userID, "", level, effectiveLevel)
 
@@ -135,12 +140,12 @@ func (c *ChattoCore) SetRoomNotificationLevel(ctx context.Context, userID, roomI
 }
 
 // GetEffectiveNotificationLevel resolves the effective notification level for a
-// user in a room. Resolution order: room-level → server-level → NORMAL.
+// user in a room. Resolution order: room-level → server-level → system default.
 // Authorization: Caller must verify access.
 func (c *ChattoCore) GetEffectiveNotificationLevel(ctx context.Context, userID, roomID string) (corev1.NotificationLevel, error) {
 	roomLevel, err := c.GetRoomNotificationLevel(ctx, userID, roomID)
 	if err != nil {
-		return corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL, fmt.Errorf("failed to get room notification level: %w", err)
+		return DefaultNotificationLevel, fmt.Errorf("failed to get room notification level: %w", err)
 	}
 	if roomLevel != corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
 		return roomLevel, nil
@@ -148,13 +153,13 @@ func (c *ChattoCore) GetEffectiveNotificationLevel(ctx context.Context, userID, 
 
 	serverLevel, err := c.GetSpaceNotificationLevel(ctx, userID)
 	if err != nil {
-		return corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL, fmt.Errorf("failed to get server notification level: %w", err)
+		return DefaultNotificationLevel, fmt.Errorf("failed to get server notification level: %w", err)
 	}
 	if serverLevel != corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
 		return serverLevel, nil
 	}
 
-	return corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL, nil
+	return DefaultNotificationLevel, nil
 }
 
 // resolveEffectiveNotificationLevel resolves the effective notification level
@@ -166,13 +171,13 @@ func (c *ChattoCore) resolveEffectiveNotificationLevel(ctx context.Context, user
 
 	serverLevel, err := c.GetSpaceNotificationLevel(ctx, userID)
 	if err != nil {
-		return corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL, err
+		return DefaultNotificationLevel, err
 	}
 	if serverLevel != corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
 		return serverLevel, nil
 	}
 
-	return corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL, nil
+	return DefaultNotificationLevel, nil
 }
 
 // RoomNotificationPreference holds a resolved notification preference for a
@@ -292,7 +297,7 @@ func (c *ChattoCore) GetAllRoomNotificationPreferences(ctx context.Context, user
 			effectiveLevel = serverLevel
 		}
 		if effectiveLevel == corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
-			effectiveLevel = corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL
+			effectiveLevel = DefaultNotificationLevel
 		}
 
 		result = append(result, RoomNotificationPreference{

@@ -16,7 +16,7 @@ export class NotificationLevelStore {
   /** Server-level preference. */
   private server = $state<{ level: NotificationLevel; effectiveLevel: NotificationLevel }>({
     level: NotificationLevel.Default,
-    effectiveLevel: NotificationLevel.Normal
+    effectiveLevel: NotificationLevel.AllMessages
   });
 
   /** Room-level preferences: roomId -> { level, effectiveLevel } */
@@ -45,7 +45,7 @@ export class NotificationLevelStore {
 
   /**
    * Get the viewer's server-level notification preference.
-   * Returns DEFAULT/NORMAL if not set.
+   * Returns DEFAULT/ALL_MESSAGES if not set.
    */
   getServerPreference(): { level: NotificationLevel; effectiveLevel: NotificationLevel } {
     return this.server;
@@ -55,9 +55,10 @@ export class NotificationLevelStore {
    * Get the viewer's notification preference for a room.
    * Returns DEFAULT with the server's effective level if not set.
    */
-  getRoomPreference(
-    roomId: string
-  ): { level: NotificationLevel; effectiveLevel: NotificationLevel } {
+  getRoomPreference(roomId: string): {
+    level: NotificationLevel;
+    effectiveLevel: NotificationLevel;
+  } {
     const roomPref = this.roomLevels.get(roomId);
     if (roomPref) return roomPref;
     return {
@@ -68,7 +69,7 @@ export class NotificationLevelStore {
 
   /**
    * Get the effective notification level for a room.
-   * Resolves: room-level -> server-level -> NORMAL.
+   * Resolves: room-level -> server-level -> ALL_MESSAGES.
    */
   getEffectiveLevel(roomId: string): NotificationLevel {
     return this.getRoomPreference(roomId).effectiveLevel;
@@ -94,7 +95,7 @@ export class NotificationLevelStore {
   clear(): void {
     this.server = {
       level: NotificationLevel.Default,
-      effectiveLevel: NotificationLevel.Normal
+      effectiveLevel: NotificationLevel.AllMessages
     };
     this.roomLevels.clear();
   }

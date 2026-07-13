@@ -184,7 +184,10 @@
       },
       "push_prompt": {
         "title": "Push-Benachrichtigungen aktivieren",
-        "message": "Erhalte Benachrichtigungen über DMs, Erwähnungen und Antworten.",
+        "message": "Erhalte Hinweise zu jeder neuen Kanal- und Direktnachricht, wenn Towk geschlossen ist oder im Hintergrund läuft.",
+        "blocked_title": "Push-Benachrichtigungen sind blockiert",
+        "blocked_message": "Towk kann dich im geschlossenen Zustand nicht über neue Kanal- und Direktnachrichten informieren. Aktiviere Benachrichtigungen in den Browser- oder Betriebssystemeinstellungen.",
+        "blocked_action": "So aktivierst du sie",
         "ios_home_screen_title": "Füge Towk zum Home-Bildschirm hinzu",
         "ios_home_screen_message": "Auf unterstützten iOS-/iPadOS-Versionen musst du Towk über das Home-Bildschirm-Symbol öffnen, bevor du Push-Benachrichtigungen aktivierst.",
         "enabled": "Push-Benachrichtigungen aktiviert",
@@ -192,7 +195,10 @@
         "enable_failed": "Push-Benachrichtigungen konnten nicht aktiviert werden",
         "enabling": "Wird aktiviert...",
         "enable": "Aktivieren",
-        "dismiss": "Nein danke"
+        "dismiss": "Später",
+        "confirm_title": "Ohne Benachrichtigungen fortfahren?",
+        "confirm_message": "Du könntest neue Kanal- und Direktnachrichten verpassen, wenn Towk geschlossen ist. Towk erinnert dich später erneut. Möchtest du wirklich fortfahren?",
+        "confirm_action": "Ohne Benachrichtigungen fortfahren"
       },
       "levels": {
         "loading": "Wird geladen...",
@@ -215,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Ungelesen-Markierungen + Erwähnungen, DMs und Thread-Antworten"
+          "description": "Ungelesen-Markierungen; Benachrichtigungen nur bei Erwähnungen. Direktnachrichten lösen immer Benachrichtigungen aus"
         },
         "all_messages": {
           "label": "Alle Nachrichten",
-          "description": "Normal + Benachrichtigung für jede neue Nachricht"
+          "description": "Eine Benachrichtigung für jede neue Nachricht in beigetretenen Räumen und Threads"
         }
       },
       "sound": {

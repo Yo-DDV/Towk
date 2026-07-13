@@ -160,6 +160,34 @@ func pwaManifestIcons(icon192, icon512 string) []map[string]string {
 	}
 }
 
+func pwaManifestIconFallbacks(value any) []map[string]string {
+	icons, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+
+	fallbacks := make([]map[string]string, 0, len(icons))
+	for _, icon := range icons {
+		iconMap, ok := icon.(map[string]any)
+		if !ok {
+			continue
+		}
+		src, ok := iconMap["src"].(string)
+		if !ok || src == "" {
+			continue
+		}
+
+		fallback := map[string]string{"src": src}
+		for _, key := range []string{"sizes", "type", "purpose"} {
+			if value, ok := iconMap[key].(string); ok && value != "" {
+				fallback[key] = value
+			}
+		}
+		fallbacks = append(fallbacks, fallback)
+	}
+	return fallbacks
+}
+
 func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte, error) {
 	if icons == nil {
 		return staticManifest, nil
@@ -170,16 +198,20 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte
 		return nil, err
 	}
 
-	manifest["icons"] = pwaManifestIcons(icons.Icon192, icons.Icon512)
+	manifest["icons"] = append(
+		pwaManifestIcons(icons.Icon192, icons.Icon512),
+		pwaManifestIconFallbacks(manifest["icons"])...,
+	)
 	if shortcuts, ok := manifest["shortcuts"].([]any); ok {
 		for _, shortcut := range shortcuts {
 			shortcutMap, ok := shortcut.(map[string]any)
 			if !ok {
 				continue
 			}
-			shortcutMap["icons"] = []map[string]string{
-				{"src": icons.Icon192, "sizes": "192x192"},
-			}
+			shortcutMap["icons"] = append(
+				[]map[string]string{{"src": icons.Icon192, "sizes": "192x192"}},
+				pwaManifestIconFallbacks(shortcutMap["icons"])...,
+			)
 		}
 	}
 

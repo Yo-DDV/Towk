@@ -228,17 +228,24 @@ func TestDynamicPWAManifest(t *testing.T) {
 		}
 
 		icons := manifest["icons"].([]any)
-		assert.Len(t, icons, 4)
+		require.Len(t, icons, 6)
 		assert.Equal(t, "/assets/server/logo/t/192", icons[0].(map[string]any)["src"])
 		assert.Equal(t, "192x192", icons[0].(map[string]any)["sizes"])
 		assert.Nil(t, icons[0].(map[string]any)["type"])
 		assert.Equal(t, "/assets/server/logo/t/512", icons[1].(map[string]any)["src"])
 		assert.Equal(t, "maskable", icons[2].(map[string]any)["purpose"])
+		assert.Equal(t, "/icons/icon-192.png", icons[4].(map[string]any)["src"])
+		assert.Equal(t, "image/png", icons[4].(map[string]any)["type"])
+		assert.Equal(t, "/icons/icon-512.png", icons[5].(map[string]any)["src"])
+		assert.Equal(t, "image/png", icons[5].(map[string]any)["type"])
 
 		shortcuts := manifest["shortcuts"].([]any)
 		shortcutIcons := shortcuts[0].(map[string]any)["icons"].([]any)
+		require.Len(t, shortcutIcons, 2)
 		assert.Equal(t, "/assets/server/logo/t/192", shortcutIcons[0].(map[string]any)["src"])
 		assert.Nil(t, shortcutIcons[0].(map[string]any)["type"])
+		assert.Equal(t, "/icons/icon-192.png", shortcutIcons[1].(map[string]any)["src"])
+		assert.Equal(t, "image/png", shortcutIcons[1].(map[string]any)["type"])
 	})
 }
 
@@ -459,6 +466,8 @@ func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
 	assert.True(t, strings.HasPrefix(icons[0].(map[string]any)["src"].(string), "/assets/server/logo-asset/t/"))
 	assert.Equal(t, "192x192", icons[0].(map[string]any)["sizes"])
 	assert.Nil(t, icons[0].(map[string]any)["type"])
+	assert.Equal(t, "/icons/icon-192.png", icons[4].(map[string]any)["src"])
+	assert.Equal(t, "image/png", icons[4].(map[string]any)["type"])
 }
 
 func TestFrontendFallbackDoesNotServeReservedBackendPrefixes(t *testing.T) {

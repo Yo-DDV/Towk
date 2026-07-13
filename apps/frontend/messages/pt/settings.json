@@ -184,7 +184,10 @@
       },
       "push_prompt": {
         "title": "Ativar notificações push",
-        "message": "Seja notificado sobre DMs, menções e respostas.",
+        "message": "Receba alertas para cada nova mensagem de canal e direta quando o Towk estiver fechado ou em segundo plano.",
+        "blocked_title": "As notificações push estão bloqueadas",
+        "blocked_message": "O Towk não pode alertar sobre novas mensagens de canal e diretas quando está fechado. Ative as notificações nas configurações do navegador ou do sistema operacional.",
+        "blocked_action": "Como ativar",
         "ios_home_screen_title": "Adicione Towk à sua tela inicial",
         "ios_home_screen_message": "Nas versões iOS/iPadOS suportadas, abra Towk no ícone da tela inicial antes de ativar as notificações push.",
         "enabled": "Notificações push ativadas",
@@ -192,7 +195,10 @@
         "enable_failed": "Falha ao ativar notificações push",
         "enabling": "Ativando...",
         "enable": "Ativar",
-        "dismiss": "Não, obrigado"
+        "dismiss": "Agora não",
+        "confirm_title": "Continuar sem notificações?",
+        "confirm_message": "Você pode perder novas mensagens de canal e diretas quando o Towk estiver fechado. O Towk lembrará você novamente mais tarde. Tem certeza de que deseja continuar?",
+        "confirm_action": "Continuar sem notificações"
       },
       "levels": {
         "loading": "Carregando...",
@@ -215,11 +221,11 @@
         },
         "normal": {
           "label": "Normal",
-          "description": "Marcadores não lidos + menções, DMs e respostas do tópico"
+          "description": "Marcadores não lidos; notificações apenas para menções. Mensagens diretas sempre geram notificações"
         },
         "all_messages": {
           "label": "Todas as mensagens",
-          "description": "Normal + notificação para cada nova mensagem"
+          "description": "Uma notificação para cada nova mensagem em salas e tópicos dos quais participa"
         }
       },
       "sound": {

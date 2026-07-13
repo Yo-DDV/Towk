@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"hmans.de/chatto/internal/core"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -25,7 +26,7 @@ func (s *notificationPreferencesService) GetServerNotificationPreference(ctx con
 	}
 	effectiveLevel := level
 	if effectiveLevel == corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
-		effectiveLevel = corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL
+		effectiveLevel = core.DefaultNotificationLevel
 	}
 	return connect.NewResponse(&apiv1.GetNotificationPreferenceResponse{
 		Preference: apiNotificationPreference(level, effectiveLevel),
@@ -47,7 +48,7 @@ func (s *notificationPreferencesService) UpdateServerNotificationPreference(ctx 
 	}
 	effectiveLevel := level
 	if effectiveLevel == corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
-		effectiveLevel = corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL
+		effectiveLevel = core.DefaultNotificationLevel
 	}
 	return connect.NewResponse(&apiv1.UpdateNotificationPreferenceResponse{
 		Preference: apiNotificationPreference(level, effectiveLevel),

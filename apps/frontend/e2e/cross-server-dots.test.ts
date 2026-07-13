@@ -11,9 +11,11 @@ import {
   getRoomOnRemote,
   postMessageOnRemote,
   postThreadReplyOnRemote,
+  updateServerNotificationPreferenceOnRemote,
   startDMOnRemote,
   connectRemoteInstance
 } from './fixtures/multiServer';
+import { NotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
 import {
   getRoomIdByNameViaConnect,
   postMessageViaConnect,
@@ -152,6 +154,11 @@ test.describe('Cross-instance dots', () => {
     const viewerLogin = `tv${suffix}`;
     const owner = await createUserOnRemote(baseURL, `to${suffix}`, 'password123');
     const viewer = await createUserOnRemote(baseURL, viewerLogin, 'password123');
+    await updateServerNotificationPreferenceOnRemote(
+      baseURL,
+      viewer.token,
+      NotificationLevel.NORMAL
+    );
     const mentioner = await createUserOnRemote(baseURL, `tm${suffix}`, 'password123');
     const remoteGeneralRoomId = await getRoomOnRemote(baseURL, owner.token, 'general');
     const remoteRootBody = `Remote thread root ${suffix}`;

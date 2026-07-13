@@ -550,6 +550,26 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		}
 	})
 
+	t.Run("builds thread room message payload with thread navigation", func(t *testing.T) {
+		notif := &corev1.Notification{
+			Id: "notif-thread-room-message",
+			Notification: &corev1.Notification_RoomMessage{
+				RoomMessage: &corev1.RoomMessageNotification{
+					RoomId:   "room-news",
+					EventId:  "thread-reply",
+					InThread: "thread-root",
+				},
+			},
+		}
+
+		payload := BuildPayloadFromNotification(notif, "Eve", baseURL, nil)
+
+		expectedURL := "https://towk.example.com/chat/-/room-news/thread-root?highlight=thread-reply"
+		if payload.URL != expectedURL {
+			t.Errorf("Expected URL %s, got %s", expectedURL, payload.URL)
+		}
+	})
+
 	t.Run("escapes notification URL path segments and highlight query", func(t *testing.T) {
 		notif := &corev1.Notification{
 			Id: "notif-escaped",

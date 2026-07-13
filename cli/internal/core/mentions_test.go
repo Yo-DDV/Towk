@@ -624,6 +624,9 @@ func TestChattoCore_MentionInsideMarkdownCodeDoesNotNotify(t *testing.T) {
 	if _, err := core.JoinRoom(ctx, mentioned.Id, KindChannel, mentioned.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom mentioned: %v", err)
 	}
+	if err := core.SetSpaceNotificationLevel(ctx, mentioned.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
 
 	for _, body := range []string{"`@code-mentioned`", "\\`@code-mentioned\\`"} {
 		t.Run(body, func(t *testing.T) {
@@ -705,6 +708,9 @@ func TestChattoCore_MentionSplitByMarkdownFormattingDoesNotNotify(t *testing.T) 
 	}
 	if _, err := core.JoinRoom(ctx, alice.Id, KindChannel, alice.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom alice: %v", err)
+	}
+	if err := core.SetSpaceNotificationLevel(ctx, alice.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
 	}
 
 	for _, body := range []string{"@format-al*ice*", "@*format-alice*"} {

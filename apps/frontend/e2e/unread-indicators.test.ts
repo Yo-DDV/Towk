@@ -3,6 +3,7 @@ import { createAndLoginTestUser } from './fixtures/testUser';
 import {
   connectPost,
   getRoomIdByNameViaConnect,
+  updateServerNotificationPreference,
   waitForRoomReadViaConnect,
   waitForRoomUnreadViaConnect
 } from './fixtures/connectHelpers';
@@ -28,6 +29,7 @@ test.describe('Multi-Tab Unread Sync', () => {
     // User A: Create account (auto-enters a room due to redirect behavior)
     const userA = await createAndLoginTestUser(page);
     await chatPage.goto();
+    await updateServerNotificationPreference(page, 'NORMAL');
 
     // Navigate User A to announcements room (not general) so general stays unread
     await chatPage.enterRoom('announcements');
@@ -166,6 +168,7 @@ test.describe('Unread indicators', () => {
     // (User A stays in announcements while User B posts in general)
     await createAndLoginTestUser(page);
     await chatPage.goto();
+    await updateServerNotificationPreference(page, 'NORMAL');
 
     // Navigate to "announcements" room (User A will observe from here)
     await chatPage.enterRoom('announcements');

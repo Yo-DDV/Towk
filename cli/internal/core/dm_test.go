@@ -794,6 +794,11 @@ func TestDMNotifications(t *testing.T) {
 	}
 
 	t.Run("DM message triggers notification to other participants", func(t *testing.T) {
+		before, err := core.GetNotifications(ctx, user2.Id)
+		if err != nil {
+			t.Fatalf("GetNotifications before DM: %v", err)
+		}
+
 		// Subscribe to user2's notification subject
 		notificationReceived := make(chan bool, 1)
 		sub, err := nc.Subscribe(subjects.LiveSyncUserEvent(user2.Id, "dm_message"), func(msg *nats.Msg) {
@@ -816,6 +821,17 @@ func TestDMNotifications(t *testing.T) {
 			// Success - notification received
 		case <-time.After(2 * time.Second):
 			t.Error("Expected to receive DM notification for user2")
+		}
+
+		after, err := core.GetNotifications(ctx, user2.Id)
+		if err != nil {
+			t.Fatalf("GetNotifications after DM: %v", err)
+		}
+		if len(after) != len(before)+1 {
+			t.Fatalf("DM notifications = %d, want exactly one new notification", len(after)-len(before))
+		}
+		if dm := after[0].GetDmMessage(); dm == nil || dm.GetRoomId() != room.Id {
+			t.Fatalf("DM notification = %+v, want DM room %s", after[0], room.Id)
 		}
 	})
 

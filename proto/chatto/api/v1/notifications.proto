@@ -47,6 +47,8 @@ message RoomMessageNotification {
   RoomSummary room = 1;
   // Message event ID.
   string event_id = 2;
+  // Thread root event ID when the message was posted inside a thread.
+  optional string thread_root_event_id = 3;
 }
 
 // One pending notification for the authenticated viewer.

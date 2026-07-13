@@ -143,7 +143,7 @@ test.describe('Mention Notifications', () => {
 });
 
 test.describe('All Messages Notifications', () => {
-  test('plain room messages show room and server notification badges for ALL_MESSAGES subscribers', async ({
+  test('plain room messages notify newly registered users by default', async ({
     page,
     chatPage,
     notificationsPage,
@@ -156,12 +156,10 @@ test.describe('All Messages Notifications', () => {
     await page.goto(routes.settingsNotifications);
     await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 
-    const generalNotificationRow = page.getByTestId('room-notification-general');
-    await expect(generalNotificationRow).toBeVisible();
-    await generalNotificationRow.locator('select').selectOption('ALL_MESSAGES');
-    await expect(page.getByText('Room notification level updated')).toBeVisible({
-      timeout: TIMEOUTS.UI_STANDARD
+    const allMessagesButton = page.locator('button', { hasText: 'All Messages' }).filter({
+      hasText: 'every new message'
     });
+    await expect(allMessagesButton).toHaveClass(/choice-row-selected/);
 
     await chatPage.goto();
     await chatPage.enterRoom('announcements');

@@ -167,6 +167,31 @@ describe('createNotificationAPI', () => {
     );
   });
 
+  it('maps an all-messages thread notification with its navigation context', async () => {
+    mocks.getNotification.mockResolvedValue({
+      notification: {
+        id: 'thread-all-message',
+        kind: {
+          case: 'roomMessage',
+          value: {
+            room: { id: 'room-1', name: 'general' },
+            eventId: 'thread-reply',
+            threadRootEventId: 'thread-root'
+          }
+        }
+      }
+    });
+
+    const api = createNotificationAPI({ baseUrl: '/api/connect', bearerToken: null });
+
+    await expect(api.getNotification('thread-all-message')).resolves.toMatchObject({
+      kind: NotificationItemKind.RoomMessage,
+      roomMsgRoom: { id: 'room-1', name: 'general' },
+      roomMsgEventId: 'thread-reply',
+      roomMsgInThread: 'thread-root'
+    });
+  });
+
   it('gets and batch gets notifications', async () => {
     const item = {
       id: 'n1',

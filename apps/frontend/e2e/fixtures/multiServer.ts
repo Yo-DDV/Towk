@@ -6,6 +6,8 @@ import { readFile } from 'fs/promises';
 import { sha256 } from 'js-sha256';
 import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
 import { MessageService } from '@towk/api-types/api/v1/messages_connect';
+import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_connect';
+import { NotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
 import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_connect';
 import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
 import { AdminServerService } from '@towk/api-types/admin/v1/server_connect';
@@ -24,6 +26,16 @@ function authHeaders(token: string) {
 function messageClient(remoteBaseURL: string) {
   return createClient(
     MessageService,
+    createConnectTransport({
+      baseUrl: connectBaseUrl(remoteBaseURL),
+      useBinaryFormat: true
+    })
+  );
+}
+
+function notificationPreferencesClient(remoteBaseURL: string) {
+  return createClient(
+    NotificationPreferencesService,
     createConnectTransport({
       baseUrl: connectBaseUrl(remoteBaseURL),
       useBinaryFormat: true
@@ -245,6 +257,21 @@ export async function postMessageOnRemote(
     { headers: authHeaders(token) }
   );
   return postedEventId(response);
+}
+
+export async function updateServerNotificationPreferenceOnRemote(
+  remoteBaseURL: string,
+  token: string,
+  level: NotificationLevel
+): Promise<void> {
+  const response = await notificationPreferencesClient(
+    remoteBaseURL
+  ).updateServerNotificationPreference({ level }, { headers: authHeaders(token) });
+  if (response.preference?.effectiveLevel !== level) {
+    throw new Error(
+      `Remote notification preference did not resolve to ${level}: ${JSON.stringify(response.toJson())}`
+    );
+  }
 }
 
 /**

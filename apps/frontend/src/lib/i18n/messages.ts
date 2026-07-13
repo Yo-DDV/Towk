@@ -252,6 +252,9 @@ const msg_settings_notifications_push_remote_title = (): LocalizedString => mess
 const msg_settings_notifications_push_remote_description = (): LocalizedString => messages().settings_notifications_push_remote_description(empty());
 const msg_settings_notifications_push_prompt_title = (): LocalizedString => messages().settings_notifications_push_prompt_title(empty());
 const msg_settings_notifications_push_prompt_message = (): LocalizedString => messages().settings_notifications_push_prompt_message(empty());
+const msg_settings_notifications_push_prompt_blocked_title = (): LocalizedString => messages().settings_notifications_push_prompt_blocked_title(empty());
+const msg_settings_notifications_push_prompt_blocked_message = (): LocalizedString => messages().settings_notifications_push_prompt_blocked_message(empty());
+const msg_settings_notifications_push_prompt_blocked_action = (): LocalizedString => messages().settings_notifications_push_prompt_blocked_action(empty());
 const msg_settings_notifications_push_prompt_ios_home_screen_title = (): LocalizedString => messages().settings_notifications_push_prompt_ios_home_screen_title(empty());
 const msg_settings_notifications_push_prompt_ios_home_screen_message = (): LocalizedString => messages().settings_notifications_push_prompt_ios_home_screen_message(empty());
 const msg_settings_notifications_push_prompt_enabled = (): LocalizedString => messages().settings_notifications_push_prompt_enabled(empty());
@@ -260,6 +263,9 @@ const msg_settings_notifications_push_prompt_enable_failed = (): LocalizedString
 const msg_settings_notifications_push_prompt_enabling = (): LocalizedString => messages().settings_notifications_push_prompt_enabling(empty());
 const msg_settings_notifications_push_prompt_enable = (): LocalizedString => messages().settings_notifications_push_prompt_enable(empty());
 const msg_settings_notifications_push_prompt_dismiss = (): LocalizedString => messages().settings_notifications_push_prompt_dismiss(empty());
+const msg_settings_notifications_push_prompt_confirm_title = (): LocalizedString => messages().settings_notifications_push_prompt_confirm_title(empty());
+const msg_settings_notifications_push_prompt_confirm_message = (): LocalizedString => messages().settings_notifications_push_prompt_confirm_message(empty());
+const msg_settings_notifications_push_prompt_confirm_action = (): LocalizedString => messages().settings_notifications_push_prompt_confirm_action(empty());
 const msg_settings_notifications_levels_loading = (): LocalizedString => messages().settings_notifications_levels_loading(empty());
 const msg_settings_notifications_levels_load_failed = (): LocalizedString => messages().settings_notifications_levels_load_failed(empty());
 const msg_settings_notifications_levels_server_updated = (): LocalizedString => messages().settings_notifications_levels_server_updated(empty());
@@ -1813,6 +1819,9 @@ export { msg_settings_notifications_push_remote_title as 'settings.notifications
 export { msg_settings_notifications_push_remote_description as 'settings.notifications.push.remote_description' };
 export { msg_settings_notifications_push_prompt_title as 'settings.notifications.push_prompt.title' };
 export { msg_settings_notifications_push_prompt_message as 'settings.notifications.push_prompt.message' };
+export { msg_settings_notifications_push_prompt_blocked_title as 'settings.notifications.push_prompt.blocked_title' };
+export { msg_settings_notifications_push_prompt_blocked_message as 'settings.notifications.push_prompt.blocked_message' };
+export { msg_settings_notifications_push_prompt_blocked_action as 'settings.notifications.push_prompt.blocked_action' };
 export { msg_settings_notifications_push_prompt_ios_home_screen_title as 'settings.notifications.push_prompt.ios_home_screen_title' };
 export { msg_settings_notifications_push_prompt_ios_home_screen_message as 'settings.notifications.push_prompt.ios_home_screen_message' };
 export { msg_settings_notifications_push_prompt_enabled as 'settings.notifications.push_prompt.enabled' };
@@ -1821,6 +1830,9 @@ export { msg_settings_notifications_push_prompt_enable_failed as 'settings.notif
 export { msg_settings_notifications_push_prompt_enabling as 'settings.notifications.push_prompt.enabling' };
 export { msg_settings_notifications_push_prompt_enable as 'settings.notifications.push_prompt.enable' };
 export { msg_settings_notifications_push_prompt_dismiss as 'settings.notifications.push_prompt.dismiss' };
+export { msg_settings_notifications_push_prompt_confirm_title as 'settings.notifications.push_prompt.confirm_title' };
+export { msg_settings_notifications_push_prompt_confirm_message as 'settings.notifications.push_prompt.confirm_message' };
+export { msg_settings_notifications_push_prompt_confirm_action as 'settings.notifications.push_prompt.confirm_action' };
 export { msg_settings_notifications_levels_loading as 'settings.notifications.levels.loading' };
 export { msg_settings_notifications_levels_load_failed as 'settings.notifications.levels.load_failed' };
 export { msg_settings_notifications_levels_server_updated as 'settings.notifications.levels.server_updated' };

@@ -261,7 +261,8 @@ describe('NotificationStore', () => {
       },
       summary: 'posted a message',
       roomMsgRoom: { id: 'room-news', name: 'news' },
-      roomMsgEventId: 'room-event'
+      roomMsgEventId: 'room-event',
+      roomMsgInThread: 'thread-root'
     } as unknown as NotificationItem;
 
     expect(notificationTarget(threadMention)).toMatchObject({
@@ -285,10 +286,10 @@ describe('NotificationStore', () => {
     expect(notificationTarget(roomMessage)).toMatchObject({
       roomId: 'room-news',
       eventId: 'room-event',
-      threadRootId: null
+      threadRootId: 'thread-root'
     });
     expect(store.getNavigationPath('origin', roomMessage)).toBe(
-      '/chat/-/room-news?highlight=room-event'
+      '/chat/-/room-news/thread-root?highlight=room-event'
     );
   });
 
