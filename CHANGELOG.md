@@ -17,6 +17,8 @@ of the inherited 0.4.x versions.
 - Establishes Towk as an independent, self-hosted communication workspace with
   its own repository, visual identity, PWA assets, documentation, issue intake,
   image registry, and release authority.
+- Ships the application interface in English, German, French, Spanish, and
+  Portuguese.
 - Preserves the inherited `chatto.*` protocols, `CHATTO_*` environment
   variables, `chatto.toml`, storage schemas, and CLI binary compatibility to
   avoid an unsafe flag-day migration.
@@ -41,8 +43,8 @@ of the inherited 0.4.x versions.
 
 - Publishes multi-architecture Towk images through
   `ghcr.io/yo-ddv/towk`, tied to exact source commits and immutable digests.
-- Produces Linux, macOS, and Windows release archives with checksums, embedded
-  legal notices, and provenance attestations.
+- Produces Linux, macOS, Windows, and FreeBSD release archives with checksums,
+  embedded legal notices, and provenance attestations.
 - Keeps the software pre-1.0: pin an exact release or image digest for durable
   deployments.
 
