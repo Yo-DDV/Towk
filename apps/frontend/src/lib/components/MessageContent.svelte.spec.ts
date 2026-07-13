@@ -392,7 +392,7 @@ describe('MessageContent component', () => {
     expect(container.textContent).toContain('fsdfsd fsdffdsf (edited)');
   });
 
-  it('localizes the edited marker in French and German', async () => {
+  it('localizes the edited marker in French, German, Spanish, and Portuguese', async () => {
     await loadLocaleMessages('fr');
     setReactiveLocale('fr');
 
@@ -409,6 +409,16 @@ describe('MessageContent component', () => {
     setReactiveLocale('de');
 
     await expect.poll(() => q(container, '.edited-marker')?.textContent).toBe('(bearbeitet)');
+
+    await loadLocaleMessages('es');
+    setReactiveLocale('es');
+
+    await expect.poll(() => q(container, '.edited-marker')?.textContent).toBe('(editado)');
+
+    await loadLocaleMessages('pt');
+    setReactiveLocale('pt');
+
+    await expect.poll(() => q(container, '.edited-marker')?.textContent).toBe('(editada)');
   });
 
   it('applies prose classes for typography', async () => {
