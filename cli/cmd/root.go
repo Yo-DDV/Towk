@@ -11,13 +11,15 @@ import (
 var Version = "dev"
 
 var rootCmd = &cobra.Command{
-	Use:           "chatto",
+	Use:           "towk",
 	Short:         "Run and manage a Towk server",
 	Long:          rootBanner(Version),
 	Version:       Version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
+
+const configFlagHelp = "path to configuration file (default: towk.toml)"
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {

@@ -46,8 +46,13 @@ The initial compatibility boundary retains these inherited identifiers:
 - persisted NATS subjects, buckets, event types, browser storage keys, and
   operator socket paths;
 - `CHATTO_*` environment variables and existing `chatto.toml` configuration;
-- legacy command, image, or file aliases required to upgrade an existing
-  installation without data migration.
+- compatibility readers for existing configuration and persisted data required
+  to upgrade an installation without rewriting operator secrets or state.
+
+Public release archives and container images built after this decision expose
+the Towk executable and runtime user only. Historical artifacts remain labelled
+by their actual contents. This does not rename the inherited protocol,
+environment, or persisted-data contracts above.
 
 New user-facing documentation calls these identifiers “legacy compatibility
 names”. New product APIs and assets use Towk naming unless doing so would create

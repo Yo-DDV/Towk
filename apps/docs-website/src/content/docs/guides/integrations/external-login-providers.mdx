@@ -5,7 +5,7 @@ description: Configure OIDC, GitHub, GitLab, Google, or Discord sign-in for a To
 
 import { Aside, Tabs, TabItem } from "@astrojs/starlight/components";
 
-Towk can consume external OAuth and OIDC providers for sign-in. Providers are configured in `chatto.toml` as repeated `[[auth.providers]]` tables, and the login page renders one button per configured provider.
+Towk can consume external OAuth and OIDC providers for sign-in. Providers are configured in `towk.toml` as repeated `[[auth.providers]]` tables, and the login page renders one button per configured provider.
 
 <Aside type="note">
   Towk acts as an OAuth/OIDC client here. This does not change Towk's own OAuth authorization endpoint used by Towk frontends when they connect to a server.
@@ -121,7 +121,7 @@ CHATTO_AUTH_PROVIDERS_1_AUTO_PROVISION=false
 
 Supported fields are `ID`, `TYPE`, `LABEL`, `CLIENT_ID`, `CLIENT_SECRET`, `ISSUER_URL`, `SCOPES`, `REQUEST_EMAIL`, `AUTO_PROVISION`, and `PROVIDER_OPTIONS_<KEY>`. `SCOPES` is comma-separated, for example `CHATTO_AUTH_PROVIDERS_0_SCOPES=openid,profile,groups`.
 
-Any `CHATTO_AUTH_PROVIDERS_<index>_*` variables replace providers from `chatto.toml`.
+Any `CHATTO_AUTH_PROVIDERS_<index>_*` variables replace providers from `towk.toml`.
 
 Towk also accepts the older single-provider OIDC variables for compatibility:
 

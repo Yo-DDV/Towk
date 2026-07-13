@@ -116,7 +116,7 @@ Infrastructure jargon. If only contributors say the word, it goes here.
 
 **Operator API** — Root-equivalent local ConnectRPC surface in `chatto.operator.v1`, served only on the configured Unix socket. Socket filesystem permissions are the access boundary; anyone who can connect to the socket can perform operator actions as the system actor. See [FDR-028](fdr/FDR-028-operator-api-and-cli.md).
 
-**Operator socket** — Unix socket configured by `[operator_api].socket_path` / `CHATTO_OPERATOR_API_SOCKET_PATH`. `chatto operator ...` uses it to send root-equivalent commands to the already-running Towk process without opening a second store writer.
+**Operator socket** — Unix socket configured by `[operator_api].socket_path` / `CHATTO_OPERATOR_API_SOCKET_PATH`. `towk operator ...` uses it to send root-equivalent commands to the already-running Towk process without opening a second store writer.
 
 **NATS** — Messaging system Towk uses for pubsub and persistence. Runs embedded in the single binary by default.
 

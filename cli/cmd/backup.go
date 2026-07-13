@@ -97,7 +97,7 @@ the archive with a passphrase (uses age encryption).`,
 
 func init() {
 	rootCmd.AddCommand(backupCmd)
-	backupCmd.Flags().StringVarP(&backupConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	backupCmd.Flags().StringVarP(&backupConfigFile, "config", "c", "", configFlagHelp)
 	backupCmd.Flags().StringVarP(&backupOutput, "output", "o", "", "output path for the backup archive (default: backups/<timestamp>.tar.gz)")
 	backupCmd.Flags().BoolVar(&backupEncrypt, "encrypt", false, "encrypt the backup with a passphrase (age encryption)")
 	backupCmd.Flags().StringVar(&backupPassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")

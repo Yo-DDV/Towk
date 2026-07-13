@@ -58,7 +58,7 @@ var runCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(runCmd)
-	runCmd.Flags().StringVarP(&configFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	runCmd.Flags().StringVarP(&configFile, "config", "c", "", configFlagHelp)
 }
 
 func runServer(configPath string) {

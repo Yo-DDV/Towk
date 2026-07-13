@@ -9,11 +9,12 @@ automation.
   scanned and attested `ghcr.io/yo-ddv/towk` publication workflow.
 - `Dockerfile.goreleaser` keeps a compatible backend release-image context for
   local and CI validation. It uses
-  `/config/chatto.toml` as its default config path and `/data` as the embedded
-  NATS data directory. It defaults the runtime user to `1000:1000` and supports
-  `PUID`/`PGID` environment variables for matching host volume ownership.
+  `/config/towk.toml` as its primary config path and `/data` as the embedded
+  NATS data directory through `TOWK_CONFIG_DIR=/config`, without changing the
+  process working directory. It defaults the runtime user to `1000:1000` and
+  supports non-zero `PUID`/`PGID` values for matching host volume ownership.
 - `docker-entrypoint.sh` is copied into the backend release image. It applies
-  the runtime user/group and drops privileges before starting the `chatto`
+  the runtime user/group and drops privileges before starting the `/towk`
   binary. It does not recursively change ownership of mounted operator
   directories.
 - `nats-wrapper.sh` makes the bundled NATS CLI use Towk's runtime NATS
@@ -37,3 +38,23 @@ automation.
 
 Copyable deployment examples still live under `examples/`, for example
 `examples/dockercompose/`.
+
+## Roll back an image without renaming configuration
+
+Record the current and previous immutable image digests before an upgrade, keep
+the same `/config` and `/data` volumes, and keep their numeric ownership aligned
+with the previous image. After stopping the new container, start the previous
+digest with an explicit canonical configuration path:
+
+```bash
+docker run --rm \
+  --user 1000:1000 \
+  -v towk-config:/config:ro \
+  -v towk-data:/data \
+  ghcr.io/yo-ddv/towk@sha256:<previous-digest> \
+  start -c /config/towk.toml
+```
+
+Use the real recorded digest, never a mutable label. Validate the restored
+server before reopening traffic. This explicit path lets a compatible previous
+image read the canonical file without copying secrets into another filename.

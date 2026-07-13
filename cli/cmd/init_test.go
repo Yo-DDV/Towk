@@ -32,6 +32,27 @@ func TestWriteNewConfigFileCreatesSecureFile(t *testing.T) {
 	}
 }
 
+func TestResolveInitConfigPathRefusesImplicitLegacyReplacement(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TOWK_CONFIG_DIR", dir)
+	legacyPath := filepath.Join(dir, "chatto.toml")
+	if err := os.WriteFile(legacyPath, []byte("existing"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := resolveInitConfigPath(""); err == nil || !strings.Contains(err.Error(), "legacy configuration") {
+		t.Fatalf("resolveInitConfigPath error = %v, want legacy configuration refusal", err)
+	}
+	explicitPath := filepath.Join(dir, "migration.toml")
+	got, err := resolveInitConfigPath(explicitPath)
+	if err != nil {
+		t.Fatalf("explicit path rejected: %v", err)
+	}
+	if got != explicitPath {
+		t.Fatalf("explicit path = %q, want %q", got, explicitPath)
+	}
+}
+
 func TestWriteNewConfigFileDoesNotReplaceExistingPath(t *testing.T) {
 	dir := t.TempDir()
 	for _, tc := range []struct {
@@ -132,7 +153,7 @@ func TestInitGeneratesCoreSecret(t *testing.T) {
 
 	initCmd.Run(initCmd, nil)
 
-	cfg, err := config.ReadConfig(filepath.Join(tmpDir, "chatto.toml"))
+	cfg, err := config.ReadConfig(filepath.Join(tmpDir, "towk.toml"))
 	if err != nil {
 		t.Fatalf("read generated config: %v", err)
 	}
@@ -166,7 +187,7 @@ func TestInitGeneratesCoreSecret(t *testing.T) {
 	if cfg.SMTP.TLS != config.SMTPTLSMandatory {
 		t.Fatalf("generated SMTP TLS policy = %q, want %q", cfg.SMTP.TLS, config.SMTPTLSMandatory)
 	}
-	raw, err := os.ReadFile(filepath.Join(tmpDir, "chatto.toml"))
+	raw, err := os.ReadFile(filepath.Join(tmpDir, "towk.toml"))
 	if err != nil {
 		t.Fatalf("read generated raw config: %v", err)
 	}

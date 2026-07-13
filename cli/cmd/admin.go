@@ -43,7 +43,7 @@ var operatorUserCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(operatorCmd)
 	operatorCmd.AddCommand(operatorUserCmd)
-	operatorCmd.PersistentFlags().StringVarP(&operatorConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	operatorCmd.PersistentFlags().StringVarP(&operatorConfigFile, "config", "c", "", configFlagHelp)
 	operatorCmd.PersistentFlags().StringVar(&operatorSocketPath, "operator-socket", "", "operator API Unix socket path")
 	operatorCmd.PersistentFlags().BoolVar(&operatorOutputJSON, "json", false, "print JSON output")
 
@@ -442,9 +442,7 @@ func resolveOperatorAPIClientConfig() (resolvedOperatorAPIConfig, error) {
 
 func readOperatorConfigFile(path string) (config.ChattoConfig, error) {
 	var cfg config.ChattoConfig
-	if path == "" {
-		path = "chatto.toml"
-	}
+	path = config.ResolveConfigPath(path)
 	b, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) && operatorConfigFile == "" {

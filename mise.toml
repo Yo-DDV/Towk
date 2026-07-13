@@ -1,11 +1,11 @@
 [tools]
-actionlint = "latest"
-buf = "latest"
+actionlint = "1.7.12"
+buf = "1.71.0"
 go = "1.26.5"
-goreleaser = "latest"
+goreleaser = "2.17.0"
 "github:axllent/mailpit" = "1.30.4"
 "github:livekit/livekit" = "1.13.3"
-node = "22"
+node = "22.23.1"
 
 [env]
 _.file = '.env'
@@ -54,7 +54,7 @@ depends = ["deps-frontend"]
 
 [tasks.license-check]
 description = "Check SPDX/REUSE license metadata"
-run = "mise x uv@latest -- uvx reuse lint"
+run = "mise x uv@0.11.28 -- uvx --from reuse==6.2.0 reuse lint"
 
 # =============================================================================
 # Code Generation
@@ -97,10 +97,11 @@ run = [
     "cp LICENSES/AGPL-3.0-or-later.txt cli/LICENSE",
     "cp NOTICE cli/NOTICE",
     "cp LICENSES/AGPL-3.0-or-later.txt cli/cmd/embedded/LICENSE",
+    "cp LICENSES/Apache-2.0.txt cli/cmd/embedded/Apache-2.0",
     "cp NOTICE cli/cmd/embedded/NOTICE",
 ]
-sources = ["LICENSES/AGPL-3.0-or-later.txt", "NOTICE"]
-outputs = ["cli/LICENSE", "cli/NOTICE", "cli/cmd/embedded/LICENSE", "cli/cmd/embedded/NOTICE"]
+sources = ["LICENSES/AGPL-3.0-or-later.txt", "LICENSES/Apache-2.0.txt", "NOTICE"]
+outputs = ["cli/LICENSE", "cli/NOTICE", "cli/cmd/embedded/LICENSE", "cli/cmd/embedded/Apache-2.0", "cli/cmd/embedded/NOTICE"]
 
 [tasks.build]
 description = "Build the entire project for all architectures"
@@ -148,17 +149,18 @@ outputs = ["build/.mise-build-stamp", "../../cli/internal/http_server/.client/.g
 description = "Build the development CLI application for the current architecture"
 depends = ["setup-cli", "build-frontend"]
 dir = "cli"
-run = "go build -trimpath -tags bootstrap -o bin/chatto ."
+run = "go build -trimpath -tags bootstrap -o bin/towk . && ln -sf towk bin/chatto"
 sources = [
     "go.mod",
     "go.sum",
     "**/*.go",
     "!**/*_test.go",
     "cmd/embedded/LICENSE",
+    "cmd/embedded/Apache-2.0",
     "cmd/embedded/NOTICE",
     "internal/http_server/.client/**/*",
 ]
-outputs = ["bin/chatto"]
+outputs = ["bin/towk", "bin/chatto"]
 
 [tasks.build-e2e-server]
 description = "Build the E2E test server binary with dev bootstrap and test endpoints enabled"
@@ -173,6 +175,7 @@ run = "CGO_ENABLED=0 go build -trimpath -tags 'bootstrap test_endpoints' -ldflag
 sources = [
     "**/*.go",
     "cmd/embedded/LICENSE",
+    "cmd/embedded/Apache-2.0",
     "cmd/embedded/NOTICE",
     "internal/http_server/.client/**/*",
 ]
@@ -248,7 +251,7 @@ docs_website_port="${CHATTO_DOCS_WEBSITE_PORT:-$workspace_port_base}"
 exec pnpm astro dev --host 127.0.0.1 --port "$docs_website_port"
 """
 
-[tasks.chatto]
+[tasks.towk]
 description = "Build and run the bundled Towk CLI command with workspace-safe ports"
 depends = ["build-dev-cli"]
 dir = "cli"
@@ -274,9 +277,13 @@ env = {
   CHATTO_SMTP_HOST = "127.0.0.1",
   CHATTO_SMTP_PORT = "{{env.CONDUCTOR_PORT | default(value=env.PASEO_PORT | default(value='4000')) | int + 8}}",
   CHATTO_SMTP_TLS = "opportunistic",
-  CHATTO_SMTP_FROM = "chatto-dev@chatto.localhost",
+  CHATTO_SMTP_FROM = "towk-dev@towk.localhost",
 }
-run = "exec bin/chatto"
+run = "exec bin/towk"
+
+[tasks.chatto]
+description = "Compatibility alias for the Towk development task"
+run = { task = "towk" }
 
 # =============================================================================
 # Benchmarking
@@ -307,14 +314,14 @@ description = "Run CLI tests"
 depends = ["setup-cli", "build-frontend"]
 dir = "cli"
 run = "go test -trimpath -p ${CHATTO_GO_TEST_P:-4} -tags test_endpoints ./..."
-sources = ["**/*.go", "cmd/embedded/LICENSE", "cmd/embedded/NOTICE"]
+sources = ["**/*.go", "cmd/embedded/LICENSE", "cmd/embedded/Apache-2.0", "cmd/embedded/NOTICE"]
 
 [tasks.test-cli-shutdown]
 description = "Run backend process shutdown integration tests"
 depends = ["setup-cli"]
 dir = "cli"
 run = "go test -trimpath -tags integration ./cmd -run TestRunCommandShutsDownOnSignals -count=1 -timeout 2m"
-sources = ["**/*.go", "cmd/embedded/LICENSE", "cmd/embedded/NOTICE"]
+sources = ["**/*.go", "cmd/embedded/LICENSE", "cmd/embedded/Apache-2.0", "cmd/embedded/NOTICE"]
 
 [tasks.knip]
 description = "Find unused frontend/docs files, dependencies, and exports"
@@ -337,6 +344,15 @@ depends = ["setup-frontend", "build-api-types"]
 dir = "apps/frontend"
 run = "pnpm vitest --run"
 
+[tasks.public-surface-check]
+description = "Check Towk-owned documentation and distribution surfaces"
+run = [
+    "node --check tools/check-public-surface.mjs",
+    "node --test tools/check-public-surface.test.mjs tools/extract-release-notes.test.mjs",
+    "node tools/check-public-surface.mjs",
+    "bash -n tools/verify-release-archives.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh",
+]
+
 [tasks.test-e2e]
 description = "Run E2E tests"
 depends = ["setup-frontend", "build-e2e-server"]
@@ -355,7 +371,7 @@ run = [{ task = "test-cli" }, { task = "test-frontend" }, { task = "test-e2e" }]
 description = "Compile and run the project"
 depends = ["build"]
 dir = "cli"
-run = "bin/chatto run"
+run = "bin/towk run"
 
 [tasks.clean]
 description = "Clean all build artifacts"
@@ -367,11 +383,11 @@ run = [
 ]
 
 [tasks.reset-config]
-description = "Delete and reinitialize chatto.toml"
-confirm = "Are you sure you want to re-initialize chatto.toml? This will delete your current configuration."
+description = "Delete and reinitialize towk.toml"
+confirm = "Are you sure you want to re-initialize towk.toml? This will delete your current configuration."
 depends = ["setup-cli"]
 dir = "cli"
-run = ["rm chatto.toml", "go run . init"]
+run = ["rm towk.toml", "go run . init"]
 
 [tasks.reset-data]
 description = "Reset the development environment (NATS data etc.)"
@@ -404,7 +420,7 @@ docker buildx build --check -f docker/Dockerfile.frontend.dev .
 docker buildx build --check -f docker/Dockerfile.frontend.prebuilt .
 docker buildx build --check --build-arg TARGETARCH=amd64 -f docker/Dockerfile.towk .
 
-tmp="$(mktemp -d /tmp/chatto-docker-verify.XXXXXX)"
+tmp="$(mktemp -d /tmp/towk-docker-verify.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 context="$tmp/linux-amd64"
 mkdir -p "$context/docker"
@@ -413,8 +429,33 @@ cp docker/docker-entrypoint.sh "$context/docker/docker-entrypoint.sh"
 cp docker/nats-wrapper.sh "$context/docker/nats-wrapper.sh"
 mkdir -p "$context/LICENSES"
 cp LICENSES/AGPL-3.0-or-later.txt "$context/LICENSES/AGPL-3.0-or-later.txt"
+cp LICENSES/Apache-2.0.txt "$context/LICENSES/Apache-2.0.txt"
+cp LICENSE "$context/LICENSE"
+cp LICENSING.md "$context/LICENSING.md"
 cp NOTICE "$context/NOTICE"
-printf '#!/bin/sh\necho chatto dummy\n' > "$context/chatto"
-chmod +x "$context/chatto"
-docker buildx build --build-arg TARGETARCH=amd64 -f "$context/Dockerfile" "$context"
+cp REUSE.toml "$context/REUSE.toml"
+cp SOURCE.md "$context/SOURCE.md"
+printf '#!/bin/sh\nid -u\nid -g\nprintf "%%s\\n" "$*"\n' > "$context/towk"
+chmod +x "$context/towk"
+image="towk-docker-verify:local"
+trap 'docker image rm -f "$image" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
+docker buildx build --load --tag "$image" --build-arg TARGETARCH=amd64 -f "$context/Dockerfile" "$context"
+
+test "$(docker run --rm "$image" start | sed -n '1p')" = "1000"
+test "$(docker run --rm -e PUID=1234 -e PGID=2345 "$image" start | sed -n '1p')" = "1234"
+if docker run --rm -e PUID=0 "$image" start >"$tmp/puid-zero.out" 2>&1; then
+  echo "PUID=0 must be rejected" >&2
+  exit 1
+fi
+grep -F "PUID must be greater than zero" "$tmp/puid-zero.out"
+if docker run --rm -e PGID=invalid "$image" start >"$tmp/pgid-invalid.out" 2>&1; then
+  echo "non-numeric PGID must be rejected" >&2
+  exit 1
+fi
+grep -F "PGID must be a numeric group ID" "$tmp/pgid-invalid.out"
+
+docker inspect "$image" | grep -Fq '"TOWK_CONFIG_DIR=/config"'
+for legal_file in LICENSE LICENSING.md NOTICE REUSE.toml SOURCE.md LICENSES/AGPL-3.0-or-later.txt LICENSES/Apache-2.0.txt; do
+  docker run --rm --entrypoint test "$image" -f "/usr/share/doc/towk/$legal_file"
+done
 """

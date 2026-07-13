@@ -12,17 +12,27 @@ planned items still require issue-level design and acceptance criteria.
   source, and a read-only upstream integration path;
 - Towk product identity across the PWA, documentation, CLI presentation,
   containers, package namespaces, and public project metadata;
-- reproducible multi-architecture OCI images with SBOMs, vulnerability scans,
+- traceable multi-architecture OCI images with SBOMs, vulnerability scans,
   provenance attestations, immutable commit tags, and digest-based deployment;
-- tested pilot deployment, backup/restore procedure, rollback procedure, and
+- tested deployment, backup/restore procedure, rollback procedure, and
   external LiveKit integration.
 
-## First independent release — in progress
+## Independent release baseline — completed
 
-- publish the first Towk semantic-version tag and GitHub release from reviewed
-  commits;
-- provide checksummed release archives, build provenance, release notes, and a
-  matching immutable container image;
+- published `v0.5.0` from the independent repository with checksums, build
+  provenance, and release notes;
+- established commit-derived development images tied to exact source commits;
+- documented that the `v0.5.0` archive predates the canonical Towk executable
+  and is not the fully rebranded distribution target.
+
+## First fully Towk-branded release — in progress
+
+- make `towk` the canonical executable and configuration filename while
+  preserving explicit compatibility fallbacks;
+- publish the first archive whose sole application executable is `towk` and
+  whose legal bundle is verified before attachment;
+- publish a matching immutable container image for each future semantic-version
+  release without introducing a floating `latest` tag;
 - validate a clean installation and an upgrade from the Chatto `v0.4.7`
   compatibility baseline;
 - verify the public source link and deployed-version traceability end to end.

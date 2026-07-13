@@ -19,7 +19,7 @@ export const baseStyles = `
 
     .box-browser { fill: #1e1e1e; stroke: #555; }
     .box-caddy { fill: #162016; stroke: #3a7a3a; }
-    .box-chatto { fill: #161620; stroke: #5a5ab8; }
+    .box-towk { fill: #161620; stroke: #5a5ab8; }
     .box-nats { fill: #201620; stroke: #8a5a8a; }
     .box-nats-leader { fill: #281828; stroke: #b070b0; stroke-width: 2; }
     .box-livekit { fill: #162020; stroke: #3a8a8a; }
@@ -35,7 +35,7 @@ export const baseStyles = `
       .region-label { fill: #aaa; }
       .box-browser { fill: #f8f8f8; stroke: #bbb; }
       .box-caddy { fill: #eef6ee; stroke: #5aaa5a; }
-      .box-chatto { fill: #eeeef6; stroke: #7a7ad0; }
+      .box-towk { fill: #eeeef6; stroke: #7a7ad0; }
       .box-nats { fill: #f6eef6; stroke: #aa7aaa; }
       .box-nats-leader { fill: #f0e4f0; stroke: #c080c0; stroke-width: 2; }
       .box-livekit { fill: #eef6f6; stroke: #5aaaaa; }

@@ -63,5 +63,6 @@ dark mode are release gates for shell changes.
 ## Attribution
 
 Attribution is factual, quiet, and accessible from the README, legal notices,
-documentation, and in-product source/legal surface. It must not reuse the Chatto
-name or logo as Towk branding or imply that ChattoCorp operates Towk.
+documentation, and in-product source/legal surface. It must not reuse upstream
+names or logos as Towk branding or imply that an upstream rights holder operates
+Towk.

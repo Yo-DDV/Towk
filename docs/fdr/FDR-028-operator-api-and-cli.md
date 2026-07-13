@@ -17,8 +17,8 @@ The Operator API gives server operators a local, root-equivalent user administra
 - The server refuses to start if the operator socket parent directory is not private to the Towk process user or if an existing operator socket has a mode other than `0600`. A stale existing socket with mode `0600` may be removed and replaced.
 - Operator actions are attributed to the system actor. They are not tied to a Towk user account, cookie session, bearer session, or RBAC role.
 - The user-administration surface lives in `chatto.operator.v1.OperatorUserService` and can list and look up users, create users, update login/display name, set passwords, delete users, add verified email addresses, assign roles, and revoke roles.
-- The CLI groups these commands under `chatto operator user ...`, for example `chatto operator user create`, `chatto operator user set-password`, and `chatto operator user role add`.
-- CLI clients read the socket path from `--operator-socket`, `CHATTO_OPERATOR_API_SOCKET_PATH`, or `operator_api.socket_path` in `chatto.toml`.
+- The CLI groups these commands under `towk operator user ...`, for example `towk operator user create`, `towk operator user set-password`, and `towk operator user role add`.
+- CLI clients read the socket path from `--operator-socket`, `CHATTO_OPERATOR_API_SOCKET_PATH`, or `operator_api.socket_path` in `towk.toml`.
 - Password-setting commands prompt on interactive terminals when a password flag is not supplied. Non-interactive use must pass the password explicitly with `--password-stdin`, `--password-file`, or `--password`.
 - User deletion is irreversible and requires `--yes` in non-interactive use.
 
@@ -51,7 +51,7 @@ The Operator API gives server operators a local, root-equivalent user administra
 ### 5. Docker-first default path
 
 **Decision:** The default socket path is `/tmp/chatto/operator.sock`, not `/run` or `/var/run`.
-**Why:** Many self-hosters run Towk in Docker, where `/tmp` is writable without extra packaging setup and `docker exec chatto chatto operator ...` works without mounting host runtime directories.
+**Why:** Many self-hosters run Towk in Docker, where `/tmp` is writable without extra packaging setup and `docker exec towk /towk operator ...` works without mounting host runtime directories.
 **Tradeoff:** System packages should override the path to `/run/chatto/operator.sock` when that is more idiomatic for their service manager.
 
 ## Permissions
@@ -61,10 +61,10 @@ Operator API access is not gated by Towk RBAC permissions. It is gated by local 
 For Docker, the preferred workflow is to run operator commands inside the running container:
 
 ```sh
-docker exec -it -u chatto chatto /chatto operator user list
-docker exec -it -u chatto chatto /chatto operator user list --search alice
-docker exec -it -u chatto chatto /chatto operator user list --search alice@example.com
-docker exec -it -u chatto chatto /chatto operator user set-password USER_ID
+docker exec -it -u towk towk /towk operator user list
+docker exec -it -u towk towk /towk operator user list --search alice
+docker exec -it -u towk towk /towk operator user list --search alice@example.com
+docker exec -it -u towk towk /towk operator user set-password USER_ID
 ```
 
 Sharing the socket with another container or host path is advanced usage and should only be done for trusted operator tooling.

@@ -66,23 +66,23 @@ normal data backups. Legacy wrapped DEKs and short-lived call encryption keys
 found in ENCRYPTION_KEYS are skipped. Store this file securely — anyone with the file,
 passphrase, and data backup can decrypt encrypted Towk content.
 
-Use together with 'chatto backup' for complete disaster recovery:
-  1. chatto backup -c chatto.toml
-  2. chatto keys export -c chatto.toml -o keys.backup`,
+Use together with 'towk backup' for complete disaster recovery:
+  1. towk backup -c towk.toml
+  2. towk keys export -c towk.toml -o keys.backup`,
 	Run: runKeysExport,
 }
 
 var keysImportCmd = &cobra.Command{
 	Use:   "import <file>",
 	Short: "Import encryption keys",
-	Long: `Imports Towk encryption key records from a file created by 'chatto keys export'.
+	Long: `Imports Towk encryption key records from a file created by 'towk keys export'.
 
 By default, existing records are NOT overwritten. Records are only imported
 when the destination bucket does not already contain that key ref.
 
-Use together with 'chatto restore' for complete disaster recovery:
-  1. chatto restore backup.tar.gz -c chatto.toml
-  2. chatto keys import keys.backup -c chatto.toml`,
+Use together with 'towk restore' for complete disaster recovery:
+  1. towk restore backup.tar.gz -c towk.toml
+  2. towk keys import keys.backup -c towk.toml`,
 	Args: cobra.ExactArgs(1),
 	Run:  runKeysImport,
 }
@@ -92,14 +92,14 @@ func init() {
 	keysCmd.AddCommand(keysExportCmd)
 	keysCmd.AddCommand(keysImportCmd)
 
-	keysExportCmd.Flags().StringVarP(&keysConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	keysExportCmd.Flags().StringVarP(&keysConfigFile, "config", "c", "", configFlagHelp)
 	keysExportCmd.Flags().StringVarP(&keysOutput, "output", "o", "", "output file path (required)")
 	keysExportCmd.Flags().StringVar(&keysPassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
 	keysExportCmd.Flags().StringVar(&keysPassphraseFile, "passphrase-file", "", "read encryption passphrase from a private regular file")
 	_ = keysExportCmd.Flags().MarkDeprecated("passphrase", "use --passphrase-file, standard input, or the interactive prompt")
 	_ = keysExportCmd.MarkFlagRequired("output")
 
-	keysImportCmd.Flags().StringVarP(&keysConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	keysImportCmd.Flags().StringVarP(&keysConfigFile, "config", "c", "", configFlagHelp)
 	keysImportCmd.Flags().StringVar(&keysPassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
 	keysImportCmd.Flags().StringVar(&keysPassphraseFile, "passphrase-file", "", "read decryption passphrase from a private regular file")
 	_ = keysImportCmd.Flags().MarkDeprecated("passphrase", "use --passphrase-file, standard input, or the interactive prompt")

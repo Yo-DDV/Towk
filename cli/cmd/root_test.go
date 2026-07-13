@@ -56,6 +56,50 @@ func TestRootHelpShowsBannerAndNoResetCommand(t *testing.T) {
 	}
 }
 
+func TestRootUsesTowkPublicIdentity(t *testing.T) {
+	if rootCmd.Use != "towk" {
+		t.Fatalf("root command use = %q, want towk", rootCmd.Use)
+	}
+
+	originalVersion := Version
+	t.Cleanup(func() {
+		SetVersion(originalVersion)
+		rootCmd.SetOut(os.Stdout)
+		rootCmd.SetErr(os.Stderr)
+		rootCmd.SetArgs(nil)
+	})
+
+	SetVersion("9.8.7-test")
+	var out bytes.Buffer
+	rootCmd.SetOut(&out)
+	rootCmd.SetErr(&out)
+	rootCmd.SetArgs([]string{"version"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("execute version: %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "towk version 9.8.7-test" {
+		t.Fatalf("version output = %q, want %q", got, "towk version 9.8.7-test")
+	}
+}
+
+func TestLicenseCommandIncludesServerAndBundledClientLicenses(t *testing.T) {
+	var out bytes.Buffer
+	licenseCmd.SetOut(&out)
+	t.Cleanup(func() { licenseCmd.SetOut(os.Stdout) })
+
+	licenseCmd.Run(licenseCmd, nil)
+	text := out.String()
+	for _, want := range []string{
+		"GNU AFFERO GENERAL PUBLIC LICENSE",
+		"Apache License",
+		"Towk is an independent project based on Chatto",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("license output missing %q", want)
+		}
+	}
+}
+
 func TestRootRegistersExporterCommand(t *testing.T) {
 	cmd, _, err := rootCmd.Find([]string{"exporter", "--help"})
 	if err != nil {

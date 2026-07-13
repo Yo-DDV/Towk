@@ -70,7 +70,7 @@ Operators can customize how their Towk server presents itself. The server's name
 
 ### 9. Product defaults are Towk while compatibility identifiers remain stable
 
-**Decision:** Fresh servers, the PWA manifest, page-title fallbacks, authentication email fallbacks, OpenGraph metadata, and the CLI presentation use Towk. Existing configured server names are preserved. Protocol packages, storage subjects, environment aliases, the `chatto` executable alias, and metrics names remain unchanged under ADR-049.
+**Decision:** Fresh servers, the PWA manifest, page-title fallbacks, authentication email fallbacks, OpenGraph metadata, the CLI presentation, release archives, and container runtime identity use Towk. Existing configured server names are preserved. Protocol packages, storage subjects, environment aliases, and metrics names remain unchanged under ADR-049.
 **Why:** A fresh installation must present a coherent independent product without silently rewriting durable deployments or breaking operational integrations.
 **Tradeoff:** Operators will continue to see selected inherited identifiers in configuration, telemetry, and integration code until each one has a versioned migration or a deliberate long-term compatibility decision.
 
