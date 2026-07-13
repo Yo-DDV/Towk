@@ -26,6 +26,7 @@ export function dropZone(options: {
 
     function matchesMimeType(file: File, patterns: string[]): boolean {
       return patterns.some((pattern) => {
+        if (pattern === '*/*') return true;
         if (pattern.endsWith('/*')) {
           // Wildcard match (e.g., 'image/*')
           const prefix = pattern.slice(0, -1);

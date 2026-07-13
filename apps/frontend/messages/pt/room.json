@@ -116,7 +116,9 @@
       "download_refresh_failed": "Não foi possível atualizar o link de download",
       "video_uploads_disabled": "Envios de vídeo estão desativados neste servidor.",
       "prepare_failed": "Não foi possível preparar o anexo",
-      "too_large": "{filename} é grande demais ({size}). Máximo: {max}."
+      "too_large": "{filename} é grande demais ({size}). Máximo: {max}.",
+      "executable_not_allowed": "Arquivos executáveis não são permitidos: {filename}.",
+      "too_many": "Você pode anexar até {max} arquivos a uma mensagem."
     },
     "link_preview": {
       "delete_title": "Excluir visualização do link",

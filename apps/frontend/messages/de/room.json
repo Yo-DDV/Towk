@@ -116,7 +116,9 @@
       "download_refresh_failed": "Downloadlink konnte nicht aktualisiert werden",
       "video_uploads_disabled": "Video-Uploads sind auf diesem Server deaktiviert.",
       "prepare_failed": "Anhang konnte nicht vorbereitet werden",
-      "too_large": "{filename} ist zu groß ({size}). Maximum: {max}."
+      "too_large": "{filename} ist zu groß ({size}). Maximum: {max}.",
+      "executable_not_allowed": "Ausführbare Dateien sind nicht erlaubt: {filename}.",
+      "too_many": "Du kannst bis zu {max} Dateien an eine Nachricht anhängen."
     },
     "link_preview": {
       "delete_title": "Linkvorschau löschen",

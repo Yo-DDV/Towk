@@ -15,6 +15,13 @@ const backendTarget =
   `http://localhost:${process.env.CHATTO_WEBSERVER_PORT || '4000'}`;
 const tiptapDeps = ['@tiptap/pm/state'];
 const testBrowser = (process.env.VITEST_BROWSER ?? 'chromium') as 'chromium' | 'firefox' | 'webkit';
+const browserRuntimeDeps = [
+  'svelte-dnd-action',
+  'vidstack/player',
+  'vidstack/player/layouts',
+  'vidstack/player/ui',
+  'virtua/svelte'
+];
 const highlightLanguageMetadataModule = 'virtual:towk-highlight-language-metadata';
 const resolvedHighlightLanguageMetadataModule = `\0${highlightLanguageMetadataModule}`;
 
@@ -166,7 +173,9 @@ export default defineConfig({
     ]
   },
   optimizeDeps: {
-    include: [...tiptapDeps]
+    // Browser tests import these paths lazily. Pre-bundling them prevents Vite
+    // from reloading the Vitest browser mid-run as each dependency is found.
+    include: [...tiptapDeps, ...browserRuntimeDeps]
   },
   server: {
     // Proxy some URL routes to the Go backend process in development.
@@ -224,8 +233,9 @@ export default defineConfig({
           setupFiles: ['./vitest-setup-client.ts'],
           deps: {
             optimizer: {
-              web: {
-                include: [...tiptapDeps]
+              client: {
+                enabled: true,
+                include: [...tiptapDeps, ...browserRuntimeDeps]
               }
             }
           }

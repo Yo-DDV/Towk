@@ -10,9 +10,11 @@ Users can attach files to messages — images, videos, documents — via drag-an
 ## Behavior
 
 - The composer accepts files via drag-and-drop, paste, and a file picker button when the viewer has `message.attach`.
+- Drag-and-drop and clipboard paste consume every browser-provided `File`, not only media MIME types. Text-only clipboard content still follows the normal editor paste path.
 - Draft attachments persist across room switches inside the same session.
 - Message attachments are uploaded through `chatto.api.v1.AssetUploadService` before message creation. The browser sends bounded unary chunks with SHA-256 checksums, then calls `MessageService.CreateMessage` with at most 10 unique completed attachment asset IDs.
 - Default upload size limits: 25 MB for general files, 100 MB for videos when video processing is enabled.
+- A message can contain at most 10 attachments. Direct executable, installer, command-script, WebAssembly, and macro-enabled Office payloads are rejected before staging when their metadata identifies them, then checked again from the uploaded bytes before an asset is created. Ordinary archives remain allowed as opaque files and are never extracted by the upload path.
 - Video uploads require server-side video processing to be enabled. When it is disabled, the composer rejects `video/*` files immediately and the message-post API rejects them before storage.
 - Images are inspected for dimensions at upload time and can be resized at render time via URL parameters (width, height, fit mode). Public attachment and avatar APIs expose transform parameters; public server branding images expose canonical URLs only.
 - The room timeline loads attachment images within 960×400 bounds, while the lightbox loads a separate derivative within 2048×2048 bounds. The untouched upload remains available through Open original and file-download actions.
@@ -94,6 +96,12 @@ Users can attach files to messages — images, videos, documents — via drag-an
 **Decision:** Request paths still attempt immediate NATS/S3 and transform-cache deletion, while the holder of the `asset_cleanup` lease incrementally consumes canonical `AssetDeletedEvent` facts and retries each idempotent cleanup independently. The asset ID locates the same aggregate's durable `AssetCreatedEvent`, which supplies storage metadata even after the in-memory projection drops it. Beta room-scoped histories without a canonical asset creation aggregate are skipped rather than probing guessed object keys.
 **Why:** A committed deletion must remain recoverable when immediate storage cleanup fails, the process exits, or another replica committed the event. Resolving the immutable creation fact preserves that guarantee without duplicating storage metadata in the deletion event or depending on a mutable projection.
 **Tradeoff:** Each cleanup requires an aggregate-history lookup, and a fresh worker replays prior deletion facts idempotently. Beta room-scoped events cannot gain the same guarantee without a migration or unsafe backend-key inference, and server branding/avatar cleanup remains outside this message-owned worker.
+
+### 12. Executable rejection is enforced at both trust boundaries
+
+**Decision:** The browser rejects known executable extensions and MIME types for immediate feedback and inspects the first bytes before staging. `AssetUploadService` repeats bounded filename/content-type validation, rejects the same metadata before accepting chunks, and checks executable signatures after checksum-verified materialization. Rejected sessions and temporary chunks are removed best-effort. ZIP, 7z, RAR, tar, and compressed archives remain opaque allowed attachments; Towk does not unpack or execute them.
+**Why:** Browser filenames and MIME types are caller-controlled and cannot be the server security boundary. Signature inspection catches common renamed PE, ELF, Mach-O, Java-class/fat-binary, WebAssembly, and shebang payloads while preserving ordinary document and archive sharing.
+**Tradeoff:** This is a focused executable policy, not antivirus, content disarm, or proof that an allowed document is harmless. Operators with stronger content-governance requirements should scan uploads in a private integration rather than sending files to a public analysis service, and should retain upstream request-rate and storage controls.
 
 ## Permissions
 

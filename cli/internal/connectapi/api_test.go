@@ -5462,15 +5462,17 @@ func TestMessageServiceCreateMessageRejectsVideoUploadWhenProcessingDisabled(t *
 		t.Fatalf("GetAssetCount before video post: %v", err)
 	}
 	sum := sha256.Sum256([]byte("video"))
-	_, err = env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
-		RoomId:      room.Id,
-		Filename:    "clip.mp4",
-		ContentType: "video/mp4",
-		Size:        int64(len("video")),
-		Sha256:      hex.EncodeToString(sum[:]),
-	}))
-	if connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("video upload CreateUpload code = %v, want %v", connect.CodeOf(err), connect.CodeInvalidArgument)
+	for _, contentType := range []string{"video/mp4", " Video/MP4; charset=binary "} {
+		_, err = env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
+			RoomId:      room.Id,
+			Filename:    "clip.mp4",
+			ContentType: contentType,
+			Size:        int64(len("video")),
+			Sha256:      hex.EncodeToString(sum[:]),
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("video upload CreateUpload content type %q code = %v, want %v", contentType, connect.CodeOf(err), connect.CodeInvalidArgument)
+		}
 	}
 	after, err := env.core.GetAssetCount(env.ctx)
 	if err != nil {

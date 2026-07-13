@@ -19,7 +19,7 @@
     "placeholder": "Digite uma mensagem...",
     "editing_placeholder": "Editando mensagem...",
     "drop_files_title": "Solte os arquivos aqui",
-    "drop_files_subtitle": "Imagens e vídeos serão adicionados à sua mensagem",
+    "drop_files_subtitle": "Os arquivos serão adicionados à sua mensagem",
     "send_failed": "Falha ao enviar mensagem",
     "edit_failed": "Falha ao editar a mensagem",
     "mention": {

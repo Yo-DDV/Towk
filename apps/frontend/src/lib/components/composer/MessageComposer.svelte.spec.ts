@@ -589,6 +589,17 @@ describe('MessageComposer', () => {
   });
 
   describe('pasted attachments', () => {
+    it('stages non-image files exposed by the clipboard', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      pasteFile(editor, new File(['document'], 'report.pdf', { type: 'application/pdf' }));
+
+      await expect
+        .poll(() => q(container, '[data-testid="file-attachment-preview"]')?.textContent)
+        .toBe('pdf');
+    });
+
     it('ignores pasted files when uploads are not allowed', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456', canAttach: false });
       const editor = await findEditor(container);
@@ -685,6 +696,7 @@ describe('MessageComposer', () => {
       await expect.element(sendButton).toBeDisabled();
       sendButton.click();
 
+      await vi.waitFor(() => expect(prepareFilesMock).toHaveBeenCalledOnce());
       pendingPreparation.reject(new Error('prepare failed'));
 
       await vi.waitFor(() => expect(mutationMock).not.toHaveBeenCalled());
@@ -2175,6 +2187,7 @@ describe('MessageComposer', () => {
       const editor = await findEditor(container);
       selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
       await typeInEditor(editor, 'with file');
+      await expect.poll(() => q(container, 'img')).toBeTruthy();
 
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 

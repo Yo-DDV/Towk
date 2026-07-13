@@ -17,9 +17,7 @@ describe('DropZoneOverlay', () => {
     });
 
     await expect.element(getByText('Drop files here')).toBeInTheDocument();
-    await expect
-      .element(getByText('Images and videos will be added to your message'))
-      .toBeInTheDocument();
+    await expect.element(getByText('Files will be added to your message')).toBeInTheDocument();
   });
 
   it('renders custom drop copy', async () => {

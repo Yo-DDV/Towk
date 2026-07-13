@@ -116,7 +116,9 @@
       "download_refresh_failed": "Could not refresh download link",
       "video_uploads_disabled": "Video uploads are disabled on this server.",
       "prepare_failed": "Failed to prepare attachment",
-      "too_large": "{filename} is too large ({size}). Maximum is {max}."
+      "too_large": "{filename} is too large ({size}). Maximum is {max}.",
+      "executable_not_allowed": "Executable files are not allowed: {filename}.",
+      "too_many": "You can attach up to {max} files to one message."
     },
     "link_preview": {
       "delete_title": "Delete Link Preview",

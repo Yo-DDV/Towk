@@ -113,6 +113,19 @@ describe('dropZone attachment', () => {
   });
 
   describe('drop & MIME filtering', () => {
+    it('forwards every file type when the caller accepts */*', () => {
+      const onDrop = vi.fn();
+      attach({ onDrop, acceptedTypes: ['*/*'] });
+
+      const pdf = file('report.pdf', 'application/pdf');
+      const archive = file('bundle.zip', 'application/zip');
+      const unknown = file('payload.dat', '');
+      host.dispatchEvent(dragEvent('drop', { files: [pdf, archive, unknown] }));
+
+      expect(onDrop).toHaveBeenCalledOnce();
+      expect(onDrop.mock.calls[0][0]).toEqual([pdf, archive, unknown]);
+    });
+
     it('forwards files matching the default image/* filter', () => {
       const onDrop = vi.fn();
       attach({ onDrop });

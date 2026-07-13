@@ -19,7 +19,7 @@
     "placeholder": "Nachricht schreiben...",
     "editing_placeholder": "Nachricht wird bearbeitet...",
     "drop_files_title": "Dateien hier ablegen",
-    "drop_files_subtitle": "Bilder und Videos werden deiner Nachricht hinzugefügt",
+    "drop_files_subtitle": "Dateien werden deiner Nachricht hinzugefügt",
     "send_failed": "Nachricht konnte nicht gesendet werden",
     "edit_failed": "Nachricht konnte nicht bearbeitet werden",
     "mention": {

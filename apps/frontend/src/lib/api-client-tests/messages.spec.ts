@@ -27,7 +27,8 @@ const mocks = vi.hoisted(() => ({
   createUpload: vi.fn(),
   uploadChunk: vi.fn(),
   getUpload: vi.fn(),
-  completeUpload: vi.fn()
+  completeUpload: vi.fn(),
+  cancelUpload: vi.fn()
 }));
 
 vi.mock('@connectrpc/connect', async (importOriginal) => {
@@ -60,6 +61,7 @@ describe('createMessageAPI', () => {
     mocks.uploadChunk.mockReset();
     mocks.getUpload.mockReset();
     mocks.completeUpload.mockReset();
+    mocks.cancelUpload.mockReset();
     mocks.createConnectTransport.mockReturnValue({ kind: 'transport' });
     mocks.createClient.mockImplementation((service) => {
       if (service?.typeName === 'chatto.api.v1.AssetUploadService') {
@@ -67,7 +69,8 @@ describe('createMessageAPI', () => {
           createUpload: mocks.createUpload,
           uploadChunk: mocks.uploadChunk,
           getUpload: mocks.getUpload,
-          completeUpload: mocks.completeUpload
+          completeUpload: mocks.completeUpload,
+          cancelUpload: mocks.cancelUpload
         };
       }
       if (service?.typeName === 'chatto.api.v1.UserService') {
@@ -260,6 +263,57 @@ describe('createMessageAPI', () => {
     expect(request.attachments).toBeUndefined();
     expect(request.threadRootEventId).toBe('root-1');
     expect(request.alsoSendToChannel).toBe(true);
+  });
+
+  it('cancels an upload session when attachment completion fails', async () => {
+    mocks.createUpload.mockResolvedValue(
+      new CreateUploadResponse({
+        upload: new AssetUpload({
+          uploadId: 'upload-rejected',
+          roomId: 'room-1',
+          status: AssetUploadStatus.OPEN,
+          committedOffset: 0n,
+          size: 1n,
+          maxChunkSize: 1024
+        })
+      })
+    );
+    mocks.uploadChunk.mockResolvedValue(
+      new UploadChunkResponse({
+        upload: new AssetUpload({
+          uploadId: 'upload-rejected',
+          status: AssetUploadStatus.OPEN,
+          committedOffset: 1n,
+          size: 1n,
+          maxChunkSize: 1024
+        })
+      })
+    );
+    const rejection = new ConnectError(
+      'executable attachments are not allowed',
+      Code.InvalidArgument
+    );
+    mocks.completeUpload.mockRejectedValue(rejection);
+    mocks.cancelUpload.mockResolvedValue({});
+
+    const api = createMessageAPI({
+      baseUrl: 'https://remote.example.test/api/connect',
+      bearerToken: null
+    });
+
+    await expect(
+      api.createMessage({
+        roomId: 'room-1',
+        body: 'blocked',
+        attachments: [new File(['x'], 'renamed.txt', { type: 'text/plain' })]
+      })
+    ).rejects.toBe(rejection);
+
+    expect(mocks.cancelUpload).toHaveBeenCalledWith(
+      { uploadId: 'upload-rejected' },
+      { headers: undefined }
+    );
+    expect(mocks.createMessage).not.toHaveBeenCalled();
   });
 
   it('rejects too many attachments before starting any upload', async () => {

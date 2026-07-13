@@ -116,7 +116,9 @@
       "download_refresh_failed": "Impossible d’actualiser le lien de téléchargement",
       "video_uploads_disabled": "Les téléversements vidéo sont désactivés sur ce serveur.",
       "prepare_failed": "Impossible de préparer la pièce jointe",
-      "too_large": "{filename} est trop volumineux ({size}). Maximum : {max}."
+      "too_large": "{filename} est trop volumineux ({size}). Maximum : {max}.",
+      "executable_not_allowed": "Les fichiers exécutables ne sont pas autorisés : {filename}.",
+      "too_many": "Vous pouvez joindre jusqu’à {max} fichiers à un message."
     },
     "link_preview": {
       "delete_title": "Supprimer l'aperçu du lien",

@@ -253,6 +253,7 @@
     attachments.restore(untrack(() => draftState.takeFiles()));
 
     return () => {
+      attachments.invalidatePending();
       draftState.stashFiles(untrack(() => attachments.filesWithUrls));
     };
   });
@@ -435,25 +436,25 @@
     onReady?.({ addFiles, focus, insertQuote });
   });
 
-  // Handle paste events - intercept images before TipTap processes them
+  function filesFromClipboard(data: DataTransfer | null): File[] {
+    if (!data) return [];
+
+    const files = Array.from(data.files);
+    if (files.length > 0) return files;
+
+    return Array.from(data.items)
+      .filter((item) => item.kind === 'file')
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+  }
+
+  // Intercept file references before TipTap processes the paste. Text-only
+  // clipboard payloads remain under TipTap's normal paste handling.
   function handlePaste(event: ClipboardEvent): boolean {
     // Don't accept file attachments in edit mode (editMessage only supports text)
     if (isEditing) return false;
 
-    const items = event.clipboardData?.items;
-    if (!items) return false;
-
-    const pastedFiles: File[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          pastedFiles.push(file);
-        }
-      }
-    }
+    const pastedFiles = filesFromClipboard(event.clipboardData);
 
     if (pastedFiles.length > 0) {
       if (!canAttach) return true;
@@ -963,7 +964,7 @@
         class="flex h-8 w-11 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition-[color,scale] duration-100 active:scale-[0.96] enabled:hover:text-text disabled:cursor-not-allowed"
         title={m['composer.attach_file']()}
       >
-        <span class="iconify text-xl uil--image-upload"></span>
+        <span class="iconify text-xl uil--file-upload"></span>
       </button>
     {/if}
 
