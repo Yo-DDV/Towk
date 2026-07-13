@@ -34,7 +34,8 @@ const { mocks } = vi.hoisted(() => ({
     clearLastRoom: vi.fn(),
     removeServer: vi.fn(),
     removeAll: vi.fn(),
-    clearServerAuthentication: vi.fn()
+    clearServerAuthentication: vi.fn(),
+    unsubscribeForSignOut: vi.fn()
   }
 }));
 
@@ -123,6 +124,10 @@ vi.mock('$lib/auth/signOut', () => ({
   hardRedirectAfterSignOut: mocks.hardRedirectAfterSignOut
 }));
 
+vi.mock('$lib/notifications/pushNotifications', () => ({
+  unsubscribeForSignOut: mocks.unsubscribeForSignOut
+}));
+
 vi.mock('$lib/attachments/attachmentUrls', () => ({
   LIGHTBOX_ATTACHMENT_IMAGE_REFRESH: {
     width: 2048,
@@ -191,6 +196,7 @@ beforeEach(() => {
   });
   mocks.signOutServer.mockResolvedValue(new Response('{}', { status: 200 }));
   mocks.signOutServers.mockResolvedValue(undefined);
+  mocks.unsubscribeForSignOut.mockResolvedValue(true);
   mocks.activeServer = 'origin';
   mocks.serverIdParam = '-';
   mocks.originServer = {
@@ -296,6 +302,7 @@ describe('ModalContainer sign out modal', () => {
 
     await vi.waitFor(() => {
       expect(mocks.signOutServer).toHaveBeenCalledWith(remote, false);
+      expect(mocks.unsubscribeForSignOut).not.toHaveBeenCalled();
       expect(mocks.clearLastRoom).toHaveBeenCalledWith(remote.id);
       expect(mocks.removeServer).toHaveBeenCalledWith(remote.id);
       expect(mocks.removeAll).not.toHaveBeenCalled();
@@ -321,6 +328,7 @@ describe('ModalContainer sign out modal', () => {
 
     await vi.waitFor(() => {
       expect(mocks.signOutServer).toHaveBeenCalledWith(mocks.originServer, true);
+      expect(mocks.unsubscribeForSignOut).toHaveBeenCalledOnce();
       expect(mocks.beginExplicitSignOutRedirect).toHaveBeenCalledOnce();
       expect(mocks.clearServerAuthentication).toHaveBeenCalledWith('origin');
       expect(mocks.removeServer).not.toHaveBeenCalled();
@@ -345,6 +353,7 @@ describe('ModalContainer sign out modal', () => {
     await vi.waitFor(() => {
       expect(mocks.beginExplicitSignOutRedirect).toHaveBeenCalledOnce();
       expect(mocks.signOutServers).toHaveBeenCalledWith(mocks.servers, expect.any(Function));
+      expect(mocks.unsubscribeForSignOut).toHaveBeenCalledOnce();
       expect(mocks.removeAll).toHaveBeenCalledOnce();
       expect(mocks.notifyLogout).toHaveBeenCalledOnce();
       expect(mocks.hardRedirectAfterSignOut).toHaveBeenCalledWith('/');

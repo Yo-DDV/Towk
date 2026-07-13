@@ -918,6 +918,162 @@ func TestDMNotifications(t *testing.T) {
 	})
 }
 
+func TestDMNotificationFanoutDoesNotDuplicateMentionsOrReplies(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	author, err := core.CreateUser(ctx, SystemActorID, "dm-dedupe-author", "DM Dedupe Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	recipient, err := core.CreateUser(ctx, SystemActorID, "dm-dedupe-recipient", "DM Dedupe Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	room, _, err := core.FindOrCreateDM(ctx, author.Id, []string{recipient.Id})
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
+
+	root, err := core.PostMessage(ctx, KindDM, room.Id, recipient.Id, "DM root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(root): %v", err)
+	}
+	if _, err := core.DismissAllNotifications(ctx, author.Id); err != nil {
+		t.Fatalf("DismissAllNotifications(author): %v", err)
+	}
+
+	reply, err := core.PostMessage(
+		ctx,
+		KindDM,
+		room.Id,
+		author.Id,
+		"Replying to @dm-dedupe-recipient",
+		nil,
+		root.Id,
+		root.Id,
+		nil,
+		false,
+	)
+	if err != nil {
+		t.Fatalf("PostMessage(thread mention reply): %v", err)
+	}
+
+	notifications, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(recipient): %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("DM notifications = %d, want exactly one: %+v", len(notifications), notifications)
+	}
+	dm := notifications[0].GetDmMessage()
+	if dm == nil || dm.GetRoomId() != room.Id || dm.GetEventId() != reply.Id || dm.GetInThread() != root.Id {
+		t.Fatalf("notification = %+v, want DM room %s event %s thread %s", notifications[0], room.Id, reply.Id, root.Id)
+	}
+}
+
+func TestDMNotificationLevelMatrix(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	sender, err := core.CreateUser(ctx, SystemActorID, "dm-matrix-sender", "DM Matrix Sender", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(sender): %v", err)
+	}
+	type recipientCase struct {
+		login string
+		level corev1.NotificationLevel
+		user  *corev1.User
+	}
+	recipients := []*recipientCase{
+		{login: "dm-matrix-default", level: corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED},
+		{login: "dm-matrix-normal", level: corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL},
+		{login: "dm-matrix-all", level: corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES},
+		{login: "dm-matrix-muted", level: corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED},
+	}
+	participantIDs := make([]string, 0, len(recipients))
+	for _, recipient := range recipients {
+		recipient.user, err = core.CreateUser(ctx, SystemActorID, recipient.login, recipient.login, "password123")
+		if err != nil {
+			t.Fatalf("CreateUser(%s): %v", recipient.login, err)
+		}
+		participantIDs = append(participantIDs, recipient.user.Id)
+		if recipient.level != corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
+			if err := core.SetSpaceNotificationLevel(ctx, recipient.user.Id, recipient.level); err != nil {
+				t.Fatalf("SetSpaceNotificationLevel(%s): %v", recipient.login, err)
+			}
+		}
+	}
+
+	room, _, err := core.FindOrCreateDM(ctx, sender.Id, participantIDs)
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+	first, err := core.PostMessage(ctx, KindDM, room.Id, sender.Id, "group DM", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(first): %v", err)
+	}
+	for _, recipient := range recipients {
+		notifications, err := core.GetNotifications(ctx, recipient.user.Id)
+		if err != nil {
+			t.Fatalf("GetNotifications(%s): %v", recipient.login, err)
+		}
+		want := 1
+		if recipient.level == corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED {
+			want = 0
+		}
+		if len(notifications) != want {
+			t.Fatalf("%s notifications = %d, want %d: %+v", recipient.login, len(notifications), want, notifications)
+		}
+		if want == 1 {
+			dm := notifications[0].GetDmMessage()
+			if dm == nil || dm.GetRoomId() != room.Id || dm.GetEventId() != first.Id {
+				t.Fatalf("%s notification = %+v, want DM event %s", recipient.login, notifications[0], first.Id)
+			}
+		}
+		if _, err := core.DismissAllNotifications(ctx, recipient.user.Id); err != nil {
+			t.Fatalf("DismissAllNotifications(%s): %v", recipient.login, err)
+		}
+	}
+	assertNotificationKinds(t, core, ctx, sender.Id)
+
+	// Room overrides remain authoritative over the server setting. Include a
+	// broad mention in the group DM to prove it still produces exactly one DM
+	// notification per eligible participant, never a parallel mention fanout.
+	if err := core.SetRoomNotificationLevel(ctx, recipients[2].user.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_MUTED); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(all -> muted): %v", err)
+	}
+	if err := core.SetRoomNotificationLevel(ctx, recipients[3].user.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(muted -> all): %v", err)
+	}
+	second, err := core.PostMessage(ctx, KindDM, room.Id, sender.Id, "@all group DM override", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(second): %v", err)
+	}
+	for index, recipient := range recipients {
+		notifications, err := core.GetNotifications(ctx, recipient.user.Id)
+		if err != nil {
+			t.Fatalf("GetNotifications override(%s): %v", recipient.login, err)
+		}
+		want := 1
+		if index == 2 {
+			want = 0
+		}
+		if len(notifications) != want {
+			t.Fatalf("override %s notifications = %d, want %d: %+v", recipient.login, len(notifications), want, notifications)
+		}
+		if want == 1 {
+			dm := notifications[0].GetDmMessage()
+			if dm == nil || dm.GetEventId() != second.Id {
+				t.Fatalf("override %s notification = %+v, want DM event %s", recipient.login, notifications[0], second.Id)
+			}
+		}
+	}
+}
+
 func TestDMThreadReplyEcho(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

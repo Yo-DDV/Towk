@@ -30,6 +30,14 @@ export class NotificationLevelStore {
    */
   setServerPreference(level: NotificationLevel, effectiveLevel: NotificationLevel): void {
     this.server = { level, effectiveLevel };
+    for (const [roomId, roomPreference] of this.roomLevels) {
+      if (roomPreference.level === NotificationLevel.Default) {
+        this.roomLevels.set(roomId, {
+          level: NotificationLevel.Default,
+          effectiveLevel
+        });
+      }
+    }
   }
 
   /**
@@ -41,6 +49,26 @@ export class NotificationLevelStore {
     effectiveLevel: NotificationLevel
   ): void {
     this.roomLevels.set(roomId, { level, effectiveLevel });
+  }
+
+  /** Replace the projected preference snapshot and prune rooms no longer joined. */
+  replacePreferences(
+    level: NotificationLevel,
+    effectiveLevel: NotificationLevel,
+    rooms: Iterable<{
+      roomId: string;
+      level: NotificationLevel;
+      effectiveLevel: NotificationLevel;
+    }>
+  ): void {
+    this.server = { level, effectiveLevel };
+    this.roomLevels.clear();
+    for (const room of rooms) {
+      this.roomLevels.set(room.roomId, {
+        level: room.level,
+        effectiveLevel: room.effectiveLevel
+      });
+    }
   }
 
   /**
@@ -86,7 +114,11 @@ export class NotificationLevelStore {
    * Check if the server is fully muted (server-level muted, no room overrides).
    */
   isServerMuted(): boolean {
-    return this.server.effectiveLevel === NotificationLevel.Muted;
+    if (this.server.effectiveLevel !== NotificationLevel.Muted) return false;
+    for (const preference of this.roomLevels.values()) {
+      if (preference.effectiveLevel !== NotificationLevel.Muted) return false;
+    }
+    return true;
   }
 
   /**

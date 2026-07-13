@@ -12,6 +12,7 @@ and PWA badge updates.
 Include this component once in the chat layout (unconditionally).
 -->
 <script lang="ts">
+  import { SvelteMap } from 'svelte/reactivity';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { eventBusManager } from '$lib/state/server/eventBus.svelte';
   import { userPreferences } from '$lib/state/userPreferences.svelte';
@@ -24,7 +25,6 @@ Include this component once in the chat layout (unconditionally).
   } from '$lib/notifications/appBadge';
   import type { EventEnvelope, EventHandler } from '$lib/eventBus.svelte';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
-  import { NotificationItemKind } from '$lib/api-client/notifications';
 
   function notificationCreatedEvent(
     event: EventEnvelope['event']
@@ -53,6 +53,69 @@ Include this component once in the chat layout (unconditionally).
   // Uses the event bus manager directly (not Svelte context) to handle all instances.
   $effect(() => {
     const cleanups: (() => void)[] = [];
+    type CoalescedWork = { pending: Promise<void>; dirty: boolean };
+    const pendingCountRefreshes = new SvelteMap<string, CoalescedWork>();
+    const pendingUnknownDismissalReconciliations = new SvelteMap<string, CoalescedWork>();
+
+    function refreshCountsOnce(instanceId: string, refresh: () => Promise<void>): Promise<void> {
+      const existing = pendingCountRefreshes.get(instanceId);
+      if (existing) {
+        existing.dirty = true;
+        return existing.pending;
+      }
+
+      const work: CoalescedWork = { pending: Promise.resolve(), dirty: false };
+      pendingCountRefreshes.set(instanceId, work);
+      work.pending = (async () => {
+        let finalError: unknown;
+        do {
+          work.dirty = false;
+          try {
+            await refresh();
+            finalError = undefined;
+          } catch (error) {
+            finalError = error;
+          }
+        } while (work.dirty);
+        if (finalError !== undefined) throw finalError;
+      })().finally(() => {
+        if (pendingCountRefreshes.get(instanceId) === work) {
+          pendingCountRefreshes.delete(instanceId);
+        }
+      });
+      return work.pending;
+    }
+
+    function reconcileUnknownDismissalOnce(
+      instanceId: string,
+      reconcile: () => Promise<void>
+    ): void {
+      const existing = pendingUnknownDismissalReconciliations.get(instanceId);
+      if (existing) {
+        existing.dirty = true;
+        return;
+      }
+
+      const work: CoalescedWork = { pending: Promise.resolve(), dirty: false };
+      pendingUnknownDismissalReconciliations.set(instanceId, work);
+      work.pending = (async () => {
+        let finalError: unknown;
+        do {
+          work.dirty = false;
+          try {
+            await reconcile();
+            finalError = undefined;
+          } catch (error) {
+            finalError = error;
+          }
+        } while (work.dirty);
+        if (finalError !== undefined) throw finalError;
+      })().finally(() => {
+        if (pendingUnknownDismissalReconciliations.get(instanceId) === work) {
+          pendingUnknownDismissalReconciliations.delete(instanceId);
+        }
+      });
+    }
 
     for (const instance of serverRegistry.servers) {
       const stores = serverRegistry.getStore(instance.id);
@@ -70,16 +133,18 @@ Include this component once in the chat layout (unconditionally).
           case RoomEventKind.NotificationCreated: {
             const notification = notificationCreatedEvent(event.event);
             if (!notification) break;
-            void Promise.allSettled([
-              notificationStore.addNotification(notification.notificationId),
-              stores.rooms.refreshNotificationCounts()
-            ]);
-            if (!notification.silent) {
-              playNotificationSound(
-                userPreferences.notificationSound,
-                userPreferences.notificationSoundFilters
-              );
-            }
+            void (async () => {
+              const [hydrated] = await Promise.allSettled([
+                notificationStore.addNotification(notification.notificationId),
+                refreshCountsOnce(instance.id, () => stores.rooms.refreshNotificationCounts())
+              ]);
+              if (hydrated.status === 'fulfilled' && hydrated.value && !notification.silent) {
+                playNotificationSound(
+                  userPreferences.notificationSound,
+                  userPreferences.notificationSoundFilters
+                );
+              }
+            })();
             break;
           }
           case RoomEventKind.NotificationDismissed: {
@@ -87,12 +152,18 @@ Include this component once in the chat layout (unconditionally).
             if (!notification) break;
             const roomId = notificationStore.removeNotification(notification.notificationId);
             if (roomId) {
-              void stores.rooms.refreshNotificationCounts();
-            } else if (!notificationStore.consumeLocalDismissal(notification.notificationId)) {
-              void Promise.allSettled([
-                notificationStore.fetch(),
+              void refreshCountsOnce(instance.id, () =>
                 stores.rooms.refreshNotificationCounts()
-              ]);
+              ).catch((error) => {
+                console.error('Failed to refresh notification counts after dismissal:', error);
+              });
+            } else if (!notificationStore.consumeLocalDismissal(notification.notificationId)) {
+              reconcileUnknownDismissalOnce(instance.id, async () => {
+                await Promise.allSettled([
+                  notificationStore.fetch(),
+                  refreshCountsOnce(instance.id, () => stores.rooms.refreshNotificationCounts())
+                ]);
+              });
             }
             break;
           }
@@ -109,8 +180,7 @@ Include this component once in the chat layout (unconditionally).
   });
 
   let badgeState = $derived.by((): { intent: AppBadgeIntent; allStoresLoaded: boolean } => {
-    let dmCount = 0;
-    let canUseNumericDmCount = true;
+    let notificationCount = 0;
     let hasNotification = false;
     let allStoresLoaded = true;
 
@@ -121,17 +191,14 @@ Include this component once in the chat layout (unconditionally).
 
       const notifications = stores.notifications.notifications;
       const notificationTotal = stores.notifications.unreadNotificationCount;
-      dmCount += notifications.filter((n) => n.kind === NotificationItemKind.DirectMessage).length;
-      if (notificationTotal > notifications.length) {
-        canUseNumericDmCount = false;
-      }
+      notificationCount += notificationTotal;
       if (notifications.length > 0 || notificationTotal > 0) {
         hasNotification = true;
       }
     }
 
-    if (dmCount > 0 && canUseNumericDmCount) {
-      return { intent: { kind: 'count', count: dmCount }, allStoresLoaded };
+    if (notificationCount > 0 && allStoresLoaded) {
+      return { intent: { kind: 'count', count: notificationCount }, allStoresLoaded };
     }
     if (hasNotification) return { intent: { kind: 'flag' }, allStoresLoaded };
     return { intent: { kind: 'clear' }, allStoresLoaded };

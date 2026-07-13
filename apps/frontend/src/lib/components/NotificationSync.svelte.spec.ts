@@ -16,7 +16,7 @@ const { mocks } = vi.hoisted(() => {
       count: 0,
       unreadNotificationCount: 0,
       hasLoaded: true,
-      addNotification: vi.fn(() => Promise.resolve()),
+      addNotification: vi.fn(() => Promise.resolve(true)),
       removeNotification: vi.fn(),
       consumeLocalDismissal: vi.fn(),
       fetch: vi.fn(() => Promise.resolve())
@@ -95,6 +95,16 @@ function dispatch(event: Record<string, unknown>) {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 async function renderAndWaitForSubscription() {
   render(NotificationSync);
   await vi.waitFor(() => expect(mocks.bus.handlers.size).toBe(1));
@@ -112,7 +122,7 @@ describe('NotificationSync', () => {
     mocks.store.notifications.unreadNotificationCount = 0;
     mocks.store.notifications.hasLoaded = true;
     mocks.store.roomUnread.hasAnyUnread = false;
-    mocks.store.notifications.addNotification.mockResolvedValue(undefined);
+    mocks.store.notifications.addNotification.mockResolvedValue(true);
     mocks.store.notifications.removeNotification.mockReturnValue(null);
     mocks.store.notifications.consumeLocalDismissal.mockReturnValue(false);
     mocks.store.notifications.fetch.mockResolvedValue(undefined);
@@ -135,7 +145,58 @@ describe('NotificationSync', () => {
     expect(mocks.store.notifications.addNotification).toHaveBeenCalledWith('n1');
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     expect(mocks.store.rooms.incrementUnreadNotification).not.toHaveBeenCalled();
-    expect(mocks.playNotificationSound).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledOnce());
+  });
+
+  it('coalesces count refreshes for a burst and performs one final authoritative pass', async () => {
+    const refresh = deferred<void>();
+    mocks.store.rooms.refreshNotificationCounts.mockReturnValue(refresh.promise);
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'burst-1',
+      silent: false
+    });
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'burst-2',
+      silent: false
+    });
+
+    expect(mocks.store.notifications.addNotification).toHaveBeenCalledTimes(2);
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    refresh.resolve();
+    await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledTimes(2)
+    );
+  });
+
+  it('still performs the dirty final pass after the active refresh fails', async () => {
+    const firstRefresh = deferred<void>();
+    mocks.store.rooms.refreshNotificationCounts
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockResolvedValue(undefined);
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'retry-1',
+      silent: false
+    });
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'retry-2',
+      silent: false
+    });
+
+    firstRefresh.reject(new Error('transient count refresh failure'));
+
+    await vi.waitFor(() =>
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledTimes(2)
+    );
+    await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledTimes(2));
   });
 
   it('reconciles silent notification creation without playing a sound', async () => {
@@ -153,6 +214,25 @@ describe('NotificationSync', () => {
     expect(mocks.store.notifications.addNotification).toHaveBeenCalledOnce();
     expect(mocks.store.notifications.addNotification).toHaveBeenCalledWith('n1');
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    expect(mocks.playNotificationSound).not.toHaveBeenCalled();
+  });
+
+  it('does not play a stale alert when the notification disappeared before hydration', async () => {
+    mocks.store.notifications.addNotification.mockResolvedValue(false);
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'already-read',
+      roomId: 'room-1',
+      eventId: 'event-1',
+      inReplyToId: null,
+      silent: false
+    });
+
+    await vi.waitFor(() =>
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce()
+    );
     expect(mocks.playNotificationSound).not.toHaveBeenCalled();
   });
 
@@ -189,7 +269,28 @@ describe('NotificationSync', () => {
     expect(mocks.store.rooms.refresh).not.toHaveBeenCalled();
   });
 
-  it('uses a numeric app badge for loaded DM notifications', async () => {
+  it('coalesces a burst of uncached remote dismissals into one reconciliation', async () => {
+    const fetch = deferred<void>();
+    mocks.store.notifications.removeNotification.mockReturnValue(null);
+    mocks.store.notifications.consumeLocalDismissal.mockReturnValue(false);
+    mocks.store.notifications.fetch.mockReturnValue(fetch.promise);
+    await renderAndWaitForSubscription();
+
+    for (let index = 0; index < 20; index++) {
+      dispatch({
+        kind: RoomEventKind.NotificationDismissed,
+        notificationId: `unknown-${index}`
+      });
+    }
+
+    expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce();
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    fetch.resolve();
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledTimes(2));
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the exact pending-notification total for loaded stores', async () => {
     mocks.store.notifications.notifications = [{ kind: 'directMessage' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 1;
@@ -206,27 +307,37 @@ describe('NotificationSync', () => {
     expect(mocks.clearBadge).not.toHaveBeenCalled();
   });
 
-  it('uses a flag instead of a capped DM count when notifications are not fully loaded', async () => {
+  it('uses the server total even when the cached page is capped', async () => {
     mocks.store.notifications.notifications = [{ kind: 'directMessage' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 3;
 
     await renderAndWaitForSubscription();
 
-    await vi.waitFor(() => expect(mocks.updateBadge).toHaveBeenCalledWith({ kind: 'flag' }));
-    expect(mocks.syncServiceWorkerNotificationBadgeState).toHaveBeenCalledWith({ kind: 'flag' });
+    await vi.waitFor(() =>
+      expect(mocks.updateBadge).toHaveBeenCalledWith({ kind: 'count', count: 3 })
+    );
+    expect(mocks.syncServiceWorkerNotificationBadgeState).toHaveBeenCalledWith({
+      kind: 'count',
+      count: 3
+    });
     expect(mocks.clearBadge).not.toHaveBeenCalled();
   });
 
-  it('uses a flag app badge for channel notifications', async () => {
+  it('counts channel notifications as pending app attention', async () => {
     mocks.store.notifications.notifications = [{ kind: 'mention' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 1;
 
     await renderAndWaitForSubscription();
 
-    await vi.waitFor(() => expect(mocks.updateBadge).toHaveBeenCalledWith({ kind: 'flag' }));
-    expect(mocks.syncServiceWorkerNotificationBadgeState).toHaveBeenCalledWith({ kind: 'flag' });
+    await vi.waitFor(() =>
+      expect(mocks.updateBadge).toHaveBeenCalledWith({ kind: 'count', count: 1 })
+    );
+    expect(mocks.syncServiceWorkerNotificationBadgeState).toHaveBeenCalledWith({
+      kind: 'count',
+      count: 1
+    });
     expect(mocks.clearBadge).not.toHaveBeenCalled();
   });
 

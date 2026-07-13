@@ -17,6 +17,7 @@
   import { notifyLogout } from '$lib/auth/sessionChannel';
   import { csrfFetch } from '$lib/auth/csrf';
   import { clearCachedUser } from '$lib/auth/loadAuth';
+  import { unsubscribeForSignOut } from '$lib/notifications/pushNotifications';
   import {
     beginExplicitSignOutRedirect,
     cancelExplicitSignOutRedirect,
@@ -279,8 +280,9 @@
     await disconnectIdentity(disconnectTarget, currentPassword);
   }
 
-  function finishDisconnectedSession(signedOutServerId: string) {
+  async function finishDisconnectedSession(signedOutServerId: string) {
     if (serverRegistry.isOriginServer(signedOutServerId)) {
+      await unsubscribeForSignOut().catch(() => false);
       clearCachedUser();
     }
     serverRegistry.clearServerAuthentication(signedOutServerId);
@@ -310,7 +312,7 @@
       disconnectFreshAuthTarget = null;
       disconnectCurrentPassword = '';
       disconnectFreshAuthError = '';
-      finishDisconnectedSession(client.serverId ?? serverId);
+      await finishDisconnectedSession(client.serverId ?? serverId);
     } catch (err) {
       if (err instanceof ConnectError && err.code === Code.FailedPrecondition) {
         cancelExplicitSignOutRedirect();
@@ -434,6 +436,7 @@
       // Step 2: Delete account with the confirmation token
       if (await accountAPI().deleteMyAccount(confirmationToken)) {
         // Log out and redirect to home
+        await unsubscribeForSignOut().catch(() => false);
         const originToken = serverRegistry.originServer?.token;
         await csrfFetch('/auth/logout', {
           method: 'POST',

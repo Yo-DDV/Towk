@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   playNotificationSound: vi.fn(),
   activeServerId: 'origin',
   notificationLevels: {
+    replacePreferences: vi.fn(),
     setServerPreference: vi.fn(),
     setRoomPreference: vi.fn()
   },
@@ -127,6 +128,14 @@ function buttonWithText(container: Element, text: string): HTMLButtonElement {
   return button;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe('Notification settings page', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -134,6 +143,7 @@ describe('Notification settings page', () => {
     userPreferences.resetNotificationSoundFilters();
     mocks.activeServerId = 'origin';
     mocks.playNotificationSound.mockClear();
+    mocks.notificationLevels.replacePreferences.mockClear();
     mocks.notificationLevels.setServerPreference.mockClear();
     mocks.notificationLevels.setRoomPreference.mockClear();
     mocks.serverInfo.pushNotificationsEnabled = false;
@@ -202,6 +212,22 @@ describe('Notification settings page', () => {
       bearerToken: 'origin-token'
     });
     expect(mocks.listRooms).toHaveBeenCalledWith(RoomDirectoryScope.CHANNELS);
+    expect(mocks.notificationLevels.replacePreferences).toHaveBeenCalledWith(
+      NotificationLevel.Normal,
+      NotificationLevel.Normal,
+      [
+        {
+          roomId: 'room-1',
+          level: NotificationLevel.Default,
+          effectiveLevel: NotificationLevel.Normal
+        },
+        {
+          roomId: 'dm-1',
+          level: NotificationLevel.Muted,
+          effectiveLevel: NotificationLevel.Muted
+        }
+      ]
+    );
     expect(container.textContent).toContain('Notification Sound');
     expect(container.textContent).toContain('Silent');
     expect(container.textContent).toContain('Simple');
@@ -240,6 +266,46 @@ describe('Notification settings page', () => {
     await expect
       .element(buttonWithText(container, 'Normal'))
       .not.toHaveClass(/choice-row-selected/);
+  });
+
+  it('refreshes blocked push state after permission is restored in browser settings', async () => {
+    mocks.serverInfo.pushNotificationsEnabled = true;
+    mocks.serverInfo.vapidPublicKey = 'vapid-key';
+    mocks.pushNotifications.getPermission.mockReturnValue('denied');
+    mocks.pushNotifications.isSubscribed.mockResolvedValue(false);
+
+    const { container } = render(NotificationsPage);
+    await settle();
+    expect(container.textContent).toContain('Push notifications blocked');
+
+    mocks.pushNotifications.getPermission.mockReturnValue('granted');
+    mocks.pushNotifications.ensureRegistered.mockResolvedValue(true);
+    window.dispatchEvent(new Event('focus'));
+    await settle();
+
+    expect(mocks.pushNotifications.ensureRegistered).toHaveBeenCalledWith('vapid-key', {
+      prompt: false
+    });
+    expect(container.textContent).toContain('Push notifications enabled');
+    expect(container.textContent).not.toContain('Push notifications blocked');
+  });
+
+  it('does not show push as enabled when permission is revoked during reconciliation', async () => {
+    const registration = deferred<boolean>();
+    mocks.serverInfo.pushNotificationsEnabled = true;
+    mocks.serverInfo.vapidPublicKey = 'vapid-key';
+    mocks.pushNotifications.getPermission.mockReturnValue('granted');
+    mocks.pushNotifications.ensureRegistered.mockReturnValue(registration.promise);
+
+    const { container } = render(NotificationsPage);
+    await vi.waitFor(() => expect(mocks.pushNotifications.ensureRegistered).toHaveBeenCalled());
+
+    mocks.pushNotifications.getPermission.mockReturnValue('denied');
+    registration.resolve(true);
+    await settle();
+
+    expect(container.textContent).toContain('Push notifications blocked');
+    expect(container.textContent).not.toContain('Push notifications enabled');
   });
 
   it('selects and persists a non-silent notification sound', async () => {

@@ -130,7 +130,11 @@ describe('createNotificationAPI', () => {
           id: 'n2',
           kind: {
             case: 'directMessage',
-            value: { room: { id: 'dm-1', name: 'Alice' }, eventId: 'event-2' }
+            value: {
+              room: { id: 'dm-1', name: 'Alice' },
+              eventId: 'event-2',
+              threadRootEventId: 'dm-thread-root'
+            }
           }
         }
       ]
@@ -152,7 +156,9 @@ describe('createNotificationAPI', () => {
       items: [
         {
           kind: NotificationItemKind.DirectMessage,
-          room: { id: 'dm-1' }
+          room: { id: 'dm-1' },
+          eventId: 'event-2',
+          dmInThread: 'dm-thread-root'
         }
       ]
     });

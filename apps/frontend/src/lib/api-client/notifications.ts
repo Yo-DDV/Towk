@@ -45,6 +45,8 @@ export type DirectMessageNotificationItem = {
   actor?: NotificationActor | null;
   summary: string;
   room: { id: string };
+  eventId: string;
+  dmInThread?: string | null;
 };
 
 export type MentionNotificationItem = {
@@ -194,7 +196,9 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         kind: NotificationItemKind.DirectMessage,
         ...base,
         summary: notificationSummary(actor, NotificationItemKind.DirectMessage),
-        room: { id: item.kind.value.room?.id ?? '' }
+        room: { id: item.kind.value.room?.id ?? '' },
+        eventId: item.kind.value.eventId,
+        dmInThread: item.kind.value.threadRootEventId ?? null
       };
     case 'mention':
       return {

@@ -1373,6 +1373,15 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 		c.logger.Info("Deleted message-owned assets during user deletion", "user_id", userID, "count", deleted)
 	}
 
+	// Close native notifications before removing their delivery endpoints.
+	// Waiting is intentional here: the ordinary dismissal API stays
+	// asynchronous, but deleting subscriptions first would strand old account
+	// content on every device until the user closed it manually.
+	if _, err := c.dismissAllNotificationsBeforePushSubscriptionRemoval(ctx, userID); err != nil {
+		c.logger.Warn("Failed to delete remaining notifications during user deletion", "user_id", userID, "error", err)
+		// Continue - cleanup remains best-effort.
+	}
+
 	// Delete push notification subscriptions
 	if _, err := c.DeleteAllUserPushSubscriptions(ctx, userID); err != nil {
 		c.logger.Warn("Failed to delete push subscriptions", "user_id", userID, "error", err)
@@ -1409,7 +1418,6 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 			c.logger.Warn("Failed to clean up user state during deletion", "user_id", userID, "kind", kind, "error", err)
 		}
 	}
-
 	// Revoke all role assignments (server-wide, no per-space loop needed).
 	if err := c.RevokeAllUserRoles(ctx, actorID, userID); err != nil {
 		c.logger.Warn("Failed to revoke user roles during deletion", "user_id", userID, "error", err)

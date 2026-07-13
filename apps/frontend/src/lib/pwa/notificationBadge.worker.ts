@@ -24,6 +24,8 @@ export interface ForegroundBadgeIntentStorage {
     serviceWorkerAppBadgeEnabled: boolean
   ): Promise<void>;
   clearForegroundBadgeIntent(): Promise<void>;
+  readLastPushAppBadgeCount(): Promise<number | null>;
+  writeLastPushAppBadgeCount(notificationCount: number | null): Promise<void>;
 }
 
 const FOREGROUND_BADGE_INTENT_REQUEST = '/__chatto/foreground-badge-intent';
@@ -43,17 +45,23 @@ export function normalizeBadgeIntent(intent: ServiceWorkerBadgeIntent): ServiceW
 interface StoredForegroundBadgeState {
   badgeIntent: ServiceWorkerBadgeIntent | null;
   serviceWorkerAppBadgeEnabled: boolean;
+  lastPushAppBadgeCount: number | null;
 }
 
 function normalizeStoredForegroundBadgeState(value: unknown): StoredForegroundBadgeState {
   if (!value || typeof value !== 'object') {
-    return { badgeIntent: null, serviceWorkerAppBadgeEnabled: false };
+    return {
+      badgeIntent: null,
+      serviceWorkerAppBadgeEnabled: false,
+      lastPushAppBadgeCount: null
+    };
   }
 
   const state = value as {
     badgeIntent?: unknown;
     notificationCount?: unknown;
     serviceWorkerAppBadgeEnabled?: unknown;
+    lastPushAppBadgeCount?: unknown;
   };
 
   const badgeIntent = normalizeUnknownBadgeIntent(state.badgeIntent);
@@ -63,7 +71,13 @@ function normalizeStoredForegroundBadgeState(value: unknown): StoredForegroundBa
       : null;
   return {
     badgeIntent: badgeIntent ?? legacyCount,
-    serviceWorkerAppBadgeEnabled: state.serviceWorkerAppBadgeEnabled === true
+    serviceWorkerAppBadgeEnabled: state.serviceWorkerAppBadgeEnabled === true,
+    lastPushAppBadgeCount:
+      typeof state.lastPushAppBadgeCount === 'number' &&
+      Number.isFinite(state.lastPushAppBadgeCount) &&
+      state.lastPushAppBadgeCount > 0
+        ? normalizeBadgeCount(state.lastPushAppBadgeCount)
+        : null
   };
 }
 
@@ -94,17 +108,29 @@ export function createCacheForegroundBadgeIntentStorage(
   caches: CacheStorage,
   cacheName: string
 ): ForegroundBadgeIntentStorage {
-  async function readState(): Promise<StoredForegroundBadgeState> {
+  let mutationQueue: Promise<void> = Promise.resolve();
+
+  async function readStateFromCache(): Promise<StoredForegroundBadgeState> {
     try {
       const cache = await caches.open(cacheName);
       const response =
         (await cache.match(FOREGROUND_BADGE_INTENT_REQUEST)) ??
         (await cache.match(LEGACY_FOREGROUND_NOTIFICATION_COUNT_REQUEST));
-      if (!response) return { badgeIntent: null, serviceWorkerAppBadgeEnabled: false };
+      if (!response) {
+        return {
+          badgeIntent: null,
+          serviceWorkerAppBadgeEnabled: false,
+          lastPushAppBadgeCount: null
+        };
+      }
 
       return normalizeStoredForegroundBadgeState(await response.json());
     } catch {
-      return { badgeIntent: null, serviceWorkerAppBadgeEnabled: false };
+      return {
+        badgeIntent: null,
+        serviceWorkerAppBadgeEnabled: false,
+        lastPushAppBadgeCount: null
+      };
     }
   }
 
@@ -123,6 +149,21 @@ export function createCacheForegroundBadgeIntentStorage(
     }
   }
 
+  async function readState(): Promise<StoredForegroundBadgeState> {
+    await mutationQueue;
+    return readStateFromCache();
+  }
+
+  function mutateState(
+    update: (state: StoredForegroundBadgeState) => StoredForegroundBadgeState
+  ): Promise<void> {
+    const mutation = mutationQueue.then(async () => {
+      await writeState(update(await readStateFromCache()));
+    });
+    mutationQueue = mutation.catch(() => {});
+    return mutation;
+  }
+
   return {
     async readForegroundBadgeIntent() {
       return (await readState()).badgeIntent;
@@ -131,14 +172,27 @@ export function createCacheForegroundBadgeIntentStorage(
       return (await readState()).serviceWorkerAppBadgeEnabled;
     },
     async writeForegroundNotificationState(badgeIntent, serviceWorkerAppBadgeEnabled) {
-      await writeState({
+      await mutateState((state) => ({
+        ...state,
         badgeIntent: normalizeBadgeIntent(badgeIntent),
-        serviceWorkerAppBadgeEnabled
-      });
+        serviceWorkerAppBadgeEnabled,
+        lastPushAppBadgeCount: null
+      }));
     },
     async clearForegroundBadgeIntent() {
-      const state = await readState();
-      await writeState({ ...state, badgeIntent: null });
+      await mutateState((state) => ({ ...state, badgeIntent: null }));
+    },
+    async readLastPushAppBadgeCount() {
+      return (await readState()).lastPushAppBadgeCount;
+    },
+    async writeLastPushAppBadgeCount(notificationCount) {
+      await mutateState((state) => ({
+        ...state,
+        lastPushAppBadgeCount:
+          notificationCount === null || normalizeBadgeCount(notificationCount) === 0
+            ? null
+            : normalizeBadgeCount(notificationCount)
+      }));
     }
   };
 }
@@ -233,7 +287,9 @@ export async function applyBadgeIntent(
 export class ServiceWorkerBadgeCoordinator {
   #foregroundBadgeIntent: ServiceWorkerBadgeIntent | null = null;
   #serviceWorkerAppBadgeEnabled: boolean | null = null;
+  #lastPushAppBadgeCount: number | null = null;
   #gate = new BadgeStateVersionGate();
+  #operationQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly registration: NotificationListingRegistration,
@@ -253,23 +309,28 @@ export class ServiceWorkerBadgeCoordinator {
     options: { serviceWorkerAppBadgeEnabled?: boolean } = {}
   ): Promise<void> {
     const intent = normalizeBadgeIntent(badgeIntent);
-    this.#foregroundBadgeIntent = intent;
-    if (options.serviceWorkerAppBadgeEnabled !== undefined) {
-      this.#serviceWorkerAppBadgeEnabled = options.serviceWorkerAppBadgeEnabled;
-    }
     const isCurrent = this.#gate.next();
-    await this.foregroundBadgeIntentStorage?.writeForegroundNotificationState(
-      intent,
-      await this.isServiceWorkerAppBadgeEnabled()
-    );
-    await applyAuthoritativeBadgeState(
-      this.registration,
-      await this.badgeNavigatorIfEnabled(),
-      intent,
-      {
-        isCurrent
+    return this.enqueue(async () => {
+      if (!isCurrent()) return;
+      // Foreground state is authoritative and may legitimately lower or clear
+      // the count after reads. Start a fresh push-only monotonic window here.
+      this.#lastPushAppBadgeCount = null;
+      this.#foregroundBadgeIntent = intent;
+      if (options.serviceWorkerAppBadgeEnabled !== undefined) {
+        this.#serviceWorkerAppBadgeEnabled = options.serviceWorkerAppBadgeEnabled;
       }
-    );
+      await this.foregroundBadgeIntentStorage?.writeForegroundNotificationState(
+        intent,
+        await this.isServiceWorkerAppBadgeEnabled()
+      );
+      if (!isCurrent()) return;
+      await applyAuthoritativeBadgeState(
+        this.registration,
+        await this.badgeNavigatorIfEnabled(),
+        intent,
+        { isCurrent }
+      );
+    });
   }
 
   recordRegularPush(): void {
@@ -277,35 +338,77 @@ export class ServiceWorkerBadgeCoordinator {
   }
 
   async reconcileAfterDismissPush(): Promise<void> {
-    this.#gate.invalidate();
-    this.#foregroundBadgeIntent = null;
-    await this.foregroundBadgeIntentStorage?.clearForegroundBadgeIntent();
-    await syncBadgeFromNativeNotifications(this.registration, await this.badgeNavigatorIfEnabled());
+    const isCurrent = this.#gate.next();
+    return this.enqueue(async () => {
+      if (!isCurrent()) return;
+      this.#lastPushAppBadgeCount = null;
+      this.#foregroundBadgeIntent = null;
+      await this.foregroundBadgeIntentStorage?.writeLastPushAppBadgeCount(null);
+      await this.foregroundBadgeIntentStorage?.clearForegroundBadgeIntent();
+      if (!isCurrent()) return;
+      await syncBadgeFromNativeNotifications(
+        this.registration,
+        await this.badgeNavigatorIfEnabled()
+      );
+    });
   }
 
   async reconcileAfterNotificationClick(): Promise<void> {
-    this.#gate.invalidate();
-    const persistedForegroundIntent =
-      (await this.foregroundBadgeIntentStorage?.readForegroundBadgeIntent()) ?? null;
-    await syncBadgeFromNativeNotifications(
-      this.registration,
-      await this.badgeNavigatorIfEnabled(),
-      {
-        minimumBadgeIntent: this.#foregroundBadgeIntent ?? persistedForegroundIntent ?? undefined
-      }
-    );
+    const isCurrent = this.#gate.next();
+    return this.enqueue(async () => {
+      if (!isCurrent()) return;
+      this.#lastPushAppBadgeCount = null;
+      await this.foregroundBadgeIntentStorage?.writeLastPushAppBadgeCount(null);
+      const persistedForegroundIntent =
+        (await this.foregroundBadgeIntentStorage?.readForegroundBadgeIntent()) ?? null;
+      if (!isCurrent()) return;
+      await syncBadgeFromNativeNotifications(
+        this.registration,
+        await this.badgeNavigatorIfEnabled(),
+        {
+          minimumBadgeIntent: this.#foregroundBadgeIntent ?? persistedForegroundIntent ?? undefined
+        }
+      );
+    });
   }
 
   async setProvisionalPushFlagBadge(): Promise<void> {
-    await applyBadgeIntent(await this.badgeNavigatorIfEnabled(), { kind: 'flag' });
+    const isCurrent = this.#gate.next();
+    return this.enqueue(async () => {
+      if (!isCurrent()) return;
+      await applyBadgeIntent(await this.badgeNavigatorIfEnabled(), { kind: 'flag' });
+    });
   }
 
   async setPushAppBadgeCount(notificationCount: number): Promise<void> {
-    this.#gate.invalidate();
-    await applyBadgeIntent(
-      await this.badgeNavigatorIfEnabled(),
-      badgeIntentFromCount(notificationCount)
-    );
+    const normalized = normalizeBadgeCount(notificationCount);
+    const isCurrent = this.#gate.next();
+    return this.enqueue(async () => {
+      if (!isCurrent()) return;
+      const persistedCount =
+        this.#lastPushAppBadgeCount === null
+          ? ((await this.foregroundBadgeIntentStorage?.readLastPushAppBadgeCount()) ?? 0)
+          : 0;
+      if (!isCurrent()) return;
+      const nonRegressingCount = Math.max(
+        this.#lastPushAppBadgeCount ?? 0,
+        persistedCount,
+        normalized
+      );
+      this.#lastPushAppBadgeCount = nonRegressingCount;
+      await this.foregroundBadgeIntentStorage?.writeLastPushAppBadgeCount(nonRegressingCount);
+      if (!isCurrent()) return;
+      await applyBadgeIntent(
+        await this.badgeNavigatorIfEnabled(),
+        badgeIntentFromCount(nonRegressingCount)
+      );
+    });
+  }
+
+  private enqueue(operation: () => Promise<void>): Promise<void> {
+    const run = this.#operationQueue.then(operation, operation);
+    this.#operationQueue = run.catch(() => {});
+    return run;
   }
 
   private async isServiceWorkerAppBadgeEnabled(): Promise<boolean> {

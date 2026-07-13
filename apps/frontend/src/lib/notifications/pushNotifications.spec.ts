@@ -3,7 +3,8 @@ import {
   ensureRegistered,
   getPushCapability,
   onNotificationClick,
-  unsubscribe
+  unsubscribe,
+  unsubscribeForSignOut
 } from './pushNotifications';
 import {
   notificationRoomTargetFromPathname,
@@ -62,9 +63,13 @@ function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-function makeSubscription(endpoint: string): TestPushSubscription {
+function makeSubscription(
+  endpoint: string,
+  applicationServerKey?: Uint8Array
+): TestPushSubscription {
   return {
     endpoint,
+    options: { applicationServerKey: applicationServerKey?.buffer ?? null },
     toJSON: () => ({
       endpoint,
       keys: {
@@ -77,12 +82,24 @@ function makeSubscription(endpoint: string): TestPushSubscription {
 }
 
 function installPushGlobals() {
+  const storage = new Map<string, string>();
   requestPermission = vi.fn(async () => {
     permission = 'granted';
     return permission;
   });
   getSubscription = vi.fn();
   subscribe = vi.fn();
+  const getNotifications = vi.fn(async (): Promise<Notification[]> => []);
+  const postMessage = vi.fn();
+  const setAppBadge = vi.fn(async () => {});
+  const clearAppBadge = vi.fn(async () => {});
+  const registration = {
+    pushManager: {
+      getSubscription,
+      subscribe
+    },
+    getNotifications
+  };
 
   vi.stubGlobal('Notification', {
     get permission() {
@@ -93,19 +110,25 @@ function installPushGlobals() {
   vi.stubGlobal('window', {
     Notification,
     PushManager: class PushManager {},
-    atob: (value: string) => Buffer.from(value, 'base64').toString('binary')
+    atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key)
+    }
   });
   vi.stubGlobal('navigator', {
     serviceWorker: {
-      ready: Promise.resolve({
-        pushManager: {
-          getSubscription,
-          subscribe
-        }
-      })
+      ready: Promise.resolve(registration),
+      controller: { postMessage },
+      addEventListener: vi.fn()
     },
-    userAgent: 'test-agent'
+    userAgent: 'test-agent',
+    setAppBadge,
+    clearAppBadge
   });
+
+  return { clearAppBadge, getNotifications, postMessage };
 }
 
 function installCapabilityGlobals(options: {
@@ -218,6 +241,7 @@ describe('pushNotifications.ensureRegistered', () => {
   beforeEach(() => {
     permission = 'default';
     installPushGlobals();
+    window.localStorage.setItem('towk:push:registered-vapid-public-key', 'dmFwaWQ');
     mocks.createPushNotificationAPI.mockReset();
     mocks.createPushNotificationAPI.mockReturnValue({
       subscribe: mocks.subscribePush,
@@ -276,6 +300,72 @@ describe('pushNotifications.ensureRegistered', () => {
     );
   });
 
+  it('replaces a subscription created with a stale VAPID key', async () => {
+    permission = 'granted';
+    const stale = makeSubscription('https://push.example/stale-key', new Uint8Array([1, 2, 3]));
+    const replacement = makeSubscription('https://push.example/replacement');
+    getSubscription.mockResolvedValue(stale);
+    subscribe.mockResolvedValue(replacement);
+
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(true);
+
+    expect(stale.unsubscribe).toHaveBeenCalledOnce();
+    expect(mocks.unsubscribePush).toHaveBeenCalledWith('https://push.example/stale-key');
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(mocks.subscribePush).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'https://push.example/replacement' })
+    );
+  });
+
+  it('replaces a pre-migration subscription once when the browser hides its VAPID key', async () => {
+    permission = 'granted';
+    window.localStorage.removeItem('towk:push:registered-vapid-public-key');
+    const stale = makeSubscription('https://push.example/unknown-key');
+    const replacement = makeSubscription('https://push.example/migrated-key');
+    let currentSubscription: TestPushSubscription | null = stale;
+    getSubscription.mockImplementation(async () => currentSubscription);
+    subscribe.mockImplementation(async () => {
+      currentSubscription = replacement;
+      return replacement;
+    });
+
+    await expect(ensureRegistered('bmV3', { prompt: false })).resolves.toBe(true);
+    await expect(ensureRegistered('bmV3', { prompt: false })).resolves.toBe(true);
+
+    expect(stale.unsubscribe).toHaveBeenCalledOnce();
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(replacement.unsubscribe).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem('towk:push:registered-vapid-public-key')).toBe('bmV3');
+  });
+
+  it('serializes concurrent reconciliation so a newly created subscription cannot be raced', async () => {
+    permission = 'granted';
+    const subscription = makeSubscription('https://push.example/serialized');
+    const firstSave = deferred<boolean>();
+    let currentSubscription: TestPushSubscription | null = null;
+
+    getSubscription.mockImplementation(async () => currentSubscription);
+    subscribe.mockImplementation(async () => {
+      currentSubscription = subscription;
+      return subscription;
+    });
+    mocks.subscribePush.mockReturnValueOnce(firstSave.promise).mockResolvedValue(true);
+
+    const first = ensureRegistered('dmFwaWQ', { prompt: false });
+    await vi.waitFor(() => expect(mocks.subscribePush).toHaveBeenCalledOnce());
+
+    const second = ensureRegistered('dmFwaWQ', { prompt: false });
+    await Promise.resolve();
+    expect(getSubscription).toHaveBeenCalledOnce();
+    expect(subscribe).toHaveBeenCalledOnce();
+
+    firstSave.resolve(true);
+    await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    expect(getSubscription).toHaveBeenCalledTimes(2);
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(subscription.unsubscribe).not.toHaveBeenCalled();
+  });
+
   it('prompts during explicit enable when permission is default', async () => {
     const subscription = makeSubscription('https://push.example/prompted');
     getSubscription.mockResolvedValue(null);
@@ -305,7 +395,32 @@ describe('pushNotifications.ensureRegistered', () => {
     expect(createdSubscription.unsubscribe).toHaveBeenCalledOnce();
   });
 
-  it('unsubscribes from the server before unsubscribing the browser subscription', async () => {
+  it('revokes a malformed browser subscription so the next attempt can recover', async () => {
+    permission = 'granted';
+    const malformed = makeSubscription('https://push.example/malformed');
+    malformed.toJSON = vi.fn(() => ({ endpoint: malformed.endpoint }));
+    getSubscription.mockResolvedValue(malformed);
+
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(false);
+
+    expect(malformed.unsubscribe).toHaveBeenCalledOnce();
+    expect(mocks.unsubscribePush).toHaveBeenCalledWith(malformed.endpoint);
+    expect(mocks.subscribePush).not.toHaveBeenCalled();
+  });
+
+  it('cleans up a newly created subscription when registration throws after creation', async () => {
+    permission = 'granted';
+    const created = makeSubscription('https://push.example/created-before-error');
+    getSubscription.mockResolvedValue(null);
+    subscribe.mockResolvedValue(created);
+    mocks.subscribePush.mockRejectedValueOnce(new Error('server unavailable'));
+
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(false);
+
+    expect(created.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('revokes the browser subscription and then cleans up the server record', async () => {
     permission = 'granted';
     const subscription = makeSubscription('https://push.example/existing');
     getSubscription.mockResolvedValue(subscription);
@@ -314,6 +429,58 @@ describe('pushNotifications.ensureRegistered', () => {
 
     expect(mocks.unsubscribePush).toHaveBeenCalledWith('https://push.example/existing');
     expect(subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it('still revokes the browser subscription when server cleanup is unavailable', async () => {
+    permission = 'granted';
+    const subscription = makeSubscription('https://push.example/offline-signout');
+    getSubscription.mockResolvedValue(subscription);
+    mocks.unsubscribePush.mockRejectedValueOnce(new Error('session already closed'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      await expect(unsubscribe()).resolves.toBe(true);
+      expect(subscription.unsubscribe).toHaveBeenCalledOnce();
+      await vi.waitFor(() => expect(consoleError).toHaveBeenCalled());
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('invalidates an in-flight registration before origin sign-out', async () => {
+    permission = 'granted';
+    const pushGlobals = installPushGlobals();
+    const closeFirst = vi.fn();
+    const closeSecond = vi.fn();
+    pushGlobals.getNotifications.mockResolvedValue([
+      { close: closeFirst },
+      { close: closeSecond }
+    ] as unknown as Notification[]);
+    const subscription = makeSubscription('https://push.example/signout-race');
+    const save = deferred<boolean>();
+    getSubscription.mockResolvedValue(subscription);
+    mocks.subscribePush.mockReturnValueOnce(save.promise);
+
+    const registration = ensureRegistered('dmFwaWQ', { prompt: false });
+    await vi.waitFor(() => expect(mocks.subscribePush).toHaveBeenCalledOnce());
+
+    await expect(unsubscribeForSignOut()).resolves.toBe(true);
+    expect(closeFirst).toHaveBeenCalledOnce();
+    expect(closeSecond).toHaveBeenCalledOnce();
+    expect(pushGlobals.clearAppBadge).toHaveBeenCalledOnce();
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'towk-badge-state',
+        badgeIntent: { kind: 'clear' },
+        notificationCount: 0
+      })
+    );
+    save.resolve(true);
+
+    await expect(registration).resolves.toBe(false);
+    expect(subscription.unsubscribe).toHaveBeenCalledTimes(2);
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(false);
+    expect(mocks.subscribePush).toHaveBeenCalledOnce();
   });
 });
 

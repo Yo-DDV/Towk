@@ -756,44 +756,46 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 		}
 	}
 
-	// Notify mentioned users (best-effort, don't fail the message if this fails)
-	var newlyAutoFollowedMentionedUserIDs []string
-	if len(mentionedUserIDs) > 0 {
-		newlyAutoFollowedMentionedUserIDs = c.notifyMentionedUsers(ctx, kind, room_id, user_id, event.Id, inThread, mentionedUserIDs, directMentionedUserIDs)
-	}
-
-	// Notify the author of the message being replied to (best-effort).
-	// Fires for both room-level replies and in-thread replies with inReplyTo set.
-	// Runs before notifyThreadFollowers so the more specific inReplyTo notification
-	// takes priority (thread participants dedup against this).
 	var replyNotifiedUserID string
-	if inReplyTo != "" {
-		replyNotifiedUserID = c.notifyInReplyToAuthor(ctx, kind, room_id, user_id, event.Id, inReplyTo, inThread, mentionedUserIDs)
-	}
-
-	// Notify all thread participants (best-effort).
-	// Newly auto-followed mention recipients should not also get the ambient
-	// followed-thread notification for the same message. Existing followers
-	// still receive it, matching the existing server badge count behavior.
+	var mentionNotifiedUserIDs []string
 	var threadFollowerNotifiedUserIDs []string
-	if inThread != "" {
-		skipIDs := append([]string(nil), newlyAutoFollowedMentionedUserIDs...)
-		if replyNotifiedUserID != "" {
-			skipIDs = append(skipIDs, replyNotifiedUserID)
+	if kind != KindDM {
+		// Channel mentions use the richer mention notification type. Direct
+		// messages are handled by one exclusive DM fanout below so a mention or
+		// reply inside a DM cannot produce duplicate notifications and pushes.
+		if len(mentionedUserIDs) > 0 {
+			mentionNotifiedUserIDs = c.notifyMentionedUsers(ctx, kind, room_id, user_id, event.Id, inThread, mentionedUserIDs, directMentionedUserIDs)
 		}
-		threadFollowerNotifiedUserIDs = c.notifyThreadFollowers(ctx, kind, room_id, user_id, event.Id, inThread, skipIDs)
+
+		// Notify the author of the message being replied to (best-effort).
+		// Runs before notifyThreadFollowers so the more specific inReplyTo
+		// notification takes priority.
+		if inReplyTo != "" {
+			replyNotifiedUserID = c.notifyInReplyToAuthor(ctx, kind, room_id, user_id, event.Id, inReplyTo, inThread, mentionNotifiedUserIDs)
+		}
+
+		// Mention recipients must not also get an ambient followed-thread
+		// notification for the same message, regardless of whether they already
+		// followed the thread or were auto-followed by this mention.
+		if inThread != "" {
+			skipIDs := append([]string(nil), mentionNotifiedUserIDs...)
+			if replyNotifiedUserID != "" {
+				skipIDs = append(skipIDs, replyNotifiedUserID)
+			}
+			threadFollowerNotifiedUserIDs = c.notifyThreadFollowers(ctx, kind, room_id, user_id, event.Id, inThread, skipIDs)
+		}
 	}
 
 	// Notify DM participants for every new message (best-effort)
 	if kind == KindDM {
-		c.notifyDMParticipants(ctx, room_id, user_id, event.Id)
+		c.notifyDMParticipants(ctx, room_id, user_id, event.Id, inThread)
 	}
 
 	// Notify room members who have ALL_MESSAGES notification level.
 	// Build a set of already-notified users to avoid duplicate notifications.
 	alreadyNotified := make(map[string]bool)
 	alreadyNotified[user_id] = true // Author
-	for _, uid := range mentionedUserIDs {
+	for _, uid := range mentionNotifiedUserIDs {
 		alreadyNotified[uid] = true
 	}
 	for _, uid := range threadFollowerNotifiedUserIDs {
@@ -803,16 +805,12 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	if replyNotifiedUserID != "" {
 		alreadyNotified[replyNotifiedUserID] = true
 	}
-	// Include DM participants to avoid duplicate notifications
-	// (they were already notified by notifyDMParticipants above)
-	if kind == KindDM {
-		if participants, err := c.GetRoomMembersList(ctx, KindDM, room_id); err == nil {
-			for _, participant := range participants {
-				alreadyNotified[participant.UserId] = true
-			}
-		}
+	// Direct messages have one exclusive fanout above. Keeping the ambient
+	// ALL_MESSAGES path channel-only makes duplicate prevention independent of
+	// a second participant-list read succeeding.
+	if kind != KindDM {
+		c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, event.Id, inThread, alreadyNotified)
 	}
-	c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, event.Id, inThread, alreadyNotified)
 
 	// Publish echo event to the message subject if "also send to channel" was requested.
 	// The echo references the original event_id, so resolvers can fold
@@ -846,6 +844,9 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 // can reuse the set and avoid duplicate notifications for the same user message.
 // This is best-effort - failures are logged but don't affect message posting.
 func (c *ChattoCore) notifyAllMessageSubscribers(ctx context.Context, kind RoomKind, roomID, authorID, eventID, threadRootID string, alreadyNotified map[string]bool) {
+	if kind == KindDM {
+		return
+	}
 	members, err := c.GetRoomMembersList(ctx, kind, roomID)
 	if err != nil {
 		c.logger.Warn("Failed to get room members for all-message notifications",
@@ -937,12 +938,15 @@ func (c *ChattoCore) DeleteMessage(ctx context.Context, actorID string, kind Roo
 	}
 	c.secureDeleteAllMessageBodyEvents(ctx, eventID)
 	if isEcho {
+		c.DismissMessageNotifications(ctx, kind, roomID, eventID)
 		c.logger.Debug("Message echo hidden", "kind", kind, "room_id", roomID, "event_id", eventID, "actor_id", actorID, "envelope_seq", originalEntry.StreamSeq)
 		return nil
 	}
-	for _, linkedID := range c.rooms().linkedEventIDs(eventID) {
+	linkedEventIDs := c.rooms().linkedEventIDs(eventID)
+	for _, linkedID := range linkedEventIDs {
 		c.secureDeleteAllMessageBodyEvents(ctx, linkedID)
 	}
+	c.DismissMessageNotifications(ctx, kind, roomID, append([]string{eventID}, linkedEventIDs...)...)
 
 	// Attachments are referenced by the (now-tombstoned) message but
 	// the binary blobs in the asset store don't get cleaned up by the
@@ -1143,18 +1147,13 @@ func (c *ChattoCore) reconcileEditedMessageChannelEcho(ctx context.Context, acto
 	if err != nil {
 		return fmt.Errorf("decrypt message body for echo: %w", err)
 	}
-	echoID, created, err := c.appendThreadReplyEcho(ctx, actorID, kind, agg, originalEvent, originalPost, current, string(plaintext))
+	_, _, err = c.appendThreadReplyEcho(ctx, actorID, kind, agg, originalEvent, originalPost, current, string(plaintext))
 	if err != nil {
 		return err
 	}
-	if created && echoID != "" {
-		alreadyNotified := make(map[string]bool)
-		alreadyNotified[actorID] = true
-		for _, uid := range originalPost.GetMentionedUserIds() {
-			alreadyNotified[uid] = true
-		}
-		c.notifyAllMessageSubscribers(ctx, kind, roomID, actorID, echoID, "", alreadyNotified)
-	}
+	// Enabling the channel echo later exposes another projection of an existing
+	// message; it is not a new user message and must not create a second
+	// notification for recipients already notified when the reply was posted.
 	return nil
 }
 

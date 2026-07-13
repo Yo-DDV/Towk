@@ -2,11 +2,15 @@ package core
 
 import (
 	"context"
+	"crypto/elliptic"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -101,16 +105,12 @@ func (c *ChattoCore) SavePushSubscription(
 	return subscription, nil
 }
 
-func isPushRuntimeStateKeyAbsent(err error) bool {
-	return errors.Is(err, jetstream.ErrKeyNotFound) || errors.Is(err, jetstream.ErrKeyDeleted)
-}
-
 func (c *ChattoCore) claimPushEndpointOwnership(ctx context.Context, userID, endpoint string) error {
 	ownerKey := pushEndpointOwnerKey(endpoint)
 	subscriptionKey := pushSubscriptionKey(userID, endpoint)
 	for range pushEndpointOwnerMaxRetries {
 		subscriptionEntry, err := c.storage.runtimeStateKV.Get(ctx, subscriptionKey)
-		if isPushRuntimeStateKeyAbsent(err) {
+		if isRuntimeStateKeyAbsent(err) {
 			return nil
 		}
 		if err != nil {
@@ -123,7 +123,7 @@ func (c *ChattoCore) claimPushEndpointOwnership(ctx context.Context, userID, end
 			return fmt.Errorf("failed to marshal push endpoint owner: %w", err)
 		}
 		entry, err := c.storage.runtimeStateKV.Get(ctx, ownerKey)
-		if isPushRuntimeStateKeyAbsent(err) {
+		if isRuntimeStateKeyAbsent(err) {
 			if _, err := c.storage.runtimeStateKV.Create(ctx, ownerKey, value); err == nil {
 				if current, err := c.storage.runtimeStateKV.Get(ctx, subscriptionKey); err == nil && current.Revision() == owner.SubscriptionRevision {
 					return nil
@@ -179,7 +179,7 @@ func (c *ChattoCore) PushSubscriptionOwnedByUser(ctx context.Context, userID, en
 func (c *ChattoCore) PushSubscriptionCurrentForUser(ctx context.Context, userID string, subscription *corev1.PushSubscription) (bool, error) {
 	key := pushSubscriptionKey(userID, subscription.Endpoint)
 	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
-	if isPushRuntimeStateKeyAbsent(err) {
+	if isRuntimeStateKeyAbsent(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -198,7 +198,7 @@ func (c *ChattoCore) PushSubscriptionCurrentForUser(ctx context.Context, userID 
 
 func (c *ChattoCore) getPushEndpointOwner(ctx context.Context, endpoint string) (*pushEndpointOwner, error) {
 	entry, err := c.storage.runtimeStateKV.Get(ctx, pushEndpointOwnerKey(endpoint))
-	if isPushRuntimeStateKeyAbsent(err) {
+	if isRuntimeStateKeyAbsent(err) {
 		return nil, nil
 	}
 	if err != nil {
@@ -223,7 +223,7 @@ func (c *ChattoCore) releasePushEndpointOwnership(ctx context.Context, userID, e
 	key := pushEndpointOwnerKey(endpoint)
 	for range pushEndpointOwnerMaxRetries {
 		entry, err := c.storage.runtimeStateKV.Get(ctx, key)
-		if isPushRuntimeStateKeyAbsent(err) {
+		if isRuntimeStateKeyAbsent(err) {
 			return nil
 		}
 		if err != nil {
@@ -237,7 +237,7 @@ func (c *ChattoCore) releasePushEndpointOwnership(ctx context.Context, userID, e
 			return nil
 		}
 		err = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
-		if err == nil || isPushRuntimeStateKeyAbsent(err) {
+		if err == nil || isRuntimeStateKeyAbsent(err) {
 			return nil
 		}
 		if errors.Is(err, jetstream.ErrKeyExists) {
@@ -261,7 +261,47 @@ func validatePushSubscription(endpoint, p256dh, auth, userAgent string) error {
 	if err := validateStringMaxLength("push user agent", userAgent, MaxPushUserAgentLength); err != nil {
 		return err
 	}
+	if endpoint == "" || p256dh == "" || auth == "" {
+		return invalidArgument("push endpoint, p256dh key, and auth secret are required")
+	}
+	p256dhBytes, err := decodePushBase64URL(p256dh)
+	if err != nil || len(p256dhBytes) != 65 {
+		return invalidArgument("push p256dh key must be a base64url-encoded uncompressed P-256 public key")
+	}
+	if x, y := elliptic.Unmarshal(elliptic.P256(), p256dhBytes); x == nil || y == nil {
+		return invalidArgument("push p256dh key must contain a valid P-256 public point")
+	}
+	authBytes, err := decodePushBase64URL(auth)
+	if err != nil || len(authBytes) != 16 {
+		return invalidArgument("push auth secret must be a base64url-encoded 16-byte value")
+	}
+	parsedEndpoint, err := url.Parse(endpoint)
+	if err != nil || parsedEndpoint.Scheme != "https" || parsedEndpoint.Hostname() == "" || parsedEndpoint.User != nil {
+		return invalidArgument("push endpoint must be an absolute HTTPS URL without user credentials")
+	}
+	if parsedEndpoint.Fragment != "" {
+		return invalidArgument("push endpoint must not contain a URL fragment")
+	}
+	if address := net.ParseIP(parsedEndpoint.Hostname()); address != nil && !isPublicPushEndpointIP(address) {
+		return invalidArgument("push endpoint must not target a local or private address")
+	}
 	return nil
+}
+
+func decodePushBase64URL(value string) ([]byte, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err == nil {
+		return decoded, nil
+	}
+	return base64.URLEncoding.DecodeString(value)
+}
+
+func isPublicPushEndpointIP(address net.IP) bool {
+	return address.IsGlobalUnicast() &&
+		!address.IsPrivate() &&
+		!address.IsLoopback() &&
+		!address.IsLinkLocalUnicast() &&
+		!address.IsUnspecified()
 }
 
 // DeletePushSubscription removes a push subscription by endpoint.
@@ -269,7 +309,7 @@ func validatePushSubscription(endpoint, p256dh, auth, userAgent string) error {
 func (c *ChattoCore) DeletePushSubscription(ctx context.Context, userID, endpoint string) error {
 	key := pushSubscriptionKey(userID, endpoint)
 	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
-	if err != nil && !isPushRuntimeStateKeyAbsent(err) {
+	if err != nil && !isRuntimeStateKeyAbsent(err) {
 		return fmt.Errorf("failed to get push subscription before deleting: %w", err)
 	}
 
@@ -281,7 +321,7 @@ func (c *ChattoCore) DeletePushSubscription(ctx context.Context, userID, endpoin
 
 	if entry != nil {
 		err = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
-		if err != nil && !isPushRuntimeStateKeyAbsent(err) && !errors.Is(err, jetstream.ErrKeyExists) {
+		if err != nil && !isRuntimeStateKeyAbsent(err) && !errors.Is(err, jetstream.ErrKeyExists) {
 			return fmt.Errorf("failed to delete push subscription: %w", err)
 		}
 	}
@@ -353,7 +393,7 @@ func (c *ChattoCore) DeleteAllUserPushSubscriptions(ctx context.Context, userID 
 	deleted := 0
 	for _, key := range keys {
 		entry, err := c.storage.runtimeStateKV.Get(ctx, key)
-		if isPushRuntimeStateKeyAbsent(err) {
+		if isRuntimeStateKeyAbsent(err) {
 			continue
 		}
 		if err != nil {
@@ -370,7 +410,7 @@ func (c *ChattoCore) DeleteAllUserPushSubscriptions(ctx context.Context, userID 
 
 		err = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
 		if err != nil {
-			if !isPushRuntimeStateKeyAbsent(err) && !errors.Is(err, jetstream.ErrKeyExists) {
+			if !isRuntimeStateKeyAbsent(err) && !errors.Is(err, jetstream.ErrKeyExists) {
 				c.logger.Warn("Failed to delete push subscription", "key", key, "error", err)
 			}
 			continue

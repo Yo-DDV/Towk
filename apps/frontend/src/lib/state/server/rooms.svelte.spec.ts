@@ -660,6 +660,35 @@ describe('RoomsStore - ingestServerEvent', () => {
     expect(store.refresh).toHaveBeenCalledOnce();
   });
 
+  it('applies server and room notification-level changes without a reload', () => {
+    const notificationLevels = new NotificationLevelStore();
+    const store = makeStore({ notificationLevels });
+
+    store.ingestServerEvent(
+      makeEvent(RoomEventKind.NotificationLevelChanged, {
+        level: NotificationLevel.Muted,
+        effectiveLevel: NotificationLevel.Muted,
+        nlcRoomId: null
+      })
+    );
+    store.ingestServerEvent(
+      makeEvent(RoomEventKind.NotificationLevelChanged, {
+        level: NotificationLevel.AllMessages,
+        effectiveLevel: NotificationLevel.AllMessages,
+        nlcRoomId: 'important'
+      })
+    );
+
+    expect(notificationLevels.getServerPreference()).toEqual({
+      level: NotificationLevel.Muted,
+      effectiveLevel: NotificationLevel.Muted
+    });
+    expect(notificationLevels.getRoomPreference('important')).toEqual({
+      level: NotificationLevel.AllMessages,
+      effectiveLevel: NotificationLevel.AllMessages
+    });
+  });
+
   it('does not refresh on irrelevant event types', () => {
     const store = makeStore();
     store.refresh = vi.fn().mockResolvedValue(undefined);

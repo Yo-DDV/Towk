@@ -61,10 +61,13 @@ test.describe('Multi-Tab Unread Sync', () => {
             // This way Tab 2 can see general's unread indicator in the room list
             await chatPage3.enterRoom('announcements');
 
-            // Wait for Tab 2 to show room-level unread indicator for general
+            // NORMAL preserves the generic unread state without creating a
+            // counted notification for an unmentioned room message.
             await expect(async () => {
-              const roomUnreadDot = page3.locator('[data-testid="room-unread-dot"]');
-              await expect(roomUnreadDot).toBeVisible();
+              const generalLink = page3.locator('nav').locator('a', { hasText: '# general' });
+              await expect(generalLink).toHaveClass(/font-semibold/);
+              await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
+              await expect(generalLink.getByTestId('room-unread-dot')).toBeVisible();
             }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
 
             // Wait for WebSocket subscription to be established
@@ -76,10 +79,12 @@ test.describe('Multi-Tab Unread Sync', () => {
             await chatPage.enterRoom('general');
             await waitForRoomReady(page, 'general');
 
-            // Tab 2: Should receive RoomMarkedAsReadEvent and clear room-level unread indicator
+            // Tab 2 receives both the read event and notification dismissal.
             await expect(async () => {
-              const roomUnreadDot = page3.locator('[data-testid="room-unread-dot"]');
-              await expect(roomUnreadDot).not.toBeVisible();
+              const generalLink = page3.locator('nav').locator('a', { hasText: '# general' });
+              await expect(generalLink).not.toHaveClass(/font-semibold/);
+              await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
+              await expect(generalLink.getByTestId('room-unread-dot')).not.toBeVisible();
             }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
           }
         );
@@ -198,11 +203,12 @@ test.describe('Unread indicators', () => {
         // Wait for server to register the unread state
         await waitForRoomUnreadViaConnect(page, generalRoomId, true);
 
-        // User A: Verify unread indicator appears on "general"
+        // User A: NORMAL preserves the generic unread state without creating
+        // a counted notification for an unmentioned room message.
         await expect(async () => {
           await expect(generalLink).toHaveClass(/font-semibold/);
-          const unreadDot = generalLink.locator('[data-testid="room-unread-dot"]');
-          await expect(unreadDot).toBeVisible();
+          await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
+          await expect(generalLink.getByTestId('room-unread-dot')).toBeVisible();
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
 
         // User A: Navigate to general room
@@ -218,8 +224,8 @@ test.describe('Unread indicators', () => {
         // Verify the unread indicator is now gone
         await expect(async () => {
           await expect(generalLink).not.toHaveClass(/font-semibold/);
-          const unreadDot = generalLink.locator('[data-testid="room-unread-dot"]');
-          await expect(unreadDot).not.toBeVisible();
+          await expect(generalLink.getByTestId('room-notification-badge')).not.toBeVisible();
+          await expect(generalLink.getByTestId('room-unread-dot')).not.toBeVisible();
         }).toPass({ timeout: TIMEOUTS.REALTIME_EVENT, intervals: [100, 250, 500, 1000] });
       }
     );

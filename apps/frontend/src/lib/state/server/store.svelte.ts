@@ -405,7 +405,14 @@ export class ServerStateStore {
     if (this.notifications.unreadNotificationCount > 0) return 'notification';
     if (this.notifications.hasSpaceNotification()) return 'notification';
     if (this.notifications.hasDMNotifications()) return 'notification';
-    if (this.roomUnread.hasAnyUnread) return 'unread';
+    if (
+      this.roomUnread.hasAnyUnreadMatching(
+        (roomId) => !this.notificationLevels.isRoomMuted(roomId),
+        !this.notificationLevels.isServerMuted()
+      )
+    ) {
+      return 'unread';
+    }
     return null;
   }
 

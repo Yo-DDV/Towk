@@ -440,6 +440,7 @@ func (c *ChattoCore) appendRoomLeaveBatch(ctx context.Context, kind RoomKind, ro
 		}
 	}
 	c.removeLiveKitParticipantAfterRoomLeave(ctx, cleanup)
+	c.DismissRoomNotifications(ctx, userID, roomID)
 	return cleanupErr
 }
 

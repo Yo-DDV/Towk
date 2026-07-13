@@ -42,12 +42,23 @@ the reminder for seven days; losing a previously granted permission restores it.
     false,
     Codecs.boolean
   );
+  // Remember the last permission seen on this device so revocation while the
+  // PWA is closed can invalidate an earlier reminder snooze on next launch.
+  // svelte-ignore state_referenced_locally
+  const lastObservedPermissionSlot = serverSlot(
+    originId,
+    `user:${userId}:pushPromptLastPermission`,
+    '',
+    Codecs.string
+  );
 
   let snoozedUntil = $state(snoozedUntilSlot.get());
   let now = $state(Date.now());
   let permission = $state<NotificationPermission | null>(getPermission());
+  let registrationHealthy = $state<boolean | null>(null);
   let loading = $state(false);
   let confirmOptOutVisible = $state(false);
+  let permissionRefreshGeneration = 0;
 
   const pushCapability = getPushCapability();
   const supported = pushCapability === 'supported';
@@ -61,7 +72,9 @@ the reminder for seven days; losing a previously granted permission restores it.
     )
   );
   const shouldShowEnablePrompt = $derived(
-    canShowPushPrompt && supported && permission === 'default'
+    canShowPushPrompt &&
+      supported &&
+      (permission === 'default' || (permission === 'granted' && registrationHealthy === false))
   );
   const shouldShowBlockedPrompt = $derived(
     canShowPushPrompt && supported && permission === 'denied'
@@ -73,16 +86,38 @@ the reminder for seven days; losing a previously granted permission restores it.
     snoozedUntilSlot.remove();
   }
 
-  function refreshPermissionState() {
-    const nextPermission = getPermission();
-    if (permission === 'granted' && nextPermission !== 'granted') {
+  function applyObservedPermission(nextPermission: NotificationPermission | null) {
+    const previouslyObserved = lastObservedPermissionSlot.get();
+    if (
+      nextPermission !== 'granted' &&
+      (permission === 'granted' || previouslyObserved === 'granted')
+    ) {
       clearReminderSnooze();
     }
-    if (nextPermission === 'granted') {
-      clearReminderSnooze();
-    }
+    if (nextPermission) lastObservedPermissionSlot.set(nextPermission);
     permission = nextPermission;
     now = Date.now();
+  }
+
+  async function refreshPermissionState(configuredVapidKey = vapidKey) {
+    const generation = ++permissionRefreshGeneration;
+    const nextPermission = getPermission();
+    applyObservedPermission(nextPermission);
+    registrationHealthy = null;
+
+    if (nextPermission === 'granted' && configuredVapidKey) {
+      const healthy = await ensureRegistered(configuredVapidKey, { prompt: false });
+      if (generation !== permissionRefreshGeneration) return;
+
+      const currentPermission = getPermission();
+      if (currentPermission !== nextPermission) {
+        applyObservedPermission(currentPermission);
+        registrationHealthy = null;
+        void refreshPermissionState();
+        return;
+      }
+      registrationHealthy = healthy;
+    }
   }
 
   function requestOptOut() {
@@ -109,7 +144,8 @@ the reminder for seven days; losing a previously granted permission restores it.
     loading = true;
     try {
       const enabled = await ensureRegistered(vapidKey, { prompt: true });
-      permission = getPermission();
+      applyObservedPermission(getPermission());
+      registrationHealthy = permission === 'granted' ? enabled : null;
 
       if (enabled) {
         clearReminderSnooze();
@@ -130,17 +166,47 @@ the reminder for seven days; losing a previously granted permission restores it.
   onMount(() => {
     // Migrate the old permanent opt-out into the new reminder policy.
     legacyDismissedSlot.remove();
-    refreshPermissionState();
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') refreshPermissionState();
+      if (document.visibilityState === 'visible') void refreshPermissionState();
     };
-    window.addEventListener('focus', refreshPermissionState);
+    const handleControllerChange = () => void refreshPermissionState();
+    const handleFocus = () => void refreshPermissionState();
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== snoozedUntilSlot.key) return;
+      snoozedUntil = snoozedUntilSlot.get();
+      now = Date.now();
+      void refreshPermissionState();
+    };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('storage', handleStorage);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    navigator.serviceWorker?.addEventListener('controllerchange', handleControllerChange);
     return () => {
-      window.removeEventListener('focus', refreshPermissionState);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('storage', handleStorage);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      navigator.serviceWorker?.removeEventListener('controllerchange', handleControllerChange);
     };
+  });
+
+  // Configuration arrives asynchronously with server state and can rotate at
+  // runtime. This single owner replaces the old parallel setup component,
+  // avoiding duplicate server writes while retaining automatic reconciliation.
+  $effect(() => {
+    const configured = originServerInfo?.pushNotificationsEnabled;
+    const configuredVapidKey = vapidKey;
+    if (!configured || !configuredVapidKey) return;
+    void refreshPermissionState(configuredVapidKey);
+  });
+
+  $effect(() => {
+    const delay = snoozedUntil - now;
+    if (delay <= 0) return;
+    const timeout = window.setTimeout(() => {
+      now = Date.now();
+    }, delay + 1);
+    return () => window.clearTimeout(timeout);
   });
 </script>
 

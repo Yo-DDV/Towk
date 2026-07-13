@@ -293,7 +293,12 @@ self.addEventListener('push', (event) => {
   let payload: DeclarativePushPayload;
   if (event.data) {
     try {
-      payload = event.data.json() as DeclarativePushPayload;
+      const decoded = event.data.json() as unknown;
+      if (typeof decoded !== 'object' || decoded === null) {
+        console.error('Invalid push payload');
+        return;
+      }
+      payload = decoded as DeclarativePushPayload;
     } catch {
       console.error('Failed to parse push payload');
       return;
@@ -306,10 +311,12 @@ self.addEventListener('push', (event) => {
   }
 
   // Handle dismiss action - close matching notifications on this device
-  if (payload.action === 'dismiss' && payload.tag) {
+  if (payload.action === 'dismiss') {
     event.waitUntil(
       (async () => {
-        const notifications = await self.registration.getNotifications({ tag: payload.tag });
+        const notifications = await self.registration.getNotifications(
+          payload.tag ? { tag: payload.tag } : undefined
+        );
         notifications.forEach((n) => n.close());
         await badgeCoordinator.reconcileAfterDismissPush();
       })()
@@ -359,6 +366,14 @@ self.addEventListener('notificationclick', (event) => {
       console.error('[SW] Error handling notification click:', err);
     })
   );
+});
+
+/**
+ * Reconcile the dock badge when the user dismisses a native notification from
+ * the operating-system notification center without opening Towk.
+ */
+self.addEventListener('notificationclose', (event) => {
+  event.waitUntil(badgeCoordinator.reconcileAfterNotificationClick().catch(() => {}));
 });
 
 // Export empty object for SvelteKit to recognize this as a module

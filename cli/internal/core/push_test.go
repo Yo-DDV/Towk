@@ -1,7 +1,11 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"crypto/elliptic"
+	"encoding/base64"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -10,6 +14,14 @@ import (
 
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
+
+var testPushP256DH = base64.RawURLEncoding.EncodeToString(
+	elliptic.Marshal(elliptic.P256(), elliptic.P256().Params().Gx, elliptic.P256().Params().Gy),
+)
+
+func testPushAuth(seed byte) string {
+	return base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{seed}, 16))
+}
 
 func TestPushSubscriptionKey(t *testing.T) {
 	tests := []struct {
@@ -127,8 +139,8 @@ func TestSavePushSubscription(t *testing.T) {
 
 	userID := "push-user-1"
 	endpoint := "https://push.example.com/endpoint123"
-	p256dh := "test-p256dh-key"
-	auth := "test-auth-secret"
+	p256dh := testPushP256DH
+	auth := testPushAuth(1)
 	userAgent := "TestBrowser/1.0"
 
 	t.Run("creates new subscription", func(t *testing.T) {
@@ -162,7 +174,7 @@ func TestSavePushSubscription(t *testing.T) {
 	})
 
 	t.Run("updates existing subscription with same endpoint", func(t *testing.T) {
-		newAuth := "updated-auth-secret"
+		newAuth := testPushAuth(2)
 		sub, err := core.SavePushSubscription(ctx, userID, endpoint, p256dh, newAuth, userAgent)
 		if err != nil {
 			t.Fatalf("SavePushSubscription error: %v", err)
@@ -184,13 +196,14 @@ func TestSavePushSubscription_StringLengthLimits(t *testing.T) {
 	ctx := context.Background()
 	userID := "push-user-limits"
 
-	t.Run("accepts values at max length", func(t *testing.T) {
+	t.Run("accepts maximum endpoint and user agent with valid credentials", func(t *testing.T) {
+		endpointPrefix := "https://push.example.com/"
 		_, err := core.SavePushSubscription(
 			ctx,
 			userID,
-			strings.Repeat("e", MaxPushEndpointLength),
-			strings.Repeat("p", MaxPushKeyLength),
-			strings.Repeat("a", MaxPushAuthLength),
+			endpointPrefix+strings.Repeat("e", MaxPushEndpointLength-len(endpointPrefix)),
+			testPushP256DH,
+			testPushAuth(1),
 			strings.Repeat("u", MaxPushUserAgentLength),
 		)
 		if err != nil {
@@ -210,8 +223,8 @@ func TestSavePushSubscription_StringLengthLimits(t *testing.T) {
 		{
 			name:     "endpoint",
 			endpoint: strings.Repeat("e", MaxPushEndpointLength+1),
-			p256dh:   "key",
-			auth:     "auth",
+			p256dh:   testPushP256DH,
+			auth:     testPushAuth(1),
 			field:    "push endpoint",
 			max:      MaxPushEndpointLength,
 		},
@@ -219,14 +232,14 @@ func TestSavePushSubscription_StringLengthLimits(t *testing.T) {
 			name:     "p256dh",
 			endpoint: "https://push.example.com/limits-p256dh",
 			p256dh:   strings.Repeat("p", MaxPushKeyLength+1),
-			auth:     "auth",
+			auth:     testPushAuth(1),
 			field:    "push p256dh key",
 			max:      MaxPushKeyLength,
 		},
 		{
 			name:     "auth",
 			endpoint: "https://push.example.com/limits-auth",
-			p256dh:   "key",
+			p256dh:   testPushP256DH,
 			auth:     strings.Repeat("a", MaxPushAuthLength+1),
 			field:    "push auth secret",
 			max:      MaxPushAuthLength,
@@ -234,8 +247,8 @@ func TestSavePushSubscription_StringLengthLimits(t *testing.T) {
 		{
 			name:      "user agent",
 			endpoint:  "https://push.example.com/limits-user-agent",
-			p256dh:    "key",
-			auth:      "auth",
+			p256dh:    testPushP256DH,
+			auth:      testPushAuth(1),
 			userAgent: strings.Repeat("u", MaxPushUserAgentLength+1),
 			field:     "push user agent",
 			max:       MaxPushUserAgentLength,
@@ -250,15 +263,52 @@ func TestSavePushSubscription_StringLengthLimits(t *testing.T) {
 	}
 }
 
+func TestSavePushSubscription_RejectsUnsafeOrIncompleteEndpoints(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		endpoint string
+		p256dh   string
+		auth     string
+	}{
+		{name: "empty endpoint", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "empty key", endpoint: "https://push.example.com/sub", auth: testPushAuth(1)},
+		{name: "empty auth", endpoint: "https://push.example.com/sub", p256dh: testPushP256DH},
+		{name: "malformed key", endpoint: "https://push.example.com/sub", p256dh: "not+base64url", auth: testPushAuth(1)},
+		{name: "short key", endpoint: "https://push.example.com/sub", p256dh: base64.RawURLEncoding.EncodeToString(make([]byte, 32)), auth: testPushAuth(1)},
+		{name: "off-curve key", endpoint: "https://push.example.com/sub", p256dh: base64.RawURLEncoding.EncodeToString(make([]byte, 65)), auth: testPushAuth(1)},
+		{name: "malformed auth", endpoint: "https://push.example.com/sub", p256dh: testPushP256DH, auth: "not+base64url"},
+		{name: "short auth", endpoint: "https://push.example.com/sub", p256dh: testPushP256DH, auth: base64.RawURLEncoding.EncodeToString(make([]byte, 8))},
+		{name: "relative endpoint", endpoint: "/push/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "plain HTTP", endpoint: "http://push.example.com/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "credentials", endpoint: "https://user@push.example.com/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "fragment", endpoint: "https://push.example.com/sub#fragment", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "IPv4 loopback", endpoint: "https://127.0.0.1/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "IPv4 private", endpoint: "https://10.0.0.1/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "IPv6 loopback", endpoint: "https://[::1]/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+		{name: "IPv6 private", endpoint: "https://[fd00::1]/sub", p256dh: testPushP256DH, auth: testPushAuth(1)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := core.SavePushSubscription(ctx, "push-unsafe-user", tt.endpoint, tt.p256dh, tt.auth, "browser"); !errors.Is(err, ErrInvalidArgument) {
+				t.Fatalf("SavePushSubscription() error = %v, want ErrInvalidArgument", err)
+			}
+		})
+	}
+}
+
 func TestGetAllPushSubscriptions(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := context.Background()
 
-	_, err := core.SavePushSubscription(ctx, "push-user-all-a", "https://push.example.com/all-a", "key", "auth", "browser-a")
+	_, err := core.SavePushSubscription(ctx, "push-user-all-a", "https://push.example.com/all-a", testPushP256DH, testPushAuth(1), "browser-a")
 	if err != nil {
 		t.Fatalf("SavePushSubscription user A error: %v", err)
 	}
-	_, err = core.SavePushSubscription(ctx, "push-user-all-b", "https://push.example.com/all-b", "key", "auth", "browser-b")
+	_, err = core.SavePushSubscription(ctx, "push-user-all-b", "https://push.example.com/all-b", testPushP256DH, testPushAuth(1), "browser-b")
 	if err != nil {
 		t.Fatalf("SavePushSubscription user B error: %v", err)
 	}
@@ -302,7 +352,7 @@ func TestGetUserPushSubscriptions(t *testing.T) {
 		}
 
 		for _, endpoint := range endpoints {
-			_, err := core.SavePushSubscription(ctx, userID, endpoint, "key", "auth", "browser")
+			_, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(1), "browser")
 			if err != nil {
 				t.Fatalf("SavePushSubscription error: %v", err)
 			}
@@ -325,7 +375,7 @@ func TestPushSubscriptionEndpointOwnershipTransfer(t *testing.T) {
 	userA := "push-owner-a"
 	userB := "push-owner-b"
 
-	if _, err := core.SavePushSubscription(ctx, userA, endpoint, "key-a", "auth-a", "browser"); err != nil {
+	if _, err := core.SavePushSubscription(ctx, userA, endpoint, testPushP256DH, testPushAuth(1), "browser"); err != nil {
 		t.Fatalf("SavePushSubscription user A: %v", err)
 	}
 	staleSubscriptions, err := core.GetUserPushSubscriptions(ctx, userA)
@@ -333,7 +383,7 @@ func TestPushSubscriptionEndpointOwnershipTransfer(t *testing.T) {
 		t.Fatalf("expected user A to initially own subscription, got %d, %v", len(staleSubscriptions), err)
 	}
 
-	if _, err := core.SavePushSubscription(ctx, userB, endpoint, "key-b", "auth-b", "browser"); err != nil {
+	if _, err := core.SavePushSubscription(ctx, userB, endpoint, testPushP256DH, testPushAuth(2), "browser"); err != nil {
 		t.Fatalf("SavePushSubscription user B: %v", err)
 	}
 
@@ -381,14 +431,14 @@ func TestPushSubscriptionCurrentForUserRejectsRotatedCredentials(t *testing.T) {
 	userID := "push-rotation-user"
 	endpoint := "https://push.example.com/rotated-credentials"
 
-	if _, err := core.SavePushSubscription(ctx, userID, endpoint, "old-key", "old-auth", "browser"); err != nil {
+	if _, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(1), "browser"); err != nil {
 		t.Fatalf("SavePushSubscription old credentials: %v", err)
 	}
 	stale, err := core.GetUserPushSubscriptions(ctx, userID)
 	if err != nil || len(stale) != 1 {
 		t.Fatalf("GetUserPushSubscriptions old credentials: count=%d err=%v", len(stale), err)
 	}
-	if _, err := core.SavePushSubscription(ctx, userID, endpoint, "new-key", "new-auth", "browser"); err != nil {
+	if _, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(2), "browser"); err != nil {
 		t.Fatalf("SavePushSubscription new credentials: %v", err)
 	}
 
@@ -416,7 +466,7 @@ func TestStaleSubscriptionRevisionCannotReleaseRefreshedOwnership(t *testing.T) 
 	userID := "push-refresh-race-user"
 	endpoint := "https://push.example.com/refresh-race"
 
-	if _, err := core.SavePushSubscription(ctx, userID, endpoint, "old-key", "old-auth", "browser"); err != nil {
+	if _, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(1), "browser"); err != nil {
 		t.Fatalf("SavePushSubscription old credentials: %v", err)
 	}
 	staleEntry, err := core.storage.runtimeStateKV.Get(ctx, pushSubscriptionKey(userID, endpoint))
@@ -424,7 +474,7 @@ func TestStaleSubscriptionRevisionCannotReleaseRefreshedOwnership(t *testing.T) 
 		t.Fatalf("get stale subscription entry: %v", err)
 	}
 
-	if _, err := core.SavePushSubscription(ctx, userID, endpoint, "new-key", "new-auth", "browser"); err != nil {
+	if _, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(2), "browser"); err != nil {
 		t.Fatalf("SavePushSubscription new credentials: %v", err)
 	}
 	if err := core.releasePushEndpointOwnership(ctx, userID, endpoint, staleEntry.Revision()); err != nil {
@@ -436,7 +486,7 @@ func TestStaleSubscriptionRevisionCannotReleaseRefreshedOwnership(t *testing.T) 
 		t.Fatalf("stale revision released refreshed ownership: owned=%t err=%v", owned, err)
 	}
 	subscriptions, err := core.GetUserPushSubscriptions(ctx, userID)
-	if err != nil || len(subscriptions) != 1 || subscriptions[0].Auth != "new-auth" {
+	if err != nil || len(subscriptions) != 1 || subscriptions[0].Auth != testPushAuth(2) {
 		t.Fatalf("refreshed subscription is not active: subscriptions=%v err=%v", subscriptions, err)
 	}
 }
@@ -477,7 +527,7 @@ func TestConcurrentPushEndpointOwnershipClaimsHaveOneWinner(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_, err := core.SavePushSubscription(ctx, userID, endpoint, "key", "auth", "browser")
+			_, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(1), "browser")
 			errs <- err
 		}()
 	}
@@ -520,12 +570,12 @@ func TestConcurrentSameUserPushSavesKeepLatestRecordActive(t *testing.T) {
 	errs := make(chan error, 2)
 	var wg sync.WaitGroup
 
-	for _, auth := range []string{"auth-a", "auth-b"} {
+	for _, auth := range []string{testPushAuth(1), testPushAuth(2)} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			<-start
-			_, err := core.SavePushSubscription(ctx, userID, endpoint, "key", auth, "browser")
+			_, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, auth, "browser")
 			errs <- err
 		}()
 	}
@@ -567,7 +617,7 @@ func TestDeletePushSubscription(t *testing.T) {
 
 	t.Run("deletes existing subscription", func(t *testing.T) {
 		// Create subscription
-		_, err := core.SavePushSubscription(ctx, userID, endpoint, "key", "auth", "browser")
+		_, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(1), "browser")
 		if err != nil {
 			t.Fatalf("SavePushSubscription error: %v", err)
 		}
@@ -617,7 +667,7 @@ func TestDeleteAllUserPushSubscriptions(t *testing.T) {
 		// Create multiple subscriptions
 		for i := 0; i < 3; i++ {
 			endpoint := "https://push.example.com/device" + string(rune('a'+i))
-			_, _ = core.SavePushSubscription(ctx, userID, endpoint, "key", "auth", "browser")
+			_, _ = core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, testPushAuth(1), "browser")
 		}
 
 		count, err := core.DeleteAllUserPushSubscriptions(ctx, userID)
@@ -655,7 +705,7 @@ func TestPushSubscriptionIsolation(t *testing.T) {
 
 	t.Run("user cannot see other user's subscriptions", func(t *testing.T) {
 		// Create subscription for userA
-		_, _ = core.SavePushSubscription(ctx, userA, "https://push.example.com/a", "key", "auth", "browser")
+		_, _ = core.SavePushSubscription(ctx, userA, "https://push.example.com/a", testPushP256DH, testPushAuth(1), "browser")
 
 		// userB should not see userA's subscription
 		userBSubs, _ := core.GetUserPushSubscriptions(ctx, userB)
@@ -676,8 +726,8 @@ func TestPushSubscriptionIsolation(t *testing.T) {
 		core.DeleteAllUserPushSubscriptions(ctx, userB)
 
 		// Create subscriptions for both users
-		_, _ = core.SavePushSubscription(ctx, userA, "https://push.example.com/a2", "key", "auth", "browser")
-		_, _ = core.SavePushSubscription(ctx, userB, "https://push.example.com/b2", "key", "auth", "browser")
+		_, _ = core.SavePushSubscription(ctx, userA, "https://push.example.com/a2", testPushP256DH, testPushAuth(1), "browser")
+		_, _ = core.SavePushSubscription(ctx, userB, "https://push.example.com/b2", testPushP256DH, testPushAuth(1), "browser")
 
 		// Delete userA's subscriptions
 		core.DeleteAllUserPushSubscriptions(ctx, userA)

@@ -1,6 +1,6 @@
 import { untrack } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
-import { RoomType, type UserAvatarUserView } from '$lib/render/types';
+import { RoomType, type NotificationLevel, type UserAvatarUserView } from '$lib/render/types';
 import {
   isMessagePostedEvent,
   RoomEventKind,
@@ -243,13 +243,11 @@ export class RoomsStore {
     if (this.loadId !== thisLoad) return;
 
     this.currentUserId = viewer.user.id;
-    this.notificationLevels.setServerPreference(
+    this.notificationLevels.replacePreferences(
       viewer.serverNotificationPreference.level,
-      viewer.serverNotificationPreference.effectiveLevel
+      viewer.serverNotificationPreference.effectiveLevel,
+      viewer.roomNotificationPreferences
     );
-    for (const pref of viewer.roomNotificationPreferences) {
-      this.notificationLevels.setRoomPreference(pref.roomId, pref.level, pref.effectiveLevel);
-    }
 
     const channelRooms = uniqueById(rooms.filter((room) => room.kind === RoomKind.CHANNEL));
     const dmRooms = uniqueById(rooms.filter((room) => room.kind === RoomKind.DM));
@@ -433,6 +431,23 @@ export class RoomsStore {
   ingestServerEvent(serverEvent: { event?: RoomEventKindSource }): void {
     const event = serverEvent.event;
     if (!event) return;
+    if (roomEventKind(event) === RoomEventKind.NotificationLevelChanged) {
+      const change = event as {
+        nlcRoomId?: string | null;
+        level: NotificationLevel;
+        effectiveLevel: NotificationLevel;
+      };
+      if (change.nlcRoomId) {
+        this.notificationLevels.setRoomPreference(
+          change.nlcRoomId,
+          change.level,
+          change.effectiveLevel
+        );
+      } else {
+        this.notificationLevels.setServerPreference(change.level, change.effectiveLevel);
+      }
+      return;
+    }
     if (isRoomStateRefreshEvent(event)) {
       void this.refresh();
       return;

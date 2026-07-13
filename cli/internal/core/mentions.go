@@ -423,7 +423,7 @@ func (c *ChattoCore) notifyMentionedUsers(ctx context.Context, kind RoomKind, ro
 		}
 	}
 
-	var newlyAutoFollowed []string
+	var notifiedUserIDs []string
 	for _, mentionedUserID := range mentionedUserIDs {
 		// Don't notify the author if they mentioned themselves
 		if mentionedUserID == authorID {
@@ -461,6 +461,7 @@ func (c *ChattoCore) notifyMentionedUsers(ctx context.Context, kind RoomKind, ro
 		if created == nil {
 			continue
 		}
+		notifiedUserIDs = append(notifiedUserIDs, mentionedUserID)
 		if inThread != "" {
 			if _, ok := directMentioned[mentionedUserID]; ok {
 				followed, err := c.FollowThreadIfNeverSet(ctx, kind, mentionedUserID, roomID, inThread, corev1.ThreadFollowSource_THREAD_FOLLOW_SOURCE_DIRECT_MENTION)
@@ -472,7 +473,6 @@ func (c *ChattoCore) notifyMentionedUsers(ctx context.Context, kind RoomKind, ro
 						"thread_root_event_id", inThread,
 						"error", err)
 				} else if followed {
-					newlyAutoFollowed = append(newlyAutoFollowed, mentionedUserID)
 					c.logger.Debug("Auto-followed thread for mentioned user",
 						"mentioned_user_id", mentionedUserID,
 						"kind", kind,
@@ -508,5 +508,5 @@ func (c *ChattoCore) notifyMentionedUsers(ctx context.Context, kind RoomKind, ro
 			"kind", kind,
 			"room_id", roomID)
 	}
-	return newlyAutoFollowed
+	return notifiedUserIDs
 }

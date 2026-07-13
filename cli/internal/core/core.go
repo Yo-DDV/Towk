@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -79,6 +80,18 @@ type ChattoCore struct {
 	// Used by the push notification system to dismiss notifications on other devices.
 	// Set this after ChattoCore is created.
 	OnNotificationDismissed func(ctx context.Context, userID string, notification *corev1.Notification)
+
+	// OnNotificationsDismissed is called once when every pending notification
+	// for a user is cleared. Push uses this bulk boundary to avoid one provider
+	// request per notification during dismiss-all and account deletion.
+	OnNotificationsDismissed func(ctx context.Context, userID string)
+
+	// notificationCallbackSlots bounds the process-local asynchronous handoff to
+	// Web Push. ALL_MESSAGES can fan one post out to every room member; without
+	// backpressure that path created one goroutine per recipient and could exhaust
+	// memory before the push sender's own HTTP concurrency limit took effect.
+	notificationCallbackSlotsOnce sync.Once
+	notificationCallbackSlots     chan struct{}
 
 	// OnVideoProcessingRequested starts best-effort local video processing for
 	// an already-declared message-owned asset. The video service registers this
@@ -1040,51 +1053,52 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 	mentionablesMgr := newMentionablesModel(mentionables, mentionablesProjector)
 
 	core := &ChattoCore{
-		nc:                       nc,
-		js:                       js,
-		logger:                   logger,
-		storage:                  storage,
-		config:                   cfg,
-		encryption:               encMgr,
-		dekResolver:              dekResolver,
-		configManager:            configMgr,
-		roomModel:                roomMgr,
-		userModel:                userMgr,
-		rbacModel:                rbacMgr,
-		mentionables:             mentionablesMgr,
-		s3Client:                 s3Client,
-		EventPublisher:           eventPublisher,
-		RoomDirectory:            roomDirectory,
-		RoomDirectoryProjector:   roomDirectoryProjector,
-		RoomMembership:           roomMembership,
-		RoomBans:                 roomBans,
-		ServerConfig:             serverConfigProjection,
-		ServerConfigProjector:    serverConfigProjector,
-		RoomCatalog:              roomCatalog,
-		RoomGroupLayout:          roomGroupLayout,
-		RoomGroupLayoutProjector: roomGroupLayoutProjector,
-		RoomGroups:               roomGroups,
-		RoomLayout:               roomLayout,
-		RoomTimeline:             roomTimeline,
-		RoomTimelineProjector:    roomTimelineProjector,
-		CallState:                callState,
-		CallStateProjector:       callStateProjector,
-		Assets:                   assetProjection,
-		AssetsProjector:          assetProjector,
-		Threads:                  threads,
-		ThreadsProjector:         threadsProjector,
-		Reactions:                reactions,
-		ReactionsProjector:       reactionsProjector,
-		Users:                    users,
-		UsersProjector:           usersProjector,
-		ContentKeys:              contentKeys,
-		ContentKeysProjector:     contentKeysProjector,
-		RBAC:                     rbac,
-		RBACProjector:            rbacProjector,
-		Mentionables:             mentionables,
-		MentionablesProjector:    mentionablesProjector,
-		projections:              projections,
-		bootDone:                 make(chan struct{}),
+		nc:                        nc,
+		js:                        js,
+		logger:                    logger,
+		storage:                   storage,
+		config:                    cfg,
+		encryption:                encMgr,
+		dekResolver:               dekResolver,
+		configManager:             configMgr,
+		roomModel:                 roomMgr,
+		userModel:                 userMgr,
+		rbacModel:                 rbacMgr,
+		mentionables:              mentionablesMgr,
+		s3Client:                  s3Client,
+		EventPublisher:            eventPublisher,
+		RoomDirectory:             roomDirectory,
+		RoomDirectoryProjector:    roomDirectoryProjector,
+		RoomMembership:            roomMembership,
+		RoomBans:                  roomBans,
+		ServerConfig:              serverConfigProjection,
+		ServerConfigProjector:     serverConfigProjector,
+		RoomCatalog:               roomCatalog,
+		RoomGroupLayout:           roomGroupLayout,
+		RoomGroupLayoutProjector:  roomGroupLayoutProjector,
+		RoomGroups:                roomGroups,
+		RoomLayout:                roomLayout,
+		RoomTimeline:              roomTimeline,
+		RoomTimelineProjector:     roomTimelineProjector,
+		CallState:                 callState,
+		CallStateProjector:        callStateProjector,
+		Assets:                    assetProjection,
+		AssetsProjector:           assetProjector,
+		Threads:                   threads,
+		ThreadsProjector:          threadsProjector,
+		Reactions:                 reactions,
+		ReactionsProjector:        reactionsProjector,
+		Users:                     users,
+		UsersProjector:            usersProjector,
+		ContentKeys:               contentKeys,
+		ContentKeysProjector:      contentKeysProjector,
+		RBAC:                      rbac,
+		RBACProjector:             rbacProjector,
+		Mentionables:              mentionables,
+		MentionablesProjector:     mentionablesProjector,
+		projections:               projections,
+		bootDone:                  make(chan struct{}),
+		notificationCallbackSlots: make(chan struct{}, maxConcurrentNotificationCallbacks),
 	}
 
 	callReconcileLease, err := lease.New(js, storage.memoryCacheKV, lease.Options{

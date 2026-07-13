@@ -28,7 +28,7 @@
   import { initPresenceTracking } from '$lib/presenceTracking';
   import ReturnUrlHandler from '$lib/components/ReturnUrlHandler.svelte';
   import PushNotificationPrompt from '$lib/components/PushNotificationPrompt.svelte';
-  import PushNotificationSetup from '$lib/components/PushNotificationSetup.svelte';
+  import { unsubscribeForSignOut } from '$lib/notifications/pushNotifications';
   import WelcomeBanner from '$lib/components/WelcomeBanner.svelte';
 
   let {
@@ -114,9 +114,13 @@
     provideEventBus(() => authenticatedOriginServerId);
 
     function clearTerminatedOriginSession() {
-      clearCachedUser();
-      serverRegistry.clearServerAuthentication(authenticatedOriginServerId);
-      hardRedirectAfterSignOut('/');
+      void unsubscribeForSignOut()
+        .catch(() => false)
+        .finally(() => {
+          clearCachedUser();
+          serverRegistry.clearServerAuthentication(authenticatedOriginServerId);
+          hardRedirectAfterSignOut('/');
+        });
     }
 
     // Subscribe to profile update events and populate the cache
@@ -230,7 +234,6 @@
 </script>
 
 <ReturnUrlHandler />
-<PushNotificationSetup />
 <PushNotificationPrompt userId={user.id} />
 <WelcomeBanner />
 

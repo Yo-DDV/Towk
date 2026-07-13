@@ -11,9 +11,11 @@ Towk has a persistent notification system surfaced through a bell icon and notif
 
 - A bell icon shows an unread count and opens the notification center listing recent notifications.
 - A notification appears for every non-muted DM, for a mention that resolves to the user in a NORMAL or ALL_MESSAGES channel room, or for every root and thread message in a channel room set to ALL_MESSAGES. Replies and followed threads do not bypass an explicit NORMAL opt-down unless the reply also mentions the recipient.
+- One posted message creates at most one notification per recipient. Mention notifications take priority over ambient channel/thread notifications, while a DM always uses the single direct-message notification type even when its body contains a mention or reply.
 - Mention notifications may come from direct `@username`, role `@role`, `@all`, or `@here` mentions. The bundled composer asks for confirmation before sending role, `@all`, or `@here` mentions, while API callers can post authorized messages directly.
 - Notifications auto-expire after 90 days.
 - Dismissing a notification removes it everywhere — across all the user's open tabs and devices.
+- Delivery and reads revalidate the current preference, message, read marker, room, and membership state. A cleanup race or corrupt key/value identity therefore cannot expose an inaccessible notification or dismiss a different healthy notification. Message and room deletion scan the notification state itself rather than only current membership, so residual records for former members are also closed and removed.
 - A notification sound plays and the in-app and installed PWA notification badges update in real time as new notifications arrive.
 - The installed PWA dock badge reflects pending notifications only; ordinary unread rooms stay in the in-app sidebar unless the user has configured them to create notifications.
 - Users can choose and locally shape the notification sound on each browser with volume, tone, and effect controls.
@@ -22,7 +24,7 @@ Towk has a persistent notification system surfaced through a bell icon and notif
 
 ## Notification Levels
 
-Per space and per room, the user picks one of four levels:
+Per server and per room, the user picks one of four levels:
 
 - **DEFAULT** — inherit from the parent (room → server → system default of ALL_MESSAGES).
 - **MUTED** — suppress everything for this scope, including @mentions. The room doesn't even show as unread in the sidebar.
@@ -103,6 +105,12 @@ from API callers.
 **Decision:** Do Not Disturb is checked at notification creation time. While the recipient has live DND presence, Towk still creates the persistent notification and publishes a silent live sync event, but it suppresses legacy attention live events, notification sounds, and web push delivery.
 **Why:** DND means "do not interrupt me now", not "discard things I should review later". Storing the notification preserves missed activity in the notification center and sidebar counts, while the silent marker lets clients update state without making noise.
 **Tradeoff:** A user may see badge/sidebar changes while actively viewing Towk in DND. That is less disruptive than sound or push, and it avoids losing important mentions or DMs.
+
+### 11. Current state remains authoritative across lifecycle races
+
+**Decision:** Notification creation performs a post-write eligibility check, and singular reads, list reads, counts, API hydration, and native-push delivery reuse the same current-state predicate. Stored identity must match the recipient and KV key. Callback execution is process-limited with backpressure instead of allocating one goroutine per room member or dropping work.
+**Why:** Preference changes, read markers, membership loss, room/message deletion, and fanout can race in either order. Cleanup alone cannot close the ordering where cleanup finishes immediately before a late write, and default ALL_MESSAGES increases the size of a possible fanout.
+**Tradeoff:** A saturated push path can apply backpressure to a large fanout after the persistent records and live events have been written. A durable per-user delivery queue would provide stronger crash recovery and ordering, but is a separate architecture rather than a reason to permit stale delivery or unbounded memory.
 
 ## Permissions
 

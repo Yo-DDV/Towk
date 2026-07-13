@@ -420,6 +420,12 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 					"notification_id", notification.Id)
 			}
 		}
+
+		// A dismissal can race between the last pending-state check above and
+		// provider delivery. Recheck after the send and compensate with the same
+		// tag-based dismiss payload so an out-of-order creation cannot leave a
+		// stale native notification visible.
+		compensateStalePushDelivery(ctx, chattoCore, sender, notification, subscriptions, logger)
 	}
 
 	// Set the callback that will be invoked when notifications are dismissed
@@ -471,6 +477,90 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 					"user_id", userID,
 					"tag", tag)
 			}
+		}
+	}
+
+	// A tagless dismiss is the backwards-compatible bulk boundary: current
+	// workers close every native notification, while older workers safely ignore
+	// the already-recognized dismiss action when no tag is present.
+	chattoCore.OnNotificationsDismissed = func(ctx context.Context, userID string) {
+		subscriptions, err := chattoCore.GetUserPushSubscriptions(ctx, userID)
+		if err != nil {
+			logger.Warn("Failed to get push subscriptions for bulk dismiss",
+				"user_id", userID,
+				"error", err)
+			return
+		}
+		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, userID, subscriptions, logger)
+		if len(subscriptions) == 0 {
+			return
+		}
+
+		results := sender.SendToMany(ctx, subscriptions, &push.Payload{Action: "dismiss"})
+		for _, result := range results {
+			if result.Gone {
+				if err := chattoCore.DeletePushSubscription(ctx, userID, result.Endpoint); err != nil {
+					logger.Warn("Failed to delete expired push subscription after bulk dismiss",
+						"endpoint_id", push.EndpointLogID(result.Endpoint),
+						"error", err)
+				}
+			} else if result.Error != nil {
+				logger.Debug("Failed to send bulk dismiss push",
+					"endpoint_id", push.EndpointLogID(result.Endpoint),
+					"error", result.Error)
+			}
+		}
+	}
+}
+
+type pushDeliveryState interface {
+	GetNotification(context.Context, string, string) (*corev1.Notification, error)
+	DeletePushSubscription(context.Context, string, string) error
+}
+
+type pushBatchSender interface {
+	SendToMany(context.Context, []*corev1.PushSubscription, *push.Payload) []*push.SendResult
+}
+
+func compensateStalePushDelivery(
+	ctx context.Context,
+	state pushDeliveryState,
+	sender pushBatchSender,
+	notification *corev1.Notification,
+	subscriptions []*corev1.PushSubscription,
+	logger *log.Logger,
+) {
+	pending, err := state.GetNotification(ctx, notification.RecipientId, notification.Id)
+	if err != nil {
+		logger.Warn("Failed to revalidate notification after push delivery",
+			"user_id", notification.RecipientId,
+			"notification_id", notification.Id,
+			"error", err)
+		return
+	}
+	if pending != nil {
+		return
+	}
+
+	tag := push.NotificationTag(notification)
+	if tag == "" {
+		return
+	}
+	cleanupResults := sender.SendToMany(ctx, subscriptions, &push.Payload{
+		Action: "dismiss",
+		Tag:    tag,
+	})
+	for _, result := range cleanupResults {
+		if result.Gone {
+			if err := state.DeletePushSubscription(ctx, notification.RecipientId, result.Endpoint); err != nil {
+				logger.Warn("Failed to delete expired push subscription after stale delivery cleanup",
+					"endpoint_id", push.EndpointLogID(result.Endpoint),
+					"error", err)
+			}
+		} else if result.Error != nil {
+			logger.Debug("Failed to send stale delivery cleanup push",
+				"endpoint_id", push.EndpointLogID(result.Endpoint),
+				"error", result.Error)
 		}
 	}
 }
@@ -582,6 +672,16 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 }
 
 func pushNotificationUsesCountBadge(notification *corev1.Notification) bool {
-	_, ok := notification.GetNotification().(*corev1.Notification_DmMessage)
-	return ok
+	if notification == nil {
+		return false
+	}
+	switch notification.GetNotification().(type) {
+	case *corev1.Notification_DmMessage,
+		*corev1.Notification_Mention,
+		*corev1.Notification_Reply,
+		*corev1.Notification_RoomMessage:
+		return true
+	default:
+		return false
+	}
 }

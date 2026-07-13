@@ -178,7 +178,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   function isHighlighted(room: RoomsListItem): boolean {
     if (room.id === activeRoomId) return true;
     if (activeCallRooms.has(room.id)) return true;
-    if (roomUnreadStore.roomIsUnread(room.id)) return true;
+    if (roomUnreadStore.roomIsUnread(room.id) && !notificationLevelStore.isRoomMuted(room.id)) {
+      return true;
+    }
     if (room.type === RoomType.Dm) {
       return room.viewerNotificationCount > 0;
     }
@@ -456,7 +458,8 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
 {#snippet dmLink(room: RoomsListItem)}
   {@const hasActiveCall = activeCallRooms.has(room.id)}
   {@const hasUnread = roomUnreadStore.roomIsUnread(room.id)}
-  {@const hasUnreadAttention = hasUnread && room.id !== activeRoomId}
+  {@const hasUnreadAttention =
+    hasUnread && room.id !== activeRoomId && !notificationLevelStore.isRoomMuted(room.id)}
   <a
     href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
     class={[
@@ -493,7 +496,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       <span class="sr-only">
         {m['room_list.new_direct_messages']({ count: room.viewerNotificationCount })}
       </span>
-    {:else if hasUnread}
+    {:else if hasUnread && !notificationLevelStore.isRoomMuted(room.id)}
       <UnreadDot color="primary" testid="dm-unread-dot" />
       <span class="sr-only">{m['room_list.unread_messages']()}</span>
     {/if}

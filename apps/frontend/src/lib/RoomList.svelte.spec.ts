@@ -158,7 +158,8 @@ function notification(id: string, roomId: string, isDM = false) {
       createdAt: '2026-06-18T10:00:00Z',
       actor: null,
       summary: 'new direct message',
-      room: { id: roomId }
+      room: { id: roomId },
+      eventId: `${id}-event`
     };
   }
 
@@ -277,6 +278,7 @@ beforeEach(() => {
   mocks.store.rooms.currentUserId = 'me';
   setRooms();
   vi.clearAllMocks();
+  mocks.store.notificationLevels.isRoomMuted.mockReturnValue(false);
   mocks.store.notifications.fetchRoomNotification.mockResolvedValue({
     ok: true,
     totalCount: 0,
@@ -292,6 +294,20 @@ beforeEach(() => {
 });
 
 describe('RoomList', () => {
+  it('hides plain unread attention for a muted direct-message room', async () => {
+    setRoomUnread('dm-with-participants', true);
+    mocks.store.notificationLevels.isRoomMuted.mockImplementation(
+      (roomId: string) => roomId === 'dm-with-participants'
+    );
+
+    const { container } = render(RoomList);
+    await expect.element(q(container, '[href="/chat/-/dm-with-participants"]')).toBeInTheDocument();
+
+    const dmRow = q(container, '[href="/chat/-/dm-with-participants"]');
+    expect(dmRow?.querySelector('[data-testid="dm-unread-dot"]')).toBeNull();
+    expect(dmRow?.classList.contains('font-semibold')).toBe(false);
+  });
+
   it('renders active-call DM rows with the pulse icon and participant avatars', async () => {
     mocks.activeCallRoomIds.add('dm-with-participants');
     mocks.callParticipants.set('dm-with-participants', [
