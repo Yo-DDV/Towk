@@ -138,6 +138,7 @@ Room sidebar panel for voice/video calls.
     isCameraEnabled: boolean;
     videoTrack: Track | null;
     isScreenShareEnabled: boolean;
+    isScreenShareAudioEnabled: boolean;
     screenShareTrack: Track | null;
   };
 
@@ -160,6 +161,7 @@ Room sidebar panel for voice/video calls.
         isCameraEnabled: p.isCameraEnabled,
         videoTrack: p.videoTrack,
         isScreenShareEnabled: p.isScreenShareEnabled,
+        isScreenShareAudioEnabled: p.isScreenShareAudioEnabled,
         screenShareTrack: p.screenShareTrack
       }));
     }
@@ -181,6 +183,7 @@ Room sidebar panel for voice/video calls.
       isCameraEnabled: false,
       videoTrack: null,
       isScreenShareEnabled: false,
+      isScreenShareAudioEnabled: false,
       screenShareTrack: null
     }));
   });
@@ -230,9 +233,9 @@ Room sidebar panel for voice/video calls.
     if (isConnecting) return hasActiveCall ? m['voice.joining']() : m['voice.starting']();
     return hasActiveCall ? m['voice.join_call']() : m['voice.start_call']();
   });
-  const controlButtonClass = 'btn-secondary btn-sm h-9 w-full !px-0';
-  const activeControlButtonClass = 'btn-success btn-sm h-9 w-full !px-0';
-  const dangerControlButtonClass = 'btn-danger btn-sm h-9 w-full !px-0';
+  const controlButtonClass = 'btn-secondary btn-sm h-12 w-full !px-0';
+  const activeControlButtonClass = 'btn-success btn-sm h-12 w-full !px-0';
+  const dangerControlButtonClass = 'btn-danger btn-sm h-12 w-full !px-0';
   const callTileCardClass =
     'call-speaking-card participant-card group/media relative flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-text/10 bg-surface-100 p-1.5 text-left text-text shadow-sm transition-colors hover:bg-surface-200/70';
   const callTileHeaderClass = 'flex min-w-0 items-center gap-2';
@@ -445,7 +448,8 @@ Room sidebar panel for voice/video calls.
   participant: DisplayParticipant,
   label: string,
   actions: 'media' | 'voice' | 'none',
-  showIndicators = true
+  showIndicators = true,
+  showScreenShareAudio = false
 )}
   <div class={callTileHeaderClass}>
     <button
@@ -455,6 +459,13 @@ Room sidebar panel for voice/video calls.
     >
       <UserAvatar user={participant.avatarUser} size="sm" />
       <span class="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+      {#if showScreenShareAudio && participant.isScreenShareAudioEnabled}
+        <span
+          class="iconify text-muted uil--volume"
+          aria-label={m['voice.screen_share_audio_active']()}
+          data-testid="call-screen-share-audio-indicator"
+        ></span>
+      {/if}
       {#if showIndicators}
         {@render participantIndicators(participant)}
       {/if}
@@ -544,7 +555,8 @@ Room sidebar panel for voice/video calls.
       participant,
       m['voice.screen_title']({ name: participant.displayName }),
       'media',
-      false
+      false,
+      true
     )}
     <button
       type="button"
@@ -580,7 +592,8 @@ Room sidebar panel for voice/video calls.
       participant,
       isScreen ? m['voice.screen_title']({ name: participant.displayName }) : participant.displayName,
       isScreen || isVideo ? 'media' : 'voice',
-      true
+      true,
+      isScreen
     )}
     <button
       type="button"
@@ -693,13 +706,19 @@ Room sidebar panel for voice/video calls.
 
         <button
           type="button"
-          class={voiceCallState.isScreenShareEnabled ? activeControlButtonClass : controlButtonClass}
+          class={voiceCallState.isScreenShareEnabled
+            ? activeControlButtonClass
+            : controlButtonClass}
           title={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
-            : m['voice.share_screen']()}
+            : voiceCallState.canShareScreen
+              ? m['voice.share_screen_with_audio']()
+              : m['voice.screen_share_unsupported']()}
           aria-label={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
-            : m['voice.share_screen']()}
+            : voiceCallState.canShareScreen
+              ? m['voice.share_screen_with_audio']()
+              : m['voice.screen_share_unsupported']()}
           data-testid="call-screen-share-toggle"
           onclick={() => voiceCallState.toggleScreenShare()}
           disabled={voiceCallState.isScreenSharePending}

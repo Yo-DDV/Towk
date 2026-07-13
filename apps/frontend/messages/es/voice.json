@@ -10,6 +10,7 @@
     "start_call": "Iniciar llamada",
     "leave": "dejar llamada",
     "share_screen": "Compartir pantalla",
+    "share_screen_with_audio": "Compartir pantalla y audio de la pestaña",
     "stop_share_screen": "dejar de compartir pantalla",
     "user_settings": "Configuración de usuario",
     "speaking": "Discurso",
@@ -53,6 +54,9 @@
     "camera_failed": "No se pudo encender tu cámara.",
     "screen_share_blocked": "La pantalla compartida fue cancelada o bloqueada.",
     "screen_share_failed": "No se pudo iniciar el uso compartido de pantalla.",
+    "screen_share_unsupported": "Este navegador o dispositivo no permite que las aplicaciones web compartan la pantalla.",
+    "screen_share_no_audio": "La pantalla se está compartiendo sin audio. Para compartir el audio de una pestaña, usa Chrome o Edge en un ordenador, elige una pestaña y activa «Compartir audio de la pestaña».",
+    "screen_share_audio_active": "Se está compartiendo el audio de la pestaña.",
     "speaker_switch_failed": "No se pudieron cambiar los altavoces. Es posible que este navegador o dispositivo no admita la selección de altavoces.",
     "device_switch_failed": "No se pudo cambiar a ese dispositivo.",
     "media_device_failed": "No se pudo acceder a un dispositivo multimedia."

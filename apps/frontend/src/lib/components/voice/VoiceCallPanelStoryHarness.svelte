@@ -97,6 +97,7 @@
 			isCameraEnabled: false,
 			videoTrack: null,
 			isScreenShareEnabled: false,
+			isScreenShareAudioEnabled: false,
 			screenShareTrack: null,
 			isLocallyMuted: false,
 			...overrides
@@ -126,6 +127,7 @@
 					isCameraEnabled: true,
 					videoTrack: cameraTrack,
 					isScreenShareEnabled: true,
+					isScreenShareAudioEnabled: true,
 					screenShareTrack: screenTrack
 				})
 			];
@@ -135,6 +137,7 @@
 			return [
 				participant('dana', 'Dana', {
 					isScreenShareEnabled: true,
+					isScreenShareAudioEnabled: true,
 					screenShareTrack: screenTrack
 				}),
 				viewer,

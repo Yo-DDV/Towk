@@ -10,6 +10,7 @@
     "start_call": "Iniciar chamada",
     "leave": "Sair da chamada",
     "share_screen": "Compartilhar tela",
+    "share_screen_with_audio": "Compartilhar tela e áudio da guia",
     "stop_share_screen": "Parar de compartilhar tela",
     "user_settings": "Configurações do usuário",
     "speaking": "Falando",
@@ -53,6 +54,9 @@
     "camera_failed": "Não foi possível ligar sua câmera.",
     "screen_share_blocked": "O compartilhamento de tela foi cancelado ou bloqueado.",
     "screen_share_failed": "Não foi possível iniciar o compartilhamento de tela.",
+    "screen_share_unsupported": "Este navegador ou dispositivo não permite que aplicativos web compartilhem a tela.",
+    "screen_share_no_audio": "O compartilhamento de tela começou sem áudio. Para compartilhar o áudio de uma guia, use o Chrome ou o Edge em um computador, escolha uma guia e ative «Compartilhar áudio da guia».",
+    "screen_share_audio_active": "O áudio da guia está sendo compartilhado.",
     "speaker_switch_failed": "Não foi possível trocar os alto-falantes. Este navegador ou dispositivo pode não suportar a seleção de alto-falantes.",
     "device_switch_failed": "Não foi possível mudar para esse dispositivo.",
     "media_device_failed": "Não foi possível acessar um dispositivo de mídia."
