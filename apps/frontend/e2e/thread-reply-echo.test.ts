@@ -12,6 +12,7 @@ import {
   postMessageViaConnect,
   postThreadReplyViaConnect,
   postThreadReplyWithEchoViaConnect,
+  updateServerNotificationPreference,
   waitForRoomReadViaConnect,
   waitForServerUnreadViaConnect
 } from './fixtures/connectHelpers';
@@ -1098,6 +1099,7 @@ test.describe('Thread Reply Echo ("Also send to channel")', () => {
 
     await withServerUser(browser!, serverURL, async ({ page: page2, chatPage: chatPage2 }) => {
       await test.step('User B opens the server and marks room as read', async () => {
+        await updateServerNotificationPreference(page2, 'NORMAL');
         await chatPage2.enterRoom('general');
         await waitForRoomReady(page2, 'general');
 
