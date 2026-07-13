@@ -255,14 +255,14 @@ func TestChattoCore_GetEffectiveNotificationLevel_Inheritance(t *testing.T) {
 		t.Fatalf("CreateRoom failed: %v", err)
 	}
 
-	// No preferences set: should return NORMAL (system default)
-	t.Run("no preferences returns NORMAL", func(t *testing.T) {
+	// No preferences set: should return ALL_MESSAGES (system default)
+	t.Run("no preferences returns ALL_MESSAGES", func(t *testing.T) {
 		level, err := core.GetEffectiveNotificationLevel(ctx, "test-user", room.Id)
 		if err != nil {
 			t.Fatalf("GetEffectiveNotificationLevel failed: %v", err)
 		}
-		if level != corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL {
-			t.Errorf("Expected NORMAL, got %v", level)
+		if level != corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES {
+			t.Errorf("Expected ALL_MESSAGES, got %v", level)
 		}
 	})
 
@@ -314,8 +314,8 @@ func TestChattoCore_GetEffectiveNotificationLevel_Inheritance(t *testing.T) {
 		}
 	})
 
-	// Clear space-level: should fall back to NORMAL
-	t.Run("all cleared falls back to NORMAL", func(t *testing.T) {
+	// Clear space-level: should fall back to ALL_MESSAGES
+	t.Run("all cleared falls back to ALL_MESSAGES", func(t *testing.T) {
 		err := core.SetSpaceNotificationLevel(ctx, "test-user", corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED)
 		if err != nil {
 			t.Fatalf("SetSpaceNotificationLevel failed: %v", err)
@@ -325,10 +325,152 @@ func TestChattoCore_GetEffectiveNotificationLevel_Inheritance(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetEffectiveNotificationLevel failed: %v", err)
 		}
-		if level != corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL {
-			t.Errorf("Expected NORMAL (system default), got %v", level)
+		if level != corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES {
+			t.Errorf("Expected ALL_MESSAGES (system default), got %v", level)
 		}
 	})
+}
+
+func TestChattoCore_DefaultAllMessagesNotifiesJoinedChannelMembers(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	recipient, err := core.CreateUser(ctx, SystemActorID, "default-notify-recipient", "Default Notify Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	author, err := core.CreateUser(ctx, SystemActorID, "default-notify-author", "Default Notify Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "default-notify-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, userID := range []string{recipient.Id, author.Id} {
+		if _, err := core.JoinRoom(ctx, userID, KindChannel, userID, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", userID, err)
+		}
+	}
+
+	effective, err := core.GetEffectiveNotificationLevel(ctx, recipient.Id, room.Id)
+	if err != nil {
+		t.Fatalf("GetEffectiveNotificationLevel: %v", err)
+	}
+	if effective != corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES {
+		t.Fatalf("default effective level = %v, want ALL_MESSAGES", effective)
+	}
+
+	posted, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "plain default notification", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(default): %v", err)
+	}
+	notifications, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(default): %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("default notifications = %d, want 1", len(notifications))
+	}
+	roomMessage := notifications[0].GetRoomMessage()
+	if roomMessage == nil || roomMessage.GetRoomId() != room.Id || roomMessage.GetEventId() != posted.Id {
+		t.Fatalf("default notification = %+v, want room %s event %s", notifications[0], room.Id, posted.Id)
+	}
+
+	threadReply, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "plain thread notification", nil, posted.Id, "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(thread reply): %v", err)
+	}
+	notifications, err = core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(thread reply): %v", err)
+	}
+	if len(notifications) != 2 {
+		t.Fatalf("notifications after thread reply = %d, want 2", len(notifications))
+	}
+	threadNotification := notifications[0].GetRoomMessage()
+	if threadNotification == nil || threadNotification.GetRoomId() != room.Id || threadNotification.GetEventId() != threadReply.Id || threadNotification.GetInThread() != posted.Id {
+		t.Fatalf("thread notification = %+v, want room %s event %s thread %s", notifications[0], room.Id, threadReply.Id, posted.Id)
+	}
+
+	threadReplyTime, err := core.GetEventTimestamp(ctx, KindChannel, room.Id, threadReply.Id)
+	if err != nil {
+		t.Fatalf("GetEventTimestamp(thread reply): %v", err)
+	}
+	if got := core.DismissRoomReadNotifications(ctx, KindChannel, recipient.Id, room.Id, threadReplyTime); got != 1 {
+		t.Fatalf("DismissRoomReadNotifications = %d, want root notification only", got)
+	}
+	notifications, err = core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(after room read): %v", err)
+	}
+	if len(notifications) != 1 || notifications[0].GetRoomMessage().GetInThread() != posted.Id {
+		t.Fatalf("notifications after room read = %+v, want thread notification only", notifications)
+	}
+	if got := core.DismissThreadReadNotifications(ctx, KindChannel, recipient.Id, room.Id, posted.Id, threadReplyTime); got != 1 {
+		t.Fatalf("DismissThreadReadNotifications = %d, want thread notification", got)
+	}
+
+	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
+	if _, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "plain opt-down notification", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(opt-down): %v", err)
+	}
+	notifications, err = core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(opt-down): %v", err)
+	}
+	if len(notifications) != 0 {
+		t.Fatalf("notifications after explicit NORMAL = %d, want none", len(notifications))
+	}
+}
+
+func TestChattoCore_DefaultAllMessagesDoesNotDuplicateThreadEcho(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	recipient, err := core.CreateUser(ctx, SystemActorID, "default-echo-recipient", "Default Echo Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	author, err := core.CreateUser(ctx, SystemActorID, "default-echo-author", "Default Echo Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	room, err := core.CreateRoom(ctx, author.Id, KindChannel, "", "default-echo-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	for _, userID := range []string{recipient.Id, author.Id} {
+		if _, err := core.JoinRoom(ctx, userID, KindChannel, userID, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", userID, err)
+		}
+	}
+
+	root, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "thread root", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(root): %v", err)
+	}
+	if _, err := core.DismissAllNotifications(ctx, recipient.Id); err != nil {
+		t.Fatalf("DismissAllNotifications(recipient): %v", err)
+	}
+
+	reply, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "thread reply with channel echo", nil, root.Id, "", nil, true)
+	if err != nil {
+		t.Fatalf("PostMessage(reply with echo): %v", err)
+	}
+	notifications, err := core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications: %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("notifications for one echoed reply = %d, want exactly 1: %+v", len(notifications), notifications)
+	}
+	roomMessage := notifications[0].GetRoomMessage()
+	if roomMessage == nil || roomMessage.GetEventId() != reply.Id || roomMessage.GetInThread() != root.Id {
+		t.Fatalf("notification = %+v, want original reply %s in thread %s", notifications[0], reply.Id, root.Id)
+	}
 }
 
 // ============================================================================

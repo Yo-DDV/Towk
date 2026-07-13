@@ -89,8 +89,6 @@ message ReplyNotification {
 
 // RoomMessageNotification is created for users with ALL_MESSAGES notification level.
 // The recipient is any room member with the ALL_MESSAGES level, except the author.
-// Only fires for root messages (thread replies do not generate ALL_MESSAGES
-// notifications), so no in_thread field is needed.
 message RoomMessageNotification {
   reserved 1;
   reserved "space_id";
@@ -100,4 +98,8 @@ message RoomMessageNotification {
 
   // Event ID of the message
   string event_id = 3;
+
+  // Thread root event ID when the message was posted inside a thread.
+  // Empty for root messages and channel echoes.
+  string in_thread = 4;
 }

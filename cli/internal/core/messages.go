@@ -775,12 +775,13 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// Newly auto-followed mention recipients should not also get the ambient
 	// followed-thread notification for the same message. Existing followers
 	// still receive it, matching the existing server badge count behavior.
+	var threadFollowerNotifiedUserIDs []string
 	if inThread != "" {
 		skipIDs := append([]string(nil), newlyAutoFollowedMentionedUserIDs...)
 		if replyNotifiedUserID != "" {
 			skipIDs = append(skipIDs, replyNotifiedUserID)
 		}
-		c.notifyThreadFollowers(ctx, kind, room_id, user_id, event.Id, inThread, skipIDs)
+		threadFollowerNotifiedUserIDs = c.notifyThreadFollowers(ctx, kind, room_id, user_id, event.Id, inThread, skipIDs)
 	}
 
 	// Notify DM participants for every new message (best-effort)
@@ -788,29 +789,30 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 		c.notifyDMParticipants(ctx, room_id, user_id, event.Id)
 	}
 
-	// Notify room members who have ALL_MESSAGES notification level (root messages only).
+	// Notify room members who have ALL_MESSAGES notification level.
 	// Build a set of already-notified users to avoid duplicate notifications.
-	if inThread == "" {
-		alreadyNotified := make(map[string]bool)
-		alreadyNotified[user_id] = true // Author
-		for _, uid := range mentionedUserIDs {
-			alreadyNotified[uid] = true
-		}
-		// Include in-reply-to author to avoid duplicate notification
-		if replyNotifiedUserID != "" {
-			alreadyNotified[replyNotifiedUserID] = true
-		}
-		// Include DM participants to avoid duplicate notifications
-		// (they were already notified by notifyDMParticipants above)
-		if kind == KindDM {
-			if participants, err := c.GetRoomMembersList(ctx, KindDM, room_id); err == nil {
-				for _, participant := range participants {
-					alreadyNotified[participant.UserId] = true
-				}
+	alreadyNotified := make(map[string]bool)
+	alreadyNotified[user_id] = true // Author
+	for _, uid := range mentionedUserIDs {
+		alreadyNotified[uid] = true
+	}
+	for _, uid := range threadFollowerNotifiedUserIDs {
+		alreadyNotified[uid] = true
+	}
+	// Include in-reply-to author to avoid duplicate notification
+	if replyNotifiedUserID != "" {
+		alreadyNotified[replyNotifiedUserID] = true
+	}
+	// Include DM participants to avoid duplicate notifications
+	// (they were already notified by notifyDMParticipants above)
+	if kind == KindDM {
+		if participants, err := c.GetRoomMembersList(ctx, KindDM, room_id); err == nil {
+			for _, participant := range participants {
+				alreadyNotified[participant.UserId] = true
 			}
 		}
-		c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, event.Id, alreadyNotified)
 	}
+	c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, event.Id, inThread, alreadyNotified)
 
 	// Publish echo event to the message subject if "also send to channel" was requested.
 	// The echo references the original event_id, so resolvers can fold
@@ -822,13 +824,15 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 			c.logger.Warn("Failed to publish thread reply echo", "error", err, "thread_reply_event_id", event.Id)
 		} else if created {
 			// Notify room members with ALL_MESSAGES notification level (best-effort).
-			// Build already-notified set: author + mentioned users (already notified above for original reply).
-			echoAlreadyNotified := make(map[string]bool)
-			echoAlreadyNotified[user_id] = true
-			for _, uid := range mentionedUserIDs {
-				echoAlreadyNotified[uid] = true
+			// The echo is a second projection of the same user message, so anyone
+			// notified for the original thread reply must not be notified again.
+			echoAlreadyNotified := make(map[string]bool, len(alreadyNotified))
+			for uid, notified := range alreadyNotified {
+				if notified {
+					echoAlreadyNotified[uid] = true
+				}
 			}
-			c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, echoID, echoAlreadyNotified)
+			c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, echoID, "", echoAlreadyNotified)
 		}
 	}
 
@@ -836,10 +840,12 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 }
 
 // notifyAllMessageSubscribers creates notifications for room members who have the
-// ALL_MESSAGES notification level. Only called for root messages (not thread replies).
+// ALL_MESSAGES notification level for root messages and thread replies.
 // Skips users who were already notified (mentions, thread replies, DM notifications).
+// Successful recipients are added to alreadyNotified so derived channel echoes
+// can reuse the set and avoid duplicate notifications for the same user message.
 // This is best-effort - failures are logged but don't affect message posting.
-func (c *ChattoCore) notifyAllMessageSubscribers(ctx context.Context, kind RoomKind, roomID, authorID, eventID string, alreadyNotified map[string]bool) {
+func (c *ChattoCore) notifyAllMessageSubscribers(ctx context.Context, kind RoomKind, roomID, authorID, eventID, threadRootID string, alreadyNotified map[string]bool) {
 	members, err := c.GetRoomMembersList(ctx, kind, roomID)
 	if err != nil {
 		c.logger.Warn("Failed to get room members for all-message notifications",
@@ -867,8 +873,9 @@ func (c *ChattoCore) notifyAllMessageSubscribers(ctx context.Context, kind RoomK
 		created, err := c.CreateNotification(ctx, memberID, authorID, &corev1.Notification{
 			Notification: &corev1.Notification_RoomMessage{
 				RoomMessage: &corev1.RoomMessageNotification{
-					RoomId:  roomID,
-					EventId: eventID,
+					RoomId:   roomID,
+					EventId:  eventID,
+					InThread: threadRootID,
 				},
 			},
 		})
@@ -878,6 +885,7 @@ func (c *ChattoCore) notifyAllMessageSubscribers(ctx context.Context, kind RoomK
 				"kind", kind, "room_id", roomID, "error", err)
 		} else if created != nil {
 			notifiedCount++
+			alreadyNotified[memberID] = true
 		}
 	}
 
@@ -1145,7 +1153,7 @@ func (c *ChattoCore) reconcileEditedMessageChannelEcho(ctx context.Context, acto
 		for _, uid := range originalPost.GetMentionedUserIds() {
 			alreadyNotified[uid] = true
 		}
-		c.notifyAllMessageSubscribers(ctx, kind, roomID, actorID, echoID, alreadyNotified)
+		c.notifyAllMessageSubscribers(ctx, kind, roomID, actorID, echoID, "", alreadyNotified)
 	}
 	return nil
 }

@@ -28,7 +28,7 @@ These preferences are server-side and sync across devices.
   const connection = useConnection();
 
   let serverLevel = $state<NotificationLevel>(NotificationLevel.Default);
-  let serverEffectiveLevel = $state<NotificationLevel>(NotificationLevel.Normal);
+  let serverEffectiveLevel = $state<NotificationLevel>(NotificationLevel.AllMessages);
 
   let rooms = $state<
     Array<{
@@ -68,7 +68,7 @@ These preferences are server-side and sync across devices.
       const mappedServerPref = notificationPreferenceFromAPI(serverPref);
       serverLevel =
         mappedServerPref.level === NotificationLevel.Default
-          ? NotificationLevel.Normal
+          ? mappedServerPref.effectiveLevel
           : mappedServerPref.level;
       serverEffectiveLevel = mappedServerPref.effectiveLevel;
       notificationLevelStore.setServerPreference(
@@ -85,7 +85,7 @@ These preferences are server-side and sync across devices.
           id: room.id,
           name: room.name,
           level: pref?.level ?? NotificationLevel.Default,
-          effectiveLevel: pref?.effectiveLevel ?? NotificationLevel.Normal
+          effectiveLevel: pref?.effectiveLevel ?? NotificationLevel.AllMessages
         };
       });
 

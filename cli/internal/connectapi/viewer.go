@@ -176,7 +176,7 @@ func (s *viewerService) serverNotificationPreference(ctx context.Context, userID
 	}
 	effectiveLevel := level
 	if effectiveLevel == corev1.NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED {
-		effectiveLevel = corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL
+		effectiveLevel = core.DefaultNotificationLevel
 	}
 	return apiNotificationPreference(level, effectiveLevel), nil
 }

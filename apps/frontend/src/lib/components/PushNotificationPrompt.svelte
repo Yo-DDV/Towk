@@ -1,18 +1,26 @@
 <!--
 @component
 
-Shows a persistent top-overlay prompt for users who can enable Web Push but
-have not made a browser permission choice yet.
+Shows a persistent, non-blocking Web Push reminder. A confirmed refusal snoozes
+the reminder for seven days; losing a previously granted permission restores it.
 -->
 <script lang="ts">
+  import { goto } from '$app/navigation';
+  import { resolve } from '$app/paths';
+  import { onMount } from 'svelte';
   import {
     ensureRegistered,
     getPushCapability,
     getPermission
   } from '$lib/notifications/pushNotifications';
+  import {
+    isPushPromptReminderDue,
+    nextPushPromptReminderAt
+  } from '$lib/notifications/pushPromptPolicy';
+  import { serverIdToSegment } from '$lib/navigation';
   import { Codecs, serverSlot } from '$lib/storage/slot';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { TopOverlayNotice } from '$lib/ui';
+  import { ConfirmDialog, TopOverlayNotice } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
 
@@ -21,32 +29,78 @@ have not made a browser permission choice yet.
   const originId = serverRegistry.originServer?.id ?? '';
   const originServerInfo = originId ? serverRegistry.getStore(originId).serverInfo : undefined;
   // svelte-ignore state_referenced_locally
-  const dismissedSlot = serverSlot(
+  const snoozedUntilSlot = serverSlot(
+    originId,
+    `user:${userId}:pushPromptSnoozedUntil`,
+    0,
+    Codecs.number({ min: 0 })
+  );
+  // svelte-ignore state_referenced_locally
+  const legacyDismissedSlot = serverSlot(
     originId,
     `user:${userId}:pushPromptDismissed`,
     false,
     Codecs.boolean
   );
 
-  let dismissed = $state(dismissedSlot.get());
+  let snoozedUntil = $state(snoozedUntilSlot.get());
+  let now = $state(Date.now());
   let permission = $state<NotificationPermission | null>(getPermission());
   let loading = $state(false);
+  let confirmOptOutVisible = $state(false);
 
   const pushCapability = getPushCapability();
   const supported = pushCapability === 'supported';
   const needsIosHomeScreen = pushCapability === 'ios_home_screen_required';
   const vapidKey = $derived(originServerInfo?.vapidPublicKey ?? null);
   const canShowPushPrompt = $derived(
-    Boolean(originServerInfo?.pushNotificationsEnabled && vapidKey && !dismissed)
+    Boolean(
+      originServerInfo?.pushNotificationsEnabled &&
+      vapidKey &&
+      isPushPromptReminderDue(snoozedUntil, now)
+    )
   );
   const shouldShowEnablePrompt = $derived(
     canShowPushPrompt && supported && permission === 'default'
   );
+  const shouldShowBlockedPrompt = $derived(
+    canShowPushPrompt && supported && permission === 'denied'
+  );
   const shouldShowIosHomeScreenNotice = $derived(canShowPushPrompt && needsIosHomeScreen);
 
-  function optOut() {
-    dismissed = true;
-    dismissedSlot.set(true);
+  function clearReminderSnooze() {
+    snoozedUntil = 0;
+    snoozedUntilSlot.remove();
+  }
+
+  function refreshPermissionState() {
+    const nextPermission = getPermission();
+    if (permission === 'granted' && nextPermission !== 'granted') {
+      clearReminderSnooze();
+    }
+    if (nextPermission === 'granted') {
+      clearReminderSnooze();
+    }
+    permission = nextPermission;
+    now = Date.now();
+  }
+
+  function requestOptOut() {
+    confirmOptOutVisible = true;
+  }
+
+  function confirmOptOut() {
+    snoozedUntil = nextPushPromptReminderAt();
+    snoozedUntilSlot.set(snoozedUntil);
+    confirmOptOutVisible = false;
+  }
+
+  function openNotificationSettings() {
+    void goto(
+      resolve('/chat/[serverId]/settings/notifications', {
+        serverId: serverIdToSegment(originId)
+      })
+    );
   }
 
   async function enablePush() {
@@ -58,6 +112,7 @@ have not made a browser permission choice yet.
       permission = getPermission();
 
       if (enabled) {
+        clearReminderSnooze();
         toast.success(m['settings.notifications.push_prompt.enabled']());
         return;
       }
@@ -71,6 +126,22 @@ have not made a browser permission choice yet.
       loading = false;
     }
   }
+
+  onMount(() => {
+    // Migrate the old permanent opt-out into the new reminder policy.
+    legacyDismissedSlot.remove();
+    refreshPermissionState();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshPermissionState();
+    };
+    window.addEventListener('focus', refreshPermissionState);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', refreshPermissionState);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  });
 </script>
 
 {#if shouldShowEnablePrompt}
@@ -89,7 +160,23 @@ have not made a browser permission choice yet.
     }}
     secondaryAction={{
       label: m['settings.notifications.push_prompt.dismiss'](),
-      onclick: optOut
+      onclick: requestOptOut
+    }}
+  />
+{:else if shouldShowBlockedPrompt}
+  <TopOverlayNotice
+    title={m['settings.notifications.push_prompt.blocked_title']()}
+    message={m['settings.notifications.push_prompt.blocked_message']()}
+    icon="uil--bell-slash"
+    tone="warning"
+    primaryAction={{
+      label: m['settings.notifications.push_prompt.blocked_action'](),
+      icon: 'uil--setting',
+      onclick: openNotificationSettings
+    }}
+    secondaryAction={{
+      label: m['settings.notifications.push_prompt.dismiss'](),
+      onclick: requestOptOut
     }}
   />
 {:else if shouldShowIosHomeScreenNotice}
@@ -100,7 +187,19 @@ have not made a browser permission choice yet.
     tone="info"
     secondaryAction={{
       label: m['settings.notifications.push_prompt.dismiss'](),
-      onclick: optOut
+      onclick: requestOptOut
     }}
   />
+{/if}
+
+{#if confirmOptOutVisible}
+  <ConfirmDialog
+    title={m['settings.notifications.push_prompt.confirm_title']()}
+    tone="warning"
+    actionLabel={m['settings.notifications.push_prompt.confirm_action']()}
+    onconfirm={confirmOptOut}
+    onclose={() => (confirmOptOutVisible = false)}
+  >
+    {m['settings.notifications.push_prompt.confirm_message']()}
+  </ConfirmDialog>
 {/if}

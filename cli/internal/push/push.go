@@ -389,7 +389,7 @@ func BuildPayloadFromNotification(notif *corev1.Notification, actorDisplayName, 
 		}
 		payload.Body = preview
 		payload.Tag = "room-message-" + n.RoomMessage.EventId
-		payload.URL = buildNotificationURL(baseURL, n.RoomMessage.RoomId, "", n.RoomMessage.EventId)
+		payload.URL = buildNotificationURL(baseURL, n.RoomMessage.RoomId, n.RoomMessage.InThread, n.RoomMessage.EventId)
 
 	default:
 		payload.Title = "New notification"

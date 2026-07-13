@@ -1,16 +1,16 @@
 # FDR-012: Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-04
+**Last reviewed:** 2026-07-13
 
 ## Overview
 
-Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, replies to their own messages, new posts in threads they follow, and (optionally) all messages in rooms they've subscribed to. Notification levels are configurable per space and per room.
+Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, replies to their own messages, new posts in threads they follow, and all messages in rooms they have joined by default. Notification levels are configurable per server and per room.
 
 ## Behavior
 
 - A bell icon shows an unread count and opens the notification center listing recent notifications.
-- A notification appears for: a DM message, a mention that resolves to the user, a reply to one of the user's messages, a new reply in a thread the user follows, or any root message in a room set to ALL_MESSAGES.
+- A notification appears for: a DM message, a mention that resolves to the user, a reply to one of the user's messages, a new reply in a thread the user follows, or any root or thread message in a room set to ALL_MESSAGES.
 - Mention notifications may come from direct `@username`, role `@role`, `@all`, or `@here` mentions. The bundled composer asks for confirmation before sending role, `@all`, or `@here` mentions, while API callers can post authorized messages directly.
 - Notifications auto-expire after 90 days.
 - Dismissing a notification removes it everywhere — across all the user's open tabs and devices.
@@ -24,10 +24,12 @@ Towk has a persistent notification system surfaced through a bell icon and notif
 
 Per space and per room, the user picks one of four levels:
 
-- **DEFAULT** — inherit from the parent (room → space → system default of NORMAL).
+- **DEFAULT** — inherit from the parent (room → server → system default of ALL_MESSAGES).
 - **MUTED** — suppress everything for this scope, including @mentions. The room doesn't even show as unread in the sidebar.
-- **NORMAL** — notifications for mentions, DMs, and thread replies. Default behavior.
-- **ALL_MESSAGES** — like NORMAL plus every root message in the room.
+- **NORMAL** — notifications for mentions, DMs, and thread replies. Users can choose this to reduce ambient message notifications.
+- **ALL_MESSAGES** — like NORMAL plus every root and thread message in the room.
+
+An absent stored preference resolves to ALL_MESSAGES at read and delivery time. This semantic default applies equally to existing and newly created accounts without rewriting event history. Explicit NORMAL, MUTED, and room overrides remain authoritative user choices.
 
 ## Thread Follow
 
@@ -72,11 +74,11 @@ from API callers.
 **Why:** Towk needs explicit operational pings for small teams and rooms, but broad pings should be deliberate in the main client. Keeping the safeguard in the client avoids making the integration API carry a client-shaped confirmation token that does not provide meaningful abuse protection.
 **Tradeoff:** Operators and integrations can force attention in a room unless recipients have muted it. This is acceptable because mute remains authoritative and integrations can add their own policy or UX friction where appropriate.
 
-### 6. ALL_MESSAGES is a per-room subscription, not a per-message setting
+### 6. ALL_MESSAGES is the receiver-controlled system default
 
-**Decision:** "Notify me for every message" is configured per room by the user, not per message by the poster.
-**Why:** Receiver-controlled subscription puts the ongoing ambient-notification choice with the person who has to live with the noise. Sender-controlled broadcasts are reserved for explicit mentions; the bundled client adds confirmation friction for role and room-wide mentions.
-**Tradeoff:** Users who want every message still need to opt into ALL_MESSAGES; senders should use mentions only for attention events.
+**Decision:** Users without an explicit preference receive notifications for every root and thread message in every joined room. They can reduce delivery at server or room scope with NORMAL or MUTED; message authors cannot change a recipient's ambient-notification choice.
+**Why:** A real-time chat client should surface messages immediately unless the recipient deliberately chooses less attention. Resolving an absent preference dynamically also upgrades existing accounts without a destructive backfill or overwriting explicit choices.
+**Tradeoff:** Fresh and previously unconfigured accounts receive more notifications. The settings page, per-room overrides, DND, and mute controls remain the user's escape hatches.
 
 ### 7. Push notifications piggyback on persistent notifications
 

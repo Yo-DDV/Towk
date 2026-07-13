@@ -79,7 +79,7 @@ func (TimeFormat) EnumDescriptor() ([]byte, []int) {
 type NotificationLevel int32
 
 const (
-	// Use inherited default (server default for rooms, NORMAL for server).
+	// Use inherited default (server default for rooms, ALL_MESSAGES for server).
 	NotificationLevel_NOTIFICATION_LEVEL_UNSPECIFIED NotificationLevel = 0
 	// Suppress all notifications and unread markers.
 	NotificationLevel_NOTIFICATION_LEVEL_MUTED NotificationLevel = 1
@@ -196,7 +196,7 @@ func (x *ServerUserPreferences) GetTimeFormat() TimeFormat {
 // Stored in the server's CONFIG KV bucket with key "user_preferences.{userId}".
 type UserPreferences struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Notification level for the server (UNSPECIFIED = inherit system default of NORMAL).
+	// Notification level for the server (UNSPECIFIED = inherit system default of ALL_MESSAGES).
 	NotificationLevel NotificationLevel `protobuf:"varint,1,opt,name=notification_level,json=notificationLevel,proto3,enum=chatto.core.v1.NotificationLevel" json:"notification_level,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache

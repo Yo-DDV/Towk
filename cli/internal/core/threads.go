@@ -255,15 +255,17 @@ func setRoomEventsResultCursors(result *RoomEventsResult) {
 // Followers are users who have explicitly or automatically followed the thread (stored in RUNTIME KV).
 // Users in skipIDs are excluded (e.g., already notified via inReplyTo).
 // This is best-effort - failures are logged but don't affect message posting.
-func (c *ChattoCore) notifyThreadFollowers(ctx context.Context, kind RoomKind, roomID, replyAuthorID, replyEventID, threadRootID string, skipIDs []string) {
+// Returns recipients that received a notification so later fanout can deduplicate.
+func (c *ChattoCore) notifyThreadFollowers(ctx context.Context, kind RoomKind, roomID, replyAuthorID, replyEventID, threadRootID string, skipIDs []string) []string {
 	// Get all users following this thread
 	followerIDs, err := c.GetThreadFollowers(ctx, kind, roomID, threadRootID)
 	if err != nil {
 		c.logger.Warn("Failed to get thread followers for notification",
 			"thread_root_id", threadRootID,
 			"error", err)
-		return
+		return nil
 	}
+	notifiedUserIDs := make([]string, 0, len(followerIDs))
 
 	// Build skip set for O(1) lookups
 	skipSet := make(map[string]bool, len(skipIDs))
@@ -314,6 +316,7 @@ func (c *ChattoCore) notifyThreadFollowers(ctx context.Context, kind RoomKind, r
 				"error", err)
 		} else if created != nil {
 			notifiedCount++
+			notifiedUserIDs = append(notifiedUserIDs, followerID)
 		}
 	}
 
@@ -325,6 +328,7 @@ func (c *ChattoCore) notifyThreadFollowers(ctx context.Context, kind RoomKind, r
 			"kind", kind,
 			"room_id", roomID)
 	}
+	return notifiedUserIDs
 }
 
 // notifyInReplyToAuthor creates a persistent notification for the author of a message

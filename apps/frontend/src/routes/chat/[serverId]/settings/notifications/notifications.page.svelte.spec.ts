@@ -225,6 +225,23 @@ describe('Notification settings page', () => {
     expect(container.querySelector('.uil--fire')).not.toBeNull();
   });
 
+  it('selects All Messages when the server preference inherits the system default', async () => {
+    mocks.getServerNotificationPreference.mockResolvedValue({
+      level: ApiNotificationLevel.DEFAULT,
+      effectiveLevel: ApiNotificationLevel.ALL_MESSAGES
+    });
+
+    const { container } = render(NotificationsPage);
+    await settle();
+
+    await expect
+      .element(buttonWithText(container, 'All Messages'))
+      .toHaveClass(/choice-row-selected/);
+    await expect
+      .element(buttonWithText(container, 'Normal'))
+      .not.toHaveClass(/choice-row-selected/);
+  });
+
   it('selects and persists a non-silent notification sound', async () => {
     const { container } = render(NotificationsPage);
     await settle();

@@ -49,11 +49,11 @@ test.describe('Notification Level - Notifications Settings', () => {
     // Navigate to notification settings
     await page.goto(routes.settingsNotifications);
 
-    // Normal should be selected by default.
-    const normalButton = page.locator('button', { hasText: 'Normal' }).filter({
-      hasText: 'Unread markers'
+    // All Messages should be selected by default.
+    const allMessagesButton = page.locator('button', { hasText: 'All Messages' }).filter({
+      hasText: 'every new message'
     });
-    await expect(normalButton).toHaveClass(/choice-row-selected/);
+    await expect(allMessagesButton).toHaveClass(/choice-row-selected/);
 
     // Click Muted button
     const mutedButton = page.locator('button', { hasText: 'Muted' }).filter({
@@ -125,6 +125,16 @@ test.describe('Notification Level - Notifications Settings', () => {
 });
 
 test.describe('Notification Level - Server-Side Enforcement', () => {
+  test('new users inherit ALL_MESSAGES without a stored preference', async ({ page, chatPage }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+
+    const preference = await getServerNotificationPreference(page);
+
+    expect(preference.level).toBe('DEFAULT');
+    expect(preference.effectiveLevel).toBe('ALL_MESSAGES');
+  });
+
   test('setting notification level persists via Connect roundtrip', async ({ page, chatPage }) => {
     await createAndLoginTestUser(page);
     await chatPage.goto();

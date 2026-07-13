@@ -43,8 +43,8 @@ planned items still require issue-level design and acceptance criteria.
 
 - validate audio, video, screen sharing, direct UDP, TCP fallback, and TURN
   behavior across representative networks and browsers;
-- improve incoming-call invitations and background notification behavior after
-  a dedicated FDR and privacy review;
+- design and implement incoming-call system notifications and reliable background
+  invitations after a dedicated FDR, platform-capability study, and privacy review;
 - continue mobile and tablet interaction polish without creating a separate,
   divergent client.
 

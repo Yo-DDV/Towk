@@ -184,7 +184,10 @@
       },
       "push_prompt": {
         "title": "Enable push notifications",
-        "message": "Get notified about DMs, mentions, and replies.",
+        "message": "Get alerts for every new channel and direct message while Towk is closed or in the background.",
+        "blocked_title": "Push notifications are blocked",
+        "blocked_message": "Towk cannot alert you about new channel and direct messages while it is closed. Enable notifications in your browser or OS settings.",
+        "blocked_action": "How to enable",
         "ios_home_screen_title": "Add Towk to your Home Screen",
         "ios_home_screen_message": "On supported iOS/iPadOS versions, open Towk from its Home Screen icon before enabling push notifications.",
         "enabled": "Push notifications enabled",
@@ -192,7 +195,10 @@
         "enable_failed": "Failed to enable push notifications",
         "enabling": "Enabling...",
         "enable": "Enable",
-        "dismiss": "No thanks"
+        "dismiss": "Not now",
+        "confirm_title": "Continue without notifications?",
+        "confirm_message": "You may miss new channel and direct messages while Towk is closed. Towk will remind you again later. Are you sure you want to continue?",
+        "confirm_action": "Continue without notifications"
       },
       "levels": {
         "loading": "Loading...",
