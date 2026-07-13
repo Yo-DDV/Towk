@@ -23,7 +23,7 @@ Towk needs an i18n system that can be adopted incrementally, gives good type-saf
 
 Towk will internationalize the web client with a compile-time message catalog system, using Paraglide JS unless a future implementation spike finds a blocking issue. Paraglide is acceptable because it uses in-repository project configuration and message files; it must not require a hosted translation service, account, or network call for normal local development, CI builds, or runtime operation.
 
-English (`en`) is the source and fallback locale. German (`de`) and French (`fr`) are the supported non-English locales. Message catalogs are version-controlled. Product UI strings should move into generated message functions as areas are touched, and new product UI strings should use those message functions from the start.
+English (`en`) is the source and fallback locale. German (`de`), French (`fr`), Spanish (`es`), and Portuguese (`pt`) are the supported non-English locales. Message catalogs are version-controlled. Product UI strings should move into generated message functions as areas are touched, and new product UI strings should use those message functions from the start.
 
 Locale payloads should be split into separate bundles and loaded lazily. Towk compiles Paraglide with `locale-modules`, keeps English in the base client bundle, and loads non-base locale modules through app-owned dynamic imports. Product code imports messages from `$lib/i18n/messages` and locale runtime helpers from `$lib/i18n/runtime`; it must not import `$lib/paraglide/messages` directly because that generated index eagerly imports every locale module. Locale switches lazy-load the target catalog and update the current SPA reactively without a full-page reload. The i18n facade is generated from Paraglide's typed locale-module output by `apps/frontend/scripts/generate-i18n-facade.mjs`; it remains the app-owned boundary that preserves lazy locale loading and in-place locale changes.
 
@@ -45,11 +45,11 @@ Locale selection is owned by the client shell, not by the active server. The eff
 
 The selected locale applies to the whole SPA. It does not change when the user navigates between connected servers. This avoids conflicting per-server language settings in a multi-server client and keeps language selection available before authentication.
 
-The frontend should include a user-facing language preference UI early in the implementation, backed by browser-local persistence. This gives users and testers a deterministic way to switch between `en`, `de`, and `fr` without changing browser settings.
+The frontend should include a user-facing language preference UI early in the implementation, backed by browser-local persistence. This gives users and testers a deterministic way to switch between supported locales without changing browser settings.
 
 Server-synced language preference may be added later as an additive user-profile feature, but it must define clear multi-server conflict semantics before becoming authoritative. A local browser override remains necessary for signed-out screens, first paint, and separately hosted clients.
 
-Towk will keep canonical app routes unlocalized for now. The app will not introduce `/de/...`, `/fr/...`, or translated route slugs for authenticated chat routes in the first i18n phase. Localized routing can be reconsidered later for public documentation, marketing pages, invite previews, or other public content where URL language carries real value.
+Towk will keep canonical app routes unlocalized for now. The app will not introduce locale-prefixed or translated route slugs for authenticated chat routes in the first i18n phase. Localized routing can be reconsidered later for public documentation, marketing pages, invite previews, or other public content where URL language carries real value.
 
 The app shell must set language metadata correctly:
 
@@ -61,13 +61,13 @@ Dates, times, numbers, plurals, and relative labels should be formatted with the
 
 Locales should be added only when Towk can maintain acceptable translation quality. Machine translation may be used to draft catalogs, but supported locales should be reviewed and kept complete enough that the product does not feel half-translated.
 
-Agent and contributor instructions should be updated with the i18n policy. New user-visible frontend strings should normally add or update message keys in `en`, `de`, and `fr`, with best-effort German and French translations when the author can provide them. If a translation is uncertain, the PR should mark it clearly for review instead of silently omitting it or hardcoding English.
+Agent and contributor instructions should be updated with the i18n policy. New user-visible frontend strings should normally add or update message keys in every supported locale, with best-effort non-English translations when the author can provide them. If a translation is uncertain, the PR should mark it clearly for review instead of silently omitting it or hardcoding English.
 
 ## Consequences
 
 Compile-time message functions give Towk type-checked message usage, tree-shakable locale bundles, and a clear path for incremental conversion. The cost is generated-code/tooling setup and catalog maintenance.
 
-Supporting `en`, `de`, and `fr` prevents the architecture from being English-only in practice and gives the project reviewable real translation targets. The tradeoff is that every converted surface must carry translation work immediately.
+Supporting `en`, `de`, `fr`, `es`, and `pt` prevents the architecture from being English-only in practice and gives the project reviewable real translation targets. The tradeoff is that every converted surface must carry translation work immediately.
 
 Keeping locale selection client-owned avoids a poor multi-server user experience where switching servers changes the whole UI language. The tradeoff is that language does not automatically sync across devices in the first implementation.
 

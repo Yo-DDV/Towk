@@ -29,5 +29,5 @@
     ]
   },
   "baseLocale": "en",
-  "locales": ["en", "de", "fr"]
+  "locales": ["en", "de", "fr", "es", "pt"]
 }

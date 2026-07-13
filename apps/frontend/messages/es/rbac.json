@@ -1,0 +1,111 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "rbac": {
+    "delete_role": {
+      "title": "Eliminar rol",
+      "prompt": "¿Está seguro de que desea eliminar el rol {role}? Esto:",
+      "remove_from_users": "Quitar el rol a todos los usuarios que lo tengan",
+      "delete_grants": "Eliminar todas las concesiones de permisos para este rol",
+      "irreversible": "Esta acción no se puede deshacer.",
+      "deleting": "Eliminando...",
+      "action": "Eliminar rol"
+    },
+    "role_form": {
+      "save": "Ahorrar",
+      "saving": "Ahorro...",
+      "name": "Nombre",
+      "name_placeholder": "por ejemplo, moderador",
+      "name_description": "Sólo letras minúsculas. No se puede cambiar después de la creación.",
+      "name_too_long": "El nombre debe tener 32 caracteres o menos.",
+      "name_invalid": "El nombre debe utilizar letras minúsculas, números y guiones; empezar con una letra",
+      "name_locked": "Los nombres de las funciones no se pueden cambiar después de la creación.",
+      "display_name": "Nombre para mostrar",
+      "display_name_placeholder": "por ejemplo, moderador",
+      "display_name_too_long": "El nombre para mostrar debe tener 64 caracteres o menos",
+      "description": "Descripción",
+      "description_placeholder": "Descripción opcional para este rol",
+      "pingable": "Permitir que las personas hagan ping a este rol",
+      "pingable_description": "Los roles a los que se puede hacer ping aparecen en @ autocompletar y notifican a los miembros de la sala asignados."
+    },
+    "permissions": {
+      "loading": "Cargando permisos...",
+      "no_data": "No hay datos disponibles.",
+      "no_roles": "No hay roles aplicables en este ámbito.",
+      "permission": "Permiso",
+      "state": "Estado",
+      "decided_by": "Decidido por",
+      "granted": "Otorgada",
+      "denied": "Denegado",
+      "no_decision": "Sin decisión",
+      "no_role_decided": "Ningún papel decidido",
+      "hide_trace": "Ocultar rastro",
+      "show_trace": "Mostrar rastro",
+      "trace_one": "Seguimiento de resolución (1 entrada)",
+      "trace_many": "Seguimiento de resolución (entradas {count})",
+      "allow": "permitir",
+      "deny": "denegar",
+      "winning_decision": "(decisión ganadora)",
+      "level_server": "Servidor",
+      "level_group": "Grupo",
+      "level_room": "Sala",
+      "empty_category": "No hay permisos en esta categoría",
+      "categories": {
+        "space": {
+          "title": "Permisos del servidor",
+          "description": "Capacidades a nivel de servidor mantenidas bajo la clave de categoría heredada para compatibilidad"
+        },
+        "room": {
+          "title": "Permisos de sala",
+          "description": "Valores predeterminados del servidor para descubrir y unirse a salas, además de crear salas. Agregar denegaciones de sala/grupo por restricciones locales"
+        },
+        "message": {
+          "title": "Permisos de mensajes",
+          "description": "Valores predeterminados del servidor para publicaciones, hilos, reacciones, ecos y moderación de mensajes. Las denegaciones de sala/grupo crean excepciones locales"
+        },
+        "member": {
+          "title": "Permisos de miembros",
+          "description": "Controlar quién puede invitar y eliminar miembros del servidor"
+        },
+        "role": {
+          "title": "Permisos de rol",
+          "description": "Controle quién puede editar roles, asignar roles y administrar permisos preestablecidos"
+        },
+        "admin": {
+          "title": "Permisos de administrador",
+          "description": "Controle el acceso a diagnósticos y vistas administrativas de todo el servidor"
+        },
+        "dm": {
+          "title": "Permisos de DM",
+          "description": "Controle el acceso a los puntos de entrada de mensajería directa"
+        },
+        "user": {
+          "title": "Permisos de usuario",
+          "description": "Controle la cuenta de usuario y las operaciones de permisos por usuario. Cualquier denegación que no sea el propietario cancela las subvenciones."
+        }
+      }
+    },
+    "permission_descriptions": {
+      "server_manage": "Actualizar la configuración del servidor (nombre, descripción, logotipo)",
+      "room_create": "Crear salas nuevas",
+      "room_join": "Unirse a salas existentes",
+      "room_list": "Ver salas en el directorio. A un usuario se le puede permitir ver una sala (por ejemplo, para solicitar acceso) sin que se le permita unirse a ella.",
+      "room_manage": "Editar la configuración y los permisos de una sala y eliminar salas",
+      "room_ban_member": "Prohibir a los miembros acceder a las salas",
+      "message_post": "Publicar mensajes raíz en salas e iniciar DMs",
+      "message_post_in_thread": "Publicar respuestas dentro de un hilo",
+      "message_attach": "Adjuntar archivos a mensajes",
+      "message_echo": "Al publicar en un hilo, muestre también el mensaje en el canal principal.",
+      "message_manage": "Editar y eliminar mensajes de otros usuarios",
+      "message_react": "Agregar y eliminar reacciones en mensajes",
+      "role_manage": "Crear, editar, eliminar y reordenar roles y sus concesiones de permisos",
+      "role_assign": "Asignar y revocar roles para usuarios",
+      "admin_view_users": "Ver la página de usuarios en admin",
+      "admin_view_system": "Ver diagnósticos de proyección en admin",
+      "admin_view_audit": "Ver el registro de auditoría en admin",
+      "user_delete_any": "Eliminar la cuenta de otro usuario",
+      "user_delete_self": "Eliminar tu propia cuenta",
+      "user_manage_accounts": "Cree usuarios, edite la identidad de la cuenta, restablezca contraseñas, adjunte correos electrónicos verificados y borre los tiempos de reutilización de inicio de sesión.",
+      "user_manage_permissions": "Editar anulaciones de permisos directos por usuario"
+    }
+  }
+}

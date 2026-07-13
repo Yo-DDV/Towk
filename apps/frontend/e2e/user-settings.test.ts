@@ -100,6 +100,18 @@ test.describe('User Settings - Display', () => {
       'aria-checked',
       'true'
     );
+
+    await page.getByRole('radio', { name: 'Español' }).click();
+    await expect(page.getByRole('heading', { name: 'Pantalla' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+
+    await page.getByRole('radio', { name: 'Português' }).click();
+    await expect(page.getByRole('heading', { name: 'Tela' })).toBeVisible({
+      timeout: TIMEOUTS.UI_STANDARD
+    });
+    await expect(page.locator('html')).toHaveAttribute('lang', 'pt');
   });
 
   test('can set timezone and save', async ({ page }) => {

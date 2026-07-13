@@ -127,7 +127,9 @@
         "description": "Choisissez la langue utilisée dans ce navigateur.",
         "english": "Anglais",
         "german": "Deutsch",
-        "french": "Français"
+        "french": "Français",
+        "spanish": "Español",
+        "portuguese": "Português"
       },
       "timezone": {
         "title": "Fuseau horaire",

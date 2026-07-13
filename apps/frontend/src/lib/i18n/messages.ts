@@ -15,16 +15,18 @@ const loadedLocales = new Map<Locale, Promise<LocaleMessages>>([
   ['en', Promise.resolve(enMessages)]
 ]);
 
+const localeLoaders: Partial<Record<Locale, () => Promise<LocaleMessages>>> = {
+  'de': () => import('$lib/paraglide/messages/de.js') as Promise<LocaleMessages>,
+  'fr': () => import('$lib/paraglide/messages/fr.js') as Promise<LocaleMessages>,
+  'es': () => import('$lib/paraglide/messages/es.js') as Promise<LocaleMessages>,
+  'pt': () => import('$lib/paraglide/messages/pt.js') as Promise<LocaleMessages>
+};
+
 function loadLocaleModule(locale: Locale): Promise<LocaleMessages> {
   const existing = loadedLocales.get(locale);
   if (existing) return existing;
 
-  const loading =
-    locale === 'de'
-      ? (import('$lib/paraglide/messages/de.js') as Promise<LocaleMessages>)
-      : locale === 'fr'
-        ? (import('$lib/paraglide/messages/fr.js') as Promise<LocaleMessages>)
-        : Promise.resolve(enMessages);
+  const loading = localeLoaders[locale]?.() ?? Promise.resolve(enMessages);
 
   loadedLocales.set(locale, loading);
   return loading;
@@ -202,6 +204,8 @@ const msg_settings_preferences_language_description = (): LocalizedString => mes
 const msg_settings_preferences_language_english = (): LocalizedString => messages().settings_preferences_language_english(empty());
 const msg_settings_preferences_language_german = (): LocalizedString => messages().settings_preferences_language_german(empty());
 const msg_settings_preferences_language_french = (): LocalizedString => messages().settings_preferences_language_french(empty());
+const msg_settings_preferences_language_spanish = (): LocalizedString => messages().settings_preferences_language_spanish(empty());
+const msg_settings_preferences_language_portuguese = (): LocalizedString => messages().settings_preferences_language_portuguese(empty());
 const msg_settings_preferences_timezone_title = (): LocalizedString => messages().settings_preferences_timezone_title(empty());
 const msg_settings_preferences_timezone_description = (): LocalizedString => messages().settings_preferences_timezone_description(empty());
 const msg_settings_preferences_timezone_browser_default = (): LocalizedString => messages().settings_preferences_timezone_browser_default(empty());
@@ -1629,6 +1633,8 @@ export { msg_settings_preferences_language_description as 'settings.preferences.
 export { msg_settings_preferences_language_english as 'settings.preferences.language.english' };
 export { msg_settings_preferences_language_german as 'settings.preferences.language.german' };
 export { msg_settings_preferences_language_french as 'settings.preferences.language.french' };
+export { msg_settings_preferences_language_spanish as 'settings.preferences.language.spanish' };
+export { msg_settings_preferences_language_portuguese as 'settings.preferences.language.portuguese' };
 export { msg_settings_preferences_timezone_title as 'settings.preferences.timezone.title' };
 export { msg_settings_preferences_timezone_description as 'settings.preferences.timezone.description' };
 export { msg_settings_preferences_timezone_browser_default as 'settings.preferences.timezone.browser_default' };

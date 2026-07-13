@@ -127,7 +127,9 @@
         "description": "Wähle die Sprache für diesen Browser.",
         "english": "English",
         "german": "Deutsch",
-        "french": "Français"
+        "french": "Français",
+        "spanish": "Español",
+        "portuguese": "Português"
       },
       "timezone": {
         "title": "Zeitzone",
