@@ -35,7 +35,7 @@ Browser sessions use signed cookies with the following options:
 | `Path`     | `/`                                     |
 | `MaxAge`   | `auth.token_ttl` (90 days by default)   |
 
-Session cookies are always signed with `webserver.cookie_signing_secret`. They are additionally **encrypted** if `webserver.cookie_encryption_secret` is set. When the encryption secret is missing, Towk logs a startup warning — running `chatto init` on a fresh server generates both secrets automatically.
+Session cookies are always signed with `webserver.cookie_signing_secret`. They are additionally **encrypted** if `webserver.cookie_encryption_secret` is set. When the encryption secret is missing, Towk logs a startup warning — running `towk init` on a fresh server generates both secrets automatically.
 
 New browser session cookies store only an opaque runtime credential handle. The user ID, source, auth generation, and fresh-auth metadata live in the server-side `session.{hmac}` runtime credential record.
 
@@ -87,7 +87,7 @@ Towk uses a role-based permission system with four built-in roles (everyone / mo
 
 ### Initial ownership
 
-The first owner is designated via `owners.emails` in `chatto.toml`. The match runs against **verified** emails only, so claiming an address you can't receive mail at won't grant you ownership. When a matching email is verified, the user is auto-promoted to the owner role — no restart required.
+The first owner is designated via `owners.emails` in `towk.toml`. The match runs against **verified** emails only, so claiming an address you can't receive mail at won't grant you ownership. When a matching email is verified, the user is auto-promoted to the owner role — no restart required.
 
 Owners are effective-owner overrides: they are allowed for every normal RBAC permission, and their permissions are virtual rather than stored as editable grants. Roles still have display order, but Towk does not use role position as an authorization rank. See the [permissions guide](/guides/operations/permissions/) for the full resolution model.
 
@@ -126,10 +126,10 @@ Towk also ignores forwarded client-IP headers by default. If a reverse proxy con
 Backups encrypt with [age](https://age-encryption.org) when you pass `--encrypt`. Passing `--include-keys` also includes Towk's built-in key-encryption-key bucket and makes the archive capable of restoring protected message text and user PII:
 
 ```bash
-chatto backup -c chatto.toml --encrypt --include-keys
+towk backup -c towk.toml --encrypt --include-keys
 ```
 
-Without `--include-keys`, the `ENCRYPTION_KEYS` bucket is excluded. You can export those keys separately with `chatto keys export`. Treat either form as sensitive and align old data and key retention with your account-deletion policy.
+Without `--include-keys`, the `ENCRYPTION_KEYS` bucket is excluded. You can export those keys separately with `towk keys export`. Treat either form as sensitive and align old data and key retention with your account-deletion policy.
 
 <CardGrid>
   <LinkCard title="Backup & Restore" href="/guides/operations/backup-restore/" description="Commands, key exports, restore procedures, and storage coverage." />
@@ -140,7 +140,7 @@ Without `--include-keys`, the `ENCRYPTION_KEYS` bucket is excluded. You can expo
 
 ### Operator API
 
-The Operator API is disabled by default. Operators can enable it with `[operator_api]` / `CHATTO_OPERATOR_API_*` configuration for trusted local automation such as `chatto operator user create` and password/bootstrap workflows. It listens on a Unix socket, not TCP, and uses filesystem permissions as its access boundary.
+The Operator API is disabled by default. Operators can enable it with `[operator_api]` / `CHATTO_OPERATOR_API_*` configuration for trusted local automation such as `towk operator user create` and password/bootstrap workflows. It listens on a Unix socket, not TCP, and uses filesystem permissions as its access boundary.
 
 The default socket path is Docker-friendly:
 
@@ -152,7 +152,7 @@ socket_path = "/tmp/chatto/operator.sock"
 
 Towk serves only `chatto.operator.v1` on the operator socket, and the public web listener never mounts the Operator API. The inverse is also true: the operator socket does not serve public or admin ConnectRPC services. The socket mode is fixed at `0600`, and the parent directory must be private to the Towk process user. This is intentional defense in depth, so normal public reverse-proxy routing for Towk's web UI and public APIs cannot accidentally expose root-grade bootstrap access.
 
-The `chatto operator ...` CLI reads the socket path from `--operator-socket`, `CHATTO_OPERATOR_API_SOCKET_PATH`, or `chatto.toml`, falling back to `/tmp/chatto/operator.sock`. In Docker, run the command inside the container with `docker exec` or mount the socket path into a trusted sidecar/container with matching filesystem permissions. See [Operator CLI](/guides/operations/operator-cli/) for command examples.
+The `towk operator ...` CLI reads the socket path from `--operator-socket`, `CHATTO_OPERATOR_API_SOCKET_PATH`, or `towk.toml`, falling back to `/tmp/chatto/operator.sock`. In Docker, run the command inside the container with `docker exec` or mount the socket path into a trusted sidecar/container with matching filesystem permissions. See [Operator CLI](/guides/operations/operator-cli/) for command examples.
 
 Operator actions are attributed to Towk's system actor, not to an in-app user or RBAC role. Keep the socket path private to the Towk process and explicitly trusted automation; for password workflows, prefer `--password-stdin` and `--password-file` over direct secret flags.
 
@@ -210,23 +210,23 @@ prevents the message composer from mounting.
 
 ## Secret and key storage
 
-| Secret or key material | Storage | Backed up by `chatto backup`? |
+| Secret or key material | Storage | Backed up by `towk backup`? |
 | ---------------------- | ------- | ----------------------------- |
 | Per-user KEK records | `ENCRYPTION_KEYS` (NATS KV) | No (export separately, or use `--include-keys`) |
 | Per-call LiveKit E2EE keys | `ENCRYPTION_KEYS` (NATS KV, short-lived) | No (active calls are not recoverable without them) |
 | Wrapped app DEK records | `RUNTIME_STATE` (`dek.*` protobuf records) | Yes (unusable without KEKs) |
 | Runtime credential verifiers | `RUNTIME_STATE` (`session.{hmac}`, HMAC-keyed, with TTL) | Yes (not raw bearer tokens or cookie handles) |
 | Account-flow and OAuth-code verifiers | `RUNTIME_STATE` (HMAC-keyed, with TTL) | Yes (not raw codes or links) |
-| Core secret key | `chatto.toml` / `CHATTO_CORE_SECRET_KEY` | n/a |
-| Cookie signing secret | `chatto.toml` / `CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET` | n/a |
-| Cookie encryption secret (optional) | `chatto.toml` / `CHATTO_WEBSERVER_COOKIE_ENCRYPTION_SECRET` | n/a |
-| Asset URL signing secret | `chatto.toml` / `CHATTO_CORE_ASSETS_SIGNING_SECRET` | n/a |
-| S3 access key ID and secret access key | `chatto.toml` / `CHATTO_CORE_ASSETS_S3_ACCESS_KEY_ID`, `CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY` | n/a |
-| NATS embedded/client credentials | `chatto.toml` / `CHATTO_NATS_EMBEDDED_AUTH_TOKEN`, `CHATTO_NATS_CLIENT_TOKEN`, `CHATTO_NATS_CLIENT_PASSWORD`, `CHATTO_NATS_CLIENT_CREDENTIALS_FILE`, or `CHATTO_NATS_CLIENT_NKEY_SEED` | n/a |
-| OAuth/OIDC provider client secrets | `chatto.toml` `[[auth.providers]]` / `CHATTO_AUTH_PROVIDERS_<index>_CLIENT_SECRET` or legacy `CHATTO_AUTH_OIDC_CLIENT_SECRET` | n/a |
-| SMTP password | `chatto.toml` / `CHATTO_SMTP_PASSWORD` | n/a |
-| Web Push VAPID key pair | `chatto.toml` / `CHATTO_PUSH_VAPID_PUBLIC_KEY`, `CHATTO_PUSH_VAPID_PRIVATE_KEY` | n/a |
-| LiveKit API and webhook secrets | `chatto.toml` / `CHATTO_LIVEKIT_API_KEY`, `CHATTO_LIVEKIT_API_SECRET`, `CHATTO_LIVEKIT_WEBHOOK_API_KEY`, `CHATTO_LIVEKIT_WEBHOOK_API_SECRET` | n/a |
+| Core secret key | `towk.toml` / `CHATTO_CORE_SECRET_KEY` | n/a |
+| Cookie signing secret | `towk.toml` / `CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET` | n/a |
+| Cookie encryption secret (optional) | `towk.toml` / `CHATTO_WEBSERVER_COOKIE_ENCRYPTION_SECRET` | n/a |
+| Asset URL signing secret | `towk.toml` / `CHATTO_CORE_ASSETS_SIGNING_SECRET` | n/a |
+| S3 access key ID and secret access key | `towk.toml` / `CHATTO_CORE_ASSETS_S3_ACCESS_KEY_ID`, `CHATTO_CORE_ASSETS_S3_SECRET_ACCESS_KEY` | n/a |
+| NATS embedded/client credentials | `towk.toml` / `CHATTO_NATS_EMBEDDED_AUTH_TOKEN`, `CHATTO_NATS_CLIENT_TOKEN`, `CHATTO_NATS_CLIENT_PASSWORD`, `CHATTO_NATS_CLIENT_CREDENTIALS_FILE`, or `CHATTO_NATS_CLIENT_NKEY_SEED` | n/a |
+| OAuth/OIDC provider client secrets | `towk.toml` `[[auth.providers]]` / `CHATTO_AUTH_PROVIDERS_<index>_CLIENT_SECRET` or legacy `CHATTO_AUTH_OIDC_CLIENT_SECRET` | n/a |
+| SMTP password | `towk.toml` / `CHATTO_SMTP_PASSWORD` | n/a |
+| Web Push VAPID key pair | `towk.toml` / `CHATTO_PUSH_VAPID_PUBLIC_KEY`, `CHATTO_PUSH_VAPID_PRIVATE_KEY` | n/a |
+| LiveKit API and webhook secrets | `towk.toml` / `CHATTO_LIVEKIT_API_KEY`, `CHATTO_LIVEKIT_API_SECRET`, `CHATTO_LIVEKIT_WEBHOOK_API_KEY`, `CHATTO_LIVEKIT_WEBHOOK_API_SECRET` | n/a |
 | TLS certificates | Disk cache directory (`autocert`) | n/a |
 
 `core.secret_key` is not a message-encryption KEK. Rotating it invalidates bearer tokens, cookie-session handles, OAuth authorization codes, and pending account-flow credentials, but it does not rotate or invalidate the KEK records in `ENCRYPTION_KEYS`.

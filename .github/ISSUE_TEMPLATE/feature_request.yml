@@ -44,5 +44,5 @@ body:
           required: true
         - label: I did not include secrets, personal data, private content, or confidential plans.
           required: true
-        - label: I read the contribution policy and am accountable for this proposal, including any agent-assisted content.
+        - label: I read the contribution policy and am accountable for this proposal.
           required: true

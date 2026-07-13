@@ -145,7 +145,7 @@ those values.
    - `CHATTO_OWNERS_EMAILS` - Comma-separated verified email addresses that should become Towk owners. Include the email address you will use for the first account.
    - `CHATTO_SMTP_*` - Required for direct email/password registration, email verification, and password reset.
    - `PUID` and `PGID` - Optional host user/group IDs for files Towk writes to mounted volumes. Defaults to `1000:1000`.
-   - `CHATTO_OPERATOR_API_*` - Enables the private in-container operator socket used by `chatto operator ...`.
+   - `CHATTO_OPERATOR_API_*` - Enables the private in-container operator socket used by `towk operator ...`.
 
    Leave `LIVEKIT_CONFIG_FILE=./livekit.generated.yaml` unless you deliberately
    want to maintain `livekit.yaml` by hand.
@@ -225,19 +225,19 @@ The Towk image includes the `nats` CLI. Its wrapper maps the runtime NATS
 environment into the CLI without writing a persistent CLI context:
 
 ```bash
-docker compose exec -u chatto towk nats stream ls
+docker compose exec -u towk towk nats stream ls
 ```
 
 ## Operator Commands
 
 The generated `.env` enables the local operator API socket inside the Towk
-container. Run operator commands as the `chatto` user and use `list --search`
+container. Run operator commands as the `towk` user and use `list --search`
 to find a stable user ID before mutating an account:
 
 ```bash
-docker compose exec -u chatto towk /chatto operator user list
-docker compose exec -u chatto towk /chatto operator user list --search admin@example.com
-docker compose exec -u chatto towk /chatto operator user set-password USER_ID
+docker compose exec -u towk towk /towk operator user list
+docker compose exec -u towk towk /towk operator user list --search admin@example.com
+docker compose exec -u towk towk /towk operator user set-password USER_ID
 ```
 
 Do not mount or publish the operator socket unless the target container or host

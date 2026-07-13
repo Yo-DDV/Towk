@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +22,12 @@ import (
 // Duration is a time.Duration that supports extended parsing including days (d), weeks (w),
 // months (mo), and years (y). Examples: "7d", "1w", "168h", "24h30m"
 type Duration time.Duration
+
+const (
+	DefaultConfigFilename = "towk.toml"
+	legacyConfigFilename  = "chatto.toml"
+	configDirectoryEnv    = "TOWK_CONFIG_DIR"
+)
 
 // UnmarshalText implements encoding.TextUnmarshaler for TOML/env parsing.
 func (d *Duration) UnmarshalText(text []byte) error {
@@ -1420,14 +1427,50 @@ func (c *ChattoConfig) Validate() error {
 	return nil
 }
 
-// ReadConfig reads configuration from the specified file path (or "chatto.toml" if empty),
-// then overrides with environment variables, and validates the result.
+// CanonicalConfigPath returns Towk's default configuration path. Packaged
+// runtimes can set TOWK_CONFIG_DIR without changing the process working
+// directory or the meaning of relative paths inside the configuration.
+func CanonicalConfigPath() string {
+	return configPathInConfiguredDirectory(DefaultConfigFilename)
+}
+
+// LegacyConfigPath returns the inherited compatibility configuration path.
+func LegacyConfigPath() string {
+	return configPathInConfiguredDirectory(legacyConfigFilename)
+}
+
+func configPathInConfiguredDirectory(filename string) string {
+	directory := strings.TrimSpace(os.Getenv(configDirectoryEnv))
+	if directory == "" {
+		return filename
+	}
+	return filepath.Join(directory, filename)
+}
+
+// ResolveConfigPath returns an explicit path unchanged. Without an explicit
+// path, Towk's canonical filename wins and the inherited filename remains a
+// fallback for existing installations.
+func ResolveConfigPath(configPath string) string {
+	if configPath != "" {
+		return configPath
+	}
+	canonicalPath := CanonicalConfigPath()
+	if _, err := os.Lstat(canonicalPath); err == nil || !os.IsNotExist(err) {
+		return canonicalPath
+	}
+	legacyPath := LegacyConfigPath()
+	if _, err := os.Lstat(legacyPath); err == nil || !os.IsNotExist(err) {
+		return legacyPath
+	}
+	return canonicalPath
+}
+
+// ReadConfig reads configuration from the specified file path. Without an
+// explicit path, it prefers towk.toml and falls back to the inherited filename,
+// then overrides with environment variables and validates the result.
 func ReadConfig(configPath string) (ChattoConfig, error) {
 	var cfg ChattoConfig
-
-	if configPath == "" {
-		configPath = "chatto.toml"
-	}
+	configPath = ResolveConfigPath(configPath)
 
 	// 1. Read TOML file if it exists (base config)
 	b, err := os.ReadFile(configPath)

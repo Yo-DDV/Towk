@@ -10,7 +10,7 @@ Towk source is published at:
 
 Every OCI image must expose its exact Git commit in
 `org.opencontainers.image.revision` and this repository in
-`org.opencontainers.image.source`. To reproduce a deployed version:
+`org.opencontainers.image.source`. To identify and rebuild a deployed version:
 
 1. record the immutable image digest;
 2. read the `org.opencontainers.image.revision` annotation;

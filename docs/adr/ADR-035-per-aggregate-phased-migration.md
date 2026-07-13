@@ -59,7 +59,7 @@ Cleanup unblocked once: (a) every aggregate had reached event-only writes, (b) t
 
 ### Why migrations run at boot, not as a CLI subcommand
 
-An earlier draft of this ADR (and a now-deleted `chatto evt migrate` CLI) had each aggregate's migration as a one-shot operator command. That can't work in the typical embedded-NATS deployment: with no TCP listener on the embedded NATS server, a second process can only connect by taking a temporary file lock on the data directory — which requires stopping `chatto run` first. That isn't an acceptable footgun for an alpha product where operators run a single binary.
+An earlier draft of this ADR (and a now-deleted inherited event-migration CLI) had each aggregate's migration as a one-shot operator command. That cannot work in the typical embedded-NATS deployment: with no TCP listener on the embedded NATS server, a second process can connect only by taking a temporary file lock on the data directory, which requires stopping the server process first. That is not an acceptable footgun for an alpha product where operators run a single binary.
 
 Running the migrations at boot inside `NewChattoCore` avoids the multi-process problem entirely. The cost is one extra step at startup; the steady-state cost (after first boot) is a KV key scan and per-subject OCC check, both O(aggregates).
 

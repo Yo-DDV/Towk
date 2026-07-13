@@ -12,7 +12,7 @@ The post-#330 RBAC model resolves room-scope permissions through a single hierar
 
 - **Implicit `everyone` constrains deny semantics.** Every authenticated user implicitly carries `everyone`, so any deny attached to `everyone` catches moderators and admins too. ADR-040 intentionally adopts deny-wins semantics; announcement-style rooms are modeled by omitting the room-level `everyone` allow instead of denying it.
 
-Towk is at alpha. The three known production-shaped servers can absorb a `chatto reset rbac` on upgrade. This is a one-time opportunity to reshape the model before the room-groups feature lands rather than to layer over it.
+Towk is at alpha. The three known production-shaped servers can absorb a `towk reset rbac` on upgrade. This is a one-time opportunity to reshape the model before the room-groups feature lands rather than to layer over it.
 
 A long design discussion considered alternatives — ReBAC/Zanzibar (overkill for chat's flat-ish structure), policy-as-code (incompatible with operator-configurable self-hosting), capability tokens (wrong fit for server-state-owns-everything chat). The model that best matches both the room-groups requirement and operators' actual mental model ("look at the room/category to know what's allowed there") is channel-centric ACLs as used by Discord and similar chat systems.
 
@@ -75,7 +75,7 @@ Temporary user-targeted restrictions ("mute", "timeout", "suspend") build on the
 
 ### Migration
 
-Existing servers reset RBAC on upgrade (`chatto reset rbac` already exists for related migrations). Specifically:
+Existing servers reset RBAC on upgrade (`towk reset rbac` already exists for related migrations). Specifically:
 
 - A seed "Lobby" group is created.
 - Existing `RoomLayoutSection`s migrate to `RoomGroup`s (id and ordering preserved; `name` becomes the group's `displayName`).
@@ -100,7 +100,7 @@ The three known production-shaped Towk servers absorb this. Out-of-the-box behav
 
 - **Global tweaks require multi-group edits.** Today, changing a server-scope grant on `everyone` affects every room. After this change, the same effect requires editing each group (groups are independent — there is no cross-group inheritance). The admin UI must offer an "apply to all groups" affordance to make global tweaks ergonomic; under the hood it writes N keys.
 - **More KV keys.** Each (group, role, perm) and (room, role, perm) override is its own key. Practical scale (low thousands) is comfortable for JetStream KV, but storage and listing costs grow linearly with groups × rooms.
-- **One-time RBAC reset.** Existing servers need to migrate (`chatto reset rbac` or equivalent). Acceptable at alpha; a non-event for new deployments.
+- **One-time RBAC reset.** Existing servers need to migrate (`towk reset rbac` or equivalent). Acceptable at alpha; a non-event for new deployments.
 - **Room creation always needs a group.** Pre-change, a new room could be created with no group affiliation. Post-change, the API and UI must always pick a group. Drop in operator ergonomics is small but real.
 - **Room-move requires two-group authorization.** Moving a room between groups needs `room.manage` in both source and target. UI must surface this clearly (preview affected users, confirmation step) and the public API surface needs to reflect both checks.
 

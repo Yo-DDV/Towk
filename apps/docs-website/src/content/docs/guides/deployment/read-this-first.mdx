@@ -5,7 +5,7 @@ description: Choose a Towk deployment path and make the important production dec
 
 import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-Towk ships in a compact, self-contained binary, and `chatto run` gives you a fully functional chat server. You can deploy Towk that way, but most production servers benefit from a more explicit setup. This section helps you choose between the standalone binary, Docker Compose, and Kubernetes.
+Towk ships in a compact, self-contained binary, and `towk run` gives you a fully functional chat server. You can deploy Towk that way, but most production servers benefit from a more explicit setup. This section helps you choose between the standalone binary, Docker Compose, and Kubernetes.
 
 ## What You Should Know
 
@@ -42,7 +42,7 @@ Towk ships with full support for voice and video calls, including screen sharing
 - **Embedded vs. External NATS**: make a decision on whether to go with Towk's embedded NATS server, or point Towk at a dedicated external NATS server. The former is the more convenient option, the latter sets you up better for future scaling. Again, our examples show you how to do this.
 - **Data Storage**: make a decision on where NATS should store its data. Outside of uploaded file blobs, you're not going to need huge amounts of space.
 - **File Storage**: decide on whether to use NATS for storing file uploads, or wire up an S3 compatible object storage.
-- **Admin Bootstrap**: Towk's configuration allows you to specify the email addresses of users who should _always_ be server owners. This is a failsafe to prevent you from accidentally locking yourself out of your own server. Please be aware that the user is not automatically created for you; you still have to create your account either through the usual signup flow, or using the `chatto operator` command.
+- **Admin Bootstrap**: Towk's configuration allows you to specify the email addresses of users who should _always_ be server owners. This is a failsafe to prevent you from accidentally locking yourself out of your own server. Please be aware that the user is not automatically created for you; you still have to create your account either through the usual signup flow, or using the `towk operator` command.
 - **SMTP**: Towk will need to send emails for verifying email addresses and other planned features like email-based notification reminders. Please prepare a set of SMTP credentials to allow Towk to send emails. (If you never want Towk to verify emails or send reminders, you can skip this, but we strongly recommend that you don't.)
 
 ## Pick a Deployment Path

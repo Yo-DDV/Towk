@@ -33,7 +33,7 @@ var (
 var restoreCmd = &cobra.Command{
 	Use:   "restore <archive>",
 	Short: "Restore a backup archive",
-	Long: `Restores a Towk backup created by 'chatto backup'.
+	Long: `Restores a Towk backup created by 'towk backup'.
 
 For embedded NATS: starts a temporary NATS server, restores all streams,
 then shuts down. Make sure Towk is not running (the data directory
@@ -53,7 +53,7 @@ Conflict handling:
 
 func init() {
 	rootCmd.AddCommand(restoreCmd)
-	restoreCmd.Flags().StringVarP(&restoreConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	restoreCmd.Flags().StringVarP(&restoreConfigFile, "config", "c", "", configFlagHelp)
 	restoreCmd.Flags().StringVar(&restoreConflict, "conflict", "error", "conflict handling: error, skip, overwrite")
 	restoreCmd.Flags().StringVar(&restorePassphrase, "passphrase", "", "deprecated: passphrases must not be passed in process arguments")
 	restoreCmd.Flags().StringVar(&restorePassphraseFile, "passphrase-file", "", "read decryption passphrase from a private regular file")

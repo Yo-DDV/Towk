@@ -5,7 +5,13 @@ description: All environment variables for configuring Towk.
 
 import EnvVar from '../../../components/EnvVar.astro';
 
-Every `chatto.toml` setting can be overridden with an environment variable. The naming pattern is `CHATTO_{SECTION}_{KEY}` in uppercase.
+Every `towk.toml` setting can be overridden with an inherited `CHATTO_{SECTION}_{KEY}` environment variable. These variable names remain a compatibility contract while Towk is pre-1.0.
+
+`TOWK_CONFIG_DIR` is a Towk runtime variable rather than a TOML override. When
+no explicit `--config` path is supplied, Towk looks for `towk.toml` in that
+directory before checking the inherited compatibility filename there. The
+published container sets it to `/config`; source builds leave it unset and use
+the current working directory.
 
 ## General
 
@@ -107,10 +113,10 @@ Built-in automatic TLS via Let's Encrypt. When enabled, Towk handles certificate
 
 ## Exporter
 
-The exporter exposes deployment-wide Towk metrics. Run it as `chatto exporter` against external NATS or an exposed embedded NATS TCP listener, or set `exporter.enabled = true` to embed it inside `chatto run` for single-process installs. Clustered deployments should enable the embedded exporter on at most one replica.
+The exporter exposes deployment-wide Towk metrics. Run it as `towk exporter` against external NATS or an exposed embedded NATS TCP listener, or set `exporter.enabled = true` to embed it inside `towk run` for single-process installs. Clustered deployments should enable the embedded exporter on at most one replica.
 
 <EnvVar name="CHATTO_EXPORTER_ENABLED" toml="exporter.enabled" default="false">
-  Start the deployment-wide Prometheus exporter inside `chatto run`.
+  Start the deployment-wide Prometheus exporter inside `towk run`.
 </EnvVar>
 
 <EnvVar name="CHATTO_EXPORTER_BIND_ADDRESS" toml="exporter.bind_address" default="127.0.0.1">
@@ -142,11 +148,11 @@ The exporter exposes deployment-wide Towk metrics. Run it as `chatto exporter` a
 ## Operator API
 
 <EnvVar name="CHATTO_OPERATOR_API_ENABLED" toml="operator_api.enabled" default="false">
-  Enable the local root-equivalent Operator API Unix socket for `chatto operator ...` commands. The public web listener never serves this API.
+  Enable the local root-equivalent Operator API Unix socket for `towk operator ...` commands. The public web listener never serves this API.
 </EnvVar>
 
 <EnvVar name="CHATTO_OPERATOR_API_SOCKET_PATH" toml="operator_api.socket_path" default="/tmp/chatto/operator.sock">
-  Unix socket path for local operator commands. The socket mode is fixed at `0600`; Docker users should normally run `chatto operator ...` inside the running container with `docker exec`.
+  Unix socket path for local operator commands. The socket mode is fixed at `0600`; Docker users should normally run `towk operator ...` inside the running container with `docker exec`.
 </EnvVar>
 
 ## Core
@@ -371,7 +377,7 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 
 ### External Login Providers
 
-External login providers are configured as repeated `[[auth.providers]]` tables in `chatto.toml`.
+External login providers are configured as repeated `[[auth.providers]]` tables in `towk.toml`.
 Supported provider types are `oidc`, `github`, `gitlab`, `google`, and `discord`.
 
 <EnvVar name="CHATTO_AUTH_PROVIDERS_<index>_<field>" toml="auth.providers">

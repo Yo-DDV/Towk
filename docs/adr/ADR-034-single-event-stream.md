@@ -90,7 +90,7 @@ During the migration window (ADR-035), the existing `SERVER_EVENTS` stream serve
 
 ## Consequences
 
-- **One stream to back up, replicate, consume.** Operational surface stays small. `chatto backup` and clustering both treat the event log as a single resource. Operator mental model is simpler than "track N streams and reconcile their states."
+- **One stream to back up, replicate, consume.** Operational surface stays small. `towk backup` and clustering both treat the event log as a single resource. Operator mental model is simpler than "track N streams and reconcile their states."
 - **No fanout consumer multiplexing.** A projection that needs events for all rooms takes one consumer with a wildcard filter (`evt.room.>`). The per-process consumer count grows with projections, not aggregates.
 - **Subject cardinality is bounded by aggregate count × event types.** Rooms, users, RBAC namespaces, and a small fixed set of event-type lanes are orders of magnitude lower than per-message subjects. This is the property that makes the NATS subject index manageable, and the direct reason ADR-033 unlocks a RAM win.
 - **Single point of contention for hot streams.** Writes across all aggregates serialize through one stream leader. For Towk's scale (one server per deployment, not a multi-tenant SaaS) this is acceptable. If we ever need to scale past a single stream's write throughput, [ADR-013](ADR-013-per-space-stream-sharding.md) shows the codebase can carry a sharding abstraction — that's a future option, not a current need.

@@ -47,7 +47,7 @@ Towk records call start/join/leave/end facts durably and reconciles active parti
 
 2. **Configure Towk**
 
-   Add a `[livekit]` section to your `chatto.toml`:
+   Add a `[livekit]` section to your `towk.toml`:
 
    <Tabs>
    <TabItem label="Development">
@@ -168,7 +168,7 @@ Use a dedicated TURN server such as [coturn](https://github.com/coturn/coturn) w
 
 ## Disabling Voice & Video Calls
 
-To disable voice and video calls, either remove the `[livekit]` section from `chatto.toml` or set:
+To disable voice and video calls, either remove the `[livekit]` section from `towk.toml` or set:
 
 ```toml
 [livekit]

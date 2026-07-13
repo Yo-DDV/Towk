@@ -26,17 +26,17 @@ Towk ships as a single binary with an embedded NATS server and built-in Let's En
 
 <ArchDiagram />
 
-The Towk binary includes an embedded NATS server with JetStream for storage. It expects a `chatto.toml` configuration file (you can generate one using `chatto init`), and stores all data in a `./data/` directory.
+The Towk binary includes an embedded NATS server with JetStream for storage. It expects a `towk.toml` configuration file (you can generate one using `towk init`), and stores all data in a `./data/` directory.
 
 ## Prerequisites
 
-- A Towk binary built from a reviewed source commit. The [quick start](/getting-started/quick-start/) shows the pinned toolchain and build command. Stable binary releases and a Homebrew formula are not currently published.
+- A Towk-branded archive newer than `v0.5.0` from [GitHub Releases](https://github.com/Yo-DDV/Towk/releases), or a binary built from a reviewed source commit. Verify that the archive contains `towk`; a Homebrew formula is not currently published.
 - A domain pointing to your server (e.g., `chat.example.com`)
 - Firewall allowing inbound TCP 80 and 443
 
 ## Setup
 
-Please refer to the [Quick Start](/getting-started/quick-start/) guide for details on initializing your `chatto.toml` configuration file.
+Please refer to the [Quick Start](/getting-started/quick-start/) guide for details on initializing your `towk.toml` configuration file.
 
 For production use, please review the file and **at least**:
 
@@ -68,7 +68,7 @@ Type=simple
 User=towk
 Group=towk
 WorkingDirectory=/opt/towk
-ExecStart=/opt/towk/chatto run -c chatto.toml
+ExecStart=/opt/towk/towk run -c towk.toml
 Restart=always
 RestartSec=5
 AmbientCapabilities=CAP_NET_BIND_SERVICE

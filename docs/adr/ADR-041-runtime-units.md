@@ -6,7 +6,7 @@
 
 Towk is growing beyond a single web/API process. Some capabilities should be
 able to run as independent processes in production while still being easy for
-single-process self-hosters to run from `chatto run`.
+single-process self-hosters to run from `towk run`.
 
 Examples include:
 
@@ -28,8 +28,8 @@ Introduce **runtime units** as the convention for optional Towk processes.
 
 A runtime unit:
 
-- can run standalone as `chatto <unit>`
-- can run embedded in `chatto run` when its config section has
+- can run standalone as `towk <unit>`
+- can run embedded in `towk run` when its config section has
   `enabled = true`
 - receives shared config, NATS, JetStream, logger, and version through a small
   runtime environment
@@ -38,7 +38,7 @@ A runtime unit:
 
 Standalone units connect to an existing NATS server as clients. For default
 single-process embedded-NATS installs, operators either enable the embedded TCP
-listener or set the unit's `enabled = true` flag so `chatto run` starts it in
+listener or set the unit's `enabled = true` flag so `towk run` starts it in
 process using the already-established NATS connection.
 
 Runtime units are classified by behavior:
@@ -62,7 +62,7 @@ process.
 Standalone workers and embedded single-process deployments can share one unit
 implementation instead of maintaining separate boot paths.
 
-The main `chatto run` process remains the only path that starts embedded NATS
+The main `towk run` process remains the only path that starts embedded NATS
 and runs the full `ChattoCore` boot sequence. Side units stay explicit about
 whether they are read-only projections, request/reply services, or durable
 writers.
@@ -70,5 +70,5 @@ writers.
 Future units should reuse the runtime-unit harness before adding new command
 setup, signal handling, NATS connection logic, or ad hoc embedded-mode flags.
 Workers that need singleton behavior must still coordinate through NATS
-primitives such as `MEMORY_CACHE` leases; embedding a unit in `chatto run` is an
+primitives such as `MEMORY_CACHE` leases; embedding a unit in `towk run` is an
 operator convenience, not a correctness boundary.

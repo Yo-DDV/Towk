@@ -16,7 +16,7 @@ Towk controls who can do what through role-based access control. Every authentic
 - Permissions gate capabilities, not every form of visibility. For example, DM read access comes from room membership, while `message.post` gates starting DMs and sending root DM messages.
 - Server admins can drag-and-drop to reorder custom roles. System role positions are fixed for ordering consistency.
 - Custom role display names are limited to 80 bytes; descriptions are limited to 500 bytes.
-- Owners are always granted all permissions. An effective owner is either assigned the durable `owner` role or has a verified email listed in `owners.emails` in `chatto.toml`.
+- Owners are always granted all permissions. An effective owner is either assigned the durable `owner` role or has a verified email listed in `owners.emails` in `towk.toml`.
 - Assigning or revoking the `owner` role is an owner-only, fresh-authenticated action. A grant of `role.assign` can manage every other assignable role but cannot create or remove owners.
 - Owner mutations are serialized against the full RBAC aggregate. Concurrent attempts by owners to remove each other cannot leave the server without an effective owner through the public admin API.
 - Owner permissions are virtual rather than persisted defaults: fresh servers do not seed editable owner permission rows, and the admin UI shows owner permissions as read-only green checks.

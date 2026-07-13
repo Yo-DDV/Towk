@@ -16,8 +16,8 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5
 
 COPY apps/docs-website/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/docs-website/dist /usr/share/nginx/html
-COPY LICENSES/Apache-2.0.txt /usr/share/doc/chatto-docs/LICENSE
-COPY NOTICE /usr/share/doc/chatto-docs/NOTICE
+COPY LICENSES/Apache-2.0.txt /usr/share/doc/towk-docs/LICENSE
+COPY NOTICE /usr/share/doc/towk-docs/NOTICE
 
 USER 101:101
 EXPOSE 8080

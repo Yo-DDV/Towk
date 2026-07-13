@@ -10,10 +10,11 @@ is intended for local evaluation; use the deployment guides for an
 Internet-facing server.
 
 <Aside type="note">
-  Towk does not currently publish stable binary releases or a Homebrew formula.
-  Build from a reviewed source commit, or use an immutable image tag from the
-  repository's Packages page once available. Do not substitute an upstream
-  Chatto binary and present it as a Towk release.
+  Towk's manual release pipeline produces versioned, checksummed binary archives
+  and matching immutable container images. Towk `v0.5.0` predates the canonical
+  Towk executable in release archives, so build the reviewed source until a
+  later Towk-branded release is available. Pin an exact release or image digest
+  for durable deployments. A Homebrew formula is not currently published.
 </Aside>
 
 <Steps>
@@ -40,17 +41,17 @@ Internet-facing server.
    ```bash
    mkdir -p .local/quick-start
    cd .local/quick-start
-   ../../cli/bin/chatto init
+   ../../cli/bin/towk init
    ```
 
-   The command creates the compatibility-named `chatto.toml` file with random
+   The command creates `towk.toml` with random
    signing, encryption, runtime-token, asset, and NATS secrets. Keep that file
    private and review it before exposing the server.
 
 4. **Start Towk**
 
    ```bash
-   ../../cli/bin/chatto run -c chatto.toml
+   ../../cli/bin/towk run -c towk.toml
    ```
 
 5. **Open the local server**
