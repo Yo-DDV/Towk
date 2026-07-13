@@ -114,7 +114,6 @@
       "download_label": "Download {filename}",
       "image_refresh_failed": "Could not refresh image link",
       "download_refresh_failed": "Could not refresh download link",
-      "video_uploads_disabled": "Video uploads are disabled on this server.",
       "prepare_failed": "Failed to prepare attachment",
       "clipboard_unavailable": "The browser did not provide the copied file. Drag it into the conversation or use Attach file.",
       "edit_not_supported": "Files cannot be added while editing a message.",

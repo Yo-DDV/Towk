@@ -6,7 +6,7 @@ import { createAndLoginTestUser } from './fixtures/testUser';
 test.use({
   serverOptions: {
     env: {
-      CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE: '1KB',
+      CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE: '10KB',
       CHATTO_VIDEO_ENABLED: 'false'
     }
   }
@@ -24,7 +24,7 @@ test.describe('upload configuration', () => {
     await expect(roomPage.attachmentPreview).not.toBeVisible();
   });
 
-  test('server video-disabled setting reaches the composer', async ({
+  test('processing-disabled server accepts and renders the original video', async ({
     page,
     chatPage,
     roomPage
@@ -35,10 +35,16 @@ test.describe('upload configuration', () => {
 
     await expect(roomPage.fileInput).not.toHaveAttribute('accept');
     await roomPage.fileInput.setInputFiles('e2e/fixtures/test-video.mp4');
+    await expect(roomPage.videoAttachmentPreview).toBeVisible();
 
-    await expect(page.getByText('Video uploads are disabled on this server.')).toBeVisible({
+    const text = `Original video ${Date.now()}`;
+    await roomPage.messageInput.fill(text);
+    await roomPage.messageInput.press('Enter');
+
+    const message = roomPage.getMessage(text);
+    await expect(roomPage.rawVideoPlayer).toBeVisible({
       timeout: TIMEOUTS.UI_STANDARD
     });
-    await expect(roomPage.videoAttachmentPreview).not.toBeVisible();
+    await expect(message.locator.locator('media-player')).toHaveCount(0);
   });
 });

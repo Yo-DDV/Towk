@@ -940,7 +940,7 @@ type VideoConfig struct {
 	FFmpegPath    string            `toml:"ffmpeg_path,commented" env:"CHATTO_VIDEO_FFMPEG_PATH" comment:"Path to ffmpeg binary. Auto-detected from PATH if empty."`
 	FFprobePath   string            `toml:"ffprobe_path,commented" env:"CHATTO_VIDEO_FFPROBE_PATH" comment:"Path to ffprobe binary. Auto-detected from PATH if empty."`
 	MaxConcurrent int               `toml:"max_concurrent,commented" env:"CHATTO_VIDEO_MAX_CONCURRENT" comment:"Maximum number of videos to process simultaneously. Default: 2."`
-	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads. Supports human-readable formats like '100 MB'. Default: 100 MB."`
+	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads when video processing is enabled. Disabled processing uses the general attachment limit. Supports human-readable formats like '100 MB'. Default: 100 MB."`
 	TempDir       string            `toml:"temp_dir,commented" env:"CHATTO_VIDEO_TEMP_DIR" comment:"Temporary directory for video processing. Default: system temp directory."`
 }
 

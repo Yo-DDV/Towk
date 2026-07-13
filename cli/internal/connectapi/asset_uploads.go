@@ -2,7 +2,6 @@ package connectapi
 
 import (
 	"context"
-	"mime"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -24,9 +23,6 @@ func (s *assetUploadService) CreateUpload(ctx context.Context, req *connect.Requ
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	if !s.api.config.Video.Enabled && attachmentContentTypeIsVideo(contentType) {
-		return nil, invalidArgument("video uploads are disabled on this server")
-	}
 	upload, err := s.api.core.AssetUploads().CreateUpload(ctx, core.AssetUploadCreateInput{
 		ActorID:     caller.UserID,
 		RoomID:      req.Msg.GetRoomId(),
@@ -39,11 +35,6 @@ func (s *assetUploadService) CreateUpload(ctx context.Context, req *connect.Requ
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.CreateUploadResponse{Upload: apiAssetUpload(upload)}), nil
-}
-
-func attachmentContentTypeIsVideo(contentType string) bool {
-	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(contentType))
-	return err == nil && strings.HasPrefix(strings.ToLower(mediaType), "video/")
 }
 
 func (s *assetUploadService) UploadChunk(ctx context.Context, req *connect.Request[apiv1.UploadChunkRequest]) (*connect.Response[apiv1.UploadChunkResponse], error) {

@@ -466,20 +466,7 @@ describe('MessageComposer', () => {
       await expect.element(q(container, 'input[type="file"]')).toHaveAttribute('multiple');
     });
 
-    it('rejects selected video files when video processing is disabled', async () => {
-      const { container } = renderMessageComposer({ roomId: 'room_456' });
-      const input = q(container, 'input[type="file"]') as HTMLInputElement;
-
-      selectFiles(input, [new File(['video'], 'clip.mp4', { type: 'video/mp4' })]);
-
-      expect(getToasts().map((t) => t.message)).toContain(
-        'Video uploads are disabled on this server.'
-      );
-      expect(q(container, '[data-testid="video-attachment-preview"]')).toBeNull();
-    });
-
-    it('stages selected video files when video processing is enabled', async () => {
-      mockInstanceStores.serverInfo.videoProcessingEnabled = true;
+    it('stages selected video files when video processing is disabled', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       const input = q(container, 'input[type="file"]') as HTMLInputElement;
 

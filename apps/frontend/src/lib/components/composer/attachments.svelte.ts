@@ -11,7 +11,6 @@ import * as m from '$lib/i18n/messages';
 export type FileWithUrl = { file: File; url: string };
 
 export type AttachmentLimits = {
-  videoProcessingEnabled: boolean;
   maxUploadSize: number;
   maxVideoUploadSize: number;
 };
@@ -55,11 +54,6 @@ export class AttachmentsState {
       }
 
       const isVideo = file.type.startsWith('video/');
-      if (isVideo && !limits.videoProcessingEnabled) {
-        toast.error(m['room.attachment.video_uploads_disabled']());
-        continue;
-      }
-
       const limit = isVideo ? limits.maxVideoUploadSize : limits.maxUploadSize;
       if (file.size > limit) {
         toast.error(

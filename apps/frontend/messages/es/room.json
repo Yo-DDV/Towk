@@ -114,7 +114,6 @@
       "download_label": "Descargar {filename}",
       "image_refresh_failed": "No se pudo actualizar el enlace de la imagen",
       "download_refresh_failed": "No se pudo actualizar el enlace de descarga",
-      "video_uploads_disabled": "Las subidas de video están desactivadas en este servidor.",
       "prepare_failed": "No se pudo preparar el adjunto",
       "clipboard_unavailable": "El navegador no proporcionó el archivo copiado. Arrástralo a la conversación o usa Adjuntar archivo.",
       "edit_not_supported": "No se pueden añadir archivos mientras se edita un mensaje.",

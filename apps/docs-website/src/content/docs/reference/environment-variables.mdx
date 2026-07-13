@@ -168,7 +168,7 @@ The exporter exposes deployment-wide Towk metrics. Run it as `towk exporter` aga
 </EnvVar>
 
 <EnvVar name="CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE" toml="core.assets.max_upload_size" default="25 MB">
-  Max upload size for images and non-video files (e.g., `25MB`, `25 MiB`). Videos use a separate limit — see `CHATTO_VIDEO_MAX_UPLOAD_SIZE`.
+  General attachment upload limit (e.g., `25MB`, `25 MiB`). It also applies to original videos while video processing is disabled. When processing is enabled, videos use `CHATTO_VIDEO_MAX_UPLOAD_SIZE` instead.
 </EnvVar>
 
 <EnvVar name="CHATTO_CORE_ASSETS_MAX_STORE_BYTES" toml="core.assets.max_store_bytes" default="10 GB">
@@ -468,7 +468,7 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 ## Video Processing
 
 <EnvVar name="CHATTO_VIDEO_ENABLED" toml="video.enabled" default="false">
-  Enable server-side video processing and video uploads. When enabled, uploaded videos are transcoded into multiple quality variants for adaptive playback. Requires `ffmpeg` and `ffprobe` to be available on the server.
+  Enable server-side video processing. Video uploads remain available when this is disabled; enabling it adds transcoded quality variants, thumbnails, adaptive playback, and a separate video upload limit. Requires `ffmpeg` and `ffprobe` to be available on the server.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_FFMPEG_PATH" toml="video.ffmpeg_path">
@@ -484,7 +484,7 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_MAX_UPLOAD_SIZE" toml="video.max_upload_size" default="100 MB">
-  Max upload size for video files (e.g., `100MB`, `200 MiB`). Only applies when video processing is enabled. Non-video files use `CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE` instead.
+  Max upload size for video files (e.g., `100MB`, `200 MiB`) while video processing is enabled. When it is disabled, videos use `CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE` like other attachments.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_TEMP_DIR" toml="video.temp_dir">

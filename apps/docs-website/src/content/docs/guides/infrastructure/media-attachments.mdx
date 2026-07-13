@@ -5,7 +5,7 @@ description: Operate Towk uploads, image transforms, room files, link previews, 
 
 import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-Towk can handle ordinary file uploads, images, avatars, server branding images, link-preview images, and optionally videos and animated GIFs. Small deployments can keep assets in NATS ObjectStore; larger deployments should usually move assets to S3-compatible storage.
+Towk can handle ordinary file uploads, images, videos, avatars, server branding images, link-preview images, and animated GIFs. Video transcoding is optional. Small deployments can keep assets in NATS ObjectStore; larger deployments should usually move assets to S3-compatible storage.
 
 ## What Members Can Upload
 
@@ -19,12 +19,12 @@ On Windows, macOS, and Linux, Towk accepts every file object the browser exposes
 | Documents and ordinary files | Stored as persisted assets and exposed through signed URLs. |
 | Archives | ZIP, 7z, RAR, tar, and compressed archives are accepted as opaque files and are not extracted by Towk. |
 | Executables and installers | Direct executable, installer, command-script, WebAssembly, and macro-enabled Office payloads are rejected by browser metadata/content checks and authoritative server checks. |
-| Videos | Accepted only when video processing is enabled. |
+| Videos | Stored and rendered as originals by default; when processing is enabled, Towk also generates a thumbnail and web-friendly variants. |
 | Animated GIFs | Uploaded as images when video processing is disabled; routed through video processing when enabled. |
 | Avatars, logos, banners | Stored in the same asset system but gated by profile or admin permissions. |
 | Link-preview images | Downloaded, converted to a size-limited WebP, and stored in a dedicated quota-bounded NATS object store. |
 
-Default upload limits are 25 MB for non-video files and 100 MB for videos when video processing is enabled.
+The default general upload limit is 25 MB and applies to original videos while processing is disabled. Enabling video processing gives videos a separate 100 MB default limit.
 
 Each message is limited to 10 attachments. Upload sessions use 512 KiB chunks, expire after 15 minutes while open, and unclaimed completed assets expire after 24 hours. These application bounds complement, but do not replace, the storage quota and request-rate controls of the NATS, S3, reverse-proxy, or WAF layer.
 
@@ -71,7 +71,7 @@ Switching to S3 affects new assets. Existing NATS-stored assets continue to work
 
 ## Video And Animated GIF Processing
 
-Video processing is optional and disabled by default. When enabled, Towk requires `ffmpeg` and `ffprobe`, stores the original upload, generates a thumbnail, and creates web-friendly MP4 variants based on the source resolution.
+Video processing is optional and disabled by default. Original videos remain shareable without it and use the general attachment limit. Browser playback depends on the browser supporting the original codec; the original remains available as a room file. When processing is enabled, Towk requires `ffmpeg` and `ffprobe`, keeps the original upload, generates a thumbnail, and creates web-friendly MP4 variants based on the source resolution.
 
 Enable it only when the server has CPU and temporary disk space for transcoding:
 

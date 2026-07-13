@@ -114,7 +114,6 @@
       "download_label": "Télécharger {filename}",
       "image_refresh_failed": "Impossible d’actualiser le lien de l’image",
       "download_refresh_failed": "Impossible d’actualiser le lien de téléchargement",
-      "video_uploads_disabled": "Les téléversements vidéo sont désactivés sur ce serveur.",
       "prepare_failed": "Impossible de préparer la pièce jointe",
       "clipboard_unavailable": "Le navigateur n’a pas fourni le fichier copié. Glissez-le dans la conversation ou utilisez Joindre un fichier.",
       "edit_not_supported": "Il est impossible d’ajouter un fichier pendant la modification d’un message.",

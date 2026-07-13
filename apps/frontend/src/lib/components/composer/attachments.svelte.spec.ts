@@ -27,7 +27,6 @@ describe('AttachmentsState', () => {
 
   beforeEach(() => {
     limits = {
-      videoProcessingEnabled: false,
       maxUploadSize: 25 * 1024 * 1024,
       maxVideoUploadSize: 25 * 1024 * 1024
     };
@@ -67,18 +66,7 @@ describe('AttachmentsState', () => {
     ]);
   });
 
-  it('rejects video files when video processing is disabled', async () => {
-    await state.stageFiles([videoFile()]);
-
-    expect(getToasts().map((t) => t.message)).toContain(
-      'Video uploads are disabled on this server.'
-    );
-    expect(state.filesWithUrls).toEqual([]);
-    expect(prepareFilesMock).not.toHaveBeenCalled();
-  });
-
-  it('accepts video files when video processing is enabled', async () => {
-    limits.videoProcessingEnabled = true;
+  it('accepts video files using the runtime-provided video limit', async () => {
     const file = videoFile();
 
     await state.stageFiles([file]);
@@ -101,7 +89,6 @@ describe('AttachmentsState', () => {
   });
 
   it('uses the video-specific upload limit for videos', async () => {
-    limits.videoProcessingEnabled = true;
     limits.maxUploadSize = 10;
     limits.maxVideoUploadSize = 1;
 

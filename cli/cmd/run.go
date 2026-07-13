@@ -154,7 +154,8 @@ func runServer(configPath string) {
 		}
 	}
 
-	// Set video upload limit if video processing is enabled
+	// Set the video-specific upload limit when video processing is enabled.
+	// Otherwise, original videos use the general attachment limit.
 	if cfg.Video.Enabled {
 		chattoCore.VideoMaxUploadSize = int64(cfg.Video.MaxUploadSizeOrDefault())
 	}

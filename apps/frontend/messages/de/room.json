@@ -114,7 +114,6 @@
       "download_label": "{filename} herunterladen",
       "image_refresh_failed": "Bildlink konnte nicht aktualisiert werden",
       "download_refresh_failed": "Downloadlink konnte nicht aktualisiert werden",
-      "video_uploads_disabled": "Video-Uploads sind auf diesem Server deaktiviert.",
       "prepare_failed": "Anhang konnte nicht vorbereitet werden",
       "clipboard_unavailable": "Der Browser hat die kopierte Datei nicht bereitgestellt. Ziehe sie in die Unterhaltung oder verwende Datei anhängen.",
       "edit_not_supported": "Beim Bearbeiten einer Nachricht können keine Dateien hinzugefügt werden.",

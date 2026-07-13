@@ -571,21 +571,35 @@
       </div>
     {:else if attachment.contentType.startsWith('video/') && attachment.url}
       <!--
-          A video attachment that hasn't been projected as a processing manifest
-          yet — e.g. the message arrived before AssetProcessingStartedEvent did,
-          or processing has never been requested for this asset. Render the raw
-          original so the user can at least play it.
+          Render the original while no processing manifest exists. This is the
+          permanent representation when video processing is disabled and the
+          temporary fallback before processing starts when it is enabled.
         -->
-      <div class="embed-frame">
-        <video
-          controls
-          preload="metadata"
-          src={attachment.url}
-          class="max-h-64 max-w-full"
-          onerror={() => refreshAfterAssetError(attachment, 'asset')}
-        >
-          <track kind="captions" />
-        </video>
+      <div class="group/attachment relative min-w-0">
+        <div class="embed-frame">
+          <video
+            controls
+            preload="metadata"
+            src={attachment.url}
+            class="max-h-64 max-w-full"
+            aria-label={attachment.filename}
+            data-testid="raw-video-player"
+            onerror={() => refreshAfterAssetError(attachment, 'asset')}
+          >
+            <track kind="captions" />
+          </video>
+        </div>
+        {#if canDeleteAttachment}
+          <button
+            type="button"
+            onclick={(e) => openDeleteConfirmation(attachment, e)}
+            class="attachment-remove-button z-10 md:group-hover/attachment:opacity-100"
+            aria-label={m['room.attachment.delete_label']()}
+            title={m['room.attachment.delete_label']()}
+          >
+            <span class="iconify text-sm uil--times"></span>
+          </button>
+        {/if}
       </div>
     {:else if attachment.contentType.startsWith('audio/') && attachment.url}
       <div class="group/attachment relative min-w-0">

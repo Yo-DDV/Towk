@@ -694,7 +694,6 @@ const msg_room_attachment_download_label = (
 ): LocalizedString => messages().room_attachment_download_label(inputs);
 const msg_room_attachment_image_refresh_failed = (): LocalizedString => messages().room_attachment_image_refresh_failed(empty());
 const msg_room_attachment_download_refresh_failed = (): LocalizedString => messages().room_attachment_download_refresh_failed(empty());
-const msg_room_attachment_video_uploads_disabled = (): LocalizedString => messages().room_attachment_video_uploads_disabled(empty());
 const msg_room_attachment_prepare_failed = (): LocalizedString => messages().room_attachment_prepare_failed(empty());
 const msg_room_attachment_clipboard_unavailable = (): LocalizedString => messages().room_attachment_clipboard_unavailable(empty());
 const msg_room_attachment_edit_not_supported = (): LocalizedString => messages().room_attachment_edit_not_supported(empty());
@@ -2197,7 +2196,6 @@ export { msg_room_attachment_view_label as 'room.attachment.view_label' };
 export { msg_room_attachment_download_label as 'room.attachment.download_label' };
 export { msg_room_attachment_image_refresh_failed as 'room.attachment.image_refresh_failed' };
 export { msg_room_attachment_download_refresh_failed as 'room.attachment.download_refresh_failed' };
-export { msg_room_attachment_video_uploads_disabled as 'room.attachment.video_uploads_disabled' };
 export { msg_room_attachment_prepare_failed as 'room.attachment.prepare_failed' };
 export { msg_room_attachment_clipboard_unavailable as 'room.attachment.clipboard_unavailable' };
 export { msg_room_attachment_edit_not_supported as 'room.attachment.edit_not_supported' };

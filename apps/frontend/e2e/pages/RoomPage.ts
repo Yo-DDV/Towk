@@ -74,6 +74,11 @@ export class RoomPage {
     return this.page.getByTestId('audio-player');
   }
 
+  /** Native video element used when the server keeps the original without transcoding. */
+  get rawVideoPlayer(): Locator {
+    return this.page.getByTestId('raw-video-player');
+  }
+
   /** Vidstack <media-player> element (visible after video processing completes) */
   get mediaPlayer(): Locator {
     return this.page.locator('media-player');

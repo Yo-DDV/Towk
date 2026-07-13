@@ -70,6 +70,27 @@ test.describe('desktop file clipboard and generic drop uploads', () => {
     await expect(roomPage.getMessage(text).locator.getByTestId('audio-player')).toBeVisible();
   });
 
+  test('pastes a video File and sends the original when processing is disabled', async ({
+    page,
+    chatPage,
+    roomPage
+  }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
+
+    const video = await readFile(new URL('./fixtures/test-video.mp4', import.meta.url));
+    await roomPage.simulateClipboardFile('clipboard-video.mp4', 'video/mp4', Array.from(video));
+    await expect(roomPage.videoAttachmentPreview).toBeVisible();
+
+    const text = `Clipboard video ${Date.now()}`;
+    await roomPage.messageInput.fill(text);
+    await roomPage.messageInput.press('Enter');
+
+    await expect(roomPage.videoAttachmentPreview).toHaveCount(0);
+    await expect(roomPage.getMessage(text).locator.getByTestId('raw-video-player')).toBeVisible();
+  });
+
   test('pastes and sends a File without browser MIME metadata', async ({
     page,
     chatPage,
