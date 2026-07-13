@@ -1,0 +1,111 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "rbac": {
+    "delete_role": {
+      "title": "Supprimer le rôle",
+      "prompt": "Êtes-vous sûr de vouloir supprimer le rôle {role} ? Cela va :",
+      "remove_from_users": "Supprimer le rôle de tous les utilisateurs qui le possèdent",
+      "delete_grants": "Supprimer toutes les autorisations accordées pour ce rôle",
+      "irreversible": "Cette action ne peut pas être annulée.",
+      "deleting": "Suppression...",
+      "action": "Supprimer le rôle"
+    },
+    "role_form": {
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "name": "Nom",
+      "name_placeholder": "par exemple, modérateur",
+      "name_description": "Lettres minuscules uniquement. Ne peut pas être modifié après la création.",
+      "name_too_long": "Le nom doit comporter 32 caractères maximum",
+      "name_invalid": "Le nom doit utiliser des lettres minuscules, des chiffres et des tirets ; commencer par une lettre",
+      "name_locked": "Les noms de rôle ne peuvent pas être modifiés après la création.",
+      "display_name": "Nom d'affichage",
+      "display_name_placeholder": "par exemple, modérateur",
+      "display_name_too_long": "Le nom d'affichage doit comporter 64 caractères maximum",
+      "description": "Description",
+      "description_placeholder": "Description facultative pour ce rôle",
+      "pingable": "Autoriser les utilisateurs à mentionner ce rôle",
+      "pingable_description": "Les rôles mentionnables apparaissent dans l’autocomplétion avec @ et avertissent les membres du salon auxquels ils sont attribués."
+    },
+    "permissions": {
+      "loading": "Chargement des autorisations...",
+      "no_data": "Aucune donnée disponible.",
+      "no_roles": "Aucun rôle applicable à ce périmètre.",
+      "permission": "Permission",
+      "state": "État",
+      "decided_by": "Décidé par",
+      "granted": "Accordé",
+      "denied": "Refusé",
+      "no_decision": "Aucune décision",
+      "no_role_decided": "Aucun rôle décidé",
+      "hide_trace": "Masquer la trace",
+      "show_trace": "Afficher la trace",
+      "trace_one": "Trace de résolution (1 entrée)",
+      "trace_many": "Trace de résolution (entrées {count})",
+      "allow": "autoriser",
+      "deny": "refuser",
+      "winning_decision": "(décision retenue)",
+      "level_server": "Serveur",
+      "level_group": "Groupe",
+      "level_room": "Salon",
+      "empty_category": "Aucune autorisation dans cette catégorie",
+      "categories": {
+        "space": {
+          "title": "Permissions du serveur",
+          "description": "Capacités au niveau du serveur conservées sous la clé de catégorie héritée pour des raisons de compatibilité"
+        },
+        "room": {
+          "title": "Permissions des salons",
+          "description": "Règles par défaut du serveur pour découvrir, rejoindre et créer des salons. Les refus définis sur un groupe ou un salon créent des exceptions locales."
+        },
+        "message": {
+          "title": "Permissions des messages",
+          "description": "Paramètres par défaut du serveur pour la publication, les fils de discussion, les réactions, l'écho et la modération des messages. Les refus de salon/groupe créent des exceptions locales"
+        },
+        "member": {
+          "title": "Permissions des membres",
+          "description": "Contrôler qui peut inviter et supprimer des membres du serveur"
+        },
+        "role": {
+          "title": "Permissions des rôles",
+          "description": "Contrôlez qui peut modifier les rôles, attribuer des rôles et gérer les préréglages d'autorisations"
+        },
+        "admin": {
+          "title": "Permissions d’administration",
+          "description": "Contrôler l'accès aux vues d'administration et aux diagnostics à l'échelle du serveur"
+        },
+        "dm": {
+          "title": "Permissions des messages directs",
+          "description": "Contrôler l'accès aux points d'entrée de messagerie directe"
+        },
+        "user": {
+          "title": "Permissions des utilisateurs",
+          "description": "Contrôlez les opérations de compte utilisateur et d’autorisation par utilisateur. Tout refus d'un non-propriétaire annule les subventions"
+        }
+      }
+    },
+    "permission_descriptions": {
+      "server_manage": "Mettre à jour les paramètres du serveur (nom, description, logo)",
+      "room_create": "Créer de nouveaux salons",
+      "room_join": "Rejoindre des salons existants",
+      "room_list": "Voir les salons dans l'annuaire. Un utilisateur peut être autorisé à voir un salon (par exemple pour demander l'accès) sans être autorisé à la rejoindre.",
+      "room_manage": "Modifier les paramètres et les autorisations d'un salon et supprimer des salons",
+      "room_ban_member": "Interdire les membres des salons",
+      "message_post": "Publier des messages principaux dans les salons et démarrer des conversations directes",
+      "message_post_in_thread": "Publier des réponses dans un fil de discussion",
+      "message_attach": "Joindre des fichiers aux messages",
+      "message_echo": "Lorsque vous publiez dans un fil de discussion, affichez également le message sur le canal principal",
+      "message_manage": "Modifier et supprimer les messages des autres utilisateurs",
+      "message_react": "Ajouter et supprimer des réactions sur les messages",
+      "role_manage": "Créer, modifier, supprimer et réorganiser les rôles et leurs autorisations",
+      "role_assign": "Attribuer et révoquer des rôles pour les utilisateurs",
+      "admin_view_users": "Afficher la page des utilisateurs dans l'administration",
+      "admin_view_system": "Afficher les diagnostics des projections dans l’administration",
+      "admin_view_audit": "Afficher le journal d’audit dans l’administration",
+      "user_delete_any": "Supprimer le compte d'un autre utilisateur",
+      "user_delete_self": "Supprimez votre propre compte",
+      "user_manage_accounts": "Créer des utilisateurs, modifier leur identité, réinitialiser les mots de passe, associer des adresses e-mail vérifiées et réinitialiser les délais de changement de nom d’utilisateur",
+      "user_manage_permissions": "Modifier les exceptions de permissions propres à chaque utilisateur"
+    }
+  }
+}

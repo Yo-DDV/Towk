@@ -126,7 +126,8 @@
         "title": "Language",
         "description": "Choose the language for this browser.",
         "english": "English",
-        "german": "Deutsch"
+        "german": "Deutsch",
+        "french": "Français"
       },
       "timezone": {
         "title": "Timezone",

@@ -22,7 +22,9 @@ function loadLocaleModule(locale: Locale): Promise<LocaleMessages> {
   const loading =
     locale === 'de'
       ? (import('$lib/paraglide/messages/de.js') as Promise<LocaleMessages>)
-      : Promise.resolve(enMessages);
+      : locale === 'fr'
+        ? (import('$lib/paraglide/messages/fr.js') as Promise<LocaleMessages>)
+        : Promise.resolve(enMessages);
 
   loadedLocales.set(locale, loading);
   return loading;
@@ -199,6 +201,7 @@ const msg_settings_preferences_language_title = (): LocalizedString => messages(
 const msg_settings_preferences_language_description = (): LocalizedString => messages().settings_preferences_language_description(empty());
 const msg_settings_preferences_language_english = (): LocalizedString => messages().settings_preferences_language_english(empty());
 const msg_settings_preferences_language_german = (): LocalizedString => messages().settings_preferences_language_german(empty());
+const msg_settings_preferences_language_french = (): LocalizedString => messages().settings_preferences_language_french(empty());
 const msg_settings_preferences_timezone_title = (): LocalizedString => messages().settings_preferences_timezone_title(empty());
 const msg_settings_preferences_timezone_description = (): LocalizedString => messages().settings_preferences_timezone_description(empty());
 const msg_settings_preferences_timezone_browser_default = (): LocalizedString => messages().settings_preferences_timezone_browser_default(empty());
@@ -1623,6 +1626,7 @@ export { msg_settings_preferences_language_title as 'settings.preferences.langua
 export { msg_settings_preferences_language_description as 'settings.preferences.language.description' };
 export { msg_settings_preferences_language_english as 'settings.preferences.language.english' };
 export { msg_settings_preferences_language_german as 'settings.preferences.language.german' };
+export { msg_settings_preferences_language_french as 'settings.preferences.language.french' };
 export { msg_settings_preferences_timezone_title as 'settings.preferences.timezone.title' };
 export { msg_settings_preferences_timezone_description as 'settings.preferences.timezone.description' };
 export { msg_settings_preferences_timezone_browser_default as 'settings.preferences.timezone.browser_default' };
