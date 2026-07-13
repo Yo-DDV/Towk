@@ -11,6 +11,8 @@
       "universal_label": "Salon universel",
       "universal_description": "Tous les membres du serveur disposant de la permission requise rejoignent automatiquement ce salon.",
       "name_required": "Le nom du salon est obligatoire",
+      "name_too_long": "Le nom du salon doit contenir au maximum {max} caractères.",
+      "description_too_long": "La description du salon doit contenir au maximum {max} caractères.",
       "missing_group": "Choisissez un groupe de salons avant de créer un salon.",
       "failed": "Impossible de créer le salon",
       "creating": "Création...",
@@ -68,6 +70,10 @@
       "delete_failed": "Échec de la suppression du message",
       "reaction_failed": "Échec de la mise à jour de la réaction",
       "deleted": "Message supprimé",
+      "empty_edit": "Le message ne peut pas être vide",
+      "link_copied": "Lien du message copié",
+      "link_copy_failed": "Impossible de copier le lien",
+      "reply_target_not_loaded": "Le message n’est pas chargé. Faites défiler vers le haut pour le retrouver.",
       "actions": {
         "toolbar": "Actions de message",
         "react_with": "Réagir avec {emoji}",
@@ -106,8 +112,11 @@
       "delete_failed": "Échec de la suppression de la pièce jointe",
       "view_label": "Afficher {filename}",
       "download_label": "Télécharger {filename}",
-      "image_refresh_failed": "Impossible d'actualiser le lien de l'image",
-      "download_refresh_failed": "Impossible d'actualiser le lien de téléchargement"
+      "image_refresh_failed": "Impossible d’actualiser le lien de l’image",
+      "download_refresh_failed": "Impossible d’actualiser le lien de téléchargement",
+      "video_uploads_disabled": "Les téléversements vidéo sont désactivés sur ce serveur.",
+      "prepare_failed": "Impossible de préparer la pièce jointe",
+      "too_large": "{filename} est trop volumineux ({size}). Maximum : {max}."
     },
     "link_preview": {
       "delete_title": "Supprimer l'aperçu du lien",

@@ -174,7 +174,7 @@ describe('createExternalIdentityAPI', () => {
     });
 
     await expect(api.list()).rejects.toThrow(
-      'external identity provider response did not include provider metadata'
+      'Unexpected server response. Please try again.'
     );
   });
 

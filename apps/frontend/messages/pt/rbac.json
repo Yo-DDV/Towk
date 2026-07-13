@@ -90,7 +90,7 @@
       "no_scopes_available": "Não há âmbitos disponíveis para {subject}.",
       "about_permission": "Sobre {permission}",
       "subject_generic": "este sujeito",
-      "subject_user": "este utilizador",
+      "subject_user": "este usuário",
       "subject_role": "esta função",
       "role_manage_title": "{role} — clicar para gerir",
       "owner_always_granted_permission": "A função Proprietário recebe sempre {permission}",
@@ -141,11 +141,11 @@
       },
       "moderator": {
         "display_name": "Moderador",
-        "description": "Acesso de leitura aos painéis de administração sem permissões de gestão"
+        "description": "Acesso de leitura aos painéis de administração sem permissões de gerenciamento"
       },
       "everyone": {
         "display_name": "Todos os membros",
-        "description": "Todos os utilizadores autenticados"
+        "description": "Todos os usuários autenticados"
       }
     }
   }

@@ -3,6 +3,7 @@ import {
   type CurrentUser,
   type ViewerAPIConfig
 } from '$lib/api-client/viewer';
+import * as m from '$lib/i18n/messages';
 import { clearCachedUser } from './loadAuth';
 import { csrfFetch } from './csrf';
 import { isAuthenticationRequiredError } from './errors';
@@ -47,7 +48,7 @@ export class CurrentUserState {
   async load() {
     try {
       if (!this.#apiConfig) {
-        throw new Error('current user Connect API config is not configured');
+        throw new Error(m['common.error.client_not_configured']());
       }
       this.user = await this.#loadCurrentUser(this.#apiConfig);
     } catch (err) {

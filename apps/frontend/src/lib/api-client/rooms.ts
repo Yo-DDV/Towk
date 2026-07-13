@@ -6,6 +6,7 @@ import {
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
+import * as m from '$lib/i18n/messages';
 import { Timestamp } from '@bufbuild/protobuf';
 import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
 import type { Room, RoomBan as APIRoomBan } from '@towk/api-types/api/v1/rooms_pb';
@@ -77,10 +78,12 @@ function roomValidationError(err: unknown, input: { name?: string; description?:
   if (!(err instanceof ConnectError) || err.code !== Code.InvalidArgument) return err;
 
   if (input.name !== undefined && input.name.length > ROOM_NAME_MAX_LENGTH) {
-    return new Error(`room name must be ${ROOM_NAME_MAX_LENGTH} characters or less`);
+    return new Error(m['room.create.name_too_long']({ max: ROOM_NAME_MAX_LENGTH }));
   }
   if ((input.description ?? '').length > ROOM_DESCRIPTION_MAX_LENGTH) {
-    return new Error(`room description must be ${ROOM_DESCRIPTION_MAX_LENGTH} characters or less`);
+    return new Error(
+      m['room.create.description_too_long']({ max: ROOM_DESCRIPTION_MAX_LENGTH })
+    );
   }
 
   return err;

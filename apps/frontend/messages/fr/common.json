@@ -35,7 +35,10 @@
     },
     "error": {
       "network": "Erreur réseau. Veuillez réessayer.",
-      "generic": "Une erreur est survenue"
+      "generic": "Une erreur est survenue",
+      "unexpected_server_response": "Réponse inattendue du serveur. Réessayez.",
+      "client_not_configured": "Ce client n’est pas configuré. Rechargez l’application.",
+      "server_not_found": "Ce serveur n’est plus disponible. Rechargez l’application."
     },
     "delete": "Supprimer",
     "save": "Enregistrer",

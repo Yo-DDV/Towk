@@ -3,7 +3,7 @@
   "room": {
     "create": {
       "title": "Crear una sala nueva",
-      "description": "Las salas son conversaciones dentro de su servidor.",
+      "description": "Las salas son conversaciones dentro de tu servidor.",
       "name_placeholder": "Introduce el nombre de la sala",
       "description_placeholder": "¿De qué trata esta sala?",
       "name_label": "Nombre de la sala",
@@ -11,6 +11,8 @@
       "universal_label": "Sala universal",
       "universal_description": "Todos los miembros del servidor (con el permiso) son automáticamente miembros de esta sala.",
       "name_required": "El nombre de la sala es obligatorio.",
+      "name_too_long": "El nombre de la sala debe tener {max} caracteres como máximo.",
+      "description_too_long": "La descripción de la sala debe tener {max} caracteres como máximo.",
       "missing_group": "Elija un grupo de salas antes de crear una sala.",
       "failed": "No se pudo crear la sala",
       "creating": "Creando...",
@@ -68,6 +70,10 @@
       "delete_failed": "No se pudo eliminar el mensaje",
       "reaction_failed": "No se pudo actualizar la reacción",
       "deleted": "Mensaje eliminado",
+      "empty_edit": "El mensaje no puede estar vacío",
+      "link_copied": "Enlace del mensaje copiado",
+      "link_copy_failed": "No se pudo copiar el enlace",
+      "reply_target_not_loaded": "El mensaje no está cargado. Desplázate hacia arriba para encontrarlo.",
       "actions": {
         "toolbar": "Acciones de mensaje",
         "react_with": "Reaccionar con {emoji}",
@@ -107,7 +113,10 @@
       "view_label": "Ver {filename}",
       "download_label": "Descargar {filename}",
       "image_refresh_failed": "No se pudo actualizar el enlace de la imagen",
-      "download_refresh_failed": "No se pudo actualizar el enlace de descarga"
+      "download_refresh_failed": "No se pudo actualizar el enlace de descarga",
+      "video_uploads_disabled": "Las subidas de video están desactivadas en este servidor.",
+      "prepare_failed": "No se pudo preparar el adjunto",
+      "too_large": "{filename} es demasiado grande ({size}). Máximo: {max}."
     },
     "link_preview": {
       "delete_title": "Eliminar vista previa del enlace",

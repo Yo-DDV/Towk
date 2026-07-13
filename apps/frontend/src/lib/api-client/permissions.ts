@@ -1,4 +1,5 @@
 import { authHeaders, createTowkClient } from './connect.js';
+import * as m from '$lib/i18n/messages';
 import { AdminPermissionService } from '@towk/api-types/admin/v1/permissions_connect';
 import {
   PermissionDecision,
@@ -198,7 +199,7 @@ function tierRoles(matrix: APITierRoles): TierRoles {
 function tierRole(role: APITierRole): TierRole {
   const apiRole = role.role;
   if (!apiRole) {
-    throw new Error('permission tier role response did not include role metadata');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     roleName: apiRole.name,
@@ -265,7 +266,7 @@ function permissionDecisionUpdate(
   decision: APIPermissionDecisionUpdate | undefined
 ): PermissionDecisionUpdate {
   if (!decision) {
-    throw new Error('permission write response did not include a decision');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     permission: decision.permission,

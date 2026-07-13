@@ -1,4 +1,5 @@
 import { authHeaders, createTowkClient } from './connect.js';
+import * as m from '$lib/i18n/messages';
 import { MyAccountService } from '@towk/api-types/api/v1/account_connect';
 import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import {
@@ -115,7 +116,7 @@ export type AccountAPI = ReturnType<typeof createAccountAPI>;
 
 function accountUser(user: APIUser | undefined): AccountUser {
   if (!user) {
-    throw new Error('account response did not include a user');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     id: user.id,

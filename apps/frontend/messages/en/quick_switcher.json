@@ -4,6 +4,8 @@
     "placeholder": "Go to server, room, or conversation...",
     "no_results": "No results",
     "recent": "Recent",
+    "missing_dm_target": "Missing DM target",
+    "start_dm_failed": "Failed to start DM",
     "kind": {
       "destination": "Go to",
       "server": "Server",

@@ -3,6 +3,7 @@
  */
 
 import { getPublicServerInfo, type PublicServerInfo } from '$lib/api-client/server';
+import * as m from '$lib/i18n/messages';
 import { PRODUCT_NAME } from '$lib/product';
 import {
   getAuthenticatedServerState,
@@ -104,7 +105,7 @@ export class ServerInfoState {
    */
   async refreshAuthenticatedSettings(): Promise<void> {
     if (!this.#apiConfig) {
-      throw new Error('authenticated server state Connect API config is not configured');
+      throw new Error(m['common.error.client_not_configured']());
     }
     const info = await this.#getAuthenticatedServerState(this.#apiConfig);
 

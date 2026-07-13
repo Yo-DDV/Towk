@@ -11,6 +11,8 @@
       "universal_label": "Universal room",
       "universal_description": "All server members (given the permission) automatically are members of this room.",
       "name_required": "Room name is required",
+      "name_too_long": "Room name must be {max} characters or less.",
+      "description_too_long": "Room description must be {max} characters or less.",
       "missing_group": "Choose a room group before creating a room.",
       "failed": "Failed to create room",
       "creating": "Creating...",
@@ -68,6 +70,10 @@
       "delete_failed": "Failed to delete message",
       "reaction_failed": "Failed to update reaction",
       "deleted": "Message deleted",
+      "empty_edit": "Message cannot be empty",
+      "link_copied": "Message link copied",
+      "link_copy_failed": "Failed to copy link",
+      "reply_target_not_loaded": "Message is not loaded. Scroll up to find it.",
       "actions": {
         "toolbar": "Message actions",
         "react_with": "React with {emoji}",
@@ -107,7 +113,10 @@
       "view_label": "View {filename}",
       "download_label": "Download {filename}",
       "image_refresh_failed": "Could not refresh image link",
-      "download_refresh_failed": "Could not refresh download link"
+      "download_refresh_failed": "Could not refresh download link",
+      "video_uploads_disabled": "Video uploads are disabled on this server.",
+      "prepare_failed": "Failed to prepare attachment",
+      "too_large": "{filename} is too large ({size}). Maximum is {max}."
     },
     "link_preview": {
       "delete_title": "Delete Link Preview",

@@ -35,7 +35,10 @@
     },
     "error": {
       "network": "Network error. Please try again.",
-      "generic": "Something went wrong"
+      "generic": "Something went wrong",
+      "unexpected_server_response": "Unexpected server response. Please try again.",
+      "client_not_configured": "This client is not configured. Please reload the app.",
+      "server_not_found": "This server is no longer available. Please reload the app."
     },
     "delete": "Delete",
     "save": "Save",

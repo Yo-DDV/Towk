@@ -4,6 +4,8 @@
     "placeholder": "Accéder à un serveur, un salon ou une conversation...",
     "no_results": "Aucun résultat",
     "recent": "Récent",
+    "missing_dm_target": "Destinataire du message privé manquant",
+    "start_dm_failed": "Impossible de démarrer le message privé",
     "kind": {
       "destination": "Aller à",
       "server": "Serveur",

@@ -349,7 +349,7 @@
   }
 
   async function startDMFromUser(item: ResultItem) {
-    if (!item.targetUserId) throw new Error('Missing DM target');
+    if (!item.targetUserId) throw new Error(m['quick_switcher.missing_dm_target']());
 
     const conn = serverConnectionManager.getClient(item.serverId);
     const room = await createRoomCommandAPI({
@@ -359,7 +359,7 @@
     }).startDM(item.targetUserId === item.currentUserId ? [] : [item.targetUserId]);
 
     const roomId = room?.id;
-    if (!roomId) throw new Error('Failed to start DM');
+    if (!roomId) throw new Error(m['quick_switcher.start_dm_failed']());
 
     return roomId;
   }
@@ -382,7 +382,7 @@
           })
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'Failed to start DM');
+        toast.error(err instanceof Error ? err.message : m['quick_switcher.start_dm_failed']());
       }
       return;
     }

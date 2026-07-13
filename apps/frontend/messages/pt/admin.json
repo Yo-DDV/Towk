@@ -107,12 +107,12 @@
       "removed_role": "Função {role} removida",
       "role_update_failed": "Falha ao atualizar atribuição de função",
       "invalid_display_name": "Nome de apresentação inválido",
-      "invalid_username": "Nome de utilizador inválido",
-      "update_user_failed": "Não foi possível atualizar o utilizador",
+      "invalid_username": "Nome de usuário inválido",
+      "update_user_failed": "Não foi possível atualizar o usuário",
       "user_updated": "Utilizador atualizado",
-      "clear_cooldown_failed": "Não foi possível repor o prazo de alteração do nome de utilizador",
-      "cooldown_cleared": "Prazo de alteração do nome de utilizador reposto",
-      "user_permission_overrides_hint": "Substituições de permissões para esta conta. Qualquer negação aplicável prevalece sobre as concessões; usa com moderação para exceções por utilizador, como suspensões ou elevações pontuais."
+      "clear_cooldown_failed": "Não foi possível redefinir o prazo de alteração do nome de usuário",
+      "cooldown_cleared": "Prazo de alteração do nome de usuário redefinido",
+      "user_permission_overrides_hint": "Substituições de permissões para esta conta. Qualquer negação aplicável prevalece sobre as concessões; use com moderação para exceções por usuário, como suspensões ou elevações pontuais."
     },
     "member_detail": {
       "no_self_rename": "Nenhuma renomeação automática registrada.",

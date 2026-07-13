@@ -11,6 +11,8 @@
       "universal_label": "Sala universal",
       "universal_description": "Todos os membros do servidor (com permissão) são automaticamente membros desta sala.",
       "name_required": "O nome da sala é obrigatório",
+      "name_too_long": "O nome da sala deve ter no máximo {max} caracteres.",
+      "description_too_long": "A descrição da sala deve ter no máximo {max} caracteres.",
       "missing_group": "Escolha um grupo de salas antes de criar uma sala.",
       "failed": "Falha ao criar sala",
       "creating": "Criando...",
@@ -68,6 +70,10 @@
       "delete_failed": "Falha ao excluir mensagem",
       "reaction_failed": "Falha ao atualizar a reação",
       "deleted": "Mensagem excluída",
+      "empty_edit": "A mensagem não pode ficar vazia",
+      "link_copied": "Link da mensagem copiado",
+      "link_copy_failed": "Não foi possível copiar o link",
+      "reply_target_not_loaded": "A mensagem não está carregada. Role para cima para encontrá-la.",
       "actions": {
         "toolbar": "Ações de mensagens",
         "react_with": "Reaja com {emoji}",
@@ -107,7 +113,10 @@
       "view_label": "Ver {filename}",
       "download_label": "Baixar {filename}",
       "image_refresh_failed": "Não foi possível atualizar o link da imagem",
-      "download_refresh_failed": "Não foi possível atualizar o link de download"
+      "download_refresh_failed": "Não foi possível atualizar o link de download",
+      "video_uploads_disabled": "Uploads de vídeo estão desativados neste servidor.",
+      "prepare_failed": "Não foi possível preparar o anexo",
+      "too_large": "{filename} é grande demais ({size}). Máximo: {max}."
     },
     "link_preview": {
       "delete_title": "Excluir visualização do link",
@@ -142,8 +151,8 @@
       "ban_success": "Banido {name} da sala",
       "show_members": "Mostrar membros",
       "hide_members": "Ocultar membros",
-      "show_files": "Mostrar ficheiros",
-      "hide_files": "Ocultar ficheiros",
+      "show_files": "Mostrar arquivos",
+      "hide_files": "Ocultar arquivos",
       "show_call": "Mostrar chamada",
       "hide_call": "Ocultar chamada"
     },

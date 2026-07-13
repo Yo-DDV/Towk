@@ -370,7 +370,7 @@ export class VoiceCallState {
       // Get token from server (pure query, no side effects)
       const tokenResponse = await this.#api.getCallToken(roomId);
       if (!tokenResponse) {
-        throw new Error('Failed to get voice call token');
+        throw new Error(m['voice.token_failed']());
       }
       const { token, e2eeKey, callId } = tokenResponse;
       this.activeCallId = callId;

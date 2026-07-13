@@ -662,7 +662,7 @@
   async function editMessage() {
     const trimmedBody = bodyForSend(message);
     if (!trimmedBody) {
-      toast.error('Message cannot be empty');
+      toast.error(m['room.message.empty_edit']());
       return;
     }
 

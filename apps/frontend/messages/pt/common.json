@@ -8,7 +8,7 @@
     "continue": "Continuar",
     "submit": "Enviar",
     "retry": "Tente novamente",
-    "dismiss": "Liberar",
+    "dismiss": "Dispensar",
     "sign_in": "Entrar",
     "create_account": "Criar uma conta",
     "email": "E-mail",
@@ -17,10 +17,10 @@
     "you": "Você",
     "current_call": "Chamada atual",
     "confirm_password": "Confirme sua senha",
-    "new_password": "Nova Senha",
+    "new_password": "Nova senha",
     "password_placeholder": "Sua senha",
     "email_placeholder": "você@exemplo.com",
-    "username_placeholder": "seu_nome de usuário",
+    "username_placeholder": "seu_usuario",
     "password_min_placeholder": "Pelo menos 8 caracteres",
     "password_confirm_placeholder": "Digite a senha novamente",
     "validation": {
@@ -35,7 +35,10 @@
     },
     "error": {
       "network": "Erro de rede. Por favor, tente novamente.",
-      "generic": "Algo deu errado"
+      "generic": "Algo deu errado",
+      "unexpected_server_response": "Resposta inesperada do servidor. Tente novamente.",
+      "client_not_configured": "Este cliente não está configurado. Recarregue o aplicativo.",
+      "server_not_found": "Este servidor não está mais disponível. Recarregue o aplicativo."
     },
     "delete": "Excluir",
     "save": "Salvar",

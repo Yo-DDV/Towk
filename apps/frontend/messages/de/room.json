@@ -11,6 +11,8 @@
       "universal_label": "Universeller Raum",
       "universal_description": "Alle Servermitglieder (mit entsprechender Berechtigung) sind automatisch Mitglieder dieses Raums.",
       "name_required": "Raumname ist erforderlich",
+      "name_too_long": "Der Raumname darf höchstens {max} Zeichen lang sein.",
+      "description_too_long": "Die Raumbeschreibung darf höchstens {max} Zeichen lang sein.",
       "missing_group": "Wähle eine Raumgruppe aus, bevor du einen Raum erstellst.",
       "failed": "Raum konnte nicht erstellt werden",
       "creating": "Wird erstellt...",
@@ -68,6 +70,10 @@
       "delete_failed": "Nachricht konnte nicht gelöscht werden",
       "reaction_failed": "Reaktion konnte nicht aktualisiert werden",
       "deleted": "Nachricht gelöscht",
+      "empty_edit": "Nachricht darf nicht leer sein",
+      "link_copied": "Nachrichtenlink kopiert",
+      "link_copy_failed": "Link konnte nicht kopiert werden",
+      "reply_target_not_loaded": "Die Nachricht ist nicht geladen. Scrolle nach oben, um sie zu finden.",
       "actions": {
         "toolbar": "Nachrichtenaktionen",
         "react_with": "Mit {emoji} reagieren",
@@ -107,7 +113,10 @@
       "view_label": "{filename} ansehen",
       "download_label": "{filename} herunterladen",
       "image_refresh_failed": "Bildlink konnte nicht aktualisiert werden",
-      "download_refresh_failed": "Downloadlink konnte nicht aktualisiert werden"
+      "download_refresh_failed": "Downloadlink konnte nicht aktualisiert werden",
+      "video_uploads_disabled": "Video-Uploads sind auf diesem Server deaktiviert.",
+      "prepare_failed": "Anhang konnte nicht vorbereitet werden",
+      "too_large": "{filename} ist zu groß ({size}). Maximum: {max}."
     },
     "link_preview": {
       "delete_title": "Linkvorschau löschen",

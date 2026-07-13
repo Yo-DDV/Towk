@@ -4,6 +4,8 @@
     "placeholder": "Ir al servidor, sala o conversación...",
     "no_results": "Sin resultados",
     "recent": "Reciente",
+    "missing_dm_target": "Falta el destinatario del mensaje directo",
+    "start_dm_failed": "No se pudo iniciar el mensaje directo",
     "kind": {
       "destination": "Ir a",
       "server": "Servidor",

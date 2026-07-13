@@ -416,7 +416,7 @@ describe('createRoomCommandAPI', () => {
         description: null,
         groupId: 'group-1'
       })
-    ).rejects.toThrow('room name must be 30 characters or less');
+    ).rejects.toThrow('Room name must be 30 characters or less.');
   });
 
   it('preserves core-style room description length validation messages for CreateRoom', async () => {
@@ -438,6 +438,6 @@ describe('createRoomCommandAPI', () => {
         description: 'a'.repeat(501),
         groupId: 'group-1'
       })
-    ).rejects.toThrow('room description must be 500 characters or less');
+    ).rejects.toThrow('Room description must be 500 characters or less.');
   });
 });
