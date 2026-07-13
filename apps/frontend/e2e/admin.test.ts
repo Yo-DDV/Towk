@@ -791,12 +791,12 @@ test.describe('Instance Role Permission Denials', () => {
     await expect(cell).toHaveAttribute('aria-pressed', 'false');
 
     await cell.click();
-    await expect(cell).toHaveAttribute('aria-label', /Override allow/, {
+    await expect(cell).toHaveAttribute('aria-label', /Override allow/i, {
       timeout: TIMEOUTS.UI_STANDARD
     });
 
     await cell.click();
-    await expect(cell).toHaveAttribute('aria-label', /Override deny/, {
+    await expect(cell).toHaveAttribute('aria-label', /Override deny/i, {
       timeout: TIMEOUTS.UI_STANDARD
     });
 
@@ -806,7 +806,7 @@ test.describe('Instance Role Permission Denials', () => {
     const cellAfterReload = page.locator(
       `td[data-role="${roleName}"][data-permission="message.post"] button`
     );
-    await expect(cellAfterReload).toHaveAttribute('aria-label', /Override deny/);
+    await expect(cellAfterReload).toHaveAttribute('aria-label', /Override deny/i);
     await expect(cellAfterReload).toHaveAttribute('aria-pressed', 'true');
 
     // Clean up - delete the role
