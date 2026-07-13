@@ -54,6 +54,19 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
     recentStore.record(emoji);
     onSelect(emoji);
   }
+
+  function categoryLabel(category: string): string {
+    if (category === 'Smileys & Emotion') return m['emoji.categories.smileys_emotion']();
+    if (category === 'People & Body') return m['emoji.categories.people_body']();
+    if (category === 'Animals & Nature') return m['emoji.categories.animals_nature']();
+    if (category === 'Food & Drink') return m['emoji.categories.food_drink']();
+    if (category === 'Travel & Places') return m['emoji.categories.travel_places']();
+    if (category === 'Activities') return m['emoji.categories.activities']();
+    if (category === 'Objects') return m['emoji.categories.objects']();
+    if (category === 'Symbols') return m['emoji.categories.symbols']();
+    if (category === 'Flags') return m['emoji.categories.flags']();
+    return category;
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -94,7 +107,7 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
           <div
             class="mt-1 mb-1 px-1 text-sm font-medium text-muted md:mt-0 md:mb-0.5 md:px-0 md:text-xs"
           >
-            Recently Used
+            {m['emoji.recently_used']()}
           </div>
           <div class="grid grid-cols-7 md:grid-cols-8">
             {#each recent as emoji (emoji)}
@@ -111,7 +124,7 @@ Uses the same section styling as MessageContextMenu (rounded-md bg-background se
           <div
             class="mt-3 mb-1 px-1 text-sm font-medium text-muted md:mt-1 md:mb-0.5 md:px-0 md:text-xs"
           >
-            {cat.name}
+            {categoryLabel(cat.name)}
           </div>
           <div class="grid grid-cols-7 md:grid-cols-8">
             {#each cat.emojis as entry (entry.name)}

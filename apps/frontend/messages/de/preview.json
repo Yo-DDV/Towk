@@ -5,6 +5,8 @@
     "delete": "Vorschau löschen",
     "open_link": "Link öffnen",
     "copy_url": "URL kopieren",
+    "copy_url_success": "URL in die Zwischenablage kopiert",
+    "copy_url_failed": "URL konnte nicht kopiert werden",
     "youtube_title": "YouTube-Video",
     "youtube_dismiss": "Video ausblenden",
     "youtube_delete": "Video löschen",

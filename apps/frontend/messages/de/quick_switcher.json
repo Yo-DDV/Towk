@@ -4,6 +4,8 @@
     "placeholder": "Zu Server, Raum oder Unterhaltung wechseln...",
     "no_results": "Keine Ergebnisse",
     "recent": "Zuletzt verwendet",
+    "missing_dm_target": "DM-Ziel fehlt",
+    "start_dm_failed": "DM konnte nicht gestartet werden",
     "kind": {
       "destination": "Gehe zu",
       "server": "Server",

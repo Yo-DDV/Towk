@@ -11,6 +11,8 @@
       "universal_label": "Universeller Raum",
       "universal_description": "Alle Servermitglieder (mit entsprechender Berechtigung) sind automatisch Mitglieder dieses Raums.",
       "name_required": "Raumname ist erforderlich",
+      "name_too_long": "Der Raumname darf höchstens {max} Zeichen lang sein.",
+      "description_too_long": "Die Raumbeschreibung darf höchstens {max} Zeichen lang sein.",
       "missing_group": "Wähle eine Raumgruppe aus, bevor du einen Raum erstellst.",
       "failed": "Raum konnte nicht erstellt werden",
       "creating": "Wird erstellt...",
@@ -68,6 +70,10 @@
       "delete_failed": "Nachricht konnte nicht gelöscht werden",
       "reaction_failed": "Reaktion konnte nicht aktualisiert werden",
       "deleted": "Nachricht gelöscht",
+      "empty_edit": "Nachricht darf nicht leer sein",
+      "link_copied": "Nachrichtenlink kopiert",
+      "link_copy_failed": "Link konnte nicht kopiert werden",
+      "reply_target_not_loaded": "Die Nachricht ist nicht geladen. Scrolle nach oben, um sie zu finden.",
       "actions": {
         "toolbar": "Nachrichtenaktionen",
         "react_with": "Mit {emoji} reagieren",
@@ -96,7 +102,8 @@
         "reply_preview_fallback": "Nachricht",
         "edited": "(bearbeitet)",
         "deleted": "Diese Nachricht wurde gelöscht."
-      }
+      },
+      "start_marker": "Dies ist der Anfang dieser Unterhaltung."
     },
     "attachment": {
       "delete_title": "Anhang löschen",
@@ -106,7 +113,10 @@
       "view_label": "{filename} ansehen",
       "download_label": "{filename} herunterladen",
       "image_refresh_failed": "Bildlink konnte nicht aktualisiert werden",
-      "download_refresh_failed": "Downloadlink konnte nicht aktualisiert werden"
+      "download_refresh_failed": "Downloadlink konnte nicht aktualisiert werden",
+      "video_uploads_disabled": "Video-Uploads sind auf diesem Server deaktiviert.",
+      "prepare_failed": "Anhang konnte nicht vorbereitet werden",
+      "too_large": "{filename} ist zu groß ({size}). Maximum: {max}."
     },
     "link_preview": {
       "delete_title": "Linkvorschau löschen",
@@ -138,7 +148,13 @@
       "in_voice_call": "In einem Sprachanruf",
       "in_video_call": "In einem Videoanruf",
       "ban_failed": "Mitglied konnte nicht aus dem Raum gesperrt werden",
-      "ban_success": "{name} wurde aus dem Raum gesperrt"
+      "ban_success": "{name} wurde aus dem Raum gesperrt",
+      "show_members": "Mitglieder anzeigen",
+      "hide_members": "Mitglieder ausblenden",
+      "show_files": "Dateien anzeigen",
+      "hide_files": "Dateien ausblenden",
+      "show_call": "Anruf anzeigen",
+      "hide_call": "Anruf ausblenden"
     },
     "title": {
       "direct_message": "Direktnachricht"
@@ -155,6 +171,22 @@
     "jump_to_present": "Zur Gegenwart springen",
     "jump_failed": "Zu dieser Nachricht konnte nicht gesprungen werden.",
     "unread_separator": "Neue Nachrichten",
-    "close_extras": "Raumdetails schließen"
+    "close_extras": "Raumdetails schließen",
+    "system_group": {
+      "joined_room_one": "ist dem Raum beigetreten",
+      "joined_room_many": "sind dem Raum beigetreten",
+      "left_room_one": "hat den Raum verlassen",
+      "left_room_many": "haben den Raum verlassen",
+      "and": "und",
+      "show_less": "weniger anzeigen",
+      "other_one": "{count} weitere Person",
+      "other_many": "{count} weitere"
+    },
+    "system_event": {
+      "joined_room": "ist dem Raum beigetreten",
+      "left_room": "hat den Raum verlassen",
+      "archived_room": "hat den Raum archiviert",
+      "unarchived_room": "hat den Raum wiederhergestellt"
+    }
   }
 }

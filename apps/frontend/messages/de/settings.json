@@ -127,7 +127,9 @@
         "description": "Wähle die Sprache für diesen Browser.",
         "english": "English",
         "german": "Deutsch",
-        "french": "Français"
+        "french": "Français",
+        "spanish": "Español",
+        "portuguese": "Português"
       },
       "timezone": {
         "title": "Zeitzone",
@@ -342,6 +344,7 @@
         "delete_messages": "alle deine Nachrichten werden gelöscht (Inhalte können nicht wiederhergestellt werden)",
         "delete_profile": "dein Profil, Avatar und zugehörige Daten werden gelöscht",
         "confirm_label": "Gib {confirmation} ein, um zu bestätigen",
+        "confirmation_token": "LÖSCHEN",
         "fresh_auth_intro": "Bestätige dein aktuelles Passwort, bevor du dieses Konto löschst.",
         "fresh_auth_required": "Melde dich erneut an, bevor du dieses Konto löschst.",
         "cancel": "Abbrechen",

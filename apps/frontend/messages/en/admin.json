@@ -105,7 +105,14 @@
       "edit": "Edit",
       "assigned_role": "Assigned {role} role",
       "removed_role": "Removed {role} role",
-      "role_update_failed": "Failed to update role assignment"
+      "role_update_failed": "Failed to update role assignment",
+      "invalid_display_name": "Invalid display name",
+      "invalid_username": "Invalid username",
+      "update_user_failed": "Failed to update user",
+      "user_updated": "User updated",
+      "clear_cooldown_failed": "Failed to clear username cooldown",
+      "cooldown_cleared": "Username change cooldown cleared",
+      "user_permission_overrides_hint": "User-level overrides for this account. Any applicable deny wins over grants; use sparingly for per-user exceptions like suspensions or one-off elevations."
     },
     "member_detail": {
       "no_self_rename": "No self-rename recorded.",
@@ -143,7 +150,13 @@
       "no_users_with_role": "No users have this role",
       "server_tier_intro": "This page is for server-tier role permissions: broad defaults that apply before room-specific overrides.",
       "server_tier_rooms_hint": "Use Rooms for per-group and per-room overrides.",
-      "server_tier_denies_hint": "Use denies deliberately: denying everyone in a room blocks all inherited allows at that tier."
+      "server_tier_denies_hint": "Use denies deliberately: denying everyone in a room blocks all inherited allows at that tier.",
+      "server_not_found": "Server not found",
+      "update_role_failed": "Failed to update role",
+      "update_role_ping_failed": "Failed to update role ping setting",
+      "role_pings_enabled": "Role pings enabled",
+      "role_pings_disabled": "Role pings disabled",
+      "delete_role_failed": "Failed to delete role"
     },
     "rooms_admin": {
       "title": "Rooms",

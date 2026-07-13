@@ -106,7 +106,7 @@ describe('createPermissionAPI', () => {
     const api = createPermissionAPI({ baseUrl: '/api/connect', bearerToken: 'token' });
 
     await expect(api.getRolePermissionTierMatrix({ roomId: 'R1' })).rejects.toThrow(
-      'permission tier role response did not include role metadata'
+      'Unexpected server response. Please try again.'
     );
   });
 

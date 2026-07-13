@@ -56,6 +56,39 @@ test.describe('Account Deletion', () => {
       await accountPage.expectDeleteButtonEnabled();
     });
 
+    test('delete confirmation token follows the selected French locale', async ({ page }) => {
+      await createAndLoginTestUser(page);
+      await page.goto(routes.settingsPreferences);
+      await expect(page.getByRole('heading', { name: 'Display' })).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
+
+      await page.getByRole('radio', { name: 'Français' }).click();
+      await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
+
+      await page.goto(routes.settingsAccount);
+      await expect(page.getByRole('heading', { name: 'Compte', exact: true })).toBeVisible({
+        timeout: TIMEOUTS.UI_STANDARD
+      });
+
+      await page.getByRole('button', { name: 'Supprimer le compte' }).click();
+      const dialog = page.getByRole('dialog', { name: 'Supprimer le compte' });
+      await expect(dialog).toBeVisible();
+
+      const confirmInput = page.locator('#delete-confirm');
+      await expect(page.getByLabel('Saisissez SUPPRIMER pour confirmer')).toBeVisible();
+      await expect(confirmInput).toHaveAttribute('placeholder', 'SUPPRIMER');
+
+      const confirmButton = dialog.getByRole('button', { name: 'Supprimer le compte' });
+      await expect(confirmButton).toBeDisabled();
+
+      await confirmInput.fill('DELETE');
+      await expect(confirmButton).toBeDisabled();
+
+      await confirmInput.fill('SUPPRIMER');
+      await expect(confirmButton).toBeEnabled();
+    });
+
     test('can delete own account', async ({ page, accountPage, authPage }) => {
       const user = await createAndLoginTestUser(page);
       await accountPage.goto();

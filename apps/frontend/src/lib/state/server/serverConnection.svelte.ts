@@ -1,4 +1,5 @@
 import { isExplicitSignOutRedirectInProgress } from '$lib/auth/signOut';
+import * as m from '$lib/i18n/messages';
 import { serverRegistry } from './registry.svelte';
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
@@ -302,7 +303,7 @@ class ServerConnectionManager {
 
     const server = serverRegistry.getServer(serverId);
     if (!server) {
-      throw new Error(`Server "${serverId}" not found in registry`);
+      throw new Error(m['common.error.server_not_found']());
     }
 
     const client = new ServerConnection({

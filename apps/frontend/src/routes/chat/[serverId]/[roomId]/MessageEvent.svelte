@@ -577,7 +577,7 @@
     if (jumpState) {
       jumpState.jumpToMessage(replyToId);
     } else {
-      toast.info('Message is not loaded. Scroll up to find it.');
+      toast.info(m['room.message.reply_target_not_loaded']());
     }
   }
 

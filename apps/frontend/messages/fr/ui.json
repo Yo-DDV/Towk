@@ -54,7 +54,8 @@
     "image_modal": {
       "previous": "Image précédente",
       "next": "Image suivante",
-      "fallback_alt": "Image"
+      "fallback_alt": "Image",
+      "open_original": "Ouvrir l’original"
     },
     "toast": {
       "dismiss": "Fermer la notification"
@@ -84,6 +85,10 @@
       "yesterday": "Hier",
       "this_week": "Cette semaine",
       "this_month": "Ce mois-ci"
+    },
+    "user_combobox": {
+      "empty": "Aucun utilisateur trouvé",
+      "clear_actor": "Effacer l’acteur"
     }
   }
 }

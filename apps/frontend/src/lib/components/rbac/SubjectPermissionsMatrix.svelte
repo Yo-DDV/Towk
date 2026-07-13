@@ -18,6 +18,12 @@ apply at that scope's tier).
   import { Panel, DataTable } from '$lib/components/admin';
   import { Hint, HelpTooltip } from '$lib/ui';
   import { getPermissionDescription } from '$lib/permissions';
+  import {
+    localizedDecisionState,
+    localizedScopeKind,
+    localizedScopeLabel,
+    localizedSubjectKind
+  } from '$lib/rbacLabels';
   import MatrixCell from './MatrixCell.svelte';
   import * as m from '$lib/i18n/messages';
 
@@ -54,40 +60,57 @@ apply at that scope's tier).
     'user'
   ];
 
-  const CATEGORY_META: Record<string, { title: string; description: string }> = {
-    space: {
-      title: m['rbac.permissions.categories.space.title'](),
-      description: m['rbac.permissions.categories.space.description']()
-    },
-    room: {
-      title: m['rbac.permissions.categories.room.title'](),
-      description: m['rbac.permissions.categories.room.description']()
-    },
-    message: {
-      title: m['rbac.permissions.categories.message.title'](),
-      description: m['rbac.permissions.categories.message.description']()
-    },
-    member: {
-      title: m['rbac.permissions.categories.member.title'](),
-      description: m['rbac.permissions.categories.member.description']()
-    },
-    role: {
-      title: m['rbac.permissions.categories.role.title'](),
-      description: m['rbac.permissions.categories.role.description']()
-    },
-    admin: {
-      title: m['rbac.permissions.categories.admin.title'](),
-      description: m['rbac.permissions.categories.admin.description']()
-    },
-    dm: {
-      title: m['rbac.permissions.categories.dm.title'](),
-      description: m['rbac.permissions.categories.dm.description']()
-    },
-    user: {
-      title: m['rbac.permissions.categories.user.title'](),
-      description: m['rbac.permissions.categories.user.description']()
+  function categoryMeta(category: string): { title: string; description?: string } {
+    if (category === 'space') {
+      return {
+        title: m['rbac.permissions.categories.space.title'](),
+        description: m['rbac.permissions.categories.space.description']()
+      };
     }
-  };
+    if (category === 'room') {
+      return {
+        title: m['rbac.permissions.categories.room.title'](),
+        description: m['rbac.permissions.categories.room.description']()
+      };
+    }
+    if (category === 'message') {
+      return {
+        title: m['rbac.permissions.categories.message.title'](),
+        description: m['rbac.permissions.categories.message.description']()
+      };
+    }
+    if (category === 'member') {
+      return {
+        title: m['rbac.permissions.categories.member.title'](),
+        description: m['rbac.permissions.categories.member.description']()
+      };
+    }
+    if (category === 'role') {
+      return {
+        title: m['rbac.permissions.categories.role.title'](),
+        description: m['rbac.permissions.categories.role.description']()
+      };
+    }
+    if (category === 'admin') {
+      return {
+        title: m['rbac.permissions.categories.admin.title'](),
+        description: m['rbac.permissions.categories.admin.description']()
+      };
+    }
+    if (category === 'dm') {
+      return {
+        title: m['rbac.permissions.categories.dm.title'](),
+        description: m['rbac.permissions.categories.dm.description']()
+      };
+    }
+    if (category === 'user') {
+      return {
+        title: m['rbac.permissions.categories.user.title'](),
+        description: m['rbac.permissions.categories.user.description']()
+      };
+    }
+    return { title: category };
+  }
 
   let {
     data,
@@ -191,15 +214,19 @@ apply at that scope's tier).
 </script>
 
 {#if orderedScopes.length === 0}
-  <Hint tone="info">No scopes available for this {subjectKind}.</Hint>
+  <Hint tone="info">
+    {m['rbac.permissions.no_scopes_available']({
+      subject: localizedSubjectKind(subjectKind)
+    })}
+  </Hint>
 {:else}
   <div class="flex flex-col gap-6">
     {#each groupedPermissions as group (group.category)}
-      {@const meta = CATEGORY_META[group.category]}
+      {@const meta = categoryMeta(group.category)}
       {@const categoryScopes = orderedScopes.filter((scope) =>
         group.permissions.some((p) => cellFor(scope.id, p) !== undefined)
       )}
-      <Panel title={meta?.title ?? group.category} subtitle={meta?.description} noPadding>
+      <Panel title={meta.title} subtitle={meta.description} noPadding>
         <div class="overflow-x-auto" style="width: max-content; max-width: 100%">
           <DataTable
             items={group.permissions}
@@ -213,16 +240,21 @@ apply at that scope's tier).
                 class="sticky left-0 z-10 bg-background px-4 py-3 text-left align-bottom font-medium"
                 style="width: 14rem"
               >
-                Permission
+                {m['rbac.permissions.permission']()}
               </th>
               {#each categoryScopes as scope (scope.id)}
+                {@const scopeLabel = localizedScopeLabel(scope)}
+                {@const scopeKind = localizedScopeKind(scope.kind)}
                 <th
                   class={[
                     'px-0 py-3 text-center align-bottom font-medium',
                     scopeColumnClass(scope.kind)
                   ]}
                   style="width: 2rem; min-width: 2rem; height: 12rem"
-                  title={`${scope.label} (${scope.kind.toLowerCase()})`}
+                  title={m['rbac.permissions.scope_title']({
+                    label: scopeLabel,
+                    kind: scopeKind
+                  })}
                   data-scope={scope.id}
                 >
                   <span
@@ -234,7 +266,7 @@ apply at that scope's tier).
                     ]}
                     style="writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap"
                   >
-                    {#if scope.kind === 'ROOM'}#{/if}{scope.label}
+                    {#if scope.kind === 'ROOM'}#{/if}{scopeLabel}
                   </span>
                 </th>
               {/each}
@@ -242,11 +274,13 @@ apply at that scope's tier).
             {#snippet row(permission)}
               <td class="sticky left-0 z-10 bg-background px-4 py-2 whitespace-nowrap">
                 <code data-testid="permission-name" class="text-sm">{permission}</code>
-                <HelpTooltip label={`About ${permission}`}>
+                <HelpTooltip label={m['rbac.permissions.about_permission']({ permission })}>
                   {getPermissionDescription(permission)}
                 </HelpTooltip>
               </td>
               {#each categoryScopes as scope (scope.id)}
+                {@const scopeLabel = localizedScopeLabel(scope)}
+                {@const subjectLabel = localizedSubjectKind(subjectKind)}
                 {@const cell = cellFor(scope.id, permission)}
                 {@const cellKey = `${scope.id}::${permission}`}
                 {@const isUpdating = updatingKey === cellKey}
@@ -262,23 +296,43 @@ apply at that scope's tier).
                     {@const displayOverride = forceAllow ? 'allow' : ov}
                     {@const displayEffective = forceAllow ? 'neutral' : eff}
                     {@const ariaLabel = forceAllow
-                      ? `${subjectKind} is always granted ${permission} at ${scope.label}`
+                      ? m['rbac.permissions.subject_always_granted_at_scope']({
+                          subject: subjectLabel,
+                          permission,
+                          scope: scopeLabel
+                        })
                       : ov !== 'neutral'
-                        ? `Override ${ov} for ${permission} at ${scope.label}`
-                        : `No override for ${permission} at ${scope.label}, effective ${eff}`}
+                        ? m['rbac.permissions.override_for_permission_scope']({
+                            state: localizedDecisionState(ov),
+                            permission,
+                            scope: scopeLabel
+                          })
+                        : m['rbac.permissions.no_override_effective_scope']({
+                            permission,
+                            scope: scopeLabel,
+                            state: localizedDecisionState(eff)
+                          })}
                     {@const titleParts = forceAllow
                       ? [
-                          'Allow (owners are always granted all permissions)',
-                          'Owner permissions are not editable'
+                          m['rbac.permissions.allow_owners_all'](),
+                          m['rbac.permissions.owner_permissions_not_editable']()
                         ]
                       : [
                           ov !== 'neutral'
-                            ? `${ov === 'allow' ? 'Allow' : 'Deny'} (${subjectKind} override at ${scope.label})`
+                            ? m['rbac.permissions.subject_override_at_scope']({
+                                state: localizedDecisionState(ov),
+                                subject: subjectLabel,
+                                scope: scopeLabel
+                              })
                             : null,
                           ov === 'neutral' && eff !== 'neutral'
-                            ? `Effective ${eff === 'allow' ? 'Allow' : 'Deny'} (inherited)`
+                            ? m['rbac.permissions.effective_inherited']({
+                                state: localizedDecisionState(eff)
+                              })
                             : null,
-                          ov === 'neutral' && eff === 'neutral' ? 'No decision' : null
+                          ov === 'neutral' && eff === 'neutral'
+                            ? m['rbac.permissions.state_neutral']()
+                            : null
                         ].filter(Boolean)}
                     <MatrixCell
                       override={displayOverride}

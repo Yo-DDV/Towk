@@ -136,8 +136,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('src/lib/paraglide/messages/de.js')) return 'i18n-de';
-          if (id.includes('src/lib/paraglide/messages/fr.js')) return 'i18n-fr';
+          const localeMatch = id.match(/src\/lib\/paraglide\/messages\/([^/]+)\.js$/);
+          if (localeMatch && localeMatch[1] !== 'en') return `i18n-${localeMatch[1]}`;
         },
         experimentalMinChunkSize: 20_000
       }

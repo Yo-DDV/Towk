@@ -4,6 +4,8 @@
   import UserAvatar, { UserAvatarViewData } from '$lib/components/UserAvatar.svelte';
   import { useRenderData } from '$lib/render/data';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
+  import { getLocale } from '$lib/i18n/runtime';
+  import * as m from '$lib/i18n/messages';
 
   let {
     events,
@@ -13,14 +15,18 @@
     kind: SystemGroupKind;
   } = $props();
 
-  const action = $derived.by(() => {
+  function actionLabel(count: number): string {
     switch (kind) {
       case 'join':
-        return 'joined the room';
+        return count === 1
+          ? m['room.system_group.joined_room_one']()
+          : m['room.system_group.joined_room_many']();
       case 'leave':
-        return 'left the room';
+        return count === 1
+          ? m['room.system_group.left_room_one']()
+          : m['room.system_group.left_room_many']();
     }
-  });
+  }
 
   type Actor = {
     id: string;
@@ -38,7 +44,7 @@
       return { id: actor.id, name: displayName(actor), user: actor };
     }
 
-    return { id: event.actorId ?? 'unknown', name: 'Deleted User', user: null };
+    return { id: event.actorId ?? 'unknown', name: m['room.sidebar.deleted_user'](), user: null };
   }
 
   // Deduplicate by actor so batched join/leave events stay compact.
@@ -61,9 +67,13 @@
 
   function joinNames(names: string[]): string {
     if (names.length === 0) return '';
-    if (names.length === 1) return names[0];
-    if (names.length === 2) return `${names[0]} and ${names[1]}`;
-    return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+    try {
+      return new Intl.ListFormat(getLocale(), { style: 'long', type: 'conjunction' }).format(names);
+    } catch {
+      if (names.length === 1) return names[0];
+      if (names.length === 2) return `${names[0]} ${m['room.system_group.and']()} ${names[1]}`;
+      return `${names.slice(0, -1).join(', ')}, ${m['room.system_group.and']()} ${names[names.length - 1]}`;
+    }
   }
 
   const allNames = $derived(joinNames(actors.map((a) => a.name)));
@@ -92,23 +102,27 @@
 
     <span class="text-sm text-muted">
       {#if !isTruncatable || expanded}
-        {allNames} {action}
+        {allNames} {actionLabel(actors.length)}
         {#if isTruncatable}
           <button
             type="button"
             class="ml-1 cursor-pointer underline decoration-dotted underline-offset-2 hover:text-text"
             onclick={() => (expanded = false)}
           >
-            show less
+            {m['room.system_group.show_less']()}
           </button>
         {/if}
       {:else}
-        {headNames}, and <button
+        {headNames}, {m['room.system_group.and']()} <button
           type="button"
           class="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-text"
           onclick={() => (expanded = true)}
-        >{extraCount} {extraCount === 1 ? 'other' : 'others'}</button>
-        {action}
+        >
+          {extraCount === 1
+            ? m['room.system_group.other_one']({ count: extraCount })
+            : m['room.system_group.other_many']({ count: extraCount })}
+        </button>
+        {actionLabel(actors.length)}
       {/if}
     </span>
   </div>

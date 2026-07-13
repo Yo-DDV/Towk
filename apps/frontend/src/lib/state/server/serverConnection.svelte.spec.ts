@@ -200,7 +200,7 @@ describe('ServerConnectionManager', () => {
   it('getClient throws for unknown instance IDs', async () => {
     const mod = await import('./serverConnection.svelte');
     expect(() => mod.serverConnectionManager.getClient('nonexistent')).toThrow(
-      'Server "nonexistent" not found in registry'
+      'This server is no longer available. Please reload the app.'
     );
   });
 

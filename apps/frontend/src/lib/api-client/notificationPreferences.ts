@@ -4,6 +4,7 @@ import {
   handleAuthError,
   type ConnectAPIConfig as BaseConnectAPIConfig
 } from './connect.js';
+import * as m from '$lib/i18n/messages';
 import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_connect';
 import {
   NotificationLevel,
@@ -91,7 +92,7 @@ function notificationPreference(
   preference: APINotificationPreference | undefined
 ): NotificationPreference {
   if (!preference) {
-    throw new Error('notification preference response did not include preference metadata');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     level: preference.level,

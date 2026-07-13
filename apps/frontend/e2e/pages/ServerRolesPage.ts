@@ -228,7 +228,7 @@ export class ServerRolesPage {
    * Compatibility shim — exposes the matrix cell so older tests that drove
    * an Allow ToggleChip via `getPermissionCheckbox` keep working. The
    * "Allow" semantic is folded into the cell now (allow when its aria-label
-   * matches `Override allow`). NOTE: this is a sync getter, so callers
+   * matches `Override Allow`). NOTE: this is a sync getter, so callers
    * must already be on the matrix; use `expectPermissionEditable` if you
    * need an async navigation guard.
    */
@@ -281,9 +281,9 @@ export class ServerRolesPage {
     const cell = this.currentCell(permission);
     for (let i = 0; i < 3; i++) {
       const label = (await cell.getAttribute('aria-label')) ?? '';
-      if (target === 'allow' && /Override allow/.test(label)) return;
-      if (target === 'deny' && /Override deny/.test(label)) return;
-      if (target === 'neutral' && /No override/.test(label)) return;
+      if (target === 'allow' && /Override allow/i.test(label)) return;
+      if (target === 'deny' && /Override deny/i.test(label)) return;
+      if (target === 'neutral' && /No override/i.test(label)) return;
       await cell.click();
       // Optimistic UI update is synchronous after the API mutation resolves;
       // one tick is enough.
@@ -331,13 +331,13 @@ export class ServerRolesPage {
   /** Whether the cell currently shows an allow override. */
   async isPermissionGranted(permission: string): Promise<boolean> {
     const label = (await this.currentCell(permission).getAttribute('aria-label')) ?? '';
-    return /Override allow/.test(label);
+    return /Override allow/i.test(label);
   }
 
   /** Whether the cell currently shows a deny override. */
   async isPermissionDenied(permission: string): Promise<boolean> {
     const label = (await this.currentCell(permission).getAttribute('aria-label')) ?? '';
-    return /Override deny/.test(label);
+    return /Override deny/i.test(label);
   }
 
   // --- Delete Role Actions ---
@@ -391,7 +391,7 @@ export class ServerRolesPage {
   /** Assert the matrix cell for the current role × permission is set to allow. */
   async expectPermissionGranted(permission: string): Promise<void> {
     await this.ensureOnMatrix();
-    await expect(this.currentCell(permission)).toHaveAttribute('aria-label', /Override allow/);
+    await expect(this.currentCell(permission)).toHaveAttribute('aria-label', /Override allow/i);
   }
 
   async expectOwnerPermissionVirtuallyGranted(permission: string): Promise<void> {
@@ -410,7 +410,7 @@ export class ServerRolesPage {
     await this.ensureOnMatrix();
     const cell = this.currentCell(permission);
     const label = (await cell.getAttribute('aria-label')) ?? '';
-    expect(label).not.toMatch(/Override allow/);
+    expect(label).not.toMatch(/Override allow/i);
   }
 
   /**
@@ -526,7 +526,7 @@ export class ServerRolesPage {
   /** Assert the matrix cell for the current role × permission is set to deny. */
   async expectPermissionDenied(permission: string): Promise<void> {
     await this.ensureOnMatrix();
-    await expect(this.currentCell(permission)).toHaveAttribute('aria-label', /Override deny/);
+    await expect(this.currentCell(permission)).toHaveAttribute('aria-label', /Override deny/i);
   }
 
   /**
@@ -536,6 +536,6 @@ export class ServerRolesPage {
   async expectPermissionNotDenied(permission: string): Promise<void> {
     await this.ensureOnMatrix();
     const label = (await this.currentCell(permission).getAttribute('aria-label')) ?? '';
-    expect(label).not.toMatch(/Override deny/);
+    expect(label).not.toMatch(/Override deny/i);
   }
 }

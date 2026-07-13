@@ -91,8 +91,8 @@
   getLabel={userLabel}
   {placeholder}
   {loading}
-  emptyMessage="No users found"
-  clearLabel="Clear actor"
+  emptyMessage={m['ui.user_combobox.empty']()}
+  clearLabel={m['ui.user_combobox.clear_actor']()}
   ontextchange={scheduleSearch}
 >
   {#snippet item({ item: user })}

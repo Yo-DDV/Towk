@@ -11,6 +11,8 @@
       "universal_label": "Universal room",
       "universal_description": "All server members (given the permission) automatically are members of this room.",
       "name_required": "Room name is required",
+      "name_too_long": "Room name must be {max} characters or less.",
+      "description_too_long": "Room description must be {max} characters or less.",
       "missing_group": "Choose a room group before creating a room.",
       "failed": "Failed to create room",
       "creating": "Creating...",
@@ -68,6 +70,10 @@
       "delete_failed": "Failed to delete message",
       "reaction_failed": "Failed to update reaction",
       "deleted": "Message deleted",
+      "empty_edit": "Message cannot be empty",
+      "link_copied": "Message link copied",
+      "link_copy_failed": "Failed to copy link",
+      "reply_target_not_loaded": "Message is not loaded. Scroll up to find it.",
       "actions": {
         "toolbar": "Message actions",
         "react_with": "React with {emoji}",
@@ -96,7 +102,8 @@
         "reply_preview_fallback": "Message",
         "edited": "(edited)",
         "deleted": "This message has been deleted."
-      }
+      },
+      "start_marker": "This is the beginning of this conversation."
     },
     "attachment": {
       "delete_title": "Delete Attachment",
@@ -106,7 +113,10 @@
       "view_label": "View {filename}",
       "download_label": "Download {filename}",
       "image_refresh_failed": "Could not refresh image link",
-      "download_refresh_failed": "Could not refresh download link"
+      "download_refresh_failed": "Could not refresh download link",
+      "video_uploads_disabled": "Video uploads are disabled on this server.",
+      "prepare_failed": "Failed to prepare attachment",
+      "too_large": "{filename} is too large ({size}). Maximum is {max}."
     },
     "link_preview": {
       "delete_title": "Delete Link Preview",
@@ -138,7 +148,13 @@
       "in_voice_call": "In a voice call",
       "in_video_call": "In a video call",
       "ban_failed": "Failed to ban member from room",
-      "ban_success": "Banned {name} from room"
+      "ban_success": "Banned {name} from room",
+      "show_members": "Show members",
+      "hide_members": "Hide members",
+      "show_files": "Show files",
+      "hide_files": "Hide files",
+      "show_call": "Show call",
+      "hide_call": "Hide call"
     },
     "title": {
       "direct_message": "Direct Message"
@@ -155,6 +171,22 @@
     "jump_to_present": "Jump to Present",
     "jump_failed": "Could not jump to that message.",
     "unread_separator": "New messages",
-    "close_extras": "Close room extras"
+    "close_extras": "Close room extras",
+    "system_group": {
+      "joined_room_one": "joined the room",
+      "joined_room_many": "joined the room",
+      "left_room_one": "left the room",
+      "left_room_many": "left the room",
+      "and": "and",
+      "show_less": "show less",
+      "other_one": "{count} other",
+      "other_many": "{count} others"
+    },
+    "system_event": {
+      "joined_room": "joined the room",
+      "left_room": "left the room",
+      "archived_room": "archived the room",
+      "unarchived_room": "unarchived the room"
+    }
   }
 }

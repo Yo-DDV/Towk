@@ -105,7 +105,14 @@
       "edit": "Modifier",
       "assigned_role": "Rôle {role} attribué",
       "removed_role": "Rôle {role} supprimé",
-      "role_update_failed": "Échec de la mise à jour de l'attribution de rôle"
+      "role_update_failed": "Échec de la mise à jour de l'attribution de rôle",
+      "invalid_display_name": "Nom d’affichage invalide",
+      "invalid_username": "Nom d’utilisateur invalide",
+      "update_user_failed": "Impossible de mettre à jour l’utilisateur",
+      "user_updated": "Utilisateur mis à jour",
+      "clear_cooldown_failed": "Impossible de réinitialiser le délai de changement du nom d’utilisateur",
+      "cooldown_cleared": "Délai de changement du nom d’utilisateur réinitialisé",
+      "user_permission_overrides_hint": "Remplacements de permissions propres à ce compte. Tout refus applicable l’emporte sur les autorisations ; à utiliser avec parcimonie pour des exceptions par utilisateur, comme une suspension ou une élévation ponctuelle."
     },
     "member_detail": {
       "no_self_rename": "Aucun changement effectué par l'utilisateur.",
@@ -143,7 +150,13 @@
       "no_users_with_role": "Aucun utilisateur n'a ce rôle",
       "server_tier_intro": "Cette page définit les permissions par défaut des rôles à l’échelle du serveur. Les exceptions propres aux groupes et aux salons sont appliquées ensuite.",
       "server_tier_rooms_hint": "Ouvrez la page Salons pour définir des exceptions par groupe ou par salon.",
-      "server_tier_denies_hint": "Utilisez les refus avec prudence : un refus appliqué au rôle everyone annule à ce niveau toutes les permissions héritées."
+      "server_tier_denies_hint": "Utilisez les refus avec prudence : un refus appliqué au rôle everyone annule à ce niveau toutes les permissions héritées.",
+      "server_not_found": "Serveur introuvable",
+      "update_role_failed": "Impossible de mettre à jour le rôle",
+      "update_role_ping_failed": "Impossible de mettre à jour le paramètre de ping du rôle",
+      "role_pings_enabled": "Pings du rôle activés",
+      "role_pings_disabled": "Pings du rôle désactivés",
+      "delete_role_failed": "Impossible de supprimer le rôle"
     },
     "rooms_admin": {
       "title": "Salons",

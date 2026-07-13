@@ -11,6 +11,8 @@
     "already_connected": "Dieser Server ist bereits verbunden.",
     "not_chatto_server": "Das scheint kein Towk-Server zu sein.",
     "oauth_unsupported": "Dieser Server unterstützt keine OAuth-Authentifizierung. Möglicherweise muss er aktualisiert werden.",
+    "invalid_oauth_server_url": "Ungültige OAuth-Server-URL.",
+    "invalid_oauth_authorization_endpoint": "Ungültiger OAuth-Autorisierungsendpunkt.",
     "connection_timed_out": "Zeitüberschreitung beim Verbindungsaufbau. Prüfe die URL und versuche es erneut.",
     "connection_failed": "Verbindung fehlgeschlagen. Prüfe die URL und stelle sicher, dass CORS konfiguriert ist.",
     "connect_failed": "Verbindung fehlgeschlagen.",

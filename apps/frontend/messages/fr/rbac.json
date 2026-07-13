@@ -82,7 +82,30 @@
           "title": "Permissions des utilisateurs",
           "description": "Définir les opérations autorisées sur les comptes et les exceptions propres à chaque utilisateur. Tout refus provenant d’un rôle autre que propriétaire annule les permissions accordées."
         }
-      }
+      },
+      "state_allow": "Autoriser",
+      "state_deny": "Refuser",
+      "state_neutral": "Aucune décision",
+      "scope_title": "{label} ({kind})",
+      "no_scopes_available": "Aucune portée disponible pour {subject}.",
+      "about_permission": "À propos de {permission}",
+      "subject_generic": "ce sujet",
+      "subject_user": "cet utilisateur",
+      "subject_role": "ce rôle",
+      "role_manage_title": "{role} — cliquer pour gérer",
+      "owner_always_granted_permission": "Le rôle Propriétaire reçoit toujours {permission}",
+      "override_for_role_permission": "Remplacer par {state} pour {role} sur {permission}",
+      "no_override_for_role_permission": "Aucun remplacement pour {role} sur {permission}",
+      "inheriting_from": "hérite l’état {state} depuis {source}",
+      "allow_owners_all": "Autoriser (les propriétaires reçoivent toujours toutes les permissions)",
+      "owner_permissions_not_editable": "Les permissions du rôle Propriétaire ne sont pas modifiables",
+      "override_at_this_tier": "{state} (remplacement à ce niveau)",
+      "inherits_from": "Hérite l’état {state} depuis {source}",
+      "subject_always_granted_at_scope": "{subject} reçoit toujours {permission} sur {scope}",
+      "override_for_permission_scope": "Remplacer par {state} pour {permission} sur {scope}",
+      "no_override_effective_scope": "Aucun remplacement pour {permission} sur {scope}, état effectif : {state}",
+      "subject_override_at_scope": "{state} (remplacement de {subject} sur {scope})",
+      "effective_inherited": "État effectif : {state} (hérité)"
     },
     "permission_descriptions": {
       "server_manage": "Mettre à jour les paramètres du serveur (nom, description, logo)",
@@ -106,6 +129,24 @@
       "user_delete_self": "Supprimer votre propre compte",
       "user_manage_accounts": "Créer des utilisateurs, modifier leur identité, réinitialiser les mots de passe, associer des adresses e-mail vérifiées et réinitialiser le délai de changement de nom d’utilisateur",
       "user_manage_permissions": "Modifier les exceptions de permissions propres à chaque utilisateur"
+    },
+    "system_roles": {
+      "owner": {
+        "display_name": "Propriétaire",
+        "description": "Contrôle complet du serveur"
+      },
+      "admin": {
+        "display_name": "Administrateur",
+        "description": "Accès administratif complet au serveur"
+      },
+      "moderator": {
+        "display_name": "Modérateur",
+        "description": "Accès en lecture aux panneaux d’administration sans permissions de gestion"
+      },
+      "everyone": {
+        "display_name": "Tous les membres",
+        "description": "Tous les utilisateurs authentifiés"
+      }
     }
   }
 }

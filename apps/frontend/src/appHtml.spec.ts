@@ -263,10 +263,28 @@ describe('app.html locale bootstrap', () => {
     expect(root.lang).toBe('fr');
   });
 
+  it('selects Spanish from a regional browser locale', () => {
+    const { root } = runThemeScript({
+      systemDark: false,
+      browserLanguages: ['es-MX', 'en-US']
+    });
+
+    expect(root.lang).toBe('es');
+  });
+
+  it('selects Portuguese from a regional browser locale', () => {
+    const { root } = runThemeScript({
+      systemDark: false,
+      browserLanguages: ['pt-BR', 'en-US']
+    });
+
+    expect(root.lang).toBe('pt');
+  });
+
   it('falls back to English for unsupported browser locales', () => {
     const { root } = runThemeScript({
       systemDark: false,
-      browserLanguages: ['es-ES', 'it-IT']
+      browserLanguages: ['it-IT']
     });
 
     expect(root.lang).toBe('en');

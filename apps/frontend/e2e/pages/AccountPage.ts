@@ -44,7 +44,7 @@ export class AccountPage {
 
   /** The confirmation text input in the delete modal */
   get confirmInput(): Locator {
-    return this.page.getByLabel('Type DELETE to confirm');
+    return this.page.locator('#delete-confirm');
   }
 
   /** The confirm delete button in the modal */

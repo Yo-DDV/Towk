@@ -1,4 +1,5 @@
 import { sha256 } from 'js-sha256';
+import * as m from '$lib/i18n/messages';
 import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
 import {
   authHeaders,
@@ -44,7 +45,7 @@ export function createAssetUploadAPI(config: ConnectAPIConfig) {
         );
         const upload = created.upload;
         if (!upload?.uploadId) {
-          throw new Error('upload did not return an upload id');
+          throw new Error(m['common.error.unexpected_server_response']());
         }
 
         let offset = Number(upload.committedOffset);
@@ -93,7 +94,7 @@ export function createAssetUploadAPI(config: ConnectAPIConfig) {
           { headers: headers() }
         );
         if (!completed.asset?.id) {
-          throw new Error('completed upload did not return an asset id');
+          throw new Error(m['common.error.unexpected_server_response']());
         }
         return {
           assetId: completed.asset.id,

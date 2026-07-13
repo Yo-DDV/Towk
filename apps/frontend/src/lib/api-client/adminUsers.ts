@@ -1,4 +1,5 @@
 import { authHeaders, createTowkClient } from "./connect.js";
+import * as m from "$lib/i18n/messages";
 import { AdminUserService } from "@towk/api-types/admin/v1/members_connect";
 import type { AdminMember as APIAdminMember } from "@towk/api-types/admin/v1/members_pb";
 import type { AdminRole as APIAdminRole } from "@towk/api-types/admin/v1/roles_pb";
@@ -170,7 +171,7 @@ export function createAdminUserManagementAPI(
         { headers: headers() },
       );
       if (!response.member) {
-        throw new Error("admin password response did not include a member");
+        throw new Error(m["common.error.unexpected_server_response"]());
       }
       return adminMember(response.member);
     },
@@ -208,7 +209,7 @@ function adminMemberTarget(
 
 function adminManagedUser(user: APIUser | undefined): AdminManagedUser {
   if (!user) {
-    throw new Error("admin user response did not include a user");
+    throw new Error(m["common.error.unexpected_server_response"]());
   }
   return {
     id: user.id,
@@ -221,7 +222,7 @@ function adminManagedUser(user: APIUser | undefined): AdminManagedUser {
 function adminMember(member: APIAdminMember): AdminMember {
   const summary = member.user;
   if (!summary) {
-    throw new Error("admin member response did not include a user summary");
+    throw new Error(m["common.error.unexpected_server_response"]());
   }
   return {
     id: summary.id,
@@ -247,9 +248,7 @@ function adminRoleSummary(role: APIRole): AdminRoleSummary {
 
 function adminRoleDetails(role: APIAdminRole): AdminRoleDetails {
   if (!role.role) {
-    throw new Error(
-      "admin member role response did not include public role metadata",
-    );
+    throw new Error(m["common.error.unexpected_server_response"]());
   }
   return {
     ...adminRoleSummary(role.role),

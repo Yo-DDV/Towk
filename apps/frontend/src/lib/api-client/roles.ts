@@ -4,6 +4,7 @@ import {
   ConnectError,
   createTowkClient,
 } from "./connect.js";
+import * as m from "$lib/i18n/messages";
 import { AdminRoleService } from "@towk/api-types/admin/v1/roles_connect";
 import type { AdminRole as APIAdminRole } from "@towk/api-types/admin/v1/roles_pb";
 import { RoleService } from "@towk/api-types/api/v1/roles_connect";
@@ -144,14 +145,14 @@ export type RoleAPI = ReturnType<typeof createRoleAPI>;
 
 function requiredAdminRole(role: APIAdminRole | undefined): ServerRole {
   if (!role) {
-    throw new Error("role response did not include a role");
+    throw new Error(m["common.error.unexpected_server_response"]());
   }
   return serverRoleFromAdmin(role);
 }
 
 function serverRoleFromAdmin(role: APIAdminRole): ServerRole {
   if (!role.role) {
-    throw new Error("admin role response did not include public role metadata");
+    throw new Error(m["common.error.unexpected_server_response"]());
   }
   return serverRoleFromPublic(
     role.role,

@@ -4,9 +4,13 @@ const root = new URL('..', import.meta.url);
 const enTypesUrl = new URL('./src/lib/paraglide/messages/en.d.ts', root);
 const messageIndexUrl = new URL('./src/lib/paraglide/messages/_index.js', root);
 const outputUrl = new URL('./src/lib/i18n/messages.ts', root);
+const settingsUrl = new URL('./project.inlang/settings.json', root);
 
 const source = readFileSync(enTypesUrl, 'utf8');
 const messageIndex = readFileSync(messageIndexUrl, 'utf8');
+const settings = JSON.parse(readFileSync(settingsUrl, 'utf8'));
+const baseLocale = settings.baseLocale;
+const nonBaseLocales = settings.locales.filter((locale) => locale !== baseLocale);
 const functionNames = [...source.matchAll(/^export const ([A-Za-z0-9_]+):/gm)].map(
   ([, name]) => name
 );
@@ -51,16 +55,18 @@ const lines = [
   "  ['en', Promise.resolve(enMessages)]",
   ']);',
   '',
+  'const localeLoaders: Partial<Record<Locale, () => Promise<LocaleMessages>>> = {',
+  ...nonBaseLocales.map((locale, index) => {
+    const separator = index === nonBaseLocales.length - 1 ? '' : ',';
+    return `  '${locale}': () => import('$lib/paraglide/messages/${locale}.js') as Promise<LocaleMessages>${separator}`;
+  }),
+  '};',
+  '',
   'function loadLocaleModule(locale: Locale): Promise<LocaleMessages> {',
   '  const existing = loadedLocales.get(locale);',
   '  if (existing) return existing;',
   '',
-  '  const loading =',
-  "    locale === 'de'",
-  "      ? (import('$lib/paraglide/messages/de.js') as Promise<LocaleMessages>)",
-  "      : locale === 'fr'",
-  "        ? (import('$lib/paraglide/messages/fr.js') as Promise<LocaleMessages>)",
-  '        : Promise.resolve(enMessages);',
+  '  const loading = localeLoaders[locale]?.() ?? Promise.resolve(enMessages);',
   '',
   '  loadedLocales.set(locale, loading);',
   '  return loading;',

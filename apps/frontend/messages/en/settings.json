@@ -127,7 +127,9 @@
         "description": "Choose the language for this browser.",
         "english": "English",
         "german": "Deutsch",
-        "french": "Français"
+        "french": "Français",
+        "spanish": "Español",
+        "portuguese": "Português"
       },
       "timezone": {
         "title": "Timezone",
@@ -342,6 +344,7 @@
         "delete_messages": "Delete all your messages (content will be unrecoverable)",
         "delete_profile": "Delete your profile, avatar, and associated data",
         "confirm_label": "Type {confirmation} to confirm",
+        "confirmation_token": "DELETE",
         "fresh_auth_intro": "Confirm your current password before deleting this account.",
         "fresh_auth_required": "Sign in again before deleting this account.",
         "cancel": "Cancel",
