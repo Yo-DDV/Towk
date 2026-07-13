@@ -20,6 +20,10 @@ Stable container aliases are not currently published.
 
 Do not reset or force-push release branches. Release preparation follows the
 same pull-request and branch-protection path as other Towk changes.
+Release Please rebuilds its managed branch from protected `main`; rerunning the
+workflow can replace follow-up commits added directly to the draft. Put durable
+corrections on `main` first when possible, or reapply them to the refreshed
+candidate and rerun every affected check before merging.
 
 ## Publish an existing tag
 
