@@ -13,6 +13,14 @@ Thumbs.db
 !.env.test
 examples/dockercompose/livekit.generated.yaml
 
+# Local runtime secrets and operator-generated archives
+/chatto.toml
+/backups/
+/*.tar.gz
+/*.tar.gz.age
+/*.age
+/keys.backup
+
 # Build output
 /dist/
 /.context/
