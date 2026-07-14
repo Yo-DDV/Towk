@@ -1000,6 +1000,10 @@ const msg_voice_join = (): LocalizedString => messages().voice_join(empty());
 const msg_voice_join_call = (): LocalizedString => messages().voice_join_call(empty());
 const msg_voice_start_call = (): LocalizedString => messages().voice_start_call(empty());
 const msg_voice_leave = (): LocalizedString => messages().voice_leave(empty());
+const msg_voice_active_call = (): LocalizedString => messages().voice_active_call(empty());
+const msg_voice_call_in = (
+  inputs: Parameters<LocaleMessages['voice_call_in']>[0]
+): LocalizedString => messages().voice_call_in(inputs);
 const msg_voice_share_screen = (): LocalizedString => messages().voice_share_screen(empty());
 const msg_voice_share_screen_with_audio = (): LocalizedString => messages().voice_share_screen_with_audio(empty());
 const msg_voice_stop_share_screen = (): LocalizedString => messages().voice_stop_share_screen(empty());
@@ -1020,6 +1024,8 @@ const msg_voice_microphone = (): LocalizedString => messages().voice_microphone(
 const msg_voice_speaker = (): LocalizedString => messages().voice_speaker(empty());
 const msg_voice_camera = (): LocalizedString => messages().voice_camera(empty());
 const msg_voice_fullscreen_feed = (): LocalizedString => messages().voice_fullscreen_feed(empty());
+const msg_voice_picture_in_picture = (): LocalizedString => messages().voice_picture_in_picture(empty());
+const msg_voice_exit_picture_in_picture = (): LocalizedString => messages().voice_exit_picture_in_picture(empty());
 const msg_voice_fullscreen_call = (): LocalizedString => messages().voice_fullscreen_call(empty());
 const msg_voice_exit_fullscreen_call = (): LocalizedString => messages().voice_exit_fullscreen_call(empty());
 const msg_voice_locally_mute_participant = (): LocalizedString => messages().voice_locally_mute_participant(empty());
@@ -2501,6 +2507,8 @@ export { msg_voice_join as 'voice.join' };
 export { msg_voice_join_call as 'voice.join_call' };
 export { msg_voice_start_call as 'voice.start_call' };
 export { msg_voice_leave as 'voice.leave' };
+export { msg_voice_active_call as 'voice.active_call' };
+export { msg_voice_call_in as 'voice.call_in' };
 export { msg_voice_share_screen as 'voice.share_screen' };
 export { msg_voice_share_screen_with_audio as 'voice.share_screen_with_audio' };
 export { msg_voice_stop_share_screen as 'voice.stop_share_screen' };
@@ -2519,6 +2527,8 @@ export { msg_voice_microphone as 'voice.microphone' };
 export { msg_voice_speaker as 'voice.speaker' };
 export { msg_voice_camera as 'voice.camera' };
 export { msg_voice_fullscreen_feed as 'voice.fullscreen_feed' };
+export { msg_voice_picture_in_picture as 'voice.picture_in_picture' };
+export { msg_voice_exit_picture_in_picture as 'voice.exit_picture_in_picture' };
 export { msg_voice_fullscreen_call as 'voice.fullscreen_call' };
 export { msg_voice_exit_fullscreen_call as 'voice.exit_fullscreen_call' };
 export { msg_voice_locally_mute_participant as 'voice.locally_mute_participant' };

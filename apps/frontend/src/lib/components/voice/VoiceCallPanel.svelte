@@ -14,6 +14,7 @@ Room sidebar panel for voice/video calls.
 - `livekitUrl` - The LiveKit server WebSocket URL (needed for joining)
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -40,6 +41,10 @@ Room sidebar panel for voice/video calls.
   import type { Attachment } from 'svelte/attachments';
   import { startDMWith } from '$lib/dm/startDM';
   import { toast } from '$lib/ui/toast';
+  import {
+    supportsVideoPictureInPicture,
+    toggleVideoPictureInPicture
+  } from '$lib/pwa/pictureInPicture';
 
   let {
     roomId,
@@ -57,6 +62,21 @@ Room sidebar panel for voice/video calls.
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
   let deviceMenuAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
+  let pictureInPictureAvailable = $state(false);
+  let pictureInPictureActive = $state(false);
+
+  onMount(() => {
+    pictureInPictureAvailable = supportsVideoPictureInPicture();
+    const syncPictureInPictureState = () => {
+      pictureInPictureActive = Boolean(document.pictureInPictureElement);
+    };
+    document.addEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+    document.addEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+    return () => {
+      document.removeEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+      document.removeEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+    };
+  });
 
   function callEventPayload(
     event: EventEnvelope['event']
@@ -223,7 +243,9 @@ Room sidebar panel for voice/video calls.
   );
   let stageTiles = $derived([...screenShareTiles, ...participantTiles]);
   let featuredStageTile = $derived(
-    screenShareTiles[0] ?? participantTiles.find((tile) => tile.kind === 'video') ?? participantTiles[0]
+    screenShareTiles[0] ??
+      participantTiles.find((tile) => tile.kind === 'video') ??
+      participantTiles[0]
   );
   let secondaryStageTiles = $derived(
     featuredStageTile ? stageTiles.filter((tile) => tile.key !== featuredStageTile.key) : []
@@ -273,7 +295,10 @@ Room sidebar panel for voice/video calls.
       const opacity = audioLevel > 0.01 ? 0.35 + Math.pow(audioLevel, 0.35) * 0.65 : 0;
       const visible = isSpeaking || opacity > 0;
 
-      node.style.setProperty('--call-speaking-ring-opacity', visible ? String(opacity || 0.85) : '0');
+      node.style.setProperty(
+        '--call-speaking-ring-opacity',
+        visible ? String(opacity || 0.85) : '0'
+      );
       node.style.setProperty('--call-speaking-ring-strength', visible ? String(audioLevel) : '0');
       node.dataset.callSpeaking = visible ? 'true' : 'false';
     }
@@ -366,6 +391,15 @@ Room sidebar panel for voice/video calls.
     void toggleFullscreenElement(mediaCard);
   }
 
+  async function toggleClosestMediaPictureInPicture(event: MouseEvent): Promise<void> {
+    event.stopPropagation();
+    const video = (event.currentTarget as HTMLElement)
+      .closest<HTMLElement>('[data-call-media-card]')
+      ?.querySelector<HTMLVideoElement>('video');
+    if (!video) return;
+    pictureInPictureActive = await toggleVideoPictureInPicture(video);
+  }
+
   function toggleFeedMute(participant: DisplayParticipant, event: MouseEvent): void {
     event.stopPropagation();
     if (participant.isLocal) {
@@ -377,7 +411,9 @@ Room sidebar panel for voice/video calls.
 </script>
 
 {#snippet localMuteButton(participant: DisplayParticipant)}
-  {@const isMutedForViewer = participant.isLocal ? voiceCallState.isMuted : participant.isLocallyMuted}
+  {@const isMutedForViewer = participant.isLocal
+    ? voiceCallState.isMuted
+    : participant.isLocallyMuted}
   <CallTileActionButton
     icon={isMutedForViewer ? 'uil--volume-mute' : 'uil--volume-up'}
     active={isMutedForViewer}
@@ -395,6 +431,16 @@ Room sidebar panel for voice/video calls.
 
 {#snippet mediaTileActions(participant: DisplayParticipant)}
   <CallTileActionToolbar testId="call-media-actions">
+    {#if pictureInPictureAvailable}
+      <CallTileActionButton
+        icon="uil--window"
+        label={pictureInPictureActive
+          ? m['voice.exit_picture_in_picture']()
+          : m['voice.picture_in_picture']()}
+        testId="call-feed-pip-button"
+        onclick={toggleClosestMediaPictureInPicture}
+      />
+    {/if}
     <CallTileActionButton
       icon="mdi--fullscreen"
       label={m['voice.fullscreen_feed']()}
@@ -579,7 +625,7 @@ Room sidebar panel for voice/video calls.
   {@const isScreen = tile.kind === 'screen'}
   {@const isVideo = tile.kind === 'video'}
   <div
-    class={[callTileCardClass, 'h-full min-h-0 participant-card-video']}
+    class={[callTileCardClass, 'participant-card-video h-full min-h-0']}
     {@attach isInThisCall && speakingCard(participant.key)}
     title={isScreen
       ? m['voice.screen_title']({ name: participant.displayName })
@@ -590,7 +636,9 @@ Room sidebar panel for voice/video calls.
   >
     {@render participantHeader(
       participant,
-      isScreen ? m['voice.screen_title']({ name: participant.displayName }) : participant.displayName,
+      isScreen
+        ? m['voice.screen_title']({ name: participant.displayName })
+        : participant.displayName,
       isScreen || isVideo ? 'media' : 'voice',
       true,
       isScreen
