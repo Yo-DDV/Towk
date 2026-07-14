@@ -48,7 +48,7 @@
     data-testid="call-fullscreen-media-overlay"
   >
     <header
-      class="absolute top-0 right-0 left-0 z-10 flex min-w-0 items-center gap-3 bg-gradient-to-b from-black/85 to-transparent p-3 pb-8"
+      class="call-fullscreen-media-header absolute top-0 right-0 left-0 z-10 flex min-w-0 items-center gap-3 bg-gradient-to-b from-black/85 to-transparent p-3 pb-8"
     >
       <h2 id="call-fullscreen-media-title" class="min-w-0 flex-1 truncate text-sm font-medium">
         {media.name}
@@ -80,12 +80,23 @@
 
 <style>
   .call-fullscreen-media {
+    --call-safe-area-top: env(safe-area-inset-top, 0px);
+    --call-safe-area-right: env(safe-area-inset-right, 0px);
+    --call-safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --call-safe-area-left: env(safe-area-inset-left, 0px);
+
     width: 100vw;
     min-height: 100vh;
     height: 100dvh;
-    padding-top: env(safe-area-inset-top, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    padding-left: env(safe-area-inset-left, 0px);
+    padding-top: var(--call-safe-area-top);
+    padding-right: var(--call-safe-area-right);
+    padding-bottom: var(--call-safe-area-bottom);
+    padding-left: var(--call-safe-area-left);
+  }
+
+  .call-fullscreen-media-header {
+    padding-top: calc(var(--call-safe-area-top) + 0.75rem);
+    padding-right: calc(var(--call-safe-area-right) + 0.75rem);
+    padding-left: calc(var(--call-safe-area-left) + 0.75rem);
   }
 </style>

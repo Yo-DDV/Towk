@@ -49,6 +49,12 @@ describe('CallFullscreenMediaOverlay', () => {
     const closeButton = dialog.querySelector(
       '[data-testid="call-fullscreen-media-close"]'
     ) as HTMLButtonElement;
+    const header = dialog.querySelector('header') as HTMLElement;
+
+    dialog.style.setProperty('--call-safe-area-top', '20px');
+    dialog.style.setProperty('--call-safe-area-right', '7px');
+    dialog.style.setProperty('--call-safe-area-left', '9px');
+    const toolbarPadding = parseFloat(getComputedStyle(document.documentElement).fontSize) * 0.75;
 
     expect(dialog.getAttribute('role')).toBe('dialog');
     expect(dialog.getAttribute('aria-modal')).toBe('true');
@@ -56,7 +62,10 @@ describe('CallFullscreenMediaOverlay', () => {
     expect(dialog.className).toContain('inset-0');
     expect(Math.round(dialog.getBoundingClientRect().width)).toBe(window.innerWidth);
     expect(Math.round(dialog.getBoundingClientRect().height)).toBe(window.innerHeight);
-    expect(dialog.querySelector('header')?.className).toContain('absolute');
+    expect(header.className).toContain('absolute');
+    expect(parseFloat(getComputedStyle(header).paddingTop)).toBeCloseTo(20 + toolbarPadding);
+    expect(parseFloat(getComputedStyle(header).paddingRight)).toBeCloseTo(7 + toolbarPadding);
+    expect(parseFloat(getComputedStyle(header).paddingLeft)).toBeCloseTo(9 + toolbarPadding);
     expect(dialog.querySelector('main')?.className).toContain('h-full');
     expect(video.className).toContain('object-contain');
     expect((track.attach as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(video);
