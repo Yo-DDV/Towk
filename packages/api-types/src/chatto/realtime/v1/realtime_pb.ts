@@ -2394,6 +2394,20 @@ export class RealtimeCallEvent extends Message<RealtimeCallEvent> {
    */
   source = RealtimeCallEventSource.UNSPECIFIED;
 
+  /**
+   * Exact media-session connection for participant transitions, when known.
+   *
+   * @generated from field: string participant_id = 4;
+   */
+  participantId = "";
+
+  /**
+   * Stable display slot for concurrent connections from the same account.
+   *
+   * @generated from field: uint32 device_index = 5;
+   */
+  deviceIndex = 0;
+
   constructor(data?: PartialMessage<RealtimeCallEvent>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2405,6 +2419,8 @@ export class RealtimeCallEvent extends Message<RealtimeCallEvent> {
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "source", kind: "enum", T: proto3.getEnumType(RealtimeCallEventSource) },
+    { no: 4, name: "participant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "device_index", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RealtimeCallEvent {

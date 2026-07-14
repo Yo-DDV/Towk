@@ -1005,6 +1005,19 @@ const msg_voice_screen_share_failed = (): LocalizedString => messages().voice_sc
 const msg_voice_screen_share_unsupported = (): LocalizedString => messages().voice_screen_share_unsupported(empty());
 const msg_voice_screen_share_no_audio = (): LocalizedString => messages().voice_screen_share_no_audio(empty());
 const msg_voice_screen_share_audio_active = (): LocalizedString => messages().voice_screen_share_audio_active(empty());
+const msg_voice_audio_playback_failed = (): LocalizedString => messages().voice_audio_playback_failed(empty());
+const msg_voice_device_join_title = (): LocalizedString => messages().voice_device_join_title(empty());
+const msg_voice_device_join_description = (): LocalizedString => messages().voice_device_join_description(empty());
+const msg_voice_join_as_companion = (): LocalizedString => messages().voice_join_as_companion(empty());
+const msg_voice_companion_description = (): LocalizedString => messages().voice_companion_description(empty());
+const msg_voice_transfer_call = (): LocalizedString => messages().voice_transfer_call(empty());
+const msg_voice_transfer_description = (): LocalizedString => messages().voice_transfer_description(empty());
+const msg_voice_device_limit_reached = (): LocalizedString => messages().voice_device_limit_reached(empty());
+const msg_voice_device_badge = (
+  inputs: Parameters<LocaleMessages['voice_device_badge']>[0]
+): LocalizedString => messages().voice_device_badge(inputs);
+const msg_voice_mute_call_audio = (): LocalizedString => messages().voice_mute_call_audio(empty());
+const msg_voice_unmute_call_audio = (): LocalizedString => messages().voice_unmute_call_audio(empty());
 const msg_voice_speaker_switch_failed = (): LocalizedString => messages().voice_speaker_switch_failed(empty());
 const msg_voice_device_switch_failed = (): LocalizedString => messages().voice_device_switch_failed(empty());
 const msg_voice_media_device_failed = (): LocalizedString => messages().voice_media_device_failed(empty());
@@ -2463,6 +2476,17 @@ export { msg_voice_screen_share_failed as 'voice.screen_share_failed' };
 export { msg_voice_screen_share_unsupported as 'voice.screen_share_unsupported' };
 export { msg_voice_screen_share_no_audio as 'voice.screen_share_no_audio' };
 export { msg_voice_screen_share_audio_active as 'voice.screen_share_audio_active' };
+export { msg_voice_audio_playback_failed as 'voice.audio_playback_failed' };
+export { msg_voice_device_join_title as 'voice.device_join_title' };
+export { msg_voice_device_join_description as 'voice.device_join_description' };
+export { msg_voice_join_as_companion as 'voice.join_as_companion' };
+export { msg_voice_companion_description as 'voice.companion_description' };
+export { msg_voice_transfer_call as 'voice.transfer_call' };
+export { msg_voice_transfer_description as 'voice.transfer_description' };
+export { msg_voice_device_limit_reached as 'voice.device_limit_reached' };
+export { msg_voice_device_badge as 'voice.device_badge' };
+export { msg_voice_mute_call_audio as 'voice.mute_call_audio' };
+export { msg_voice_unmute_call_audio as 'voice.unmute_call_audio' };
 export { msg_voice_speaker_switch_failed as 'voice.speaker_switch_failed' };
 export { msg_voice_device_switch_failed as 'voice.device_switch_failed' };
 export { msg_voice_media_device_failed as 'voice.media_device_failed' };

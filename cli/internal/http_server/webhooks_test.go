@@ -96,6 +96,82 @@ func TestLiveKitWebhookDuplicateIdentityLeaveDoesNotEndCall(t *testing.T) {
 	}
 }
 
+func TestLiveKitWebhookPreservesAccountAndConnectionIdentity(t *testing.T) {
+	const (
+		apiKey    = "devkey"
+		apiSecret = "devsecret"
+		serverID  = "test-server"
+		roomID    = "room-multi-webhook"
+		userID    = "user1"
+	)
+	ctx := testContext(t)
+	s := setupHTTPServerTestServer(t, config.AuthConfig{})
+	s.config.LiveKit = config.LiveKitConfig{
+		Enabled:   true,
+		URL:       "ws://livekit.example.test",
+		APIKey:    apiKey,
+		APISecret: apiSecret,
+		ServerID:  serverID,
+	}
+	s.setupWebhookRoutes()
+
+	first, err := s.core.JoinCallParticipant(ctx, core.KindChannel, roomID, userID, "browser-session-1", core.CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join first device: %v", err)
+	}
+	second, err := s.core.JoinCallParticipant(ctx, core.KindChannel, roomID, userID, "browser-session-2", core.CallJoinModeCompanion)
+	if err != nil {
+		t.Fatalf("join companion device: %v", err)
+	}
+	active, ok := s.core.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing")
+	}
+
+	joined := &livekit.WebhookEvent{
+		Event: webhook.EventParticipantJoined,
+		Room: &livekit.Room{
+			Name: core.LiveKitRoomName(serverID, core.LegacySpaceIDForRoomKind(core.KindChannel), roomID, active.CallID),
+		},
+		Participant: &livekit.ParticipantInfo{
+			Identity: second.ParticipantID,
+			Name:     "Alice",
+			Metadata: `{"userId":"user1","participantId":"` + second.ParticipantID + `","deviceIndex":2,"login":"alice","callId":"` + active.CallID + `"}`,
+		},
+	}
+	joinedRecorder := httptest.NewRecorder()
+	s.router.ServeHTTP(joinedRecorder, signedLiveKitWebhookRequest(t, apiKey, apiSecret, joined))
+	if joinedRecorder.Code != http.StatusOK {
+		t.Fatalf("join webhook status = %d", joinedRecorder.Code)
+	}
+
+	participants := s.core.CallState.Participants(roomID)
+	if len(participants) != 2 {
+		t.Fatalf("participants after join webhook = %+v", participants)
+	}
+	if participants[1].UserID != userID || participants[1].ParticipantID != second.ParticipantID || participants[1].DeviceIndex != 2 {
+		t.Fatalf("companion projection = %+v", participants[1])
+	}
+
+	left := &livekit.WebhookEvent{
+		Event: webhook.EventParticipantLeft,
+		Room:  joined.Room,
+		Participant: &livekit.ParticipantInfo{
+			Identity: second.ParticipantID,
+			Metadata: joined.Participant.Metadata,
+		},
+	}
+	leftRecorder := httptest.NewRecorder()
+	s.router.ServeHTTP(leftRecorder, signedLiveKitWebhookRequest(t, apiKey, apiSecret, left))
+	if leftRecorder.Code != http.StatusOK {
+		t.Fatalf("leave webhook status = %d", leftRecorder.Code)
+	}
+	participants = s.core.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != first.ParticipantID {
+		t.Fatalf("participants after exact leave webhook = %+v, want first device", participants)
+	}
+}
+
 func signedLiveKitWebhookRequest(t *testing.T, apiKey, apiSecret string, event *livekit.WebhookEvent) *http.Request {
 	t.Helper()
 	body, err := protojson.Marshal(event)

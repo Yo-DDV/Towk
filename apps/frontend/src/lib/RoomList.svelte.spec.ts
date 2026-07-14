@@ -466,7 +466,9 @@ describe('RoomList', () => {
     expect(mocks.store.activeCallRooms.handleJoin).toHaveBeenCalledWith(
       'channel-1',
       'call-1',
-      null
+      null,
+      null,
+      0
     );
   });
 

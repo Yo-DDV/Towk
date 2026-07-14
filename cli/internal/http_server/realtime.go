@@ -419,16 +419,16 @@ func (s *HTTPServer) mapRealtimeEVT(envelope *realtimev1.RealtimeEventEnvelope, 
 		}}
 	case *corev1.Event_VoiceCallStarted:
 		call := payload.VoiceCallStarted
-		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallStarted{CallStarted: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource())}
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallStarted{CallStarted: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource(), "", 0)}
 	case *corev1.Event_VoiceCallParticipantJoined:
 		call := payload.VoiceCallParticipantJoined
-		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallParticipantJoined{CallParticipantJoined: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource())}
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallParticipantJoined{CallParticipantJoined: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource(), call.GetParticipantId(), call.GetDeviceIndex())}
 	case *corev1.Event_VoiceCallParticipantLeft:
 		call := payload.VoiceCallParticipantLeft
-		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallParticipantLeft{CallParticipantLeft: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource())}
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallParticipantLeft{CallParticipantLeft: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource(), call.GetParticipantId(), call.GetDeviceIndex())}
 	case *corev1.Event_VoiceCallEnded:
 		call := payload.VoiceCallEnded
-		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallEnded{CallEnded: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource())}
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallEnded{CallEnded: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource(), "", 0)}
 	case *corev1.Event_AssetProcessingStarted:
 		asset := payload.AssetProcessingStarted
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_AssetProcessingStarted{AssetProcessingStarted: realtimeAssetProcessingEvent(s, asset.GetAssetId(), asset.GetMessageEventId())}
@@ -543,8 +543,14 @@ func realtimeRoomEvent(roomID string) *realtimev1.RealtimeRoomEvent {
 	return &realtimev1.RealtimeRoomEvent{RoomId: roomID}
 }
 
-func realtimeCallEvent(roomID, callID string, source corev1.CallParticipantEventSource) *realtimev1.RealtimeCallEvent {
-	return &realtimev1.RealtimeCallEvent{RoomId: roomID, CallId: callID, Source: apiRealtimeCallEventSource(source)}
+func realtimeCallEvent(roomID, callID string, source corev1.CallParticipantEventSource, participantID string, deviceIndex uint32) *realtimev1.RealtimeCallEvent {
+	return &realtimev1.RealtimeCallEvent{
+		RoomId:        roomID,
+		CallId:        callID,
+		Source:        apiRealtimeCallEventSource(source),
+		ParticipantId: participantID,
+		DeviceIndex:   deviceIndex,
+	}
 }
 
 func realtimeAssetProcessingEvent(s *HTTPServer, assetID, messageEventID string) *realtimev1.RealtimeAssetProcessingEvent {

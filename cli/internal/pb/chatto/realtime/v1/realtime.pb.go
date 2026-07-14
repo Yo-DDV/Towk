@@ -3038,7 +3038,11 @@ type RealtimeCallEvent struct {
 	// Call ID.
 	CallId string `protobuf:"bytes,2,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
 	// Source that produced the call transition.
-	Source        RealtimeCallEventSource `protobuf:"varint,3,opt,name=source,proto3,enum=chatto.realtime.v1.RealtimeCallEventSource" json:"source,omitempty"`
+	Source RealtimeCallEventSource `protobuf:"varint,3,opt,name=source,proto3,enum=chatto.realtime.v1.RealtimeCallEventSource" json:"source,omitempty"`
+	// Exact media-session connection for participant transitions, when known.
+	ParticipantId string `protobuf:"bytes,4,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot for concurrent connections from the same account.
+	DeviceIndex   uint32 `protobuf:"varint,5,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3092,6 +3096,20 @@ func (x *RealtimeCallEvent) GetSource() RealtimeCallEventSource {
 		return x.Source
 	}
 	return RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_UNSPECIFIED
+}
+
+func (x *RealtimeCallEvent) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *RealtimeCallEvent) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
 }
 
 // Mention attention signal for the connected user.
@@ -3499,11 +3517,13 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\aroom_id\x18\x01 \x01(\tH\x00R\x06roomId\x88\x01\x01\x12\x19\n" +
 	"\basset_id\x18\x02 \x01(\tR\aassetIdB\n" +
 	"\n" +
-	"\b_room_id\"\x8a\x01\n" +
+	"\b_room_id\"\xd4\x01\n" +
 	"\x11RealtimeCallEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
 	"\acall_id\x18\x02 \x01(\tR\x06callId\x12C\n" +
-	"\x06source\x18\x03 \x01(\x0e2+.chatto.realtime.v1.RealtimeCallEventSourceR\x06source\"\xd9\x01\n" +
+	"\x06source\x18\x03 \x01(\x0e2+.chatto.realtime.v1.RealtimeCallEventSourceR\x06source\x12%\n" +
+	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"\xd9\x01\n" +
 	" RealtimeMentionNotificationEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\"\n" +
 	"\ractor_user_id\x18\x02 \x01(\tR\vactorUserId\x12 \n" +

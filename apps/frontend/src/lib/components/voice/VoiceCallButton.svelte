@@ -23,6 +23,7 @@ States:
   const voiceCallState = stores.voiceCall;
   import { toast } from '$lib/ui/toast';
   import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
+  import CallDeviceJoinDialog from './CallDeviceJoinDialog.svelte';
 
   let {
     roomId,
@@ -35,13 +36,29 @@ States:
   let isInThisCall = $derived(voiceCallState.isInCall(roomId));
   let isInAnotherCall = $derived(voiceCallState.isInAnyCall && !isInThisCall);
   let isConnecting = $derived(voiceCallState.connecting && voiceCallState.roomId === roomId);
+  let deviceChoiceVisible = $state(false);
+  let companionAllowed = $state(false);
+  let deviceChoiceBusy = $state(false);
 
   async function handleJoin() {
+    await joinWithMode('ask');
+  }
+
+  async function joinWithMode(mode: 'ask' | 'companion' | 'transfer') {
+    if (mode !== 'ask') deviceChoiceBusy = true;
     try {
-      await voiceCallState.join(livekitUrl, roomId);
+      const result = await voiceCallState.join(livekitUrl, roomId, mode);
+      if (result.status === 'selection-required') {
+        companionAllowed = result.companionAllowed;
+        deviceChoiceVisible = true;
+        return;
+      }
+      deviceChoiceVisible = false;
     } catch (err) {
       stores.handleVoiceCallJoinFailed(roomId);
       toast.error(getVoiceCallJoinErrorMessage(err));
+    } finally {
+      deviceChoiceBusy = false;
     }
   }
 </script>
@@ -64,3 +81,11 @@ States:
     <span class="pane-header-icon-glyph uil--phone" aria-hidden="true"></span>
   </button>
 {/if}
+
+<CallDeviceJoinDialog
+  bind:visible={deviceChoiceVisible}
+  {companionAllowed}
+  busy={deviceChoiceBusy}
+  oncompanion={() => void joinWithMode('companion')}
+  ontransfer={() => void joinWithMode('transfer')}
+/>

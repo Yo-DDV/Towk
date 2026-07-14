@@ -355,9 +355,11 @@ func TestRealtimeMapperMapsCallEventSource(t *testing.T) {
 		Id:      "call-joined-1",
 		ActorId: "U1",
 		Event: &corev1.Event_VoiceCallParticipantJoined{VoiceCallParticipantJoined: &corev1.CallParticipantJoinedEvent{
-			RoomId: "R1",
-			CallId: "call-1",
-			Source: corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT,
+			RoomId:        "R1",
+			CallId:        "call-1",
+			Source:        corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT,
+			ParticipantId: "device-2",
+			DeviceIndex:   2,
 		}},
 	}))
 	if err != nil {
@@ -369,6 +371,9 @@ func TestRealtimeMapperMapsCallEventSource(t *testing.T) {
 	}
 	if call.Source != realtimev1.RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_LIVEKIT {
 		t.Fatalf("call source = %v, want LIVEKIT", call.Source)
+	}
+	if call.GetParticipantId() != "device-2" || call.GetDeviceIndex() != 2 {
+		t.Fatalf("call connection = %+v, want device-2 index 2", call)
 	}
 }
 

@@ -29,10 +29,17 @@ import {
   ensureBackgroundNoiseSuppression
 } from '$lib/audio/backgroundNoiseSuppression';
 import * as m from '$lib/i18n/messages';
-import type { VoiceCallAPI } from '$lib/api-client/voiceCalls';
+import type {
+  VoiceCallAPI,
+  VoiceCallJoinMode,
+  VoiceCallJoinResult
+} from '$lib/api-client/voiceCalls';
 
 export type CallParticipantInfo = {
   identity: string;
+  participantId: string;
+  userId: string;
+  deviceIndex: number;
   name: string;
   login: string;
   avatarUrl: string | null;
@@ -57,6 +64,9 @@ export type CallTransitionSoundDecision = 'play' | 'defer' | 'skip';
 
 /** Metadata embedded in the LiveKit token by the backend. */
 type ParticipantMetadata = {
+  userId?: string;
+  participantId?: string;
+  deviceIndex?: number;
   login?: string;
   avatarUrl?: string;
 };
@@ -180,6 +190,8 @@ export class VoiceCallState {
 
   // Audio state
   isMuted = $state(false);
+  // Local playback state for all remote microphone and screen-share audio.
+  isOutputMuted = $state(false);
   // True while LiveKit is applying local device enable/disable changes.
   isMicrophonePending = $state(false);
 
@@ -217,6 +229,9 @@ export class VoiceCallState {
   // Internal LiveKit room instance
   private room: Room | null = null;
   private activeCallId: string | null = null;
+  private activeParticipantId: string | null = null;
+  private activeDeviceIndex: number | null = null;
+  private readonly clientInstanceId = createVoiceCallClientInstanceId();
   private pendingOwnJoinSound: {
     roomId: string;
     callId: string;
@@ -226,7 +241,7 @@ export class VoiceCallState {
     callId: string;
     disconnectedAt: number;
   } | null = null;
-  private joinInFlight: Promise<void> | null = null;
+  private joinInFlight: Promise<VoiceCallJoinResult> | null = null;
   private joinInFlightRoomId: string | null = null;
   private leaveInFlight: Promise<void> | null = null;
   private microphoneToggleInFlight: Promise<void> | null = null;
@@ -265,6 +280,14 @@ export class VoiceCallState {
     return this.connected && this.roomId === roomId;
   }
 
+  get participantId(): string | null {
+    return this.activeParticipantId;
+  }
+
+  get deviceIndex(): number | null {
+    return this.activeDeviceIndex;
+  }
+
   matchesActiveCall(roomId: string, callId: string | null): boolean {
     return (
       this.connected && this.roomId === roomId && callId !== null && this.activeCallId === callId
@@ -287,6 +310,7 @@ export class VoiceCallState {
     actorIsCurrentUser: boolean
   ): CallTransitionSoundDecision {
     if (!callId) return 'skip';
+    if (this.isOutputMuted) return 'skip';
 
     if (this.matchesActiveCall(roomId, callId)) return 'play';
 
@@ -344,23 +368,39 @@ export class VoiceCallState {
   /**
    * Join a voice call in a room.
    */
-  async join(livekitUrl: string, roomId: string): Promise<void> {
+  async join(
+    livekitUrl: string,
+    roomId: string,
+    mode: VoiceCallJoinMode = 'ask'
+  ): Promise<VoiceCallJoinResult> {
     // Already in this call
-    if (this.isInCall(roomId)) return;
+    if (this.isInCall(roomId) && this.activeParticipantId && this.activeDeviceIndex) {
+      return {
+        status: 'joined',
+        participantId: this.activeParticipantId,
+        deviceIndex: this.activeDeviceIndex
+      };
+    }
 
     if (this.joinInFlight) {
       if (this.joinInFlightRoomId === roomId) {
         return this.joinInFlight;
       }
       await this.joinInFlight;
-      if (this.isInCall(roomId)) return;
+      if (this.isInCall(roomId) && this.activeParticipantId && this.activeDeviceIndex) {
+        return {
+          status: 'joined',
+          participantId: this.activeParticipantId,
+          deviceIndex: this.activeDeviceIndex
+        };
+      }
     }
 
-    const joinPromise = this.performJoin(livekitUrl, roomId);
+    const joinPromise = this.performJoin(livekitUrl, roomId, mode);
     this.joinInFlight = joinPromise;
     this.joinInFlightRoomId = roomId;
     try {
-      await joinPromise;
+      return await joinPromise;
     } finally {
       if (this.joinInFlight === joinPromise) {
         this.joinInFlight = null;
@@ -369,7 +409,11 @@ export class VoiceCallState {
     }
   }
 
-  private async performJoin(livekitUrl: string, roomId: string): Promise<void> {
+  private async performJoin(
+    livekitUrl: string,
+    roomId: string,
+    mode: VoiceCallJoinMode
+  ): Promise<VoiceCallJoinResult> {
     assertLiveKitE2EESupported();
 
     // Leave existing call first
@@ -382,15 +426,24 @@ export class VoiceCallState {
     let joinIntentRecorded = false;
 
     try {
-      await this.#api.joinCall(roomId);
+      const joinResult = await this.#api.joinCall(roomId, this.clientInstanceId, mode);
+      if (joinResult.status === 'selection-required') {
+        this.roomId = null;
+        return joinResult;
+      }
       joinIntentRecorded = true;
+      this.activeParticipantId = joinResult.participantId;
+      this.activeDeviceIndex = joinResult.deviceIndex;
 
       // Get token from server (pure query, no side effects)
-      const tokenResponse = await this.#api.getCallToken(roomId);
+      const tokenResponse = await this.#api.getCallToken(roomId, this.clientInstanceId);
       if (!tokenResponse) {
         throw new Error(m['voice.token_failed']());
       }
-      const { token, e2eeKey, callId } = tokenResponse;
+      const { token, e2eeKey, callId, participantId, deviceIndex } = tokenResponse;
+      if (participantId !== joinResult.participantId || deviceIndex !== joinResult.deviceIndex) {
+        throw new Error('call token connection identity does not match admitted participant');
+      }
       this.activeCallId = callId;
 
       const keyProvider = new ExternalE2EEKeyProvider();
@@ -422,16 +475,32 @@ export class VoiceCallState {
 
       await keyProvider.setKey(e2eeKey);
       await this.room.setE2EEEnabled(true);
+
+      // Companion playback must be muted before LiveKit can subscribe and
+      // attach remote audio tracks during connect. Setting this afterwards can
+      // leak the first audio frames on fast connections.
+      if (mode === 'companion') {
+        this.isMuted = true;
+        this.isOutputMuted = true;
+      } else {
+        this.isOutputMuted = false;
+      }
       await this.room.connect(livekitUrl, token);
 
-      // Try to enable microphone, but join muted if no device is available
-      try {
-        await this.runExplicitMediaDeviceOperation(() => this.enableMicrophone(this.room!));
-        this.isMuted = false;
-        this.setupLocalAudioAnalyser();
-      } catch (err) {
-        this.isMuted = true;
-        this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('microphone', err, 'join'));
+      if (mode === 'companion') {
+        this.applyAllParticipantAudioVolumes();
+      } else {
+        // Try to enable microphone, but join muted if no device is available
+        try {
+          await this.runExplicitMediaDeviceOperation(() => this.enableMicrophone(this.room!));
+          this.isMuted = false;
+          this.setupLocalAudioAnalyser();
+        } catch (err) {
+          this.isMuted = true;
+          this.notifyMediaDeviceError(
+            getVoiceCallMediaDeviceErrorMessage('microphone', err, 'join')
+          );
+        }
       }
 
       this.connected = true;
@@ -440,6 +509,7 @@ export class VoiceCallState {
       if (this.consumePendingOwnJoinSound()) {
         void playCallSound('join');
       }
+      return joinResult;
     } catch (err) {
       console.error('Failed to join voice call:', summarizeJoinError(err));
       if (joinIntentRecorded) {
@@ -487,10 +557,12 @@ export class VoiceCallState {
   handleParticipantLeftEvent(
     roomId: string,
     callId: string | null,
+    participantId: string | null,
     actorId: string | null,
     currentUserId: string | null
   ): void {
     if (!actorId || !currentUserId || actorId !== currentUserId) return;
+    if (participantId && participantId !== this.activeParticipantId) return;
     this.disconnectFromServerEvent(roomId, callId);
   }
 
@@ -516,7 +588,7 @@ export class VoiceCallState {
 
   private async recordLeaveIntent(roomId: string): Promise<void> {
     try {
-      await this.#api.leaveCall(roomId);
+      await this.#api.leaveCall(roomId, this.clientInstanceId);
     } catch {
       // LiveKit disconnect/cleanup should still proceed if the intent write fails.
     }
@@ -572,6 +644,27 @@ export class VoiceCallState {
       this.teardownLocalAudioAnalyser();
     }
 
+    this.updateParticipants();
+  }
+
+  /** Toggle all incoming microphone and screen-share audio for this client. */
+  async toggleOutputMute(): Promise<void> {
+    const room = this.room;
+    if (!room) return;
+
+    const newMuted = !this.isOutputMuted;
+    if (!newMuted) {
+      try {
+        await room.startAudio();
+      } catch {
+        this.notifyMediaDeviceError(m['voice.audio_playback_failed']());
+        return;
+      }
+      if (this.room !== room) return;
+    }
+
+    this.isOutputMuted = newMuted;
+    this.applyAllParticipantAudioVolumes();
     this.updateParticipants();
   }
 
@@ -887,10 +980,15 @@ export class VoiceCallState {
     this.participants = allParticipants.map((p) => {
       const md = parseParticipantMetadata(p.metadata);
       const isLocal = p === this.room!.localParticipant;
+      const participantId = md.participantId ?? p.identity;
+      const userId = md.userId ?? p.identity;
       return {
         identity: p.identity,
+        participantId,
+        userId,
+        deviceIndex: md.deviceIndex && md.deviceIndex > 0 ? md.deviceIndex : 1,
         name: p.name ?? p.identity,
-        login: md.login ?? p.identity,
+        login: md.login ?? userId,
         avatarUrl: md.avatarUrl ?? null,
         isMuted: isParticipantMuted(p),
         isLocal,
@@ -918,7 +1016,10 @@ export class VoiceCallState {
   }
 
   private applyRemoteParticipantAudioVolume(participant: RemoteParticipant): void {
-    participant.setVolume(this.isParticipantLocallyMuted(participant.identity) ? 0 : 1);
+    const volume =
+      this.isOutputMuted || this.isParticipantLocallyMuted(participant.identity) ? 0 : 1;
+    participant.setVolume(volume, Track.Source.Microphone);
+    participant.setVolume(volume, Track.Source.ScreenShareAudio);
   }
 
   /**
@@ -1034,6 +1135,8 @@ export class VoiceCallState {
       };
     }
     this.activeCallId = null;
+    this.activeParticipantId = null;
+    this.activeDeviceIndex = null;
     this.pendingOwnJoinSound = null;
     this.joinInFlight = null;
     this.joinInFlightRoomId = null;
@@ -1045,6 +1148,7 @@ export class VoiceCallState {
     this.connecting = false;
     this.roomId = null;
     this.isMuted = false;
+    this.isOutputMuted = false;
     this.isMicrophonePending = false;
     this.isCameraEnabled = false;
     this.isCameraPending = false;
@@ -1118,6 +1222,92 @@ function parseParticipantMetadata(metadata: string | undefined): ParticipantMeta
   } catch {
     return {};
   }
+}
+
+const VOICE_CALL_CLIENT_INSTANCE_STORAGE_KEY = 'towk.voice-call.client-instance-id';
+const VOICE_CALL_CLIENT_INSTANCE_OWNER_PREFIX = 'towk.voice-call.client-instance-owner:';
+const ownedVoiceCallClientInstanceIds: string[] = [];
+const voiceCallPageOwnerId = randomVoiceCallIdentifier('page');
+let voiceCallClientInstanceCleanupRegistered = false;
+
+function createVoiceCallClientInstanceId(): string {
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      const existing = sessionStorage.getItem(VOICE_CALL_CLIENT_INSTANCE_STORAGE_KEY);
+      if (
+        existing &&
+        /^[A-Za-z0-9_-]{16,128}$/.test(existing) &&
+        claimVoiceCallClientInstanceId(existing)
+      ) {
+        return existing;
+      }
+    } catch {
+      // Storage can be unavailable in hardened private-browser contexts.
+    }
+  }
+
+  let clientInstanceId = randomVoiceCallIdentifier('session');
+  while (!claimVoiceCallClientInstanceId(clientInstanceId)) {
+    clientInstanceId = randomVoiceCallIdentifier('session');
+  }
+
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      sessionStorage.setItem(VOICE_CALL_CLIENT_INSTANCE_STORAGE_KEY, clientInstanceId);
+    } catch {
+      // The in-memory value still keeps retries idempotent for this page.
+    }
+  }
+  return clientInstanceId;
+}
+
+function randomVoiceCallIdentifier(prefix: 'page' | 'session'): string {
+  const randomUUID = globalThis.crypto?.randomUUID?.bind(globalThis.crypto);
+  return randomUUID
+    ? `${prefix}_${randomUUID()}`
+    : `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+}
+
+// sessionStorage is normally tab-scoped, but browsers copy it when a tab or
+// PWA window is duplicated. A small same-origin lease prevents that clone from
+// reusing the LiveKit identity and silently replacing the source connection.
+function claimVoiceCallClientInstanceId(clientInstanceId: string): boolean {
+  if (typeof localStorage === 'undefined') return true;
+
+  try {
+    const leaseKey = `${VOICE_CALL_CLIENT_INSTANCE_OWNER_PREFIX}${clientInstanceId}`;
+    const owner = localStorage.getItem(leaseKey);
+    if (owner && owner !== voiceCallPageOwnerId) return false;
+
+    localStorage.setItem(leaseKey, voiceCallPageOwnerId);
+    if (!ownedVoiceCallClientInstanceIds.includes(clientInstanceId)) {
+      ownedVoiceCallClientInstanceIds.push(clientInstanceId);
+    }
+    registerVoiceCallClientInstanceCleanup();
+    return true;
+  } catch {
+    // Keep a page-local identity when shared storage is unavailable.
+    return true;
+  }
+}
+
+function registerVoiceCallClientInstanceCleanup(): void {
+  if (voiceCallClientInstanceCleanupRegistered || typeof window === 'undefined') return;
+  voiceCallClientInstanceCleanupRegistered = true;
+  window.addEventListener('pagehide', (event) => {
+    if (event.persisted || typeof localStorage === 'undefined') return;
+    for (const clientInstanceId of ownedVoiceCallClientInstanceIds) {
+      const leaseKey = `${VOICE_CALL_CLIENT_INSTANCE_OWNER_PREFIX}${clientInstanceId}`;
+      try {
+        if (localStorage.getItem(leaseKey) === voiceCallPageOwnerId) {
+          localStorage.removeItem(leaseKey);
+        }
+      } catch {
+        // The browser may revoke storage access while the page is closing.
+      }
+    }
+    ownedVoiceCallClientInstanceIds.length = 0;
+  });
 }
 
 function isParticipantMuted(participant: Participant): boolean {

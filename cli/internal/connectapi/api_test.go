@@ -4607,6 +4607,129 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	}
 }
 
+func TestVoiceCallServiceSupportsCompanionAndTransferDevices(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("voice-multi-device")
+	env.api.config.LiveKit = config.LiveKitConfig{
+		Enabled:   true,
+		URL:       "ws://livekit.test",
+		APIKey:    "test-key",
+		APISecret: "test-secret",
+		ServerID:  "test-server",
+	}
+
+	first, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-1",
+	}))
+	if err != nil {
+		t.Fatalf("join first device: %v", err)
+	}
+	if !first.Msg.GetJoined() || first.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_JOINED || first.Msg.GetDeviceIndex() != 1 || first.Msg.GetParticipantId() == "" {
+		t.Fatalf("first join = %+v, want joined device 1", first.Msg)
+	}
+
+	choice, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+	}))
+	if err != nil {
+		t.Fatalf("request second-device choice: %v", err)
+	}
+	if choice.Msg.GetJoined() || choice.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_SELECTION_REQUIRED || !choice.Msg.GetCompanionAllowed() || choice.Msg.GetActiveDeviceCount() != 1 {
+		t.Fatalf("second-device choice = %+v", choice.Msg)
+	}
+
+	second, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+		Mode:             apiv1.JoinCallMode_JOIN_CALL_MODE_COMPANION,
+	}))
+	if err != nil {
+		t.Fatalf("join companion: %v", err)
+	}
+	if !second.Msg.GetJoined() || second.Msg.GetDeviceIndex() != 2 || second.Msg.GetParticipantId() == first.Msg.GetParticipantId() {
+		t.Fatalf("companion join = %+v, want distinct device 2", second.Msg)
+	}
+
+	participants, err := env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list two devices: %v", err)
+	}
+	if got := participants.Msg.GetParticipants(); len(got) != 2 || got[0].GetUser().GetId() != env.viewer.Id || got[1].GetUser().GetId() != env.viewer.Id || got[0].GetParticipantId() == got[1].GetParticipantId() {
+		t.Fatalf("participants = %+v, want two distinct connections for viewer", got)
+	}
+
+	thirdChoice, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-3",
+	}))
+	if err != nil {
+		t.Fatalf("request third-device choice: %v", err)
+	}
+	if thirdChoice.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_SELECTION_REQUIRED || thirdChoice.Msg.GetCompanionAllowed() || thirdChoice.Msg.GetActiveDeviceCount() != 2 {
+		t.Fatalf("third-device choice = %+v, want transfer only", thirdChoice.Msg)
+	}
+	if _, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-3",
+		Mode:             apiv1.JoinCallMode_JOIN_CALL_MODE_COMPANION,
+	})); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("third companion code = %v, want resource_exhausted", connect.CodeOf(err))
+	}
+
+	if _, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-not-admitted",
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("unadmitted token code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	token, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+	}))
+	if err != nil {
+		t.Fatalf("get companion token: %v", err)
+	}
+	if token.Msg.GetParticipantId() != second.Msg.GetParticipantId() || token.Msg.GetDeviceIndex() != 2 {
+		t.Fatalf("companion token = %+v, want admitted connection", token.Msg)
+	}
+
+	if _, err := env.voice.LeaveCall(ctx, connect.NewRequest(&apiv1.LeaveCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+	})); err != nil {
+		t.Fatalf("leave companion: %v", err)
+	}
+	participants, err = env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list after companion leave: %v", err)
+	}
+	if got := participants.Msg.GetParticipants(); len(got) != 1 || got[0].GetParticipantId() != first.Msg.GetParticipantId() {
+		t.Fatalf("participants after exact leave = %+v, want first device", got)
+	}
+
+	transferred, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-3",
+		Mode:             apiv1.JoinCallMode_JOIN_CALL_MODE_TRANSFER,
+	}))
+	if err != nil {
+		t.Fatalf("transfer call: %v", err)
+	}
+	if !transferred.Msg.GetJoined() || transferred.Msg.GetDeviceIndex() != 1 {
+		t.Fatalf("transfer = %+v, want new primary", transferred.Msg)
+	}
+	participants, err = env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list after transfer: %v", err)
+	}
+	if got := participants.Msg.GetParticipants(); len(got) != 1 || got[0].GetParticipantId() != transferred.Msg.GetParticipantId() {
+		t.Fatalf("participants after transfer = %+v, want transferred device only", got)
+	}
+}
+
 func TestVoiceCallServiceRoomRemovalClearsCallParticipant(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)

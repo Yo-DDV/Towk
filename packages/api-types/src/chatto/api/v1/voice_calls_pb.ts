@@ -9,6 +9,72 @@ import { RoomSummary } from "./rooms_pb.js";
 import { User } from "./users_pb.js";
 
 /**
+ * How a client wants to join when the same account is already connected.
+ *
+ * @generated from enum chatto.api.v1.JoinCallMode
+ */
+export enum JoinCallMode {
+  /**
+   * Ask the server to join directly only when no other device is connected.
+   *
+   * @generated from enum value: JOIN_CALL_MODE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * Keep existing devices connected and join muted as a companion device.
+   *
+   * @generated from enum value: JOIN_CALL_MODE_COMPANION = 1;
+   */
+  COMPANION = 1,
+
+  /**
+   * Disconnect existing devices for the account and continue on this device.
+   *
+   * @generated from enum value: JOIN_CALL_MODE_TRANSFER = 2;
+   */
+  TRANSFER = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(JoinCallMode)
+proto3.util.setEnumType(JoinCallMode, "chatto.api.v1.JoinCallMode", [
+  { no: 0, name: "JOIN_CALL_MODE_UNSPECIFIED" },
+  { no: 1, name: "JOIN_CALL_MODE_COMPANION" },
+  { no: 2, name: "JOIN_CALL_MODE_TRANSFER" },
+]);
+
+/**
+ * Outcome of recording a call join intent.
+ *
+ * @generated from enum chatto.api.v1.JoinCallStatus
+ */
+export enum JoinCallStatus {
+  /**
+   * @generated from enum value: JOIN_CALL_STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The connection was admitted to the call.
+   *
+   * @generated from enum value: JOIN_CALL_STATUS_JOINED = 1;
+   */
+  JOINED = 1,
+
+  /**
+   * Another device is active and the user must choose companion or transfer.
+   *
+   * @generated from enum value: JOIN_CALL_STATUS_SELECTION_REQUIRED = 2;
+   */
+  SELECTION_REQUIRED = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(JoinCallStatus)
+proto3.util.setEnumType(JoinCallStatus, "chatto.api.v1.JoinCallStatus", [
+  { no: 0, name: "JOIN_CALL_STATUS_UNSPECIFIED" },
+  { no: 1, name: "JOIN_CALL_STATUS_JOINED" },
+  { no: 2, name: "JOIN_CALL_STATUS_SELECTION_REQUIRED" },
+]);
+
+/**
  * Request for active channel call snapshots.
  *
  * @generated from message chatto.api.v1.ListActiveCallsRequest
@@ -412,6 +478,20 @@ export class CallParticipant extends Message<CallParticipant> {
    */
   callId = "";
 
+  /**
+   * Stable media-session participant ID for this browser/device connection.
+   *
+   * @generated from field: string participant_id = 4;
+   */
+  participantId = "";
+
+  /**
+   * Stable display slot for concurrent connections from the same account.
+   *
+   * @generated from field: uint32 device_index = 5;
+   */
+  deviceIndex = 0;
+
   constructor(data?: PartialMessage<CallParticipant>) {
     super();
     proto3.util.initPartial(data, this);
@@ -423,6 +503,8 @@ export class CallParticipant extends Message<CallParticipant> {
     { no: 1, name: "user", kind: "message", T: User },
     { no: 2, name: "joined_at", kind: "message", T: Timestamp },
     { no: 3, name: "call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "participant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "device_index", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CallParticipant {
@@ -455,6 +537,21 @@ export class JoinCallRequest extends Message<JoinCallRequest> {
    */
   roomId = "";
 
+  /**
+   * Opaque browser-session identifier used to make retries idempotent.
+   * Empty is accepted for compatibility with older clients.
+   *
+   * @generated from field: string client_instance_id = 2;
+   */
+  clientInstanceId = "";
+
+  /**
+   * Requested behavior when another device for the account is active.
+   *
+   * @generated from field: chatto.api.v1.JoinCallMode mode = 3;
+   */
+  mode = JoinCallMode.UNSPECIFIED;
+
   constructor(data?: PartialMessage<JoinCallRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -464,6 +561,8 @@ export class JoinCallRequest extends Message<JoinCallRequest> {
   static readonly typeName = "chatto.api.v1.JoinCallRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "client_instance_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "mode", kind: "enum", T: proto3.getEnumType(JoinCallMode) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JoinCallRequest {
@@ -496,6 +595,41 @@ export class JoinCallResponse extends Message<JoinCallResponse> {
    */
   joined = false;
 
+  /**
+   * Structured join outcome for multi-device clients.
+   *
+   * @generated from field: chatto.api.v1.JoinCallStatus status = 2;
+   */
+  status = JoinCallStatus.UNSPECIFIED;
+
+  /**
+   * Media-session participant ID when joined.
+   *
+   * @generated from field: string participant_id = 3;
+   */
+  participantId = "";
+
+  /**
+   * Stable display slot when joined.
+   *
+   * @generated from field: uint32 device_index = 4;
+   */
+  deviceIndex = 0;
+
+  /**
+   * Number of other active connections for this account at decision time.
+   *
+   * @generated from field: uint32 active_device_count = 5;
+   */
+  activeDeviceCount = 0;
+
+  /**
+   * Whether another companion connection can be admitted without a transfer.
+   *
+   * @generated from field: bool companion_allowed = 6;
+   */
+  companionAllowed = false;
+
   constructor(data?: PartialMessage<JoinCallResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -505,6 +639,11 @@ export class JoinCallResponse extends Message<JoinCallResponse> {
   static readonly typeName = "chatto.api.v1.JoinCallResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "joined", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 2, name: "status", kind: "enum", T: proto3.getEnumType(JoinCallStatus) },
+    { no: 3, name: "participant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "device_index", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 5, name: "active_device_count", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 6, name: "companion_allowed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JoinCallResponse {
@@ -537,6 +676,14 @@ export class GetCallTokenRequest extends Message<GetCallTokenRequest> {
    */
   roomId = "";
 
+  /**
+   * Must match the browser-session identifier admitted by JoinCall.
+   * Empty is accepted for compatibility with older clients.
+   *
+   * @generated from field: string client_instance_id = 2;
+   */
+  clientInstanceId = "";
+
   constructor(data?: PartialMessage<GetCallTokenRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -546,6 +693,7 @@ export class GetCallTokenRequest extends Message<GetCallTokenRequest> {
   static readonly typeName = "chatto.api.v1.GetCallTokenRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "client_instance_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCallTokenRequest {
@@ -592,6 +740,20 @@ export class GetCallTokenResponse extends Message<GetCallTokenResponse> {
    */
   callId = "";
 
+  /**
+   * Media-session participant ID encoded as the LiveKit identity.
+   *
+   * @generated from field: string participant_id = 4;
+   */
+  participantId = "";
+
+  /**
+   * Stable display slot for this connection.
+   *
+   * @generated from field: uint32 device_index = 5;
+   */
+  deviceIndex = 0;
+
   constructor(data?: PartialMessage<GetCallTokenResponse>) {
     super();
     proto3.util.initPartial(data, this);
@@ -603,6 +765,8 @@ export class GetCallTokenResponse extends Message<GetCallTokenResponse> {
     { no: 1, name: "token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "e2ee_key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "participant_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "device_index", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCallTokenResponse {
@@ -635,6 +799,14 @@ export class LeaveCallRequest extends Message<LeaveCallRequest> {
    */
   roomId = "";
 
+  /**
+   * Browser-session identifier for the exact connection leaving the call.
+   * Empty targets the legacy single-device participant only.
+   *
+   * @generated from field: string client_instance_id = 2;
+   */
+  clientInstanceId = "";
+
   constructor(data?: PartialMessage<LeaveCallRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -644,6 +816,7 @@ export class LeaveCallRequest extends Message<LeaveCallRequest> {
   static readonly typeName = "chatto.api.v1.LeaveCallRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "client_instance_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LeaveCallRequest {

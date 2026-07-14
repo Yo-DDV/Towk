@@ -339,11 +339,12 @@ func (c *ChattoCore) RemoveMember(ctx context.Context, actorID string, kind Room
 }
 
 type roomLeaveCallCleanup struct {
-	kind        RoomKind
-	roomID      string
-	userID      string
-	callID      string
-	endedKeyRef string
+	kind           RoomKind
+	roomID         string
+	userID         string
+	callID         string
+	participantIDs []string
+	endedKeyRef    string
 }
 
 func (c *ChattoCore) waitForRoomLeaveTail(ctx context.Context, filter string, seq uint64) error {
@@ -381,7 +382,9 @@ func (c *ChattoCore) appendRoomLeaveBatch(ctx context.Context, kind RoomKind, ro
 	var cleanup roomLeaveCallCleanup
 	if c.CallState != nil {
 		snapshot := c.CallState.RoomSnapshot(roomID)
-		if participant, ok := callParticipantByUser(snapshot.Participants, userID); ok {
+		userParticipants := callParticipantsByUser(snapshot.Participants, userID)
+		if len(userParticipants) > 0 {
+			participant := userParticipants[0]
 			callID := participant.CallID
 			if callID == "" {
 				callID = snapshot.Call.CallID
@@ -393,7 +396,10 @@ func (c *ChattoCore) appendRoomLeaveBatch(ctx context.Context, kind RoomKind, ro
 				userID: userID,
 				callID: callID,
 			}
-			if len(snapshot.Participants) == 1 && snapshot.Call.CallID == callID {
+			for _, callParticipant := range userParticipants {
+				cleanup.participantIDs = append(cleanup.participantIDs, callParticipant.ParticipantID)
+			}
+			if len(snapshot.Participants) == len(userParticipants) && snapshot.Call.CallID == callID {
 				eventsToAppend = append(eventsToAppend, newCallEndedEvent(roomID, userID, callID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER))
 				cleanup.endedKeyRef = snapshot.Call.E2EEKeyRef
 			}
@@ -448,8 +454,13 @@ func (c *ChattoCore) removeLiveKitParticipantAfterRoomLeave(ctx context.Context,
 	if cleanup.callID == "" || c.callModel == nil {
 		return
 	}
-	if err := c.callModel.RemoveLiveKitParticipant(ctx, LegacySpaceIDForRoomKind(cleanup.kind), cleanup.roomID, cleanup.callID, cleanup.userID); err != nil {
-		c.logger.Warn("Failed to remove room-leaving participant from LiveKit call", "room_id", cleanup.roomID, "call_id", cleanup.callID, "error", err)
+	for _, participantID := range cleanup.participantIDs {
+		if participantID == "" {
+			continue
+		}
+		if err := c.callModel.RemoveLiveKitParticipant(ctx, LegacySpaceIDForRoomKind(cleanup.kind), cleanup.roomID, cleanup.callID, participantID); err != nil {
+			c.logger.Warn("Failed to remove room-leaving participant from LiveKit call", "room_id", cleanup.roomID, "call_id", cleanup.callID, "error", err)
+		}
 	}
 }
 

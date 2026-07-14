@@ -74,7 +74,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
 
   function callEventPayload(
     event: EventEnvelope['event']
-  ): { roomId: string; callId: string } | null {
+  ): { roomId: string; callId: string; participantId: string | null; deviceIndex: number } | null {
     if (
       !event ||
       !('roomId' in event) ||
@@ -84,7 +84,13 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     ) {
       return null;
     }
-    return { roomId: event.roomId, callId: event.callId };
+    const participantId =
+      'participantId' in event && typeof event.participantId === 'string' && event.participantId
+        ? event.participantId
+        : null;
+    const deviceIndex =
+      'deviceIndex' in event && typeof event.deviceIndex === 'number' ? event.deviceIndex : 0;
+    return { roomId: event.roomId, callId: event.callId, participantId, deviceIndex };
   }
 
   // Load active call room IDs whenever the active server has a LiveKit URL.
@@ -220,16 +226,28 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
         const actor = serverEvent.actor
           ? useRenderData(UserAvatarViewData, serverEvent.actor)
           : null;
-        void activeCallRooms.handleJoin(call.roomId, call.callId, actor);
+        void activeCallRooms.handleJoin(
+          call.roomId,
+          call.callId,
+          actor,
+          call.participantId,
+          call.deviceIndex
+        );
         break;
       }
       case RoomEventKind.CallParticipantLeft: {
         const call = callEventPayload(event);
         if (!call) break;
-        activeCallRooms.handleLeave(call.roomId, call.callId, serverEvent.actorId ?? null);
+        activeCallRooms.handleLeave(
+          call.roomId,
+          call.callId,
+          serverEvent.actorId ?? null,
+          call.participantId
+        );
         voiceCallState.handleParticipantLeftEvent(
           call.roomId,
           call.callId,
+          call.participantId,
           serverEvent.actorId ?? null,
           roomsStore.currentUserId
         );
