@@ -3,6 +3,7 @@ set -euo pipefail
 
 image="${1:?usage: verify-runtime-image.sh IMAGE}"
 work="$(mktemp -d "${TMPDIR:-/tmp}/towk-runtime-verify.XXXXXX")"
+chmod 0700 "$work"
 container="towk-runtime-verify-$$"
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
@@ -18,7 +19,8 @@ chmod 0777 "$config" "$data"
 
 docker run --rm -v "$config:/config" "$image" init >/dev/null
 test -s "$config/towk.toml"
-docker run --rm --entrypoint chmod -v "$config:/config" "$image" 0644 /config/towk.toml
+# The host runner rewrites this temporary file below and may not share its UID.
+docker run --rm --entrypoint chmod -v "$config:/config" "$image" 0666 /config/towk.toml
 test "$(docker inspect "$image" --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -F 'TOWK_CONFIG_DIR=')" = "TOWK_CONFIG_DIR=/config"
 
 for legal_file in LICENSE LICENSING.md NOTICE REUSE.toml SOURCE.md LICENSES/AGPL-3.0-or-later.txt LICENSES/Apache-2.0.txt; do
