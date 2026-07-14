@@ -32,3 +32,17 @@ quiet surface and border language instead of media-player chrome.
 >
   {@render children()}
 </div>
+
+<style>
+  @media (hover: none), (pointer: coarse) {
+    .call-tile-action-toolbar {
+      pointer-events: auto;
+      opacity: 1;
+    }
+
+    .call-tile-action-toolbar :global(button) {
+      width: 44px;
+      height: 44px;
+    }
+  }
+</style>

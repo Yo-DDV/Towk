@@ -9,6 +9,7 @@ import type { PresenceCache } from '$lib/state/presenceCache.svelte';
 import type { RoomData } from '$lib/hooks/useRoomData.svelte';
 import { PresenceStatus } from '$lib/render/types';
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
+import { callFullscreenMedia } from '$lib/state/callFullscreenMedia.svelte';
 import RoomSidebarTestHarness from './RoomSidebarTestHarness.svelte';
 
 const queryMock = vi.hoisted(() => vi.fn());
@@ -342,6 +343,7 @@ function roomAudioFile(filename: string) {
 
 describe('RoomSidebar', () => {
   beforeEach(async () => {
+    callFullscreenMedia.close();
     await loadLocaleMessages('en');
     setReactiveLocale('en');
     queryMock.mockReset();
@@ -1006,6 +1008,137 @@ describe('RoomSidebar', () => {
     expect(callStore.voiceCall.toggleParticipantLocalMute).toHaveBeenCalledWith('user-2');
 
     requestFullscreen.mockRestore();
+  });
+
+  it('opens a full-viewport media fallback when native fullscreen is unavailable', async () => {
+    const nativeFullscreenDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'requestFullscreen'
+    );
+    Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
+      configurable: true,
+      value: undefined
+    });
+
+    const screenShareTrack = {
+      attach: vi.fn(),
+      detach: vi.fn()
+    };
+    callStore.voiceCall.connected = true;
+    callStore.voiceCall.isInAnyCall = true;
+    callStore.voiceCall.roomId = 'room-1';
+    callStore.voiceCall.participants = [
+      {
+        identity: 'user-2',
+        login: 'bob',
+        name: 'Bob',
+        avatarUrl: null,
+        isMuted: false,
+        isLocal: false,
+        connectionQuality: 'good',
+        isCameraEnabled: false,
+        videoTrack: null,
+        isScreenShareEnabled: true,
+        screenShareTrack
+      }
+    ];
+
+    try {
+      const rendered = render(RoomSidebarTestHarness, {
+        props: {
+          activePanel: 'call',
+          roomData: roomData([], 0, false),
+          livekitUrl: 'wss://livekit.example.test'
+        }
+      });
+      const { container } = rendered;
+
+      const screenShareCard = q(container, '[data-testid="call-screen-share-card"]')!;
+      const fullscreenButton = q(
+        screenShareCard,
+        '[data-testid="call-feed-fullscreen-button"]'
+      ) as HTMLButtonElement;
+
+      fullscreenButton.click();
+      await tick();
+
+      expect(callFullscreenMedia.current).toMatchObject({
+        roomId: 'room-1',
+        participantKey: 'user-2',
+        kind: 'screen',
+        track: screenShareTrack
+      });
+
+      rendered.unmount();
+      await tick();
+
+      expect(callFullscreenMedia.current).toBeNull();
+    } finally {
+      callFullscreenMedia.close();
+      if (nativeFullscreenDescriptor) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          'requestFullscreen',
+          nativeFullscreenDescriptor
+        );
+      } else {
+        Reflect.deleteProperty(HTMLElement.prototype, 'requestFullscreen');
+      }
+    }
+  });
+
+  it('opens the media fallback when native fullscreen rejects the request', async () => {
+    const requestFullscreen = vi
+      .spyOn(HTMLElement.prototype, 'requestFullscreen')
+      .mockRejectedValue(new DOMException('Fullscreen denied', 'NotAllowedError'));
+    const screenShareTrack = {
+      attach: vi.fn(),
+      detach: vi.fn()
+    };
+    callStore.voiceCall.connected = true;
+    callStore.voiceCall.isInAnyCall = true;
+    callStore.voiceCall.roomId = 'room-1';
+    callStore.voiceCall.participants = [
+      {
+        identity: 'user-2',
+        login: 'bob',
+        name: 'Bob',
+        avatarUrl: null,
+        isMuted: false,
+        isLocal: false,
+        connectionQuality: 'good',
+        isCameraEnabled: false,
+        videoTrack: null,
+        isScreenShareEnabled: true,
+        screenShareTrack
+      }
+    ];
+
+    try {
+      const { container } = render(RoomSidebarTestHarness, {
+        props: {
+          activePanel: 'call',
+          roomData: roomData([], 0, false),
+          livekitUrl: 'wss://livekit.example.test'
+        }
+      });
+      const screenShareCard = q(container, '[data-testid="call-screen-share-card"]')!;
+      const fullscreenButton = q(
+        screenShareCard,
+        '[data-testid="call-feed-fullscreen-button"]'
+      ) as HTMLButtonElement;
+
+      fullscreenButton.click();
+
+      await vi.waitFor(() => {
+        expect(callFullscreenMedia.current?.track).toBe(screenShareTrack);
+      });
+      expect(requestFullscreen).toHaveBeenCalledOnce();
+      expect(callFullscreenMedia.current?.kind).toBe('screen');
+    } finally {
+      requestFullscreen.mockRestore();
+      callFullscreenMedia.close();
+    }
   });
 
   it('falls back to a camera participant for the maximized call stage', async () => {
