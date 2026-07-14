@@ -442,6 +442,10 @@
         safeScrollToIndex(virtualItems.length - 1, { align: 'end' });
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
         scrollFader?.refresh();
+        // The initial bottom position has been applied. Record it here rather
+        // than after convergence, because a viewport event can legitimately
+        // supersede this request while its promise callback is still pending.
+        initialScrollDone = true;
       },
       measure: () => {
         if (!virtualizerHandle) return null;
@@ -454,13 +458,6 @@
           viewportSize: virtualizerHandle.getViewportSize()
         };
       }
-    }).then((converged) => {
-      // A viewport resize can supersede a request after that request already
-      // reached the bottom but before its promise callback runs. That completed
-      // convergence still satisfies initialization; the newer request will
-      // handle the resized viewport.
-      if (converged || operation === bottomScrollOperation) initialScrollDone = true;
-      return converged;
     });
   }
 
