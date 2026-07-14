@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   EncryptedPrivateDataStore,
   PRIVATE_DATA_LIMITS,
+  privateDataNamespace,
   type PrivateDataScope
 } from './privateData';
 
@@ -59,10 +60,17 @@ describe('EncryptedPrivateDataStore', () => {
     ]);
     database.close();
 
-    expect(keys).toHaveLength(1);
-    expect((keys[0] as { key: CryptoKey }).key.extractable).toBe(false);
-    expect(records).toHaveLength(1);
-    expect(new TextDecoder().decode(records[0].ciphertext)).not.toContain('highly private draft');
+    const namespace = await privateDataNamespace(scope);
+    const scopedKeys = keys.filter(
+      (key) => (key as { namespace?: string }).namespace === namespace
+    ) as Array<{ key: CryptoKey }>;
+    const scopedRecords = records.filter((record) => record.namespace === namespace);
+    expect(scopedKeys).toHaveLength(1);
+    expect(scopedKeys[0].key.extractable).toBe(false);
+    expect(scopedRecords).toHaveLength(1);
+    expect(new TextDecoder().decode(scopedRecords[0].ciphertext)).not.toContain(
+      'highly private draft'
+    );
   });
 
   it('isolates accounts and crypto-shreds one account on purge', async () => {

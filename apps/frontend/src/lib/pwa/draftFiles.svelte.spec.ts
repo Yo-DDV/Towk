@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DRAFT_FILE_LIMITS, EncryptedDraftFileStore } from './draftFiles';
-import type { PrivateDataScope } from './privateData';
+import { privateDataNamespace, type PrivateDataScope } from './privateData';
 
 const scope: PrivateDataScope = {
   serverId: 'draft-files-server',
@@ -45,17 +45,18 @@ describe('encrypted draft attachments', () => {
     const database = await requestResult(indexedDB.open('towk-draft-files', 1));
     const transaction = database.transaction('drafts', 'readonly');
     const records = (await requestResult(transaction.objectStore('drafts').getAll())) as Array<{
+      namespace: string;
       metadata: { ciphertext: ArrayBuffer };
       files: Array<Array<{ ciphertext: ArrayBuffer }>>;
     }>;
     database.close();
+    const namespace = await privateDataNamespace(scope);
+    const stored = records.find((record) => record.namespace === namespace);
     const ciphertext = new TextDecoder().decode(
-      new Uint8Array(records[0]?.files[0]?.[0]?.ciphertext ?? new ArrayBuffer(0))
+      new Uint8Array(stored?.files[0]?.[0]?.ciphertext ?? new ArrayBuffer(0))
     );
     expect(ciphertext).not.toContain('private restart-safe attachment');
-    expect(new TextDecoder().decode(records[0]?.metadata.ciphertext)).not.toContain(
-      'private-note.txt'
-    );
+    expect(new TextDecoder().decode(stored?.metadata.ciphertext)).not.toContain('private-note.txt');
   });
 
   it('keeps concurrent first writes decryptable across store instances', async () => {
