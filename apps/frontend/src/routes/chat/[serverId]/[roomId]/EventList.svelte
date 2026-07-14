@@ -442,6 +442,10 @@
         safeScrollToIndex(virtualItems.length - 1, { align: 'end' });
         scrollContainer.scrollTop = scrollContainer.scrollHeight;
         scrollFader?.refresh();
+        // The initial bottom position has been applied. Record it here rather
+        // than after convergence, because a viewport event can legitimately
+        // supersede this request while its promise callback is still pending.
+        initialScrollDone = true;
       },
       measure: () => {
         if (!virtualizerHandle) return null;
@@ -454,9 +458,6 @@
           viewportSize: virtualizerHandle.getViewportSize()
         };
       }
-    }).then((converged) => {
-      if (operation === bottomScrollOperation) initialScrollDone = true;
-      return converged;
     });
   }
 
@@ -468,6 +469,54 @@
       scrollState.setContainer(scrollContainer);
       return () => scrollState.setContainer(null);
     }
+  });
+
+  // A software keyboard changes the available message viewport without
+  // resizing the composer itself. Preserve the bottom anchor whenever that
+  // viewport changes while the timeline is still sticky.
+  $effect(() => {
+    const container = scrollContainer;
+    if (!container) return;
+
+    function keepBottomAnchored() {
+      if (!isJumpedMode && !pendingHighlightId && (alwaysScrollToBottom || shouldScrollToBottom)) {
+        void requestBottomScroll();
+      }
+    }
+
+    let lastWidth = container.clientWidth;
+    let lastHeight = container.clientHeight;
+    let initialized = false;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.find((candidate) => candidate.target === container);
+      const width = entry?.contentRect.width ?? container.clientWidth;
+      const height = entry?.contentRect.height ?? container.clientHeight;
+      if (!initialized) {
+        initialized = true;
+        lastWidth = width;
+        lastHeight = height;
+        return;
+      }
+      if (width === lastWidth && height === lastHeight) return;
+
+      lastWidth = width;
+      lastHeight = height;
+      keepBottomAnchored();
+    });
+    observer.observe(container);
+
+    // On mobile, the visual viewport can change before layout catches up, or
+    // without changing this element's box at all. Start convergence from that
+    // signal too; requestBottomScroll waits for layout frames before measuring.
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener('resize', keepBottomAnchored);
+    visualViewport?.addEventListener('scroll', keepBottomAnchored);
+
+    return () => {
+      observer.disconnect();
+      visualViewport?.removeEventListener('resize', keepBottomAnchored);
+      visualViewport?.removeEventListener('scroll', keepBottomAnchored);
+    };
   });
 
   // Keep ScrollState's shouldScroll flag in sync with our local state
