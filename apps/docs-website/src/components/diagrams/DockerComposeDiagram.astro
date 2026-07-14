@@ -13,7 +13,7 @@ import Dot from './Dot.astro';
   <Box type="browser" x={16} y={140} w={140} h={60} label="Browser" sublabel="SvelteKit SPA" />
   <Box type="caddy" x={225} y={140} w={160} h={60} label="Caddy" sublabel="TLS · Load Balancer" port=":443" />
   <Box type="nats" x={465} y={50} w={160} h={60} label="NATS" sublabel="JetStream · KV Store" port=":4222" />
-  <Box type="chatto" x={465} y={140} w={160} h={60} label="Towk" sublabel="ConnectRPC · WebSocket" port=":4000" />
+  <Box type="towk" x={465} y={140} w={160} h={60} label="Towk" sublabel="ConnectRPC · WebSocket" port=":4000" />
   <Box type="livekit" x={465} y={240} w={160} h={60} label="LiveKit" sublabel="WebRTC Media" port=":7880" />
 
   <!-- Connections -->
@@ -21,22 +21,22 @@ import Dot from './Dot.astro';
   <text class="proto" x="190" y="163" text-anchor="middle">HTTPS</text>
   <text class="proto" x="190" y="185" text-anchor="middle">WSS</text>
 
-  <path id="p-caddy-chatto" class="conn" d="M385,170 L463,170"/>
+  <path id="p-caddy-towk" class="conn" d="M385,170 L463,170"/>
   <path id="p-caddy-livekit" class="conn" d="M385,185 L463,265"/>
   <path id="p-browser-livekit" class="conn-dash" d="M86,200 L86,270 L463,270"/>
   <text class="proto" x="270" y="285" text-anchor="middle">TCP :7881 · UDP :3478, :50000–50200</text>
 
-  <path id="p-chatto-nats" class="conn" d="M541,140 L541,110"/>
-  <path id="p-nats-chatto" class="conn" d="M549,110 L549,140"/>
-  <path id="p-chatto-livekit" class="conn" d="M545,200 L545,238"/>
+  <path id="p-towk-nats" class="conn" d="M541,140 L541,110"/>
+  <path id="p-nats-towk" class="conn" d="M549,110 L549,140"/>
+  <path id="p-towk-livekit" class="conn" d="M545,200 L545,238"/>
 
   <!-- Browser → Caddy -->
   <Dot path="p-browser-caddy" r={3} dur="1.2s" />
   <Dot path="p-browser-caddy" r={3} dur="1.2s" begin="0.6s" />
 
   <!-- Caddy → Towk -->
-  <Dot path="p-caddy-chatto" r={3} dur="1.2s" begin="0.3s" />
-  <Dot path="p-caddy-chatto" r={3} dur="1.2s" begin="0.9s" />
+  <Dot path="p-caddy-towk" r={3} dur="1.2s" begin="0.3s" />
+  <Dot path="p-caddy-towk" r={3} dur="1.2s" begin="0.9s" />
 
   <!-- Caddy → LiveKit -->
   <Dot path="p-caddy-livekit" color="yellow" r={3} dur="1.8s" />
@@ -46,9 +46,9 @@ import Dot from './Dot.astro';
   <Dot path="p-browser-livekit" color="yellow" dur="2.5s" begin="1.25s" opacity={0.7} />
 
   <!-- Towk ↔ NATS -->
-  <Dot path="p-chatto-nats" color="blue" dur="1.6s" />
-  <Dot path="p-nats-chatto" color="blue" dur="1.6s" begin="0.4s" />
+  <Dot path="p-towk-nats" color="blue" dur="1.6s" />
+  <Dot path="p-nats-towk" color="blue" dur="1.6s" begin="0.4s" />
 
   <!-- Towk ↔ LiveKit -->
-  <Dot path="p-chatto-livekit" bounce dur="2.4s" opacity={0.7} />
+  <Dot path="p-towk-livekit" bounce dur="2.4s" opacity={0.7} />
 </svg>

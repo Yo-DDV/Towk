@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -191,6 +192,148 @@ signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddee
 	if cfg.Webserver.Port != 5000 {
 		t.Errorf("expected port 5000 from file, got %d", cfg.Webserver.Port)
 	}
+}
+
+func TestReadConfig_PrefersTowkConfigAndFallsBackToLegacyName(t *testing.T) {
+	tests := []struct {
+		name     string
+		files    map[string]string
+		wantPort int
+	}{
+		{
+			name: "towk config is canonical",
+			files: map[string]string{
+				"towk.toml":   minimalConfigForPort(5100),
+				"chatto.toml": minimalConfigForPort(5200),
+			},
+			wantPort: 5100,
+		},
+		{
+			name: "legacy config remains compatible",
+			files: map[string]string{
+				"chatto.toml": minimalConfigForPort(5200),
+			},
+			wantPort: 5200,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			originalDir, err := os.Getwd()
+			if err != nil {
+				t.Fatalf("get working directory: %v", err)
+			}
+			if err := os.Chdir(tmpDir); err != nil {
+				t.Fatalf("change working directory: %v", err)
+			}
+			t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+			for name, contents := range tt.files {
+				if err := os.WriteFile(filepath.Join(tmpDir, name), []byte(contents), 0o600); err != nil {
+					t.Fatalf("write %s: %v", name, err)
+				}
+			}
+
+			cfg, err := ReadConfig("")
+			if err != nil {
+				t.Fatalf("ReadConfig: %v", err)
+			}
+			if cfg.Webserver.Port != tt.wantPort {
+				t.Fatalf("webserver port = %d, want %d", cfg.Webserver.Port, tt.wantPort)
+			}
+		})
+	}
+}
+
+func TestReadConfig_DoesNotHideCanonicalConfigReadErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("change working directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	if err := os.Mkdir("towk.toml", 0o700); err != nil {
+		t.Fatalf("create unreadable canonical config path: %v", err)
+	}
+	if err := os.WriteFile("chatto.toml", []byte(minimalConfigForPort(5200)), 0o600); err != nil {
+		t.Fatalf("write legacy config: %v", err)
+	}
+
+	if _, err := ReadConfig(""); err == nil {
+		t.Fatal("ReadConfig error = nil, want canonical config read error")
+	}
+}
+
+func TestReadConfig_ExplicitPathDoesNotUseDefaultFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("TOWK_CONFIG_DIR", filepath.Join(tmpDir, "packaged-defaults"))
+	if err := os.WriteFile(filepath.Join(tmpDir, "towk.toml"), []byte(minimalConfigForPort(5100)), 0o600); err != nil {
+		t.Fatalf("write canonical config: %v", err)
+	}
+	explicitPath := filepath.Join(tmpDir, "custom.toml")
+	if err := os.WriteFile(explicitPath, []byte(minimalConfigForPort(5300)), 0o600); err != nil {
+		t.Fatalf("write explicit config: %v", err)
+	}
+
+	cfg, err := ReadConfig(explicitPath)
+	if err != nil {
+		t.Fatalf("ReadConfig explicit path: %v", err)
+	}
+	if cfg.Webserver.Port != 5300 {
+		t.Fatalf("webserver port = %d, want explicit value 5300", cfg.Webserver.Port)
+	}
+}
+
+func TestReadConfig_UsesConfiguredDirectoryWithCanonicalPriority(t *testing.T) {
+	configDir := t.TempDir()
+	t.Setenv("TOWK_CONFIG_DIR", configDir)
+
+	canonicalPath := filepath.Join(configDir, "towk.toml")
+	legacyPath := filepath.Join(configDir, "chatto.toml")
+	if err := os.WriteFile(canonicalPath, []byte(minimalConfigForPort(5400)), 0o600); err != nil {
+		t.Fatalf("write canonical config: %v", err)
+	}
+	if err := os.WriteFile(legacyPath, []byte(minimalConfigForPort(5500)), 0o600); err != nil {
+		t.Fatalf("write legacy config: %v", err)
+	}
+
+	cfg, err := ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig canonical: %v", err)
+	}
+	if cfg.Webserver.Port != 5400 {
+		t.Fatalf("canonical webserver port = %d, want 5400", cfg.Webserver.Port)
+	}
+
+	if err := os.Remove(canonicalPath); err != nil {
+		t.Fatalf("remove canonical config: %v", err)
+	}
+	cfg, err = ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig legacy fallback: %v", err)
+	}
+	if cfg.Webserver.Port != 5500 {
+		t.Fatalf("legacy webserver port = %d, want 5500", cfg.Webserver.Port)
+	}
+}
+
+func minimalConfigForPort(port int) string {
+	return fmt.Sprintf(`
+[webserver]
+port = %d
+cookie_signing_secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+[core]
+secret_key = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+
+[core.assets]
+signing_secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+`, port)
 }
 
 func TestReadConfig_EnvOverridesFile(t *testing.T) {

@@ -82,7 +82,30 @@
           "title": "Benutzerberechtigungen",
           "description": "Steuert Benutzerkonto- und benutzerbezogene Berechtigungsvorgänge. Jede Nicht-Owner-Verweigerung hebt Erlaubnisse auf"
         }
-      }
+      },
+      "state_allow": "Erlauben",
+      "state_deny": "Verweigern",
+      "state_neutral": "Keine Entscheidung",
+      "scope_title": "{label} ({kind})",
+      "no_scopes_available": "Für {subject} sind keine Bereiche verfügbar.",
+      "about_permission": "Info zu {permission}",
+      "subject_generic": "Subjekt",
+      "subject_user": "Benutzer",
+      "subject_role": "Rolle",
+      "role_manage_title": "{role} — zum Verwalten anklicken",
+      "owner_always_granted_permission": "Eigentümer erhalten {permission} immer",
+      "override_for_role_permission": "Überschreibung {state} für {role} bei {permission}",
+      "no_override_for_role_permission": "Keine Überschreibung für {role} bei {permission}",
+      "inheriting_from": "erbt {state} von {source}",
+      "allow_owners_all": "Erlauben (Eigentümer erhalten immer alle Berechtigungen)",
+      "owner_permissions_not_editable": "Eigentümerberechtigungen sind nicht bearbeitbar",
+      "override_at_this_tier": "{state} (Überschreibung auf dieser Ebene)",
+      "inherits_from": "Erbt {state} von {source}",
+      "subject_always_granted_at_scope": "{subject} erhält {permission} bei {scope} immer",
+      "override_for_permission_scope": "Überschreibung {state} für {permission} bei {scope}",
+      "no_override_effective_scope": "Keine Überschreibung für {permission} bei {scope}, effektiv {state}",
+      "subject_override_at_scope": "{state} ({subject}-Überschreibung bei {scope})",
+      "effective_inherited": "Effektiv {state} (geerbt)"
     },
     "permission_descriptions": {
       "server_manage": "Servereinstellungen aktualisieren (Name, Beschreibung, Logo)",
@@ -106,6 +129,24 @@
       "user_delete_self": "Eigenes Konto löschen",
       "user_manage_accounts": "Benutzer erstellen, Kontoidentität bearbeiten, Passwörter zurücksetzen, verifizierte E-Mails hinzufügen und Login-Sperren zurücksetzen",
       "user_manage_permissions": "Direkte benutzerbezogene Berechtigungsüberschreibungen bearbeiten"
+    },
+    "system_roles": {
+      "owner": {
+        "display_name": "Eigentümer",
+        "description": "Vollständige Serverkontrolle"
+      },
+      "admin": {
+        "display_name": "Administrator",
+        "description": "Vollständiger administrativer Zugriff auf den Server"
+      },
+      "moderator": {
+        "display_name": "Moderator",
+        "description": "Lesender Zugriff auf Administrationsbereiche ohne Verwaltungsberechtigungen"
+      },
+      "everyone": {
+        "display_name": "Alle Mitglieder",
+        "description": "Alle authentifizierten Benutzer"
+      }
     }
   }
 }

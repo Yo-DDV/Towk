@@ -1128,6 +1128,9 @@ func TestChattoCore_PostMessage_DirectMentionAutoFollowsThread(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Post root: %v", err)
 	}
+	if _, err := core.DismissAllNotifications(ctx, mentioned.Id); err != nil {
+		t.Fatalf("DismissAllNotifications mentioned: %v", err)
+	}
 	if _, err := core.PostMessage(ctx, KindChannel, room.Id, replyAuthor.Id, "Looping in @mention-target", nil, rootMsg.Id, "", nil, false); err != nil {
 		t.Fatalf("Post direct mention reply: %v", err)
 	}
@@ -1162,6 +1165,9 @@ func TestChattoCore_PostMessage_DirectMentionRespectsExplicitUnfollow(t *testing
 	core.JoinRoom(ctx, mentioned.Id, KindChannel, mentioned.Id, room.Id)
 
 	rootMsg, _ := core.PostMessage(ctx, KindChannel, room.Id, rootAuthor.Id, "Root", nil, "", "", nil, false)
+	if _, err := core.DismissAllNotifications(ctx, mentioned.Id); err != nil {
+		t.Fatalf("DismissAllNotifications mentioned: %v", err)
+	}
 	if err := core.FollowThread(ctx, KindChannel, mentioned.Id, room.Id, rootMsg.Id); err != nil {
 		t.Fatalf("FollowThread: %v", err)
 	}
@@ -1352,7 +1358,8 @@ func TestChattoCore_NotifyThreadFollowers(t *testing.T) {
 	core.DismissAllNotifications(ctx, userB.Id)
 	core.DismissAllNotifications(ctx, userC.Id)
 
-	// User B posts another reply - should notify A (follower) but NOT C (unfollowed) or B (author)
+	// User B posts another reply. A gets the follower notification, while C
+	// remains covered by the channel's ALL_MESSAGES default despite unfollowing.
 	core.PostMessage(ctx, KindChannel, room.Id, userB.Id, "Another reply from B", nil, rootMsg.Id, "", nil, false)
 
 	// Check notifications
@@ -1362,12 +1369,16 @@ func TestChattoCore_NotifyThreadFollowers(t *testing.T) {
 
 	if len(notifsA) != 1 {
 		t.Errorf("Expected 1 notification for user A (follower), got %d", len(notifsA))
+	} else if reply := notifsA[0].GetReply(); reply == nil || reply.GetInThread() != rootMsg.Id {
+		t.Errorf("Expected thread reply notification for user A, got %+v", notifsA[0])
 	}
 	if len(notifsB) != 0 {
 		t.Errorf("Expected 0 notifications for user B (reply author), got %d", len(notifsB))
 	}
-	if len(notifsC) != 0 {
-		t.Errorf("Expected 0 notifications for user C (unfollowed), got %d", len(notifsC))
+	if len(notifsC) != 1 {
+		t.Errorf("Expected 1 ALL_MESSAGES notification for user C (unfollowed), got %d", len(notifsC))
+	} else if roomMessage := notifsC[0].GetRoomMessage(); roomMessage == nil || roomMessage.GetInThread() != rootMsg.Id {
+		t.Errorf("Expected thread-scoped room message notification for user C, got %+v", notifsC[0])
 	}
 }
 
@@ -1556,6 +1567,9 @@ func TestChattoCore_PostMessage_EchoMentionNotification(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to post root: %v", err)
 		}
+		if _, err := core.DismissAllNotifications(ctx, target.Id); err != nil {
+			t.Fatalf("DismissAllNotifications target: %v", err)
+		}
 
 		// Post thread reply with echo, mentioning the target user
 		_, err = core.PostMessage(ctx, KindChannel, room.Id, author.Id, "Hey @mention-target check this out", nil, rootEvent.Id, "", nil, true)
@@ -1599,6 +1613,9 @@ func TestChattoCore_PostMessage_InReplyToNotification(t *testing.T) {
 		aliceMsg, err := core.PostMessage(ctx, KindChannel, room.Id, alice.Id, "Hello world", nil, "", "", nil, false)
 		if err != nil {
 			t.Fatalf("Failed to post message: %v", err)
+		}
+		if _, err := core.DismissAllNotifications(ctx, bob.Id); err != nil {
+			t.Fatalf("DismissAllNotifications Bob: %v", err)
 		}
 
 		// Bob replies with inReplyTo (room-level reply, no thread)

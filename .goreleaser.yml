@@ -3,7 +3,8 @@ project_name: towk
 
 builds:
   - id: towk-cli
-    binary: chatto
+    binary: towk
+    mod_timestamp: "946684800"
     env:
       - CGO_ENABLED=0
     dir: ./cli
@@ -22,13 +23,33 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-
 archives:
-  - formats: [tar.gz]
+  - ids: [towk-cli]
+    formats: [tar.gz]
+    builds_info:
+      owner: root
+      group: root
+      mode: 0755
+      mtime: "2000-01-01T00:00:00Z"
     files:
-      - LICENSES/AGPL-3.0-or-later.txt
-      - NOTICE
-      - SOURCE.md
+      - src: LICENSE
+        info: &legal_file_info
+          owner: root
+          group: root
+          mode: 0644
+          mtime: "2000-01-01T00:00:00Z"
+      - src: LICENSES/AGPL-3.0-or-later.txt
+        info: *legal_file_info
+      - src: LICENSES/Apache-2.0.txt
+        info: *legal_file_info
+      - src: LICENSING.md
+        info: *legal_file_info
+      - src: NOTICE
+        info: *legal_file_info
+      - src: REUSE.toml
+        info: *legal_file_info
+      - src: SOURCE.md
+        info: *legal_file_info
     name_template: >-
       {{ .ProjectName }}_
       {{- if eq .Os "freebsd" }}FreeBSD{{ else }}{{ title .Os }}{{ end }}_
@@ -47,11 +68,4 @@ changelog:
   disable: true
 
 release:
-  github:
-    owner: Yo-DDV
-    name: towk
-  draft: true
-  use_existing_draft: true
-  replace_existing_artifacts: true
-  mode: keep-existing
-  prerelease: auto
+  disable: true

@@ -227,6 +227,6 @@ describe('getCurrentUserViaConnect', () => {
         baseUrl: '/api/connect',
         bearerToken: 'token'
       })
-    ).rejects.toThrow('room notification preference response did not include preference metadata');
+    ).rejects.toThrow('Unexpected server response. Please try again.');
   });
 });

@@ -18,7 +18,7 @@
   import { Button, Checkbox, TextArea, TextInput } from '$lib/ui/form';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import { toast } from '$lib/ui/toast';
-  import { UNIVERSAL_ROOM_HELP_TEXT } from '$lib/utils/roomCopy';
+  import { getUniversalRoomHelpText } from '$lib/utils/roomCopy';
   import { flip } from 'svelte/animate';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import * as m from '$lib/i18n/messages';
@@ -679,7 +679,7 @@
     bind:checked={editRoomUniversal}
     disabled={editRoomSaving}
     label={m['admin.rooms_admin.universal_room']()}
-    description={UNIVERSAL_ROOM_HELP_TEXT}
+    description={getUniversalRoomHelpText()}
   />
 </FormDialog>
 

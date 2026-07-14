@@ -16,20 +16,28 @@ if [ "$(id -u)" = "0" ]; then
     case "$PGID" in
         ''|*[!0-9]*) echo "PGID must be a numeric group ID, got: $PGID" >&2; exit 1 ;;
     esac
+    if [ "$PUID" -eq 0 ]; then
+        echo "PUID must be greater than zero" >&2
+        exit 1
+    fi
+    if [ "$PGID" -eq 0 ]; then
+        echo "PGID must be greater than zero" >&2
+        exit 1
+    fi
 
-    current_uid="$(id -u chatto)"
-    current_gid="$(id -g chatto)"
+    current_uid="$(id -u towk)"
+    current_gid="$(id -g towk)"
     if [ "$current_gid" != "$PGID" ]; then
-        groupmod -o -g "$PGID" chatto
+        groupmod -o -g "$PGID" towk
     fi
     if [ "$current_uid" != "$PUID" ] || [ "$current_gid" != "$PGID" ]; then
-        usermod -o -u "$PUID" -g "$PGID" chatto
+        usermod -o -u "$PUID" -g "$PGID" towk
     fi
-    export HOME=/home/chatto
+    export HOME=/home/towk
 fi
 
 if [ "$(id -u)" = "0" ]; then
-    exec su-exec chatto:chatto /chatto "$@"
+    exec su-exec towk:towk /towk "$@"
 fi
 
-exec /chatto "$@"
+exec /towk "$@"

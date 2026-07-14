@@ -14,7 +14,7 @@ There are two scaling layers:
 
 | Layer | What you scale | Why |
 | ----- | -------------- | --- |
-| Towk replicas | `chatto run` server processes | More web/API/realtime capacity, zero-downtime deploys, process-level redundancy. |
+| Towk replicas | `towk run` server processes | More web/API/realtime capacity, zero-downtime deploys, process-level redundancy. |
 | NATS cluster | NATS servers with JetStream enabled | Shared storage capacity, message-broker capacity, and NATS-side high availability. |
 
 <ArchDiagram />
@@ -107,7 +107,7 @@ Use `/readyz` for startup and readiness probes to ensure traffic isn't routed to
 ### Docker Compose
 
 ```yaml
-chatto:
+towk:
   image: ghcr.io/yo-ddv/towk:<immutable-tag>@sha256:<digest>
   deploy:
     replicas: 3

@@ -13,6 +13,7 @@
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button, Checkbox, TextInput, TextArea, FormError } from '$lib/ui/form';
   import { DeleteRoleModal, RolePermissionsMatrix, type Role } from '$lib/components/rbac';
+  import { localizedRoleDescription, localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
 
   type User = RoleUser;
@@ -45,7 +46,7 @@
     try {
       resp = await roleAPI().getRole(roleName);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Server not found';
+      error = err instanceof Error ? err.message : m['admin.permissions.server_not_found']();
       loading = false;
       return;
     }
@@ -85,7 +86,7 @@
       // Reload data
       await loadData();
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to update role';
+      error = err instanceof Error ? err.message : m['admin.permissions.update_role_failed']();
     }
 
     saving = false;
@@ -115,10 +116,15 @@
         pingable: updated.pingable
       };
       editPingable = updated.pingable;
-      toast.success(updated.pingable ? 'Role pings enabled' : 'Role pings disabled');
+      toast.success(
+        updated.pingable
+          ? m['admin.permissions.role_pings_enabled']()
+          : m['admin.permissions.role_pings_disabled']()
+      );
     } catch (err) {
       editPingable = previousPingable;
-      error = err instanceof Error ? err.message : 'Failed to update role ping setting';
+      error =
+        err instanceof Error ? err.message : m['admin.permissions.update_role_ping_failed']();
     }
 
     savingPingable = false;
@@ -133,7 +139,7 @@
     try {
       await roleAPI().deleteRole(role.name);
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to delete role';
+      error = err instanceof Error ? err.message : m['admin.permissions.delete_role_failed']();
       deleting = false;
       showDeleteConfirm = false;
       return;
@@ -159,18 +165,24 @@
     role && (editDisplayName !== role.displayName || editDescription !== role.description)
   );
   const canEditPingable = $derived(role?.name !== 'everyone');
+  const roleDisplayName = $derived(
+    role ? localizedRoleDisplayName(role.name, role.displayName) : ''
+  );
+  const roleDescription = $derived(
+    role ? localizedRoleDescription(role.name, role.description) : ''
+  );
 </script>
 
 <PageTitle
   title={m['admin.common.server_admin_page_title']({
-    title: role?.displayName ?? m['admin.permissions.edit_role_title']()
+    title: roleDisplayName || m['admin.permissions.edit_role_title']()
   })}
 />
 
 <div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
     title={m['admin.permissions.edit_role_title']()}
-    subtitle={role?.displayName ?? m['common.loading']()}
+    subtitle={roleDisplayName || m['common.loading']()}
     backHref={permissionsHref}
     backLabel={m['admin.permissions.back_to_permissions']()}
     showMobileNav
@@ -202,11 +214,11 @@
           {#if role.isSystem}
             <div>
               <div class="mb-1 text-sm font-medium">{m['rbac.role_form.display_name']()}</div>
-              <div class="text-text">{role.displayName}</div>
+              <div class="text-text">{roleDisplayName}</div>
             </div>
             <div>
               <div class="mb-1 text-sm font-medium">{m['rbac.role_form.description']()}</div>
-              <div class="text-muted">{role.description}</div>
+              <div class="text-muted">{roleDescription}</div>
             </div>
             <p class="text-sm text-muted">{m['admin.permissions.system_metadata_locked']()}</p>
             <Checkbox
@@ -306,7 +318,7 @@
 <!-- Delete Confirmation Dialog -->
 {#if showDeleteConfirm && role}
   <DeleteRoleModal
-    roleDisplayName={role.displayName}
+    {roleDisplayName}
     {deleting}
     onConfirm={deleteRole}
     onCancel={() => (showDeleteConfirm = false)}

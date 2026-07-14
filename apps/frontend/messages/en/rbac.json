@@ -82,7 +82,30 @@
           "title": "User Permissions",
           "description": "Control user account and per-user permission operations. Any non-owner deny cancels grants"
         }
-      }
+      },
+      "state_allow": "Allow",
+      "state_deny": "Deny",
+      "state_neutral": "No decision",
+      "scope_title": "{label} ({kind})",
+      "no_scopes_available": "No scopes available for {subject}.",
+      "about_permission": "About {permission}",
+      "subject_generic": "subject",
+      "subject_user": "user",
+      "subject_role": "role",
+      "role_manage_title": "{role} — click to manage",
+      "owner_always_granted_permission": "Owner is always granted {permission}",
+      "override_for_role_permission": "Override {state} for {role} on {permission}",
+      "no_override_for_role_permission": "No override for {role} on {permission}",
+      "inheriting_from": "inheriting {state} from {source}",
+      "allow_owners_all": "Allow (owners are always granted all permissions)",
+      "owner_permissions_not_editable": "Owner permissions are not editable",
+      "override_at_this_tier": "{state} (override at this tier)",
+      "inherits_from": "Inherits {state} from {source}",
+      "subject_always_granted_at_scope": "{subject} is always granted {permission} at {scope}",
+      "override_for_permission_scope": "Override {state} for {permission} at {scope}",
+      "no_override_effective_scope": "No override for {permission} at {scope}, effective {state}",
+      "subject_override_at_scope": "{state} ({subject} override at {scope})",
+      "effective_inherited": "Effective {state} (inherited)"
     },
     "permission_descriptions": {
       "server_manage": "Update server settings (name, description, logo)",
@@ -106,6 +129,24 @@
       "user_delete_self": "Delete your own account",
       "user_manage_accounts": "Create users, edit account identity, reset passwords, attach verified emails, and clear login cooldowns",
       "user_manage_permissions": "Edit direct per-user permission overrides"
+    },
+    "system_roles": {
+      "owner": {
+        "display_name": "Owner",
+        "description": "Full server control"
+      },
+      "admin": {
+        "display_name": "Admin",
+        "description": "Full administrative access to the server"
+      },
+      "moderator": {
+        "display_name": "Moderator",
+        "description": "View access to admin panels without management permissions"
+      },
+      "everyone": {
+        "display_name": "Everyone",
+        "description": "All authenticated users"
+      }
     }
   }
 }

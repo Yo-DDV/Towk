@@ -25,7 +25,7 @@ var exporterCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(exporterCmd)
-	exporterCmd.Flags().StringVarP(&exporterConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	exporterCmd.Flags().StringVarP(&exporterConfigFile, "config", "c", "", configFlagHelp)
 }
 
 func runExporter(configPath string) {

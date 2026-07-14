@@ -10,13 +10,14 @@ import {
 import { buildServerOAuthAuthorizeUrl } from '$lib/oauth/authorizeUrl';
 import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
 import { clearCachedUser } from './loadAuth';
+import * as m from '$lib/i18n/messages';
 
 export async function startServerOAuthFlow(
   serverUrl: string,
   serverInfo: Pick<PublicServerInfo, 'name' | 'authorizeUrl' | 'iconUrl'>
 ): Promise<void> {
   if (!serverInfo.authorizeUrl) {
-    throw new Error('This server does not support OAuth sign-in.');
+    throw new Error(m['add_server.oauth_unsupported']());
   }
 
   const verifier = generateCodeVerifier();

@@ -208,7 +208,7 @@ func (s *HTTPServer) setupRoutes() error {
 	if len(encKey) > 0 {
 		sessionStore = cookie.NewStore(authKey, encKey)
 	} else {
-		s.logger.Warn("webserver.cookie_encryption_secret is not set; session cookies are signed but NOT encrypted. Run `chatto init` on a fresh server to generate one, or add a hex-encoded 32-byte value to chatto.toml.")
+		s.logger.Warn("webserver.cookie_encryption_secret is not set; session cookies are signed but NOT encrypted. Run `towk init` on a fresh server to generate one, or add a hex-encoded 32-byte value to towk.toml.")
 		sessionStore = cookie.NewStore(authKey)
 	}
 	secureCookies, err := s.config.Webserver.SecureCookies()

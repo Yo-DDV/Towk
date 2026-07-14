@@ -4,6 +4,7 @@ import {
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
+import * as m from '$lib/i18n/messages';
 import { ExternalIdentityAuthService } from '@towk/api-types/chatto/auth/v1/external_identity_auth_connect';
 import {
   ExternalIdentityFlowKind,
@@ -165,7 +166,7 @@ function externalIdentityProvider(
 ): ExternalIdentityProviderInfo {
   const metadata = provider.provider;
   if (!metadata) {
-    throw new Error('external identity provider response did not include provider metadata');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     id: metadata.id,

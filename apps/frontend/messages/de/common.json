@@ -35,7 +35,10 @@
     },
     "error": {
       "network": "Netzwerkfehler. Bitte versuche es erneut.",
-      "generic": "Etwas ist schiefgelaufen"
+      "generic": "Etwas ist schiefgelaufen",
+      "unexpected_server_response": "Unerwartete Serverantwort. Bitte versuche es erneut.",
+      "client_not_configured": "Dieser Client ist nicht konfiguriert. Bitte lade die App neu.",
+      "server_not_found": "Dieser Server ist nicht mehr verfügbar. Bitte lade die App neu."
     },
     "delete": "Löschen",
     "save": "Speichern",

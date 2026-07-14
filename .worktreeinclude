@@ -1,3 +1,0 @@
-# Local environment overrides used by mise and Chatto dev runs.
-.env
-.env.*

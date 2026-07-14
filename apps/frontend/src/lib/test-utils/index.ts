@@ -5,7 +5,7 @@
  * - `q(container, sel)` — querySelector with `HTMLElement` cast for `expect.element()`
  * - `testSnippet(html)` — build a `Snippet` for component children/slot props
  *
- * See `apps/frontend/AGENTS.md` for the full convention.
+ * Keep shared helpers small and explicit so component specs stay readable.
  */
 export { q } from './q';
 export { testSnippet } from './snippet';

@@ -32,6 +32,6 @@ No relational database, no ORM, no SQL migrations.
 - **Unified data and messaging**: The same system that stores messages also delivers them in real-time. No CDC, no polling, no sync layer.
 - **No ad-hoc queries**: NATS resources are not a relational query engine. Full-text search and analytics require dedicated projections or pluggable systems.
 - **No SQL joins**: Related data is assembled through projections and API response assemblers rather than database joins.
-- **Backup is NATS-native**: `chatto backup` exports streams, KV buckets, and object stores. Restoring means restoring NATS resources and replaying projections from `EVT`.
+- **Backup is NATS-native**: `towk backup` exports streams, KV buckets, and object stores. Restoring means restoring NATS resources and replaying projections from `EVT`.
 - **Operational knowledge shifts**: Operators need to understand NATS streams, consumers, and KV semantics rather than SQL and database tuning.
 - **Scaling story is NATS-native**: Horizontal scaling means NATS clustering (JetStream Raft consensus), not database replicas.

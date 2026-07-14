@@ -71,8 +71,10 @@
   let passwordError = $state('');
   let passwordSubmitting = $state(false);
 
+  const deleteConfirmationText = $derived(m['settings.account.delete_modal.confirmation_token']());
   const canDelete = $derived(
-    confirmText === 'DELETE' && (!deleteNeedsFreshAuth || deleteCurrentPassword !== '')
+    confirmText === deleteConfirmationText &&
+      (!deleteNeedsFreshAuth || deleteCurrentPassword !== '')
   );
   const hasPassword = $derived(currentUser.user?.hasPassword ?? false);
   const passwordSchema = z.string().min(8, m['common.validation.password_min']());
@@ -796,9 +798,11 @@
 
     <TextInput
       id="delete-confirm"
-      label={m['settings.account.delete_modal.confirm_label']()}
+      label={m['settings.account.delete_modal.confirm_label']({
+        confirmation: deleteConfirmationText
+      })}
       bind:value={confirmText}
-      placeholder={m['settings.account.delete_modal.confirm_placeholder']()}
+      placeholder={deleteConfirmationText}
       disabled={isDeleting}
       autocomplete="off"
     />

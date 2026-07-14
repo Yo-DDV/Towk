@@ -1,9 +1,9 @@
 ---
 title: Operator CLI
-description: Local recovery and bootstrap commands with chatto operator.
+description: Local recovery and bootstrap commands with towk operator.
 ---
 
-`chatto operator` is Towk's local, root-equivalent operations CLI. Use it for bootstrap, recovery, and scripted user administration when an in-app admin session is unavailable or not appropriate.
+`towk operator` is Towk's local, root-equivalent operations CLI. Use it for bootstrap, recovery, and scripted user administration when an in-app admin session is unavailable or not appropriate.
 
 Operator commands talk to the running Towk process over a Unix socket. They do not open a second NATS/Core writer, and they do not use Towk sessions, bearer tokens, cookies, RBAC roles, or CORS.
 
@@ -24,17 +24,17 @@ The socket mode is always `0600`. The socket parent directory must be owned by t
 On a host install, run commands as the same OS user that runs Towk:
 
 ```sh
-chatto operator user list
-chatto operator user list --search alice@example.com
-chatto operator user set-password USER_ID
+towk operator user list
+towk operator user list --search alice@example.com
+towk operator user set-password USER_ID
 ```
 
-In Docker Compose, exec into the running Towk container as the `chatto` user:
+In Docker Compose, exec into the running Towk container as the `towk` user:
 
 ```sh
-docker compose exec -u chatto towk /chatto operator user list
-docker compose exec -u chatto towk /chatto operator user list --search alice@example.com
-docker compose exec -u chatto towk /chatto operator user set-password USER_ID
+docker compose exec -u towk towk /towk operator user list
+docker compose exec -u towk towk /towk operator user list --search alice@example.com
+docker compose exec -u towk towk /towk operator user set-password USER_ID
 ```
 
 Use `--operator-socket` or `CHATTO_OPERATOR_API_SOCKET_PATH` only when the socket path differs from config/defaults.
@@ -44,20 +44,20 @@ Use `--operator-socket` or `CHATTO_OPERATOR_API_SOCKET_PATH` only when the socke
 Mutating user commands take a stable user ID as their first argument. Search first when you only know a login or verified email address:
 
 ```sh
-chatto operator user list --search alice
-chatto operator user list --search alice@example.com
+towk operator user list --search alice
+towk operator user list --search alice@example.com
 ```
 
 Then use the returned `USER_ID`:
 
 ```sh
-chatto operator user get USER_ID
-chatto operator user update USER_ID --display-name "Alice"
-chatto operator user set-password USER_ID
-chatto operator user add-email USER_ID --email alice@example.com
-chatto operator user role add USER_ID moderator
-chatto operator user role remove USER_ID moderator
-chatto operator user delete USER_ID --yes
+towk operator user get USER_ID
+towk operator user update USER_ID --display-name "Alice"
+towk operator user set-password USER_ID
+towk operator user add-email USER_ID --email alice@example.com
+towk operator user role add USER_ID moderator
+towk operator user role remove USER_ID moderator
+towk operator user delete USER_ID --yes
 ```
 
 For password automation, prefer `--password-stdin` or `--password-file` over `--password` so secrets do not appear in shell history or process listings.

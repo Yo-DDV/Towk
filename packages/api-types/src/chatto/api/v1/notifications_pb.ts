@@ -200,6 +200,13 @@ export class RoomMessageNotification extends Message<RoomMessageNotification> {
    */
   eventId = "";
 
+  /**
+   * Thread root event ID when the message was posted inside a thread.
+   *
+   * @generated from field: optional string thread_root_event_id = 3;
+   */
+  threadRootEventId?: string;
+
   constructor(data?: PartialMessage<RoomMessageNotification>) {
     super();
     proto3.util.initPartial(data, this);
@@ -210,6 +217,7 @@ export class RoomMessageNotification extends Message<RoomMessageNotification> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room", kind: "message", T: RoomSummary },
     { no: 2, name: "event_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "thread_root_event_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RoomMessageNotification {

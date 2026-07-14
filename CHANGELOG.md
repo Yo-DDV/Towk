@@ -1,7 +1,59 @@
 # Changelog
 
-All notable changes to Towk. Maintained by release-please from the
-conventional-commit messages on `main` — do not edit by hand.
+All notable changes to Towk. Subsequent entries are maintained from conventional
+commits on `main`; this first standalone release entry is curated to separate
+Towk work from the inherited Chatto history.
+
+## [0.5.0](https://github.com/Yo-DDV/Towk/releases/tag/v0.5.0) (2026-07-13)
+
+Towk 0.5.0 is the first release from the independent
+[Yo-DDV/Towk](https://github.com/Yo-DDV/Towk) repository. It starts from the
+Chatto 0.4.7 codebase while preserving its Git history, notices, license
+metadata, and compatibility identifiers. It is not a retroactive Towk release
+of the inherited 0.4.x versions.
+
+### Product foundation
+
+- Establishes Towk as an independent, self-hosted communication workspace with
+  its own repository, visual identity, PWA assets, documentation, issue intake,
+  image registry, and release authority.
+- Ships the application interface in English, German, French, Spanish, and
+  Portuguese.
+- Preserves the inherited `chatto.*` protocols, `CHATTO_*` environment
+  variables, `chatto.toml`, storage schemas, and CLI binary compatibility to
+  avoid an unsafe flag-day migration.
+- Documents provenance, mixed-license boundaries, and a selective,
+  review-before-import upstream synchronization policy.
+
+### Security and reliability
+
+- Updates vulnerable dependencies and resolves the actionable CodeQL findings.
+- Hardens authentication, authorization capabilities, account deletion,
+  passphrase handling, link previews, attachment validation, WebSocket quotas,
+  backup/export atomicity, configuration creation, and encryption-key exports.
+- Enforces the compatible browser CSP and HSTS defaults while documenting the
+  remaining inline-policy and Trusted Types migration work.
+- Restricts Docker Compose and Kubernetes examples, pins release inputs, and
+  runs the public frontend and documentation images without root.
+- Enables protected `main`, required CI/security checks, dependency review,
+  secret scanning with push protection, SBOM generation, vulnerability scans,
+  and build provenance attestations.
+
+### Distribution
+
+- Publishes multi-architecture Towk images through
+  `ghcr.io/yo-ddv/towk`, tied to exact source commits and immutable digests.
+- Produces Linux, macOS, Windows, and FreeBSD release archives with checksums,
+  embedded legal notices, and provenance attestations.
+- Keeps the software pre-1.0: pin an exact release or image digest for durable
+  deployments.
+
+### Compatibility
+
+No intentional public API or persisted-event breaking change is introduced
+relative to the documented Chatto 0.4.7 compatibility baseline. Towk-specific
+branding and repository URLs change, while inherited technical identifiers stay
+in place until a versioned, rollback-safe migration is designed.
 
 ## [0.4.7](https://github.com/chattocorp/chatto/compare/v0.4.6...v0.4.7) (2026-07-11)
 

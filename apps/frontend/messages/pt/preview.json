@@ -1,0 +1,16 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "preview": {
+    "dismiss": "Ignorar visualização",
+    "delete": "Excluir visualização",
+    "open_link": "Abrir link",
+    "copy_url": "Copiar URL",
+    "copy_url_success": "URL copiada para a área de transferência",
+    "copy_url_failed": "Não foi possível copiar a URL",
+    "youtube_title": "Vídeo do YouTube",
+    "youtube_dismiss": "Dispensar vídeo",
+    "youtube_delete": "Excluir vídeo",
+    "youtube_open": "Abrir no YouTube",
+    "youtube_delete_embed": "Excluir incorporação"
+  }
+}

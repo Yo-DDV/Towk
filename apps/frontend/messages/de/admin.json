@@ -105,7 +105,14 @@
       "edit": "Bearbeiten",
       "assigned_role": "Rolle {role} zugewiesen",
       "removed_role": "Rolle {role} entfernt",
-      "role_update_failed": "Rollenzuweisung konnte nicht aktualisiert werden"
+      "role_update_failed": "Rollenzuweisung konnte nicht aktualisiert werden",
+      "invalid_display_name": "Ungültiger Anzeigename",
+      "invalid_username": "Ungültiger Benutzername",
+      "update_user_failed": "Benutzer konnte nicht aktualisiert werden",
+      "user_updated": "Benutzer aktualisiert",
+      "clear_cooldown_failed": "Benutzernamen-Sperrfrist konnte nicht zurückgesetzt werden",
+      "cooldown_cleared": "Benutzernamen-Sperrfrist zurückgesetzt",
+      "user_permission_overrides_hint": "Benutzerbezogene Überschreibungen für dieses Konto. Jede zutreffende Verweigerung gewinnt gegen Erlaubnisse; nur sparsam für Ausnahmen pro Benutzer wie Sperren oder einmalige Rechteerhöhungen verwenden."
     },
     "member_detail": {
       "no_self_rename": "Keine Selbstumbenennung erfasst.",
@@ -143,7 +150,13 @@
       "no_users_with_role": "Keine Benutzer haben diese Rolle",
       "server_tier_intro": "Diese Seite ist für serverweite Rollenberechtigungen: breite Vorgaben, die vor raumspezifischen Überschreibungen gelten.",
       "server_tier_rooms_hint": "Nutze Räume für Überschreibungen pro Gruppe und Raum.",
-      "server_tier_denies_hint": "Setze Verweigerungen gezielt ein: everyone in einem Raum zu verweigern blockiert alle geerbten Erlaubnisse auf dieser Ebene."
+      "server_tier_denies_hint": "Setze Verweigerungen gezielt ein: everyone in einem Raum zu verweigern blockiert alle geerbten Erlaubnisse auf dieser Ebene.",
+      "server_not_found": "Server nicht gefunden",
+      "update_role_failed": "Rolle konnte nicht aktualisiert werden",
+      "update_role_ping_failed": "Ping-Einstellung der Rolle konnte nicht aktualisiert werden",
+      "role_pings_enabled": "Rollen-Pings aktiviert",
+      "role_pings_disabled": "Rollen-Pings deaktiviert",
+      "delete_role_failed": "Rolle konnte nicht gelöscht werden"
     },
     "rooms_admin": {
       "title": "Räume",

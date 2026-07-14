@@ -27,6 +27,52 @@ permissions:
   contents: read
 
 jobs:
+  public-surface-check:
+    name: public-surface-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup project Node.js
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+          install-frontend-deps: "false"
+
+      - name: Check public product surfaces
+        run: mise public-surface-check
+
+  distribution-config-check:
+    name: distribution-config-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pinned release tools
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+          install-frontend-deps: "false"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Validate workflows, archives, scripts, and image definitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          goreleaser check
+          actionlint .github/workflows/*.yml
+          bash -n tools/verify-release-archives.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          docker buildx build --check --build-arg TARGETARCH=amd64 -f docker/Dockerfile.goreleaser .
+          docker buildx build --check --build-arg TARGETARCH=amd64 -f docker/Dockerfile.towk .
+
   license-check:
     name: license-check
     # runs-on: ubicloud-standard-4

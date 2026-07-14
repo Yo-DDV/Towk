@@ -1,0 +1,11 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "message_preview": {
+    "deleted_user": "Usuário excluído",
+    "attachments_count": "{count} anexos",
+    "attachment_image": "Imagem",
+    "attachment_video": "Vídeo",
+    "attachment_audio": "Áudio",
+    "attachment_file": "Arquivo"
+  }
+}

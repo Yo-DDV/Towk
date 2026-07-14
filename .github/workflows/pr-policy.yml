@@ -80,13 +80,15 @@ jobs:
             const body = pr.body || '';
             const branch = pr.head.ref;
             const isAutomation = ['dependabot[bot]', 'github-actions[bot]'].includes(pr.user?.login);
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
 
             if (!/^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([^)]+\))?!?: .+/.test(title)) {
               failures.push('Use a Conventional Commit pull request title.');
-            }
-
-            if (/(^|[/_-])(codex|openai|chatgpt|claude|anthropic|ai-agent|agent-ia|assistant-ia)([/_-]|$)/i.test(branch)) {
-              failures.push('Rename the branch to a product or problem-focused name.');
             }
 
             if (!isAutomation) {
@@ -96,6 +98,16 @@ jobs:
 
               if (/- \[ \]/.test(body)) {
                 failures.push('Complete every pull request checklist item before review.');
+              }
+
+              const publicText = [
+                ['pull request title', title],
+                ['pull request body', body],
+                ...commits.map((commit) => [`commit ${commit.sha.slice(0, 12)}`, commit.commit.message]),
+              ];
+              const privatePath = /(?:^|[\s`'"(])(?:\/home\/[^/\s]+\/|\/Users\/[^/\s]+\/|[A-Za-z]:\\Users\\[^\\\s]+\\)/i;
+              for (const [label, text] of publicText) {
+                if (privatePath.test(text)) failures.push(`${label} contains a private workstation path.`);
               }
             }
 

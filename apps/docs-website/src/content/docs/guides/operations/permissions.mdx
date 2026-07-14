@@ -133,7 +133,7 @@ Owners and admins are deliberately different:
 - **Owners** always receive all permissions and cannot be locked out through RBAC state. Owner permission rows are shown as read-only green checks in the UI.
 - **Admins** receive broad default grants, but they are still ordinary non-owner users for permission resolution. A deny can restrict an admin.
 
-Use `owners.emails` in `chatto.toml` as the recovery path. The email must be verified before it makes the user an effective owner.
+Use `owners.emails` in `towk.toml` as the recovery path. The email must be verified before it makes the user an effective owner.
 
 ## DM privacy
 
@@ -145,7 +145,7 @@ Access to a DM comes from being a participant in that conversation. Owners canno
 
 | What you want to do | Where |
 | ------------------- | ----- |
-| Set recovery owners | `owners.emails` in `chatto.toml` |
+| Set recovery owners | `owners.emails` in `towk.toml` |
 | Create or edit roles | Admin UI -> **Roles** |
 | Assign roles to users | Admin UI -> **Members** |
 | Edit role permissions | Admin UI -> **Roles -> [role name]** |

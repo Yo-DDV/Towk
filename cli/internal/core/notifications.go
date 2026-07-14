@@ -365,6 +365,7 @@ func (c *ChattoCore) DismissRoomReadNotifications(ctx context.Context, kind Room
 				c.notificationEventAtOrBefore(ctx, kind, roomID, payload.Reply.GetEventId(), readThrough)
 		case *corev1.Notification_RoomMessage:
 			return payload.RoomMessage.GetRoomId() == roomID &&
+				payload.RoomMessage.GetInThread() == "" &&
 				c.notificationEventAtOrBefore(ctx, kind, roomID, payload.RoomMessage.GetEventId(), readThrough)
 		default:
 			return false
@@ -396,6 +397,10 @@ func (c *ChattoCore) DismissThreadReadNotifications(ctx context.Context, kind Ro
 			return payload.Reply.GetRoomId() == roomID &&
 				payload.Reply.GetInThread() == threadRootEventID &&
 				c.notificationEventAtOrBefore(ctx, kind, roomID, payload.Reply.GetEventId(), readThrough)
+		case *corev1.Notification_RoomMessage:
+			return payload.RoomMessage.GetRoomId() == roomID &&
+				payload.RoomMessage.GetInThread() == threadRootEventID &&
+				c.notificationEventAtOrBefore(ctx, kind, roomID, payload.RoomMessage.GetEventId(), readThrough)
 		default:
 			return false
 		}

@@ -554,6 +554,9 @@ func TestReadMarkerNotificationDismissalPublishesSyncAndPushDismissal(t *testing
 	if _, err := core.JoinRoom(ctx, reader.Id, KindChannel, reader.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom reader: %v", err)
 	}
+	if err := core.SetSpaceNotificationLevel(ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
 
 	root, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "root", nil, "", "", nil, false)
 	if err != nil {
@@ -709,6 +712,9 @@ func TestRoomReadNotificationDismissalPublishesSyncAndPushDismissal(t *testing.T
 	}
 	if _, err := core.JoinRoom(ctx, reader.Id, KindChannel, reader.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom reader: %v", err)
+	}
+	if err := core.SetSpaceNotificationLevel(ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
 	}
 
 	root, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "root", nil, "", "", nil, false)

@@ -13,6 +13,7 @@ import {
   AudioPresets,
   VideoPresets,
   ExternalE2EEKeyProvider,
+  type LocalAudioTrack,
   type Participant,
   type RemoteTrack,
   type RemoteTrackPublication,
@@ -20,6 +21,10 @@ import {
 } from 'livekit-client';
 import { toast } from '$lib/ui/toast';
 import { playCallSound } from '$lib/audio/callSounds';
+import {
+  createVoiceAudioCaptureOptions,
+  ensureBackgroundNoiseSuppression
+} from '$lib/audio/backgroundNoiseSuppression';
 import * as m from '$lib/i18n/messages';
 import type { VoiceCallAPI } from '$lib/api-client/voiceCalls';
 
@@ -370,7 +375,7 @@ export class VoiceCallState {
       // Get token from server (pure query, no side effects)
       const tokenResponse = await this.#api.getCallToken(roomId);
       if (!tokenResponse) {
-        throw new Error('Failed to get voice call token');
+        throw new Error(m['voice.token_failed']());
       }
       const { token, e2eeKey, callId } = tokenResponse;
       this.activeCallId = callId;
@@ -385,11 +390,7 @@ export class VoiceCallState {
           keyProvider,
           worker: this.e2eeWorker
         },
-        audioCaptureDefaults: {
-          autoGainControl: true,
-          echoCancellation: true,
-          noiseSuppression: true
-        },
+        audioCaptureDefaults: createVoiceAudioCaptureOptions(),
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution
         },
@@ -412,9 +413,7 @@ export class VoiceCallState {
 
       // Try to enable microphone, but join muted if no device is available
       try {
-        await this.runExplicitMediaDeviceOperation(() =>
-          this.room!.localParticipant.setMicrophoneEnabled(true)
-        );
+        await this.runExplicitMediaDeviceOperation(() => this.enableMicrophone(this.room!));
         this.isMuted = false;
         this.setupLocalAudioAnalyser();
       } catch (err) {
@@ -535,9 +534,13 @@ export class VoiceCallState {
   private async performToggleMute(room: Room): Promise<void> {
     const newMuted = !this.isMuted;
     try {
-      await this.runExplicitMediaDeviceOperation(() =>
-        room.localParticipant.setMicrophoneEnabled(!newMuted)
-      );
+      await this.runExplicitMediaDeviceOperation(async () => {
+        if (newMuted) {
+          await room.localParticipant.setMicrophoneEnabled(false);
+          return;
+        }
+        await this.enableMicrophone(room);
+      });
       if (this.room !== room) return;
     } catch (err) {
       if (this.room === room && !newMuted) {
@@ -557,6 +560,21 @@ export class VoiceCallState {
     }
 
     this.updateParticipants();
+  }
+
+  private async enableMicrophone(room: Room): Promise<void> {
+    const publication = await room.localParticipant.setMicrophoneEnabled(true);
+    const track = publication?.track as LocalAudioTrack | undefined;
+    if (!track) return;
+
+    try {
+      await ensureBackgroundNoiseSuppression(track);
+    } catch (error) {
+      // Never leave an unprocessed microphone live when enhanced suppression
+      // was expected but could not be attached.
+      await room.localParticipant.setMicrophoneEnabled(false).catch(() => undefined);
+      throw error;
+    }
   }
 
   /**

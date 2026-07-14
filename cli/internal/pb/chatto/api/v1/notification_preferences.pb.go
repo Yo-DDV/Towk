@@ -32,7 +32,7 @@ const (
 	NotificationLevel_NOTIFICATION_LEVEL_DEFAULT NotificationLevel = 1
 	// Do not notify for this room.
 	NotificationLevel_NOTIFICATION_LEVEL_MUTED NotificationLevel = 2
-	// Notify according to the normal room rules.
+	// Notify only for mentions in channel rooms; direct messages still notify.
 	NotificationLevel_NOTIFICATION_LEVEL_NORMAL NotificationLevel = 3
 	// Notify for every message in the room.
 	NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES NotificationLevel = 4

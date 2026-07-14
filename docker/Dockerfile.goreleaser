@@ -7,7 +7,7 @@ ARG TARGETOS
 ARG TARGETARCH
 
 RUN set -eux; \
- apk add --no-cache curl; \
+ apk add --no-cache curl=8.21.0-r0; \
  curl -fsSL -o /tmp/natscli.tar.gz \
       "https://codeload.github.com/nats-io/natscli/tar.gz/${NATS_CLI_COMMIT}"; \
  echo "${NATS_CLI_SOURCE_SHA256}  /tmp/natscli.tar.gz" | sha256sum -c -; \
@@ -24,22 +24,23 @@ RUN set -eux; \
 
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce
 
-ARG CHATTO_UID=1000
-ARG CHATTO_GID=1000
+ARG TOWK_UID=1000
+ARG TOWK_GID=1000
 
-ENV HOME=/home/chatto
+ENV HOME=/home/towk \
+    TOWK_CONFIG_DIR=/config
 
 # Runtime dependencies:
 # - ffmpeg is used for media processing.
 # - shadow provides usermod/groupmod for PUID/PGID remapping at startup.
-# - su-exec drops from the root entrypoint to the unprivileged chatto user.
+# - su-exec drops from the root entrypoint to the unprivileged towk user.
 RUN set -eux; \
  apk add --no-cache \
-      ca-certificates \
-      ffmpeg \
-      shadow \
-      su-exec \
-      tzdata
+      ca-certificates=20260611-r0 \
+      ffmpeg=6.1.2-r2 \
+      shadow=4.17.3-r0 \
+      su-exec=0.2-r3 \
+      tzdata=2026b-r0
 
 # Bundle the NATS CLI so operators can inspect the same NATS server Towk uses
 # with `docker exec <container> nats ...`. A wrapper maps Towk's connection
@@ -50,24 +51,31 @@ COPY --from=nats-builder /out/NATS-CLI-LICENSE /usr/share/doc/nats-cli/LICENSE
 # Create the default runtime user and writable paths. PUID/PGID can remap this
 # user at container startup; mounted directories are not recursively chowned.
 RUN set -eux; \
- addgroup -g "$CHATTO_GID" chatto; \
- adduser -D -u "$CHATTO_UID" -G chatto -h "$HOME" -s /sbin/nologin chatto; \
+ addgroup -g "$TOWK_GID" towk; \
+ adduser -D -u "$TOWK_UID" -G towk -h "$HOME" -s /sbin/nologin towk; \
  mkdir -p /config /data; \
- chown chatto:chatto /config /data "$HOME"
+ chown towk:towk /config /data "$HOME"
 
 # GoReleaser places the compiled Linux binary in the Docker build context as
-# `chatto`; the release image only packages that binary and the entrypoint.
-COPY chatto /chatto
+# `towk`; the release image exposes Towk as its only application executable.
+COPY towk /towk
 COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 COPY docker/nats-wrapper.sh /usr/local/bin/nats
-COPY LICENSES/AGPL-3.0-or-later.txt /usr/share/doc/chatto/LICENSE
-COPY NOTICE /usr/share/doc/chatto/NOTICE
-RUN chmod +x /chatto /usr/local/bin/docker-entrypoint.sh /usr/local/bin/nats
+COPY LICENSES/AGPL-3.0-or-later.txt /usr/share/doc/towk/LICENSES/AGPL-3.0-or-later.txt
+COPY LICENSES/Apache-2.0.txt /usr/share/doc/towk/LICENSES/Apache-2.0.txt
+COPY LICENSE /usr/share/doc/towk/LICENSE
+COPY LICENSING.md /usr/share/doc/towk/LICENSING.md
+COPY NOTICE /usr/share/doc/towk/NOTICE
+COPY REUSE.toml /usr/share/doc/towk/REUSE.toml
+COPY SOURCE.md /usr/share/doc/towk/SOURCE.md
+RUN set -eux; \
+ chmod +x /towk /usr/local/bin/docker-entrypoint.sh /usr/local/bin/nats
 
 WORKDIR /
 EXPOSE 4000
 
 # The entrypoint handles optional PUID/PGID remapping, then execs
-# `/chatto start -c /config/chatto.toml` by default.
+# `/towk start` by default; the CLI resolves `/config/towk.toml` before its
+# inherited configuration filename without changing the data working directory.
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["start", "-c", "/config/chatto.toml"]
+CMD ["start"]

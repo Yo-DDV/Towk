@@ -221,9 +221,11 @@ type RoomMessageNotification struct {
 	// Room where the message was posted.
 	Room *RoomSummary `protobuf:"bytes,1,opt,name=room,proto3" json:"room,omitempty"`
 	// Message event ID.
-	EventId       string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	EventId string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	// Thread root event ID when the message was posted inside a thread.
+	ThreadRootEventId *string `protobuf:"bytes,3,opt,name=thread_root_event_id,json=threadRootEventId,proto3,oneof" json:"thread_root_event_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RoomMessageNotification) Reset() {
@@ -266,6 +268,13 @@ func (x *RoomMessageNotification) GetRoom() *RoomSummary {
 func (x *RoomMessageNotification) GetEventId() string {
 	if x != nil {
 		return x.EventId
+	}
+	return ""
+}
+
+func (x *RoomMessageNotification) GetThreadRootEventId() string {
+	if x != nil && x.ThreadRootEventId != nil {
+		return *x.ThreadRootEventId
 	}
 	return ""
 }
@@ -1227,10 +1236,12 @@ const file_chatto_api_v1_notifications_proto_rawDesc = "" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12#\n" +
 	"\x0ein_reply_to_id\x18\x03 \x01(\tR\vinReplyToId\x124\n" +
 	"\x14thread_root_event_id\x18\x04 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01B\x17\n" +
-	"\x15_thread_root_event_id\"d\n" +
+	"\x15_thread_root_event_id\"\xb3\x01\n" +
 	"\x17RoomMessageNotification\x12.\n" +
 	"\x04room\x18\x01 \x01(\v2\x1a.chatto.api.v1.RoomSummaryR\x04room\x12\x19\n" +
-	"\bevent_id\x18\x02 \x01(\tR\aeventId\"\xb9\x03\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x124\n" +
+	"\x14thread_root_event_id\x18\x03 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01B\x17\n" +
+	"\x15_thread_root_event_id\"\xb9\x03\n" +
 	"\x10NotificationItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -1386,6 +1397,7 @@ func file_chatto_api_v1_notifications_proto_init() {
 	file_chatto_api_v1_users_proto_init()
 	file_chatto_api_v1_notifications_proto_msgTypes[1].OneofWrappers = []any{}
 	file_chatto_api_v1_notifications_proto_msgTypes[2].OneofWrappers = []any{}
+	file_chatto_api_v1_notifications_proto_msgTypes[3].OneofWrappers = []any{}
 	file_chatto_api_v1_notifications_proto_msgTypes[4].OneofWrappers = []any{
 		(*NotificationItem_DirectMessage)(nil),
 		(*NotificationItem_Mention)(nil),

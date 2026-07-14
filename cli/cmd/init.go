@@ -21,12 +21,12 @@ var initConfigFile string
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initializes the chatto server and generates a configuration file",
+	Short: "Initializes the Towk server and generates a configuration file",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		configPath := initConfigFile
-		if configPath == "" {
-			configPath = "chatto.toml"
+		configPath, err := resolveInitConfigPath(initConfigFile)
+		if err != nil {
+			log.Fatal("Cannot initialize Towk configuration", "error", err)
 		}
 
 		// Generate a random session signing secret (32 bytes = 256 bits)
@@ -141,6 +141,19 @@ var initCmd = &cobra.Command{
 	},
 }
 
+func resolveInitConfigPath(explicitPath string) (string, error) {
+	if explicitPath != "" {
+		return explicitPath, nil
+	}
+	legacyPath := config.LegacyConfigPath()
+	if _, err := os.Lstat(legacyPath); err == nil {
+		return "", fmt.Errorf("legacy configuration %s already exists; migrate it or choose an explicit path with --config", legacyPath)
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("inspect legacy configuration %s: %w", legacyPath, err)
+	}
+	return config.CanonicalConfigPath(), nil
+}
+
 func writeNewConfigFile(path string, data []byte) (err error) {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
@@ -231,5 +244,5 @@ throttling_enabled = true
 
 func init() {
 	rootCmd.AddCommand(initCmd)
-	initCmd.Flags().StringVarP(&initConfigFile, "config", "c", "", "path to configuration file (default: chatto.toml)")
+	initCmd.Flags().StringVarP(&initConfigFile, "config", "c", "", configFlagHelp)
 }

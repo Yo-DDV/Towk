@@ -1,9 +1,6 @@
 name: release Towk
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -15,12 +12,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
+  group: release-${{ inputs.tag }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build, attest, and publish release
+  release-artifacts:
+    name: Build and attest release archives
     if: github.repository == 'Yo-DDV/towk'
     permissions:
       attestations: write # Publish provenance for the release archives.
@@ -28,8 +25,13 @@ jobs:
       id-token: write # Obtain the OIDC identity required for provenance signing.
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ inputs.tag || github.ref_name }}
+      TAG: ${{ inputs.tag }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    outputs:
+      source_sha: ${{ steps.validate.outputs.source_sha }}
+      checksums_sha256: ${{ steps.release_assets.outputs.checksums_sha256 }}
     steps:
       - name: Checkout release tag
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -39,12 +41,24 @@ jobs:
           ref: ${{ env.TAG }}
 
       - name: Validate immutable release input
+        id: validate
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
           git fetch --no-tags origin main:refs/remotes/origin/main
           git merge-base --is-ancestor "${TAG}^{commit}" origin/main
+          source_sha="$(git rev-parse "${TAG}^{commit}")"
+          test "${TAG#v}" = "$(sed -n 's/.*Version = "\([^"]*\)".*/\1/p' cli/version.go)"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse an already-published release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "true"
+          fi
 
       - name: Set up project toolchain
         uses: ./.github/actions/setup
@@ -54,12 +68,69 @@ jobs:
           mise build-frontend
           mise sync-cli-legal
 
-      - name: Ensure a draft GitHub release exists
+      - name: Build and verify release archives
         shell: bash
-        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --verify-tag --title "$TAG"
+        run: |
+          set -euo pipefail
+          goreleaser release --clean
+          tools/verify-release-archives.sh dist
 
-      - name: Build and attach release archives
-        run: goreleaser release --clean
+      - name: Prepare the draft GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/towk-release-notes.md"
+          node tools/extract-release-notes.mjs "$TAG" > "$notes"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "true"
+            gh release edit "$TAG" --title "$TAG" --notes-file "$notes"
+          else
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes-file "$notes"
+          fi
+
+      - name: Attach exact archives without replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(dist/*.tar.gz dist/*.zip dist/checksums.txt)
+          test "${#assets[@]}" -eq 8
+          existing="$RUNNER_TEMP/existing-release-assets"
+          mkdir -p "$existing"
+          expected_names="$RUNNER_TEMP/expected-asset-names.txt"
+          existing_names="$RUNNER_TEMP/existing-asset-names.txt"
+          printf '%s\n' "${assets[@]##*/}" | sort > "$expected_names"
+          gh release view "$TAG" --json assets --jq '.assets[].name' | sort > "$existing_names"
+          unexpected="$(comm -13 "$expected_names" "$existing_names")"
+          if [ -n "$unexpected" ]; then
+            echo "Refusing draft with unexpected release assets:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+          for asset in "${assets[@]}"; do
+            name="$(basename "$asset")"
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -Fxq "$name"; then
+              gh release download "$TAG" --pattern "$name" --dir "$existing"
+              cmp -s "$asset" "$existing/$name" || {
+                echo "Refusing to replace existing release asset: $name" >&2
+                exit 1
+              }
+            else
+              gh release upload "$TAG" "$asset"
+            fi
+          done
+
+      - name: Verify the attached release asset set
+        id: release_assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$RUNNER_TEMP/expected-assets.txt"
+          actual="$RUNNER_TEMP/actual-assets.txt"
+          find dist -maxdepth 1 -type f \( -name '*.tar.gz' -o -name '*.zip' -o -name 'checksums.txt' \) -printf '%f\n' | sort > "$expected"
+          gh release view "$TAG" --json assets --jq '.assets[].name' | sort > "$actual"
+          diff -u "$expected" "$actual"
+          echo "checksums_sha256=$(sha256sum dist/checksums.txt | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Attest release archives
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
@@ -69,5 +140,41 @@ jobs:
             dist/*.zip
             dist/checksums.txt
 
+  release-image:
+    name: Build, scan, attest, and publish stable image
+    needs: release-artifacts
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      source_sha: ${{ needs.release-artifacts.outputs.source_sha }}
+      release_tag: ${{ inputs.tag }}
+
+  publish-release:
+    name: Publish verified release
+    needs: [release-artifacts, release-image]
+    if: github.repository == 'Yo-DDV/towk'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      EXPECTED_CHECKSUMS_SHA256: ${{ needs.release-artifacts.outputs.checksums_sha256 }}
+    steps:
       - name: Publish the verified release
-        run: gh release edit "$TAG" --draft=false
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "true"
+          assets="$RUNNER_TEMP/release-assets"
+          mkdir -p "$assets"
+          gh release download "$TAG" --dir "$assets"
+          test "$(find "$assets" -maxdepth 1 -type f | wc -l)" -eq 8
+          test "$(sha256sum "$assets/checksums.txt" | awk '{print $1}')" = "$EXPECTED_CHECKSUMS_SHA256"
+          (cd "$assets" && sha256sum -c checksums.txt)
+          gh release edit "$TAG" --draft=false

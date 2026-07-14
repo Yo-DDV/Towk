@@ -673,6 +673,7 @@ All-messages room notification payload.
 | --- | --- | --- |
 | `room` | [`RoomSummary`](#chatto-api-v1-RoomSummary) | Room where the message was posted. |
 | `event_id` | `string` | Message event ID. |
+| `thread_root_event_id` | `optional string` | Thread root event ID when the message was posted inside a thread. |
 
 <a id="chatto-api-v1-RoomNotificationCount"></a>
 
@@ -1339,7 +1340,7 @@ Notification delivery level for a room.
 | `NOTIFICATION_LEVEL_UNSPECIFIED` | `0` | The level was not specified. |
 | `NOTIFICATION_LEVEL_DEFAULT` | `1` | Use the inherited default for the room. |
 | `NOTIFICATION_LEVEL_MUTED` | `2` | Do not notify for this room. |
-| `NOTIFICATION_LEVEL_NORMAL` | `3` | Notify according to the normal room rules. |
+| `NOTIFICATION_LEVEL_NORMAL` | `3` | Notify only for mentions in channel rooms; direct messages still notify. |
 | `NOTIFICATION_LEVEL_ALL_MESSAGES` | `4` | Notify for every message in the room. |
 
 <a id="chatto-api-v1-TimeFormat"></a>

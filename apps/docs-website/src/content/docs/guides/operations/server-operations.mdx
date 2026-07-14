@@ -55,7 +55,7 @@ Keep the metrics listener private. Enable `metrics.pprof` only while actively pr
 
 ## Exporter
 
-Use the exporter for deployment-wide metrics. Single-process installs can embed it in `chatto run`:
+Use the exporter for deployment-wide metrics. Single-process installs can embed it in `towk run`:
 
 ```toml
 [exporter]
@@ -65,7 +65,7 @@ port = 9100
 path = "/metrics"
 ```
 
-Clustered deployments should run the embedded exporter on at most one replica, or run `chatto exporter` as a separate unit against external NATS or an exposed embedded NATS TCP listener.
+Clustered deployments should run the embedded exporter on at most one replica, or run `towk exporter` as a separate unit against external NATS or an exposed embedded NATS TCP listener.
 
 ## Backups
 
@@ -80,7 +80,7 @@ Backups are not optional for live servers. At minimum:
 For small self-hosted servers, the simplest reliable backup includes keys:
 
 ```bash
-chatto backup -c chatto.toml --encrypt --include-keys
+towk backup -c towk.toml --encrypt --include-keys
 ```
 
 Use separate key exports only when you intentionally want split retention and recovery procedures.
@@ -95,7 +95,7 @@ enabled = true
 socket_path = "/tmp/chatto/operator.sock"
 ```
 
-Run `chatto operator` as the same OS user as the Towk process, or through `docker compose exec` as the `chatto` user in container deployments.
+Run `towk operator` as the same OS user as the Towk process, or through `docker compose exec` as the `towk` user in container deployments.
 
 Use it for tasks such as:
 

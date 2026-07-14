@@ -65,9 +65,9 @@ When `canDelete` is true, right-click / long-press opens a context menu with Ope
   async function handleCopyUrl() {
     try {
       await navigator.clipboard.writeText(youtubeUrl);
-      toast.success('URL copied to clipboard');
+      toast.success(m['preview.copy_url_success']());
     } catch {
-      toast.error('Failed to copy URL');
+      toast.error(m['preview.copy_url_failed']());
     }
     contextMenuPos = null;
   }

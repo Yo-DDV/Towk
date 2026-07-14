@@ -4,6 +4,7 @@
   import { useRenderData } from '$lib/render/data';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
+  import * as m from '$lib/i18n/messages';
 
   let { event }: { event: RoomEventView } = $props();
 
@@ -23,20 +24,20 @@
       return { id: actor.id, name: displayName(actor), user: actor };
     }
 
-    return { id: event?.actorId ?? 'unknown', name: 'Deleted User', user: null };
+    return { id: event?.actorId ?? 'unknown', name: m['room.sidebar.deleted_user'](), user: null };
   });
 
   const action = $derived.by(() => {
     if (!event?.event) return null;
     switch (roomEventKind(event.event)) {
       case RoomEventKind.UserJoinedRoom:
-        return 'joined the room';
+        return m['room.system_event.joined_room']();
       case RoomEventKind.UserLeftRoom:
-        return 'left the room';
+        return m['room.system_event.left_room']();
       case RoomEventKind.RoomArchived:
-        return 'archived the room';
+        return m['room.system_event.archived_room']();
       case RoomEventKind.RoomUnarchived:
-        return 'unarchived the room';
+        return m['room.system_event.unarchived_room']();
       default:
         return null;
     }

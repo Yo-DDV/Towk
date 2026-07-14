@@ -23,10 +23,11 @@ record.
 Git history needed to identify inherited and Towk-authored changes, but it has no
 GitHub fork-network relationship or automatic synchronization with Chatto.
 
-The former fork is retained as the archived, read-only
-`Yo-DDV/Towk-legacy-fork` repository. Its purpose is limited to preserving the
-initial pull-request and review record. New issues, pull requests, releases,
-packages, support, and security reports belong to the canonical repository.
+The former fork's repository metadata and initial pull-request review record are
+retained in a private, read-only compliance archive. The archive is not a
+public-history, release, support, contribution, package, or security-reporting
+channel. New issues, pull requests, releases, packages, support, and security
+reports belong to the canonical repository.
 
 Chatto remains configured locally as a read-only `upstream` Git remote. Towk may
 integrate upstream work only through a dedicated pull request that:
@@ -56,7 +57,7 @@ selective review, no automatic deployment, and Towk-owned release authority.
 Towk can evolve its product, roadmap, release cadence, and community without a
 platform-level fork label or automatic upstream coupling. The canonical
 repository starts a new GitHub issue and pull-request sequence; the archived
-repository remains available for the earlier review history.
+record remains available to maintainers for compliance and historical audits.
 
 GitHub stars, watchers, rules, package access, and security settings do not move
 with Git history and must be recreated or reassigned during the transition. The

@@ -17,13 +17,21 @@ var licenseText string
 //go:embed embedded/NOTICE
 var noticeText string
 
+// ApacheLicense is synchronized for the embedded web client bundled with Towk.
+//
+//go:embed embedded/Apache-2.0
+var apacheLicenseText string
+
 var licenseCmd = &cobra.Command{
 	Use:   "license",
 	Short: "Print license information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Print(licenseText)
-		fmt.Print("\n\n")
-		fmt.Print(noticeText)
+		out := cmd.OutOrStdout()
+		fmt.Fprint(out, licenseText)
+		fmt.Fprint(out, "\n\n")
+		fmt.Fprint(out, apacheLicenseText)
+		fmt.Fprint(out, "\n\n")
+		fmt.Fprint(out, noticeText)
 	},
 }
 

@@ -80,6 +80,9 @@ func TestReadStateModel_MarkRoomAsReadSkipsLiveEventWhenCursorUnchanged(t *testi
 	if err := core.SetLastReadEventID(ctx, KindChannel, reader.Id, room.Id, posted.Id); err != nil {
 		t.Fatalf("SetLastReadEventID: %v", err)
 	}
+	if _, err := core.DismissAllNotifications(ctx, reader.Id); err != nil {
+		t.Fatalf("DismissAllNotifications: %v", err)
+	}
 
 	sub := subscribeRoomReadLiveEvents(t, nc, reader.Id)
 	if _, err := core.ReadState().MarkRoomAsRead(ctx, reader.Id, room.Id, ""); err != nil {

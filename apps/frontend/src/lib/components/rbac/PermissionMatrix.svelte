@@ -29,6 +29,7 @@ under it. Column headers are clickable when `onRoleClick` is provided
   import { createPermissionAPI } from '$lib/api-client/permissions';
   import { toast } from '$lib/ui/toast';
   import { getPermissionDescription } from '$lib/permissions';
+  import { localizedDecisionState, localizedRoleDisplayName } from '$lib/rbacLabels';
   import { setRolePermission, type MutationScope } from './permissionMutations';
   import MatrixCell from './MatrixCell.svelte';
   import * as m from '$lib/i18n/messages';
@@ -62,40 +63,57 @@ under it. Column headers are clickable when `onRoleClick` is provided
     'user'
   ];
 
-  const CATEGORY_META: Record<string, { title: string; description: string }> = {
-    space: {
-      title: m['rbac.permissions.categories.space.title'](),
-      description: m['rbac.permissions.categories.space.description']()
-    },
-    room: {
-      title: m['rbac.permissions.categories.room.title'](),
-      description: m['rbac.permissions.categories.room.description']()
-    },
-    message: {
-      title: m['rbac.permissions.categories.message.title'](),
-      description: m['rbac.permissions.categories.message.description']()
-    },
-    member: {
-      title: m['rbac.permissions.categories.member.title'](),
-      description: m['rbac.permissions.categories.member.description']()
-    },
-    role: {
-      title: m['rbac.permissions.categories.role.title'](),
-      description: m['rbac.permissions.categories.role.description']()
-    },
-    admin: {
-      title: m['rbac.permissions.categories.admin.title'](),
-      description: m['rbac.permissions.categories.admin.description']()
-    },
-    dm: {
-      title: m['rbac.permissions.categories.dm.title'](),
-      description: m['rbac.permissions.categories.dm.description']()
-    },
-    user: {
-      title: m['rbac.permissions.categories.user.title'](),
-      description: m['rbac.permissions.categories.user.description']()
+  function categoryMeta(category: string): { title: string; description?: string } {
+    if (category === 'space') {
+      return {
+        title: m['rbac.permissions.categories.space.title'](),
+        description: m['rbac.permissions.categories.space.description']()
+      };
     }
-  };
+    if (category === 'room') {
+      return {
+        title: m['rbac.permissions.categories.room.title'](),
+        description: m['rbac.permissions.categories.room.description']()
+      };
+    }
+    if (category === 'message') {
+      return {
+        title: m['rbac.permissions.categories.message.title'](),
+        description: m['rbac.permissions.categories.message.description']()
+      };
+    }
+    if (category === 'member') {
+      return {
+        title: m['rbac.permissions.categories.member.title'](),
+        description: m['rbac.permissions.categories.member.description']()
+      };
+    }
+    if (category === 'role') {
+      return {
+        title: m['rbac.permissions.categories.role.title'](),
+        description: m['rbac.permissions.categories.role.description']()
+      };
+    }
+    if (category === 'admin') {
+      return {
+        title: m['rbac.permissions.categories.admin.title'](),
+        description: m['rbac.permissions.categories.admin.description']()
+      };
+    }
+    if (category === 'dm') {
+      return {
+        title: m['rbac.permissions.categories.dm.title'](),
+        description: m['rbac.permissions.categories.dm.description']()
+      };
+    }
+    if (category === 'user') {
+      return {
+        title: m['rbac.permissions.categories.user.title'](),
+        description: m['rbac.permissions.categories.user.description']()
+      };
+    }
+    return { title: category };
+  }
 
   let {
     spaceId = null,
@@ -223,8 +241,8 @@ under it. Column headers are clickable when `onRoleClick` is provided
   });
 
   const inheritedFromLabel = $derived.by(() => {
-    if (roomId) return 'space';
-    if (spaceId) return 'instance';
+    if (roomId) return m['rbac.permissions.level_group']();
+    if (groupId || spaceId) return m['rbac.permissions.level_server']();
     return null;
   });
 
@@ -298,8 +316,8 @@ under it. Column headers are clickable when `onRoleClick` is provided
   {@const roles = [...data.roles].sort((a, b) => b.position - a.position)}
   <div class="flex flex-col gap-6">
     {#each groupedPermissions as group (group.category)}
-      {@const meta = CATEGORY_META[group.category]}
-      <Panel title={meta?.title ?? group.category} subtitle={meta?.description} noPadding>
+      {@const meta = categoryMeta(group.category)}
+      <Panel title={meta.title} subtitle={meta.description} noPadding>
         <div class="overflow-x-auto" style="width: max-content; max-width: 100%">
           <DataTable
             items={group.permissions}
@@ -316,6 +334,7 @@ under it. Column headers are clickable when `onRoleClick` is provided
                 {m['rbac.permissions.permission']()}
               </th>
               {#each roles as role (role.roleName)}
+                {@const roleDisplayName = localizedRoleDisplayName(role.roleName, role.displayName)}
                 {@const handle =
                   onRoleClick && (isRoleClickable ? isRoleClickable(role) : true)
                     ? onRoleClick
@@ -323,7 +342,7 @@ under it. Column headers are clickable when `onRoleClick` is provided
                 <th
                   class="px-0 py-3 text-center align-bottom font-medium"
                   style="width: 2rem; min-width: 2rem; height: 12rem"
-                  title={`${role.displayName} — click to manage`}
+                  title={m['rbac.permissions.role_manage_title']({ role: roleDisplayName })}
                   data-role={role.roleName}
                 >
                   {#if handle}
@@ -333,14 +352,14 @@ under it. Column headers are clickable when `onRoleClick` is provided
                       onclick={() => handle(role)}
                       style="writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap"
                     >
-                      @{role.roleName}
+                      {roleDisplayName}
                     </button>
                   {:else}
                     <span
                       class="text-sm"
                       style="writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap"
                     >
-                      @{role.roleName}
+                      {roleDisplayName}
                     </span>
                   {/if}
                 </th>
@@ -349,11 +368,12 @@ under it. Column headers are clickable when `onRoleClick` is provided
             {#snippet row(permission)}
               <td class="sticky left-0 z-10 bg-background px-4 py-2 whitespace-nowrap">
                 <code data-testid="permission-name" class="text-sm">{permission}</code>
-                <HelpTooltip label={`About ${permission}`}>
+                <HelpTooltip label={m['rbac.permissions.about_permission']({ permission })}>
                   {getPermissionDescription(permission)}
                 </HelpTooltip>
               </td>
               {#each roles as role (role.roleName)}
+                {@const roleDisplayName = localizedRoleDisplayName(role.roleName, role.displayName)}
                 {@const ov = overrideState(role, permission)}
                 {@const inh = inheritedState(role, permission)}
                 {@const virtualOwner = roleIsVirtualOwner(role)}
@@ -362,29 +382,46 @@ under it. Column headers are clickable when `onRoleClick` is provided
                 {@const cellKey = `${role.roleName}::${permission}`}
                 {@const isUpdating = updating === cellKey}
                 {@const ariaParts = virtualOwner
-                  ? [`Owner is always granted ${permission}`]
+                  ? [m['rbac.permissions.owner_always_granted_permission']({ permission })]
                   : [
                       ov !== 'neutral'
-                        ? `Override ${ov} for ${role.displayName} on ${permission}`
-                        : `No override for ${role.displayName} on ${permission}`,
+                        ? m['rbac.permissions.override_for_role_permission']({
+                            state: localizedDecisionState(ov),
+                            role: roleDisplayName,
+                            permission
+                          })
+                        : m['rbac.permissions.no_override_for_role_permission']({
+                            role: roleDisplayName,
+                            permission
+                          }),
                       inh !== 'neutral' && inheritedFromLabel
-                        ? `inheriting ${inh} from ${inheritedFromLabel}`
+                        ? m['rbac.permissions.inheriting_from']({
+                            state: localizedDecisionState(inh),
+                            source: inheritedFromLabel
+                          })
                         : null
                     ].filter(Boolean)}
                 {@const ariaLabel = ariaParts.join(', ')}
                 {@const titleParts = virtualOwner
                   ? [
-                      'Allow (owners are always granted all permissions)',
-                      'Owner permissions are not editable'
+                      m['rbac.permissions.allow_owners_all'](),
+                      m['rbac.permissions.owner_permissions_not_editable']()
                     ]
                   : [
                       ov !== 'neutral'
-                        ? `${ov === 'allow' ? 'Allow' : 'Deny'} (override at this tier)`
+                        ? m['rbac.permissions.override_at_this_tier']({
+                            state: localizedDecisionState(ov)
+                          })
                         : null,
                       inh !== 'neutral' && inheritedFromLabel
-                        ? `Inherits ${inh === 'allow' ? 'Allow' : 'Deny'} from ${inheritedFromLabel}`
+                        ? m['rbac.permissions.inherits_from']({
+                            state: localizedDecisionState(inh),
+                            source: inheritedFromLabel
+                          })
                         : null,
-                      ov === 'neutral' && inh === 'neutral' ? 'No decision' : null
+                      ov === 'neutral' && inh === 'neutral'
+                        ? m['rbac.permissions.state_neutral']()
+                        : null
                     ].filter(Boolean)}
                 <td
                   class="px-0 py-2 text-center"

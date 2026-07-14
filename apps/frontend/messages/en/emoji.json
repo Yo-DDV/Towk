@@ -2,6 +2,18 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "emoji": {
     "search_placeholder": "Search emojis...",
-    "no_results": "No emojis found"
+    "no_results": "No emojis found",
+    "recently_used": "Recently Used",
+    "categories": {
+      "smileys_emotion": "Smileys & Emotion",
+      "people_body": "People & Body",
+      "animals_nature": "Animals & Nature",
+      "food_drink": "Food & Drink",
+      "travel_places": "Travel & Places",
+      "activities": "Activities",
+      "objects": "Objects",
+      "symbols": "Symbols",
+      "flags": "Flags"
+    }
   }
 }

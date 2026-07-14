@@ -87,5 +87,5 @@ body:
           required: true
         - label: I removed secrets, personal data, private content, and identifying logs or screenshots.
           required: true
-        - label: I read the contribution policy and am accountable for this report, including any agent-assisted content.
+        - label: I read the contribution policy and am accountable for this report.
           required: true

@@ -93,8 +93,8 @@ simple for one process. Compose runs the same NATS JetStream storage as its own
 small container. This keeps the app and its data lifecycle separate and avoids
 a migration before adding Towk replicas or zero-downtime app updates.
 
-This choice does not lock in your data. `chatto backup` creates a portable
-JetStream archive that `chatto restore` can load into either embedded or
+This choice does not lock in your data. `towk backup` creates a portable
+JetStream archive that `towk restore` can load into either embedded or
 external NATS. You can therefore move between the standalone-binary, Compose,
 and clustered deployment models without rebuilding your community. See
 [Backup & Restore](/guides/operations/backup-restore/) for the commands and key
@@ -112,12 +112,12 @@ and `livekit.yaml`.
 
 The image runs Towk as a non-root user. By default that user is `1000:1000`; set `PUID` and `PGID` in your shell or Compose environment if the files mounted into `/config` or `/data` are owned by a different host user or group. The entrypoint does not recursively change ownership of mounted directories, so make sure writable mounts are owned by the configured IDs.
 
-The generated `.env` also enables Towk's local operator API socket at `/tmp/chatto/operator.sock` inside the app container. Run operator commands with `docker compose exec` as the `chatto` user, and use `list --search` to find a stable user ID before mutating an account:
+The generated `.env` also enables Towk's local operator API socket at `/tmp/chatto/operator.sock` inside the app container. Run operator commands with `docker compose exec` as the `towk` user, and use `list --search` to find a stable user ID before mutating an account:
 
 ```bash
-docker compose exec -u chatto towk /chatto operator user list
-docker compose exec -u chatto towk /chatto operator user list --search admin@example.com
-docker compose exec -u chatto towk /chatto operator user set-password USER_ID
+docker compose exec -u towk towk /towk operator user list
+docker compose exec -u towk towk /towk operator user list --search admin@example.com
+docker compose exec -u towk towk /towk operator user set-password USER_ID
 ```
 
 Do not mount or publish the operator socket unless the target container or host is fully trusted; socket access is root-equivalent Towk authority.

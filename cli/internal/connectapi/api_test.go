@@ -4323,6 +4323,14 @@ func TestNotificationPreferencesServiceServerLevelPreference(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)
 
+	defaultResp, err := env.prefs.GetServerNotificationPreference(ctx, connect.NewRequest(&apiv1.GetServerNotificationPreferenceRequest{}))
+	if err != nil {
+		t.Fatalf("GetServerNotificationPreference(default): %v", err)
+	}
+	if defaultResp.Msg.GetPreference().GetLevel() != apiv1.NotificationLevel_NOTIFICATION_LEVEL_DEFAULT || defaultResp.Msg.GetPreference().GetEffectiveLevel() != apiv1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES {
+		t.Fatalf("default server notification preference = %+v, want default/all", defaultResp.Msg)
+	}
+
 	if _, err := env.prefs.UpdateServerNotificationPreference(env.ctx, connect.NewRequest(&apiv1.UpdateServerNotificationPreferenceRequest{
 		Level: apiv1.NotificationLevel_NOTIFICATION_LEVEL_MUTED,
 	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
@@ -6874,6 +6882,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	if _, err := env.core.JoinRoom(env.ctx, reader.Id, core.KindChannel, reader.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom reader: %v", err)
 	}
+	if err := env.core.SetSpaceNotificationLevel(env.ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
+	}
 
 	e1 := env.post(room.Id, env.viewer.Id, "one", "")
 	if err := env.core.SetLastReadEventID(env.ctx, core.KindChannel, reader.Id, room.Id, e1.Id); err != nil {
@@ -7045,6 +7056,9 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	}
 	if _, err := env.core.JoinRoom(env.ctx, reader.Id, core.KindChannel, reader.Id, room.Id); err != nil {
 		t.Fatalf("JoinRoom reader: %v", err)
+	}
+	if err := env.core.SetSpaceNotificationLevel(env.ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
 	}
 
 	root := env.post(room.Id, env.viewer.Id, "root", "")

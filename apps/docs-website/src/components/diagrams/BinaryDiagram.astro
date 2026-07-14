@@ -11,7 +11,7 @@ import Dot from './Dot.astro';
   <Region x={215} y={20} w={370} h={185} label="SINGLE PROCESS" />
 
   <Box type="browser" x={16} y={75} label="Browser" sublabel="SvelteKit SPA" />
-  <Box type="chatto" x={245} y={55} w={310} h={90} label="Towk" sublabel="ConnectRPC · WebSocket · TLS" port=":443" />
+  <Box type="towk" x={245} y={55} w={310} h={90} label="Towk" sublabel="ConnectRPC · WebSocket · TLS" port=":443" />
 
   <!-- Embedded NATS (nested inside Towk) -->
   <rect class="box box-nats" x="455" y="65" width="90" height="70" rx="8" ry="8" stroke-width="1"/>
@@ -23,10 +23,10 @@ import Dot from './Dot.astro';
   <path class="conn" d="M400,145 L400,165" stroke-dasharray="4 3"/>
 
   <!-- Browser → Towk -->
-  <path id="p-browser-chatto" class="conn" d="M156,105 L243,105"/>
+  <path id="p-browser-towk" class="conn" d="M156,105 L243,105"/>
   <text class="proto" x="200" y="98" text-anchor="middle">HTTPS</text>
   <text class="proto" x="200" y="120" text-anchor="middle">WSS</text>
 
-  <Dot path="p-browser-chatto" r={3} dur="1.4s" />
-  <Dot path="p-browser-chatto" r={3} dur="1.4s" begin="0.7s" />
+  <Dot path="p-browser-towk" r={3} dur="1.4s" />
+  <Dot path="p-browser-towk" r={3} dur="1.4s" begin="0.7s" />
 </svg>

@@ -5,6 +5,7 @@
 
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import * as m from '$lib/i18n/messages';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { renderMarkdown as renderMd } from '$lib/markdown';
@@ -35,14 +36,15 @@
   const viewerLogin = $derived(
     serverRegistry.tryGetStore(getActiveServer())?.currentUser.user?.login
   );
+  const editedMarker = $derived(edited ? m['room.message.meta.edited']() : '');
 
-  function injectEditedMarker(html: string): string {
+  function injectEditedMarker(html: string, markerText: string): string {
     const doc = parseTrustedMarkdownHtml(`<div>${html}</div>`);
     const root = doc.body.firstElementChild;
     if (!root) return html;
     const badge = doc.createElement('span');
     badge.className = 'edited-marker text-xs whitespace-nowrap text-muted/70';
-    badge.textContent = '(edited)';
+    badge.textContent = markerText;
     // Only inline the marker into a trailing <p> so it flows with the last word.
     // For block-level last children (<pre>, <ul>, <blockquote>) fall back to a
     // separate trailing line so the marker doesn't get clipped or look misplaced.
@@ -64,11 +66,12 @@
     members: RoomMember[],
     roleHandles: string[],
     edited: boolean,
-    viewerLogin: string | undefined
+    viewerLogin: string | undefined,
+    editedMarker: string
   ): Promise<string> {
     const html = await renderMd(body);
     const wrapped = wrapValidMentions(html, members, viewerLogin, roleHandles);
-    return edited ? injectEditedMarker(wrapped) : wrapped;
+    return edited ? injectEditedMarker(wrapped, editedMarker) : wrapped;
   }
 
   // Handle clicks on links (open in system browser) and mentions (trigger callback).
@@ -94,7 +97,7 @@
 
       const chatLink = classifyMessageBodyChatLink(anchor.href);
       if (chatLink) {
-        // eslint-disable-next-line svelte/no-navigation-without-resolve -- classifyMessageBodyChatLink returns an allow-listed resolved app path.
+        // eslint-disable-next-line svelte/no-navigation-without-resolve -- classifyMessageBodyChatLink returns an allow-listed path built with $app/paths.resolve.
         goto(chatLink.path);
         return;
       }
@@ -108,7 +111,7 @@
 </script>
 
 <div class="prose max-w-none min-w-0" role="presentation" onclick={handleContentClick}>
-  {#await render(body, members, roleHandles, edited, viewerLogin)}
+  {#await render(body, members, roleHandles, edited, viewerLogin, editedMarker)}
     {body}
   {:then html}
     <MarkdownHtml {html} />

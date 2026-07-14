@@ -1,4 +1,5 @@
 import { authHeaders, createTowkClient } from './connect.js';
+import * as m from '$lib/i18n/messages';
 import { ViewerService } from '@towk/api-types/api/v1/viewer_connect';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { NotificationLevel as APINotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
@@ -85,10 +86,10 @@ export async function getViewerStateViaConnect(config: ViewerAPIConfig): Promise
     }
   );
   if (!response.user) {
-    throw new Error('viewer response did not include a user');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   if (!response.user.profile) {
-    throw new Error('viewer response did not include a user profile');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   const user = response.user.profile;
   const grants = mapCapabilityGrants(response.capabilities?.grants);
@@ -165,7 +166,7 @@ function roomNotificationPreference(pref: {
   };
 }): RoomNotificationPreference {
   if (!pref.preference) {
-    throw new Error('room notification preference response did not include preference metadata');
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     roomId: pref.roomId,

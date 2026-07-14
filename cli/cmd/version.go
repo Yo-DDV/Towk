@@ -10,7 +10,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("chatto version %s\n", Version)
+		fmt.Fprintf(cmd.OutOrStdout(), "towk version %s\n", Version)
 	},
 }
 

@@ -107,7 +107,7 @@
           class="flex items-center gap-1 text-sm text-white/60 hover:text-white"
         >
           <span class="iconify uil--external-link-alt"></span>
-          Open original
+          {m['ui.image_modal.open_original']()}
         </a>
       </div>
     </div>
