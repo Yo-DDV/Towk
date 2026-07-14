@@ -25,7 +25,7 @@ New FDRs should follow the structure and tone of the existing records in this di
 | [FDR-013](FDR-013-web-push-notifications.md) | Web Push Notifications | Active | 2026-07-10 |
 | [FDR-014](FDR-014-jump-to-present.md) | Jump to Present | Active | 2026-05-19 |
 | [FDR-015](FDR-015-quick-switcher.md) | Quick Switcher (Cmd-K) | Active | 2026-05-31 |
-| [FDR-016](FDR-016-voice-calls.md) | Voice Calls | Active | 2026-07-01 |
+| [FDR-016](FDR-016-voice-calls.md) | Voice Calls | Active | 2026-07-14 |
 | [FDR-017](FDR-017-room-groups-and-sidebar-layout.md) | Room Groups & Sidebar Layout | Active | 2026-06-18 |
 | [FDR-018](FDR-018-account-lifecycle.md) | Account Lifecycle | Active | 2026-07-10 |
 | [FDR-019](FDR-019-room-lifecycle.md) | Room Lifecycle | Active | 2026-07-04 |
@@ -36,5 +36,5 @@ New FDRs should follow the structure and tone of the existing records in this di
 | [FDR-024](FDR-024-permission-inspection-tool.md) | Permission Inspection Tool | Active | 2026-06-15 |
 | [FDR-025](FDR-025-user-search-and-member-directory.md) | User Search & Member Directory | Active | 2026-05-19 |
 | [FDR-026](FDR-026-last-room-memory.md) | Last-Room Memory | Active | 2026-05-19 |
-| [FDR-027](FDR-027-pwa-shell-and-service-worker.md) | PWA Shell & Service Worker | Active | 2026-07-05 |
+| [FDR-027](FDR-027-pwa-shell-and-service-worker.md) | PWA Shell & Service Worker | Active | 2026-07-14 |
 | [FDR-028](FDR-028-operator-api-and-cli.md) | Operator API & CLI | Active | 2026-06-29 |

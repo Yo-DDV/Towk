@@ -1,7 +1,7 @@
 # FDR-016: Voice Calls
 
 **Status:** Active
-**Last reviewed:** 2026-07-13
+**Last reviewed:** 2026-07-14
 
 ## Overview
 
@@ -17,6 +17,7 @@ Rooms support real-time voice conversations with optional camera video and scree
 - A desktop active call pane can be placed into browser fullscreen from the pane header, whether it is in the normal sidebar width or maximized across the chat route. This is separate from maximizing the pane inside the chat route.
 - Camera and screen-share tiles expose hover controls for feed fullscreen, while all joined participant tiles expose a hover local-mute control. Fullscreen is local to the viewer's browser. Remote participant mute is also local to the viewer and does not change server state or other participants' audio. Local participant tiles show the same mute affordance, wired to the viewer's own microphone mute.
 - While the viewer is in any call, the lower-left current-user card shows the active call room plus quick mute, camera, screen-share, and leave controls so the call remains visible outside the room tab.
+- While any call is connected, compatible browsers hold a screen Wake Lock only while Towk is visible, publish call metadata and microphone/camera state through Media Session, and expose operating-system actions for mute, camera, and hang-up. Video and screen-share tiles offer standards-based Picture-in-Picture with the WebKit presentation fallback where available.
 - Other rooms with an active call replace the normal room/DM icon with the same accent phone icon and animated pulse twin used by the call tab so members know there's a conversation happening; clicking that icon opens the room with the call tab selected.
 - Message author names show a compact call presence icon when the author is in the current room's active call: phone for voice-only participants, video camera when the viewer has joined the LiveKit call and can see an active camera track.
 - A member's join/leave updates active call indicators and participant lists, but call lifecycle and participant transitions are not shown as room timeline messages. Explicit user intent is recorded immediately, and LiveKit webhooks/reconciliation confirm or correct the active participant projection.
@@ -101,6 +102,12 @@ The compatibility boundary is tracked against [MDN `getDisplayMedia`](https://de
 **Decision:** Every microphone track requests `echoCancellation: true`, `noiseSuppression: true`, `autoGainControl: false`, mono capture, and a preferred 48 kHz sample rate. These remain non-mandatory media constraints so a browser or device that cannot honor one preference does not block the call. Towk then attaches a self-hosted LiveKit track processor from `apps/frontend/src/lib/audio/backgroundNoiseSuppression.ts`: RNNoise handles 48 kHz contexts and SpeexDSP handles other rates. The processor is attached after LiveKit creates the local audio track, when the SDK has assigned its required `AudioContext`; it is not passed in the initial capture options. If that attachment itself fails, Towk mutes the new track instead of leaving an unprocessed microphone live. The worklet and WASM files are emitted with the frontend and fetched from the Towk origin only. A worklet initialization or runtime failure falls back to a transparent Web Audio path while retaining browser-native processing and a live microphone track.
 **Why:** Chromium and Firefox expose the standard noise-suppression and automatic-gain constraints, while WebKit exposes echo cancellation but does not currently expose those two controls. The local processor gives modern Chromium, Firefox, and WebKit PWA engines a common background-noise layer, including Safari where the native noise-suppression constraint is unavailable. Towk does not add software automatic gain control and asks engines that expose it to disable it. Keeping the processor local preserves call E2EE and avoids a cloud dependency, external audio upload, or runtime CDN. The served CSP permits only the narrow `wasm-unsafe-eval` source expression required for WebAssembly compilation; JavaScript `unsafe-eval` remains disallowed.
 **Tradeoff:** Browser media constraints are preferences, so Towk cannot promise that a platform-hidden hardware/DSP stage disables gain control. Exact constraints were rejected because they can make microphone acquisition fail on otherwise usable devices. AudioWorklet/WASM availability is also a browser capability boundary; transparent fallback favors call continuity when it is absent or blocked. The processor adds roughly 210 kB of WASM plus 78 kB of worklet JavaScript, loaded only when a microphone track starts.
+
+### 12. Installed-app call controls remain viewer-local
+
+**Decision:** A connected call requests a screen Wake Lock while the document is visible, re-acquires it after visibility returns, and releases it on hide, hang-up, or component destruction. Media Session publishes room/server metadata plus call-specific hang-up, camera, and microphone actions when supported. Video tiles enter standard Picture-in-Picture from an explicit click, with WebKit's video presentation mode as a fallback.
+**Why:** Calls should behave like an installed communication app without bypassing browser permission and activation rules. Keeping these integrations in the foreground client preserves the existing LiveKit and E2EE boundary.
+**Tradeoff:** Browsers may reject Wake Lock for battery or policy reasons, omit call-specific Media Session actions, or require a transient user gesture for Picture-in-Picture. Those rejections never disconnect media or replace Towk's visible controls.
 
 ## Permissions
 
