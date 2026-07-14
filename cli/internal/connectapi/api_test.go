@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -234,6 +235,162 @@ func TestPrivateHandlersRequireAuth(t *testing.T) {
 		Body:   "hello",
 	}))
 	requireConnectCode(t, err, connect.CodeUnauthenticated)
+}
+
+func TestCreateMessageClientRequestIDReplaysCommittedMessage(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotent-message")
+	ctx := withCaller(env.ctx, env.viewer)
+	request := &apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "one logical message",
+		ClientRequestId: "request-123",
+	}
+	baselineCount := env.core.RoomTimeline.VisibleRoomEventCount(room.Id)
+
+	first, err := env.messages.CreateMessage(ctx, connect.NewRequest(request))
+	if err != nil {
+		t.Fatalf("first CreateMessage: %v", err)
+	}
+	second, err := env.messages.CreateMessage(ctx, connect.NewRequest(request))
+	if err != nil {
+		t.Fatalf("replayed CreateMessage: %v", err)
+	}
+
+	firstID := first.Msg.GetMessage().GetId()
+	secondID := second.Msg.GetMessage().GetId()
+	if firstID == "" || secondID != firstID {
+		t.Fatalf("message ids = %q, %q; want the same non-empty id", firstID, secondID)
+	}
+	if got := env.core.RoomTimeline.VisibleRoomEventCount(room.Id); got != baselineCount+1 {
+		t.Fatalf("visible event count = %d, want %d", got, baselineCount+1)
+	}
+	eventsOnRoom, _, err := env.core.EventPublisher.SubjectEvents(ctx, events.RoomAggregate(room.Id).AllEventsFilter())
+	if err != nil {
+		t.Fatalf("read room events: %v", err)
+	}
+	var requestProof []byte
+	for _, event := range eventsOnRoom {
+		if claim := event.GetMessageRequestClaimed(); claim != nil && claim.GetClientRequestId() == request.GetClientRequestId() {
+			requestProof = claim.GetRequestProof()
+			break
+		}
+	}
+	if len(requestProof) != sha256.Size {
+		t.Fatalf("request proof length = %d, want %d", len(requestProof), sha256.Size)
+	}
+	if bytes.Equal(requestProof, createMessageRequestFingerprint(request)) {
+		t.Fatal("durable request proof must not expose the raw message fingerprint")
+	}
+}
+
+func TestCreateMessageClientRequestIDRejectsDifferentPayload(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotency-conflict")
+	ctx := withCaller(env.ctx, env.viewer)
+	baselineCount := env.core.RoomTimeline.VisibleRoomEventCount(room.Id)
+
+	if _, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "original",
+		ClientRequestId: "request-456",
+	})); err != nil {
+		t.Fatalf("first CreateMessage: %v", err)
+	}
+	_, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "different",
+		ClientRequestId: "request-456",
+	}))
+	if got := connect.CodeOf(err); got != connect.CodeAlreadyExists {
+		t.Fatalf("reused client_request_id code = %v, want %v", got, connect.CodeAlreadyExists)
+	}
+	if got := env.core.RoomTimeline.VisibleRoomEventCount(room.Id); got != baselineCount+1 {
+		t.Fatalf("visible event count = %d, want %d", got, baselineCount+1)
+	}
+}
+
+func TestCreateMessageClientRequestIDCollapsesConcurrentAttempts(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotency-concurrent")
+	ctx := withCaller(env.ctx, env.viewer)
+	baselineCount := env.core.RoomTimeline.VisibleRoomEventCount(room.Id)
+	request := &apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "one concurrent message",
+		ClientRequestId: "request-concurrent-789",
+	}
+
+	const attempts = 8
+	start := make(chan struct{})
+	results := make(chan string, attempts)
+	errorsCh := make(chan error, attempts)
+	var group sync.WaitGroup
+	group.Add(attempts)
+	for range attempts {
+		go func() {
+			defer group.Done()
+			<-start
+			response, err := env.messages.CreateMessage(ctx, connect.NewRequest(request))
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			results <- response.Msg.GetMessage().GetId()
+		}()
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	close(errorsCh)
+
+	for err := range errorsCh {
+		t.Fatalf("concurrent CreateMessage: %v", err)
+	}
+	var committedID string
+	count := 0
+	for id := range results {
+		count++
+		if id == "" {
+			t.Fatal("concurrent CreateMessage returned an empty id")
+		}
+		if committedID == "" {
+			committedID = id
+		} else if id != committedID {
+			t.Fatalf("concurrent message id = %q, want %q", id, committedID)
+		}
+	}
+	if count != attempts {
+		t.Fatalf("successful attempts = %d, want %d", count, attempts)
+	}
+	if got := env.core.RoomTimeline.VisibleRoomEventCount(room.Id); got != baselineCount+1 {
+		t.Fatalf("visible event count = %d, want %d", got, baselineCount+1)
+	}
+}
+
+func TestCreateMessageClientRequestIDValidation(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotency-validation")
+	ctx := withCaller(env.ctx, env.viewer)
+	tests := []struct {
+		name      string
+		requestID string
+	}{
+		{name: "contains spaces", requestID: "request with spaces"},
+		{name: "too long", requestID: strings.Repeat("a", 65)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+				RoomId:          room.Id,
+				Body:            "invalid request identity",
+				ClientRequestId: tt.requestID,
+			}))
+			if got := connect.CodeOf(err); got != connect.CodeInvalidArgument {
+				t.Fatalf("CreateMessage code = %v, want %v", got, connect.CodeInvalidArgument)
+			}
+		})
+	}
 }
 
 func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {

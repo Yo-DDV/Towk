@@ -2,6 +2,8 @@ package connectapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 
 	"connectrpc.com/connect"
@@ -20,12 +22,7 @@ func (s *messageService) CreateMessage(ctx context.Context, req *connect.Request
 		return nil, err
 	}
 
-	linkPreview, err := s.api.core.ResolveLinkPreviewToken(ctx, req.Msg.GetLinkPreviewToken())
-	if err != nil {
-		return nil, connectError(err)
-	}
-
-	result, err := s.api.core.Messages().PostMessage(ctx, core.MessagePostInput{
+	input := core.MessagePostInput{
 		ActorID:            caller.UserID,
 		RoomID:             req.Msg.RoomId,
 		Body:               req.Msg.Body,
@@ -33,11 +30,33 @@ func (s *messageService) CreateMessage(ctx context.Context, req *connect.Request
 		ThreadRootEventID:  req.Msg.ThreadRootEventId,
 		InReplyTo:          req.Msg.InReplyTo,
 		AlsoSendToChannel:  req.Msg.AlsoSendToChannel,
-		LinkPreview:        linkPreview,
-	})
+		ClientRequestID:    req.Msg.GetClientRequestId(),
+	}
+	if input.ClientRequestID != "" {
+		input.RequestFingerprint = createMessageRequestFingerprint(req.Msg)
+		result, err := s.api.core.Messages().FindIdempotentPost(ctx, input)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if result != nil {
+			return s.createMessageResponse(ctx, caller.UserID, result)
+		}
+	}
+
+	linkPreview, err := s.api.core.ResolveLinkPreviewToken(ctx, req.Msg.GetLinkPreviewToken())
 	if err != nil {
 		return nil, connectError(err)
 	}
+	input.LinkPreview = linkPreview
+
+	result, err := s.api.core.Messages().PostMessage(ctx, input)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return s.createMessageResponse(ctx, caller.UserID, result)
+}
+
+func (s *messageService) createMessageResponse(ctx context.Context, callerID string, result *core.MessagePostResult) (*connect.Response[apiv1.CreateMessageResponse], error) {
 	if result == nil {
 		return nil, connectInternalError(errors.New("message create returned no result"))
 	}
@@ -50,13 +69,40 @@ func (s *messageService) CreateMessage(ctx context.Context, req *connect.Request
 	if room, err := s.api.core.FindRoomByID(ctx, roomID); err == nil && room != nil {
 		kind = core.KindOfRoom(room)
 	}
-	apiEvent, err := s.hydratePostedEvent(ctx, caller.UserID, kind, result.Event)
+	apiEvent, err := s.hydratePostedEvent(ctx, callerID, kind, result.Event)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.CreateMessageResponse{
 		Message: messageFromTimelineEvent(apiEvent),
 	}), nil
+}
+
+func createMessageRequestFingerprint(req *apiv1.CreateMessageRequest) []byte {
+	h := sha256.New()
+	writeString := func(value string) {
+		var length [8]byte
+		binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+		_, _ = h.Write(length[:])
+		_, _ = h.Write([]byte(value))
+	}
+	writeString(req.GetRoomId())
+	writeString(req.GetBody())
+	var count [8]byte
+	binary.BigEndian.PutUint64(count[:], uint64(len(req.GetAttachmentAssetIds())))
+	_, _ = h.Write(count[:])
+	for _, assetID := range req.GetAttachmentAssetIds() {
+		writeString(assetID)
+	}
+	writeString(req.GetThreadRootEventId())
+	writeString(req.GetInReplyTo())
+	if req.GetAlsoSendToChannel() {
+		_, _ = h.Write([]byte{1})
+	} else {
+		_, _ = h.Write([]byte{0})
+	}
+	writeString(req.GetLinkPreviewToken())
+	return h.Sum(nil)
 }
 
 func (s *messageService) UpdateMessage(ctx context.Context, req *connect.Request[apiv1.UpdateMessageRequest]) (*connect.Response[apiv1.UpdateMessageResponse], error) {
