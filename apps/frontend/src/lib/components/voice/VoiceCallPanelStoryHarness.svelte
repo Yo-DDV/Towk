@@ -16,10 +16,12 @@
 
   let {
     layout = 'stage',
-    scenario = 'screen'
+    scenario = 'screen',
+    reconnecting = false
   }: {
     layout?: 'sidebar' | 'stage';
     scenario?: 'screen' | 'screen-single-secondary' | 'camera' | 'voice' | 'devices';
+    reconnecting?: boolean;
   } = $props();
 
   const roomId = 'storybook-call-room';
@@ -212,12 +214,12 @@
     store.voiceCall.roomId = roomId;
     store.voiceCall.connected = true;
     store.voiceCall.connecting = false;
+    store.voiceCall.reconnecting = reconnecting;
     store.voiceCall.isMuted = false;
     store.voiceCall.isCameraEnabled = scenario !== 'voice';
     store.voiceCall.isScreenShareEnabled = scenario === 'screen';
     store.voiceCall.participants = participantsForScenario();
   }
-
   onMount(async () => {
     seedStore();
     Panel = (await import('./VoiceCallPanel.svelte')).default as Component<VoiceCallPanelProps>;

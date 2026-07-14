@@ -94,4 +94,35 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(outputControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
     expect(outputControl?.getAttribute('aria-label')).toBe('Mute call audio');
   });
+
+  it('shows an accessible recovery notice and keeps only hang-up available', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice', reconnecting: true }
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        container.querySelector('[data-testid="call-network-recovery-notice"]')
+      ).not.toBeNull();
+    });
+
+    const notice = container.querySelector('[data-testid="call-network-recovery-notice"]');
+    expect(notice?.getAttribute('role')).toBe('status');
+    expect(notice?.textContent).toContain('Oops, there’s a network problem.');
+    expect(notice?.textContent).toContain('Towk is trying to reconnect you automatically.');
+
+    for (const testId of [
+      'call-device-menu-button',
+      'call-camera-toggle',
+      'call-mute-toggle',
+      'call-screen-share-toggle'
+    ]) {
+      expect(
+        (container.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement).disabled
+      ).toBe(true);
+    }
+    expect(
+      (container.querySelector('[data-testid="call-leave-button"]') as HTMLButtonElement).disabled
+    ).toBe(false);
+  });
 });

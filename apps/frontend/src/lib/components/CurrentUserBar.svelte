@@ -196,6 +196,27 @@ to the user settings page for the active server.
 {#if activeServerUser}
   <div class="flex shrink-0 flex-col gap-1 p-2">
     {#if activeCallRoomId && voiceCallState}
+      {#if voiceCallState.reconnecting}
+        <div
+          class="flex min-w-0 items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-warning"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-testid="current-user-call-reconnecting"
+          title={m['voice.network_problem_reconnecting']()}
+        >
+          <span
+            class="iconify shrink-0 animate-pulse uil--wifi-slash motion-reduce:animate-none"
+            aria-hidden="true"
+          ></span>
+          <div class="min-w-0">
+            <p class="text-xs font-semibold">{m['voice.network_problem_title']()}</p>
+            <p class="mt-0.5 text-[11px] leading-snug text-muted">
+              {m['voice.network_problem_reconnecting']()}
+            </p>
+          </div>
+        </div>
+      {/if}
       <div
         class="flex min-w-0 items-center gap-1.5 rounded-xl bg-surface p-1"
         data-testid="current-user-call-card"
@@ -217,7 +238,7 @@ to the user settings page for the active server.
           aria-label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
           data-testid="current-user-call-mute"
           onclick={() => voiceCallState.toggleMute()}
-          disabled={voiceCallState.isMicrophonePending}
+          disabled={voiceCallState.isMicrophonePending || voiceCallState.reconnecting}
           aria-busy={voiceCallState.isMicrophonePending || undefined}
         >
           {#if voiceCallState.isMicrophonePending}
@@ -245,7 +266,7 @@ to the user settings page for the active server.
             : m['voice.turn_on_camera']()}
           data-testid="current-user-call-camera"
           onclick={() => voiceCallState.toggleCamera()}
-          disabled={voiceCallState.isCameraPending}
+          disabled={voiceCallState.isCameraPending || voiceCallState.reconnecting}
           aria-busy={voiceCallState.isCameraPending || undefined}
         >
           {#if voiceCallState.isCameraPending}
@@ -277,7 +298,7 @@ to the user settings page for the active server.
               : m['voice.screen_share_unsupported']()}
           data-testid="current-user-call-screen-share"
           onclick={() => voiceCallState.toggleScreenShare()}
-          disabled={voiceCallState.isScreenSharePending}
+          disabled={voiceCallState.isScreenSharePending || voiceCallState.reconnecting}
           aria-busy={voiceCallState.isScreenSharePending || undefined}
         >
           {#if voiceCallState.isScreenSharePending}
