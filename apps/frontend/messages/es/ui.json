@@ -46,6 +46,7 @@
       "empty": "No hay mensajes pendientes.",
       "room_label": "Sala {room}",
       "attachment_only": "Mensaje con archivos adjuntos",
+      "unsupported_server": "Este servidor no puede reintentar el mensaje automáticamente de forma segura. Consérvalo aquí o descártalo.",
       "discard": "Descartar"
     },
     "cached_timeline": "Se muestra el historial cifrado de este dispositivo mientras Towk se reconecta.",

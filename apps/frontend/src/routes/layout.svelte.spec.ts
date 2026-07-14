@@ -123,6 +123,7 @@ function renderLayout() {
     description: null,
     iconUrl: null,
     bannerUrl: null,
+    capabilities: [],
     authProviders: []
   };
 

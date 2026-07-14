@@ -36,7 +36,8 @@ describe('getPublicServerInfo', () => {
         logoUrl: 'https://cdn/logo.webp',
         bannerUrl: 'https://cdn/banner.webp',
         welcomeMessage: 'welcome',
-        description: 'description'
+        description: 'description',
+        capabilities: ['message.create-idempotency-v1']
       },
       login: {
         directRegistrationEnabled: true,
@@ -68,6 +69,7 @@ describe('getPublicServerInfo', () => {
       description: 'description',
       iconUrl: 'https://cdn/logo.webp',
       bannerUrl: 'https://cdn/banner.webp',
+      capabilities: ['message.create-idempotency-v1'],
       authProviders: [
         {
           id: 'hub',
@@ -93,7 +95,8 @@ describe('getPublicServerInfo', () => {
       welcomeMessage: null,
       description: null,
       iconUrl: null,
-      bannerUrl: null
+      bannerUrl: null,
+      capabilities: []
     });
   });
 });

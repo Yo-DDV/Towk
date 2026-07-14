@@ -80,28 +80,44 @@ async function requestBackgroundSync(): Promise<void> {
 export class PwaOutbox extends EventTarget {
   summary = $state<OutboxSummary>({ queued: 0, needsAttention: 0, syncing: false });
   #flushes = new SvelteMap<string, Promise<void>>();
+  #operations = new SvelteMap<string, Promise<void>>();
   #scopes = new SvelteMap<string, PrivateDataScope>();
 
   #remember(scopes: PrivateDataScope[]): void {
     for (const scope of scopes) this.#scopes.set(scopeIdentity(scope), scope);
   }
 
-  async queue(scope: PrivateDataScope, input: PreparedMessageInput): Promise<void> {
+  #runExclusive(scope: PrivateDataScope, operation: () => Promise<void>): Promise<void> {
+    const key = scopeIdentity(scope);
+    const previous = this.#operations.get(key) ?? Promise.resolve();
+    const current = previous
+      .catch(() => undefined)
+      .then(operation)
+      .finally(() => {
+        if (this.#operations.get(key) === current) this.#operations.delete(key);
+      });
+    this.#operations.set(key, current);
+    return current;
+  }
+
+  queue(scope: PrivateDataScope, input: PreparedMessageInput): Promise<void> {
     this.#remember([scope]);
     if (!input.clientRequestId) throw new TypeError('Queued messages require client_request_id');
-    void encryptedPrivateData.requestPersistentStorage().catch(() => false);
-    const now = Date.now();
-    await saveQueuedMessage(scope, {
-      ...input,
-      queuedAt: now,
-      attemptCount: 0,
-      nextAttemptAt: now,
-      state: 'queued',
-      lastError: null
+    return this.#runExclusive(scope, async () => {
+      void encryptedPrivateData.requestPersistentStorage().catch(() => false);
+      const now = Date.now();
+      await saveQueuedMessage(scope, {
+        ...input,
+        queuedAt: now,
+        attemptCount: 0,
+        nextAttemptAt: now,
+        state: 'queued',
+        lastError: null
+      });
+      void requestBackgroundSync().catch(() => undefined);
+      await this.refresh([scope]);
+      this.dispatchEvent(new Event('change'));
     });
-    void requestBackgroundSync().catch(() => undefined);
-    await this.refresh([scope]);
-    this.dispatchEvent(new Event('change'));
   }
 
   async refresh(scopes: PrivateDataScope[]): Promise<void> {
@@ -127,34 +143,57 @@ export class PwaOutbox extends EventTarget {
     const key = scopeIdentity(scope);
     const current = this.#flushes.get(key);
     if (current) return current;
-    const flush = this.#flush(scope, send, options).finally(() => {
+    const flush = this.#runExclusive(scope, () => this.#flush(scope, send, options)).finally(() => {
       if (this.#flushes.get(key) === flush) this.#flushes.delete(key);
     });
     this.#flushes.set(key, flush);
     return flush;
   }
 
-  async retry(scope: PrivateDataScope, clientRequestId: string): Promise<void> {
+  retry(scope: PrivateDataScope, clientRequestId: string): Promise<void> {
     this.#remember([scope]);
-    const record = (await listQueuedMessages(scope)).find(
-      (candidate) => candidate.value.clientRequestId === clientRequestId
-    );
-    if (!record) return;
-    await saveQueuedMessage(scope, {
-      ...record.value,
-      state: 'queued',
-      attemptCount: 0,
-      nextAttemptAt: Date.now(),
-      lastError: null
+    return this.#runExclusive(scope, async () => {
+      const record = (await listQueuedMessages(scope)).find(
+        (candidate) => candidate.value.clientRequestId === clientRequestId
+      );
+      if (!record) return;
+      await saveQueuedMessage(scope, {
+        ...record.value,
+        state: 'queued',
+        attemptCount: 0,
+        nextAttemptAt: Date.now(),
+        lastError: null
+      });
+      await this.refresh([scope]);
+      this.dispatchEvent(new Event('change'));
     });
-    await this.refresh([scope]);
-    this.dispatchEvent(new Event('change'));
   }
 
-  async discard(scope: PrivateDataScope, clientRequestId: string): Promise<void> {
-    await deleteQueuedMessage(scope, clientRequestId);
-    await this.refresh([scope]);
-    this.dispatchEvent(new Event('change'));
+  markUnsupported(scope: PrivateDataScope, message: string): Promise<void> {
+    this.#remember([scope]);
+    return this.#runExclusive(scope, async () => {
+      let changed = false;
+      for (const record of await listQueuedMessages(scope)) {
+        if (record.value.state === 'needs_attention' && record.value.lastError === message)
+          continue;
+        await saveQueuedMessage(scope, {
+          ...record.value,
+          state: 'needs_attention',
+          lastError: message
+        });
+        changed = true;
+      }
+      await this.refresh([scope]);
+      if (changed) this.dispatchEvent(new Event('change'));
+    });
+  }
+
+  discard(scope: PrivateDataScope, clientRequestId: string): Promise<void> {
+    return this.#runExclusive(scope, async () => {
+      await deleteQueuedMessage(scope, clientRequestId);
+      await this.refresh([scope]);
+      this.dispatchEvent(new Event('change'));
+    });
   }
 
   async #flush(

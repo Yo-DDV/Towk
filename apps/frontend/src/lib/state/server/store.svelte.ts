@@ -5,7 +5,7 @@
 
 import { CurrentUserState } from '$lib/auth/currentUser.svelte';
 import { ServerInfoState } from './state.svelte';
-import type { PublicServerInfo } from '$lib/api-client/server';
+import { getPublicServerInfo, type PublicServerInfo } from '$lib/api-client/server';
 import type { ServerPermissions, ViewerData } from './permissions.svelte';
 import { NotificationStore } from './notifications.svelte';
 import { RoomUnreadStore } from './roomUnread.svelte';
@@ -112,7 +112,8 @@ export class ServerStateStore {
     registered: RegisteredServer,
     serverConnection: ServerConnection,
     publicServerInfoLoader?: (baseUrl: string) => Promise<PublicServerInfo>,
-    onAuthenticationRequired?: () => void
+    onAuthenticationRequired?: () => void,
+    onCapabilitiesChanged?: (capabilities: string[]) => void
   ) {
     this.serverId = registered.id;
     this.#registered = registered;
@@ -135,7 +136,13 @@ export class ServerStateStore {
       undefined,
       onAuthenticationRequired
     );
-    this.serverInfo = new ServerInfoState(registered.url, publicServerInfoLoader, connectAPIConfig);
+    const loadPublicServerInfo = async (baseUrl: string): Promise<PublicServerInfo> => {
+      const info = await (publicServerInfoLoader ?? getPublicServerInfo)(baseUrl);
+      onCapabilitiesChanged?.(info.capabilities);
+      return info;
+    };
+    this.serverInfo = new ServerInfoState(registered.url, loadPublicServerInfo, connectAPIConfig);
+    this.serverInfo.capabilities = [...(registered.capabilities ?? [])];
     this.notifications = new NotificationStore(notificationAPI);
     this.roomUnread = new RoomUnreadStore();
     this.notificationLevels = new NotificationLevelStore();

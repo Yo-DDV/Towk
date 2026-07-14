@@ -46,6 +46,7 @@
       "empty": "Não há mensagens em espera.",
       "room_label": "Sala {room}",
       "attachment_only": "Mensagem com anexos",
+      "unsupported_server": "Este servidor não pode repetir a mensagem automaticamente em segurança. Mantenha-a aqui ou descarte-a.",
       "discard": "Descartar"
     },
     "cached_timeline": "A mostrar o histórico encriptado deste dispositivo enquanto o Towk restabelece a ligação.",

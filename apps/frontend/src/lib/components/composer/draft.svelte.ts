@@ -12,7 +12,7 @@ import {
 } from '$lib/pwa/offlineData';
 import type { FileWithUrl } from './attachments.svelte';
 
-const draftFilesMap = new SvelteMap<string, FileWithUrl[]>();
+const draftFilesMap = new SvelteMap<string, File[]>();
 
 type DraftContext = {
   scope: PrivateDataScope;
@@ -64,8 +64,10 @@ export class DraftState {
   }
 
   async loadFiles(): Promise<FileWithUrl[]> {
-    const saved = this.takeFiles();
-    if (saved.length > 0) return saved;
+    const saved = this.stashedFiles();
+    if (saved.length > 0) {
+      return saved.map((file) => ({ file, url: URL.createObjectURL(file) }));
+    }
     const context = this.#context;
     if (!context) return [];
     const files = await loadPersistedDraftFiles(
@@ -148,20 +150,22 @@ export class DraftState {
     );
   }
 
-  takeFiles(): FileWithUrl[] {
+  stashedFiles(): File[] {
     if (!this.key) return [];
-    const saved = draftFilesMap.get(this.key) ?? [];
-    draftFilesMap.delete(this.key);
-    return saved;
+    return draftFilesMap.get(this.key) ?? [];
   }
 
   stashFiles(files: FileWithUrl[]): void {
     if (!this.key) return;
     if (files.length > 0) {
-      draftFilesMap.set(this.key, files);
+      draftFilesMap.set(
+        this.key,
+        files.map(({ file }) => file)
+      );
     } else {
       draftFilesMap.delete(this.key);
     }
+    for (const { url } of files) URL.revokeObjectURL(url);
     this.persistFiles(files);
   }
 

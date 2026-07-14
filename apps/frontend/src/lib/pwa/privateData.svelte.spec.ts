@@ -54,7 +54,7 @@ describe('EncryptedPrivateDataStore', () => {
       new Promise<unknown[]>((resolve) => {
         keyRequest.onsuccess = () => resolve(keyRequest.result);
       }),
-      new Promise<Array<{ ciphertext: ArrayBuffer }>>((resolve) => {
+      new Promise<Array<{ namespace: string; ciphertext: ArrayBuffer }>>((resolve) => {
         recordRequest.onsuccess = () => resolve(recordRequest.result);
       })
     ]);

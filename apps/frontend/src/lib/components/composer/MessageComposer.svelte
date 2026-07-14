@@ -36,6 +36,7 @@
   import { LinkPreviewState } from './linkPreviews.svelte';
   import { AutocompleteState, type MentionRole } from './autocomplete.svelte';
   import { classifyOutboxFailure, pwaOutbox } from '$lib/pwa/outbox.svelte';
+  import { supportsMessageCreateIdempotency } from '$lib/pwa/outboxPolicy';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { deleteIncomingShare, getIncomingShare } from '$lib/pwa/shareInbox';
 
@@ -281,6 +282,7 @@
   }
 
   $effect(() => {
+    const activeDraftKey = DRAFT_KEY;
     if (autocompleteResetRoomId !== roomId) {
       autocompleteResetRoomId = roomId;
       autocomplete.resetForRoom();
@@ -322,7 +324,10 @@
 
     return () => {
       attachments.invalidatePending();
-      draftState.stashFiles(untrack(() => attachments.filesWithUrls));
+      const files = untrack(() => attachments.filesWithUrls);
+      if (untrack(() => loadedDraftKey === activeDraftKey) || files.length > 0) {
+        draftState.stashFiles(files);
+      }
       void draftState.flush().catch(() => undefined);
     };
   });
@@ -633,7 +638,12 @@
     prepared: PreparedMessageInput | null
   ) {
     const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
-    if (scope && prepared && classifyOutboxFailure(error) === 'retryable') {
+    if (
+      scope &&
+      prepared &&
+      classifyOutboxFailure(error) === 'retryable' &&
+      supportsMessageCreateIdempotency(serverInfo)
+    ) {
       try {
         // Preview tokens are short-lived server capabilities. The message is
         // durable; an expired optional preview must never block its replay.

@@ -28,6 +28,17 @@ function message(clientRequestId: string): PreparedMessageInput {
   };
 }
 
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(async () => {
   await activateOfflineAccount(scope);
 });
@@ -107,6 +118,46 @@ describe('PwaOutbox', () => {
     const [record] = await listQueuedMessages(scope);
     expect(record.value.state).toBe('needs_attention');
     expect(outbox.summary.needsAttention).toBe(1);
+  });
+
+  it('blocks queued messages when the server no longer advertises safe retries', async () => {
+    const outbox = new PwaOutbox();
+    await outbox.queue(scope, message('request-unsupported'));
+
+    await outbox.markUnsupported(scope, 'Safe retry unsupported');
+
+    const [record] = await listQueuedMessages(scope);
+    expect(record.value).toMatchObject({
+      clientRequestId: 'request-unsupported',
+      state: 'needs_attention',
+      lastError: 'Safe retry unsupported',
+      attemptCount: 0
+    });
+    expect(outbox.summary).toMatchObject({ queued: 0, needsAttention: 1 });
+  });
+
+  it('serializes discard behind an in-flight send so a failed send cannot restore it', async () => {
+    const outbox = new PwaOutbox();
+    const sendStarted = deferred();
+    const releaseSend = deferred();
+    await outbox.queue(scope, message('request-discard-race'));
+
+    const flush = outbox.flush(
+      scope,
+      async () => {
+        sendStarted.resolve();
+        await releaseSend.promise;
+        throw new ConnectError('temporarily unavailable', Code.Unavailable);
+      },
+      { force: true }
+    );
+    await sendStarted.promise;
+    const discard = outbox.discard(scope, 'request-discard-race');
+
+    releaseSend.resolve();
+    await Promise.all([flush, discard]);
+
+    await expect(listQueuedMessages(scope)).resolves.toHaveLength(0);
   });
 
   it('classifies transport and authorization failures separately', () => {

@@ -22,6 +22,23 @@ afterEach(async () => {
 });
 
 describe('encrypted composer draft state', () => {
+  it('keeps in-memory files available across repeated same-room loads', async () => {
+    const key = draftKey('R-repeat');
+    const state = new DraftState();
+    const file = new File(['repeat-safe file'], 'repeat.txt', { type: 'text/plain' });
+    state.switchKey(key, null, 'R-repeat');
+    state.stashFiles([{ file, url: 'blob:staged' }]);
+
+    const firstLoad = await state.loadFiles();
+    const secondLoad = await state.loadFiles();
+
+    expect(firstLoad[0]?.file).toBe(file);
+    expect(secondLoad[0]?.file).toBe(file);
+    expect(secondLoad[0]?.url).not.toBe(firstLoad[0]?.url);
+    for (const { url } of [...firstLoad, ...secondLoad]) URL.revokeObjectURL(url);
+    state.discardFiles();
+  });
+
   it('restores text and staged files after a new state instance starts', async () => {
     const key = draftKey('R1');
     const first = new DraftState();

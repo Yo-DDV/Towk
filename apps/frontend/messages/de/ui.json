@@ -46,6 +46,7 @@
       "empty": "Keine Nachricht wartet.",
       "room_label": "Raum {room}",
       "attachment_only": "Nachricht mit Anhängen",
+      "unsupported_server": "Dieser Server kann die Nachricht nicht sicher automatisch erneut senden. Behalte oder verwerfe sie hier.",
       "discard": "Verwerfen"
     },
     "cached_timeline": "Der verschlüsselte Verlauf dieses Geräts wird während der Wiederverbindung angezeigt.",

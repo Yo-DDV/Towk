@@ -6,6 +6,7 @@
     type QueuedMessage
   } from '$lib/pwa/offlineData';
   import { pwaOutbox } from '$lib/pwa/outbox.svelte';
+  import { supportsMessageCreateIdempotency } from '$lib/pwa/outboxPolicy';
   import type { PrivateDataRecord } from '$lib/pwa/privateData';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import Dialog from '$lib/ui/Dialog.svelte';
@@ -70,6 +71,10 @@
   function serverName(scope: PrivateDataScope): string {
     return serverRegistry.getServer(scope.serverId)?.name ?? scope.serverUrl;
   }
+
+  function canRetry(scope: PrivateDataScope): boolean {
+    return supportsMessageCreateIdempotency(serverRegistry.tryGetStore(scope.serverId)?.serverInfo);
+  }
 </script>
 
 <Dialog visible title={m['ui.outbox.manager_title']()} size="lg" {onclose}>
@@ -118,8 +123,8 @@
             <Button
               variant="accent"
               loading={busyRequestId === item.record.value.clientRequestId}
-              disabled={busyRequestId !== null &&
-                busyRequestId !== item.record.value.clientRequestId}
+              disabled={!canRetry(item.scope) ||
+                (busyRequestId !== null && busyRequestId !== item.record.value.clientRequestId)}
               onclick={() => retry(item)}
             >
               {m['ui.outbox.retry']()}

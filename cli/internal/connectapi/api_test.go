@@ -614,6 +614,9 @@ func TestServerDiscoveryServiceGetServerPublicMetadata(t *testing.T) {
 	if msg.GetProfile().GetVersion() != "9.8.7" {
 		t.Fatalf("profile version = %q, want 9.8.7", msg.GetProfile().GetVersion())
 	}
+	if capabilities := msg.GetProfile().GetCapabilities(); len(capabilities) != 1 || capabilities[0] != serverCapabilityMessageCreateIdempotency {
+		t.Fatalf("profile capabilities = %v, want %q", capabilities, serverCapabilityMessageCreateIdempotency)
+	}
 	if !msg.GetLogin().GetDirectRegistrationEnabled() {
 		t.Fatal("DirectRegistrationEnabled = false, want true")
 	}

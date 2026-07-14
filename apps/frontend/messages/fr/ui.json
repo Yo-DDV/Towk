@@ -46,6 +46,7 @@
       "empty": "Aucun message en attente.",
       "room_label": "Salon {room}",
       "attachment_only": "Message avec pièces jointes",
+      "unsupported_server": "Ce serveur ne peut pas relancer ce message automatiquement sans risque. Conservez-le ici ou supprimez-le.",
       "discard": "Supprimer"
     },
     "cached_timeline": "Affichage de l’historique chiffré de cet appareil pendant la reconnexion.",

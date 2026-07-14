@@ -878,6 +878,7 @@ const msg_ui_outbox_room_label = (
   inputs: Parameters<LocaleMessages['ui_outbox_room_label']>[0]
 ): LocalizedString => messages().ui_outbox_room_label(inputs);
 const msg_ui_outbox_attachment_only = (): LocalizedString => messages().ui_outbox_attachment_only(empty());
+const msg_ui_outbox_unsupported_server = (): LocalizedString => messages().ui_outbox_unsupported_server(empty());
 const msg_ui_outbox_discard = (): LocalizedString => messages().ui_outbox_discard(empty());
 const msg_ui_cached_timeline = (): LocalizedString => messages().ui_cached_timeline(empty());
 const msg_ui_corresponding_source = (
@@ -2407,6 +2408,7 @@ export { msg_ui_outbox_manager_title as 'ui.outbox.manager_title' };
 export { msg_ui_outbox_empty as 'ui.outbox.empty' };
 export { msg_ui_outbox_room_label as 'ui.outbox.room_label' };
 export { msg_ui_outbox_attachment_only as 'ui.outbox.attachment_only' };
+export { msg_ui_outbox_unsupported_server as 'ui.outbox.unsupported_server' };
 export { msg_ui_outbox_discard as 'ui.outbox.discard' };
 export { msg_ui_cached_timeline as 'ui.cached_timeline' };
 export { msg_ui_corresponding_source as 'ui.corresponding_source' };

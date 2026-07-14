@@ -5,6 +5,7 @@
   import { notifyOutboxMessageSent } from '$lib/pwa/outboxEvents';
   import { OUTBOX_SYNC_TAG, pwaOutbox, type OutboxSentDetail } from '$lib/pwa/outbox.svelte';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import { supportsMessageCreateIdempotency } from '$lib/pwa/outboxPolicy';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import OutboxManagerDialog from './OutboxManagerDialog.svelte';
@@ -19,6 +20,15 @@
   async function flushAll(force = false): Promise<void> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
     const work = scopes.map(async (scope) => {
+      const store = serverRegistry.tryGetStore(scope.serverId);
+      if (!store) return;
+      if (store.serverInfo.loading) return;
+      await store.serverInfo.refreshProfile();
+      if (store.serverInfo.error !== null) return;
+      if (!supportsMessageCreateIdempotency(store.serverInfo)) {
+        await pwaOutbox.markUnsupported(scope, m['ui.outbox.unsupported_server']());
+        return;
+      }
       const connection = serverConnectionManager.getClient(scope.serverId);
       const api = createMessageAPI({
         serverId: connection.serverId,

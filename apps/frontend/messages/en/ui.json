@@ -46,6 +46,7 @@
       "empty": "No message is waiting.",
       "room_label": "Room {room}",
       "attachment_only": "Message with attachments",
+      "unsupported_server": "This server cannot safely retry the message automatically. Keep it here or discard it.",
       "discard": "Discard"
     },
     "cached_timeline": "Showing this device’s encrypted history while Towk reconnects.",

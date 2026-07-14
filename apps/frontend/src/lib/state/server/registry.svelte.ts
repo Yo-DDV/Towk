@@ -48,6 +48,8 @@ export interface RegisteredServer {
 	userAvatarUrl: string | null;
 	/** Epoch ms when this server last rejected auth, or null when auth is usable */
 	reauthRequiredAt: number | null;
+	/** Last successfully advertised public server capabilities. */
+	capabilities?: string[];
 	/** When this server was added (epoch ms) */
 	addedAt: number;
 }
@@ -92,7 +94,10 @@ export function generateServerId(url: string, existingIds: string[] = []): strin
 function normalizeRegisteredServer(server: RegisteredServer): RegisteredServer {
 	return {
 		...server,
-		reauthRequiredAt: server.reauthRequiredAt ?? null
+		reauthRequiredAt: server.reauthRequiredAt ?? null,
+		capabilities: Array.isArray(server.capabilities)
+			? [...new Set(server.capabilities.filter((capability) => typeof capability === 'string'))]
+			: []
 	};
 }
 
@@ -482,9 +487,24 @@ class ServerRegistry {
 	/** Create a state store for a server and wire up remote user sync. */
 	#createStore(server: RegisteredServer): ServerStateStore {
 		const serverConnection = serverConnectionManager.getClient(server.id);
-		const store = new ServerStateStore(server, serverConnection, undefined, () => {
-			this.handleAuthenticationRequired(server.id);
-		});
+		const store = new ServerStateStore(
+			server,
+			serverConnection,
+			undefined,
+			() => {
+				this.handleAuthenticationRequired(server.id);
+			},
+			(capabilities) => {
+				if (
+					server.capabilities?.length === capabilities.length &&
+					server.capabilities.every((capability, index) => capability === capabilities[index])
+				) {
+					return;
+				}
+				server.capabilities = [...capabilities];
+				serversSlot.set(this.servers);
+			}
+		);
 		this.#stores.set(server.id, store);
 
 		// Eagerly fetch server info (name, MOTD, upload limits, etc.).

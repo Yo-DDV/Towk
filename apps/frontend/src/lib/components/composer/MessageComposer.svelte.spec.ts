@@ -8,6 +8,7 @@ import { getToasts, toast } from '$lib/ui/toast';
 import type { QuoteInsertionContent, RoomMember } from '$lib/state/room';
 import { PresenceStatus } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import { pwaOutbox } from '$lib/pwa/outbox.svelte';
 
 function postedMessageEvent(
   id = 'msg_123',
@@ -50,6 +51,7 @@ const updateMessageConnectMock = vi.hoisted(() => vi.fn());
 const fetchLinkPreviewConnectMock = vi.hoisted(() => vi.fn());
 const listRolesConnectMock = vi.hoisted(() => vi.fn());
 const connectionState = vi.hoisted(() => ({ showConnectionLostBanner: false }));
+const registryServerState = vi.hoisted(() => ({ userId: null as string | null }));
 const roomStateMock = vi.hoisted(() => ({
   members: [] as RoomMember[],
   editState: {
@@ -83,7 +85,8 @@ const mockInstanceStores = {
   serverInfo: {
     videoProcessingEnabled: false,
     maxUploadSize: 25 * 1024 * 1024,
-    maxVideoUploadSize: 25 * 1024 * 1024
+    maxVideoUploadSize: 25 * 1024 * 1024,
+    capabilities: ['message.create-idempotency-v1']
   },
   roomUnread: {
     setRoomUnread: vi.fn()
@@ -132,7 +135,11 @@ vi.mock('$lib/attachments/prepareFiles', () => ({
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
     getStore: () => mockInstanceStores,
-    getServer: () => ({ id: 'test-instance', url: 'http://localhost' }),
+    getServer: () => ({
+      id: 'test-instance',
+      url: 'http://localhost',
+      userId: registryServerState.userId
+    }),
     isOriginServer: () => true,
     originServer: { id: 'test-instance', url: 'http://localhost' },
     servers: [{ id: 'test-instance', url: 'http://localhost' }]
@@ -339,6 +346,8 @@ describe('MessageComposer', () => {
     mockInstanceStores.serverInfo.videoProcessingEnabled = false;
     mockInstanceStores.serverInfo.maxUploadSize = 25 * 1024 * 1024;
     mockInstanceStores.serverInfo.maxVideoUploadSize = 25 * 1024 * 1024;
+    mockInstanceStores.serverInfo.capabilities = ['message.create-idempotency-v1'];
+    registryServerState.userId = null;
     mockInstanceStores.roomUnread.setRoomUnread.mockClear();
     roomStateMock.members = [];
     roomStateMock.editState.eventId = null;
@@ -1226,6 +1235,44 @@ describe('MessageComposer', () => {
   });
 
   describe('submit behavior', () => {
+    it('queues a retryable failure only after the server advertised idempotent creation', async () => {
+      registryServerState.userId = 'test-user';
+      mutationMock.mockResolvedValueOnce({ data: null, error: new TypeError('network failed') });
+      const queue = vi.spyOn(pwaOutbox, 'queue').mockResolvedValue();
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      await typeEditorLiteralText(editor, 'send when online');
+      (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
+
+      await vi.waitFor(() => expect(queue).toHaveBeenCalledOnce());
+      expect(queue.mock.calls[0][1]).toMatchObject({
+        body: 'send when online',
+        clientRequestId: expect.any(String)
+      });
+      expect(getToasts().map((item) => item.message)).toContain(
+        'Message saved securely. It will be sent when the connection returns.'
+      );
+    });
+
+    it('restores the draft instead of queueing when the server lacks idempotent creation', async () => {
+      registryServerState.userId = 'test-user';
+      mockInstanceStores.serverInfo.capabilities = [];
+      mutationMock.mockResolvedValueOnce({ data: null, error: new TypeError('network failed') });
+      const queue = vi.spyOn(pwaOutbox, 'queue').mockResolvedValue();
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      await typeEditorLiteralText(editor, 'keep this draft');
+      (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
+
+      await vi.waitFor(() =>
+        expect(getToasts().map((item) => item.message)).toContain('Failed to send message')
+      );
+      expect(queue).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(editor.textContent).toBe('keep this draft'));
+    });
+
     it('uses Enter to complete an active mention before plain Enter can send', async () => {
       roomStateMock.members = [roomMember('alice')];
       const { container, roomId } = renderMessageComposer({ roomId: 'room_456' });
