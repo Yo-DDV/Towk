@@ -300,6 +300,52 @@ describe('EventList jump completion', () => {
     }
   });
 
+  it('starts viewport convergence while the initial bottom scroll is still settling', async () => {
+    resizeCallbacks = [];
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+    const visualViewport = Object.assign(new EventTarget(), {
+      height: 700,
+      offsetLeft: 0,
+      offsetTop: 0,
+      onresize: null,
+      onscroll: null,
+      onscrollend: null,
+      pageLeft: 0,
+      pageTop: 0,
+      scale: 1,
+      width: 320
+    }) as VisualViewport;
+    vi.stubGlobal('visualViewport', visualViewport);
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: ['msg-latest'],
+          scrollToEventId: null
+        }
+      });
+
+      await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const framesBeforeResize = animationFrames.length;
+
+      visualViewport.dispatchEvent(new Event('resize'));
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(animationFrames.length).toBeGreaterThan(framesBeforeResize);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('preserves scrollback when the message viewport resizes while not sticky', async () => {
     resizeCallbacks = [];
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);

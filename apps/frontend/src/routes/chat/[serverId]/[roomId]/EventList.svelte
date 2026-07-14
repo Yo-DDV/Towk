@@ -455,7 +455,11 @@
         };
       }
     }).then((converged) => {
-      if (operation === bottomScrollOperation) initialScrollDone = true;
+      // A viewport resize can supersede a request after that request already
+      // reached the bottom but before its promise callback runs. That completed
+      // convergence still satisfies initialization; the newer request will
+      // handle the resized viewport.
+      if (converged || operation === bottomScrollOperation) initialScrollDone = true;
       return converged;
     });
   }
@@ -478,12 +482,7 @@
     if (!container) return;
 
     function keepBottomAnchored() {
-      if (
-        initialScrollDone &&
-        !isJumpedMode &&
-        !pendingHighlightId &&
-        (alwaysScrollToBottom || shouldScrollToBottom)
-      ) {
+      if (!isJumpedMode && !pendingHighlightId && (alwaysScrollToBottom || shouldScrollToBottom)) {
         void requestBottomScroll();
       }
     }
