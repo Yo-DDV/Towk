@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DRAFT_FILE_LIMITS, EncryptedDraftFileStore } from './draftFiles';
 import type { PrivateDataScope } from './privateData';
 
@@ -17,6 +17,11 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
     request.addEventListener('error', () => reject(request.error), { once: true });
   });
 }
+
+beforeEach(async () => {
+  await store.activateAccount(scope);
+  await store.activateAccount(otherScope);
+});
 
 afterEach(async () => {
   await store.purgeAccount(scope).catch(() => undefined);
@@ -63,6 +68,22 @@ describe('encrypted draft attachments', () => {
 
     await expect((await first.get(scope, 'room:R1'))[0]?.text()).resolves.toBe('first');
     await expect((await second.get(scope, 'room:R2'))[0]?.text()).resolves.toBe('second');
+  });
+
+  it('blocks stale tabs after account purge until explicit authentication', async () => {
+    const staleTab = new EncryptedDraftFileStore();
+    const signingOutTab = new EncryptedDraftFileStore();
+    await staleTab.put(scope, 'room:R1', [new File(['before'], 'before.txt')]);
+
+    await signingOutTab.purgeAccount(scope);
+
+    await expect(
+      staleTab.put(scope, 'room:R2', [new File(['stale'], 'stale.txt')])
+    ).rejects.toThrow('Encrypted local account storage is inactive');
+    await staleTab.activateAccount(scope);
+    await expect(
+      staleTab.put(scope, 'room:R2', [new File(['new'], 'new.txt')])
+    ).resolves.toBeUndefined();
   });
 
   it('isolates accounts and crypto-shreds files on purge', async () => {

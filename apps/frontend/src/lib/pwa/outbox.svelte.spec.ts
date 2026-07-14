@@ -1,7 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Code, ConnectError } from '@connectrpc/connect';
 import type { PreparedMessageInput } from '$lib/api-client/messages';
-import { encryptedPrivateData, listQueuedMessages, type PrivateDataScope } from './offlineData';
+import {
+  activateOfflineAccount,
+  listQueuedMessages,
+  purgeOfflineAccount,
+  type PrivateDataScope
+} from './offlineData';
 import { classifyOutboxFailure, PwaOutbox } from './outbox.svelte';
 
 const scope: PrivateDataScope = {
@@ -23,8 +28,12 @@ function message(clientRequestId: string): PreparedMessageInput {
   };
 }
 
+beforeEach(async () => {
+  await activateOfflineAccount(scope);
+});
+
 afterEach(async () => {
-  await encryptedPrivateData.purgeAccount(scope).catch(() => undefined);
+  await purgeOfflineAccount(scope).catch(() => undefined);
 });
 
 describe('PwaOutbox', () => {

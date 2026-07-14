@@ -41,9 +41,13 @@ export const PRIVATE_DATA_LIMITS: Record<PrivateDataKind, PrivateDataLimits> = {
 
 type StoredEncryptionKey = {
   namespace: string;
-  key: CryptoKey;
-  createdAt: number;
+  key?: CryptoKey;
+  createdAt?: number;
+  generation?: string;
+  revokedAt?: number;
 };
+
+type EncryptionKeyMaterial = { key: CryptoKey; generation: string };
 
 type StoredPrivateRecord = {
   id: string;
@@ -52,6 +56,7 @@ type StoredPrivateRecord = {
   updatedAt: number;
   expiresAt: number;
   byteSize: number;
+  keyGeneration?: string;
   iv: ArrayBuffer;
   ciphertext: ArrayBuffer;
 };
@@ -70,6 +75,15 @@ type PrivateDataEnvelope<T> = {
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const LEGACY_KEY_GENERATION = 'legacy';
+
+function newKeyGeneration(): string {
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+}
+
+function keyGeneration(key: StoredEncryptionKey): string {
+  return key.generation ?? LEGACY_KEY_GENERATION;
+}
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -201,7 +215,12 @@ export class EncryptedPrivateDataStore {
       }
       const key = await this.#getEncryptionKey(database, namespace, false);
       if (!key) return null;
-      return this.#decryptRecord<T>(record, key);
+      try {
+        return await this.#decryptRecord<T>(record, key);
+      } catch {
+        await this.#deleteRecord(database, id);
+        return null;
+      }
     });
   }
 
@@ -254,11 +273,23 @@ export class EncryptedPrivateDataStore {
       const iv = crypto.getRandomValues(new Uint8Array(12));
       const ciphertext = await crypto.subtle.encrypt(
         { name: 'AES-GCM', iv, additionalData: encoder.encode(id) },
-        key,
+        key.key,
         plaintext
       );
-      const transaction = database.transaction(RECORD_STORE, 'readwrite');
+      const transaction = database.transaction([KEY_STORE, RECORD_STORE], 'readwrite');
       const done = transactionDone(transaction);
+      const storedKey = (await requestResult(transaction.objectStore(KEY_STORE).get(namespace))) as
+        | StoredEncryptionKey
+        | undefined;
+      if (
+        !storedKey?.key ||
+        storedKey.revokedAt !== undefined ||
+        keyGeneration(storedKey) !== key.generation
+      ) {
+        transaction.abort();
+        await done.catch(() => undefined);
+        throw new Error('Encrypted local account storage changed while writing');
+      }
       const records = transaction.objectStore(RECORD_STORE);
       const existing = (await requestResult(
         records.index('namespaceKind').getAll(IDBKeyRange.only([namespace, kind]))
@@ -272,6 +303,7 @@ export class EncryptedPrivateDataStore {
         updatedAt,
         expiresAt: now + limits.maxAgeMs,
         byteSize: ciphertext.byteLength,
+        keyGeneration: key.generation,
         iv: iv.buffer,
         ciphertext
       } satisfies StoredPrivateRecord);
@@ -288,13 +320,30 @@ export class EncryptedPrivateDataStore {
     });
   }
 
+  async activateAccount(scope: PrivateDataScope): Promise<void> {
+    const namespace = await this.#namespace(scope);
+    return this.#locked(namespace, async () => {
+      const database = await this.#database();
+      const transaction = database.transaction(KEY_STORE, 'readwrite');
+      const done = transactionDone(transaction);
+      const keys = transaction.objectStore(KEY_STORE);
+      const current = (await requestResult(keys.get(namespace))) as StoredEncryptionKey | undefined;
+      if (current?.revokedAt !== undefined) keys.delete(namespace);
+      await done;
+    });
+  }
+
   async purgeAccount(scope: PrivateDataScope): Promise<void> {
     const namespace = await this.#namespace(scope);
     return this.#locked(namespace, async () => {
       const database = await this.#database();
       const transaction = database.transaction([KEY_STORE, RECORD_STORE], 'readwrite');
       const done = transactionDone(transaction);
-      transaction.objectStore(KEY_STORE).delete(namespace);
+      transaction.objectStore(KEY_STORE).put({
+        namespace,
+        generation: newKeyGeneration(),
+        revokedAt: Date.now()
+      } satisfies StoredEncryptionKey);
       const records = transaction.objectStore(RECORD_STORE).index('namespace');
       const cursorRequest = records.openKeyCursor(IDBKeyRange.only(namespace));
       cursorRequest.addEventListener('success', () => {
@@ -369,28 +418,38 @@ export class EncryptedPrivateDataStore {
     database: IDBDatabase,
     namespace: string,
     create: boolean
-  ): Promise<CryptoKey | null> {
+  ): Promise<EncryptionKeyMaterial | null> {
     const read = database.transaction(KEY_STORE, 'readonly');
     const readDone = transactionDone(read);
     const existing = (await requestResult(read.objectStore(KEY_STORE).get(namespace))) as
       | StoredEncryptionKey
       | undefined;
     await readDone;
-    if (existing?.key) return existing.key;
+    if (existing?.revokedAt !== undefined) {
+      if (create) throw new Error('Encrypted local account storage is inactive');
+      return null;
+    }
+    if (existing?.key) return { key: existing.key, generation: keyGeneration(existing) };
     if (!create) return null;
 
     const candidate = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
       'encrypt',
       'decrypt'
     ]);
+    const candidateGeneration = newKeyGeneration();
     const write = database.transaction(KEY_STORE, 'readwrite');
     const writeDone = transactionDone(write);
     const keys = write.objectStore(KEY_STORE);
     const current = (await requestResult(keys.get(namespace))) as StoredEncryptionKey | undefined;
+    if (current?.revokedAt !== undefined) {
+      await writeDone;
+      throw new Error('Encrypted local account storage is inactive');
+    }
     const key = current?.key ?? candidate;
-    if (!current) keys.put({ namespace, key, createdAt: Date.now() });
+    const generation = current?.key ? keyGeneration(current) : candidateGeneration;
+    if (!current?.key) keys.put({ namespace, key, generation, createdAt: Date.now() });
     await writeDone;
-    return key;
+    return { key, generation };
   }
 
   async #recordsForKind(
@@ -412,15 +471,18 @@ export class EncryptedPrivateDataStore {
 
   async #decryptRecord<T>(
     record: StoredPrivateRecord,
-    key: CryptoKey
+    key: EncryptionKeyMaterial
   ): Promise<PrivateDataRecord<T>> {
+    if ((record.keyGeneration ?? LEGACY_KEY_GENERATION) !== key.generation) {
+      throw new Error('Encrypted private data key generation changed');
+    }
     const plaintext = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
         iv: new Uint8Array(record.iv),
         additionalData: encoder.encode(record.id)
       },
-      key,
+      key.key,
       record.ciphertext
     );
     const envelope = JSON.parse(decoder.decode(plaintext)) as PrivateDataEnvelope<T>;

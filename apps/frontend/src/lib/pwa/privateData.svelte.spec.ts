@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   EncryptedPrivateDataStore,
   PRIVATE_DATA_LIMITS,
@@ -18,6 +18,11 @@ function createStore(): EncryptedPrivateDataStore {
   stores.push(store);
   return store;
 }
+
+beforeEach(async () => {
+  const store = createStore();
+  await store.activateAccount(scope);
+});
 
 afterEach(async () => {
   for (const store of stores.splice(0)) {
@@ -93,6 +98,22 @@ describe('EncryptedPrivateDataStore', () => {
     });
     const records = await first.list<{ text: string }>(scope, 'draft');
     expect(new Set(records.map((record) => record.updatedAt)).size).toBe(2);
+  });
+
+  it('persists account revocation across store instances until authentication', async () => {
+    const first = createStore();
+    const second = createStore();
+    await first.put(scope, 'draft', 'room:R1', { text: 'before sign-out' });
+
+    await second.purgeAccount(scope);
+
+    await expect(first.put(scope, 'draft', 'room:R2', { text: 'stale tab write' })).rejects.toThrow(
+      'Encrypted local account storage is inactive'
+    );
+    await first.activateAccount(scope);
+    await expect(first.put(scope, 'draft', 'room:R2', { text: 'new session' })).resolves.toBe(
+      undefined
+    );
   });
 
   it('evicts the oldest records when a kind exceeds its bounded count', async () => {

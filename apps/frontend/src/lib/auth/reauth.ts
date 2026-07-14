@@ -53,11 +53,11 @@ export async function startRemoteReauthentication(server: RegisteredServer): Pro
   });
 }
 
-export function beginOriginReauthentication(): void {
+export async function beginOriginReauthentication(): Promise<void> {
   const path = window.location.pathname + window.location.search;
   sessionStorage.setItem('returnUrl', path);
   clearCachedUser();
-  serverRegistry.clearOriginAuthentication();
+  await serverRegistry.clearOriginAuthentication();
 
   const redirect =
     resolve('/login') +

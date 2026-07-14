@@ -248,7 +248,7 @@ describe('ServerRegistry', () => {
 				})
 			);
 
-			registry.clearOriginAuthentication();
+			await registry.clearOriginAuthentication();
 
 			expect(registry.getServer('origin')?.token).toBeNull();
 			expect(registry.getServer('origin')?.userId).toBeNull();

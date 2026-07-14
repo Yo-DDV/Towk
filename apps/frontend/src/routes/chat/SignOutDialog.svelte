@@ -84,7 +84,7 @@
     clearLastRoom(signedOutServerId);
 
     if (serverRegistry.isOriginServer(signedOutServerId)) {
-      serverRegistry.clearServerAuthentication(signedOutServerId);
+      await serverRegistry.clearServerAuthentication(signedOutServerId);
       notifyLogout();
       hardNavigateToServerOrRoot(firstRemainingAuthenticatedServerId(signedOutServerId));
     } else {
@@ -100,7 +100,7 @@
     await signOutServers([...serverRegistry.servers], (serverId) =>
       serverRegistry.isOriginServer(serverId)
     );
-    serverRegistry.removeAll();
+    await serverRegistry.removeAll();
     notifyLogout();
     hardRedirectAfterSignOut('/');
   }

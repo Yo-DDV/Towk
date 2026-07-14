@@ -63,6 +63,14 @@
       'AuthenticatedChatProvider mounted without a registered origin instance — guard the parent {#if} on serverRegistry.originServer.'
     );
   }
+  // This provider is recreated for the loaded account.
+  // svelte-ignore state_referenced_locally
+  serverRegistry.updateServer(originServer.id, {
+    userId: user.id,
+    userLogin: user.login,
+    userDisplayName: user.displayName,
+    userAvatarUrl: user.avatarUrl
+  });
   const currentUserState = serverRegistry.getStore(originServer.id).currentUser;
   // svelte-ignore state_referenced_locally
   currentUserState.user = { ...user, presenceStatus: PresenceStatus.Online };
@@ -116,21 +124,16 @@
     function clearTerminatedOriginSession() {
       void unsubscribeForSignOut()
         .catch(() => false)
-        .finally(() => {
+        .finally(async () => {
           clearCachedUser();
-          serverRegistry.clearServerAuthentication(authenticatedOriginServerId);
+          await serverRegistry.clearServerAuthentication(authenticatedOriginServerId);
           hardRedirectAfterSignOut('/');
         });
     }
 
     // Subscribe to profile update events and populate the cache
     useUserProfileUpdate((update) => {
-      profileCache.update(
-        update.userId,
-        update.displayName,
-        update.avatarUrl,
-        update.login
-      );
+      profileCache.update(update.userId, update.displayName, update.avatarUrl, update.login);
       if (currentUserState.user?.id === update.userId) {
         currentUserState.user = {
           ...currentUserState.user,
@@ -171,7 +174,6 @@
         clearTerminatedOriginSession();
       })
     );
-
   }
 
   // Initialize presence tracking (idle detection → AWAY, active → ONLINE).

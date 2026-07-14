@@ -5,13 +5,21 @@ import { eventBusManager } from './eventBus.svelte';
 import { Codecs, globalSlot } from '$lib/storage/slot';
 import { getPublicServerInfo } from '$lib/api-client/server';
 import { PRODUCT_NAME } from '$lib/product';
-import { purgeOfflineAccount } from '$lib/pwa/offlineData';
+import { activateOfflineAccount, purgeOfflineAccount } from '$lib/pwa/offlineData';
 import { privateDataScopeForServer } from '$lib/pwa/scope';
 
-function purgePrivateDataForServer(server: RegisteredServer): void {
+function activatePrivateDataForServer(server: RegisteredServer): void {
 	const scope = privateDataScopeForServer(server);
 	if (!scope) return;
-	void purgeOfflineAccount(scope).catch((error) => {
+	void activateOfflineAccount(scope).catch((error) => {
+		console.error('Failed to activate encrypted local account data:', error);
+	});
+}
+
+function purgePrivateDataForServer(server: RegisteredServer): Promise<void> {
+	const scope = privateDataScopeForServer(server);
+	if (!scope) return Promise.resolve();
+	return purgeOfflineAccount(scope).catch((error) => {
 		console.error('Failed to purge encrypted local account data:', error);
 	});
 }
@@ -256,7 +264,7 @@ class ServerRegistry {
 		if (!origin) return;
 		if (origin.token !== null) return;
 		if (origin.userId) {
-			purgePrivateDataForServer(origin);
+			void purgePrivateDataForServer(origin);
 			this.#replaceServerAuth(origin.id, {
 				token: null,
 				userId: null,
@@ -272,10 +280,10 @@ class ServerRegistry {
 		store.currentUser.loading = false;
 	}
 
-	clearServerAuthentication(id: string): void {
+	clearServerAuthentication(id: string): Promise<void> {
 		const server = this.getServer(id);
-		if (!server) return;
-		purgePrivateDataForServer(server);
+		if (!server) return Promise.resolve();
+		const purge = purgePrivateDataForServer(server);
 		this.#replaceServerAuth(id, {
 			token: null,
 			userId: null,
@@ -289,12 +297,13 @@ class ServerRegistry {
 			store.currentUser.user = undefined;
 			store.currentUser.loading = false;
 		}
+		return purge;
 	}
 
-	clearOriginAuthentication(): void {
+	clearOriginAuthentication(): Promise<void> {
 		const origin = this.originServer;
-		if (!origin) return;
-		this.clearServerAuthentication(origin.id);
+		if (!origin) return Promise.resolve();
+		return this.clearServerAuthentication(origin.id);
 	}
 
 	handleAuthenticationRequired(id: string): void {
@@ -324,6 +333,7 @@ class ServerRegistry {
 	 */
 	init(): void {
 		for (const server of this.servers) {
+			activatePrivateDataForServer(server);
 			if (!this.#stores.has(server.id)) {
 				this.#createStore(server);
 			}
@@ -336,6 +346,7 @@ class ServerRegistry {
 			return; // Already exists
 		}
 		const registered = normalizeRegisteredServer(server);
+		activatePrivateDataForServer(registered);
 		this.servers.push(registered);
 		serversSlot.set(this.servers);
 		const store = this.#createStore(registered);
@@ -358,7 +369,7 @@ class ServerRegistry {
 		if (!server) {
 			return false;
 		}
-		purgePrivateDataForServer(server);
+		void purgePrivateDataForServer(server);
 
 		// Stop event bus subscription
 		eventBusManager.stopBus(id);
@@ -377,9 +388,10 @@ class ServerRegistry {
 
 	/** Remove all servers. Used by the global sign-out flow.
 	 *  Clears dismissals so the origin can be re-discovered on next visit. */
-	removeAll(): void {
+	removeAll(): Promise<void> {
+		const purges: Promise<void>[] = [];
 		for (const server of [...this.servers]) {
-			purgePrivateDataForServer(server);
+			purges.push(purgePrivateDataForServer(server));
 			eventBusManager.stopBus(server.id);
 			this.#stores.get(server.id)?.dispose();
 			this.#stores.delete(server.id);
@@ -387,6 +399,7 @@ class ServerRegistry {
 		}
 		this.servers = [];
 		serversSlot.set(this.servers);
+		return Promise.all(purges).then(() => undefined);
 	}
 
 	/** Update fields on an existing server. */
@@ -397,6 +410,7 @@ class ServerRegistry {
 		}
 
 		Object.assign(server, data);
+		activatePrivateDataForServer(server);
 		serversSlot.set(this.servers);
 		return true;
 	}
@@ -427,6 +441,7 @@ class ServerRegistry {
 		serverConnectionManager.destroyClient(id);
 
 		Object.assign(server, data);
+		activatePrivateDataForServer(server);
 		serversSlot.set(this.servers);
 		const store = this.#createStore(server);
 		if (store.isAuthenticated) {

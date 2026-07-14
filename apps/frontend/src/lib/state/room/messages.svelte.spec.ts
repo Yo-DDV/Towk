@@ -7,7 +7,8 @@ import type { EventConnectionPage } from './messages/helpers';
 import { MessagesStore } from './messages.svelte';
 import { JumpToMessageState } from './composerContext.svelte';
 import {
-  encryptedPrivateData,
+  activateOfflineAccount,
+  purgeOfflineAccount,
   saveCachedTimeline,
   type PrivateDataScope
 } from '$lib/pwa/offlineData';
@@ -2094,7 +2095,8 @@ describe('MessagesStore — encrypted offline timeline', () => {
   }
 
   it('shows encrypted cached history when the network load fails', async () => {
-    await encryptedPrivateData.purgeAccount(scope).catch(() => undefined);
+    await purgeOfflineAccount(scope).catch(() => undefined);
+    await activateOfflineAccount(scope);
     await saveCachedTimeline(scope, {
       roomId: 'room-1',
       threadRootEventId: null,
@@ -2118,11 +2120,12 @@ describe('MessagesStore — encrypted offline timeline', () => {
     await vi.waitFor(() => expect(store.isInitialLoading).toBe(false));
     expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
     store.dispose();
-    await encryptedPrivateData.purgeAccount(scope);
+    await purgeOfflineAccount(scope);
   });
 
   it('replaces hydrated cache with the authoritative network window', async () => {
-    await encryptedPrivateData.purgeAccount(scope).catch(() => undefined);
+    await purgeOfflineAccount(scope).catch(() => undefined);
+    await activateOfflineAccount(scope);
     await saveCachedTimeline(scope, {
       roomId: 'room-1',
       threadRootEventId: null,
@@ -2151,7 +2154,7 @@ describe('MessagesStore — encrypted offline timeline', () => {
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(false));
     expect(store.events.map((event) => event.id)).toEqual(['network-1']);
     store.dispose();
-    await encryptedPrivateData.purgeAccount(scope);
+    await purgeOfflineAccount(scope);
   });
 });
 

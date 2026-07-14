@@ -1,5 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { purgeOfflineAccount, type PrivateDataScope } from '$lib/pwa/offlineData';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  activateOfflineAccount,
+  purgeOfflineAccount,
+  type PrivateDataScope
+} from '$lib/pwa/offlineData';
 import { DraftState, draftKey } from './draft.svelte';
 
 const scope: PrivateDataScope = {
@@ -7,6 +11,10 @@ const scope: PrivateDataScope = {
   serverUrl: 'https://draft-state.example.test',
   userId: 'U-draft-state'
 };
+
+beforeEach(async () => {
+  await activateOfflineAccount(scope);
+});
 
 afterEach(async () => {
   await purgeOfflineAccount(scope).catch(() => undefined);
