@@ -334,6 +334,10 @@ func newAdminCLITestEnv(t *testing.T) *adminCLITestEnv {
 		SecretKey: "test-core-secret",
 		Assets: config.AssetsConfig{
 			SigningSecret: "test-signing-secret",
+			MaxStoreBytes: 64 * 1024 * 1024,
+			LinkPreviews: config.LinkPreviewAssetsConfig{
+				MaxStoreBytes: 64 * 1024 * 1024,
+			},
 		},
 	})
 	if err != nil {
