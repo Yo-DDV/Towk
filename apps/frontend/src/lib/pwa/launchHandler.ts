@@ -1,5 +1,6 @@
 export type PwaLaunchParams = {
   targetURL?: string;
+  files?: Array<{ getFile: () => Promise<File> }>;
 };
 
 export type PwaLaunchQueue = {
@@ -22,10 +23,23 @@ export function safeLaunchPath(targetURL: string | undefined, origin: string): s
 
 export function registerPwaLaunchHandler(
   navigate: (path: string) => void | Promise<void>,
-  launchWindow: LaunchWindow = window
+  options: {
+    launchWindow?: LaunchWindow;
+    importFiles?: (files: File[]) => Promise<string | null>;
+  } = {}
 ): boolean {
+  const launchWindow = (options.launchWindow ?? window) as LaunchWindow;
   if (!launchWindow.launchQueue) return false;
-  launchWindow.launchQueue.setConsumer(async ({ targetURL }) => {
+  launchWindow.launchQueue.setConsumer(async ({ targetURL, files }) => {
+    if (files?.length && options.importFiles) {
+      const path = await options.importFiles(
+        await Promise.all(files.map((handle) => handle.getFile()))
+      );
+      if (path) {
+        await navigate(path);
+        return;
+      }
+    }
     const path = safeLaunchPath(targetURL, launchWindow.location.origin);
     if (path) await navigate(path);
   });

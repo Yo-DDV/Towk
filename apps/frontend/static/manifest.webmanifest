@@ -12,6 +12,34 @@
   "launch_handler": {
     "client_mode": ["focus-existing", "auto"]
   },
+  "share_target": {
+    "action": "/chat/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": ["image/*", "video/*", "audio/*", "application/pdf", "text/plain"]
+        }
+      ]
+    }
+  },
+  "file_handlers": [
+    {
+      "action": "/chat/share-target",
+      "accept": {
+        "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".avif"],
+        "video/*": [".mp4", ".webm", ".mov", ".m4v"],
+        "audio/*": [".mp3", ".m4a", ".wav", ".ogg", ".opus"],
+        "application/pdf": [".pdf"],
+        "text/plain": [".txt", ".md", ".log"]
+      }
+    }
+  ],
   "background_color": "#03040b",
   "theme_color": "#03040b",
   "categories": ["communication", "social", "productivity"],

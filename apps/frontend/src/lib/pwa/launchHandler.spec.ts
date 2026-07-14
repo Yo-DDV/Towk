@@ -22,8 +22,27 @@ describe('PWA launch handler', () => {
       launchQueue: { setConsumer: (value: typeof consumer) => void };
     };
 
-    expect(registerPwaLaunchHandler(navigate, launchWindow)).toBe(true);
+    expect(registerPwaLaunchHandler(navigate, { launchWindow })).toBe(true);
     await consumer?.({ targetURL: '/chat/notifications' });
     expect(navigate).toHaveBeenCalledWith('/chat/notifications');
+  });
+
+  it('imports OS file launches before navigating to the encrypted share chooser', async () => {
+    let consumer: ((params: PwaLaunchParams) => void | Promise<void>) | undefined;
+    const navigate = vi.fn();
+    const file = new File(['hello'], 'note.txt', { type: 'text/plain' });
+    const importFiles = vi.fn().mockResolvedValue('/chat/share-target?shareId=abc');
+    const launchWindow = {
+      location: { origin: 'https://towk.example' },
+      launchQueue: { setConsumer: (value: typeof consumer) => (consumer = value) }
+    } as unknown as Window & {
+      launchQueue: { setConsumer: (value: typeof consumer) => void };
+    };
+
+    registerPwaLaunchHandler(navigate, { launchWindow, importFiles });
+    await consumer?.({ files: [{ getFile: async () => file }] });
+
+    expect(importFiles).toHaveBeenCalledWith([file]);
+    expect(navigate).toHaveBeenCalledWith('/chat/share-target?shareId=abc');
   });
 });

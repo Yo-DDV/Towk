@@ -19,6 +19,16 @@
       "ios_confirm": "Confirma pulsando Añadir.",
       "install_now": "Instalar ahora"
     },
+    "share_target": {
+      "title": "Compartir con Towk",
+      "preview": "Listo para compartir",
+      "choose_destination": "Elige una conversación",
+      "no_destination": "Inicia sesión en un servidor Towk y únete a una conversación antes de compartir.",
+      "sign_in": "Iniciar sesión",
+      "invalid_title": "Este contenido compartido no está disponible",
+      "invalid_description": "El contenido no era válido, ha caducado o no se pudo guardar de forma segura en este dispositivo.",
+      "expired": "El contenido compartido ha caducado. Vuelve a compartirlo con Towk."
+    },
     "update_available": "Una nueva versión está disponible",
     "reload": "Recargar",
     "network": {

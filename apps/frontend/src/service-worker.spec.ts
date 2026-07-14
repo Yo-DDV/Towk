@@ -6,6 +6,12 @@ vi.mock('$service-worker', () => ({
   version: 'test-version'
 }));
 
+const shareInboxMock = vi.hoisted(() => ({
+  storeIncomingShare: vi.fn()
+}));
+
+vi.mock('$lib/pwa/shareInbox', () => shareInboxMock);
+
 type ServiceWorkerHandler = (event: {
   data?: unknown;
   notification?: {
@@ -19,6 +25,8 @@ type ServiceWorkerHandler = (event: {
     close?: () => void;
   };
   waitUntil: (promise: Promise<unknown>) => void;
+  request?: Request;
+  respondWith?: (response: Promise<Response> | Response) => void;
 }) => void;
 
 type TestNativeNotification = {
@@ -129,6 +137,8 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
 describe('service worker badge orchestration', () => {
   beforeEach(() => {
     vi.resetModules();
+    shareInboxMock.storeIncomingShare.mockReset();
+    shareInboxMock.storeIncomingShare.mockResolvedValue('share-123');
   });
 
   afterEach(() => {
@@ -172,6 +182,65 @@ describe('service worker badge orchestration', () => {
     );
 
     await expect(worker.dispatch('install')).resolves.toBeUndefined();
+  });
+
+  it('captures a POST share target securely before redirecting to the chooser', async () => {
+    const worker = await importServiceWorker();
+    const form = new FormData();
+    form.set('title', 'Shared title');
+    form.set('text', 'Shared text');
+    form.set('url', 'https://example.com');
+    form.append('files', new File(['hello'], 'note.txt', { type: 'text/plain' }));
+    const request = new Request('https://towk.example/chat/share-target', {
+      method: 'POST',
+      body: form
+    });
+    let responsePromise: Promise<Response> | undefined;
+    const { event } = createWaitUntilEvent({
+      request,
+      respondWith: (response: Promise<Response> | Response) => {
+        responsePromise = Promise.resolve(response);
+      }
+    });
+
+    for (const handler of worker.handlers.get('fetch') ?? []) handler(event);
+    const response = await responsePromise;
+
+    expect(shareInboxMock.storeIncomingShare).toHaveBeenCalledOnce();
+    expect(shareInboxMock.storeIncomingShare).toHaveBeenCalledWith({
+      title: 'Shared title',
+      text: 'Shared text',
+      url: 'https://example.com',
+      files: [expect.objectContaining({ name: 'note.txt', type: 'text/plain' })]
+    });
+    expect(response?.status).toBe(303);
+    expect(response?.headers.get('location')).toBe(
+      'https://towk.example/chat/share-target?shareId=share-123'
+    );
+  });
+
+  it('redirects invalid or unsafe shares without exposing their payload', async () => {
+    shareInboxMock.storeIncomingShare.mockRejectedValueOnce(new TypeError('unsafe'));
+    const worker = await importServiceWorker();
+    const request = new Request('https://towk.example/chat/share-target', {
+      method: 'POST',
+      body: new FormData()
+    });
+    let responsePromise: Promise<Response> | undefined;
+    const { event } = createWaitUntilEvent({
+      request,
+      respondWith: (response: Promise<Response> | Response) => {
+        responsePromise = Promise.resolve(response);
+      }
+    });
+
+    for (const handler of worker.handlers.get('fetch') ?? []) handler(event);
+    const response = await responsePromise;
+
+    expect(response?.status).toBe(303);
+    expect(response?.headers.get('location')).toBe(
+      'https://towk.example/chat/share-target?error=invalid'
+    );
   });
 
   it('enables navigation preload when the worker activates', async () => {

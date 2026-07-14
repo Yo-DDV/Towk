@@ -19,6 +19,16 @@
       "ios_confirm": "Confirm by tapping Add.",
       "install_now": "Install now"
     },
+    "share_target": {
+      "title": "Share to Towk",
+      "preview": "Ready to share",
+      "choose_destination": "Choose a conversation",
+      "no_destination": "Sign in to a Towk server and join a conversation before sharing.",
+      "sign_in": "Sign in",
+      "invalid_title": "This share is unavailable",
+      "invalid_description": "The content was invalid, expired, or could not be stored securely on this device.",
+      "expired": "The shared content has expired. Share it to Towk again."
+    },
     "update_available": "A new version is available",
     "reload": "Reload",
     "network": {

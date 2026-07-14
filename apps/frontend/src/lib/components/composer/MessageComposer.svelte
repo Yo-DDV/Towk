@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
+  import { replaceState } from '$app/navigation';
+  import { page } from '$app/state';
   import type { RoomEventView } from '$lib/render/types';
   import { createMessageAPI, type PreparedMessageInput } from '$lib/api-client/messages';
   import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
@@ -35,6 +37,7 @@
   import { AutocompleteState, type MentionRole } from './autocomplete.svelte';
   import { classifyOutboxFailure, pwaOutbox } from '$lib/pwa/outbox.svelte';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import { deleteIncomingShare, getIncomingShare } from '$lib/pwa/shareInbox';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
 
@@ -240,6 +243,42 @@
   let autocompleteResetRoomId = '';
   let loadedDraftKey = $state('');
   let draftLoadVersion = 0;
+  let consumedIncomingShareId = '';
+
+  async function consumeIncomingShare(loadVersion: number, draftText: string) {
+    if (inThread) return;
+    const shareId = page.url.searchParams.get('shareId') ?? '';
+    if (!shareId || consumedIncomingShareId === shareId) return;
+    consumedIncomingShareId = shareId;
+
+    const incoming = await getIncomingShare(shareId);
+    if (loadVersion !== draftLoadVersion) {
+      consumedIncomingShareId = '';
+      return;
+    }
+    if (!incoming) {
+      toast.error(m['ui.share_target.expired']());
+    } else {
+      const sharedText = [incoming.title, incoming.text, incoming.url].filter(Boolean).join('\n\n');
+      message = [draftText, sharedText].filter(Boolean).join('\n\n');
+      editorApi?.setContent(message);
+      if (incoming.files.length > 0) {
+        if (canAttach) {
+          await attachments.stageFiles(incoming.files);
+        } else {
+          toast.error(m['room.attachment.not_permitted']());
+        }
+      }
+      await deleteIncomingShare(shareId).catch(() => undefined);
+    }
+
+    const cleanUrl = new URL(page.url);
+    cleanUrl.searchParams.delete('shareId');
+    // The URL is derived from the current same-origin SvelteKit route.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve
+    replaceState(`${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`, page.state);
+  }
+
   $effect(() => {
     if (autocompleteResetRoomId !== roomId) {
       autocompleteResetRoomId = roomId;
@@ -268,11 +307,13 @@
         manualRichMode = draft?.richMode ?? false;
         editorApi?.setContent(message);
         loadedDraftKey = DRAFT_KEY;
+        void consumeIncomingShare(loadVersion, message);
       })
       .catch((error) => {
         if (loadVersion !== draftLoadVersion) return;
         console.error('Failed to load encrypted draft:', error);
         loadedDraftKey = DRAFT_KEY;
+        void consumeIncomingShare(loadVersion, message);
       });
 
     return () => {

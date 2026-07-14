@@ -22,6 +22,7 @@ import {
   type ServiceWorkerBadgeIntent
 } from '$lib/pwa/notificationBadge.worker';
 import { OUTBOX_SYNC_TAG } from '$lib/pwa/outboxPolicy';
+import { storeIncomingShare } from '$lib/pwa/shareInbox';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -129,6 +130,11 @@ self.addEventListener('sync', (event: Event) => {
  * requests stay network-only so stale data never masquerades as live state.
  */
 self.addEventListener('fetch', (event) => {
+  if (isIncomingShareRequest(event.request)) {
+    event.respondWith(handleIncomingShare(event.request));
+    return;
+  }
+
   const policy = classifyServiceWorkerRequest(
     event.request,
     event.request.url,
@@ -192,6 +198,37 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+function isIncomingShareRequest(request: Request): boolean {
+  const url = new URL(request.url);
+  return (
+    request.method === 'POST' &&
+    url.origin === self.location.origin &&
+    url.pathname === '/chat/share-target'
+  );
+}
+
+async function handleIncomingShare(request: Request): Promise<Response> {
+  const redirect = (suffix: string) =>
+    Response.redirect(new URL(`/chat/share-target${suffix}`, self.location.origin), 303);
+  try {
+    const form = await request.formData();
+    const field = (name: string) => {
+      const value = form.get(name);
+      return typeof value === 'string' ? value : '';
+    };
+    const files = form.getAll('files').filter((value): value is File => value instanceof File);
+    const shareId = await storeIncomingShare({
+      title: field('title'),
+      text: field('text'),
+      url: field('url'),
+      files
+    });
+    return redirect(`?shareId=${encodeURIComponent(shareId)}`);
+  } catch {
+    return redirect('?error=invalid');
+  }
+}
 
 async function cacheShellAsset(cache: Cache, path: string, required: boolean): Promise<void> {
   try {

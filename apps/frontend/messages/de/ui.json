@@ -19,6 +19,16 @@
       "ios_confirm": "Bestätige mit Hinzufügen.",
       "install_now": "Jetzt installieren"
     },
+    "share_target": {
+      "title": "Mit Towk teilen",
+      "preview": "Bereit zum Teilen",
+      "choose_destination": "Unterhaltung auswählen",
+      "no_destination": "Melde dich bei einem Towk-Server an und tritt einer Unterhaltung bei, bevor du etwas teilst.",
+      "sign_in": "Anmelden",
+      "invalid_title": "Dieser geteilte Inhalt ist nicht verfügbar",
+      "invalid_description": "Der Inhalt war ungültig, ist abgelaufen oder konnte auf diesem Gerät nicht sicher gespeichert werden.",
+      "expired": "Der geteilte Inhalt ist abgelaufen. Teile ihn erneut mit Towk."
+    },
     "update_available": "Eine neue Version ist verfügbar",
     "reload": "Neu laden",
     "network": {
