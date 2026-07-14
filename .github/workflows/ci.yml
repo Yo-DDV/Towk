@@ -314,6 +314,10 @@ jobs:
 
       - name: Setup environment
         uses: ./.github/actions/setup
+        with:
+          # This job needs only the portable Go/Node toolchain. Installing every
+          # repository tool would request LiveKit, which has no macOS binary.
+          mise-install-args: go node
 
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v5; PR caches are ref-scoped and CI publishes no runtime artifacts

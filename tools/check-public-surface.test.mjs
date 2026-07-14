@@ -87,3 +87,14 @@ test('release workflows keep stable publication manual and immutable', async () 
   assert.match(releaseConfig, /release:\n\s+disable: true/);
   assert.match(releaseConfig, /mod_timestamp: "946684800"/);
 });
+
+test('native clipboard CI installs only the portable toolchain', async () => {
+  const setupAction = await readFile('.github/actions/setup/action.yml', 'utf8');
+  const ciWorkflow = await readFile('.github/workflows/ci.yml', 'utf8');
+  const nativeClipboardJob = ciWorkflow.split('  test-native-file-clipboard:', 2)[1];
+
+  assert.match(setupAction, /^  mise-install-args:\n/m);
+  assert.match(setupAction, /^        install_args: \$\{\{ inputs\.mise-install-args \}\}$/m);
+  assert.ok(nativeClipboardJob);
+  assert.match(nativeClipboardJob, /^          mise-install-args: go node$/m);
+});

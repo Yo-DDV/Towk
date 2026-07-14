@@ -13,6 +13,10 @@ inputs:
     description: "Install frontend dependencies"
     required: false
     default: "true"
+  mise-install-args:
+    description: "Optional space-separated tool names passed to mise install"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -41,6 +45,7 @@ runs:
       uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
       with:
         experimental: true
+        install_args: ${{ inputs.mise-install-args }}
 
     # pnpm is not available as a mise plugin, so install via npm (comes with Node)
     - name: Install pnpm
