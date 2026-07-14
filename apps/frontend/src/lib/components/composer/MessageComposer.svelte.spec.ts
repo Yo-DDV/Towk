@@ -49,6 +49,7 @@ const createMessageConnectMock = vi.hoisted(() => vi.fn());
 const updateMessageConnectMock = vi.hoisted(() => vi.fn());
 const fetchLinkPreviewConnectMock = vi.hoisted(() => vi.fn());
 const listRolesConnectMock = vi.hoisted(() => vi.fn());
+const connectionState = vi.hoisted(() => ({ showConnectionLostBanner: false }));
 const roomStateMock = vi.hoisted(() => ({
   members: [] as RoomMember[],
   editState: {
@@ -92,7 +93,7 @@ const mockInstanceStores = {
 vi.mock('$lib/state/server/connection.svelte', () => ({
   useConnection: () => () => ({
     isConnected: true,
-    showConnectionLostBanner: false,
+    showConnectionLostBanner: connectionState.showConnectionLostBanner,
     client: {
       query: queryMock,
       mutation: mutationMock,
@@ -106,7 +107,8 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
 
 vi.mock('$lib/api-client/messages', () => ({
   createMessageAPI: () => ({
-    createMessage: createMessageConnectMock,
+    prepareMessage: async (input: Record<string, unknown>) => input,
+    createPreparedMessage: createMessageConnectMock,
     updateMessage: updateMessageConnectMock
   })
 }));
@@ -352,6 +354,7 @@ describe('MessageComposer', () => {
     roomStateMock.lastEditableMessage.setFinder.mockClear();
     roomStateMock.scrollState.requestScrollToBottom.mockClear();
     roomStateMock.scrollState.scrollToBottomIfSticky.mockClear();
+    connectionState.showConnectionLostBanner = false;
     toast.clear();
     Object.defineProperty(URL, 'createObjectURL', {
       value: vi.fn(() => 'blob:test'),
@@ -555,6 +558,17 @@ describe('MessageComposer', () => {
         const hint = q(container, '[title$="to Send"]');
         expect(hint?.textContent).toMatch(/^(Return|Enter) again to Send$/);
       });
+    });
+
+    it('keeps offline composition available after repeated reconnect failures', async () => {
+      connectionState.showConnectionLostBanner = true;
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      await typeEditorLiteralText(editor, 'message written offline');
+
+      await expect.element(editor).toHaveAttribute('contenteditable', 'true');
+      await expect.element(q(container, 'button[aria-label="Send message"]')).not.toBeDisabled();
     });
 
     it('treats an empty block element as sendable composer content', async () => {

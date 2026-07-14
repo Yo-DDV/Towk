@@ -12,6 +12,20 @@
       "offline": "Du bist offline. Towk versucht weiterhin, die Verbindung wiederherzustellen.",
       "reconnecting": "Netzwerk verfügbar. Towk verbindet sich erneut…"
     },
+    "outbox": {
+      "pending_title": "{count} Nachricht(en) warten",
+      "pending_message": "Auf diesem Gerät verschlüsselt und wird automatisch gesendet, sobald dies möglich ist.",
+      "attention_title": "{count} Nachricht(en) benötigen Aufmerksamkeit",
+      "attention_message": "Neu verbinden oder erneut versuchen, um die Zustellung abzuschließen.",
+      "retry": "Jetzt erneut versuchen",
+      "manage": "Verwalten",
+      "manager_title": "Nachrichten, die auf den Versand warten",
+      "empty": "Keine Nachricht wartet.",
+      "room_label": "Raum {room}",
+      "attachment_only": "Nachricht mit Anhängen",
+      "discard": "Verwerfen"
+    },
+    "cached_timeline": "Der verschlüsselte Verlauf dieses Geräts wird während der Wiederverbindung angezeigt.",
     "corresponding_source": "Zugehörigen Towk-Quellcode für {version} anzeigen",
     "sign_out": "Abmelden",
     "close": "Schließen",

@@ -3,6 +3,7 @@
   import type { CurrentUser } from '$lib/auth/loadAuth';
   import AuthStatusNotice from '$lib/components/AuthStatusNotice.svelte';
   import NotificationSync from '$lib/components/NotificationSync.svelte';
+  import PwaOutboxCoordinator from '$lib/components/PwaOutboxCoordinator.svelte';
   import { shouldPauseLiveEventsForStoredPresence } from '$lib/presenceTracking';
   import { createPresenceCache } from '$lib/state/presenceCache.svelte';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
@@ -49,6 +50,7 @@
 </script>
 
 <NotificationSync />
+<PwaOutboxCoordinator />
 <AuthStatusNotice />
 
 <AuthenticatedChatProvider {user} {userSettings} {profileCache} {presenceCache}>

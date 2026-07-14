@@ -21,6 +21,7 @@ import {
   createCacheForegroundBadgeIntentStorage,
   type ServiceWorkerBadgeIntent
 } from '$lib/pwa/notificationBadge.worker';
+import { OUTBOX_SYNC_TAG } from '$lib/pwa/outboxPolicy';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -102,6 +103,22 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (handleLifecycleMessage(event)) return;
   handleBadgeStateMessage(event);
+});
+
+// Background Sync cannot safely send authenticated messages itself: Towk
+// credentials remain in the foreground connection stores, never IndexedDB.
+// When supported, the worker wakes controlled app windows so the encrypted
+// outbox can be replayed with the normal authenticated API client.
+self.addEventListener('sync', (event: Event) => {
+  const syncEvent = event as ExtendableEvent & { tag?: string };
+  if (syncEvent.tag !== OUTBOX_SYNC_TAG) return;
+  syncEvent.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) =>
+        Promise.all(clients.map((client) => client.postMessage({ type: OUTBOX_SYNC_TAG })))
+      )
+  );
 });
 
 /**

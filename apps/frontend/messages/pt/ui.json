@@ -12,6 +12,20 @@
       "offline": "Você está offline. O Towk continuará tentando se reconectar.",
       "reconnecting": "Rede disponível. Reconectando o Towk…"
     },
+    "outbox": {
+      "pending_title": "{count} mensagem(ns) em espera",
+      "pending_message": "Encriptada neste dispositivo e enviada automaticamente quando possível.",
+      "attention_title": "{count} mensagem(ns) requerem atenção",
+      "attention_message": "Volte a ligar ou tente novamente para concluir a entrega.",
+      "retry": "Tentar agora",
+      "manage": "Gerir",
+      "manager_title": "Mensagens à espera de envio",
+      "empty": "Não há mensagens em espera.",
+      "room_label": "Sala {room}",
+      "attachment_only": "Mensagem com anexos",
+      "discard": "Descartar"
+    },
+    "cached_timeline": "A mostrar o histórico encriptado deste dispositivo enquanto o Towk restabelece a ligação.",
     "corresponding_source": "Ver fonte correspondente para Towk {version}",
     "sign_out": "sair",
     "close": "Fechar",

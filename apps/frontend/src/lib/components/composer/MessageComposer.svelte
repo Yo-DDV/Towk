@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
   import type { RoomEventView } from '$lib/render/types';
-  import { createMessageAPI } from '$lib/api-client/messages';
+  import { createMessageAPI, type PreparedMessageInput } from '$lib/api-client/messages';
   import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
   import { createRoleAPI } from '$lib/api-client/roles';
   import * as m from '$lib/i18n/messages';
@@ -33,6 +33,8 @@
   import { AttachmentsState } from './attachments.svelte';
   import { LinkPreviewState } from './linkPreviews.svelte';
   import { AutocompleteState, type MentionRole } from './autocomplete.svelte';
+  import { classifyOutboxFailure, pwaOutbox } from '$lib/pwa/outbox.svelte';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
 
@@ -115,6 +117,7 @@
 
   onDestroy(() => {
     if (mentionSearchTimer) clearTimeout(mentionSearchTimer);
+    draftState.dispose();
   });
 
   const composerContext = getComposerContext();
@@ -232,38 +235,58 @@
     }
   });
 
-  // Load draft from sessionStorage when room changes
-  // Using sessionStorage (not localStorage) so drafts are tab-specific
+  // Drafts are encrypted per server account in IndexedDB. The legacy
+  // sessionStorage entry is migrated once and then removed.
   let autocompleteResetRoomId = '';
+  let loadedDraftKey = $state('');
+  let draftLoadVersion = 0;
   $effect(() => {
     if (autocompleteResetRoomId !== roomId) {
       autocompleteResetRoomId = roomId;
       autocomplete.resetForRoom();
     }
 
+    const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
+    const legacyDraft = draftState.switchKey(DRAFT_KEY, scope, roomId, inThread ?? null);
+    const loadVersion = ++draftLoadVersion;
+    loadedDraftKey = '';
+
     if (isEditing) {
-      draftState.switchKey(DRAFT_KEY);
       attachments.restore([]);
       return;
     }
 
-    const draft = draftState.switchKey(DRAFT_KEY);
-    message = draft;
+    message = legacyDraft;
     manualRichMode = false;
-    editorApi?.setContent(draft);
+    editorApi?.setContent(legacyDraft);
     attachments.restore(untrack(() => draftState.takeFiles()));
+    void draftState
+      .load(legacyDraft)
+      .then((draft) => {
+        if (loadVersion !== draftLoadVersion || isEditing) return;
+        message = draft?.text ?? '';
+        manualRichMode = draft?.richMode ?? false;
+        editorApi?.setContent(message);
+        loadedDraftKey = DRAFT_KEY;
+      })
+      .catch((error) => {
+        if (loadVersion !== draftLoadVersion) return;
+        console.error('Failed to load encrypted draft:', error);
+        loadedDraftKey = DRAFT_KEY;
+      });
 
     return () => {
       attachments.invalidatePending();
       draftState.stashFiles(untrack(() => attachments.filesWithUrls));
+      void draftState.flush().catch(() => undefined);
     };
   });
 
-  // Persist draft to sessionStorage
+  // Debounced encrypted draft persistence starts only after the matching
+  // account/room record has loaded, so a slow read cannot overwrite typing.
   $effect(() => {
-    void DRAFT_KEY;
-    if (isEditing) return;
-    draftState.persistText(message);
+    if (isEditing || loadedDraftKey !== DRAFT_KEY) return;
+    draftState.persistText(message, manualRichMode);
   });
 
   $effect(() => {
@@ -295,13 +318,12 @@
       }
       if (cancelled) return false;
       mentionRoles =
-        roles
-          .map((role) => ({
-            name: role.name,
-            isSystem: role.isSystem,
-            position: role.position,
-            pingable: role.pingable
-          })) ?? [];
+        roles.map((role) => ({
+          name: role.name,
+          isSystem: role.isSystem,
+          position: role.position,
+          pingable: role.pingable
+        })) ?? [];
       mentionRolesLoadFailed = false;
       mentionRolesLoadComplete = true;
       return true;
@@ -317,10 +339,10 @@
   let roleMentionCheckLoading = $state(false);
   let fileInputElement = $state<HTMLInputElement>();
 
-  // Input is disabled when user can't post or websocket is disconnected.
+  // A realtime disconnect does not prevent composing or queueing a message.
   // Note: loading is intentionally excluded — the editor stays editable during sends
   // so users can type the next message while the current one is in flight.
-  let inputDisabled = $derived(!canPost || connection().showConnectionLostBanner);
+  let inputDisabled = $derived(!canPost);
 
   let hasSendableAttachments = $derived(canAttach && attachments.selectedFiles.length > 0);
 
@@ -489,11 +511,13 @@
     linkPreviewInput: ReturnType<typeof linkPreviews.buildInput>;
     alsoSendToChannel: boolean;
     wasRichComposer: boolean;
+    clientRequestId: string;
   };
 
   type SendPreparedPostResponse = {
     event: RoomEventView | null;
     error: unknown | null;
+    prepared: PreparedMessageInput | null;
   };
 
   let pendingRoleMentionConfirmation = $state<PreparedPost | null>(null);
@@ -516,13 +540,15 @@
   }
 
   async function sendPreparedPost(post: PreparedPost): Promise<SendPreparedPostResponse> {
+    let prepared: PreparedMessageInput | null = null;
     try {
       const conn = connection();
-      const result = await createMessageAPI({
+      const api = createMessageAPI({
         serverId: conn.serverId,
         baseUrl: conn.connectBaseUrl,
         bearerToken: conn.bearerToken
-      }).createMessage({
+      });
+      prepared = await api.prepareMessage({
         roomId: post.roomId,
         body: post.bodyToSend,
         attachmentAssetIds: post.attachmentAssetIds,
@@ -530,12 +556,14 @@
         threadRootEventId: post.threadRootEventId,
         inReplyTo: post.inReplyTo,
         linkPreview: post.linkPreviewInput,
-        alsoSendToChannel: post.alsoSendToChannel
+        alsoSendToChannel: post.alsoSendToChannel,
+        clientRequestId: post.clientRequestId
       });
+      const result = await api.createPreparedMessage(prepared);
 
-      return { event: result.event, error: null };
+      return { event: result.event, error: null, prepared };
     } catch (error) {
-      return { event: null, error };
+      return { event: null, error, prepared };
     }
   }
 
@@ -549,7 +577,25 @@
     }
   }
 
-  function handlePostFailure(error: unknown, post: PreparedPost) {
+  async function handlePostFailure(
+    error: unknown,
+    post: PreparedPost,
+    prepared: PreparedMessageInput | null
+  ) {
+    const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
+    if (scope && prepared && classifyOutboxFailure(error) === 'retryable') {
+      try {
+        // Preview tokens are short-lived server capabilities. The message is
+        // durable; an expired optional preview must never block its replay.
+        await pwaOutbox.queue(scope, { ...prepared, linkPreviewToken: '' });
+        toast.success(m['composer.queued_offline']());
+        onCancelReply?.();
+        alsoSendToChannel = false;
+        return;
+      } catch (queueError) {
+        console.error('Failed to queue message:', queueError);
+      }
+    }
     toast.error(m['composer.send_failed']());
     console.error('Error creating message:', error);
     restorePreparedPost(post);
@@ -578,6 +624,10 @@
   }
 
   async function submitPreparedPost(preparedPost: PreparedPost) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine && preparedPost.filesToSend?.length) {
+      toast.warning(m['composer.attachments_need_connection']());
+      return;
+    }
     // Optimistically clear the editor so the user can start typing the next
     // message immediately (matches Slack/Discord behavior).
     autocomplete.reset();
@@ -593,7 +643,7 @@
       const response = await sendPreparedPost(preparedPost);
 
       if (response.error) {
-        handlePostFailure(response.error, preparedPost);
+        await handlePostFailure(response.error, preparedPost, response.prepared);
       } else {
         handlePostSuccess(response, preparedPost);
       }
@@ -635,7 +685,8 @@
       inReplyTo: inReplyTo ?? null,
       linkPreviewInput: linkPreviews.buildInput(),
       alsoSendToChannel,
-      wasRichComposer: isRichComposer
+      wasRichComposer: isRichComposer,
+      clientRequestId: crypto.randomUUID()
     };
 
     let rolesAvailable = mentionRolesLoadComplete && !mentionRolesLoadFailed;

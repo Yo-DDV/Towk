@@ -5,6 +5,16 @@ import { eventBusManager } from './eventBus.svelte';
 import { Codecs, globalSlot } from '$lib/storage/slot';
 import { getPublicServerInfo } from '$lib/api-client/server';
 import { PRODUCT_NAME } from '$lib/product';
+import { encryptedPrivateData } from '$lib/pwa/privateData';
+import { privateDataScopeForServer } from '$lib/pwa/scope';
+
+function purgePrivateDataForServer(server: RegisteredServer): void {
+	const scope = privateDataScopeForServer(server);
+	if (!scope) return;
+	void encryptedPrivateData.purgeAccount(scope).catch((error) => {
+		console.error('Failed to purge encrypted local account data:', error);
+	});
+}
 
 /**
  * A registered Towk server in the multi-server client.
@@ -254,6 +264,7 @@ class ServerRegistry {
 	clearServerAuthentication(id: string): void {
 		const server = this.getServer(id);
 		if (!server) return;
+		purgePrivateDataForServer(server);
 		this.#replaceServerAuth(id, {
 			token: null,
 			userId: null,
@@ -336,6 +347,7 @@ class ServerRegistry {
 		if (!server) {
 			return false;
 		}
+		purgePrivateDataForServer(server);
 
 		// Stop event bus subscription
 		eventBusManager.stopBus(id);
@@ -356,6 +368,7 @@ class ServerRegistry {
 	 *  Clears dismissals so the origin can be re-discovered on next visit. */
 	removeAll(): void {
 		for (const server of [...this.servers]) {
+			purgePrivateDataForServer(server);
 			eventBusManager.stopBus(server.id);
 			this.#stores.get(server.id)?.dispose();
 			this.#stores.delete(server.id);

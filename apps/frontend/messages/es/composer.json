@@ -21,6 +21,8 @@
     "drop_files_title": "Suelta archivos aquí",
     "drop_files_subtitle": "Los archivos se añadirán a tu mensaje.",
     "send_failed": "No se pudo enviar el mensaje",
+    "queued_offline": "Mensaje guardado de forma segura. Se enviará cuando vuelva la conexión.",
+    "attachments_need_connection": "Mantén este borrador abierto: los archivos adjuntos necesitan conexión antes de ponerse en cola.",
     "edit_failed": "No se pudo editar el mensaje",
     "mention": {
       "all_room_members": "Todos los miembros de la sala",

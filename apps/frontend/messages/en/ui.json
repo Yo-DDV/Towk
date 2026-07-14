@@ -12,6 +12,20 @@
       "offline": "You're offline. Towk will keep trying to reconnect.",
       "reconnecting": "Network available. Reconnecting Towk…"
     },
+    "outbox": {
+      "pending_title": "{count} message(s) waiting",
+      "pending_message": "Encrypted on this device and sent automatically when possible.",
+      "attention_title": "{count} message(s) need attention",
+      "attention_message": "Reconnect or retry to complete delivery.",
+      "retry": "Retry now",
+      "manage": "Manage",
+      "manager_title": "Messages waiting to be sent",
+      "empty": "No message is waiting.",
+      "room_label": "Room {room}",
+      "attachment_only": "Message with attachments",
+      "discard": "Discard"
+    },
+    "cached_timeline": "Showing this device’s encrypted history while Towk reconnects.",
     "corresponding_source": "View corresponding source for Towk {version}",
     "sign_out": "Sign out",
     "close": "Close",

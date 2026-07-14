@@ -842,6 +842,24 @@ const msg_ui_update_available = (): LocalizedString => messages().ui_update_avai
 const msg_ui_reload = (): LocalizedString => messages().ui_reload(empty());
 const msg_ui_network_offline = (): LocalizedString => messages().ui_network_offline(empty());
 const msg_ui_network_reconnecting = (): LocalizedString => messages().ui_network_reconnecting(empty());
+const msg_ui_outbox_pending_title = (
+  inputs: Parameters<LocaleMessages['ui_outbox_pending_title']>[0]
+): LocalizedString => messages().ui_outbox_pending_title(inputs);
+const msg_ui_outbox_pending_message = (): LocalizedString => messages().ui_outbox_pending_message(empty());
+const msg_ui_outbox_attention_title = (
+  inputs: Parameters<LocaleMessages['ui_outbox_attention_title']>[0]
+): LocalizedString => messages().ui_outbox_attention_title(inputs);
+const msg_ui_outbox_attention_message = (): LocalizedString => messages().ui_outbox_attention_message(empty());
+const msg_ui_outbox_retry = (): LocalizedString => messages().ui_outbox_retry(empty());
+const msg_ui_outbox_manage = (): LocalizedString => messages().ui_outbox_manage(empty());
+const msg_ui_outbox_manager_title = (): LocalizedString => messages().ui_outbox_manager_title(empty());
+const msg_ui_outbox_empty = (): LocalizedString => messages().ui_outbox_empty(empty());
+const msg_ui_outbox_room_label = (
+  inputs: Parameters<LocaleMessages['ui_outbox_room_label']>[0]
+): LocalizedString => messages().ui_outbox_room_label(inputs);
+const msg_ui_outbox_attachment_only = (): LocalizedString => messages().ui_outbox_attachment_only(empty());
+const msg_ui_outbox_discard = (): LocalizedString => messages().ui_outbox_discard(empty());
+const msg_ui_cached_timeline = (): LocalizedString => messages().ui_cached_timeline(empty());
 const msg_ui_corresponding_source = (
   inputs: Parameters<LocaleMessages['ui_corresponding_source']>[0]
 ): LocalizedString => messages().ui_corresponding_source(inputs);
@@ -1035,6 +1053,8 @@ const msg_composer_editing_placeholder = (): LocalizedString => messages().compo
 const msg_composer_drop_files_title = (): LocalizedString => messages().composer_drop_files_title(empty());
 const msg_composer_drop_files_subtitle = (): LocalizedString => messages().composer_drop_files_subtitle(empty());
 const msg_composer_send_failed = (): LocalizedString => messages().composer_send_failed(empty());
+const msg_composer_queued_offline = (): LocalizedString => messages().composer_queued_offline(empty());
+const msg_composer_attachments_need_connection = (): LocalizedString => messages().composer_attachments_need_connection(empty());
 const msg_composer_edit_failed = (): LocalizedString => messages().composer_edit_failed(empty());
 const msg_composer_mention_all_room_members = (): LocalizedString => messages().composer_mention_all_room_members(empty());
 const msg_composer_mention_members_here = (): LocalizedString => messages().composer_mention_members_here(empty());
@@ -2331,6 +2351,18 @@ export { msg_ui_update_available as 'ui.update_available' };
 export { msg_ui_reload as 'ui.reload' };
 export { msg_ui_network_offline as 'ui.network.offline' };
 export { msg_ui_network_reconnecting as 'ui.network.reconnecting' };
+export { msg_ui_outbox_pending_title as 'ui.outbox.pending_title' };
+export { msg_ui_outbox_pending_message as 'ui.outbox.pending_message' };
+export { msg_ui_outbox_attention_title as 'ui.outbox.attention_title' };
+export { msg_ui_outbox_attention_message as 'ui.outbox.attention_message' };
+export { msg_ui_outbox_retry as 'ui.outbox.retry' };
+export { msg_ui_outbox_manage as 'ui.outbox.manage' };
+export { msg_ui_outbox_manager_title as 'ui.outbox.manager_title' };
+export { msg_ui_outbox_empty as 'ui.outbox.empty' };
+export { msg_ui_outbox_room_label as 'ui.outbox.room_label' };
+export { msg_ui_outbox_attachment_only as 'ui.outbox.attachment_only' };
+export { msg_ui_outbox_discard as 'ui.outbox.discard' };
+export { msg_ui_cached_timeline as 'ui.cached_timeline' };
 export { msg_ui_corresponding_source as 'ui.corresponding_source' };
 export { msg_ui_sign_out as 'ui.sign_out' };
 export { msg_ui_close as 'ui.close' };
@@ -2500,6 +2532,8 @@ export { msg_composer_editing_placeholder as 'composer.editing_placeholder' };
 export { msg_composer_drop_files_title as 'composer.drop_files_title' };
 export { msg_composer_drop_files_subtitle as 'composer.drop_files_subtitle' };
 export { msg_composer_send_failed as 'composer.send_failed' };
+export { msg_composer_queued_offline as 'composer.queued_offline' };
+export { msg_composer_attachments_need_connection as 'composer.attachments_need_connection' };
 export { msg_composer_edit_failed as 'composer.edit_failed' };
 export { msg_composer_mention_all_room_members as 'composer.mention.all_room_members' };
 export { msg_composer_mention_members_here as 'composer.mention.members_here' };

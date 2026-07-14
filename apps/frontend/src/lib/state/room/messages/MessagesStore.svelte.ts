@@ -21,6 +21,11 @@ import {
   clearOptimisticThreadFollowForEvent,
   type OptimisticThreadFollowHandle
 } from './optimisticThreadFollow';
+import {
+  loadCachedTimeline,
+  saveCachedTimeline,
+  type PrivateDataScope
+} from '$lib/pwa/offlineData';
 
 export type {
   OptimisticReactionAction,
@@ -169,6 +174,7 @@ function roomTimelineFromServerConnection(serverConnection: ServerConnection): R
 export class MessagesStore {
   events = $state<RoomEventView[]>([]);
   isInitialLoading = $state(true);
+  isShowingCachedData = $state(false);
   isLoadingMore = $state(false);
   hasReachedStart = $state(false);
 
@@ -191,19 +197,23 @@ export class MessagesStore {
   #windowId = 0;
   #pendingAuthoritativeLoadId: number | null = null;
   #pendingJumpId: number | null = null;
+  #cachedEventIds = new SvelteSet<string>();
+  #cacheSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     serverConnection: ServerConnection,
     private readonly getCurrentUserId: () => string | null,
-    roomTimeline?: RoomTimelineAPI
+    roomTimeline?: RoomTimelineAPI,
+    private readonly getPrivateDataScope?: () => PrivateDataScope | null
   ) {
     this.roomTimeline = roomTimeline ?? roomTimelineFromServerConnection(serverConnection);
   }
 
   /** Tear down lifecycle listeners. Idempotent. */
   dispose(): void {
-    // The message store has no owned subscriptions. Server-event replay is
-    // managed by the singleton event bus.
+    if (this.#cacheSaveTimer) clearTimeout(this.#cacheSaveTimer);
+    this.#cacheSaveTimer = null;
+    void this.persistCache().catch(() => undefined);
   }
 
   /** Root-level events only (excludes thread replies). */
@@ -409,6 +419,7 @@ export class MessagesStore {
     const thisLoad = this.startLoad();
     this.resetState();
     this.isInitialLoading = true;
+    void this.hydrateCache(thisLoad, roomId, threadRootEventId);
     this.fetchThread(thisLoad);
   }
 
@@ -1027,10 +1038,19 @@ export class MessagesStore {
   }
 
   private addEvent(event: RoomEventView, options: { sortRoom?: boolean } = {}): boolean {
+    if (this.#cachedEventIds.has(event.id)) {
+      const index = this.events.findIndex((candidate) => candidate.id === event.id);
+      if (index !== -1) this.events[index] = event;
+      this.#cachedEventIds.delete(event.id);
+      if ((options.sortRoom ?? true) && this.scope === 'room') this.sortRoomEvents();
+      this.scheduleCacheSave();
+      return true;
+    }
     if (this.seenIds.has(event.id)) return false;
     this.seenIds.add(event.id);
     this.events.push(event);
     if ((options.sortRoom ?? true) && this.scope === 'room') this.sortRoomEvents();
+    this.scheduleCacheSave();
     return true;
   }
 
@@ -1048,6 +1068,7 @@ export class MessagesStore {
     for (const e of newOnes) this.clearOptimisticVersionForEvent(e.id);
     for (const e of newOnes) this.seenIds.add(e.id);
     this.events.unshift(...newOnes);
+    if (newOnes.length > 0) this.scheduleCacheSave();
     return newOnes.length;
   }
 
@@ -1061,6 +1082,7 @@ export class MessagesStore {
    * {@link ingestServerEvent} and must not be wiped by the result.
    */
   private replaceMergingExisting(rawEvents: readonly RawEvent[]): void {
+    this.discardHydratedCache();
     const fetched = unmask(rawEvents);
     const newSeen = new SvelteSet<string>();
     const merged: RoomEventView[] = [];
@@ -1078,6 +1100,7 @@ export class MessagesStore {
     this.events = merged;
     if (this.scope === 'room') this.sortRoomEvents();
     this.seenIds = newSeen;
+    this.scheduleCacheSave();
   }
 
   private resetState(): void {
@@ -1091,6 +1114,8 @@ export class MessagesStore {
     this.newestCursor = undefined;
     this.hasReachedStart = false;
     this.isLoadingMore = false;
+    this.isShowingCachedData = false;
+    this.#cachedEventIds.clear();
   }
 
   private replaceWithFetchedAndUpdateCursors(connection: {
@@ -1261,6 +1286,7 @@ export class MessagesStore {
     this.#pendingAuthoritativeLoadId = thisLoad;
     this.resetState();
     this.isInitialLoading = true;
+    void this.hydrateCache(thisLoad, this.roomId, null);
     return this.fetchLatest(thisLoad);
   }
 
@@ -1280,7 +1306,9 @@ export class MessagesStore {
         }
         if (this.isStale(thisLoad)) return false;
         this.#pendingAuthoritativeLoadId = null;
+        this.isShowingCachedData = false;
         this.isInitialLoading = false;
+        this.scheduleCacheSave();
         return true;
       })
       .catch((error: unknown) => {
@@ -1310,13 +1338,75 @@ export class MessagesStore {
         this.oldestCursor = page.startCursor ?? undefined;
         this.newestCursor = page.endCursor ?? undefined;
         this.hasReachedStart = !page.hasOlder;
+        this.isShowingCachedData = false;
         this.isInitialLoading = false;
+        this.scheduleCacheSave();
       })
       .catch((error: unknown) => {
         if (this.isStale(thisLoad)) return;
         console.error('MessagesStore: fetchThread failed:', error);
         this.isInitialLoading = false;
       });
+  }
+
+  private async hydrateCache(
+    thisLoad: number,
+    roomId: string,
+    threadRootEventId: string | null
+  ): Promise<void> {
+    const scope = this.getPrivateDataScope?.();
+    if (!scope) return;
+    try {
+      const cached = await loadCachedTimeline(scope, roomId, threadRootEventId);
+      if (
+        !cached ||
+        this.isStale(thisLoad) ||
+        this.roomId !== roomId ||
+        (threadRootEventId ?? '') !== this.threadRootEventId ||
+        !this.isInitialLoading ||
+        this.events.length > 0
+      ) {
+        return;
+      }
+      this.events = [...cached.events];
+      this.seenIds = new SvelteSet(cached.events.map((event) => event.id));
+      this.#cachedEventIds = new SvelteSet(cached.events.map((event) => event.id));
+      if (this.scope === 'thread') this.sortThreadEvents();
+      else this.sortRoomEvents();
+      this.isShowingCachedData = true;
+      this.isInitialLoading = false;
+    } catch (error) {
+      console.error('MessagesStore: encrypted cache hydration failed:', error);
+    }
+  }
+
+  private discardHydratedCache(): void {
+    if (this.#cachedEventIds.size === 0) return;
+    this.events = this.events.filter((event) => !this.#cachedEventIds.has(event.id));
+    this.seenIds = new SvelteSet(this.events.map((event) => event.id));
+    this.#cachedEventIds.clear();
+  }
+
+  private scheduleCacheSave(): void {
+    if (!this.getPrivateDataScope?.() || !this.scope || !this.roomId) return;
+    if (this.#cacheSaveTimer) clearTimeout(this.#cacheSaveTimer);
+    this.#cacheSaveTimer = setTimeout(() => {
+      this.#cacheSaveTimer = null;
+      void this.persistCache().catch((error) => {
+        console.error('MessagesStore: encrypted cache persistence failed:', error);
+      });
+    }, 500);
+  }
+
+  private async persistCache(): Promise<void> {
+    const scope = this.getPrivateDataScope?.();
+    if (!scope || !this.scope || !this.roomId || this.events.length === 0) return;
+    await saveCachedTimeline(scope, {
+      roomId: this.roomId,
+      threadRootEventId: this.scope === 'thread' ? this.threadRootEventId : null,
+      events: [...this.events],
+      cachedAt: Date.now()
+    });
   }
 
   /**

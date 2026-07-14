@@ -12,6 +12,20 @@
       "offline": "Vous êtes hors ligne. Towk va continuer à tenter de se reconnecter.",
       "reconnecting": "Réseau disponible. Reconnexion de Towk…"
     },
+    "outbox": {
+      "pending_title": "{count} message(s) en attente",
+      "pending_message": "Chiffré sur cet appareil et envoyé automatiquement dès que possible.",
+      "attention_title": "{count} message(s) à vérifier",
+      "attention_message": "Reconnectez-vous ou relancez l’envoi.",
+      "retry": "Réessayer",
+      "manage": "Gérer",
+      "manager_title": "Messages en attente d’envoi",
+      "empty": "Aucun message en attente.",
+      "room_label": "Salon {room}",
+      "attachment_only": "Message avec pièces jointes",
+      "discard": "Supprimer"
+    },
+    "cached_timeline": "Affichage de l’historique chiffré de cet appareil pendant la reconnexion.",
     "corresponding_source": "Voir la source correspondante pour Towk {version}",
     "sign_out": "Se déconnecter",
     "close": "Fermer",

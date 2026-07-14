@@ -1,0 +1,90 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Code, ConnectError } from '@connectrpc/connect';
+import type { PreparedMessageInput } from '$lib/api-client/messages';
+import { encryptedPrivateData, listQueuedMessages, type PrivateDataScope } from './offlineData';
+import { classifyOutboxFailure, PwaOutbox } from './outbox.svelte';
+
+const scope: PrivateDataScope = {
+  serverId: 'outbox-server',
+  serverUrl: 'https://outbox.example.test',
+  userId: 'U-outbox'
+};
+
+function message(clientRequestId: string): PreparedMessageInput {
+  return {
+    roomId: 'R1',
+    body: 'queued body',
+    attachmentAssetIds: [],
+    threadRootEventId: null,
+    inReplyTo: null,
+    alsoSendToChannel: false,
+    linkPreviewToken: '',
+    clientRequestId
+  };
+}
+
+afterEach(async () => {
+  await encryptedPrivateData.purgeAccount(scope).catch(() => undefined);
+});
+
+describe('PwaOutbox', () => {
+  it('removes a message after successful delivery and emits the result', async () => {
+    const outbox = new PwaOutbox();
+    const sent = vi.fn();
+    outbox.addEventListener('sent', sent);
+    await outbox.queue(scope, message('request-success'));
+
+    await outbox.flush(scope, async () => ({ event: null }), { force: true });
+
+    await expect(listQueuedMessages(scope)).resolves.toHaveLength(0);
+    expect(sent).toHaveBeenCalledOnce();
+  });
+
+  it('keeps retryable failures queued with bounded backoff', async () => {
+    const outbox = new PwaOutbox();
+    await outbox.queue(scope, message('request-retry'));
+
+    await outbox.flush(
+      scope,
+      async () => {
+        throw new ConnectError('temporarily unavailable', Code.Unavailable);
+      },
+      { force: true, now: 1_000 }
+    );
+
+    const [record] = await listQueuedMessages(scope);
+    expect(record.value).toMatchObject({
+      clientRequestId: 'request-retry',
+      attemptCount: 1,
+      nextAttemptAt: 6_000,
+      state: 'queued'
+    });
+  });
+
+  it('marks permanent errors for user attention', async () => {
+    const outbox = new PwaOutbox();
+    await outbox.queue(scope, message('request-permanent'));
+
+    await outbox.flush(
+      scope,
+      async () => {
+        throw new ConnectError('invalid message', Code.InvalidArgument);
+      },
+      { force: true }
+    );
+
+    const [record] = await listQueuedMessages(scope);
+    expect(record.value.state).toBe('needs_attention');
+    expect(outbox.summary.needsAttention).toBe(1);
+  });
+
+  it('classifies transport and authorization failures separately', () => {
+    expect(classifyOutboxFailure(new TypeError('network failed'))).toBe('retryable');
+    expect(classifyOutboxFailure(new ConnectError('signed out', Code.Unauthenticated))).toBe(
+      'authentication'
+    );
+    expect(classifyOutboxFailure(new ConnectError('invalid', Code.InvalidArgument))).toBe(
+      'permanent'
+    );
+  });
+});

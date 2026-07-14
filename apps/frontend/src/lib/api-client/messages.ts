@@ -23,6 +23,18 @@ export type CreateMessageInput = {
   inReplyTo?: string | null;
   alsoSendToChannel?: boolean;
   linkPreview?: LinkPreviewInput | null;
+  clientRequestId?: string;
+};
+
+export type PreparedMessageInput = {
+  roomId: string;
+  body: string;
+  attachmentAssetIds: string[];
+  threadRootEventId: string | null;
+  inReplyTo: string | null;
+  alsoSendToChannel: boolean;
+  linkPreviewToken: string;
+  clientRequestId: string;
 };
 
 export type UpdateMessageInput = {
@@ -41,42 +53,68 @@ export type UpdateMessageResult = {
   event: RoomEventView | null;
 };
 
+function createClientRequestId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  );
+}
+
 export function createMessageAPI(config: MessageAPIConfig) {
   const client = createTowkClient(MessageService, config);
   const headers = () => authHeaders(config);
-  return {
-    async createMessage(input: CreateMessageInput): Promise<CreateMessageResult> {
-      try {
-        validateMessageAttachments(input);
-        const uploadedAttachmentAssetIds = await uploadMessageAttachments(config, input);
-        const response = await client.createMessage(
-          {
-            roomId: input.roomId,
-            body: input.body,
-            attachmentAssetIds: [
-              ...(input.attachmentAssetIds ?? []),
-              ...uploadedAttachmentAssetIds
-            ],
-            threadRootEventId: input.threadRootEventId ?? '',
-            inReplyTo: input.inReplyTo ?? '',
-            alsoSendToChannel: input.alsoSendToChannel ?? false,
-            linkPreviewToken: input.linkPreview?.previewToken ?? ''
-          },
-          { headers: headers() }
-        );
 
-        const users = await timelineUsersForMessages(
-          config,
-          response.message ? [response.message] : []
-        );
-        return {
-          event: response.message
-            ? (messageToRawEvent(response.message, users) as RoomEventView | null)
-            : null
-        };
-      } catch (err) {
-        return handleAuthError(config, err);
-      }
+  async function prepareMessage(input: CreateMessageInput): Promise<PreparedMessageInput> {
+    validateMessageAttachments(input);
+    const uploadedAttachmentAssetIds = await uploadMessageAttachments(config, input);
+    return {
+      roomId: input.roomId,
+      body: input.body,
+      attachmentAssetIds: [...(input.attachmentAssetIds ?? []), ...uploadedAttachmentAssetIds],
+      threadRootEventId: input.threadRootEventId ?? null,
+      inReplyTo: input.inReplyTo ?? null,
+      alsoSendToChannel: input.alsoSendToChannel ?? false,
+      linkPreviewToken: input.linkPreview?.previewToken ?? '',
+      clientRequestId: input.clientRequestId?.trim() || createClientRequestId()
+    };
+  }
+
+  async function createPreparedMessage(input: PreparedMessageInput): Promise<CreateMessageResult> {
+    try {
+      const response = await client.createMessage(
+        {
+          roomId: input.roomId,
+          body: input.body,
+          attachmentAssetIds: input.attachmentAssetIds,
+          threadRootEventId: input.threadRootEventId ?? '',
+          inReplyTo: input.inReplyTo ?? '',
+          alsoSendToChannel: input.alsoSendToChannel,
+          linkPreviewToken: input.linkPreviewToken,
+          clientRequestId: input.clientRequestId
+        },
+        { headers: headers() }
+      );
+
+      const users = await timelineUsersForMessages(
+        config,
+        response.message ? [response.message] : []
+      );
+      return {
+        event: response.message
+          ? (messageToRawEvent(response.message, users) as RoomEventView | null)
+          : null
+      };
+    } catch (err) {
+      return handleAuthError(config, err);
+    }
+  }
+
+  return {
+    prepareMessage,
+    createPreparedMessage,
+
+    async createMessage(input: CreateMessageInput): Promise<CreateMessageResult> {
+      return createPreparedMessage(await prepareMessage(input));
     },
 
     async updateMessage(input: UpdateMessageInput): Promise<UpdateMessageResult> {

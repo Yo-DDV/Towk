@@ -6,6 +6,11 @@ import { RoomEventKind } from '$lib/render/eventKinds';
 import type { EventConnectionPage } from './messages/helpers';
 import { MessagesStore } from './messages.svelte';
 import { JumpToMessageState } from './composerContext.svelte';
+import {
+  encryptedPrivateData,
+  saveCachedTimeline,
+  type PrivateDataScope
+} from '$lib/pwa/offlineData';
 
 class FakeQueryClient {
   reconnectCount = 0;
@@ -2068,6 +2073,85 @@ describe('MessagesStore — room lifecycle ownership', () => {
     );
     store.dispose();
     expect(() => store.dispose()).not.toThrow();
+  });
+});
+
+describe('MessagesStore — encrypted offline timeline', () => {
+  const scope: PrivateDataScope = {
+    serverId: 'timeline-cache-server',
+    serverUrl: 'https://timeline-cache.example.test',
+    userId: 'timeline-cache-user'
+  };
+
+  function pendingPage() {
+    let resolve!: (page: EventConnectionPage) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<EventConnectionPage>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it('shows encrypted cached history when the network load fails', async () => {
+    await encryptedPrivateData.purgeAccount(scope).catch(() => undefined);
+    await saveCachedTimeline(scope, {
+      roomId: 'room-1',
+      threadRootEventId: null,
+      events: [threadMessageEvent('cached-1') as never],
+      cachedAt: Date.now()
+    });
+    const page = pendingPage();
+    const timeline = fakeTimelineAPI({ getRoomEvents: vi.fn(() => page.promise) });
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => scope.userId,
+      timeline,
+      () => scope
+    );
+
+    store.setRoom('room-1');
+    await vi.waitFor(() => expect(store.isShowingCachedData).toBe(true));
+    expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
+
+    page.reject(new TypeError('offline'));
+    await vi.waitFor(() => expect(store.isInitialLoading).toBe(false));
+    expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
+    store.dispose();
+    await encryptedPrivateData.purgeAccount(scope);
+  });
+
+  it('replaces hydrated cache with the authoritative network window', async () => {
+    await encryptedPrivateData.purgeAccount(scope).catch(() => undefined);
+    await saveCachedTimeline(scope, {
+      roomId: 'room-1',
+      threadRootEventId: null,
+      events: [threadMessageEvent('cached-stale') as never],
+      cachedAt: Date.now()
+    });
+    const page = pendingPage();
+    const timeline = fakeTimelineAPI({ getRoomEvents: vi.fn(() => page.promise) });
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => scope.userId,
+      timeline,
+      () => scope
+    );
+
+    store.setRoom('room-1');
+    await vi.waitFor(() => expect(store.isShowingCachedData).toBe(true));
+    page.resolve({
+      events: [threadMessageEvent('network-1') as never],
+      startCursor: null,
+      endCursor: null,
+      hasOlder: false,
+      hasNewer: false
+    });
+
+    await vi.waitFor(() => expect(store.isShowingCachedData).toBe(false));
+    expect(store.events.map((event) => event.id)).toEqual(['network-1']);
+    store.dispose();
+    await encryptedPrivateData.purgeAccount(scope);
   });
 });
 
