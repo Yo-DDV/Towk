@@ -101,7 +101,14 @@ function openDatabase(): Promise<IDBDatabase> {
       },
       { once: true }
     );
-    request.addEventListener('success', () => resolve(request.result), { once: true });
+    request.addEventListener(
+      'success',
+      () => {
+        request.result.addEventListener('versionchange', () => request.result.close());
+        resolve(request.result);
+      },
+      { once: true }
+    );
     request.addEventListener('error', () => reject(request.error), { once: true });
     request.addEventListener(
       'blocked',

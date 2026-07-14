@@ -225,6 +225,7 @@
       alsoSendToChannel = editState.channelEchoEventId !== null;
       api?.setContent(originalBody);
       tick().then(() => api?.focus('end'));
+      draftState.discardFiles();
       attachments.clear();
       linkPreviews.clear();
     } else if (editSeededForEvent && !eventId) {
@@ -298,14 +299,17 @@
     message = legacyDraft;
     manualRichMode = false;
     editorApi?.setContent(legacyDraft);
-    attachments.restore(untrack(() => draftState.takeFiles()));
-    void draftState
-      .load(legacyDraft)
-      .then((draft) => {
-        if (loadVersion !== draftLoadVersion || isEditing) return;
+    attachments.restore([]);
+    void Promise.all([draftState.load(legacyDraft), draftState.loadFiles()])
+      .then(([draft, draftFiles]) => {
+        if (loadVersion !== draftLoadVersion || isEditing) {
+          for (const { url } of draftFiles) URL.revokeObjectURL(url);
+          return;
+        }
         message = draft?.text ?? '';
         manualRichMode = draft?.richMode ?? false;
         editorApi?.setContent(message);
+        attachments.restore(draftFiles);
         loadedDraftKey = DRAFT_KEY;
         void consumeIncomingShare(loadVersion, message);
       })
@@ -326,8 +330,13 @@
   // Debounced encrypted draft persistence starts only after the matching
   // account/room record has loaded, so a slow read cannot overwrite typing.
   $effect(() => {
-    if (isEditing || loadedDraftKey !== DRAFT_KEY) return;
+    if (isEditing || loading || loadedDraftKey !== DRAFT_KEY) return;
     draftState.persistText(message, manualRichMode);
+  });
+
+  $effect(() => {
+    if (isEditing || loading || loadedDraftKey !== DRAFT_KEY) return;
+    draftState.persistFiles(attachments.filesWithUrls);
   });
 
   $effect(() => {
@@ -629,6 +638,7 @@
         // Preview tokens are short-lived server capabilities. The message is
         // durable; an expired optional preview must never block its replay.
         await pwaOutbox.queue(scope, { ...prepared, linkPreviewToken: '' });
+        draftState.discardFiles();
         toast.success(m['composer.queued_offline']());
         onCancelReply?.();
         alsoSendToChannel = false;
@@ -662,6 +672,7 @@
     // Reset "also send to channel" checkbox after successful send
     alsoSendToChannel = false;
     manualRichMode = false;
+    draftState.discardFiles();
   }
 
   async function submitPreparedPost(preparedPost: PreparedPost) {

@@ -124,4 +124,28 @@ describe('call Media Session integration', () => {
     expect(mediaSession.playbackState).toBe('none');
     expect(mediaSession.setActionHandler).toHaveBeenCalledTimes(3);
   });
+
+  it('keeps call actions usable when metadata support throws', () => {
+    const mediaSession = {
+      metadata: null,
+      playbackState: 'none' as MediaSessionPlaybackState,
+      setActionHandler: vi.fn()
+    };
+    const controller = new CallMediaSessionController(mediaSession, () => {
+      throw new Error('metadata unavailable');
+    });
+
+    expect(() =>
+      controller.sync({
+        title: 'Call',
+        artist: 'Server',
+        cameraActive: false,
+        microphoneActive: true,
+        onHangup: vi.fn(),
+        onToggleCamera: vi.fn(),
+        onToggleMicrophone: vi.fn()
+      })
+    ).not.toThrow();
+    expect(mediaSession.setActionHandler).toHaveBeenCalledTimes(3);
+  });
 });

@@ -7,7 +7,7 @@
 
 Towk ships a service worker so the installed web app can launch reliably, update safely, and handle push notifications. The worker caches the SPA fallback shell, SvelteKit build assets, the manifest, and essential install icons during install, then caches other static PWA assets when the browser actually requests them. The web manifest remains network-first so current server branding wins online, with the cached copy used only when the network is unavailable. The worker deliberately does not cache chat data, API responses, live-event traffic, or protected uploaded asset bodies.
 
-Offline support means the app can open and show its normal disconnected state instead of the browser's generic offline page. Authenticated accounts also keep bounded encrypted drafts, pending text messages, and recent room timelines on the device. Cached timelines are visibly identified as cached state; they never masquerade as a live server response. Offline search and offline attachment upload are not supported.
+Offline support means the app can open and show its normal disconnected state instead of the browser's generic offline page. Authenticated accounts also keep bounded encrypted drafts and their pending attachments, pending text messages, and recent room timelines on the device. Cached timelines are visibly identified as cached state; they never masquerade as a live server response. Offline search and offline attachment upload are not supported.
 
 Reconnect catch-up and outbox delivery are owned by the authenticated foreground web app, not the service worker. When a controlled PWA tab wakes or reconnects, server-scoped stores refetch projected ConnectRPC state, the room UI refetches the currently viewed room/thread window, and the foreground outbox retries pending sends. A Background Sync event can wake controlled clients, but the worker never receives credentials and never sends a message itself. The worker must not cache messages, API responses, or live-event traffic.
 
@@ -26,10 +26,10 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 - Protected uploaded asset loads use direct signed asset URLs owned by the foreground app. The worker does not receive registered-server API bearer tokens, does not proxy asset requests, and does not cache protected asset bodies.
 - Push notifications continue to display native OS notifications and route notification clicks into the SPA.
 - Push dismiss payloads still close matching visible notifications on the device.
-- Text messages that fail for a retryable network reason can enter a bounded encrypted outbox. Each logical send keeps one stable client request ID, so a lost response and a retry cannot create duplicate messages. Users can inspect, retry, or discard pending items. Raw attachments are not queued while offline.
+- Text messages that fail for a retryable network reason can enter a bounded encrypted outbox. Each logical send keeps one stable client request ID, so a lost response and a retry cannot create duplicate messages. Users can inspect, retry, or discard pending items. Unuploaded attachments remain in the encrypted draft rather than entering the outbox and are uploaded after connectivity returns.
 - Drafts and recent timeline windows are encrypted per server account with non-extractable device keys. Account removal crypto-shreds that account namespace. Records have age, count, and byte quotas and remain eviction-tolerant.
 - The installed app can receive text, links, supported media, PDFs, and text files from an operating-system share sheet or file handler. Incoming payloads are validated, encrypted in a short-lived device inbox, and require an explicit destination conversation; Towk never auto-sends shared content.
-- Chromium install prompts are shown only after the browser exposes `beforeinstallprompt`; iPhone and iPad users receive Safari Home Screen instructions. Successful install and first critical queued data make a best-effort persistent-storage request from a relevant user gesture.
+- Chromium install prompts are shown only after the browser exposes `beforeinstallprompt`; iPhone and iPad users receive Safari Home Screen instructions. The first critical queued message or persisted draft attachment makes a best-effort persistent-storage request from the related user action.
 - Native Web Share, launch handling, file handling, app shortcuts, screen Wake Lock during calls, Media Session call controls, and video Picture-in-Picture are capability-detected enhancements. Correctness never depends on their presence.
 
 ## Design Decisions
@@ -72,7 +72,7 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 
 ### 7. Encrypted local state has explicit product contracts
 
-**Decision:** Draft, outbox, and recent-timeline records are account-scoped, AES-GCM encrypted with non-extractable browser keys, bounded by independent record/age/byte quotas, and purged when the account is removed. Timeline reads are labeled as cached. Attachments, authorization state, API responses, and arbitrary mutations are excluded.
+**Decision:** Draft, outbox, recent-timeline, and draft-attachment records are account-scoped, AES-GCM encrypted with non-extractable browser keys, bounded by independent record/age/byte quotas, and purged when the account is removed. Draft attachments use chunked encryption in a separate store so a restart does not discard staged files. Timeline reads are labeled as cached. Outbox attachment bodies, authorization state, API responses, and arbitrary mutations are excluded.
 **Why:** Useful offline continuity requires more than caching HTTP responses. Account scoping, authenticated revalidation, encryption, expiry, cancellation, and visible stale-state semantics prevent one server account or a later device user from inheriting another account's local chat data.
 **Tradeoff:** Browser storage remains local, device-specific, and eviction-tolerant. A cleared browser profile or unavailable key makes those records unrecoverable. Recent timeline windows improve continuity but are not a backup or full offline archive.
 
@@ -100,7 +100,7 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 - **Android Chromium PWA:** service-worker shell, browser install prompt, Web Share/share target, push, badges, encrypted local state, Wake Lock, Media Session, and foreground outbox retries are available when the browser grants them. Background Sync remains an optional wake-up hint.
 - **Chromium desktop on Windows/Linux:** adds launch reuse, file handlers, share target where the host exposes it, and standard video Picture-in-Picture. Existing installations may need a manifest refresh or reinstall for new OS registrations.
 - **Safari, Firefox, and other desktop browsers:** the portable shell, encrypted local state, foreground retries, and supported notification/media APIs remain active. Unsupported manifest or background enhancements are skipped.
-- **Storage:** cache and IndexedDB remain eviction-tolerant. Towk requests persistent storage only after install acceptance or when critical unsynced local data is first queued, never during passive startup.
+- **Storage:** cache and IndexedDB remain eviction-tolerant. Towk requests persistent storage only when critical unsynced local data or a draft attachment is first persisted, never during passive startup or installation alone.
 
 ## Standards and vendor references
 

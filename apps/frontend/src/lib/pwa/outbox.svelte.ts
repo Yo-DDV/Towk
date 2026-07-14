@@ -166,7 +166,11 @@ export class PwaOutbox extends EventTarget {
     this.summary = { ...this.summary, syncing: true };
     this.dispatchEvent(new Event('change'));
     try {
-      const records = await listQueuedMessages(scope);
+      const records = (await listQueuedMessages(scope)).sort(
+        (a, b) =>
+          a.value.queuedAt - b.value.queuedAt ||
+          a.value.clientRequestId.localeCompare(b.value.clientRequestId)
+      );
       for (const record of records) {
         const queued = record.value;
         if (!options.force && (queued.state !== 'queued' || queued.nextAttemptAt > now)) continue;
@@ -189,7 +193,7 @@ export class PwaOutbox extends EventTarget {
             state: needsAttention ? 'needs_attention' : 'queued',
             lastError: safeErrorMessage(error)
           });
-          if (failure === 'authentication') break;
+          if (failure === 'authentication' || failure === 'retryable') break;
         }
       }
     } finally {

@@ -61,6 +61,28 @@ describe('PwaOutbox', () => {
     });
   });
 
+  it('preserves send order while the oldest message is retryable', async () => {
+    const outbox = new PwaOutbox();
+    await outbox.queue(scope, message('request-first'));
+    await outbox.queue(scope, message('request-second'));
+    const attempted: string[] = [];
+
+    await outbox.flush(
+      scope,
+      async (input) => {
+        attempted.push(input.clientRequestId);
+        if (input.clientRequestId === 'request-first') {
+          throw new ConnectError('temporarily unavailable', Code.Unavailable);
+        }
+        return { event: null };
+      },
+      { force: true, now: 1_000 }
+    );
+
+    expect(attempted).toEqual(['request-first']);
+    await expect(listQueuedMessages(scope)).resolves.toHaveLength(2);
+  });
+
   it('marks permanent errors for user attention', async () => {
     const outbox = new PwaOutbox();
     await outbox.queue(scope, message('request-permanent'));

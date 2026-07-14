@@ -8,6 +8,7 @@ describe('PWA launch handler', () => {
     );
     expect(safeLaunchPath('/', 'https://towk.example')).toBe('/');
     expect(safeLaunchPath('https://evil.example/chat/-/R123', 'https://towk.example')).toBeNull();
+    expect(safeLaunchPath('/chatty', 'https://towk.example')).toBeNull();
     expect(safeLaunchPath('/admin', 'https://towk.example')).toBeNull();
     expect(safeLaunchPath(undefined, 'https://towk.example')).toBeNull();
   });

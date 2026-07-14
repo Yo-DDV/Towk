@@ -117,25 +117,41 @@ export class CallMediaSessionController {
   sync(call: CallMediaSessionState | null): void {
     if (!this.mediaSession) return;
     if (!call) {
-      this.mediaSession.metadata = null;
-      this.mediaSession.playbackState = 'none';
+      this.#setMetadata(null);
+      this.#setPlaybackState('none');
       this.#setHandler('hangup', null);
       this.#setHandler('togglecamera', null);
       this.#setHandler('togglemicrophone', null);
       return;
     }
 
-    this.mediaSession.metadata = this.createMetadata({
+    this.#setMetadata({
       title: call.title,
       artist: call.artist,
       album: 'Towk'
     });
-    this.mediaSession.playbackState = 'playing';
+    this.#setPlaybackState('playing');
     this.#setHandler('hangup', () => call.onHangup());
     this.#setHandler('togglecamera', () => call.onToggleCamera());
     this.#setHandler('togglemicrophone', () => call.onToggleMicrophone());
     this.#setCameraActive(call.cameraActive);
     this.#setMicrophoneActive(call.microphoneActive);
+  }
+
+  #setMetadata(init: MediaMetadataInit | null): void {
+    try {
+      this.mediaSession!.metadata = init ? this.createMetadata(init) : null;
+    } catch {
+      // Metadata support varies independently from Media Session actions.
+    }
+  }
+
+  #setPlaybackState(state: MediaSessionPlaybackState): void {
+    try {
+      this.mediaSession!.playbackState = state;
+    } catch {
+      // Optional browser integration.
+    }
   }
 
   #setHandler(action: CallMediaAction, handler: (() => void | Promise<void>) | null): void {

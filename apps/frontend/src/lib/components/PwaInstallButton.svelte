@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import Dialog from '$lib/ui/Dialog.svelte';
   import Button from '$lib/ui/form/Button.svelte';
-  import { encryptedPrivateData } from '$lib/pwa/privateData';
   import {
     currentInstallEnvironment,
     isAppleMobileDevice,
@@ -52,7 +51,6 @@
       await promptEvent.prompt();
       const choice = await promptEvent.userChoice;
       if (choice.outcome === 'accepted') {
-        await encryptedPrivateData.requestPersistentStorage().catch(() => false);
         installed = true;
         dialogVisible = false;
       }

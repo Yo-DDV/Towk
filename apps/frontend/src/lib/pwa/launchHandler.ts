@@ -14,7 +14,13 @@ export function safeLaunchPath(targetURL: string | undefined, origin: string): s
   try {
     const target = new URL(targetURL, origin);
     if (target.origin !== origin) return null;
-    if (target.pathname !== '/' && !target.pathname.startsWith('/chat')) return null;
+    if (
+      target.pathname !== '/' &&
+      target.pathname !== '/chat' &&
+      !target.pathname.startsWith('/chat/')
+    ) {
+      return null;
+    }
     return `${target.pathname}${target.search}${target.hash}`;
   } catch {
     return null;

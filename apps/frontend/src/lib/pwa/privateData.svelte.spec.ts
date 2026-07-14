@@ -75,6 +75,26 @@ describe('EncryptedPrivateDataStore', () => {
     await store.purgeAccount(otherScope);
   });
 
+  it('uses one durable key for concurrent first writes from separate tabs', async () => {
+    const first = createStore();
+    const second = createStore();
+
+    const now = Date.now();
+    await Promise.all([
+      first.put(scope, 'draft', 'room:R1', { text: 'first tab' }, now),
+      second.put(scope, 'draft', 'room:R2', { text: 'second tab' }, now)
+    ]);
+
+    await expect(first.get(scope, 'draft', 'room:R1')).resolves.toMatchObject({
+      value: { text: 'first tab' }
+    });
+    await expect(second.get(scope, 'draft', 'room:R2')).resolves.toMatchObject({
+      value: { text: 'second tab' }
+    });
+    const records = await first.list<{ text: string }>(scope, 'draft');
+    expect(new Set(records.map((record) => record.updatedAt)).size).toBe(2);
+  });
+
   it('evicts the oldest records when a kind exceeds its bounded count', async () => {
     const store = createStore();
     const limit = PRIVATE_DATA_LIMITS.draft.maxRecords;

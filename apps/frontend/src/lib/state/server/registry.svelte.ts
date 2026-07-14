@@ -5,13 +5,13 @@ import { eventBusManager } from './eventBus.svelte';
 import { Codecs, globalSlot } from '$lib/storage/slot';
 import { getPublicServerInfo } from '$lib/api-client/server';
 import { PRODUCT_NAME } from '$lib/product';
-import { encryptedPrivateData } from '$lib/pwa/privateData';
+import { purgeOfflineAccount } from '$lib/pwa/offlineData';
 import { privateDataScopeForServer } from '$lib/pwa/scope';
 
 function purgePrivateDataForServer(server: RegisteredServer): void {
 	const scope = privateDataScopeForServer(server);
 	if (!scope) return;
-	void encryptedPrivateData.purgeAccount(scope).catch((error) => {
+	void purgeOfflineAccount(scope).catch((error) => {
 		console.error('Failed to purge encrypted local account data:', error);
 	});
 }
@@ -255,6 +255,17 @@ class ServerRegistry {
 		const origin = this.originServer;
 		if (!origin) return;
 		if (origin.token !== null) return;
+		if (origin.userId) {
+			purgePrivateDataForServer(origin);
+			this.#replaceServerAuth(origin.id, {
+				token: null,
+				userId: null,
+				userLogin: null,
+				userDisplayName: null,
+				userAvatarUrl: null,
+				reauthRequiredAt: null
+			});
+		}
 		const store = this.tryGetStore(origin.id);
 		if (!store) return;
 		store.currentUser.user = undefined;

@@ -1,6 +1,7 @@
 import type { PreparedMessageInput } from '$lib/api-client/messages';
 import type { RoomEventView } from '$lib/render/types';
 import { encryptedPrivateData, type PrivateDataRecord, type PrivateDataScope } from './privateData';
+import { encryptedDraftFiles } from './draftFiles';
 
 export type PersistedDraft = {
   text: string;
@@ -67,6 +68,38 @@ export function deletePersistedDraft(
   threadRootEventId?: string | null
 ): Promise<void> {
   return encryptedPrivateData.delete(scope, 'draft', draftLogicalKey(roomId, threadRootEventId));
+}
+
+export function loadPersistedDraftFiles(
+  scope: PrivateDataScope,
+  roomId: string,
+  threadRootEventId?: string | null
+): Promise<File[]> {
+  return encryptedDraftFiles.get(scope, draftLogicalKey(roomId, threadRootEventId));
+}
+
+export function savePersistedDraftFiles(
+  scope: PrivateDataScope,
+  roomId: string,
+  threadRootEventId: string | null | undefined,
+  files: File[]
+): Promise<void> {
+  return encryptedDraftFiles.put(scope, draftLogicalKey(roomId, threadRootEventId), files);
+}
+
+export function deletePersistedDraftFiles(
+  scope: PrivateDataScope,
+  roomId: string,
+  threadRootEventId?: string | null
+): Promise<void> {
+  return encryptedDraftFiles.delete(scope, draftLogicalKey(roomId, threadRootEventId));
+}
+
+export async function purgeOfflineAccount(scope: PrivateDataScope): Promise<void> {
+  await Promise.all([
+    encryptedPrivateData.purgeAccount(scope),
+    encryptedDraftFiles.purgeAccount(scope)
+  ]);
 }
 
 export async function loadCachedTimeline(

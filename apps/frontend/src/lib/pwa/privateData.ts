@@ -117,13 +117,20 @@ function assertScope(scope: PrivateDataScope): void {
   }
 }
 
+export async function privateDataNamespace(scope: PrivateDataScope): Promise<string> {
+  assertScope(scope);
+  return sha256(
+    `${scope.serverId}\u0000${canonicalServerOrigin(scope.serverUrl)}\u0000${scope.userId}`
+  );
+}
+
 function assertAvailable(): void {
   if (typeof indexedDB === 'undefined' || typeof globalThis.crypto?.subtle === 'undefined') {
     throw new Error('Encrypted private browser storage is unavailable');
   }
 }
 
-function openDatabase(): Promise<IDBDatabase> {
+function openDatabase(onVersionChange: () => void): Promise<IDBDatabase> {
   assertAvailable();
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
@@ -142,7 +149,18 @@ function openDatabase(): Promise<IDBDatabase> {
       },
       { once: true }
     );
-    request.addEventListener('success', () => resolve(request.result), { once: true });
+    request.addEventListener(
+      'success',
+      () => {
+        const database = request.result;
+        database.addEventListener('versionchange', () => {
+          database.close();
+          onVersionChange();
+        });
+        resolve(database);
+      },
+      { once: true }
+    );
     request.addEventListener('error', () => reject(request.error), { once: true });
     request.addEventListener(
       'blocked',
@@ -239,19 +257,24 @@ export class EncryptedPrivateDataStore {
         key,
         plaintext
       );
-      const record: StoredPrivateRecord = {
+      const transaction = database.transaction(RECORD_STORE, 'readwrite');
+      const done = transactionDone(transaction);
+      const records = transaction.objectStore(RECORD_STORE);
+      const existing = (await requestResult(
+        records.index('namespaceKind').getAll(IDBKeyRange.only([namespace, kind]))
+      )) as StoredPrivateRecord[];
+      const newest = existing.reduce((latest, record) => Math.max(latest, record.updatedAt), 0);
+      const updatedAt = Math.max(now, newest + 1);
+      records.put({
         id,
         namespace,
         kind,
-        updatedAt: now,
+        updatedAt,
         expiresAt: now + limits.maxAgeMs,
         byteSize: ciphertext.byteLength,
         iv: iv.buffer,
         ciphertext
-      };
-      const transaction = database.transaction(RECORD_STORE, 'readwrite');
-      const done = transactionDone(transaction);
-      transaction.objectStore(RECORD_STORE).put(record);
+      } satisfies StoredPrivateRecord);
       await done;
       await this.#prune(database, namespace, kind, limits, now);
     });
@@ -303,7 +326,9 @@ export class EncryptedPrivateDataStore {
   }
 
   async #database(): Promise<IDBDatabase> {
-    this.#databasePromise ??= openDatabase();
+    this.#databasePromise ??= openDatabase(() => {
+      this.#databasePromise = null;
+    });
     try {
       return await this.#databasePromise;
     } catch (error) {
@@ -317,7 +342,7 @@ export class EncryptedPrivateDataStore {
     const input = `${scope.serverId}\u0000${canonicalServerOrigin(scope.serverUrl)}\u0000${scope.userId}`;
     let promise = this.#namespacePromises.get(input);
     if (!promise) {
-      promise = sha256(input);
+      promise = privateDataNamespace(scope);
       this.#namespacePromises.set(input, promise);
     }
     return promise;
@@ -354,13 +379,16 @@ export class EncryptedPrivateDataStore {
     if (existing?.key) return existing.key;
     if (!create) return null;
 
-    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
+    const candidate = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, [
       'encrypt',
       'decrypt'
     ]);
     const write = database.transaction(KEY_STORE, 'readwrite');
     const writeDone = transactionDone(write);
-    write.objectStore(KEY_STORE).put({ namespace, key, createdAt: Date.now() });
+    const keys = write.objectStore(KEY_STORE);
+    const current = (await requestResult(keys.get(namespace))) as StoredEncryptionKey | undefined;
+    const key = current?.key ?? candidate;
+    if (!current) keys.put({ namespace, key, createdAt: Date.now() });
     await writeDone;
     return key;
   }
