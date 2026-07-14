@@ -13,6 +13,7 @@ import {
 import type { FileWithUrl } from './attachments.svelte';
 
 const draftFilesMap = new SvelteMap<string, File[]>();
+const draftTextHandoffByKey: Record<string, PersistedDraft | undefined> = Object.create(null);
 
 type DraftContext = {
   scope: PrivateDataScope;
@@ -29,6 +30,7 @@ export function draftKey(roomId: string, threadRootEventId?: string): string {
 export class DraftState {
   key = '';
   #context: DraftContext | null = null;
+  #handoffKey = '';
   #pending: PersistedDraft | null = null;
   #persistTimer: ReturnType<typeof setTimeout> | null = null;
   #textWriteQueue: Promise<void> = Promise.resolve();
@@ -57,12 +59,17 @@ export class DraftState {
     void Promise.all([this.flush(), this.flushFiles()]).catch(() => undefined);
     this.key = key;
     this.#context = scope ? { scope, roomId, threadRootEventId: threadRootEventId ?? null } : null;
-    return sessionStorage.getItem(key) ?? '';
+    this.#handoffKey = this.#context
+      ? [scope?.serverId, scope?.serverUrl, scope?.userId, key].join('\u0000')
+      : '';
+    return draftTextHandoffByKey[this.#handoffKey]?.text ?? sessionStorage.getItem(key) ?? '';
   }
 
   async load(legacyText: string): Promise<PersistedDraft | null> {
     const context = this.#context;
     const key = this.key;
+    const handoff = draftTextHandoffByKey[this.#handoffKey];
+    if (handoff) return handoff;
     if (!context) return legacyText ? { text: legacyText, richMode: false } : null;
     const persisted = await loadPersistedDraft(
       context.scope,
@@ -101,6 +108,8 @@ export class DraftState {
     }
 
     this.#pending = { text: message, richMode };
+    if (message) draftTextHandoffByKey[this.#handoffKey] = this.#pending;
+    else delete draftTextHandoffByKey[this.#handoffKey];
     if (this.#persistTimer) clearTimeout(this.#persistTimer);
     this.#persistTimer = setTimeout(() => void this.flush().catch(() => undefined), 250);
   }
@@ -122,6 +131,7 @@ export class DraftState {
     if (this.#persistTimer) clearTimeout(this.#persistTimer);
     this.#persistTimer = null;
     this.#pending = null;
+    delete draftTextHandoffByKey[this.#handoffKey];
     const context = this.#context;
     if (!context) return Promise.resolve();
     return this.#enqueueTextWrite(() =>
@@ -135,11 +145,15 @@ export class DraftState {
     const pending = this.#pending;
     const context = this.#context;
     const key = this.key;
+    const handoffKey = this.#handoffKey;
     this.#pending = null;
     if (!pending || !context) return this.#textWriteQueue;
     return this.#enqueueTextWrite(async () => {
       try {
         await savePersistedDraft(context.scope, context.roomId, context.threadRootEventId, pending);
+        if (draftTextHandoffByKey[handoffKey] === pending) {
+          delete draftTextHandoffByKey[handoffKey];
+        }
         if (key) sessionStorage.removeItem(key);
       } catch (error) {
         if (key) {

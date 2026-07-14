@@ -62,6 +62,25 @@ describe('encrypted composer draft state', () => {
     for (const { url } of files) URL.revokeObjectURL(url);
   });
 
+  it('hands an encrypted draft to a replacement instance before the async write finishes', async () => {
+    const key = draftKey('R-handoff');
+    const first = new DraftState();
+    first.switchKey(key, scope, 'R-handoff');
+    first.persistText('navigation-safe draft', true);
+
+    const reopened = new DraftState();
+    const immediate = reopened.switchKey(key, scope, 'R-handoff');
+
+    expect(immediate).toBe('navigation-safe draft');
+    await expect(reopened.load(immediate)).resolves.toEqual({
+      text: 'navigation-safe draft',
+      richMode: true
+    });
+
+    await first.flush();
+    await reopened.clearText();
+  });
+
   it('serializes an accepted-message clear after an in-flight draft write', async () => {
     const key = draftKey('R-sent');
     const state = new DraftState();
