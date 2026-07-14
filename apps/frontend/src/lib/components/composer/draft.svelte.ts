@@ -31,8 +31,22 @@ export class DraftState {
   #context: DraftContext | null = null;
   #pending: PersistedDraft | null = null;
   #persistTimer: ReturnType<typeof setTimeout> | null = null;
+  #textWriteQueue: Promise<void> = Promise.resolve();
   #pendingFiles: { context: DraftContext; files: File[] } | null = null;
   #filePersistTimer: ReturnType<typeof setTimeout> | null = null;
+  #fileWriteQueue: Promise<void> = Promise.resolve();
+
+  #enqueueTextWrite(operation: () => Promise<void>): Promise<void> {
+    const queued = this.#textWriteQueue.catch(() => undefined).then(operation);
+    this.#textWriteQueue = queued;
+    return queued;
+  }
+
+  #enqueueFileWrite(operation: () => Promise<void>): Promise<void> {
+    const queued = this.#fileWriteQueue.catch(() => undefined).then(operation);
+    this.#fileWriteQueue = queued;
+    return queued;
+  }
 
   switchKey(
     key: string,
@@ -103,17 +117,16 @@ export class DraftState {
     this.#filePersistTimer = setTimeout(() => void this.flushFiles().catch(() => undefined), 350);
   }
 
-  clearText(): void {
+  clearText(): Promise<void> {
     if (this.key) sessionStorage.removeItem(this.key);
     if (this.#persistTimer) clearTimeout(this.#persistTimer);
     this.#persistTimer = null;
     this.#pending = null;
     const context = this.#context;
-    if (context) {
-      void deletePersistedDraft(context.scope, context.roomId, context.threadRootEventId).catch(
-        () => undefined
-      );
-    }
+    if (!context) return Promise.resolve();
+    return this.#enqueueTextWrite(() =>
+      deletePersistedDraft(context.scope, context.roomId, context.threadRootEventId)
+    );
   }
 
   async flush(): Promise<void> {
@@ -123,17 +136,19 @@ export class DraftState {
     const context = this.#context;
     const key = this.key;
     this.#pending = null;
-    if (!pending || !context) return;
-    try {
-      await savePersistedDraft(context.scope, context.roomId, context.threadRootEventId, pending);
-      if (key) sessionStorage.removeItem(key);
-    } catch (error) {
-      if (key) {
-        if (pending.text) sessionStorage.setItem(key, pending.text);
-        else sessionStorage.removeItem(key);
+    if (!pending || !context) return this.#textWriteQueue;
+    return this.#enqueueTextWrite(async () => {
+      try {
+        await savePersistedDraft(context.scope, context.roomId, context.threadRootEventId, pending);
+        if (key) sessionStorage.removeItem(key);
+      } catch (error) {
+        if (key) {
+          if (pending.text) sessionStorage.setItem(key, pending.text);
+          else sessionStorage.removeItem(key);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 
   async flushFiles(): Promise<void> {
@@ -141,12 +156,14 @@ export class DraftState {
     this.#filePersistTimer = null;
     const pending = this.#pendingFiles;
     this.#pendingFiles = null;
-    if (!pending) return;
-    await savePersistedDraftFiles(
-      pending.context.scope,
-      pending.context.roomId,
-      pending.context.threadRootEventId,
-      pending.files
+    if (!pending) return this.#fileWriteQueue;
+    return this.#enqueueFileWrite(() =>
+      savePersistedDraftFiles(
+        pending.context.scope,
+        pending.context.roomId,
+        pending.context.threadRootEventId,
+        pending.files
+      )
     );
   }
 
@@ -169,19 +186,20 @@ export class DraftState {
     this.persistFiles(files);
   }
 
-  discardFiles(): void {
+  discardFiles(): Promise<void> {
     if (this.key) draftFilesMap.delete(this.key);
     if (this.#filePersistTimer) clearTimeout(this.#filePersistTimer);
     this.#filePersistTimer = null;
     this.#pendingFiles = null;
     const context = this.#context;
-    if (context) {
-      void deletePersistedDraftFiles(
+    if (!context) return Promise.resolve();
+    return this.#enqueueFileWrite(() =>
+      deletePersistedDraftFiles(
         context.scope,
         context.roomId,
         context.threadRootEventId
-      ).catch(() => undefined);
-    }
+      )
+    );
   }
 
   dispose(): void {

@@ -220,13 +220,13 @@
     if (eventId && originalBody && editSeededForEvent !== eventId) {
       editSeededForEvent = eventId;
       autocomplete.reset();
-      draftState.clearText();
+      void draftState.clearText().catch(() => undefined);
       message = originalBody;
       manualRichMode = false;
       alsoSendToChannel = editState.channelEchoEventId !== null;
       api?.setContent(originalBody);
       tick().then(() => api?.focus('end'));
-      draftState.discardFiles();
+      void draftState.discardFiles().catch(() => undefined);
       attachments.clear();
       linkPreviews.clear();
     } else if (editSeededForEvent && !eventId) {
@@ -300,7 +300,10 @@
 
     message = legacyDraft;
     manualRichMode = false;
-    editorApi?.setContent(legacyDraft);
+    // Editor readiness is not part of the draft identity. Tracking it here
+    // would restart the async load and could overwrite a quote or text entered
+    // while IndexedDB is still resolving.
+    untrack(() => editorApi)?.setContent(legacyDraft);
     attachments.restore([]);
     void Promise.all([draftState.load(legacyDraft), draftState.loadFiles()])
       .then(([draft, draftFiles]) => {
@@ -308,10 +311,23 @@
           for (const { url } of draftFiles) URL.revokeObjectURL(url);
           return;
         }
-        message = draft?.text ?? '';
-        manualRichMode = draft?.richMode ?? false;
-        editorApi?.setContent(message);
-        attachments.restore(draftFiles);
+        const currentMessage = untrack(() => message);
+        const currentFiles = untrack(() => attachments.filesWithUrls);
+        const userChangedText = currentMessage !== legacyDraft;
+
+        // Never replace live composer input with a late IndexedDB read. If a
+        // persisted draft and new input both exist, preserve both instead of
+        // silently discarding either one.
+        const persistedText = draft?.text ?? '';
+        message = userChangedText
+          ? persistedText && persistedText !== currentMessage
+            ? `${persistedText}\n\n${currentMessage}`
+            : currentMessage
+          : persistedText;
+        manualRichMode =
+          (draft?.richMode ?? false) || (userChangedText && untrack(() => manualRichMode));
+        untrack(() => editorApi)?.setContent(message);
+        attachments.restore(currentFiles.length > 0 ? [...draftFiles, ...currentFiles] : draftFiles);
         loadedDraftKey = DRAFT_KEY;
         void consumeIncomingShare(loadVersion, message);
       })
@@ -648,7 +664,7 @@
         // Preview tokens are short-lived server capabilities. The message is
         // durable; an expired optional preview must never block its replay.
         await pwaOutbox.queue(scope, { ...prepared, linkPreviewToken: '' });
-        draftState.discardFiles();
+        await clearAcceptedDraft();
         toast.success(m['composer.queued_offline']());
         onCancelReply?.();
         alsoSendToChannel = false;
@@ -662,7 +678,19 @@
     restorePreparedPost(post);
   }
 
-  function handlePostSuccess(response: SendPreparedPostResponse, post: PreparedPost) {
+  async function clearAcceptedDraft() {
+    try {
+      await Promise.all([draftState.clearText(), draftState.discardFiles()]);
+    } catch (error) {
+      console.error('Failed to clear accepted message draft:', error);
+    }
+  }
+
+  async function handlePostSuccess(response: SendPreparedPostResponse, post: PreparedPost) {
+    // Complete the serialized local delete before exposing the accepted event.
+    // A caller may reload as soon as the message appears in the timeline.
+    await clearAcceptedDraft();
+
     // Notify parent before scrolling so it can synchronously ingest the
     // returned event and make the target row available.
     onMessageSent?.(response.event);
@@ -682,7 +710,6 @@
     // Reset "also send to channel" checkbox after successful send
     alsoSendToChannel = false;
     manualRichMode = false;
-    draftState.discardFiles();
   }
 
   async function submitPreparedPost(preparedPost: PreparedPost) {
@@ -707,7 +734,7 @@
       if (response.error) {
         await handlePostFailure(response.error, preparedPost, response.prepared);
       } else {
-        handlePostSuccess(response, preparedPost);
+        await handlePostSuccess(response, preparedPost);
       }
     } finally {
       loading = false;
