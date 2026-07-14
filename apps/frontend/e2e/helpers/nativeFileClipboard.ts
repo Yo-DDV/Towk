@@ -2,6 +2,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { verifyExactNativeClipboardPaths } from './nativeClipboardPaths';
 
 const helpersDirectory = fileURLToPath(new URL('./native-clipboard/', import.meta.url));
 
@@ -17,20 +18,6 @@ const delay = (milliseconds: number) =>
 function checkedPaths(filePaths: string[]): string[] {
   if (filePaths.length === 0) throw new Error('At least one native clipboard file is required');
   return filePaths.map((filePath) => path.resolve(filePath));
-}
-
-function verifyExactPaths(expected: string[], actual: string[], provider: string): string[] {
-  const normalized = (filePath: string) => {
-    const value = path.normalize(path.resolve(filePath));
-    return process.platform === 'win32' ? value.toLocaleLowerCase('en-US') : value;
-  };
-  if (
-    actual.length !== expected.length ||
-    actual.some((filePath, index) => normalized(filePath) !== normalized(expected[index]))
-  ) {
-    throw new Error(`${provider} native clipboard read-back did not match the requested files`);
-  }
-  return actual;
 }
 
 function parseVerifiedPaths(output: string, provider: string): string[] {
@@ -116,7 +103,7 @@ async function setLinuxURIList(filePaths: string[]): Promise<NativeClipboardLeas
         .filter((line) => /^file:/iu.test(line))
         .map((uri) => fileURLToPath(uri));
       return {
-        paths: verifyExactPaths(filePaths, verified, 'Linux text/uri-list'),
+        paths: verifyExactNativeClipboardPaths(filePaths, verified, 'Linux text/uri-list'),
         release: () => stopClipboardOwner(owner)
       };
     } catch (error) {
@@ -149,5 +136,8 @@ export async function setNativeFileClipboard(filePaths: string[]): Promise<Nativ
     default:
       throw new Error(`Native file clipboard tests do not support ${process.platform}`);
   }
-  return { paths: verifyExactPaths(files, verified, provider), release: noRelease };
+  return {
+    paths: verifyExactNativeClipboardPaths(files, verified, provider),
+    release: noRelease
+  };
 }

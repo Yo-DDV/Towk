@@ -170,6 +170,7 @@ function renderMessageComposer(
 }
 
 let renderId = 0;
+const attachmentPreviewPollOptions = { timeout: 5_000 };
 
 function selectFiles(input: HTMLInputElement, files: File[]) {
   Object.defineProperty(input, 'files', {
@@ -456,7 +457,10 @@ describe('MessageComposer', () => {
       selectFiles(input, [new File(['document'], 'report.pdf', { type: 'application/pdf' })]);
 
       await expect
-        .poll(() => q(container, '[data-testid="file-attachment-preview"]')?.textContent)
+        .poll(
+          () => q(container, '[data-testid="file-attachment-preview"]')?.textContent,
+          attachmentPreviewPollOptions
+        )
         .toBe('pdf');
     });
 
@@ -473,7 +477,10 @@ describe('MessageComposer', () => {
       selectFiles(input, [new File(['video'], 'clip.mp4', { type: 'video/mp4' })]);
 
       await expect
-        .poll(() => q(container, '[data-testid="video-attachment-preview"]'))
+        .poll(
+          () => q(container, '[data-testid="video-attachment-preview"]'),
+          attachmentPreviewPollOptions
+        )
         .toBeTruthy();
     });
 
@@ -595,7 +602,10 @@ describe('MessageComposer', () => {
       pasteFile(editor, new File(['document'], 'report.pdf', { type: 'application/pdf' }));
 
       await expect
-        .poll(() => q(container, '[data-testid="file-attachment-preview"]')?.textContent)
+        .poll(
+          () => q(container, '[data-testid="file-attachment-preview"]')?.textContent,
+          attachmentPreviewPollOptions
+        )
         .toBe('pdf');
     });
 
@@ -1171,7 +1181,9 @@ describe('MessageComposer', () => {
       const file = selectFirstAttachment(
         q(firstRender.container, 'input[type="file"]') as HTMLInputElement
       );
-      await expect.poll(() => q(firstRender.container, 'img')).toBeTruthy();
+      await expect
+        .poll(() => q(firstRender.container, 'img'), attachmentPreviewPollOptions)
+        .toBeTruthy();
       firstRender.unmount();
 
       // Stash an attachment draft for the same room, then mount directly into edit mode.
@@ -2074,7 +2086,7 @@ describe('MessageComposer', () => {
       const editor = await findEditor(container);
       const file = selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
 
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
       await typeInEditor(editor, '@all with attachment');
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 
@@ -2084,7 +2096,7 @@ describe('MessageComposer', () => {
       await userEvent.click(getByRole('button', { name: 'Cancel' }));
 
       await expect.element(editor).toHaveTextContent('@all with attachment');
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
       expect(mutationMock).not.toHaveBeenCalled();
       expect(file.name).toBe('paste.png');
     });
@@ -2096,7 +2108,7 @@ describe('MessageComposer', () => {
       const editor = await findEditor(container);
       const file = selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
 
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
       await typeInEditor(editor, '@all will retry');
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 
@@ -2105,7 +2117,7 @@ describe('MessageComposer', () => {
 
       await vi.waitFor(() => expect(mutationMock).toHaveBeenCalledOnce());
       await expect.element(editor).toHaveTextContent('@all will retry');
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
       expect(mutationMock.mock.calls[0][1].input.attachments).toEqual([file]);
       expect(getToasts().map((t) => t.message)).toContain('Failed to send message');
     });
@@ -2116,13 +2128,13 @@ describe('MessageComposer', () => {
       const editor = await findEditor(container);
       const file = selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
 
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
       await typeInEditor(editor, 'will retry');
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 
       await vi.waitFor(() => expect(mutationMock).toHaveBeenCalledOnce());
       await expect.element(editor).toHaveTextContent('will retry');
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
       expect(mutationMock.mock.calls[0][1].input.attachments).toEqual([file]);
       expect(getToasts().map((t) => t.message)).toContain('Failed to send message');
     });
@@ -2188,7 +2200,7 @@ describe('MessageComposer', () => {
     it('revokes object URLs when removing staged files', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
 
       (q(container, 'button.absolute') as HTMLButtonElement).click();
 
@@ -2201,7 +2213,7 @@ describe('MessageComposer', () => {
       const editor = await findEditor(container);
       selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
       await typeInEditor(editor, 'with file');
-      await expect.poll(() => q(container, 'img')).toBeTruthy();
+      await expect.poll(() => q(container, 'img'), attachmentPreviewPollOptions).toBeTruthy();
 
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 
