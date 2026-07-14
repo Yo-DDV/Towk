@@ -20,6 +20,9 @@
     type QuoteInsertionRequest
   } from '$lib/state/room';
   import { onRoomMessageMutated } from '$lib/state/room/messageMutationEvents';
+  import { onOutboxMessageSent } from '$lib/pwa/outboxEvents';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import CachedTimelineNotice from '$lib/components/CachedTimelineNotice.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import HeaderIconButton from '$lib/ui/HeaderIconButton.svelte';
   import MessageComposer, {
@@ -63,7 +66,12 @@
   const members = $derived(getRoomMembers());
   const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
 
-  const store = new MessagesStore(connection(), () => currentUser.user?.id ?? null);
+  const store = new MessagesStore(
+    connection(),
+    () => currentUser.user?.id ?? null,
+    undefined,
+    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer()))
+  );
   onDestroy(() => store.dispose());
 
   $effect(() =>
@@ -76,6 +84,20 @@
       const anchorEventId = store.refreshAnchorForMessageMutation(detail.eventId);
       if (!anchorEventId) return;
       void store.refreshCurrentWindow(anchorEventId);
+    })
+  );
+
+  $effect(() =>
+    onOutboxMessageSent((detail) => {
+      if (
+        detail.scope.serverId !== getActiveServer() ||
+        detail.message.roomId !== roomId ||
+        detail.message.threadRootEventId !== threadRootEventId
+      ) {
+        return;
+      }
+      if (detail.result.event) store.ingestEvent(detail.result.event);
+      else void store.refreshCurrentWindow(null);
     })
   );
 
@@ -314,6 +336,10 @@
       <HeaderIconButton icon="uil--times" label={m['room.thread.close']()} onclick={onClose} />
     {/snippet}
   </PaneHeader>
+
+  {#if store.isShowingCachedData}
+    <CachedTimelineNotice />
+  {/if}
 
   <TimelineEventsPane
     {roomId}

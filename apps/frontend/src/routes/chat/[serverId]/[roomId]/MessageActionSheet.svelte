@@ -105,6 +105,11 @@
     onClose();
   }
 
+  async function handleShare() {
+    await actions.shareMessage(params);
+    onClose();
+  }
+
   function handleDelete() {
     actions.openDeleteConfirmation(params);
     onClose();
@@ -165,6 +170,13 @@
       <span class="sidebar-icon iconify uil--copy"></span>
       {m['room.message.actions.copy_link']()}
     </button>
+
+    {#if actions.canShare}
+      <button class="sidebar-item min-h-11 gap-3 px-3 py-2.5 text-base" onclick={handleShare}>
+        <span class="sidebar-icon iconify uil--share-alt"></span>
+        {m['room.message.actions.share']()}
+      </button>
+    {/if}
 
     {#if canDelete}
       <button

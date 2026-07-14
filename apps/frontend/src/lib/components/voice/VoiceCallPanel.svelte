@@ -14,6 +14,7 @@ Room sidebar panel for voice/video calls.
 - `livekitUrl` - The LiveKit server WebSocket URL (needed for joining)
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -47,6 +48,10 @@ Room sidebar panel for voice/video calls.
     callFullscreenMedia,
     type CallFullscreenMediaKind
   } from '$lib/state/callFullscreenMedia.svelte';
+  import {
+    supportsVideoPictureInPicture,
+    toggleVideoPictureInPicture
+  } from '$lib/pwa/pictureInPicture';
 
   let {
     roomId,
@@ -69,6 +74,21 @@ Room sidebar panel for voice/video calls.
   let companionAllowed = $state(false);
   let deviceChoiceBusy = $state(false);
   let diagnosticsParticipantKey = $state<string | null>(null);
+  let pictureInPictureAvailable = $state(false);
+  let pictureInPictureActive = $state(false);
+
+  onMount(() => {
+    pictureInPictureAvailable = supportsVideoPictureInPicture();
+    const syncPictureInPictureState = () => {
+      pictureInPictureActive = Boolean(document.pictureInPictureElement);
+    };
+    document.addEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+    document.addEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+    return () => {
+      document.removeEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+      document.removeEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+    };
+  });
 
   function callEventPayload(
     event: EventEnvelope['event']
@@ -493,6 +513,15 @@ Room sidebar panel for voice/video calls.
 
   onDestroy(() => callFullscreenMedia.closeForRoom(roomId));
 
+  async function toggleClosestMediaPictureInPicture(event: MouseEvent): Promise<void> {
+    event.stopPropagation();
+    const video = (event.currentTarget as HTMLElement)
+      .closest<HTMLElement>('[data-call-media-card]')
+      ?.querySelector<HTMLVideoElement>('video');
+    if (!video) return;
+    pictureInPictureActive = await toggleVideoPictureInPicture(video);
+  }
+
   function toggleFeedMute(participant: DisplayParticipant, event: MouseEvent): void {
     event.stopPropagation();
     if (participant.isLocal) {
@@ -614,6 +643,16 @@ Room sidebar panel for voice/video calls.
     </div>
   {/if}
   <CallTileActionToolbar testId="call-media-actions">
+    {#if pictureInPictureAvailable}
+      <CallTileActionButton
+        icon="uil--window"
+        label={pictureInPictureActive
+          ? m['voice.exit_picture_in_picture']()
+          : m['voice.picture_in_picture']()}
+        testId="call-feed-pip-button"
+        onclick={toggleClosestMediaPictureInPicture}
+      />
+    {/if}
     <CallTileActionButton
       icon="mdi--fullscreen"
       label={m['voice.fullscreen_feed']()}

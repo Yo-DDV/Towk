@@ -49,6 +49,23 @@ message MessagePostedEvent {
   // The message's durable event ID lives on the Event envelope, not on this
   // payload.
 }
+
+// MessageRequestClaimedEvent is the durable idempotency claim for one logical
+// CreateMessage operation. It is committed atomically with the encrypted body
+// and MessagePostedEvent on a request-specific subject. It is internal storage
+// state and is never exposed as a room timeline event.
+message MessageRequestClaimedEvent {
+  // Room that owns the message and the request claim.
+  string room_id = 1;
+  // Opaque client-generated identifier, scoped by room and actor.
+  string client_request_id = 2;
+  // SHA-256 of the semantic CreateMessage request fields.
+  // Server-keyed proof of the request fingerprint. The raw digest is never
+  // persisted because message bodies may be short enough to guess offline.
+  bytes request_proof = 3;
+  // Durable MessagePostedEvent envelope ID created for the request.
+  string message_event_id = 4;
+}
 // ============================================================================
 // MESSAGE MUTATION EVENTS (room-scoped)
 // ============================================================================

@@ -21,6 +21,8 @@
     "drop_files_title": "Dateien hier ablegen",
     "drop_files_subtitle": "Dateien werden deiner Nachricht hinzugefügt",
     "send_failed": "Nachricht konnte nicht gesendet werden",
+    "queued_offline": "Nachricht sicher gespeichert. Sie wird gesendet, sobald die Verbindung wiederhergestellt ist.",
+    "attachments_need_connection": "Lass diesen Entwurf geöffnet: Anhänge benötigen eine Verbindung, bevor sie vorgemerkt werden können.",
     "edit_failed": "Nachricht konnte nicht bearbeitet werden",
     "mention": {
       "all_room_members": "Alle Raummitglieder",

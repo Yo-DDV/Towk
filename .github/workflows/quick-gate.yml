@@ -1,0 +1,40 @@
+name: quick gate
+
+on:
+  push:
+    branches:
+      - main
+      - 'release-[0-9]*'
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
+      - main
+      - 'release-[0-9]*'
+
+concurrency:
+  group: quick-gate-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  quick-gate:
+    name: quick-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Run dependency-free repository guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          empty_tree="$(git hash-object -t tree /dev/null)"
+          git diff --check "${empty_tree}" HEAD
+          node --check tools/check-public-surface.mjs
+          node tools/check-public-surface.mjs
+          bash -n tools/verify-release-archives.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh

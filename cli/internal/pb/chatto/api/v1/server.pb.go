@@ -35,7 +35,11 @@ type ServerPublicProfile struct {
 	// Optional welcome message.
 	WelcomeMessage *string `protobuf:"bytes,5,opt,name=welcome_message,json=welcomeMessage,proto3,oneof" json:"welcome_message,omitempty"`
 	// Optional server description.
-	Description   *string `protobuf:"bytes,6,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	Description *string `protobuf:"bytes,6,opt,name=description,proto3,oneof" json:"description,omitempty"`
+	// Stable, additive feature identifiers supported by this server. Clients
+	// must ignore unknown values and require an explicit match before using a
+	// capability whose fallback would not be safe.
+	Capabilities  []string `protobuf:"bytes,7,rep,name=capabilities,proto3" json:"capabilities,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -112,6 +116,13 @@ func (x *ServerPublicProfile) GetDescription() string {
 	return ""
 }
 
+func (x *ServerPublicProfile) GetCapabilities() []string {
+	if x != nil {
+		return x.Capabilities
+	}
+	return nil
+}
+
 // Login and registration options exposed before authentication.
 type ServerLogin struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -180,7 +191,7 @@ var File_chatto_api_v1_server_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x1achatto/api/v1/server.proto\x12\rchatto.api.v1\x1a\x1achatto/api/v1/common.proto\"\x9c\x02\n" +
+	"\x1achatto/api/v1/server.proto\x12\rchatto.api.v1\x1a\x1achatto/api/v1/common.proto\"\xc0\x02\n" +
 	"\x13ServerPublicProfile\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1e\n" +
@@ -188,7 +199,8 @@ const file_chatto_api_v1_server_proto_rawDesc = "" +
 	"\n" +
 	"banner_url\x18\x04 \x01(\tH\x01R\tbannerUrl\x88\x01\x01\x12,\n" +
 	"\x0fwelcome_message\x18\x05 \x01(\tH\x02R\x0ewelcomeMessage\x88\x01\x01\x12%\n" +
-	"\vdescription\x18\x06 \x01(\tH\x03R\vdescription\x88\x01\x01B\v\n" +
+	"\vdescription\x18\x06 \x01(\tH\x03R\vdescription\x88\x01\x01\x12\"\n" +
+	"\fcapabilities\x18\a \x03(\tR\fcapabilitiesB\v\n" +
 	"\t_logo_urlB\r\n" +
 	"\v_banner_urlB\x12\n" +
 	"\x10_welcome_messageB\x0e\n" +

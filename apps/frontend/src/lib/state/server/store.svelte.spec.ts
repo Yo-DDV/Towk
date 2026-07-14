@@ -294,13 +294,15 @@ function makeStore(
   fake: FakeServerConnection,
   server: RegisteredServer = registered,
   publicServerInfoLoader = connectUnavailable(),
-  onAuthenticationRequired?: () => void
+  onAuthenticationRequired?: () => void,
+  onCapabilitiesChanged?: (capabilities: string[]) => void
 ): ServerStateStore {
   const store = new ServerStateStore(
     server,
     fake as unknown as ServerConnection,
     publicServerInfoLoader,
-    onAuthenticationRequired
+    onAuthenticationRequired,
+    onCapabilitiesChanged
   );
   stores.push(store);
   return store;
@@ -491,10 +493,19 @@ describe('ServerStateStore live server updates', () => {
       description: 'Fresh description',
       iconUrl: 'https://cdn/icon.webp',
       bannerUrl: 'https://cdn/banner.webp',
+      capabilities: ['message.create-idempotency-v1'],
       directRegistrationEnabled: false,
       authProviders: []
     });
-    const store = makeStore(fake, registered, publicServerInfoLoader);
+    const onCapabilitiesChanged = vi.fn();
+    const store = makeStore(
+      fake,
+      { ...registered, capabilities: ['cached-capability'] },
+      publicServerInfoLoader,
+      undefined,
+      onCapabilitiesChanged
+    );
+    expect(store.serverInfo.capabilities).toEqual(['cached-capability']);
     store.currentUser.user = { id: 'U1', login: 'alice', displayName: 'Alice' } as never;
     await flushPromises();
     await Promise.resolve();
@@ -554,13 +565,15 @@ describe('ServerStateStore live server updates', () => {
       });
     }
     await vi.waitFor(() => expect(apiMocks.getAuthenticatedServerState).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(store.serverInfo.name).toBe('Fresh Name'));
 
     expect(publicServerInfoLoader).toHaveBeenCalledWith(registered.url);
-    expect(store.serverInfo.name).toBe('Fresh Name');
     expect(store.serverInfo.welcomeMessage).toBe('Fresh welcome');
     expect(store.serverInfo.description).toBe('Fresh description');
     expect(store.serverInfo.iconUrl).toBe('https://cdn/icon.webp');
     expect(store.serverInfo.bannerUrl).toBe('https://cdn/banner.webp');
+    expect(store.serverInfo.capabilities).toEqual(['message.create-idempotency-v1']);
+    expect(onCapabilitiesChanged).toHaveBeenCalledWith(['message.create-idempotency-v1']);
     expect(store.serverInfo.motd).toBe('Fresh MOTD');
     expect(store.serverInfo.pushNotificationsEnabled).toBe(true);
     expect(store.serverInfo.livekitUrl).toBe('wss://livekit');

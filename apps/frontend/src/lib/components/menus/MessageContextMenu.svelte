@@ -125,6 +125,11 @@ Rendered inside a ContextMenu when right-clicking a message.
     onClose();
   }
 
+  async function handleShare() {
+    await actions.shareMessage(params);
+    onClose();
+  }
+
   function handleDelete() {
     actions.openDeleteConfirmation(params);
     onClose();
@@ -188,6 +193,13 @@ Rendered inside a ContextMenu when right-clicking a message.
       <span class="sidebar-icon iconify uil--copy"></span>
       {m['room.message.actions.copy_link']()}
     </button>
+
+    {#if actions.canShare}
+      <button class="sidebar-item" onclick={handleShare} role="menuitem">
+        <span class="sidebar-icon iconify uil--share-alt"></span>
+        {m['room.message.actions.share']()}
+      </button>
+    {/if}
 
     {#if canDelete}
       <button

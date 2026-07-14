@@ -38,6 +38,14 @@ func TestEventFactsRoomIDAndVisibility(t *testing.T) {
 			visible: false,
 		},
 		{
+			name: "message request claim",
+			event: &corev1.Event{Event: &corev1.Event_MessageRequestClaimed{
+				MessageRequestClaimed: &corev1.MessageRequestClaimedEvent{RoomId: "R1"},
+			}},
+			roomID:  "R1",
+			visible: false,
+		},
+		{
 			name: "asset creation is resolved by asset projections",
 			event: &corev1.Event{Event: &corev1.Event_AssetCreated{
 				AssetCreated: &corev1.AssetCreatedEvent{RoomId: "R1"},

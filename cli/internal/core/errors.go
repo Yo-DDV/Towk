@@ -76,6 +76,10 @@ var (
 	// ErrMessageNotFound is returned when a message body doesn't exist (already deleted).
 	ErrMessageNotFound = errors.New("message not found")
 
+	// ErrMessageRequestConflict is returned when an idempotency key is reused
+	// for a semantically different message request.
+	ErrMessageRequestConflict = errors.New("client request id was already used for a different message")
+
 	// ErrMessageBodyCorrupt is returned when a persisted message body envelope is
 	// malformed or cannot be authenticated. Callers may render the affected
 	// message as unavailable, but should not treat dependency or request errors

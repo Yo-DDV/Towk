@@ -248,10 +248,34 @@ describe('ServerRegistry', () => {
 				})
 			);
 
-			registry.clearOriginAuthentication();
+			await registry.clearOriginAuthentication();
 
 			expect(registry.getServer('origin')?.token).toBeNull();
 			expect(registry.getServer('origin')?.userId).toBeNull();
+		});
+
+		it('clears stale cookie-auth identity when startup is unauthenticated', async () => {
+			const registry = await createRegistry();
+			registry.servers = [];
+
+			registry.addServer(
+				makeServer({
+					id: 'origin',
+					url: window.location.origin,
+					userId: 'U-stale',
+					userLogin: 'alice',
+					userDisplayName: 'Alice'
+				})
+			);
+
+			registry.settleOriginUnauthenticated();
+
+			expect(registry.getServer('origin')).toMatchObject({
+				userId: null,
+				userLogin: null,
+				userDisplayName: null,
+				userAvatarUrl: null
+			});
 		});
 	});
 

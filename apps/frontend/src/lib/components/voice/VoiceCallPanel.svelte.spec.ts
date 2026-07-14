@@ -25,6 +25,10 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const screenShareControl = container.querySelector('[data-testid="call-screen-share-toggle"]');
     expect(screenShareControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+
+    const pictureInPictureControl = container.querySelector('[data-testid="call-feed-pip-button"]');
+    expect(pictureInPictureControl).not.toBeNull();
+    expect(pictureInPictureControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(32);
   });
 
   it('distinguishes two connections from the same account and exposes call audio control', async () => {

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from 'svelte';
+  import { replaceState } from '$app/navigation';
+  import { page } from '$app/state';
   import type { RoomEventView } from '$lib/render/types';
-  import { createMessageAPI } from '$lib/api-client/messages';
+  import { createMessageAPI, type PreparedMessageInput } from '$lib/api-client/messages';
   import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
   import { createRoleAPI } from '$lib/api-client/roles';
   import * as m from '$lib/i18n/messages';
@@ -33,6 +35,10 @@
   import { AttachmentsState } from './attachments.svelte';
   import { LinkPreviewState } from './linkPreviews.svelte';
   import { AutocompleteState, type MentionRole } from './autocomplete.svelte';
+  import { classifyOutboxFailure, pwaOutbox } from '$lib/pwa/outbox.svelte';
+  import { supportsMessageCreateIdempotency } from '$lib/pwa/outboxPolicy';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import { deleteIncomingShare, getIncomingShare } from '$lib/pwa/shareInbox';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
 
@@ -115,6 +121,7 @@
 
   onDestroy(() => {
     if (mentionSearchTimer) clearTimeout(mentionSearchTimer);
+    draftState.dispose();
   });
 
   const composerContext = getComposerContext();
@@ -213,12 +220,13 @@
     if (eventId && originalBody && editSeededForEvent !== eventId) {
       editSeededForEvent = eventId;
       autocomplete.reset();
-      draftState.clearText();
+      void draftState.clearText().catch(() => undefined);
       message = originalBody;
       manualRichMode = false;
       alsoSendToChannel = editState.channelEchoEventId !== null;
       api?.setContent(originalBody);
       tick().then(() => api?.focus('end'));
+      void draftState.discardFiles().catch(() => undefined);
       attachments.clear();
       linkPreviews.clear();
     } else if (editSeededForEvent && !eventId) {
@@ -232,38 +240,124 @@
     }
   });
 
-  // Load draft from sessionStorage when room changes
-  // Using sessionStorage (not localStorage) so drafts are tab-specific
+  // Drafts are encrypted per server account in IndexedDB. The legacy
+  // sessionStorage entry is migrated once and then removed.
   let autocompleteResetRoomId = '';
+  let loadedDraftKey = $state('');
+  let draftLoadVersion = 0;
+  let consumedIncomingShareId = '';
+
+  async function consumeIncomingShare(loadVersion: number, draftText: string) {
+    if (inThread) return;
+    const shareId = page.url.searchParams.get('shareId') ?? '';
+    if (!shareId || consumedIncomingShareId === shareId) return;
+    consumedIncomingShareId = shareId;
+
+    const incoming = await getIncomingShare(shareId);
+    if (loadVersion !== draftLoadVersion) {
+      consumedIncomingShareId = '';
+      return;
+    }
+    if (!incoming) {
+      toast.error(m['ui.share_target.expired']());
+    } else {
+      const sharedText = [incoming.title, incoming.text, incoming.url].filter(Boolean).join('\n\n');
+      message = [draftText, sharedText].filter(Boolean).join('\n\n');
+      editorApi?.setContent(message);
+      if (incoming.files.length > 0) {
+        if (canAttach) {
+          await attachments.stageFiles(incoming.files);
+        } else {
+          toast.error(m['room.attachment.not_permitted']());
+        }
+      }
+      await deleteIncomingShare(shareId).catch(() => undefined);
+    }
+
+    const cleanUrl = new URL(page.url);
+    cleanUrl.searchParams.delete('shareId');
+    // The URL is derived from the current same-origin SvelteKit route.
+    // eslint-disable-next-line svelte/no-navigation-without-resolve
+    replaceState(`${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`, page.state);
+  }
+
   $effect(() => {
+    const activeDraftKey = DRAFT_KEY;
     if (autocompleteResetRoomId !== roomId) {
       autocompleteResetRoomId = roomId;
       autocomplete.resetForRoom();
     }
 
+    const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
+    const legacyDraft = draftState.switchKey(DRAFT_KEY, scope, roomId, inThread ?? null);
+    const loadVersion = ++draftLoadVersion;
+    loadedDraftKey = '';
+
     if (isEditing) {
-      draftState.switchKey(DRAFT_KEY);
       attachments.restore([]);
       return;
     }
 
-    const draft = draftState.switchKey(DRAFT_KEY);
-    message = draft;
+    message = legacyDraft;
     manualRichMode = false;
-    editorApi?.setContent(draft);
-    attachments.restore(untrack(() => draftState.takeFiles()));
+    // Editor readiness is not part of the draft identity. Tracking it here
+    // would restart the async load and could overwrite a quote or text entered
+    // while IndexedDB is still resolving.
+    untrack(() => editorApi)?.setContent(legacyDraft);
+    attachments.restore([]);
+    void Promise.all([draftState.load(legacyDraft), draftState.loadFiles()])
+      .then(([draft, draftFiles]) => {
+        if (loadVersion !== draftLoadVersion || isEditing) {
+          for (const { url } of draftFiles) URL.revokeObjectURL(url);
+          return;
+        }
+        const currentMessage = untrack(() => message);
+        const currentFiles = untrack(() => attachments.filesWithUrls);
+        const userChangedText = currentMessage !== legacyDraft;
+
+        // Never replace live composer input with a late IndexedDB read. If a
+        // persisted draft and new input both exist, preserve both instead of
+        // silently discarding either one.
+        const persistedText = draft?.text ?? '';
+        message = userChangedText
+          ? persistedText && persistedText !== currentMessage
+            ? `${persistedText}\n\n${currentMessage}`
+            : currentMessage
+          : persistedText;
+        manualRichMode =
+          (draft?.richMode ?? false) || (userChangedText && untrack(() => manualRichMode));
+        untrack(() => editorApi)?.setContent(message);
+        attachments.restore(currentFiles.length > 0 ? [...draftFiles, ...currentFiles] : draftFiles);
+        loadedDraftKey = DRAFT_KEY;
+        void consumeIncomingShare(loadVersion, message);
+      })
+      .catch((error) => {
+        if (loadVersion !== draftLoadVersion) return;
+        console.error('Failed to load encrypted draft:', error);
+        loadedDraftKey = DRAFT_KEY;
+        void consumeIncomingShare(loadVersion, message);
+      });
 
     return () => {
       attachments.invalidatePending();
-      draftState.stashFiles(untrack(() => attachments.filesWithUrls));
+      const files = untrack(() => attachments.filesWithUrls);
+      if (untrack(() => loadedDraftKey === activeDraftKey) || files.length > 0) {
+        draftState.stashFiles(files);
+      }
+      void draftState.flush().catch(() => undefined);
     };
   });
 
-  // Persist draft to sessionStorage
+  // Debounced encrypted draft persistence starts only after the matching
+  // account/room record has loaded, so a slow read cannot overwrite typing.
   $effect(() => {
-    void DRAFT_KEY;
-    if (isEditing) return;
-    draftState.persistText(message);
+    if (isEditing || loading || loadedDraftKey !== DRAFT_KEY) return;
+    draftState.persistText(message, manualRichMode);
+  });
+
+  $effect(() => {
+    if (isEditing || loading || loadedDraftKey !== DRAFT_KEY) return;
+    draftState.persistFiles(attachments.filesWithUrls);
   });
 
   $effect(() => {
@@ -295,13 +389,12 @@
       }
       if (cancelled) return false;
       mentionRoles =
-        roles
-          .map((role) => ({
-            name: role.name,
-            isSystem: role.isSystem,
-            position: role.position,
-            pingable: role.pingable
-          })) ?? [];
+        roles.map((role) => ({
+          name: role.name,
+          isSystem: role.isSystem,
+          position: role.position,
+          pingable: role.pingable
+        })) ?? [];
       mentionRolesLoadFailed = false;
       mentionRolesLoadComplete = true;
       return true;
@@ -317,10 +410,10 @@
   let roleMentionCheckLoading = $state(false);
   let fileInputElement = $state<HTMLInputElement>();
 
-  // Input is disabled when user can't post or websocket is disconnected.
+  // A realtime disconnect does not prevent composing or queueing a message.
   // Note: loading is intentionally excluded — the editor stays editable during sends
   // so users can type the next message while the current one is in flight.
-  let inputDisabled = $derived(!canPost || connection().showConnectionLostBanner);
+  let inputDisabled = $derived(!canPost);
 
   let hasSendableAttachments = $derived(canAttach && attachments.selectedFiles.length > 0);
 
@@ -489,11 +582,13 @@
     linkPreviewInput: ReturnType<typeof linkPreviews.buildInput>;
     alsoSendToChannel: boolean;
     wasRichComposer: boolean;
+    clientRequestId: string;
   };
 
   type SendPreparedPostResponse = {
     event: RoomEventView | null;
     error: unknown | null;
+    prepared: PreparedMessageInput | null;
   };
 
   let pendingRoleMentionConfirmation = $state<PreparedPost | null>(null);
@@ -516,13 +611,15 @@
   }
 
   async function sendPreparedPost(post: PreparedPost): Promise<SendPreparedPostResponse> {
+    let prepared: PreparedMessageInput | null = null;
     try {
       const conn = connection();
-      const result = await createMessageAPI({
+      const api = createMessageAPI({
         serverId: conn.serverId,
         baseUrl: conn.connectBaseUrl,
         bearerToken: conn.bearerToken
-      }).createMessage({
+      });
+      prepared = await api.prepareMessage({
         roomId: post.roomId,
         body: post.bodyToSend,
         attachmentAssetIds: post.attachmentAssetIds,
@@ -530,12 +627,14 @@
         threadRootEventId: post.threadRootEventId,
         inReplyTo: post.inReplyTo,
         linkPreview: post.linkPreviewInput,
-        alsoSendToChannel: post.alsoSendToChannel
+        alsoSendToChannel: post.alsoSendToChannel,
+        clientRequestId: post.clientRequestId
       });
+      const result = await api.createPreparedMessage(prepared);
 
-      return { event: result.event, error: null };
+      return { event: result.event, error: null, prepared };
     } catch (error) {
-      return { event: null, error };
+      return { event: null, error, prepared };
     }
   }
 
@@ -549,13 +648,49 @@
     }
   }
 
-  function handlePostFailure(error: unknown, post: PreparedPost) {
+  async function handlePostFailure(
+    error: unknown,
+    post: PreparedPost,
+    prepared: PreparedMessageInput | null
+  ) {
+    const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
+    if (
+      scope &&
+      prepared &&
+      classifyOutboxFailure(error) === 'retryable' &&
+      supportsMessageCreateIdempotency(serverInfo)
+    ) {
+      try {
+        // Preview tokens are short-lived server capabilities. The message is
+        // durable; an expired optional preview must never block its replay.
+        await pwaOutbox.queue(scope, { ...prepared, linkPreviewToken: '' });
+        await clearAcceptedDraft();
+        toast.success(m['composer.queued_offline']());
+        onCancelReply?.();
+        alsoSendToChannel = false;
+        return;
+      } catch (queueError) {
+        console.error('Failed to queue message:', queueError);
+      }
+    }
     toast.error(m['composer.send_failed']());
     console.error('Error creating message:', error);
     restorePreparedPost(post);
   }
 
-  function handlePostSuccess(response: SendPreparedPostResponse, post: PreparedPost) {
+  async function clearAcceptedDraft() {
+    try {
+      await Promise.all([draftState.clearText(), draftState.discardFiles()]);
+    } catch (error) {
+      console.error('Failed to clear accepted message draft:', error);
+    }
+  }
+
+  async function handlePostSuccess(response: SendPreparedPostResponse, post: PreparedPost) {
+    // Complete the serialized local delete before exposing the accepted event.
+    // A caller may reload as soon as the message appears in the timeline.
+    await clearAcceptedDraft();
+
     // Notify parent before scrolling so it can synchronously ingest the
     // returned event and make the target row available.
     onMessageSent?.(response.event);
@@ -578,6 +713,10 @@
   }
 
   async function submitPreparedPost(preparedPost: PreparedPost) {
+    if (typeof navigator !== 'undefined' && !navigator.onLine && preparedPost.filesToSend?.length) {
+      toast.warning(m['composer.attachments_need_connection']());
+      return;
+    }
     // Optimistically clear the editor so the user can start typing the next
     // message immediately (matches Slack/Discord behavior).
     autocomplete.reset();
@@ -593,9 +732,9 @@
       const response = await sendPreparedPost(preparedPost);
 
       if (response.error) {
-        handlePostFailure(response.error, preparedPost);
+        await handlePostFailure(response.error, preparedPost, response.prepared);
       } else {
-        handlePostSuccess(response, preparedPost);
+        await handlePostSuccess(response, preparedPost);
       }
     } finally {
       loading = false;
@@ -635,7 +774,8 @@
       inReplyTo: inReplyTo ?? null,
       linkPreviewInput: linkPreviews.buildInput(),
       alsoSendToChannel,
-      wasRichComposer: isRichComposer
+      wasRichComposer: isRichComposer,
+      clientRequestId: crypto.randomUUID()
     };
 
     let rolesAvailable = mentionRolesLoadComplete && !mentionRolesLoadFailed;

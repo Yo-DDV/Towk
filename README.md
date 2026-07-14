@@ -58,6 +58,7 @@ deployment remains operationally and legally independent.
 | Administration | Granular roles, permissions, room groups and server administration |
 | Notifications | Realtime delivery, Web Push, badges and configurable notification levels |
 | Calls | LiveKit voice and video rooms, screen sharing and media E2EE |
+| Installed PWA | Offline shell, encrypted drafts/history/outbox, OS sharing, install guidance and call integrations |
 | Identity | OAuth/OIDC, password and email authentication flows |
 | Data control | Per-user encryption keys for selected durable data and crypto-shredding support |
 | Integration | Multi-server client foundations and a protobuf-first public API |

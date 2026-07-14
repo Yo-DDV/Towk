@@ -21,6 +21,8 @@
     "drop_files_title": "Drop files here",
     "drop_files_subtitle": "Files will be added to your message",
     "send_failed": "Failed to send message",
+    "queued_offline": "Message saved securely. It will be sent when the connection returns.",
+    "attachments_need_connection": "Keep this draft open: attachments need a connection before they can be queued.",
     "edit_failed": "Failed to edit message",
     "mention": {
       "all_room_members": "All room members",

@@ -21,6 +21,8 @@
     "drop_files_title": "Déposez les fichiers ici",
     "drop_files_subtitle": "Les fichiers seront ajoutés à votre message",
     "send_failed": "Échec de l'envoi du message",
+    "queued_offline": "Message enregistré de façon sécurisée. Il sera envoyé au retour de la connexion.",
+    "attachments_need_connection": "Gardez ce brouillon ouvert : les pièces jointes nécessitent une connexion avant leur mise en attente.",
     "edit_failed": "Échec de la modification du message",
     "mention": {
       "all_room_members": "Tous les membres du salon",

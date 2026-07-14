@@ -29,6 +29,9 @@
     type QuoteInsertionContent
   } from '$lib/state/room';
   import { onRoomMessageMutated } from '$lib/state/room/messageMutationEvents';
+  import { onOutboxMessageSent } from '$lib/pwa/outboxEvents';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import CachedTimelineNotice from '$lib/components/CachedTimelineNotice.svelte';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
@@ -109,7 +112,12 @@
   let replyStateRoomId: string | null = null;
   const jumpState = composerContext.jumpState;
   const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
-  const roomMessageStore = new MessagesStore(connection(), () => currentUser.user?.id ?? null);
+  const roomMessageStore = new MessagesStore(
+    connection(),
+    () => currentUser.user?.id ?? null,
+    undefined,
+    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer()))
+  );
 
   onDestroy(() => {
     roomMessageStore.dispose();
@@ -125,6 +133,14 @@
       const anchorEventId = roomMessageStore.refreshAnchorForMessageMutation(detail.eventId);
       if (!anchorEventId) return;
       void roomMessageStore.refreshCurrentWindow(anchorEventId);
+    })
+  );
+
+  $effect(() =>
+    onOutboxMessageSent((detail) => {
+      if (detail.scope.serverId !== getActiveServer() || detail.message.roomId !== roomId) return;
+      if (detail.result.event) roomMessageStore.ingestEvent(detail.result.event);
+      else void roomMessageStore.refreshCurrentWindow(null);
     })
   );
 
@@ -566,6 +582,10 @@
             {/if}
           {/snippet}
         </PaneHeader>
+
+        {#if roomMessageStore.isShowingCachedData}
+          <CachedTimelineNotice />
+        {/if}
 
         <RoomEventsPane
           {roomId}

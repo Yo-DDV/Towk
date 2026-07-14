@@ -46,6 +46,8 @@ func roomIDOfEvent(event *corev1.Event) string {
 		return e.MessageRetracted.GetRoomId()
 	case *corev1.Event_MessageBody:
 		return e.MessageBody.GetRoomId()
+	case *corev1.Event_MessageRequestClaimed:
+		return e.MessageRequestClaimed.GetRoomId()
 	case *corev1.Event_ThreadCreated:
 		return e.ThreadCreated.GetRoomId()
 	case *corev1.Event_ThreadFollowed:

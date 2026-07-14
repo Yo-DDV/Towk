@@ -26,6 +26,8 @@ import {
   normalizeCallPushNotification,
   type CallPushPayload
 } from '$lib/pwa/callNotification.worker';
+import { OUTBOX_SYNC_TAG } from '$lib/pwa/outboxPolicy';
+import { storeIncomingShare } from '$lib/pwa/shareInbox';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -109,6 +111,22 @@ self.addEventListener('message', (event) => {
   handleBadgeStateMessage(event);
 });
 
+// Background Sync cannot safely send authenticated messages itself: Towk
+// credentials remain in the foreground connection stores, never IndexedDB.
+// When supported, the worker wakes controlled app windows so the encrypted
+// outbox can be replayed with the normal authenticated API client.
+self.addEventListener('sync', (event: Event) => {
+  const syncEvent = event as ExtendableEvent & { tag?: string };
+  if (syncEvent.tag !== OUTBOX_SYNC_TAG) return;
+  syncEvent.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) =>
+        Promise.all(clients.map((client) => client.postMessage({ type: OUTBOX_SYNC_TAG })))
+      )
+  );
+});
+
 /**
  * Serve known app-shell assets from the versioned cache. For navigations, try
  * the network first and fall back to the cached SPA shell only when offline.
@@ -117,6 +135,11 @@ self.addEventListener('message', (event) => {
  * requests stay network-only so stale data never masquerades as live state.
  */
 self.addEventListener('fetch', (event) => {
+  if (isIncomingShareRequest(event.request)) {
+    event.respondWith(handleIncomingShare(event.request));
+    return;
+  }
+
   const policy = classifyServiceWorkerRequest(
     event.request,
     event.request.url,
@@ -181,6 +204,36 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+function isIncomingShareRequest(request: Request): boolean {
+  const url = new URL(request.url);
+  return (
+    request.method === 'POST' &&
+    url.origin === self.location.origin &&
+    url.pathname === '/chat/share-target'
+  );
+}
+
+async function handleIncomingShare(request: Request): Promise<Response> {
+  const redirect = (suffix: string) =>
+    Response.redirect(new URL(`/chat/share-target${suffix}`, self.location.origin), 303);
+  try {
+    const form = await request.formData();
+    const field = (name: string) => {
+      const value = form.get(name);
+      return typeof value === 'string' ? value : '';
+    };
+    const files = form.getAll('files').filter((value): value is File => value instanceof File);
+    const shareId = await storeIncomingShare({
+      title: field('title'),
+      text: field('text'),
+      url: field('url'),
+      files
+    });
+    return redirect(`?shareId=${encodeURIComponent(shareId)}`);
+  } catch {
+    return redirect('?error=invalid');
+  }
+}
 async function cacheShellAsset(cache: Cache, path: string, required: boolean): Promise<void> {
   try {
     const response = await fetch(path, { cache: 'reload' });
