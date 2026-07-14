@@ -45,9 +45,11 @@ test.describe('native desktop file clipboard', () => {
 
       const message = roomPage.getMessage(body);
       await expect(message.locator).toBeVisible();
-      await expect(
-        message.locator.getByRole('button', { name: `Download ${filename}` })
-      ).toBeVisible();
+      const downloadButton = message.locator.locator('button[aria-label^="Download "]');
+      await expect(downloadButton).toBeVisible();
+      expect((await downloadButton.getAttribute('aria-label'))?.normalize('NFC')).toBe(
+        `Download ${filename}`.normalize('NFC')
+      );
     } finally {
       await clipboard?.release();
       await rm(fixtureDirectory, { recursive: true, force: true });
