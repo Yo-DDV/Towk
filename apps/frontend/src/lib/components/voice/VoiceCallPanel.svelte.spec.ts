@@ -31,6 +31,8 @@ describe('VoiceCallPanel screen-share audio', () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'devices' }
     });
+    container.style.width = '260px';
+    container.style.maxWidth = '260px';
 
     await vi.waitFor(
       () => {
@@ -61,6 +63,29 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     expect(container.querySelector('[data-testid="call-device-microphone-toggle"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="call-device-output-toggle"]')).not.toBeNull();
+    const deviceControls = Array.from(
+      container.querySelectorAll(
+        '[data-testid="call-device-microphone-toggle"], [data-testid="call-device-output-toggle"]'
+      )
+    ) as HTMLButtonElement[];
+    const siblingCard = deviceControls[0].closest(
+      '[data-testid="call-participant-card"]'
+    ) as HTMLElement | null;
+    expect(siblingCard).not.toBeNull();
+    const cardRect = siblingCard!.getBoundingClientRect();
+    const firstActionRect = deviceControls[0].getBoundingClientRect();
+    const siblingName = siblingCard!.querySelector(
+      '[data-testid="call-participant-name"]'
+    ) as HTMLElement | null;
+    expect(siblingName).not.toBeNull();
+    expect(siblingName!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      firstActionRect.left - 2
+    );
+    for (const control of deviceControls) {
+      const controlRect = control.getBoundingClientRect();
+      expect(controlRect.right).toBeLessThanOrEqual(cardRect.right);
+      expect(controlRect.bottom).toBeLessThanOrEqual(cardRect.bottom);
+    }
 
     const outputControl = container.querySelector(
       '[data-testid="call-output-mute-toggle"]'

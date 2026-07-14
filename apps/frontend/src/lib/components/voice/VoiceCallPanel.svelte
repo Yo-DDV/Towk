@@ -454,13 +454,17 @@ Room sidebar panel for voice/video calls.
   }
 </script>
 
-{#snippet participantAudioActions(participant: DisplayParticipant)}
+{#snippet participantAudioActions(
+  participant: DisplayParticipant,
+  buttonSize: 'default' | 'compact' = 'default'
+)}
   {#if participant.isLocal}
     <CallTileActionButton
       icon={voiceCallState.isMuted ? 'uil--microphone-slash' : 'uil--microphone'}
       active={voiceCallState.isMuted}
       label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
       testId="call-feed-local-mute-button"
+      size={buttonSize}
       pending={voiceCallState.isMicrophonePending}
       disabled={voiceCallState.isMicrophonePending}
       onclick={(event) => toggleFeedMute(participant, event)}
@@ -475,6 +479,7 @@ Room sidebar panel for voice/video calls.
         ? m['voice.unmute_device_microphone']({ index: participant.deviceIndex })
         : m['voice.mute_device_microphone']({ index: participant.deviceIndex })}
       testId="call-device-microphone-toggle"
+      size={buttonSize}
       pending={participant.isSiblingMicrophoneControlPending}
       disabled={participant.siblingMicrophoneMuted === null ||
         participant.isSiblingMicrophoneControlPending}
@@ -488,6 +493,7 @@ Room sidebar panel for voice/video calls.
         ? m['voice.unmute_device_audio']({ index: participant.deviceIndex })
         : m['voice.mute_device_audio']({ index: participant.deviceIndex })}
       testId="call-device-output-toggle"
+      size={buttonSize}
       pending={participant.isSiblingOutputControlPending}
       disabled={participant.siblingOutputMuted === null ||
         participant.isSiblingOutputControlPending}
@@ -502,6 +508,7 @@ Room sidebar panel for voice/video calls.
         ? m['voice.locally_unmute_participant']()
         : m['voice.locally_mute_participant']()}
       testId="call-feed-local-mute-button"
+      size={buttonSize}
       onclick={(event) => toggleFeedMute(participant, event)}
     />
   {/if}
@@ -523,8 +530,8 @@ Room sidebar panel for voice/video calls.
 
 {#snippet voiceTileActions(participant: DisplayParticipant)}
   {#if isInThisCall}
-    <CallTileActionToolbar testId="call-voice-actions">
-      {@render participantAudioActions(participant)}
+    <CallTileActionToolbar testId="call-voice-actions" placement="inline">
+      {@render participantAudioActions(participant, 'compact')}
     </CallTileActionToolbar>
   {/if}
 {/snippet}
