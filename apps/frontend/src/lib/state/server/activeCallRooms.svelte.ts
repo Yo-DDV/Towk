@@ -20,7 +20,9 @@ import type {
 
 /** Participant info for display in the room list sidebar. */
 export type CallRoomParticipant = {
+  participantId: string;
   userId: string;
+  deviceIndex: number;
   displayName: string;
   login: string;
   avatarUrl: string | null;
@@ -142,7 +144,7 @@ export class ActiveCallRoomsState {
   private liveParticipantCallPresence(userId: string): CallPresenceKind | null {
     if (!this.#voiceCall.connected) return null;
 
-    const liveParticipant = this.#voiceCall.participants.find((p) => p.identity === userId);
+    const liveParticipant = this.#voiceCall.participants.find((p) => p.userId === userId);
     if (!liveParticipant) return null;
 
     return liveParticipant.isCameraEnabled && liveParticipant.videoTrack ? 'video' : 'voice';
@@ -185,7 +187,13 @@ export class ActiveCallRoomsState {
   /**
    * Handle a CallParticipantJoinedEvent — add participant to the room.
    */
-  async handleJoin(roomId: string, callId: string, actor: CallActor | null): Promise<void> {
+  async handleJoin(
+    roomId: string,
+    callId: string,
+    actor: CallActor | null,
+    participantId: string | null = null,
+    deviceIndex = 0
+  ): Promise<void> {
     const existing = this.serverRooms.get(roomId);
     if (existing?.callId && existing.callId !== callId) return;
 
@@ -193,8 +201,9 @@ export class ActiveCallRoomsState {
     const participants = snapshot.participants;
 
     if (actor) {
-      // Avoid duplicates
-      if (participants.some((p) => p.userId === actor.id)) return;
+      const connectionId = participantId || actor.id;
+      // Avoid duplicate events for one connection while preserving sibling devices.
+      if (participants.some((p) => p.participantId === connectionId)) return;
 
       this.bumpRoomVersion(roomId);
       this.pendingCallIds.delete(roomId);
@@ -203,7 +212,9 @@ export class ActiveCallRoomsState {
         participants: [
           ...participants,
           {
+            participantId: connectionId,
             userId: actor.id,
+            deviceIndex: deviceIndex > 0 ? deviceIndex : 1,
             displayName: actor.displayName,
             login: actor.login,
             avatarUrl: actor.avatarUrl ?? null
@@ -221,15 +232,27 @@ export class ActiveCallRoomsState {
    * Handle a CallParticipantLeftEvent — remove participant from the room.
    * Deletes the room entry if no participants remain.
    */
-  handleLeave(roomId: string, callId: string | null, actorId: string | null): void {
+  handleLeave(
+    roomId: string,
+    callId: string | null,
+    actorId: string | null,
+    participantId: string | null = null
+  ): void {
     if (!actorId) return;
 
     const snapshot = this.serverRooms.get(roomId);
     if (!snapshot || (callId !== null && snapshot.callId !== callId)) return;
 
-    if (!snapshot.participants.some((p) => p.userId === actorId)) return;
+    if (
+      !snapshot.participants.some((p) =>
+        participantId ? p.participantId === participantId : p.userId === actorId
+      )
+    )
+      return;
 
-    const updated = snapshot.participants.filter((p) => p.userId !== actorId);
+    const updated = snapshot.participants.filter((p) =>
+      participantId ? p.participantId !== participantId : p.userId !== actorId
+    );
     this.bumpRoomVersion(roomId);
     if (updated.length > 0) {
       this.serverRooms.set(roomId, { callId: snapshot.callId, participants: updated });
@@ -269,7 +292,9 @@ export class ActiveCallRoomsState {
 
 function toCallRoomParticipant(participant: VoiceCallParticipant): CallRoomParticipant {
   return {
+    participantId: participant.participantId,
     userId: participant.user.id,
+    deviceIndex: participant.deviceIndex,
     displayName: participant.user.displayName,
     login: participant.user.login,
     avatarUrl: participant.user.avatarUrl ?? null

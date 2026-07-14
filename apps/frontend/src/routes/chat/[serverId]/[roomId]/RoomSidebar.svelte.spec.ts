@@ -66,9 +66,7 @@ const callStore = vi.hoisted(() => ({
     active: false,
     load: vi.fn().mockResolvedValue(undefined),
     has: vi.fn(() => callStore.activeCallRooms.active),
-    getParticipantCallPresenceInAnyRoom: vi.fn(
-      (_userId: string): 'voice' | 'video' | null => null
-    ),
+    getParticipantCallPresenceInAnyRoom: vi.fn((_userId: string): 'voice' | 'video' | null => null),
     handleEnd: vi.fn()
   },
   callParticipants: {
@@ -389,7 +387,10 @@ describe('RoomSidebar', () => {
     callStore.voiceCall.toggleParticipantLocalMute.mockClear();
     callStore.voiceCall.refreshDevices.mockClear();
     callStore.voiceCall.getAudioLevel.mockClear();
-    callStore.voiceCall.getAudioLevel.mockImplementation(() => ({ isSpeaking: false, audioLevel: 0 }));
+    callStore.voiceCall.getAudioLevel.mockImplementation(() => ({
+      isSpeaking: false,
+      audioLevel: 0
+    }));
     callStore.activeCallRooms.active = false;
     callStore.activeCallRooms.load.mockClear();
     callStore.activeCallRooms.has.mockClear();
@@ -458,7 +459,9 @@ describe('RoomSidebar', () => {
     await vi.waitFor(() => {
       expect(q(container, '[data-testid="member-call-presence-voice"]')).toBeTruthy();
     });
-    expect(callStore.activeCallRooms.getParticipantCallPresenceInAnyRoom).toHaveBeenCalledWith('user-2');
+    expect(callStore.activeCallRooms.getParticipantCallPresenceInAnyRoom).toHaveBeenCalledWith(
+      'user-2'
+    );
   });
 
   it('renders the call tab empty state and starts a call', async () => {
@@ -480,7 +483,11 @@ describe('RoomSidebar', () => {
     (q(container, '[data-testid="call-join-button"]') as HTMLButtonElement).click();
     await tick();
 
-    expect(callStore.voiceCall.join).toHaveBeenCalledWith('wss://livekit.example.test', 'room-1');
+    expect(callStore.voiceCall.join).toHaveBeenCalledWith(
+      'wss://livekit.example.test',
+      'room-1',
+      'ask'
+    );
   });
 
   it('renders projected call participants before joining', async () => {
@@ -647,12 +654,8 @@ describe('RoomSidebar', () => {
       }
     });
 
-    expect(q(container, '[data-testid="call-mute-toggle"]')!.className).toContain(
-      'btn-secondary'
-    );
-    expect(q(container, '[data-testid="call-camera-toggle"]')!.className).toContain(
-      'btn-success'
-    );
+    expect(q(container, '[data-testid="call-mute-toggle"]')!.className).toContain('btn-secondary');
+    expect(q(container, '[data-testid="call-camera-toggle"]')!.className).toContain('btn-success');
     expect(q(container, '[data-testid="call-screen-share-toggle"]')!.className).toContain(
       'btn-success'
     );
@@ -696,7 +699,9 @@ describe('RoomSidebar', () => {
     await vi.waitFor(() => {
       expect(callStore.voiceCall.getAudioLevel).toHaveBeenCalledWith('viewer');
       expect(card.dataset.callSpeaking).toBe('true');
-      expect(Number(card.style.getPropertyValue('--call-speaking-ring-opacity'))).toBeGreaterThan(0);
+      expect(Number(card.style.getPropertyValue('--call-speaking-ring-opacity'))).toBeGreaterThan(
+        0
+      );
     });
     expect(card.className).toContain('call-speaking-card');
     expect(q(card, '[data-testid="call-speaking-indicator"]')).toBeFalsy();
@@ -968,13 +973,20 @@ describe('RoomSidebar', () => {
 
     const featured = q(container, '[data-testid="call-featured-stage-card"]')!;
     const mediaActions = q(featured, '[data-testid="call-media-actions"]')!;
-    const fullscreenButton = q(featured, '[data-testid="call-feed-fullscreen-button"]') as HTMLButtonElement;
-    const localMuteButton = q(featured, '[data-testid="call-feed-local-mute-button"]') as HTMLButtonElement;
+    const fullscreenButton = q(
+      featured,
+      '[data-testid="call-feed-fullscreen-button"]'
+    ) as HTMLButtonElement;
+    const localMuteButton = q(
+      featured,
+      '[data-testid="call-feed-local-mute-button"]'
+    ) as HTMLButtonElement;
 
     expect(mediaActions.className).toContain('border-text/10');
     expect(mediaActions.className).toContain('bg-surface-100');
     expect(mediaActions.className).toContain('flex');
-    expect(mediaActions.className).not.toContain('absolute');
+    expect(mediaActions.className).toContain('absolute');
+    expect(mediaActions.className).toContain('right-1.5');
     expect(fullscreenButton).toBeTruthy();
     expect(fullscreenButton.className).toContain('text-muted');
     expect(fullscreenButton.className).not.toContain('bg-black');
@@ -1091,9 +1103,9 @@ describe('RoomSidebar', () => {
     await vi.waitFor(() => {
       expect(callStore.voiceCall.getAudioLevel).toHaveBeenCalledWith('viewer');
       expect(featured!.dataset.callSpeaking).toBe('true');
-      expect(Number(featured!.style.getPropertyValue('--call-speaking-ring-opacity'))).toBeGreaterThan(
-        0
-      );
+      expect(
+        Number(featured!.style.getPropertyValue('--call-speaking-ring-opacity'))
+      ).toBeGreaterThan(0);
     });
     expect(featured!.hasAttribute('data-speaking-ring')).toBe(true);
     expect(q(featured!, '[aria-label="Poor connection"]')).toBeTruthy();
@@ -1416,7 +1428,9 @@ describe('RoomSidebar', () => {
     ) as HTMLButtonElement | null;
     expect(minimizeButton).toBeTruthy();
     expect(minimizeButton!.querySelector('.mdi--arrow-collapse-right')).toBeTruthy();
-    const fullscreenButton = container.querySelector('[aria-label="Fullscreen call"]') as HTMLButtonElement | null;
+    const fullscreenButton = container.querySelector(
+      '[aria-label="Fullscreen call"]'
+    ) as HTMLButtonElement | null;
     expect(fullscreenButton).toBeTruthy();
     expect(fullscreenButton!.querySelector('.mdi--monitor-share')).toBeTruthy();
 
@@ -1680,12 +1694,11 @@ describe('RoomSidebar', () => {
   });
 
   it('falls back to a file icon when a video thumbnail fails to load', async () => {
-    attachmentMocks.listRoomAttachments
-      .mockResolvedValueOnce({
-        items: [roomVideoFile('clip.mp4')],
-        totalCount: 1,
-        hasMore: false
-      });
+    attachmentMocks.listRoomAttachments.mockResolvedValueOnce({
+      items: [roomVideoFile('clip.mp4')],
+      totalCount: 1,
+      hasMore: false
+    });
     attachmentMocks.refreshAssetUrls.mockResolvedValueOnce(new Map());
 
     const { container } = render(RoomSidebarTestHarness, {

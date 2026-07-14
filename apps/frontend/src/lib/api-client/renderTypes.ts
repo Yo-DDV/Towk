@@ -154,11 +154,15 @@ export type RoomEventPayload =
       kind: 'callParticipantJoined';
       roomId: string;
       callId: string;
+      participantId: string;
+      deviceIndex: number;
     }
   | {
       kind: 'callParticipantLeft';
       roomId: string;
       callId: string;
+      participantId: string;
+      deviceIndex: number;
     }
   | { kind: 'callStarted'; roomId: string; callId: string }
   | { kind: 'heartbeat'; alive?: boolean }

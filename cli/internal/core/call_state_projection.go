@@ -9,10 +9,12 @@ import (
 
 // CallParticipant represents a user currently in a voice call.
 type CallParticipant struct {
-	UserID   string
-	CallID   string
-	JoinedAt int64
-	Source   corev1.CallParticipantEventSource
+	UserID        string
+	ParticipantID string
+	DeviceIndex   uint32
+	CallID        string
+	JoinedAt      int64
+	Source        corev1.CallParticipantEventSource
 }
 
 type CallSession struct {
@@ -97,18 +99,28 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 		if p.rooms[roomID] == nil {
 			p.rooms[roomID] = make(map[string]CallParticipant)
 		}
-		existing, exists := p.rooms[roomID][event.GetActorId()]
+		participantID := e.VoiceCallParticipantJoined.GetParticipantId()
+		if participantID == "" {
+			participantID = event.GetActorId()
+		}
+		deviceIndex := e.VoiceCallParticipantJoined.GetDeviceIndex()
+		if deviceIndex == 0 {
+			deviceIndex = 1
+		}
+		existing, exists := p.rooms[roomID][participantID]
 		if exists && joinedAt == 0 {
 			joinedAt = existing.JoinedAt
 		}
 		if exists && joinedAt == existing.JoinedAt && callParticipantSourcePriority(existing.Source) > callParticipantSourcePriority(source) {
 			source = existing.Source
 		}
-		p.rooms[roomID][event.GetActorId()] = CallParticipant{
-			UserID:   event.GetActorId(),
-			CallID:   callID,
-			JoinedAt: joinedAt,
-			Source:   source,
+		p.rooms[roomID][participantID] = CallParticipant{
+			UserID:        event.GetActorId(),
+			ParticipantID: participantID,
+			DeviceIndex:   deviceIndex,
+			CallID:        callID,
+			JoinedAt:      joinedAt,
+			Source:        source,
 		}
 	case *corev1.Event_VoiceCallParticipantLeft:
 		if event.GetActorId() == "" {
@@ -116,8 +128,17 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 		}
 		if participants := p.rooms[roomID]; participants != nil {
 			callID := e.VoiceCallParticipantLeft.GetCallId()
-			if existing, ok := participants[event.GetActorId()]; ok && (callID == "" || existing.CallID == "" || existing.CallID == callID) {
-				delete(participants, event.GetActorId())
+			participantID := e.VoiceCallParticipantLeft.GetParticipantId()
+			if participantID != "" {
+				if existing, ok := participants[participantID]; ok && existing.UserID == event.GetActorId() && (callID == "" || existing.CallID == "" || existing.CallID == callID) {
+					delete(participants, participantID)
+				}
+			} else {
+				for key, existing := range participants {
+					if existing.UserID == event.GetActorId() && (callID == "" || existing.CallID == "" || existing.CallID == callID) {
+						delete(participants, key)
+					}
+				}
 			}
 			if len(participants) == 0 {
 				delete(p.rooms, roomID)
@@ -133,12 +154,14 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 			return nil
 		}
 		if participants := p.rooms[roomID]; participants != nil {
-			if _, ok := participants[event.GetActorId()]; ok {
-				delete(participants, event.GetActorId())
-				if len(participants) == 0 {
-					delete(p.rooms, roomID)
-					delete(p.activeCalls, roomID)
+			for key, participant := range participants {
+				if participant.UserID == event.GetActorId() {
+					delete(participants, key)
 				}
+			}
+			if len(participants) == 0 {
+				delete(p.rooms, roomID)
+				delete(p.activeCalls, roomID)
 			}
 		}
 	case *corev1.Event_RoomDeleted:
@@ -201,6 +224,12 @@ func (p *CallStateProjection) participantsLocked(roomID string) []CallParticipan
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].JoinedAt == out[j].JoinedAt {
+			if out[i].UserID == out[j].UserID {
+				if out[i].DeviceIndex == out[j].DeviceIndex {
+					return out[i].ParticipantID < out[j].ParticipantID
+				}
+				return out[i].DeviceIndex < out[j].DeviceIndex
+			}
 			return out[i].UserID < out[j].UserID
 		}
 		return out[i].JoinedAt < out[j].JoinedAt
@@ -231,9 +260,9 @@ func (p *CallStateProjection) adminProjectionEstimate() (int64, int64, []Project
 	var bytes int64
 	for roomID, users := range p.rooms {
 		bytes += projectionMapEntryOverhead + int64(len(roomID))
-		for userID := range users {
+		for participantID, participant := range users {
 			participants++
-			bytes += projectionMapEntryOverhead + int64(len(userID)) + 32
+			bytes += projectionMapEntryOverhead + int64(len(participantID)+len(participant.UserID)) + 40
 		}
 	}
 	return participants, bytes, []ProjectionAdminMetric{

@@ -3213,6 +3213,8 @@ Request to record joining a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose call is being joined. |
+| `client_instance_id` | `string` | Opaque browser-session identifier used to make retries idempotent. Empty is accepted for compatibility with older clients. |
+| `mode` | [`JoinCallMode`](#chatto-api-v1-JoinCallMode) | Requested behavior when another device for the account is active. |
 
 
 <a id="chatto-api-v1-JoinCallResponse"></a>
@@ -3224,6 +3226,11 @@ Response from recording a join intent.
 | Field | Type | Description |
 | --- | --- | --- |
 | `joined` | `bool` | True when a join fact was recorded. |
+| `status` | [`JoinCallStatus`](#chatto-api-v1-JoinCallStatus) | Structured join outcome for multi-device clients. |
+| `participant_id` | `string` | Media-session participant ID when joined. |
+| `device_index` | `uint32` | Stable display slot when joined. |
+| `active_device_count` | `uint32` | Number of other active connections for this account at decision time. |
+| `companion_allowed` | `bool` | Whether another companion connection can be admitted without a transfer. |
 
 
 <a id="chatto-api-v1-VoiceCallService-GetCallToken"></a>
@@ -3250,6 +3257,7 @@ Request for a LiveKit token for a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose active call should be joined. |
+| `client_instance_id` | `string` | Must match the browser-session identifier admitted by JoinCall. Empty is accepted for compatibility with older clients. |
 
 
 <a id="chatto-api-v1-GetCallTokenResponse"></a>
@@ -3263,6 +3271,8 @@ LiveKit token details for joining a room call.
 | `token` | `string` | LiveKit JWT token. |
 | `e2ee_key` | `string` | Shared E2EE key for this active call. |
 | `call_id` | `string` | Active call session ID. |
+| `participant_id` | `string` | Media-session participant ID encoded as the LiveKit identity. |
+| `device_index` | `uint32` | Stable display slot for this connection. |
 
 
 <a id="chatto-api-v1-VoiceCallService-LeaveCall"></a>
@@ -3286,6 +3296,7 @@ Request to record leaving a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose call is being left. |
+| `client_instance_id` | `string` | Browser-session identifier for the exact connection leaving the call. Empty targets the legacy single-device participant only. |
 
 
 <a id="chatto-api-v1-LeaveCallResponse"></a>
@@ -4248,6 +4259,8 @@ User currently participating in a room call.
 | `user` | [`User`](#chatto-api-v1-User) | Participant user. |
 | `joined_at` | `google.protobuf.Timestamp` | When the user joined this call. |
 | `call_id` | `string` | Active call session ID. |
+| `participant_id` | `string` | Stable media-session participant ID for this browser/device connection. |
+| `device_index` | `uint32` | Stable display slot for concurrent connections from the same account. |
 
 
 
@@ -4368,3 +4381,29 @@ Room kinds to include in directory responses.
 | `ROOM_DIRECTORY_SCOPE_ALL` | `1` | Include both visible channel rooms and the caller's active DM rooms. |
 | `ROOM_DIRECTORY_SCOPE_CHANNELS` | `2` | Include visible channel rooms only. |
 | `ROOM_DIRECTORY_SCOPE_DMS` | `3` | Include the caller's active DM rooms only. |
+
+
+<a id="chatto-api-v1-JoinCallMode"></a>
+
+### JoinCallMode
+
+How a client wants to join when the same account is already connected.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `JOIN_CALL_MODE_UNSPECIFIED` | `0` | Ask the server to join directly only when no other device is connected. |
+| `JOIN_CALL_MODE_COMPANION` | `1` | Keep existing devices connected and join muted as a companion device. |
+| `JOIN_CALL_MODE_TRANSFER` | `2` | Disconnect existing devices for the account and continue on this device. |
+
+
+<a id="chatto-api-v1-JoinCallStatus"></a>
+
+### JoinCallStatus
+
+Outcome of recording a call join intent.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `JOIN_CALL_STATUS_UNSPECIFIED` | `0` | No value description provided. |
+| `JOIN_CALL_STATUS_JOINED` | `1` | The connection was admitted to the call. |
+| `JOIN_CALL_STATUS_SELECTION_REQUIRED` | `2` | Another device is active and the user must choose companion or transfer. |

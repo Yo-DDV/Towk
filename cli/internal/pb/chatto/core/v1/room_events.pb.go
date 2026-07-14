@@ -552,10 +552,14 @@ func (x *ServerMemberDeletedEvent) GetUserId() string {
 // facts represent explicit user intent and may be optimistic; LIVEKIT and
 // RECONCILIATION facts represent observed media-server state.
 type CallParticipantJoinedEvent struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	RoomId        string                     `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Source        CallParticipantEventSource `protobuf:"varint,2,opt,name=source,proto3,enum=chatto.core.v1.CallParticipantEventSource" json:"source,omitempty"`
-	CallId        string                     `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	state  protoimpl.MessageState     `protogen:"open.v1"`
+	RoomId string                     `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	Source CallParticipantEventSource `protobuf:"varint,2,opt,name=source,proto3,enum=chatto.core.v1.CallParticipantEventSource" json:"source,omitempty"`
+	CallId string                     `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	// Exact media-session connection. Empty identifies a legacy user-scoped fact.
+	ParticipantId string `protobuf:"bytes,4,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot for concurrent connections from the same account.
+	DeviceIndex   uint32 `protobuf:"varint,5,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -611,16 +615,34 @@ func (x *CallParticipantJoinedEvent) GetCallId() string {
 	return ""
 }
 
+func (x *CallParticipantJoinedEvent) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *CallParticipantJoinedEvent) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
+}
+
 // Event: a user left or attempted to leave a voice call in a room.
 //
 // The participant is identified by the parent Event.actor_id. USER-sourced
 // facts represent explicit user intent; LIVEKIT and RECONCILIATION facts
 // represent observed media-server state.
 type CallParticipantLeftEvent struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
-	RoomId        string                     `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	Source        CallParticipantEventSource `protobuf:"varint,2,opt,name=source,proto3,enum=chatto.core.v1.CallParticipantEventSource" json:"source,omitempty"`
-	CallId        string                     `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	state  protoimpl.MessageState     `protogen:"open.v1"`
+	RoomId string                     `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	Source CallParticipantEventSource `protobuf:"varint,2,opt,name=source,proto3,enum=chatto.core.v1.CallParticipantEventSource" json:"source,omitempty"`
+	CallId string                     `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	// Exact media-session connection. Empty removes every connection for actor_id.
+	ParticipantId string `protobuf:"bytes,4,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot for concurrent connections from the same account.
+	DeviceIndex   uint32 `protobuf:"varint,5,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -674,6 +696,20 @@ func (x *CallParticipantLeftEvent) GetCallId() string {
 		return x.CallId
 	}
 	return ""
+}
+
+func (x *CallParticipantLeftEvent) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *CallParticipantLeftEvent) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
 }
 
 // Event: a voice call session started in a room.
@@ -840,15 +876,19 @@ const file_chatto_core_v1_room_events_proto_rawDesc = "" +
 	"\x11UserLeftRoomEvent\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomIdJ\x04\b\x01\x10\x02R\bspace_id\"C\n" +
 	"\x18ServerMemberDeletedEvent\x12\x17\n" +
-	"\auser_id\x18\x02 \x01(\tR\x06userIdJ\x04\b\x01\x10\x02R\bspace_id\"\x92\x01\n" +
+	"\auser_id\x18\x02 \x01(\tR\x06userIdJ\x04\b\x01\x10\x02R\bspace_id\"\xdc\x01\n" +
 	"\x1aCallParticipantJoinedEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12B\n" +
 	"\x06source\x18\x02 \x01(\x0e2*.chatto.core.v1.CallParticipantEventSourceR\x06source\x12\x17\n" +
-	"\acall_id\x18\x03 \x01(\tR\x06callId\"\x90\x01\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callId\x12%\n" +
+	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"\xda\x01\n" +
 	"\x18CallParticipantLeftEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12B\n" +
 	"\x06source\x18\x02 \x01(\x0e2*.chatto.core.v1.CallParticipantEventSourceR\x06source\x12\x17\n" +
-	"\acall_id\x18\x03 \x01(\tR\x06callId\"\xaa\x01\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callId\x12%\n" +
+	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"\xaa\x01\n" +
 	"\x10CallStartedEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
 	"\acall_id\x18\x02 \x01(\tR\x06callId\x12 \n" +

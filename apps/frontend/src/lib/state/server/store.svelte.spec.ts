@@ -463,10 +463,7 @@ describe('ServerStateStore notification indicators', () => {
   it('suppresses plain unread attention for muted rooms while preserving audible overrides', () => {
     const store = makeStore(new FakeServerConnection([]));
     store.roomUnread.setRoomUnread('muted-room', true);
-    store.notificationLevels.setServerPreference(
-      NotificationLevel.Muted,
-      NotificationLevel.Muted
-    );
+    store.notificationLevels.setServerPreference(NotificationLevel.Muted, NotificationLevel.Muted);
 
     expect(store.serverIndicator()).toBeNull();
 
@@ -685,8 +682,8 @@ describe('ServerStateStore live server updates', () => {
       });
     }
 
-    expect(handleJoin).toHaveBeenCalledWith('R1', 'call-1', null);
-    expect(handleLeave).toHaveBeenCalledWith('R1', 'call-1', 'U1');
+    expect(handleJoin).toHaveBeenCalledWith('R1', 'call-1', null, null, 0);
+    expect(handleLeave).toHaveBeenCalledWith('R1', 'call-1', 'U1', null);
     expect(shouldPlay).toHaveBeenNthCalledWith(1, 'join', 'R1', 'call-1', false);
     expect(shouldPlay).toHaveBeenNthCalledWith(2, 'leave', 'R1', 'call-1', true);
     expect(soundMocks.playCallSound).toHaveBeenCalledTimes(2);

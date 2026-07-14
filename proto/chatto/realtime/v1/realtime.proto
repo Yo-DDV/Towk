@@ -528,6 +528,10 @@ message RealtimeCallEvent {
   string call_id = 2;
   // Source that produced the call transition.
   RealtimeCallEventSource source = 3;
+  // Exact media-session connection for participant transitions, when known.
+  string participant_id = 4;
+  // Stable display slot for concurrent connections from the same account.
+  uint32 device_index = 5;
 }
 
 // Source that produced a realtime voice-call transition.

@@ -18,6 +18,8 @@ function participant(
 ): VoiceCallParticipant {
   return {
     callId,
+    participantId: userId,
+    deviceIndex: 1,
     joinedAt: '2026-01-01T00:00:00Z',
     user: {
       id: userId,
@@ -67,7 +69,9 @@ describe('ActiveCallRoomsState', () => {
     expect(state.has('R1')).toBe(true);
     expect(state.getParticipants('R1')).toEqual([
       {
+        participantId: 'U2',
         userId: 'U2',
+        deviceIndex: 1,
         displayName: 'Bob',
         login: 'bob',
         avatarUrl: null
@@ -126,7 +130,9 @@ describe('ActiveCallRoomsState', () => {
     expect(state.has('R1')).toBe(true);
     expect(state.getParticipants('R1')).toEqual([
       {
+        participantId: 'U1',
         userId: 'U1',
+        deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
         avatarUrl: null
@@ -170,11 +176,13 @@ describe('ActiveCallRoomsState', () => {
       participants: [
         {
           identity: 'U1',
+          userId: 'U1',
           isCameraEnabled: true,
           videoTrack: {}
         },
         {
           identity: 'U2',
+          userId: 'U2',
           isCameraEnabled: false,
           videoTrack: null
         }
@@ -193,6 +201,7 @@ describe('ActiveCallRoomsState', () => {
       participants: [
         {
           identity: 'U1',
+          userId: 'U1',
           isCameraEnabled: true,
           videoTrack: {}
         }
@@ -249,7 +258,9 @@ describe('ActiveCallRoomsState', () => {
   it('clears a list-loaded room when its call end event arrives', async () => {
     const state = new ActiveCallRoomsState(
       makeVoiceCallAPI({
-        listActiveCalls: vi.fn().mockResolvedValue([{ roomId: 'R1', callId: 'call-unknown', participants: [] }])
+        listActiveCalls: vi
+          .fn()
+          .mockResolvedValue([{ roomId: 'R1', callId: 'call-unknown', participants: [] }])
       }),
       { connected: false, roomId: null } as never
     );
@@ -265,9 +276,9 @@ describe('ActiveCallRoomsState', () => {
   });
 
   it('loads initial active calls through list snapshots', async () => {
-    const listActiveCalls = vi.fn().mockResolvedValue([
-      { roomId: 'R1', callId: 'call-1', participants: [participant('U1')] }
-    ]);
+    const listActiveCalls = vi
+      .fn()
+      .mockResolvedValue([{ roomId: 'R1', callId: 'call-1', participants: [participant('U1')] }]);
     const listCallParticipants = vi.fn().mockResolvedValue([participant('U2')]);
     const state = new ActiveCallRoomsState(
       makeVoiceCallAPI({ listActiveCalls, listCallParticipants }),
@@ -281,7 +292,9 @@ describe('ActiveCallRoomsState', () => {
     expect(state.has('R1')).toBe(true);
     expect(state.getParticipants('R1')).toEqual([
       {
+        participantId: 'U1',
         userId: 'U1',
+        deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
         avatarUrl: null
@@ -308,11 +321,34 @@ describe('ActiveCallRoomsState', () => {
     expect(state.has('R1')).toBe(true);
     expect(state.getParticipants('R1')).toEqual([
       {
+        participantId: 'U1',
         userId: 'U1',
+        deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
         avatarUrl: null
       }
     ]);
+  });
+
+  it('keeps the room active when one of two devices for an account leaves', async () => {
+    const state = new ActiveCallRoomsState(makeVoiceCallAPI(), {
+      connected: false,
+      roomId: null,
+      participants: []
+    } as never);
+    const actor = {
+      id: 'U1',
+      displayName: 'Alice',
+      login: 'alice',
+      avatarUrl: null
+    } as never;
+
+    await state.handleJoin('R1', 'call-1', actor, 'participant-1', 1);
+    await state.handleJoin('R1', 'call-1', actor, 'participant-2', 2);
+    state.handleLeave('R1', 'call-1', 'U1', 'participant-1');
+
+    expect(state.has('R1')).toBe(true);
+    expect(state.getParticipants('R1').map((p) => p.participantId)).toEqual(['participant-2']);
   });
 });

@@ -9,11 +9,14 @@ describe('VoiceCallPanel screen-share audio', () => {
       props: { layout: 'stage', scenario: 'screen' }
     });
 
-    await vi.waitFor(() => {
-      expect(
-        container.querySelectorAll('[data-testid="call-screen-share-audio-indicator"]')
-      ).toHaveLength(1);
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          container.querySelectorAll('[data-testid="call-screen-share-audio-indicator"]')
+        ).toHaveLength(1);
+      },
+      { timeout: 5_000 }
+    );
 
     const featuredCard = container.querySelector('[data-testid="call-featured-stage-card"]');
     expect(
@@ -22,5 +25,73 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const screenShareControl = container.querySelector('[data-testid="call-screen-share-toggle"]');
     expect(screenShareControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+  });
+
+  it('distinguishes two connections from the same account and exposes call audio control', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'devices' }
+    });
+    container.style.width = '260px';
+    container.style.maxWidth = '260px';
+
+    await vi.waitFor(
+      () => {
+        expect(container.querySelectorAll('[data-testid="call-device-badge"]')).toHaveLength(2);
+      },
+      { timeout: 5_000 }
+    );
+
+    expect(
+      Array.from(container.querySelectorAll('[data-testid="call-device-badge"]')).map((element) =>
+        element.textContent?.trim()
+      )
+    ).toEqual(['Device 1', 'Device 2']);
+
+    const participantNames = Array.from(
+      container.querySelectorAll('[data-testid="call-participant-name"]')
+    );
+    const deviceBadges = Array.from(
+      container.querySelectorAll('[data-testid="call-device-badge"]')
+    );
+    expect(participantNames).toHaveLength(2);
+    for (const [index, participantName] of participantNames.entries()) {
+      const nameRect = participantName.getBoundingClientRect();
+      const badgeRect = deviceBadges[index].getBoundingClientRect();
+      expect(badgeRect.top).toBeGreaterThanOrEqual(nameRect.bottom - 1);
+      expect(participantName.textContent?.trim()).toBe('Alexandria Montgomery');
+    }
+
+    expect(container.querySelector('[data-testid="call-device-microphone-toggle"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="call-device-output-toggle"]')).not.toBeNull();
+    const deviceControls = Array.from(
+      container.querySelectorAll(
+        '[data-testid="call-device-microphone-toggle"], [data-testid="call-device-output-toggle"]'
+      )
+    ) as HTMLButtonElement[];
+    const siblingCard = deviceControls[0].closest(
+      '[data-testid="call-participant-card"]'
+    ) as HTMLElement | null;
+    expect(siblingCard).not.toBeNull();
+    const cardRect = siblingCard!.getBoundingClientRect();
+    const firstActionRect = deviceControls[0].getBoundingClientRect();
+    const siblingName = siblingCard!.querySelector(
+      '[data-testid="call-participant-name"]'
+    ) as HTMLElement | null;
+    expect(siblingName).not.toBeNull();
+    expect(siblingName!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      firstActionRect.left - 2
+    );
+    for (const control of deviceControls) {
+      const controlRect = control.getBoundingClientRect();
+      expect(controlRect.right).toBeLessThanOrEqual(cardRect.right);
+      expect(controlRect.bottom).toBeLessThanOrEqual(cardRect.bottom);
+    }
+
+    const outputControl = container.querySelector(
+      '[data-testid="call-output-mute-toggle"]'
+    ) as HTMLButtonElement | null;
+    expect(outputControl).not.toBeNull();
+    expect(outputControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(outputControl?.getAttribute('aria-label')).toBe('Mute call audio');
   });
 });

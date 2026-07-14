@@ -68,6 +68,8 @@ transitions from a previous call in the same room.
 | `room_id` | `string` | Room containing the call. |
 | `call_id` | `string` | Call ID. |
 | `source` | [`RealtimeCallEventSource`](#chatto-realtime-v1-RealtimeCallEventSource) | Source that produced the call transition. |
+| `participant_id` | `string` | Exact media-session connection for participant transitions, when known. |
+| `device_index` | `uint32` | Stable display slot for concurrent connections from the same account. |
 
 
 

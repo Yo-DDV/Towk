@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -29,9 +31,31 @@ const VoiceCallTokenTTL = 5 * time.Minute
 // metadata field so the frontend can display avatars without extra queries.
 // Also used to parse metadata from LiveKit webhook participant info.
 type participantMetadata struct {
-	Login     string `json:"login"`
-	AvatarURL string `json:"avatarUrl,omitempty"`
-	CallID    string `json:"callId,omitempty"`
+	UserID        string `json:"userId,omitempty"`
+	ParticipantID string `json:"participantId,omitempty"`
+	DeviceIndex   uint32 `json:"deviceIndex,omitempty"`
+	Login         string `json:"login"`
+	AvatarURL     string `json:"avatarUrl,omitempty"`
+	CallID        string `json:"callId,omitempty"`
+}
+
+// VoiceCallParticipantIdentity binds one LiveKit connection to its Towk
+// account without reusing the account ID as the room-unique media identity.
+type VoiceCallParticipantIdentity struct {
+	UserID        string
+	ParticipantID string
+	DeviceIndex   uint32
+}
+
+// VoiceCallParticipantID deterministically namespaces a browser-session ID by
+// account. Retries from one browser session remain idempotent while identical
+// client IDs from different accounts cannot replace one another in LiveKit.
+func VoiceCallParticipantID(userID, clientInstanceID string) string {
+	if clientInstanceID == "" {
+		return userID
+	}
+	sum := sha256.Sum256([]byte(userID + "\x00" + clientInstanceID))
+	return "device_" + base64.RawURLEncoding.EncodeToString(sum[:18])
 }
 
 // ParseParticipantMetadata parses JSON metadata from a LiveKit participant.
@@ -112,21 +136,48 @@ func ParseLiveKitRoomServerID(lkRoomName string) string {
 // render avatars without additional queries.
 // Authorization: Caller must verify room membership before calling.
 func GenerateVoiceCallToken(apiKey, apiSecret, roomName, userID, displayName, login, avatarURL, e2eeKey string, callID ...string) (*VoiceCallToken, error) {
+	activeCallID := optionalCallID(callID)
+	return GenerateVoiceCallTokenForParticipant(
+		apiKey,
+		apiSecret,
+		roomName,
+		VoiceCallParticipantIdentity{UserID: userID, ParticipantID: userID, DeviceIndex: 1},
+		displayName,
+		login,
+		avatarURL,
+		e2eeKey,
+		activeCallID,
+	)
+}
+
+// GenerateVoiceCallTokenForParticipant creates a token for one exact
+// connection. Account identity remains immutable token metadata; the LiveKit
+// identity is connection-scoped because LiveKit requires uniqueness per room.
+func GenerateVoiceCallTokenForParticipant(apiKey, apiSecret, roomName string, participant VoiceCallParticipantIdentity, displayName, login, avatarURL, e2eeKey, callID string) (*VoiceCallToken, error) {
 	at := lkauth.NewAccessToken(apiKey, apiSecret)
 	grant := &lkauth.VideoGrant{
 		RoomJoin: true,
 		Room:     roomName,
 	}
+	grant.SetCanPublishData(true)
+	grant.SetCanUpdateOwnMetadata(false)
 	at.SetVideoGrant(grant).
-		SetIdentity(userID).
+		SetIdentity(participant.ParticipantID).
 		SetName(displayName).
 		SetValidFor(VoiceCallTokenTTL)
 
-	var activeCallID string
-	if len(callID) > 0 {
-		activeCallID = callID[0]
+	deviceIndex := participant.DeviceIndex
+	if deviceIndex == 0 {
+		deviceIndex = 1
 	}
-	md, err := json.Marshal(participantMetadata{Login: login, AvatarURL: avatarURL, CallID: activeCallID})
+	md, err := json.Marshal(participantMetadata{
+		UserID:        participant.UserID,
+		ParticipantID: participant.ParticipantID,
+		DeviceIndex:   deviceIndex,
+		Login:         login,
+		AvatarURL:     avatarURL,
+		CallID:        callID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal participant metadata: %w", err)
 	}
@@ -136,26 +187,51 @@ func GenerateVoiceCallToken(apiKey, apiSecret, roomName, userID, displayName, lo
 	if err != nil {
 		return nil, fmt.Errorf("generate LiveKit token: %w", err)
 	}
-	return &VoiceCallToken{Token: token, E2EEKey: e2eeKey, CallID: activeCallID}, nil
+	return &VoiceCallToken{Token: token, E2EEKey: e2eeKey, CallID: callID}, nil
 }
 
 // HandleCallParticipantJoined appends a durable LiveKit-observed join fact.
 // Called by the webhook handler when LiveKit reports a participant joined.
 func (c *ChattoCore) HandleCallParticipantJoined(ctx context.Context, spaceID, roomID, userID, displayName, login, avatarURL string, callID ...string) error {
+	return c.HandleCallParticipantConnectionJoined(ctx, spaceID, roomID, userID, userID, 1, displayName, login, avatarURL, callID...)
+}
+
+// HandleCallParticipantConnectionJoined appends a durable LiveKit-observed
+// join fact for one exact account connection.
+func (c *ChattoCore) HandleCallParticipantConnectionJoined(ctx context.Context, spaceID, roomID, userID, participantID string, deviceIndex uint32, displayName, login, avatarURL string, callID ...string) error {
 	expectedCallID := optionalCallID(callID)
 	if c.callModel == nil {
 		return fmt.Errorf("call model is not initialized")
 	}
-	return c.callModel.AppendJoinedForCall(ctx, roomID, userID, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
+	// New clients receive a connection-scoped identity only after JoinCall has
+	// durably admitted it. A stale transferred token or forged late join must be
+	// evicted instead of being allowed to recreate call membership. Legacy
+	// user-ID identities retain their historical webhook admission behavior.
+	if participantID != userID {
+		participant, admitted := callParticipantByID(c.CallState.Participants(roomID), userID, participantID)
+		if !admitted || expectedCallID == "" || participant.CallID != expectedCallID {
+			if err := c.callModel.RemoveLiveKitParticipant(ctx, spaceID, roomID, expectedCallID, participantID); err != nil {
+				return fmt.Errorf("%w: evict connection: %v", ErrCallParticipantNotAdmitted, err)
+			}
+			return ErrCallParticipantNotAdmitted
+		}
+	}
+	return c.callModel.AppendParticipantJoinedForCall(ctx, roomID, userID, participantID, deviceIndex, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
 }
 
 // HandleCallParticipantLeft appends a durable LiveKit-observed leave fact.
 // Called by the webhook handler when LiveKit reports a participant left.
 func (c *ChattoCore) HandleCallParticipantLeft(ctx context.Context, spaceID, roomID, userID string, callID ...string) error {
+	return c.HandleCallParticipantConnectionLeft(ctx, spaceID, roomID, userID, userID, callID...)
+}
+
+// HandleCallParticipantConnectionLeft appends a durable LiveKit-observed leave
+// fact for one exact account connection.
+func (c *ChattoCore) HandleCallParticipantConnectionLeft(ctx context.Context, spaceID, roomID, userID, participantID string, callID ...string) error {
 	if c.callModel == nil {
 		return fmt.Errorf("call model is not initialized")
 	}
-	return c.callModel.AppendLeftForCall(ctx, roomID, userID, optionalCallID(callID), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
+	return c.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, participantID, optionalCallID(callID), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
 }
 
 // HandleCallRoomFinished appends LiveKit-observed leave facts for any remaining
@@ -173,7 +249,7 @@ func (c *ChattoCore) HandleCallRoomFinished(ctx context.Context, spaceID, roomID
 		if c.callModel == nil {
 			return fmt.Errorf("call model is not initialized")
 		}
-		if err := c.callModel.AppendLeftForCall(ctx, roomID, p.UserID, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT); err != nil {
+		if err := c.callModel.AppendParticipantLeftForCall(ctx, roomID, p.UserID, p.ParticipantID, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT); err != nil {
 			return err
 		}
 	}
@@ -192,6 +268,37 @@ func (c *ChattoCore) RecordCallParticipantJoined(ctx context.Context, kind RoomK
 		return fmt.Errorf("call model is not initialized")
 	}
 	return c.callModel.AppendJoined(ctx, roomID, userID, source)
+}
+
+// JoinCallParticipant applies the multi-device admission policy atomically at
+// the room aggregate boundary and best-effort disconnects transferred peers.
+func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roomID, userID, clientInstanceID string, mode CallJoinMode) (CallJoinResult, error) {
+	if c.callModel == nil {
+		return CallJoinResult{}, fmt.Errorf("call model is not initialized")
+	}
+	participantID := VoiceCallParticipantID(userID, clientInstanceID)
+	if clientInstanceID == "" {
+		mode = CallJoinModeTransfer
+	}
+	result, err := c.callModel.JoinUserParticipant(ctx, roomID, userID, participantID, mode)
+	if err != nil {
+		return CallJoinResult{}, err
+	}
+	for _, removed := range result.RemovedParticipants {
+		if err := c.callModel.RemoveLiveKitParticipant(ctx, LegacySpaceIDForRoomKind(kind), roomID, removed.CallID, removed.ParticipantID); err != nil && c.logger != nil {
+			c.logger.Warn("Failed to remove transferred LiveKit participant", "room_id", roomID, "call_id", removed.CallID, "error", err)
+		}
+	}
+	return result, nil
+}
+
+// LeaveCallParticipant records a leave for the exact browser session. An empty
+// client instance targets only the legacy user-ID participant.
+func (c *ChattoCore) LeaveCallParticipant(ctx context.Context, kind RoomKind, roomID, userID, clientInstanceID string, source corev1.CallParticipantEventSource) error {
+	if c.callModel == nil {
+		return fmt.Errorf("call model is not initialized")
+	}
+	return c.callModel.AppendParticipantLeft(ctx, roomID, userID, VoiceCallParticipantID(userID, clientInstanceID), source)
 }
 
 func (c *ChattoCore) RecordCallParticipantLeft(ctx context.Context, kind RoomKind, roomID, userID string, source corev1.CallParticipantEventSource) error {

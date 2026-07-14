@@ -18,6 +18,8 @@ function participant(
 ): VoiceCallParticipant {
   return {
     callId,
+    participantId: userId,
+    deviceIndex: 1,
     joinedAt: '2026-01-01T00:00:00Z',
     user: {
       id: userId,
@@ -64,7 +66,9 @@ describe('CallParticipantsState', () => {
 
     expect(state.participants).toEqual([
       {
+        participantId: 'U2',
         userId: 'U2',
+        deviceIndex: 1,
         displayName: 'Bob',
         login: 'bob',
         avatarUrl: null
@@ -85,7 +89,9 @@ describe('CallParticipantsState', () => {
     expect(listCallParticipants).toHaveBeenCalledTimes(2);
     expect(state.participants).toEqual([
       {
+        participantId: 'U1',
         userId: 'U1',
+        deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
         avatarUrl: null
@@ -159,11 +165,36 @@ describe('CallParticipantsState', () => {
 
     expect(state.participants).toEqual([
       {
+        participantId: 'U1',
         userId: 'U1',
+        deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
         avatarUrl: null
       }
     ]);
+  });
+
+  it('keeps two devices for one account and removes only the departed connection', async () => {
+    const state = new CallParticipantsState(makeVoiceCallAPI());
+    const actor = {
+      id: 'U1',
+      displayName: 'Alice',
+      login: 'alice',
+      avatarUrl: null
+    } as never;
+
+    await state.load('R1');
+    await state.handleJoin('R1', 'call-1', actor, 'participant-1', 1);
+    await state.handleJoin('R1', 'call-1', actor, 'participant-2', 2);
+
+    expect(state.participants.map((p) => [p.participantId, p.deviceIndex])).toEqual([
+      ['participant-1', 1],
+      ['participant-2', 2]
+    ]);
+
+    state.handleLeave('R1', 'call-1', 'U1', 'participant-1');
+
+    expect(state.participants.map((p) => p.participantId)).toEqual(['participant-2']);
   });
 });

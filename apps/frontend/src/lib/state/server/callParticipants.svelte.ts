@@ -13,7 +13,9 @@ import type { VoiceCallAPI } from '$lib/api-client/voiceCalls';
 
 /** Participant info stored in observer mode. */
 export type ObserverParticipant = {
+  participantId: string;
   userId: string;
+  deviceIndex: number;
   displayName: string;
   login: string;
   avatarUrl: string | null;
@@ -75,7 +77,13 @@ export class CallParticipantsState {
    * Optimistically add a participant from a CallParticipantJoinedEvent.
    * Uses the actor data from the Event envelope.
    */
-  async handleJoin(roomId: string, callId: string, actor: CallActor | null): Promise<void> {
+  async handleJoin(
+    roomId: string,
+    callId: string,
+    actor: CallActor | null,
+    participantId: string | null = null,
+    deviceIndex = 0
+  ): Promise<void> {
     if (roomId !== this.currentRoomId) return;
     if (this.currentCallId && this.currentCallId !== callId) return;
     if (!actor) {
@@ -94,13 +102,16 @@ export class CallParticipantsState {
     this.bumpVersion();
     this.currentCallId = callId;
 
-    // Avoid duplicates
-    if (this.participants.some((p) => p.userId === actor.id)) return;
+    const connectionId = participantId || actor.id;
+    // Avoid duplicate events for one connection while preserving sibling devices.
+    if (this.participants.some((p) => p.participantId === connectionId)) return;
 
     this.participants = [
       ...this.participants,
       {
+        participantId: connectionId,
         userId: actor.id,
+        deviceIndex: deviceIndex > 0 ? deviceIndex : 1,
         displayName: actor.displayName,
         login: actor.login,
         avatarUrl: actor.avatarUrl ?? null
@@ -111,13 +122,20 @@ export class CallParticipantsState {
   /**
    * Optimistically remove a participant from a CallParticipantLeftEvent.
    */
-  handleLeave(roomId: string, callId: string | null, actorId: string | null): void {
+  handleLeave(
+    roomId: string,
+    callId: string | null,
+    actorId: string | null,
+    participantId: string | null = null
+  ): void {
     if (roomId !== this.currentRoomId) return;
     if (callId !== null && this.currentCallId !== callId) return;
     if (!actorId) return;
 
     this.bumpVersion();
-    this.participants = this.participants.filter((p) => p.userId !== actorId);
+    this.participants = this.participants.filter((p) =>
+      participantId ? p.participantId !== participantId : p.userId !== actorId
+    );
   }
 
   /** Clear observer participants when the room's call ends. */
@@ -139,7 +157,9 @@ export class CallParticipantsState {
 function toObserverParticipant(p: QueryCallParticipant): ObserverParticipant {
   const user = p.user;
   return {
+    participantId: p.participantId,
     userId: user?.id ?? '',
+    deviceIndex: p.deviceIndex,
     displayName: user?.displayName ?? '',
     login: user?.login ?? '',
     avatarUrl: user?.avatarUrl ?? null

@@ -38,16 +38,22 @@ import { UserAvatarUserViewDocument } from '$lib/render/types';
 type CallTransitionEventPayload = {
   roomId: string;
   callId: string | null;
+  participantId: string | null;
+  deviceIndex: number;
 };
 
 function callTransitionEventPayload(event: RoomEventKindSource): CallTransitionEventPayload | null {
   if (!event || typeof event !== 'object') return null;
   const roomId = 'roomId' in event ? event.roomId : null;
   const callId = 'callId' in event ? event.callId : null;
+  const participantId = 'participantId' in event ? event.participantId : null;
+  const deviceIndex = 'deviceIndex' in event ? event.deviceIndex : null;
   if (typeof roomId !== 'string') return null;
   return {
     roomId,
-    callId: typeof callId === 'string' ? callId : null
+    callId: typeof callId === 'string' ? callId : null,
+    participantId: typeof participantId === 'string' && participantId ? participantId : null,
+    deviceIndex: typeof deviceIndex === 'number' ? deviceIndex : 0
   };
 }
 
@@ -216,7 +222,13 @@ export class ServerStateStore {
             const actor = event.actor
               ? useRenderData(UserAvatarUserViewDocument, event.actor)
               : null;
-            void this.activeCallRooms.handleJoin(callEvent.roomId, callEvent.callId, actor);
+            void this.activeCallRooms.handleJoin(
+              callEvent.roomId,
+              callEvent.callId,
+              actor,
+              callEvent.participantId,
+              callEvent.deviceIndex
+            );
             this.playCallTransitionSound(
               event.id,
               'join',
@@ -230,7 +242,8 @@ export class ServerStateStore {
             this.activeCallRooms.handleLeave(
               callEvent.roomId,
               callEvent.callId,
-              event.actorId ?? null
+              event.actorId ?? null,
+              callEvent.participantId
             );
             this.playCallTransitionSound(
               event.id,
@@ -242,6 +255,7 @@ export class ServerStateStore {
             this.voiceCall.handleParticipantLeftEvent(
               callEvent.roomId,
               callEvent.callId,
+              callEvent.participantId,
               event.actorId ?? null,
               this.currentUserId()
             );
@@ -465,9 +479,10 @@ export class ServerStateStore {
 
   /** Remove optimistic call UI state after a local join attempt fails. */
   handleVoiceCallJoinFailed(roomId: string): void {
-    const currentUserId = this.rooms.currentUserId;
-    this.activeCallRooms.handleLeave(roomId, null, currentUserId);
-    this.callParticipants.handleLeave(roomId, null, currentUserId);
+    // A failed connection must not optimistically remove a sibling device
+    // belonging to the same account. Reload both projections from the server.
+    void this.activeCallRooms.load();
+    void this.callParticipants.load(roomId);
   }
 
   /** Clean up resources. */
