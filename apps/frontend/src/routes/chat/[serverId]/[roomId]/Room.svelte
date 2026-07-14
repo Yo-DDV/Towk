@@ -414,7 +414,7 @@
     }
   }
 
-  // Drop zone state for drag-and-drop image uploads
+  // Drop zone state for drag-and-drop file uploads
   let isDraggingFiles = $state(false);
   let composerApi = $state<MessageComposerApi | null>(null);
 
@@ -424,7 +424,7 @@
       ? dropZone({
           onDrop: (files) => composerApi?.addFiles(files),
           onDragStateChange: (dragging) => (isDraggingFiles = dragging),
-          acceptedTypes: ['image/*', 'video/*', 'audio/*']
+          acceptedTypes: ['*/*']
         })
       : undefined
   );

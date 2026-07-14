@@ -19,7 +19,7 @@
     "placeholder": "Écrivez un message...",
     "editing_placeholder": "Modifiez le message...",
     "drop_files_title": "Déposez les fichiers ici",
-    "drop_files_subtitle": "Des images et des vidéos seront ajoutées à votre message",
+    "drop_files_subtitle": "Les fichiers seront ajoutés à votre message",
     "send_failed": "Échec de l'envoi du message",
     "edit_failed": "Échec de la modification du message",
     "mention": {

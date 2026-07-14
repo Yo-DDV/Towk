@@ -186,6 +186,27 @@ describe('MessageAttachments', () => {
     expect(deleteControl!.className).not.toContain('embed-control-button');
   });
 
+  it('renders an original video with accessible playback and deletion controls', () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'raw_video',
+        filename: 'original.mp4',
+        contentType: 'video/mp4',
+        assetUrl: {
+          url: 'https://chat.example.test/original.mp4',
+          expiresAt: '2027-05-29T15:00:00Z'
+        }
+      }),
+      { canDeleteAttachment: true }
+    );
+
+    const player = container.querySelector<HTMLVideoElement>('[data-testid="raw-video-player"]');
+    expect(player).not.toBeNull();
+    expect(player!.getAttribute('src')).toBe('https://chat.example.test/original.mp4');
+    expect(player!.getAttribute('aria-label')).toBe('original.mp4');
+    expect(container.querySelector('[aria-label="Delete attachment"]')).not.toBeNull();
+  });
+
   it('does not render empty media URLs for attachments that are missing asset URLs', () => {
     const { container } = renderAttachment(
       imageAttachment({

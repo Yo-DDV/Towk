@@ -1,7 +1,7 @@
 # FDR-008: File Attachments & Video Processing
 
 **Status:** Active
-**Last reviewed:** 2026-07-12
+**Last reviewed:** 2026-07-13
 
 ## Overview
 
@@ -10,10 +10,14 @@ Users can attach files to messages — images, videos, documents — via drag-an
 ## Behavior
 
 - The composer accepts files via drag-and-drop, paste, and a file picker button when the viewer has `message.attach`.
+- Drag-and-drop and clipboard paste consume every browser-provided `File`, not only media MIME types. Text-only clipboard content still follows the normal editor paste path.
+- Desktop clipboard paste consumes native file references before the editor sees them. If a browser exposes only a local `file:` reference and withholds the corresponding `File`, Towk shows an explicit compatibility error and never inserts or fetches the local path.
 - Draft attachments persist across room switches inside the same session.
 - Message attachments are uploaded through `chatto.api.v1.AssetUploadService` before message creation. The browser sends bounded unary chunks with SHA-256 checksums, then calls `MessageService.CreateMessage` with at most 10 unique completed attachment asset IDs.
-- Default upload size limits: 25 MB for general files, 100 MB for videos when video processing is enabled.
-- Video uploads require server-side video processing to be enabled. When it is disabled, the composer rejects `video/*` files immediately and the message-post API rejects them before storage.
+- Default upload size limits: 25 MB for every file, including original videos when video processing is disabled; enabling video processing gives videos a separate 100 MB default limit.
+- A message can contain at most 10 attachments. Direct executable, installer, command-script, WebAssembly, and macro-enabled Office payloads are rejected before staging when their metadata identifies them, then checked again from the uploaded bytes before an asset is created. Ordinary archives remain allowed as opaque files and are never extracted by the upload path.
+- `SERVER_ASSETS` has a default hard JetStream quota of 10 GB. Operators can set `core.assets.max_store_bytes` or `CHATTO_CORE_ASSETS_MAX_STORE_BYTES`; S3 bucket quotas remain provider-managed.
+- Videos are always accepted as original attachments under the active upload limit. When processing is disabled, Towk stores and renders the original without creating a processing manifest. When processing is enabled, videos use the video-specific limit and additionally receive thumbnails and web-friendly variants.
 - Images are inspected for dimensions at upload time and can be resized at render time via URL parameters (width, height, fit mode). Public attachment and avatar APIs expose transform parameters; public server branding images expose canonical URLs only.
 - The room timeline loads attachment images within 960×400 bounds, while the lightbox loads a separate derivative within 2048×2048 bounds. The untouched upload remains available through Open original and file-download actions.
 - When enabled, videos and animated GIFs are processed by the current server process after asset creation and message submission scheduling. This is best-effort and intentionally simple until a real durable worker queue exists.
@@ -94,6 +98,36 @@ Users can attach files to messages — images, videos, documents — via drag-an
 **Decision:** Request paths still attempt immediate NATS/S3 and transform-cache deletion, while the holder of the `asset_cleanup` lease incrementally consumes canonical `AssetDeletedEvent` facts and retries each idempotent cleanup independently. The asset ID locates the same aggregate's durable `AssetCreatedEvent`, which supplies storage metadata even after the in-memory projection drops it. Beta room-scoped histories without a canonical asset creation aggregate are skipped rather than probing guessed object keys.
 **Why:** A committed deletion must remain recoverable when immediate storage cleanup fails, the process exits, or another replica committed the event. Resolving the immutable creation fact preserves that guarantee without duplicating storage metadata in the deletion event or depending on a mutable projection.
 **Tradeoff:** Each cleanup requires an aggregate-history lookup, and a fresh worker replays prior deletion facts idempotently. Beta room-scoped events cannot gain the same guarantee without a migration or unsafe backend-key inference, and server branding/avatar cleanup remains outside this message-owned worker.
+
+### 12. Executable rejection is enforced at both trust boundaries
+
+**Decision:** The browser rejects known executable extensions and MIME types for immediate feedback and inspects the first bytes before staging. `AssetUploadService` repeats bounded filename/content-type validation, rejects the same metadata before accepting chunks, and checks executable signatures after checksum-verified materialization. Rejected sessions and temporary chunks are removed best-effort. ZIP, 7z, RAR, tar, and compressed archives remain opaque allowed attachments; Towk does not unpack or execute them.
+**Why:** Browser filenames and MIME types are caller-controlled and cannot be the server security boundary. Signature inspection catches common renamed PE, ELF, Mach-O, Java-class/fat-binary, WebAssembly, and shebang payloads while preserving ordinary document and archive sharing.
+**Tradeoff:** This is a focused executable policy, not antivirus, content disarm, or proof that an allowed document is harmless. Operators with stronger content-governance requirements should scan uploads in a private integration rather than sending files to a public analysis service, and should retain upstream request-rate and storage controls.
+
+### 13. Desktop file paste follows the browser's native clipboard bridge
+
+**Decision:** The composer reads `ClipboardEvent.clipboardData.files` first, falls back to file-kind `DataTransferItem` entries, and stages every `File` the browser exposes. It recognizes native local-file clipboard markers such as `Files`, `application/x-moz-file`, `text/uri-list`, and GNOME's copied-files format only to fail closed when the browser withholds file access. Towk never turns a local path into a network request and never treats plain `file://` text as an attachment. Drag-and-drop uses the same staging and upload policy.
+
+**Why:** Desktop file managers publish OS-specific clipboard formats, while the browser is the security boundary that turns those formats into web `File` objects. As revalidated on 2026-07-13, Chromium 150 maps Windows `CF_HDROP`, macOS file URLs, and Linux `text/uri-list` into Blink files; Firefox 152 has a native file-paste browser test and platform bridges for Windows, Cocoa, and GTK; current WebKit exposes file paste on Cocoa. The application therefore handles the stable web contract instead of attempting privileged filesystem access.
+
+**Tradeoff:** A browser may expose fewer files than the operating system placed on the clipboard. Firefox's current Cocoa and GTK implementations expose the first native item/URI, while Windows and current Chromium paths can expose multiple files. Towk stages all browser-provided files but cannot bypass that browser-level limitation. WebKit's current non-Cocoa file-access path remains disabled, so Linux users should use Chromium or Firefox for native clipboard files. When no `File` is exposed, the user gets a deterministic error and can use drag-and-drop or the picker.
+
+Primary compatibility evidence:
+
+- [ClipboardEvent.clipboardData](https://developer.mozilla.org/en-US/docs/Web/API/ClipboardEvent/clipboardData) and [DataTransfer.files](https://developer.mozilla.org/en-US/docs/Web/API/DataTransfer/files)
+- Chromium 150 branch sources: [Blink file mapping](https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7871/third_party/blink/renderer/core/clipboard/data_object.cc), [Windows clipboard](https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7871/ui/base/clipboard/clipboard_win.cc), [macOS clipboard](https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7871/ui/base/clipboard/clipboard_mac.mm), and [Linux/Ozone clipboard](https://chromium.googlesource.com/chromium/src/+/refs/branch-heads/7871/ui/base/clipboard/clipboard_ozone.cc)
+- Firefox 152.0.5 sources: [native file-paste browser test](https://github.com/mozilla-firefox/firefox/blob/FIREFOX_152_0_5_RELEASE/browser/base/content/test/general/browser_clipboard_pastefile.js), [Windows clipboard](https://github.com/mozilla-firefox/firefox/blob/FIREFOX_152_0_5_RELEASE/widget/windows/nsClipboard.cpp), [Cocoa clipboard](https://github.com/mozilla-firefox/firefox/blob/FIREFOX_152_0_5_RELEASE/widget/cocoa/nsClipboard.mm), and [GTK clipboard](https://github.com/mozilla-firefox/firefox/blob/FIREFOX_152_0_5_RELEASE/widget/gtk/nsClipboard.cpp)
+- Current WebKit sources: [DataTransfer platform gate](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/dom/DataTransfer.cpp) and [Cocoa pasteboard file reader](https://github.com/WebKit/WebKit/blob/main/Source/WebCore/platform/cocoa/PasteboardCocoa.mm)
+- Native clipboard contracts: [Windows shell clipboard formats](https://learn.microsoft.com/en-us/windows/win32/shell/clipboard), [macOS `NSPasteboard.PasteboardType.fileURL`](https://developer.apple.com/documentation/appkit/nspasteboard/pasteboardtype/fileurl), and [Qt URL-list mapping](https://doc.qt.io/qt-6/qmimedata.html)
+
+### 14. The primary NATS asset store has a hard quota
+
+**Decision:** Towk creates or updates `SERVER_ASSETS` with `MaxBytes`, defaulting to 10 GB. This quota covers NATS-backed persisted assets and temporary upload chunks. It still applies to temporary chunks when completed assets use S3, but it does not cap the external S3 bucket. `LINK_PREVIEW_ASSETS` keeps its independent 1 GB default quota. Existing objects are retained if an operator lowers the limit below current usage; JetStream rejects subsequent writes until usage falls below the configured bound.
+
+**Why:** Per-file and per-message limits do not bound cumulative instance storage or abandoned in-progress chunks. A server-side object-store quota makes the failure authoritative even when a client bypasses the browser, and `CreateOrUpdateObjectStore` applies the configured limit to existing deployments.
+
+**Tradeoff:** Exhausting the shared store blocks every new write that uses `SERVER_ASSETS`, including temporary S3 upload chunks, until space is reclaimed or the quota is raised. Operators must still provision disk alerts, retention, backups, and an independent bucket quota for S3. See the [NATS Go object-store configuration](https://github.com/nats-io/nats.go/blob/v1.52.0/jetstream/object.go) and [NATS server maximum-bytes enforcement](https://github.com/nats-io/nats-server/blob/v2.14.3/server/stream.go).
 
 ## Permissions
 

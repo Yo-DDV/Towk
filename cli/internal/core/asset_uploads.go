@@ -91,13 +91,9 @@ func (c *ChattoCore) AssetUploads() *AssetUploadModel {
 }
 
 func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCreateInput) (*AssetUploadSession, error) {
-	filename := strings.TrimSpace(input.Filename)
-	if filename == "" {
-		return nil, invalidArgument("filename is required")
-	}
-	contentType := strings.TrimSpace(input.ContentType)
-	if contentType == "" {
-		contentType = "application/octet-stream"
+	filename, contentType, err := normalizeAttachmentUploadMetadata(input.Filename, input.ContentType)
+	if err != nil {
+		return nil, err
 	}
 	if input.Size < 0 {
 		return nil, invalidArgument("size must be non-negative")
@@ -228,6 +224,17 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 	}
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
+	if err := validateAttachmentExecutableContent(tmp); err != nil {
+		session.Status = AssetUploadStatusCancelled
+		if updateErr := m.updateUpload(ctx, session, revision); updateErr != nil {
+			m.core.logger.Warn("Failed to mark rejected asset upload as cancelled", "upload_id", session.UploadID, "error", updateErr)
+		}
+		m.deleteUploadChunks(ctx, session)
+		if deleteErr := m.core.storage.runtimeStateKV.Delete(ctx, assetUploadKey(session.UploadID)); deleteErr != nil && !errors.Is(deleteErr, jetstream.ErrKeyNotFound) && !errors.Is(deleteErr, jetstream.ErrKeyDeleted) {
+			m.core.logger.Warn("Failed to delete rejected asset upload session", "upload_id", session.UploadID, "error", deleteErr)
+		}
+		return nil, nil, err
+	}
 	attachment, animatedGIF, err := m.storeCompletedUpload(ctx, session, tmp)
 	if err != nil {
 		return nil, nil, err

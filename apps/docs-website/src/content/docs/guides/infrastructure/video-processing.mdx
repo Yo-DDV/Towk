@@ -5,7 +5,7 @@ description: How to enable and configure video processing in Towk.
 
 import { Aside } from '@astrojs/starlight/components';
 
-Towk can transcode uploaded videos into multiple quality variants for adaptive playback. When a user uploads a video, the server generates optimized versions (e.g. 720p, 480p) and a thumbnail, then serves them through a built-in video player.
+Towk can transcode uploaded videos into multiple quality variants for adaptive playback. When processing is enabled and a user uploads a video, the server generates optimized versions (e.g. 720p, 480p) and a thumbnail, then serves them through a built-in video player. Without processing, Towk still stores and renders the original video.
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ CHATTO_VIDEO_ENABLED=true
 That's it. Towk will auto-detect `ffmpeg` and `ffprobe` from your `PATH`.
 
 <Aside>
-  When video processing is disabled (the default), Towk rejects new video uploads in the composer and API. Enabling processing allows video uploads and adds transcoding, adaptive playback, and thumbnail generation.
+  When video processing is disabled (the default), original videos remain shareable under the general attachment limit. Enabling processing adds transcoding, adaptive playback, thumbnail generation, and the separate video upload limit.
 </Aside>
 
 ## Configuration Options
@@ -58,7 +58,7 @@ All settings live under the `[video]` section in `towk.toml`. See the [Environme
 | `ffmpeg_path` | auto-detect | Path to `ffmpeg` binary |
 | `ffprobe_path` | auto-detect | Path to `ffprobe` binary |
 | `max_concurrent` | `2` | Max concurrent transcoding jobs |
-| `max_upload_size` | `100 MB` | Max upload size for video files |
+| `max_upload_size` | `100 MB` | Max upload size for video files while processing is enabled |
 | `temp_dir` | system temp | Directory for temporary transcoding files |
 
 ### Tuning Concurrency
@@ -90,7 +90,7 @@ ffprobe_path = "/usr/local/bin/ffprobe"
 4. In the background, Towk transcodes the video into multiple quality variants and generates a thumbnail
 5. Once processing completes, the player switches to adaptive playback with quality selection
 
-If processing fails (e.g. corrupt file, unsupported codec), the user sees an error message and can try uploading again.
+If processing fails (e.g. corrupt file or unsupported codec), the message and original upload remain available as the fallback.
 
 ## Storage Considerations
 

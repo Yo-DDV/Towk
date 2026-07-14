@@ -694,11 +694,20 @@ const msg_room_attachment_download_label = (
 ): LocalizedString => messages().room_attachment_download_label(inputs);
 const msg_room_attachment_image_refresh_failed = (): LocalizedString => messages().room_attachment_image_refresh_failed(empty());
 const msg_room_attachment_download_refresh_failed = (): LocalizedString => messages().room_attachment_download_refresh_failed(empty());
-const msg_room_attachment_video_uploads_disabled = (): LocalizedString => messages().room_attachment_video_uploads_disabled(empty());
 const msg_room_attachment_prepare_failed = (): LocalizedString => messages().room_attachment_prepare_failed(empty());
+const msg_room_attachment_clipboard_unavailable = (): LocalizedString => messages().room_attachment_clipboard_unavailable(empty());
+const msg_room_attachment_edit_not_supported = (): LocalizedString => messages().room_attachment_edit_not_supported(empty());
+const msg_room_attachment_not_permitted = (): LocalizedString => messages().room_attachment_not_permitted(empty());
+const msg_room_attachment_invalid_filename = (): LocalizedString => messages().room_attachment_invalid_filename(empty());
 const msg_room_attachment_too_large = (
   inputs: Parameters<LocaleMessages['room_attachment_too_large']>[0]
 ): LocalizedString => messages().room_attachment_too_large(inputs);
+const msg_room_attachment_executable_not_allowed = (
+  inputs: Parameters<LocaleMessages['room_attachment_executable_not_allowed']>[0]
+): LocalizedString => messages().room_attachment_executable_not_allowed(inputs);
+const msg_room_attachment_too_many = (
+  inputs: Parameters<LocaleMessages['room_attachment_too_many']>[0]
+): LocalizedString => messages().room_attachment_too_many(inputs);
 const msg_room_link_preview_delete_title = (): LocalizedString => messages().room_link_preview_delete_title(empty());
 const msg_room_link_preview_delete_prompt = (): LocalizedString => messages().room_link_preview_delete_prompt(empty());
 const msg_room_link_preview_delete_failed = (): LocalizedString => messages().room_link_preview_delete_failed(empty());
@@ -2187,9 +2196,14 @@ export { msg_room_attachment_view_label as 'room.attachment.view_label' };
 export { msg_room_attachment_download_label as 'room.attachment.download_label' };
 export { msg_room_attachment_image_refresh_failed as 'room.attachment.image_refresh_failed' };
 export { msg_room_attachment_download_refresh_failed as 'room.attachment.download_refresh_failed' };
-export { msg_room_attachment_video_uploads_disabled as 'room.attachment.video_uploads_disabled' };
 export { msg_room_attachment_prepare_failed as 'room.attachment.prepare_failed' };
+export { msg_room_attachment_clipboard_unavailable as 'room.attachment.clipboard_unavailable' };
+export { msg_room_attachment_edit_not_supported as 'room.attachment.edit_not_supported' };
+export { msg_room_attachment_not_permitted as 'room.attachment.not_permitted' };
+export { msg_room_attachment_invalid_filename as 'room.attachment.invalid_filename' };
 export { msg_room_attachment_too_large as 'room.attachment.too_large' };
+export { msg_room_attachment_executable_not_allowed as 'room.attachment.executable_not_allowed' };
+export { msg_room_attachment_too_many as 'room.attachment.too_many' };
 export { msg_room_link_preview_delete_title as 'room.link_preview.delete_title' };
 export { msg_room_link_preview_delete_prompt as 'room.link_preview.delete_prompt' };
 export { msg_room_link_preview_delete_failed as 'room.link_preview.delete_failed' };

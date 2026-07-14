@@ -3,8 +3,9 @@ import type { LinkPreviewInput, RoomEventView } from './renderTypes.js';
 import { MessageService } from '@towk/api-types/api/v1/messages_connect';
 import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
 import { createAssetUploadAPI } from './assetUploads.js';
+import { MAX_MESSAGE_ATTACHMENTS } from '$lib/attachments/filePolicy';
 
-export const MAX_MESSAGE_ATTACHMENTS = 10;
+export { MAX_MESSAGE_ATTACHMENTS };
 
 export type MessageAPIConfig = {
   serverId?: string;
@@ -64,7 +65,10 @@ export function createMessageAPI(config: MessageAPIConfig) {
           { headers: headers() }
         );
 
-        const users = await timelineUsersForMessages(config, response.message ? [response.message] : []);
+        const users = await timelineUsersForMessages(
+          config,
+          response.message ? [response.message] : []
+        );
         return {
           event: response.message
             ? (messageToRawEvent(response.message, users) as RoomEventView | null)
@@ -95,7 +99,10 @@ export function createMessageAPI(config: MessageAPIConfig) {
         const response = await client.updateMessage(request, {
           headers: headers()
         });
-        const users = await timelineUsersForMessages(config, response.message ? [response.message] : []);
+        const users = await timelineUsersForMessages(
+          config,
+          response.message ? [response.message] : []
+        );
         return {
           updated: true,
           event: response.message

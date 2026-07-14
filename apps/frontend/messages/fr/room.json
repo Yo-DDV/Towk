@@ -114,9 +114,14 @@
       "download_label": "Télécharger {filename}",
       "image_refresh_failed": "Impossible d’actualiser le lien de l’image",
       "download_refresh_failed": "Impossible d’actualiser le lien de téléchargement",
-      "video_uploads_disabled": "Les téléversements vidéo sont désactivés sur ce serveur.",
       "prepare_failed": "Impossible de préparer la pièce jointe",
-      "too_large": "{filename} est trop volumineux ({size}). Maximum : {max}."
+      "clipboard_unavailable": "Le navigateur n’a pas fourni le fichier copié. Glissez-le dans la conversation ou utilisez Joindre un fichier.",
+      "edit_not_supported": "Il est impossible d’ajouter un fichier pendant la modification d’un message.",
+      "not_permitted": "Vous n’avez pas l’autorisation de joindre des fichiers dans cette conversation.",
+      "invalid_filename": "Ce nom de fichier contient des caractères invisibles ou directionnels non pris en charge.",
+      "too_large": "{filename} est trop volumineux ({size}). Maximum : {max}.",
+      "executable_not_allowed": "Les fichiers exécutables ne sont pas autorisés : {filename}.",
+      "too_many": "Vous pouvez joindre jusqu’à {max} fichiers à un message."
     },
     "link_preview": {
       "delete_title": "Supprimer l'aperçu du lien",

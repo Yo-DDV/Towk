@@ -286,3 +286,84 @@ jobs:
           name: playwright-report-media
           path: apps/frontend/playwright-report/
           retention-days: 14
+
+  test-native-file-clipboard:
+    name: native-file-clipboard (${{ matrix.os }})
+    env:
+      # Keep mise tasks from re-installing every repository tool after the
+      # portable Go/Node toolchain has been selected below.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: chromium,firefox
+            browsers: chromium firefox
+            cache_path: ~/.cache/ms-playwright
+          - os: windows-latest
+            targets: chrome,msedge,firefox
+            browsers: firefox
+            cache_path: ~/AppData/Local/ms-playwright
+          - os: macos-latest
+            targets: chromium,firefox,webkit
+            browsers: chromium firefox webkit
+            cache_path: ~/Library/Caches/ms-playwright
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup environment
+        uses: ./.github/actions/setup
+        with:
+          # This job needs only the portable Go/Node toolchain. Installing every
+          # repository tool would request LiveKit, which has no macOS binary.
+          mise-install-args: go node
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # zizmor: ignore[cache-poisoning] v5; PR caches are ref-scoped and CI publishes no runtime artifacts
+        with:
+          path: ${{ matrix.cache_path }}
+          key: native-playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            native-playwright-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install Linux clipboard and browser dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xclip xvfb
+          cd apps/frontend
+          pnpm exec playwright install ${{ matrix.browsers }} --with-deps
+        timeout-minutes: 20
+
+      - name: Install Playwright browsers
+        if: runner.os != 'Linux'
+        run: cd apps/frontend && pnpm exec playwright install ${{ matrix.browsers }}
+        timeout-minutes: 20
+
+      - name: Build E2E server
+        run: mise build-e2e-server
+
+      - name: Run native clipboard test on Linux
+        if: runner.os == 'Linux'
+        env:
+          NATIVE_CLIPBOARD_TARGETS: ${{ matrix.targets }}
+        run: xvfb-run -a -s '-screen 0 1440x900x24' pnpm --dir apps/frontend run test:e2e:native-clipboard
+
+      - name: Run native clipboard test
+        if: runner.os != 'Linux'
+        env:
+          NATIVE_CLIPBOARD_TARGETS: ${{ matrix.targets }}
+        run: pnpm --dir apps/frontend run test:e2e:native-clipboard
+
+      - name: Upload native clipboard report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ failure() }}
+        with:
+          name: native-clipboard-report-${{ runner.os }}
+          path: apps/frontend/playwright-report-native/
+          retention-days: 14

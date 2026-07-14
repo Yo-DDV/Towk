@@ -5231,7 +5231,7 @@ func TestMessageServiceCreateMessageInfersVideoProcessingAssetIDs(t *testing.T) 
 	env.api.config.Video.Enabled = true
 	env.core.OnVideoProcessingRequested = func(context.Context, string, string) error { return nil }
 	room := env.createJoinedRoom("message-post-video")
-	assetID := env.uploadAttachmentAsset(t, room.Id, "clip.mp4", "video/mp4", []byte("original video"))
+	assetID := env.uploadAttachmentAsset(t, room.Id, "clip.mp4", " Video/MP4; charset=binary ", []byte("original video"))
 
 	if _, err := env.messages.CreateMessage(withCaller(env.ctx, env.viewer), connect.NewRequest(&apiv1.CreateMessageRequest{
 		RoomId:             room.Id,
@@ -5452,32 +5452,42 @@ func TestMessageServiceCreateMessageValidationPreflightDoesNotCreateAssets(t *te
 	}
 }
 
-func TestMessageServiceCreateMessageRejectsVideoUploadWhenProcessingDisabled(t *testing.T) {
+func TestMessageServiceCreateMessageAllowsOriginalVideoWhenProcessingDisabled(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	room := env.createJoinedRoom("message-upload-video-disabled")
 	ctx := withCaller(env.ctx, env.viewer)
-
-	before, err := env.core.GetAssetCount(env.ctx)
-	if err != nil {
-		t.Fatalf("GetAssetCount before video post: %v", err)
+	runtime := env.serverState.serverRuntimeConfig()
+	if runtime.GetVideoProcessingEnabled() {
+		t.Fatal("VideoProcessingEnabled = true, want false")
 	}
-	sum := sha256.Sum256([]byte("video"))
-	_, err = env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
+	if runtime.GetMaxVideoUploadSize() != runtime.GetMaxUploadSize() {
+		t.Fatalf("disabled processing upload limits = %d/%d, want identical", runtime.GetMaxVideoUploadSize(), runtime.GetMaxUploadSize())
+	}
+	emptySum := sha256.Sum256(nil)
+	if _, err := env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
 		RoomId:      room.Id,
-		Filename:    "clip.mp4",
+		Filename:    "too-large.mp4",
 		ContentType: "video/mp4",
-		Size:        int64(len("video")),
-		Sha256:      hex.EncodeToString(sum[:]),
+		Size:        runtime.GetMaxUploadSize() + 1,
+		Sha256:      hex.EncodeToString(emptySum[:]),
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("oversized original video code = %v, want %v", connect.CodeOf(err), connect.CodeInvalidArgument)
+	}
+	assetID := env.uploadAttachmentAsset(t, room.Id, "clip.mp4", "video/mp4", []byte("original video"))
+
+	resp, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:             room.Id,
+		AttachmentAssetIds: []string{assetID},
 	}))
-	if connect.CodeOf(err) != connect.CodeInvalidArgument {
-		t.Fatalf("video upload CreateUpload code = %v, want %v", connect.CodeOf(err), connect.CodeInvalidArgument)
-	}
-	after, err := env.core.GetAssetCount(env.ctx)
 	if err != nil {
-		t.Fatalf("GetAssetCount after video post: %v", err)
+		t.Fatalf("CreateMessage: %v", err)
 	}
-	if after != before {
-		t.Fatalf("asset count after rejected video = %d, want unchanged %d", after, before)
+	attachments := resp.Msg.GetMessage().GetAttachments()
+	if len(attachments) != 1 || attachments[0].GetId() != assetID || attachments[0].GetContentType() != "video/mp4" {
+		t.Fatalf("attachments = %+v, want original video %q", attachments, assetID)
+	}
+	if manifest, ok := env.core.Assets.VideoAttachmentManifest(assetID); ok {
+		t.Fatalf("VideoAttachmentManifest = %+v, want none while processing is disabled", manifest)
 	}
 }
 

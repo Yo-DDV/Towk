@@ -171,14 +171,8 @@ function renderMessageComposer(
 
 let renderId = 0;
 
-function selectFiles(input: HTMLInputElement, files: File[]) {
-  Object.defineProperty(input, 'files', {
-    value: Object.assign(files, {
-      item: (index: number) => files[index] ?? null
-    }),
-    configurable: true
-  });
-  input.dispatchEvent(new Event('change', { bubbles: true }));
+async function selectFiles(input: HTMLInputElement, files: File[]) {
+  await userEvent.upload(input, files);
 }
 
 function deferred<T>() {
@@ -220,6 +214,18 @@ function pasteFile(target: HTMLElement, file: File) {
 function pasteText(target: HTMLElement, text: string) {
   const dataTransfer = new DataTransfer();
   dataTransfer.setData('text/plain', text);
+  target.dispatchEvent(
+    new ClipboardEvent('paste', {
+      bubbles: true,
+      cancelable: true,
+      clipboardData: dataTransfer
+    })
+  );
+}
+
+function pasteLocalFileReference(target: HTMLElement, uri: string) {
+  const dataTransfer = new DataTransfer();
+  dataTransfer.setData('text/uri-list', uri);
   target.dispatchEvent(
     new ClipboardEvent('paste', {
       bubbles: true,
@@ -320,8 +326,8 @@ async function changeInputValue(input: HTMLInputElement, value: string) {
   await tick();
 }
 
-function selectFirstAttachment(input: HTMLInputElement, file = imageFile()) {
-  selectFiles(input, [file]);
+async function selectFirstAttachment(input: HTMLInputElement, file = imageFile()) {
+  await selectFiles(input, [file]);
   return file;
 }
 
@@ -441,7 +447,7 @@ describe('MessageComposer', () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       const input = q(container, 'input[type="file"]') as HTMLInputElement;
 
-      selectFiles(input, [new File(['document'], 'report.pdf', { type: 'application/pdf' })]);
+      await selectFiles(input, [new File(['document'], 'report.pdf', { type: 'application/pdf' })]);
 
       await expect
         .poll(() => q(container, '[data-testid="file-attachment-preview"]')?.textContent)
@@ -454,24 +460,11 @@ describe('MessageComposer', () => {
       await expect.element(q(container, 'input[type="file"]')).toHaveAttribute('multiple');
     });
 
-    it('rejects selected video files when video processing is disabled', async () => {
+    it('stages selected video files when video processing is disabled', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       const input = q(container, 'input[type="file"]') as HTMLInputElement;
 
-      selectFiles(input, [new File(['video'], 'clip.mp4', { type: 'video/mp4' })]);
-
-      expect(getToasts().map((t) => t.message)).toContain(
-        'Video uploads are disabled on this server.'
-      );
-      expect(q(container, '[data-testid="video-attachment-preview"]')).toBeNull();
-    });
-
-    it('stages selected video files when video processing is enabled', async () => {
-      mockInstanceStores.serverInfo.videoProcessingEnabled = true;
-      const { container } = renderMessageComposer({ roomId: 'room_456' });
-      const input = q(container, 'input[type="file"]') as HTMLInputElement;
-
-      selectFiles(input, [new File(['video'], 'clip.mp4', { type: 'video/mp4' })]);
+      await selectFiles(input, [new File(['video'], 'clip.mp4', { type: 'video/mp4' })]);
 
       await expect
         .poll(() => q(container, '[data-testid="video-attachment-preview"]'))
@@ -483,7 +476,7 @@ describe('MessageComposer', () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       const input = q(container, 'input[type="file"]') as HTMLInputElement;
 
-      selectFiles(input, [
+      await selectFiles(input, [
         new File([new Uint8Array([1, 2])], 'too-large.png', { type: 'image/png' })
       ]);
 
@@ -589,6 +582,17 @@ describe('MessageComposer', () => {
   });
 
   describe('pasted attachments', () => {
+    it('stages non-image files exposed by the clipboard', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      pasteFile(editor, new File(['document'], 'report.pdf', { type: 'application/pdf' }));
+
+      await expect
+        .poll(() => q(container, '[data-testid="file-attachment-preview"]')?.textContent)
+        .toBe('pdf');
+    });
+
     it('ignores pasted files when uploads are not allowed', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456', canAttach: false });
       const editor = await findEditor(container);
@@ -597,6 +601,21 @@ describe('MessageComposer', () => {
 
       expect(prepareFilesMock).not.toHaveBeenCalled();
       expect(q(container, 'img')).toBeNull();
+    });
+
+    it('blocks inaccessible local file URIs instead of pasting a local path', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      pasteLocalFileReference(editor, 'file:///home/yoan/Documents/private-report.pdf');
+
+      await vi.waitFor(() =>
+        expect(getToasts().map((item) => item.message)).toContain(
+          'The browser did not provide the copied file. Drag it into the conversation or use Attach file.'
+        )
+      );
+      expect(editor.textContent).not.toContain('/home/yoan/Documents/private-report.pdf');
+      expect(prepareFilesMock).not.toHaveBeenCalled();
     });
 
     it('ignores externally added files when uploads are not allowed', async () => {
@@ -685,6 +704,7 @@ describe('MessageComposer', () => {
       await expect.element(sendButton).toBeDisabled();
       sendButton.click();
 
+      await vi.waitFor(() => expect(prepareFilesMock).toHaveBeenCalledOnce());
       pendingPreparation.reject(new Error('prepare failed'));
 
       await vi.waitFor(() => expect(mutationMock).not.toHaveBeenCalled());
@@ -1142,7 +1162,7 @@ describe('MessageComposer', () => {
           exactRoomId: true
         }
       );
-      const file = selectFirstAttachment(
+      const file = await selectFirstAttachment(
         q(firstRender.container, 'input[type="file"]') as HTMLInputElement
       );
       await expect.poll(() => q(firstRender.container, 'img')).toBeTruthy();
@@ -2046,7 +2066,9 @@ describe('MessageComposer', () => {
     it('leaves text and attachments in place when cancelling a role mention send', async () => {
       const { container, getByRole } = renderMessageComposer({ roomId: 'room_456' });
       const editor = await findEditor(container);
-      const file = selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
+      const file = await selectFirstAttachment(
+        q(container, 'input[type="file"]') as HTMLInputElement
+      );
 
       await expect.poll(() => q(container, 'img')).toBeTruthy();
       await typeInEditor(editor, '@all with attachment');
@@ -2068,7 +2090,9 @@ describe('MessageComposer', () => {
 
       const { container, getByRole } = renderMessageComposer({ roomId: 'room_456' });
       const editor = await findEditor(container);
-      const file = selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
+      const file = await selectFirstAttachment(
+        q(container, 'input[type="file"]') as HTMLInputElement
+      );
 
       await expect.poll(() => q(container, 'img')).toBeTruthy();
       await typeInEditor(editor, '@all will retry');
@@ -2088,7 +2112,9 @@ describe('MessageComposer', () => {
       mutationMock.mockResolvedValueOnce({ data: null, error: new Error('nope') });
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       const editor = await findEditor(container);
-      const file = selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
+      const file = await selectFirstAttachment(
+        q(container, 'input[type="file"]') as HTMLInputElement
+      );
 
       await expect.poll(() => q(container, 'img')).toBeTruthy();
       await typeInEditor(editor, 'will retry');
@@ -2161,7 +2187,7 @@ describe('MessageComposer', () => {
   describe('attachment object URL lifecycle', () => {
     it('revokes object URLs when removing staged files', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
-      selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
+      await selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
       await expect.poll(() => q(container, 'img')).toBeTruthy();
 
       (q(container, 'button.absolute') as HTMLButtonElement).click();
@@ -2173,8 +2199,9 @@ describe('MessageComposer', () => {
     it('revokes object URLs after a successful send', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
       const editor = await findEditor(container);
-      selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
+      await selectFirstAttachment(q(container, 'input[type="file"]') as HTMLInputElement);
       await typeInEditor(editor, 'with file');
+      await expect.poll(() => q(container, 'img')).toBeTruthy();
 
       (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
 

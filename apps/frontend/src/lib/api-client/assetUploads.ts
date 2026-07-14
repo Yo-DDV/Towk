@@ -31,6 +31,7 @@ export function createAssetUploadAPI(config: ConnectAPIConfig) {
 
   return {
     async uploadAttachment(options: UploadAttachmentOptions): Promise<UploadedAsset> {
+      let uploadId: string | null = null;
       try {
         const fullHash = await fileSHA256(options.file);
         const created = await client.createUpload(
@@ -47,6 +48,7 @@ export function createAssetUploadAPI(config: ConnectAPIConfig) {
         if (!upload?.uploadId) {
           throw new Error(m['common.error.unexpected_server_response']());
         }
+        uploadId = upload.uploadId;
 
         let offset = Number(upload.committedOffset);
         const chunkSize = Math.max(1, upload.maxChunkSize || fallbackChunkSize);
@@ -105,6 +107,14 @@ export function createAssetUploadAPI(config: ConnectAPIConfig) {
           height: completed.asset.height
         };
       } catch (err) {
+        if (uploadId) {
+          try {
+            await client.cancelUpload({ uploadId }, { headers: headers() });
+          } catch {
+            // The server may already have completed, cancelled, or expired the
+            // session. Cleanup remains best-effort and must not hide the cause.
+          }
+        }
         return handleAuthError(config, err);
       }
     }

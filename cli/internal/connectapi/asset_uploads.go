@@ -23,9 +23,6 @@ func (s *assetUploadService) CreateUpload(ctx context.Context, req *connect.Requ
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	if !s.api.config.Video.Enabled && strings.HasPrefix(contentType, "video/") {
-		return nil, invalidArgument("video uploads are disabled on this server")
-	}
 	upload, err := s.api.core.AssetUploads().CreateUpload(ctx, core.AssetUploadCreateInput{
 		ActorID:     caller.UserID,
 		RoomID:      req.Msg.GetRoomId(),

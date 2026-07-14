@@ -114,9 +114,14 @@
       "download_label": "Descargar {filename}",
       "image_refresh_failed": "No se pudo actualizar el enlace de la imagen",
       "download_refresh_failed": "No se pudo actualizar el enlace de descarga",
-      "video_uploads_disabled": "Las subidas de video están desactivadas en este servidor.",
       "prepare_failed": "No se pudo preparar el adjunto",
-      "too_large": "{filename} es demasiado grande ({size}). Máximo: {max}."
+      "clipboard_unavailable": "El navegador no proporcionó el archivo copiado. Arrástralo a la conversación o usa Adjuntar archivo.",
+      "edit_not_supported": "No se pueden añadir archivos mientras se edita un mensaje.",
+      "not_permitted": "No tienes permiso para adjuntar archivos en esta conversación.",
+      "invalid_filename": "Este nombre de archivo contiene caracteres invisibles o bidireccionales no compatibles.",
+      "too_large": "{filename} es demasiado grande ({size}). Máximo: {max}.",
+      "executable_not_allowed": "No se permiten archivos ejecutables: {filename}.",
+      "too_many": "Puedes adjuntar hasta {max} archivos a un mensaje."
     },
     "link_preview": {
       "delete_title": "Eliminar vista previa del enlace",

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,6 +27,7 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
 	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
 	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_CORE_ASSETS_MAX_STORE_BYTES", "10 GB")
 	t.Setenv("CHATTO_CORE_ASSETS_LINK_PREVIEWS_MAX_STORE_BYTES", "64 MB")
 	t.Setenv("CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_WINDOW", "10m")
 	t.Setenv("CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_IP", "80")
@@ -37,6 +39,9 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 		t.Fatalf("ReadConfig: %v", err)
 	}
 	got := cfg.Core.Assets.LinkPreviews
+	if cfg.Core.Assets.MaxStoreBytes != 10*datasize.GB {
+		t.Fatalf("asset max_store_bytes = %d, want %d", cfg.Core.Assets.MaxStoreBytes, 10*datasize.GB)
+	}
 	if got.MaxStoreBytes != 64*datasize.MB {
 		t.Fatalf("max_store_bytes = %d, want %d", got.MaxStoreBytes, 64*datasize.MB)
 	}
@@ -45,6 +50,26 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 	}
 	if got.PendingTTLOrDefault() != 26*time.Hour {
 		t.Fatalf("pending_ttl = %s, want 26h", got.PendingTTLOrDefault())
+	}
+}
+
+func TestAssetStoreMaxBytesDefaultsAndSaturatesInvalidValues(t *testing.T) {
+	assets := AssetsConfig{}
+	if got := assets.MaxStoreBytesOrDefault(); got != int64(DefaultAssetStoreMaxBytes) {
+		t.Fatalf("default primary asset quota = %d, want %d", got, DefaultAssetStoreMaxBytes)
+	}
+	if got := assets.LinkPreviews.MaxStoreBytesOrDefault(); got != int64(datasize.GB) {
+		t.Fatalf("default link-preview asset quota = %d, want %d", got, datasize.GB)
+	}
+
+	tooLarge := datasize.ByteSize(math.MaxInt64) + 1
+	assets.MaxStoreBytes = tooLarge
+	assets.LinkPreviews.MaxStoreBytes = tooLarge
+	if got := assets.MaxStoreBytesOrDefault(); got != math.MaxInt64 {
+		t.Fatalf("primary asset quota overflow guard = %d, want %d", got, int64(math.MaxInt64))
+	}
+	if got := assets.LinkPreviews.MaxStoreBytesOrDefault(); got != math.MaxInt64 {
+		t.Fatalf("link-preview asset quota overflow guard = %d, want %d", got, int64(math.MaxInt64))
 	}
 }
 
@@ -68,6 +93,20 @@ func TestValidateLinkPreviewAssetControls(t *testing.T) {
 		configure func(*ChattoConfig)
 		want      string
 	}{
+		{
+			name: "primary object store quota exceeds signed JetStream limit",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Core.Assets.MaxStoreBytes = datasize.ByteSize(math.MaxInt64) + 1
+			},
+			want: "core.assets.max_store_bytes must not exceed 9223372036854775807 bytes",
+		},
+		{
+			name: "link preview object store quota exceeds signed JetStream limit",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Core.Assets.LinkPreviews.MaxStoreBytes = datasize.ByteSize(math.MaxInt64) + 1
+			},
+			want: "core.assets.link_previews.max_store_bytes must not exceed 9223372036854775807 bytes",
+		},
 		{
 			name: "negative fetch window",
 			configure: func(cfg *ChattoConfig) {

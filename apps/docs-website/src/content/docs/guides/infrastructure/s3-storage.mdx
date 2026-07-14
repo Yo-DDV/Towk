@@ -9,6 +9,8 @@ By default, Towk stores persisted assets (attachments, avatars, server branding 
 
 Switching to an S3-compatible backend offloads persisted asset storage to a dedicated object store while keeping all other data (messages, users, rooms) in NATS.
 
+The `SERVER_ASSETS` JetStream quota still covers temporary upload chunks while S3 is enabled. Its 10 GB default is not an S3 capacity limit: configure lifecycle, capacity alerts, and a provider-side quota for the bucket independently.
+
 ## How It Works
 
 - **New persisted assets** go to S3 when configured

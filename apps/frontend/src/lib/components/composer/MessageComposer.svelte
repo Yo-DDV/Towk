@@ -22,6 +22,7 @@
   } from '$lib/state/room';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
   import { prefersTouchActions } from '$lib/utils/inputCapabilities';
+  import { readClipboardFiles } from '$lib/attachments/clipboardFiles';
   import { hasVisibleContent } from '$lib/validation';
   import { extractMentions, hasRoleOrVirtualMention } from '$lib/mentions';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -253,6 +254,7 @@
     attachments.restore(untrack(() => draftState.takeFiles()));
 
     return () => {
+      attachments.invalidatePending();
       draftState.stashFiles(untrack(() => attachments.filesWithUrls));
     };
   });
@@ -435,32 +437,27 @@
     onReady?.({ addFiles, focus, insertQuote });
   });
 
-  // Handle paste events - intercept images before TipTap processes them
+  // Intercept file references before TipTap processes the paste. Text-only
+  // clipboard payloads remain under TipTap's normal paste handling.
   function handlePaste(event: ClipboardEvent): boolean {
-    // Don't accept file attachments in edit mode (editMessage only supports text)
-    if (isEditing) return false;
+    const clipboard = readClipboardFiles(event.clipboardData);
+    if (clipboard.files.length === 0 && !clipboard.hasLocalFileReference) return false;
 
-    const items = event.clipboardData?.items;
-    if (!items) return false;
-
-    const pastedFiles: File[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith('image/')) {
-        const file = item.getAsFile();
-        if (file) {
-          pastedFiles.push(file);
-        }
-      }
+    if (isEditing) {
+      toast.error(m['room.attachment.edit_not_supported']());
+      return true;
+    }
+    if (!canAttach) {
+      toast.error(m['room.attachment.not_permitted']());
+      return true;
+    }
+    if (clipboard.files.length > 0) {
+      void attachments.stageFiles(clipboard.files);
+      return true;
     }
 
-    if (pastedFiles.length > 0) {
-      if (!canAttach) return true;
-      void attachments.stageFiles(pastedFiles);
-      return true; // Prevent TipTap from processing the paste
-    }
-    return false; // Let TipTap handle text pastes
+    toast.error(m['room.attachment.clipboard_unavailable']());
+    return true;
   }
 
   // Collapse runs of 3+ newlines down to 2 (one blank line max).
@@ -963,7 +960,7 @@
         class="flex h-8 w-11 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition-[color,scale] duration-100 active:scale-[0.96] enabled:hover:text-text disabled:cursor-not-allowed"
         title={m['composer.attach_file']()}
       >
-        <span class="iconify text-xl uil--image-upload"></span>
+        <span class="iconify text-xl uil--file-upload"></span>
       </button>
     {/if}
 

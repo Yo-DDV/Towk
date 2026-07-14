@@ -64,9 +64,19 @@ export class RoomPage {
     return this.page.getByTestId('audio-attachment-preview');
   }
 
+  /** Generic document/archive preview in either visible composer. */
+  get fileAttachmentPreview(): Locator {
+    return this.page.getByTestId('file-attachment-preview');
+  }
+
   /** Audio player in a posted message */
   get audioPlayer(): Locator {
     return this.page.getByTestId('audio-player');
+  }
+
+  /** Native video element used when the server keeps the original without transcoding. */
+  get rawVideoPlayer(): Locator {
+    return this.page.getByTestId('raw-video-player');
   }
 
   /** Vidstack <media-player> element (visible after video processing completes) */
@@ -956,6 +966,47 @@ export class RoomPage {
   /** Simulate dropping a file on the active thread pane. */
   async simulateThreadFileDrop(filePath: string): Promise<void> {
     await this.simulateFileDropOn(this.threadDropZone, filePath);
+  }
+
+  /** Dispatch a browser File through the room drop zone without a fixture on disk. */
+  async simulateVirtualFileDrop(name: string, mimeType: string, bytes: number[]): Promise<void> {
+    await this.roomDropZone.evaluate(
+      (element, file) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(
+          new File([new Uint8Array(file.bytes)], file.name, { type: file.mimeType })
+        );
+        element.dispatchEvent(
+          new DragEvent('drop', {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer
+          })
+        );
+      },
+      { name, mimeType, bytes }
+    );
+  }
+
+  /** Dispatch a browser File through the composer clipboard paste path. */
+  async simulateClipboardFile(name: string, mimeType: string, bytes: number[]): Promise<void> {
+    await this.waitForInputEditable();
+    await this.messageInput.evaluate(
+      (element, file) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(
+          new File([new Uint8Array(file.bytes)], file.name, { type: file.mimeType })
+        );
+        element.dispatchEvent(
+          new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dataTransfer
+          })
+        );
+      },
+      { name, mimeType, bytes }
+    );
   }
 
   private async simulateFileDropOn(dropTarget: Locator, filePath: string): Promise<void> {

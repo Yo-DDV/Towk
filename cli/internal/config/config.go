@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -453,10 +454,23 @@ func (c *AssetsCacheConfig) TTLOrDefault() time.Duration {
 type AssetsConfig struct {
 	SigningSecret  string                  `toml:"signing_secret" env:"CHATTO_CORE_ASSETS_SIGNING_SECRET" comment:"Secret for signing asset URLs. NEVER SHARE THIS!\nIf it leaks, regenerate it. Existing signed URLs will become invalid but will be regenerated on next request."`
 	MaxUploadSize  datasize.ByteSize       `toml:"max_upload_size" env:"CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE" comment:"Maximum size for uploaded files. Supports human-readable formats like '25 MB', '25MB', '25MiB'."`
+	MaxStoreBytes  datasize.ByteSize       `toml:"max_store_bytes,commented" env:"CHATTO_CORE_ASSETS_MAX_STORE_BYTES" comment:"Hard JetStream quota for SERVER_ASSETS, including NATS-backed assets and temporary upload chunks. Default: 10 GB."`
 	StorageBackend StorageBackend          `toml:"storage_backend" env:"CHATTO_CORE_ASSETS_STORAGE_BACKEND" comment:"Where to store new uploads: 'nats' (default) or 's3'. Existing assets are served from their original location regardless of this setting."`
 	S3             S3Config                `toml:"s3,commented" comment:"S3-compatible storage configuration. Only used when storage_backend = 's3'."`
 	Cache          AssetsCacheConfig       `toml:"cache" comment:"Caching configuration for resized images."`
 	LinkPreviews   LinkPreviewAssetsConfig `toml:"link_previews,commented" comment:"Bounded storage, request limits, and pending lifecycle for fetched link-preview images."`
+}
+
+const DefaultAssetStoreMaxBytes datasize.ByteSize = 10 * datasize.GB
+
+func (c *AssetsConfig) MaxStoreBytesOrDefault() int64 {
+	if c.MaxStoreBytes == 0 {
+		return int64(DefaultAssetStoreMaxBytes)
+	}
+	if c.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
+		return math.MaxInt64
+	}
+	return int64(c.MaxStoreBytes)
 }
 
 // LinkPreviewAssetsConfig bounds remotely fetched preview images independently
@@ -472,6 +486,9 @@ type LinkPreviewAssetsConfig struct {
 func (c *LinkPreviewAssetsConfig) MaxStoreBytesOrDefault() int64 {
 	if c.MaxStoreBytes == 0 {
 		return int64(datasize.GB)
+	}
+	if c.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
+		return math.MaxInt64
 	}
 	return int64(c.MaxStoreBytes)
 }
@@ -923,7 +940,7 @@ type VideoConfig struct {
 	FFmpegPath    string            `toml:"ffmpeg_path,commented" env:"CHATTO_VIDEO_FFMPEG_PATH" comment:"Path to ffmpeg binary. Auto-detected from PATH if empty."`
 	FFprobePath   string            `toml:"ffprobe_path,commented" env:"CHATTO_VIDEO_FFPROBE_PATH" comment:"Path to ffprobe binary. Auto-detected from PATH if empty."`
 	MaxConcurrent int               `toml:"max_concurrent,commented" env:"CHATTO_VIDEO_MAX_CONCURRENT" comment:"Maximum number of videos to process simultaneously. Default: 2."`
-	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads. Supports human-readable formats like '100 MB'. Default: 100 MB."`
+	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads when video processing is enabled. Disabled processing uses the general attachment limit. Supports human-readable formats like '100 MB'. Default: 100 MB."`
 	TempDir       string            `toml:"temp_dir,commented" env:"CHATTO_VIDEO_TEMP_DIR" comment:"Temporary directory for video processing. Default: system temp directory."`
 }
 
@@ -1372,6 +1389,12 @@ func (c *ChattoConfig) Validate() error {
 	// Asset cache configuration
 	if c.Core.Assets.Cache.Enabled && c.Core.Assets.Cache.TTL.Duration() < 0 {
 		errs = append(errs, "core.assets.cache.ttl must be positive when cache is enabled")
+	}
+	if c.Core.Assets.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
+		errs = append(errs, "core.assets.max_store_bytes must not exceed 9223372036854775807 bytes")
+	}
+	if c.Core.Assets.LinkPreviews.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
+		errs = append(errs, "core.assets.link_previews.max_store_bytes must not exceed 9223372036854775807 bytes")
 	}
 	if c.Core.Assets.LinkPreviews.FetchWindow.Duration() < 0 {
 		errs = append(errs, "core.assets.link_previews.fetch_window must be positive when set")

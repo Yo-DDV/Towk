@@ -11,7 +11,16 @@
     "namespaceMembers": "off",
     "duplicates": "warn"
   },
-  "ignoreBinaries": ["check", "lint", "mise", "playwright", "vitest"],
+  "ignoreBinaries": [
+    "check",
+    "lint",
+    "mise",
+    "playwright",
+    "powershell.exe",
+    "vitest",
+    "xclip",
+    "xcrun"
+  ],
   "ignoreDependencies": ["gemoji"],
   "workspaces": {
     ".": {

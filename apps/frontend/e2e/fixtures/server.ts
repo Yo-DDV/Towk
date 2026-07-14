@@ -6,6 +6,7 @@ import type { TestInfo } from '@playwright/test';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const serverExecutable = process.platform === 'win32' ? 'chatto.exe' : 'chatto';
 
 export interface ServerInfo {
   baseURL: string;
@@ -91,7 +92,7 @@ export async function startServer(
 
   // chatto.toml seeds the e2eadmin user via [bootstrap] for each fresh data dir.
   const serverProcess = spawn(
-    path.join(__dirname, 'bin', 'chatto'),
+    path.join(__dirname, 'bin', serverExecutable),
     ['start', '-c', 'chatto.toml'],
     {
       cwd: __dirname,
@@ -142,12 +143,12 @@ export async function stopServer(server: ServerInfo, testInfo: TestInfo): Promis
   const dataDir = path.join(__dirname, `data-${testInfo.testId.replace(/[^a-zA-Z0-9]/g, '-')}`);
 
   // Kill the server process
-  server.process.kill('SIGTERM');
+  server.process.kill(process.platform === 'win32' ? undefined : 'SIGTERM');
 
   // Wait for process to exit
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
-      server.process.kill('SIGKILL');
+      server.process.kill(process.platform === 'win32' ? undefined : 'SIGKILL');
       resolve();
     }, 5000);
 

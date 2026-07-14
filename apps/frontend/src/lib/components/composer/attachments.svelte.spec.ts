@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttachmentsState, type AttachmentLimits } from './attachments.svelte';
 import { getToasts, toast } from '$lib/ui/toast';
+import { MAX_MESSAGE_ATTACHMENTS } from '$lib/api-client/messages';
 
 const prepareFilesMock = vi.hoisted(() => vi.fn());
 
@@ -26,7 +27,6 @@ describe('AttachmentsState', () => {
 
   beforeEach(() => {
     limits = {
-      videoProcessingEnabled: false,
       maxUploadSize: 25 * 1024 * 1024,
       maxVideoUploadSize: 25 * 1024 * 1024
     };
@@ -60,21 +60,13 @@ describe('AttachmentsState', () => {
     await state.stageFiles([second]);
 
     expect(state.filesWithUrls.map(({ file }) => file.name)).toEqual(['first.png', 'second.png']);
-    expect(state.filesWithUrls.map(({ url }) => url)).toEqual(['blob:first.png', 'blob:second.png']);
+    expect(state.filesWithUrls.map(({ url }) => url)).toEqual([
+      'blob:first.png',
+      'blob:second.png'
+    ]);
   });
 
-  it('rejects video files when video processing is disabled', async () => {
-    await state.stageFiles([videoFile()]);
-
-    expect(getToasts().map((t) => t.message)).toContain(
-      'Video uploads are disabled on this server.'
-    );
-    expect(state.filesWithUrls).toEqual([]);
-    expect(prepareFilesMock).not.toHaveBeenCalled();
-  });
-
-  it('accepts video files when video processing is enabled', async () => {
-    limits.videoProcessingEnabled = true;
+  it('accepts video files using the runtime-provided video limit', async () => {
     const file = videoFile();
 
     await state.stageFiles([file]);
@@ -87,21 +79,117 @@ describe('AttachmentsState', () => {
 
     await state.stageFiles([imageFile('too-large.png', 2)]);
 
-    expect(getToasts().map((t) => t.message).join('\n')).toContain('too-large.png is too large');
+    expect(
+      getToasts()
+        .map((t) => t.message)
+        .join('\n')
+    ).toContain('too-large.png is too large');
     expect(state.filesWithUrls).toEqual([]);
     expect(prepareFilesMock).not.toHaveBeenCalled();
   });
 
   it('uses the video-specific upload limit for videos', async () => {
-    limits.videoProcessingEnabled = true;
     limits.maxUploadSize = 10;
     limits.maxVideoUploadSize = 1;
 
     await state.stageFiles([videoFile('too-large.mp4', 2)]);
 
-    expect(getToasts().map((t) => t.message).join('\n')).toContain('too-large.mp4 is too large');
+    expect(
+      getToasts()
+        .map((t) => t.message)
+        .join('\n')
+    ).toContain('too-large.mp4 is too large');
     expect(state.filesWithUrls).toEqual([]);
     expect(prepareFilesMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects executable files before preparing them', async () => {
+    await state.stageFiles([
+      new File([new Uint8Array([0x4d, 0x5a, 0x90, 0x00])], 'renamed.txt', {
+        type: 'text/plain'
+      }),
+      new File(['installer'], 'setup.exe', { type: 'application/octet-stream' })
+    ]);
+
+    expect(
+      getToasts()
+        .map((t) => t.message)
+        .join('\n')
+    ).toContain('Executable files are not allowed');
+    expect(state.filesWithUrls).toEqual([]);
+    expect(prepareFilesMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps archives eligible for staging', async () => {
+    const archive = new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], 'bundle.zip', {
+      type: 'application/zip'
+    });
+
+    await state.stageFiles([archive]);
+
+    expect(state.selectedFiles).toEqual([archive]);
+  });
+
+  it('caps staged files at the message attachment limit', async () => {
+    const files = Array.from({ length: MAX_MESSAGE_ATTACHMENTS + 1 }, (_, index) =>
+      documentFile(`document-${index}.pdf`)
+    );
+
+    await state.stageFiles(files);
+
+    expect(state.selectedFiles).toHaveLength(MAX_MESSAGE_ATTACHMENTS);
+    expect(
+      getToasts()
+        .map((t) => t.message)
+        .join('\n')
+    ).toContain(`up to ${MAX_MESSAGE_ATTACHMENTS} files`);
+  });
+
+  it('reserves attachment slots across concurrent staging calls', async () => {
+    let finishPreparation: ((files: File[]) => void) | undefined;
+    prepareFilesMock.mockImplementationOnce(
+      (files: File[]) =>
+        new Promise<File[]>((resolve) => {
+          finishPreparation = () => resolve(files);
+        })
+    );
+
+    const firstStage = state.stageFiles(
+      Array.from({ length: MAX_MESSAGE_ATTACHMENTS }, (_, index) =>
+        documentFile(`document-${index}.pdf`)
+      )
+    );
+    await vi.waitFor(() => expect(prepareFilesMock).toHaveBeenCalledTimes(1));
+
+    await state.stageFiles([documentFile('overflow.pdf')]);
+
+    expect(prepareFilesMock).toHaveBeenCalledTimes(1);
+    expect(getToasts().map((t) => t.message).join('\n')).toContain(
+      `up to ${MAX_MESSAGE_ATTACHMENTS} files`
+    );
+
+    finishPreparation?.([]);
+    await firstStage;
+  });
+
+  it('does not restore a prepared file after its draft generation is invalidated', async () => {
+    let finishPreparation: ((files: File[]) => void) | undefined;
+    prepareFilesMock.mockImplementationOnce(
+      (files: File[]) =>
+        new Promise<File[]>((resolve) => {
+          finishPreparation = () => resolve(files);
+        })
+    );
+
+    const staging = state.stageFiles([documentFile('previous-room.pdf')]);
+    await vi.waitFor(() => expect(prepareFilesMock).toHaveBeenCalledTimes(1));
+
+    state.invalidatePending();
+    state.restore([]);
+    finishPreparation?.([]);
+    await staging;
+
+    expect(state.filesWithUrls).toEqual([]);
   });
 
   it('clears staged object URLs', async () => {
