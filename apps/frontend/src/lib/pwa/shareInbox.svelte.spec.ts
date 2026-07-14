@@ -98,6 +98,26 @@ describe('encrypted incoming PWA shares', () => {
     ).rejects.toThrow('Unsafe or oversized shared file');
   });
 
+  it('bounds URL and filename metadata before encryption', async () => {
+    await expect(
+      storeIncomingShare({
+        title: '',
+        text: '',
+        url: `https://example.com/${'x'.repeat(SHARE_INBOX_LIMITS.maxUrlChars)}`,
+        files: []
+      })
+    ).rejects.toThrow('Shared URL is too large');
+    await expect(
+      storeIncomingShare({
+        title: '',
+        text: '',
+        url: '',
+        files: [new File(['safe'], `${'x'.repeat(SHARE_INBOX_LIMITS.maxFilenameChars)}.txt`)]
+      })
+    ).rejects.toThrow('Unsafe or oversized shared file');
+    await expect(getIncomingShare('not-an-inbox-id')).resolves.toBeNull();
+  });
+
   it('uses one durable encryption key for concurrent first writes', async () => {
     const [first, second] = await Promise.all([
       storeIncomingShare({ title: 'First', text: '', url: '', files: [] }),

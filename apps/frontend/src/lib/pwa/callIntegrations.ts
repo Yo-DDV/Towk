@@ -69,7 +69,6 @@ export class CallWakeLockController {
           'release',
           () => {
             if (this.#sentinel === sentinel) this.#sentinel = null;
-            void this.#reconcile();
           },
           { once: true }
         );

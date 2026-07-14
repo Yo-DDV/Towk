@@ -16,6 +16,8 @@ export const SHARE_INBOX_LIMITS = {
   maxFileBytes: 50 * 1024 * 1024,
   maxTotalFileBytes: 100 * 1024 * 1024,
   maxTextBytes: 100 * 1024,
+  maxUrlChars: 4096,
+  maxFilenameChars: 255,
   maxEntries: 3,
   maxStoredBytes: 150 * 1024 * 1024,
   maxAgeMs: 60 * 60 * 1000
@@ -51,6 +53,10 @@ type StoredKey = { id: string; key: CryptoKey };
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+
+function isShareID(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(id);
+}
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -141,6 +147,9 @@ function normalizedUrl(input: string): string {
 async function validateShare(input: IncomingShare): Promise<IncomingShare> {
   const title = input.title.trim().slice(0, 500);
   const text = input.text.trim();
+  if (input.url.length > SHARE_INBOX_LIMITS.maxUrlChars) {
+    throw new RangeError('Shared URL is too large');
+  }
   const url = normalizedUrl(input.url);
   if (encoder.encode(text).byteLength > SHARE_INBOX_LIMITS.maxTextBytes) {
     throw new RangeError('Shared text is too large');
@@ -153,6 +162,9 @@ async function validateShare(input: IncomingShare): Promise<IncomingShare> {
   for (const file of input.files) {
     if (
       file.size > SHARE_INBOX_LIMITS.maxFileBytes ||
+      !file.name ||
+      file.name.length > SHARE_INBOX_LIMITS.maxFilenameChars ||
+      file.type.length > 255 ||
       hasUnsafeAttachmentFilename(file.name) ||
       hasBlockedExecutableMetadata(file) ||
       (await isBlockedExecutableFile(file))
@@ -288,9 +300,15 @@ export async function storeIncomingShare(input: IncomingShare): Promise<string> 
     const now = Date.now();
     const transaction = database.transaction(SHARE_STORE, 'readwrite');
     const done = transactionDone(transaction);
-    transaction.objectStore(SHARE_STORE).put({
+    const shares = transaction.objectStore(SHARE_STORE);
+    const latest = await requestResult(shares.index('createdAt').openCursor(null, 'prev'));
+    const createdAt = Math.max(
+      now,
+      ((latest?.value as StoredShare | undefined)?.createdAt ?? 0) + 1
+    );
+    shares.put({
       id,
-      createdAt: now,
+      createdAt,
       expiresAt: now + SHARE_INBOX_LIMITS.maxAgeMs,
       byteSize,
       metadata: encryptedMetadata,
@@ -305,6 +323,7 @@ export async function storeIncomingShare(input: IncomingShare): Promise<string> 
 }
 
 export async function getIncomingShare(id: string): Promise<IncomingShare | null> {
+  if (!isShareID(id)) return null;
   const database = await openDatabase();
   try {
     const transaction = database.transaction(SHARE_STORE, 'readonly');
@@ -348,6 +367,7 @@ export async function getIncomingShare(id: string): Promise<IncomingShare | null
 }
 
 export async function getIncomingShareSummary(id: string): Promise<IncomingShareSummary | null> {
+  if (!isShareID(id)) return null;
   const database = await openDatabase();
   try {
     const transaction = database.transaction(SHARE_STORE, 'readonly');
@@ -376,6 +396,7 @@ export async function getIncomingShareSummary(id: string): Promise<IncomingShare
 }
 
 export async function deleteIncomingShare(id: string): Promise<void> {
+  if (!isShareID(id)) return;
   const database = await openDatabase();
   try {
     await deleteRecords(database, [id]);
