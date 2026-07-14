@@ -470,6 +470,43 @@
     }
   });
 
+  // A software keyboard changes the available message viewport without
+  // resizing the composer itself. Preserve the bottom anchor whenever that
+  // viewport changes while the timeline is still sticky.
+  $effect(() => {
+    const container = scrollContainer;
+    if (!container) return;
+
+    let lastWidth = container.clientWidth;
+    let lastHeight = container.clientHeight;
+    let initialized = false;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.find((candidate) => candidate.target === container);
+      const width = entry?.contentRect.width ?? container.clientWidth;
+      const height = entry?.contentRect.height ?? container.clientHeight;
+      if (!initialized) {
+        initialized = true;
+        lastWidth = width;
+        lastHeight = height;
+        return;
+      }
+      if (width === lastWidth && height === lastHeight) return;
+
+      lastWidth = width;
+      lastHeight = height;
+      if (
+        initialScrollDone &&
+        !isJumpedMode &&
+        !pendingHighlightId &&
+        (alwaysScrollToBottom || shouldScrollToBottom)
+      ) {
+        void requestBottomScroll();
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  });
+
   // Keep ScrollState's shouldScroll flag in sync with our local state
   $effect(() => {
     scrollState?.setShouldScroll(alwaysScrollToBottom || shouldScrollToBottom);

@@ -5,6 +5,27 @@ import EventListTestHarness from './EventListTestHarness.svelte';
 import { setVirtualizerScrollOffset } from './EventListVirtualizerMock.svelte';
 
 const resumeCallbacks = vi.hoisted(() => [] as Array<() => void>);
+let resizeCallbacks: ResizeObserverCallback[] = [];
+
+class ResizeObserverMock implements ResizeObserver {
+  constructor(callback: ResizeObserverCallback) {
+    resizeCallbacks.push(callback);
+  }
+
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+function resizeObserverEntry(target: Element, height: number): ResizeObserverEntry {
+  return {
+    target,
+    contentRect: DOMRectReadOnly.fromRect({ width: 320, height }),
+    borderBoxSize: [],
+    contentBoxSize: [],
+    devicePixelContentBoxSize: []
+  };
+}
 
 vi.mock('virtua/svelte', async () => {
   const { default: Virtualizer } = await import('./EventListVirtualizerMock.svelte');
@@ -202,6 +223,105 @@ describe('EventList jump completion', () => {
       await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
     } finally {
       setVirtualizerScrollOffset(700);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('re-converges at the bottom when the message viewport resizes while sticky', async () => {
+    resizeCallbacks = [];
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: ['msg-latest'],
+          scrollToEventId: null
+        }
+      });
+
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const callsBeforeResize = scrollCalls();
+      const messageContainer = page.getByTestId('messages-container').element();
+      const initialEntry = resizeObserverEntry(messageContainer, 300);
+      const resizedEntry = resizeObserverEntry(messageContainer, 200);
+
+      for (const callback of resizeCallbacks) {
+        callback([initialEntry], {} as ResizeObserver);
+        callback([resizedEntry], {} as ResizeObserver);
+      }
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThan(callsBeforeResize));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('preserves scrollback when the message viewport resizes while not sticky', async () => {
+    resizeCallbacks = [];
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: ['msg-history', 'msg-latest'],
+          scrollToEventId: null
+        }
+      });
+
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      setVirtualizerScrollOffset(400);
+      resumeCallbacks.at(-1)?.();
+      await expect.element(page.getByTestId('jump-to-present')).toBeVisible();
+      const callsBeforeResize = scrollCalls();
+      const messageContainer = page.getByTestId('messages-container').element();
+      const initialEntry = resizeObserverEntry(messageContainer, 300);
+      const resizedEntry = resizeObserverEntry(messageContainer, 200);
+
+      for (const callback of resizeCallbacks) {
+        callback([initialEntry], {} as ResizeObserver);
+        callback([resizedEntry], {} as ResizeObserver);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(scrollCalls()).toBe(callsBeforeResize);
+    } finally {
+      setVirtualizerScrollOffset(700);
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not race a pending message highlight when the viewport resizes', async () => {
+    resizeCallbacks = [];
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: ['msg-target'],
+          scrollToEventId: null,
+          pendingHighlightId: 'msg-target'
+        }
+      });
+
+      await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+      const messageContainer = page.getByTestId('messages-container').element();
+      const initialEntry = resizeObserverEntry(messageContainer, 300);
+      const resizedEntry = resizeObserverEntry(messageContainer, 200);
+
+      for (const callback of resizeCallbacks) {
+        callback([initialEntry], {} as ResizeObserver);
+        callback([resizedEntry], {} as ResizeObserver);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)).toBe(0);
+    } finally {
       vi.unstubAllGlobals();
     }
   });
