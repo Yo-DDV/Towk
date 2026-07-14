@@ -260,6 +260,46 @@ describe('EventList jump completion', () => {
     }
   });
 
+  it('re-converges when the visual viewport resizes before the message container', async () => {
+    resizeCallbacks = [];
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    const visualViewport = Object.assign(new EventTarget(), {
+      height: 700,
+      offsetLeft: 0,
+      offsetTop: 0,
+      onresize: null,
+      onscroll: null,
+      onscrollend: null,
+      pageLeft: 0,
+      pageTop: 0,
+      scale: 1,
+      width: 320
+    }) as VisualViewport;
+    vi.stubGlobal('visualViewport', visualViewport);
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: ['msg-latest'],
+          scrollToEventId: null
+        }
+      });
+
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const callsBeforeResize = scrollCalls();
+
+      visualViewport.dispatchEvent(new Event('resize'));
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThan(callsBeforeResize));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('preserves scrollback when the message viewport resizes while not sticky', async () => {
     resizeCallbacks = [];
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);

@@ -477,6 +477,17 @@
     const container = scrollContainer;
     if (!container) return;
 
+    function keepBottomAnchored() {
+      if (
+        initialScrollDone &&
+        !isJumpedMode &&
+        !pendingHighlightId &&
+        (alwaysScrollToBottom || shouldScrollToBottom)
+      ) {
+        void requestBottomScroll();
+      }
+    }
+
     let lastWidth = container.clientWidth;
     let lastHeight = container.clientHeight;
     let initialized = false;
@@ -494,17 +505,22 @@
 
       lastWidth = width;
       lastHeight = height;
-      if (
-        initialScrollDone &&
-        !isJumpedMode &&
-        !pendingHighlightId &&
-        (alwaysScrollToBottom || shouldScrollToBottom)
-      ) {
-        void requestBottomScroll();
-      }
+      keepBottomAnchored();
     });
     observer.observe(container);
-    return () => observer.disconnect();
+
+    // On mobile, the visual viewport can change before layout catches up, or
+    // without changing this element's box at all. Start convergence from that
+    // signal too; requestBottomScroll waits for layout frames before measuring.
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener('resize', keepBottomAnchored);
+    visualViewport?.addEventListener('scroll', keepBottomAnchored);
+
+    return () => {
+      observer.disconnect();
+      visualViewport?.removeEventListener('resize', keepBottomAnchored);
+      visualViewport?.removeEventListener('scroll', keepBottomAnchored);
+    };
   });
 
   // Keep ScrollState's shouldScroll flag in sync with our local state
