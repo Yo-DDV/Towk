@@ -40,6 +40,11 @@ Room sidebar panel for voice/video calls.
   import type { Attachment } from 'svelte/attachments';
   import { startDMWith } from '$lib/dm/startDM';
   import { toast } from '$lib/ui/toast';
+  import { onDestroy } from 'svelte';
+  import {
+    callFullscreenMedia,
+    type CallFullscreenMediaKind
+  } from '$lib/state/callFullscreenMedia.svelte';
 
   let {
     roomId,
@@ -344,8 +349,16 @@ Room sidebar panel for voice/video calls.
     }
   }
 
-  async function toggleFullscreenElement(element: HTMLElement | null): Promise<void> {
+  async function toggleFullscreenElement(
+    element: HTMLElement | null,
+    openFallback: () => void
+  ): Promise<void> {
     if (!element || typeof document === 'undefined') return;
+
+    if (typeof element.requestFullscreen !== 'function' || document.fullscreenEnabled === false) {
+      openFallback();
+      return;
+    }
 
     try {
       if (document.fullscreenElement === element) {
@@ -354,17 +367,48 @@ Room sidebar panel for voice/video calls.
         await element.requestFullscreen();
       }
     } catch {
-      // Browsers can reject fullscreen requests when system policy denies them.
+      openFallback();
     }
   }
 
-  function toggleClosestMediaFullscreen(event: MouseEvent): void {
+  function toggleClosestMediaFullscreen(
+    participant: DisplayParticipant,
+    event: MouseEvent
+  ): void {
     event.stopPropagation();
     const mediaCard = (event.currentTarget as HTMLElement).closest<HTMLElement>(
       '[data-call-media-card]'
     );
-    void toggleFullscreenElement(mediaCard);
+    const kind = mediaCard?.dataset.callMediaKind as CallFullscreenMediaKind | undefined;
+    const track = kind === 'screen' ? participant.screenShareTrack : participant.videoTrack;
+    if (!mediaCard || !kind || !track) return;
+
+    void toggleFullscreenElement(mediaCard, () => {
+      callFullscreenMedia.open({
+        roomId,
+        participantKey: participant.key,
+        kind,
+        track,
+        name:
+          kind === 'screen'
+            ? m['voice.screen_title']({ name: participant.displayName })
+            : participant.displayName,
+        user: participant.avatarUser
+      });
+    });
   }
+
+  $effect(() => {
+    const fullscreenMedia = callFullscreenMedia.current;
+    if (!fullscreenMedia || fullscreenMedia.roomId !== roomId) return;
+
+    const participant = participants.find((item) => item.key === fullscreenMedia.participantKey);
+    const activeTrack =
+      fullscreenMedia.kind === 'screen' ? participant?.screenShareTrack : participant?.videoTrack;
+    if (activeTrack !== fullscreenMedia.track) callFullscreenMedia.close();
+  });
+
+  onDestroy(() => callFullscreenMedia.closeForRoom(roomId));
 
   function toggleFeedMute(participant: DisplayParticipant, event: MouseEvent): void {
     event.stopPropagation();
@@ -399,7 +443,7 @@ Room sidebar panel for voice/video calls.
       icon="mdi--fullscreen"
       label={m['voice.fullscreen_feed']()}
       testId="call-feed-fullscreen-button"
-      onclick={toggleClosestMediaFullscreen}
+      onclick={(event) => toggleClosestMediaFullscreen(participant, event)}
     />
     {#if isInThisCall}
       {@render localMuteButton(participant)}
@@ -494,6 +538,7 @@ Room sidebar panel for voice/video calls.
       data-testid="call-participant-card"
       data-speaking-ring
       data-call-media-card={showVideo ? true : undefined}
+      data-call-media-kind={showVideo ? 'camera' : undefined}
     >
       {@render participantHeader(participant, participant.displayName, actions)}
 
@@ -550,6 +595,7 @@ Room sidebar panel for voice/video calls.
     data-testid="call-screen-share-card"
     data-speaking-ring={isInThisCall ? true : undefined}
     data-call-media-card
+    data-call-media-kind="screen"
   >
     {@render participantHeader(
       participant,
@@ -587,6 +633,7 @@ Room sidebar panel for voice/video calls.
     data-testid="call-featured-stage-card"
     data-speaking-ring={isInThisCall ? true : undefined}
     data-call-media-card={isScreen || isVideo ? true : undefined}
+    data-call-media-kind={isScreen ? 'screen' : isVideo ? 'camera' : undefined}
   >
     {@render participantHeader(
       participant,
