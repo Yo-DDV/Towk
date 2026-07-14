@@ -25,6 +25,7 @@ Include this component once in the chat layout (unconditionally).
   } from '$lib/notifications/appBadge';
   import type { EventEnvelope, EventHandler } from '$lib/eventBus.svelte';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
+  import { dismissNativeNotification } from '$lib/notifications/pushNotifications';
 
   function notificationCreatedEvent(
     event: EventEnvelope['event']
@@ -150,6 +151,9 @@ Include this component once in the chat layout (unconditionally).
           case RoomEventKind.NotificationDismissed: {
             const notification = notificationDismissedEvent(event.event);
             if (!notification) break;
+            if (instance.id === serverRegistry.originServer?.id) {
+              dismissNativeNotification(notification.notificationId);
+            }
             const roomId = notificationStore.removeNotification(notification.notificationId);
             if (roomId) {
               void refreshCountsOnce(instance.id, () =>

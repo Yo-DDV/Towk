@@ -23,6 +23,7 @@ type ServiceWorkerHandler = (event: {
 
 type TestNativeNotification = {
   close?: () => void;
+  data?: { notificationId?: string };
 };
 
 function deferred<T>() {
@@ -165,7 +166,7 @@ describe('service worker badge orchestration', () => {
     expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
       body: 'Hello',
       icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
       tag: 'notification-1',
       data: {
         notificationId: undefined,
@@ -176,7 +177,7 @@ describe('service worker badge orchestration', () => {
     expect(worker.clearAppBadge).not.toHaveBeenCalled();
   });
 
-  it('rejects malformed payloads and treats a tagless dismiss as a bulk close', async () => {
+  it('shows an app-owned fallback for malformed pushes and treats a tagless dismiss as a bulk close', async () => {
     const worker = await importServiceWorker();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const first = { close: vi.fn() };
@@ -192,7 +193,14 @@ describe('service worker badge orchestration', () => {
       });
 
       expect(consoleError).toHaveBeenCalledWith('Invalid push payload');
-      expect(worker.registration.showNotification).not.toHaveBeenCalled();
+      expect(worker.registration.showNotification).toHaveBeenCalledOnce();
+      expect(worker.registration.showNotification).toHaveBeenCalledWith('Towk', {
+        body: undefined,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-monochrome-96.png',
+        tag: undefined,
+        data: { notificationId: undefined, url: undefined }
+      });
       expect(worker.registration.getNotifications).toHaveBeenCalledTimes(2);
       expect(worker.registration.getNotifications).toHaveBeenNthCalledWith(1, undefined);
       expect(first.close).toHaveBeenCalledOnce();
@@ -201,6 +209,25 @@ describe('service worker badge orchestration', () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it('closes a native notification from an online realtime dismissal without a Web Push', async () => {
+    const worker = await importServiceWorker();
+    const matching = { data: { notificationId: 'notification-2' }, close: vi.fn() };
+    const other = { data: { notificationId: 'notification-1' }, close: vi.fn() };
+    worker.registration.getNotifications.mockResolvedValueOnce([other, matching]);
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-notification-dismiss',
+        notificationId: 'notification-2'
+      }
+    });
+
+    expect(worker.registration.getNotifications).toHaveBeenCalledOnce();
+    expect(matching.close).toHaveBeenCalledOnce();
+    expect(other.close).not.toHaveBeenCalled();
+    expect(worker.registration.showNotification).not.toHaveBeenCalled();
   });
 
   it('uses declarative push notification fields when legacy root fields are absent', async () => {
@@ -224,7 +251,7 @@ describe('service worker badge orchestration', () => {
             body: 'Opened by the browser or worker fallback',
             tag: 'notification-2',
             icon: 'https://towk.example/icons/icon-192.png',
-            badge: 'https://towk.example/icons/icon-192.png',
+            badge: 'https://towk.example/icons/badge-monochrome-96.png',
             app_badge: '5',
             navigate: 'https://towk.example/chat/-/room-2?highlight=event-2',
             data: {
@@ -240,7 +267,7 @@ describe('service worker badge orchestration', () => {
     expect(worker.registration.showNotification).toHaveBeenCalledWith('Declarative notification', {
       body: 'Opened by the browser or worker fallback',
       icon: 'https://towk.example/icons/icon-192.png',
-      badge: 'https://towk.example/icons/icon-192.png',
+      badge: 'https://towk.example/icons/badge-monochrome-96.png',
       tag: 'notification-2',
       data: {
         notificationId: 'notif-2',
@@ -346,7 +373,7 @@ describe('service worker badge orchestration', () => {
         body: 'Handled through PushEvent.notification',
         tag: 'notification-3',
         icon: 'https://towk.example/icons/icon-192.png',
-        badge: 'https://towk.example/icons/icon-192.png',
+        badge: 'https://towk.example/icons/badge-monochrome-96.png',
         app_badge: 3,
         data: {
           notificationId: 'notif-3',
@@ -360,7 +387,7 @@ describe('service worker badge orchestration', () => {
       {
         body: 'Handled through PushEvent.notification',
         icon: 'https://towk.example/icons/icon-192.png',
-        badge: 'https://towk.example/icons/icon-192.png',
+        badge: 'https://towk.example/icons/badge-monochrome-96.png',
         tag: 'notification-3',
         data: {
           notificationId: 'notif-3',

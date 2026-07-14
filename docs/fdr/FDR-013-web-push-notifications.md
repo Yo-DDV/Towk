@@ -1,7 +1,7 @@
 # FDR-013: Web Push Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-13
+**Last reviewed:** 2026-07-14
 
 ## Overview
 
@@ -20,18 +20,18 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 - A browser push endpoint is active for only the account that most recently registered it. Switching accounts in the same browser transfers delivery to the current account; stale records for the previous account are not delivered.
 - In multi-server mode, native Web Push controls are shown only for the server that served the installed app. Remote servers can still update in-app notification badges and sounds while Towk is open, but they do not offer direct browser push registration from another server's app origin.
 - On iOS/iPadOS, Web Push is available only for Home Screen web apps on supported versions. Towk treats Web Push as a notification trigger rather than authoritative app state and reconciles pending-notification count, native notifications, and dock badge state when the app is open.
-- Stored subscription fields are bounded: endpoint 4,096 bytes, public key 256 bytes, auth secret 128 bytes, and user agent 512 bytes.
+- Stored subscription fields are bounded: endpoint 4,096 bytes, public key 256 bytes, auth secret 128 bytes, user agent 512 bytes, and locale 16 bytes. The locale is normalized to one of Towk's supported languages (`en`, `de`, `fr`, `es`, or `pt`), with English as the compatibility fallback.
 - Subscription endpoints must be absolute HTTPS URLs without embedded credentials or local/private literal addresses. Delivery resolves the hostname itself, refuses any local, private, link-local, shared, benchmark, or reserved destination before opening the connection, bypasses ambient proxies, and does not follow redirects.
 - A user can have multiple devices subscribed simultaneously — every device receives every push.
-- Push payloads include a mutable declarative-compatible notification envelope with a title, a truncated message preview (max 100 chars, broken at word boundaries), a navigation URL, and the pending app badge count when available. The legacy root fields remain present so older Towk service workers can display the same notification during upgrades.
+- Push payloads include a mutable declarative-compatible notification envelope with a title localized for the browser subscription, a truncated message preview (max 100 chars, broken at word boundaries), a navigation URL, and the pending app badge count when available. The full-color Towk icon identifies the app, while Android receives a separate transparent monochrome 96 px badge so the operating system can mask and tint it without turning the whole icon into a blank square. The legacy root fields remain present so older Towk service workers can display the same notification during upgrades.
 - Clicking a push notification navigates to the relevant room, thread, or DM.
-- Dismissing a notification in one place sends a tagged "dismiss" action push to other devices, closing the matching system notification there too. Clearing every notification or deleting an account uses one tagless bulk-dismiss push per device instead of one provider request per stored notification.
-- Immediately before a regular push is sent, Towk confirms that the notification is still pending and the exact prepared subscription is still active. It rechecks pending state after provider delivery and emits a compensating tag-based dismiss when a dismissal raced the send.
+- While the origin PWA is open, realtime dismissal events ask its service worker to close the matching native notification on that browser. Towk does not send data-only Web Push messages for dismissals: Web Push subscriptions are `userVisibleOnly`, and a silent close-only event can cause Chromium to surface a generic background-update notification. A native notification already delivered to an offline device can therefore remain until the app reconnects, the user opens or dismisses it, or the origin account signs out.
+- Immediately before a regular push is sent, Towk confirms that the notification is still pending and the exact prepared subscription is still active. A provider request already accepted after that final check cannot be revoked without sending another user-visible notification.
 - While the PWA is open, its pending-notification state is authoritative for the app icon badge. Towk sends that state to both the page and service-worker Badging APIs and replays it when service-worker control becomes available or changes.
 - Exact counts from ordinary pushes cannot regress merely because provider deliveries arrive out of order, even if the browser evicts and restarts the service worker between deliveries. A foreground read, notification click, or dismiss reconciliation starts a fresh count window. Realtime count/list refreshes run one at a time and coalesce concurrent invalidations into authoritative follow-up passes until the burst is clean, including after a transient failed pass.
 - Expired or invalid subscriptions (browsers report 404/410 on push delivery) are cleaned up automatically.
 - Signing out of the origin account revokes the browser subscription before navigation, closes every native notification for that app origin, clears both the visible and service-worker-persisted app badge state, and prevents an in-flight registration from recreating the endpoint. Browser revocation remains effective when the authenticated cleanup call is already unavailable; stale server records are removed on a later 404/410 push response.
-- Deleting the user account bulk-dismisses pending native notifications while its device endpoints are still usable, waits for that bounded dismissal attempt, and only then removes all push subscriptions.
+- Deleting the origin account removes its pending notification state and push subscriptions. The deleting browser also revokes its endpoint and clears its native notifications during the logout transition; other offline devices rely on endpoint invalidation and their next local cleanup instead of receiving a silent close-only push.
 - If the server isn't configured with VAPID keys, the push UI is hidden entirely — no opt-in prompt, no settings toggle.
 
 ## Design Decisions
@@ -60,11 +60,11 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 **Why:** Browsers expire subscriptions over time (uninstalled PWA, revoked permission, expired keys). Without cleanup, the subscription store would grow forever with dead entries, wasting send attempts.
 **Tradeoff:** A transient 410 from a flaky push provider would prematurely delete an active subscription. The provider's contract is that 410 means "gone for good", so we trust it.
 
-### 5. Dismissal-via-push for cross-device close
+### 5. Realtime native-notification cleanup without silent push
 
-**Decision:** Dismissing a notification anywhere sends a special "dismiss" payload to the user's other devices, which use it to programmatically close the system notification.
-**Why:** Otherwise a notification dismissed on the laptop would linger on the phone until the user manually swiped it away. Cross-device dismiss is what users expect from modern chat apps.
-**Tradeoff:** Slightly more push traffic. Bounded by user actions, so it's small.
+**Decision:** An open origin PWA closes its matching native notification from the normal realtime dismissal event. The server never sends a data-only Web Push solely to close notifications.
+**Why:** Push subscriptions are created with `userVisibleOnly`. A service worker that handles a silent close-only push without displaying a notification can trigger a browser-owned fallback such as Chromium's generic background-update notice, which is worse than leaving an already delivered notification for local cleanup.
+**Tradeoff:** A notification already visible on an offline secondary device can linger until that device reconnects to Towk or the user handles it. Reliable offline cross-device close would require a browser-standard operation that does not currently exist or a visible replacement notification, which would be misleading.
 
 ### 6. Foreground subscription reconciliation
 
@@ -90,11 +90,17 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 **Why:** Modern browsers can display the standard declarative notification if the service worker is unavailable, while browsers with the Towk worker installed still dispatch a push event so the worker can keep badge and click reconciliation behavior intact. Older browsers and already-installed Towk service workers keep using the legacy root fields.
 **Tradeoff:** Payloads duplicate a small amount of title/body/navigation data and include WebKit's `app_badge` field when the count is available. That is preferable to a flag-day service-worker rollout, a second subscription path, or losing badge reconciliation on declarative-capable installed PWAs.
 
-### 10. Late delivery and badge-state revalidation
+### 10. Delivery and badge-state revalidation
 
-**Decision:** Regular push delivery revalidates both the pending notification and exact active subscription immediately before sending, then compensates with a tag-based dismiss if the notification became stale during provider delivery. The foreground app retains its latest authoritative badge intent, while the service worker persists a separate monotonic push-count window and serializes badge transitions across push, click, dismiss, and foreground events.
-**Why:** Notification creation and dismissal callbacks run asynchronously, so a slower creation path can otherwise finish after dismissal and restore a stale native notification or badge during normal use. Separately, first-page control, service-worker replacement, worker eviction, and reordered provider delivery can silently drop a clear or regress an exact count. Revalidation, persisted separation of foreground/push state, and serialized replay make the latest authoritative boundary win.
-**Tradeoff:** The server check cannot revoke a request after the final validation has already passed and the push provider has accepted it. Full ordering would require a durable per-user delivery queue; the late check fixes the common race without introducing that wider architecture.
+**Decision:** Regular push delivery revalidates both the pending notification and exact active subscription immediately before sending. The foreground app retains its latest authoritative badge intent, while the service worker persists a separate monotonic push-count window and serializes badge transitions across push, click, dismiss, and foreground events.
+**Why:** Notification creation and dismissal callbacks run asynchronously, so revalidation prevents a stale notification from being submitted in the common pre-delivery race. Separately, first-page control, service-worker replacement, worker eviction, and reordered provider delivery can silently drop a clear or regress an exact count. Persisted separation of foreground/push state and serialized replay make the latest authoritative badge boundary win.
+**Tradeoff:** The server check cannot revoke a request after the final validation has already passed and the push provider has accepted it. Full ordering would require a durable per-user delivery queue; Towk does not attempt to compensate with a silent Web Push because that violates the user-visible delivery contract.
+
+### 11. Browser-owned installed-app controls
+
+**Decision:** Towk keeps the manifest in standalone display mode and does not alter it to suppress Chromium's Android Web App Actions notification.
+**Why:** Chromium owns that notification and may expose actions such as copying the installed app URL. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Chromium currently suppresses it only for `minimal-ui`, which would change the intended PWA window model.
+**Tradeoff:** Some Chromium-based Android builds can show a silent browser-owned URL action while Towk is open. Towk can brand and localize its own message notifications, but cannot remove or rewrite that browser notification without degrading the installed-app experience.
 
 ## Permissions
 

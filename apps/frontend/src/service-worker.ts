@@ -76,7 +76,8 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  handleBadgeStateMessage(event);
+  if (handleBadgeStateMessage(event)) return;
+  handleNotificationDismissMessage(event);
 });
 
 /**
@@ -215,17 +216,40 @@ function handleBadgeStateMessage(event: ExtendableMessageEvent): boolean {
   return true;
 }
 
+function handleNotificationDismissMessage(event: ExtendableMessageEvent): boolean {
+  const message = event.data as Record<string, unknown> | undefined;
+  if (
+    !message ||
+    message.type !== 'towk-notification-dismiss' ||
+    typeof message.notificationId !== 'string'
+  ) {
+    return false;
+  }
+
+  event.waitUntil(
+    (async () => {
+      const notifications = await self.registration.getNotifications();
+      for (const notification of notifications) {
+        if (notification.data?.notificationId === message.notificationId) {
+          notification.close();
+        }
+      }
+    })()
+  );
+  return true;
+}
+
 function normalizePushNotification(payload: DeclarativePushPayload): NormalizedPushNotification {
   const notification = payload.notification;
   const notificationId = payload.notificationId ?? notification?.data?.notificationId;
   const url = payload.url ?? notification?.data?.url ?? notification?.navigate;
 
   return {
-    title: payload.title ?? notification?.title ?? 'New notification',
+    title: payload.title ?? notification?.title ?? 'Towk',
     options: {
       body: payload.body ?? notification?.body,
       icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
-      badge: payload.badge ?? notification?.badge ?? '/icons/icon-192.png',
+      badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
       tag: payload.tag ?? notification?.tag,
       data: {
         notificationId,
@@ -296,18 +320,19 @@ self.addEventListener('push', (event) => {
       const decoded = event.data.json() as unknown;
       if (typeof decoded !== 'object' || decoded === null) {
         console.error('Invalid push payload');
-        return;
+        payload = { title: 'Towk' };
+      } else {
+        payload = decoded as DeclarativePushPayload;
       }
-      payload = decoded as DeclarativePushPayload;
     } catch {
       console.error('Failed to parse push payload');
-      return;
+      payload = { title: 'Towk' };
     }
   } else if (declarativeNotification) {
     payload = declarativePayloadFromEventNotification(declarativeNotification);
   } else {
     console.warn('Push event received with no data or declarative notification');
-    return;
+    payload = { title: 'Towk' };
   }
 
   // Handle dismiss action - close matching notifications on this device
