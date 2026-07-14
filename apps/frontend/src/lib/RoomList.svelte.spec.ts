@@ -185,6 +185,17 @@ function user(id: string, login: string, displayName: string) {
   };
 }
 
+function callParticipant(userId: string, displayName: string, deviceIndex = 1) {
+  return {
+    participantId: `${userId}-device-${deviceIndex}`,
+    userId,
+    deviceIndex,
+    login: userId,
+    displayName,
+    avatarUrl: null
+  };
+}
+
 function setRooms() {
   mocks.store.rooms.rooms = [
     {
@@ -310,14 +321,7 @@ describe('RoomList', () => {
 
   it('renders active-call DM rows with the pulse icon and participant avatars', async () => {
     mocks.activeCallRoomIds.add('dm-with-participants');
-    mocks.callParticipants.set('dm-with-participants', [
-      {
-        userId: 'teal',
-        login: 'teal',
-        displayName: 'Teal',
-        avatarUrl: null
-      }
-    ]);
+    mocks.callParticipants.set('dm-with-participants', [callParticipant('teal', 'Teal')]);
 
     const { container } = render(RoomList);
 
@@ -339,6 +343,22 @@ describe('RoomList', () => {
     expect(children[0]?.querySelector('[data-testid="room-call-icon"]')).toBeNull();
   });
 
+  it('renders multiple devices from the same account as distinct call participants', async () => {
+    mocks.activeCallRoomIds.add('dm-with-participants');
+    mocks.callParticipants.set('dm-with-participants', [
+      callParticipant('teal', 'Teal'),
+      callParticipant('teal', 'Teal', 2)
+    ]);
+
+    const { container } = render(RoomList);
+
+    await expect.element(q(container, '[href="/chat/-/dm-with-participants"]')).toBeInTheDocument();
+    const dmRow = q(container, '[href="/chat/-/dm-with-participants"]');
+    expect(dmRow?.querySelectorAll('[data-testid="room-call-participant-avatar"]')).toHaveLength(
+      2
+    );
+  });
+
   it('renders the active-call phone icon when participants are not loaded', async () => {
     mocks.activeCallRoomIds.add('dm-phone-only');
 
@@ -355,14 +375,7 @@ describe('RoomList', () => {
 
   it('renders active-call channel rows with the pulse icon and participant avatars', async () => {
     mocks.activeCallRoomIds.add('channel-1');
-    mocks.callParticipants.set('channel-1', [
-      {
-        userId: 'teal',
-        login: 'teal',
-        displayName: 'Teal',
-        avatarUrl: null
-      }
-    ]);
+    mocks.callParticipants.set('channel-1', [callParticipant('teal', 'Teal')]);
 
     const { container } = render(RoomList);
 
@@ -390,12 +403,12 @@ describe('RoomList', () => {
   it('renders a compact overflow count for larger active calls', async () => {
     mocks.activeCallRoomIds.add('channel-1');
     mocks.callParticipants.set('channel-1', [
-      { userId: 'teal', login: 'teal', displayName: 'Teal', avatarUrl: null },
-      { userId: 'river', login: 'river', displayName: 'River', avatarUrl: null },
-      { userId: 'sage', login: 'sage', displayName: 'Sage', avatarUrl: null },
-      { userId: 'ash', login: 'ash', displayName: 'Ash', avatarUrl: null },
-      { userId: 'sol', login: 'sol', displayName: 'Sol', avatarUrl: null },
-      { userId: 'moon', login: 'moon', displayName: 'Moon', avatarUrl: null }
+      callParticipant('teal', 'Teal'),
+      callParticipant('river', 'River'),
+      callParticipant('sage', 'Sage'),
+      callParticipant('ash', 'Ash'),
+      callParticipant('sol', 'Sol'),
+      callParticipant('moon', 'Moon')
     ]);
 
     const { container } = render(RoomList);

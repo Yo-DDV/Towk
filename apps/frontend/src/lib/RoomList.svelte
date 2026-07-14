@@ -391,7 +391,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       aria-label={m['room_list.call_participants']({ count: participants.length })}
       data-testid="room-call-participants"
     >
-      {#each participants.slice(0, 4) as participant, i (participant.userId)}
+      {#each participants.slice(0, 4) as participant, i (participant.participantId)}
         <span
           class={[
             'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ring-1 ring-background',
