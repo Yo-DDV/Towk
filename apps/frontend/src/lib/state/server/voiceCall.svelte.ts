@@ -29,7 +29,7 @@ import {
   ensureBackgroundNoiseSuppression
 } from '$lib/audio/backgroundNoiseSuppression';
 import * as m from '$lib/i18n/messages';
-import type { VoiceCallAPI } from '$lib/api-client/voiceCalls';
+import type { VoiceCallAPI, VoiceCallToken } from '$lib/api-client/voiceCalls';
 
 export type CallParticipantInfo = {
   identity: string;
@@ -344,7 +344,7 @@ export class VoiceCallState {
   /**
    * Join a voice call in a room.
    */
-  async join(livekitUrl: string, roomId: string): Promise<void> {
+  async join(livekitUrl: string, roomId: string, expectedCallId?: string): Promise<void> {
     // Already in this call
     if (this.isInCall(roomId)) return;
 
@@ -356,7 +356,7 @@ export class VoiceCallState {
       if (this.isInCall(roomId)) return;
     }
 
-    const joinPromise = this.performJoin(livekitUrl, roomId);
+    const joinPromise = this.performJoin(livekitUrl, roomId, expectedCallId);
     this.joinInFlight = joinPromise;
     this.joinInFlightRoomId = roomId;
     try {
@@ -369,28 +369,50 @@ export class VoiceCallState {
     }
   }
 
-  private async performJoin(livekitUrl: string, roomId: string): Promise<void> {
+  private async performJoin(
+    livekitUrl: string,
+    roomId: string,
+    expectedCallId?: string
+  ): Promise<void> {
     assertLiveKitE2EESupported();
-
-    // Leave existing call first
-    if (this.connected) {
-      await this.leave();
-    }
-
     this.connecting = true;
-    this.roomId = roomId;
     let joinIntentRecorded = false;
 
     try {
-      await this.#api.joinCall(roomId);
-      joinIntentRecorded = true;
+      let tokenResponse: VoiceCallToken | null;
+      if (expectedCallId) {
+        // Validate and record the exact advertised call before leaving another
+        // active call. A stale notification must never disconnect the user
+        // from a healthy conversation.
+        await this.#api.joinCall(roomId, expectedCallId);
+        joinIntentRecorded = true;
+        tokenResponse = await this.#api.getCallToken(roomId, expectedCallId);
+        if (!tokenResponse || tokenResponse.callId !== expectedCallId) {
+          throw new VoiceCallJoinError(
+            'voice call changed while joining from a notification',
+            m['voice.call_no_longer_active']()
+          );
+        }
+        if (this.connected) {
+          await this.leave();
+          this.connecting = true;
+        }
+      } else {
+        if (this.connected) {
+          await this.leave();
+          this.connecting = true;
+        }
+        await this.#api.joinCall(roomId);
+        joinIntentRecorded = true;
+        tokenResponse = await this.#api.getCallToken(roomId);
+      }
 
       // Get token from server (pure query, no side effects)
-      const tokenResponse = await this.#api.getCallToken(roomId);
       if (!tokenResponse) {
         throw new Error(m['voice.token_failed']());
       }
       const { token, e2eeKey, callId } = tokenResponse;
+      this.roomId = roomId;
       this.activeCallId = callId;
 
       const keyProvider = new ExternalE2EEKeyProvider();
@@ -445,7 +467,11 @@ export class VoiceCallState {
       if (joinIntentRecorded) {
         await this.recordLeaveIntent(roomId);
       }
-      this.cleanup();
+      // Until the targeted call has been fully validated, a connected room is
+      // the user's previous call and must remain intact.
+      if (!expectedCallId || !this.connected) {
+        this.cleanup();
+      }
       throw err;
     } finally {
       this.connecting = false;

@@ -173,7 +173,7 @@
         "enabled_title": "Push-Benachrichtigungen aktiviert",
         "enabled_description": "Towk verwendet die Benachrichtigungsberechtigung deines Browsers oder Betriebssystems als Schalter. Um Benachrichtigungen auszuschalten, deaktiviere sie für diese Website in deinen Browser- oder Betriebssystemeinstellungen.",
         "enable_title": "Push-Benachrichtigungen aktivieren",
-        "enable_description": "Erhalte Benachrichtigungen über neue Nachrichten, während Towk geschlossen ist oder im Hintergrund läuft.",
+        "enable_description": "Erhalte Anrufe und neue Kanal- oder Privatnachrichten, wenn Towk geschlossen ist oder im Hintergrund läuft.",
         "enable_button": "Aktivieren",
         "enabling": "Wird aktiviert...",
         "blocked_error": "Push-Benachrichtigungen sind in deinen Browser- oder Betriebssystemeinstellungen blockiert.",
@@ -184,9 +184,9 @@
       },
       "push_prompt": {
         "title": "Push-Benachrichtigungen aktivieren",
-        "message": "Erhalte Hinweise zu jeder neuen Kanal- und Direktnachricht, wenn Towk geschlossen ist oder im Hintergrund läuft.",
+        "message": "Erhalte Hinweise zu Anrufen und jeder neuen Kanal- oder Privatnachricht, wenn Towk geschlossen ist oder im Hintergrund läuft.",
         "blocked_title": "Push-Benachrichtigungen sind blockiert",
-        "blocked_message": "Towk kann dich im geschlossenen Zustand nicht über neue Kanal- und Direktnachrichten informieren. Aktiviere Benachrichtigungen in den Browser- oder Betriebssystemeinstellungen.",
+        "blocked_message": "Towk kann dich im geschlossenen Zustand nicht über Anrufe oder neue Kanal- und Privatnachrichten informieren. Aktiviere Benachrichtigungen in den Browser- oder Betriebssystemeinstellungen.",
         "blocked_action": "So aktivierst du sie",
         "ios_home_screen_title": "Füge Towk zum Home-Bildschirm hinzu",
         "ios_home_screen_message": "Auf unterstützten iOS-/iPadOS-Versionen musst du Towk über das Home-Bildschirm-Symbol öffnen, bevor du Push-Benachrichtigungen aktivierst.",
@@ -197,7 +197,7 @@
         "enable": "Aktivieren",
         "dismiss": "Später",
         "confirm_title": "Ohne Benachrichtigungen fortfahren?",
-        "confirm_message": "Du könntest neue Kanal- und Direktnachrichten verpassen, wenn Towk geschlossen ist. Towk erinnert dich später erneut. Möchtest du wirklich fortfahren?",
+        "confirm_message": "Du könntest Anrufe und neue Kanal- oder Privatnachrichten verpassen, wenn Towk geschlossen ist. Towk erinnert dich später erneut. Möchtest du wirklich fortfahren?",
         "confirm_action": "Ohne Benachrichtigungen fortfahren"
       },
       "levels": {
@@ -217,15 +217,15 @@
         },
         "muted": {
           "label": "Stumm",
-          "description": "Keine Benachrichtigungen oder Ungelesen-Markierungen"
+          "description": "Keine Benachrichtigungen, auch nicht für Anrufe und private Nachrichten."
         },
         "normal": {
           "label": "Normal",
-          "description": "Ungelesen-Markierungen; Benachrichtigungen nur bei Erwähnungen. Direktnachrichten lösen immer Benachrichtigungen aus"
+          "description": "Benachrichtigungen für Erwähnungen und private Nachrichten. Keine Benachrichtigungen für Anrufe."
         },
         "all_messages": {
           "label": "Alle Nachrichten",
-          "description": "Eine Benachrichtigung für jede neue Nachricht in beigetretenen Räumen und Threads"
+          "description": "Benachrichtigungen für alle Nachrichten und Anrufe in beigetretenen Räumen, Threads und privaten Unterhaltungen."
         }
       },
       "sound": {

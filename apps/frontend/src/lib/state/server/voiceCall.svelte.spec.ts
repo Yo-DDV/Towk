@@ -352,6 +352,57 @@ describe('VoiceCallState', () => {
     expect(calls.indexOf('setE2EEEnabled:true')).toBeLessThan(calls.indexOf('connect'));
   });
 
+  it('binds a notification join action to the advertised call ID', async () => {
+    const client = createVoiceCallClient({
+      getCallToken: vi.fn(async () => ({
+        token: 'livekit-token',
+        e2eeKey: 'shared-e2ee-key',
+        callId: 'C-advertised'
+      }))
+    });
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1', 'C-advertised');
+
+    expect(client.joinCall).toHaveBeenCalledWith('R1', 'C-advertised');
+    expect(client.getCallToken).toHaveBeenCalledWith('R1', 'C-advertised');
+  });
+
+  it('rejects a replacement call returned between the join intent and token response', async () => {
+    const client = createVoiceCallClient({
+      getCallToken: vi.fn(async () => ({
+        token: 'test-token',
+        e2eeKey: 'replacement-key',
+        callId: 'C-replacement'
+      }))
+    });
+    const state = new VoiceCallState(client);
+
+    await expect(
+      state.join('wss://livekit.example.test', 'R1', 'C-advertised')
+    ).rejects.toMatchObject({ userMessage: 'This call has ended.' });
+    expect(lastRoom).toBeNull();
+    expect(client.leaveCall).toHaveBeenCalledWith('R1');
+  });
+
+  it('keeps the current call connected when a notification action is already stale', async () => {
+    const joinCall = vi.fn(async (_roomId: string, expectedCallId?: string) => {
+      if (expectedCallId) throw new Error('advertised call no longer active');
+      return true;
+    });
+    const client = createVoiceCallClient({ joinCall });
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R-current');
+
+    await expect(state.join('wss://livekit.example.test', 'R-target', 'C-expired')).rejects.toThrow(
+      'advertised call no longer active'
+    );
+
+    expect(state.isInCall('R-current')).toBe(true);
+    expect(lastRoom).not.toBeNull();
+    expect(client.leaveCall).not.toHaveBeenCalled();
+  });
+
   it('does not play a join sound without the participant join event', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);

@@ -132,7 +132,7 @@ func (s *voiceCallService) JoinCall(ctx context.Context, req *connect.Request[ap
 	if !s.api.config.LiveKit.IsConfigured() {
 		return connect.NewResponse(&apiv1.JoinCallResponse{}), nil
 	}
-	if err := s.api.core.RecordCallParticipantJoined(ctx, kind, req.Msg.GetRoomId(), caller.UserID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+	if err := s.api.core.RecordCallParticipantJoinedForCall(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetExpectedCallId(), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.JoinCallResponse{Joined: true}), nil
@@ -159,13 +159,17 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 	if !ok {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("no active voice call for room %s", req.Msg.GetRoomId()))
 	}
-	e2eeKey, err := s.api.core.GetVoiceCallE2EEKey(ctx, req.Msg.GetRoomId())
+	if expectedCallID := req.Msg.GetExpectedCallId(); expectedCallID != "" && activeCall.CallID != expectedCallID {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, core.ErrCallNoLongerActive)
+	}
+	callID := activeCall.CallID
+	e2eeKey, err := s.api.core.GetVoiceCallE2EEKeyForCall(ctx, req.Msg.GetRoomId(), callID)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	avatarSize := 96
 	avatarURL, _ := s.api.core.GetUserAvatarURL(ctx, caller.UserID, &avatarSize, &avatarSize, "cover")
-	roomName := core.LiveKitRoomName(s.api.config.LiveKit.ServerID, core.LegacySpaceIDForRoomKind(kind), req.Msg.GetRoomId(), activeCall.CallID)
+	roomName := core.LiveKitRoomName(s.api.config.LiveKit.ServerID, core.LegacySpaceIDForRoomKind(kind), req.Msg.GetRoomId(), callID)
 	token, err := core.GenerateVoiceCallToken(
 		s.api.config.LiveKit.APIKey,
 		s.api.config.LiveKit.APISecret,
@@ -175,10 +179,14 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 		user.GetLogin(),
 		s.api.absolutizeAssetURL(ctx, avatarURL),
 		e2eeKey,
-		activeCall.CallID,
+		callID,
 	)
 	if err != nil {
 		return nil, connectError(err)
+	}
+	currentCall, ok := s.api.core.CallState.ActiveCall(req.Msg.GetRoomId())
+	if !ok || currentCall.CallID != callID {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, core.ErrCallNoLongerActive)
 	}
 
 	return connect.NewResponse(&apiv1.GetCallTokenResponse{

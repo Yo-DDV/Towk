@@ -182,6 +182,7 @@ Request to record joining a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose call is being joined. |
+| `expected_call_id` | `string` | Optional. Exact active call advertised by a notification action. When it no longer matches, the request fails instead of starting a replacement. |
 
 
 <a id="chatto-api-v1-JoinCallResponse"></a>
@@ -219,6 +220,7 @@ Request for a LiveKit token for a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose active call should be joined. |
+| `expected_call_id` | `string` | Optional. Exact call selected by a notification action. A mismatch fails instead of issuing credentials for a replacement call. |
 
 
 <a id="chatto-api-v1-GetCallTokenResponse"></a>

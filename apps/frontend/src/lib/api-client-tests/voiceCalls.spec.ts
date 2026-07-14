@@ -138,6 +138,11 @@ describe('createVoiceCallAPI', () => {
       e2eeKey: 'key',
       callId: 'call-1'
     });
+    await expect(api.getCallToken('room-1', 'call-1')).resolves.toEqual({
+      token: 'jwt',
+      e2eeKey: 'key',
+      callId: 'call-1'
+    });
 
     expect(mocks.createConnectTransport).toHaveBeenCalledWith({
       baseUrl: 'https://remote.test/api/connect',
@@ -159,8 +164,14 @@ describe('createVoiceCallAPI', () => {
       { roomId: 'room-1' },
       { headers: { Authorization: 'Bearer token' } }
     );
-    expect(mocks.getCallToken).toHaveBeenCalledWith(
-      { roomId: 'room-1' },
+    expect(mocks.getCallToken).toHaveBeenNthCalledWith(
+      1,
+      { roomId: 'room-1', expectedCallId: undefined },
+      { headers: { Authorization: 'Bearer token' } }
+    );
+    expect(mocks.getCallToken).toHaveBeenNthCalledWith(
+      2,
+      { roomId: 'room-1', expectedCallId: 'call-1' },
       { headers: { Authorization: 'Bearer token' } }
     );
   });
@@ -180,9 +191,19 @@ describe('createVoiceCallAPI', () => {
     const api = createVoiceCallAPI({ baseUrl: '/api/connect', bearerToken: null });
 
     await expect(api.joinCall('room-1')).resolves.toBe(true);
+    await expect(api.joinCall('room-1', 'C-current')).resolves.toBe(true);
     await expect(api.leaveCall('room-1')).resolves.toBe(true);
 
-    expect(mocks.joinCall).toHaveBeenCalledWith({ roomId: 'room-1' }, { headers: undefined });
+    expect(mocks.joinCall).toHaveBeenNthCalledWith(
+      1,
+      { roomId: 'room-1', expectedCallId: undefined },
+      { headers: undefined }
+    );
+    expect(mocks.joinCall).toHaveBeenNthCalledWith(
+      2,
+      { roomId: 'room-1', expectedCallId: 'C-current' },
+      { headers: undefined }
+    );
     expect(mocks.leaveCall).toHaveBeenCalledWith({ roomId: 'room-1' }, { headers: undefined });
   });
 });

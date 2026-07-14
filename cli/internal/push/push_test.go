@@ -67,6 +67,67 @@ func (c *contextBlockingHTTPClient) Do(req *http.Request) (*http.Response, error
 	return nil, req.Context().Err()
 }
 
+func TestBuildPayloadFromCallStartedNotificationIsShortLivedAndActionable(t *testing.T) {
+	createdAt := time.Date(2026, 7, 14, 9, 30, 0, 0, time.UTC)
+	notification := &corev1.Notification{
+		Id:        "N-call",
+		CreatedAt: timestamppb.New(createdAt),
+		Notification: &corev1.Notification_CallStarted{
+			CallStarted: &corev1.CallStartedNotification{
+				RoomId:  "R1",
+				EventId: "E1",
+				CallId:  "C1",
+			},
+		},
+	}
+
+	payload := BuildPayloadFromNotification(notification, "Alice", "https://towk.example", &PayloadContext{
+		RoomName:   "General",
+		ActorKnown: true,
+	})
+
+	if payload.Call == nil {
+		t.Fatal("call payload = nil")
+	}
+	if payload.Call.ActorName != "Alice" || !payload.Call.ActorKnown || payload.Call.RoomName != "General" || payload.Call.CallID != "C1" || payload.Call.IsPrivate {
+		t.Fatalf("call payload = %+v", payload.Call)
+	}
+	if payload.URL != "https://towk.example/chat/-/R1" || payload.Call.JoinURL != "https://towk.example/chat/-/R1?joinCall=C1" {
+		t.Fatalf("call URLs = %q / %q", payload.URL, payload.Call.JoinURL)
+	}
+	if payload.ExpiresAt != createdAt.Add(time.Minute).UnixMilli() {
+		t.Fatalf("expiresAt = %d, want %d", payload.ExpiresAt, createdAt.Add(time.Minute).UnixMilli())
+	}
+	if payload.TTL != 60 || payload.Urgency != webpush.UrgencyHigh || payload.Topic != "call-C1" {
+		t.Fatalf("delivery = ttl=%d urgency=%q topic=%q", payload.TTL, payload.Urgency, payload.Topic)
+	}
+	if payload.declarativeNotificationEligible() {
+		t.Fatal("call payload unexpectedly enabled declarative delivery")
+	}
+	if got := NotificationTag(notification); got != "call-C1" {
+		t.Fatalf("NotificationTag = %q, want call-C1", got)
+	}
+
+	dismiss := DismissPayload(notification)
+	if dismiss.Action != "dismiss" || dismiss.Tag != "call-C1" || dismiss.TTL != 60 || dismiss.Urgency != webpush.UrgencyHigh || dismiss.Topic != "call-C1" {
+		t.Fatalf("dismiss payload = %+v", dismiss)
+	}
+}
+
+func TestBuildPayloadFromPrivateCallUsesPrivateConversationMetadata(t *testing.T) {
+	notification := &corev1.Notification{
+		Id:        "N-private-call",
+		CreatedAt: timestamppb.Now(),
+		Notification: &corev1.Notification_CallStarted{
+			CallStarted: &corev1.CallStartedNotification{RoomId: "DM1", EventId: "E2", CallId: "C2"},
+		},
+	}
+	payload := BuildPayloadFromNotification(notification, "Bob", "https://towk.example", &PayloadContext{IsPrivate: true})
+	if payload.Call == nil || !payload.Call.IsPrivate {
+		t.Fatalf("private call payload = %+v", payload.Call)
+	}
+}
+
 type concurrencyTrackingHTTPClient struct {
 	current atomic.Int32
 	maximum atomic.Int32
@@ -874,6 +935,31 @@ func TestSend(t *testing.T) {
 		}
 		if ttl != "86400" {
 			t.Fatalf("TTL = %q, want 86400", ttl)
+		}
+	})
+
+	t.Run("uses short high-priority collapsed delivery for calls", func(t *testing.T) {
+		var ttl, urgency, topic string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ttl = r.Header.Get("TTL")
+			urgency = r.Header.Get("Urgency")
+			topic = r.Header.Get("Topic")
+			w.WriteHeader(http.StatusCreated)
+		}))
+		defer server.Close()
+
+		sender := newTestSender(t, server.Client())
+		result := sender.Send(context.Background(), newTestPushSubscription(t, server.URL), &Payload{
+			Title:   "Call",
+			TTL:     60,
+			Urgency: webpush.UrgencyHigh,
+			Topic:   "call-C1",
+		})
+		if result.Error != nil || !result.Success {
+			t.Fatalf("Send call = %+v", result)
+		}
+		if ttl != "60" || urgency != "high" || topic != "call-C1" {
+			t.Fatalf("call headers = TTL %q Urgency %q Topic %q", ttl, urgency, topic)
 		}
 	})
 

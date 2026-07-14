@@ -135,6 +135,12 @@ message CallParticipant {
 message JoinCallRequest {
   // Required. Room whose call is being joined.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Optional. Exact active call advertised by a notification action. When it
+  // no longer matches, the request fails instead of starting a replacement.
+  string expected_call_id = 2 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
+  }];
 }
 
 // Response from recording a join intent.
@@ -147,6 +153,12 @@ message JoinCallResponse {
 message GetCallTokenRequest {
   // Required. Room whose active call should be joined.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Optional. Exact call selected by a notification action. A mismatch fails
+  // instead of issuing credentials for a replacement call.
+  string expected_call_id = 2 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
+  }];
 }
 
 // LiveKit token details for joining a room call.

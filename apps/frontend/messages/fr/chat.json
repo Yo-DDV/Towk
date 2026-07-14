@@ -10,7 +10,11 @@
       "time_now": "À l'instant",
       "time_minutes": "Il y a {count} min",
       "time_hours": "Il y a {count} h",
-      "time_days": "Il y a {count} j"
+      "time_days": "Il y a {count} j",
+      "call_started": "{actor} a démarré un appel",
+      "call_started_unknown": "Un appel a démarré",
+      "private_call_started": "{actor} vous appelle",
+      "private_call_started_unknown": "Appel entrant"
     },
     "sign_out": {
       "title": "Se déconnecter",

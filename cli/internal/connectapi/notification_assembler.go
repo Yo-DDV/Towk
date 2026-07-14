@@ -110,6 +110,16 @@ func (a *notificationAssembler) item(ctx context.Context, notification *corev1.N
 			roomMessage.ThreadRootEventId = &threadID
 		}
 		item.Kind = &apiv1.NotificationItem_RoomMessage{RoomMessage: roomMessage}
+	case *corev1.Notification_CallStarted:
+		room, err := a.room(ctx, payload.CallStarted.GetRoomId())
+		if err != nil {
+			return nil, err
+		}
+		item.Kind = &apiv1.NotificationItem_CallStarted{CallStarted: &apiv1.CallStartedNotification{
+			Room:    room,
+			EventId: payload.CallStarted.GetEventId(),
+			CallId:  payload.CallStarted.GetCallId(),
+		}}
 	default:
 		return nil, fmt.Errorf("unknown notification type %T", notification.GetNotification())
 	}

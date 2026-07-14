@@ -21,6 +21,11 @@ import {
   createCacheForegroundBadgeIntentStorage,
   type ServiceWorkerBadgeIntent
 } from '$lib/pwa/notificationBadge.worker';
+import {
+  callNotificationClickUrl,
+  normalizeCallPushNotification,
+  type CallPushPayload
+} from '$lib/pwa/callNotification.worker';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -154,6 +159,8 @@ interface PushPayload {
   tag?: string;
   notificationId?: string;
   url?: string;
+  expiresAt?: number;
+  call?: CallPushPayload;
   // "dismiss" action is used to close notifications on other devices
   action?: 'dismiss';
 }
@@ -324,6 +331,13 @@ self.addEventListener('push', (event) => {
     return;
   }
 
+  if (payload.call) {
+    const notification = normalizeCallPushNotification(payload, Date.now(), navigator.language);
+    if (!notification) return;
+    event.waitUntil(self.registration.showNotification(notification.title, notification.options));
+    return;
+  }
+
   badgeCoordinator.recordRegularPush();
   const notification = normalizePushNotification(payload);
 
@@ -348,8 +362,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const rawUrl =
-    typeof event.notification.data?.url === 'string' ? event.notification.data.url : undefined;
+  const rawUrl = callNotificationClickUrl(event.notification.data, event.action);
   event.waitUntil(
     (async () => {
       try {

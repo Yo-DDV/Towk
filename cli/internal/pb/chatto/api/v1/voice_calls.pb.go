@@ -514,9 +514,12 @@ func (x *CallParticipant) GetCallId() string {
 type JoinCallRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Room whose call is being joined.
-	RoomId        string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Optional. Exact active call advertised by a notification action. When it
+	// no longer matches, the request fails instead of starting a replacement.
+	ExpectedCallId string `protobuf:"bytes,2,opt,name=expected_call_id,json=expectedCallId,proto3" json:"expected_call_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *JoinCallRequest) Reset() {
@@ -552,6 +555,13 @@ func (*JoinCallRequest) Descriptor() ([]byte, []int) {
 func (x *JoinCallRequest) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
+	}
+	return ""
+}
+
+func (x *JoinCallRequest) GetExpectedCallId() string {
+	if x != nil {
+		return x.ExpectedCallId
 	}
 	return ""
 }
@@ -606,9 +616,12 @@ func (x *JoinCallResponse) GetJoined() bool {
 type GetCallTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Room whose active call should be joined.
-	RoomId        string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Optional. Exact call selected by a notification action. A mismatch fails
+	// instead of issuing credentials for a replacement call.
+	ExpectedCallId string `protobuf:"bytes,2,opt,name=expected_call_id,json=expectedCallId,proto3" json:"expected_call_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetCallTokenRequest) Reset() {
@@ -644,6 +657,13 @@ func (*GetCallTokenRequest) Descriptor() ([]byte, []int) {
 func (x *GetCallTokenRequest) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
+	}
+	return ""
+}
+
+func (x *GetCallTokenRequest) GetExpectedCallId() string {
+	if x != nil {
+		return x.ExpectedCallId
 	}
 	return ""
 }
@@ -833,13 +853,15 @@ const file_chatto_api_v1_voice_calls_proto_rawDesc = "" +
 	"\x0fCallParticipant\x12'\n" +
 	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\x127\n" +
 	"\tjoined_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bjoinedAt\x12\x17\n" +
-	"\acall_id\x18\x03 \x01(\tR\x06callId\"3\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callId\"|\n" +
 	"\x0fJoinCallRequest\x12 \n" +
-	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\"*\n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12G\n" +
+	"\x10expected_call_id\x18\x02 \x01(\tB\x1d\xbaH\x1ar\x18\x18\x80\x012\x13^$|^[A-Za-z0-9_-]+$R\x0eexpectedCallId\"*\n" +
 	"\x10JoinCallResponse\x12\x16\n" +
-	"\x06joined\x18\x01 \x01(\bR\x06joined\"7\n" +
+	"\x06joined\x18\x01 \x01(\bR\x06joined\"\x80\x01\n" +
 	"\x13GetCallTokenRequest\x12 \n" +
-	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\"`\n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12G\n" +
+	"\x10expected_call_id\x18\x02 \x01(\tB\x1d\xbaH\x1ar\x18\x18\x80\x012\x13^$|^[A-Za-z0-9_-]+$R\x0eexpectedCallId\"`\n" +
 	"\x14GetCallTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x19\n" +
 	"\be2ee_key\x18\x02 \x01(\tR\ae2eeKey\x12\x17\n" +

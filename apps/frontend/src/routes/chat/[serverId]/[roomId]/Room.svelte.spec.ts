@@ -57,6 +57,13 @@ const { mocks } = vi.hoisted(() => {
       getAppUiState: vi.fn(),
       activeCallRoomIds: new Set<string>(),
       joinedCallRoomIds: new Set<string>(),
+      page: {
+        params: { serverId: '-', roomId: 'room-1' },
+        state: {},
+        url: new URL('https://chat.example.test/chat/-/room-1')
+      },
+      joinVoiceCall: vi.fn().mockResolvedValue(undefined),
+      handleVoiceCallJoinFailed: vi.fn(),
       pendingHighlightConsume: vi.fn(
         (_roomId: string, _threadRootId: string | null): string | null => null
       ),
@@ -76,11 +83,7 @@ const { mocks } = vi.hoisted(() => {
 });
 
 vi.mock('$app/state', () => ({
-  page: {
-    params: { serverId: '-', roomId: 'room-1' },
-    state: {},
-    url: new URL('https://chat.example.test/chat/-/room-1')
-  }
+  page: mocks.page
 }));
 
 vi.mock('$app/navigation', () => ({
@@ -180,8 +183,10 @@ vi.mock('$lib/state/server/registry.svelte', () => ({
         has: vi.fn((roomId: string) => mocks.activeCallRoomIds.has(roomId))
       },
       voiceCall: {
-        isInCall: vi.fn((roomId: string) => mocks.joinedCallRoomIds.has(roomId))
+        isInCall: vi.fn((roomId: string) => mocks.joinedCallRoomIds.has(roomId)),
+        join: mocks.joinVoiceCall
       },
+      handleVoiceCallJoinFailed: mocks.handleVoiceCallJoinFailed,
       rooms: mocks.rooms
     }),
     originServer: { id: 'server-1', url: 'https://chat.example.test' },
@@ -321,6 +326,10 @@ beforeEach(() => {
   mocks.timeline.getThreadEvents.mockResolvedValue(emptyTimelinePage());
   mocks.timeline.getThreadEventsAround.mockResolvedValue(emptyTimelinePage());
   mocks.livekitUrl = null;
+  mocks.page.url = new URL('https://chat.example.test/chat/-/room-1');
+  mocks.joinVoiceCall.mockReset();
+  mocks.joinVoiceCall.mockResolvedValue(undefined);
+  mocks.handleVoiceCallJoinFailed.mockReset();
   mocks.roomKind = RoomKind.CHANNEL;
   mocks.sidebarNav.isMobile = false;
   mocks.pendingHighlightConsume.mockReset();
@@ -343,6 +352,51 @@ beforeEach(() => {
 });
 
 describe('Room local message echo', () => {
+  it('opens a call notification without joining on the ordinary click path', async () => {
+    mocks.livekitUrl = 'wss://livekit.example.test';
+
+    render(Room, { props: { roomId: 'room-1' } });
+    await tick();
+
+    expect(mocks.replaceState).not.toHaveBeenCalled();
+    expect(mocks.joinVoiceCall).not.toHaveBeenCalled();
+  });
+
+  it('consumes an explicit call action and joins only the advertised call', async () => {
+    mocks.livekitUrl = 'wss://livekit.example.test';
+    mocks.page.url = new URL('https://chat.example.test/chat/-/room-1?joinCall=C-current');
+
+    render(Room, { props: { roomId: 'room-1' } });
+
+    await vi.waitFor(() => {
+      expect(mocks.replaceState).toHaveBeenCalledWith('/chat/-/room-1', {});
+      expect(mocks.joinVoiceCall).toHaveBeenCalledWith(
+        'wss://livekit.example.test',
+        'room-1',
+        'C-current'
+      );
+    });
+  });
+
+  it('strips an invalid call action without joining', async () => {
+    mocks.livekitUrl = 'wss://livekit.example.test';
+    mocks.page.url = new URL('https://chat.example.test/chat/-/room-1?joinCall=C%20invalid');
+
+    render(Room, { props: { roomId: 'room-1' } });
+
+    await vi.waitFor(() => expect(mocks.replaceState).toHaveBeenCalledWith('/chat/-/room-1', {}));
+    expect(mocks.joinVoiceCall).not.toHaveBeenCalled();
+  });
+
+  it('consumes a valid action without joining when calls are unavailable', async () => {
+    mocks.page.url = new URL('https://chat.example.test/chat/-/room-1?joinCall=C-current');
+
+    render(Room, { props: { roomId: 'room-1' } });
+
+    await vi.waitFor(() => expect(mocks.replaceState).toHaveBeenCalledWith('/chat/-/room-1', {}));
+    expect(mocks.joinVoiceCall).not.toHaveBeenCalled();
+  });
+
   it('keeps root message-link highlights pending until the jump completes', async () => {
     mocks.pendingHighlightConsume.mockReturnValueOnce('msg-linked');
     mocks.timeline.getRoomEventsAround.mockResolvedValue({
@@ -371,7 +425,9 @@ describe('Room local message echo', () => {
 
     (q(container, '[data-testid="complete-highlight"]') as HTMLButtonElement).click();
 
-    await expect.element(q(container, '[data-testid="pending-highlight-id"]')).toHaveTextContent('');
+    await expect
+      .element(q(container, '[data-testid="pending-highlight-id"]'))
+      .toHaveTextContent('');
   });
 
   it('clears root message-link highlights when the jump target cannot be loaded', async () => {
@@ -393,7 +449,9 @@ describe('Room local message echo', () => {
         limit: 50
       });
     });
-    await expect.element(q(container, '[data-testid="pending-highlight-id"]')).toHaveTextContent('');
+    await expect
+      .element(q(container, '[data-testid="pending-highlight-id"]'))
+      .toHaveTextContent('');
   });
 
   it('inserts a returned main-room post into the same store rendered by the room timeline', async () => {

@@ -54,6 +54,22 @@ func (c *ChattoCore) CreateNotification(
 	recipientID, actorID string,
 	notification *corev1.Notification,
 ) (*corev1.Notification, error) {
+	return c.createNotification(ctx, recipientID, actorID, notification, notificationCreateOptions{})
+}
+
+type notificationCreateOptions struct {
+	id         string
+	createdAt  time.Time
+	ttl        time.Duration
+	idempotent bool
+}
+
+func (c *ChattoCore) createNotification(
+	ctx context.Context,
+	recipientID, actorID string,
+	notification *corev1.Notification,
+	options notificationCreateOptions,
+) (*corev1.Notification, error) {
 	if err := validateNotificationInput(recipientID, notification); err != nil {
 		return nil, err
 	}
@@ -64,8 +80,18 @@ func (c *ChattoCore) CreateNotification(
 	notification = proto.Clone(notification).(*corev1.Notification)
 	silent := c.suppressesNotificationAlertsForPresence(ctx, recipientID)
 
-	notificationID := NewNotificationID()
-	now := time.Now()
+	notificationID := options.id
+	if notificationID == "" {
+		notificationID = NewNotificationID()
+	}
+	now := options.createdAt
+	if now.IsZero() {
+		now = time.Now()
+	}
+	ttl := options.ttl
+	if ttl <= 0 {
+		ttl = notificationTTL
+	}
 
 	// Set/override common fields
 	notification.Id = notificationID
@@ -80,7 +106,10 @@ func (c *ChattoCore) CreateNotification(
 	}
 
 	key := notificationKey(recipientID, notificationID)
-	_, err = c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(notificationTTL))
+	_, err = c.storage.runtimeStateKV.Create(ctx, key, data, jetstream.KeyTTL(ttl))
+	if options.idempotent && errors.Is(err, jetstream.ErrKeyExists) {
+		return c.GetNotification(ctx, recipientID, notificationID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to store notification: %w", err)
 	}
@@ -676,6 +705,13 @@ func validateNotificationInput(recipientID string, notification *corev1.Notifica
 		if payload.RoomMessage == nil {
 			return invalidArgument("room-message notification payload is required")
 		}
+	case *corev1.Notification_CallStarted:
+		if payload.CallStarted == nil {
+			return invalidArgument("call-started notification payload is required")
+		}
+		if strings.TrimSpace(payload.CallStarted.GetCallId()) == "" {
+			return invalidArgument("notification call is required")
+		}
 	default:
 		return invalidArgument("notification payload is required")
 	}
@@ -714,6 +750,24 @@ func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, user
 	if !eligible {
 		return false, nil
 	}
+	if call := notification.GetCallStarted(); call != nil {
+		createdAt := notification.GetCreatedAt()
+		now := time.Now()
+		if createdAt == nil || createdAt.AsTime().Sub(now) > callNotificationFutureTolerance {
+			return false, nil
+		}
+		freshnessStart := createdAt.AsTime()
+		if freshnessStart.After(now) {
+			freshnessStart = now
+		}
+		if !now.Before(freshnessStart.Add(callNotificationFreshness)) {
+			return false, nil
+		}
+		active, ok := c.CallState.ActiveCall(call.GetRoomId())
+		if !ok || active.CallID != call.GetCallId() {
+			return false, nil
+		}
+	}
 	if _, deleted := c.RoomTimeline.MessageDeletedAt(notificationTargetEventID(notification)); deleted {
 		return false, nil
 	}
@@ -728,6 +782,9 @@ func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, user
 	// enforcement. Unknown targets remain readable for compatibility, while any
 	// target backed by a real timeline entry must pass current room/read checks.
 	if !realTarget {
+		return true, nil
+	}
+	if notification.GetCallStarted() != nil {
 		return true, nil
 	}
 	covered, err := c.notificationCoveredByCurrentReadState(ctx, userID, notification)
@@ -787,7 +844,7 @@ func notificationEligibleForLevel(notification *corev1.Notification, level corev
 	case *corev1.Notification_Mention:
 		return level == corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL ||
 			level == corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES
-	case *corev1.Notification_Reply, *corev1.Notification_RoomMessage:
+	case *corev1.Notification_Reply, *corev1.Notification_RoomMessage, *corev1.Notification_CallStarted:
 		return level == corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES
 	default:
 		return false
@@ -974,6 +1031,9 @@ func (c *ChattoCore) publishNotificationCreatedEvent(ctx context.Context, notif 
 	case *corev1.Notification_RoomMessage:
 		roomID = n.RoomMessage.RoomId
 		eventID = n.RoomMessage.EventId
+	case *corev1.Notification_CallStarted:
+		roomID = n.CallStarted.RoomId
+		eventID = n.CallStarted.EventId
 	}
 
 	event := newLiveEvent(notif.ActorId, &corev1.LiveEvent{
@@ -1030,6 +1090,8 @@ func notificationTypeName(notif *corev1.Notification) string {
 		return "reply"
 	case *corev1.Notification_RoomMessage:
 		return "room_message"
+	case *corev1.Notification_CallStarted:
+		return "call_started"
 	default:
 		return "unknown"
 	}
@@ -1048,6 +1110,8 @@ func notificationTargetRoomID(notification *corev1.Notification) string {
 		return payload.Reply.GetRoomId()
 	case *corev1.Notification_RoomMessage:
 		return payload.RoomMessage.GetRoomId()
+	case *corev1.Notification_CallStarted:
+		return payload.CallStarted.GetRoomId()
 	default:
 		return ""
 	}
@@ -1066,6 +1130,8 @@ func notificationTargetEventID(notification *corev1.Notification) string {
 		return payload.Reply.GetEventId()
 	case *corev1.Notification_RoomMessage:
 		return payload.RoomMessage.GetEventId()
+	case *corev1.Notification_CallStarted:
+		return payload.CallStarted.GetEventId()
 	default:
 		return ""
 	}

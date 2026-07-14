@@ -1,19 +1,20 @@
 # FDR-012: Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-13
+**Last reviewed:** 2026-07-14
 
 ## Overview
 
-Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, and every root or thread message in rooms using the default ALL_MESSAGES level. Notification levels are configurable per server and per room.
+Towk has a persistent notification system surfaced through a bell icon and notification center. Notifications represent things the user should pay attention to: DMs, @mentions of users/roles/virtual groups, every root or thread message, and newly started calls in rooms using the default ALL_MESSAGES level. Notification levels are configurable per server and per room.
 
 ## Behavior
 
 - A bell icon shows an unread count and opens the notification center listing recent notifications.
 - A notification appears for every non-muted DM, for a mention that resolves to the user in a NORMAL or ALL_MESSAGES channel room, or for every root and thread message in a channel room set to ALL_MESSAGES. Replies and followed threads do not bypass an explicit NORMAL opt-down unless the reply also mentions the recipient.
 - One posted message creates at most one notification per recipient. Mention notifications take priority over ambient channel/thread notifications, while a DM always uses the single direct-message notification type even when its body contains a mention or reply.
+- A newly started channel or private-conversation call notifies current room members other than the starter only when their effective level is ALL_MESSAGES. Calls never bypass a NORMAL or MUTED preference, including in private conversations.
 - Mention notifications may come from direct `@username`, role `@role`, `@all`, or `@here` mentions. The bundled composer asks for confirmation before sending role, `@all`, or `@here` mentions, while API callers can post authorized messages directly.
-- Notifications auto-expire after 90 days.
+- Message notifications auto-expire after 90 days. Call-start notifications stop being visible or deliverable after 60 seconds and disappear immediately when that exact call ends, the recipient leaves the room, or the recipient opts down from ALL_MESSAGES. Their hidden backing record retains the normal storage TTL so a long-running call can still emit a tagged native dismissal when it ends.
 - Dismissing a notification removes it everywhere — across all the user's open tabs and devices.
 - Delivery and reads revalidate the current preference, message, read marker, room, and membership state. A cleanup race or corrupt key/value identity therefore cannot expose an inaccessible notification or dismiss a different healthy notification. Message and room deletion scan the notification state itself rather than only current membership, so residual records for former members are also closed and removed.
 - A notification sound plays and the in-app and installed PWA notification badges update in real time as new notifications arrive.
@@ -28,8 +29,8 @@ Per server and per room, the user picks one of four levels:
 
 - **DEFAULT** — inherit from the parent (room → server → system default of ALL_MESSAGES).
 - **MUTED** — suppress everything for this scope, including @mentions. The room doesn't even show as unread in the sidebar.
-- **NORMAL** — unread markers remain visible, but channel-room notifications are limited to mentions. Direct messages still notify unless their room is explicitly muted.
-- **ALL_MESSAGES** — a notification for every root and thread message in the room, with richer mention or reply notification types used where applicable.
+- **NORMAL** — unread markers remain visible, but channel-room notifications are limited to mentions. Direct messages still notify unless their room is explicitly muted; calls do not notify.
+- **ALL_MESSAGES** — a notification for every root and thread message and each newly started call in the room, with richer mention or reply notification types used where applicable.
 
 An absent stored preference resolves to ALL_MESSAGES at read and delivery time. This semantic default applies equally to existing and newly created accounts without rewriting event history. Explicit NORMAL, MUTED, and room overrides remain authoritative user choices.
 
@@ -111,6 +112,12 @@ from API callers.
 **Decision:** Notification creation performs a post-write eligibility check, and singular reads, list reads, counts, API hydration, and native-push delivery reuse the same current-state predicate. Stored identity must match the recipient and KV key. Callback execution is process-limited with backpressure instead of allocating one goroutine per room member or dropping work.
 **Why:** Preference changes, read markers, membership loss, room/message deletion, and fanout can race in either order. Cleanup alone cannot close the ordering where cleanup finishes immediately before a late write, and default ALL_MESSAGES increases the size of a possible fanout.
 **Tradeoff:** A saturated push path can apply backpressure to a large fanout after the persistent records and live events have been written. A durable per-user delivery queue would provide stronger crash recovery and ordering, but is a separate architecture rather than a reason to permit stale delivery or unbounded memory.
+
+### 12. Call notifications are short-lived lifecycle projections
+
+**Decision:** Every replica consumes durable `call_started` and `call_ended` room facts. A call start creates one deterministic notification key per eligible current member; duplicate replay therefore has no duplicate live or push side effect. Delivery and reads require the same call ID to remain active and the start fact to be less than 60 seconds old. A matching end fact removes the pending notification across users.
+**Why:** Call alerts are useful only while the advertised call still exists and only when delivered promptly. Deterministic creation makes process restart and multi-replica replay safe without putting call delivery behind the singleton LiveKit reconciliation lease.
+**Tradeoff:** A provider or saturated delivery path that cannot deliver within the one-minute window drops the alert instead of surfacing it late. Call history is not retained in the notification center after the call ends.
 
 ## Permissions
 

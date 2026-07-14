@@ -333,9 +333,20 @@ describe('NotificationStore', () => {
       eventId: 'dm-event',
       dmInThread: 'dm-thread-root'
     } as unknown as NotificationItem;
+    const call = {
+      kind: NotificationItemKind.CallStarted,
+      id: 'call-kind',
+      createdAt: new Date().toISOString(),
+      actor: null,
+      summary: 'started a call',
+      callRoom: { id: 'call-room', name: 'general' },
+      callEventId: 'call-event',
+      callId: 'C1',
+      isPrivate: false
+    } as unknown as NotificationItem;
 
     const store = new NotificationStore(makeAPI());
-    store.notifications = [threadReply, dm];
+    store.notifications = [threadReply, dm, call];
 
     expect(notificationTarget(threadReply)).toMatchObject({
       isDM: false,
@@ -355,6 +366,14 @@ describe('NotificationStore', () => {
     expect(store.getNavigationPath('origin', dm)).toBe(
       '/chat/-/dm-room/dm-thread-root?highlight=dm-event'
     );
+    expect(notificationTarget(call)).toMatchObject({
+      isDM: false,
+      roomId: 'call-room',
+      eventId: null,
+      threadRootId: null
+    });
+    expect(store.getCleanPath('origin', call)).toBe('/chat/-/call-room');
+    expect(store.getNavigationPath('origin', call)).toBe('/chat/-/call-room');
   });
 
   it('marks threads for mentions, replies, and all-message notifications', () => {

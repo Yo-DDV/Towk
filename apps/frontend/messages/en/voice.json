@@ -36,6 +36,7 @@
     "no_devices": "No devices found",
     "participants": "Call participants",
     "join_failed": "Failed to join voice call",
+    "call_no_longer_active": "This call has ended.",
     "token_failed": "Failed to get voice call token",
     "encrypted_unsupported": "This browser does not support encrypted voice calls yet. Try the latest Firefox, Chrome, or Edge.",
     "signaling_failed": "Could not reach the voice server. Check your network and try again.",

@@ -455,6 +455,14 @@ export class JoinCallRequest extends Message<JoinCallRequest> {
    */
   roomId = "";
 
+  /**
+   * Optional. Exact active call advertised by a notification action. When it
+   * no longer matches, the request fails instead of starting a replacement.
+   *
+   * @generated from field: string expected_call_id = 2;
+   */
+  expectedCallId = "";
+
   constructor(data?: PartialMessage<JoinCallRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -464,6 +472,7 @@ export class JoinCallRequest extends Message<JoinCallRequest> {
   static readonly typeName = "chatto.api.v1.JoinCallRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expected_call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JoinCallRequest {
@@ -537,6 +546,14 @@ export class GetCallTokenRequest extends Message<GetCallTokenRequest> {
    */
   roomId = "";
 
+  /**
+   * Optional. Exact call selected by a notification action. A mismatch fails
+   * instead of issuing credentials for a replacement call.
+   *
+   * @generated from field: string expected_call_id = 2;
+   */
+  expectedCallId = "";
+
   constructor(data?: PartialMessage<GetCallTokenRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -546,6 +563,7 @@ export class GetCallTokenRequest extends Message<GetCallTokenRequest> {
   static readonly typeName = "chatto.api.v1.GetCallTokenRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "expected_call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCallTokenRequest {

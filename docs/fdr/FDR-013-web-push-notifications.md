@@ -1,11 +1,11 @@
 # FDR-013: Web Push Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-13
+**Last reviewed:** 2026-07-14
 
 ## Overview
 
-Users can opt in to receive notifications through the browser's W3C Web Push system, so persistent notifications for joined-room messages, DMs, mentions, and replies can reach them even when the Towk tab isn't open. Push permission remains opt-in per device, requires operator configuration (VAPID keys), and piggybacks on the persistent notification system (see FDR-012).
+Users can opt in to receive notifications through the browser's W3C Web Push system, so persistent notifications for joined-room messages, DMs, mentions, replies, and newly started calls can reach them even when the Towk tab isn't open. Push permission remains opt-in per device, requires operator configuration (VAPID keys), and piggybacks on the persistent notification system (see FDR-012).
 
 ## Behavior
 
@@ -25,6 +25,9 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 - A user can have multiple devices subscribed simultaneously — every device receives every push.
 - Push payloads include a mutable declarative-compatible notification envelope with a title, a truncated message preview (max 100 chars, broken at word boundaries), a navigation URL, and the pending app badge count when available. The legacy root fields remain present so older Towk service workers can display the same notification during upgrades.
 - Clicking a push notification navigates to the relevant room, thread, or DM.
+- A call-start push is sent only to current members whose effective room level is ALL_MESSAGES. It uses high urgency, a 60-second provider TTL, and a per-call collapse topic; a worker that receives it after its payload expiry drops it before display.
+- Call notifications are localized in the five bundled languages. Their ordinary click and “view” action open the room or private conversation without joining. Where the browser exposes notification actions, an explicit “join” action carries the advertised call ID; the server rejects it if that exact call ended or was replaced, so a stale click cannot start a new call. Browsers without action support retain the safe ordinary-click fallback.
+- A matching call-end dismissal closes the tagged native notification across devices. Call pushes do not change the message-count app badge.
 - Dismissing a notification in one place sends a tagged "dismiss" action push to other devices, closing the matching system notification there too. Clearing every notification or deleting an account uses one tagless bulk-dismiss push per device instead of one provider request per stored notification.
 - Immediately before a regular push is sent, Towk confirms that the notification is still pending and the exact prepared subscription is still active. It rechecks pending state after provider delivery and emits a compensating tag-based dismiss when a dismissal raced the send.
 - While the PWA is open, its pending-notification state is authoritative for the app icon badge. Towk sends that state to both the page and service-worker Badging APIs and replays it when service-worker control becomes available or changes.
@@ -95,6 +98,12 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 **Decision:** Regular push delivery revalidates both the pending notification and exact active subscription immediately before sending, then compensates with a tag-based dismiss if the notification became stale during provider delivery. The foreground app retains its latest authoritative badge intent, while the service worker persists a separate monotonic push-count window and serializes badge transitions across push, click, dismiss, and foreground events.
 **Why:** Notification creation and dismissal callbacks run asynchronously, so a slower creation path can otherwise finish after dismissal and restore a stale native notification or badge during normal use. Separately, first-page control, service-worker replacement, worker eviction, and reordered provider delivery can silently drop a clear or regress an exact count. Revalidation, persisted separation of foreground/push state, and serialized replay make the latest authoritative boundary win.
 **Tradeoff:** The server check cannot revoke a request after the final validation has already passed and the push provider has accepted it. Full ordering would require a durable per-user delivery queue; the late check fixes the common race without introducing that wider architecture.
+
+### 11. Progressive call actions with exact-call validation
+
+**Decision:** Call-start pushes use the service worker path instead of the declarative envelope so Towk can enforce expiry, localized copy, and optional “view”/“join” actions. The main click is always non-joining. Only the explicit join action adds `joinCall={callId}`, and `JoinCall` treats that value as an exact precondition rather than permission to create a call.
+**Why:** Notification action support is not universal, especially across installed-PWA platforms. Progressive actions improve capable browsers without making the baseline click surprising or unsafe, and the backend precondition closes races after provider or user delay.
+**Tradeoff:** Browsers that omit notification actions require one extra tap on the room's active-call button. This is preferable to auto-joining with a microphone or creating a replacement call from stale state.
 
 ## Permissions
 

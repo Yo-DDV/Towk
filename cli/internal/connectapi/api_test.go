@@ -4331,6 +4331,45 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	}
 }
 
+func TestNotificationServiceHydratesCallStartedNotification(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("notification-call-room")
+	actor, err := env.core.CreateUser(env.ctx, core.SystemActorID, "notification-call-actor", "Call Actor", "password")
+	if err != nil {
+		t.Fatalf("CreateUser actor: %v", err)
+	}
+	if _, err := env.core.AddMember(env.ctx, env.viewer.Id, core.KindChannel, room.Id, actor.Id); err != nil {
+		t.Fatalf("AddMember actor: %v", err)
+	}
+	if err := env.core.RecordCallParticipantJoined(env.ctx, core.KindChannel, room.Id, actor.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined: %v", err)
+	}
+	active, ok := env.core.CallState.ActiveCall(room.Id)
+	if !ok {
+		t.Fatal("call did not become active")
+	}
+	notification, err := env.core.CreateNotification(env.ctx, env.viewer.Id, actor.Id, &corev1.Notification{
+		Notification: &corev1.Notification_CallStarted{CallStarted: &corev1.CallStartedNotification{
+			RoomId:  room.Id,
+			EventId: "E-call-started",
+			CallId:  active.CallID,
+		}},
+	})
+	if err != nil || notification == nil {
+		t.Fatalf("CreateNotification call = %+v, %v", notification, err)
+	}
+
+	response, err := env.notifications.GetNotification(ctx, connect.NewRequest(&apiv1.GetNotificationRequest{NotificationId: notification.Id}))
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
+	call := response.Msg.GetNotification().GetCallStarted()
+	if call.GetRoom().GetId() != room.Id || call.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || call.GetEventId() != "E-call-started" || call.GetCallId() != active.CallID {
+		t.Fatalf("call notification = %+v", call)
+	}
+}
+
 func TestNotificationPreferencesServiceServerLevelPreference(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)
@@ -4581,6 +4620,13 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	if tokenResp.Msg.GetToken() == "" || tokenResp.Msg.GetE2EeKey() == "" || tokenResp.Msg.GetCallId() != participants[0].GetCallId() {
 		t.Fatalf("GetCallToken response = %+v, want token/e2ee key/call id", tokenResp.Msg)
 	}
+	expectedJoin, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:         room.Id,
+		ExpectedCallId: activeCall.GetCallId(),
+	}))
+	if err != nil || !expectedJoin.Msg.GetJoined() {
+		t.Fatalf("JoinCall with current expected call = %+v, %v; want joined", expectedJoin, err)
+	}
 
 	leaveResp, err := env.voice.LeaveCall(ctx, connect.NewRequest(&apiv1.LeaveCallRequest{
 		RoomId: room.Id,
@@ -4599,6 +4645,27 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	}
 	if len(participantsResp.Msg.GetParticipants()) != 0 {
 		t.Fatalf("participants after leave = %+v, want none", participantsResp.Msg.GetParticipants())
+	}
+	if _, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:         room.Id,
+		ExpectedCallId: activeCall.GetCallId(),
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale expected JoinCall code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, ok := env.core.CallState.ActiveCall(room.Id); ok {
+		t.Fatal("stale expected JoinCall started a replacement call")
+	}
+	if err := env.core.RecordCallParticipantJoined(env.ctx, core.KindChannel, room.Id, nonMember.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("start replacement call: %v", err)
+	}
+	if _, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
+		RoomId:         room.Id,
+		ExpectedCallId: activeCall.GetCallId(),
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale expected GetCallToken code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if err := env.core.RecordCallParticipantLeft(env.ctx, core.KindChannel, room.Id, nonMember.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("end replacement call: %v", err)
 	}
 	if _, err := env.voice.GetActiveCall(ctx, connect.NewRequest(&apiv1.GetActiveCallRequest{
 		RoomId: room.Id,

@@ -36,6 +36,7 @@
     "no_devices": "No se encontraron dispositivos",
     "participants": "Participantes de la llamada",
     "join_failed": "No se pudo unir a la llamada de voz",
+    "call_no_longer_active": "Esta llamada ha terminado.",
     "token_failed": "No se pudo obtener el token de la llamada de voz",
     "encrypted_unsupported": "Este navegador aún no admite llamadas de voz cifradas. Pruebe la última versión de Firefox, Chrome o Edge.",
     "signaling_failed": "No se pudo comunicar con el servidor de voz. Verifique su red e inténtelo nuevamente.",

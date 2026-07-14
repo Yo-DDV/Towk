@@ -77,12 +77,15 @@ export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
       return response.participants.flatMap(callParticipant);
     },
 
-    async joinCall(roomId: string): Promise<boolean> {
-      return (await client.joinCall({ roomId }, { headers: headers() })).joined;
+    async joinCall(roomId: string, expectedCallId?: string): Promise<boolean> {
+      return (await client.joinCall({ roomId, expectedCallId }, { headers: headers() })).joined;
     },
 
-    async getCallToken(roomId: string): Promise<VoiceCallToken | null> {
-      const response = await client.getCallToken({ roomId }, { headers: headers() });
+    async getCallToken(roomId: string, expectedCallId?: string): Promise<VoiceCallToken | null> {
+      const response = await client.getCallToken(
+        { roomId, expectedCallId },
+        { headers: headers() }
+      );
       if (!response.token || !response.e2eeKey || !response.callId) return null;
       return {
         token: response.token,

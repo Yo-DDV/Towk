@@ -128,6 +128,11 @@ var (
 	// server policy; users can mute them instead.
 	ErrCannotLeaveUniversalRoom = errors.New("cannot leave universal rooms")
 
+	// ErrCallNoLongerActive rejects notification join actions whose advertised
+	// call ended or was replaced. Callers must never turn that stale action into
+	// a new call.
+	ErrCallNoLongerActive = errors.New("the advertised call is no longer active")
+
 	// ErrCannotBanDMRoomMember is returned when a moderator tries to ban
 	// someone from a DM room. DM membership is the privacy boundary and
 	// cannot be moderated like a channel room.
