@@ -9,6 +9,7 @@
   import * as m from '$lib/i18n/messages';
   import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import MotdContent from '$lib/ui/MotdContent.svelte';
+  import PwaInstallButton from '$lib/components/PwaInstallButton.svelte';
   import { sourcePathForVersion } from '$lib/source';
 
   // MOTD follows the active server; the connection-lost icon below stays
@@ -101,6 +102,8 @@
 
   <!-- Actions: Version + Logout -->
   <div class="flex items-center gap-3">
+    <PwaInstallButton />
+
     {#if deployedVersion}
       <a
         href={`https://github.com/Yo-DDV/towk${correspondingSourcePath}`}
@@ -109,8 +112,8 @@
         data-testid="corresponding-source-link"
         class="text-text/60 underline decoration-dotted underline-offset-2 hover:text-text"
         aria-label={m['ui.corresponding_source']({ version: deployedVersion })}
-        title={m['ui.corresponding_source']({ version: deployedVersion })}
-      >v{deployedVersion}</a>
+        title={m['ui.corresponding_source']({ version: deployedVersion })}>v{deployedVersion}</a
+      >
     {/if}
 
     {#if hasInstances}

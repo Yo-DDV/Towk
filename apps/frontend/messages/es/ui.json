@@ -6,6 +6,19 @@
     "open_quick_switcher": "Abrir conmutador rápido",
     "quick_switcher_shortcut": "Conmutador rápido (Cmd+K)",
     "realtime_paused": "Se pausaron las actualizaciones en tiempo real. Reconectando...",
+    "pwa_install": {
+      "action": "Instalar Towk",
+      "title": "Instalar Towk",
+      "description": "Añade Towk a este dispositivo para disfrutar de una experiencia más rápida y similar a una aplicación nativa.",
+      "benefit_launch": "Abre Towk directamente desde la pantalla de inicio, el dock o el menú de aplicaciones.",
+      "benefit_offline": "Inicia de forma fiable sin conexión y conserva los borradores cifrados en este dispositivo.",
+      "benefit_notifications": "Usa las notificaciones del sistema y los indicadores cuando el navegador sea compatible.",
+      "ios_title": "En iPhone o iPad",
+      "ios_share": "Pulsa el botón Compartir en Safari.",
+      "ios_home_screen": "Elige Añadir a pantalla de inicio.",
+      "ios_confirm": "Confirma pulsando Añadir.",
+      "install_now": "Instalar ahora"
+    },
     "update_available": "Una nueva versión está disponible",
     "reload": "Recargar",
     "network": {

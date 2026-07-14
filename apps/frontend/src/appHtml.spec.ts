@@ -12,6 +12,7 @@ const themeScript = appHtml.match(/<script>\s*([\s\S]*?)\s*<\/script>/i)?.[1];
 
 type WebAppManifest = {
   icons?: Array<{ src?: string; sizes?: string; type?: string; purpose?: string }>;
+  launch_handler?: { client_mode?: string[] };
 };
 
 function metaContent(name: string, mediaFragment: string): string | null {
@@ -141,6 +142,10 @@ describe('app.html metadata', () => {
         purpose: 'maskable'
       }
     ]);
+  });
+
+  it('reuses an existing installed window when launch handling is supported', () => {
+    expect(manifest.launch_handler).toEqual({ client_mode: ['focus-existing', 'auto'] });
   });
 
   it.each([

@@ -9,6 +9,9 @@
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "browser"],
+  "launch_handler": {
+    "client_mode": ["focus-existing", "auto"]
+  },
   "background_color": "#03040b",
   "theme_color": "#03040b",
   "categories": ["communication", "social", "productivity"],

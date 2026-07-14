@@ -6,6 +6,19 @@
     "open_quick_switcher": "Schnellwechsler öffnen",
     "quick_switcher_shortcut": "Schnellwechsler (Cmd+K)",
     "realtime_paused": "Echtzeitaktualisierungen pausiert. Verbindung wird wiederhergestellt...",
+    "pwa_install": {
+      "action": "Towk installieren",
+      "title": "Towk installieren",
+      "description": "Füge Towk zu diesem Gerät hinzu, um es schneller und wie eine native App zu nutzen.",
+      "benefit_launch": "Öffne Towk direkt über den Startbildschirm, das Dock oder das Anwendungsmenü.",
+      "benefit_offline": "Starte zuverlässig ohne Verbindung und bewahre verschlüsselte Entwürfe auf diesem Gerät auf.",
+      "benefit_notifications": "Nutze Systembenachrichtigungen und App-Badges, wenn dein Browser sie unterstützt.",
+      "ios_title": "Auf iPhone oder iPad",
+      "ios_share": "Tippe in Safari auf die Teilen-Taste.",
+      "ios_home_screen": "Wähle Zum Home-Bildschirm.",
+      "ios_confirm": "Bestätige mit Hinzufügen.",
+      "install_now": "Jetzt installieren"
+    },
     "update_available": "Eine neue Version ist verfügbar",
     "reload": "Neu laden",
     "network": {
