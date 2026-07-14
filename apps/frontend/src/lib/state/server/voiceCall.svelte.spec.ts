@@ -35,10 +35,13 @@ let lastKeyProvider: { setKey: ReturnType<typeof vi.fn> } | null = null;
 let lastRoom: {
   disconnect: ReturnType<typeof vi.fn>;
   startAudio: ReturnType<typeof vi.fn>;
+  registerRpcMethod: ReturnType<typeof vi.fn>;
+  unregisterRpcMethod: ReturnType<typeof vi.fn>;
   localParticipant: {
     setMicrophoneEnabled: ReturnType<typeof vi.fn>;
     setScreenShareEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
+    performRpc: ReturnType<typeof vi.fn>;
   };
   switchActiveDevice: ReturnType<typeof vi.fn>;
 } | null = null;
@@ -66,6 +69,23 @@ let screenShareFailure: Error | null = null;
 let screenShareAudioAvailable = false;
 let switchActiveDeviceFailure: Error | null = null;
 let roomEventHandlers = new Map<string, (...args: unknown[]) => void>();
+let roomRpcHandlers = new Map<
+  string,
+  (data: {
+    requestId: string;
+    callerIdentity: string;
+    payload: string;
+    responseTimeout: number;
+  }) => Promise<string>
+>();
+let performRpcFailure: Error | null = null;
+let performRpcResponder: (params: {
+  destinationIdentity: string;
+  method: string;
+  payload: string;
+  responseTimeout?: number;
+}) => string = () =>
+  JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
 let localTrackPublications: Array<{
   isMuted: boolean;
   track: {
@@ -169,6 +189,17 @@ vi.mock('livekit-client', () => {
           }
         }
       }),
+      performRpc: vi.fn(
+        async (params: {
+          destinationIdentity: string;
+          method: string;
+          payload: string;
+          responseTimeout?: number;
+        }) => {
+          if (performRpcFailure) throw performRpcFailure;
+          return performRpcResponder(params);
+        }
+      ),
       getTrackPublication: vi.fn(),
       identity: 'device-1',
       name: 'Local User',
@@ -186,6 +217,8 @@ vi.mock('livekit-client', () => {
       lastRoom = {
         disconnect: this.disconnect,
         startAudio: this.startAudio,
+        registerRpcMethod: this.registerRpcMethod,
+        unregisterRpcMethod: this.unregisterRpcMethod,
         localParticipant: this.localParticipant,
         switchActiveDevice: this.switchActiveDevice
       };
@@ -194,6 +227,22 @@ vi.mock('livekit-client', () => {
     on = vi.fn((event: string, handler: () => void) => {
       roomEventHandlers.set(event, handler);
       return this;
+    });
+    registerRpcMethod = vi.fn(
+      (
+        method: string,
+        handler: (data: {
+          requestId: string;
+          callerIdentity: string;
+          payload: string;
+          responseTimeout: number;
+        }) => Promise<string>
+      ) => {
+        roomRpcHandlers.set(method, handler);
+      }
+    );
+    unregisterRpcMethod = vi.fn((method: string) => {
+      roomRpcHandlers.delete(method);
     });
     switchActiveDevice = vi.fn(async (kind: MediaDeviceKind, deviceId: string) => {
       calls.push(`switchActiveDevice:${kind}:${deviceId}`);
@@ -221,6 +270,15 @@ vi.mock('livekit-client', () => {
   return {
     Room: MockRoom,
     ExternalE2EEKeyProvider: MockExternalE2EEKeyProvider,
+    RpcError: class MockRpcError extends Error {
+      constructor(
+        readonly code: number,
+        message: string,
+        readonly data?: string
+      ) {
+        super(message);
+      }
+    },
     RoomEvent: {
       ParticipantConnected: 'ParticipantConnected',
       ParticipantDisconnected: 'ParticipantDisconnected',
@@ -325,6 +383,10 @@ describe('VoiceCallState', () => {
     screenShareAudioAvailable = false;
     switchActiveDeviceFailure = null;
     roomEventHandlers = new Map();
+    roomRpcHandlers = new Map();
+    performRpcFailure = null;
+    performRpcResponder = () =>
+      JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
     localTrackPublications = [];
     mockRemoteParticipants = new Map();
     vi.stubGlobal('Worker', class MockWorker {});
@@ -495,6 +557,231 @@ describe('VoiceCallState', () => {
       userId: 'local-user',
       deviceIndex: 1,
       login: 'local-user'
+    });
+  });
+
+  it('accepts idempotent microphone and output commands only from a sibling device', async () => {
+    mockRemoteParticipants.set('device-2', {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    mockRemoteParticipants.set('other-user-device', {
+      identity: 'other-user-device',
+      name: 'Other User',
+      metadata:
+        '{"userId":"other-user","participantId":"other-user-device","deviceIndex":1,"login":"other-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    const handler = roomRpcHandlers.get('towk.device-audio-control.v1');
+
+    expect(handler).toBeDefined();
+    await expect(
+      handler?.({
+        requestId: 'unauthorized',
+        callerIdentity: 'other-user-device',
+        payload: JSON.stringify({
+          version: 1,
+          action: 'set-state',
+          target: 'microphone',
+          muted: true
+        }),
+        responseTimeout: 8_000
+      })
+    ).rejects.toThrow('Not authorized');
+
+    const firstResponse = await handler?.({
+      requestId: 'mute-microphone',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'microphone',
+        muted: true
+      }),
+      responseTimeout: 8_000
+    });
+    const secondResponse = await handler?.({
+      requestId: 'mute-microphone-again',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'microphone',
+        muted: true
+      }),
+      responseTimeout: 8_000
+    });
+
+    expect(JSON.parse(firstResponse ?? '{}')).toMatchObject({
+      microphoneMuted: true,
+      outputMuted: false
+    });
+    expect(secondResponse).toBe(firstResponse);
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledTimes(2);
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenLastCalledWith(false);
+
+    await handler?.({
+      requestId: 'mute-output',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'output',
+        muted: true
+      }),
+      responseTimeout: 8_000
+    });
+    const outputResponse = await handler?.({
+      requestId: 'unmute-output',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'output',
+        muted: false
+      }),
+      responseTimeout: 8_000
+    });
+
+    expect(lastRoom?.startAudio).toHaveBeenCalledOnce();
+    expect(JSON.parse(outputResponse ?? '{}')).toMatchObject({ outputMuted: false });
+  });
+
+  it('controls sibling audio through targeted RPC and fails closed for other accounts', async () => {
+    mockRemoteParticipants.set('device-2', {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    mockRemoteParticipants.set('other-user-device', {
+      identity: 'other-user-device',
+      name: 'Other User',
+      metadata:
+        '{"userId":"other-user","participantId":"other-user-device","deviceIndex":1,"login":"other-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    performRpcResponder = ({ payload }) => {
+      const request = JSON.parse(payload) as { action: string; target?: string; muted?: boolean };
+      if (request.action === 'get-state') {
+        return JSON.stringify({
+          version: 1,
+          microphoneMuted: true,
+          outputMuted: true,
+          revision: 4
+        });
+      }
+      return JSON.stringify({
+        version: 1,
+        microphoneMuted: request.target === 'microphone' ? request.muted : true,
+        outputMuted: request.target === 'output' ? request.muted : true,
+        revision: 5
+      });
+    };
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+    vi.mocked(lastRoom!.localParticipant.performRpc).mockClear();
+
+    await expect(
+      state.setSiblingAudioMuted('other-user-device', 'microphone', false)
+    ).resolves.toBe(false);
+    expect(lastRoom?.localParticipant.performRpc).not.toHaveBeenCalled();
+
+    await expect(state.setSiblingAudioMuted('device-2', 'microphone', false)).resolves.toBe(true);
+    expect(lastRoom?.localParticipant.performRpc).toHaveBeenCalledWith({
+      destinationIdentity: 'device-2',
+      method: 'towk.device-audio-control.v1',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'microphone',
+        muted: false
+      }),
+      responseTimeout: 8_000
+    });
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      canControlAudio: true,
+      siblingMicrophoneMuted: false,
+      siblingOutputMuted: true
+    });
+
+    performRpcFailure = new Error('recipient disconnected');
+    await expect(state.setSiblingAudioMuted('device-2', 'output', false)).resolves.toBe(false);
+    expect(toastMocks.error).toHaveBeenCalledWith('Could not update the other device audio.');
+  });
+
+  it('ignores stale sibling state notifications that arrive out of order', async () => {
+    mockRemoteParticipants.set('device-2', {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    const handler = roomRpcHandlers.get('towk.device-audio-control.v1');
+
+    await handler?.({
+      requestId: 'new-state',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'state-changed',
+        state: { version: 1, microphoneMuted: false, outputMuted: false, revision: 8 }
+      }),
+      responseTimeout: 8_000
+    });
+    await handler?.({
+      requestId: 'stale-state',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'state-changed',
+        state: { version: 1, microphoneMuted: true, outputMuted: true, revision: 7 }
+      }),
+      responseTimeout: 8_000
+    });
+
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      siblingMicrophoneMuted: false,
+      siblingOutputMuted: false
     });
   });
 

@@ -462,6 +462,12 @@ func TestGenerateVoiceCallToken(t *testing.T) {
 	if room, ok := video["room"].(string); !ok || room != roomName {
 		t.Errorf("Token video.room = %v, want %q", video["room"], roomName)
 	}
+	if canPublishData, ok := video["canPublishData"].(bool); !ok || !canPublishData {
+		t.Error("Token video.canPublishData should be true")
+	}
+	if canUpdateMetadata, ok := video["canUpdateOwnMetadata"].(bool); !ok || canUpdateMetadata {
+		t.Error("Token video.canUpdateOwnMetadata should be false")
+	}
 
 	exp, ok := claims["exp"].(float64)
 	if !ok {

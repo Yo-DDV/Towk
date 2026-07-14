@@ -103,6 +103,11 @@
       isScreenShareAudioEnabled: false,
       screenShareTrack: null,
       isLocallyMuted: false,
+      canControlAudio: false,
+      siblingMicrophoneMuted: null,
+      siblingOutputMuted: null,
+      isSiblingMicrophoneControlPending: false,
+      isSiblingOutputControlPending: false,
       ...overrides
     };
   }
@@ -125,17 +130,20 @@
 
     if (scenario === 'devices') {
       return [
-        participant('viewer-device-1', 'Alice', {
+        participant('viewer-device-1', 'Alexandria Montgomery', {
           participantId: 'viewer-device-1',
           userId: 'viewer',
           deviceIndex: 1,
           isLocal: true
         }),
-        participant('viewer-device-2', 'Alice', {
+        participant('viewer-device-2', 'Alexandria Montgomery', {
           participantId: 'viewer-device-2',
           userId: 'viewer',
           deviceIndex: 2,
-          isMuted: true
+          isMuted: true,
+          canControlAudio: true,
+          siblingMicrophoneMuted: true,
+          siblingOutputMuted: true
         })
       ];
     }

@@ -164,6 +164,11 @@ Room sidebar panel for voice/video calls.
     isScreenShareEnabled: boolean;
     isScreenShareAudioEnabled: boolean;
     screenShareTrack: Track | null;
+    canControlAudio: boolean;
+    siblingMicrophoneMuted: boolean | null;
+    siblingOutputMuted: boolean | null;
+    isSiblingMicrophoneControlPending: boolean;
+    isSiblingOutputControlPending: boolean;
   };
 
   let participants: DisplayParticipant[] = $derived.by(() => {
@@ -188,7 +193,12 @@ Room sidebar panel for voice/video calls.
         videoTrack: p.videoTrack,
         isScreenShareEnabled: p.isScreenShareEnabled,
         isScreenShareAudioEnabled: p.isScreenShareAudioEnabled,
-        screenShareTrack: p.screenShareTrack
+        screenShareTrack: p.screenShareTrack,
+        canControlAudio: p.canControlAudio,
+        siblingMicrophoneMuted: p.siblingMicrophoneMuted,
+        siblingOutputMuted: p.siblingOutputMuted,
+        isSiblingMicrophoneControlPending: p.isSiblingMicrophoneControlPending,
+        isSiblingOutputControlPending: p.isSiblingOutputControlPending
       }));
     }
 
@@ -212,7 +222,12 @@ Room sidebar panel for voice/video calls.
       videoTrack: null,
       isScreenShareEnabled: false,
       isScreenShareAudioEnabled: false,
-      screenShareTrack: null
+      screenShareTrack: null,
+      canControlAudio: false,
+      siblingMicrophoneMuted: null,
+      siblingOutputMuted: null,
+      isSiblingMicrophoneControlPending: false,
+      isSiblingOutputControlPending: false
     }));
   });
 
@@ -427,25 +442,69 @@ Room sidebar panel for voice/video calls.
       voiceCallState.toggleParticipantLocalMute(participant.key);
     }
   }
+
+  function setSiblingAudioMuted(
+    participant: DisplayParticipant,
+    target: 'microphone' | 'output',
+    muted: boolean,
+    event: MouseEvent
+  ): void {
+    event.stopPropagation();
+    void voiceCallState.setSiblingAudioMuted(participant.key, target, muted);
+  }
 </script>
 
-{#snippet localMuteButton(participant: DisplayParticipant)}
-  {@const isMutedForViewer = participant.isLocal
-    ? voiceCallState.isMuted
-    : participant.isLocallyMuted}
-  <CallTileActionButton
-    icon={isMutedForViewer ? 'uil--volume-mute' : 'uil--volume-up'}
-    active={isMutedForViewer}
-    label={participant.isLocal
-      ? isMutedForViewer
-        ? m['voice.unmute']()
-        : m['voice.mute']()
-      : isMutedForViewer
+{#snippet participantAudioActions(participant: DisplayParticipant)}
+  {#if participant.isLocal}
+    <CallTileActionButton
+      icon={voiceCallState.isMuted ? 'uil--microphone-slash' : 'uil--microphone'}
+      active={voiceCallState.isMuted}
+      label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
+      testId="call-feed-local-mute-button"
+      pending={voiceCallState.isMicrophonePending}
+      disabled={voiceCallState.isMicrophonePending}
+      onclick={(event) => toggleFeedMute(participant, event)}
+    />
+  {:else if participant.canControlAudio}
+    <CallTileActionButton
+      icon={participant.siblingMicrophoneMuted === false
+        ? 'uil--microphone'
+        : 'uil--microphone-slash'}
+      active={participant.siblingMicrophoneMuted === true}
+      label={participant.siblingMicrophoneMuted === true
+        ? m['voice.unmute_device_microphone']({ index: participant.deviceIndex })
+        : m['voice.mute_device_microphone']({ index: participant.deviceIndex })}
+      testId="call-device-microphone-toggle"
+      pending={participant.isSiblingMicrophoneControlPending}
+      disabled={participant.siblingMicrophoneMuted === null ||
+        participant.isSiblingMicrophoneControlPending}
+      onclick={(event) =>
+        setSiblingAudioMuted(participant, 'microphone', !participant.siblingMicrophoneMuted, event)}
+    />
+    <CallTileActionButton
+      icon={participant.siblingOutputMuted === false ? 'uil--volume-up' : 'uil--volume-mute'}
+      active={participant.siblingOutputMuted === true}
+      label={participant.siblingOutputMuted === true
+        ? m['voice.unmute_device_audio']({ index: participant.deviceIndex })
+        : m['voice.mute_device_audio']({ index: participant.deviceIndex })}
+      testId="call-device-output-toggle"
+      pending={participant.isSiblingOutputControlPending}
+      disabled={participant.siblingOutputMuted === null ||
+        participant.isSiblingOutputControlPending}
+      onclick={(event) =>
+        setSiblingAudioMuted(participant, 'output', !participant.siblingOutputMuted, event)}
+    />
+  {:else}
+    <CallTileActionButton
+      icon={participant.isLocallyMuted ? 'uil--volume-mute' : 'uil--volume-up'}
+      active={participant.isLocallyMuted}
+      label={participant.isLocallyMuted
         ? m['voice.locally_unmute_participant']()
         : m['voice.locally_mute_participant']()}
-    testId="call-feed-local-mute-button"
-    onclick={(event) => toggleFeedMute(participant, event)}
-  />
+      testId="call-feed-local-mute-button"
+      onclick={(event) => toggleFeedMute(participant, event)}
+    />
+  {/if}
 {/snippet}
 
 {#snippet mediaTileActions(participant: DisplayParticipant)}
@@ -457,7 +516,7 @@ Room sidebar panel for voice/video calls.
       onclick={toggleClosestMediaFullscreen}
     />
     {#if isInThisCall}
-      {@render localMuteButton(participant)}
+      {@render participantAudioActions(participant)}
     {/if}
   </CallTileActionToolbar>
 {/snippet}
@@ -465,7 +524,7 @@ Room sidebar panel for voice/video calls.
 {#snippet voiceTileActions(participant: DisplayParticipant)}
   {#if isInThisCall}
     <CallTileActionToolbar testId="call-voice-actions">
-      {@render localMuteButton(participant)}
+      {@render participantAudioActions(participant)}
     </CallTileActionToolbar>
   {/if}
 {/snippet}
@@ -513,16 +572,19 @@ Room sidebar panel for voice/video calls.
       onclick={(e) => showUserMenu(participant, e)}
     >
       <UserAvatar user={participant.avatarUser} size="sm" />
-      <span class="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
-
-      {#if (participantAccountCounts[participant.userId] ?? 0) > 1}
-        <span
-          class="shrink-0 rounded-full bg-surface-300 px-2 py-0.5 text-xs font-medium text-muted"
-          data-testid="call-device-badge"
+      <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+        <span class="block w-full truncate text-sm font-medium" data-testid="call-participant-name"
+          >{label}</span
         >
-          {m['voice.device_badge']({ index: participant.deviceIndex })}
-        </span>
-      {/if}
+        {#if (participantAccountCounts[participant.userId] ?? 0) > 1}
+          <span
+            class="max-w-full truncate rounded-full bg-surface-300 px-1.5 py-px text-[10px] leading-4 font-medium text-muted"
+            data-testid="call-device-badge"
+          >
+            {m['voice.device_badge']({ index: participant.deviceIndex })}
+          </span>
+        {/if}
+      </span>
       {#if showScreenShareAudio && participant.isScreenShareAudioEnabled}
         <span
           class="iconify text-muted uil--volume"

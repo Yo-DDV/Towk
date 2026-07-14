@@ -159,6 +159,8 @@ func GenerateVoiceCallTokenForParticipant(apiKey, apiSecret, roomName string, pa
 		RoomJoin: true,
 		Room:     roomName,
 	}
+	grant.SetCanPublishData(true)
+	grant.SetCanUpdateOwnMetadata(false)
 	at.SetVideoGrant(grant).
 		SetIdentity(participant.ParticipantID).
 		SetName(displayName).

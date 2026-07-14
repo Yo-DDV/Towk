@@ -39,6 +39,23 @@ describe('VoiceCallPanel screen-share audio', () => {
       )
     ).toEqual(['Device 1', 'Device 2']);
 
+    const participantNames = Array.from(
+      container.querySelectorAll('[data-testid="call-participant-name"]')
+    );
+    const deviceBadges = Array.from(
+      container.querySelectorAll('[data-testid="call-device-badge"]')
+    );
+    expect(participantNames).toHaveLength(2);
+    for (const [index, participantName] of participantNames.entries()) {
+      const nameRect = participantName.getBoundingClientRect();
+      const badgeRect = deviceBadges[index].getBoundingClientRect();
+      expect(badgeRect.top).toBeGreaterThanOrEqual(nameRect.bottom - 1);
+      expect(participantName.textContent?.trim()).toBe('Alexandria Montgomery');
+    }
+
+    expect(container.querySelector('[data-testid="call-device-microphone-toggle"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="call-device-output-toggle"]')).not.toBeNull();
+
     const outputControl = container.querySelector(
       '[data-testid="call-output-mute-toggle"]'
     ) as HTMLButtonElement | null;

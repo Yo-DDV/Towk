@@ -1016,6 +1016,19 @@ const msg_voice_device_limit_reached = (): LocalizedString => messages().voice_d
 const msg_voice_device_badge = (
   inputs: Parameters<LocaleMessages['voice_device_badge']>[0]
 ): LocalizedString => messages().voice_device_badge(inputs);
+const msg_voice_device_audio_control_failed = (): LocalizedString => messages().voice_device_audio_control_failed(empty());
+const msg_voice_mute_device_microphone = (
+  inputs: Parameters<LocaleMessages['voice_mute_device_microphone']>[0]
+): LocalizedString => messages().voice_mute_device_microphone(inputs);
+const msg_voice_unmute_device_microphone = (
+  inputs: Parameters<LocaleMessages['voice_unmute_device_microphone']>[0]
+): LocalizedString => messages().voice_unmute_device_microphone(inputs);
+const msg_voice_mute_device_audio = (
+  inputs: Parameters<LocaleMessages['voice_mute_device_audio']>[0]
+): LocalizedString => messages().voice_mute_device_audio(inputs);
+const msg_voice_unmute_device_audio = (
+  inputs: Parameters<LocaleMessages['voice_unmute_device_audio']>[0]
+): LocalizedString => messages().voice_unmute_device_audio(inputs);
 const msg_voice_mute_call_audio = (): LocalizedString => messages().voice_mute_call_audio(empty());
 const msg_voice_unmute_call_audio = (): LocalizedString => messages().voice_unmute_call_audio(empty());
 const msg_voice_speaker_switch_failed = (): LocalizedString => messages().voice_speaker_switch_failed(empty());
@@ -2485,6 +2498,11 @@ export { msg_voice_transfer_call as 'voice.transfer_call' };
 export { msg_voice_transfer_description as 'voice.transfer_description' };
 export { msg_voice_device_limit_reached as 'voice.device_limit_reached' };
 export { msg_voice_device_badge as 'voice.device_badge' };
+export { msg_voice_device_audio_control_failed as 'voice.device_audio_control_failed' };
+export { msg_voice_mute_device_microphone as 'voice.mute_device_microphone' };
+export { msg_voice_unmute_device_microphone as 'voice.unmute_device_microphone' };
+export { msg_voice_mute_device_audio as 'voice.mute_device_audio' };
+export { msg_voice_unmute_device_audio as 'voice.unmute_device_audio' };
 export { msg_voice_mute_call_audio as 'voice.mute_call_audio' };
 export { msg_voice_unmute_call_audio as 'voice.unmute_call_audio' };
 export { msg_voice_speaker_switch_failed as 'voice.speaker_switch_failed' };

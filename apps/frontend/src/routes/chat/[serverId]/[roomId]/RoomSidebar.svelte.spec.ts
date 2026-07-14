@@ -985,7 +985,8 @@ describe('RoomSidebar', () => {
     expect(mediaActions.className).toContain('border-text/10');
     expect(mediaActions.className).toContain('bg-surface-100');
     expect(mediaActions.className).toContain('flex');
-    expect(mediaActions.className).not.toContain('absolute');
+    expect(mediaActions.className).toContain('absolute');
+    expect(mediaActions.className).toContain('right-1.5');
     expect(fullscreenButton).toBeTruthy();
     expect(fullscreenButton.className).toContain('text-muted');
     expect(fullscreenButton.className).not.toContain('bg-black');

@@ -14,14 +14,17 @@ import {
   ScreenSharePresets,
   VideoPresets,
   ExternalE2EEKeyProvider,
+  RpcError,
   type LocalAudioTrack,
   type Participant,
   type RemoteTrack,
   type RemoteTrackPublication,
   type RemoteParticipant,
+  type RpcInvocationData,
   type ScreenShareCaptureOptions,
   type TrackPublishOptions
 } from 'livekit-client';
+import { SvelteMap } from 'svelte/reactivity';
 import { toast } from '$lib/ui/toast';
 import { playCallSound } from '$lib/audio/callSounds';
 import {
@@ -52,7 +55,14 @@ export type CallParticipantInfo = {
   isScreenShareAudioEnabled: boolean;
   screenShareTrack: Track | null;
   isLocallyMuted: boolean;
+  canControlAudio: boolean;
+  siblingMicrophoneMuted: boolean | null;
+  siblingOutputMuted: boolean | null;
+  isSiblingMicrophoneControlPending: boolean;
+  isSiblingOutputControlPending: boolean;
 };
+
+export type SiblingAudioTarget = 'microphone' | 'output';
 
 /** Non-reactive audio level snapshot, read imperatively by the UI at ~60ms. */
 export type AudioLevelInfo = {
@@ -73,6 +83,32 @@ type ParticipantMetadata = {
 
 const RECENTLY_DISCONNECTED_CALL_SOUND_MS = 5_000;
 const MEDIA_DEVICE_TOAST_DEDUPLICATION_MS = 1_500;
+const DEVICE_AUDIO_CONTROL_RPC_METHOD = 'towk.device-audio-control.v1';
+const DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS = 8_000;
+const DEVICE_AUDIO_CONTROL_RPC_UNAUTHORIZED = 2_001;
+const DEVICE_AUDIO_CONTROL_RPC_INVALID_REQUEST = 2_002;
+const DEVICE_AUDIO_CONTROL_RPC_OPERATION_FAILED = 2_003;
+
+type SiblingAudioState = {
+  version: 1;
+  microphoneMuted: boolean;
+  outputMuted: boolean;
+  revision: number;
+};
+
+type SiblingAudioControlRequest =
+  | { version: 1; action: 'get-state' }
+  | {
+      version: 1;
+      action: 'set-state';
+      target: SiblingAudioTarget;
+      muted: boolean;
+    }
+  | {
+      version: 1;
+      action: 'state-changed';
+      state: SiblingAudioState;
+    };
 
 type VoiceCallMediaDeviceTarget = 'microphone' | 'camera' | 'screen' | 'speaker' | 'device';
 type VoiceCallMediaDeviceContext = 'join' | 'enable' | 'switch' | 'event';
@@ -244,7 +280,8 @@ export class VoiceCallState {
   private joinInFlight: Promise<VoiceCallJoinResult> | null = null;
   private joinInFlightRoomId: string | null = null;
   private leaveInFlight: Promise<void> | null = null;
-  private microphoneToggleInFlight: Promise<void> | null = null;
+  private microphoneToggleInFlight: Promise<boolean> | null = null;
+  private outputToggleInFlight: Promise<boolean> | null = null;
   private cameraToggleInFlight: Promise<void> | null = null;
   private screenShareToggleInFlight: Promise<void> | null = null;
   private e2eeWorker: Worker | null = null;
@@ -255,6 +292,10 @@ export class VoiceCallState {
     message: string;
     shownAt: number;
   } | null = null;
+  private localAudioStateRevision = 0;
+  private siblingAudioStates = $state<Record<string, SiblingAudioState>>({});
+  private siblingAudioControlPending = $state<Record<string, boolean>>({});
+  private siblingAudioControlInFlight = new SvelteMap<string, Promise<boolean>>();
 
   // Non-reactive audio level cache — updated at 60ms by the polling interval.
   // Deliberately NOT $state to avoid triggering Svelte reactivity at 60Hz.
@@ -365,6 +406,80 @@ export class VoiceCallState {
     this.updateParticipants();
   }
 
+  /** Set microphone or incoming call audio on another device for this account. */
+  async setSiblingAudioMuted(
+    identity: string,
+    target: SiblingAudioTarget,
+    muted: boolean
+  ): Promise<boolean> {
+    const key = siblingAudioControlKey(identity, target);
+    const existing = this.siblingAudioControlInFlight.get(key);
+    if (existing) {
+      await existing;
+      const current = this.siblingAudioStates[identity];
+      if (current && siblingAudioTargetValue(current, target) === muted) return true;
+    }
+
+    const room = this.room;
+    const participant = room?.remoteParticipants.get(identity);
+    if (!room || !participant || !this.isControllableSibling(participant)) return false;
+
+    const operation = this.performSiblingAudioControl(room, participant, target, muted);
+    this.siblingAudioControlInFlight.set(key, operation);
+    this.setSiblingAudioControlPending(key, true);
+    try {
+      return await operation;
+    } finally {
+      if (this.siblingAudioControlInFlight.get(key) === operation) {
+        this.siblingAudioControlInFlight.delete(key);
+        this.setSiblingAudioControlPending(key, false);
+      }
+    }
+  }
+
+  private async performSiblingAudioControl(
+    room: Room,
+    participant: RemoteParticipant,
+    target: SiblingAudioTarget,
+    muted: boolean
+  ): Promise<boolean> {
+    try {
+      const response = await room.localParticipant.performRpc({
+        destinationIdentity: participant.identity,
+        method: DEVICE_AUDIO_CONTROL_RPC_METHOD,
+        payload: JSON.stringify({
+          version: 1,
+          action: 'set-state',
+          target,
+          muted
+        } satisfies SiblingAudioControlRequest),
+        responseTimeout: DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS
+      });
+      if (this.room !== room) return false;
+
+      const state = parseSiblingAudioState(response);
+      if (!state) throw new Error('invalid sibling audio state response');
+      this.applySiblingAudioState(participant.identity, state);
+      return siblingAudioTargetValue(state, target) === muted;
+    } catch {
+      if (this.room === room) {
+        toast.error(m['voice.device_audio_control_failed']());
+      }
+      return false;
+    }
+  }
+
+  private setSiblingAudioControlPending(key: string, pending: boolean): void {
+    if (pending) {
+      this.siblingAudioControlPending = { ...this.siblingAudioControlPending, [key]: true };
+    } else {
+      const { [key]: _removed, ...remaining } = this.siblingAudioControlPending;
+      void _removed;
+      this.siblingAudioControlPending = remaining;
+    }
+    this.updateParticipants();
+  }
+
   /**
    * Join a voice call in a room.
    */
@@ -471,6 +586,9 @@ export class VoiceCallState {
         disconnectOnPageLeave: true
       });
 
+      this.room.registerRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD, (data) =>
+        this.handleSiblingAudioControl(data)
+      );
       this.setupRoomEventListeners();
 
       await keyProvider.setKey(e2eeKey);
@@ -505,6 +623,7 @@ export class VoiceCallState {
 
       this.connected = true;
       this.updateParticipants();
+      void this.refreshSiblingAudioStates();
       await this.refreshDevices();
       if (this.consumePendingOwnJoinSound()) {
         void playCallSound('join');
@@ -594,20 +713,143 @@ export class VoiceCallState {
     }
   }
 
+  private async handleSiblingAudioControl(data: RpcInvocationData): Promise<string> {
+    const caller = this.room?.remoteParticipants.get(data.callerIdentity);
+    if (!caller || !this.isControllableSibling(caller)) {
+      throw new RpcError(
+        DEVICE_AUDIO_CONTROL_RPC_UNAUTHORIZED,
+        'Not authorized to control this device'
+      );
+    }
+
+    const request = parseSiblingAudioControlRequest(data.payload);
+    if (!request) {
+      throw new RpcError(DEVICE_AUDIO_CONTROL_RPC_INVALID_REQUEST, 'Invalid audio control request');
+    }
+
+    if (request.action === 'get-state') {
+      return JSON.stringify(this.currentLocalAudioState());
+    }
+
+    if (request.action === 'state-changed') {
+      this.applySiblingAudioState(caller.identity, request.state);
+      return JSON.stringify(this.currentLocalAudioState());
+    }
+
+    const succeeded =
+      request.target === 'microphone'
+        ? await this.setMicrophoneMuted(request.muted, false)
+        : await this.setOutputMuted(request.muted, false);
+    if (!succeeded) {
+      throw new RpcError(
+        DEVICE_AUDIO_CONTROL_RPC_OPERATION_FAILED,
+        'Could not update device audio'
+      );
+    }
+
+    return JSON.stringify(this.currentLocalAudioState());
+  }
+
+  private currentLocalAudioState(): SiblingAudioState {
+    return {
+      version: 1,
+      microphoneMuted: this.isMuted,
+      outputMuted: this.isOutputMuted,
+      revision: this.localAudioStateRevision
+    };
+  }
+
+  private async refreshSiblingAudioStates(): Promise<void> {
+    const room = this.room;
+    if (!room) return;
+    await Promise.allSettled(
+      Array.from(room.remoteParticipants.values())
+        .filter((participant) => this.isControllableSibling(participant))
+        .map((participant) => this.refreshSiblingAudioState(room, participant))
+    );
+  }
+
+  private async refreshSiblingAudioState(
+    room: Room,
+    participant: RemoteParticipant
+  ): Promise<void> {
+    try {
+      const response = await room.localParticipant.performRpc({
+        destinationIdentity: participant.identity,
+        method: DEVICE_AUDIO_CONTROL_RPC_METHOD,
+        payload: JSON.stringify({
+          version: 1,
+          action: 'get-state'
+        } satisfies SiblingAudioControlRequest),
+        responseTimeout: DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS
+      });
+      if (this.room !== room) return;
+      const state = parseSiblingAudioState(response);
+      if (state) this.applySiblingAudioState(participant.identity, state);
+    } catch {
+      // Older clients may not expose the RPC method. Keep the call usable and
+      // leave only the sibling output control unavailable until they reconnect.
+    }
+  }
+
+  private applySiblingAudioState(identity: string, state: SiblingAudioState): void {
+    const current = this.siblingAudioStates[identity];
+    if (current && state.revision < current.revision) return;
+    this.siblingAudioStates = { ...this.siblingAudioStates, [identity]: state };
+    this.updateParticipants();
+  }
+
+  private isControllableSibling(participant: Participant): participant is RemoteParticipant {
+    if (!this.room || participant === this.room.localParticipant) return false;
+    const localAccountId = participantAccountId(this.room.localParticipant);
+    return localAccountId !== null && participantAccountId(participant) === localAccountId;
+  }
+
+  private broadcastLocalAudioState(): void {
+    const room = this.room;
+    if (!room) return;
+    const payload = JSON.stringify({
+      version: 1,
+      action: 'state-changed',
+      state: this.currentLocalAudioState()
+    } satisfies SiblingAudioControlRequest);
+
+    for (const participant of room.remoteParticipants.values()) {
+      if (!this.isControllableSibling(participant)) continue;
+      void room.localParticipant
+        .performRpc({
+          destinationIdentity: participant.identity,
+          method: DEVICE_AUDIO_CONTROL_RPC_METHOD,
+          payload,
+          responseTimeout: DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS
+        })
+        .catch(() => undefined);
+    }
+  }
+
   /**
    * Toggle microphone mute.
    */
   async toggleMute(): Promise<void> {
-    if (this.microphoneToggleInFlight) return this.microphoneToggleInFlight;
+    await this.setMicrophoneMuted(!this.isMuted);
+  }
+
+  private async setMicrophoneMuted(muted: boolean, broadcast = true): Promise<boolean> {
+    if (this.microphoneToggleInFlight) {
+      await this.microphoneToggleInFlight;
+      if (this.isMuted === muted) return true;
+    }
 
     const room = this.room;
-    if (!room) return;
+    if (!room) return false;
 
-    const togglePromise = this.performToggleMute(room);
+    const togglePromise = this.performSetMicrophoneMuted(room, muted);
     this.microphoneToggleInFlight = togglePromise;
     this.isMicrophonePending = true;
     try {
-      await togglePromise;
+      const succeeded = await togglePromise;
+      if (succeeded && broadcast) this.broadcastLocalAudioState();
+      return succeeded;
     } finally {
       if (this.microphoneToggleInFlight === togglePromise) {
         this.microphoneToggleInFlight = null;
@@ -616,8 +858,8 @@ export class VoiceCallState {
     }
   }
 
-  private async performToggleMute(room: Room): Promise<void> {
-    const newMuted = !this.isMuted;
+  private async performSetMicrophoneMuted(room: Room, newMuted: boolean): Promise<boolean> {
+    if (this.isMuted === newMuted) return true;
     try {
       await this.runExplicitMediaDeviceOperation(async () => {
         if (newMuted) {
@@ -626,14 +868,14 @@ export class VoiceCallState {
         }
         await this.enableMicrophone(room);
       });
-      if (this.room !== room) return;
+      if (this.room !== room) return false;
     } catch (err) {
       if (this.room === room && !newMuted) {
         this.notifyMediaDeviceError(
           getVoiceCallMediaDeviceErrorMessage('microphone', err, 'enable')
         );
       }
-      return;
+      return false;
     }
 
     this.isMuted = newMuted;
@@ -645,27 +887,51 @@ export class VoiceCallState {
     }
 
     this.updateParticipants();
+    this.localAudioStateRevision += 1;
+    return true;
   }
 
   /** Toggle all incoming microphone and screen-share audio for this client. */
   async toggleOutputMute(): Promise<void> {
-    const room = this.room;
-    if (!room) return;
+    await this.setOutputMuted(!this.isOutputMuted);
+  }
 
-    const newMuted = !this.isOutputMuted;
+  private async setOutputMuted(muted: boolean, broadcast = true): Promise<boolean> {
+    if (this.outputToggleInFlight) {
+      await this.outputToggleInFlight;
+      if (this.isOutputMuted === muted) return true;
+    }
+
+    const room = this.room;
+    if (!room) return false;
+    const operation = this.performSetOutputMuted(room, muted);
+    this.outputToggleInFlight = operation;
+    try {
+      const succeeded = await operation;
+      if (succeeded && broadcast) this.broadcastLocalAudioState();
+      return succeeded;
+    } finally {
+      if (this.outputToggleInFlight === operation) this.outputToggleInFlight = null;
+    }
+  }
+
+  private async performSetOutputMuted(room: Room, newMuted: boolean): Promise<boolean> {
+    if (this.isOutputMuted === newMuted) return true;
     if (!newMuted) {
       try {
         await room.startAudio();
       } catch {
         this.notifyMediaDeviceError(m['voice.audio_playback_failed']());
-        return;
+        return false;
       }
-      if (this.room !== room) return;
+      if (this.room !== room) return false;
     }
 
     this.isOutputMuted = newMuted;
     this.applyAllParticipantAudioVolumes();
     this.updateParticipants();
+    this.localAudioStateRevision += 1;
+    return true;
   }
 
   private async enableMicrophone(room: Room): Promise<void> {
@@ -879,11 +1145,15 @@ export class VoiceCallState {
   private setupRoomEventListeners(): void {
     if (!this.room) return;
 
-    this.room.on(RoomEvent.ParticipantConnected, () => {
+    this.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       this.updateParticipants();
+      if (this.isControllableSibling(participant)) {
+        void this.refreshSiblingAudioState(this.room!, participant);
+      }
     });
 
-    this.room.on(RoomEvent.ParticipantDisconnected, () => {
+    this.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+      this.removeSiblingAudioState(participant.identity);
       this.updateParticipants();
     });
 
@@ -982,6 +1252,8 @@ export class VoiceCallState {
       const isLocal = p === this.room!.localParticipant;
       const participantId = md.participantId ?? p.identity;
       const userId = md.userId ?? p.identity;
+      const canControlAudio = this.isControllableSibling(p);
+      const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
       return {
         identity: p.identity,
         participantId,
@@ -998,9 +1270,34 @@ export class VoiceCallState {
         isScreenShareEnabled: isParticipantScreenShareEnabled(p),
         isScreenShareAudioEnabled: isParticipantScreenShareAudioEnabled(p),
         screenShareTrack: getParticipantScreenShareTrack(p),
-        isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity)
+        isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity),
+        canControlAudio,
+        siblingMicrophoneMuted: siblingAudioState?.microphoneMuted ?? null,
+        siblingOutputMuted: siblingAudioState?.outputMuted ?? null,
+        isSiblingMicrophoneControlPending:
+          canControlAudio &&
+          Boolean(
+            this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'microphone')]
+          ),
+        isSiblingOutputControlPending:
+          canControlAudio &&
+          Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
       };
     });
+  }
+
+  private removeSiblingAudioState(identity: string): void {
+    const { [identity]: _removedState, ...remainingStates } = this.siblingAudioStates;
+    void _removedState;
+    this.siblingAudioStates = remainingStates;
+
+    for (const target of ['microphone', 'output'] as const) {
+      const key = siblingAudioControlKey(identity, target);
+      this.siblingAudioControlInFlight.delete(key);
+      const { [key]: _removedPending, ...remainingPending } = this.siblingAudioControlPending;
+      void _removedPending;
+      this.siblingAudioControlPending = remainingPending;
+    }
   }
 
   private applyAllParticipantAudioVolumes(): void {
@@ -1122,6 +1419,7 @@ export class VoiceCallState {
           pub.track?.detach();
         }
       }
+      this.room.unregisterRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD);
       this.room.removeAllListeners();
       this.room = null;
     }
@@ -1141,6 +1439,7 @@ export class VoiceCallState {
     this.joinInFlight = null;
     this.joinInFlightRoomId = null;
     this.microphoneToggleInFlight = null;
+    this.outputToggleInFlight = null;
     this.cameraToggleInFlight = null;
     this.screenShareToggleInFlight = null;
     this.suppressDisconnectToast = false;
@@ -1156,6 +1455,10 @@ export class VoiceCallState {
     this.isScreenSharePending = false;
     this.participants = [];
     this.locallyMutedParticipantIds = {};
+    this.localAudioStateRevision = 0;
+    this.siblingAudioStates = {};
+    this.siblingAudioControlPending = {};
+    this.siblingAudioControlInFlight.clear();
     this.audioDevices = [];
     this.selectedDeviceId = null;
     this.audioOutputDevices = [];
@@ -1222,6 +1525,92 @@ function parseParticipantMetadata(metadata: string | undefined): ParticipantMeta
   } catch {
     return {};
   }
+}
+
+/** Return the server-authored account id only when the participant id is bound to this identity. */
+function participantAccountId(participant: Participant): string | null {
+  const metadata = parseParticipantMetadata(participant.metadata);
+  if (
+    typeof metadata.userId !== 'string' ||
+    metadata.userId.length === 0 ||
+    typeof metadata.participantId !== 'string' ||
+    metadata.participantId !== participant.identity
+  ) {
+    return null;
+  }
+  return metadata.userId;
+}
+
+function parseSiblingAudioControlRequest(payload: string): SiblingAudioControlRequest | null {
+  if (payload.length > 2_048) return null;
+
+  let value: unknown;
+  try {
+    value = JSON.parse(payload);
+  } catch {
+    return null;
+  }
+  if (!isPlainRecord(value) || value.version !== 1 || typeof value.action !== 'string') {
+    return null;
+  }
+
+  if (value.action === 'get-state') {
+    return { version: 1, action: 'get-state' };
+  }
+  if (value.action === 'set-state') {
+    if (
+      (value.target !== 'microphone' && value.target !== 'output') ||
+      typeof value.muted !== 'boolean'
+    ) {
+      return null;
+    }
+    return { version: 1, action: 'set-state', target: value.target, muted: value.muted };
+  }
+  if (value.action === 'state-changed') {
+    const state = parseSiblingAudioStateValue(value.state);
+    return state ? { version: 1, action: 'state-changed', state } : null;
+  }
+  return null;
+}
+
+function parseSiblingAudioState(payload: string): SiblingAudioState | null {
+  if (payload.length > 2_048) return null;
+  try {
+    return parseSiblingAudioStateValue(JSON.parse(payload));
+  } catch {
+    return null;
+  }
+}
+
+function parseSiblingAudioStateValue(value: unknown): SiblingAudioState | null {
+  if (
+    !isPlainRecord(value) ||
+    value.version !== 1 ||
+    typeof value.microphoneMuted !== 'boolean' ||
+    typeof value.outputMuted !== 'boolean' ||
+    !Number.isSafeInteger(value.revision) ||
+    (value.revision as number) < 0
+  ) {
+    return null;
+  }
+  return {
+    version: 1,
+    microphoneMuted: value.microphoneMuted,
+    outputMuted: value.outputMuted,
+    revision: value.revision as number
+  };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function siblingAudioControlKey(identity: string, target: SiblingAudioTarget): string {
+  return `${identity}:${target}`;
+}
+
+function siblingAudioTargetValue(state: SiblingAudioState, target: SiblingAudioTarget): boolean {
+  return target === 'microphone' ? state.microphoneMuted : state.outputMuted;
 }
 
 const VOICE_CALL_CLIENT_INSTANCE_STORAGE_KEY = 'towk.voice-call.client-instance-id';
