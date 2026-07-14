@@ -29,8 +29,21 @@ const CACHE_NAME = `${CACHE_PREFIX}-${version}`;
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const LEGACY_CACHE_PREFIXES = ['chatto-shell'];
 const LEGACY_CACHE_NAMES = ['chatto-badge-state-v2'];
+const ESSENTIAL_STATIC_ASSETS = [
+  '/manifest.webmanifest',
+  '/icons/favicon.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-192.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/symbol-256.png'
+] as const;
 const SHELL_ASSETS = new Set([...build, ...files, OFFLINE_SHELL_PATH]);
-const PRECACHE_ASSETS = Array.from(new Set([...build, OFFLINE_SHELL_PATH, '/']));
+const PRECACHE_ASSETS = Array.from(
+  new Set([...build, ...ESSENTIAL_STATIC_ASSETS, OFFLINE_SHELL_PATH, '/'])
+);
+const REQUIRED_PRECACHE_ASSETS = new Set([...build, OFFLINE_SHELL_PATH, '/']);
 
 type ServiceWorkerAppBadgeNavigator = WorkerNavigator & {
   setAppBadge?: (contents?: number) => Promise<void>;
@@ -44,21 +57,32 @@ const badgeCoordinator = new ServiceWorkerBadgeCoordinator(
 );
 
 /**
- * Immediately activate new service worker versions.
- * Without this, users must close all tabs before updates take effect.
+ * Prepare a complete versioned shell. Updated workers remain waiting until the
+ * app confirms that reloading is safe (not while typing or in a call).
  */
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => Promise.all(PRECACHE_ASSETS.map((path) => cacheShellAsset(cache, path))))
+      .then((cache) =>
+        Promise.all(
+          PRECACHE_ASSETS.map((path) =>
+            cacheShellAsset(cache, path, REQUIRED_PRECACHE_ASSETS.has(path))
+          )
+        )
+      )
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
+      try {
+        await self.registration.navigationPreload?.enable();
+      } catch {
+        // Navigation preload is an optional acceleration. A browser runtime
+        // rejection must not block worker activation or offline availability.
+      }
       const cacheNames = await caches.keys();
       await Promise.all(
         cacheNames
@@ -76,6 +100,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
+  if (handleLifecycleMessage(event)) return;
   handleBadgeStateMessage(event);
 });
 
@@ -95,6 +120,27 @@ self.addEventListener('fetch', (event) => {
   );
 
   if (policy.networkOnly) return;
+
+  if (policy.networkFirstAsset) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const url = new URL(event.request.url);
+        try {
+          const response = await fetch(event.request);
+          if (response.ok) {
+            await cache.put(url.pathname, response.clone());
+          }
+          return response;
+        } catch (error) {
+          const cached = await cache.match(url.pathname);
+          if (cached) return cached;
+          throw error;
+        }
+      })()
+    );
+    return;
+  }
 
   if (policy.cacheableShellAsset) {
     event.respondWith(
@@ -118,7 +164,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(event.request);
+          return (await event.preloadResponse) ?? (await fetch(event.request));
         } catch (err) {
           const cache = await caches.open(CACHE_NAME);
           const shell = await getCachedOfflineShell(cache);
@@ -130,19 +176,30 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-async function cacheShellAsset(cache: Cache, path: string): Promise<void> {
+async function cacheShellAsset(cache: Cache, path: string, required: boolean): Promise<void> {
   try {
     const response = await fetch(path, { cache: 'reload' });
-    if (!response.ok) return;
+    if (!response.ok) {
+      throw new Error(`Failed to precache ${path}: HTTP ${response.status}`);
+    }
     await cache.put(path, response);
-  } catch {
-    // A missing static fallback in local preview must not invalidate the whole
-    // service worker. Production nginx serves the same shell through /200.html.
+  } catch (error) {
+    if (required) throw error;
+    // Optional install metadata may be temporarily unavailable. The worker can
+    // still activate with a complete executable shell and refresh it later.
   }
 }
 
 async function getCachedOfflineShell(cache: Cache): Promise<Response | undefined> {
   return (await cache.match(OFFLINE_SHELL_PATH)) ?? cache.match('/');
+}
+
+function handleLifecycleMessage(event: ExtendableMessageEvent): boolean {
+  const message = event.data as Record<string, unknown> | undefined;
+  if (!message || message.type !== 'towk-skip-waiting') return false;
+
+  event.waitUntil(self.skipWaiting());
+  return true;
 }
 
 // Type for push notification payload from server

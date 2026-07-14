@@ -7,7 +7,7 @@ vi.mock('$service-worker', () => ({
 }));
 
 type ServiceWorkerHandler = (event: {
-  data?: { json: () => unknown };
+  data?: unknown;
   notification?: {
     title?: string;
     body?: string;
@@ -70,6 +70,9 @@ function createMemoryCacheStorage() {
 async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
   const handlers = new Map<string, ServiceWorkerHandler[]>();
   const registration = {
+    navigationPreload: {
+      enable: vi.fn(async () => {})
+    },
     getNotifications: vi.fn(
       async (_options?: { tag?: string }): Promise<TestNativeNotification[]> => []
     ),
@@ -82,12 +85,13 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
   };
   const setAppBadge = vi.fn(async () => {});
   const clearAppBadge = vi.fn(async () => {});
+  const skipWaiting = vi.fn(async () => {});
 
   vi.stubGlobal('self', {
     location: { origin: 'https://towk.example' },
     registration,
     clients,
-    skipWaiting: vi.fn(),
+    skipWaiting,
     addEventListener: vi.fn((type: string, handler: ServiceWorkerHandler) => {
       const list = handlers.get(type) ?? [];
       list.push(handler);
@@ -115,6 +119,7 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
     },
     handlers,
     registration,
+    skipWaiting,
     setAppBadge,
     clearAppBadge,
     cacheStorage
@@ -128,6 +133,72 @@ describe('service worker badge orchestration', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('keeps an update waiting until the app explicitly accepts it', async () => {
+    const worker = await importServiceWorker();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('ok', { status: 200 }))
+    );
+
+    await worker.dispatch('install');
+
+    expect(worker.skipWaiting).not.toHaveBeenCalled();
+  });
+
+  it('rejects an incomplete required shell so the previous worker stays active', async () => {
+    const worker = await importServiceWorker();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) =>
+        path === '/app.js'
+          ? new Response('unavailable', { status: 503 })
+          : new Response('ok', { status: 200 })
+      )
+    );
+
+    await expect(worker.dispatch('install')).rejects.toThrow();
+  });
+
+  it('still installs when optional PWA metadata is temporarily unavailable', async () => {
+    const worker = await importServiceWorker();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (path: string) => {
+        if (path === '/manifest.webmanifest') throw new TypeError('offline');
+        return new Response('ok', { status: 200 });
+      })
+    );
+
+    await expect(worker.dispatch('install')).resolves.toBeUndefined();
+  });
+
+  it('enables navigation preload when the worker activates', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('activate');
+
+    expect(worker.registration.navigationPreload.enable).toHaveBeenCalledOnce();
+    expect(worker.clients.claim).toHaveBeenCalledOnce();
+  });
+
+  it('still activates when optional navigation preload cannot be enabled', async () => {
+    const worker = await importServiceWorker();
+    worker.registration.navigationPreload.enable.mockRejectedValueOnce(
+      new Error('unsupported at runtime')
+    );
+
+    await expect(worker.dispatch('activate')).resolves.toBeUndefined();
+    expect(worker.clients.claim).toHaveBeenCalledOnce();
+  });
+
+  it('activates a waiting update only after the app requests it', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', { data: { type: 'towk-skip-waiting' } });
+
+    expect(worker.skipWaiting).toHaveBeenCalledOnce();
   });
 
   it('does not let a stale foreground zero clear a regular pushed notification', async () => {

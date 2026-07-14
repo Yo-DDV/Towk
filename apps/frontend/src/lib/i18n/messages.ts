@@ -409,6 +409,11 @@ const msg_auth_login_welcome_title = (): LocalizedString => messages().auth_logi
 const msg_auth_login_welcome_page_title = (): LocalizedString => messages().auth_login_welcome_page_title(empty());
 const msg_auth_login_welcome_description = (): LocalizedString => messages().auth_login_welcome_description(empty());
 const msg_auth_login_add_server = (): LocalizedString => messages().auth_login_add_server(empty());
+const msg_auth_login_offline_status = (): LocalizedString => messages().auth_login_offline_status(empty());
+const msg_auth_login_offline_title = (): LocalizedString => messages().auth_login_offline_title(empty());
+const msg_auth_login_offline_description = (): LocalizedString => messages().auth_login_offline_description(empty());
+const msg_auth_login_offline_retry = (): LocalizedString => messages().auth_login_offline_retry(empty());
+const msg_auth_login_offline_reconnect_hint = (): LocalizedString => messages().auth_login_offline_reconnect_hint(empty());
 const msg_auth_login_password_reset_success = (): LocalizedString => messages().auth_login_password_reset_success(empty());
 const msg_auth_login_continue_with_provider = (
   inputs: Parameters<LocaleMessages['auth_login_continue_with_provider']>[0]
@@ -835,6 +840,8 @@ const msg_ui_quick_switcher_shortcut = (): LocalizedString => messages().ui_quic
 const msg_ui_realtime_paused = (): LocalizedString => messages().ui_realtime_paused(empty());
 const msg_ui_update_available = (): LocalizedString => messages().ui_update_available(empty());
 const msg_ui_reload = (): LocalizedString => messages().ui_reload(empty());
+const msg_ui_network_offline = (): LocalizedString => messages().ui_network_offline(empty());
+const msg_ui_network_reconnecting = (): LocalizedString => messages().ui_network_reconnecting(empty());
 const msg_ui_corresponding_source = (
   inputs: Parameters<LocaleMessages['ui_corresponding_source']>[0]
 ): LocalizedString => messages().ui_corresponding_source(inputs);
@@ -1975,6 +1982,11 @@ export { msg_auth_login_welcome_title as 'auth.login.welcome_title' };
 export { msg_auth_login_welcome_page_title as 'auth.login.welcome_page_title' };
 export { msg_auth_login_welcome_description as 'auth.login.welcome_description' };
 export { msg_auth_login_add_server as 'auth.login.add_server' };
+export { msg_auth_login_offline_status as 'auth.login.offline.status' };
+export { msg_auth_login_offline_title as 'auth.login.offline.title' };
+export { msg_auth_login_offline_description as 'auth.login.offline.description' };
+export { msg_auth_login_offline_retry as 'auth.login.offline.retry' };
+export { msg_auth_login_offline_reconnect_hint as 'auth.login.offline.reconnect_hint' };
 export { msg_auth_login_password_reset_success as 'auth.login.password_reset_success' };
 export { msg_auth_login_continue_with_provider as 'auth.login.continue_with_provider' };
 export { msg_auth_login_connecting_provider as 'auth.login.connecting_provider' };
@@ -2317,6 +2329,8 @@ export { msg_ui_quick_switcher_shortcut as 'ui.quick_switcher_shortcut' };
 export { msg_ui_realtime_paused as 'ui.realtime_paused' };
 export { msg_ui_update_available as 'ui.update_available' };
 export { msg_ui_reload as 'ui.reload' };
+export { msg_ui_network_offline as 'ui.network.offline' };
+export { msg_ui_network_reconnecting as 'ui.network.reconnecting' };
 export { msg_ui_corresponding_source as 'ui.corresponding_source' };
 export { msg_ui_sign_out as 'ui.sign_out' };
 export { msg_ui_close as 'ui.close' };

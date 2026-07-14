@@ -29,19 +29,22 @@ describe('classifyServiceWorkerRequest', () => {
   it('marks same-origin app shell assets as cacheable', () => {
     expect(classify('/icons/icon-192.png')).toMatchObject({
       cacheableShellAsset: true,
+      networkFirstAsset: false,
       networkOnly: false
     });
     expect(classify('/_app/immutable/app.js')).toMatchObject({
       cacheableShellAsset: true,
+      networkFirstAsset: false,
       networkOnly: false
     });
   });
 
-  it('keeps the web manifest network-only because server branding can change it', () => {
+  it('keeps the web manifest fresh while allowing an offline cached fallback', () => {
     expect(classify('/manifest.webmanifest')).toEqual({
       cacheableShellAsset: false,
+      networkFirstAsset: true,
       navigationRequest: false,
-      networkOnly: true
+      networkOnly: false
     });
   });
 
@@ -54,6 +57,7 @@ describe('classifyServiceWorkerRequest', () => {
   ])('keeps %s network-only', (path) => {
     expect(classify(path)).toMatchObject({
       cacheableShellAsset: false,
+      networkFirstAsset: false,
       navigationRequest: false,
       networkOnly: true
     });
@@ -75,6 +79,7 @@ describe('classifyServiceWorkerRequest', () => {
 
     expect(policy).toEqual({
       cacheableShellAsset: false,
+      networkFirstAsset: false,
       navigationRequest: true,
       networkOnly: false
     });
