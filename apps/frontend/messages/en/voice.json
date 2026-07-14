@@ -10,6 +10,7 @@
     "start_call": "Start call",
     "leave": "Leave call",
     "share_screen": "Share screen",
+    "share_screen_with_audio": "Share screen and tab audio",
     "stop_share_screen": "Stop sharing screen",
     "user_settings": "User Settings",
     "speaking": "Speaking",
@@ -53,6 +54,9 @@
     "camera_failed": "Could not turn on your camera.",
     "screen_share_blocked": "Screen sharing was canceled or blocked.",
     "screen_share_failed": "Could not start screen sharing.",
+    "screen_share_unsupported": "This browser or device does not expose screen sharing to web apps.",
+    "screen_share_no_audio": "Screen sharing started without audio. To share tab audio, use Chrome or Edge on desktop, choose a browser tab, and enable “Share tab audio”.",
+    "screen_share_audio_active": "Tab audio is being shared.",
     "speaker_switch_failed": "Could not switch speakers. This browser or device may not support speaker selection.",
     "device_switch_failed": "Could not switch to that device.",
     "media_device_failed": "Could not access a media device."

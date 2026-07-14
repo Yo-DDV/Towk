@@ -6,7 +6,10 @@ const { soundMocks, toastMocks } = vi.hoisted(() => ({
     playCallSound: vi.fn(() => Promise.resolve())
   },
   toastMocks: {
-    error: vi.fn()
+    error: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn()
   }
 }));
 
@@ -24,7 +27,7 @@ import {
   VoiceCallJoinError,
   VoiceCallState
 } from './voiceCall.svelte';
-import { Room } from 'livekit-client';
+import { AudioPresets, Room, ScreenSharePresets } from 'livekit-client';
 
 const calls: string[] = [];
 let lastRoomOptions: Record<string, unknown> | null = null;
@@ -58,6 +61,7 @@ let cameraGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let cameraFailure: Error | null = null;
 let screenShareGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let screenShareFailure: Error | null = null;
+let screenShareAudioAvailable = false;
 let switchActiveDeviceFailure: Error | null = null;
 let roomEventHandlers = new Map<string, (...args: unknown[]) => void>();
 let localTrackPublications: Array<{
@@ -145,13 +149,22 @@ vi.mock('livekit-client', () => {
           throw screenShareFailure;
         }
         localTrackPublications = localTrackPublications.filter(
-          (pub) => pub.track.source !== 'screen_share'
+          (pub) => pub.track.source !== 'screen_share' && pub.track.source !== 'screen_share_audio'
         );
         if (enabled) {
           localTrackPublications.push({
             isMuted: false,
-            track: { source: 'screen_share' }
+            track: {
+              source: 'screen_share',
+              mediaStreamTrack: { contentHint: '' } as MediaStreamTrack
+            }
           });
+          if (screenShareAudioAvailable) {
+            localTrackPublications.push({
+              isMuted: false,
+              track: { source: 'screen_share_audio' }
+            });
+          }
         }
       }),
       getTrackPublication: vi.fn(),
@@ -220,9 +233,22 @@ vi.mock('livekit-client', () => {
     },
     Track: {
       Kind: { Audio: 'audio' },
-      Source: { Microphone: 'microphone', Camera: 'camera', ScreenShare: 'screen_share' }
+      Source: {
+        Microphone: 'microphone',
+        Camera: 'camera',
+        ScreenShare: 'screen_share',
+        ScreenShareAudio: 'screen_share_audio'
+      }
     },
-    AudioPresets: { speech: {} },
+    AudioPresets: {
+      speech: { maxBitrate: 24_000 },
+      musicHighQualityStereo: { maxBitrate: 128_000 }
+    },
+    ScreenSharePresets: {
+      h360fps15: { encoding: { maxBitrate: 400_000, maxFramerate: 15 } },
+      h720fps30: { encoding: { maxBitrate: 2_000_000, maxFramerate: 30 } },
+      h1080fps30: { encoding: { maxBitrate: 5_000_000, maxFramerate: 30 } }
+    },
     VideoPresets: { h720: { resolution: {} } }
   };
 });
@@ -283,6 +309,7 @@ describe('VoiceCallState', () => {
     cameraFailure = null;
     screenShareGate = null;
     screenShareFailure = null;
+    screenShareAudioAvailable = false;
     switchActiveDeviceFailure = null;
     roomEventHandlers = new Map();
     localTrackPublications = [];
@@ -293,8 +320,14 @@ describe('VoiceCallState', () => {
     vi.stubGlobal('WritableStream', class MockWritableStream {});
     vi.stubGlobal('RTCRtpScriptTransform', class MockRTCRtpScriptTransform {});
     vi.stubGlobal('crypto', { subtle: {} });
+    vi.stubGlobal('navigator', {
+      mediaDevices: { getDisplayMedia: vi.fn() }
+    });
     soundMocks.playCallSound.mockClear();
     toastMocks.error.mockClear();
+    toastMocks.info.mockClear();
+    toastMocks.success.mockClear();
+    toastMocks.warning.mockClear();
     vi.mocked(Room.getLocalDevices).mockClear();
   });
 
@@ -541,14 +574,34 @@ describe('VoiceCallState', () => {
     expect(state.matchesActiveCall('R1', null)).toBe(false);
   });
 
-  it('toggles video-only screen sharing through LiveKit', async () => {
+  it('publishes adaptive 30 FPS screen sharing and requests browser-tab audio', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
 
     await state.toggleScreenShare();
 
-    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(true);
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(
+      true,
+      {
+        audio: true,
+        video: { displaySurface: 'browser' },
+        contentHint: 'motion',
+        selfBrowserSurface: 'exclude',
+        surfaceSwitching: 'include',
+        systemAudio: 'exclude'
+      },
+      {
+        audioPreset: AudioPresets.musicHighQualityStereo,
+        degradationPreference: 'maintain-framerate',
+        dtx: false,
+        forceStereo: true,
+        red: true,
+        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+        screenShareSimulcastLayers: [ScreenSharePresets.h360fps15, ScreenSharePresets.h720fps30],
+        simulcast: true
+      }
+    );
     expect(state.isScreenShareEnabled).toBe(true);
     expect(state.participants[0]).toMatchObject({
       identity: 'local-user',
@@ -557,12 +610,83 @@ describe('VoiceCallState', () => {
     });
     expect(state.participants[0].videoTrack).toBeNull();
     expect(state.participants[0].screenShareTrack).toMatchObject(localTrackPublications[0].track);
+    expect(state.participants[0].isScreenShareAudioEnabled).toBe(false);
+    expect(toastMocks.info).toHaveBeenCalledWith(
+      'Screen sharing started without audio. To share tab audio, use Chrome or Edge on desktop, choose a browser tab, and enable “Share tab audio”.'
+    );
 
     await state.toggleScreenShare();
 
     expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(false);
     expect(state.isScreenShareEnabled).toBe(false);
     expect(state.participants[0].screenShareTrack).toBeNull();
+  });
+
+  it('marks and confirms shared browser-tab audio when the browser supplies it', async () => {
+    screenShareAudioAvailable = true;
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    await state.toggleScreenShare();
+
+    expect(state.participants[0].isScreenShareAudioEnabled).toBe(true);
+    expect(toastMocks.success).toHaveBeenCalledWith('Tab audio is being shared.');
+    expect(toastMocks.info).not.toHaveBeenCalled();
+
+    await state.toggleScreenShare();
+
+    expect(state.participants[0].isScreenShareAudioEnabled).toBe(false);
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false);
+  });
+
+  it('attaches and detaches remote screen-share audio tracks', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    const screenAudioTrack = {
+      kind: 'audio',
+      source: 'screen_share_audio',
+      attach: vi.fn(),
+      detach: vi.fn()
+    };
+
+    roomEventHandlers.get('TrackSubscribed')?.(screenAudioTrack, {});
+    expect(screenAudioTrack.attach).toHaveBeenCalledOnce();
+
+    roomEventHandlers.get('TrackUnsubscribed')?.(screenAudioTrack, {});
+    expect(screenAudioTrack.detach).toHaveBeenCalledOnce();
+  });
+
+  it('explains unsupported mobile or browser capture without calling LiveKit', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    vi.stubGlobal('navigator', { mediaDevices: {} });
+
+    expect(state.canShareScreen).toBe(false);
+    await state.toggleScreenShare();
+
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).not.toHaveBeenCalled();
+    expect(state.isScreenShareEnabled).toBe(false);
+    expect(toastMocks.warning).toHaveBeenCalledWith(
+      'This browser or device does not expose screen sharing to web apps.'
+    );
+  });
+
+  it('still stops an active share if the browser capability disappears', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleScreenShare();
+    vi.stubGlobal('navigator', { mediaDevices: {} });
+    toastMocks.warning.mockClear();
+
+    await state.toggleScreenShare();
+
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(false);
+    expect(state.isScreenShareEnabled).toBe(false);
+    expect(toastMocks.warning).not.toHaveBeenCalled();
   });
 
   it('keeps microphone pending until LiveKit applies the toggle', async () => {
@@ -644,14 +768,20 @@ describe('VoiceCallState', () => {
     screenShareGate = deferredVoid();
 
     const toggle = state.toggleScreenShare();
+    const duplicateToggle = state.toggleScreenShare();
     await flushPromises();
 
     expect(state.isScreenSharePending).toBe(true);
     expect(state.isScreenShareEnabled).toBe(false);
-    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(true);
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledOnce();
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenLastCalledWith(
+      true,
+      expect.any(Object),
+      expect.any(Object)
+    );
 
     screenShareGate.resolve();
-    await toggle;
+    await Promise.all([toggle, duplicateToggle]);
 
     expect(state.isScreenSharePending).toBe(false);
     expect(state.isScreenShareEnabled).toBe(true);
@@ -665,7 +795,11 @@ describe('VoiceCallState', () => {
 
     await state.toggleScreenShare();
 
-    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(true);
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(
+      true,
+      expect.any(Object),
+      expect.any(Object)
+    );
     expect(state.isScreenShareEnabled).toBe(false);
     expect(state.isInAnyCall).toBe(true);
     expect(state.roomId).toBe('R1');
@@ -746,6 +880,13 @@ describe('VoiceCallState', () => {
   });
 
   it('maps media device failures to specific user-facing messages', () => {
+    expect(
+      getVoiceCallMediaDeviceErrorMessage(
+        'screen',
+        new Error('getDisplayMedia not supported'),
+        'enable'
+      )
+    ).toBe('This browser or device does not expose screen sharing to web apps.');
     expect(
       getVoiceCallMediaDeviceErrorMessage(
         'screen',

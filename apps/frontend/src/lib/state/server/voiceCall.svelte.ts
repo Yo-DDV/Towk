@@ -11,13 +11,16 @@ import {
   RoomEvent,
   Track,
   AudioPresets,
+  ScreenSharePresets,
   VideoPresets,
   ExternalE2EEKeyProvider,
   type LocalAudioTrack,
   type Participant,
   type RemoteTrack,
   type RemoteTrackPublication,
-  type RemoteParticipant
+  type RemoteParticipant,
+  type ScreenShareCaptureOptions,
+  type TrackPublishOptions
 } from 'livekit-client';
 import { toast } from '$lib/ui/toast';
 import { playCallSound } from '$lib/audio/callSounds';
@@ -39,6 +42,7 @@ export type CallParticipantInfo = {
   isCameraEnabled: boolean;
   videoTrack: Track | null;
   isScreenShareEnabled: boolean;
+  isScreenShareAudioEnabled: boolean;
   screenShareTrack: Track | null;
   isLocallyMuted: boolean;
 };
@@ -68,6 +72,7 @@ type MediaDeviceFailureKind =
   | 'in-use'
   | 'constraint'
   | 'aborted'
+  | 'unsupported'
   | 'unknown';
 
 export class VoiceCallJoinError extends Error {
@@ -143,6 +148,9 @@ export function getVoiceCallMediaDeviceErrorMessage(
   }
 
   if (target === 'screen') {
+    if (failure === 'unsupported') {
+      return m['voice.screen_share_unsupported']();
+    }
     if (failure === 'permission-denied' || failure === 'aborted') {
       return m['voice.screen_share_blocked']();
     }
@@ -182,6 +190,11 @@ export class VoiceCallState {
   isScreenShareEnabled = $state(false);
   // True while LiveKit is applying local screen-share enable/disable changes.
   isScreenSharePending = $state(false);
+
+  /** Live capability probe; unsupported mobile PWAs get an explicit explanation. */
+  get canShareScreen(): boolean {
+    return isScreenShareSupported();
+  }
 
   // Participants (including local)
   participants = $state<CallParticipantInfo[]>([]);
@@ -622,14 +635,17 @@ export class VoiceCallState {
     this.updateParticipants();
   }
 
-  /**
-   * Toggle video-only screen/window/tab sharing.
-   */
+  /** Toggle screen/window/tab video and browser-tab audio when available. */
   async toggleScreenShare(): Promise<void> {
     if (this.screenShareToggleInFlight) return this.screenShareToggleInFlight;
 
     const room = this.room;
     if (!room) return;
+
+    if (!this.isScreenShareEnabled && !this.canShareScreen) {
+      toast.warning(m['voice.screen_share_unsupported']());
+      return;
+    }
 
     const togglePromise = this.performToggleScreenShare(room);
     this.screenShareToggleInFlight = togglePromise;
@@ -647,9 +663,14 @@ export class VoiceCallState {
   private async performToggleScreenShare(room: Room): Promise<void> {
     const newEnabled = !this.isScreenShareEnabled;
     try {
-      await this.runExplicitMediaDeviceOperation(() =>
-        room.localParticipant.setScreenShareEnabled(newEnabled)
-      );
+      await this.runExplicitMediaDeviceOperation(() => {
+        if (!newEnabled) return room.localParticipant.setScreenShareEnabled(false);
+        return room.localParticipant.setScreenShareEnabled(
+          true,
+          createScreenShareCaptureOptions(),
+          createScreenSharePublishOptions()
+        );
+      });
       if (this.room !== room) return;
 
       this.isScreenShareEnabled = newEnabled;
@@ -661,6 +682,13 @@ export class VoiceCallState {
       this.isScreenShareEnabled = newEnabled ? false : this.isScreenShareEnabled;
     }
     this.updateParticipants();
+    if (newEnabled && this.isScreenShareEnabled) {
+      if (isParticipantScreenShareAudioEnabled(room.localParticipant)) {
+        toast.success(m['voice.screen_share_audio_active']());
+      } else {
+        toast.info(m['voice.screen_share_no_audio']());
+      }
+    }
   }
 
   /**
@@ -870,6 +898,7 @@ export class VoiceCallState {
         isCameraEnabled: isParticipantCameraEnabled(p),
         videoTrack: getParticipantCameraTrack(p),
         isScreenShareEnabled: isParticipantScreenShareEnabled(p),
+        isScreenShareAudioEnabled: isParticipantScreenShareAudioEnabled(p),
         screenShareTrack: getParticipantScreenShareTrack(p),
         isLocallyMuted: !isLocal && this.isParticipantLocallyMuted(p.identity)
       };
@@ -1128,6 +1157,15 @@ function isParticipantScreenShareEnabled(participant: Participant): boolean {
   return false;
 }
 
+function isParticipantScreenShareAudioEnabled(participant: Participant): boolean {
+  for (const pub of participant.getTrackPublications()) {
+    if (pub.track?.source === Track.Source.ScreenShareAudio) {
+      return !pub.isMuted;
+    }
+  }
+  return false;
+}
+
 function getParticipantScreenShareTrack(participant: Participant): Track | null {
   for (const pub of participant.getTrackPublications()) {
     if (pub.track?.source === Track.Source.ScreenShare && !pub.isMuted) {
@@ -1135,6 +1173,37 @@ function getParticipantScreenShareTrack(participant: Participant): Track | null 
     }
   }
   return null;
+}
+
+function isScreenShareSupported(): boolean {
+  return (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.mediaDevices?.getDisplayMedia === 'function'
+  );
+}
+
+function createScreenShareCaptureOptions(): ScreenShareCaptureOptions {
+  return {
+    audio: true,
+    video: { displaySurface: 'browser' },
+    contentHint: 'motion',
+    selfBrowserSurface: 'exclude',
+    surfaceSwitching: 'include',
+    systemAudio: 'exclude'
+  };
+}
+
+function createScreenSharePublishOptions(): TrackPublishOptions {
+  return {
+    audioPreset: AudioPresets.musicHighQualityStereo,
+    degradationPreference: 'maintain-framerate',
+    dtx: false,
+    forceStereo: true,
+    red: true,
+    screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
+    screenShareSimulcastLayers: [ScreenSharePresets.h360fps15, ScreenSharePresets.h720fps30],
+    simulcast: true
+  };
 }
 
 function assertLiveKitE2EESupported(): void {
@@ -1181,6 +1250,14 @@ function classifyMediaDeviceFailure(err: unknown): MediaDeviceFailureKind {
   const name = errorName(err).toLowerCase();
   const message = errorMessage(err).toLowerCase();
   const signal = `${name} ${message}`;
+
+  if (
+    signal.includes('unsupported') ||
+    signal.includes('not supported') ||
+    signal.includes('getdisplaymedia')
+  ) {
+    return 'unsupported';
+  }
 
   if (
     signal.includes('notallowed') ||

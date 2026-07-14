@@ -10,6 +10,7 @@
     "start_call": "Anruf starten",
     "leave": "Anruf verlassen",
     "share_screen": "Bildschirm teilen",
+    "share_screen_with_audio": "Bildschirm und Tab-Audio teilen",
     "stop_share_screen": "Bildschirmfreigabe beenden",
     "user_settings": "Benutzereinstellungen",
     "speaking": "Spricht",
@@ -53,6 +54,9 @@
     "camera_failed": "Deine Kamera konnte nicht eingeschaltet werden.",
     "screen_share_blocked": "Die Bildschirmfreigabe wurde abgebrochen oder blockiert.",
     "screen_share_failed": "Die Bildschirmfreigabe konnte nicht gestartet werden.",
+    "screen_share_unsupported": "Dieser Browser oder dieses Gerät stellt Web-Apps keine Bildschirmfreigabe bereit.",
+    "screen_share_no_audio": "Die Bildschirmfreigabe wurde ohne Audio gestartet. Um Tab-Audio zu teilen, verwende Chrome oder Edge auf einem Desktop, wähle einen Browser-Tab aus und aktiviere „Tab-Audio teilen“.",
+    "screen_share_audio_active": "Tab-Audio wird geteilt.",
     "speaker_switch_failed": "Der Lautsprecher konnte nicht gewechselt werden. Dieser Browser oder dieses Gerät unterstützt die Lautsprecherauswahl möglicherweise nicht.",
     "device_switch_failed": "Zu diesem Gerät konnte nicht gewechselt werden.",
     "media_device_failed": "Auf ein Mediengerät konnte nicht zugegriffen werden."

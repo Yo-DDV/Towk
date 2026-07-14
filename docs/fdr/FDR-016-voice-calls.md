@@ -5,7 +5,7 @@
 
 ## Overview
 
-Rooms support real-time voice conversations with optional camera video and video-only screen/window/tab sharing. A phone tab in the room sidebar lets members start or join the room call; the call panel shows screen-share tiles first, then video-enabled participant cards, then compact voice-only participant cards, and provides mute, camera, screen-share, device-selection, and hang-up controls. Audio and video are routed through LiveKit (an external WebRTC service); Towk only handles authorization, participant state, and the UI.
+Rooms support real-time voice conversations with optional camera video and screen/window/tab sharing. Browser-tab audio is published with the screen share when the selected browser and capture surface provide it. A phone tab in the room sidebar lets members start or join the room call; the call panel shows screen-share tiles first, then video-enabled participant cards, then compact voice-only participant cards, and provides mute, camera, screen-share, device-selection, and hang-up controls. Audio and video are routed through LiveKit (an external WebRTC service); Towk only handles authorization, participant state, and the UI.
 
 ## Behavior
 
@@ -26,7 +26,9 @@ Rooms support real-time voice conversations with optional camera video and video
 - The first join starts a call session, creates fresh per-call E2EE key material, and records durable call lifecycle facts. The final leave ends the call, records the end fact, and shreds the call key.
 - Hanging up disconnects from LiveKit and clears the participant from everyone else's view.
 - New clients always enable LiveKit E2EE before connecting. Towk distributes a KMS-backed per-call shared key with the LiveKit join token; the raw key is never written to EVT and is shredded when the call ends.
-- Screen sharing is video-only in Towk's UI. Browser tab audio sharing is not published by Towk today.
+- Screen sharing requests browser-tab audio, keeps full-system audio out of the picker, and confirms whether the browser supplied an audio track. A shared-audio indicator is visible on the screen tile. If no audio track is available, Towk explains that Chrome or Edge desktop users must select a browser tab and enable tab audio in the picker.
+- Screen video publishes a 1080p30 top layer at up to 5 Mbit/s, plus 720p30 and 360p15 simulcast layers. LiveKit adaptive stream and dynacast select the useful layer, while `maintain-framerate` favors motion continuity when congestion requires lowering visual detail.
+- Towk capability-checks `MediaDevices.getDisplayMedia` before capture. Current mobile web engines on Android and iOS do not expose this API to PWAs, so the control gives a specific compatibility explanation instead of opening a picker that inevitably fails. Native Android MediaProjection and iOS ReplayKit capture are outside a web PWA's API boundary.
 - Screen-share state is LiveKit track state only. Users who have not joined the call still see who is in the active call, but they do not see whether a participant is sharing a screen.
 - When LiveKit is not configured on the server, all voice UI is hidden — no button, no panel, no indicator.
 
@@ -52,9 +54,9 @@ Rooms support real-time voice conversations with optional camera video and video
 
 ### 4. Audio tracks must be explicitly attached
 
-**Decision:** The frontend listens for `RoomEvent.TrackSubscribed` and calls `track.attach()` to wire LiveKit audio into a hidden `<audio>` element. On leave or `TrackUnsubscribed`, it calls `track.detach()`.
+**Decision:** The frontend listens for `RoomEvent.TrackSubscribed` and calls `track.attach()` to wire LiveKit microphone and screen-share audio into a hidden `<audio>` element. On leave or `TrackUnsubscribed`, it calls `track.detach()`.
 **Why:** LiveKit delivers audio data over WebRTC, but the browser doesn't autoplay it without an attached element. Without explicit attach, the UI looks like everything works — participant rings even animate — but nobody hears anything. The pattern lives in `apps/frontend/src/lib/state/server/voiceCall.svelte.ts`; any refactor that touches LiveKit subscription handling needs to keep the `track.attach()` / `track.detach()` calls intact.
-**Tradeoff:** A subtle requirement that's easy to miss when refactoring; the skill warns explicitly.
+**Tradeoff:** A subtle requirement that's easy to miss when refactoring; both microphone and `ScreenShareAudio` publications must keep this attachment path.
 
 ### 5. Speaking indicators use neutral inline glyphs
 
@@ -64,9 +66,11 @@ Rooms support real-time voice conversations with optional camera video and video
 
 ### 6. Screen sharing is joined-client LiveKit track state
 
-**Decision:** Screen/window/tab sharing uses LiveKit's browser screen-share publishing path and is represented only by `Track.Source.ScreenShare` on joined clients. Towk does not persist separate screen-share events, add public API fields, or expose screen-share state to call observers before they join.
-**Why:** Screen sharing is media-session state, and the existing durable room facts already answer the server-owned question of who is in the call. Keeping screen-share state inside LiveKit avoids adding durable state that can become stale when browser capture ends.
-**Tradeoff:** Non-joined observers know a call is active and who is in it, but not whether someone is sharing. Browser-tab audio sharing is also out of scope for this version.
+**Decision:** Screen/window/tab sharing uses LiveKit's browser publishing path and is represented by `Track.Source.ScreenShare` plus optional `Track.Source.ScreenShareAudio` on joined clients. The capture request prefers a browser tab, excludes the current Towk tab and full-system audio, and keeps Chrome's in-picker tab switching available. The publish profile uses a 1080p30/5 Mbit/s top layer with 720p30 and 360p15 fallbacks, stereo 128 kbit/s screen audio, and frame-rate-preserving degradation. Towk does not persist separate screen-share events, add public API fields, or expose screen-share state to call observers before they join.
+**Why:** Screen sharing is media-session state, and the existing durable room facts already answer the server-owned question of who is in the call. Keeping video and optional tab audio inside LiveKit avoids durable state that can become stale when browser capture ends. Excluding system audio prevents remote call voices from being captured back into the call, while the browser permission picker remains the authority for every capture.
+**Tradeoff:** Non-joined observers know a call is active and who is in it, but not whether someone is sharing. Tab audio capture is currently limited to Chromium desktop browsers and compatible surfaces; Firefox and Safari can still publish screen video. Android and iOS PWAs cannot bridge to native screen-capture APIs, so Towk reports the limitation instead of claiming mobile support.
+
+The compatibility boundary is tracked against [MDN `getDisplayMedia`](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia), [MDN browser compatibility data](https://github.com/mdn/browser-compat-data/blob/main/api/MediaDevices.json), and [Chrome's screen-sharing controls](https://developer.chrome.com/docs/web-platform/screen-sharing-controls/). Because browser support is volatile, these sources must be rechecked before broadening the support claim.
 
 ### 7. Big-call mode is a desktop pane state, not a separate route
 

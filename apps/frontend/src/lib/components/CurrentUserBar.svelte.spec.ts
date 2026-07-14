@@ -36,7 +36,14 @@ type MockRoom = {
   members: MockRoomMember[];
 };
 
-const { currentUserState, voiceCallState, roomsState } = vi.hoisted(() => ({
+const {
+  currentUserState,
+  voiceCallState,
+  roomsState,
+  permissionsState,
+  activeCallRoomsState,
+  callParticipantsState
+} = vi.hoisted(() => ({
   currentUserState: {
     user: null as {
       id: string;
@@ -62,10 +69,20 @@ const { currentUserState, voiceCallState, roomsState } = vi.hoisted(() => ({
     isCameraPending: false,
     isScreenShareEnabled: false,
     isScreenSharePending: false,
+    canShareScreen: true,
     toggleMute: vi.fn(),
     toggleCamera: vi.fn(),
     toggleScreenShare: vi.fn(),
-    leave: vi.fn()
+    leave: vi.fn(),
+    join: vi.fn(),
+    refreshDevices: vi.fn(),
+    toggleParticipantLocalMute: vi.fn(),
+    handleCallEndedEvent: vi.fn(),
+    handleParticipantLeftEvent: vi.fn(),
+    getAudioLevel: vi.fn(() => 0),
+    isInAnyCall: false,
+    isInCall: vi.fn((roomId: string) => roomId === 'storybook-call-room'),
+    participants: [] as unknown[]
   },
   roomsState: {
     currentUserId: 'user-1',
@@ -77,6 +94,31 @@ const { currentUserState, voiceCallState, roomsState } = vi.hoisted(() => ({
         members: []
       }
     ] as MockRoom[]
+  },
+  permissionsState: {
+    loaded: true,
+    canViewAdmin: false,
+    canStartDMs: false,
+    canAdminViewUsers: false,
+    canAdminManageAccounts: false,
+    canAssignRoles: false,
+    canAdminViewRoles: false,
+    canAdminManageRoles: false,
+    canAdminViewSystem: false,
+    canAdminViewAudit: false
+  },
+  activeCallRoomsState: {
+    has: vi.fn(() => false),
+    load: vi.fn(),
+    handleEnd: vi.fn()
+  },
+  callParticipantsState: {
+    participants: [] as unknown[],
+    load: vi.fn(),
+    clear: vi.fn(),
+    handleJoin: vi.fn(),
+    handleLeave: vi.fn(),
+    handleEnd: vi.fn()
   }
 }));
 const navigation = vi.hoisted(() => ({
@@ -100,16 +142,30 @@ vi.mock('$app/navigation', () => ({
   pushState: navigation.pushState
 }));
 
-vi.mock('$lib/state/server/registry.svelte', () => ({
-  serverRegistry: {
-    isOriginServer: () => true,
-    tryGetStore: () => ({
-      currentUser: currentUserState,
-      voiceCall: voiceCallState,
-      rooms: roomsState
-    })
-  }
-}));
+vi.mock('$lib/state/server/registry.svelte', () => {
+  // Browser specs can share one transformed module graph. Keep this mock a
+  // stable registry superset so neighboring component specs are order-independent.
+  const store = {
+    currentUser: currentUserState,
+    voiceCall: voiceCallState,
+    rooms: roomsState,
+    permissions: permissionsState,
+    activeCallRooms: activeCallRoomsState,
+    callParticipants: callParticipantsState
+  };
+
+  return {
+    serverRegistry: {
+      originServer: {
+        id: 'origin',
+        url: 'https://chat.example.test'
+      },
+      isOriginServer: () => true,
+      getStore: () => store,
+      tryGetStore: () => store
+    }
+  };
+});
 
 vi.mock('$lib/state/userProfiles.svelte', () => ({
   getLiveAvatarUrl: (_userId: string, fallback: string | null) => fallback,
@@ -141,6 +197,7 @@ describe('CurrentUserBar', () => {
     voiceCallState.isCameraPending = false;
     voiceCallState.isScreenShareEnabled = false;
     voiceCallState.isScreenSharePending = false;
+    voiceCallState.canShareScreen = true;
     voiceCallState.toggleMute.mockClear();
     voiceCallState.toggleCamera.mockClear();
     voiceCallState.toggleScreenShare.mockClear();
@@ -473,6 +530,25 @@ describe('CurrentUserBar', () => {
       expect(button.getAttribute('aria-busy')).toBe('true');
       expect(q(button, '.animate-spin.uil--spinner')).toBeTruthy();
     }
+  });
+
+  it('explains when this browser cannot expose screen capture to web apps', () => {
+    voiceCallState.connected = true;
+    voiceCallState.roomId = 'room-1';
+    voiceCallState.canShareScreen = false;
+
+    const { container } = render(CurrentUserBarTestHarness);
+    const screenShareButton = q(
+      container,
+      '[data-testid="current-user-call-screen-share"]'
+    ) as HTMLButtonElement;
+
+    expect(screenShareButton.title).toBe(
+      'This browser or device does not expose screen sharing to web apps.'
+    );
+    expect(screenShareButton.disabled).toBe(false);
+    screenShareButton.click();
+    expect(voiceCallState.toggleScreenShare).toHaveBeenCalledOnce();
   });
 
   it('uses the DM participant label for active direct-message calls', () => {

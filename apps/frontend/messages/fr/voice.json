@@ -10,6 +10,7 @@
     "start_call": "Démarrer l'appel",
     "leave": "Quitter l'appel",
     "share_screen": "Partager l'écran",
+    "share_screen_with_audio": "Partager l'écran et l'audio d'un onglet",
     "stop_share_screen": "Arrêter de partager l'écran",
     "user_settings": "Paramètres utilisateur",
     "speaking": "Parle",
@@ -53,6 +54,9 @@
     "camera_failed": "Impossible d'activer votre caméra.",
     "screen_share_blocked": "Le partage d'écran a été annulé ou bloqué.",
     "screen_share_failed": "Impossible de démarrer le partage d'écran.",
+    "screen_share_unsupported": "Ce navigateur ou cet appareil ne permet pas aux applications web de partager l'écran.",
+    "screen_share_no_audio": "Le partage d'écran a démarré sans audio. Pour partager l'audio d'un onglet, utilisez Chrome ou Edge sur ordinateur, choisissez un onglet, puis activez « Partager l'audio de l'onglet ».",
+    "screen_share_audio_active": "L'audio de l'onglet est partagé.",
     "speaker_switch_failed": "Impossible de changer de haut-parleur. Ce navigateur ou cet appareil peut ne pas prendre en charge la sélection des haut-parleurs.",
     "device_switch_failed": "Impossible de basculer vers cet appareil.",
     "media_device_failed": "Impossible d'accéder à un périphérique multimédia."

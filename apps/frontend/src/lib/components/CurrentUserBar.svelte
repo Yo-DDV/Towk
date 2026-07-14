@@ -267,10 +267,14 @@ to the user settings page for the active server.
             : compactCallButtonClass}
           title={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
-            : m['voice.share_screen']()}
+            : voiceCallState.canShareScreen
+              ? m['voice.share_screen_with_audio']()
+              : m['voice.screen_share_unsupported']()}
           aria-label={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
-            : m['voice.share_screen']()}
+            : voiceCallState.canShareScreen
+              ? m['voice.share_screen_with_audio']()
+              : m['voice.screen_share_unsupported']()}
           data-testid="current-user-call-screen-share"
           onclick={() => voiceCallState.toggleScreenShare()}
           disabled={voiceCallState.isScreenSharePending}
