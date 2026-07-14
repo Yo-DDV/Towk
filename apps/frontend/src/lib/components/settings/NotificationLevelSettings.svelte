@@ -71,9 +71,10 @@ These preferences are server-side and sync across devices.
           ? mappedServerPref.effectiveLevel
           : mappedServerPref.level;
       serverEffectiveLevel = mappedServerPref.effectiveLevel;
-      notificationLevelStore.setServerPreference(
+      notificationLevelStore.replacePreferences(
         mappedServerPref.level,
-        mappedServerPref.effectiveLevel
+        mappedServerPref.effectiveLevel,
+        viewer.roomNotificationPreferences
       );
 
       const roomPreferences = new Map(
@@ -85,7 +86,7 @@ These preferences are server-side and sync across devices.
           id: room.id,
           name: room.name,
           level: pref?.level ?? NotificationLevel.Default,
-          effectiveLevel: pref?.effectiveLevel ?? NotificationLevel.AllMessages
+          effectiveLevel: pref?.effectiveLevel ?? mappedServerPref.effectiveLevel
         };
       });
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { PaneHeader, Hint, FormSection } from '$lib/ui';
   import { Button } from '$lib/ui/form';
   import NotificationLevelSettings from '$lib/components/settings/NotificationLevelSettings.svelte';
@@ -14,8 +15,7 @@
   import {
     ensureRegistered,
     getPushCapability,
-    getPermission,
-    isSubscribed as checkPushSubscription
+    getPermission
   } from '$lib/notifications/pushNotifications';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -169,15 +169,40 @@
   let pushSubscribed = $state(false);
   let pushLoading = $state(false);
   let pushError = $state<string | null>(null);
+  let pushStateRefreshGeneration = 0;
+
+  async function refreshPushState() {
+    if (!showOriginPushControls || !pushSupported) return;
+    const generation = ++pushStateRefreshGeneration;
+    pushPermission = getPermission();
+    const subscribed =
+      pushPermission === 'granted' && serverInfo.vapidPublicKey
+        ? await ensureRegistered(serverInfo.vapidPublicKey, { prompt: false })
+        : false;
+    if (generation === pushStateRefreshGeneration) {
+      pushPermission = getPermission();
+      pushSubscribed = pushPermission === 'granted' && subscribed;
+    }
+  }
 
   // Check push subscription status on mount
   $effect(() => {
     if (showOriginPushControls && pushSupported) {
-      pushPermission = getPermission();
-      checkPushSubscription().then((subscribed) => {
-        pushSubscribed = subscribed;
-      });
+      void refreshPushState();
     }
+  });
+
+  onMount(() => {
+    const handleFocus = () => void refreshPushState();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshPushState();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   });
 
   async function handleEnablePush() {

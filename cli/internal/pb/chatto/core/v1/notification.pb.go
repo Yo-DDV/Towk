@@ -188,7 +188,10 @@ type DMMessageNotification struct {
 	// Room ID of the DM conversation
 	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	// Event ID of the message
-	EventId       string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	EventId string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	// Thread root event ID if the DM was posted inside a thread.
+	// Empty for room-level DM messages.
+	InThread      string `protobuf:"bytes,3,opt,name=in_thread,json=inThread,proto3" json:"in_thread,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -233,6 +236,13 @@ func (x *DMMessageNotification) GetRoomId() string {
 func (x *DMMessageNotification) GetEventId() string {
 	if x != nil {
 		return x.EventId
+	}
+	return ""
+}
+
+func (x *DMMessageNotification) GetInThread() string {
+	if x != nil {
+		return x.InThread
 	}
 	return ""
 }
@@ -459,10 +469,11 @@ const file_chatto_core_v1_notification_proto_rawDesc = "" +
 	"\amention\x18e \x01(\v2#.chatto.core.v1.MentionNotificationH\x00R\amention\x129\n" +
 	"\x05reply\x18f \x01(\v2!.chatto.core.v1.ReplyNotificationH\x00R\x05reply\x12L\n" +
 	"\froom_message\x18g \x01(\v2'.chatto.core.v1.RoomMessageNotificationH\x00R\vroomMessageB\x0e\n" +
-	"\fnotification\"K\n" +
+	"\fnotification\"h\n" +
 	"\x15DMMessageNotification\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
-	"\bevent_id\x18\x02 \x01(\tR\aeventId\"v\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x1b\n" +
+	"\tin_thread\x18\x03 \x01(\tR\binThread\"v\n" +
 	"\x13MentionNotification\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x03 \x01(\tR\aeventId\x12\x1b\n" +

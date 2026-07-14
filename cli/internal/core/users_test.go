@@ -2569,6 +2569,95 @@ func TestChattoCore_DeleteUser(t *testing.T) {
 	}
 }
 
+func TestChattoCore_DeleteUserDismissesNativeNotificationsBeforeRemovingPushSubscriptions(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	user, err := core.CreateUser(ctx, SystemActorID, "delete-push-order", "Delete Push Order", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if _, err := core.SavePushSubscription(
+		ctx,
+		user.Id,
+		"https://push.example.com/delete-order",
+		testPushP256DH,
+		testPushAuth(7),
+		"browser",
+	); err != nil {
+		t.Fatalf("SavePushSubscription: %v", err)
+	}
+	created, err := core.CreateNotification(ctx, user.Id, SystemActorID, &corev1.Notification{
+		Notification: &corev1.Notification_DmMessage{
+			DmMessage: &corev1.DMMessageNotification{
+				RoomId:  "delete-push-order-room",
+				EventId: "delete-push-order-event",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification: %v", err)
+	}
+	if created == nil {
+		t.Fatal("CreateNotification returned nil")
+	}
+
+	observedSubscriptionCount := make(chan int, 1)
+	releaseCallback := make(chan struct{})
+	core.OnNotificationsDismissed = func(callbackCtx context.Context, callbackUserID string) {
+		subscriptions, callbackErr := core.GetUserPushSubscriptions(callbackCtx, callbackUserID)
+		if callbackErr != nil {
+			observedSubscriptionCount <- -1
+		} else {
+			observedSubscriptionCount <- len(subscriptions)
+		}
+		<-releaseCallback
+	}
+	individualCallback := make(chan struct{}, 1)
+	core.OnNotificationDismissed = func(context.Context, string, *corev1.Notification) {
+		individualCallback <- struct{}{}
+	}
+
+	deleteDone := make(chan error, 1)
+	go func() {
+		deleteDone <- core.DeleteUser(ctx, user.Id, user.Id)
+	}()
+
+	select {
+	case count := <-observedSubscriptionCount:
+		if count != 1 {
+			close(releaseCallback)
+			t.Fatalf("push subscriptions visible to dismissal callback = %d, want 1", count)
+		}
+	case <-time.After(5 * time.Second):
+		close(releaseCallback)
+		t.Fatal("timed out waiting for native notification dismissal callback")
+	}
+	select {
+	case err := <-deleteDone:
+		close(releaseCallback)
+		t.Fatalf("DeleteUser returned before its dismissal callback completed: %v", err)
+	default:
+	}
+
+	close(releaseCallback)
+	if err := <-deleteDone; err != nil {
+		t.Fatalf("DeleteUser: %v", err)
+	}
+	subscriptions, err := core.GetUserPushSubscriptions(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("GetUserPushSubscriptions after DeleteUser: %v", err)
+	}
+	if len(subscriptions) != 0 {
+		t.Fatalf("push subscriptions after DeleteUser = %d, want 0", len(subscriptions))
+	}
+	select {
+	case <-individualCallback:
+		t.Fatal("account deletion used an individual dismissal callback instead of bulk dismissal")
+	default:
+	}
+}
+
 // TestChattoCore_CanDeleteUser tests the authorization check function.
 // Note: Core.DeleteUser no longer checks authorization - that's the API layer's responsibility.
 // This test verifies the CanDeleteUser helper that the API layer uses.

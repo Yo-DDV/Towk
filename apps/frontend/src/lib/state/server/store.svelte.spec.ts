@@ -3,6 +3,7 @@ import { flushSync } from 'svelte';
 import type { PublicServerInfo } from '$lib/api-client/server';
 import type { AuthenticatedServerState } from '$lib/api-client/serverState';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import { NotificationLevel } from '$lib/render/types';
 import type { EventBusCatchUpReason, EventBusCatchUpSignal } from '$lib/eventBus.svelte';
 
 const { soundMocks, apiMocks } = vi.hoisted(() => ({
@@ -455,6 +456,29 @@ describe('ServerStateStore authentication state', () => {
 
     expect(store.isAuthenticated).toBe(false);
     expect(store.currentUser.user).toMatchObject({ id: 'U1' });
+  });
+});
+
+describe('ServerStateStore notification indicators', () => {
+  it('suppresses plain unread attention for muted rooms while preserving audible overrides', () => {
+    const store = makeStore(new FakeServerConnection([]));
+    store.roomUnread.setRoomUnread('muted-room', true);
+    store.notificationLevels.setServerPreference(
+      NotificationLevel.Muted,
+      NotificationLevel.Muted
+    );
+
+    expect(store.serverIndicator()).toBeNull();
+
+    store.notificationLevels.setRoomPreference(
+      'audible-room',
+      NotificationLevel.AllMessages,
+      NotificationLevel.AllMessages
+    );
+    expect(store.serverIndicator()).toBeNull();
+
+    store.roomUnread.setRoomUnread('audible-room', true);
+    expect(store.serverIndicator()).toBe('unread');
   });
 });
 

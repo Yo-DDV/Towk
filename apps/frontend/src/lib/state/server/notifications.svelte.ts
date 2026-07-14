@@ -24,7 +24,7 @@ export type NotificationTarget = {
   roomId: string | null;
   roomName: string | null;
   eventId: string | null;
-  /** Thread root event ID for thread-reply notifications; null otherwise. */
+  /** Thread root event ID for any thread-scoped notification; null otherwise. */
   threadRootId: string | null;
 };
 
@@ -73,8 +73,8 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
       spaceName: null,
       roomId: n.room.id,
       roomName: null,
-      eventId: null,
-      threadRootId: null
+      eventId: n.eventId,
+      threadRootId: n.dmInThread ?? null
     };
   }
   if (isMentionNotification(n)) {
@@ -149,15 +149,14 @@ export class NotificationStore {
   }
 
   /**
-   * Get the set of thread root IDs that have pending reply notifications.
+   * Get the set of thread root IDs that have pending notifications.
    * Used to show notification indicators on thread buttons.
    */
   get threadsWithNotifications(): SvelteSet<string> {
     const threadIds = new SvelteSet<string>();
     for (const n of this.notifications) {
-      if (isReplyNotification(n) && n.replyInThread) {
-        threadIds.add(n.replyInThread);
-      }
+      const threadRootId = notificationTarget(n).threadRootId;
+      if (threadRootId) threadIds.add(threadRootId);
     }
     return threadIds;
   }
@@ -166,9 +165,7 @@ export class NotificationStore {
    * Check if a specific thread has pending notifications.
    */
   hasThreadNotification(threadRootId: string): boolean {
-    return this.notifications.some(
-      (n) => isReplyNotification(n) && n.replyInThread === threadRootId
-    );
+    return this.notifications.some((n) => notificationTarget(n).threadRootId === threadRootId);
   }
 
   /**
@@ -448,19 +445,29 @@ export class NotificationStore {
   async addNotification(notificationId?: string) {
     if (!notificationId) {
       await this.fetch();
-      return;
+      return false;
     }
 
+    const alreadyPresent = this.notifications.some(
+      (notification) => notification.id === notificationId
+    );
     try {
       const notification = await this.#api.getNotification(notificationId);
-      if (!notification || this.#locallyDismissedNotificationIds.has(notificationId)) return;
+      if (!notification || this.#locallyDismissedNotificationIds.has(notificationId)) return false;
 
       if (this.#upsertNotification(notification)) {
         this.unreadNotificationCount++;
+        return true;
       }
+      return false;
     } catch (e) {
       console.error('Failed to hydrate notification:', e);
       await this.fetch();
+      return (
+        !alreadyPresent &&
+        !this.#locallyDismissedNotificationIds.has(notificationId) &&
+        this.notifications.some((notification) => notification.id === notificationId)
+      );
     }
   }
 
@@ -508,6 +515,13 @@ export class NotificationStore {
     if (t.isDM && t.roomId) {
       // DMs are now rooms on the Server (#330 phase 3) — use the standard
       // room URL rather than the legacy /chat/dm/... path.
+      if (t.threadRootId) {
+        return resolve('/chat/[serverId]/[roomId]/[threadId]', {
+          serverId: seg,
+          roomId: t.roomId,
+          threadId: t.threadRootId
+        });
+      }
       return resolve('/chat/[serverId]/[roomId]', {
         serverId: seg,
         roomId: t.roomId
@@ -546,10 +560,17 @@ export class NotificationStore {
     if (t.isDM && t.roomId) {
       // DMs are now rooms on the Server (#330 phase 3) — use the standard
       // room URL rather than the legacy /chat/dm/... path.
-      return resolve('/chat/[serverId]/[roomId]', {
-        serverId: seg,
-        roomId: t.roomId
-      });
+      const path = t.threadRootId
+        ? resolve('/chat/[serverId]/[roomId]/[threadId]', {
+            serverId: seg,
+            roomId: t.roomId,
+            threadId: t.threadRootId
+          })
+        : resolve('/chat/[serverId]/[roomId]', {
+            serverId: seg,
+            roomId: t.roomId
+          });
+      return t.eventId ? `${path}?highlight=${encodeURIComponent(t.eventId)}` : path;
     }
 
     if (!t.roomId) {

@@ -558,17 +558,33 @@ func TestChattoCore_DeleteRoom(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
 
-	// Create space and room
-	room, _ := core.CreateRoom(ctx, "test-user", KindChannel, "", "ToDelete", "Will be deleted")
+	user, err := core.CreateUser(ctx, SystemActorID, "delete-room-member", "Delete Room Member", "password")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	room, err := core.CreateRoom(ctx, user.Id, KindChannel, "", "ToDelete", "Will be deleted")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := core.JoinRoom(ctx, user.Id, KindChannel, user.Id, room.Id); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+	if _, err := core.CreateNotification(ctx, user.Id, "actor", &corev1.Notification{
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{RoomId: room.Id, EventId: "delete-event"},
+		},
+	}); err != nil {
+		t.Fatalf("CreateNotification: %v", err)
+	}
 
 	// Verify room exists
-	_, err := core.GetRoom(ctx, KindChannel, room.Id)
+	_, err = core.GetRoom(ctx, KindChannel, room.Id)
 	if err != nil {
 		t.Fatalf("Room should exist: %v", err)
 	}
 
 	// Delete the room
-	err = core.DeleteRoom(ctx, "test-user", KindChannel, room.Id)
+	err = core.DeleteRoom(ctx, user.Id, KindChannel, room.Id)
 	if err != nil {
 		t.Fatalf("Failed to delete room: %v", err)
 	}
@@ -577,6 +593,13 @@ func TestChattoCore_DeleteRoom(t *testing.T) {
 	_, err = core.GetRoom(ctx, KindChannel, room.Id)
 	if err == nil {
 		t.Error("Expected error when getting deleted room")
+	}
+	notifications, err := core.GetNotifications(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications after room deletion: %v", err)
+	}
+	if len(notifications) != 0 {
+		t.Fatalf("notifications after room deletion = %d, want 0", len(notifications))
 	}
 }
 

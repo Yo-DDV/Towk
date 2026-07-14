@@ -68,16 +68,16 @@ export class RoomUnreadStore {
    * New room state invalidates the handle so rollback cannot overwrite it.
    */
   beginOptimisticRead(roomId: string): OptimisticRoomReadHandle {
-    const token = this.optimisticReads.createToken();
+    const readToken = this.optimisticReads.createToken();
     const roomRevision = this.roomRevision(roomId);
     const key = this.optimisticReadKey(roomId);
 
-    this.optimisticReads.mark(key, token);
+    this.optimisticReads.mark(key, readToken);
     this.optimisticReadRooms.add(roomId);
 
     return {
       commit: () => {
-        if (!this.optimisticReads.isCurrent(key, token)) return;
+        if (!this.optimisticReads.isCurrent(key, readToken)) return;
         if (this.roomRevision(roomId) !== roomRevision) return;
 
         this.advanceRoomRevision(roomId);
@@ -86,7 +86,7 @@ export class RoomUnreadStore {
         this.optimisticReadRooms.delete(roomId);
       },
       rollback: () => {
-        if (!this.optimisticReads.isCurrent(key, token)) return;
+        if (!this.optimisticReads.isCurrent(key, readToken)) return;
         this.optimisticReads.clear(key);
         this.optimisticReadRooms.delete(roomId);
       }
@@ -101,6 +101,21 @@ export class RoomUnreadStore {
       if (!this.optimisticReadRooms.has(roomId)) return true;
     }
     return this.serverHasUnknownUnread;
+  }
+
+  /**
+   * Check whether any unread room is eligible for attention under a caller's
+   * visibility policy. The coarse server sentinel is included only when the
+   * caller cannot prove that every possible room is suppressed.
+   */
+  hasAnyUnreadMatching(
+    isVisible: (roomId: string) => boolean,
+    includeUnknownUnread = true
+  ): boolean {
+    for (const roomId of this.unreadRooms) {
+      if (!this.optimisticReadRooms.has(roomId) && isVisible(roomId)) return true;
+    }
+    return includeUnknownUnread && this.serverHasUnknownUnread;
   }
 
   /**

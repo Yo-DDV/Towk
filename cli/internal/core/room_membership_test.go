@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 // ============================================================================
@@ -195,6 +197,13 @@ func TestRoomMemberships_Delete(t *testing.T) {
 	if !exists {
 		t.Error("Expected membership to exist before deletion")
 	}
+	if _, err := core.CreateNotification(ctx, user.Id, "actor1", &corev1.Notification{
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{RoomId: room.Id, EventId: "leave-event"},
+		},
+	}); err != nil {
+		t.Fatalf("CreateNotification: %v", err)
+	}
 
 	// Delete membership
 	err = core.LeaveRoom(ctx, user.Id, KindChannel, user.Id, room.Id)
@@ -209,6 +218,13 @@ func TestRoomMemberships_Delete(t *testing.T) {
 	}
 	if exists {
 		t.Error("Expected membership to not exist after deletion")
+	}
+	notifications, err := core.GetNotifications(ctx, user.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications after leave: %v", err)
+	}
+	if len(notifications) != 0 {
+		t.Fatalf("notifications after leave = %d, want 0", len(notifications))
 	}
 }
 

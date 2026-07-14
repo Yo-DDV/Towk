@@ -3,7 +3,9 @@ package connectapi
 import (
 	"bytes"
 	"context"
+	"crypto/elliptic"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -47,6 +49,12 @@ import (
 	operatorv1 "hmans.de/chatto/internal/pb/chatto/operator/v1"
 	"hmans.de/chatto/internal/testutil"
 )
+
+var connectAPITestPushP256DH = base64.RawURLEncoding.EncodeToString(
+	elliptic.Marshal(elliptic.P256(), elliptic.P256().Params().Gx, elliptic.P256().Params().Gy),
+)
+
+var connectAPITestPushAuth = base64.RawURLEncoding.EncodeToString(bytes.Repeat([]byte{1}, 16))
 
 func TestAPIHandlers(t *testing.T) {
 	api := New(nil, config.ChattoConfig{}, "test")
@@ -4190,8 +4198,9 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	dm, err := env.core.CreateNotification(env.ctx, env.viewer.Id, actor.Id, &corev1.Notification{
 		Notification: &corev1.Notification_DmMessage{
 			DmMessage: &corev1.DMMessageNotification{
-				RoomId:  "dm-room",
-				EventId: "dm-event",
+				RoomId:   "dm-room",
+				EventId:  "dm-event",
+				InThread: "dm-thread-root",
 			},
 		},
 	})
@@ -4238,6 +4247,9 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	gotBatch := batchResp.Msg.GetNotifications()
 	if len(gotBatch) != 2 || gotBatch[0].GetId() != mention.Id || gotBatch[1].GetId() != dm.Id {
 		t.Fatalf("BatchGetNotifications items = %+v, want mention,dm", gotBatch)
+	}
+	if gotBatch[1].GetDirectMessage().GetThreadRootEventId() != "dm-thread-root" {
+		t.Fatalf("BatchGetNotifications DM = %+v, want thread root", gotBatch[1].GetDirectMessage())
 	}
 
 	roomResp, err := env.notifications.ListRoomNotifications(ctx, connect.NewRequest(&apiv1.ListRoomNotificationsRequest{RoomId: room.Id}))
@@ -4362,16 +4374,16 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 
 	if _, err := env.push.Subscribe(env.ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
 		Endpoint: "https://push.example.test/sub",
-		P256Dh:   "p256dh-key",
-		Auth:     "auth-secret",
+		P256Dh:   connectAPITestPushP256DH,
+		Auth:     connectAPITestPushAuth,
 	})); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("unauthenticated Subscribe code = %v, want unauthenticated", connect.CodeOf(err))
 	}
 
 	if _, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
 		Endpoint: "https://push.example.test/sub",
-		P256Dh:   "p256dh-key",
-		Auth:     "auth-secret",
+		P256Dh:   connectAPITestPushP256DH,
+		Auth:     connectAPITestPushAuth,
 	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("disabled Subscribe code = %v, want failed_precondition", connect.CodeOf(err))
 	}
@@ -4384,8 +4396,8 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 	}
 	subResp, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
 		Endpoint:  "https://push.example.test/sub",
-		P256Dh:    "p256dh-key",
-		Auth:      "auth-secret",
+		P256Dh:    connectAPITestPushP256DH,
+		Auth:      connectAPITestPushAuth,
 		UserAgent: stringPtr("test-agent"),
 	}))
 	if err != nil {
@@ -6886,12 +6898,18 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 		t.Fatalf("SetSpaceNotificationLevel(NORMAL): %v", err)
 	}
 
-	e1 := env.post(room.Id, env.viewer.Id, "one", "")
-	if err := env.core.SetLastReadEventID(env.ctx, core.KindChannel, reader.Id, room.Id, e1.Id); err != nil {
+	e0 := env.post(room.Id, env.viewer.Id, "zero", "")
+	if err := env.core.SetLastReadEventID(env.ctx, core.KindChannel, reader.Id, room.Id, e0.Id); err != nil {
 		t.Fatalf("seed read marker: %v", err)
 	}
+	e1 := env.post(room.Id, env.viewer.Id, "one", "")
 	e2 := env.post(room.Id, env.viewer.Id, "two", "")
 	e3 := env.post(room.Id, env.viewer.Id, "three", "")
+	threadRoot := env.post(room.Id, env.viewer.Id, "thread root", "")
+	threadReply := env.post(room.Id, env.viewer.Id, "thread reply", threadRoot.Id)
+	if err := env.core.SetSpaceNotificationLevel(env.ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(ALL_MESSAGES): %v", err)
+	}
 	roomMention, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Mention{
 			Mention: &corev1.MentionNotification{RoomId: room.Id, EventId: e1.Id},
@@ -6916,8 +6934,6 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	if err != nil {
 		t.Fatalf("CreateNotification future room message: %v", err)
 	}
-	threadRoot := env.post(room.Id, env.viewer.Id, "thread root", "")
-	threadReply := env.post(room.Id, env.viewer.Id, "thread reply", threadRoot.Id)
 	threadNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: threadReply.Id, InReplyToId: threadRoot.Id, InThread: threadRoot.Id},
@@ -6961,10 +6977,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 		[]string{roomMention.Id, roomReply.Id},
 	)
 
-	reply := env.post(room.Id, env.viewer.Id, "reply", e2.Id)
 	if _, err := env.rooms.MarkRoomAsRead(ctx, connect.NewRequest(&apiv1.MarkRoomAsReadRequest{
 		RoomId:      room.Id,
-		UpToEventId: reply.Id,
+		UpToEventId: threadReply.Id,
 	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("MarkRoomAsRead reply anchor code = %v, want %v", connect.CodeOf(err), connect.CodeInvalidArgument)
 	}
@@ -7064,6 +7079,12 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	root := env.post(room.Id, env.viewer.Id, "root", "")
 	reply1 := env.post(room.Id, env.viewer.Id, "reply one", root.Id)
 	reply2 := env.post(room.Id, env.viewer.Id, "reply two", root.Id)
+	reply3 := env.post(room.Id, env.viewer.Id, "reply three", root.Id)
+	otherRoot := env.post(room.Id, env.viewer.Id, "other root", "")
+	otherReply := env.post(room.Id, env.viewer.Id, "other reply", otherRoot.Id)
+	if err := env.core.SetSpaceNotificationLevel(env.ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetSpaceNotificationLevel(ALL_MESSAGES): %v", err)
+	}
 	threadReplyNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: reply1.Id, InReplyToId: root.Id, InThread: root.Id},
@@ -7080,7 +7101,6 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	if err != nil {
 		t.Fatalf("CreateNotification thread mention: %v", err)
 	}
-	reply3 := env.post(room.Id, env.viewer.Id, "reply three", root.Id)
 	futureThreadNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: reply3.Id, InReplyToId: root.Id, InThread: root.Id},
@@ -7089,8 +7109,6 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	if err != nil {
 		t.Fatalf("CreateNotification future thread reply: %v", err)
 	}
-	otherRoot := env.post(room.Id, env.viewer.Id, "other root", "")
-	otherReply := env.post(room.Id, env.viewer.Id, "other reply", otherRoot.Id)
 	otherThreadNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: otherReply.Id, InReplyToId: otherRoot.Id, InThread: otherRoot.Id},

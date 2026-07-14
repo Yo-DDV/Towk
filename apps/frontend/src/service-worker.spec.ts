@@ -176,6 +176,33 @@ describe('service worker badge orchestration', () => {
     expect(worker.clearAppBadge).not.toHaveBeenCalled();
   });
 
+  it('rejects malformed payloads and treats a tagless dismiss as a bulk close', async () => {
+    const worker = await importServiceWorker();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const first = { close: vi.fn() };
+    const second = { close: vi.fn() };
+    worker.registration.getNotifications
+      .mockResolvedValueOnce([first, second])
+      .mockResolvedValueOnce([]);
+
+    try {
+      await worker.dispatch('push', { data: { json: () => null } });
+      await worker.dispatch('push', {
+        data: { json: () => ({ action: 'dismiss' }) }
+      });
+
+      expect(consoleError).toHaveBeenCalledWith('Invalid push payload');
+      expect(worker.registration.showNotification).not.toHaveBeenCalled();
+      expect(worker.registration.getNotifications).toHaveBeenCalledTimes(2);
+      expect(worker.registration.getNotifications).toHaveBeenNthCalledWith(1, undefined);
+      expect(first.close).toHaveBeenCalledOnce();
+      expect(second.close).toHaveBeenCalledOnce();
+      expect(worker.setAppBadge).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('uses declarative push notification fields when legacy root fields are absent', async () => {
     const worker = await importServiceWorker();
 
@@ -266,6 +293,38 @@ describe('service worker badge orchestration', () => {
 
     expect(worker.setAppBadge).toHaveBeenCalledOnce();
     expect(worker.setAppBadge).toHaveBeenCalledWith(1);
+    expect(worker.clearAppBadge).toHaveBeenCalledOnce();
+  });
+
+  it('clears a push-only app badge after the user closes the last native notification', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.clearAppBadge.mockClear();
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New message',
+          tag: 'room-message-event-1',
+          url: 'https://towk.example/chat/-/room-1'
+        })
+      }
+    });
+    worker.registration.getNotifications.mockResolvedValueOnce([]);
+
+    await worker.dispatch('notificationclose', {
+      notification: { tag: 'room-message-event-1' }
+    });
+
+    expect(worker.setAppBadge).toHaveBeenCalledOnce();
     expect(worker.clearAppBadge).toHaveBeenCalledOnce();
   });
 

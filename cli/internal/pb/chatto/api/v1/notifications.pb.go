@@ -29,9 +29,11 @@ type DirectMessageNotification struct {
 	// Message event ID.
 	EventId string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
 	// DM room where the message was posted.
-	Room          *RoomSummary `protobuf:"bytes,3,opt,name=room,proto3" json:"room,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Room *RoomSummary `protobuf:"bytes,3,opt,name=room,proto3" json:"room,omitempty"`
+	// Thread root event ID when the DM was posted inside a thread.
+	ThreadRootEventId *string `protobuf:"bytes,4,opt,name=thread_root_event_id,json=threadRootEventId,proto3,oneof" json:"thread_root_event_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *DirectMessageNotification) Reset() {
@@ -76,6 +78,13 @@ func (x *DirectMessageNotification) GetRoom() *RoomSummary {
 		return x.Room
 	}
 	return nil
+}
+
+func (x *DirectMessageNotification) GetThreadRootEventId() string {
+	if x != nil && x.ThreadRootEventId != nil {
+		return *x.ThreadRootEventId
+	}
+	return ""
 }
 
 // Mention notification payload.
@@ -1222,10 +1231,12 @@ var File_chatto_api_v1_notifications_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_notifications_proto_rawDesc = "" +
 	"\n" +
-	"!chatto/api/v1/notifications.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1echatto/api/v1/pagination.proto\x1a\x19chatto/api/v1/rooms.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"u\n" +
+	"!chatto/api/v1/notifications.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1echatto/api/v1/pagination.proto\x1a\x19chatto/api/v1/rooms.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc4\x01\n" +
 	"\x19DirectMessageNotification\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12.\n" +
-	"\x04room\x18\x03 \x01(\v2\x1a.chatto.api.v1.RoomSummaryR\x04roomJ\x04\b\x01\x10\x02R\aroom_id\"\xaf\x01\n" +
+	"\x04room\x18\x03 \x01(\v2\x1a.chatto.api.v1.RoomSummaryR\x04room\x124\n" +
+	"\x14thread_root_event_id\x18\x04 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01B\x17\n" +
+	"\x15_thread_root_event_idJ\x04\b\x01\x10\x02R\aroom_id\"\xaf\x01\n" +
 	"\x13MentionNotification\x12.\n" +
 	"\x04room\x18\x01 \x01(\v2\x1a.chatto.api.v1.RoomSummaryR\x04room\x12\x19\n" +
 	"\bevent_id\x18\x02 \x01(\tR\aeventId\x124\n" +
@@ -1395,6 +1406,7 @@ func file_chatto_api_v1_notifications_proto_init() {
 	file_chatto_api_v1_pagination_proto_init()
 	file_chatto_api_v1_rooms_proto_init()
 	file_chatto_api_v1_users_proto_init()
+	file_chatto_api_v1_notifications_proto_msgTypes[0].OneofWrappers = []any{}
 	file_chatto_api_v1_notifications_proto_msgTypes[1].OneofWrappers = []any{}
 	file_chatto_api_v1_notifications_proto_msgTypes[2].OneofWrappers = []any{}
 	file_chatto_api_v1_notifications_proto_msgTypes[3].OneofWrappers = []any{}

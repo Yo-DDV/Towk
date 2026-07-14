@@ -49,6 +49,10 @@ message DMMessageNotification {
 
   // Event ID of the message
   string event_id = 2;
+
+  // Thread root event ID if the DM was posted inside a thread.
+  // Empty for room-level DM messages.
+  string in_thread = 3;
 }
 
 // MentionNotification is created when someone @mentions a user in a message.
