@@ -41,9 +41,44 @@
 		canAdminViewAudit: false
 	};
 
-	function posterTrack(svg: string): Track {
-		const poster = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+	function statsReport(...stats: Array<{ id: string; type: string } & Record<string, unknown>>) {
+		const items = new Map(stats.map((stat) => [stat.id, stat]));
 		return {
+			get: (id: string) => items.get(id),
+			forEach(callback: (value: RTCStats, key: string, parent: RTCStatsReport) => void) {
+				for (const [id, stat] of items) {
+					callback(stat as unknown as RTCStats, id, items as unknown as RTCStatsReport);
+				}
+			}
+		} as RTCStatsReport;
+	}
+
+	function posterTrack(svg: string, direction: 'inbound' | 'outbound' = 'inbound'): Track {
+		const poster = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+		const report = statsReport(
+			{
+				id: 'video',
+				type: direction === 'inbound' ? 'inbound-rtp' : 'outbound-rtp',
+				kind: 'video',
+				timestamp: 2_000,
+				codecId: 'codec',
+				frameWidth: 1920,
+				frameHeight: 1080,
+				framesPerSecond: 30,
+				bytesReceived: direction === 'inbound' ? 1_000_000 : undefined,
+				packetsReceived: direction === 'inbound' ? 1_000 : undefined,
+				packetsLost: 2,
+				framesDecoded: direction === 'inbound' ? 900 : undefined,
+				framesDropped: direction === 'inbound' ? 2 : undefined,
+				bytesSent: direction === 'outbound' ? 1_000_000 : undefined,
+				packetsSent: direction === 'outbound' ? 1_000 : undefined,
+				framesSent: direction === 'outbound' ? 900 : undefined,
+				targetBitrate: direction === 'outbound' ? 5_000_000 : undefined,
+				qualityLimitationReason: 'none'
+			},
+			{ id: 'codec', type: 'codec', mimeType: 'video/AV1' }
+		);
+		const track = {
 			attach(element: HTMLVideoElement) {
 				element.poster = poster;
 				return element;
@@ -52,7 +87,13 @@
 				element.removeAttribute('poster');
 				return element;
 			}
-		} as unknown as Track;
+		} as Record<string, unknown>;
+		if (direction === 'inbound') {
+			track.getRTCStatsReport = async () => report;
+		} else {
+			track.sender = { getStats: async () => report };
+		}
+		return track as unknown as Track;
 	}
 
 	const screenTrack = posterTrack(`
@@ -65,6 +106,11 @@
 			<rect x="730" y="160" width="740" height="680" rx="18" fill="#fff" opacity=".42"/>
 		</svg>
 	`);
+
+	const localScreenTrack = posterTrack(
+		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000"><rect width="1600" height="1000" fill="#b86600"/></svg>`,
+		'outbound'
+	);
 
 	const cameraTrack = posterTrack(`
 		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900">
@@ -128,7 +174,7 @@
 					videoTrack: cameraTrack,
 					isScreenShareEnabled: true,
 					isScreenShareAudioEnabled: true,
-					screenShareTrack: screenTrack
+					screenShareTrack: localScreenTrack
 				})
 			];
 		}
