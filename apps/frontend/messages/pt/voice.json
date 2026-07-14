@@ -40,6 +40,8 @@
     "encrypted_unsupported": "Este navegador ainda não oferece suporte a chamadas de voz criptografadas. Experimente o Firefox, Chrome ou Edge mais recente.",
     "signaling_failed": "Não foi possível acessar o servidor de voz. Verifique sua rede e tente novamente.",
     "disconnected": "Chamada de voz desconectada",
+    "network_problem_title": "Ops, há um problema de rede.",
+    "network_problem_reconnecting": "Fique por aqui. O Towk está tentando reconectar você automaticamente.",
     "microphone_join_denied": "O acesso ao microfone foi negado. Você entrou sem som.",
     "microphone_join_not_found": "Nenhum microfone foi encontrado. Você entrou sem som.",
     "microphone_join_in_use": "Seu microfone já está em uso por outro aplicativo. Você entrou sem som.",

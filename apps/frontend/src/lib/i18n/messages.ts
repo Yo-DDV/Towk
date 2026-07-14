@@ -988,6 +988,8 @@ const msg_voice_token_failed = (): LocalizedString => messages().voice_token_fai
 const msg_voice_encrypted_unsupported = (): LocalizedString => messages().voice_encrypted_unsupported(empty());
 const msg_voice_signaling_failed = (): LocalizedString => messages().voice_signaling_failed(empty());
 const msg_voice_disconnected = (): LocalizedString => messages().voice_disconnected(empty());
+const msg_voice_network_problem_title = (): LocalizedString => messages().voice_network_problem_title(empty());
+const msg_voice_network_problem_reconnecting = (): LocalizedString => messages().voice_network_problem_reconnecting(empty());
 const msg_voice_microphone_join_denied = (): LocalizedString => messages().voice_microphone_join_denied(empty());
 const msg_voice_microphone_join_not_found = (): LocalizedString => messages().voice_microphone_join_not_found(empty());
 const msg_voice_microphone_join_in_use = (): LocalizedString => messages().voice_microphone_join_in_use(empty());
@@ -2472,6 +2474,8 @@ export { msg_voice_token_failed as 'voice.token_failed' };
 export { msg_voice_encrypted_unsupported as 'voice.encrypted_unsupported' };
 export { msg_voice_signaling_failed as 'voice.signaling_failed' };
 export { msg_voice_disconnected as 'voice.disconnected' };
+export { msg_voice_network_problem_title as 'voice.network_problem_title' };
+export { msg_voice_network_problem_reconnecting as 'voice.network_problem_reconnecting' };
 export { msg_voice_microphone_join_denied as 'voice.microphone_join_denied' };
 export { msg_voice_microphone_join_not_found as 'voice.microphone_join_not_found' };
 export { msg_voice_microphone_join_in_use as 'voice.microphone_join_in_use' };

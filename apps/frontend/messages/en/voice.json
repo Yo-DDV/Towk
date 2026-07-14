@@ -40,6 +40,8 @@
     "encrypted_unsupported": "This browser does not support encrypted voice calls yet. Try the latest Firefox, Chrome, or Edge.",
     "signaling_failed": "Could not reach the voice server. Check your network and try again.",
     "disconnected": "Voice call disconnected",
+    "network_problem_title": "Oops, there’s a network problem.",
+    "network_problem_reconnecting": "Stay here. Towk is trying to reconnect you automatically.",
     "microphone_join_denied": "Microphone access was denied. You joined muted.",
     "microphone_join_not_found": "No microphone was found. You joined muted.",
     "microphone_join_in_use": "Your microphone is already in use by another app. You joined muted.",

@@ -24,10 +24,11 @@ vi.mock('$lib/ui/toast', () => ({
 import {
   getVoiceCallMediaDeviceErrorMessage,
   getVoiceCallJoinErrorMessage,
+  PersistentReconnectPolicy,
   VoiceCallJoinError,
   VoiceCallState
 } from './voiceCall.svelte';
-import { AudioPresets, Room, ScreenSharePresets } from 'livekit-client';
+import { AudioPresets, DisconnectReason, Room, ScreenSharePresets } from 'livekit-client';
 
 const calls: string[] = [];
 let lastRoomOptions: Record<string, unknown> | null = null;
@@ -259,6 +260,7 @@ vi.mock('livekit-client', () => {
         throw connectFailure;
       }
     });
+    state = 'connected';
     setE2EEEnabled = vi.fn(async (enabled: boolean) => {
       calls.push(`setE2EEEnabled:${enabled}`);
     });
@@ -285,6 +287,9 @@ vi.mock('livekit-client', () => {
       ParticipantDisconnected: 'ParticipantDisconnected',
       TrackMuted: 'TrackMuted',
       TrackUnmuted: 'TrackUnmuted',
+      Reconnecting: 'Reconnecting',
+      SignalReconnecting: 'SignalReconnecting',
+      Reconnected: 'Reconnected',
       Disconnected: 'Disconnected',
       MediaDevicesChanged: 'MediaDevicesChanged',
       MediaDevicesError: 'MediaDevicesError',
@@ -314,7 +319,29 @@ vi.mock('livekit-client', () => {
       h720fps30: { encoding: { maxBitrate: 2_000_000, maxFramerate: 30 } },
       h1080fps30: { encoding: { maxBitrate: 5_000_000, maxFramerate: 30 } }
     },
-    VideoPresets: { h720: { resolution: {} } }
+    ConnectionState: {
+      Disconnected: 'disconnected',
+      Connecting: 'connecting',
+      Connected: 'connected',
+      Reconnecting: 'reconnecting',
+      SignalReconnecting: 'signalReconnecting'
+    },
+    VideoPresets: { h720: { resolution: {} } },
+    DisconnectReason: {
+      UNKNOWN_REASON: 0,
+      CLIENT_INITIATED: 1,
+      DUPLICATE_IDENTITY: 2,
+      SERVER_SHUTDOWN: 3,
+      PARTICIPANT_REMOVED: 4,
+      ROOM_DELETED: 5,
+      STATE_MISMATCH: 6,
+      JOIN_FAILURE: 7,
+      MIGRATION: 8,
+      SIGNAL_CLOSE: 9,
+      ROOM_CLOSED: 10,
+      CONNECTION_TIMEOUT: 14,
+      MEDIA_FAILURE: 15
+    }
   };
 });
 
@@ -408,7 +435,16 @@ describe('VoiceCallState', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('retries LiveKit immediately once and then every 2.5 seconds without a limit', () => {
+    const policy = new PersistentReconnectPolicy();
+
+    expect(policy.nextRetryDelayInMs({ retryCount: 0, elapsedMs: 0 })).toBe(0);
+    expect(policy.nextRetryDelayInMs({ retryCount: 1, elapsedMs: 100 })).toBe(2_500);
+    expect(policy.nextRetryDelayInMs({ retryCount: 10_000, elapsedMs: 86_400_000 })).toBe(2_500);
   });
 
   it('sets up LiveKit E2EE before connecting', async () => {
@@ -965,6 +1001,224 @@ describe('VoiceCallState', () => {
     expect(lastRoom?.disconnect).toHaveBeenCalledOnce();
     expect(state.isInAnyCall).toBe(false);
     expect(soundMocks.playCallSound).not.toHaveBeenCalled();
+  });
+
+  it('cleans up the local call immediately while the leave intent is still in flight', async () => {
+    const leaveGate = deferredVoid();
+    const leaveCall = vi.fn<VoiceCallAPI['leaveCall']>(async () => {
+      await leaveGate.promise;
+      return true;
+    });
+    const client = createVoiceCallClient({ leaveCall });
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const leaving = state.leave();
+    await flushPromises();
+
+    expect(state.isInAnyCall).toBe(false);
+    expect(state.roomId).toBeNull();
+
+    leaveGate.resolve();
+    await leaving;
+  });
+
+  it('keeps the call active while LiveKit reconnects and clears the state after recovery', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Reconnecting')?.();
+
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.roomId).toBe('R1');
+
+    roomEventHandlers.get('Reconnected')?.();
+
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(true);
+  });
+
+  it('shows recovery immediately for a browser offline signal and clears it after a short outage', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    window.dispatchEvent(new Event('offline'));
+
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.roomId).toBe('R1');
+
+    window.dispatchEvent(new Event('online'));
+
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(true);
+    await state.leave();
+  });
+
+  it('continues application recovery after a terminal network timeout until it succeeds', async () => {
+    vi.useFakeTimers();
+    const joinCall = vi
+      .fn<VoiceCallAPI['joinCall']>()
+      .mockResolvedValueOnce({ status: 'joined', participantId: 'device-1', deviceIndex: 1 })
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValue({ status: 'joined', participantId: 'device-1', deviceIndex: 1 });
+    const client = createVoiceCallClient({ joinCall });
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.roomId).toBe('R1');
+
+    await vi.advanceTimersByTimeAsync(2_500);
+    await flushPromises();
+    expect(joinCall).toHaveBeenCalledTimes(2);
+    expect(state.reconnecting).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(30);
+
+    expect(joinCall).toHaveBeenCalledTimes(3);
+    expect(joinCall.mock.calls[1]).toEqual(['R1', joinCall.mock.calls[0][1], 'companion']);
+    expect(joinCall.mock.calls[2]).toEqual(['R1', joinCall.mock.calls[0][1], 'companion']);
+    expect(client.getCallToken).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(2);
+    expect(client.leaveCall).not.toHaveBeenCalled();
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(true);
+  });
+
+  it('lets the user leave during recovery and cancels all later attempts', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+    await state.leave();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.joinCall).toHaveBeenCalledTimes(1);
+    expect(client.leaveCall).toHaveBeenCalledWith('R1', expect.any(String));
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(false);
+  });
+
+  it('does not let a cancelled recovery disconnect a newer call when its connect resolves late', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const recoveryConnectGate = deferredVoid();
+    connectGate = recoveryConnectGate;
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(50);
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(2);
+    const recoveringRoom = lastRoom;
+
+    await state.leave();
+    connectGate = null;
+    await state.join('wss://livekit.example.test', 'R2');
+    const newerRoom = lastRoom;
+
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(3);
+    expect(state.roomId).toBe('R2');
+    expect(state.isInAnyCall).toBe(true);
+
+    expect(recoveringRoom).not.toBeNull();
+    expect(recoveringRoom).not.toBe(newerRoom);
+
+    recoveryConnectGate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(20);
+
+    expect(state.roomId).toBe('R2');
+    expect(state.isInAnyCall).toBe(true);
+    expect(newerRoom?.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not let cancelled media restoration mutate a newer call', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const recoveryMicrophoneGate = deferredVoid();
+    microphoneGate = recoveryMicrophoneGate;
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(50);
+
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(2);
+    expect(calls.filter((call) => call === 'setMicrophoneEnabled')).toHaveLength(2);
+
+    await state.leave();
+    microphoneGate = null;
+    await state.join('wss://livekit.example.test', 'R2');
+    const newerRoom = lastRoom;
+
+    recoveryMicrophoneGate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(20);
+
+    expect(state.roomId).toBe('R2');
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.isMuted).toBe(false);
+    expect(newerRoom?.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not recover after a duplicate identity disconnect', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    toastMocks.error.mockClear();
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.DUPLICATE_IDENTITY);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.joinCall).toHaveBeenCalledTimes(1);
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(false);
+    expect(toastMocks.error).toHaveBeenCalledWith('Voice call disconnected');
+  });
+
+  it('does not recover after LiveKit closes the room', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.ROOM_CLOSED);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.joinCall).toHaveBeenCalledTimes(1);
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(false);
+  });
+
+  it('ignores projected leave and call-end events caused by a connection interruption', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Reconnecting')?.();
+    state.handleParticipantLeftEvent('R1', 'call-1', 'device-1', 'local-user', 'local-user');
+    state.handleCallEndedEvent('R1', 'call-1');
+
+    expect(lastRoom?.disconnect).not.toHaveBeenCalled();
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
   });
 
   it('records a compensating leave when LiveKit connect fails after join intent', async () => {

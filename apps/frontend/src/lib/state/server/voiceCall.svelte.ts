@@ -11,8 +11,10 @@ import {
   RoomEvent,
   Track,
   AudioPresets,
+  ConnectionState,
   ScreenSharePresets,
   VideoPresets,
+  DisconnectReason,
   ExternalE2EEKeyProvider,
   RpcError,
   type LocalAudioTrack,
@@ -21,9 +23,12 @@ import {
   type RemoteTrackPublication,
   type RemoteParticipant,
   type RpcInvocationData,
+  type ReconnectContext,
+  type ReconnectPolicy,
   type ScreenShareCaptureOptions,
   type TrackPublishOptions
 } from 'livekit-client';
+import { Code, ConnectError } from '@connectrpc/connect';
 import { SvelteMap } from 'svelte/reactivity';
 import { toast } from '$lib/ui/toast';
 import { playCallSound } from '$lib/audio/callSounds';
@@ -111,6 +116,34 @@ type SiblingAudioControlRequest =
       action: 'state-changed';
       state: SiblingAudioState;
     };
+
+const CALL_RECOVERY_RETRY_INTERVAL_MS = 2_500;
+
+/**
+ * Keep LiveKit's native resume/full-reconnect path alive for as long as the
+ * participant intends to stay in the call. The first retry is immediate; all
+ * later retries use a stable 2.5 second cadence.
+ */
+export class PersistentReconnectPolicy implements ReconnectPolicy {
+  nextRetryDelayInMs(context: ReconnectContext): number {
+    return context.retryCount === 0 ? 0 : CALL_RECOVERY_RETRY_INTERVAL_MS;
+  }
+}
+
+type CallRecoveryTarget = {
+  livekitUrl: string;
+  roomId: string;
+};
+
+type CallRecoveryMediaState = {
+  isMuted: boolean;
+  isOutputMuted: boolean;
+  isCameraEnabled: boolean;
+  isScreenShareEnabled: boolean;
+  selectedDeviceId: string | null;
+  selectedOutputDeviceId: string | null;
+  selectedVideoDeviceId: string | null;
+};
 
 type VoiceCallMediaDeviceTarget = 'microphone' | 'camera' | 'screen' | 'speaker' | 'device';
 type VoiceCallMediaDeviceContext = 'join' | 'enable' | 'switch' | 'event';
@@ -225,6 +258,7 @@ export class VoiceCallState {
   // Connection state
   connecting = $state(false);
   connected = $state(false);
+  reconnecting = $state(false);
 
   // Audio state
   isMuted = $state(false);
@@ -289,6 +323,13 @@ export class VoiceCallState {
   private e2eeWorker: Worker | null = null;
   private audioLevelInterval: ReturnType<typeof setInterval> | null = null;
   private suppressDisconnectToast = false;
+  private intentionalDisconnect = false;
+  private recoveryTarget: CallRecoveryTarget | null = null;
+  private recoveryMediaState: CallRecoveryMediaState | null = null;
+  private recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  private recoveryGeneration = 0;
+  private recoveryAttemptGeneration: number | null = null;
+  private browserNetworkListenersAttached = false;
   private explicitMediaDeviceOperationDepth = 0;
   private lastMediaDeviceToast: {
     message: string;
@@ -316,6 +357,29 @@ export class VoiceCallState {
   constructor(api: VoiceCallAPI) {
     this.#api = api;
   }
+
+  private readonly handleBrowserOffline = (): void => {
+    if (!this.connected || this.intentionalDisconnect || !this.recoveryTarget) return;
+    this.startRecoveryState();
+  };
+
+  private readonly handleBrowserOnline = (): void => {
+    if (
+      !this.reconnecting ||
+      this.intentionalDisconnect ||
+      !this.connected ||
+      this.room?.state !== ConnectionState.Connected
+    ) {
+      return;
+    }
+
+    // A short browser-level outage can end before LiveKit needs to rebuild its
+    // transport. In that case there is no Reconnected event to clear the
+    // immediate offline notice, so the already-connected room is authoritative.
+    this.reconnecting = false;
+    this.recoveryMediaState = null;
+    this.updateParticipants();
+  };
 
   /**
    * Whether the user is currently in a call in the given room.
@@ -539,6 +603,8 @@ export class VoiceCallState {
       await this.leave();
     }
 
+    this.cancelRecovery();
+    this.intentionalDisconnect = false;
     this.connecting = true;
     this.roomId = roomId;
     let joinIntentRecorded = false;
@@ -564,39 +630,6 @@ export class VoiceCallState {
       }
       this.activeCallId = callId;
 
-      const keyProvider = new ExternalE2EEKeyProvider();
-      const { default: E2EEWorker } = await import('livekit-client/e2ee-worker?worker');
-      this.e2eeWorker = new E2EEWorker();
-
-      // Create and connect LiveKit room
-      this.room = new Room({
-        encryption: {
-          keyProvider,
-          worker: this.e2eeWorker
-        },
-        audioCaptureDefaults: createVoiceAudioCaptureOptions(),
-        videoCaptureDefaults: {
-          resolution: VideoPresets.h720.resolution
-        },
-        publishDefaults: {
-          audioPreset: AudioPresets.speech,
-          dtx: true,
-          red: true,
-          simulcast: true
-        },
-        adaptiveStream: true,
-        dynacast: true,
-        disconnectOnPageLeave: true
-      });
-
-      this.room.registerRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD, (data) =>
-        this.handleSiblingAudioControl(data)
-      );
-      this.setupRoomEventListeners();
-
-      await keyProvider.setKey(e2eeKey);
-      await this.room.setE2EEEnabled(true);
-
       // Companion playback must be muted before LiveKit can subscribe and
       // attach remote audio tracks during connect. Setting this afterwards can
       // leak the first audio frames on fast connections.
@@ -606,14 +639,15 @@ export class VoiceCallState {
       } else {
         this.isOutputMuted = false;
       }
-      await this.room.connect(livekitUrl, token);
+
+      const { room } = await this.connectEncryptedRoom(livekitUrl, token, e2eeKey);
 
       if (mode === 'companion') {
         this.applyAllParticipantAudioVolumes();
       } else {
         // Try to enable microphone, but join muted if no device is available
         try {
-          await this.runExplicitMediaDeviceOperation(() => this.enableMicrophone(this.room!));
+          await this.runExplicitMediaDeviceOperation(() => this.enableMicrophone(room));
           this.isMuted = false;
           this.setupLocalAudioAnalyser();
         } catch (err) {
@@ -625,6 +659,10 @@ export class VoiceCallState {
       }
 
       this.connected = true;
+      this.reconnecting = false;
+      this.recoveryTarget = { livekitUrl, roomId };
+      this.recoveryGeneration += 1;
+      this.attachBrowserNetworkListeners();
       this.updateParticipants();
       void this.refreshSiblingAudioStates();
       await this.refreshDevices();
@@ -649,7 +687,7 @@ export class VoiceCallState {
    */
   async leave(): Promise<void> {
     if (this.leaveInFlight) return this.leaveInFlight;
-    if (!this.room) return;
+    if (!this.room && !this.roomId && !this.recoveryTarget) return;
 
     const leavePromise = this.performLeave();
     this.leaveInFlight = leavePromise;
@@ -664,12 +702,12 @@ export class VoiceCallState {
 
   private async performLeave(): Promise<void> {
     const roomId = this.roomId;
-    if (roomId) {
-      await this.recordLeaveIntent(roomId);
-    }
-
-    this.room?.disconnect();
+    this.intentionalDisconnect = true;
+    this.cancelRecovery();
+    const leaveIntent = roomId ? this.recordLeaveIntent(roomId) : Promise.resolve();
+    void this.room?.disconnect();
     this.cleanup();
+    await leaveIntent;
   }
 
   /**
@@ -685,6 +723,7 @@ export class VoiceCallState {
   ): void {
     if (!actorId || !currentUserId || actorId !== currentUserId) return;
     if (participantId && participantId !== this.activeParticipantId) return;
+    if (this.reconnecting && this.roomId === roomId && this.activeCallId === callId) return;
     this.disconnectFromServerEvent(roomId, callId);
   }
 
@@ -692,6 +731,7 @@ export class VoiceCallState {
    * Apply a backend-authored call end. Does not record another leave intent.
    */
   handleCallEndedEvent(roomId: string, callId: string | null): void {
+    if (this.reconnecting && this.roomId === roomId && this.activeCallId === callId) return;
     this.disconnectFromServerEvent(roomId, callId);
   }
 
@@ -702,7 +742,8 @@ export class VoiceCallState {
     const room = this.room;
     if (room) {
       this.suppressDisconnectToast = true;
-      room.disconnect();
+      this.intentionalDisconnect = true;
+      void room.disconnect();
     }
     this.cleanup();
     this.suppressDisconnectToast = false;
@@ -1175,40 +1216,126 @@ export class VoiceCallState {
     }
   }
 
-  private setupRoomEventListeners(): void {
-    if (!this.room) return;
+  private async connectEncryptedRoom(
+    livekitUrl: string,
+    token: string,
+    e2eeKey: string,
+    shouldContinue: () => boolean = () => true
+  ): Promise<{ room: Room; worker: Worker }> {
+    const keyProvider = new ExternalE2EEKeyProvider();
+    const { default: E2EEWorker } = await import('livekit-client/e2ee-worker?worker');
+    const worker = new E2EEWorker();
+    if (!shouldContinue()) {
+      worker.terminate();
+      throw new Error('Voice call connection was cancelled');
+    }
+    const room = new Room({
+      encryption: {
+        keyProvider,
+        worker
+      },
+      audioCaptureDefaults: createVoiceAudioCaptureOptions(),
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h720.resolution
+      },
+      publishDefaults: {
+        audioPreset: AudioPresets.speech,
+        dtx: true,
+        red: true,
+        simulcast: true
+      },
+      adaptiveStream: true,
+      dynacast: true,
+      disconnectOnPageLeave: true,
+      reconnectPolicy: new PersistentReconnectPolicy()
+    });
 
-    this.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+    this.room = room;
+    this.e2eeWorker = worker;
+    room.registerRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD, (data) =>
+      this.handleSiblingAudioControl(data)
+    );
+    this.setupRoomEventListeners(room);
+
+    try {
+      await keyProvider.setKey(e2eeKey);
+      if (!shouldContinue()) {
+        throw new Error('Voice call connection was cancelled');
+      }
+      await room.setE2EEEnabled(true);
+      await room.connect(livekitUrl, token);
+      if (!shouldContinue()) {
+        throw new Error('Voice call connection was cancelled');
+      }
+      return { room, worker };
+    } catch (error) {
+      this.disposeRoomConnection(room, worker);
+      throw error;
+    }
+  }
+
+  private setupRoomEventListeners(room: Room): void {
+    room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+      if (this.room !== room) return;
       this.updateParticipants();
       if (this.isControllableSibling(participant)) {
-        void this.refreshSiblingAudioState(this.room!, participant);
+        void this.refreshSiblingAudioState(room, participant);
       }
     });
 
-    this.room.on(
+    room.on(
       RoomEvent.ParticipantMetadataChanged,
       (_metadata: string | undefined, participant: Participant) => {
+        if (this.room !== room) return;
         this.updateParticipants();
         if (this.isControllableSibling(participant)) {
-          void this.refreshSiblingAudioState(this.room!, participant);
+          void this.refreshSiblingAudioState(room, participant);
         }
       }
     );
 
-    this.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+    room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+      if (this.room !== room) return;
       this.removeSiblingAudioState(participant.identity);
       this.updateParticipants();
     });
 
-    this.room.on(RoomEvent.TrackMuted, () => {
+    room.on(RoomEvent.TrackMuted, () => {
       this.updateParticipants();
     });
 
-    this.room.on(RoomEvent.TrackUnmuted, () => {
+    room.on(RoomEvent.TrackUnmuted, () => {
       this.updateParticipants();
     });
 
-    this.room.on(RoomEvent.Disconnected, () => {
+    room.on(RoomEvent.Reconnecting, () => {
+      if (this.room !== room || !this.connected || this.intentionalDisconnect) return;
+      this.startRecoveryState();
+    });
+
+    room.on(RoomEvent.Reconnected, () => {
+      if (this.room !== room || this.intentionalDisconnect) return;
+      this.reconnecting = false;
+      this.recoveryMediaState = null;
+      this.updateParticipants();
+      void this.refreshSiblingAudioStates();
+      if (!this.isMuted) this.setupLocalAudioAnalyser();
+    });
+
+    room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+      if (this.room !== room) return;
+      if (
+        this.connected &&
+        !this.intentionalDisconnect &&
+        this.recoveryTarget &&
+        isRecoverableDisconnectReason(reason)
+      ) {
+        this.startRecoveryState();
+        this.releaseCurrentRoom();
+        this.scheduleRecovery();
+        return;
+      }
+
       // Only show toast if we were in an active call (not a failed join attempt)
       if (this.connected && !this.suppressDisconnectToast) {
         toast.error(m['voice.disconnected']());
@@ -1216,16 +1343,16 @@ export class VoiceCallState {
       this.cleanup();
     });
 
-    this.room.on(RoomEvent.MediaDevicesChanged, () => {
+    room.on(RoomEvent.MediaDevicesChanged, () => {
       this.refreshDevices();
     });
 
-    this.room.on(RoomEvent.MediaDevicesError, (err: Error) => {
+    room.on(RoomEvent.MediaDevicesError, (err: Error) => {
       if (this.explicitMediaDeviceOperationDepth > 0) return;
       this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('device', err, 'event'));
     });
 
-    this.room.on(RoomEvent.ConnectionQualityChanged, () => {
+    room.on(RoomEvent.ConnectionQualityChanged, () => {
       this.updateParticipants();
     });
 
@@ -1233,7 +1360,7 @@ export class VoiceCallState {
     // LiveKit delivers audio data over WebRTC, but the browser won't play it
     // until the track is attached to an <audio> element.
     // Video tracks are NOT attached here — VideoThumbnail manages its own lifecycle.
-    this.room.on(
+    room.on(
       RoomEvent.TrackSubscribed,
       (track: RemoteTrack, _publication: RemoteTrackPublication) => {
         if (track.kind === Track.Kind.Audio) {
@@ -1244,7 +1371,7 @@ export class VoiceCallState {
       }
     );
 
-    this.room.on(
+    room.on(
       RoomEvent.TrackUnsubscribed,
       (track: RemoteTrack, _publication: RemoteTrackPublication) => {
         track.detach();
@@ -1253,19 +1380,19 @@ export class VoiceCallState {
     );
 
     // Track published/unpublished — catches camera enable/disable by remote participants
-    this.room.on(RoomEvent.TrackPublished, () => {
+    room.on(RoomEvent.TrackPublished, () => {
       this.updateParticipants();
     });
 
-    this.room.on(RoomEvent.TrackUnpublished, () => {
+    room.on(RoomEvent.TrackUnpublished, () => {
       this.updateParticipants();
     });
 
-    this.room.on(RoomEvent.LocalTrackPublished, () => {
+    room.on(RoomEvent.LocalTrackPublished, () => {
       this.updateParticipants();
     });
 
-    this.room.on(RoomEvent.LocalTrackUnpublished, () => {
+    room.on(RoomEvent.LocalTrackUnpublished, () => {
       this.updateParticipants();
     });
 
@@ -1450,24 +1577,9 @@ export class VoiceCallState {
     const disconnectedCallId = this.activeCallId;
     const wasConnected = this.connected;
 
-    if (this.audioLevelInterval) {
-      clearInterval(this.audioLevelInterval);
-      this.audioLevelInterval = null;
-    }
-    this.teardownLocalAudioAnalyser();
-    if (this.room) {
-      // Detach all remote audio tracks to clean up <audio> elements
-      for (const p of this.room.remoteParticipants.values()) {
-        for (const pub of p.trackPublications.values()) {
-          pub.track?.detach();
-        }
-      }
-      this.room.unregisterRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD);
-      this.room.removeAllListeners();
-      this.room = null;
-    }
-    this.e2eeWorker?.terminate();
-    this.e2eeWorker = null;
+    this.cancelRecovery();
+    this.detachBrowserNetworkListeners();
+    this.releaseCurrentRoom();
     if (wasConnected && disconnectedRoomId && disconnectedCallId) {
       this.recentlyDisconnectedCall = {
         roomId: disconnectedRoomId,
@@ -1486,8 +1598,10 @@ export class VoiceCallState {
     this.cameraToggleInFlight = null;
     this.screenShareToggleInFlight = null;
     this.suppressDisconnectToast = false;
+    this.intentionalDisconnect = false;
     this.connected = false;
     this.connecting = false;
+    this.reconnecting = false;
     this.roomId = null;
     this.isMuted = false;
     this.isOutputMuted = false;
@@ -1512,6 +1626,262 @@ export class VoiceCallState {
     this.audioLevelCache.clear();
     this.explicitMediaDeviceOperationDepth = 0;
     this.lastMediaDeviceToast = null;
+  }
+
+  private startRecoveryState(): void {
+    if (!this.recoveryMediaState) {
+      this.recoveryMediaState = {
+        isMuted: this.isMuted,
+        isOutputMuted: this.isOutputMuted,
+        isCameraEnabled: this.isCameraEnabled,
+        isScreenShareEnabled: this.isScreenShareEnabled,
+        selectedDeviceId: this.selectedDeviceId,
+        selectedOutputDeviceId: this.selectedOutputDeviceId,
+        selectedVideoDeviceId: this.selectedVideoDeviceId
+      };
+    }
+    this.reconnecting = true;
+    this.connecting = false;
+    this.isMicrophonePending = false;
+    this.isCameraPending = false;
+    this.isScreenSharePending = false;
+  }
+
+  private attachBrowserNetworkListeners(): void {
+    if (this.browserNetworkListenersAttached || typeof window === 'undefined') return;
+    window.addEventListener('offline', this.handleBrowserOffline);
+    window.addEventListener('online', this.handleBrowserOnline);
+    this.browserNetworkListenersAttached = true;
+  }
+
+  private detachBrowserNetworkListeners(): void {
+    if (!this.browserNetworkListenersAttached || typeof window === 'undefined') return;
+    window.removeEventListener('offline', this.handleBrowserOffline);
+    window.removeEventListener('online', this.handleBrowserOnline);
+    this.browserNetworkListenersAttached = false;
+  }
+
+  private releaseCurrentRoom(): void {
+    if (this.audioLevelInterval) {
+      clearInterval(this.audioLevelInterval);
+      this.audioLevelInterval = null;
+    }
+    this.teardownLocalAudioAnalyser();
+    if (this.room) {
+      for (const p of this.room.remoteParticipants.values()) {
+        for (const pub of p.trackPublications.values()) {
+          pub.track?.detach();
+        }
+      }
+      this.room.unregisterRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD);
+      this.room.removeAllListeners();
+      this.room = null;
+    }
+    this.e2eeWorker?.terminate();
+    this.e2eeWorker = null;
+    this.participants = [];
+    this.audioLevelCache.clear();
+  }
+
+  private scheduleRecovery(): void {
+    if (
+      this.recoveryTimer ||
+      this.recoveryAttemptGeneration !== null ||
+      !this.reconnecting ||
+      !this.recoveryTarget
+    ) {
+      return;
+    }
+
+    const generation = this.recoveryGeneration;
+    this.recoveryTimer = setTimeout(() => {
+      this.recoveryTimer = null;
+      void this.attemptRecovery(generation);
+    }, CALL_RECOVERY_RETRY_INTERVAL_MS);
+  }
+
+  private async attemptRecovery(generation: number): Promise<void> {
+    const target = this.recoveryTarget;
+    if (
+      !target ||
+      generation !== this.recoveryGeneration ||
+      !this.reconnecting ||
+      this.recoveryAttemptGeneration !== null
+    ) {
+      return;
+    }
+
+    this.recoveryAttemptGeneration = generation;
+    let retry = false;
+    try {
+      const joinResult = await this.#api.joinCall(
+        target.roomId,
+        this.clientInstanceId,
+        'companion'
+      );
+      if (!this.isCurrentRecovery(generation)) return;
+      if (joinResult.status !== 'joined') {
+        throw new Error('call recovery was not admitted');
+      }
+      this.activeParticipantId = joinResult.participantId;
+      this.activeDeviceIndex = joinResult.deviceIndex;
+
+      const tokenResponse = await this.#api.getCallToken(target.roomId, this.clientInstanceId);
+      if (!tokenResponse) throw new Error(m['voice.token_failed']());
+      if (!this.isCurrentRecovery(generation)) return;
+      if (
+        tokenResponse.participantId !== joinResult.participantId ||
+        tokenResponse.deviceIndex !== joinResult.deviceIndex
+      ) {
+        throw new Error('call recovery token identity does not match admitted participant');
+      }
+
+      this.activeCallId = tokenResponse.callId;
+      const { room, worker } = await this.connectEncryptedRoom(
+        target.livekitUrl,
+        tokenResponse.token,
+        tokenResponse.e2eeKey,
+        () => this.isCurrentRecovery(generation)
+      );
+      if (!this.isCurrentRecovery(generation)) {
+        this.disposeRoomConnection(room, worker);
+        return;
+      }
+
+      await this.restoreMediaAfterRecovery(room, () => {
+        return this.isCurrentRecovery(generation) && this.room === room;
+      });
+      if (!this.isCurrentRecovery(generation)) return;
+
+      this.connected = true;
+      this.reconnecting = false;
+      this.recoveryMediaState = null;
+      this.updateParticipants();
+      void this.refreshSiblingAudioStates();
+      await this.refreshDevices();
+    } catch (error) {
+      if (!this.isCurrentRecovery(generation)) return;
+      console.warn('Voice call recovery attempt failed:', summarizeJoinError(error));
+      this.releaseCurrentRoom();
+      if (isTerminalRecoveryError(error)) {
+        toast.error(m['voice.disconnected']());
+        this.cleanup();
+      } else {
+        retry = true;
+      }
+    } finally {
+      if (this.recoveryAttemptGeneration === generation) {
+        this.recoveryAttemptGeneration = null;
+        if (retry && this.isCurrentRecovery(generation)) this.scheduleRecovery();
+      }
+    }
+  }
+
+  private async restoreMediaAfterRecovery(
+    room: Room,
+    shouldContinue: () => boolean
+  ): Promise<void> {
+    const media = this.recoveryMediaState;
+    if (!media || !shouldContinue()) return;
+
+    this.isMuted = media.isMuted;
+    this.isOutputMuted = media.isOutputMuted;
+    this.isCameraEnabled = false;
+    this.isScreenShareEnabled = false;
+
+    if (!media.isMuted) {
+      try {
+        await this.runExplicitMediaDeviceOperation(() => this.enableMicrophone(room));
+        if (!shouldContinue()) return;
+        this.isMuted = false;
+        this.setupLocalAudioAnalyser();
+      } catch (error) {
+        if (!shouldContinue()) return;
+        this.isMuted = true;
+        this.notifyMediaDeviceError(
+          getVoiceCallMediaDeviceErrorMessage('microphone', error, 'enable')
+        );
+      }
+    }
+
+    if (media.isCameraEnabled) {
+      try {
+        await this.runExplicitMediaDeviceOperation(() =>
+          room.localParticipant.setCameraEnabled(true)
+        );
+        if (!shouldContinue()) return;
+        this.isCameraEnabled = true;
+      } catch (error) {
+        if (!shouldContinue()) return;
+        this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('camera', error, 'enable'));
+      }
+    }
+
+    if (media.isScreenShareEnabled && this.canShareScreen) {
+      try {
+        await this.runExplicitMediaDeviceOperation(() =>
+          room.localParticipant.setScreenShareEnabled(
+            true,
+            createScreenShareCaptureOptions(),
+            createScreenSharePublishOptions()
+          )
+        );
+        if (!shouldContinue()) return;
+        this.isScreenShareEnabled = true;
+      } catch (error) {
+        if (!shouldContinue()) return;
+        this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('screen', error, 'enable'));
+      }
+    }
+
+    await Promise.all([
+      media.selectedDeviceId
+        ? room.switchActiveDevice('audioinput', media.selectedDeviceId).catch(() => undefined)
+        : undefined,
+      media.selectedOutputDeviceId
+        ? room
+            .switchActiveDevice('audiooutput', media.selectedOutputDeviceId)
+            .catch(() => undefined)
+        : undefined,
+      media.selectedVideoDeviceId && media.isCameraEnabled
+        ? room.switchActiveDevice('videoinput', media.selectedVideoDeviceId).catch(() => undefined)
+        : undefined
+    ]);
+    if (!shouldContinue()) return;
+    this.applyAllParticipantAudioVolumes();
+  }
+
+  private isCurrentRecovery(generation: number): boolean {
+    return (
+      generation === this.recoveryGeneration &&
+      this.reconnecting &&
+      this.recoveryTarget !== null &&
+      !this.intentionalDisconnect
+    );
+  }
+
+  private disposeRoomConnection(room: Room, worker: Worker): void {
+    if (this.room === room) {
+      this.releaseCurrentRoom();
+      void room.disconnect();
+      return;
+    }
+    room.unregisterRpcMethod(DEVICE_AUDIO_CONTROL_RPC_METHOD);
+    room.removeAllListeners();
+    void room.disconnect();
+    worker.terminate();
+  }
+
+  private cancelRecovery(): void {
+    this.recoveryGeneration += 1;
+    if (this.recoveryTimer) {
+      clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = null;
+    }
+    this.recoveryTarget = null;
+    this.recoveryMediaState = null;
+    this.recoveryAttemptGeneration = null;
+    this.reconnecting = false;
   }
 
   private async runExplicitMediaDeviceOperation<T>(operation: () => Promise<T>): Promise<T> {
@@ -1800,6 +2170,30 @@ function getParticipantScreenShareTrack(participant: Participant): Track | null 
     }
   }
   return null;
+}
+
+function isRecoverableDisconnectReason(reason?: DisconnectReason): boolean {
+  if (reason === undefined) return true;
+  return [
+    DisconnectReason.UNKNOWN_REASON,
+    DisconnectReason.SERVER_SHUTDOWN,
+    DisconnectReason.STATE_MISMATCH,
+    DisconnectReason.JOIN_FAILURE,
+    DisconnectReason.MIGRATION,
+    DisconnectReason.SIGNAL_CLOSE,
+    DisconnectReason.CONNECTION_TIMEOUT,
+    DisconnectReason.MEDIA_FAILURE
+  ].includes(reason);
+}
+
+function isTerminalRecoveryError(error: unknown): boolean {
+  if (!(error instanceof ConnectError)) return false;
+  return [
+    Code.InvalidArgument,
+    Code.NotFound,
+    Code.PermissionDenied,
+    Code.Unauthenticated
+  ].includes(error.code);
 }
 
 function isScreenShareSupported(): boolean {

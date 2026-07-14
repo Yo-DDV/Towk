@@ -55,6 +55,7 @@ Room sidebar panel for voice/video calls.
   let isInThisCall = $derived(voiceCallState.isInCall(roomId));
   let isInAnotherCall = $derived(voiceCallState.isInAnyCall && !isInThisCall);
   let isConnecting = $derived(voiceCallState.connecting && voiceCallState.roomId === roomId);
+  let isRecovering = $derived(voiceCallState.reconnecting && voiceCallState.roomId === roomId);
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
   let deviceMenuAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
@@ -466,7 +467,7 @@ Room sidebar panel for voice/video calls.
       testId="call-feed-local-mute-button"
       size={buttonSize}
       pending={voiceCallState.isMicrophonePending}
-      disabled={voiceCallState.isMicrophonePending}
+      disabled={voiceCallState.isMicrophonePending || isRecovering}
       onclick={(event) => toggleFeedMute(participant, event)}
     />
   {:else if participant.canControlAudio}
@@ -482,7 +483,8 @@ Room sidebar panel for voice/video calls.
       size={buttonSize}
       pending={participant.isSiblingMicrophoneControlPending}
       disabled={participant.siblingMicrophoneMuted === null ||
-        participant.isSiblingMicrophoneControlPending}
+        participant.isSiblingMicrophoneControlPending ||
+        isRecovering}
       onclick={(event) =>
         setSiblingAudioMuted(participant, 'microphone', !participant.siblingMicrophoneMuted, event)}
     />
@@ -496,7 +498,8 @@ Room sidebar panel for voice/video calls.
       size={buttonSize}
       pending={participant.isSiblingOutputControlPending}
       disabled={participant.siblingOutputMuted === null ||
-        participant.isSiblingOutputControlPending}
+        participant.isSiblingOutputControlPending ||
+        isRecovering}
       onclick={(event) =>
         setSiblingAudioMuted(participant, 'output', !participant.siblingOutputMuted, event)}
     />
@@ -785,6 +788,7 @@ Room sidebar panel for voice/video calls.
           aria-label={m['voice.devices']()}
           data-testid="call-device-menu-button"
           onclick={openDeviceMenu}
+          disabled={isRecovering}
         >
           <span class="iconify text-lg uil--setting" aria-hidden="true"></span>
         </button>
@@ -821,7 +825,7 @@ Room sidebar panel for voice/video calls.
             : m['voice.turn_on_camera']()}
           data-testid="call-camera-toggle"
           onclick={() => voiceCallState.toggleCamera()}
-          disabled={voiceCallState.isCameraPending}
+          disabled={voiceCallState.isCameraPending || isRecovering}
           aria-busy={voiceCallState.isCameraPending || undefined}
         >
           {#if voiceCallState.isCameraPending}
@@ -844,7 +848,7 @@ Room sidebar panel for voice/video calls.
           aria-label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
           data-testid="call-mute-toggle"
           onclick={() => voiceCallState.toggleMute()}
-          disabled={voiceCallState.isMicrophonePending}
+          disabled={voiceCallState.isMicrophonePending || isRecovering}
           aria-busy={voiceCallState.isMicrophonePending || undefined}
         >
           {#if voiceCallState.isMicrophonePending}
@@ -877,7 +881,7 @@ Room sidebar panel for voice/video calls.
               : m['voice.screen_share_unsupported']()}
           data-testid="call-screen-share-toggle"
           onclick={() => voiceCallState.toggleScreenShare()}
-          disabled={voiceCallState.isScreenSharePending}
+          disabled={voiceCallState.isScreenSharePending || isRecovering}
           aria-busy={voiceCallState.isScreenSharePending || undefined}
         >
           {#if voiceCallState.isScreenSharePending}
@@ -922,6 +926,30 @@ Room sidebar panel for voice/video calls.
   {#if !isStageLayout}
     <div class="border-b border-border bg-background p-3" data-testid="call-controls-bar">
       {@render callControls()}
+    </div>
+  {/if}
+
+  {#if isRecovering}
+    <div
+      class={[
+        'mx-3 mt-3 flex shrink-0 items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-text shadow-sm',
+        isStageLayout && 'mx-4 mt-4'
+      ]}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      data-testid="call-network-recovery-notice"
+    >
+      <span
+        class="mt-0.5 iconify shrink-0 animate-pulse text-xl text-warning uil--wifi-slash motion-reduce:animate-none"
+        aria-hidden="true"
+      ></span>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold">{m['voice.network_problem_title']()}</p>
+        <p class="mt-0.5 text-xs leading-relaxed text-muted">
+          {m['voice.network_problem_reconnecting']()}
+        </p>
+      </div>
     </div>
   {/if}
 
