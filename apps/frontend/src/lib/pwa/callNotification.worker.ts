@@ -130,7 +130,7 @@ export function normalizeCallPushNotification(
     options: {
       body: isPrivate ? copy.privateBody : copy.channelBody(roomName),
       icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
       tag: envelope.tag,
       data: {
         notificationId: envelope.notificationId,

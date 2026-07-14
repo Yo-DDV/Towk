@@ -104,14 +104,6 @@ func TestBuildPayloadFromCallStartedNotificationIsShortLivedAndActionable(t *tes
 	if payload.declarativeNotificationEligible() {
 		t.Fatal("call payload unexpectedly enabled declarative delivery")
 	}
-	if got := NotificationTag(notification); got != "call-C1" {
-		t.Fatalf("NotificationTag = %q, want call-C1", got)
-	}
-
-	dismiss := DismissPayload(notification)
-	if dismiss.Action != "dismiss" || dismiss.Tag != "call-C1" || dismiss.TTL != 60 || dismiss.Urgency != webpush.UrgencyHigh || dismiss.Topic != "call-C1" {
-		t.Fatalf("dismiss payload = %+v", dismiss)
-	}
 }
 
 func TestBuildPayloadFromPrivateCallUsesPrivateConversationMetadata(t *testing.T) {
@@ -711,11 +703,12 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		payload := BuildPayloadFromNotification(notif, "Test", baseURL, nil)
 
 		expectedIcon := "https://towk.example.com/icons/icon-192.png"
+		expectedBadge := "https://towk.example.com/icons/badge-monochrome-96.png"
 		if payload.Icon != expectedIcon {
 			t.Errorf("Expected icon %s, got %s", expectedIcon, payload.Icon)
 		}
-		if payload.Badge != expectedIcon {
-			t.Errorf("Expected badge %s, got %s", expectedIcon, payload.Badge)
+		if payload.Badge != expectedBadge {
+			t.Errorf("Expected badge %s, got %s", expectedBadge, payload.Badge)
 		}
 	})
 
@@ -742,62 +735,206 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 	})
 }
 
-func TestNotificationTag(t *testing.T) {
-	t.Run("returns DM tag with event ID", func(t *testing.T) {
-		notif := &corev1.Notification{
-			Notification: &corev1.Notification_DmMessage{
-				DmMessage: &corev1.DMMessageNotification{RoomId: "room-123", EventId: "event-abc"},
+func TestNotificationCopyForLocale(t *testing.T) {
+	tests := []struct {
+		locale string
+		want   notificationCopy
+	}{
+		{
+			locale: "en",
+			want: notificationCopy{
+				unknownActor:       "Someone",
+				directMessage:      "@%s sent you a new DM",
+				mention:            "@%s mentioned you",
+				mentionInRoom:      "@%s mentioned you in #%s",
+				reply:              "@%s replied to you",
+				replyInRoom:        "@%s replied to you in #%s",
+				roomMessage:        "@%s posted a message",
+				roomMessageInRoom:  "@%s posted in #%s",
+				defaultTitle:       "New notification",
+				defaultDescription: "You have a new notification",
 			},
-		}
-		tag := NotificationTag(notif)
-		if tag != "dm-event-abc" {
-			t.Errorf("Expected 'dm-event-abc', got %s", tag)
-		}
-	})
-
-	t.Run("returns mention tag with event ID", func(t *testing.T) {
-		notif := &corev1.Notification{
-			Notification: &corev1.Notification_Mention{
-				Mention: &corev1.MentionNotification{RoomId: "room-456", EventId: "event-def"},
+		},
+		{
+			locale: "de",
+			want: notificationCopy{
+				unknownActor:       "Jemand",
+				directMessage:      "@%s hat dir eine neue Direktnachricht gesendet",
+				mention:            "@%s hat dich erwähnt",
+				mentionInRoom:      "@%s hat dich in #%s erwähnt",
+				reply:              "@%s hat dir geantwortet",
+				replyInRoom:        "@%s hat dir in #%s geantwortet",
+				roomMessage:        "@%s hat eine Nachricht gesendet",
+				roomMessageInRoom:  "@%s hat in #%s geschrieben",
+				defaultTitle:       "Neue Benachrichtigung",
+				defaultDescription: "Du hast eine neue Benachrichtigung",
 			},
-		}
-		tag := NotificationTag(notif)
-		if tag != "mention-event-def" {
-			t.Errorf("Expected 'mention-event-def', got %s", tag)
-		}
-	})
-
-	t.Run("returns reply tag with event ID", func(t *testing.T) {
-		notif := &corev1.Notification{
-			Notification: &corev1.Notification_Reply{
-				Reply: &corev1.ReplyNotification{RoomId: "room-789", EventId: "event-ghi"},
+		},
+		{
+			locale: "fr",
+			want: notificationCopy{
+				unknownActor:       "Quelqu’un",
+				directMessage:      "@%s vous a envoyé un nouveau message privé",
+				mention:            "@%s vous a mentionné",
+				mentionInRoom:      "@%s vous a mentionné dans #%s",
+				reply:              "@%s vous a répondu",
+				replyInRoom:        "@%s vous a répondu dans #%s",
+				roomMessage:        "@%s a publié un message",
+				roomMessageInRoom:  "@%s a publié un message dans #%s",
+				defaultTitle:       "Nouvelle notification",
+				defaultDescription: "Vous avez une nouvelle notification",
 			},
-		}
-		tag := NotificationTag(notif)
-		if tag != "reply-event-ghi" {
-			t.Errorf("Expected 'reply-event-ghi', got %s", tag)
-		}
-	})
-
-	t.Run("returns room message tag with event ID", func(t *testing.T) {
-		notif := &corev1.Notification{
-			Notification: &corev1.Notification_RoomMessage{
-				RoomMessage: &corev1.RoomMessageNotification{RoomId: "room-101", EventId: "event-room"},
+		},
+		{
+			locale: "es",
+			want: notificationCopy{
+				unknownActor:       "Alguien",
+				directMessage:      "@%s te envió un nuevo mensaje directo",
+				mention:            "@%s te mencionó",
+				mentionInRoom:      "@%s te mencionó en #%s",
+				reply:              "@%s te respondió",
+				replyInRoom:        "@%s te respondió en #%s",
+				roomMessage:        "@%s publicó un mensaje",
+				roomMessageInRoom:  "@%s publicó un mensaje en #%s",
+				defaultTitle:       "Nueva notificación",
+				defaultDescription: "Tienes una nueva notificación",
 			},
-		}
-		tag := NotificationTag(notif)
-		if tag != "room-message-event-room" {
-			t.Errorf("Expected 'room-message-event-room', got %s", tag)
-		}
-	})
+		},
+		{
+			locale: "pt",
+			want: notificationCopy{
+				unknownActor:       "Alguém",
+				directMessage:      "@%s enviou uma nova mensagem direta para você",
+				mention:            "@%s mencionou você",
+				mentionInRoom:      "@%s mencionou você em #%s",
+				reply:              "@%s respondeu a você",
+				replyInRoom:        "@%s respondeu a você em #%s",
+				roomMessage:        "@%s publicou uma mensagem",
+				roomMessageInRoom:  "@%s publicou uma mensagem em #%s",
+				defaultTitle:       "Nova notificação",
+				defaultDescription: "Você tem uma nova notificação",
+			},
+		},
+	}
 
-	t.Run("returns empty for unknown type", func(t *testing.T) {
-		notif := &corev1.Notification{}
-		tag := NotificationTag(notif)
-		if tag != "" {
-			t.Errorf("Expected empty string, got %s", tag)
+	for _, tt := range tests {
+		t.Run(tt.locale, func(t *testing.T) {
+			if got := notificationCopyForLocale(tt.locale); got != tt.want {
+				t.Fatalf("notificationCopyForLocale(%q) = %#v, want %#v", tt.locale, got, tt.want)
+			}
+		})
+	}
+
+	if got := notificationCopyForLocale("it"); got != notificationCopyForLocale("en") {
+		t.Fatalf("unsupported locale did not fall back to English: %#v", got)
+	}
+}
+
+func TestBuildLocalizedPayloadFromNotification(t *testing.T) {
+	notif := &corev1.Notification{
+		Id: "notif-fr",
+		Notification: &corev1.Notification_RoomMessage{
+			RoomMessage: &corev1.RoomMessageNotification{RoomId: "room-1", EventId: "event-1"},
+		},
+	}
+	payload := BuildLocalizedPayloadFromNotification(
+		notif,
+		"Alice",
+		"https://towk.example.com",
+		&PayloadContext{RoomName: "général", MessagePreview: "Bonjour"},
+		"fr",
+	)
+
+	if payload.Title != "@Alice a publié un message dans #général" {
+		t.Fatalf("localized title = %q", payload.Title)
+	}
+	if payload.Body != "Bonjour" {
+		t.Fatalf("localized body = %q", payload.Body)
+	}
+	if payload.Icon != "https://towk.example.com/icons/icon-192.png" {
+		t.Fatalf("icon = %q", payload.Icon)
+	}
+	if payload.Badge != "https://towk.example.com/icons/badge-monochrome-96.png" {
+		t.Fatalf("badge = %q", payload.Badge)
+	}
+}
+
+func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T) {
+	tests := []struct {
+		name         string
+		notification *corev1.Notification
+		want         map[string]string
+	}{
+		{
+			name: "direct message",
+			notification: &corev1.Notification{Notification: &corev1.Notification_DmMessage{
+				DmMessage: &corev1.DMMessageNotification{RoomId: "dm", EventId: "event"},
+			}},
+			want: map[string]string{
+				"en": "@Alice sent you a new DM",
+				"de": "@Alice hat dir eine neue Direktnachricht gesendet",
+				"fr": "@Alice vous a envoyé un nouveau message privé",
+				"es": "@Alice te envió un nuevo mensaje directo",
+				"pt": "@Alice enviou uma nova mensagem direta para você",
+			},
+		},
+		{
+			name: "mention",
+			notification: &corev1.Notification{Notification: &corev1.Notification_Mention{
+				Mention: &corev1.MentionNotification{RoomId: "room", EventId: "event"},
+			}},
+			want: map[string]string{
+				"en": "@Alice mentioned you in #general",
+				"de": "@Alice hat dich in #general erwähnt",
+				"fr": "@Alice vous a mentionné dans #general",
+				"es": "@Alice te mencionó en #general",
+				"pt": "@Alice mencionou você em #general",
+			},
+		},
+		{
+			name: "reply",
+			notification: &corev1.Notification{Notification: &corev1.Notification_Reply{
+				Reply: &corev1.ReplyNotification{RoomId: "room", EventId: "event"},
+			}},
+			want: map[string]string{
+				"en": "@Alice replied to you in #general",
+				"de": "@Alice hat dir in #general geantwortet",
+				"fr": "@Alice vous a répondu dans #general",
+				"es": "@Alice te respondió en #general",
+				"pt": "@Alice respondeu a você em #general",
+			},
+		},
+		{
+			name: "room message",
+			notification: &corev1.Notification{Notification: &corev1.Notification_RoomMessage{
+				RoomMessage: &corev1.RoomMessageNotification{RoomId: "room", EventId: "event"},
+			}},
+			want: map[string]string{
+				"en": "@Alice posted in #general",
+				"de": "@Alice hat in #general geschrieben",
+				"fr": "@Alice a publié un message dans #general",
+				"es": "@Alice publicó un mensaje en #general",
+				"pt": "@Alice publicou uma mensagem em #general",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		for _, locale := range []string{"en", "de", "fr", "es", "pt"} {
+			t.Run(tt.name+"/"+locale, func(t *testing.T) {
+				payload := BuildLocalizedPayloadFromNotification(
+					tt.notification,
+					"Alice",
+					"https://towk.example",
+					&PayloadContext{RoomName: "general"},
+					locale,
+				)
+				if payload.Title != tt.want[locale] {
+					t.Fatalf("title = %q, want %q", payload.Title, tt.want[locale])
+				}
+			})
 		}
-	})
+	}
 }
 
 func TestTruncatePreview(t *testing.T) {

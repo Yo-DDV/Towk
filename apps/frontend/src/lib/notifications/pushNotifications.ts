@@ -7,14 +7,12 @@
  */
 
 import { createPushNotificationAPI } from '$lib/api-client/pushNotifications';
-import {
-  clearBadge,
-  syncServiceWorkerNotificationBadgeState
-} from '$lib/notifications/appBadge';
+import { clearBadge, syncServiceWorkerNotificationBadgeState } from '$lib/notifications/appBadge';
 import {
   NOTIFICATION_CLICK_ACK_MESSAGE_TYPE,
   NOTIFICATION_CLICK_MESSAGE_TYPE
 } from '$lib/pwa/notificationClick.worker';
+import { getLocale } from '$lib/i18n/runtime';
 import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
 
 type EnsureRegisteredOptions = {
@@ -247,7 +245,8 @@ async function registerGrantedSubscription(
       endpoint: json.endpoint,
       p256dh: json.keys.p256dh,
       auth: json.keys.auth,
-      userAgent: navigator.userAgent
+      userAgent: navigator.userAgent,
+      locale: getLocale()
     });
 
     if (!saved) {
@@ -368,6 +367,14 @@ export async function unsubscribe(): Promise<boolean> {
   }
 
   return revokeSubscription(subscription);
+}
+
+/** Close the matching native notification while this PWA is already online. */
+export function dismissNativeNotification(notificationId: string): void {
+  navigator.serviceWorker?.controller?.postMessage({
+    type: 'towk-notification-dismiss',
+    notificationId
+  });
 }
 
 async function clearLocalNotificationSurfaces(): Promise<void> {

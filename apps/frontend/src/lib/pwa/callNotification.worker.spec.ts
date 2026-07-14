@@ -37,6 +37,8 @@ describe('call push notifications', () => {
       title,
       options: {
         body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-monochrome-96.png',
         tag: 'call-C123',
         data: {
           url: 'https://towk.example/chat/-/R1',

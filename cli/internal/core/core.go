@@ -78,13 +78,13 @@ type ChattoCore struct {
 	OnNotificationCreated func(ctx context.Context, notification *corev1.Notification)
 
 	// OnNotificationDismissed is called when a notification is dismissed.
-	// Used by the push notification system to dismiss notifications on other devices.
-	// Set this after ChattoCore is created.
+	// Set this after ChattoCore is created for integrations that can surface the
+	// state change without a data-only Web Push.
 	OnNotificationDismissed func(ctx context.Context, userID string, notification *corev1.Notification)
 
 	// OnNotificationsDismissed is called once when every pending notification
-	// for a user is cleared. Push uses this bulk boundary to avoid one provider
-	// request per notification during dismiss-all and account deletion.
+	// for a user is cleared. Integrations can use this bulk boundary to avoid one
+	// callback per notification during dismiss-all and account deletion.
 	OnNotificationsDismissed func(ctx context.Context, userID string)
 
 	// notificationCallbackSlots bounds the process-local asynchronous handoff to

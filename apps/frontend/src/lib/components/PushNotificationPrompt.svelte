@@ -23,6 +23,7 @@ the reminder for seven days; losing a previously granted permission restores it.
   import { ConfirmDialog, TopOverlayNotice } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { getLocale } from '$lib/i18n/runtime';
 
   let { userId }: { userId: string } = $props();
 
@@ -64,6 +65,7 @@ the reminder for seven days; losing a previously granted permission restores it.
   const supported = pushCapability === 'supported';
   const needsIosHomeScreen = pushCapability === 'ios_home_screen_required';
   const vapidKey = $derived(originServerInfo?.vapidPublicKey ?? null);
+  const activeLocale = $derived(getLocale());
   const canShowPushPrompt = $derived(
     Boolean(
       originServerInfo?.pushNotificationsEnabled &&
@@ -196,6 +198,9 @@ the reminder for seven days; losing a previously granted permission restores it.
   $effect(() => {
     const configured = originServerInfo?.pushNotificationsEnabled;
     const configuredVapidKey = vapidKey;
+    // Re-save an existing endpoint whenever this browser changes language so
+    // future background notifications follow the device-local Towk setting.
+    void activeLocale;
     if (!configured || !configuredVapidKey) return;
     void refreshPermissionState(configuredVapidKey);
   });

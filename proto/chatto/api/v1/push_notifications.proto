@@ -40,6 +40,10 @@ message SubscribePushRequest {
 
   // Optional browser user-agent string for device identification.
   optional string user_agent = 4 [(buf.validate.field).string.max_len = 512];
+
+  // Optional Towk UI language selected by this browser. The server normalizes
+  // unsupported and legacy-empty values to English.
+  optional string locale = 5 [(buf.validate.field).string.max_len = 16];
 }
 
 // Response from storing a browser push subscription.

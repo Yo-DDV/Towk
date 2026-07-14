@@ -4598,6 +4598,7 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 		P256Dh:    connectAPITestPushP256DH,
 		Auth:      connectAPITestPushAuth,
 		UserAgent: stringPtr("test-agent"),
+		Locale:    stringPtr("fr"),
 	}))
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
@@ -4609,7 +4610,7 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetUserPushSubscriptions: %v", err)
 	}
-	if len(subs) != 1 || subs[0].GetEndpoint() != "https://push.example.test/sub" || subs[0].GetUserAgent() != "test-agent" {
+	if len(subs) != 1 || subs[0].GetEndpoint() != "https://push.example.test/sub" || subs[0].GetUserAgent() != "test-agent" || subs[0].GetLocale() != "fr" {
 		t.Fatalf("stored subscriptions = %+v, want one saved subscription", subs)
 	}
 

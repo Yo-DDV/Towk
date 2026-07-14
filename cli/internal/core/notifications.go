@@ -262,7 +262,8 @@ func (c *ChattoCore) GetNotification(ctx context.Context, userID, notificationID
 func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificationID string) (bool, error) {
 	key := notificationKey(userID, notificationID)
 
-	// Fetch notification before deleting (needed for push dismissal callback)
+	// Fetch the notification before deleting so optional dismissal integrations
+	// can receive the complete record.
 	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
@@ -291,7 +292,7 @@ func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificati
 	// Publish sync event for cross-device sync (WebSocket)
 	c.publishNotificationDismissedEvent(ctx, userID, notificationID)
 
-	// Call the notification callback for push dismissal (if set)
+	// Call the optional notification-dismissal integration (if set).
 	// Run asynchronously to avoid blocking notification dismissal
 	if validForCallback && c.OnNotificationDismissed != nil {
 		callback := c.OnNotificationDismissed
@@ -314,10 +315,10 @@ func (c *ChattoCore) DismissAllNotifications(ctx context.Context, userID string)
 	return c.dismissAllNotifications(ctx, userID, false)
 }
 
-// dismissAllNotificationsBeforePushSubscriptionRemoval waits for the push
-// dismissal callbacks created by this operation. Account deletion uses this
-// ordering so native notifications can be closed while the user's device
-// endpoints still exist; ordinary UI dismissal remains asynchronous.
+// dismissAllNotificationsBeforePushSubscriptionRemoval waits for optional
+// dismissal integrations created by this operation. Account deletion keeps
+// this ordering so integrations finish before the user's push-subscription
+// records are removed; ordinary UI dismissal remains asynchronous.
 func (c *ChattoCore) dismissAllNotificationsBeforePushSubscriptionRemoval(ctx context.Context, userID string) (int, error) {
 	return c.dismissAllNotifications(ctx, userID, true)
 }
@@ -361,7 +362,7 @@ func (c *ChattoCore) dismissAllNotifications(ctx context.Context, userID string,
 		} else if storedNotificationMatchesKey(userID, key, &decoded) {
 			notif = &decoded
 		} else {
-			c.logger.Warn("Skipped push dismissal for notification with mismatched stored identity", "key", key)
+			c.logger.Warn("Skipped dismissal callback for notification with mismatched stored identity", "key", key)
 		}
 
 		if err := c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision())); err != nil {

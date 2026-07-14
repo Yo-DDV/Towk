@@ -30,4 +30,8 @@ message PushSubscription {
 
   // User agent string (for debugging/device identification)
   string user_agent = 5;
+
+  // Towk UI language selected by this browser (en, de, fr, es, or pt).
+  // Legacy or unsupported values are treated as English when delivering.
+  string locale = 6;
 }

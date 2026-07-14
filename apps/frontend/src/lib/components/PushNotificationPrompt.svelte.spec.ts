@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { flushSync } from 'svelte';
+import { setReactiveLocale } from '$lib/i18n/state.svelte';
 import PushNotificationPrompt from './PushNotificationPrompt.svelte';
 
 const mocks = vi.hoisted(() => ({
@@ -92,6 +93,7 @@ function installServiceWorkerControllerStub() {
 
 describe('PushNotificationPrompt', () => {
   beforeEach(() => {
+    setReactiveLocale('en');
     localStorage.clear();
     mocks.serverInfo.pushNotificationsEnabled = true;
     mocks.serverInfo.vapidPublicKey = 'vapid-key';
@@ -140,6 +142,20 @@ describe('PushNotificationPrompt', () => {
     } finally {
       controller.restore();
     }
+  });
+
+  it('re-registers a granted subscription when this browser changes language', async () => {
+    mocks.getPermission.mockReturnValue('granted');
+    render(PushNotificationPrompt, { props: { userId: 'user-1' } });
+    await settle();
+
+    expect(mocks.ensureRegistered).toHaveBeenCalledOnce();
+
+    setReactiveLocale('fr');
+    await settle();
+
+    expect(mocks.ensureRegistered).toHaveBeenCalledTimes(2);
+    expect(mocks.ensureRegistered).toHaveBeenLastCalledWith('vapid-key', { prompt: false });
   });
 
   it('shows the guard again when permission is granted but push registration is unhealthy', async () => {

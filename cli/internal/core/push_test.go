@@ -163,6 +163,9 @@ func TestSavePushSubscription(t *testing.T) {
 		if sub.UserAgent != userAgent {
 			t.Errorf("Expected userAgent %s, got %s", userAgent, sub.UserAgent)
 		}
+		if sub.Locale != "en" {
+			t.Errorf("Expected default locale en, got %s", sub.Locale)
+		}
 		if sub.CreatedAt == nil {
 			t.Error("Expected CreatedAt to be set")
 		}
@@ -187,6 +190,40 @@ func TestSavePushSubscription(t *testing.T) {
 		subs, _ := core.GetUserPushSubscriptions(ctx, userID)
 		if len(subs) != 1 {
 			t.Errorf("Expected 1 subscription after update, got %d", len(subs))
+		}
+	})
+
+	t.Run("stores a supported device locale and normalizes unsupported values", func(t *testing.T) {
+		localized, err := core.SavePushSubscriptionWithLocale(
+			ctx,
+			userID,
+			"https://push.example.com/localized",
+			p256dh,
+			auth,
+			userAgent,
+			"FR",
+		)
+		if err != nil {
+			t.Fatalf("SavePushSubscriptionWithLocale error: %v", err)
+		}
+		if localized.Locale != "fr" {
+			t.Fatalf("localized subscription locale = %q, want fr", localized.Locale)
+		}
+
+		fallback, err := core.SavePushSubscriptionWithLocale(
+			ctx,
+			userID,
+			"https://push.example.com/unsupported-locale",
+			p256dh,
+			auth,
+			userAgent,
+			"it",
+		)
+		if err != nil {
+			t.Fatalf("SavePushSubscriptionWithLocale fallback error: %v", err)
+		}
+		if fallback.Locale != "en" {
+			t.Fatalf("unsupported locale = %q, want en", fallback.Locale)
 		}
 	})
 }

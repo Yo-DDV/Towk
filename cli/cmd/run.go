@@ -348,8 +348,9 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 			return
 		}
 
-		// Get actor's display name for the notification
-		actorName := "Someone"
+		// Get the actor's display name. Keep an explicit presence bit so the
+		// browser can localize the unknown-caller fallback for call pushes.
+		actorName := ""
 		actorKnown := false
 		if notification.ActorId != "" {
 			actor, err := chattoCore.GetUser(ctx, notification.ActorId)
@@ -369,11 +370,10 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		}
 		payloadCtx.ActorKnown = actorKnown
 
-		// Build and send push notification
-		payload := push.BuildPayloadFromNotification(notification, actorName, cfg.Webserver.URL, payloadCtx)
+		appBadge := ""
 		if pushNotificationUsesCountBadge(notification) {
 			if count, err := chattoCore.GetNotificationCount(ctx, notification.RecipientId); err == nil {
-				payload.AppBadge = strconv.Itoa(count)
+				appBadge = strconv.Itoa(count)
 			} else {
 				logger.Warn("Failed to get notification count for push app badge",
 					"user_id", notification.RecipientId,
@@ -381,9 +381,9 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 			}
 		}
 
-		// Creation and dismissal callbacks run asynchronously. A dismissal can
-		// overtake a slow creation callback, so fail closed if the notification is
-		// no longer pending immediately before delivery.
+		// Creation and dismissal events run asynchronously. A dismissal can
+		// overtake this callback, so fail closed if the notification is no longer
+		// pending immediately before delivery.
 		pending, err := chattoCore.GetNotification(ctx, notification.RecipientId, notification.Id)
 		if err != nil {
 			logger.Warn("Failed to revalidate notification before push delivery",
@@ -403,7 +403,24 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		if len(subscriptions) == 0 {
 			return
 		}
-		results := sender.SendToMany(ctx, subscriptions, payload)
+		batches := localizedPushBatches(
+			subscriptions,
+			notification,
+			actorName,
+			cfg.Webserver.URL,
+			payloadCtx,
+			appBadge,
+		)
+		resultBatches := make(chan []*push.SendResult, len(batches))
+		for _, batch := range batches {
+			go func(batch localizedPushBatch) {
+				resultBatches <- sender.SendToMany(ctx, batch.subscriptions, batch.payload)
+			}(batch)
+		}
+		results := make([]*push.SendResult, 0, len(subscriptions))
+		for range batches {
+			results = append(results, (<-resultBatches)...)
+		}
 
 		// Process results - clean up expired subscriptions
 		for _, result := range results {
@@ -427,143 +444,53 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 					"notification_id", notification.Id)
 			}
 		}
-
-		// A dismissal can race between the last pending-state check above and
-		// provider delivery. Recheck after the send and compensate with the same
-		// tag-based dismiss payload so an out-of-order creation cannot leave a
-		// stale native notification visible.
-		compensateStalePushDelivery(ctx, chattoCore, sender, notification, subscriptions, logger)
 	}
 
-	// Set the callback that will be invoked when notifications are dismissed
-	chattoCore.OnNotificationDismissed = func(ctx context.Context, userID string, notification *corev1.Notification) {
-		// Get user's push subscriptions
-		subscriptions, err := chattoCore.GetUserPushSubscriptions(ctx, userID)
-		if err != nil {
-			logger.Warn("Failed to get push subscriptions for dismiss",
-				"user_id", userID,
-				"error", err)
-			return
-		}
-
-		if len(subscriptions) == 0 {
-			return
-		}
-
-		// Get the notification tag for dismissal
-		tag := push.NotificationTag(notification)
-		if tag == "" {
-			return
-		}
-
-		// Send dismiss push to all devices
-		payload := push.DismissPayload(notification)
-		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, userID, subscriptions, logger)
-		if len(subscriptions) == 0 {
-			return
-		}
-		results := sender.SendToMany(ctx, subscriptions, payload)
-
-		// Process results - clean up expired subscriptions
-		for _, result := range results {
-			if result.Gone {
-				if err := chattoCore.DeletePushSubscription(ctx, userID, result.Endpoint); err != nil {
-					logger.Warn("Failed to delete expired push subscription",
-						"endpoint_id", push.EndpointLogID(result.Endpoint),
-						"error", err)
-				}
-			} else if result.Error != nil {
-				logger.Debug("Failed to send dismiss push",
-					"endpoint_id", push.EndpointLogID(result.Endpoint),
-					"error", result.Error)
-			} else if result.Success {
-				logger.Debug("Dismiss push sent",
-					"user_id", userID,
-					"tag", tag)
-			}
-		}
-	}
-
-	// A tagless dismiss is the backwards-compatible bulk boundary: current
-	// workers close every native notification, while older workers safely ignore
-	// the already-recognized dismiss action when no tag is present.
-	chattoCore.OnNotificationsDismissed = func(ctx context.Context, userID string) {
-		subscriptions, err := chattoCore.GetUserPushSubscriptions(ctx, userID)
-		if err != nil {
-			logger.Warn("Failed to get push subscriptions for bulk dismiss",
-				"user_id", userID,
-				"error", err)
-			return
-		}
-		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, userID, subscriptions, logger)
-		if len(subscriptions) == 0 {
-			return
-		}
-
-		results := sender.SendToMany(ctx, subscriptions, &push.Payload{Action: "dismiss"})
-		for _, result := range results {
-			if result.Gone {
-				if err := chattoCore.DeletePushSubscription(ctx, userID, result.Endpoint); err != nil {
-					logger.Warn("Failed to delete expired push subscription after bulk dismiss",
-						"endpoint_id", push.EndpointLogID(result.Endpoint),
-						"error", err)
-				}
-			} else if result.Error != nil {
-				logger.Debug("Failed to send bulk dismiss push",
-					"endpoint_id", push.EndpointLogID(result.Endpoint),
-					"error", result.Error)
-			}
-		}
-	}
+	// Do not send data-only Web Push messages for dismissals. Browser push
+	// subscriptions are userVisibleOnly; a worker that closes a notification
+	// without showing one can make Chromium surface a generic background-update
+	// notification. Online clients receive the dismissal over realtime and close
+	// the matching native notification through their service worker.
 }
 
-type pushDeliveryState interface {
-	GetNotification(context.Context, string, string) (*corev1.Notification, error)
-	DeletePushSubscription(context.Context, string, string) error
+type localizedPushBatch struct {
+	subscriptions []*corev1.PushSubscription
+	payload       *push.Payload
 }
 
-type pushBatchSender interface {
-	SendToMany(context.Context, []*corev1.PushSubscription, *push.Payload) []*push.SendResult
-}
-
-func compensateStalePushDelivery(
-	ctx context.Context,
-	state pushDeliveryState,
-	sender pushBatchSender,
-	notification *corev1.Notification,
+func localizedPushBatches(
 	subscriptions []*corev1.PushSubscription,
-	logger *log.Logger,
-) {
-	pending, err := state.GetNotification(ctx, notification.RecipientId, notification.Id)
-	if err != nil {
-		logger.Warn("Failed to revalidate notification after push delivery",
-			"user_id", notification.RecipientId,
-			"notification_id", notification.Id,
-			"error", err)
-		return
-	}
-	if pending != nil {
-		return
+	notification *corev1.Notification,
+	actorName, baseURL string,
+	payloadCtx *push.PayloadContext,
+	appBadge string,
+) []localizedPushBatch {
+	grouped := make(map[string][]*corev1.PushSubscription, 5)
+	for _, subscription := range subscriptions {
+		locale := push.NormalizeLocale(subscription.GetLocale())
+		grouped[locale] = append(grouped[locale], subscription)
 	}
 
-	tag := push.NotificationTag(notification)
-	if tag == "" {
-		return
-	}
-	cleanupResults := sender.SendToMany(ctx, subscriptions, push.DismissPayload(notification))
-	for _, result := range cleanupResults {
-		if result.Gone {
-			if err := state.DeletePushSubscription(ctx, notification.RecipientId, result.Endpoint); err != nil {
-				logger.Warn("Failed to delete expired push subscription after stale delivery cleanup",
-					"endpoint_id", push.EndpointLogID(result.Endpoint),
-					"error", err)
-			}
-		} else if result.Error != nil {
-			logger.Debug("Failed to send stale delivery cleanup push",
-				"endpoint_id", push.EndpointLogID(result.Endpoint),
-				"error", result.Error)
+	batches := make([]localizedPushBatch, 0, len(grouped))
+	for _, locale := range []string{"en", "de", "fr", "es", "pt"} {
+		localeSubscriptions := grouped[locale]
+		if len(localeSubscriptions) == 0 {
+			continue
 		}
+		payload := push.BuildLocalizedPayloadFromNotification(
+			notification,
+			actorName,
+			baseURL,
+			payloadCtx,
+			locale,
+		)
+		payload.AppBadge = appBadge
+		batches = append(batches, localizedPushBatch{
+			subscriptions: localeSubscriptions,
+			payload:       payload,
+		})
 	}
+	return batches
 }
 
 func filterOwnedPushSubscriptions(

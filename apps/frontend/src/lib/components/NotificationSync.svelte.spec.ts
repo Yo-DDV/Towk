@@ -36,17 +36,25 @@ const { mocks } = vi.hoisted(() => {
     mocks: {
       bus,
       store,
+      servers: [{ id: 'origin' }],
+      originServer: { id: 'origin' },
       playNotificationSound: vi.fn(),
       updateBadge: vi.fn(() => Promise.resolve()),
       clearBadge: vi.fn(() => Promise.resolve()),
-      syncServiceWorkerNotificationBadgeState: vi.fn()
+      syncServiceWorkerNotificationBadgeState: vi.fn(),
+      dismissNativeNotification: vi.fn()
     }
   };
 });
 
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
-    servers: [{ id: 'origin' }],
+    get originServer() {
+      return mocks.originServer;
+    },
+    get servers() {
+      return mocks.servers;
+    },
     getStore: vi.fn(() => mocks.store)
   }
 }));
@@ -79,6 +87,10 @@ vi.mock('$lib/notifications/appBadge', () => ({
   updateBadge: mocks.updateBadge,
   clearBadge: mocks.clearBadge,
   syncServiceWorkerNotificationBadgeState: mocks.syncServiceWorkerNotificationBadgeState
+}));
+
+vi.mock('$lib/notifications/pushNotifications', () => ({
+  dismissNativeNotification: mocks.dismissNativeNotification
 }));
 
 function dispatch(event: Record<string, unknown>) {
@@ -117,6 +129,8 @@ describe('NotificationSync', () => {
     vi.clearAllMocks();
 
     mocks.store.isAuthenticated = true;
+    mocks.servers = [{ id: 'origin' }];
+    mocks.originServer = { id: 'origin' };
     mocks.store.notifications.notifications = [];
     mocks.store.notifications.count = 0;
     mocks.store.notifications.unreadNotificationCount = 0;
@@ -246,9 +260,22 @@ describe('NotificationSync', () => {
     });
 
     expect(mocks.store.notifications.removeNotification).toHaveBeenCalledWith('n1');
+    expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('n1');
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     expect(mocks.store.rooms.decrementUnreadNotification).not.toHaveBeenCalled();
     expect(mocks.store.notifications.fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not close an origin-native notification for a remote instance dismissal', async () => {
+    mocks.servers = [{ id: 'remote' }];
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.NotificationDismissed,
+      notificationId: 'shared-id'
+    });
+
+    expect(mocks.dismissNativeNotification).not.toHaveBeenCalled();
   });
 
   it('refetches notification state and counts when an uncached remote dismissal arrives', async () => {

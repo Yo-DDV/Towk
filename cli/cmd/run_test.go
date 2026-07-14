@@ -1,47 +1,39 @@
 package cmd
 
 import (
-	"context"
-	"errors"
-	"io"
 	"testing"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
+	"hmans.de/chatto/internal/config"
+	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/internal/push"
 	"hmans.de/chatto/internal/runtimeunit"
 	"hmans.de/chatto/internal/testutil"
 )
 
-type stalePushDeliveryState struct {
-	pending   *corev1.Notification
-	getErr    error
-	deleted   []string
-	deleteErr error
+func TestSetupPushNotificationsDoesNotRegisterSilentDismissPushes(t *testing.T) {
+	chattoCore := &core.ChattoCore{}
+	setupPushNotifications(chattoCore, config.ChattoConfig{Push: config.PushConfig{
+		Enabled:         true,
+		VAPIDPublicKey:  "public-key",
+		VAPIDPrivateKey: "private-key",
+		VAPIDSubject:    "mailto:admin@example.com",
+	}})
+
+	if chattoCore.OnNotificationCreated == nil {
+		t.Fatal("notification creation callback was not registered")
+	}
+	if chattoCore.OnNotificationDismissed != nil {
+		t.Fatal("single dismissal registered a data-only Web Push callback")
+	}
+	if chattoCore.OnNotificationsDismissed != nil {
+		t.Fatal("bulk dismissal registered a data-only Web Push callback")
+	}
 }
 
-func (s *stalePushDeliveryState) GetNotification(context.Context, string, string) (*corev1.Notification, error) {
-	return s.pending, s.getErr
-}
-
-func (s *stalePushDeliveryState) DeletePushSubscription(_ context.Context, _ string, endpoint string) error {
-	s.deleted = append(s.deleted, endpoint)
-	return s.deleteErr
-}
-
-type stalePushBatchSender struct {
-	payloads []*push.Payload
-	results  []*push.SendResult
-}
-
-func (s *stalePushBatchSender) SendToMany(_ context.Context, _ []*corev1.PushSubscription, payload *push.Payload) []*push.SendResult {
-	s.payloads = append(s.payloads, payload)
-	return s.results
-}
-
-func TestCompensateStalePushDelivery(t *testing.T) {
+func TestLocalizedPushBatches(t *testing.T) {
 	notification := &corev1.Notification{
 		Id:          "notification-1",
 		RecipientId: "user-1",
@@ -49,47 +41,49 @@ func TestCompensateStalePushDelivery(t *testing.T) {
 			RoomMessage: &corev1.RoomMessageNotification{RoomId: "room-1", EventId: "event-1"},
 		},
 	}
-	subscriptions := []*corev1.PushSubscription{{Endpoint: "https://push.example/sub"}}
-	logger := log.New(io.Discard)
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/fr-1", Locale: "fr"},
+		{Endpoint: "https://push.example/de", Locale: "de"},
+		{Endpoint: "https://push.example/legacy"},
+		{Endpoint: "https://push.example/fr-2", Locale: "FR"},
+		{Endpoint: "https://push.example/unsupported", Locale: "it"},
+	}
 
-	t.Run("keeps a still-pending delivery", func(t *testing.T) {
-		state := &stalePushDeliveryState{pending: notification}
-		sender := &stalePushBatchSender{}
+	batches := localizedPushBatches(
+		subscriptions,
+		notification,
+		"Alice",
+		"https://towk.example",
+		&push.PayloadContext{RoomName: "general", MessagePreview: "Hello"},
+		"5",
+	)
 
-		compensateStalePushDelivery(context.Background(), state, sender, notification, subscriptions, logger)
-
-		if len(sender.payloads) != 0 {
-			t.Fatalf("cleanup payload count = %d, want 0", len(sender.payloads))
+	if len(batches) != 3 {
+		t.Fatalf("batch count = %d, want 3", len(batches))
+	}
+	if got := len(batches[0].subscriptions); got != 2 {
+		t.Fatalf("English fallback subscription count = %d, want 2", got)
+	}
+	if batches[0].payload.Title != "@Alice posted in #general" {
+		t.Fatalf("English fallback title = %q", batches[0].payload.Title)
+	}
+	if batches[1].payload.Title != "@Alice hat in #general geschrieben" {
+		t.Fatalf("German title = %q", batches[1].payload.Title)
+	}
+	if got := len(batches[2].subscriptions); got != 2 {
+		t.Fatalf("French subscription count = %d, want 2", got)
+	}
+	if batches[2].payload.Title != "@Alice a publié un message dans #general" {
+		t.Fatalf("French title = %q", batches[2].payload.Title)
+	}
+	for _, batch := range batches {
+		if batch.payload.AppBadge != "5" {
+			t.Fatalf("app badge = %q, want 5", batch.payload.AppBadge)
 		}
-	})
-
-	t.Run("dismisses a delivery that became stale", func(t *testing.T) {
-		state := &stalePushDeliveryState{}
-		sender := &stalePushBatchSender{results: []*push.SendResult{{
-			Endpoint: subscriptions[0].Endpoint,
-			Gone:     true,
-		}}}
-
-		compensateStalePushDelivery(context.Background(), state, sender, notification, subscriptions, logger)
-
-		if len(sender.payloads) != 1 || sender.payloads[0].Action != "dismiss" || sender.payloads[0].Tag != "room-message-event-1" {
-			t.Fatalf("cleanup payloads = %+v, want one matching dismiss", sender.payloads)
+		if batch.payload.Badge != "https://towk.example/icons/badge-monochrome-96.png" {
+			t.Fatalf("notification badge = %q", batch.payload.Badge)
 		}
-		if len(state.deleted) != 1 || state.deleted[0] != subscriptions[0].Endpoint {
-			t.Fatalf("deleted subscriptions = %v, want endpoint cleanup", state.deleted)
-		}
-	})
-
-	t.Run("fails closed when pending state cannot be read", func(t *testing.T) {
-		state := &stalePushDeliveryState{getErr: errors.New("state unavailable")}
-		sender := &stalePushBatchSender{}
-
-		compensateStalePushDelivery(context.Background(), state, sender, notification, subscriptions, logger)
-
-		if len(sender.payloads) != 0 {
-			t.Fatalf("cleanup payload count = %d, want 0", len(sender.payloads))
-		}
-	})
+	}
 }
 
 func TestEffectiveLogFormat(t *testing.T) {
