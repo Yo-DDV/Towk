@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { onMount } from 'svelte';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
   import { isSafeInternalPath } from '$lib/navigation/safeInternalPath';
@@ -23,6 +24,25 @@
   let addServerDialogModule: Promise<
     typeof import('$lib/components/AddServerDialog.svelte')
   > | null = null;
+  let isOffline = $state(typeof navigator !== 'undefined' && !navigator.onLine);
+
+  onMount(() => {
+    const handleOffline = () => {
+      isOffline = true;
+    };
+    const handleOnline = () => {
+      isOffline = false;
+      window.location.reload();
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+    };
+  });
 
   function loadAddServerDialog() {
     addServerDialogModule ??= import('$lib/components/AddServerDialog.svelte');
@@ -60,6 +80,10 @@
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- target is validated by isSafeInternalPath; backend routes are handled above
       goto(target);
     }
+  }
+
+  function retryConnection() {
+    window.location.reload();
   }
 
   function providerIcon(type: string): string {
@@ -167,17 +191,51 @@
   }
 </script>
 
-<PageTitle title={isStandalone ? m['auth.login.welcome_page_title']() : m['auth.login.title']()} />
+<PageTitle
+  title={isOffline
+    ? m['auth.login.offline.title']()
+    : isStandalone
+      ? m['auth.login.welcome_page_title']()
+      : m['auth.login.title']()}
+/>
 
-{#if isStandalone}
+{#if isOffline}
   <AuthLayout>
-    <div class="flex flex-col items-center gap-6 text-center">
-      <img
-        src="/icons/symbol-256.png"
-        alt=""
+    <div class="flex flex-col items-center gap-6 text-center" data-testid="offline-state">
+      <div
+        class="flex h-20 w-20 items-center justify-center rounded-3xl border border-accent/25 bg-accent/10 text-accent shadow-[0_0_40px_color-mix(in_srgb,var(--color-accent)_18%,transparent)]"
         aria-hidden="true"
-        class="h-20 w-20 object-contain"
-      />
+      >
+        <span class="iconify text-4xl mdi--wifi-off"></span>
+      </div>
+
+      <div class="flex flex-col items-center gap-3">
+        <span
+          class="rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold tracking-wide text-muted"
+        >
+          {m['auth.login.offline.status']()}
+        </span>
+        <h1 class="text-2xl font-bold">{m['auth.login.offline.title']()}</h1>
+        <p class="max-w-sm text-pretty text-muted">
+          {m['auth.login.offline.description']()}
+        </p>
+      </div>
+
+      <Button variant="accent" size="lg" fullWidth onclick={retryConnection}>
+        <span class="iconify text-lg mdi--refresh"></span>
+        {m['auth.login.offline.retry']()}
+      </Button>
+
+      <p class="text-sm text-muted/80">{m['auth.login.offline.reconnect_hint']()}</p>
+    </div>
+  </AuthLayout>
+{:else if isStandalone}
+  <AuthLayout>
+    <div
+      class="flex flex-col items-center gap-6 text-center"
+      data-testid="standalone-welcome-state"
+    >
+      <img src="/icons/symbol-256.png" alt="" aria-hidden="true" class="h-20 w-20 object-contain" />
       <h1 class="text-2xl font-bold">{m['auth.login.welcome_title']()}</h1>
       <p class="text-muted">
         {m['auth.login.welcome_description']()}

@@ -8,6 +8,10 @@
     "realtime_paused": "Se pausaron las actualizaciones en tiempo real. Reconectando...",
     "update_available": "Una nueva versión está disponible",
     "reload": "Recargar",
+    "network": {
+      "offline": "No tienes conexión. Towk seguirá intentando reconectarse.",
+      "reconnecting": "Red disponible. Towk se está reconectando…"
+    },
     "corresponding_source": "Ver fuente correspondiente para Towk {version}",
     "sign_out": "desconectar",
     "close": "Cerca",

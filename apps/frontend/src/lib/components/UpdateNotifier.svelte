@@ -12,11 +12,26 @@ Include this component once at the root layout level.
   import { onNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import { idleState } from '$lib/state/idle.svelte';
+  import { activatePendingServiceWorker } from '$lib/pwa/serviceWorkerUpdate';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
 
   let updateToastShown = false;
+  let reloadStarted = false;
+
+  async function reloadLatestVersion() {
+    if (reloadStarted) return;
+    reloadStarted = true;
+
+    try {
+      if ('serviceWorker' in navigator) {
+        await activatePendingServiceWorker(navigator.serviceWorker);
+      }
+    } finally {
+      location.reload();
+    }
+  }
 
   $effect(() => {
     if (!updated.current) return;
@@ -25,7 +40,7 @@ Include this component once at the root layout level.
       updateToastShown = true;
       toast.info(m['ui.update_available'](), 0, {
         label: m['ui.reload'](),
-        onClick: () => location.reload()
+        onClick: () => void reloadLatestVersion()
       });
 
       // Force-reconnect the WebSocket — a deploy means the old connection
@@ -37,15 +52,15 @@ Include this component once at the root layout level.
     // blurs the composer / leaves a call, so a busy user just sees the
     // toast until they idle out.
     if (idleState.canSafelyReload) {
-      location.reload();
+      void reloadLatestVersion();
     }
   });
 
-  // Fallback: if user dismisses the toast and navigates, reload anyway
-  // to prevent stale chunk errors
+  // Fallback: if the toast was dismissed, use the next safe navigation to
+  // prevent stale chunk errors without interrupting typing or a call.
   onNavigate(() => {
-    if (updated.current) {
-      location.reload();
+    if (updated.current && idleState.canSafelyReload) {
+      void reloadLatestVersion();
     }
   });
 </script>
