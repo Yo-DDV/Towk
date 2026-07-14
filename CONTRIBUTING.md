@@ -68,9 +68,21 @@ mise test
 mise build
 ```
 
+`mise test` is the mandatory maintainer gate. It prepares generated sources and
+then uses the local CPU in parallel for repository guards, backend tests,
+frontend type/lint/unit checks, and browser end-to-end tests. Set
+`TOWK_LOCAL_WORKERS` only when the machine must reserve CPU capacity for other
+work. Run this gate locally before pushing a maintainer branch and record its
+result in the pull request.
+
+GitHub pull requests intentionally run only dependency-free public repository
+guards and contribution metadata checks. The complete CI and CodeQL workflows
+remain available as manual or scheduled fallback diagnostics; they are not the
+primary maintainer test path and do not block normal pull-request iteration.
+
 Maintainer changes must follow this guide, the pull-request template, the
 applicable licensing rules in [LICENSING.md](LICENSING.md), and the design
 records in [docs/adr/](docs/adr/) and [docs/fdr/](docs/fdr/) when they apply. A
-green CI run is necessary but not sufficient: review still covers product fit,
-security, accessibility, compatibility, operational safety, documentation and
-provenance.
+passing local gate and the short GitHub guards are necessary but not sufficient:
+review still covers product fit, security, accessibility, compatibility,
+operational safety, documentation and provenance.

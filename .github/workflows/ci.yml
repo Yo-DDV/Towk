@@ -1,27 +1,11 @@
-name: ci
+name: full CI (manual fallback)
 
 on:
-  push:
-    branches:
-      - main
-      - 'release-[0-9]*'
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - labeled
-      - unlabeled
-      - ready_for_review
-    branches:
-      - main
-      - 'release-[0-9]*'
+  workflow_dispatch:
 
 concurrency:
-  # PRs share a group so superseded revisions are cancelled. Pushes use their
-  # immutable commit SHA so every main commit is verified independently.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: false
 
 permissions:
   contents: read

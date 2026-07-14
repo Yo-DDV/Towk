@@ -353,8 +353,8 @@ dir = "apps/frontend"
 run = "pnpm exec playwright test"
 
 [tasks.test]
-description = "Run all tests"
-run = [{ task = "test-cli" }, { task = "test-frontend" }, { task = "test-e2e" }]
+description = "Run the complete CPU-parallel local quality gate"
+run = "bash tools/run-local-quality-gate.sh"
 
 # =============================================================================
 # Utility
