@@ -123,6 +123,12 @@ The compatibility boundary is tracked against [MDN `getDisplayMedia`](https://de
 **Why:** Mobile and intermittent networks can disappear longer than a fixed SDK retry window. The user should not have to watch the connection or press Join again, while an explicit decision to leave or an authorization change must remain authoritative.
 **Tradeoff:** Native recovery is the preferred path because it republishes existing microphone, camera, and screen-share tracks. A fresh encrypted connection can reacquire microphone and camera access when browser permission remains available. Browsers require a new user gesture for some screen-capture recovery paths, so a terminal session replacement may restore the call while leaving a rejected screen-share restart visibly stopped; ordinary transport recovery does not have that limitation.
 
+### 15. Screen-share diagnostics are opt-in and browser-local
+
+**Decision:** Joined screen-share tiles expose a persistent diagnostics action outside the video surface. Opening it polls the selected local sender or remote receiver `RTCStatsReport` every two seconds and keeps at most 30 samples in component memory. The panel normalizes standards-based RTP, codec, transport and candidate-type fields; derives interval bitrate, frame rate, loss and drop rates from counter deltas; distinguishes sender congestion from receiver playback metrics; excludes auxiliary RTX/FEC streams from media-layer totals; and reports unavailable fields as unknown instead of inventing values. It never reads candidate addresses, calls a Towk API, emits telemetry or persists history.
+**Why:** A screen-share quality problem can originate at capture, encoding, congestion control, transport or decoding. Giving both sides the same opt-in evidence makes those stages distinguishable without weakening call E2EE or adding server-side observation. Keeping collection dormant while the panel is closed avoids continuous `getStats()` work for users who do not need diagnostics.
+**Tradeoff:** WebRTC statistics remain best-effort browser diagnostics rather than a stable Towk API. Browsers omit or rename some optional fields, initial rate values need a second counter sample, and health labels are indicative rather than a service-level guarantee. The implementation follows the [W3C WebRTC Statistics API](https://www.w3.org/TR/webrtc-stats/) and LiveKit's track-level stats access, while preserving explicit unavailable states for engine differences.
+
 ## Permissions
 
 - `voiceCallToken` query — requires room membership.

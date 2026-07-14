@@ -35,6 +35,7 @@ Room sidebar panel for voice/video calls.
   import CallTileActionButton from './CallTileActionButton.svelte';
   import CallTileActionToolbar from './CallTileActionToolbar.svelte';
   import CallDeviceJoinDialog from './CallDeviceJoinDialog.svelte';
+  import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
   import type { Track } from 'livekit-client';
@@ -62,6 +63,7 @@ Room sidebar panel for voice/video calls.
   let deviceChoiceVisible = $state(false);
   let companionAllowed = $state(false);
   let deviceChoiceBusy = $state(false);
+  let diagnosticsParticipantKey = $state<string | null>(null);
 
   function callEventPayload(
     event: EventEnvelope['event']
@@ -281,6 +283,18 @@ Room sidebar panel for voice/video calls.
   let secondaryStageTiles = $derived(
     featuredStageTile ? stageTiles.filter((tile) => tile.key !== featuredStageTile.key) : []
   );
+
+  $effect(() => {
+    if (
+      diagnosticsParticipantKey &&
+      !screenShareParticipants.some(
+        (participant) =>
+          participant.key === diagnosticsParticipantKey && participant.screenShareTrack
+      )
+    ) {
+      diagnosticsParticipantKey = null;
+    }
+  });
   let isIdle = $derived(!hasActiveCall && !isInThisCall);
   let joinLabel = $derived.by(() => {
     if (isConnecting) return hasActiveCall ? m['voice.joining']() : m['voice.starting']();
@@ -453,6 +467,27 @@ Room sidebar panel for voice/video calls.
     event.stopPropagation();
     void voiceCallState.setSiblingAudioMuted(participant.key, target, muted);
   }
+
+  function diagnosticsPanelId(participant: DisplayParticipant): string {
+    return `screen-share-diagnostics-${encodeURIComponent(participant.key)}`;
+  }
+
+  function diagnosticsButtonId(participant: DisplayParticipant): string {
+    return `screen-share-diagnostics-button-${encodeURIComponent(participant.key)}`;
+  }
+
+  function closeScreenShareDiagnostics(participant: DisplayParticipant): void {
+    diagnosticsParticipantKey = null;
+    requestAnimationFrame(() => {
+      document.getElementById(diagnosticsButtonId(participant))?.focus();
+    });
+  }
+
+  function toggleScreenShareDiagnostics(participant: DisplayParticipant, event: MouseEvent): void {
+    event.stopPropagation();
+    diagnosticsParticipantKey =
+      diagnosticsParticipantKey === participant.key ? null : participant.key;
+  }
 </script>
 
 {#snippet participantAudioActions(
@@ -517,7 +552,23 @@ Room sidebar panel for voice/video calls.
   {/if}
 {/snippet}
 
-{#snippet mediaTileActions(participant: DisplayParticipant)}
+{#snippet mediaTileActions(participant: DisplayParticipant, isScreenShare = false)}
+  {#if isScreenShare}
+    <div
+      class="pointer-events-auto flex shrink-0 rounded-md border border-text/10 bg-surface-100 p-0.5 shadow-sm"
+    >
+      <CallTileActionButton
+        icon="uil--chart-line"
+        label={m['voice.screen_stats_open']()}
+        active={diagnosticsParticipantKey === participant.key}
+        testId="call-screen-share-stats-button"
+        buttonId={diagnosticsButtonId(participant)}
+        ariaExpanded={diagnosticsParticipantKey === participant.key}
+        ariaControls={diagnosticsPanelId(participant)}
+        onclick={(event) => toggleScreenShareDiagnostics(participant, event)}
+      />
+    </div>
+  {/if}
   <CallTileActionToolbar testId="call-media-actions">
     <CallTileActionButton
       icon="mdi--fullscreen"
@@ -573,7 +624,8 @@ Room sidebar panel for voice/video calls.
   label: string,
   actions: 'media' | 'voice' | 'none',
   showIndicators = true,
-  showScreenShareAudio = false
+  showScreenShareAudio = false,
+  isScreenShare = false
 )}
   <div class={callTileHeaderClass}>
     <button
@@ -608,7 +660,7 @@ Room sidebar panel for voice/video calls.
     </button>
 
     {#if actions === 'media'}
-      {@render mediaTileActions(participant)}
+      {@render mediaTileActions(participant, isScreenShare)}
     {:else if actions === 'voice'}
       {@render voiceTileActions(participant)}
     {/if}
@@ -680,7 +732,7 @@ Room sidebar panel for voice/video calls.
 
 {#snippet screenShareCard(participant: DisplayParticipant)}
   <div
-    class={[callTileCardClass, 'participant-card-video @min-[368px]:col-span-2']}
+    class={[callTileCardClass, 'participant-card-video @container @min-[368px]:col-span-2']}
     {@attach isInThisCall && speakingCard(participant.key)}
     title={m['voice.screen_title']({ name: participant.displayName })}
     data-testid="call-screen-share-card"
@@ -692,6 +744,7 @@ Room sidebar panel for voice/video calls.
       m['voice.screen_title']({ name: participant.displayName }),
       'media',
       false,
+      true,
       true
     )}
     <button
@@ -707,6 +760,14 @@ Room sidebar panel for voice/video calls.
         fit="contain"
       />
     </button>
+    {#if diagnosticsParticipantKey === participant.key}
+      <ScreenShareDiagnostics
+        track={participant.screenShareTrack!}
+        direction={participant.isLocal ? 'outbound' : 'inbound'}
+        panelId={diagnosticsPanelId(participant)}
+        onclose={() => closeScreenShareDiagnostics(participant)}
+      />
+    {/if}
   </div>
 {/snippet}
 
@@ -715,7 +776,7 @@ Room sidebar panel for voice/video calls.
   {@const isScreen = tile.kind === 'screen'}
   {@const isVideo = tile.kind === 'video'}
   <div
-    class={[callTileCardClass, 'participant-card-video h-full min-h-0']}
+    class={[callTileCardClass, 'participant-card-video @container h-full min-h-0']}
     {@attach isInThisCall && speakingCard(participant.key)}
     title={isScreen
       ? m['voice.screen_title']({ name: participant.displayName })
@@ -731,6 +792,7 @@ Room sidebar panel for voice/video calls.
         : participant.displayName,
       isScreen || isVideo ? 'media' : 'voice',
       true,
+      isScreen,
       isScreen
     )}
     <button
@@ -766,6 +828,14 @@ Room sidebar panel for voice/video calls.
         </div>
       {/if}
     </button>
+    {#if isScreen && diagnosticsParticipantKey === participant.key}
+      <ScreenShareDiagnostics
+        track={participant.screenShareTrack!}
+        direction={participant.isLocal ? 'outbound' : 'inbound'}
+        panelId={diagnosticsPanelId(participant)}
+        onclose={() => closeScreenShareDiagnostics(participant)}
+      />
+    {/if}
   </div>
 {/snippet}
 
