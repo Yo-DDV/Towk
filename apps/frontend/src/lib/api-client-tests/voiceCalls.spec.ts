@@ -147,6 +147,13 @@ describe('createVoiceCallAPI', () => {
       participantId: 'device-1',
       deviceIndex: 1
     });
+    await expect(api.getCallToken('room-1', '', 'call-1')).resolves.toEqual({
+      token: 'jwt',
+      e2eeKey: 'key',
+      callId: 'call-1',
+      participantId: 'device-1',
+      deviceIndex: 1
+    });
 
     expect(mocks.createConnectTransport).toHaveBeenCalledWith({
       baseUrl: 'https://remote.test/api/connect',
@@ -168,8 +175,14 @@ describe('createVoiceCallAPI', () => {
       { roomId: 'room-1' },
       { headers: { Authorization: 'Bearer token' } }
     );
-    expect(mocks.getCallToken).toHaveBeenCalledWith(
-      { roomId: 'room-1', clientInstanceId: '' },
+    expect(mocks.getCallToken).toHaveBeenNthCalledWith(
+      1,
+      { roomId: 'room-1', clientInstanceId: '', expectedCallId: undefined },
+      { headers: { Authorization: 'Bearer token' } }
+    );
+    expect(mocks.getCallToken).toHaveBeenNthCalledWith(
+      2,
+      { roomId: 'room-1', clientInstanceId: '', expectedCallId: 'call-1' },
       { headers: { Authorization: 'Bearer token' } }
     );
   });
@@ -198,10 +211,31 @@ describe('createVoiceCallAPI', () => {
       participantId: 'device-2',
       deviceIndex: 2
     });
+    await expect(api.joinCall('room-1', 'browser-2', 'companion', 'C-current')).resolves.toEqual({
+      status: 'joined',
+      participantId: 'device-2',
+      deviceIndex: 2
+    });
     await expect(api.leaveCall('room-1', 'browser-2')).resolves.toBe(true);
 
-    expect(mocks.joinCall).toHaveBeenCalledWith(
-      { roomId: 'room-1', clientInstanceId: 'browser-2', mode: JoinCallMode.COMPANION },
+    expect(mocks.joinCall).toHaveBeenNthCalledWith(
+      1,
+      {
+        roomId: 'room-1',
+        clientInstanceId: 'browser-2',
+        mode: JoinCallMode.COMPANION,
+        expectedCallId: undefined
+      },
+      { headers: undefined }
+    );
+    expect(mocks.joinCall).toHaveBeenNthCalledWith(
+      2,
+      {
+        roomId: 'room-1',
+        clientInstanceId: 'browser-2',
+        mode: JoinCallMode.COMPANION,
+        expectedCallId: 'C-current'
+      },
       { headers: undefined }
     );
     expect(mocks.leaveCall).toHaveBeenCalledWith(

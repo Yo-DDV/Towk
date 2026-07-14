@@ -611,6 +611,18 @@ Lightweight room reference for cross-resource rows.
 | `kind` | [`RoomKind`](#chatto-api-v1-RoomKind) | Room kind. |
 | `name` | `string` | Room name. Direct-message rooms may have an empty name because clients derive their display label from participants. |
 
+<a id="chatto-api-v1-CallStartedNotification"></a>
+
+### CallStartedNotification
+
+Notification that a call started in a joined room or private conversation.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room` | [`RoomSummary`](#chatto-api-v1-RoomSummary) | Room where the call started. |
+| `event_id` | `string` | Durable call-start event ID. |
+| `call_id` | `string` | Stable call session ID used by explicit join actions. |
+
 <a id="chatto-api-v1-DirectMessageNotification"></a>
 
 ### DirectMessageNotification
@@ -650,6 +662,7 @@ One pending notification for the authenticated viewer.
 | `kind.mention` | [`MentionNotification`](#chatto-api-v1-MentionNotification) | Mention notification. |
 | `kind.reply` | [`ReplyNotification`](#chatto-api-v1-ReplyNotification) | Reply notification. |
 | `kind.room_message` | [`RoomMessageNotification`](#chatto-api-v1-RoomMessageNotification) | All-messages room notification. |
+| `kind.call_started` | [`CallStartedNotification`](#chatto-api-v1-CallStartedNotification) | Call-start notification for All Messages recipients. |
 
 <a id="chatto-api-v1-ReplyNotification"></a>
 

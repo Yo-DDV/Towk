@@ -350,9 +350,11 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 
 		// Get actor's display name for the notification
 		actorName := "Someone"
+		actorKnown := false
 		if notification.ActorId != "" {
 			actor, err := chattoCore.GetUser(ctx, notification.ActorId)
 			if err == nil && actor != nil {
+				actorKnown = true
 				actorName = actor.DisplayName
 				if actorName == "" {
 					actorName = actor.Login
@@ -362,6 +364,10 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 
 		// Build payload context with message preview and room name
 		payloadCtx := fetchPayloadContext(ctx, chattoCore, notification, logger)
+		if payloadCtx == nil {
+			payloadCtx = &push.PayloadContext{}
+		}
+		payloadCtx.ActorKnown = actorKnown
 
 		// Build and send push notification
 		payload := push.BuildPayloadFromNotification(notification, actorName, cfg.Webserver.URL, payloadCtx)
@@ -451,10 +457,7 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		}
 
 		// Send dismiss push to all devices
-		payload := &push.Payload{
-			Action: "dismiss",
-			Tag:    tag,
-		}
+		payload := push.DismissPayload(notification)
 		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, userID, subscriptions, logger)
 		if len(subscriptions) == 0 {
 			return
@@ -547,10 +550,7 @@ func compensateStalePushDelivery(
 	if tag == "" {
 		return
 	}
-	cleanupResults := sender.SendToMany(ctx, subscriptions, &push.Payload{
-		Action: "dismiss",
-		Tag:    tag,
-	})
+	cleanupResults := sender.SendToMany(ctx, subscriptions, push.DismissPayload(notification))
 	for _, result := range cleanupResults {
 		if result.Gone {
 			if err := state.DeletePushSubscription(ctx, notification.RecipientId, result.Endpoint); err != nil {
@@ -610,6 +610,18 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 	case *corev1.Notification_RoomMessage:
 		roomID = n.RoomMessage.RoomId
 		eventID = n.RoomMessage.EventId
+	case *corev1.Notification_CallStarted:
+		roomID = n.CallStarted.RoomId
+		room, err := chattoCore.FindRoomByID(ctx, roomID)
+		if err != nil {
+			logger.Debug("Failed to resolve room for call push notification",
+				"room_id", roomID, "error", err)
+			return nil
+		}
+		return &push.PayloadContext{
+			RoomName:  room.GetName(),
+			IsPrivate: core.KindOfRoom(room) == core.KindDM,
+		}
 	default:
 		return nil
 	}

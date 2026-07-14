@@ -10,7 +10,11 @@
       "time_now": "Gerade eben",
       "time_minutes": "vor {count} Min.",
       "time_hours": "vor {count} Std.",
-      "time_days": "vor {count} Tg."
+      "time_days": "vor {count} Tg.",
+      "call_started": "{actor} hat einen Anruf gestartet",
+      "call_started_unknown": "Ein Anruf wurde gestartet",
+      "private_call_started": "{actor} ruft dich an",
+      "private_call_started_unknown": "Eingehender Anruf"
     },
     "sign_out": {
       "title": "Abmelden",

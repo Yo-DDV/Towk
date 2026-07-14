@@ -270,9 +270,30 @@ func (c *ChattoCore) RecordCallParticipantJoined(ctx context.Context, kind RoomK
 	return c.callModel.AppendJoined(ctx, roomID, userID, source)
 }
 
+func (c *ChattoCore) RecordCallParticipantJoinedForCall(ctx context.Context, kind RoomKind, roomID, userID, expectedCallID string, source corev1.CallParticipantEventSource) error {
+	if expectedCallID == "" {
+		return c.RecordCallParticipantJoined(ctx, kind, roomID, userID, source)
+	}
+	if c.callModel == nil {
+		return fmt.Errorf("call model is not initialized")
+	}
+	active, ok := c.CallState.ActiveCall(roomID)
+	if !ok || active.CallID != expectedCallID {
+		return ErrCallNoLongerActive
+	}
+	if err := c.callModel.AppendJoinedForCall(ctx, roomID, userID, expectedCallID, source); err != nil {
+		return err
+	}
+	active, ok = c.CallState.ActiveCall(roomID)
+	if !ok || active.CallID != expectedCallID {
+		return ErrCallNoLongerActive
+	}
+	return nil
+}
+
 // JoinCallParticipant applies the multi-device admission policy atomically at
 // the room aggregate boundary and best-effort disconnects transferred peers.
-func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roomID, userID, clientInstanceID string, mode CallJoinMode) (CallJoinResult, error) {
+func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roomID, userID, clientInstanceID string, mode CallJoinMode, expectedCallID ...string) (CallJoinResult, error) {
 	if c.callModel == nil {
 		return CallJoinResult{}, fmt.Errorf("call model is not initialized")
 	}
@@ -280,7 +301,7 @@ func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roo
 	if clientInstanceID == "" {
 		mode = CallJoinModeTransfer
 	}
-	result, err := c.callModel.JoinUserParticipant(ctx, roomID, userID, participantID, mode)
+	result, err := c.callModel.JoinUserParticipant(ctx, roomID, userID, participantID, mode, expectedCallID...)
 	if err != nil {
 		return CallJoinResult{}, err
 	}
@@ -317,6 +338,13 @@ func (c *ChattoCore) GetVoiceCallE2EEKey(ctx context.Context, roomID string) (st
 		return "", fmt.Errorf("call model is not initialized")
 	}
 	return c.callModel.GetE2EEKey(ctx, roomID)
+}
+
+func (c *ChattoCore) GetVoiceCallE2EEKeyForCall(ctx context.Context, roomID, callID string) (string, error) {
+	if c.callModel == nil {
+		return "", fmt.Errorf("call model is not initialized")
+	}
+	return c.callModel.GetE2EEKeyForCall(ctx, roomID, callID)
 }
 
 // GetCallParticipants returns the participants currently in a voice call.

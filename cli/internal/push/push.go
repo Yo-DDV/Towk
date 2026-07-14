@@ -145,16 +145,30 @@ func isPublicPushAddress(address netip.Addr) bool {
 
 // Payload represents the data sent in a push notification.
 type Payload struct {
-	Title          string `json:"title,omitempty"`
-	Body           string `json:"body,omitempty"`
-	Icon           string `json:"icon,omitempty"`
-	Badge          string `json:"badge,omitempty"`
-	Tag            string `json:"tag,omitempty"`
-	NotificationID string `json:"notificationId,omitempty"`
-	URL            string `json:"url,omitempty"`
-	AppBadge       string `json:"-"`
+	Title          string           `json:"title,omitempty"`
+	Body           string           `json:"body,omitempty"`
+	Icon           string           `json:"icon,omitempty"`
+	Badge          string           `json:"badge,omitempty"`
+	Tag            string           `json:"tag,omitempty"`
+	NotificationID string           `json:"notificationId,omitempty"`
+	URL            string           `json:"url,omitempty"`
+	ExpiresAt      int64            `json:"expiresAt,omitempty"`
+	Call           *CallPushPayload `json:"call,omitempty"`
+	AppBadge       string           `json:"-"`
+	TTL            int              `json:"-"`
+	Urgency        webpush.Urgency  `json:"-"`
+	Topic          string           `json:"-"`
 	// Action is used for special payloads like "dismiss" to close notifications on other devices
 	Action string `json:"action,omitempty"`
+}
+
+type CallPushPayload struct {
+	ActorName  string `json:"actorName"`
+	ActorKnown bool   `json:"actorKnown"`
+	RoomName   string `json:"roomName,omitempty"`
+	IsPrivate  bool   `json:"isPrivate,omitempty"`
+	CallID     string `json:"callId"`
+	JoinURL    string `json:"joinUrl"`
 }
 
 type declarativeNotification struct {
@@ -182,6 +196,8 @@ func (p Payload) MarshalJSON() ([]byte, error) {
 		Tag            string                   `json:"tag,omitempty"`
 		NotificationID string                   `json:"notificationId,omitempty"`
 		URL            string                   `json:"url,omitempty"`
+		ExpiresAt      int64                    `json:"expiresAt,omitempty"`
+		Call           *CallPushPayload         `json:"call,omitempty"`
 		Action         string                   `json:"action,omitempty"`
 		WebPush        int                      `json:"web_push,omitempty"`
 		Mutable        bool                     `json:"mutable,omitempty"`
@@ -196,6 +212,8 @@ func (p Payload) MarshalJSON() ([]byte, error) {
 		Tag:            p.Tag,
 		NotificationID: p.NotificationID,
 		URL:            p.URL,
+		ExpiresAt:      p.ExpiresAt,
+		Call:           p.Call,
 		Action:         p.Action,
 	}
 	if p.declarativeNotificationEligible() {
@@ -219,7 +237,7 @@ func (p Payload) MarshalJSON() ([]byte, error) {
 }
 
 func (p Payload) declarativeNotificationEligible() bool {
-	return p.Action == "" && p.Title != "" && p.URL != ""
+	return p.Action == "" && p.Title != "" && p.URL != "" && p.Call == nil && p.ExpiresAt == 0
 }
 
 // PayloadContext provides optional context for building push payloads.
@@ -228,6 +246,10 @@ type PayloadContext struct {
 	MessagePreview string
 	// RoomName is the name of the room (for mentions)
 	RoomName string
+	// IsPrivate distinguishes one-to-one conversations from channel rooms.
+	IsPrivate bool
+	// ActorKnown lets localized workers avoid leaking the English fallback name.
+	ActorKnown bool
 }
 
 // maxPreviewLength is the maximum number of user-perceived characters kept in
@@ -301,11 +323,17 @@ func (s *Sender) Send(ctx context.Context, sub *corev1.PushSubscription, payload
 	}
 
 	// Send the push notification
+	ttl := payload.TTL
+	if ttl <= 0 {
+		ttl = 86400
+	}
 	resp, err := webpush.SendNotificationWithContext(requestCtx, payloadJSON, subscription, &webpush.Options{
 		Subscriber:      normalizeVAPIDSubject(s.config.VAPIDSubject),
 		VAPIDPublicKey:  s.config.VAPIDPublicKey,
 		VAPIDPrivateKey: s.config.VAPIDPrivateKey,
-		TTL:             86400, // 24 hours
+		TTL:             ttl,
+		Urgency:         payload.Urgency,
+		Topic:           payload.Topic,
 		RecordSize:      pushRecordSize,
 		HTTPClient:      s.httpClient,
 	})
@@ -488,6 +516,28 @@ func BuildPayloadFromNotification(notif *corev1.Notification, actorDisplayName, 
 		payload.Tag = "room-message-" + n.RoomMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.RoomMessage.RoomId, n.RoomMessage.InThread, n.RoomMessage.EventId)
 
+	case *corev1.Notification_CallStarted:
+		isPrivate := payloadCtx != nil && payloadCtx.IsPrivate
+		payload.Title = fmt.Sprintf("%s started a call", actorDisplayName)
+		payload.Tag = "call-" + n.CallStarted.CallId
+		payload.URL = buildNotificationURL(baseURL, n.CallStarted.RoomId, "", "")
+		payload.Call = &CallPushPayload{
+			ActorName:  actorDisplayName,
+			ActorKnown: payloadCtx != nil && payloadCtx.ActorKnown,
+			RoomName:   roomName,
+			IsPrivate:  isPrivate,
+			CallID:     n.CallStarted.CallId,
+			JoinURL:    buildAppURL(baseURL, []string{"chat", "-", n.CallStarted.RoomId}, "joinCall", n.CallStarted.CallId),
+		}
+		createdAt := time.Now()
+		if notif.GetCreatedAt() != nil {
+			createdAt = notif.GetCreatedAt().AsTime()
+		}
+		payload.ExpiresAt = createdAt.Add(time.Minute).UnixMilli()
+		payload.TTL = 60
+		payload.Urgency = webpush.UrgencyHigh
+		payload.Topic = payload.Tag
+
 	default:
 		payload.Title = "New notification"
 		payload.Body = "You have a new notification"
@@ -509,7 +559,21 @@ func NotificationTag(notif *corev1.Notification) string {
 		return "reply-" + n.Reply.EventId
 	case *corev1.Notification_RoomMessage:
 		return "room-message-" + n.RoomMessage.EventId
+	case *corev1.Notification_CallStarted:
+		return "call-" + n.CallStarted.CallId
 	default:
 		return ""
 	}
+}
+
+// DismissPayload mirrors short-lived delivery metadata for call notifications
+// so provider-side collapsing cannot resurrect a stale call after its close.
+func DismissPayload(notif *corev1.Notification) *Payload {
+	payload := &Payload{Action: "dismiss", Tag: NotificationTag(notif)}
+	if notif != nil && notif.GetCallStarted() != nil {
+		payload.TTL = 60
+		payload.Urgency = webpush.UrgencyHigh
+		payload.Topic = payload.Tag
+	}
+	return payload
 }

@@ -4,6 +4,7 @@ import { serverIdToSegment } from '$lib/navigation';
 import {
   NotificationItemKind,
   type DirectMessageNotificationItem,
+  type CallStartedNotificationItem,
   type MentionNotificationItem,
   type NotificationAPI,
   type NotificationItem,
@@ -62,6 +63,12 @@ function isRoomMessageNotification(
   return notification.kind === NotificationItemKind.RoomMessage;
 }
 
+function isCallStartedNotification(
+  notification: NotificationItem
+): notification is CallStartedNotificationItem {
+  return notification.kind === NotificationItemKind.CallStarted;
+}
+
 /**
  * Extract the target a notification points to. Adding a new notification type
  * means updating this single function instead of every read site.
@@ -105,6 +112,16 @@ export function notificationTarget(n: NotificationItem): NotificationTarget {
       roomName: n.roomMsgRoom?.name ?? null,
       eventId: n.roomMsgEventId ?? null,
       threadRootId: n.roomMsgInThread ?? null
+    };
+  }
+  if (isCallStartedNotification(n)) {
+    return {
+      isDM: n.isPrivate,
+      spaceName: null,
+      roomId: n.callRoom?.id ?? null,
+      roomName: n.callRoom?.name ?? null,
+      eventId: null,
+      threadRootId: null
     };
   }
   return {

@@ -642,9 +642,12 @@ type JoinCallRequest struct {
 	// Empty is accepted for compatibility with older clients.
 	ClientInstanceId string `protobuf:"bytes,2,opt,name=client_instance_id,json=clientInstanceId,proto3" json:"client_instance_id,omitempty"`
 	// Requested behavior when another device for the account is active.
-	Mode          JoinCallMode `protobuf:"varint,3,opt,name=mode,proto3,enum=chatto.api.v1.JoinCallMode" json:"mode,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Mode JoinCallMode `protobuf:"varint,3,opt,name=mode,proto3,enum=chatto.api.v1.JoinCallMode" json:"mode,omitempty"`
+	// Optional. Exact active call advertised by a notification action. When it
+	// no longer matches, the request fails instead of starting a replacement.
+	ExpectedCallId string `protobuf:"bytes,4,opt,name=expected_call_id,json=expectedCallId,proto3" json:"expected_call_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *JoinCallRequest) Reset() {
@@ -696,6 +699,13 @@ func (x *JoinCallRequest) GetMode() JoinCallMode {
 		return x.Mode
 	}
 	return JoinCallMode_JOIN_CALL_MODE_UNSPECIFIED
+}
+
+func (x *JoinCallRequest) GetExpectedCallId() string {
+	if x != nil {
+		return x.ExpectedCallId
+	}
+	return ""
 }
 
 // Response from recording a join intent.
@@ -797,8 +807,11 @@ type GetCallTokenRequest struct {
 	// Must match the browser-session identifier admitted by JoinCall.
 	// Empty is accepted for compatibility with older clients.
 	ClientInstanceId string `protobuf:"bytes,2,opt,name=client_instance_id,json=clientInstanceId,proto3" json:"client_instance_id,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Optional. Exact call selected by a notification action. A mismatch fails
+	// instead of issuing credentials for a replacement call.
+	ExpectedCallId string `protobuf:"bytes,3,opt,name=expected_call_id,json=expectedCallId,proto3" json:"expected_call_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetCallTokenRequest) Reset() {
@@ -841,6 +854,13 @@ func (x *GetCallTokenRequest) GetRoomId() string {
 func (x *GetCallTokenRequest) GetClientInstanceId() string {
 	if x != nil {
 		return x.ClientInstanceId
+	}
+	return ""
+}
+
+func (x *GetCallTokenRequest) GetExpectedCallId() string {
+	if x != nil {
+		return x.ExpectedCallId
 	}
 	return ""
 }
@@ -1060,21 +1080,23 @@ const file_chatto_api_v1_voice_calls_proto_rawDesc = "" +
 	"\tjoined_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bjoinedAt\x12\x17\n" +
 	"\acall_id\x18\x03 \x01(\tR\x06callId\x12%\n" +
 	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\x12!\n" +
-	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"\xae\x01\n" +
+	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"\xf7\x01\n" +
 	"\x0fJoinCallRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12H\n" +
 	"\x12client_instance_id\x18\x02 \x01(\tB\x1a\xbaH\x17r\x15\x18\x80\x012\x10^[A-Za-z0-9_-]*$R\x10clientInstanceId\x12/\n" +
-	"\x04mode\x18\x03 \x01(\x0e2\x1b.chatto.api.v1.JoinCallModeR\x04mode\"\x88\x02\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x1b.chatto.api.v1.JoinCallModeR\x04mode\x12G\n" +
+	"\x10expected_call_id\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x18\x18\x80\x012\x13^$|^[A-Za-z0-9_-]+$R\x0eexpectedCallId\"\x88\x02\n" +
 	"\x10JoinCallResponse\x12\x16\n" +
 	"\x06joined\x18\x01 \x01(\bR\x06joined\x125\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x1d.chatto.api.v1.JoinCallStatusR\x06status\x12%\n" +
 	"\x0eparticipant_id\x18\x03 \x01(\tR\rparticipantId\x12!\n" +
 	"\fdevice_index\x18\x04 \x01(\rR\vdeviceIndex\x12.\n" +
 	"\x13active_device_count\x18\x05 \x01(\rR\x11activeDeviceCount\x12+\n" +
-	"\x11companion_allowed\x18\x06 \x01(\bR\x10companionAllowed\"\x81\x01\n" +
+	"\x11companion_allowed\x18\x06 \x01(\bR\x10companionAllowed\"\xca\x01\n" +
 	"\x13GetCallTokenRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12H\n" +
-	"\x12client_instance_id\x18\x02 \x01(\tB\x1a\xbaH\x17r\x15\x18\x80\x012\x10^[A-Za-z0-9_-]*$R\x10clientInstanceId\"\xaa\x01\n" +
+	"\x12client_instance_id\x18\x02 \x01(\tB\x1a\xbaH\x17r\x15\x18\x80\x012\x10^[A-Za-z0-9_-]*$R\x10clientInstanceId\x12G\n" +
+	"\x10expected_call_id\x18\x03 \x01(\tB\x1d\xbaH\x1ar\x18\x18\x80\x012\x13^$|^[A-Za-z0-9_-]+$R\x0eexpectedCallId\"\xaa\x01\n" +
 	"\x14GetCallTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x19\n" +
 	"\be2ee_key\x18\x02 \x01(\tR\ae2eeKey\x12\x17\n" +

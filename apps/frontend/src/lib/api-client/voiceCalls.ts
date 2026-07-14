@@ -101,10 +101,11 @@ export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
     async joinCall(
       roomId: string,
       clientInstanceId = '',
-      mode: VoiceCallJoinMode = 'ask'
+      mode: VoiceCallJoinMode = 'ask',
+      expectedCallId?: string
     ): Promise<VoiceCallJoinResult> {
       const response = await client.joinCall(
-        { roomId, clientInstanceId, mode: apiJoinCallMode(mode) },
+        { roomId, clientInstanceId, mode: apiJoinCallMode(mode), expectedCallId },
         { headers: headers() }
       );
       if (response.status === JoinCallStatus.SELECTION_REQUIRED) {
@@ -124,9 +125,13 @@ export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
       };
     },
 
-    async getCallToken(roomId: string, clientInstanceId = ''): Promise<VoiceCallToken | null> {
+    async getCallToken(
+      roomId: string,
+      clientInstanceId = '',
+      expectedCallId?: string
+    ): Promise<VoiceCallToken | null> {
       const response = await client.getCallToken(
-        { roomId, clientInstanceId },
+        { roomId, clientInstanceId, expectedCallId },
         { headers: headers() }
       );
       if (

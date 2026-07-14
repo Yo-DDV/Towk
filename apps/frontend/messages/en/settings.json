@@ -173,7 +173,7 @@
         "enabled_title": "Push notifications enabled",
         "enabled_description": "Towk uses your browser or OS notification permission as the switch. To turn notifications off, disable them for this site in your browser or OS settings.",
         "enable_title": "Enable push notifications",
-        "enable_description": "Get notified about new messages while Towk is closed or running in the background.",
+        "enable_description": "Receive calls and new channel or private messages while Towk is closed or in the background.",
         "enable_button": "Enable",
         "enabling": "Enabling...",
         "blocked_error": "Push notifications are blocked in your browser or OS settings.",
@@ -184,9 +184,9 @@
       },
       "push_prompt": {
         "title": "Enable push notifications",
-        "message": "Get alerts for every new channel and direct message while Towk is closed or in the background.",
+        "message": "Get alerts for calls and every new channel or private message while Towk is closed or in the background.",
         "blocked_title": "Push notifications are blocked",
-        "blocked_message": "Towk cannot alert you about new channel and direct messages while it is closed. Enable notifications in your browser or OS settings.",
+        "blocked_message": "Towk cannot alert you about calls or new channel and private messages while it is closed. Enable notifications in your browser or OS settings.",
         "blocked_action": "How to enable",
         "ios_home_screen_title": "Add Towk to your Home Screen",
         "ios_home_screen_message": "On supported iOS/iPadOS versions, open Towk from its Home Screen icon before enabling push notifications.",
@@ -197,7 +197,7 @@
         "enable": "Enable",
         "dismiss": "Not now",
         "confirm_title": "Continue without notifications?",
-        "confirm_message": "You may miss new channel and direct messages while Towk is closed. Towk will remind you again later. Are you sure you want to continue?",
+        "confirm_message": "You may miss calls and new channel or private messages while Towk is closed. Towk will remind you again later. Are you sure you want to continue?",
         "confirm_action": "Continue without notifications"
       },
       "levels": {
@@ -217,15 +217,15 @@
         },
         "muted": {
           "label": "Muted",
-          "description": "No notifications or unread markers"
+          "description": "No notifications, including calls and private messages."
         },
         "normal": {
           "label": "Normal",
-          "description": "Unread markers; notifications only for mentions. DMs always notify"
+          "description": "Notifications for mentions and private messages. Calls are not notified."
         },
         "all_messages": {
           "label": "All Messages",
-          "description": "A notification for every new message in joined rooms and threads"
+          "description": "Notifications for all messages and calls in joined rooms, threads, and private conversations."
         }
       },
       "sound": {

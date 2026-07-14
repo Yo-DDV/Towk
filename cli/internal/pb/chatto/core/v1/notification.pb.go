@@ -46,6 +46,7 @@ type Notification struct {
 	//	*Notification_Mention
 	//	*Notification_Reply
 	//	*Notification_RoomMessage
+	//	*Notification_CallStarted
 	Notification  isNotification_Notification `protobuf_oneof:"notification"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -152,6 +153,15 @@ func (x *Notification) GetRoomMessage() *RoomMessageNotification {
 	return nil
 }
 
+func (x *Notification) GetCallStarted() *CallStartedNotification {
+	if x != nil {
+		if x, ok := x.Notification.(*Notification_CallStarted); ok {
+			return x.CallStarted
+		}
+	}
+	return nil
+}
+
 type isNotification_Notification interface {
 	isNotification_Notification()
 }
@@ -173,6 +183,10 @@ type Notification_RoomMessage struct {
 	RoomMessage *RoomMessageNotification `protobuf:"bytes,103,opt,name=room_message,json=roomMessage,proto3,oneof"`
 }
 
+type Notification_CallStarted struct {
+	CallStarted *CallStartedNotification `protobuf:"bytes,104,opt,name=call_started,json=callStarted,proto3,oneof"`
+}
+
 func (*Notification_DmMessage) isNotification_Notification() {}
 
 func (*Notification_Mention) isNotification_Notification() {}
@@ -180,6 +194,8 @@ func (*Notification_Mention) isNotification_Notification() {}
 func (*Notification_Reply) isNotification_Notification() {}
 
 func (*Notification_RoomMessage) isNotification_Notification() {}
+
+func (*Notification_CallStarted) isNotification_Notification() {}
 
 // DMMessageNotification is created when someone sends a message in a DM conversation.
 // The recipient is any participant in the DM except the sender.
@@ -453,11 +469,77 @@ func (x *RoomMessageNotification) GetInThread() string {
 	return ""
 }
 
+// CallStartedNotification is created when a member starts a room call.
+// It is eligible only for current room members whose effective level is
+// ALL_MESSAGES and remains valid only while this exact call is active.
+type CallStartedNotification struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Room where the call started.
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Durable call-start event ID.
+	EventId string `protobuf:"bytes,2,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
+	// Stable call session ID used to reject stale join actions.
+	CallId        string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CallStartedNotification) Reset() {
+	*x = CallStartedNotification{}
+	mi := &file_chatto_core_v1_notification_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CallStartedNotification) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CallStartedNotification) ProtoMessage() {}
+
+func (x *CallStartedNotification) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_notification_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CallStartedNotification.ProtoReflect.Descriptor instead.
+func (*CallStartedNotification) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_notification_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CallStartedNotification) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *CallStartedNotification) GetEventId() string {
+	if x != nil {
+		return x.EventId
+	}
+	return ""
+}
+
+func (x *CallStartedNotification) GetCallId() string {
+	if x != nil {
+		return x.CallId
+	}
+	return ""
+}
+
 var File_chatto_core_v1_notification_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_notification_proto_rawDesc = "" +
 	"\n" +
-	"!chatto/core/v1/notification.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb9\x03\n" +
+	"!chatto/core/v1/notification.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x87\x04\n" +
 	"\fNotification\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\frecipient_id\x18\x02 \x01(\tR\vrecipientId\x129\n" +
@@ -468,7 +550,8 @@ const file_chatto_core_v1_notification_proto_rawDesc = "" +
 	"dm_message\x18d \x01(\v2%.chatto.core.v1.DMMessageNotificationH\x00R\tdmMessage\x12?\n" +
 	"\amention\x18e \x01(\v2#.chatto.core.v1.MentionNotificationH\x00R\amention\x129\n" +
 	"\x05reply\x18f \x01(\v2!.chatto.core.v1.ReplyNotificationH\x00R\x05reply\x12L\n" +
-	"\froom_message\x18g \x01(\v2'.chatto.core.v1.RoomMessageNotificationH\x00R\vroomMessageB\x0e\n" +
+	"\froom_message\x18g \x01(\v2'.chatto.core.v1.RoomMessageNotificationH\x00R\vroomMessage\x12L\n" +
+	"\fcall_started\x18h \x01(\v2'.chatto.core.v1.CallStartedNotificationH\x00R\vcallStartedB\x0e\n" +
 	"\fnotification\"h\n" +
 	"\x15DMMessageNotification\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
@@ -486,7 +569,11 @@ const file_chatto_core_v1_notification_proto_rawDesc = "" +
 	"\x17RoomMessageNotification\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x12\x19\n" +
 	"\bevent_id\x18\x03 \x01(\tR\aeventId\x12\x1b\n" +
-	"\tin_thread\x18\x04 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_idB\xb4\x01\n" +
+	"\tin_thread\x18\x04 \x01(\tR\binThreadJ\x04\b\x01\x10\x02R\bspace_id\"f\n" +
+	"\x17CallStartedNotification\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x19\n" +
+	"\bevent_id\x18\x02 \x01(\tR\aeventId\x12\x17\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callIdB\xb4\x01\n" +
 	"\x12com.chatto.core.v1B\x11NotificationProtoP\x01Z1hmans.de/chatto/internal/pb/chatto/core/v1;corev1\xa2\x02\x03CCX\xaa\x02\x0eChatto.Core.V1\xca\x02\x0eChatto\\Core\\V1\xe2\x02\x1aChatto\\Core\\V1\\GPBMetadata\xea\x02\x10Chatto::Core::V1b\x06proto3"
 
 var (
@@ -501,26 +588,28 @@ func file_chatto_core_v1_notification_proto_rawDescGZIP() []byte {
 	return file_chatto_core_v1_notification_proto_rawDescData
 }
 
-var file_chatto_core_v1_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_chatto_core_v1_notification_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_chatto_core_v1_notification_proto_goTypes = []any{
 	(*Notification)(nil),            // 0: chatto.core.v1.Notification
 	(*DMMessageNotification)(nil),   // 1: chatto.core.v1.DMMessageNotification
 	(*MentionNotification)(nil),     // 2: chatto.core.v1.MentionNotification
 	(*ReplyNotification)(nil),       // 3: chatto.core.v1.ReplyNotification
 	(*RoomMessageNotification)(nil), // 4: chatto.core.v1.RoomMessageNotification
-	(*timestamppb.Timestamp)(nil),   // 5: google.protobuf.Timestamp
+	(*CallStartedNotification)(nil), // 5: chatto.core.v1.CallStartedNotification
+	(*timestamppb.Timestamp)(nil),   // 6: google.protobuf.Timestamp
 }
 var file_chatto_core_v1_notification_proto_depIdxs = []int32{
-	5, // 0: chatto.core.v1.Notification.created_at:type_name -> google.protobuf.Timestamp
+	6, // 0: chatto.core.v1.Notification.created_at:type_name -> google.protobuf.Timestamp
 	1, // 1: chatto.core.v1.Notification.dm_message:type_name -> chatto.core.v1.DMMessageNotification
 	2, // 2: chatto.core.v1.Notification.mention:type_name -> chatto.core.v1.MentionNotification
 	3, // 3: chatto.core.v1.Notification.reply:type_name -> chatto.core.v1.ReplyNotification
 	4, // 4: chatto.core.v1.Notification.room_message:type_name -> chatto.core.v1.RoomMessageNotification
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	5, // 5: chatto.core.v1.Notification.call_started:type_name -> chatto.core.v1.CallStartedNotification
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_chatto_core_v1_notification_proto_init() }
@@ -533,6 +622,7 @@ func file_chatto_core_v1_notification_proto_init() {
 		(*Notification_Mention)(nil),
 		(*Notification_Reply)(nil),
 		(*Notification_RoomMessage)(nil),
+		(*Notification_CallStarted)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -540,7 +630,7 @@ func file_chatto_core_v1_notification_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_core_v1_notification_proto_rawDesc), len(file_chatto_core_v1_notification_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

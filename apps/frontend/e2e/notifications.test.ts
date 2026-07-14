@@ -157,7 +157,7 @@ test.describe('All Messages Notifications', () => {
     await expect(page.getByRole('heading', { name: 'Notifications' })).toBeVisible();
 
     const allMessagesButton = page.locator('button', { hasText: 'All Messages' }).filter({
-      hasText: 'every new message'
+      hasText: 'all messages and calls'
     });
     await expect(allMessagesButton).toHaveClass(/choice-row-selected/);
 

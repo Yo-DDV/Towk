@@ -106,7 +106,8 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrRoomGroupHasRooms) ||
 		errors.Is(err, core.ErrRoomGroupOrderMismatch) ||
 		errors.Is(err, core.ErrRoomMoveSourceChanged) ||
-		errors.Is(err, core.ErrSidebarLinkSourceChanged) {
+		errors.Is(err, core.ErrSidebarLinkSourceChanged) ||
+		errors.Is(err, core.ErrCallNoLongerActive) {
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	return connectInternalError(err)

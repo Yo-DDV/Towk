@@ -10,7 +10,11 @@
       "time_now": "Just now",
       "time_minutes": "{count}m ago",
       "time_hours": "{count}h ago",
-      "time_days": "{count}d ago"
+      "time_days": "{count}d ago",
+      "call_started": "{actor} started a call",
+      "call_started_unknown": "A call started",
+      "private_call_started": "{actor} is calling you",
+      "private_call_started_unknown": "Incoming call"
     },
     "sign_out": {
       "title": "Sign Out",

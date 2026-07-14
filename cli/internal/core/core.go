@@ -59,6 +59,7 @@ type ChattoCore struct {
 	presenceModel      *PresenceModel
 	mediaModel         *MediaModel
 	callModel          *CallModel
+	callNotifications  *CallNotificationModel
 	assetModel         *AssetModel
 	models             []modelRegistration
 	s3Client           *S3Client            // Optional S3 client for S3-compatible storage
@@ -317,6 +318,7 @@ func (c *ChattoCore) Run(ctx context.Context) error {
 
 	g.Go(func() error { return c.presenceModel.Run(gctx) })
 	g.Go(func() error { return c.callModel.Run(gctx) })
+	g.Go(func() error { return c.callNotifications.Run(gctx) })
 	g.Go(func() error { return c.assetModel.Run(gctx) })
 	g.Go(func() error { return c.AssetUploads().RunCleanup(gctx) })
 
@@ -1126,6 +1128,8 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 
 	core.mediaModel = NewMediaModel(core)
 	core.callModel = NewCallModel(eventPublisher, callState, callStateProjector, encMgr.callKeys, nil, callReconcileLease, storage.memoryCacheKV, logger.WithPrefix("core.CallModel"))
+	core.callNotifications = NewCallNotificationModel(core)
+	core.callModel.onTransitionCommitted = core.callNotifications.Wake
 	core.assetModel = NewAssetModel(core)
 	core.assetModel.cleanupLease = assetCleanupLease
 	core.roomCommands = &RoomCommandModel{core: core}

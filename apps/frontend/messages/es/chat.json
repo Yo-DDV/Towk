@@ -10,7 +10,11 @@
       "time_now": "En este momento",
       "time_minutes": "Hace {count}m",
       "time_hours": "Hace {count}h",
-      "time_days": "Hace {count}d"
+      "time_days": "Hace {count}d",
+      "call_started": "{actor} inició una llamada",
+      "call_started_unknown": "Se inició una llamada",
+      "private_call_started": "{actor} te está llamando",
+      "private_call_started_unknown": "Llamada entrante"
     },
     "sign_out": {
       "title": "Desconectar",

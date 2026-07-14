@@ -10,7 +10,11 @@
       "time_now": "Agora mesmo",
       "time_minutes": "{count}m atrás",
       "time_hours": "{count}h atrás",
-      "time_days": "{count}d atrás"
+      "time_days": "{count}d atrás",
+      "call_started": "{actor} iniciou uma chamada",
+      "call_started_unknown": "Uma chamada foi iniciada",
+      "private_call_started": "{actor} está ligando para você",
+      "private_call_started_unknown": "Chamada recebida"
     },
     "sign_out": {
       "title": "Sair",

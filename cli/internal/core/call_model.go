@@ -88,15 +88,16 @@ type liveKitParticipantRemover interface {
 }
 
 type CallModel struct {
-	publisher      *events.Publisher
-	projection     *CallStateProjection
-	projector      *events.Projector
-	callKeys       kms.CallKeyStore
-	livekit        liveKitParticipantLister
-	reconcileLease *lease.Lease
-	memoryCacheKV  jetstream.KeyValue
-	logger         events.Logger
-	keyCleanup     *events.IncrementalEffectConsumer
+	publisher             *events.Publisher
+	projection            *CallStateProjection
+	projector             *events.Projector
+	callKeys              kms.CallKeyStore
+	livekit               liveKitParticipantLister
+	reconcileLease        *lease.Lease
+	memoryCacheKV         jetstream.KeyValue
+	logger                events.Logger
+	keyCleanup            *events.IncrementalEffectConsumer
+	onTransitionCommitted func()
 }
 
 type liveKitFailureCleanupSummary struct {
@@ -337,9 +338,24 @@ func (s *CallModel) GetE2EEKey(ctx context.Context, roomID string) (string, erro
 	if !ok || call.CallID == "" || call.E2EEKeyRef == "" {
 		return "", fmt.Errorf("no active voice call for room %s", roomID)
 	}
+	return s.GetE2EEKeyForCall(ctx, roomID, call.CallID)
+}
+
+func (s *CallModel) GetE2EEKeyForCall(ctx context.Context, roomID, callID string) (string, error) {
+	if s.callKeys == nil {
+		return "", fmt.Errorf("call key store is not initialized")
+	}
+	call, ok := s.projection.ActiveCall(roomID)
+	if !ok || call.CallID == "" || call.CallID != callID || call.E2EEKeyRef == "" {
+		return "", ErrCallNoLongerActive
+	}
 	key, err := s.callKeys.GetCallKey(ctx, call.E2EEKeyRef)
 	if err != nil {
 		return "", fmt.Errorf("read call E2EE key: %w", err)
+	}
+	current, ok := s.projection.ActiveCall(roomID)
+	if !ok || current.CallID != callID || current.E2EEKeyRef != call.E2EEKeyRef {
+		return "", ErrCallNoLongerActive
 	}
 	return key, nil
 }
@@ -386,7 +402,7 @@ func (s *CallModel) cleanupEndedCallKey(ctx context.Context, event *corev1.Event
 
 // JoinUserParticipant applies call-device admission and transfer as one
 // room-aggregate OCC transaction. Selection-only requests never append facts.
-func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, participantID string, mode CallJoinMode) (CallJoinResult, error) {
+func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, participantID string, mode CallJoinMode, expectedCallID ...string) (CallJoinResult, error) {
 	if participantID == "" {
 		return CallJoinResult{}, fmt.Errorf("participant ID is required")
 	}
@@ -396,8 +412,12 @@ func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, par
 
 	aggregate := events.RoomAggregate(roomID)
 	filter := aggregate.AllEventsFilter()
+	expected := optionalCallID(expectedCallID)
 	for attempt := 0; attempt < callReconcileMaxRetries; attempt++ {
 		snapshot := s.projection.RoomSnapshot(roomID)
+		if expected != "" && snapshot.Call.CallID != expected {
+			return CallJoinResult{}, ErrCallNoLongerActive
+		}
 		userParticipants := callParticipantsByUser(snapshot.Participants, userID)
 		existing, alreadyJoined := callParticipantByID(userParticipants, userID, participantID)
 		activeDeviceCount := len(userParticipants)
@@ -605,6 +625,9 @@ func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, use
 			}
 			if err := s.projector.WaitFor(ctx, events.SubjectPosition(filter, seq)); err != nil {
 				return err
+			}
+			if s.onTransitionCommitted != nil {
+				s.onTransitionCommitted()
 			}
 			return nil
 		}

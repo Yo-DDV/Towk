@@ -7,7 +7,9 @@ import type {
 } from '@towk/api-types/api/v1/notifications_pb';
 import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { PresenceStatus } from './renderTypes.js';
+import * as m from '$lib/i18n/messages';
 
 export type NotificationAPIConfig = {
   baseUrl: string;
@@ -33,7 +35,8 @@ export const NotificationItemKind = {
   DirectMessage: 'directMessage',
   Mention: 'mention',
   Reply: 'reply',
-  RoomMessage: 'roomMessage'
+  RoomMessage: 'roomMessage',
+  CallStarted: 'callStarted'
 } as const;
 
 export type NotificationItemKind = (typeof NotificationItemKind)[keyof typeof NotificationItemKind];
@@ -83,11 +86,24 @@ export type RoomMessageNotificationItem = {
   roomMsgInThread?: string | null;
 };
 
+export type CallStartedNotificationItem = {
+  kind: typeof NotificationItemKind.CallStarted;
+  id: string;
+  createdAt: string;
+  actor?: NotificationActor | null;
+  summary: string;
+  callRoom: { id: string; name: string } | null;
+  callEventId: string;
+  callId: string;
+  isPrivate: boolean;
+};
+
 export type NotificationItem =
   | DirectMessageNotificationItem
   | MentionNotificationItem
   | ReplyNotificationItem
-  | RoomMessageNotificationItem;
+  | RoomMessageNotificationItem
+  | CallStartedNotificationItem;
 
 export type NotificationPage = {
   items: NotificationItem[];
@@ -234,12 +250,30 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
         roomMsgEventId: item.kind.value.eventId,
         roomMsgInThread: item.kind.value.threadRootEventId ?? null
       };
+    case 'callStarted': {
+      const isPrivate = item.kind.value.room?.kind === RoomKind.DM;
+      return {
+        kind: NotificationItemKind.CallStarted,
+        ...base,
+        summary: notificationSummary(actor, NotificationItemKind.CallStarted, isPrivate),
+        callRoom: item.kind.value.room
+          ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
+          : null,
+        callEventId: item.kind.value.eventId,
+        callId: item.kind.value.callId,
+        isPrivate
+      };
+    }
     default:
       return null;
   }
 }
 
-function notificationSummary(actor: NotificationActor | null, kind: NotificationItemKind): string {
+function notificationSummary(
+  actor: NotificationActor | null,
+  kind: NotificationItemKind,
+  isPrivate = false
+): string {
   const actorName = actor?.displayName || null;
   switch (kind) {
     case NotificationItemKind.DirectMessage:
@@ -250,6 +284,15 @@ function notificationSummary(actor: NotificationActor | null, kind: Notification
       return actorName ? `${actorName} replied to your message` : 'New reply to your message';
     case NotificationItemKind.RoomMessage:
       return actorName ? `${actorName} posted a message` : 'New message';
+    case NotificationItemKind.CallStarted:
+      if (isPrivate) {
+        return actorName
+          ? m['chat.notifications.private_call_started']({ actor: actorName })
+          : m['chat.notifications.private_call_started_unknown']();
+      }
+      return actorName
+        ? m['chat.notifications.call_started']({ actor: actorName })
+        : m['chat.notifications.call_started_unknown']();
   }
 }
 

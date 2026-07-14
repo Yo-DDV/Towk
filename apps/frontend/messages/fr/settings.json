@@ -173,7 +173,7 @@
         "enabled_title": "Notifications push activées",
         "enabled_description": "Towk suit l’autorisation de notification définie dans votre navigateur ou votre système. Pour les désactiver, bloquez-les pour ce site dans les paramètres correspondants.",
         "enable_title": "Activer les notifications push",
-        "enable_description": "Recevez les nouveaux messages lorsque Towk est fermé ou fonctionne en arrière-plan.",
+        "enable_description": "Recevez vos appels et vos nouveaux messages de salon ou privés lorsque Towk est fermé ou en arrière-plan.",
         "enable_button": "Activer",
         "enabling": "Activation...",
         "blocked_error": "Les notifications push sont bloquées dans les paramètres de votre navigateur ou de votre système d'exploitation.",
@@ -184,9 +184,9 @@
       },
       "push_prompt": {
         "title": "Activer les notifications push",
-        "message": "Recevez une alerte pour chaque nouveau message de salon et message direct lorsque Towk est fermé ou en arrière-plan.",
+        "message": "Recevez une alerte pour vos appels et chaque nouveau message de salon ou privé lorsque Towk est fermé ou en arrière-plan.",
         "blocked_title": "Les notifications push sont bloquées",
-        "blocked_message": "Towk ne peut pas vous prévenir des nouveaux messages de salon et messages directs lorsqu'il est fermé. Activez les notifications dans les paramètres du navigateur ou du système.",
+        "blocked_message": "Towk ne peut pas vous prévenir des appels ni des nouveaux messages de salon ou privés lorsqu'il est fermé. Activez les notifications dans les paramètres du navigateur ou du système.",
         "blocked_action": "Comment les activer",
         "ios_home_screen_title": "Ajoutez Towk à votre écran d'accueil",
         "ios_home_screen_message": "Sur les versions iOS/iPadOS prises en charge, ouvrez Towk à partir de son icône sur l'écran d'accueil avant d'activer les notifications push.",
@@ -197,7 +197,7 @@
         "enable": "Activer",
         "dismiss": "Plus tard",
         "confirm_title": "Continuer sans notifications ?",
-        "confirm_message": "Vous risquez de manquer de nouveaux messages de salon et messages directs lorsque Towk est fermé. Towk vous le rappellera plus tard. Voulez-vous vraiment continuer ?",
+        "confirm_message": "Vous risquez de manquer des appels et de nouveaux messages de salon ou privés lorsque Towk est fermé. Towk vous le rappellera plus tard. Voulez-vous vraiment continuer ?",
         "confirm_action": "Continuer sans notifications"
       },
       "levels": {
@@ -217,15 +217,15 @@
         },
         "muted": {
           "label": "Silencieux",
-          "description": "Aucune notification ni marqueur non lu"
+          "description": "Aucune notification, y compris pour les appels et les messages privés."
         },
         "normal": {
           "label": "Normal",
-          "description": "Indicateurs de messages non lus ; notifications uniquement pour les mentions. Les messages directs sont toujours notifiés"
+          "description": "Notifications pour vos mentions et vos messages privés. Les appels ne sont pas notifiés."
         },
         "all_messages": {
           "label": "Tous les messages",
-          "description": "Une notification pour chaque nouveau message dans les salons rejoints et les fils"
+          "description": "Notifications pour tous les messages et les appels dans les salons rejoints, les fils et les conversations privées."
         }
       },
       "sound": {

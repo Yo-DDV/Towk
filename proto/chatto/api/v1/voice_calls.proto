@@ -166,6 +166,12 @@ message JoinCallRequest {
   }];
   // Requested behavior when another device for the account is active.
   JoinCallMode mode = 3;
+  // Optional. Exact active call advertised by a notification action. When it
+  // no longer matches, the request fails instead of starting a replacement.
+  string expected_call_id = 4 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
+  }];
 }
 
 // Response from recording a join intent.
@@ -193,6 +199,12 @@ message GetCallTokenRequest {
   string client_instance_id = 2 [(buf.validate.field).string = {
     max_len: 128
     pattern: "^[A-Za-z0-9_-]*$"
+  }];
+  // Optional. Exact call selected by a notification action. A mismatch fails
+  // instead of issuing credentials for a replacement call.
+  string expected_call_id = 3 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
   }];
 }
 

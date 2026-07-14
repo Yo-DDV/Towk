@@ -136,7 +136,7 @@ func (s *voiceCallService) JoinCall(ctx context.Context, req *connect.Request[ap
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.api.core.JoinCallParticipant(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetClientInstanceId(), mode)
+	result, err := s.api.core.JoinCallParticipant(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetClientInstanceId(), mode, req.Msg.GetExpectedCallId())
 	if err != nil {
 		if errors.Is(err, core.ErrCallDeviceLimit) {
 			return nil, connect.NewError(connect.CodeResourceExhausted, err)
@@ -191,7 +191,11 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 	if !ok {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("no active voice call for room %s", req.Msg.GetRoomId()))
 	}
-	e2eeKey, err := s.api.core.GetVoiceCallE2EEKey(ctx, req.Msg.GetRoomId())
+	if expectedCallID := req.Msg.GetExpectedCallId(); expectedCallID != "" && activeCall.CallID != expectedCallID {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, core.ErrCallNoLongerActive)
+	}
+	callID := activeCall.CallID
+	e2eeKey, err := s.api.core.GetVoiceCallE2EEKeyForCall(ctx, req.Msg.GetRoomId(), callID)
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -201,7 +205,7 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 	var callParticipant core.CallParticipant
 	participantFound := false
 	for _, participant := range s.api.core.CallState.Participants(req.Msg.GetRoomId()) {
-		if participant.UserID == caller.UserID && participant.ParticipantID == participantID && participant.CallID == activeCall.CallID {
+		if participant.UserID == caller.UserID && participant.ParticipantID == participantID && participant.CallID == callID {
 			callParticipant = participant
 			participantFound = true
 			break
@@ -210,7 +214,7 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 	if !participantFound {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("call connection has not been admitted"))
 	}
-	roomName := core.LiveKitRoomName(s.api.config.LiveKit.ServerID, core.LegacySpaceIDForRoomKind(kind), req.Msg.GetRoomId(), activeCall.CallID)
+	roomName := core.LiveKitRoomName(s.api.config.LiveKit.ServerID, core.LegacySpaceIDForRoomKind(kind), req.Msg.GetRoomId(), callID)
 	token, err := core.GenerateVoiceCallTokenForParticipant(
 		s.api.config.LiveKit.APIKey,
 		s.api.config.LiveKit.APISecret,
@@ -224,10 +228,14 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 		user.GetLogin(),
 		s.api.absolutizeAssetURL(ctx, avatarURL),
 		e2eeKey,
-		activeCall.CallID,
+		callID,
 	)
 	if err != nil {
 		return nil, connectError(err)
+	}
+	currentCall, ok := s.api.core.CallState.ActiveCall(req.Msg.GetRoomId())
+	if !ok || currentCall.CallID != callID {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, core.ErrCallNoLongerActive)
 	}
 
 	return connect.NewResponse(&apiv1.GetCallTokenResponse{

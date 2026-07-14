@@ -530,6 +530,14 @@ const msg_chat_notifications_time_hours = (
 const msg_chat_notifications_time_days = (
   inputs: Parameters<LocaleMessages['chat_notifications_time_days']>[0]
 ): LocalizedString => messages().chat_notifications_time_days(inputs);
+const msg_chat_notifications_call_started = (
+  inputs: Parameters<LocaleMessages['chat_notifications_call_started']>[0]
+): LocalizedString => messages().chat_notifications_call_started(inputs);
+const msg_chat_notifications_call_started_unknown = (): LocalizedString => messages().chat_notifications_call_started_unknown(empty());
+const msg_chat_notifications_private_call_started = (
+  inputs: Parameters<LocaleMessages['chat_notifications_private_call_started']>[0]
+): LocalizedString => messages().chat_notifications_private_call_started(inputs);
+const msg_chat_notifications_private_call_started_unknown = (): LocalizedString => messages().chat_notifications_private_call_started_unknown(empty());
 const msg_chat_sign_out_title = (): LocalizedString => messages().chat_sign_out_title(empty());
 const msg_chat_sign_out_current_server = (): LocalizedString => messages().chat_sign_out_current_server(empty());
 const msg_chat_sign_out_all_servers = (): LocalizedString => messages().chat_sign_out_all_servers(empty());
@@ -984,6 +992,7 @@ const msg_voice_unknown_device = (): LocalizedString => messages().voice_unknown
 const msg_voice_no_devices = (): LocalizedString => messages().voice_no_devices(empty());
 const msg_voice_participants = (): LocalizedString => messages().voice_participants(empty());
 const msg_voice_join_failed = (): LocalizedString => messages().voice_join_failed(empty());
+const msg_voice_call_no_longer_active = (): LocalizedString => messages().voice_call_no_longer_active(empty());
 const msg_voice_token_failed = (): LocalizedString => messages().voice_token_failed(empty());
 const msg_voice_encrypted_unsupported = (): LocalizedString => messages().voice_encrypted_unsupported(empty());
 const msg_voice_signaling_failed = (): LocalizedString => messages().voice_signaling_failed(empty());
@@ -2170,6 +2179,10 @@ export { msg_chat_notifications_time_now as 'chat.notifications.time_now' };
 export { msg_chat_notifications_time_minutes as 'chat.notifications.time_minutes' };
 export { msg_chat_notifications_time_hours as 'chat.notifications.time_hours' };
 export { msg_chat_notifications_time_days as 'chat.notifications.time_days' };
+export { msg_chat_notifications_call_started as 'chat.notifications.call_started' };
+export { msg_chat_notifications_call_started_unknown as 'chat.notifications.call_started_unknown' };
+export { msg_chat_notifications_private_call_started as 'chat.notifications.private_call_started' };
+export { msg_chat_notifications_private_call_started_unknown as 'chat.notifications.private_call_started_unknown' };
 export { msg_chat_sign_out_title as 'chat.sign_out.title' };
 export { msg_chat_sign_out_current_server as 'chat.sign_out.current_server' };
 export { msg_chat_sign_out_all_servers as 'chat.sign_out.all_servers' };
@@ -2534,6 +2547,7 @@ export { msg_voice_unknown_device as 'voice.unknown_device' };
 export { msg_voice_no_devices as 'voice.no_devices' };
 export { msg_voice_participants as 'voice.participants' };
 export { msg_voice_join_failed as 'voice.join_failed' };
+export { msg_voice_call_no_longer_active as 'voice.call_no_longer_active' };
 export { msg_voice_token_failed as 'voice.token_failed' };
 export { msg_voice_encrypted_unsupported as 'voice.encrypted_unsupported' };
 export { msg_voice_signaling_failed as 'voice.signaling_failed' };

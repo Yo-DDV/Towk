@@ -552,6 +552,14 @@ export class JoinCallRequest extends Message<JoinCallRequest> {
    */
   mode = JoinCallMode.UNSPECIFIED;
 
+  /**
+   * Optional. Exact active call advertised by a notification action. When it
+   * no longer matches, the request fails instead of starting a replacement.
+   *
+   * @generated from field: string expected_call_id = 4;
+   */
+  expectedCallId = "";
+
   constructor(data?: PartialMessage<JoinCallRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -563,6 +571,7 @@ export class JoinCallRequest extends Message<JoinCallRequest> {
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "client_instance_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "mode", kind: "enum", T: proto3.getEnumType(JoinCallMode) },
+    { no: 4, name: "expected_call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): JoinCallRequest {
@@ -684,6 +693,14 @@ export class GetCallTokenRequest extends Message<GetCallTokenRequest> {
    */
   clientInstanceId = "";
 
+  /**
+   * Optional. Exact call selected by a notification action. A mismatch fails
+   * instead of issuing credentials for a replacement call.
+   *
+   * @generated from field: string expected_call_id = 3;
+   */
+  expectedCallId = "";
+
   constructor(data?: PartialMessage<GetCallTokenRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -694,6 +711,7 @@ export class GetCallTokenRequest extends Message<GetCallTokenRequest> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "room_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "client_instance_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "expected_call_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetCallTokenRequest {
