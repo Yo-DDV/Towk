@@ -300,6 +300,37 @@ describe('EventList jump completion', () => {
     }
   });
 
+  it('re-converges when sticky content resizes after the keyboard viewport event', async () => {
+    resizeCallbacks = [];
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    try {
+      render(EventListTestHarness, {
+        props: {
+          eventIds: ['msg-latest'],
+          scrollToEventId: null
+        }
+      });
+
+      const scrollCalls = () =>
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent);
+
+      await vi.waitFor(() => expect(resizeCallbacks.length).toBeGreaterThan(0));
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThanOrEqual(7));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const callsBeforeContentResize = scrollCalls();
+      const messageContainer = page.getByTestId('messages-container').element();
+      const content = messageContainer.firstElementChild!;
+
+      for (const callback of resizeCallbacks) {
+        callback([resizeObserverEntry(content, 520)], {} as ResizeObserver);
+      }
+
+      await vi.waitFor(() => expect(scrollCalls()).toBeGreaterThan(callsBeforeContentResize));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('starts viewport convergence while the initial bottom scroll is still settling', async () => {
     resizeCallbacks = [];
     vi.stubGlobal('ResizeObserver', ResizeObserverMock);

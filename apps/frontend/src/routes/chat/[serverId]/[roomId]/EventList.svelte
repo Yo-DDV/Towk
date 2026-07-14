@@ -487,7 +487,7 @@
     let lastWidth = container.clientWidth;
     let lastHeight = container.clientHeight;
     let initialized = false;
-    const observer = new ResizeObserver((entries) => {
+    const viewportObserver = new ResizeObserver((entries) => {
       const entry = entries.find((candidate) => candidate.target === container);
       const width = entry?.contentRect.width ?? container.clientWidth;
       const height = entry?.contentRect.height ?? container.clientHeight;
@@ -503,7 +503,25 @@
       lastHeight = height;
       keepBottomAnchored();
     });
-    observer.observe(container);
+    viewportObserver.observe(container);
+
+    const contentObserver = new ResizeObserver((entries) => {
+      if (entries.some((entry) => entry.target !== container)) keepBottomAnchored();
+    });
+
+    function observeContentChildren(target: HTMLElement) {
+      contentObserver.disconnect();
+      for (const child of target.children) {
+        if (child instanceof HTMLElement) contentObserver.observe(child);
+      }
+    }
+
+    observeContentChildren(container);
+    const mutationObserver = new MutationObserver(() => {
+      observeContentChildren(container);
+      keepBottomAnchored();
+    });
+    mutationObserver.observe(container, { childList: true });
 
     // On mobile, the visual viewport can change before layout catches up, or
     // without changing this element's box at all. Start convergence from that
@@ -513,7 +531,9 @@
     visualViewport?.addEventListener('scroll', keepBottomAnchored);
 
     return () => {
-      observer.disconnect();
+      viewportObserver.disconnect();
+      contentObserver.disconnect();
+      mutationObserver.disconnect();
       visualViewport?.removeEventListener('resize', keepBottomAnchored);
       visualViewport?.removeEventListener('scroll', keepBottomAnchored);
     };
