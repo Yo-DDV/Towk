@@ -96,5 +96,6 @@ test('native clipboard CI installs only the portable toolchain', async () => {
   assert.match(setupAction, /^  mise-install-args:\n/m);
   assert.match(setupAction, /^        install_args: \$\{\{ inputs\.mise-install-args \}\}$/m);
   assert.ok(nativeClipboardJob);
+  assert.match(nativeClipboardJob, /^      MISE_TASK_RUN_AUTO_INSTALL: "false"$/m);
   assert.match(nativeClipboardJob, /^          mise-install-args: go node$/m);
 });

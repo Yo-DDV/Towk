@@ -289,6 +289,10 @@ jobs:
 
   test-native-file-clipboard:
     name: native-file-clipboard (${{ matrix.os }})
+    env:
+      # Keep mise tasks from re-installing every repository tool after the
+      # portable Go/Node toolchain has been selected below.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
     strategy:
       fail-fast: false
       matrix:
