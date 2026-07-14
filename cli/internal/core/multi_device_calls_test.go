@@ -134,6 +134,10 @@ func TestTransferCallParticipantReplacesOnlySameAccountDevices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("join other account: %v", err)
 	}
+	callBeforeTransfer, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing before shared-room transfer")
+	}
 
 	transferred, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-3", CallJoinModeTransfer)
 	if err != nil {
@@ -154,6 +158,61 @@ func TestTransferCallParticipantReplacesOnlySameAccountDevices(t *testing.T) {
 	}
 	if len(remover.removed) != 2 {
 		t.Fatalf("LiveKit removals = %+v, want both old device identities", remover.removed)
+	}
+	callAfterTransfer, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok || callAfterTransfer.CallID != callBeforeTransfer.CallID {
+		t.Fatalf("shared-room transfer changed call from %q to %+v ok=%v", callBeforeTransfer.CallID, callAfterTransfer, ok)
+	}
+}
+
+func TestTransferCallParticipantFencesFinishedRoomWhenAccountIsAlone(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	roomID := "room-transfer-last-account"
+
+	first, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-1", CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join first device: %v", err)
+	}
+	second, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", CallJoinModeCompanion)
+	if err != nil {
+		t.Fatalf("join second device: %v", err)
+	}
+	oldCall, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing before transfer")
+	}
+
+	transferred, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-3", CallJoinModeTransfer)
+	if err != nil {
+		t.Fatalf("transfer call: %v", err)
+	}
+	newCall, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing after transfer")
+	}
+	if newCall.CallID == oldCall.CallID {
+		t.Fatalf("transfer kept call ID %q while removing the final LiveKit participants", oldCall.CallID)
+	}
+
+	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != transferred.ParticipantID || participants[0].CallID != newCall.CallID {
+		t.Fatalf("participants after transfer = %+v, want transferred device in fresh call %q", participants, newCall.CallID)
+	}
+	if hasCallParticipant(participants, "user-a", first.ParticipantID) || hasCallParticipant(participants, "user-a", second.ParticipantID) {
+		t.Fatalf("old account devices survived transfer: %+v", participants)
+	}
+
+	if err := chatto.HandleCallRoomFinished(ctx, LegacySpaceIDForRoomKind(KindChannel), roomID, oldCall.CallID); err != nil {
+		t.Fatalf("handle delayed old room finish: %v", err)
+	}
+	participants = chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != transferred.ParticipantID {
+		t.Fatalf("delayed old room finish removed transferred device: %+v", participants)
+	}
+	active, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok || active.CallID != newCall.CallID {
+		t.Fatalf("active call after delayed old room finish = %+v ok=%v, want %q", active, ok, newCall.CallID)
 	}
 }
 

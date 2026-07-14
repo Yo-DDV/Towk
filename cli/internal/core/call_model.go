@@ -441,9 +441,12 @@ func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, par
 		}
 
 		callID := snapshot.Call.CallID
+		oldCallID := callID
+		rolloverCall := mode == CallJoinModeTransfer && !alreadyJoined && len(removed) > 0 && len(removed) == len(snapshot.Participants) && oldCallID != ""
 		var cleanupKeyRef string
-		entries := make([]events.BatchEntry, 0, len(removed)+2)
-		if callID == "" {
+		var endedKeyRef string
+		entries := make([]events.BatchEntry, 0, len(removed)+4)
+		if callID == "" || rolloverCall {
 			if s.callKeys == nil {
 				return CallJoinResult{}, fmt.Errorf("call key store is not initialized")
 			}
@@ -453,12 +456,23 @@ func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, par
 			if err != nil {
 				return CallJoinResult{}, fmt.Errorf("create call key: %w", err)
 			}
-			started := newCallStartedEvent(roomID, userID, callID, cleanupKeyRef, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
-			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(started), Event: started})
 		}
 		for _, participant := range removed {
-			left := newCallParticipantConnectionEvent(roomID, userID, participant.ParticipantID, participant.DeviceIndex, callID, false, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			leftCallID := callID
+			if rolloverCall {
+				leftCallID = oldCallID
+			}
+			left := newCallParticipantConnectionEvent(roomID, userID, participant.ParticipantID, participant.DeviceIndex, leftCallID, false, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
 			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(left), Event: left})
+		}
+		if rolloverCall {
+			ended := newCallEndedEvent(roomID, userID, oldCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(ended), Event: ended})
+			endedKeyRef = snapshot.Call.E2EEKeyRef
+		}
+		if snapshot.Call.CallID == "" || rolloverCall {
+			started := newCallStartedEvent(roomID, userID, callID, cleanupKeyRef, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(started), Event: started})
 		}
 		if !alreadyJoined {
 			joined := newCallParticipantConnectionEvent(roomID, userID, participantID, deviceIndex, callID, true, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
@@ -484,6 +498,11 @@ func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, par
 		if err == nil {
 			if err := s.projector.WaitFor(ctx, events.SubjectPosition(filter, seqs[len(seqs)-1])); err != nil {
 				return CallJoinResult{}, err
+			}
+			if endedKeyRef != "" {
+				if err := s.cleanupQueuedCallKey(ctx, endedKeyRef); err != nil {
+					return CallJoinResult{}, fmt.Errorf("shred transferred call key: %w", err)
+				}
 			}
 			return result, nil
 		}
