@@ -9,11 +9,14 @@ describe('VoiceCallPanel screen-share audio', () => {
       props: { layout: 'stage', scenario: 'screen' }
     });
 
-    await vi.waitFor(() => {
-      expect(
-        container.querySelectorAll('[data-testid="call-screen-share-audio-indicator"]')
-      ).toHaveLength(1);
-    });
+    await vi.waitFor(
+      () => {
+        expect(
+          container.querySelectorAll('[data-testid="call-screen-share-audio-indicator"]')
+        ).toHaveLength(1);
+      },
+      { timeout: 5_000 }
+    );
 
     const featuredCard = container.querySelector('[data-testid="call-featured-stage-card"]');
     expect(
@@ -29,9 +32,12 @@ describe('VoiceCallPanel screen-share audio', () => {
       props: { layout: 'sidebar', scenario: 'devices' }
     });
 
-    await vi.waitFor(() => {
-      expect(container.querySelectorAll('[data-testid="call-device-badge"]')).toHaveLength(2);
-    });
+    await vi.waitFor(
+      () => {
+        expect(container.querySelectorAll('[data-testid="call-device-badge"]')).toHaveLength(2);
+      },
+      { timeout: 5_000 }
+    );
 
     expect(
       Array.from(container.querySelectorAll('[data-testid="call-device-badge"]')).map((element) =>

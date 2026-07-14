@@ -281,6 +281,7 @@ vi.mock('livekit-client', () => {
     },
     RoomEvent: {
       ParticipantConnected: 'ParticipantConnected',
+      ParticipantMetadataChanged: 'ParticipantMetadataChanged',
       ParticipantDisconnected: 'ParticipantDisconnected',
       TrackMuted: 'TrackMuted',
       TrackUnmuted: 'TrackUnmuted',
@@ -737,6 +738,61 @@ describe('VoiceCallState', () => {
     performRpcFailure = new Error('recipient disconnected');
     await expect(state.setSiblingAudioMuted('device-2', 'output', false)).resolves.toBe(false);
     expect(toastMocks.error).toHaveBeenCalledWith('Could not update the other device audio.');
+  });
+
+  it('retries sibling state sync when the peer has not observed the caller yet', async () => {
+    const sibling = {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    let syncAttempts = 0;
+    performRpcResponder = ({ payload }) => {
+      const request = JSON.parse(payload) as { action: string };
+      if (request.action === 'get-state') {
+        syncAttempts += 1;
+        if (syncAttempts === 1) throw new Error('caller not visible yet');
+      }
+      return JSON.stringify({
+        version: 1,
+        microphoneMuted: true,
+        outputMuted: false,
+        revision: 1
+      });
+    };
+
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    mockRemoteParticipants.set('device-2', sibling);
+    roomEventHandlers.get('ParticipantConnected')?.(sibling);
+    await flushPromises();
+
+    expect(syncAttempts).toBe(1);
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      canControlAudio: true,
+      siblingMicrophoneMuted: null,
+      siblingOutputMuted: null
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+
+    expect(syncAttempts).toBe(2);
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      siblingMicrophoneMuted: true,
+      siblingOutputMuted: false
+    });
   });
 
   it('ignores stale sibling state notifications that arrive out of order', async () => {

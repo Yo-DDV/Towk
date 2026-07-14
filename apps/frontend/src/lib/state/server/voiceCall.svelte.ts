@@ -85,6 +85,8 @@ const RECENTLY_DISCONNECTED_CALL_SOUND_MS = 5_000;
 const MEDIA_DEVICE_TOAST_DEDUPLICATION_MS = 1_500;
 const DEVICE_AUDIO_CONTROL_RPC_METHOD = 'towk.device-audio-control.v1';
 const DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS = 8_000;
+const DEVICE_AUDIO_STATE_SYNC_RPC_TIMEOUT_MS = 2_000;
+const DEVICE_AUDIO_STATE_SYNC_RETRY_DELAYS_MS = [0, 250, 750, 1_500] as const;
 const DEVICE_AUDIO_CONTROL_RPC_UNAUTHORIZED = 2_001;
 const DEVICE_AUDIO_CONTROL_RPC_INVALID_REQUEST = 2_002;
 const DEVICE_AUDIO_CONTROL_RPC_OPERATION_FAILED = 2_003;
@@ -296,6 +298,7 @@ export class VoiceCallState {
   private siblingAudioStates = $state<Record<string, SiblingAudioState>>({});
   private siblingAudioControlPending = $state<Record<string, boolean>>({});
   private siblingAudioControlInFlight = new SvelteMap<string, Promise<boolean>>();
+  private siblingAudioStateRefreshInFlight = new SvelteMap<string, Promise<void>>();
 
   // Non-reactive audio level cache — updated at 60ms by the polling interval.
   // Deliberately NOT $state to avoid triggering Svelte reactivity at 60Hz.
@@ -769,26 +772,56 @@ export class VoiceCallState {
     );
   }
 
-  private async refreshSiblingAudioState(
+  private refreshSiblingAudioState(room: Room, participant: RemoteParticipant): Promise<void> {
+    const identity = participant.identity;
+    const existing = this.siblingAudioStateRefreshInFlight.get(identity);
+    if (existing) return existing;
+
+    const operation = this.performSiblingAudioStateRefresh(room, participant);
+    this.siblingAudioStateRefreshInFlight.set(identity, operation);
+    void operation.finally(() => {
+      if (this.siblingAudioStateRefreshInFlight.get(identity) === operation) {
+        this.siblingAudioStateRefreshInFlight.delete(identity);
+      }
+    });
+    return operation;
+  }
+
+  private async performSiblingAudioStateRefresh(
     room: Room,
     participant: RemoteParticipant
   ): Promise<void> {
-    try {
-      const response = await room.localParticipant.performRpc({
-        destinationIdentity: participant.identity,
-        method: DEVICE_AUDIO_CONTROL_RPC_METHOD,
-        payload: JSON.stringify({
-          version: 1,
-          action: 'get-state'
-        } satisfies SiblingAudioControlRequest),
-        responseTimeout: DEVICE_AUDIO_CONTROL_RPC_TIMEOUT_MS
-      });
-      if (this.room !== room) return;
-      const state = parseSiblingAudioState(response);
-      if (state) this.applySiblingAudioState(participant.identity, state);
-    } catch {
-      // Older clients may not expose the RPC method. Keep the call usable and
-      // leave only the sibling output control unavailable until they reconnect.
+    for (const delayMs of DEVICE_AUDIO_STATE_SYNC_RETRY_DELAYS_MS) {
+      if (delayMs > 0) await delay(delayMs);
+      if (
+        this.room !== room ||
+        room.remoteParticipants.get(participant.identity) !== participant ||
+        !this.isControllableSibling(participant)
+      ) {
+        return;
+      }
+
+      try {
+        const response = await room.localParticipant.performRpc({
+          destinationIdentity: participant.identity,
+          method: DEVICE_AUDIO_CONTROL_RPC_METHOD,
+          payload: JSON.stringify({
+            version: 1,
+            action: 'get-state'
+          } satisfies SiblingAudioControlRequest),
+          responseTimeout: DEVICE_AUDIO_STATE_SYNC_RPC_TIMEOUT_MS
+        });
+        if (this.room !== room) return;
+        const state = parseSiblingAudioState(response);
+        if (state) {
+          this.applySiblingAudioState(participant.identity, state);
+          return;
+        }
+      } catch {
+        // A newly connected peer can receive this request before it has observed
+        // the caller in its own room. Retry briefly; older clients remain usable
+        // with only the cross-device controls unavailable.
+      }
     }
   }
 
@@ -1152,6 +1185,16 @@ export class VoiceCallState {
       }
     });
 
+    this.room.on(
+      RoomEvent.ParticipantMetadataChanged,
+      (_metadata: string | undefined, participant: Participant) => {
+        this.updateParticipants();
+        if (this.isControllableSibling(participant)) {
+          void this.refreshSiblingAudioState(this.room!, participant);
+        }
+      }
+    );
+
     this.room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       this.removeSiblingAudioState(participant.identity);
       this.updateParticipants();
@@ -1459,6 +1502,7 @@ export class VoiceCallState {
     this.siblingAudioStates = {};
     this.siblingAudioControlPending = {};
     this.siblingAudioControlInFlight.clear();
+    this.siblingAudioStateRefreshInFlight.clear();
     this.audioDevices = [];
     this.selectedDeviceId = null;
     this.audioOutputDevices = [];
@@ -1603,6 +1647,10 @@ function parseSiblingAudioStateValue(value: unknown): SiblingAudioState | null {
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function siblingAudioControlKey(identity: string, target: SiblingAudioTarget): string {
