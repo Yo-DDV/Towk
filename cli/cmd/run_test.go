@@ -120,6 +120,32 @@ func TestDedupePushSubscriptionsByClientIDKeepsNewestInstallationEndpoint(t *tes
 	}
 }
 
+func TestCanonicalOriginFilteringPrecedesClientIDDedupe(t *testing.T) {
+	oldTime := timestamppb.New(time.Unix(100, 0))
+	newTime := timestamppb.New(time.Unix(200, 0))
+	subscriptions := []*corev1.PushSubscription{
+		{
+			Endpoint:          "https://push.example/canonical-old",
+			ClientId:          "same-browser-installation",
+			ApplicationOrigin: "https://towk.example",
+			CreatedAt:         oldTime,
+		},
+		{
+			Endpoint:          "https://push.example/alternate-new",
+			ClientId:          "same-browser-installation",
+			ApplicationOrigin: "https://towk.example:2083",
+			CreatedAt:         newTime,
+		},
+	}
+
+	filtered := push.FilterSubscriptionsByCanonicalOrigin(subscriptions, "https://towk.example")
+	deduped := dedupePushSubscriptionsByClientID(filtered)
+
+	if len(deduped) != 1 || deduped[0].Endpoint != "https://push.example/canonical-old" {
+		t.Fatalf("delivered subscriptions = %+v, want canonical origin even when alternate endpoint is newer", deduped)
+	}
+}
+
 func TestEffectiveLogFormat(t *testing.T) {
 	tests := []struct {
 		name             string

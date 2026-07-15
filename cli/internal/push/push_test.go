@@ -61,6 +61,80 @@ func TestNewPushHTTPClientAcceptsCustomDefaultTransport(t *testing.T) {
 	}
 }
 
+func TestFilterSubscriptionsByCanonicalOriginPrefersCanonicalWhenPresent(t *testing.T) {
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/canonical-1", ApplicationOrigin: "https://Towk.Example"},
+		{Endpoint: "https://push.example/alternate-port", ApplicationOrigin: "https://towk.example:2083"},
+		{Endpoint: "https://push.example/alternate-host", ApplicationOrigin: "https://preview.example"},
+		{Endpoint: "https://push.example/legacy"},
+		{Endpoint: "https://push.example/canonical-2", ApplicationOrigin: "https://towk.example:443"},
+	}
+
+	filtered := FilterSubscriptionsByCanonicalOrigin(subscriptions, "https://towk.example/chat")
+
+	got := make([]string, 0, len(filtered))
+	for _, subscription := range filtered {
+		got = append(got, subscription.Endpoint)
+	}
+	want := []string{
+		"https://push.example/canonical-1",
+		"https://push.example/legacy",
+		"https://push.example/canonical-2",
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("filtered endpoints = %v, want %v", got, want)
+	}
+}
+
+func TestFilterSubscriptionsByCanonicalOriginKeepsAllWhenCanonicalIsAbsent(t *testing.T) {
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/alternate-port", ApplicationOrigin: "https://towk.example:2083"},
+		{Endpoint: "https://push.example/legacy"},
+	}
+
+	filtered := FilterSubscriptionsByCanonicalOrigin(subscriptions, "https://towk.example")
+
+	if len(filtered) != len(subscriptions) || filtered[0] != subscriptions[0] || filtered[1] != subscriptions[1] {
+		t.Fatalf("filtered subscriptions = %+v, want original set", filtered)
+	}
+}
+
+func TestFilterSubscriptionsByCanonicalOriginIgnoresInvalidCanonicalURL(t *testing.T) {
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/canonical", ApplicationOrigin: "https://towk.example"},
+		{Endpoint: "https://push.example/alternate", ApplicationOrigin: "https://towk.example:2083"},
+	}
+
+	filtered := FilterSubscriptionsByCanonicalOrigin(subscriptions, "not a url")
+
+	if len(filtered) != len(subscriptions) || filtered[0] != subscriptions[0] || filtered[1] != subscriptions[1] {
+		t.Fatalf("filtered subscriptions = %+v, want original set", filtered)
+	}
+}
+
+func TestApplicationOriginNormalization(t *testing.T) {
+	if got, ok := CanonicalApplicationOrigin("https://[2001:db8::1]:443/chat"); !ok || got != "https://[2001:db8::1]" {
+		t.Fatalf("canonical IPv6 origin = %q/%v, want https://[2001:db8::1]/true", got, ok)
+	}
+	if got, ok := CanonicalApplicationOrigin("https://Towk.Example:2083/chat"); !ok || got != "https://towk.example:2083" {
+		t.Fatalf("canonical origin = %q/%v, want https://towk.example:2083/true", got, ok)
+	}
+	if got, ok := NormalizeApplicationOrigin("https://Towk.Example:443"); !ok || got != "https://towk.example" {
+		t.Fatalf("application origin = %q/%v, want https://towk.example/true", got, ok)
+	}
+	for _, input := range []string{
+		"https://towk.example/chat",
+		"https://towk.example?from=push",
+		"https://towk.example#fragment",
+		"https://user@towk.example",
+		"ftp://towk.example",
+	} {
+		if got, ok := NormalizeApplicationOrigin(input); ok {
+			t.Fatalf("NormalizeApplicationOrigin(%q) = %q/true, want rejected", input, got)
+		}
+	}
+}
+
 func (c *contextBlockingHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	close(c.started)
 	<-req.Context().Done()

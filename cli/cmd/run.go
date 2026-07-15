@@ -400,6 +400,7 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		}
 
 		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, notification.RecipientId, subscriptions, logger)
+		subscriptions = push.FilterSubscriptionsByCanonicalOrigin(subscriptions, cfg.Webserver.URL)
 		subscriptions = dedupePushSubscriptionsByClientID(subscriptions)
 		if len(subscriptions) == 0 {
 			return
