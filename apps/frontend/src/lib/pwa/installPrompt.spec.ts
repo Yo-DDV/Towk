@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  chromeAndroidIntentUrl,
-  isAndroidDevice,
   isAppleMobileDevice,
   isInstalledPwa,
-  isLegacyAndroidStandaloneInstall,
   type InstallEnvironment
 } from './installPrompt';
 
@@ -41,61 +38,4 @@ describe('PWA install environment', () => {
     expect(isInstalledPwa(environment())).toBe(false);
   });
 
-  it('detects Android browsers without matching Apple mobile devices', () => {
-    expect(isAndroidDevice(environment({ userAgent: 'Mozilla/5.0 (Linux; Android 15)' }))).toBe(
-      true
-    );
-    expect(isAndroidDevice(environment({ userAgent: 'Mozilla/5.0 (iPhone)' }))).toBe(false);
-    expect(isAndroidDevice(environment())).toBe(false);
-  });
-
-  it('flags stale Android standalone installs that can show Chrome URL-copy notifications', () => {
-    expect(
-      isLegacyAndroidStandaloneInstall(
-        environment({
-          userAgent: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141',
-          platform: 'Linux armv8l',
-          maxTouchPoints: 5,
-          displayModeStandalone: true
-        })
-      )
-    ).toBe(true);
-  });
-
-  it('does not flag current Android minimal-ui installs or non-Android standalone apps', () => {
-    expect(
-      isLegacyAndroidStandaloneInstall(
-        environment({
-          userAgent: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141',
-          platform: 'Linux armv8l',
-          maxTouchPoints: 5,
-          displayModeStandalone: false,
-          displayModeMinimalUi: true
-        })
-      )
-    ).toBe(false);
-    expect(
-      isLegacyAndroidStandaloneInstall(
-        environment({
-          userAgent: 'Mozilla/5.0 (iPhone)',
-          displayModeStandalone: true,
-          standalone: true
-        })
-      )
-    ).toBe(false);
-    expect(isLegacyAndroidStandaloneInstall(environment({ displayModeStandalone: true }))).toBe(
-      false
-    );
-  });
-
-  it('builds a Chrome Android intent URL with a browser fallback for legacy install migration', () => {
-    expect(chromeAndroidIntentUrl('https://towk.example/chat/-/room?tab=call#message')).toBe(
-      'intent://towk.example/chat/-/room?tab=call#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Ftowk.example%2Fchat%2F-%2Froom%3Ftab%3Dcall%23message;end'
-    );
-  });
-
-  it('does not build Chrome intents for non-web URLs', () => {
-    expect(chromeAndroidIntentUrl('mailto:test@example.com')).toBeNull();
-    expect(chromeAndroidIntentUrl('not a url')).toBeNull();
-  });
 });

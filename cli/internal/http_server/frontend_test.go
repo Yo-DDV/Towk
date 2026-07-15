@@ -250,7 +250,7 @@ func TestDynamicPWAManifest(t *testing.T) {
 		assert.Equal(t, "image/png", shortcutIcons[1].(map[string]any)["type"])
 	})
 
-	t.Run("forces browser display for Android Chromium installs", func(t *testing.T) {
+	t.Run("keeps Android Chromium installable in minimal-ui with a refreshed app id", func(t *testing.T) {
 		got, err := dynamicPWAManifest(
 			staticManifest,
 			nil,
@@ -265,8 +265,9 @@ func TestDynamicPWAManifest(t *testing.T) {
 			t.Fatalf("unmarshal manifest: %v", err)
 		}
 
-		assert.Equal(t, "browser", manifest["display"])
-		assert.Equal(t, []any{"browser"}, manifest["display_override"])
+		assert.Equal(t, androidChromiumInstallManifestID, manifest["id"])
+		assert.Equal(t, "minimal-ui", manifest["display"])
+		assert.Equal(t, []any{"minimal-ui", "browser"}, manifest["display_override"])
 	})
 
 	t.Run("keeps minimal-ui for non-Android browsers", func(t *testing.T) {
@@ -504,7 +505,7 @@ func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
 	assert.Equal(t, "image/png", icons[4].(map[string]any)["type"])
 }
 
-func TestServePWAWebManifestForcesBrowserDisplayForAndroidChromium(t *testing.T) {
+func TestServePWAWebManifestUsesAndroidChromiumInstallVariant(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockFS := fstest.MapFS{
@@ -537,8 +538,9 @@ func TestServePWAWebManifestForcesBrowserDisplayForAndroidChromium(t *testing.T)
 	if err := json.Unmarshal(w.Body.Bytes(), &manifest); err != nil {
 		t.Fatalf("unmarshal manifest: %v", err)
 	}
-	assert.Equal(t, "browser", manifest["display"])
-	assert.Equal(t, []any{"browser"}, manifest["display_override"])
+	assert.Equal(t, androidChromiumInstallManifestID, manifest["id"])
+	assert.Equal(t, "minimal-ui", manifest["display"])
+	assert.Equal(t, []any{"minimal-ui", "browser"}, manifest["display_override"])
 }
 
 func TestFrontendFallbackDoesNotServeReservedBackendPrefixes(t *testing.T) {

@@ -101,9 +101,9 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 ### 11. Browser-owned installed-app controls
 
-**Decision:** Towk uses `minimal-ui` as its static preferred installed display mode and falls back directly to `browser`; it deliberately does not keep `standalone` in the display fallback chain. For Android Chromium manifest requests, the server forces `display` and `display_override` to `browser`.
+**Decision:** Towk uses `minimal-ui` as its static preferred installed display mode and falls back directly to `browser`; it deliberately does not keep `standalone` in the display fallback chain. Android Chromium manifest requests keep `minimal-ui`, receive a dedicated Android install `id`, and are never frozen by the service worker cache.
 **Why:** Chromium owns the Android URL-copy notification that can appear while a standalone installed PWA is open. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Chromium's own foreground-notification manager skips only browser/minimal-UI surfaces; if a real Android device still maps Towk to a standalone/WebAPK surface, Towk must avoid that surface for Android Chromium rather than trying to close a notification it does not own.
-**Tradeoff:** Android Chromium opens with normal browser UI instead of a completely standalone app frame. Existing Android installs that still report the legacy standalone display mode are stopped by a blocking localized notice with a user-triggered Chrome Android intent link. The link navigates the current context rather than `_blank`, because leaving the old standalone window open can keep Chrome's foreground notification alive. A fully Teams-like Android installed-app notification model requires a packaged mobile distribution strategy rather than a web-manifest-only change.
+**Tradeoff:** Android Chromium opens with minimal browser controls instead of a completely standalone app frame. Existing Android installs can still require user-driven uninstall/reinstall or Chrome's own manifest update cycle before Chrome applies the new identity. A fully Teams-like Android installed-app notification model requires a packaged mobile distribution strategy rather than a web-manifest-only change.
 
 ### 12. Progressive call actions with exact-call validation
 

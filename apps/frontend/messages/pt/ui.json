@@ -17,13 +17,7 @@
       "ios_share": "Toque no botão Partilhar no Safari.",
       "ios_home_screen": "Escolha Adicionar ao ecrã principal.",
       "ios_confirm": "Confirme tocando em Adicionar.",
-      "install_now": "Instalar agora",
-      "android_standalone_notice": {
-        "title": "Atualize a instalação no Android.",
-        "body": "Esta instalação ainda usa o modo autónomo antigo do Chrome, que pode mostrar a notificação do sistema para “copiar o URL”. Abra o Towk no Chrome, remova o ícone antigo do ecrã inicial e volte a instalar a aplicação a partir do Chrome para aplicar o modo atual.",
-        "open_in_browser": "Abrir no Chrome",
-        "close_old_app": "Esta ação sai do contentor instalado antigo. Se o Android ainda mostrar a notificação do Chrome, feche o Towk nas aplicações recentes e use o separador do Chrome para o reinstalar."
-      }
+      "install_now": "Instalar agora"
     },
     "share_target": {
       "title": "Partilhar com o Towk",

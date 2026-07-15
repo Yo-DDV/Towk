@@ -21,10 +21,6 @@ export function isAppleMobileDevice(environment: InstallEnvironment): boolean {
   );
 }
 
-export function isAndroidDevice(environment: InstallEnvironment): boolean {
-  return /Android/u.test(environment.userAgent);
-}
-
 export function isInstalledPwa(environment: InstallEnvironment): boolean {
   return (
     environment.displayModeStandalone ||
@@ -33,29 +29,6 @@ export function isInstalledPwa(environment: InstallEnvironment): boolean {
     environment.displayModeWindowControlsOverlay === true ||
     environment.standalone === true
   );
-}
-
-export function isLegacyAndroidStandaloneInstall(environment: InstallEnvironment): boolean {
-  return (
-    isAndroidDevice(environment) &&
-    environment.displayModeStandalone &&
-    environment.displayModeMinimalUi !== true
-  );
-}
-
-export function chromeAndroidIntentUrl(targetHref: string): string | null {
-  try {
-    const targetUrl = new URL(targetHref);
-    if (targetUrl.protocol !== 'https:' && targetUrl.protocol !== 'http:') return null;
-
-    const scheme = targetUrl.protocol.slice(0, -1);
-    const path = `${targetUrl.host}${targetUrl.pathname}${targetUrl.search}`;
-    return `intent://${path}#Intent;scheme=${scheme};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(
-      targetUrl.href
-    )};end`;
-  } catch {
-    return null;
-  }
 }
 
 export function currentInstallEnvironment(): InstallEnvironment {

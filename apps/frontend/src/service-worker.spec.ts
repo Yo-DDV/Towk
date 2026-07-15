@@ -175,17 +175,13 @@ describe('service worker badge orchestration', () => {
     await expect(worker.dispatch('install')).rejects.toThrow();
   });
 
-  it('still installs when optional PWA metadata is temporarily unavailable', async () => {
+  it('does not precache the browser-specific web manifest during install', async () => {
     const worker = await importServiceWorker();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/manifest.webmanifest') throw new TypeError('offline');
-        return new Response('ok', { status: 200 });
-      })
-    );
+    const fetchMock = vi.fn(async (_path: string) => new Response('ok', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
 
     await expect(worker.dispatch('install')).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalledWith('/manifest.webmanifest', expect.anything());
   });
 
   it('captures a POST share target securely before redirecting to the chooser', async () => {

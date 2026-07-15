@@ -37,7 +37,6 @@ const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const LEGACY_CACHE_PREFIXES = ['chatto-shell'];
 const LEGACY_CACHE_NAMES = ['chatto-badge-state-v2'];
 const ESSENTIAL_STATIC_ASSETS = [
-  '/manifest.webmanifest',
   '/icons/favicon.png',
   '/icons/apple-touch-icon.png',
   '/icons/icon-192.png',

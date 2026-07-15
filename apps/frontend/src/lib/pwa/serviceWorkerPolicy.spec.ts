@@ -39,12 +39,12 @@ describe('classifyServiceWorkerRequest', () => {
     });
   });
 
-  it('keeps the web manifest fresh while allowing an offline cached fallback', () => {
+  it('keeps the web manifest on the network so browser-specific variants are not frozen', () => {
     expect(classify('/manifest.webmanifest')).toEqual({
       cacheableShellAsset: false,
-      networkFirstAsset: true,
+      networkFirstAsset: false,
       navigationRequest: false,
-      networkOnly: false
+      networkOnly: true
     });
   });
 

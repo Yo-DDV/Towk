@@ -188,7 +188,9 @@ func pwaManifestIconFallbacks(value any) []map[string]string {
 	return fallbacks
 }
 
-func androidChromiumNeedsBrowserDisplay(userAgent string) bool {
+const androidChromiumInstallManifestID = "/?towk-install=android-minimal-ui-v2"
+
+func usesAndroidChromiumInstallManifestVariant(userAgent string) bool {
 	ua := strings.ToLower(userAgent)
 	if !strings.Contains(ua, "android") {
 		return false
@@ -204,8 +206,8 @@ func androidChromiumNeedsBrowserDisplay(userAgent string) bool {
 }
 
 func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAgent string) ([]byte, error) {
-	forceBrowserDisplay := androidChromiumNeedsBrowserDisplay(userAgent)
-	if icons == nil && !forceBrowserDisplay {
+	androidChromiumInstallVariant := usesAndroidChromiumInstallManifestVariant(userAgent)
+	if icons == nil && !androidChromiumInstallVariant {
 		return staticManifest, nil
 	}
 
@@ -232,13 +234,16 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAge
 			}
 		}
 	}
-	if forceBrowserDisplay {
+	if androidChromiumInstallVariant {
 		// Android Chrome/Chromium shows a browser-owned foreground notification
-		// for non-browser installed web app display modes. It is outside the
-		// Web Push/Notification API and cannot be dismissed by Towk JavaScript, so
-		// Android Chromium launches use an ordinary browser display mode.
-		manifest["display"] = "browser"
-		manifest["display_override"] = []string{"browser"}
+		// for standalone installed web apps. It is outside the Web
+		// Push/Notification API and cannot be dismissed by Towk JavaScript.
+		// Chromium skips that notification for MINIMAL_UI, while still keeping
+		// the app installable. A dedicated Android install id avoids reusing a
+		// stale WebAPK/container that was created before this display policy.
+		manifest["id"] = androidChromiumInstallManifestID
+		manifest["display"] = "minimal-ui"
+		manifest["display_override"] = []string{"minimal-ui", "browser"}
 	}
 
 	return json.MarshalIndent(manifest, "", "  ")
@@ -314,7 +319,7 @@ func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-	if androidChromiumNeedsBrowserDisplay(c.GetHeader("User-Agent")) {
+	if usesAndroidChromiumInstallManifestVariant(c.GetHeader("User-Agent")) {
 		c.Header("Vary", "User-Agent")
 	}
 	c.Data(http.StatusOK, "application/manifest+json", content)
