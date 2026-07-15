@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  chromeAndroidIntentUrl,
   isAndroidDevice,
   isAppleMobileDevice,
   isInstalledPwa,
@@ -85,5 +86,16 @@ describe('PWA install environment', () => {
     expect(isLegacyAndroidStandaloneInstall(environment({ displayModeStandalone: true }))).toBe(
       false
     );
+  });
+
+  it('builds a Chrome Android intent URL with a browser fallback for legacy install migration', () => {
+    expect(chromeAndroidIntentUrl('https://towk.example/chat/-/room?tab=call#message')).toBe(
+      'intent://towk.example/chat/-/room?tab=call#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=https%3A%2F%2Ftowk.example%2Fchat%2F-%2Froom%3Ftab%3Dcall%23message;end'
+    );
+  });
+
+  it('does not build Chrome intents for non-web URLs', () => {
+    expect(chromeAndroidIntentUrl('mailto:test@example.com')).toBeNull();
+    expect(chromeAndroidIntentUrl('not a url')).toBeNull();
   });
 });

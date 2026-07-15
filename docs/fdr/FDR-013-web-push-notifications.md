@@ -1,7 +1,7 @@
 # FDR-013: Web Push Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-14
+**Last reviewed:** 2026-07-15
 
 ## Overview
 
@@ -103,7 +103,7 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 **Decision:** Towk uses `minimal-ui` as its preferred installed display mode and falls back directly to `browser`; it deliberately does not keep `standalone` in the display fallback chain.
 **Why:** Chromium owns the Android URL-copy notification that can appear while a standalone installed PWA is open. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Using `minimal-ui` gives Chromium a browser-owned URL/share affordance in the app frame instead of a persistent silent notification where the browser supports that mode. Setting the primary `display` field to `minimal-ui` also gives existing Chrome Android WebAPKs a manifest field that participates in Chrome's update checks.
-**Tradeoff:** Android Chromium can show a minimal browser bar instead of a completely standalone frame. Browsers that cannot use `minimal-ui` may open Towk in a normal browser surface. Existing Android installs that still report the legacy standalone display mode are guided by an in-app localized notice to remove and reinstall Towk from Chrome. A fully Teams-like Android installed-app notification model requires a packaged mobile distribution strategy rather than a web-manifest-only change.
+**Tradeoff:** Android Chromium can show a minimal browser bar instead of a completely standalone frame. Browsers that cannot use `minimal-ui` may open Towk in a normal browser surface. Existing Android installs that still report the legacy standalone display mode are stopped by a blocking localized notice with a user-triggered Chrome Android intent action, because a same-scope `_blank` link can be recaptured by the installed PWA. A fully Teams-like Android installed-app notification model requires a packaged mobile distribution strategy rather than a web-manifest-only change.
 
 ### 12. Progressive call actions with exact-call validation
 
