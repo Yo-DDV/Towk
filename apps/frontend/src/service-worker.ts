@@ -277,6 +277,11 @@ interface PushPayload {
   icon?: string;
   badge?: string;
   tag?: string;
+  lang?: string;
+  dir?: NotificationDirection;
+  timestamp?: number;
+  renotify?: boolean;
+  requireInteraction?: boolean;
   notificationId?: string;
   url?: string;
   expiresAt?: number;
@@ -297,6 +302,11 @@ interface DeclarativeNotificationPayload {
   body?: string;
   icon?: string;
   badge?: string;
+  lang?: string;
+  dir?: NotificationDirection;
+  timestamp?: number;
+  renotify?: boolean;
+  requireInteraction?: boolean;
   app_badge?: string | number;
   tag?: string;
   navigate?: string;
@@ -308,14 +318,28 @@ interface DeclarativeNotificationPayload {
 
 type NormalizedPushNotification = {
   title: string;
-  options: NotificationOptions;
+  options: NativeNotificationOptions;
   appBadgeIntent: ServiceWorkerBadgeIntent;
 };
 
-type DeclarativePushEventNotification = Pick<
-  Notification,
-  'title' | 'body' | 'icon' | 'tag' | 'data'
-> & {
+type NativeNotificationOptions = NotificationOptions & {
+  // Modern notification metadata can be available at runtime before the
+  // project's TypeScript Web Worker declarations include it.
+  timestamp?: number;
+  renotify?: boolean;
+};
+
+type DeclarativePushEventNotification = {
+  title?: string;
+  body?: string;
+  dir?: NotificationDirection;
+  icon?: string;
+  lang?: string;
+  renotify?: boolean;
+  requireInteraction?: boolean;
+  tag?: string;
+  timestamp?: number;
+  data?: unknown;
   badge?: string;
   app_badge?: string | number;
 };
@@ -425,19 +449,33 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
   const notificationId = payload.notificationId ?? notification?.data?.notificationId;
   const url = payload.url ?? notification?.data?.url ?? notification?.navigate;
   const body = payload.body ?? notification?.body;
+  const tag = payload.tag ?? notification?.tag;
+  const options: NativeNotificationOptions = {
+    body: normalizeNotificationBody(body),
+    icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
+    badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
+    tag,
+    data: {
+      notificationId,
+      url
+    }
+  };
+
+  const lang = normalizeNotificationLang(payload.lang ?? notification?.lang);
+  if (lang) options.lang = lang;
+  const dir = normalizeNotificationDirection(payload.dir ?? notification?.dir);
+  if (dir) options.dir = dir;
+  const timestamp = normalizeNotificationTimestamp(payload.timestamp ?? notification?.timestamp);
+  if (timestamp) options.timestamp = timestamp;
+  const renotify = normalizeNotificationRenotify(payload.renotify ?? notification?.renotify, tag);
+  if (renotify) options.renotify = renotify;
+  if ((payload.requireInteraction ?? notification?.requireInteraction) === true) {
+    options.requireInteraction = true;
+  }
 
   return {
     title: payload.title ?? notification?.title ?? 'Towk',
-    options: {
-      body: normalizeNotificationBody(body),
-      icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
-      badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
-      tag: payload.tag ?? notification?.tag,
-      data: {
-        notificationId,
-        url
-      }
-    },
+    options,
     appBadgeIntent: declarativeAppBadgeIntent(notification?.app_badge ?? payload.app_badge)
   };
 }
@@ -480,6 +518,11 @@ function declarativePayloadFromEventNotification(
       body: notification.body,
       icon: notification.icon,
       badge: notification.badge,
+      lang: notification.lang,
+      dir: notification.dir,
+      timestamp: notification.timestamp,
+      renotify: notification.renotify,
+      requireInteraction: notification.requireInteraction,
       app_badge: notification.app_badge,
       tag: notification.tag,
       data: notificationData(notification.data)
@@ -529,6 +572,25 @@ function stringProperty(record: object, key: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
+function normalizeNotificationLang(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+function normalizeNotificationDirection(value: unknown): NotificationDirection | undefined {
+  return value === 'ltr' || value === 'rtl' || value === 'auto' ? value : undefined;
+}
+
+function normalizeNotificationTimestamp(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+  return Math.floor(value);
+}
+
+function normalizeNotificationRenotify(value: unknown, tag: unknown): boolean | undefined {
+  return value === true && typeof tag === 'string' && tag.trim() !== '' ? true : undefined;
+}
+
 /**
  * Handle incoming push events.
  * Parse the payload and display a native notification, or dismiss existing ones.
@@ -571,7 +633,11 @@ self.addEventListener('push', (event) => {
   }
 
   if (payload.call) {
-    const notification = normalizeCallPushNotification(payload, Date.now(), navigator.language);
+    const notification = normalizeCallPushNotification(
+      payload,
+      Date.now(),
+      payload.lang ?? navigator.language
+    );
     if (!notification) return;
     badgeCoordinator.recordRegularPush();
     event.waitUntil(

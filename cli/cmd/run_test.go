@@ -68,14 +68,23 @@ func TestLocalizedPushBatches(t *testing.T) {
 	if batches[0].payload.Title != "@Alice posted in #general" {
 		t.Fatalf("English fallback title = %q", batches[0].payload.Title)
 	}
+	if batches[0].payload.Lang != "en" || batches[0].payload.Dir != "ltr" {
+		t.Fatalf("English fallback metadata = lang=%q dir=%q", batches[0].payload.Lang, batches[0].payload.Dir)
+	}
 	if batches[1].payload.Title != "@Alice hat in #general geschrieben" {
 		t.Fatalf("German title = %q", batches[1].payload.Title)
+	}
+	if batches[1].payload.Lang != "de" || batches[1].payload.Dir != "ltr" {
+		t.Fatalf("German metadata = lang=%q dir=%q", batches[1].payload.Lang, batches[1].payload.Dir)
 	}
 	if got := len(batches[2].subscriptions); got != 2 {
 		t.Fatalf("French subscription count = %d, want 2", got)
 	}
 	if batches[2].payload.Title != "@Alice a publié un message dans #general" {
 		t.Fatalf("French title = %q", batches[2].payload.Title)
+	}
+	if batches[2].payload.Lang != "fr" || batches[2].payload.Dir != "ltr" {
+		t.Fatalf("French metadata = lang=%q dir=%q", batches[2].payload.Lang, batches[2].payload.Dir)
 	}
 	for _, batch := range batches {
 		if batch.payload.AppBadge != "5" {

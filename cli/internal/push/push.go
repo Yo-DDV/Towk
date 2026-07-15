@@ -145,19 +145,24 @@ func isPublicPushAddress(address netip.Addr) bool {
 
 // Payload represents the data sent in a push notification.
 type Payload struct {
-	Title          string           `json:"title,omitempty"`
-	Body           string           `json:"body,omitempty"`
-	Icon           string           `json:"icon,omitempty"`
-	Badge          string           `json:"badge,omitempty"`
-	Tag            string           `json:"tag,omitempty"`
-	NotificationID string           `json:"notificationId,omitempty"`
-	URL            string           `json:"url,omitempty"`
-	ExpiresAt      int64            `json:"expiresAt,omitempty"`
-	Call           *CallPushPayload `json:"call,omitempty"`
-	AppBadge       string           `json:"-"`
-	TTL            int              `json:"-"`
-	Urgency        webpush.Urgency  `json:"-"`
-	Topic          string           `json:"-"`
+	Title              string           `json:"title,omitempty"`
+	Body               string           `json:"body,omitempty"`
+	Icon               string           `json:"icon,omitempty"`
+	Badge              string           `json:"badge,omitempty"`
+	Tag                string           `json:"tag,omitempty"`
+	Lang               string           `json:"lang,omitempty"`
+	Dir                string           `json:"dir,omitempty"`
+	Timestamp          int64            `json:"timestamp,omitempty"`
+	Renotify           bool             `json:"renotify,omitempty"`
+	RequireInteraction bool             `json:"requireInteraction,omitempty"`
+	NotificationID     string           `json:"notificationId,omitempty"`
+	URL                string           `json:"url,omitempty"`
+	ExpiresAt          int64            `json:"expiresAt,omitempty"`
+	Call               *CallPushPayload `json:"call,omitempty"`
+	AppBadge           string           `json:"-"`
+	TTL                int              `json:"-"`
+	Urgency            webpush.Urgency  `json:"-"`
+	Topic              string           `json:"-"`
 	// Action is used for special payloads like "dismiss" to close notifications on other devices
 	Action string `json:"action,omitempty"`
 }
@@ -172,14 +177,19 @@ type CallPushPayload struct {
 }
 
 type declarativeNotification struct {
-	Title    string                       `json:"title"`
-	Body     string                       `json:"body,omitempty"`
-	Navigate string                       `json:"navigate"`
-	Tag      string                       `json:"tag,omitempty"`
-	Icon     string                       `json:"icon,omitempty"`
-	Badge    string                       `json:"badge,omitempty"`
-	AppBadge string                       `json:"app_badge,omitempty"`
-	Data     *declarativeNotificationData `json:"data,omitempty"`
+	Title              string                       `json:"title"`
+	Body               string                       `json:"body,omitempty"`
+	Navigate           string                       `json:"navigate"`
+	Tag                string                       `json:"tag,omitempty"`
+	Icon               string                       `json:"icon,omitempty"`
+	Badge              string                       `json:"badge,omitempty"`
+	Lang               string                       `json:"lang,omitempty"`
+	Dir                string                       `json:"dir,omitempty"`
+	Timestamp          int64                        `json:"timestamp,omitempty"`
+	Renotify           bool                         `json:"renotify,omitempty"`
+	RequireInteraction bool                         `json:"requireInteraction,omitempty"`
+	AppBadge           string                       `json:"app_badge,omitempty"`
+	Data               *declarativeNotificationData `json:"data,omitempty"`
 }
 
 type declarativeNotificationData struct {
@@ -189,46 +199,61 @@ type declarativeNotificationData struct {
 
 func (p Payload) MarshalJSON() ([]byte, error) {
 	type payloadJSON struct {
-		Title          string                   `json:"title,omitempty"`
-		Body           string                   `json:"body,omitempty"`
-		Icon           string                   `json:"icon,omitempty"`
-		Badge          string                   `json:"badge,omitempty"`
-		Tag            string                   `json:"tag,omitempty"`
-		NotificationID string                   `json:"notificationId,omitempty"`
-		URL            string                   `json:"url,omitempty"`
-		ExpiresAt      int64                    `json:"expiresAt,omitempty"`
-		Call           *CallPushPayload         `json:"call,omitempty"`
-		AppBadge       string                   `json:"app_badge,omitempty"`
-		Action         string                   `json:"action,omitempty"`
-		WebPush        int                      `json:"web_push,omitempty"`
-		Mutable        bool                     `json:"mutable,omitempty"`
-		Notification   *declarativeNotification `json:"notification,omitempty"`
+		Title              string                   `json:"title,omitempty"`
+		Body               string                   `json:"body,omitempty"`
+		Icon               string                   `json:"icon,omitempty"`
+		Badge              string                   `json:"badge,omitempty"`
+		Tag                string                   `json:"tag,omitempty"`
+		Lang               string                   `json:"lang,omitempty"`
+		Dir                string                   `json:"dir,omitempty"`
+		Timestamp          int64                    `json:"timestamp,omitempty"`
+		Renotify           bool                     `json:"renotify,omitempty"`
+		RequireInteraction bool                     `json:"requireInteraction,omitempty"`
+		NotificationID     string                   `json:"notificationId,omitempty"`
+		URL                string                   `json:"url,omitempty"`
+		ExpiresAt          int64                    `json:"expiresAt,omitempty"`
+		Call               *CallPushPayload         `json:"call,omitempty"`
+		AppBadge           string                   `json:"app_badge,omitempty"`
+		Action             string                   `json:"action,omitempty"`
+		WebPush            int                      `json:"web_push,omitempty"`
+		Mutable            bool                     `json:"mutable,omitempty"`
+		Notification       *declarativeNotification `json:"notification,omitempty"`
 	}
 
 	out := payloadJSON{
-		Title:          p.Title,
-		Body:           p.Body,
-		Icon:           p.Icon,
-		Badge:          p.Badge,
-		Tag:            p.Tag,
-		NotificationID: p.NotificationID,
-		URL:            p.URL,
-		ExpiresAt:      p.ExpiresAt,
-		Call:           p.Call,
-		AppBadge:       p.AppBadge,
-		Action:         p.Action,
+		Title:              p.Title,
+		Body:               p.Body,
+		Icon:               p.Icon,
+		Badge:              p.Badge,
+		Tag:                p.Tag,
+		Lang:               p.Lang,
+		Dir:                p.Dir,
+		Timestamp:          p.Timestamp,
+		Renotify:           p.Renotify,
+		RequireInteraction: p.RequireInteraction,
+		NotificationID:     p.NotificationID,
+		URL:                p.URL,
+		ExpiresAt:          p.ExpiresAt,
+		Call:               p.Call,
+		AppBadge:           p.AppBadge,
+		Action:             p.Action,
 	}
 	if p.declarativeNotificationEligible() {
 		out.WebPush = declarativeWebPushValue
 		out.Mutable = true
 		out.Notification = &declarativeNotification{
-			Title:    p.Title,
-			Body:     p.Body,
-			Navigate: p.URL,
-			Tag:      p.Tag,
-			Icon:     p.Icon,
-			Badge:    p.Badge,
-			AppBadge: p.AppBadge,
+			Title:              p.Title,
+			Body:               p.Body,
+			Navigate:           p.URL,
+			Tag:                p.Tag,
+			Icon:               p.Icon,
+			Badge:              p.Badge,
+			Lang:               p.Lang,
+			Dir:                p.Dir,
+			Timestamp:          p.Timestamp,
+			Renotify:           p.Renotify,
+			RequireInteraction: p.RequireInteraction,
+			AppBadge:           p.AppBadge,
 			Data: &declarativeNotificationData{
 				NotificationID: p.NotificationID,
 				URL:            p.URL,
@@ -607,6 +632,9 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		NotificationID: notif.Id,
 		Icon:           buildAppURL(baseURL, []string{"icons", "icon-192.png"}, "", ""),
 		Badge:          buildAppURL(baseURL, []string{"icons", "badge-monochrome-96.png"}, "", ""),
+		Lang:           NormalizeLocale(locale),
+		Dir:            "ltr",
+		Timestamp:      notificationTimestampMillis(notif),
 	}
 
 	// Get preview from context, truncate if needed
@@ -672,6 +700,8 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 			createdAt = notif.GetCreatedAt().AsTime()
 		}
 		payload.ExpiresAt = createdAt.Add(time.Minute).UnixMilli()
+		payload.RequireInteraction = true
+		payload.Renotify = true
 		payload.TTL = 60
 		payload.Urgency = webpush.UrgencyHigh
 		payload.Topic = payload.Tag
@@ -682,4 +712,11 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 	}
 
 	return payload
+}
+
+func notificationTimestampMillis(notif *corev1.Notification) int64 {
+	if notif.GetCreatedAt() == nil {
+		return 0
+	}
+	return notif.GetCreatedAt().AsTime().UnixMilli()
 }

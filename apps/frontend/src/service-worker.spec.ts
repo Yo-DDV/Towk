@@ -21,6 +21,11 @@ type ServiceWorkerHandler = (event: {
     badge?: string;
     app_badge?: string | number;
     tag?: string;
+    lang?: string;
+    dir?: NotificationDirection;
+    timestamp?: number;
+    renotify?: boolean;
+    requireInteraction?: boolean;
     data?: { notificationId?: string; url?: string };
     close?: () => void;
   };
@@ -530,6 +535,11 @@ describe('service worker badge orchestration', () => {
             title: 'Declarative notification',
             body: 'Opened by the browser or worker fallback',
             tag: 'notification-2',
+            lang: 'fr',
+            dir: 'ltr',
+            timestamp: 1783936800000,
+            renotify: true,
+            requireInteraction: true,
             icon: 'https://towk.example/icons/icon-192.png',
             badge: 'https://towk.example/icons/badge-monochrome-96.png',
             app_badge: '5',
@@ -549,6 +559,11 @@ describe('service worker badge orchestration', () => {
       icon: 'https://towk.example/icons/icon-192.png',
       badge: 'https://towk.example/icons/badge-monochrome-96.png',
       tag: 'notification-2',
+      lang: 'fr',
+      dir: 'ltr',
+      timestamp: 1783936800000,
+      renotify: true,
+      requireInteraction: true,
       data: {
         notificationId: 'notif-2',
         url: 'https://towk.example/chat/-/room-2?highlight=event-2'
@@ -761,6 +776,9 @@ describe('service worker badge orchestration', () => {
         json: () => ({
           title: 'Ignored backend title',
           tag: 'call-C1',
+          lang: 'fr',
+          dir: 'ltr',
+          timestamp: 1783936800000,
           notificationId: 'N-call',
           url: 'https://towk.example/chat/-/room-1',
           expiresAt: Date.now() + 30_000,
@@ -776,11 +794,16 @@ describe('service worker badge orchestration', () => {
       }
     });
 
-    expect(worker.registration.showNotification).toHaveBeenCalledWith('Alice started a call', {
-      body: 'In #General',
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Alice a démarré un appel', {
+      body: 'Dans #General',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-monochrome-96.png',
       tag: 'call-C1',
+      lang: 'fr',
+      dir: 'ltr',
+      timestamp: 1783936800000,
+      renotify: true,
+      requireInteraction: true,
       data: {
         notificationId: 'N-call',
         url: 'https://towk.example/chat/-/room-1',
@@ -788,8 +811,8 @@ describe('service worker badge orchestration', () => {
         callId: 'C1'
       },
       actions: [
-        { action: 'view-room', title: 'View room' },
-        { action: 'join-call', title: 'Join' }
+        { action: 'view-room', title: 'Voir le salon' },
+        { action: 'join-call', title: 'Rejoindre' }
       ]
     });
     expect(worker.setAppBadge).toHaveBeenCalledWith(4);

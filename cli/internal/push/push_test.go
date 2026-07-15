@@ -172,6 +172,19 @@ func TestBuildPayloadFromCallStartedNotificationIsShortLivedAndActionable(t *tes
 	if payload.ExpiresAt != createdAt.Add(time.Minute).UnixMilli() {
 		t.Fatalf("expiresAt = %d, want %d", payload.ExpiresAt, createdAt.Add(time.Minute).UnixMilli())
 	}
+	if payload.Timestamp != createdAt.UnixMilli() {
+		t.Fatalf("timestamp = %d, want %d", payload.Timestamp, createdAt.UnixMilli())
+	}
+	if payload.Lang != "en" || payload.Dir != "ltr" {
+		t.Fatalf("locale metadata = lang=%q dir=%q, want en/ltr", payload.Lang, payload.Dir)
+	}
+	if !payload.RequireInteraction || !payload.Renotify {
+		t.Fatalf(
+			"call behavior = requireInteraction=%v renotify=%v, want both true",
+			payload.RequireInteraction,
+			payload.Renotify,
+		)
+	}
 	if payload.TTL != 60 || payload.Urgency != webpush.UrgencyHigh || payload.Topic != "call-C1" {
 		t.Fatalf("delivery = ttl=%d urgency=%q topic=%q", payload.TTL, payload.Urgency, payload.Topic)
 	}
@@ -286,14 +299,19 @@ func TestEndpointLogID(t *testing.T) {
 func TestPayloadMarshal(t *testing.T) {
 	t.Run("marshals all fields", func(t *testing.T) {
 		payload := &Payload{
-			Title:          "Test Title",
-			Body:           "Test Body",
-			Icon:           "/icons/icon.png",
-			Badge:          "/icons/badge.png",
-			Tag:            "test-tag",
-			NotificationID: "notif-123",
-			URL:            "/chat/room/123",
-			AppBadge:       "7",
+			Title:              "Test Title",
+			Body:               "Test Body",
+			Icon:               "/icons/icon.png",
+			Badge:              "/icons/badge.png",
+			Tag:                "test-tag",
+			Lang:               "fr",
+			Dir:                "ltr",
+			Timestamp:          1783936800000,
+			Renotify:           true,
+			RequireInteraction: true,
+			NotificationID:     "notif-123",
+			URL:                "/chat/room/123",
+			AppBadge:           "7",
 		}
 
 		data, err := json.Marshal(payload)
@@ -315,6 +333,21 @@ func TestPayloadMarshal(t *testing.T) {
 		}
 		if result["url"] != "/chat/room/123" {
 			t.Errorf("Expected url '/chat/room/123', got %v", result["url"])
+		}
+		if result["lang"] != "fr" {
+			t.Errorf("Expected lang 'fr', got %v", result["lang"])
+		}
+		if result["dir"] != "ltr" {
+			t.Errorf("Expected dir 'ltr', got %v", result["dir"])
+		}
+		if result["timestamp"] != float64(1783936800000) {
+			t.Errorf("Expected timestamp 1783936800000, got %v", result["timestamp"])
+		}
+		if result["renotify"] != true {
+			t.Errorf("Expected renotify true, got %v", result["renotify"])
+		}
+		if result["requireInteraction"] != true {
+			t.Errorf("Expected requireInteraction true, got %v", result["requireInteraction"])
 		}
 		if result["web_push"] != float64(declarativeWebPushValue) {
 			t.Errorf("Expected web_push %d, got %v", declarativeWebPushValue, result["web_push"])
@@ -338,6 +371,21 @@ func TestPayloadMarshal(t *testing.T) {
 		}
 		if notification["tag"] != "test-tag" {
 			t.Errorf("Expected declarative tag 'test-tag', got %v", notification["tag"])
+		}
+		if notification["lang"] != "fr" {
+			t.Errorf("Expected declarative lang 'fr', got %v", notification["lang"])
+		}
+		if notification["dir"] != "ltr" {
+			t.Errorf("Expected declarative dir 'ltr', got %v", notification["dir"])
+		}
+		if notification["timestamp"] != float64(1783936800000) {
+			t.Errorf("Expected declarative timestamp 1783936800000, got %v", notification["timestamp"])
+		}
+		if notification["renotify"] != true {
+			t.Errorf("Expected declarative renotify true, got %v", notification["renotify"])
+		}
+		if notification["requireInteraction"] != true {
+			t.Errorf("Expected declarative requireInteraction true, got %v", notification["requireInteraction"])
 		}
 		if notification["app_badge"] != "7" {
 			t.Errorf("Expected declarative app_badge '7', got %v", notification["app_badge"])
