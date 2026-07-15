@@ -298,9 +298,6 @@ func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roo
 		return CallJoinResult{}, fmt.Errorf("call model is not initialized")
 	}
 	participantID := VoiceCallParticipantID(userID, clientInstanceID)
-	if clientInstanceID == "" {
-		mode = CallJoinModeTransfer
-	}
 	result, err := c.callModel.JoinUserParticipant(ctx, roomID, userID, participantID, mode, expectedCallID...)
 	if err != nil {
 		return CallJoinResult{}, err

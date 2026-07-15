@@ -115,6 +115,34 @@ func TestJoinCallParticipantRequiresChoiceAndCapsCompanions(t *testing.T) {
 	}
 }
 
+func TestLegacyJoinCannotImplicitlyTransferAnActiveDevice(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	roomID := "room-legacy-join-choice"
+	remover := &recordingLiveKitParticipantClient{}
+	chatto.callModel.livekit = remover
+
+	first, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-1", CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join current client: %v", err)
+	}
+
+	decision, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "", CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("ask from legacy client: %v", err)
+	}
+	if decision.Status != CallJoinStatusSelectionRequired || !decision.CompanionAllowed || decision.ActiveDeviceCount != 1 {
+		t.Fatalf("legacy join decision = %+v, want companion-or-transfer choice", decision)
+	}
+	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != first.ParticipantID {
+		t.Fatalf("legacy join changed active participants: %+v", participants)
+	}
+	if len(remover.removed) != 0 {
+		t.Fatalf("legacy join removed active LiveKit participants: %+v", remover.removed)
+	}
+}
+
 func TestTransferCallParticipantReplacesOnlySameAccountDevices(t *testing.T) {
 	chatto, _ := setupTestCore(t)
 	ctx := testContext(t)
