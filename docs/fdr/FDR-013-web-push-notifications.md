@@ -101,9 +101,9 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 ### 11. Browser-owned installed-app controls
 
-**Decision:** Towk keeps `standalone` as the manifest fallback, but prefers `minimal-ui` through `display_override` when the browser supports it.
-**Why:** Chromium owns the Android URL-copy notification that can appear while a standalone installed PWA is open. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Preferring `minimal-ui` gives Chromium a browser-owned URL/share affordance in the app frame instead of a persistent silent notification.
-**Tradeoff:** Android Chromium can show a minimal browser bar instead of a completely standalone frame. Platforms that do not support `minimal-ui` keep the standalone fallback.
+**Decision:** Towk uses `minimal-ui` as its preferred installed display mode and keeps `standalone` in `display_override` as the next fallback for browsers that support override chains.
+**Why:** Chromium owns the Android URL-copy notification that can appear while a standalone installed PWA is open. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Using `minimal-ui` gives Chromium a browser-owned URL/share affordance in the app frame instead of a persistent silent notification. Setting the primary `display` field to `minimal-ui` also gives existing Chrome Android WebAPKs a manifest field that participates in Chrome's update checks.
+**Tradeoff:** Android Chromium can show a minimal browser bar instead of a completely standalone frame. Browsers that do not support `display_override` fall back according to their support for the primary `minimal-ui` display mode.
 
 ### 12. Progressive call actions with exact-call validation
 
