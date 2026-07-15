@@ -9,6 +9,9 @@ export type InstallEnvironment = {
   maxTouchPoints: number;
   standalone?: boolean;
   displayModeStandalone: boolean;
+  displayModeFullscreen?: boolean;
+  displayModeMinimalUi?: boolean;
+  displayModeWindowControlsOverlay?: boolean;
 };
 
 export function isAppleMobileDevice(environment: InstallEnvironment): boolean {
@@ -19,7 +22,13 @@ export function isAppleMobileDevice(environment: InstallEnvironment): boolean {
 }
 
 export function isInstalledPwa(environment: InstallEnvironment): boolean {
-  return environment.displayModeStandalone || environment.standalone === true;
+  return (
+    environment.displayModeStandalone ||
+    environment.displayModeFullscreen === true ||
+    environment.displayModeMinimalUi === true ||
+    environment.displayModeWindowControlsOverlay === true ||
+    environment.standalone === true
+  );
 }
 
 export function currentInstallEnvironment(): InstallEnvironment {
@@ -29,6 +38,10 @@ export function currentInstallEnvironment(): InstallEnvironment {
     platform: navigator.platform,
     maxTouchPoints: navigator.maxTouchPoints,
     standalone: appleNavigator.standalone,
-    displayModeStandalone: window.matchMedia?.('(display-mode: standalone)').matches === true
+    displayModeStandalone: window.matchMedia?.('(display-mode: standalone)').matches === true,
+    displayModeFullscreen: window.matchMedia?.('(display-mode: fullscreen)').matches === true,
+    displayModeMinimalUi: window.matchMedia?.('(display-mode: minimal-ui)').matches === true,
+    displayModeWindowControlsOverlay:
+      window.matchMedia?.('(display-mode: window-controls-overlay)').matches === true
   };
 }

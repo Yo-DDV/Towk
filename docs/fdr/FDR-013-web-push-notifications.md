@@ -101,11 +101,11 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 ### 11. Browser-owned installed-app controls
 
-**Decision:** Towk keeps the manifest in standalone display mode and does not alter it to suppress Chromium's Android Web App Actions notification.
-**Why:** Chromium owns that notification and may expose actions such as copying the installed app URL. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Chromium currently suppresses it only for `minimal-ui`, which would change the intended PWA window model.
-**Tradeoff:** Some Chromium-based Android builds can show a silent browser-owned URL action while Towk is open. Towk can brand and localize its own message notifications, but cannot remove or rewrite that browser notification without degrading the installed-app experience.
+**Decision:** Towk keeps `standalone` as the manifest fallback, but prefers `minimal-ui` through `display_override` when the browser supports it.
+**Why:** Chromium owns the Android URL-copy notification that can appear while a standalone installed PWA is open. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Preferring `minimal-ui` gives Chromium a browser-owned URL/share affordance in the app frame instead of a persistent silent notification.
+**Tradeoff:** Android Chromium can show a minimal browser bar instead of a completely standalone frame. Platforms that do not support `minimal-ui` keep the standalone fallback.
 
-### 11. Progressive call actions with exact-call validation
+### 12. Progressive call actions with exact-call validation
 
 **Decision:** Call-start pushes use the service worker path instead of the declarative envelope so Towk can enforce expiry, localized copy, and optional “view”/“join” actions. The main click is always non-joining. Only the explicit join action adds `joinCall={callId}`, and `JoinCall` treats that value as an exact precondition rather than permission to create a call.
 **Why:** Notification action support is not universal, especially across installed-PWA platforms. Progressive actions improve capable browsers without making the baseline click surprising or unsafe, and the backend precondition closes races after provider or user delay.
