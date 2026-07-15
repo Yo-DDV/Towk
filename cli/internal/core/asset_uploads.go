@@ -40,12 +40,13 @@ const (
 )
 
 type AssetUploadCreateInput struct {
-	ActorID     string
-	RoomID      string
-	Filename    string
-	ContentType string
-	Size        int64
-	SHA256      string
+	ActorID      string
+	RoomID       string
+	Filename     string
+	ContentType  string
+	Size         int64
+	SHA256       string
+	VoiceMessage *VoiceMessageUploadMetadata
 }
 
 type AssetUploadChunkInput struct {
@@ -67,19 +68,20 @@ type AssetUploadCancelInput struct {
 }
 
 type AssetUploadSession struct {
-	UploadID        string            `json:"upload_id"`
-	ActorID         string            `json:"actor_id"`
-	RoomID          string            `json:"room_id"`
-	Filename        string            `json:"filename"`
-	ContentType     string            `json:"content_type"`
-	Size            int64             `json:"size"`
-	SHA256          string            `json:"sha256"`
-	Status          AssetUploadStatus `json:"status"`
-	CommittedOffset int64             `json:"committed_offset"`
-	MaxChunkSize    int32             `json:"max_chunk_size"`
-	ExpiresAt       time.Time         `json:"expires_at"`
-	AssetID         string            `json:"asset_id,omitempty"`
-	ChunkKeys       []string          `json:"chunk_keys,omitempty"`
+	UploadID        string                      `json:"upload_id"`
+	ActorID         string                      `json:"actor_id"`
+	RoomID          string                      `json:"room_id"`
+	Filename        string                      `json:"filename"`
+	ContentType     string                      `json:"content_type"`
+	Size            int64                       `json:"size"`
+	SHA256          string                      `json:"sha256"`
+	Status          AssetUploadStatus           `json:"status"`
+	CommittedOffset int64                       `json:"committed_offset"`
+	MaxChunkSize    int32                       `json:"max_chunk_size"`
+	ExpiresAt       time.Time                   `json:"expires_at"`
+	AssetID         string                      `json:"asset_id,omitempty"`
+	ChunkKeys       []string                    `json:"chunk_keys,omitempty"`
+	VoiceMessage    *VoiceMessageUploadMetadata `json:"voice_message,omitempty"`
 }
 
 type AssetUploadModel struct {
@@ -104,7 +106,10 @@ func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCr
 	if err := m.checkUploadSize(contentType, input.Size); err != nil {
 		return nil, err
 	}
-	if err := m.authorizeUpload(ctx, input.ActorID, input.RoomID); err != nil {
+	if err := validateVoiceMessageUpload(input.VoiceMessage, contentType, input.Size); err != nil {
+		return nil, err
+	}
+	if err := m.authorizeUpload(ctx, input.ActorID, input.RoomID, input.VoiceMessage != nil); err != nil {
 		return nil, err
 	}
 
@@ -120,6 +125,7 @@ func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCr
 		Status:       AssetUploadStatusOpen,
 		MaxChunkSize: defaultAssetUploadChunkSize,
 		ExpiresAt:    now.Add(defaultAssetUploadSessionTTL),
+		VoiceMessage: cloneVoiceMessageUploadMetadata(input.VoiceMessage),
 	}
 	value, err := json.Marshal(session)
 	if err != nil {
@@ -215,7 +221,7 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 	if session.CommittedOffset != session.Size {
 		return nil, nil, invalidArgument("upload is incomplete")
 	}
-	if err := m.authorizeUpload(ctx, input.ActorID, session.RoomID); err != nil {
+	if err := m.authorizeUpload(ctx, input.ActorID, session.RoomID, session.VoiceMessage != nil); err != nil {
 		return nil, nil, err
 	}
 	tmp, err := m.materializeUpload(ctx, session)
@@ -224,7 +230,11 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 	}
 	defer os.Remove(tmp.Name())
 	defer tmp.Close()
-	if err := validateAttachmentExecutableContent(tmp); err != nil {
+	validationErr := validateAttachmentExecutableContent(tmp)
+	if validationErr == nil && session.VoiceMessage != nil {
+		validationErr = validateVoiceMessageContainer(tmp, session.ContentType)
+	}
+	if validationErr != nil {
 		session.Status = AssetUploadStatusCancelled
 		if updateErr := m.updateUpload(ctx, session, revision); updateErr != nil {
 			m.core.logger.Warn("Failed to mark rejected asset upload as cancelled", "upload_id", session.UploadID, "error", updateErr)
@@ -233,7 +243,7 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 		if deleteErr := m.core.storage.runtimeStateKV.Delete(ctx, assetUploadKey(session.UploadID)); deleteErr != nil && !errors.Is(deleteErr, jetstream.ErrKeyNotFound) && !errors.Is(deleteErr, jetstream.ErrKeyDeleted) {
 			m.core.logger.Warn("Failed to delete rejected asset upload session", "upload_id", session.UploadID, "error", deleteErr)
 		}
-		return nil, nil, err
+		return nil, nil, validationErr
 	}
 	attachment, animatedGIF, err := m.storeCompletedUpload(ctx, session, tmp)
 	if err != nil {
@@ -413,13 +423,23 @@ func (m *AssetUploadModel) checkUploadSize(contentType string, size int64) error
 	return nil
 }
 
-func (m *AssetUploadModel) authorizeUpload(ctx context.Context, actorID, roomID string) error {
+func (m *AssetUploadModel) authorizeUpload(ctx context.Context, actorID, roomID string, voiceMessage bool) error {
 	room, kind, err := m.core.requireRoomMember(ctx, actorID, roomID)
 	if err != nil {
 		return err
 	}
 	if room.Archived {
 		return ErrRoomArchived
+	}
+	if voiceMessage {
+		canSendVoiceMessages, err := m.core.CanSendVoiceMessages(ctx, actorID, kind, room.Id)
+		if err != nil {
+			return err
+		}
+		if !canSendVoiceMessages {
+			return ErrPermissionDenied
+		}
+		return nil
 	}
 	canAttach, err := m.core.CanAttachFiles(ctx, actorID, kind, room.Id)
 	if err != nil {
@@ -429,6 +449,16 @@ func (m *AssetUploadModel) authorizeUpload(ctx context.Context, actorID, roomID 
 		return ErrPermissionDenied
 	}
 	return nil
+}
+
+func cloneVoiceMessageUploadMetadata(metadata *VoiceMessageUploadMetadata) *VoiceMessageUploadMetadata {
+	if metadata == nil {
+		return nil
+	}
+	return &VoiceMessageUploadMetadata{
+		DurationMS:    metadata.DurationMS,
+		WaveformPeaks: append([]float32(nil), metadata.WaveformPeaks...),
+	}
 }
 
 func (m *AssetUploadModel) loadUpload(ctx context.Context, uploadID string) (*AssetUploadSession, uint64, error) {
@@ -570,14 +600,15 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 	}
 
 	return &corev1.Attachment{
-		Id:          attachmentID,
-		RoomId:      session.RoomID,
-		Filename:    session.Filename,
-		ContentType: contentType,
-		Size:        size,
-		Width:       width,
-		Height:      height,
-		Storage:     storage,
+		Id:           attachmentID,
+		RoomId:       session.RoomID,
+		Filename:     session.Filename,
+		ContentType:  contentType,
+		Size:         size,
+		Width:        width,
+		Height:       height,
+		Storage:      storage,
+		VoiceMessage: voiceMessageMetadataProto(session.VoiceMessage),
 	}, animatedGIF, nil
 }
 

@@ -24,12 +24,13 @@ func (s *assetUploadService) CreateUpload(ctx context.Context, req *connect.Requ
 		contentType = "application/octet-stream"
 	}
 	upload, err := s.api.core.AssetUploads().CreateUpload(ctx, core.AssetUploadCreateInput{
-		ActorID:     caller.UserID,
-		RoomID:      req.Msg.GetRoomId(),
-		Filename:    req.Msg.GetFilename(),
-		ContentType: contentType,
-		Size:        req.Msg.GetSize(),
-		SHA256:      req.Msg.GetSha256(),
+		ActorID:      caller.UserID,
+		RoomID:       req.Msg.GetRoomId(),
+		Filename:     req.Msg.GetFilename(),
+		ContentType:  contentType,
+		Size:         req.Msg.GetSize(),
+		SHA256:       req.Msg.GetSha256(),
+		VoiceMessage: coreVoiceMessageUploadMetadata(req.Msg.GetVoiceMessage()),
 	})
 	if err != nil {
 		return nil, connectError(err)
@@ -114,6 +115,27 @@ func apiAssetUpload(upload *core.AssetUploadSession) *apiv1.AssetUpload {
 		Sha256:          upload.SHA256,
 		ExpiresAt:       timestamppb.New(upload.ExpiresAt),
 		AssetId:         upload.AssetID,
+		VoiceMessage:    apiVoiceMessageMetadata(upload.VoiceMessage),
+	}
+}
+
+func coreVoiceMessageUploadMetadata(metadata *apiv1.MessageVoiceMetadata) *core.VoiceMessageUploadMetadata {
+	if metadata == nil {
+		return nil
+	}
+	return &core.VoiceMessageUploadMetadata{
+		DurationMS:    metadata.GetDurationMs(),
+		WaveformPeaks: append([]float32(nil), metadata.GetWaveformPeaks()...),
+	}
+}
+
+func apiVoiceMessageMetadata(metadata *core.VoiceMessageUploadMetadata) *apiv1.MessageVoiceMetadata {
+	if metadata == nil {
+		return nil
+	}
+	return &apiv1.MessageVoiceMetadata{
+		DurationMs:    metadata.DurationMS,
+		WaveformPeaks: append([]float32(nil), metadata.WaveformPeaks...),
 	}
 }
 

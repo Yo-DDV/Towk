@@ -66,6 +66,15 @@ message MessageVideoProcessing {
   repeated MessageVideoVariant variants = 8;
 }
 
+// Metadata for an audio attachment recorded as a Towk voice message.
+message MessageVoiceMetadata {
+  // Measured recording duration in milliseconds.
+  int64 duration_ms = 1;
+
+  // Normalized amplitude envelope used to render the waveform.
+  repeated float waveform_peaks = 2;
+}
+
 // Attachment metadata included with a message.
 //
 // Image and video dimensions are best-effort metadata for layout. Asset URLs can
@@ -87,6 +96,9 @@ message MessageAttachment {
   MessageAssetUrl thumbnail_asset_url = 7;
   // Video-specific processing metadata, when this attachment is a video.
   MessageVideoProcessing video_processing = 8;
+
+  // Voice-message metadata. Absent for ordinary audio attachments.
+  MessageVoiceMetadata voice_message = 9;
 }
 
 // Aggregated reaction state for one emoji on one message.

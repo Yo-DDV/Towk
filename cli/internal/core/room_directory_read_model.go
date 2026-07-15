@@ -40,6 +40,7 @@ type DirectoryRoomViewerState struct {
 	CanPostMessage         bool
 	CanPostInThread        bool
 	CanAttach              bool
+	CanSendVoiceMessages   bool
 	CanReact               bool
 	CanEchoMessage         bool
 	CanManageOthersMessage bool
@@ -407,6 +408,10 @@ func (s *RoomDirectoryReadModel) roomViewerState(ctx context.Context, actorID st
 	if err != nil {
 		return DirectoryRoomViewerState{}, err
 	}
+	canSendVoiceMessages, err := s.core.CanSendVoiceMessages(ctx, actorID, kind, room.Id)
+	if err != nil {
+		return DirectoryRoomViewerState{}, err
+	}
 	canReact, err := s.core.CanReactToMessage(ctx, actorID, kind, room.Id)
 	if err != nil {
 		return DirectoryRoomViewerState{}, err
@@ -434,6 +439,7 @@ func (s *RoomDirectoryReadModel) roomViewerState(ctx context.Context, actorID st
 	canPostMessage = canPostMessage && messageActionsEnabled
 	canPostInThread = canPostInThread && messageActionsEnabled
 	canAttach = canAttach && messageActionsEnabled
+	canSendVoiceMessages = canSendVoiceMessages && messageActionsEnabled
 	canReact = canReact && messageActionsEnabled
 	canEcho = canEcho && messageActionsEnabled
 	canManageOthersMessage = canManageOthersMessage && memberActionsEnabled
@@ -450,6 +456,7 @@ func (s *RoomDirectoryReadModel) roomViewerState(ctx context.Context, actorID st
 		CanPostMessage:         canPostMessage,
 		CanPostInThread:        canPostInThread,
 		CanAttach:              canAttach,
+		CanSendVoiceMessages:   canSendVoiceMessages,
 		CanReact:               canReact,
 		CanEchoMessage:         canEcho,
 		CanManageOthersMessage: canManageOthersMessage,

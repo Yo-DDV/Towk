@@ -77,6 +77,9 @@ const (
 	// PermMessageAttach allows attaching files to new messages.
 	PermMessageAttach Permission = "message.attach"
 
+	// PermMessageVoice allows recording and posting first-class voice messages.
+	PermMessageVoice Permission = "message.voice"
+
 	// PermMessageManage allows moderating other users' messages in a room
 	// (editing or deleting). Authors editing or deleting their own messages do
 	// NOT need this permission; it is always allowed.
@@ -158,6 +161,7 @@ var allPermissions = []PermissionMetadata{
 	{PermMessagePost, "Post Messages", "Post new messages in rooms and start DMs", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermMessagePostInThread, "Post in Threads", "Post messages in threads", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermMessageAttach, "Attach Files", "Attach files to messages", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
+	{PermMessageVoice, "Send Voice Messages", "Record and send voice messages", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermMessageManage, "Manage Messages", "Edit and delete other users' messages", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermMessageReact, "React to Messages", "Add and remove reactions", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
 	{PermMessageEcho, "Echo to Channel", "Echo thread replies to the main channel for visibility", CategoryMessage, []PermissionScope{ScopeServer, ScopeGroup, ScopeRoom}},
@@ -258,6 +262,7 @@ func DefaultEveryonePermissions() []Permission {
 		PermRoomJoin,
 		PermMessagePost,
 		PermMessagePostInThread,
+		PermMessageVoice,
 		PermMessageReact,
 		PermMessageEcho,
 	}

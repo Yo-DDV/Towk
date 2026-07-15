@@ -124,6 +124,17 @@ func (s *attachmentMapper) asset(attachment *corev1.Attachment, viewerID string,
 		AssetUrl:          assetURLView(s.api.core.GetStableAttachmentAssetURL(attachment.Id, viewerID)),
 		ThumbnailAssetUrl: assetURLView(s.api.core.GetStableTransformedAttachmentAssetURL(attachment.Id, viewerID, thumbnail.width, thumbnail.height, thumbnail.fit)),
 		VideoProcessing:   h.videoProcessing(attachment),
+		VoiceMessage:      apiVoiceMessageMetadataFromProto(attachment.GetVoiceMessage()),
+	}
+}
+
+func apiVoiceMessageMetadataFromProto(metadata *corev1.VoiceMessageMetadata) *apiv1.MessageVoiceMetadata {
+	if metadata == nil {
+		return nil
+	}
+	return &apiv1.MessageVoiceMetadata{
+		DurationMs:    metadata.GetDurationMs(),
+		WaveformPeaks: append([]float32(nil), metadata.GetWaveformPeaks()...),
 	}
 }
 

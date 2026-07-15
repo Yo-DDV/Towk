@@ -44,8 +44,10 @@ type Asset struct {
 	ThumbnailAssetUrl *MessageAssetUrl `protobuf:"bytes,8,opt,name=thumbnail_asset_url,json=thumbnailAssetUrl,proto3" json:"thumbnail_asset_url,omitempty"`
 	// Video processing state when this asset is a video attachment.
 	VideoProcessing *MessageVideoProcessing `protobuf:"bytes,9,opt,name=video_processing,json=videoProcessing,proto3" json:"video_processing,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Voice-message metadata. Absent for ordinary audio assets.
+	VoiceMessage  *MessageVoiceMetadata `protobuf:"bytes,10,opt,name=voice_message,json=voiceMessage,proto3" json:"voice_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Asset) Reset() {
@@ -137,6 +139,13 @@ func (x *Asset) GetThumbnailAssetUrl() *MessageAssetUrl {
 func (x *Asset) GetVideoProcessing() *MessageVideoProcessing {
 	if x != nil {
 		return x.VideoProcessing
+	}
+	return nil
+}
+
+func (x *Asset) GetVoiceMessage() *MessageVoiceMetadata {
+	if x != nil {
+		return x.VoiceMessage
 	}
 	return nil
 }
@@ -438,7 +447,7 @@ var File_chatto_api_v1_attachments_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_attachments_proto_rawDesc = "" +
 	"\n" +
-	"\x1fchatto/api/v1/attachments.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a!chatto/api/v1/message_types.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf7\x02\n" +
+	"\x1fchatto/api/v1/attachments.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a!chatto/api/v1/message_types.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc1\x03\n" +
 	"\x05Asset\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\x12!\n" +
@@ -448,7 +457,9 @@ const file_chatto_api_v1_attachments_proto_rawDesc = "" +
 	"\x06height\x18\x06 \x01(\x05R\x06height\x12;\n" +
 	"\tasset_url\x18\a \x01(\v2\x1e.chatto.api.v1.MessageAssetUrlR\bassetUrl\x12N\n" +
 	"\x13thumbnail_asset_url\x18\b \x01(\v2\x1e.chatto.api.v1.MessageAssetUrlR\x11thumbnailAssetUrl\x12P\n" +
-	"\x10video_processing\x18\t \x01(\v2%.chatto.api.v1.MessageVideoProcessingR\x0fvideoProcessing\"\xe4\x01\n" +
+	"\x10video_processing\x18\t \x01(\v2%.chatto.api.v1.MessageVideoProcessingR\x0fvideoProcessing\x12H\n" +
+	"\rvoice_message\x18\n" +
+	" \x01(\v2#.chatto.api.v1.MessageVoiceMetadataR\fvoiceMessage\"\xe4\x01\n" +
 	"\x16RoomAttachmentListItem\x124\n" +
 	"\n" +
 	"attachment\x18\x01 \x01(\v2\x14.chatto.api.v1.AssetR\n" +
@@ -497,28 +508,30 @@ var file_chatto_api_v1_attachments_proto_goTypes = []any{
 	(*BatchGetAssetsResponse)(nil), // 5: chatto.api.v1.BatchGetAssetsResponse
 	(*MessageAssetUrl)(nil),        // 6: chatto.api.v1.MessageAssetUrl
 	(*MessageVideoProcessing)(nil), // 7: chatto.api.v1.MessageVideoProcessing
-	(*timestamppb.Timestamp)(nil),  // 8: google.protobuf.Timestamp
-	(*ImageTransformOptions)(nil),  // 9: chatto.api.v1.ImageTransformOptions
+	(*MessageVoiceMetadata)(nil),   // 8: chatto.api.v1.MessageVoiceMetadata
+	(*timestamppb.Timestamp)(nil),  // 9: google.protobuf.Timestamp
+	(*ImageTransformOptions)(nil),  // 10: chatto.api.v1.ImageTransformOptions
 }
 var file_chatto_api_v1_attachments_proto_depIdxs = []int32{
 	6,  // 0: chatto.api.v1.Asset.asset_url:type_name -> chatto.api.v1.MessageAssetUrl
 	6,  // 1: chatto.api.v1.Asset.thumbnail_asset_url:type_name -> chatto.api.v1.MessageAssetUrl
 	7,  // 2: chatto.api.v1.Asset.video_processing:type_name -> chatto.api.v1.MessageVideoProcessing
-	0,  // 3: chatto.api.v1.RoomAttachmentListItem.attachment:type_name -> chatto.api.v1.Asset
-	8,  // 4: chatto.api.v1.RoomAttachmentListItem.created_at:type_name -> google.protobuf.Timestamp
-	9,  // 5: chatto.api.v1.GetAssetRequest.thumbnail:type_name -> chatto.api.v1.ImageTransformOptions
-	0,  // 6: chatto.api.v1.GetAssetResponse.asset:type_name -> chatto.api.v1.Asset
-	9,  // 7: chatto.api.v1.BatchGetAssetsRequest.thumbnail:type_name -> chatto.api.v1.ImageTransformOptions
-	0,  // 8: chatto.api.v1.BatchGetAssetsResponse.assets:type_name -> chatto.api.v1.Asset
-	2,  // 9: chatto.api.v1.AssetService.GetAsset:input_type -> chatto.api.v1.GetAssetRequest
-	4,  // 10: chatto.api.v1.AssetService.BatchGetAssets:input_type -> chatto.api.v1.BatchGetAssetsRequest
-	3,  // 11: chatto.api.v1.AssetService.GetAsset:output_type -> chatto.api.v1.GetAssetResponse
-	5,  // 12: chatto.api.v1.AssetService.BatchGetAssets:output_type -> chatto.api.v1.BatchGetAssetsResponse
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	8,  // 3: chatto.api.v1.Asset.voice_message:type_name -> chatto.api.v1.MessageVoiceMetadata
+	0,  // 4: chatto.api.v1.RoomAttachmentListItem.attachment:type_name -> chatto.api.v1.Asset
+	9,  // 5: chatto.api.v1.RoomAttachmentListItem.created_at:type_name -> google.protobuf.Timestamp
+	10, // 6: chatto.api.v1.GetAssetRequest.thumbnail:type_name -> chatto.api.v1.ImageTransformOptions
+	0,  // 7: chatto.api.v1.GetAssetResponse.asset:type_name -> chatto.api.v1.Asset
+	10, // 8: chatto.api.v1.BatchGetAssetsRequest.thumbnail:type_name -> chatto.api.v1.ImageTransformOptions
+	0,  // 9: chatto.api.v1.BatchGetAssetsResponse.assets:type_name -> chatto.api.v1.Asset
+	2,  // 10: chatto.api.v1.AssetService.GetAsset:input_type -> chatto.api.v1.GetAssetRequest
+	4,  // 11: chatto.api.v1.AssetService.BatchGetAssets:input_type -> chatto.api.v1.BatchGetAssetsRequest
+	3,  // 12: chatto.api.v1.AssetService.GetAsset:output_type -> chatto.api.v1.GetAssetResponse
+	5,  // 13: chatto.api.v1.AssetService.BatchGetAssets:output_type -> chatto.api.v1.BatchGetAssetsResponse
+	12, // [12:14] is the sub-list for method output_type
+	10, // [10:12] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_chatto_api_v1_attachments_proto_init() }

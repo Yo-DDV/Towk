@@ -1,7 +1,7 @@
 # FDR-008: File Attachments & Video Processing
 
 **Status:** Active
-**Last reviewed:** 2026-07-13
+**Last reviewed:** 2026-07-15
 
 ## Overview
 
@@ -132,6 +132,8 @@ Primary compatibility evidence:
 ## Permissions
 
 Posting an attachment requires room membership, the relevant message-posting permission (`message.post` or `message.post-in-thread`), and `message.attach`. The `message.attach` permission is configurable at server, group, and room scope and only gates message attachments; server branding uploads, user avatars, link previews, and attachment deletion use their existing checks.
+
+First-class voice messages reuse the same chunked byte transport but are authorized by `message.voice`, carry typed duration/waveform metadata, and are documented in FDR-029. A mixed message containing voice and ordinary attachments requires both permissions.
 
 Fresh servers seed `message.attach` for `everyone` so new deployments keep uploads enabled by default. Existing servers are not automatically backfilled after upgrade; operators should grant `message.attach` manually or through their chosen RBAC maintenance flow if existing rooms should keep allowing uploads.
 

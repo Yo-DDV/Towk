@@ -28,12 +28,14 @@ type MessagePostInput struct {
 // user-facing message post. HasAttachments covers attachments that have not yet
 // been uploaded and therefore do not have asset IDs.
 type MessagePostAuthorizationInput struct {
-	ActorID           string
-	RoomID            string
-	Body              string
-	HasAttachments    bool
-	ThreadRootEventID string
-	AlsoSendToChannel bool
+	ActorID                  string
+	RoomID                   string
+	Body                     string
+	HasAttachments           bool
+	RequiresAttachPermission bool
+	RequiresVoicePermission  bool
+	ThreadRootEventID        string
+	AlsoSendToChannel        bool
 }
 
 // MessagePostAuthorization is the resolved room context for an authorized post.
@@ -142,13 +144,16 @@ func (s *MessageModel) PreflightPost(ctx context.Context, input MessagePostInput
 	if err := validateMessageRequestIdentity(input.ClientRequestID, input.RequestFingerprint); err != nil {
 		return nil, err
 	}
+	requiresAttach, requiresVoice := s.attachmentPermissionRequirements(input)
 	authorization, err := s.AuthorizePost(ctx, MessagePostAuthorizationInput{
-		ActorID:           input.ActorID,
-		RoomID:            input.RoomID,
-		Body:              input.Body,
-		HasAttachments:    input.HasPendingAttachments || len(input.AttachmentAssetIDs) > 0,
-		ThreadRootEventID: input.ThreadRootEventID,
-		AlsoSendToChannel: input.AlsoSendToChannel,
+		ActorID:                  input.ActorID,
+		RoomID:                   input.RoomID,
+		Body:                     input.Body,
+		HasAttachments:           input.HasPendingAttachments || len(input.AttachmentAssetIDs) > 0,
+		RequiresAttachPermission: requiresAttach,
+		RequiresVoicePermission:  requiresVoice,
+		ThreadRootEventID:        input.ThreadRootEventID,
+		AlsoSendToChannel:        input.AlsoSendToChannel,
 	})
 	if err != nil {
 		return nil, err
@@ -282,8 +287,18 @@ func (s *MessageModel) AuthorizePost(ctx context.Context, input MessagePostAutho
 		}
 	}
 
-	if input.HasAttachments {
+	requiresAttach := input.RequiresAttachPermission || (input.HasAttachments && !input.RequiresVoicePermission)
+	if requiresAttach {
 		can, err := s.core.CanAttachFiles(ctx, input.ActorID, kind, room.Id)
+		if err != nil {
+			return nil, err
+		}
+		if !can {
+			return nil, ErrPermissionDenied
+		}
+	}
+	if input.RequiresVoicePermission {
+		can, err := s.core.CanSendVoiceMessages(ctx, input.ActorID, kind, room.Id)
 		if err != nil {
 			return nil, err
 		}
@@ -310,6 +325,24 @@ func (s *MessageModel) AuthorizePost(ctx context.Context, input MessagePostAutho
 	}
 
 	return &MessagePostAuthorization{Room: room, Kind: kind}, nil
+}
+
+func (s *MessageModel) attachmentPermissionRequirements(input MessagePostInput) (requiresAttach, requiresVoice bool) {
+	requiresAttach = input.HasPendingAttachments
+	references := s.core.assetLifecycle().AssetReferences(input.AttachmentAssetIDs)
+	for _, assetID := range input.AttachmentAssetIDs {
+		reference, ok := references[assetID]
+		if !ok || reference.Creation == nil || reference.Creation.GetAsset() == nil {
+			requiresAttach = true
+			continue
+		}
+		if reference.Creation.GetAsset().GetVoiceMessage() != nil {
+			requiresVoice = true
+		} else {
+			requiresAttach = true
+		}
+	}
+	return requiresAttach, requiresVoice
 }
 
 // UpdateMessage edits an existing message. Authorization: actor must be a room

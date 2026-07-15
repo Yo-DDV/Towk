@@ -122,6 +122,9 @@ func TestPermissionAppliesAtScope(t *testing.T) {
 		{"message.attach at server", PermMessageAttach, ScopeServer, true},
 		{"message.attach at group", PermMessageAttach, ScopeGroup, true},
 		{"message.attach at room", PermMessageAttach, ScopeRoom, true},
+		{"message.voice at server", Permission("message.voice"), ScopeServer, true},
+		{"message.voice at group", Permission("message.voice"), ScopeGroup, true},
+		{"message.voice at room", Permission("message.voice"), ScopeRoom, true},
 		{"room.join at server", PermRoomJoin, ScopeServer, true},
 		{"room.join at room", PermRoomJoin, ScopeRoom, true},
 		{"room.manage at server", PermRoomManage, ScopeServer, true},
@@ -259,6 +262,7 @@ func TestDefaultEveryonePermissions(t *testing.T) {
 		PermRoomJoin,
 		PermMessagePost,
 		PermMessagePostInThread,
+		PermMessageVoice,
 		PermMessageReact,
 		PermMessageEcho,
 	}

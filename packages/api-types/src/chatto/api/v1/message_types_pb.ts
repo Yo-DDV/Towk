@@ -276,6 +276,55 @@ export class MessageVideoProcessing extends Message$1<MessageVideoProcessing> {
 }
 
 /**
+ * Metadata for an audio attachment recorded as a Towk voice message.
+ *
+ * @generated from message chatto.api.v1.MessageVoiceMetadata
+ */
+export class MessageVoiceMetadata extends Message$1<MessageVoiceMetadata> {
+  /**
+   * Measured recording duration in milliseconds.
+   *
+   * @generated from field: int64 duration_ms = 1;
+   */
+  durationMs = protoInt64.zero;
+
+  /**
+   * Normalized amplitude envelope used to render the waveform.
+   *
+   * @generated from field: repeated float waveform_peaks = 2;
+   */
+  waveformPeaks: number[] = [];
+
+  constructor(data?: PartialMessage<MessageVoiceMetadata>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.api.v1.MessageVoiceMetadata";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "duration_ms", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 2, name: "waveform_peaks", kind: "scalar", T: 2 /* ScalarType.FLOAT */, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): MessageVoiceMetadata {
+    return new MessageVoiceMetadata().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): MessageVoiceMetadata {
+    return new MessageVoiceMetadata().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): MessageVoiceMetadata {
+    return new MessageVoiceMetadata().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: MessageVoiceMetadata | PlainMessage<MessageVoiceMetadata> | undefined, b: MessageVoiceMetadata | PlainMessage<MessageVoiceMetadata> | undefined): boolean {
+    return proto3.util.equals(MessageVoiceMetadata, a, b);
+  }
+}
+
+/**
  * Attachment metadata included with a message.
  *
  * Image and video dimensions are best-effort metadata for layout. Asset URLs can
@@ -340,6 +389,13 @@ export class MessageAttachment extends Message$1<MessageAttachment> {
    */
   videoProcessing?: MessageVideoProcessing;
 
+  /**
+   * Voice-message metadata. Absent for ordinary audio attachments.
+   *
+   * @generated from field: chatto.api.v1.MessageVoiceMetadata voice_message = 9;
+   */
+  voiceMessage?: MessageVoiceMetadata;
+
   constructor(data?: PartialMessage<MessageAttachment>) {
     super();
     proto3.util.initPartial(data, this);
@@ -356,6 +412,7 @@ export class MessageAttachment extends Message$1<MessageAttachment> {
     { no: 6, name: "asset_url", kind: "message", T: MessageAssetUrl },
     { no: 7, name: "thumbnail_asset_url", kind: "message", T: MessageAssetUrl },
     { no: 8, name: "video_processing", kind: "message", T: MessageVideoProcessing },
+    { no: 9, name: "voice_message", kind: "message", T: MessageVoiceMetadata },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): MessageAttachment {

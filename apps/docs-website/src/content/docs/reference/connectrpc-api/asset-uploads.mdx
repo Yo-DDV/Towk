@@ -43,6 +43,7 @@ Request to start a room-scoped attachment upload.
 | `content_type` | `string` | MIME content type. Empty values are treated as application/octet-stream. |
 | `size` | `int64` | Required total file size in bytes. |
 | `sha256` | `string` | Required SHA-256 digest of the complete file, lowercase hexadecimal. |
+| `voice_message` | [`MessageVoiceMetadata`](/reference/connectrpc-api/types/#chatto-api-v1-MessageVoiceMetadata) | Marks this upload as a first-class voice message and carries the waveform. Omit for ordinary audio and file attachments. |
 
 
 <a id="chatto-api-v1-CreateUploadResponse"></a>

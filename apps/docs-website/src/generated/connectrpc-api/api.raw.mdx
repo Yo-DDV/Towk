@@ -732,6 +732,7 @@ Request to start a room-scoped attachment upload.
 | `content_type` | `string` | MIME content type. Empty values are treated as application/octet-stream. |
 | `size` | `int64` | Required total file size in bytes. |
 | `sha256` | `string` | Required SHA-256 digest of the complete file, lowercase hexadecimal. |
+| `voice_message` | [`MessageVoiceMetadata`](#chatto-api-v1-MessageVoiceMetadata) | Marks this upload as a first-class voice message and carries the waveform. Omit for ordinary audio and file attachments. |
 
 
 <a id="chatto-api-v1-CreateUploadResponse"></a>
@@ -3647,6 +3648,7 @@ be absent while processing is pending or when the source is unavailable.
 | `asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for the original asset, when available. |
 | `thumbnail_asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for a thumbnail image, when available. |
 | `video_processing` | [`MessageVideoProcessing`](#chatto-api-v1-MessageVideoProcessing) | Video-specific processing metadata, when this attachment is a video. |
+| `voice_message` | [`MessageVoiceMetadata`](#chatto-api-v1-MessageVoiceMetadata) | Voice-message metadata. Absent for ordinary audio attachments. |
 
 
 
@@ -3707,6 +3709,19 @@ One transcoded video rendition.
 
 
 
+<a id="chatto-api-v1-MessageVoiceMetadata"></a>
+
+### MessageVoiceMetadata
+
+Metadata for an audio attachment recorded as a Towk voice message.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `duration_ms` | `int64` | Measured recording duration in milliseconds. |
+| `waveform_peaks` | `repeated float` | Normalized amplitude envelope used to render the waveform. |
+
+
+
 <a id="chatto-api-v1-ThreadSummary"></a>
 
 ### ThreadSummary
@@ -3754,6 +3769,7 @@ Room-scoped binary asset metadata and freshly signed URLs.
 | `asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for the original asset bytes. |
 | `thumbnail_asset_url` | [`MessageAssetUrl`](#chatto-api-v1-MessageAssetUrl) | Signed URL for a transformed image thumbnail. |
 | `video_processing` | [`MessageVideoProcessing`](#chatto-api-v1-MessageVideoProcessing) | Video processing state when this asset is a video attachment. |
+| `voice_message` | [`MessageVoiceMetadata`](#chatto-api-v1-MessageVoiceMetadata) | Voice-message metadata. Absent for ordinary audio assets. |
 
 
 
@@ -3789,6 +3805,7 @@ Current server-side state for one room-scoped attachment upload.
 | `sha256` | `string` | SHA-256 digest of the complete file, lowercase hexadecimal. |
 | `expires_at` | `google.protobuf.Timestamp` | Upload expiry. Clients should create a new upload after this time. |
 | `asset_id` | `string` | Asset ID after completion. |
+| `voice_message` | [`MessageVoiceMetadata`](#chatto-api-v1-MessageVoiceMetadata) | Voice-message metadata supplied when this is a recorder upload. |
 
 
 
@@ -4225,6 +4242,7 @@ Authenticated server runtime settings used by clients.
 | `max_upload_size` | `int64` | Maximum general upload size in bytes. |
 | `max_video_upload_size` | `int64` | Maximum video upload size in bytes. |
 | `message_edit_window_seconds` | `int32` | Message edit window in seconds. |
+| `max_voice_message_upload_size` | `int64` | Maximum first-class voice-message upload size in bytes. |
 
 
 

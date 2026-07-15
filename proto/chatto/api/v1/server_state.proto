@@ -29,6 +29,8 @@ message ServerRuntimeConfig {
   int64 max_video_upload_size = 7;
   // Message edit window in seconds.
   int32 message_edit_window_seconds = 8;
+  // Maximum first-class voice-message upload size in bytes.
+  int64 max_voice_message_upload_size = 9;
 }
 
 // Request for authenticated server runtime configuration.

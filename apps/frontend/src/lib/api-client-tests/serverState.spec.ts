@@ -94,6 +94,7 @@ describe('getAuthenticatedServerState', () => {
         videoProcessingEnabled: true,
         maxUploadSize: protoInt64.parse(123),
         maxVideoUploadSize: protoInt64.parse(456),
+        maxVoiceMessageUploadSize: protoInt64.parse(789),
         messageEditWindowSeconds: 7200
       }
     });
@@ -109,6 +110,7 @@ describe('getAuthenticatedServerState', () => {
           { permission: 'message.post', granted: true },
           { permission: 'message.post-in-thread', granted: true },
           { permission: 'message.attach', granted: true },
+          { permission: 'message.voice', granted: true },
           { permission: 'message.manage', granted: false },
           { permission: 'message.react', granted: true },
           { permission: 'message.echo', granted: true },
@@ -163,12 +165,14 @@ describe('getAuthenticatedServerState', () => {
       videoProcessingEnabled: true,
       maxUploadSize: 123,
       maxVideoUploadSize: 456,
+      maxVoiceMessageUploadSize: 789,
       messageEditWindowSeconds: 7200,
       viewerPermissions: {
         'admin.view-audit': true,
         'admin.view-users': true,
         'bot.example.do-thing': true,
         'message.attach': true,
+        'message.voice': true,
         'message.echo': true,
         'message.manage': false,
         'message.post': true,
@@ -195,6 +199,7 @@ describe('getAuthenticatedServerState', () => {
       viewerCanPostMessages: true,
       viewerCanPostInThreads: true,
       viewerCanAttachFiles: true,
+      viewerCanSendVoiceMessages: true,
       viewerCanManageMessages: false,
       viewerCanReactToMessages: true,
       viewerCanEchoMessages: true,
@@ -221,6 +226,7 @@ describe('getAuthenticatedServerState', () => {
         videoProcessingEnabled: false,
         maxUploadSize: protoInt64.zero,
         maxVideoUploadSize: protoInt64.zero,
+        maxVoiceMessageUploadSize: protoInt64.zero,
         messageEditWindowSeconds: 10800
       }
     });

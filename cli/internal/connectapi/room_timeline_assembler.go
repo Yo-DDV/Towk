@@ -295,6 +295,7 @@ func (h *timelineHydrator) attachments(roomID, messageEventID string, attachment
 			AssetUrl:          assetURLView(assetURL),
 			ThumbnailAssetUrl: assetURLView(thumbnailURL),
 			VideoProcessing:   h.videoProcessing(attachment),
+			VoiceMessage:      apiVoiceMessageMetadataFromProto(attachment.GetVoiceMessage()),
 		})
 	}
 	return result

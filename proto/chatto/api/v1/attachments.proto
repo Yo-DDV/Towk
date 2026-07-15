@@ -27,6 +27,9 @@ message Asset {
   MessageAssetUrl thumbnail_asset_url = 8;
   // Video processing state when this asset is a video attachment.
   MessageVideoProcessing video_processing = 9;
+
+  // Voice-message metadata. Absent for ordinary audio assets.
+  MessageVoiceMetadata voice_message = 10;
 }
 
 // One current room attachment and its message anchor.
