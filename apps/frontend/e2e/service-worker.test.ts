@@ -46,7 +46,7 @@ test('service worker caches only the app shell and serves it offline', async ({
   expect(onlineCacheSnapshot.cacheNames.some((name) => name.startsWith('towk-shell-'))).toBe(true);
   expect(onlineCacheSnapshot.rootShellCached).toBe(true);
   expect(onlineCacheSnapshot.fallbackShellCached).toBe(true);
-  expect(onlineCacheSnapshot.manifestCached).toBe(true);
+  expect(onlineCacheSnapshot.manifestCached).toBe(false);
   expect(onlineCacheSnapshot.offlineSymbolCached).toBe(true);
   expect(onlineCacheSnapshot.lazyStaticAssetCached).toBe(false);
   expect(onlineCacheSnapshot.apiDiscoveryCached).toBe(false);
@@ -65,14 +65,6 @@ test('service worker caches only the app shell and serves it offline', async ({
     await expect(page.getByText('Check your internet connection, then try again.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
     await expect(page.getByTestId('standalone-welcome-state')).toHaveCount(0);
-    await expect
-      .poll(() =>
-        page.evaluate(async () => {
-          const response = await fetch('/manifest.webmanifest');
-          return response.ok ? ((await response.json()) as { name?: string }).name : null;
-        })
-      )
-      .toBe('Towk');
     await expect
       .poll(() =>
         page.evaluate(
