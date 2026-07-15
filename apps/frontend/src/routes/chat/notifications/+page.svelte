@@ -8,6 +8,10 @@
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
+  import {
+    dismissNativeNotification,
+    reconcileNativeNotifications
+  } from '$lib/notifications/pushNotifications';
 
   import UserAvatar from '$lib/components/UserAvatar.svelte';
   import { getUserSettings } from '$lib/state/userSettings.svelte';
@@ -106,6 +110,9 @@
       stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
     }
     void store.dismiss(item.notification.id).then((dismissed) => {
+      if (dismissed) {
+        dismissNativeNotification(item.notification.id);
+      }
       if (dismissed && target.roomId) {
         stores.rooms.decrementUnreadNotification(target.roomId);
         void stores.rooms.refreshNotificationCounts();
@@ -122,6 +129,9 @@
     const stores = serverRegistry.getStore(item.serverId);
     const target = notificationTarget(item.notification);
     const dismissed = await stores.notifications.dismiss(item.notification.id);
+    if (dismissed) {
+      dismissNativeNotification(item.notification.id);
+    }
     if (dismissed && target.roomId) {
       stores.rooms.decrementUnreadNotification(target.roomId);
       void stores.rooms.refreshNotificationCounts();
@@ -138,6 +148,7 @@
         stores.notifications.dismissAll().then((dismissed) => {
           if (hadNotifications || dismissed > 0) {
             stores.rooms.clearAllUnreadNotifications();
+            reconcileNativeNotifications([]);
             void stores.rooms.refreshNotificationCounts();
           }
         })
@@ -203,7 +214,7 @@
 
             <button
               type="button"
-              class="iconify icon-action uil--times"
+              class="icon-action iconify uil--times"
               title={m['common.dismiss']()}
               onclick={(e) => handleDismiss(e, item)}
             ></button>

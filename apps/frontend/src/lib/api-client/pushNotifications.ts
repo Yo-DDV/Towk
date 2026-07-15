@@ -13,6 +13,8 @@ export type SubscribePushInput = {
   auth: string;
   userAgent?: string;
   locale?: string;
+  clientId?: string;
+  applicationOrigin?: string;
 };
 
 export function createPushNotificationAPI(config: PushNotificationAPIConfig) {

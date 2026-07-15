@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  acknowledgeNativeNotificationClose,
+  drainNativeNotificationCloseOutbox,
   ensureRegistered,
   getPushCapability,
+  onNativeNotificationClose,
   onNotificationClick,
+  reconcileNativeNotifications,
   unsubscribe,
   unsubscribeForSignOut
 } from './pushNotifications';
@@ -96,9 +100,11 @@ function installPushGlobals() {
   subscribe = vi.fn();
   const getNotifications = vi.fn(async (): Promise<Notification[]> => []);
   const postMessage = vi.fn();
+  const activePostMessage = vi.fn();
   const setAppBadge = vi.fn(async () => {});
   const clearAppBadge = vi.fn(async () => {});
   const registration = {
+    active: { postMessage: activePostMessage },
     pushManager: {
       getSubscription,
       subscribe
@@ -116,6 +122,9 @@ function installPushGlobals() {
     Notification,
     PushManager: class PushManager {},
     atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+    location: {
+      origin: 'https://origin.test'
+    },
     localStorage: {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
@@ -133,7 +142,7 @@ function installPushGlobals() {
     clearAppBadge
   });
 
-  return { clearAppBadge, getNotifications, postMessage };
+  return { activePostMessage, clearAppBadge, getNotifications, postMessage };
 }
 
 function installCapabilityGlobals(options: {
@@ -247,6 +256,7 @@ describe('pushNotifications.ensureRegistered', () => {
     permission = 'default';
     installPushGlobals();
     window.localStorage.setItem('towk:push:registered-vapid-public-key', 'dmFwaWQ');
+    window.localStorage.setItem('towk:push:client-id', 'client-existing');
     mocks.createPushNotificationAPI.mockReset();
     mocks.createPushNotificationAPI.mockReturnValue({
       subscribe: mocks.subscribePush,
@@ -284,8 +294,32 @@ describe('pushNotifications.ensureRegistered', () => {
       p256dh: 'p256dh-key',
       auth: 'auth-secret',
       userAgent: 'test-agent',
-      locale: 'fr'
+      locale: 'fr',
+      clientId: 'client-existing',
+      applicationOrigin: 'https://origin.test'
     });
+  });
+
+  it('creates and reuses a stable browser installation ID for server-side deduplication', async () => {
+    permission = 'granted';
+    window.localStorage.removeItem('towk:push:client-id');
+    const subscription = makeSubscription('https://push.example/client-id');
+    getSubscription.mockResolvedValue(subscription);
+
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(true);
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(true);
+
+    const generated = window.localStorage.getItem('towk:push:client-id');
+    expect(generated).toEqual(expect.any(String));
+    expect(generated?.length).toBeGreaterThan(0);
+    expect(mocks.subscribePush).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ clientId: generated })
+    );
+    expect(mocks.subscribePush).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ clientId: generated })
+    );
   });
 
   it('creates and saves a subscription when permission is granted and none exists', async () => {
@@ -487,6 +521,75 @@ describe('pushNotifications.ensureRegistered', () => {
     expect(subscription.unsubscribe).toHaveBeenCalledTimes(2);
     await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(false);
     expect(mocks.subscribePush).toHaveBeenCalledOnce();
+  });
+});
+
+describe('pushNotifications.reconcileNativeNotifications', () => {
+  it('posts a deduplicated authoritative pending id set to the active service worker', () => {
+    const pushGlobals = installPushGlobals();
+
+    reconcileNativeNotifications(['notification-1', 'notification-1', '', 'notification-2']);
+
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
+      type: 'towk-notification-state',
+      notificationIds: ['notification-1', 'notification-2']
+    });
+    expect(pushGlobals.activePostMessage).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the active service worker when the page is not controlled yet', async () => {
+    const pushGlobals = installPushGlobals();
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      serviceWorker: {
+        ...navigator.serviceWorker,
+        controller: null
+      }
+    });
+
+    reconcileNativeNotifications(['notification-3']);
+    await Promise.resolve();
+
+    expect(pushGlobals.activePostMessage).toHaveBeenCalledWith({
+      type: 'towk-notification-state',
+      notificationIds: ['notification-3']
+    });
+  });
+});
+
+describe('pushNotifications native notification close helpers', () => {
+  it('asks the service worker to drain and acknowledge native close intents', () => {
+    const pushGlobals = installPushGlobals();
+
+    drainNativeNotificationCloseOutbox();
+    acknowledgeNativeNotificationClose('notification-1');
+
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-close-drain'
+    });
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-close-ack',
+      notificationId: 'notification-1'
+    });
+  });
+
+  it('listens for native close events replayed by the service worker', () => {
+    const serviceWorker = stubServiceWorker();
+    const callback = vi.fn();
+    const stop = onNativeNotificationClose(callback);
+
+    serviceWorker.dispatchMessage({
+      data: {
+        type: 'towk-native-notification-closed',
+        notificationId: 'notification-2',
+        source: 'replay'
+      },
+      ports: []
+    });
+
+    expect(callback).toHaveBeenCalledWith('notification-2', 'replay');
+    stop();
+    expect(serviceWorker.listenerCount()).toBe(0);
   });
 });
 

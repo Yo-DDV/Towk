@@ -12,6 +12,12 @@ import {
   NOTIFICATION_CLICK_ACK_MESSAGE_TYPE,
   NOTIFICATION_CLICK_MESSAGE_TYPE
 } from '$lib/pwa/notificationClick.worker';
+import {
+  NATIVE_NOTIFICATION_CLOSED_MESSAGE_TYPE,
+  NATIVE_NOTIFICATION_CLOSE_ACK_MESSAGE_TYPE,
+  NATIVE_NOTIFICATION_CLOSE_DRAIN_MESSAGE_TYPE,
+  type NativeNotificationClosedMessage
+} from '$lib/pwa/notificationClose.worker';
 import { getLocale } from '$lib/i18n/runtime';
 import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
 
@@ -23,7 +29,9 @@ let registrationQueue: Promise<void> = Promise.resolve();
 let registrationGeneration = 0;
 let registrationsSuspended = false;
 const registeredVapidKeyStorageKey = 'towk:push:registered-vapid-public-key';
+const pushClientIdStorageKey = 'towk:push:client-id';
 let registeredVapidKeyFallback: string | null = null;
+let pushClientIdFallback: string | null = null;
 
 export type PushCapability = 'supported' | 'ios_home_screen_required' | 'unsupported';
 
@@ -87,6 +95,22 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
   } catch {
     return null;
   }
+}
+
+function postServiceWorkerMessage(message: unknown): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  const container = navigator.serviceWorker;
+  if (container.controller) {
+    container.controller.postMessage(message);
+    return;
+  }
+
+  void container.ready
+    .then((registration) => {
+      (container.controller ?? registration.active)?.postMessage(message);
+    })
+    .catch(() => {});
 }
 
 /**
@@ -246,7 +270,9 @@ async function registerGrantedSubscription(
       p256dh: json.keys.p256dh,
       auth: json.keys.auth,
       userAgent: navigator.userAgent,
-      locale: getLocale()
+      locale: getLocale(),
+      clientId: currentPushClientId(),
+      applicationOrigin: currentApplicationOrigin()
     });
 
     if (!saved) {
@@ -312,6 +338,48 @@ function rememberRegisteredVapidPublicKey(vapidPublicKey: string): void {
   }
 }
 
+function currentPushClientId(): string {
+  try {
+    const stored = window.localStorage.getItem(pushClientIdStorageKey);
+    if (stored) {
+      pushClientIdFallback = stored;
+      return stored;
+    }
+  } catch {
+    if (pushClientIdFallback) return pushClientIdFallback;
+  }
+
+  const next = createPushClientId();
+  pushClientIdFallback = next;
+  try {
+    window.localStorage.setItem(pushClientIdStorageKey, next);
+  } catch {
+    // The server can still deduplicate within this page lifetime.
+  }
+  return next;
+}
+
+function createPushClientId(): string {
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef?.randomUUID) {
+    return cryptoRef.randomUUID();
+  }
+  if (cryptoRef?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    cryptoRef.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  return `fallback-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function currentApplicationOrigin(): string | undefined {
+  try {
+    return window.location?.origin || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function registrationIsCurrent(generation: number): boolean {
   return !registrationsSuspended && generation === registrationGeneration;
 }
@@ -371,8 +439,38 @@ export async function unsubscribe(): Promise<boolean> {
 
 /** Close the matching native notification while this PWA is already online. */
 export function dismissNativeNotification(notificationId: string): void {
-  navigator.serviceWorker?.controller?.postMessage({
+  postServiceWorkerMessage({
     type: 'towk-notification-dismiss',
+    notificationId
+  });
+}
+
+/** Close delivered native notifications that are no longer pending on the server. */
+export function reconcileNativeNotifications(notificationIds: Iterable<string>): void {
+  const pendingIds = Array.from(
+    new Set(
+      Array.from(notificationIds).filter(
+        (notificationId) => typeof notificationId === 'string' && notificationId !== ''
+      )
+    )
+  );
+
+  postServiceWorkerMessage({
+    type: 'towk-notification-state',
+    notificationIds: pendingIds
+  });
+}
+
+export function drainNativeNotificationCloseOutbox(): void {
+  postServiceWorkerMessage({
+    type: NATIVE_NOTIFICATION_CLOSE_DRAIN_MESSAGE_TYPE
+  });
+}
+
+export function acknowledgeNativeNotificationClose(notificationId: string): void {
+  if (notificationId === '') return;
+  postServiceWorkerMessage({
+    type: NATIVE_NOTIFICATION_CLOSE_ACK_MESSAGE_TYPE,
     notificationId
   });
 }
@@ -447,6 +545,29 @@ export function onNotificationClick(callback: (url: string) => void | Promise<vo
           // WindowClient.navigate() after its timeout.
         }
       })();
+    }
+  };
+
+  navigator.serviceWorker.addEventListener('message', handler);
+  return () => navigator.serviceWorker.removeEventListener('message', handler);
+}
+
+export function onNativeNotificationClose(
+  callback: (notificationId: string, source: NativeNotificationClosedMessage['source']) => void
+): () => void {
+  if (!('serviceWorker' in navigator)) {
+    return () => {};
+  }
+
+  const handler = (event: MessageEvent) => {
+    if (
+      event.data?.type === NATIVE_NOTIFICATION_CLOSED_MESSAGE_TYPE &&
+      typeof event.data.notificationId === 'string'
+    ) {
+      callback(
+        event.data.notificationId,
+        event.data.source === 'replay' ? 'replay' : 'native-close'
+      );
     }
   };
 

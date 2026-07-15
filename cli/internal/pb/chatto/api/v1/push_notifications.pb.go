@@ -35,9 +35,15 @@ type SubscribePushRequest struct {
 	UserAgent *string `protobuf:"bytes,4,opt,name=user_agent,json=userAgent,proto3,oneof" json:"user_agent,omitempty"`
 	// Optional Towk UI language selected by this browser. The server normalizes
 	// unsupported and legacy-empty values to English.
-	Locale        *string `protobuf:"bytes,5,opt,name=locale,proto3,oneof" json:"locale,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Locale *string `protobuf:"bytes,5,opt,name=locale,proto3,oneof" json:"locale,omitempty"`
+	// Stable Towk browser-installation identifier. It lets the server replace a
+	// superseded endpoint for this installation without collapsing real devices.
+	ClientId *string `protobuf:"bytes,6,opt,name=client_id,json=clientId,proto3,oneof" json:"client_id,omitempty"`
+	// Origin that registered the browser subscription. Used for diagnostics and
+	// safe lifecycle cleanup across installed web app context refreshes.
+	ApplicationOrigin *string `protobuf:"bytes,7,opt,name=application_origin,json=applicationOrigin,proto3,oneof" json:"application_origin,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *SubscribePushRequest) Reset() {
@@ -101,6 +107,20 @@ func (x *SubscribePushRequest) GetUserAgent() string {
 func (x *SubscribePushRequest) GetLocale() string {
 	if x != nil && x.Locale != nil {
 		return *x.Locale
+	}
+	return ""
+}
+
+func (x *SubscribePushRequest) GetClientId() string {
+	if x != nil && x.ClientId != nil {
+		return *x.ClientId
+	}
+	return ""
+}
+
+func (x *SubscribePushRequest) GetApplicationOrigin() string {
+	if x != nil && x.ApplicationOrigin != nil {
+		return *x.ApplicationOrigin
 	}
 	return ""
 }
@@ -247,7 +267,7 @@ var File_chatto_api_v1_push_notifications_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_push_notifications_proto_rawDesc = "" +
 	"\n" +
-	"&chatto/api/v1/push_notifications.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\"\xf0\x01\n" +
+	"&chatto/api/v1/push_notifications.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\"\xff\x02\n" +
 	"\x14SubscribePushRequest\x12&\n" +
 	"\bendpoint\x18\x01 \x01(\tB\n" +
 	"\xbaH\ar\x05\x10\x01\x18\x80 R\bendpoint\x12\"\n" +
@@ -257,9 +277,14 @@ const file_chatto_api_v1_push_notifications_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x10\x01\x18\x80\x01R\x04auth\x12,\n" +
 	"\n" +
 	"user_agent\x18\x04 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x04H\x00R\tuserAgent\x88\x01\x01\x12$\n" +
-	"\x06locale\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18\x10H\x01R\x06locale\x88\x01\x01B\r\n" +
+	"\x06locale\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x18\x10H\x01R\x06locale\x88\x01\x01\x12*\n" +
+	"\tclient_id\x18\x06 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01H\x02R\bclientId\x88\x01\x01\x12<\n" +
+	"\x12application_origin\x18\a \x01(\tB\b\xbaH\x05r\x03\x18\x80\x04H\x03R\x11applicationOrigin\x88\x01\x01B\r\n" +
 	"\v_user_agentB\t\n" +
-	"\a_locale\"7\n" +
+	"\a_localeB\f\n" +
+	"\n" +
+	"_client_idB\x15\n" +
+	"\x13_application_origin\"7\n" +
 	"\x15SubscribePushResponse\x12\x1e\n" +
 	"\n" +
 	"subscribed\x18\x01 \x01(\bR\n" +

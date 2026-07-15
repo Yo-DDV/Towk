@@ -5,7 +5,7 @@
 
 ## Overview
 
-Towk ships a service worker so the installed web app can launch reliably, update safely, and handle push notifications. The worker caches the SPA fallback shell, SvelteKit build assets, the manifest, and essential install icons during install, then caches other static PWA assets when the browser actually requests them. The web manifest remains network-first so current server branding wins online, with the cached copy used only when the network is unavailable. The worker deliberately does not cache chat data, API responses, live-event traffic, or protected uploaded asset bodies.
+Towk ships a service worker so the installed web app can launch reliably, update safely, and handle push notifications. The worker caches the SPA fallback shell, SvelteKit build assets, and essential install icons during install, then caches other static PWA assets when the browser actually requests them. The web manifest is always network-only because it is browser-specific on Android Chromium and may carry current server branding. The worker deliberately does not cache chat data, API responses, live-event traffic, web-manifest responses, or protected uploaded asset bodies.
 
 Offline support means the app can open and show its normal disconnected state instead of the browser's generic offline page. Authenticated accounts also keep bounded encrypted drafts and their pending attachments, pending text messages, and recent room timelines on the device. Cached timelines are visibly identified as cached state; they never masquerade as a live server response. Offline search and offline attachment upload are not supported.
 
@@ -15,17 +15,17 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 
 - The service worker is registered by SvelteKit in production builds.
 - On install, the worker caches the SPA fallback shell and SvelteKit build assets required to boot it. If any required shell response is missing or unsuccessful, installation fails and the previous active worker remains in place.
-- The worker also attempts to precache the manifest and bundled install, maskable, Apple touch, favicon, and offline-symbol icons. A temporary metadata/icon failure does not invalidate an otherwise complete executable shell.
+- The worker also attempts to precache bundled install, maskable, Apple touch, favicon, and offline-symbol icons. A temporary icon failure does not invalidate an otherwise complete executable shell.
 - Updated workers wait until the foreground app says that reloading is safe. The app activates the waiting worker before reloading and does not auto-reload while the user is typing or in a call; the update action remains an explicit override.
 - On activate, old Towk shell caches are deleted, navigation preload is enabled when supported, and the new worker claims open clients.
 - Known shell assets are served cache-first from the versioned cache; static PWA assets other than the web manifest are cached lazily on first request.
 - The served web manifest prefers the uploaded server logo when one exists, but keeps bundled Towk PNG icons as installable fallbacks. Apple touch icon metadata uses the uploaded server logo when available and falls back to the bundled Towk icon otherwise.
 - Same-origin navigations are network-first and use a browser navigation preload when available, falling back to the cached SPA shell only when the network fails.
-- The manifest is network-first with a cached fallback. API, auth, OAuth, webhook, uploaded-asset, non-GET, and cross-origin requests remain network-only.
+- The manifest is network-only. API, auth, OAuth, webhook, uploaded-asset, non-GET, and cross-origin requests also remain network-only.
 - An offline launch renders a localized offline state without network-dependent images, with explicit retry guidance. A running client also shows one persistent offline notice and replaces it with a reconnecting notice when the browser reports network recovery.
 - Protected uploaded asset loads use direct signed asset URLs owned by the foreground app. The worker does not receive registered-server API bearer tokens, does not proxy asset requests, and does not cache protected asset bodies.
 - Push notifications continue to display native OS notifications and route notification clicks into the SPA.
-- Push dismiss payloads still close matching visible notifications on the device.
+- Push dismiss payloads still close matching visible notifications on the device, and native notification-center closes are replayed through the next authenticated foreground app window so the server-side notification state can synchronize across devices.
 - Text messages that fail for a retryable network reason can enter a bounded encrypted outbox. Each logical send keeps one stable client request ID, so a lost response and a retry cannot create duplicate messages. Users can inspect, retry, or discard pending items. Unuploaded attachments remain in the encrypted draft rather than entering the outbox and are uploaded after connectivity returns.
 - Drafts and recent timeline windows are encrypted per server account with non-extractable device keys. Account removal writes a durable revocation tombstone and crypto-shreds that account namespace before an explicit sign-out redirect. Other open tabs stop new writes through an origin-scoped lifecycle signal, while IndexedDB key-generation checks reject stale writes even if a tab is suspended or receives the signal late. Records have age, count, and byte quotas and remain eviction-tolerant.
 - The installed app can receive text, links, supported media, PDFs, and text files from an operating-system share sheet or file handler. Incoming payloads are validated, encrypted in a short-lived device inbox, and require an explicit destination conversation; Towk never auto-sends shared content.
@@ -36,9 +36,9 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 
 ### 1. Shell-only caching
 
-**Decision:** Cache only the app shell and static PWA assets that do not expose private server state. Build assets are mandatory during install; install metadata and essential icons are best-effort during install; nonessential static assets are cached lazily. The manifest is refreshed from the network and falls back to its cached copy offline.
+**Decision:** Cache only the app shell and static PWA assets that do not expose private server state. Build assets are mandatory during install; essential icons are best-effort during install; nonessential static assets are cached lazily. The manifest is served from the network only and never falls back to a cached copy.
 **Why:** Towk is a real-time chat app. Serving stale messages, permissions, assets, or notification state as if they were live would be worse than showing the disconnected state.
-**Tradeoff:** The shell cache alone never supplies room or message data. An already scoped account may separately show its labeled encrypted timeline window, while full static asset coverage accumulates as the app requests assets. The cached manifest can briefly carry old branding while offline, but it is never preferred over a successful network response.
+**Tradeoff:** The shell cache alone never supplies room or message data. An already scoped account may separately show its labeled encrypted timeline window, while full static asset coverage accumulates as the app requests assets. Offline launches cannot refresh install metadata, but they also cannot pin an Android-specific manifest variant or stale branding.
 
 ### 2. Versioned cache names
 
@@ -46,10 +46,10 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 **Why:** A deploy can replace hashed JavaScript and CSS chunks. Versioned cache names let the new worker populate a fresh shell cache and delete older shell caches during activation.
 **Tradeoff:** A user briefly stores two shell versions during update. The cached asset set is small, so this is acceptable.
 
-### 3. SvelteKit owns registration
+### 3. Explicit registration bypasses stale HTTP cache
 
-**Decision:** The frontend relies on SvelteKit's production service-worker registration instead of registering manually from the push-notification setup component.
-**Why:** The service worker is now useful even when Web Push is not enabled. Registration should be tied to the PWA shell, not to push settings.
+**Decision:** The frontend registers Towk's service worker explicitly with `updateViaCache: none`.
+**Why:** The service worker is useful even when Web Push is not enabled, and stale HTTP/CDN cache reuse for `/service-worker.js` can leave installed PWAs on old notification behavior. Registration is tied to the PWA shell, not to push settings.
 **Tradeoff:** Production users get the service worker whenever the app includes one. The worker's fetch policy is conservative to make that safe.
 
 ### 4. Protected assets stay outside the worker

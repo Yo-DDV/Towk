@@ -161,6 +161,14 @@ export class NotificationStore {
     return this.notifications.length;
   }
 
+  get hasCompleteNotificationSnapshot(): boolean {
+    return this.hasLoaded && this.error === null && this.notifications.length === this.unreadNotificationCount;
+  }
+
+  get pendingNotificationIds(): string[] {
+    return this.notifications.map((notification) => notification.id);
+  }
+
   setUnreadNotificationCount(count: number): void {
     this.unreadNotificationCount = Math.max(0, count);
   }
@@ -375,6 +383,34 @@ export class NotificationStore {
       this.#locallyDismissedNotificationIds.delete(notificationId);
       this.#restoreNotification(removed);
       this.unreadNotificationCount += 1;
+      return false;
+    }
+  }
+
+  /**
+   * Dismiss a notification when the trigger only carries the server-side ID
+   * (for example an operating-system notification-center close event replayed
+   * by the service worker). This keeps the server as the source of truth even
+   * when the current cached page is missing, stale, or capped.
+   */
+  async dismissById(notificationId: string): Promise<boolean> {
+    if (notificationId === '') return false;
+
+    const removed = this.notifications.find((n) => n.id === notificationId);
+    if (removed) return this.dismiss(notificationId);
+
+    this.#markLocalDismissal(notificationId);
+    try {
+      if (!(await this.#api.dismissNotification(notificationId))) {
+        this.#locallyDismissedNotificationIds.delete(notificationId);
+        return false;
+      }
+      this.#invalidateFetch();
+      this.notifications = this.notifications.filter((n) => n.id !== notificationId);
+      return true;
+    } catch (e) {
+      console.error('Failed to dismiss notification:', e);
+      this.#locallyDismissedNotificationIds.delete(notificationId);
       return false;
     }
   }

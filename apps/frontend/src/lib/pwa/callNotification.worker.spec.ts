@@ -81,6 +81,54 @@ describe('call push notifications', () => {
     });
   });
 
+  it('applies native notification metadata to calls', () => {
+    const notification = normalizeCallPushNotification(
+      {
+        url: 'https://towk.example/chat/-/R1',
+        tag: 'call-C123',
+        lang: 'fr',
+        dir: 'ltr',
+        timestamp: 1783936800000,
+        expiresAt: 10_000,
+        call: payload
+      },
+      9_000,
+      'fr'
+    );
+
+    expect(notification).toMatchObject({
+      title: 'Alice a démarré un appel',
+      options: {
+        lang: 'fr',
+        dir: 'ltr',
+        timestamp: 1783936800000,
+        renotify: true,
+        requireInteraction: true
+      }
+    });
+  });
+
+  it('omits optional native metadata when a call push does not provide a usable value', () => {
+    const notification = normalizeCallPushNotification(
+      {
+        url: 'https://towk.example/chat/-/R1',
+        lang: '   ',
+        timestamp: Number.NaN,
+        renotify: true,
+        requireInteraction: false,
+        expiresAt: 10_000,
+        call: payload
+      },
+      9_000,
+      'fr'
+    );
+
+    expect(notification?.options).not.toHaveProperty('lang');
+    expect(notification?.options).not.toHaveProperty('timestamp');
+    expect(notification?.options).not.toHaveProperty('renotify');
+    expect(notification?.options).not.toHaveProperty('requireInteraction');
+  });
+
   it.each([
     ['en', 'Incoming call'],
     ['fr', 'Appel entrant'],

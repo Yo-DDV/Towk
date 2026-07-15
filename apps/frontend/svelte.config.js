@@ -36,6 +36,12 @@ const config = {
       name: buildVersionName(),
       // Check for new version every 60 seconds
       pollInterval: 60000
+    },
+    serviceWorker: {
+      // Towk registers the worker manually with updateViaCache='none' so
+      // Android/Chromium update checks cannot be delayed by an HTTP cache or
+      // an intermediate proxy cache serving a stale service-worker.js.
+      register: false
     }
   },
   compilerOptions: {

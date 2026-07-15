@@ -10,6 +10,8 @@ const { mocks } = vi.hoisted(() => ({
     appUi: {
       disableRoomCallWideFor: vi.fn()
     },
+    dismissNativeNotification: vi.fn(),
+    reconcileNativeNotifications: vi.fn(),
     notification: {
       id: 'mention-1',
       kind: 'mention',
@@ -67,6 +69,11 @@ vi.mock('$lib/state/userSettings.svelte', () => ({
   getUserSettings: () => ({})
 }));
 
+vi.mock('$lib/notifications/pushNotifications', () => ({
+  dismissNativeNotification: mocks.dismissNativeNotification,
+  reconcileNativeNotifications: mocks.reconcileNativeNotifications
+}));
+
 import NotificationsPage from './+page.svelte';
 
 describe('notifications page', () => {
@@ -100,7 +107,40 @@ describe('notifications page', () => {
         'event-1'
       );
       expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('mention-1');
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
       expect(mocks.goto).toHaveBeenCalledWith('/chat/-/room-1/thread-1');
+    });
+  });
+
+  it('closes the matching native notification when dismissing from the list', async () => {
+    const { container } = render(NotificationsPage);
+
+    const dismiss = q(container, 'button[title="Dismiss"]') as HTMLButtonElement;
+    dismiss.click();
+
+    await vi.waitFor(() => {
+      expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('mention-1');
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
+      expect(mocks.store.rooms.decrementUnreadNotification).toHaveBeenCalledWith('room-1');
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalled();
+    });
+  });
+
+  it('clears native notifications when clearing all pending notifications', async () => {
+    mocks.store.notifications.dismissAll.mockResolvedValue(1);
+    const { container } = render(NotificationsPage);
+
+    const clearAll = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Clear all')
+    ) as HTMLButtonElement | undefined;
+    expect(clearAll).toBeTruthy();
+    clearAll?.click();
+
+    await vi.waitFor(() => {
+      expect(mocks.store.notifications.dismissAll).toHaveBeenCalledOnce();
+      expect(mocks.reconcileNativeNotifications).toHaveBeenCalledWith([]);
+      expect(mocks.store.rooms.clearAllUnreadNotifications).toHaveBeenCalledOnce();
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalled();
     });
   });
 });

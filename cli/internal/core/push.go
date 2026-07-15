@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/elliptic"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -83,17 +84,39 @@ func (c *ChattoCore) SavePushSubscriptionWithLocale(
 	userID string,
 	endpoint, p256dh, auth, userAgent, locale string,
 ) (*corev1.PushSubscription, error) {
+	return c.SavePushSubscriptionWithMetadata(ctx, userID, endpoint, p256dh, auth, userAgent, locale, "", "")
+}
+
+// SavePushSubscriptionWithMetadata stores or updates a browser subscription and
+// replaces older endpoints for the same Towk browser installation. The client ID
+// is intentionally scoped to Towk, not inferred from user-agent, so real devices
+// and separate browsers for the same account keep independent subscriptions.
+func (c *ChattoCore) SavePushSubscriptionWithMetadata(
+	ctx context.Context,
+	userID string,
+	endpoint, p256dh, auth, userAgent, locale, clientID, applicationOrigin string,
+) (*corev1.PushSubscription, error) {
+	clientID, err := normalizePushClientID(clientID)
+	if err != nil {
+		return nil, err
+	}
+	applicationOrigin, err = normalizePushApplicationOrigin(applicationOrigin)
+	if err != nil {
+		return nil, err
+	}
 	if err := validatePushSubscription(endpoint, p256dh, auth, userAgent); err != nil {
 		return nil, err
 	}
 
 	subscription := &corev1.PushSubscription{
-		Endpoint:  endpoint,
-		P256Dh:    p256dh,
-		Auth:      auth,
-		CreatedAt: timestamppb.New(time.Now()),
-		UserAgent: userAgent,
-		Locale:    normalizePushLocale(locale),
+		Endpoint:          endpoint,
+		P256Dh:            p256dh,
+		Auth:              auth,
+		CreatedAt:         timestamppb.New(time.Now()),
+		UserAgent:         userAgent,
+		Locale:            normalizePushLocale(locale),
+		ClientId:          clientID,
+		ApplicationOrigin: applicationOrigin,
 	}
 
 	data, err := proto.Marshal(subscription)
@@ -109,12 +132,84 @@ func (c *ChattoCore) SavePushSubscriptionWithLocale(
 	if err := c.claimPushEndpointOwnership(ctx, userID, endpoint); err != nil {
 		return nil, err
 	}
+	if err := c.deleteSupersededPushSubscriptions(ctx, userID, subscription); err != nil {
+		c.logger.Warn("Failed to delete superseded push subscriptions",
+			"user_id", userID,
+			"endpoint_hash", hashEndpoint(endpoint),
+			"error", err)
+	}
 
 	c.logger.Debug("Push subscription saved",
 		"user_id", userID,
 		"endpoint_hash", hashEndpoint(endpoint))
 
 	return subscription, nil
+}
+
+func normalizePushClientID(clientID string) (string, error) {
+	clientID = strings.TrimSpace(clientID)
+	if err := validateStringMaxLength("push client ID", clientID, MaxPushClientIDLength); err != nil {
+		return "", err
+	}
+	if clientID == "" {
+		return "", nil
+	}
+	for _, r := range clientID {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '.' || r == ':':
+		default:
+			return "", invalidArgument("push client ID contains unsupported characters")
+		}
+	}
+	return clientID, nil
+}
+
+func normalizePushApplicationOrigin(applicationOrigin string) (string, error) {
+	applicationOrigin = strings.TrimSpace(applicationOrigin)
+	if err := validateStringMaxLength("push application origin", applicationOrigin, MaxPushApplicationOriginLength); err != nil {
+		return "", err
+	}
+	if applicationOrigin == "" {
+		return "", nil
+	}
+	parsedOrigin, err := url.Parse(applicationOrigin)
+	if err != nil || (parsedOrigin.Scheme != "https" && parsedOrigin.Scheme != "http") || parsedOrigin.Host == "" || parsedOrigin.User != nil {
+		return "", invalidArgument("push application origin must be an HTTP(S) origin without credentials")
+	}
+	if parsedOrigin.Path != "" || parsedOrigin.RawQuery != "" || parsedOrigin.Fragment != "" {
+		return "", invalidArgument("push application origin must not contain a path, query, or fragment")
+	}
+	return parsedOrigin.Scheme + "://" + parsedOrigin.Host, nil
+}
+
+func (c *ChattoCore) deleteSupersededPushSubscriptions(ctx context.Context, userID string, current *corev1.PushSubscription) error {
+	if current.GetClientId() == "" || current.GetCreatedAt() == nil {
+		return nil
+	}
+	subscriptions, err := c.GetUserPushSubscriptions(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to list push subscriptions for deduplication: %w", err)
+	}
+
+	currentCreatedAt := current.GetCreatedAt().AsTime()
+	for _, subscription := range subscriptions {
+		if subscription.GetEndpoint() == current.GetEndpoint() || subscription.GetClientId() != current.GetClientId() || subscription.GetCreatedAt() == nil {
+			continue
+		}
+		// Only the newest registration for a Towk browser installation should
+		// remove older endpoints. This prevents two concurrent refreshes from
+		// deleting each other if they race.
+		if !subscription.GetCreatedAt().AsTime().Before(currentCreatedAt) {
+			continue
+		}
+		if err := c.DeletePushSubscription(ctx, userID, subscription.GetEndpoint()); err != nil {
+			return fmt.Errorf("failed to delete superseded push subscription: %w", err)
+		}
+	}
+	return nil
 }
 
 func normalizePushLocale(locale string) string {
@@ -217,6 +312,55 @@ func (c *ChattoCore) PushSubscriptionCurrentForUser(ctx context.Context, userID 
 	return c.pushSubscriptionRevisionOwnedByUser(ctx, userID, subscription.Endpoint, entry.Revision())
 }
 
+// DismissNotificationFromPushSubscription dismisses a notification using only
+// the browser PushSubscription proof available to a service worker. This keeps
+// native notification-center closes synchronized even when no authenticated app
+// window is open, without storing bearer tokens in the worker.
+func (c *ChattoCore) DismissNotificationFromPushSubscription(ctx context.Context, endpoint, auth, notificationID string) (bool, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	auth = strings.TrimSpace(auth)
+	notificationID = strings.TrimSpace(notificationID)
+	if err := validatePushDismissalCredential(endpoint, auth, notificationID); err != nil {
+		return false, err
+	}
+
+	owner, err := c.getPushEndpointOwner(ctx, endpoint)
+	if err != nil {
+		return false, err
+	}
+	if owner == nil || owner.UserID == "" {
+		return false, nil
+	}
+
+	key := pushSubscriptionKey(owner.UserID, endpoint)
+	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
+	if isRuntimeStateKeyAbsent(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to get push subscription: %w", err)
+	}
+	if entry.Revision() != owner.SubscriptionRevision {
+		return false, nil
+	}
+
+	var current corev1.PushSubscription
+	if err := proto.Unmarshal(entry.Value(), &current); err != nil {
+		return false, fmt.Errorf("failed to unmarshal push subscription: %w", err)
+	}
+	if current.GetEndpoint() != endpoint {
+		return false, nil
+	}
+	if subtle.ConstantTimeCompare([]byte(current.GetAuth()), []byte(auth)) != 1 {
+		return false, nil
+	}
+
+	if _, err := c.DismissNotification(ctx, owner.UserID, notificationID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (c *ChattoCore) getPushEndpointOwner(ctx context.Context, endpoint string) (*pushEndpointOwner, error) {
 	entry, err := c.storage.runtimeStateKV.Get(ctx, pushEndpointOwnerKey(endpoint))
 	if isRuntimeStateKeyAbsent(err) {
@@ -291,6 +435,36 @@ func validatePushSubscription(endpoint, p256dh, auth, userAgent string) error {
 	}
 	if x, y := elliptic.Unmarshal(elliptic.P256(), p256dhBytes); x == nil || y == nil {
 		return invalidArgument("push p256dh key must contain a valid P-256 public point")
+	}
+	authBytes, err := decodePushBase64URL(auth)
+	if err != nil || len(authBytes) != 16 {
+		return invalidArgument("push auth secret must be a base64url-encoded 16-byte value")
+	}
+	parsedEndpoint, err := url.Parse(endpoint)
+	if err != nil || parsedEndpoint.Scheme != "https" || parsedEndpoint.Hostname() == "" || parsedEndpoint.User != nil {
+		return invalidArgument("push endpoint must be an absolute HTTPS URL without user credentials")
+	}
+	if parsedEndpoint.Fragment != "" {
+		return invalidArgument("push endpoint must not contain a URL fragment")
+	}
+	if address := net.ParseIP(parsedEndpoint.Hostname()); address != nil && !isPublicPushEndpointIP(address) {
+		return invalidArgument("push endpoint must not target a local or private address")
+	}
+	return nil
+}
+
+func validatePushDismissalCredential(endpoint, auth, notificationID string) error {
+	if err := validateStringMaxLength("push endpoint", endpoint, MaxPushEndpointLength); err != nil {
+		return err
+	}
+	if err := validateStringMaxLength("push auth secret", auth, MaxPushAuthLength); err != nil {
+		return err
+	}
+	if err := validateStringMaxLength("notification ID", notificationID, 128); err != nil {
+		return err
+	}
+	if endpoint == "" || auth == "" || notificationID == "" {
+		return invalidArgument("push endpoint, auth secret, and notification ID are required")
 	}
 	authBytes, err := decodePushBase64URL(auth)
 	if err != nil || len(authBytes) != 16 {

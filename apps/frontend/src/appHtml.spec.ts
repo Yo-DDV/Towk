@@ -12,6 +12,8 @@ const themeScript = appHtml.match(/<script>\s*([\s\S]*?)\s*<\/script>/i)?.[1];
 
 type WebAppManifest = {
   icons?: Array<{ src?: string; sizes?: string; type?: string; purpose?: string }>;
+  display?: string;
+  display_override?: string[];
   launch_handler?: { client_mode?: string[] };
   share_target?: {
     action?: string;
@@ -149,6 +151,11 @@ describe('app.html metadata', () => {
         purpose: 'maskable'
       }
     ]);
+  });
+
+  it('prefers minimal-ui without standalone fallback for the static cross-browser manifest', () => {
+    expect(manifest.display).toBe('minimal-ui');
+    expect(manifest.display_override).toEqual(['minimal-ui', 'browser']);
   });
 
   it('reuses an existing installed window when launch handling is supported', () => {

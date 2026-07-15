@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isAppleMobileDevice, isInstalledPwa, type InstallEnvironment } from './installPrompt';
+import {
+  isAppleMobileDevice,
+  isInstalledPwa,
+  type InstallEnvironment
+} from './installPrompt';
 
 function environment(overrides: Partial<InstallEnvironment> = {}): InstallEnvironment {
   return {
@@ -25,9 +29,13 @@ describe('PWA install environment', () => {
     expect(isAppleMobileDevice(environment())).toBe(false);
   });
 
-  it('recognizes standards and Apple standalone modes', () => {
+  it('recognizes installed app display modes and Apple standalone mode', () => {
     expect(isInstalledPwa(environment({ displayModeStandalone: true }))).toBe(true);
+    expect(isInstalledPwa(environment({ displayModeFullscreen: true }))).toBe(true);
+    expect(isInstalledPwa(environment({ displayModeMinimalUi: true }))).toBe(true);
+    expect(isInstalledPwa(environment({ displayModeWindowControlsOverlay: true }))).toBe(true);
     expect(isInstalledPwa(environment({ standalone: true }))).toBe(true);
     expect(isInstalledPwa(environment())).toBe(false);
   });
+
 });

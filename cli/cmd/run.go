@@ -400,6 +400,8 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		}
 
 		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, notification.RecipientId, subscriptions, logger)
+		subscriptions = push.FilterSubscriptionsByCanonicalOrigin(subscriptions, cfg.Webserver.URL)
+		subscriptions = dedupePushSubscriptionsByClientID(subscriptions)
 		if len(subscriptions) == 0 {
 			return
 		}
@@ -517,6 +519,45 @@ func filterOwnedPushSubscriptions(
 	return owned
 }
 
+func dedupePushSubscriptionsByClientID(subscriptions []*corev1.PushSubscription) []*corev1.PushSubscription {
+	if len(subscriptions) < 2 {
+		return subscriptions
+	}
+
+	result := make([]*corev1.PushSubscription, 0, len(subscriptions))
+	resultIndexByClientID := make(map[string]int, len(subscriptions))
+	for _, subscription := range subscriptions {
+		clientID := subscription.GetClientId()
+		if clientID == "" {
+			result = append(result, subscription)
+			continue
+		}
+
+		existingIndex, exists := resultIndexByClientID[clientID]
+		if !exists {
+			resultIndexByClientID[clientID] = len(result)
+			result = append(result, subscription)
+			continue
+		}
+		if pushSubscriptionNewer(subscription, result[existingIndex]) {
+			result[existingIndex] = subscription
+		}
+	}
+	return result
+}
+
+func pushSubscriptionNewer(candidate, current *corev1.PushSubscription) bool {
+	candidateCreatedAt := candidate.GetCreatedAt()
+	currentCreatedAt := current.GetCreatedAt()
+	if candidateCreatedAt == nil {
+		return false
+	}
+	if currentCreatedAt == nil {
+		return true
+	}
+	return candidateCreatedAt.AsTime().After(currentCreatedAt.AsTime())
+}
+
 // fetchPayloadContext builds the payload context with message preview and room name.
 // This is best-effort - if fetching fails, returns nil and the notification will have a generic body.
 func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notification *corev1.Notification, logger *log.Logger) *push.PayloadContext {
@@ -619,7 +660,8 @@ func pushNotificationUsesCountBadge(notification *corev1.Notification) bool {
 	case *corev1.Notification_DmMessage,
 		*corev1.Notification_Mention,
 		*corev1.Notification_Reply,
-		*corev1.Notification_RoomMessage:
+		*corev1.Notification_RoomMessage,
+		*corev1.Notification_CallStarted:
 		return true
 	default:
 		return false

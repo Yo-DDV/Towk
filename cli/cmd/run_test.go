@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -44,6 +45,8 @@ func TestLocalizedPushBatches(t *testing.T) {
 	subscriptions := []*corev1.PushSubscription{
 		{Endpoint: "https://push.example/fr-1", Locale: "fr"},
 		{Endpoint: "https://push.example/de", Locale: "de"},
+		{Endpoint: "https://push.example/es", Locale: "es"},
+		{Endpoint: "https://push.example/pt", Locale: "pt"},
 		{Endpoint: "https://push.example/legacy"},
 		{Endpoint: "https://push.example/fr-2", Locale: "FR"},
 		{Endpoint: "https://push.example/unsupported", Locale: "it"},
@@ -58,8 +61,8 @@ func TestLocalizedPushBatches(t *testing.T) {
 		"5",
 	)
 
-	if len(batches) != 3 {
-		t.Fatalf("batch count = %d, want 3", len(batches))
+	if len(batches) != 5 {
+		t.Fatalf("batch count = %d, want 5", len(batches))
 	}
 	if got := len(batches[0].subscriptions); got != 2 {
 		t.Fatalf("English fallback subscription count = %d, want 2", got)
@@ -67,14 +70,35 @@ func TestLocalizedPushBatches(t *testing.T) {
 	if batches[0].payload.Title != "@Alice posted in #general" {
 		t.Fatalf("English fallback title = %q", batches[0].payload.Title)
 	}
+	if batches[0].payload.Lang != "en" || batches[0].payload.Dir != "ltr" {
+		t.Fatalf("English fallback metadata = lang=%q dir=%q", batches[0].payload.Lang, batches[0].payload.Dir)
+	}
 	if batches[1].payload.Title != "@Alice hat in #general geschrieben" {
 		t.Fatalf("German title = %q", batches[1].payload.Title)
+	}
+	if batches[1].payload.Lang != "de" || batches[1].payload.Dir != "ltr" {
+		t.Fatalf("German metadata = lang=%q dir=%q", batches[1].payload.Lang, batches[1].payload.Dir)
 	}
 	if got := len(batches[2].subscriptions); got != 2 {
 		t.Fatalf("French subscription count = %d, want 2", got)
 	}
 	if batches[2].payload.Title != "@Alice a publié un message dans #general" {
 		t.Fatalf("French title = %q", batches[2].payload.Title)
+	}
+	if batches[2].payload.Lang != "fr" || batches[2].payload.Dir != "ltr" {
+		t.Fatalf("French metadata = lang=%q dir=%q", batches[2].payload.Lang, batches[2].payload.Dir)
+	}
+	if batches[3].payload.Title != "@Alice publicó un mensaje en #general" {
+		t.Fatalf("Spanish title = %q", batches[3].payload.Title)
+	}
+	if batches[3].payload.Lang != "es" || batches[3].payload.Dir != "ltr" {
+		t.Fatalf("Spanish metadata = lang=%q dir=%q", batches[3].payload.Lang, batches[3].payload.Dir)
+	}
+	if batches[4].payload.Title != "@Alice publicou uma mensagem em #general" {
+		t.Fatalf("Portuguese title = %q", batches[4].payload.Title)
+	}
+	if batches[4].payload.Lang != "pt" || batches[4].payload.Dir != "ltr" {
+		t.Fatalf("Portuguese metadata = lang=%q dir=%q", batches[4].payload.Lang, batches[4].payload.Dir)
 	}
 	for _, batch := range batches {
 		if batch.payload.AppBadge != "5" {
@@ -83,6 +107,65 @@ func TestLocalizedPushBatches(t *testing.T) {
 		if batch.payload.Badge != "https://towk.example/icons/badge-monochrome-96.png" {
 			t.Fatalf("notification badge = %q", batch.payload.Badge)
 		}
+	}
+}
+
+func TestDedupePushSubscriptionsByClientIDKeepsNewestInstallationEndpoint(t *testing.T) {
+	oldTime := timestamppb.New(time.Unix(100, 0))
+	newTime := timestamppb.New(time.Unix(200, 0))
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/legacy-a"},
+		{Endpoint: "https://push.example/device-old", ClientId: "device-1", CreatedAt: oldTime},
+		{Endpoint: "https://push.example/other-device", ClientId: "device-2", CreatedAt: oldTime},
+		{Endpoint: "https://push.example/device-new", ClientId: "device-1", CreatedAt: newTime},
+		{Endpoint: "https://push.example/legacy-b"},
+	}
+
+	deduped := dedupePushSubscriptionsByClientID(subscriptions)
+
+	got := make([]string, 0, len(deduped))
+	for _, subscription := range deduped {
+		got = append(got, subscription.Endpoint)
+	}
+	want := []string{
+		"https://push.example/legacy-a",
+		"https://push.example/device-new",
+		"https://push.example/other-device",
+		"https://push.example/legacy-b",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("deduped endpoints = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("deduped endpoints = %v, want %v", got, want)
+		}
+	}
+}
+
+func TestCanonicalOriginFilteringPrecedesClientIDDedupe(t *testing.T) {
+	oldTime := timestamppb.New(time.Unix(100, 0))
+	newTime := timestamppb.New(time.Unix(200, 0))
+	subscriptions := []*corev1.PushSubscription{
+		{
+			Endpoint:          "https://push.example/canonical-old",
+			ClientId:          "same-browser-installation",
+			ApplicationOrigin: "https://towk.example",
+			CreatedAt:         oldTime,
+		},
+		{
+			Endpoint:          "https://push.example/alternate-new",
+			ClientId:          "same-browser-installation",
+			ApplicationOrigin: "https://towk.example:2083",
+			CreatedAt:         newTime,
+		},
+	}
+
+	filtered := push.FilterSubscriptionsByCanonicalOrigin(subscriptions, "https://towk.example")
+	deduped := dedupePushSubscriptionsByClientID(filtered)
+
+	if len(deduped) != 1 || deduped[0].Endpoint != "https://push.example/canonical-old" {
+		t.Fatalf("delivered subscriptions = %+v, want canonical origin even when alternate endpoint is newer", deduped)
 	}
 }
 
@@ -164,6 +247,18 @@ func TestPushNotificationUsesCountBadgeForEveryPersistentNotificationType(t *tes
 					RoomMessage: &corev1.RoomMessageNotification{
 						RoomId:  "room-1",
 						EventId: "event-1",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "call started",
+			notification: &corev1.Notification{
+				Notification: &corev1.Notification_CallStarted{
+					CallStarted: &corev1.CallStartedNotification{
+						RoomId: "room-1",
+						CallId: "call-1",
 					},
 				},
 			},

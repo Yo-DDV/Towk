@@ -113,8 +113,20 @@ describe('NotificationStore', () => {
     );
     await store.fetch();
     expect(store.notifications).toHaveLength(2);
+    expect(store.pendingNotificationIds).toEqual(['n1', 'n2']);
+    expect(store.hasCompleteNotificationSnapshot).toBe(true);
     expect(store.error).toBeNull();
     expect(store.hasLoaded).toBe(true);
+  });
+
+  it('marks a fetched notification snapshot incomplete when the server total is capped', async () => {
+    const store = new NotificationStore(makeAPI({ notifications: page([mention('n1')], 3) }));
+
+    await store.fetch();
+
+    expect(store.pendingNotificationIds).toEqual(['n1']);
+    expect(store.unreadNotificationCount).toBe(3);
+    expect(store.hasCompleteNotificationSnapshot).toBe(false);
   });
 
   it('discards an older full-list response that arrives after a newer response', async () => {
@@ -184,6 +196,29 @@ describe('NotificationStore', () => {
     await fetch;
 
     expect(api.listNotifications).toHaveBeenCalledTimes(2);
+    expect(store.notifications).toEqual([]);
+    expect(store.unreadNotificationCount).toBe(0);
+  });
+
+  it('dismissById dismisses an uncached native-close notification on the server', async () => {
+    const api = makeAPI();
+    const store = new NotificationStore(api);
+
+    await expect(store.dismissById('native-close-id')).resolves.toBe(true);
+
+    expect(api.dismissNotification).toHaveBeenCalledWith('native-close-id');
+    expect(store.notifications).toEqual([]);
+  });
+
+  it('dismissById reuses the optimistic local path when the notification is cached', async () => {
+    const api = makeAPI();
+    const store = new NotificationStore(api);
+    store.notifications = [mention('cached-native-close')];
+    store.unreadNotificationCount = 1;
+
+    await expect(store.dismissById('cached-native-close')).resolves.toBe(true);
+
+    expect(api.dismissNotification).toHaveBeenCalledWith('cached-native-close');
     expect(store.notifications).toEqual([]);
     expect(store.unreadNotificationCount).toBe(0);
   });

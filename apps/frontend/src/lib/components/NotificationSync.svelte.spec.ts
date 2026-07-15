@@ -12,11 +12,15 @@ const { mocks } = vi.hoisted(() => {
   const store = {
     isAuthenticated: true,
     notifications: {
-      notifications: [] as Array<{ kind: string }>,
+      notifications: [] as Array<{ id?: string; kind: string }>,
       count: 0,
       unreadNotificationCount: 0,
+      hasCompleteNotificationSnapshot: true,
+      pendingNotificationIds: [] as string[],
       hasLoaded: true,
+      loading: false,
       addNotification: vi.fn(() => Promise.resolve(true)),
+      dismissById: vi.fn(() => Promise.resolve(true)),
       removeNotification: vi.fn(),
       consumeLocalDismissal: vi.fn(),
       fetch: vi.fn(() => Promise.resolve())
@@ -42,7 +46,15 @@ const { mocks } = vi.hoisted(() => {
       updateBadge: vi.fn(() => Promise.resolve()),
       clearBadge: vi.fn(() => Promise.resolve()),
       syncServiceWorkerNotificationBadgeState: vi.fn(),
-      dismissNativeNotification: vi.fn()
+      acknowledgeNativeNotificationClose: vi.fn(),
+      dismissNativeNotification: vi.fn(),
+      drainNativeNotificationCloseOutbox: vi.fn(),
+      nativeNotificationCloseHandlers: new Set<(notificationId: string, source: string) => void>(),
+      onNativeNotificationClose: vi.fn((handler: (notificationId: string, source: string) => void) => {
+        mocks.nativeNotificationCloseHandlers.add(handler);
+        return () => mocks.nativeNotificationCloseHandlers.delete(handler);
+      }),
+      reconcileNativeNotifications: vi.fn()
     }
   };
 });
@@ -90,7 +102,11 @@ vi.mock('$lib/notifications/appBadge', () => ({
 }));
 
 vi.mock('$lib/notifications/pushNotifications', () => ({
-  dismissNativeNotification: mocks.dismissNativeNotification
+  acknowledgeNativeNotificationClose: mocks.acknowledgeNativeNotificationClose,
+  dismissNativeNotification: mocks.dismissNativeNotification,
+  drainNativeNotificationCloseOutbox: mocks.drainNativeNotificationCloseOutbox,
+  onNativeNotificationClose: mocks.onNativeNotificationClose,
+  reconcileNativeNotifications: mocks.reconcileNativeNotifications
 }));
 
 function dispatch(event: Record<string, unknown>) {
@@ -134,13 +150,18 @@ describe('NotificationSync', () => {
     mocks.store.notifications.notifications = [];
     mocks.store.notifications.count = 0;
     mocks.store.notifications.unreadNotificationCount = 0;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = true;
+    mocks.store.notifications.pendingNotificationIds = [];
     mocks.store.notifications.hasLoaded = true;
+    mocks.store.notifications.loading = false;
     mocks.store.roomUnread.hasAnyUnread = false;
     mocks.store.notifications.addNotification.mockResolvedValue(true);
+    mocks.store.notifications.dismissById.mockResolvedValue(true);
     mocks.store.notifications.removeNotification.mockReturnValue(null);
     mocks.store.notifications.consumeLocalDismissal.mockReturnValue(false);
     mocks.store.notifications.fetch.mockResolvedValue(undefined);
     mocks.store.rooms.refreshNotificationCounts.mockResolvedValue(undefined);
+    mocks.nativeNotificationCloseHandlers.clear();
   });
 
   it('reconciles authoritative counts on notification creation instead of incrementing locally', async () => {
@@ -160,6 +181,75 @@ describe('NotificationSync', () => {
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     expect(mocks.store.rooms.incrementUnreadNotification).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledOnce());
+  });
+
+  it('loads authoritative notification state once when the app starts without a loaded snapshot', async () => {
+    mocks.store.notifications.hasLoaded = false;
+
+    await renderAndWaitForSubscription();
+
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce());
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+  });
+
+  it('does not force a launch refresh when the notification snapshot is already loaded', async () => {
+    await renderAndWaitForSubscription();
+
+    expect(mocks.store.notifications.fetch).not.toHaveBeenCalled();
+    expect(mocks.store.rooms.refreshNotificationCounts).not.toHaveBeenCalled();
+    expect(mocks.drainNativeNotificationCloseOutbox).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses native notification-center close replays through the origin server store', async () => {
+    await renderAndWaitForSubscription();
+
+    for (const handler of mocks.nativeNotificationCloseHandlers) {
+      handler('notification-from-tray', 'replay');
+    }
+
+    await vi.waitFor(() =>
+      expect(mocks.store.notifications.dismissById).toHaveBeenCalledWith('notification-from-tray')
+    );
+    expect(mocks.acknowledgeNativeNotificationClose).toHaveBeenCalledWith('notification-from-tray');
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a native close intent queued when the origin account is not authenticated', async () => {
+    mocks.store.isAuthenticated = false;
+    render(NotificationSync);
+    await vi.waitFor(() => expect(mocks.nativeNotificationCloseHandlers.size).toBe(1));
+
+    for (const handler of mocks.nativeNotificationCloseHandlers) {
+      handler('notification-from-signed-out-account', 'native-close');
+    }
+
+    expect(mocks.store.notifications.dismissById).not.toHaveBeenCalled();
+    expect(mocks.acknowledgeNativeNotificationClose).not.toHaveBeenCalled();
+  });
+
+  it('refreshes authoritative notification state when the visible app regains focus', async () => {
+    await renderAndWaitForSubscription();
+
+    window.dispatchEvent(new Event('focus'));
+
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce());
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+  });
+
+  it('coalesces focus and online refreshes into one active pass and one final dirty pass', async () => {
+    const fetch = deferred<void>();
+    mocks.store.notifications.fetch.mockReturnValue(fetch.promise);
+    await renderAndWaitForSubscription();
+
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+
+    expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce();
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    fetch.resolve();
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledTimes(2));
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledTimes(2);
   });
 
   it('coalesces count refreshes for a burst and performs one final authoritative pass', async () => {
@@ -318,9 +408,10 @@ describe('NotificationSync', () => {
   });
 
   it('uses the exact pending-notification total for loaded stores', async () => {
-    mocks.store.notifications.notifications = [{ kind: 'directMessage' }];
+    mocks.store.notifications.notifications = [{ id: 'notification-1', kind: 'directMessage' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 1;
+    mocks.store.notifications.pendingNotificationIds = ['notification-1'];
 
     await renderAndWaitForSubscription();
 
@@ -331,13 +422,30 @@ describe('NotificationSync', () => {
       kind: 'count',
       count: 1
     });
+    expect(mocks.reconcileNativeNotifications).toHaveBeenCalledWith(['notification-1']);
     expect(mocks.clearBadge).not.toHaveBeenCalled();
+  });
+
+  it('does not reconcile native notifications from an incomplete capped snapshot', async () => {
+    mocks.store.notifications.notifications = [{ id: 'notification-1', kind: 'directMessage' }];
+    mocks.store.notifications.count = 1;
+    mocks.store.notifications.unreadNotificationCount = 3;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = false;
+    mocks.store.notifications.pendingNotificationIds = ['notification-1'];
+
+    await renderAndWaitForSubscription();
+
+    await vi.waitFor(() =>
+      expect(mocks.updateBadge).toHaveBeenCalledWith({ kind: 'count', count: 3 })
+    );
+    expect(mocks.reconcileNativeNotifications).not.toHaveBeenCalled();
   });
 
   it('uses the server total even when the cached page is capped', async () => {
     mocks.store.notifications.notifications = [{ kind: 'directMessage' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 3;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = false;
 
     await renderAndWaitForSubscription();
 
@@ -389,6 +497,7 @@ describe('NotificationSync', () => {
   it('still publishes a positive count before all stores are loaded', async () => {
     mocks.store.notifications.hasLoaded = false;
     mocks.store.notifications.unreadNotificationCount = 2;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = false;
 
     await renderAndWaitForSubscription();
 

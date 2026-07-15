@@ -48,6 +48,7 @@ import (
 	discoveryv1 "hmans.de/chatto/internal/pb/chatto/discovery/v1"
 	"hmans.de/chatto/internal/pb/chatto/discovery/v1/discoveryv1connect"
 	operatorv1 "hmans.de/chatto/internal/pb/chatto/operator/v1"
+	"hmans.de/chatto/internal/push"
 	"hmans.de/chatto/internal/testutil"
 )
 
@@ -4594,11 +4595,13 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 		VAPIDSubject:    "mailto:admin@example.com",
 	}
 	subResp, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
-		Endpoint:  "https://push.example.test/sub",
-		P256Dh:    connectAPITestPushP256DH,
-		Auth:      connectAPITestPushAuth,
-		UserAgent: stringPtr("test-agent"),
-		Locale:    stringPtr("fr"),
+		Endpoint:          "https://push.example.test/sub",
+		P256Dh:            connectAPITestPushP256DH,
+		Auth:              connectAPITestPushAuth,
+		UserAgent:         stringPtr("test-agent"),
+		Locale:            stringPtr("fr"),
+		ClientId:          stringPtr("browser-client-1"),
+		ApplicationOrigin: stringPtr("https://app.example.test"),
 	}))
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
@@ -4610,7 +4613,7 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetUserPushSubscriptions: %v", err)
 	}
-	if len(subs) != 1 || subs[0].GetEndpoint() != "https://push.example.test/sub" || subs[0].GetUserAgent() != "test-agent" || subs[0].GetLocale() != "fr" {
+	if len(subs) != 1 || subs[0].GetEndpoint() != "https://push.example.test/sub" || subs[0].GetUserAgent() != "test-agent" || subs[0].GetLocale() != "fr" || subs[0].GetClientId() != "browser-client-1" || subs[0].GetApplicationOrigin() != "https://app.example.test" {
 		t.Fatalf("stored subscriptions = %+v, want one saved subscription", subs)
 	}
 
@@ -4635,6 +4638,91 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 		Endpoint: "https://push.example.test/sub",
 	})); err != nil {
 		t.Fatalf("idempotent Unsubscribe: %v", err)
+	}
+}
+
+func TestPushNotificationServiceCanonicalSubscribeRemovesAlternateOrigin(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	env.api.config.Webserver.URL = "https://towk.example/chat"
+	env.api.config.Push = config.PushConfig{
+		Enabled:         true,
+		VAPIDPublicKey:  "public-key",
+		VAPIDPrivateKey: "private-key",
+		VAPIDSubject:    "mailto:admin@example.com",
+	}
+
+	if _, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
+		Endpoint:          "https://push.example.test/alternate-port",
+		P256Dh:            connectAPITestPushP256DH,
+		Auth:              connectAPITestPushAuth,
+		ClientId:          stringPtr("alternate-origin-client"),
+		ApplicationOrigin: stringPtr("https://towk.example:2083"),
+	})); err != nil {
+		t.Fatalf("Subscribe alternate origin: %v", err)
+	}
+	if _, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
+		Endpoint:          "https://push.example.test/canonical",
+		P256Dh:            connectAPITestPushP256DH,
+		Auth:              connectAPITestPushAuth,
+		ClientId:          stringPtr("canonical-origin-client"),
+		ApplicationOrigin: stringPtr("https://towk.example"),
+	})); err != nil {
+		t.Fatalf("Subscribe canonical origin: %v", err)
+	}
+
+	subs, err := env.core.GetUserPushSubscriptions(env.ctx, env.viewer.Id)
+	if err != nil {
+		t.Fatalf("GetUserPushSubscriptions: %v", err)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("subscriptions = %+v, want only canonical subscription", subs)
+	}
+	if subs[0].GetEndpoint() != "https://push.example.test/canonical" || subs[0].GetApplicationOrigin() != "https://towk.example" {
+		t.Fatalf("remaining subscription = %+v, want canonical origin", subs[0])
+	}
+}
+
+func TestPushNotificationServiceAlternateOriginDoesNotRemoveCanonicalSubscription(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	env.api.config.Webserver.URL = "https://towk.example"
+	env.api.config.Push = config.PushConfig{
+		Enabled:         true,
+		VAPIDPublicKey:  "public-key",
+		VAPIDPrivateKey: "private-key",
+		VAPIDSubject:    "mailto:admin@example.com",
+	}
+
+	if _, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
+		Endpoint:          "https://push.example.test/canonical",
+		P256Dh:            connectAPITestPushP256DH,
+		Auth:              connectAPITestPushAuth,
+		ClientId:          stringPtr("canonical-origin-client"),
+		ApplicationOrigin: stringPtr("https://towk.example"),
+	})); err != nil {
+		t.Fatalf("Subscribe canonical origin: %v", err)
+	}
+	if _, err := env.push.Subscribe(ctx, connect.NewRequest(&apiv1.SubscribePushRequest{
+		Endpoint:          "https://push.example.test/alternate-port",
+		P256Dh:            connectAPITestPushP256DH,
+		Auth:              connectAPITestPushAuth,
+		ClientId:          stringPtr("alternate-origin-client"),
+		ApplicationOrigin: stringPtr("https://towk.example:2083"),
+	})); err != nil {
+		t.Fatalf("Subscribe alternate origin: %v", err)
+	}
+
+	subs, err := env.core.GetUserPushSubscriptions(env.ctx, env.viewer.Id)
+	if err != nil {
+		t.Fatalf("GetUserPushSubscriptions: %v", err)
+	}
+	if len(subs) != 2 {
+		t.Fatalf("subscriptions = %+v, want canonical and alternate stored", subs)
+	}
+	filtered := push.FilterSubscriptionsByCanonicalOrigin(subs, env.api.config.Webserver.URL)
+	if len(filtered) != 1 || filtered[0].GetEndpoint() != "https://push.example.test/canonical" {
+		t.Fatalf("delivery-filtered subscriptions = %+v, want only canonical", filtered)
 	}
 }
 

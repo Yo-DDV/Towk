@@ -24,10 +24,8 @@ var embeddedWebUIFS embed.FS
 
 // Cache control headers for different file types
 const (
-	// HTML files must never be cached to ensure users get the latest version
-	cacheControlNoCache = "no-store, no-cache, must-revalidate"
-	// Service worker bytes should be revalidated without forcing a full refetch
-	cacheControlRevalidate = "no-cache, must-revalidate"
+	// HTML and PWA control files must never be cached to ensure users get the latest version.
+	cacheControlNoCache = "no-store, no-cache, must-revalidate, max-age=0"
 	// Hashed assets (in _app/) are immutable - cache for 1 year
 	cacheControlImmutable   = "public, max-age=31536000, immutable"
 	contentSecurityPolicy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'"
@@ -48,6 +46,15 @@ func setFrontendSecurityHeaders(c *gin.Context) {
 	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 	c.Header("Content-Security-Policy", contentSecurityPolicy)
 	c.Header("Strict-Transport-Security", strictTransportSecurity)
+}
+
+func setNoStoreCacheHeaders(c *gin.Context) {
+	c.Header("Cache-Control", cacheControlNoCache)
+	c.Header("CDN-Cache-Control", "no-store")
+	c.Header("Cloudflare-CDN-Cache-Control", "no-store")
+	c.Header("Surrogate-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 }
 
 // extractImmutableETag extracts an ETag from a SvelteKit immutable asset path.
@@ -117,10 +124,10 @@ func setFrontendCacheHeaders(c *gin.Context) {
 			}
 		}
 	} else if urlPath == "/service-worker.js" {
-		c.Header("Cache-Control", cacheControlRevalidate)
+		setNoStoreCacheHeaders(c)
 	} else {
 		// For HTML and other non-hashed files, prevent caching
-		c.Header("Cache-Control", cacheControlNoCache)
+		setNoStoreCacheHeaders(c)
 	}
 	c.Next()
 }
@@ -188,8 +195,26 @@ func pwaManifestIconFallbacks(value any) []map[string]string {
 	return fallbacks
 }
 
-func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte, error) {
-	if icons == nil {
+const androidChromiumInstallManifestID = "/?towk-install=android-browser-v3"
+
+func usesAndroidChromiumInstallManifestVariant(userAgent string) bool {
+	ua := strings.ToLower(userAgent)
+	if !strings.Contains(ua, "android") {
+		return false
+	}
+	if strings.Contains(ua, "firefox/") || strings.Contains(ua, "fennec/") {
+		return false
+	}
+	return strings.Contains(ua, "chrome/") ||
+		strings.Contains(ua, "crios/") ||
+		strings.Contains(ua, "edga/") ||
+		strings.Contains(ua, "opr/") ||
+		strings.Contains(ua, "samsungbrowser/")
+}
+
+func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAgent string) ([]byte, error) {
+	androidChromiumInstallVariant := usesAndroidChromiumInstallManifestVariant(userAgent)
+	if icons == nil && !androidChromiumInstallVariant {
 		return staticManifest, nil
 	}
 
@@ -198,21 +223,35 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte
 		return nil, err
 	}
 
-	manifest["icons"] = append(
-		pwaManifestIcons(icons.Icon192, icons.Icon512),
-		pwaManifestIconFallbacks(manifest["icons"])...,
-	)
-	if shortcuts, ok := manifest["shortcuts"].([]any); ok {
-		for _, shortcut := range shortcuts {
-			shortcutMap, ok := shortcut.(map[string]any)
-			if !ok {
-				continue
+	if icons != nil {
+		manifest["icons"] = append(
+			pwaManifestIcons(icons.Icon192, icons.Icon512),
+			pwaManifestIconFallbacks(manifest["icons"])...,
+		)
+		if shortcuts, ok := manifest["shortcuts"].([]any); ok {
+			for _, shortcut := range shortcuts {
+				shortcutMap, ok := shortcut.(map[string]any)
+				if !ok {
+					continue
+				}
+				shortcutMap["icons"] = append(
+					[]map[string]string{{"src": icons.Icon192, "sizes": "192x192"}},
+					pwaManifestIconFallbacks(shortcutMap["icons"])...,
+				)
 			}
-			shortcutMap["icons"] = append(
-				[]map[string]string{{"src": icons.Icon192, "sizes": "192x192"}},
-				pwaManifestIconFallbacks(shortcutMap["icons"])...,
-			)
 		}
+	}
+	if androidChromiumInstallVariant {
+		// Android Chrome/Chromium shows a browser-owned foreground notification
+		// for app-like installed windows. It is outside the Web Push/Notification
+		// API and cannot be dismissed by Towk JavaScript. Browser mode is the only
+		// pure-web manifest mode that keeps Chrome's own URL surface visible and
+		// avoids that foreground disclosure on affected Android devices. A
+		// dedicated Android install id avoids reusing a stale WebAPK/container
+		// that was created before this display policy.
+		manifest["id"] = androidChromiumInstallManifestID
+		manifest["display"] = "browser"
+		manifest["display_override"] = []string{"browser"}
 	}
 
 	return json.MarshalIndent(manifest, "", "  ")
@@ -278,11 +317,18 @@ func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-	content, err = dynamicPWAManifest(content, s.currentPWAIconURLs(c.Request.Context()))
+	content, err = dynamicPWAManifest(
+		content,
+		s.currentPWAIconURLs(c.Request.Context()),
+		c.GetHeader("User-Agent"),
+	)
 	if err != nil {
 		s.logger.Warn("failed to generate dynamic PWA manifest", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
+	}
+	if usesAndroidChromiumInstallManifestVariant(c.GetHeader("User-Agent")) {
+		c.Header("Vary", "User-Agent")
 	}
 	c.Data(http.StatusOK, "application/manifest+json", content)
 }

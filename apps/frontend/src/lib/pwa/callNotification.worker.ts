@@ -10,6 +10,11 @@ export type CallPushPayload = {
 export type CallPushEnvelope = {
   url?: string;
   tag?: string;
+  lang?: string;
+  dir?: NotificationDirection;
+  timestamp?: number;
+  renotify?: boolean;
+  requireInteraction?: boolean;
   notificationId?: string;
   expiresAt?: number;
   call?: CallPushPayload;
@@ -21,6 +26,11 @@ export type NormalizedCallPushNotification = {
 };
 
 type ActionableNotificationOptions = NotificationOptions & {
+  // These fields are supported by the Notifications API in modern engines but
+  // are not present in every TypeScript lib.dom/lib.webworker declaration used
+  // by the project toolchain.
+  timestamp?: number;
+  renotify?: boolean;
   // Notification actions are implemented by Chromium and some other engines,
   // but are still missing from parts of TypeScript's Web Worker declarations.
   actions?: Array<{ action: string; title: string; icon?: string }>;
@@ -119,6 +129,33 @@ export function normalizeCallPushNotification(
   const isPrivate = call.isPrivate === true;
   const actorKnown = call.actorKnown === true;
   const roomName = call.roomName?.trim() || 'Room';
+  const tag = envelope.tag;
+  const options: ActionableNotificationOptions = {
+    body: isPrivate ? copy.privateBody : copy.channelBody(roomName),
+    icon: '/icons/icon-192.png',
+    badge: '/icons/badge-monochrome-96.png',
+    tag,
+    data: {
+      notificationId: envelope.notificationId,
+      url: envelope.url,
+      joinUrl: call.joinUrl,
+      callId: call.callId
+    },
+    actions: [
+      { action: 'view-room', title: isPrivate ? copy.viewConversation : copy.viewRoom },
+      { action: 'join-call', title: copy.join }
+    ]
+  };
+
+  const lang = normalizeNotificationLang(envelope.lang ?? locale);
+  if (lang) options.lang = lang;
+  const dir = normalizeNotificationDirection(envelope.dir);
+  if (dir) options.dir = dir;
+  const timestamp = normalizeNotificationTimestamp(envelope.timestamp);
+  if (timestamp) options.timestamp = timestamp;
+  if (tag && envelope.renotify !== false) options.renotify = true;
+  if (envelope.requireInteraction !== false) options.requireInteraction = true;
+
   return {
     title: actorKnown
       ? isPrivate
@@ -127,22 +164,7 @@ export function normalizeCallPushNotification(
       : isPrivate
         ? copy.unknownPrivateTitle
         : copy.unknownChannelTitle,
-    options: {
-      body: isPrivate ? copy.privateBody : copy.channelBody(roomName),
-      icon: '/icons/icon-192.png',
-      badge: '/icons/badge-monochrome-96.png',
-      tag: envelope.tag,
-      data: {
-        notificationId: envelope.notificationId,
-        url: envelope.url,
-        joinUrl: call.joinUrl,
-        callId: call.callId
-      },
-      actions: [
-        { action: 'view-room', title: isPrivate ? copy.viewConversation : copy.viewRoom },
-        { action: 'join-call', title: copy.join }
-      ]
-    }
+    options
   };
 }
 
@@ -152,6 +174,21 @@ export function callNotificationClickUrl(
 ): string | undefined {
   if (action === 'join-call' && typeof data?.joinUrl === 'string') return data.joinUrl;
   return typeof data?.url === 'string' ? data.url : undefined;
+}
+
+function normalizeNotificationLang(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+function normalizeNotificationDirection(value: unknown): NotificationDirection | undefined {
+  return value === 'ltr' || value === 'rtl' || value === 'auto' ? value : undefined;
+}
+
+function normalizeNotificationTimestamp(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+  return Math.floor(value);
 }
 
 function nonEmpty(value: unknown): value is string {

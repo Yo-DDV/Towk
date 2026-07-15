@@ -21,6 +21,11 @@ type ServiceWorkerHandler = (event: {
     badge?: string;
     app_badge?: string | number;
     tag?: string;
+    lang?: string;
+    dir?: NotificationDirection;
+    timestamp?: number;
+    renotify?: boolean;
+    requireInteraction?: boolean;
     data?: { notificationId?: string; url?: string };
     close?: () => void;
   };
@@ -32,6 +37,19 @@ type ServiceWorkerHandler = (event: {
 type TestNativeNotification = {
   close?: () => void;
   data?: { notificationId?: string };
+};
+
+type TestWindowClient = {
+  postMessage: ReturnType<typeof vi.fn>;
+};
+
+type TestPushSubscription = {
+  toJSON: () => {
+    endpoint?: string;
+    keys?: {
+      auth?: string;
+    };
+  };
 };
 
 function deferred<T>() {
@@ -76,11 +94,17 @@ function createMemoryCacheStorage() {
   };
 }
 
-async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
+async function importServiceWorker(
+  cacheStorage = createMemoryCacheStorage(),
+  origin = 'https://towk.example'
+) {
   const handlers = new Map<string, ServiceWorkerHandler[]>();
   const registration = {
     navigationPreload: {
       enable: vi.fn(async () => {})
+    },
+    pushManager: {
+      getSubscription: vi.fn(async (): Promise<TestPushSubscription | null> => null)
     },
     getNotifications: vi.fn(
       async (_options?: { tag?: string }): Promise<TestNativeNotification[]> => []
@@ -89,7 +113,7 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
   };
   const clients = {
     claim: vi.fn(async () => {}),
-    matchAll: vi.fn(async () => []),
+    matchAll: vi.fn(async (): Promise<TestWindowClient[]> => []),
     openWindow: vi.fn(async () => null)
   };
   const setAppBadge = vi.fn(async () => {});
@@ -97,7 +121,7 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
   const skipWaiting = vi.fn(async () => {});
 
   vi.stubGlobal('self', {
-    location: { origin: 'https://towk.example' },
+    location: { origin },
     registration,
     clients,
     skipWaiting,
@@ -172,17 +196,13 @@ describe('service worker badge orchestration', () => {
     await expect(worker.dispatch('install')).rejects.toThrow();
   });
 
-  it('still installs when optional PWA metadata is temporarily unavailable', async () => {
+  it('does not precache the browser-specific web manifest during install', async () => {
     const worker = await importServiceWorker();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (path: string) => {
-        if (path === '/manifest.webmanifest') throw new TypeError('offline');
-        return new Response('ok', { status: 200 });
-      })
-    );
+    const fetchMock = vi.fn(async (_path: string) => new Response('ok', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
 
     await expect(worker.dispatch('install')).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalledWith('/manifest.webmanifest', expect.anything());
   });
 
   it('captures a POST share target securely before redirecting to the chooser', async () => {
@@ -334,7 +354,7 @@ describe('service worker badge orchestration', () => {
       expect(consoleError).toHaveBeenCalledWith('Invalid push payload');
       expect(worker.registration.showNotification).toHaveBeenCalledOnce();
       expect(worker.registration.showNotification).toHaveBeenCalledWith('Towk', {
-        body: undefined,
+        body: 'Open Towk to view the notification',
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-monochrome-96.png',
         tag: undefined,
@@ -348,6 +368,115 @@ describe('service worker badge orchestration', () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it('keeps regular push bodies app-owned when the payload body is absent', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New notification',
+          tag: 'notification-without-body',
+          url: 'https://towk.example/chat/-/room-1'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
+      body: 'Open Towk to view the notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'notification-without-body',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example/chat/-/room-1'
+      }
+    });
+  });
+
+  it('uses the payload locale for regular push fallback bodies', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'Nouvelle notification',
+          lang: 'fr-FR',
+          tag: 'notification-with-french-fallback',
+          url: 'https://towk.example/chat/-/room-1'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Nouvelle notification', {
+      body: 'Ouvrez Towk pour afficher la notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'notification-with-french-fallback',
+      lang: 'fr-FR',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example/chat/-/room-1'
+      }
+    });
+  });
+
+  it('replaces browser origin bodies so Android never displays the served host or port', async () => {
+    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New notification',
+          body: 'towk.example:8443',
+          tag: 'origin-body',
+          url: 'https://towk.example:8443/chat/-/room-1'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
+      body: 'Open Towk to view the notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'origin-body',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example:8443/chat/-/room-1'
+      }
+    });
+  });
+
+  it('uses the declarative payload locale when sanitizing origin fallback bodies', async () => {
+    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+
+    await worker.dispatch('push', {
+      notification: {
+        title: 'Notification déclarative',
+        body: 'https://towk.example:8443/',
+        lang: 'fr',
+        tag: 'notification-origin-fr',
+        icon: 'https://towk.example:8443/icons/icon-192.png',
+        badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+        data: {
+          notificationId: 'notif-origin-fr',
+          url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
+        }
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Notification déclarative', {
+      body: 'Ouvrez Towk pour afficher la notification',
+      icon: 'https://towk.example:8443/icons/icon-192.png',
+      badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+      tag: 'notification-origin-fr',
+      lang: 'fr',
+      data: {
+        notificationId: 'notif-origin-fr',
+        url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
+      }
+    });
   });
 
   it('closes a native notification from an online realtime dismissal without a Web Push', async () => {
@@ -367,6 +496,157 @@ describe('service worker badge orchestration', () => {
     expect(matching.close).toHaveBeenCalledOnce();
     expect(other.close).not.toHaveBeenCalled();
     expect(worker.registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('closes stale native notifications after a foreground state reconciliation', async () => {
+    const worker = await importServiceWorker();
+    const stillPending = { data: { notificationId: 'notification-1' }, close: vi.fn() };
+    const stale = { data: { notificationId: 'notification-2' }, close: vi.fn() };
+    const unmanaged = { close: vi.fn() };
+    worker.registration.getNotifications.mockResolvedValueOnce([stillPending, stale, unmanaged]);
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-notification-state',
+        notificationIds: ['notification-1']
+      }
+    });
+
+    expect(worker.registration.getNotifications).toHaveBeenCalledOnce();
+    expect(stale.close).toHaveBeenCalledOnce();
+    expect(stillPending.close).not.toHaveBeenCalled();
+    expect(unmanaged.close).not.toHaveBeenCalled();
+    expect(worker.registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('queues native notification-center closes and forwards them to controlled clients', async () => {
+    const worker = await importServiceWorker();
+    const client = { postMessage: vi.fn() };
+    worker.clients.matchAll.mockResolvedValueOnce([client]);
+
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-closed-from-tray'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-closed-from-tray',
+      source: 'native-close'
+    });
+  });
+
+  it('acknowledges native notification-center closes directly with the current push subscription proof', async () => {
+    const worker = await importServiceWorker();
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ dismissed: true }), { status: 202 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    worker.registration.pushManager.getSubscription.mockResolvedValueOnce({
+      toJSON: () => ({
+        endpoint: 'https://push.example.com/subscription',
+        keys: { auth: 'auth-secret' }
+      })
+    });
+
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-closed-directly'
+        }
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/push/notification-close',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'omit',
+        cache: 'no-store',
+        body: JSON.stringify({
+          endpoint: 'https://push.example.com/subscription',
+          auth: 'auth-secret',
+          notificationId: 'notification-closed-directly'
+        })
+      })
+    );
+    expect(worker.clients.matchAll).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the native-close outbox when direct push-subscription acknowledgement fails', async () => {
+    const worker = await importServiceWorker();
+    const client = { postMessage: vi.fn() };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+    worker.registration.pushManager.getSubscription.mockResolvedValueOnce({
+      toJSON: () => ({
+        endpoint: 'https://push.example.com/subscription',
+        keys: { auth: 'auth-secret' }
+      })
+    });
+    worker.clients.matchAll.mockResolvedValueOnce([client]);
+
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-close-server-offline'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-close-server-offline',
+      source: 'native-close'
+    });
+  });
+
+  it('replays queued native notification closes until the foreground app acknowledges them', async () => {
+    const cacheStorage = createMemoryCacheStorage();
+    const worker = await importServiceWorker(cacheStorage);
+    const firstClient = { postMessage: vi.fn() };
+    const secondClient = { postMessage: vi.fn() };
+
+    worker.clients.matchAll.mockResolvedValueOnce([firstClient]);
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-replay'
+        }
+      }
+    });
+
+    worker.clients.matchAll.mockResolvedValueOnce([secondClient]);
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-native-notification-close-drain'
+      }
+    });
+
+    expect(secondClient.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-replay',
+      source: 'replay'
+    });
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-native-notification-close-ack',
+        notificationId: 'notification-replay'
+      }
+    });
+
+    const thirdClient = { postMessage: vi.fn() };
+    worker.clients.matchAll.mockResolvedValueOnce([thirdClient]);
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-native-notification-close-drain'
+      }
+    });
+
+    expect(thirdClient.postMessage).not.toHaveBeenCalled();
   });
 
   it('uses declarative push notification fields when legacy root fields are absent', async () => {
@@ -389,6 +669,11 @@ describe('service worker badge orchestration', () => {
             title: 'Declarative notification',
             body: 'Opened by the browser or worker fallback',
             tag: 'notification-2',
+            lang: 'fr',
+            dir: 'ltr',
+            timestamp: 1783936800000,
+            renotify: true,
+            requireInteraction: true,
             icon: 'https://towk.example/icons/icon-192.png',
             badge: 'https://towk.example/icons/badge-monochrome-96.png',
             app_badge: '5',
@@ -408,9 +693,80 @@ describe('service worker badge orchestration', () => {
       icon: 'https://towk.example/icons/icon-192.png',
       badge: 'https://towk.example/icons/badge-monochrome-96.png',
       tag: 'notification-2',
+      lang: 'fr',
+      dir: 'ltr',
+      timestamp: 1783936800000,
+      renotify: true,
+      requireInteraction: true,
       data: {
         notificationId: 'notif-2',
         url: 'https://towk.example/chat/-/room-2?highlight=event-2'
+      }
+    });
+  });
+
+  it('accepts a root app badge count for imperative regular push fallbacks', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New message',
+          body: 'Fallback body',
+          tag: 'notification-root-badge',
+          url: 'https://towk.example/chat/-/room-2?highlight=event-2',
+          app_badge: '6'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('New message', {
+      body: 'Fallback body',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'notification-root-badge',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example/chat/-/room-2?highlight=event-2'
+      }
+    });
+    expect(worker.setAppBadge).toHaveBeenCalledWith(6);
+  });
+
+  it('sanitizes declarative origin bodies before showing the notification', async () => {
+    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+
+    await worker.dispatch('push', {
+      notification: {
+        title: 'Declarative notification',
+        body: 'https://towk.example:8443/',
+        tag: 'notification-origin',
+        icon: 'https://towk.example:8443/icons/icon-192.png',
+        badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+        data: {
+          notificationId: 'notif-origin',
+          url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
+        }
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Declarative notification', {
+      body: 'Open Towk to view the notification',
+      icon: 'https://towk.example:8443/icons/icon-192.png',
+      badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+      tag: 'notification-origin',
+      data: {
+        notificationId: 'notif-origin',
+        url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
       }
     });
   });
@@ -535,6 +891,99 @@ describe('service worker badge orchestration', () => {
       }
     );
     expect(worker.setAppBadge).toHaveBeenCalledWith(3);
+  });
+
+  it('applies the authoritative app badge count for imperative call pushes', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'Ignored backend title',
+          tag: 'call-C1',
+          lang: 'fr',
+          dir: 'ltr',
+          timestamp: 1783936800000,
+          notificationId: 'N-call',
+          url: 'https://towk.example/chat/-/room-1',
+          expiresAt: Date.now() + 30_000,
+          app_badge: '4',
+          call: {
+            actorName: 'Alice',
+            actorKnown: true,
+            roomName: 'General',
+            callId: 'C1',
+            joinUrl: 'https://towk.example/chat/-/room-1?joinCall=C1'
+          }
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Alice a démarré un appel', {
+      body: 'Dans #General',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'call-C1',
+      lang: 'fr',
+      dir: 'ltr',
+      timestamp: 1783936800000,
+      renotify: true,
+      requireInteraction: true,
+      data: {
+        notificationId: 'N-call',
+        url: 'https://towk.example/chat/-/room-1',
+        joinUrl: 'https://towk.example/chat/-/room-1?joinCall=C1',
+        callId: 'C1'
+      },
+      actions: [
+        { action: 'view-room', title: 'Voir le salon' },
+        { action: 'join-call', title: 'Rejoindre' }
+      ]
+    });
+    expect(worker.setAppBadge).toHaveBeenCalledWith(4);
+  });
+
+  it('uses a provisional app badge flag when an imperative call push has no count', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          tag: 'call-C2',
+          notificationId: 'N-call-2',
+          url: 'https://towk.example/chat/-/room-2',
+          expiresAt: Date.now() + 30_000,
+          call: {
+            actorName: 'Bob',
+            actorKnown: true,
+            roomName: 'General',
+            callId: 'C2',
+            joinUrl: 'https://towk.example/chat/-/room-2?joinCall=C2'
+          }
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledOnce();
+    expect(worker.setAppBadge).toHaveBeenCalledWith();
   });
 
   it('uses declarative navigate as the fallback notification click URL', async () => {

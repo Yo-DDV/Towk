@@ -284,6 +284,12 @@ const (
 	// MaxPushUserAgentLength is the maximum length of a stored push user-agent string in bytes.
 	MaxPushUserAgentLength = 512
 
+	// MaxPushClientIDLength is the maximum length of a browser installation ID in bytes.
+	MaxPushClientIDLength = 128
+
+	// MaxPushApplicationOriginLength is the maximum length of a push application origin in bytes.
+	MaxPushApplicationOriginLength = 512
+
 	// MaxLinkPreviewURLLength is the maximum length of a client-provided link preview URL in bytes.
 	MaxLinkPreviewURLLength = 2048
 

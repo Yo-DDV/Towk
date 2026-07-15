@@ -145,19 +145,24 @@ func isPublicPushAddress(address netip.Addr) bool {
 
 // Payload represents the data sent in a push notification.
 type Payload struct {
-	Title          string           `json:"title,omitempty"`
-	Body           string           `json:"body,omitempty"`
-	Icon           string           `json:"icon,omitempty"`
-	Badge          string           `json:"badge,omitempty"`
-	Tag            string           `json:"tag,omitempty"`
-	NotificationID string           `json:"notificationId,omitempty"`
-	URL            string           `json:"url,omitempty"`
-	ExpiresAt      int64            `json:"expiresAt,omitempty"`
-	Call           *CallPushPayload `json:"call,omitempty"`
-	AppBadge       string           `json:"-"`
-	TTL            int              `json:"-"`
-	Urgency        webpush.Urgency  `json:"-"`
-	Topic          string           `json:"-"`
+	Title              string           `json:"title,omitempty"`
+	Body               string           `json:"body,omitempty"`
+	Icon               string           `json:"icon,omitempty"`
+	Badge              string           `json:"badge,omitempty"`
+	Tag                string           `json:"tag,omitempty"`
+	Lang               string           `json:"lang,omitempty"`
+	Dir                string           `json:"dir,omitempty"`
+	Timestamp          int64            `json:"timestamp,omitempty"`
+	Renotify           bool             `json:"renotify,omitempty"`
+	RequireInteraction bool             `json:"requireInteraction,omitempty"`
+	NotificationID     string           `json:"notificationId,omitempty"`
+	URL                string           `json:"url,omitempty"`
+	ExpiresAt          int64            `json:"expiresAt,omitempty"`
+	Call               *CallPushPayload `json:"call,omitempty"`
+	AppBadge           string           `json:"-"`
+	TTL                int              `json:"-"`
+	Urgency            webpush.Urgency  `json:"-"`
+	Topic              string           `json:"-"`
 	// Action is used for special payloads like "dismiss" to close notifications on other devices
 	Action string `json:"action,omitempty"`
 }
@@ -172,14 +177,19 @@ type CallPushPayload struct {
 }
 
 type declarativeNotification struct {
-	Title    string                       `json:"title"`
-	Body     string                       `json:"body,omitempty"`
-	Navigate string                       `json:"navigate"`
-	Tag      string                       `json:"tag,omitempty"`
-	Icon     string                       `json:"icon,omitempty"`
-	Badge    string                       `json:"badge,omitempty"`
-	AppBadge string                       `json:"app_badge,omitempty"`
-	Data     *declarativeNotificationData `json:"data,omitempty"`
+	Title              string                       `json:"title"`
+	Body               string                       `json:"body,omitempty"`
+	Navigate           string                       `json:"navigate"`
+	Tag                string                       `json:"tag,omitempty"`
+	Icon               string                       `json:"icon,omitempty"`
+	Badge              string                       `json:"badge,omitempty"`
+	Lang               string                       `json:"lang,omitempty"`
+	Dir                string                       `json:"dir,omitempty"`
+	Timestamp          int64                        `json:"timestamp,omitempty"`
+	Renotify           bool                         `json:"renotify,omitempty"`
+	RequireInteraction bool                         `json:"requireInteraction,omitempty"`
+	AppBadge           string                       `json:"app_badge,omitempty"`
+	Data               *declarativeNotificationData `json:"data,omitempty"`
 }
 
 type declarativeNotificationData struct {
@@ -189,44 +199,61 @@ type declarativeNotificationData struct {
 
 func (p Payload) MarshalJSON() ([]byte, error) {
 	type payloadJSON struct {
-		Title          string                   `json:"title,omitempty"`
-		Body           string                   `json:"body,omitempty"`
-		Icon           string                   `json:"icon,omitempty"`
-		Badge          string                   `json:"badge,omitempty"`
-		Tag            string                   `json:"tag,omitempty"`
-		NotificationID string                   `json:"notificationId,omitempty"`
-		URL            string                   `json:"url,omitempty"`
-		ExpiresAt      int64                    `json:"expiresAt,omitempty"`
-		Call           *CallPushPayload         `json:"call,omitempty"`
-		Action         string                   `json:"action,omitempty"`
-		WebPush        int                      `json:"web_push,omitempty"`
-		Mutable        bool                     `json:"mutable,omitempty"`
-		Notification   *declarativeNotification `json:"notification,omitempty"`
+		Title              string                   `json:"title,omitempty"`
+		Body               string                   `json:"body,omitempty"`
+		Icon               string                   `json:"icon,omitempty"`
+		Badge              string                   `json:"badge,omitempty"`
+		Tag                string                   `json:"tag,omitempty"`
+		Lang               string                   `json:"lang,omitempty"`
+		Dir                string                   `json:"dir,omitempty"`
+		Timestamp          int64                    `json:"timestamp,omitempty"`
+		Renotify           bool                     `json:"renotify,omitempty"`
+		RequireInteraction bool                     `json:"requireInteraction,omitempty"`
+		NotificationID     string                   `json:"notificationId,omitempty"`
+		URL                string                   `json:"url,omitempty"`
+		ExpiresAt          int64                    `json:"expiresAt,omitempty"`
+		Call               *CallPushPayload         `json:"call,omitempty"`
+		AppBadge           string                   `json:"app_badge,omitempty"`
+		Action             string                   `json:"action,omitempty"`
+		WebPush            int                      `json:"web_push,omitempty"`
+		Mutable            bool                     `json:"mutable,omitempty"`
+		Notification       *declarativeNotification `json:"notification,omitempty"`
 	}
 
 	out := payloadJSON{
-		Title:          p.Title,
-		Body:           p.Body,
-		Icon:           p.Icon,
-		Badge:          p.Badge,
-		Tag:            p.Tag,
-		NotificationID: p.NotificationID,
-		URL:            p.URL,
-		ExpiresAt:      p.ExpiresAt,
-		Call:           p.Call,
-		Action:         p.Action,
+		Title:              p.Title,
+		Body:               p.Body,
+		Icon:               p.Icon,
+		Badge:              p.Badge,
+		Tag:                p.Tag,
+		Lang:               p.Lang,
+		Dir:                p.Dir,
+		Timestamp:          p.Timestamp,
+		Renotify:           p.Renotify,
+		RequireInteraction: p.RequireInteraction,
+		NotificationID:     p.NotificationID,
+		URL:                p.URL,
+		ExpiresAt:          p.ExpiresAt,
+		Call:               p.Call,
+		AppBadge:           p.AppBadge,
+		Action:             p.Action,
 	}
 	if p.declarativeNotificationEligible() {
 		out.WebPush = declarativeWebPushValue
 		out.Mutable = true
 		out.Notification = &declarativeNotification{
-			Title:    p.Title,
-			Body:     p.Body,
-			Navigate: p.URL,
-			Tag:      p.Tag,
-			Icon:     p.Icon,
-			Badge:    p.Badge,
-			AppBadge: p.AppBadge,
+			Title:              p.Title,
+			Body:               p.Body,
+			Navigate:           p.URL,
+			Tag:                p.Tag,
+			Icon:               p.Icon,
+			Badge:              p.Badge,
+			Lang:               p.Lang,
+			Dir:                p.Dir,
+			Timestamp:          p.Timestamp,
+			Renotify:           p.Renotify,
+			RequireInteraction: p.RequireInteraction,
+			AppBadge:           p.AppBadge,
 			Data: &declarativeNotificationData{
 				NotificationID: p.NotificationID,
 				URL:            p.URL,
@@ -255,12 +282,16 @@ type PayloadContext struct {
 type notificationCopy struct {
 	unknownActor       string
 	directMessage      string
+	directMessageBody  string
 	mention            string
 	mentionInRoom      string
+	mentionBody        string
 	reply              string
 	replyInRoom        string
+	replyBody          string
 	roomMessage        string
 	roomMessageInRoom  string
+	roomMessageBody    string
 	defaultTitle       string
 	defaultDescription string
 }
@@ -269,60 +300,80 @@ var notificationCopies = map[string]notificationCopy{
 	"en": {
 		unknownActor:       "Someone",
 		directMessage:      "@%s sent you a new DM",
+		directMessageBody:  "Open Towk to read the direct message",
 		mention:            "@%s mentioned you",
 		mentionInRoom:      "@%s mentioned you in #%s",
+		mentionBody:        "Open Towk to read the mention",
 		reply:              "@%s replied to you",
 		replyInRoom:        "@%s replied to you in #%s",
+		replyBody:          "Open Towk to read the reply",
 		roomMessage:        "@%s posted a message",
 		roomMessageInRoom:  "@%s posted in #%s",
+		roomMessageBody:    "Open Towk to read the message",
 		defaultTitle:       "New notification",
 		defaultDescription: "You have a new notification",
 	},
 	"de": {
 		unknownActor:       "Jemand",
 		directMessage:      "@%s hat dir eine neue Direktnachricht gesendet",
+		directMessageBody:  "Öffne Towk, um die Direktnachricht zu lesen",
 		mention:            "@%s hat dich erwähnt",
 		mentionInRoom:      "@%s hat dich in #%s erwähnt",
+		mentionBody:        "Öffne Towk, um die Erwähnung zu lesen",
 		reply:              "@%s hat dir geantwortet",
 		replyInRoom:        "@%s hat dir in #%s geantwortet",
+		replyBody:          "Öffne Towk, um die Antwort zu lesen",
 		roomMessage:        "@%s hat eine Nachricht gesendet",
 		roomMessageInRoom:  "@%s hat in #%s geschrieben",
+		roomMessageBody:    "Öffne Towk, um die Nachricht zu lesen",
 		defaultTitle:       "Neue Benachrichtigung",
 		defaultDescription: "Du hast eine neue Benachrichtigung",
 	},
 	"fr": {
 		unknownActor:       "Quelqu’un",
 		directMessage:      "@%s vous a envoyé un nouveau message privé",
+		directMessageBody:  "Ouvrez Towk pour lire le message privé",
 		mention:            "@%s vous a mentionné",
 		mentionInRoom:      "@%s vous a mentionné dans #%s",
+		mentionBody:        "Ouvrez Towk pour lire la mention",
 		reply:              "@%s vous a répondu",
 		replyInRoom:        "@%s vous a répondu dans #%s",
+		replyBody:          "Ouvrez Towk pour lire la réponse",
 		roomMessage:        "@%s a publié un message",
 		roomMessageInRoom:  "@%s a publié un message dans #%s",
+		roomMessageBody:    "Ouvrez Towk pour lire le message",
 		defaultTitle:       "Nouvelle notification",
 		defaultDescription: "Vous avez une nouvelle notification",
 	},
 	"es": {
 		unknownActor:       "Alguien",
 		directMessage:      "@%s te envió un nuevo mensaje directo",
+		directMessageBody:  "Abre Towk para leer el mensaje directo",
 		mention:            "@%s te mencionó",
 		mentionInRoom:      "@%s te mencionó en #%s",
+		mentionBody:        "Abre Towk para leer la mención",
 		reply:              "@%s te respondió",
 		replyInRoom:        "@%s te respondió en #%s",
+		replyBody:          "Abre Towk para leer la respuesta",
 		roomMessage:        "@%s publicó un mensaje",
 		roomMessageInRoom:  "@%s publicó un mensaje en #%s",
+		roomMessageBody:    "Abre Towk para leer el mensaje",
 		defaultTitle:       "Nueva notificación",
 		defaultDescription: "Tienes una nueva notificación",
 	},
 	"pt": {
 		unknownActor:       "Alguém",
 		directMessage:      "@%s enviou uma nova mensagem direta para você",
+		directMessageBody:  "Abra o Towk para ler a mensagem direta",
 		mention:            "@%s mencionou você",
 		mentionInRoom:      "@%s mencionou você em #%s",
+		mentionBody:        "Abra o Towk para ler a menção",
 		reply:              "@%s respondeu a você",
 		replyInRoom:        "@%s respondeu a você em #%s",
+		replyBody:          "Abra o Towk para ler a resposta",
 		roomMessage:        "@%s publicou uma mensagem",
 		roomMessageInRoom:  "@%s publicou uma mensagem em #%s",
+		roomMessageBody:    "Abra o Towk para ler a mensagem",
 		defaultTitle:       "Nova notificação",
 		defaultDescription: "Você tem uma nova notificação",
 	},
@@ -371,6 +422,13 @@ func truncatePreview(text string) string {
 		}
 	}
 	return strings.Join(clusters[:breakPoint], "") + "…"
+}
+
+func notificationBody(preview, fallback string) string {
+	if strings.TrimSpace(preview) == "" {
+		return fallback
+	}
+	return preview
 }
 
 // SendResult contains the result of a push notification send attempt.
@@ -574,6 +632,9 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		NotificationID: notif.Id,
 		Icon:           buildAppURL(baseURL, []string{"icons", "icon-192.png"}, "", ""),
 		Badge:          buildAppURL(baseURL, []string{"icons", "badge-monochrome-96.png"}, "", ""),
+		Lang:           NormalizeLocale(locale),
+		Dir:            "ltr",
+		Timestamp:      notificationTimestampMillis(notif),
 	}
 
 	// Get preview from context, truncate if needed
@@ -587,7 +648,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 	switch n := notif.Notification.(type) {
 	case *corev1.Notification_DmMessage:
 		payload.Title = fmt.Sprintf(copy.directMessage, actorDisplayName)
-		payload.Body = preview
+		payload.Body = notificationBody(preview, copy.directMessageBody)
 		payload.Tag = "dm-" + n.DmMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.DmMessage.RoomId, n.DmMessage.InThread, n.DmMessage.EventId)
 
@@ -597,7 +658,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.mention, actorDisplayName)
 		}
-		payload.Body = preview
+		payload.Body = notificationBody(preview, copy.mentionBody)
 		payload.Tag = "mention-" + n.Mention.EventId
 		payload.URL = buildNotificationURL(baseURL, n.Mention.RoomId, n.Mention.InThread, n.Mention.EventId)
 
@@ -607,7 +668,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.reply, actorDisplayName)
 		}
-		payload.Body = preview
+		payload.Body = notificationBody(preview, copy.replyBody)
 		payload.Tag = "reply-" + n.Reply.EventId
 		payload.URL = buildNotificationURL(baseURL, n.Reply.RoomId, n.Reply.InThread, n.Reply.EventId)
 
@@ -617,7 +678,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.roomMessage, actorDisplayName)
 		}
-		payload.Body = preview
+		payload.Body = notificationBody(preview, copy.roomMessageBody)
 		payload.Tag = "room-message-" + n.RoomMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.RoomMessage.RoomId, n.RoomMessage.InThread, n.RoomMessage.EventId)
 
@@ -639,6 +700,8 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 			createdAt = notif.GetCreatedAt().AsTime()
 		}
 		payload.ExpiresAt = createdAt.Add(time.Minute).UnixMilli()
+		payload.RequireInteraction = true
+		payload.Renotify = true
 		payload.TTL = 60
 		payload.Urgency = webpush.UrgencyHigh
 		payload.Topic = payload.Tag
@@ -649,4 +712,11 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 	}
 
 	return payload
+}
+
+func notificationTimestampMillis(notif *corev1.Notification) int64 {
+	if notif.GetCreatedAt() == nil {
+		return 0
+	}
+	return notif.GetCreatedAt().AsTime().UnixMilli()
 }
