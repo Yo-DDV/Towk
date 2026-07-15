@@ -4,6 +4,25 @@ All notable changes to Towk. Subsequent entries are maintained from conventional
 commits on `main`; this first standalone release entry is curated to separate
 Towk work from the inherited Chatto history.
 
+## [0.6.0](https://github.com/Yo-DDV/Towk/compare/v0.5.0...v0.6.0) (2026-07-15)
+
+
+### Features
+
+* **attachments:** support desktop file paste and drop ([#49](https://github.com/Yo-DDV/Towk/issues/49)) ([46deccd](https://github.com/Yo-DDV/Towk/commit/46deccd4347f76c9e19d7fcffee2a2325388b0ad))
+* **calls:** improve screen share quality and tab audio ([#47](https://github.com/Yo-DDV/Towk/issues/47)) ([9a43eb7](https://github.com/Yo-DDV/Towk/commit/9a43eb780e79841e0cea24a929080de20fc60aa4))
+* integrate call and PWA improvements ([3a8a0af](https://github.com/Yo-DDV/Towk/commit/3a8a0af1e6608ff02b81adb72f13dc6a7a89dfca)), closes [#52](https://github.com/Yo-DDV/Towk/issues/52) [#55](https://github.com/Yo-DDV/Towk/issues/55) [#54](https://github.com/Yo-DDV/Towk/issues/54) [#56](https://github.com/Yo-DDV/Towk/issues/56) [#59](https://github.com/Yo-DDV/Towk/issues/59) [#60](https://github.com/Yo-DDV/Towk/issues/60) [#66](https://github.com/Yo-DDV/Towk/issues/66) [#68](https://github.com/Yo-DDV/Towk/issues/68) [#64](https://github.com/Yo-DDV/Towk/issues/64)
+* **notifications:** notify joined-room messages by default ([#39](https://github.com/Yo-DDV/Towk/issues/39)) ([b54c85e](https://github.com/Yo-DDV/Towk/commit/b54c85e8adb39724872947e50544cdb3b86bf858))
+* **voice:** add portable background noise suppression ([#45](https://github.com/Yo-DDV/Towk/issues/45)) ([9cf0c12](https://github.com/Yo-DDV/Towk/commit/9cf0c120e15deb854642cd3a13ffa038f9949cbe))
+
+
+### Bug Fixes
+
+* **ci:** make runtime image verification UID-portable ([#50](https://github.com/Yo-DDV/Towk/issues/50)) ([d9d0f2a](https://github.com/Yo-DDV/Towk/commit/d9d0f2a96cfeb5624d02b1e0e54e6082c6eaf64e))
+* **ci:** permit verifier rewrites across host UIDs ([#51](https://github.com/Yo-DDV/Towk/issues/51)) ([47890c0](https://github.com/Yo-DDV/Towk/commit/47890c0c4d6d87e08abef5ed5e29b2c0cb474c5f))
+* **notifications:** harden delivery lifecycle ([#43](https://github.com/Yo-DDV/Towk/issues/43)) ([4021f97](https://github.com/Yo-DDV/Towk/commit/4021f97938219f34adcc4c3cf77d9ab81d656b84))
+* **release:** expose token to GoReleaser ([#38](https://github.com/Yo-DDV/Towk/issues/38)) ([afc25e4](https://github.com/Yo-DDV/Towk/commit/afc25e4848d7e01fd14f419e79856fd3dbbabe3c))
+
 ## [0.5.0](https://github.com/Yo-DDV/Towk/releases/tag/v0.5.0) (2026-07-13)
 
 Towk 0.5.0 is the first release from the independent
