@@ -12,6 +12,7 @@
   import MobileSidebarChrome from '$lib/components/MobileSidebarChrome.svelte';
   import NetworkStatusNotifier from '$lib/components/NetworkStatusNotifier.svelte';
   import PwaLaunchHandler from '$lib/components/PwaLaunchHandler.svelte';
+  import ServiceWorkerRegistrar from '$lib/components/ServiceWorkerRegistrar.svelte';
   import UpdateNotifier from '$lib/components/UpdateNotifier.svelte';
   import { usePageTitle, usePinchZoomPrevention, useVisualViewport } from '$lib/hooks';
   import { chatRoomIdFromRoute } from '$lib/navigation/chatRoomRoute';
@@ -76,6 +77,7 @@
 <GlobalKeyboardShortcuts />
 <IdleTracker />
 <NetworkStatusNotifier />
+<ServiceWorkerRegistrar />
 <UpdateNotifier />
 <PwaLaunchHandler />
 
