@@ -40,6 +40,14 @@ export class SubscribePushRequest extends Message<SubscribePushRequest> {
    */
   userAgent?: string;
 
+  /**
+   * Optional Towk UI language selected by this browser. The server normalizes
+   * unsupported and legacy-empty values to English.
+   *
+   * @generated from field: optional string locale = 5;
+   */
+  locale?: string;
+
   constructor(data?: PartialMessage<SubscribePushRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -52,6 +60,7 @@ export class SubscribePushRequest extends Message<SubscribePushRequest> {
     { no: 2, name: "p256dh", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "auth", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "user_agent", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "locale", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscribePushRequest {

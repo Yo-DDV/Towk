@@ -14,6 +14,7 @@ Room sidebar panel for voice/video calls.
 - `livekitUrl` - The LiveKit server WebSocket URL (needed for joining)
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -34,12 +35,23 @@ Room sidebar panel for voice/video calls.
   import AudioDeviceMenu from './AudioDeviceMenu.svelte';
   import CallTileActionButton from './CallTileActionButton.svelte';
   import CallTileActionToolbar from './CallTileActionToolbar.svelte';
+  import CallDeviceJoinDialog from './CallDeviceJoinDialog.svelte';
+  import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
   import type { Track } from 'livekit-client';
   import type { Attachment } from 'svelte/attachments';
   import { startDMWith } from '$lib/dm/startDM';
   import { toast } from '$lib/ui/toast';
+  import { onDestroy } from 'svelte';
+  import {
+    callFullscreenMedia,
+    type CallFullscreenMediaKind
+  } from '$lib/state/callFullscreenMedia.svelte';
+  import {
+    supportsVideoPictureInPicture,
+    toggleVideoPictureInPicture
+  } from '$lib/pwa/pictureInPicture';
 
   let {
     roomId,
@@ -54,13 +66,33 @@ Room sidebar panel for voice/video calls.
   let isInThisCall = $derived(voiceCallState.isInCall(roomId));
   let isInAnotherCall = $derived(voiceCallState.isInAnyCall && !isInThisCall);
   let isConnecting = $derived(voiceCallState.connecting && voiceCallState.roomId === roomId);
+  let isRecovering = $derived(voiceCallState.reconnecting && voiceCallState.roomId === roomId);
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
   let deviceMenuAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
+  let deviceChoiceVisible = $state(false);
+  let companionAllowed = $state(false);
+  let deviceChoiceBusy = $state(false);
+  let diagnosticsParticipantKey = $state<string | null>(null);
+  let pictureInPictureAvailable = $state(false);
+  let pictureInPictureActive = $state(false);
+
+  onMount(() => {
+    pictureInPictureAvailable = supportsVideoPictureInPicture();
+    const syncPictureInPictureState = () => {
+      pictureInPictureActive = Boolean(document.pictureInPictureElement);
+    };
+    document.addEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+    document.addEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+    return () => {
+      document.removeEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+      document.removeEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+    };
+  });
 
   function callEventPayload(
     event: EventEnvelope['event']
-  ): { roomId: string; callId: string } | null {
+  ): { roomId: string; callId: string; participantId: string | null; deviceIndex: number } | null {
     if (
       !event ||
       !('roomId' in event) ||
@@ -70,7 +102,13 @@ Room sidebar panel for voice/video calls.
     ) {
       return null;
     }
-    return { roomId: event.roomId, callId: event.callId };
+    const participantId =
+      'participantId' in event && typeof event.participantId === 'string' && event.participantId
+        ? event.participantId
+        : null;
+    const deviceIndex =
+      'deviceIndex' in event && typeof event.deviceIndex === 'number' ? event.deviceIndex : 0;
+    return { roomId: event.roomId, callId: event.callId, participantId, deviceIndex };
   }
 
   // The call tab can be opened directly from a room even if the sidebar room
@@ -100,14 +138,26 @@ Room sidebar panel for voice/video calls.
     switch (roomEventKind(event)) {
       case RoomEventKind.CallParticipantJoined: {
         const actor = spaceEvent.actor ? useRenderData(UserAvatarViewData, spaceEvent.actor) : null;
-        void callParticipantsState.handleJoin(call.roomId, call.callId, actor);
+        void callParticipantsState.handleJoin(
+          call.roomId,
+          call.callId,
+          actor,
+          call.participantId,
+          call.deviceIndex
+        );
         break;
       }
       case RoomEventKind.CallParticipantLeft:
-        callParticipantsState.handleLeave(call.roomId, call.callId, spaceEvent.actorId ?? null);
+        callParticipantsState.handleLeave(
+          call.roomId,
+          call.callId,
+          spaceEvent.actorId ?? null,
+          call.participantId
+        );
         voiceCallState.handleParticipantLeftEvent(
           call.roomId,
           call.callId,
+          call.participantId,
           spaceEvent.actorId ?? null,
           stores.rooms.currentUserId
         );
@@ -123,6 +173,8 @@ Room sidebar panel for voice/video calls.
   /** Unified participant shape for rendering (structural data only). */
   type DisplayParticipant = {
     key: string;
+    userId: string;
+    deviceIndex: number;
     displayName: string;
     avatarUser: {
       id: string;
@@ -140,15 +192,22 @@ Room sidebar panel for voice/video calls.
     isScreenShareEnabled: boolean;
     isScreenShareAudioEnabled: boolean;
     screenShareTrack: Track | null;
+    canControlAudio: boolean;
+    siblingMicrophoneMuted: boolean | null;
+    siblingOutputMuted: boolean | null;
+    isSiblingMicrophoneControlPending: boolean;
+    isSiblingOutputControlPending: boolean;
   };
 
   let participants: DisplayParticipant[] = $derived.by(() => {
     if (isInThisCall) {
       return voiceCallState.participants.map((p) => ({
         key: p.identity,
+        userId: p.userId,
+        deviceIndex: p.deviceIndex,
         displayName: p.name,
         avatarUser: {
-          id: p.identity,
+          id: p.userId,
           login: p.login,
           displayName: p.name,
           avatarUrl: p.avatarUrl,
@@ -162,12 +221,19 @@ Room sidebar panel for voice/video calls.
         videoTrack: p.videoTrack,
         isScreenShareEnabled: p.isScreenShareEnabled,
         isScreenShareAudioEnabled: p.isScreenShareAudioEnabled,
-        screenShareTrack: p.screenShareTrack
+        screenShareTrack: p.screenShareTrack,
+        canControlAudio: p.canControlAudio,
+        siblingMicrophoneMuted: p.siblingMicrophoneMuted,
+        siblingOutputMuted: p.siblingOutputMuted,
+        isSiblingMicrophoneControlPending: p.isSiblingMicrophoneControlPending,
+        isSiblingOutputControlPending: p.isSiblingOutputControlPending
       }));
     }
 
     return callParticipantsState.participants.map((p) => ({
-      key: p.userId,
+      key: p.participantId,
+      userId: p.userId,
+      deviceIndex: p.deviceIndex,
       displayName: p.displayName,
       avatarUser: {
         id: p.userId,
@@ -184,7 +250,12 @@ Room sidebar panel for voice/video calls.
       videoTrack: null,
       isScreenShareEnabled: false,
       isScreenShareAudioEnabled: false,
-      screenShareTrack: null
+      screenShareTrack: null,
+      canControlAudio: false,
+      siblingMicrophoneMuted: null,
+      siblingOutputMuted: null,
+      isSiblingMicrophoneControlPending: false,
+      isSiblingOutputControlPending: false
     }));
   });
 
@@ -195,6 +266,13 @@ Room sidebar panel for voice/video calls.
       return 0;
     })
   );
+  let participantAccountCounts = $derived.by(() => {
+    const counts: Record<string, number> = {};
+    for (const participant of participants) {
+      counts[participant.userId] = (counts[participant.userId] ?? 0) + 1;
+    }
+    return counts;
+  });
   let screenShareParticipants = $derived(
     sortedParticipants.filter((p) => p.isScreenShareEnabled && p.screenShareTrack)
   );
@@ -223,11 +301,25 @@ Room sidebar panel for voice/video calls.
   );
   let stageTiles = $derived([...screenShareTiles, ...participantTiles]);
   let featuredStageTile = $derived(
-    screenShareTiles[0] ?? participantTiles.find((tile) => tile.kind === 'video') ?? participantTiles[0]
+    screenShareTiles[0] ??
+      participantTiles.find((tile) => tile.kind === 'video') ??
+      participantTiles[0]
   );
   let secondaryStageTiles = $derived(
     featuredStageTile ? stageTiles.filter((tile) => tile.key !== featuredStageTile.key) : []
   );
+
+  $effect(() => {
+    if (
+      diagnosticsParticipantKey &&
+      !screenShareParticipants.some(
+        (participant) =>
+          participant.key === diagnosticsParticipantKey && participant.screenShareTrack
+      )
+    ) {
+      diagnosticsParticipantKey = null;
+    }
+  });
   let isIdle = $derived(!hasActiveCall && !isInThisCall);
   let joinLabel = $derived.by(() => {
     if (isConnecting) return hasActiveCall ? m['voice.joining']() : m['voice.starting']();
@@ -258,7 +350,7 @@ Room sidebar panel for voice/video calls.
 
   function participantTitle(participant: DisplayParticipant) {
     if (isInThisCall && hasConnectionWarning(participant)) {
-      return `${participant.displayName} — poor connection`;
+      return `${participant.displayName} — ${m['voice.poor_connection']()}`;
     }
 
     return participant.displayName;
@@ -273,7 +365,10 @@ Room sidebar panel for voice/video calls.
       const opacity = audioLevel > 0.01 ? 0.35 + Math.pow(audioLevel, 0.35) * 0.65 : 0;
       const visible = isSpeaking || opacity > 0;
 
-      node.style.setProperty('--call-speaking-ring-opacity', visible ? String(opacity || 0.85) : '0');
+      node.style.setProperty(
+        '--call-speaking-ring-opacity',
+        visible ? String(opacity || 0.85) : '0'
+      );
       node.style.setProperty('--call-speaking-ring-strength', visible ? String(audioLevel) : '0');
       node.dataset.callSpeaking = visible ? 'true' : 'false';
     }
@@ -336,16 +431,37 @@ Room sidebar panel for voice/video calls.
   }
 
   async function handleJoin() {
+    await joinWithMode('ask');
+  }
+
+  async function joinWithMode(mode: 'ask' | 'companion' | 'transfer') {
+    if (mode !== 'ask') deviceChoiceBusy = true;
     try {
-      await voiceCallState.join(livekitUrl, roomId);
+      const result = await voiceCallState.join(livekitUrl, roomId, mode);
+      if (result.status === 'selection-required') {
+        companionAllowed = result.companionAllowed;
+        deviceChoiceVisible = true;
+        return;
+      }
+      deviceChoiceVisible = false;
     } catch (err) {
       stores.handleVoiceCallJoinFailed(roomId);
       toast.error(getVoiceCallJoinErrorMessage(err));
+    } finally {
+      deviceChoiceBusy = false;
     }
   }
 
-  async function toggleFullscreenElement(element: HTMLElement | null): Promise<void> {
+  async function toggleFullscreenElement(
+    element: HTMLElement | null,
+    openFallback: () => void
+  ): Promise<void> {
     if (!element || typeof document === 'undefined') return;
+
+    if (typeof element.requestFullscreen !== 'function' || document.fullscreenEnabled === false) {
+      openFallback();
+      return;
+    }
 
     try {
       if (document.fullscreenElement === element) {
@@ -354,16 +470,56 @@ Room sidebar panel for voice/video calls.
         await element.requestFullscreen();
       }
     } catch {
-      // Browsers can reject fullscreen requests when system policy denies them.
+      openFallback();
     }
   }
 
-  function toggleClosestMediaFullscreen(event: MouseEvent): void {
+  function toggleClosestMediaFullscreen(
+    participant: DisplayParticipant,
+    event: MouseEvent
+  ): void {
     event.stopPropagation();
     const mediaCard = (event.currentTarget as HTMLElement).closest<HTMLElement>(
       '[data-call-media-card]'
     );
-    void toggleFullscreenElement(mediaCard);
+    const kind = mediaCard?.dataset.callMediaKind as CallFullscreenMediaKind | undefined;
+    const track = kind === 'screen' ? participant.screenShareTrack : participant.videoTrack;
+    if (!mediaCard || !kind || !track) return;
+
+    void toggleFullscreenElement(mediaCard, () => {
+      callFullscreenMedia.open({
+        roomId,
+        participantKey: participant.key,
+        kind,
+        track,
+        name:
+          kind === 'screen'
+            ? m['voice.screen_title']({ name: participant.displayName })
+            : participant.displayName,
+        user: participant.avatarUser
+      });
+    });
+  }
+
+  $effect(() => {
+    const fullscreenMedia = callFullscreenMedia.current;
+    if (!fullscreenMedia || fullscreenMedia.roomId !== roomId) return;
+
+    const participant = participants.find((item) => item.key === fullscreenMedia.participantKey);
+    const activeTrack =
+      fullscreenMedia.kind === 'screen' ? participant?.screenShareTrack : participant?.videoTrack;
+    if (activeTrack !== fullscreenMedia.track) callFullscreenMedia.close();
+  });
+
+  onDestroy(() => callFullscreenMedia.closeForRoom(roomId));
+
+  async function toggleClosestMediaPictureInPicture(event: MouseEvent): Promise<void> {
+    event.stopPropagation();
+    const video = (event.currentTarget as HTMLElement)
+      .closest<HTMLElement>('[data-call-media-card]')
+      ?.querySelector<HTMLVideoElement>('video');
+    if (!video) return;
+    pictureInPictureActive = await toggleVideoPictureInPicture(video);
   }
 
   function toggleFeedMute(participant: DisplayParticipant, event: MouseEvent): void {
@@ -374,43 +530,145 @@ Room sidebar panel for voice/video calls.
       voiceCallState.toggleParticipantLocalMute(participant.key);
     }
   }
+
+  function setSiblingAudioMuted(
+    participant: DisplayParticipant,
+    target: 'microphone' | 'output',
+    muted: boolean,
+    event: MouseEvent
+  ): void {
+    event.stopPropagation();
+    void voiceCallState.setSiblingAudioMuted(participant.key, target, muted);
+  }
+
+  function diagnosticsPanelId(participant: DisplayParticipant): string {
+    return `screen-share-diagnostics-${encodeURIComponent(participant.key)}`;
+  }
+
+  function diagnosticsButtonId(participant: DisplayParticipant): string {
+    return `screen-share-diagnostics-button-${encodeURIComponent(participant.key)}`;
+  }
+
+  function closeScreenShareDiagnostics(participant: DisplayParticipant): void {
+    diagnosticsParticipantKey = null;
+    requestAnimationFrame(() => {
+      document.getElementById(diagnosticsButtonId(participant))?.focus();
+    });
+  }
+
+  function toggleScreenShareDiagnostics(participant: DisplayParticipant, event: MouseEvent): void {
+    event.stopPropagation();
+    diagnosticsParticipantKey =
+      diagnosticsParticipantKey === participant.key ? null : participant.key;
+  }
 </script>
 
-{#snippet localMuteButton(participant: DisplayParticipant)}
-  {@const isMutedForViewer = participant.isLocal ? voiceCallState.isMuted : participant.isLocallyMuted}
-  <CallTileActionButton
-    icon={isMutedForViewer ? 'uil--volume-mute' : 'uil--volume-up'}
-    active={isMutedForViewer}
-    label={participant.isLocal
-      ? isMutedForViewer
-        ? m['voice.unmute']()
-        : m['voice.mute']()
-      : isMutedForViewer
+{#snippet participantAudioActions(
+  participant: DisplayParticipant,
+  buttonSize: 'default' | 'compact' = 'default'
+)}
+  {#if participant.isLocal}
+    <CallTileActionButton
+      icon={voiceCallState.isMuted ? 'uil--microphone-slash' : 'uil--microphone'}
+      active={voiceCallState.isMuted}
+      label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
+      testId="call-feed-local-mute-button"
+      size={buttonSize}
+      pending={voiceCallState.isMicrophonePending}
+      disabled={voiceCallState.isMicrophonePending || isRecovering}
+      onclick={(event) => toggleFeedMute(participant, event)}
+    />
+  {:else if participant.canControlAudio}
+    <CallTileActionButton
+      icon={participant.siblingMicrophoneMuted === false
+        ? 'uil--microphone'
+        : 'uil--microphone-slash'}
+      active={participant.siblingMicrophoneMuted === true}
+      label={participant.siblingMicrophoneMuted === true
+        ? m['voice.unmute_device_microphone']({ index: participant.deviceIndex })
+        : m['voice.mute_device_microphone']({ index: participant.deviceIndex })}
+      testId="call-device-microphone-toggle"
+      size={buttonSize}
+      pending={participant.isSiblingMicrophoneControlPending}
+      disabled={participant.siblingMicrophoneMuted === null ||
+        participant.isSiblingMicrophoneControlPending ||
+        isRecovering}
+      onclick={(event) =>
+        setSiblingAudioMuted(participant, 'microphone', !participant.siblingMicrophoneMuted, event)}
+    />
+    <CallTileActionButton
+      icon={participant.siblingOutputMuted === false ? 'uil--volume-up' : 'uil--volume-mute'}
+      active={participant.siblingOutputMuted === true}
+      label={participant.siblingOutputMuted === true
+        ? m['voice.unmute_device_audio']({ index: participant.deviceIndex })
+        : m['voice.mute_device_audio']({ index: participant.deviceIndex })}
+      testId="call-device-output-toggle"
+      size={buttonSize}
+      pending={participant.isSiblingOutputControlPending}
+      disabled={participant.siblingOutputMuted === null ||
+        participant.isSiblingOutputControlPending ||
+        isRecovering}
+      onclick={(event) =>
+        setSiblingAudioMuted(participant, 'output', !participant.siblingOutputMuted, event)}
+    />
+  {:else}
+    <CallTileActionButton
+      icon={participant.isLocallyMuted ? 'uil--volume-mute' : 'uil--volume-up'}
+      active={participant.isLocallyMuted}
+      label={participant.isLocallyMuted
         ? m['voice.locally_unmute_participant']()
         : m['voice.locally_mute_participant']()}
-    testId="call-feed-local-mute-button"
-    onclick={(event) => toggleFeedMute(participant, event)}
-  />
+      testId="call-feed-local-mute-button"
+      size={buttonSize}
+      onclick={(event) => toggleFeedMute(participant, event)}
+    />
+  {/if}
 {/snippet}
 
-{#snippet mediaTileActions(participant: DisplayParticipant)}
+{#snippet mediaTileActions(participant: DisplayParticipant, isScreenShare = false)}
+  {#if isScreenShare}
+    <div
+      class="pointer-events-auto flex shrink-0 rounded-md border border-text/10 bg-surface-100 p-0.5 shadow-sm"
+    >
+      <CallTileActionButton
+        icon="uil--chart-line"
+        label={m['voice.screen_stats_open']()}
+        active={diagnosticsParticipantKey === participant.key}
+        testId="call-screen-share-stats-button"
+        buttonId={diagnosticsButtonId(participant)}
+        ariaExpanded={diagnosticsParticipantKey === participant.key}
+        ariaControls={diagnosticsPanelId(participant)}
+        onclick={(event) => toggleScreenShareDiagnostics(participant, event)}
+      />
+    </div>
+  {/if}
   <CallTileActionToolbar testId="call-media-actions">
+    {#if pictureInPictureAvailable}
+      <CallTileActionButton
+        icon="uil--window"
+        label={pictureInPictureActive
+          ? m['voice.exit_picture_in_picture']()
+          : m['voice.picture_in_picture']()}
+        testId="call-feed-pip-button"
+        onclick={toggleClosestMediaPictureInPicture}
+      />
+    {/if}
     <CallTileActionButton
       icon="mdi--fullscreen"
       label={m['voice.fullscreen_feed']()}
       testId="call-feed-fullscreen-button"
-      onclick={toggleClosestMediaFullscreen}
+      onclick={(event) => toggleClosestMediaFullscreen(participant, event)}
     />
     {#if isInThisCall}
-      {@render localMuteButton(participant)}
+      {@render participantAudioActions(participant)}
     {/if}
   </CallTileActionToolbar>
 {/snippet}
 
 {#snippet voiceTileActions(participant: DisplayParticipant)}
   {#if isInThisCall}
-    <CallTileActionToolbar testId="call-voice-actions">
-      {@render localMuteButton(participant)}
+    <CallTileActionToolbar testId="call-voice-actions" placement="inline">
+      {@render participantAudioActions(participant, 'compact')}
     </CallTileActionToolbar>
   {/if}
 {/snippet}
@@ -449,7 +707,8 @@ Room sidebar panel for voice/video calls.
   label: string,
   actions: 'media' | 'voice' | 'none',
   showIndicators = true,
-  showScreenShareAudio = false
+  showScreenShareAudio = false,
+  isScreenShare = false
 )}
   <div class={callTileHeaderClass}>
     <button
@@ -458,7 +717,19 @@ Room sidebar panel for voice/video calls.
       onclick={(e) => showUserMenu(participant, e)}
     >
       <UserAvatar user={participant.avatarUser} size="sm" />
-      <span class="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+      <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+        <span class="block w-full truncate text-sm font-medium" data-testid="call-participant-name"
+          >{label}</span
+        >
+        {#if (participantAccountCounts[participant.userId] ?? 0) > 1}
+          <span
+            class="max-w-full truncate rounded-full bg-surface-300 px-1.5 py-px text-[10px] leading-4 font-medium text-muted"
+            data-testid="call-device-badge"
+          >
+            {m['voice.device_badge']({ index: participant.deviceIndex })}
+          </span>
+        {/if}
+      </span>
       {#if showScreenShareAudio && participant.isScreenShareAudioEnabled}
         <span
           class="iconify text-muted uil--volume"
@@ -472,7 +743,7 @@ Room sidebar panel for voice/video calls.
     </button>
 
     {#if actions === 'media'}
-      {@render mediaTileActions(participant)}
+      {@render mediaTileActions(participant, isScreenShare)}
     {:else if actions === 'voice'}
       {@render voiceTileActions(participant)}
     {/if}
@@ -494,6 +765,7 @@ Room sidebar panel for voice/video calls.
       data-testid="call-participant-card"
       data-speaking-ring
       data-call-media-card={showVideo ? true : undefined}
+      data-call-media-kind={showVideo ? 'camera' : undefined}
     >
       {@render participantHeader(participant, participant.displayName, actions)}
 
@@ -544,18 +816,20 @@ Room sidebar panel for voice/video calls.
 
 {#snippet screenShareCard(participant: DisplayParticipant)}
   <div
-    class={[callTileCardClass, 'participant-card-video @min-[368px]:col-span-2']}
+    class={[callTileCardClass, 'participant-card-video @container @min-[368px]:col-span-2']}
     {@attach isInThisCall && speakingCard(participant.key)}
     title={m['voice.screen_title']({ name: participant.displayName })}
     data-testid="call-screen-share-card"
     data-speaking-ring={isInThisCall ? true : undefined}
     data-call-media-card
+    data-call-media-kind="screen"
   >
     {@render participantHeader(
       participant,
       m['voice.screen_title']({ name: participant.displayName }),
       'media',
       false,
+      true,
       true
     )}
     <button
@@ -571,6 +845,14 @@ Room sidebar panel for voice/video calls.
         fit="contain"
       />
     </button>
+    {#if diagnosticsParticipantKey === participant.key}
+      <ScreenShareDiagnostics
+        track={participant.screenShareTrack!}
+        direction={participant.isLocal ? 'outbound' : 'inbound'}
+        panelId={diagnosticsPanelId(participant)}
+        onclose={() => closeScreenShareDiagnostics(participant)}
+      />
+    {/if}
   </div>
 {/snippet}
 
@@ -579,7 +861,7 @@ Room sidebar panel for voice/video calls.
   {@const isScreen = tile.kind === 'screen'}
   {@const isVideo = tile.kind === 'video'}
   <div
-    class={[callTileCardClass, 'h-full min-h-0 participant-card-video']}
+    class={[callTileCardClass, 'participant-card-video @container h-full min-h-0']}
     {@attach isInThisCall && speakingCard(participant.key)}
     title={isScreen
       ? m['voice.screen_title']({ name: participant.displayName })
@@ -587,12 +869,16 @@ Room sidebar panel for voice/video calls.
     data-testid="call-featured-stage-card"
     data-speaking-ring={isInThisCall ? true : undefined}
     data-call-media-card={isScreen || isVideo ? true : undefined}
+    data-call-media-kind={isScreen ? 'screen' : isVideo ? 'camera' : undefined}
   >
     {@render participantHeader(
       participant,
-      isScreen ? m['voice.screen_title']({ name: participant.displayName }) : participant.displayName,
+      isScreen
+        ? m['voice.screen_title']({ name: participant.displayName })
+        : participant.displayName,
       isScreen || isVideo ? 'media' : 'voice',
       true,
+      isScreen,
       isScreen
     )}
     <button
@@ -628,6 +914,14 @@ Room sidebar panel for voice/video calls.
         </div>
       {/if}
     </button>
+    {#if isScreen && diagnosticsParticipantKey === participant.key}
+      <ScreenShareDiagnostics
+        track={participant.screenShareTrack!}
+        direction={participant.isLocal ? 'outbound' : 'inbound'}
+        panelId={diagnosticsPanelId(participant)}
+        onclose={() => closeScreenShareDiagnostics(participant)}
+      />
+    {/if}
   </div>
 {/snippet}
 
@@ -642,7 +936,7 @@ Room sidebar panel for voice/video calls.
 {#snippet callControls()}
   {#if isInThisCall}
     <div class={isStageLayout ? 'mx-auto max-w-2xl' : ''}>
-      <div class="grid grid-cols-5 gap-2">
+      <div class={['grid gap-2', isStageLayout ? 'grid-cols-6' : 'grid-cols-3']}>
         <button
           type="button"
           class={controlButtonClass}
@@ -650,8 +944,30 @@ Room sidebar panel for voice/video calls.
           aria-label={m['voice.devices']()}
           data-testid="call-device-menu-button"
           onclick={openDeviceMenu}
+          disabled={isRecovering}
         >
           <span class="iconify text-lg uil--setting" aria-hidden="true"></span>
+        </button>
+
+        <button
+          type="button"
+          class={voiceCallState.isOutputMuted ? controlButtonClass : activeControlButtonClass}
+          title={voiceCallState.isOutputMuted
+            ? m['voice.unmute_call_audio']()
+            : m['voice.mute_call_audio']()}
+          aria-label={voiceCallState.isOutputMuted
+            ? m['voice.unmute_call_audio']()
+            : m['voice.mute_call_audio']()}
+          data-testid="call-output-mute-toggle"
+          onclick={() => voiceCallState.toggleOutputMute()}
+        >
+          <span
+            class={[
+              'iconify text-lg',
+              voiceCallState.isOutputMuted ? 'uil--volume-mute' : 'uil--volume-up'
+            ]}
+            aria-hidden="true"
+          ></span>
         </button>
 
         <button
@@ -665,7 +981,7 @@ Room sidebar panel for voice/video calls.
             : m['voice.turn_on_camera']()}
           data-testid="call-camera-toggle"
           onclick={() => voiceCallState.toggleCamera()}
-          disabled={voiceCallState.isCameraPending}
+          disabled={voiceCallState.isCameraPending || isRecovering}
           aria-busy={voiceCallState.isCameraPending || undefined}
         >
           {#if voiceCallState.isCameraPending}
@@ -688,7 +1004,7 @@ Room sidebar panel for voice/video calls.
           aria-label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
           data-testid="call-mute-toggle"
           onclick={() => voiceCallState.toggleMute()}
-          disabled={voiceCallState.isMicrophonePending}
+          disabled={voiceCallState.isMicrophonePending || isRecovering}
           aria-busy={voiceCallState.isMicrophonePending || undefined}
         >
           {#if voiceCallState.isMicrophonePending}
@@ -721,7 +1037,7 @@ Room sidebar panel for voice/video calls.
               : m['voice.screen_share_unsupported']()}
           data-testid="call-screen-share-toggle"
           onclick={() => voiceCallState.toggleScreenShare()}
-          disabled={voiceCallState.isScreenSharePending}
+          disabled={voiceCallState.isScreenSharePending || isRecovering}
           aria-busy={voiceCallState.isScreenSharePending || undefined}
         >
           {#if voiceCallState.isScreenSharePending}
@@ -766,6 +1082,30 @@ Room sidebar panel for voice/video calls.
   {#if !isStageLayout}
     <div class="border-b border-border bg-background p-3" data-testid="call-controls-bar">
       {@render callControls()}
+    </div>
+  {/if}
+
+  {#if isRecovering}
+    <div
+      class={[
+        'mx-3 mt-3 flex shrink-0 items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 p-3 text-text shadow-sm',
+        isStageLayout && 'mx-4 mt-4'
+      ]}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      data-testid="call-network-recovery-notice"
+    >
+      <span
+        class="mt-0.5 iconify shrink-0 animate-pulse text-xl text-warning uil--wifi-slash motion-reduce:animate-none"
+        aria-hidden="true"
+      ></span>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold">{m['voice.network_problem_title']()}</p>
+        <p class="mt-0.5 text-xs leading-relaxed text-muted">
+          {m['voice.network_problem_reconnecting']()}
+        </p>
+      </div>
     </div>
   {/if}
 
@@ -836,6 +1176,14 @@ Room sidebar panel for voice/video calls.
 {#if deviceMenuAnchor}
   <AudioDeviceMenu anchor={deviceMenuAnchor} onclose={() => (deviceMenuAnchor = null)} />
 {/if}
+
+<CallDeviceJoinDialog
+  bind:visible={deviceChoiceVisible}
+  {companionAllowed}
+  busy={deviceChoiceBusy}
+  oncompanion={() => void joinWithMode('companion')}
+  ontransfer={() => void joinWithMode('transfer')}
+/>
 
 {#if popoverParticipant && popoverAnchorRect}
   <UserContextMenu

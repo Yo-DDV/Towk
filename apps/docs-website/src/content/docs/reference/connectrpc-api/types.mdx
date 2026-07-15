@@ -611,6 +611,18 @@ Lightweight room reference for cross-resource rows.
 | `kind` | [`RoomKind`](#chatto-api-v1-RoomKind) | Room kind. |
 | `name` | `string` | Room name. Direct-message rooms may have an empty name because clients derive their display label from participants. |
 
+<a id="chatto-api-v1-CallStartedNotification"></a>
+
+### CallStartedNotification
+
+Notification that a call started in a joined room or private conversation.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room` | [`RoomSummary`](#chatto-api-v1-RoomSummary) | Room where the call started. |
+| `event_id` | `string` | Durable call-start event ID. |
+| `call_id` | `string` | Stable call session ID used by explicit join actions. |
+
 <a id="chatto-api-v1-DirectMessageNotification"></a>
 
 ### DirectMessageNotification
@@ -650,6 +662,7 @@ One pending notification for the authenticated viewer.
 | `kind.mention` | [`MentionNotification`](#chatto-api-v1-MentionNotification) | Mention notification. |
 | `kind.reply` | [`ReplyNotification`](#chatto-api-v1-ReplyNotification) | Reply notification. |
 | `kind.room_message` | [`RoomMessageNotification`](#chatto-api-v1-RoomMessageNotification) | All-messages room notification. |
+| `kind.call_started` | [`CallStartedNotification`](#chatto-api-v1-CallStartedNotification) | Call-start notification for All Messages recipients. |
 
 <a id="chatto-api-v1-ReplyNotification"></a>
 
@@ -799,6 +812,7 @@ Public server profile, identity, and branding fields.
 | `banner_url` | `optional string` | Optional server banner URL. |
 | `welcome_message` | `optional string` | Optional welcome message. |
 | `description` | `optional string` | Optional server description. |
+| `capabilities` | `repeated string` | Stable, additive feature identifiers supported by this server. Clients must ignore unknown values and require an explicit match before using a capability whose fallback would not be safe. |
 
 <a id="chatto-api-v1-ServerRuntimeConfig"></a>
 
@@ -863,6 +877,8 @@ User currently participating in a room call.
 | `user` | [`User`](#chatto-api-v1-User) | Participant user. |
 | `joined_at` | `google.protobuf.Timestamp` | When the user joined this call. |
 | `call_id` | `string` | Active call session ID. |
+| `participant_id` | `string` | Stable media-session participant ID for this browser/device connection. |
+| `device_index` | `uint32` | Stable display slot for concurrent connections from the same account. |
 
 <a id="chatto-admin-v1-AdminAccountInfo"></a>
 
@@ -1407,6 +1423,30 @@ Room kinds to include in directory responses.
 | `ROOM_DIRECTORY_SCOPE_ALL` | `1` | Include both visible channel rooms and the caller's active DM rooms. |
 | `ROOM_DIRECTORY_SCOPE_CHANNELS` | `2` | Include visible channel rooms only. |
 | `ROOM_DIRECTORY_SCOPE_DMS` | `3` | Include the caller's active DM rooms only. |
+
+<a id="chatto-api-v1-JoinCallMode"></a>
+
+### JoinCallMode
+
+How a client wants to join when the same account is already connected.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `JOIN_CALL_MODE_UNSPECIFIED` | `0` | Ask the server to join directly only when no other device is connected. |
+| `JOIN_CALL_MODE_COMPANION` | `1` | Keep existing devices connected and join muted as a companion device. |
+| `JOIN_CALL_MODE_TRANSFER` | `2` | Disconnect existing devices for the account and continue on this device. |
+
+<a id="chatto-api-v1-JoinCallStatus"></a>
+
+### JoinCallStatus
+
+Outcome of recording a call join intent.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `JOIN_CALL_STATUS_UNSPECIFIED` | `0` | No value description provided. |
+| `JOIN_CALL_STATUS_JOINED` | `1` | The connection was admitted to the call. |
+| `JOIN_CALL_STATUS_SELECTION_REQUIRED` | `2` | Another device is active and the user must choose companion or transfer. |
 
 <a id="chatto-admin-v1-PermissionDecision"></a>
 

@@ -41,7 +41,8 @@ func connectError(err error) error {
 	if errors.Is(err, core.ErrLoginAlreadyTaken) ||
 		errors.Is(err, core.ErrEmailAlreadyVerified) ||
 		errors.Is(err, core.ErrExternalIdentityAlreadyClaimed) ||
-		errors.Is(err, core.ErrRoleAlreadyExists) {
+		errors.Is(err, core.ErrRoleAlreadyExists) ||
+		errors.Is(err, core.ErrMessageRequestConflict) {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	}
 	if errors.Is(err, core.ErrCustomStatusEmojiRequired) ||
@@ -106,7 +107,8 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrRoomGroupHasRooms) ||
 		errors.Is(err, core.ErrRoomGroupOrderMismatch) ||
 		errors.Is(err, core.ErrRoomMoveSourceChanged) ||
-		errors.Is(err, core.ErrSidebarLinkSourceChanged) {
+		errors.Is(err, core.ErrSidebarLinkSourceChanged) ||
+		errors.Is(err, core.ErrCallNoLongerActive) {
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	return connectInternalError(err)

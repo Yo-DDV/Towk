@@ -58,6 +58,15 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			break
 		}
 		md := core.ParseParticipantMetadata(event.Participant.Metadata)
+		participantID := event.Participant.Identity
+		userID := md.UserID
+		if userID == "" {
+			userID = participantID
+		}
+		deviceIndex := md.DeviceIndex
+		if deviceIndex == 0 {
+			deviceIndex = 1
+		}
 		eventCallID := callID
 		if eventCallID == "" {
 			eventCallID = md.CallID
@@ -66,9 +75,11 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			logger.Warn("Ignoring LiveKit participant joined without call ID", "room", event.Room.Name)
 			break
 		}
-		if err := s.core.HandleCallParticipantJoined(
+		if err := s.core.HandleCallParticipantConnectionJoined(
 			ctx, spaceID, roomID,
-			event.Participant.Identity,
+			userID,
+			participantID,
+			deviceIndex,
 			event.Participant.Name,
 			md.Login, md.AvatarURL,
 			eventCallID,
@@ -84,6 +95,11 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			break
 		}
 		md := core.ParseParticipantMetadata(event.Participant.Metadata)
+		participantID := event.Participant.Identity
+		userID := md.UserID
+		if userID == "" {
+			userID = participantID
+		}
 		eventCallID := callID
 		if eventCallID == "" {
 			eventCallID = md.CallID
@@ -92,9 +108,10 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			logger.Warn("Ignoring LiveKit participant left without call ID", "room", event.Room.Name)
 			break
 		}
-		if err := s.core.HandleCallParticipantLeft(
+		if err := s.core.HandleCallParticipantConnectionLeft(
 			ctx, spaceID, roomID,
-			event.Participant.Identity,
+			userID,
+			participantID,
 			eventCallID,
 		); err != nil {
 			logger.Warn("Failed to handle participant left", "error", err)
@@ -117,9 +134,8 @@ func liveKitParticipantLeftIsConnectionHandoff(participant *livekit.ParticipantI
 	if participant == nil {
 		return false
 	}
-	// Towk call membership is user-scoped, while LiveKit duplicate-identity
-	// replacement is connection-scoped. A new tab/device taking over the same
-	// user identity should not become a durable domain leave.
+	// A duplicate-identity replacement is a reconnect/handoff of the same
+	// connection-scoped participant, not a durable departure of that device.
 	return participant.GetDisconnectReason() == livekit.DisconnectReason_DUPLICATE_IDENTITY
 }
 

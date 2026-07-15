@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { flushSync } from 'svelte';
+import { setReactiveLocale } from '$lib/i18n/state.svelte';
 import PushNotificationPrompt from './PushNotificationPrompt.svelte';
 
 const mocks = vi.hoisted(() => ({
@@ -92,6 +93,7 @@ function installServiceWorkerControllerStub() {
 
 describe('PushNotificationPrompt', () => {
   beforeEach(() => {
+    setReactiveLocale('en');
     localStorage.clear();
     mocks.serverInfo.pushNotificationsEnabled = true;
     mocks.serverInfo.vapidPublicKey = 'vapid-key';
@@ -115,7 +117,7 @@ describe('PushNotificationPrompt', () => {
     await settle();
 
     expect(container.textContent).toContain('Enable push notifications');
-    expect(container.textContent).toContain('every new channel and direct message');
+    expect(container.textContent).toContain('calls and every new channel or private message');
     await expect.element(buttonWithText(container, 'Enable')).toBeVisible();
     await expect.element(buttonWithText(container, 'Not now')).toBeVisible();
   });
@@ -140,6 +142,20 @@ describe('PushNotificationPrompt', () => {
     } finally {
       controller.restore();
     }
+  });
+
+  it('re-registers a granted subscription when this browser changes language', async () => {
+    mocks.getPermission.mockReturnValue('granted');
+    render(PushNotificationPrompt, { props: { userId: 'user-1' } });
+    await settle();
+
+    expect(mocks.ensureRegistered).toHaveBeenCalledOnce();
+
+    setReactiveLocale('fr');
+    await settle();
+
+    expect(mocks.ensureRegistered).toHaveBeenCalledTimes(2);
+    expect(mocks.ensureRegistered).toHaveBeenLastCalledWith('vapid-key', { prompt: false });
   });
 
   it('shows the guard again when permission is granted but push registration is unhealthy', async () => {
@@ -202,7 +218,7 @@ describe('PushNotificationPrompt', () => {
     await settle();
 
     expect(container.textContent).toContain('Push notifications are blocked');
-    expect(container.textContent).toContain('new channel and direct messages');
+    expect(container.textContent).toContain('calls or new channel and private messages');
     await expect.element(buttonWithText(container, 'How to enable')).toBeVisible();
     await expect.element(buttonWithText(container, 'Not now')).toBeVisible();
   });
@@ -223,10 +239,7 @@ describe('PushNotificationPrompt', () => {
   it('invalidates a snooze when permission was revoked while the PWA was closed', async () => {
     const snoozeKey = 'chatto:i:origin:user:user-1:pushPromptSnoozedUntil';
     localStorage.setItem(snoozeKey, String(Date.now() + 60_000));
-    localStorage.setItem(
-      'chatto:i:origin:user:user-1:pushPromptLastPermission',
-      'granted'
-    );
+    localStorage.setItem('chatto:i:origin:user:user-1:pushPromptLastPermission', 'granted');
     mocks.getPermission.mockReturnValue('denied');
 
     const { container } = render(PushNotificationPrompt, { props: { userId: 'user-1' } });
@@ -240,10 +253,7 @@ describe('PushNotificationPrompt', () => {
     const snoozeKey = 'chatto:i:origin:user:user-1:pushPromptSnoozedUntil';
     const snoozedUntil = Date.now() + 60_000;
     localStorage.setItem(snoozeKey, String(snoozedUntil));
-    localStorage.setItem(
-      'chatto:i:origin:user:user-1:pushPromptLastPermission',
-      'granted'
-    );
+    localStorage.setItem('chatto:i:origin:user:user-1:pushPromptLastPermission', 'granted');
     mocks.getPermission.mockReturnValue('granted');
     mocks.ensureRegistered.mockResolvedValue(false);
 
@@ -310,7 +320,7 @@ describe('PushNotificationPrompt', () => {
     expect(container.textContent).toContain('Add Towk to your Home Screen');
     expect(container.textContent).toContain('supported iOS/iPadOS versions');
     expect(container.textContent).toContain('open Towk from its Home Screen icon');
-    expect(container.textContent).not.toContain('every new channel and direct message');
+    expect(container.textContent).not.toContain('calls and every new channel or private message');
     expect(
       Array.from(container.querySelectorAll('button')).some((button) =>
         button.textContent?.includes('Enable')

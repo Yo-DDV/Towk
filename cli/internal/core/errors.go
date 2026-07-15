@@ -76,6 +76,10 @@ var (
 	// ErrMessageNotFound is returned when a message body doesn't exist (already deleted).
 	ErrMessageNotFound = errors.New("message not found")
 
+	// ErrMessageRequestConflict is returned when an idempotency key is reused
+	// for a semantically different message request.
+	ErrMessageRequestConflict = errors.New("client request id was already used for a different message")
+
 	// ErrMessageBodyCorrupt is returned when a persisted message body envelope is
 	// malformed or cannot be authenticated. Callers may render the affected
 	// message as unavailable, but should not treat dependency or request errors
@@ -127,6 +131,11 @@ var (
 	// universal channel room. Universal rooms grant effective membership through
 	// server policy; users can mute them instead.
 	ErrCannotLeaveUniversalRoom = errors.New("cannot leave universal rooms")
+
+	// ErrCallNoLongerActive rejects notification join actions whose advertised
+	// call ended or was replaced. Callers must never turn that stale action into
+	// a new call.
+	ErrCallNoLongerActive = errors.New("the advertised call is no longer active")
 
 	// ErrCannotBanDMRoomMember is returned when a moderator tries to ban
 	// someone from a DM room. DM membership is the privacy boundary and

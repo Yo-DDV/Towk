@@ -42,6 +42,11 @@ test.use({
 
 interface JoinCallResponse {
   joined?: boolean;
+  status?: string;
+  participantId?: string;
+  deviceIndex?: number;
+  activeDeviceCount?: number;
+  companionAllowed?: boolean;
 }
 
 interface GetCallTokenResponse {
@@ -182,6 +187,32 @@ test.describe('Voice calls', () => {
     await chatPage.goto();
 
     await expect(listActiveCallRoomIdsViaConnect(page)).resolves.toEqual([]);
+  });
+
+  test('a second browser connection must choose companion or transfer', async ({
+    page,
+    chatPage
+  }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
+    const roomId = await getRoomIdByNameViaConnect(page, 'general');
+
+    const first = await connectPost<JoinCallResponse>(
+      page,
+      'chatto.api.v1.VoiceCallService/JoinCall',
+      { roomId, clientInstanceId: 'e2e-first-device' }
+    );
+    expect(first.joined).toBe(true);
+    expect(first.deviceIndex).toBe(1);
+
+    await openCallTab(page);
+    await page.getByTestId('call-join-button').click();
+
+    await expect(page.getByRole('heading', { name: 'Join from another device?' })).toBeVisible();
+    await expect(page.getByTestId('call-join-companion')).toBeEnabled();
+    await expect(page.getByTestId('call-join-transfer')).toBeEnabled();
+    await expect(page.getByText('microphone and call audio muted')).toBeVisible();
   });
 
   test('call icon appears and disappears via real-time events', async ({

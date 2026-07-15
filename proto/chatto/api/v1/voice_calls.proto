@@ -129,24 +129,83 @@ message CallParticipant {
   google.protobuf.Timestamp joined_at = 2;
   // Active call session ID.
   string call_id = 3;
+  // Stable media-session participant ID for this browser/device connection.
+  string participant_id = 4;
+  // Stable display slot for concurrent connections from the same account.
+  uint32 device_index = 5;
+}
+
+// How a client wants to join when the same account is already connected.
+enum JoinCallMode {
+  // Ask the server to join directly only when no other device is connected.
+  JOIN_CALL_MODE_UNSPECIFIED = 0;
+  // Keep existing devices connected and join muted as a companion device.
+  JOIN_CALL_MODE_COMPANION = 1;
+  // Disconnect existing devices for the account and continue on this device.
+  JOIN_CALL_MODE_TRANSFER = 2;
+}
+
+// Outcome of recording a call join intent.
+enum JoinCallStatus {
+  JOIN_CALL_STATUS_UNSPECIFIED = 0;
+  // The connection was admitted to the call.
+  JOIN_CALL_STATUS_JOINED = 1;
+  // Another device is active and the user must choose companion or transfer.
+  JOIN_CALL_STATUS_SELECTION_REQUIRED = 2;
 }
 
 // Request to record joining a room call.
 message JoinCallRequest {
   // Required. Room whose call is being joined.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Opaque browser-session identifier used to make retries idempotent.
+  // Empty is accepted for compatibility with older clients.
+  string client_instance_id = 2 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^[A-Za-z0-9_-]*$"
+  }];
+  // Requested behavior when another device for the account is active.
+  JoinCallMode mode = 3;
+  // Optional. Exact active call advertised by a notification action. When it
+  // no longer matches, the request fails instead of starting a replacement.
+  string expected_call_id = 4 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
+  }];
 }
 
 // Response from recording a join intent.
 message JoinCallResponse {
   // True when a join fact was recorded.
   bool joined = 1;
+  // Structured join outcome for multi-device clients.
+  JoinCallStatus status = 2;
+  // Media-session participant ID when joined.
+  string participant_id = 3;
+  // Stable display slot when joined.
+  uint32 device_index = 4;
+  // Number of other active connections for this account at decision time.
+  uint32 active_device_count = 5;
+  // Whether another companion connection can be admitted without a transfer.
+  bool companion_allowed = 6;
 }
 
 // Request for a LiveKit token for a room call.
 message GetCallTokenRequest {
   // Required. Room whose active call should be joined.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Must match the browser-session identifier admitted by JoinCall.
+  // Empty is accepted for compatibility with older clients.
+  string client_instance_id = 2 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^[A-Za-z0-9_-]*$"
+  }];
+  // Optional. Exact call selected by a notification action. A mismatch fails
+  // instead of issuing credentials for a replacement call.
+  string expected_call_id = 3 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
+  }];
 }
 
 // LiveKit token details for joining a room call.
@@ -157,12 +216,22 @@ message GetCallTokenResponse {
   string e2ee_key = 2;
   // Active call session ID.
   string call_id = 3;
+  // Media-session participant ID encoded as the LiveKit identity.
+  string participant_id = 4;
+  // Stable display slot for this connection.
+  uint32 device_index = 5;
 }
 
 // Request to record leaving a room call.
 message LeaveCallRequest {
   // Required. Room whose call is being left.
   string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Browser-session identifier for the exact connection leaving the call.
+  // Empty targets the legacy single-device participant only.
+  string client_instance_id = 2 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^[A-Za-z0-9_-]*$"
+  }];
 }
 
 // Response from recording a leave intent.

@@ -62,6 +62,7 @@ const {
   },
   voiceCallState: {
     connected: false,
+    reconnecting: false,
     roomId: null as string | null,
     isMuted: false,
     isMicrophonePending: false,
@@ -190,6 +191,7 @@ describe('CurrentUserBar', () => {
     presencePreference.mode = 'auto';
     presencePreference.effectiveStatus = PresenceStatus.Online;
     voiceCallState.connected = false;
+    voiceCallState.reconnecting = false;
     voiceCallState.roomId = null;
     voiceCallState.isMuted = false;
     voiceCallState.isMicrophonePending = false;
@@ -530,6 +532,29 @@ describe('CurrentUserBar', () => {
       expect(button.getAttribute('aria-busy')).toBe('true');
       expect(q(button, '.animate-spin.uil--spinner')).toBeTruthy();
     }
+  });
+
+  it('surfaces network recovery outside the call room and keeps hang-up available', () => {
+    voiceCallState.connected = true;
+    voiceCallState.reconnecting = true;
+    voiceCallState.roomId = 'room-1';
+
+    const { container } = render(CurrentUserBarTestHarness);
+
+    const notice = q(container, '[data-testid="current-user-call-reconnecting"]');
+    expect(notice).toBeTruthy();
+    expect(notice!.textContent).toContain('Oops, there’s a network problem.');
+    expect(notice!.textContent).toContain('Towk is trying to reconnect you automatically.');
+    for (const testId of [
+      'current-user-call-mute',
+      'current-user-call-camera',
+      'current-user-call-screen-share'
+    ]) {
+      expect((q(container, `[data-testid="${testId}"]`) as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(
+      (q(container, '[data-testid="current-user-call-leave"]') as HTMLButtonElement).disabled
+    ).toBe(false);
   });
 
   it('explains when this browser cannot expose screen capture to web apps', () => {

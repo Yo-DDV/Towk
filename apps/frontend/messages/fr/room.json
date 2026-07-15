@@ -86,7 +86,8 @@
         "edit": "Modifier le message",
         "more": "Autres actions",
         "edit_short": "Modifier",
-        "copy_link": "Copier le lien"
+        "copy_link": "Copier le lien",
+        "share": "Partager"
       },
       "meta": {
         "thread": "Fil",

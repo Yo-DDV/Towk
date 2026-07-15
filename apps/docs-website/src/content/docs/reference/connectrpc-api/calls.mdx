@@ -182,6 +182,9 @@ Request to record joining a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose call is being joined. |
+| `client_instance_id` | `string` | Opaque browser-session identifier used to make retries idempotent. Empty is accepted for compatibility with older clients. |
+| `mode` | [`JoinCallMode`](/reference/connectrpc-api/types/#chatto-api-v1-JoinCallMode) | Requested behavior when another device for the account is active. |
+| `expected_call_id` | `string` | Optional. Exact active call advertised by a notification action. When it no longer matches, the request fails instead of starting a replacement. |
 
 
 <a id="chatto-api-v1-JoinCallResponse"></a>
@@ -193,6 +196,11 @@ Response from recording a join intent.
 | Field | Type | Description |
 | --- | --- | --- |
 | `joined` | `bool` | True when a join fact was recorded. |
+| `status` | [`JoinCallStatus`](/reference/connectrpc-api/types/#chatto-api-v1-JoinCallStatus) | Structured join outcome for multi-device clients. |
+| `participant_id` | `string` | Media-session participant ID when joined. |
+| `device_index` | `uint32` | Stable display slot when joined. |
+| `active_device_count` | `uint32` | Number of other active connections for this account at decision time. |
+| `companion_allowed` | `bool` | Whether another companion connection can be admitted without a transfer. |
 
 
 <a id="chatto-api-v1-VoiceCallService-GetCallToken"></a>
@@ -219,6 +227,8 @@ Request for a LiveKit token for a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose active call should be joined. |
+| `client_instance_id` | `string` | Must match the browser-session identifier admitted by JoinCall. Empty is accepted for compatibility with older clients. |
+| `expected_call_id` | `string` | Optional. Exact call selected by a notification action. A mismatch fails instead of issuing credentials for a replacement call. |
 
 
 <a id="chatto-api-v1-GetCallTokenResponse"></a>
@@ -232,6 +242,8 @@ LiveKit token details for joining a room call.
 | `token` | `string` | LiveKit JWT token. |
 | `e2ee_key` | `string` | Shared E2EE key for this active call. |
 | `call_id` | `string` | Active call session ID. |
+| `participant_id` | `string` | Media-session participant ID encoded as the LiveKit identity. |
+| `device_index` | `uint32` | Stable display slot for this connection. |
 
 
 <a id="chatto-api-v1-VoiceCallService-LeaveCall"></a>
@@ -255,6 +267,7 @@ Request to record leaving a room call.
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose call is being left. |
+| `client_instance_id` | `string` | Browser-session identifier for the exact connection leaving the call. Empty targets the legacy single-device participant only. |
 
 
 <a id="chatto-api-v1-LeaveCallResponse"></a>

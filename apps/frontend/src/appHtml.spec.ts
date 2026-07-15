@@ -12,6 +12,14 @@ const themeScript = appHtml.match(/<script>\s*([\s\S]*?)\s*<\/script>/i)?.[1];
 
 type WebAppManifest = {
   icons?: Array<{ src?: string; sizes?: string; type?: string; purpose?: string }>;
+  launch_handler?: { client_mode?: string[] };
+  share_target?: {
+    action?: string;
+    method?: string;
+    enctype?: string;
+    params?: Record<string, unknown>;
+  };
+  file_handlers?: Array<{ action?: string; accept?: Record<string, string[]> }>;
 };
 
 function metaContent(name: string, mediaFragment: string): string | null {
@@ -139,6 +147,44 @@ describe('app.html metadata', () => {
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable'
+      }
+    ]);
+  });
+
+  it('reuses an existing installed window when launch handling is supported', () => {
+    expect(manifest.launch_handler).toEqual({ client_mode: ['focus-existing', 'auto'] });
+  });
+
+  it('registers the encrypted POST share target with supported attachment types', () => {
+    expect(manifest.share_target).toEqual({
+      action: '/chat/share-target',
+      method: 'POST',
+      enctype: 'multipart/form-data',
+      params: {
+        title: 'title',
+        text: 'text',
+        url: 'url',
+        files: [
+          {
+            name: 'files',
+            accept: ['image/*', 'video/*', 'audio/*', 'application/pdf', 'text/plain']
+          }
+        ]
+      }
+    });
+  });
+
+  it('opens common safe document types through the same encrypted chooser', () => {
+    expect(manifest.file_handlers).toEqual([
+      {
+        action: '/chat/share-target',
+        accept: {
+          'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.heic', '.avif'],
+          'video/*': ['.mp4', '.webm', '.mov', '.m4v'],
+          'audio/*': ['.mp3', '.m4a', '.wav', '.ogg', '.opus'],
+          'application/pdf': ['.pdf'],
+          'text/plain': ['.txt', '.md', '.log']
+        }
       }
     ]);
   });

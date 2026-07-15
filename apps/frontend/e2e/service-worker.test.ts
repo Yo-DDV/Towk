@@ -5,10 +5,13 @@ type CacheSnapshot = {
   cacheNames: string[];
   rootShellCached: boolean;
   fallbackShellCached: boolean;
+  manifestCached: boolean;
+  offlineSymbolCached: boolean;
   lazyStaticAssetCached: boolean;
   apiDiscoveryCached: boolean;
   apiConnectCached: boolean;
   uploadedAssetCached: boolean;
+  navigationPreloadEnabled: boolean | null;
 };
 
 type ServiceWorkerRegistrationSnapshot = {
@@ -40,15 +43,16 @@ test('service worker caches only the app shell and serves it offline', async ({
   await requestNetworkOnlyPaths(page);
 
   const onlineCacheSnapshot = await cacheSnapshot(page);
-  expect(onlineCacheSnapshot.cacheNames.some((name) => name.startsWith('towk-shell-'))).toBe(
-    true
-  );
+  expect(onlineCacheSnapshot.cacheNames.some((name) => name.startsWith('towk-shell-'))).toBe(true);
   expect(onlineCacheSnapshot.rootShellCached).toBe(true);
   expect(onlineCacheSnapshot.fallbackShellCached).toBe(true);
+  expect(onlineCacheSnapshot.manifestCached).toBe(true);
+  expect(onlineCacheSnapshot.offlineSymbolCached).toBe(true);
   expect(onlineCacheSnapshot.lazyStaticAssetCached).toBe(false);
   expect(onlineCacheSnapshot.apiDiscoveryCached).toBe(false);
   expect(onlineCacheSnapshot.apiConnectCached).toBe(false);
   expect(onlineCacheSnapshot.uploadedAssetCached).toBe(false);
+  expect(onlineCacheSnapshot.navigationPreloadEnabled).not.toBe(false);
 
   await requestLazyStaticAsset(page);
   const lazyCacheSnapshot = await cacheSnapshot(page);
@@ -57,7 +61,27 @@ test('service worker caches only the app shell and serves it offline', async ({
   await context.setOffline(true);
   try {
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: 'Welcome to Towk' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: "You're offline" })).toBeVisible();
+    await expect(page.getByText('Check your internet connection, then try again.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+    await expect(page.getByTestId('standalone-welcome-state')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const response = await fetch('/manifest.webmanifest');
+          return response.ok ? ((await response.json()) as { name?: string }).name : null;
+        })
+      )
+      .toBe('Towk');
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            [...document.images].filter((image) => !image.complete || image.naturalWidth === 0)
+              .length
+        )
+      )
+      .toBe(0);
 
     const offlineCacheSnapshot = await cacheSnapshot(page);
     expect(offlineCacheSnapshot.apiDiscoveryCached).toBe(false);
@@ -324,12 +348,19 @@ async function cacheSnapshot(page: Page) {
       cacheNames: await caches.keys(),
       rootShellCached: Boolean(await caches.match('/')),
       fallbackShellCached: Boolean(await caches.match('/200.html')),
+      manifestCached: Boolean(await caches.match('/manifest.webmanifest')),
+      offlineSymbolCached: Boolean(await caches.match('/icons/symbol-256.png')),
       lazyStaticAssetCached: Boolean(await caches.match('/robots.txt')),
       apiDiscoveryCached: Boolean(
         await caches.match('/api/connect/chatto.discovery.v1.ServerDiscoveryService/GetServer')
       ),
       apiConnectCached: Boolean(await caches.match('/api/connect')),
-      uploadedAssetCached: Boolean(await caches.match('/assets/example.png'))
+      uploadedAssetCached: Boolean(await caches.match('/assets/example.png')),
+      navigationPreloadEnabled: await (async () => {
+        const registration = await navigator.serviceWorker.getRegistration('/');
+        const navigationPreload = registration?.navigationPreload;
+        return navigationPreload ? (await navigationPreload.getState()).enabled : null;
+      })()
     };
   });
 }

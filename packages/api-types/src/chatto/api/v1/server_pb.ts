@@ -55,6 +55,15 @@ export class ServerPublicProfile extends Message<ServerPublicProfile> {
    */
   description?: string;
 
+  /**
+   * Stable, additive feature identifiers supported by this server. Clients
+   * must ignore unknown values and require an explicit match before using a
+   * capability whose fallback would not be safe.
+   *
+   * @generated from field: repeated string capabilities = 7;
+   */
+  capabilities: string[] = [];
+
   constructor(data?: PartialMessage<ServerPublicProfile>) {
     super();
     proto3.util.initPartial(data, this);
@@ -69,6 +78,7 @@ export class ServerPublicProfile extends Message<ServerPublicProfile> {
     { no: 4, name: "banner_url", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 5, name: "welcome_message", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 6, name: "description", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 7, name: "capabilities", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ServerPublicProfile {

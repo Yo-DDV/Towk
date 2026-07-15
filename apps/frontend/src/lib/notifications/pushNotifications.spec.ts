@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createPushNotificationAPI: vi.fn(),
   subscribePush: vi.fn(),
   unsubscribePush: vi.fn(),
+  getLocale: vi.fn(() => 'fr'),
   appUi: {
     disableRoomCallWideFor: vi.fn()
   },
@@ -28,6 +29,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('$lib/api-client/pushNotifications', () => ({
   createPushNotificationAPI: mocks.createPushNotificationAPI
+}));
+
+vi.mock('$lib/i18n/runtime', () => ({
+  getLocale: mocks.getLocale
 }));
 
 vi.mock('$lib/state/server/serverConnection.svelte', () => ({
@@ -278,7 +283,8 @@ describe('pushNotifications.ensureRegistered', () => {
       endpoint: 'https://push.example/existing',
       p256dh: 'p256dh-key',
       auth: 'auth-secret',
-      userAgent: 'test-agent'
+      userAgent: 'test-agent',
+      locale: 'fr'
     });
   });
 

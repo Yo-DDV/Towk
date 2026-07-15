@@ -463,6 +463,25 @@ func (p *Publisher) LastSubjectPosition(ctx context.Context, subjectOrFilter str
 	return SubjectPosition(subjectOrFilter, seq), nil
 }
 
+// LastSubjectEvent returns the latest event published on an exact subject,
+// together with its stream sequence. A nil event and zero sequence mean that
+// the subject has no messages. Callers must not pass a wildcard filter when
+// they need the returned event to identify one aggregate fact.
+func (p *Publisher) LastSubjectEvent(ctx context.Context, subject string) (*corev1.Event, uint64, error) {
+	msg, err := p.stream.GetLastMsgForSubject(ctx, subject)
+	if err != nil {
+		if errors.Is(err, jetstream.ErrMsgNotFound) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("last event for subject %q: %w", subject, err)
+	}
+	var event corev1.Event
+	if err := proto.Unmarshal(msg.Data, &event); err != nil {
+		return nil, 0, fmt.Errorf("unmarshal last event for subject %q at seq %d: %w", subject, msg.Sequence, err)
+	}
+	return &event, msg.Sequence, nil
+}
+
 // SubjectEvents returns events currently published on a subject, in stream
 // order, plus the stream sequence of the last matching event.
 func (p *Publisher) SubjectEvents(ctx context.Context, subject string) ([]*corev1.Event, uint64, error) {

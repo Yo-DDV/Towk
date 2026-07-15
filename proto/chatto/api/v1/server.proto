@@ -18,6 +18,10 @@ message ServerPublicProfile {
   optional string welcome_message = 5;
   // Optional server description.
   optional string description = 6;
+  // Stable, additive feature identifiers supported by this server. Clients
+  // must ignore unknown values and require an explicit match before using a
+  // capability whose fallback would not be safe.
+  repeated string capabilities = 7;
 }
 
 // Login and registration options exposed before authentication.

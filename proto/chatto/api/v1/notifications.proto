@@ -53,6 +53,16 @@ message RoomMessageNotification {
   optional string thread_root_event_id = 3;
 }
 
+// Notification that a call started in a joined room or private conversation.
+message CallStartedNotification {
+  // Room where the call started.
+  RoomSummary room = 1;
+  // Durable call-start event ID.
+  string event_id = 2;
+  // Stable call session ID used by explicit join actions.
+  string call_id = 3;
+}
+
 // One pending notification for the authenticated viewer.
 message NotificationItem {
   reserved 4;
@@ -74,6 +84,8 @@ message NotificationItem {
     ReplyNotification reply = 12;
     // All-messages room notification.
     RoomMessageNotification room_message = 13;
+    // Call-start notification for All Messages recipients.
+    CallStartedNotification call_started = 14;
   }
 }
 

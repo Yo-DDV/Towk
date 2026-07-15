@@ -33,7 +33,7 @@ export const MessageService = {
      * Creates a message for the current user. The user must be a room member and
      * must have message.post for room messages or message.post-in-thread for
      * thread replies. Echoing a thread reply also requires message.echo and
-     * message.post.
+     * message.post. A non-empty client_request_id makes retries idempotent.
      *
      * @generated from rpc chatto.api.v1.MessageService.CreateMessage
      */

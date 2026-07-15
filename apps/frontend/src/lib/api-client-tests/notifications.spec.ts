@@ -2,6 +2,7 @@ import { Timestamp } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
+import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { PresenceStatus } from '$lib/api-client/renderTypes';
 import { createNotificationAPI, NotificationItemKind } from '$lib/api-client/notifications';
 
@@ -195,6 +196,40 @@ describe('createNotificationAPI', () => {
       roomMsgRoom: { id: 'room-1', name: 'general' },
       roomMsgEventId: 'thread-reply',
       roomMsgInThread: 'thread-root'
+    });
+  });
+
+  it('maps call-start notifications with room kind and stable call identity', async () => {
+    mocks.getNotification.mockResolvedValue({
+      notification: {
+        id: 'call-started',
+        actor: {
+          id: 'U1',
+          login: 'alice',
+          displayName: 'Alice',
+          deleted: false,
+          presenceStatus: APIPresenceStatus.OFFLINE
+        },
+        kind: {
+          case: 'callStarted',
+          value: {
+            room: { id: 'DM1', name: '', kind: RoomKind.DM },
+            eventId: 'E-call-started',
+            callId: 'C1'
+          }
+        }
+      }
+    });
+
+    const api = createNotificationAPI({ baseUrl: '/api/connect', bearerToken: null });
+
+    await expect(api.getNotification('call-started')).resolves.toMatchObject({
+      kind: NotificationItemKind.CallStarted,
+      summary: 'Alice is calling you',
+      callRoom: { id: 'DM1', name: '' },
+      callEventId: 'E-call-started',
+      callId: 'C1',
+      isPrivate: true
     });
   });
 

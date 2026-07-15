@@ -132,10 +132,42 @@ func (s *voiceCallService) JoinCall(ctx context.Context, req *connect.Request[ap
 	if !s.api.config.LiveKit.IsConfigured() {
 		return connect.NewResponse(&apiv1.JoinCallResponse{}), nil
 	}
-	if err := s.api.core.RecordCallParticipantJoined(ctx, kind, req.Msg.GetRoomId(), caller.UserID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+	mode, err := coreCallJoinMode(req.Msg.GetMode())
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.api.core.JoinCallParticipant(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetClientInstanceId(), mode, req.Msg.GetExpectedCallId())
+	if err != nil {
+		if errors.Is(err, core.ErrCallDeviceLimit) {
+			return nil, connect.NewError(connect.CodeResourceExhausted, err)
+		}
 		return nil, connectError(err)
 	}
-	return connect.NewResponse(&apiv1.JoinCallResponse{Joined: true}), nil
+	status := apiv1.JoinCallStatus_JOIN_CALL_STATUS_JOINED
+	if result.Status == core.CallJoinStatusSelectionRequired {
+		status = apiv1.JoinCallStatus_JOIN_CALL_STATUS_SELECTION_REQUIRED
+	}
+	return connect.NewResponse(&apiv1.JoinCallResponse{
+		Joined:            result.Status == core.CallJoinStatusJoined,
+		Status:            status,
+		ParticipantId:     result.ParticipantID,
+		DeviceIndex:       result.DeviceIndex,
+		ActiveDeviceCount: uint32(result.ActiveDeviceCount),
+		CompanionAllowed:  result.CompanionAllowed,
+	}), nil
+}
+
+func coreCallJoinMode(mode apiv1.JoinCallMode) (core.CallJoinMode, error) {
+	switch mode {
+	case apiv1.JoinCallMode_JOIN_CALL_MODE_UNSPECIFIED:
+		return core.CallJoinModeAsk, nil
+	case apiv1.JoinCallMode_JOIN_CALL_MODE_COMPANION:
+		return core.CallJoinModeCompanion, nil
+	case apiv1.JoinCallMode_JOIN_CALL_MODE_TRANSFER:
+		return core.CallJoinModeTransfer, nil
+	default:
+		return core.CallJoinModeAsk, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("unsupported call join mode %d", mode))
+	}
 }
 
 func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Request[apiv1.GetCallTokenRequest]) (*connect.Response[apiv1.GetCallTokenResponse], error) {
@@ -159,32 +191,59 @@ func (s *voiceCallService) GetCallToken(ctx context.Context, req *connect.Reques
 	if !ok {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("no active voice call for room %s", req.Msg.GetRoomId()))
 	}
-	e2eeKey, err := s.api.core.GetVoiceCallE2EEKey(ctx, req.Msg.GetRoomId())
+	if expectedCallID := req.Msg.GetExpectedCallId(); expectedCallID != "" && activeCall.CallID != expectedCallID {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, core.ErrCallNoLongerActive)
+	}
+	callID := activeCall.CallID
+	e2eeKey, err := s.api.core.GetVoiceCallE2EEKeyForCall(ctx, req.Msg.GetRoomId(), callID)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	avatarSize := 96
 	avatarURL, _ := s.api.core.GetUserAvatarURL(ctx, caller.UserID, &avatarSize, &avatarSize, "cover")
-	roomName := core.LiveKitRoomName(s.api.config.LiveKit.ServerID, core.LegacySpaceIDForRoomKind(kind), req.Msg.GetRoomId(), activeCall.CallID)
-	token, err := core.GenerateVoiceCallToken(
+	participantID := core.VoiceCallParticipantID(caller.UserID, req.Msg.GetClientInstanceId())
+	var callParticipant core.CallParticipant
+	participantFound := false
+	for _, participant := range s.api.core.CallState.Participants(req.Msg.GetRoomId()) {
+		if participant.UserID == caller.UserID && participant.ParticipantID == participantID && participant.CallID == callID {
+			callParticipant = participant
+			participantFound = true
+			break
+		}
+	}
+	if !participantFound {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("call connection has not been admitted"))
+	}
+	roomName := core.LiveKitRoomName(s.api.config.LiveKit.ServerID, core.LegacySpaceIDForRoomKind(kind), req.Msg.GetRoomId(), callID)
+	token, err := core.GenerateVoiceCallTokenForParticipant(
 		s.api.config.LiveKit.APIKey,
 		s.api.config.LiveKit.APISecret,
 		roomName,
-		user.GetId(),
+		core.VoiceCallParticipantIdentity{
+			UserID:        user.GetId(),
+			ParticipantID: callParticipant.ParticipantID,
+			DeviceIndex:   callParticipant.DeviceIndex,
+		},
 		user.GetDisplayName(),
 		user.GetLogin(),
 		s.api.absolutizeAssetURL(ctx, avatarURL),
 		e2eeKey,
-		activeCall.CallID,
+		callID,
 	)
 	if err != nil {
 		return nil, connectError(err)
 	}
+	currentCall, ok := s.api.core.CallState.ActiveCall(req.Msg.GetRoomId())
+	if !ok || currentCall.CallID != callID {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, core.ErrCallNoLongerActive)
+	}
 
 	return connect.NewResponse(&apiv1.GetCallTokenResponse{
-		Token:   token.Token,
-		E2EeKey: token.E2EEKey,
-		CallId:  token.CallID,
+		Token:         token.Token,
+		E2EeKey:       token.E2EEKey,
+		CallId:        token.CallID,
+		ParticipantId: callParticipant.ParticipantID,
+		DeviceIndex:   callParticipant.DeviceIndex,
 	}), nil
 }
 
@@ -200,7 +259,7 @@ func (s *voiceCallService) LeaveCall(ctx context.Context, req *connect.Request[a
 	if !s.api.config.LiveKit.IsConfigured() {
 		return connect.NewResponse(&apiv1.LeaveCallResponse{}), nil
 	}
-	if err := s.api.core.RecordCallParticipantLeft(ctx, kind, req.Msg.GetRoomId(), caller.UserID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+	if err := s.api.core.LeaveCallParticipant(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetClientInstanceId(), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.LeaveCallResponse{Left: true}), nil
@@ -259,8 +318,10 @@ func (s *voiceCallService) callParticipant(ctx context.Context, participant core
 	}
 
 	return &apiv1.CallParticipant{
-		User:     apiUser,
-		JoinedAt: timestamppb.New(time.Unix(participant.JoinedAt, 0)),
-		CallId:   participant.CallID,
+		User:          apiUser,
+		JoinedAt:      timestamppb.New(time.Unix(participant.JoinedAt, 0)),
+		CallId:        participant.CallID,
+		ParticipantId: participant.ParticipantID,
+		DeviceIndex:   participant.DeviceIndex,
 	}, nil
 }

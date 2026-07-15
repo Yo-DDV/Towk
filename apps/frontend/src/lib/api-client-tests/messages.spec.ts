@@ -142,7 +142,8 @@ describe('createMessageAPI', () => {
         threadRootEventId: 'root-1',
         inReplyTo: 'reply-1',
         alsoSendToChannel: true,
-        linkPreviewToken: 'cht_LPpreviewtoken'
+        linkPreviewToken: 'cht_LPpreviewtoken',
+        clientRequestId: expect.any(String)
       }),
       {
         headers: { Authorization: 'Bearer remote-token' }

@@ -12,6 +12,7 @@ function publicServerInfo(overrides: Partial<PublicServerInfo> = {}): PublicServ
     description: 'a server for acme',
     iconUrl: 'https://icon',
     bannerUrl: 'https://banner',
+    capabilities: [],
     authProviders: [],
     ...overrides
   };
@@ -44,6 +45,7 @@ describe('ServerInfoState.init()', () => {
     expect(state.directRegistrationEnabled).toBe(false);
     expect(state.videoProcessingEnabled).toBe(false);
     expect(state.messageEditWindowSeconds).toBe(3 * 60 * 60);
+    expect(state.supportsCapability('message.create-idempotency-v1')).toBe(false);
     expect(consoleError).not.toHaveBeenCalled();
   });
 
@@ -92,7 +94,8 @@ describe('ServerInfoState.init()', () => {
         welcomeMessage: 'fresh welcome',
         description: 'fresh description',
         iconUrl: 'https://fresh-icon',
-        bannerUrl: 'https://fresh-banner'
+        bannerUrl: 'https://fresh-banner',
+        capabilities: ['message.create-idempotency-v1']
       })
     );
     const state = new ServerInfoState('https://fresh.test', loader);
@@ -107,6 +110,7 @@ describe('ServerInfoState.init()', () => {
     expect(state.description).toBe('fresh description');
     expect(state.iconUrl).toBe('https://fresh-icon');
     expect(state.bannerUrl).toBe('https://fresh-banner');
+    expect(state.supportsCapability('message.create-idempotency-v1')).toBe(true);
   });
 
   it('logs and sets error when Connect server metadata fails', async () => {

@@ -5,6 +5,24 @@ import { eventBusManager } from './eventBus.svelte';
 import { Codecs, globalSlot } from '$lib/storage/slot';
 import { getPublicServerInfo } from '$lib/api-client/server';
 import { PRODUCT_NAME } from '$lib/product';
+import { activateOfflineAccount, purgeOfflineAccount } from '$lib/pwa/offlineData';
+import { privateDataScopeForServer } from '$lib/pwa/scope';
+
+function activatePrivateDataForServer(server: RegisteredServer): void {
+	const scope = privateDataScopeForServer(server);
+	if (!scope) return;
+	void activateOfflineAccount(scope).catch((error) => {
+		console.error('Failed to activate encrypted local account data:', error);
+	});
+}
+
+function purgePrivateDataForServer(server: RegisteredServer): Promise<void> {
+	const scope = privateDataScopeForServer(server);
+	if (!scope) return Promise.resolve();
+	return purgeOfflineAccount(scope).catch((error) => {
+		console.error('Failed to purge encrypted local account data:', error);
+	});
+}
 
 /**
  * A registered Towk server in the multi-server client.
@@ -30,6 +48,8 @@ export interface RegisteredServer {
 	userAvatarUrl: string | null;
 	/** Epoch ms when this server last rejected auth, or null when auth is usable */
 	reauthRequiredAt: number | null;
+	/** Last successfully advertised public server capabilities. */
+	capabilities?: string[];
 	/** When this server was added (epoch ms) */
 	addedAt: number;
 }
@@ -74,7 +94,10 @@ export function generateServerId(url: string, existingIds: string[] = []): strin
 function normalizeRegisteredServer(server: RegisteredServer): RegisteredServer {
 	return {
 		...server,
-		reauthRequiredAt: server.reauthRequiredAt ?? null
+		reauthRequiredAt: server.reauthRequiredAt ?? null,
+		capabilities: Array.isArray(server.capabilities)
+			? [...new Set(server.capabilities.filter((capability) => typeof capability === 'string'))]
+			: []
 	};
 }
 
@@ -245,15 +268,27 @@ class ServerRegistry {
 		const origin = this.originServer;
 		if (!origin) return;
 		if (origin.token !== null) return;
+		if (origin.userId) {
+			void purgePrivateDataForServer(origin);
+			this.#replaceServerAuth(origin.id, {
+				token: null,
+				userId: null,
+				userLogin: null,
+				userDisplayName: null,
+				userAvatarUrl: null,
+				reauthRequiredAt: null
+			});
+		}
 		const store = this.tryGetStore(origin.id);
 		if (!store) return;
 		store.currentUser.user = undefined;
 		store.currentUser.loading = false;
 	}
 
-	clearServerAuthentication(id: string): void {
+	clearServerAuthentication(id: string): Promise<void> {
 		const server = this.getServer(id);
-		if (!server) return;
+		if (!server) return Promise.resolve();
+		const purge = purgePrivateDataForServer(server);
 		this.#replaceServerAuth(id, {
 			token: null,
 			userId: null,
@@ -267,12 +302,13 @@ class ServerRegistry {
 			store.currentUser.user = undefined;
 			store.currentUser.loading = false;
 		}
+		return purge;
 	}
 
-	clearOriginAuthentication(): void {
+	clearOriginAuthentication(): Promise<void> {
 		const origin = this.originServer;
-		if (!origin) return;
-		this.clearServerAuthentication(origin.id);
+		if (!origin) return Promise.resolve();
+		return this.clearServerAuthentication(origin.id);
 	}
 
 	handleAuthenticationRequired(id: string): void {
@@ -302,6 +338,7 @@ class ServerRegistry {
 	 */
 	init(): void {
 		for (const server of this.servers) {
+			activatePrivateDataForServer(server);
 			if (!this.#stores.has(server.id)) {
 				this.#createStore(server);
 			}
@@ -314,6 +351,7 @@ class ServerRegistry {
 			return; // Already exists
 		}
 		const registered = normalizeRegisteredServer(server);
+		activatePrivateDataForServer(registered);
 		this.servers.push(registered);
 		serversSlot.set(this.servers);
 		const store = this.#createStore(registered);
@@ -336,6 +374,7 @@ class ServerRegistry {
 		if (!server) {
 			return false;
 		}
+		void purgePrivateDataForServer(server);
 
 		// Stop event bus subscription
 		eventBusManager.stopBus(id);
@@ -354,8 +393,10 @@ class ServerRegistry {
 
 	/** Remove all servers. Used by the global sign-out flow.
 	 *  Clears dismissals so the origin can be re-discovered on next visit. */
-	removeAll(): void {
+	removeAll(): Promise<void> {
+		const purges: Promise<void>[] = [];
 		for (const server of [...this.servers]) {
+			purges.push(purgePrivateDataForServer(server));
 			eventBusManager.stopBus(server.id);
 			this.#stores.get(server.id)?.dispose();
 			this.#stores.delete(server.id);
@@ -363,6 +404,7 @@ class ServerRegistry {
 		}
 		this.servers = [];
 		serversSlot.set(this.servers);
+		return Promise.all(purges).then(() => undefined);
 	}
 
 	/** Update fields on an existing server. */
@@ -373,6 +415,7 @@ class ServerRegistry {
 		}
 
 		Object.assign(server, data);
+		activatePrivateDataForServer(server);
 		serversSlot.set(this.servers);
 		return true;
 	}
@@ -403,6 +446,7 @@ class ServerRegistry {
 		serverConnectionManager.destroyClient(id);
 
 		Object.assign(server, data);
+		activatePrivateDataForServer(server);
 		serversSlot.set(this.servers);
 		const store = this.#createStore(server);
 		if (store.isAuthenticated) {
@@ -443,9 +487,24 @@ class ServerRegistry {
 	/** Create a state store for a server and wire up remote user sync. */
 	#createStore(server: RegisteredServer): ServerStateStore {
 		const serverConnection = serverConnectionManager.getClient(server.id);
-		const store = new ServerStateStore(server, serverConnection, undefined, () => {
-			this.handleAuthenticationRequired(server.id);
-		});
+		const store = new ServerStateStore(
+			server,
+			serverConnection,
+			undefined,
+			() => {
+				this.handleAuthenticationRequired(server.id);
+			},
+			(capabilities) => {
+				if (
+					server.capabilities?.length === capabilities.length &&
+					server.capabilities.every((capability, index) => capability === capabilities[index])
+				) {
+					return;
+				}
+				server.capabilities = [...capabilities];
+				serversSlot.set(this.servers);
+			}
+		);
 		this.#stores.set(server.id, store);
 
 		// Eagerly fetch server info (name, MOTD, upload limits, etc.).

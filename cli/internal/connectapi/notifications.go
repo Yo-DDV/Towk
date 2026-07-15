@@ -203,6 +203,8 @@ func notificationTargetRoomID(notification *corev1.Notification) string {
 		return payload.Reply.GetRoomId()
 	case *corev1.Notification_RoomMessage:
 		return payload.RoomMessage.GetRoomId()
+	case *corev1.Notification_CallStarted:
+		return payload.CallStarted.GetRoomId()
 	default:
 		return ""
 	}

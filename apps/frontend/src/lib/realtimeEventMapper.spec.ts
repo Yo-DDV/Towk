@@ -4,12 +4,48 @@ import { describe, expect, it } from 'vitest';
 import { realtimeEventToEventEnvelope } from '$lib/realtimeEventMapper';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import {
+  RealtimeCallEvent,
   RealtimeEventEnvelope,
   RealtimeMentionNotificationEvent,
   RealtimeNewDirectMessageNotificationEvent
 } from '@towk/api-types/realtime/v1/realtime_pb';
 
 describe('realtimeEventToEventEnvelope', () => {
+  it('preserves the exact call connection on participant transitions', () => {
+    const event = realtimeEventToEventEnvelope(
+      new RealtimeEventEnvelope({
+        id: 'evt-call-left',
+        createdAt: Timestamp.now(),
+        actorId: 'user-1',
+        event: {
+          case: 'callParticipantLeft',
+          value: new RealtimeCallEvent({
+            roomId: 'room-1',
+            callId: 'call-1',
+            participantId: 'device-2',
+            deviceIndex: 2
+          })
+        }
+      })
+    ) as unknown as {
+      event: {
+        kind: string;
+        roomId: string;
+        callId: string;
+        participantId: string;
+        deviceIndex: number;
+      };
+    };
+
+    expect(event.event).toEqual({
+      kind: RoomEventKind.CallParticipantLeft,
+      roomId: 'room-1',
+      callId: 'call-1',
+      participantId: 'device-2',
+      deviceIndex: 2
+    });
+  });
+
   it('preserves mention notification display data', () => {
     const event = realtimeEventToEventEnvelope(
       new RealtimeEventEnvelope({

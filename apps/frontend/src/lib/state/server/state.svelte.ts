@@ -24,6 +24,7 @@ export class ServerInfoState {
   description = $state<string | null>(null);
   bannerUrl = $state<string | null>(null);
   iconUrl = $state<string | null>(null);
+  capabilities = $state<string[]>([]);
   directRegistrationEnabled = $state(true);
   pushNotificationsEnabled = $state(false);
   vapidPublicKey = $state<string | null>(null);
@@ -92,11 +93,16 @@ export class ServerInfoState {
       this.description = info.description;
       this.iconUrl = info.iconUrl;
       this.bannerUrl = info.bannerUrl;
+      this.capabilities = [...info.capabilities];
       this.directRegistrationEnabled = info.directRegistrationEnabled;
     } catch (err) {
       this.error = err instanceof Error ? err.message : String(err);
       console.error(`[server:${this.#label}] failed to load server info`, err);
     }
+  }
+
+  supportsCapability(capability: string): boolean {
+    return this.capabilities.includes(capability);
   }
 
   /**

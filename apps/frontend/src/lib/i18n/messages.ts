@@ -409,6 +409,11 @@ const msg_auth_login_welcome_title = (): LocalizedString => messages().auth_logi
 const msg_auth_login_welcome_page_title = (): LocalizedString => messages().auth_login_welcome_page_title(empty());
 const msg_auth_login_welcome_description = (): LocalizedString => messages().auth_login_welcome_description(empty());
 const msg_auth_login_add_server = (): LocalizedString => messages().auth_login_add_server(empty());
+const msg_auth_login_offline_status = (): LocalizedString => messages().auth_login_offline_status(empty());
+const msg_auth_login_offline_title = (): LocalizedString => messages().auth_login_offline_title(empty());
+const msg_auth_login_offline_description = (): LocalizedString => messages().auth_login_offline_description(empty());
+const msg_auth_login_offline_retry = (): LocalizedString => messages().auth_login_offline_retry(empty());
+const msg_auth_login_offline_reconnect_hint = (): LocalizedString => messages().auth_login_offline_reconnect_hint(empty());
 const msg_auth_login_password_reset_success = (): LocalizedString => messages().auth_login_password_reset_success(empty());
 const msg_auth_login_continue_with_provider = (
   inputs: Parameters<LocaleMessages['auth_login_continue_with_provider']>[0]
@@ -530,6 +535,14 @@ const msg_chat_notifications_time_hours = (
 const msg_chat_notifications_time_days = (
   inputs: Parameters<LocaleMessages['chat_notifications_time_days']>[0]
 ): LocalizedString => messages().chat_notifications_time_days(inputs);
+const msg_chat_notifications_call_started = (
+  inputs: Parameters<LocaleMessages['chat_notifications_call_started']>[0]
+): LocalizedString => messages().chat_notifications_call_started(inputs);
+const msg_chat_notifications_call_started_unknown = (): LocalizedString => messages().chat_notifications_call_started_unknown(empty());
+const msg_chat_notifications_private_call_started = (
+  inputs: Parameters<LocaleMessages['chat_notifications_private_call_started']>[0]
+): LocalizedString => messages().chat_notifications_private_call_started(inputs);
+const msg_chat_notifications_private_call_started_unknown = (): LocalizedString => messages().chat_notifications_private_call_started_unknown(empty());
 const msg_chat_sign_out_title = (): LocalizedString => messages().chat_sign_out_title(empty());
 const msg_chat_sign_out_current_server = (): LocalizedString => messages().chat_sign_out_current_server(empty());
 const msg_chat_sign_out_all_servers = (): LocalizedString => messages().chat_sign_out_all_servers(empty());
@@ -660,6 +673,7 @@ const msg_room_message_actions_edit = (): LocalizedString => messages().room_mes
 const msg_room_message_actions_more = (): LocalizedString => messages().room_message_actions_more(empty());
 const msg_room_message_actions_edit_short = (): LocalizedString => messages().room_message_actions_edit_short(empty());
 const msg_room_message_actions_copy_link = (): LocalizedString => messages().room_message_actions_copy_link(empty());
+const msg_room_message_actions_share = (): LocalizedString => messages().room_message_actions_share(empty());
 const msg_room_message_meta_thread = (): LocalizedString => messages().room_message_meta_thread(empty());
 const msg_room_message_meta_reply_count_one = (): LocalizedString => messages().room_message_meta_reply_count_one(empty());
 const msg_room_message_meta_reply_count_many = (
@@ -833,8 +847,48 @@ const msg_ui_notifications = (): LocalizedString => messages().ui_notifications(
 const msg_ui_open_quick_switcher = (): LocalizedString => messages().ui_open_quick_switcher(empty());
 const msg_ui_quick_switcher_shortcut = (): LocalizedString => messages().ui_quick_switcher_shortcut(empty());
 const msg_ui_realtime_paused = (): LocalizedString => messages().ui_realtime_paused(empty());
+const msg_ui_pwa_install_action = (): LocalizedString => messages().ui_pwa_install_action(empty());
+const msg_ui_pwa_install_title = (): LocalizedString => messages().ui_pwa_install_title(empty());
+const msg_ui_pwa_install_description = (): LocalizedString => messages().ui_pwa_install_description(empty());
+const msg_ui_pwa_install_benefit_launch = (): LocalizedString => messages().ui_pwa_install_benefit_launch(empty());
+const msg_ui_pwa_install_benefit_offline = (): LocalizedString => messages().ui_pwa_install_benefit_offline(empty());
+const msg_ui_pwa_install_benefit_notifications = (): LocalizedString => messages().ui_pwa_install_benefit_notifications(empty());
+const msg_ui_pwa_install_ios_title = (): LocalizedString => messages().ui_pwa_install_ios_title(empty());
+const msg_ui_pwa_install_ios_share = (): LocalizedString => messages().ui_pwa_install_ios_share(empty());
+const msg_ui_pwa_install_ios_home_screen = (): LocalizedString => messages().ui_pwa_install_ios_home_screen(empty());
+const msg_ui_pwa_install_ios_confirm = (): LocalizedString => messages().ui_pwa_install_ios_confirm(empty());
+const msg_ui_pwa_install_install_now = (): LocalizedString => messages().ui_pwa_install_install_now(empty());
+const msg_ui_share_target_title = (): LocalizedString => messages().ui_share_target_title(empty());
+const msg_ui_share_target_preview = (): LocalizedString => messages().ui_share_target_preview(empty());
+const msg_ui_share_target_choose_destination = (): LocalizedString => messages().ui_share_target_choose_destination(empty());
+const msg_ui_share_target_no_destination = (): LocalizedString => messages().ui_share_target_no_destination(empty());
+const msg_ui_share_target_sign_in = (): LocalizedString => messages().ui_share_target_sign_in(empty());
+const msg_ui_share_target_invalid_title = (): LocalizedString => messages().ui_share_target_invalid_title(empty());
+const msg_ui_share_target_invalid_description = (): LocalizedString => messages().ui_share_target_invalid_description(empty());
+const msg_ui_share_target_expired = (): LocalizedString => messages().ui_share_target_expired(empty());
 const msg_ui_update_available = (): LocalizedString => messages().ui_update_available(empty());
 const msg_ui_reload = (): LocalizedString => messages().ui_reload(empty());
+const msg_ui_network_offline = (): LocalizedString => messages().ui_network_offline(empty());
+const msg_ui_network_reconnecting = (): LocalizedString => messages().ui_network_reconnecting(empty());
+const msg_ui_outbox_pending_title = (
+  inputs: Parameters<LocaleMessages['ui_outbox_pending_title']>[0]
+): LocalizedString => messages().ui_outbox_pending_title(inputs);
+const msg_ui_outbox_pending_message = (): LocalizedString => messages().ui_outbox_pending_message(empty());
+const msg_ui_outbox_attention_title = (
+  inputs: Parameters<LocaleMessages['ui_outbox_attention_title']>[0]
+): LocalizedString => messages().ui_outbox_attention_title(inputs);
+const msg_ui_outbox_attention_message = (): LocalizedString => messages().ui_outbox_attention_message(empty());
+const msg_ui_outbox_retry = (): LocalizedString => messages().ui_outbox_retry(empty());
+const msg_ui_outbox_manage = (): LocalizedString => messages().ui_outbox_manage(empty());
+const msg_ui_outbox_manager_title = (): LocalizedString => messages().ui_outbox_manager_title(empty());
+const msg_ui_outbox_empty = (): LocalizedString => messages().ui_outbox_empty(empty());
+const msg_ui_outbox_room_label = (
+  inputs: Parameters<LocaleMessages['ui_outbox_room_label']>[0]
+): LocalizedString => messages().ui_outbox_room_label(inputs);
+const msg_ui_outbox_attachment_only = (): LocalizedString => messages().ui_outbox_attachment_only(empty());
+const msg_ui_outbox_unsupported_server = (): LocalizedString => messages().ui_outbox_unsupported_server(empty());
+const msg_ui_outbox_discard = (): LocalizedString => messages().ui_outbox_discard(empty());
+const msg_ui_cached_timeline = (): LocalizedString => messages().ui_cached_timeline(empty());
 const msg_ui_corresponding_source = (
   inputs: Parameters<LocaleMessages['ui_corresponding_source']>[0]
 ): LocalizedString => messages().ui_corresponding_source(inputs);
@@ -955,6 +1009,10 @@ const msg_voice_join = (): LocalizedString => messages().voice_join(empty());
 const msg_voice_join_call = (): LocalizedString => messages().voice_join_call(empty());
 const msg_voice_start_call = (): LocalizedString => messages().voice_start_call(empty());
 const msg_voice_leave = (): LocalizedString => messages().voice_leave(empty());
+const msg_voice_active_call = (): LocalizedString => messages().voice_active_call(empty());
+const msg_voice_call_in = (
+  inputs: Parameters<LocaleMessages['voice_call_in']>[0]
+): LocalizedString => messages().voice_call_in(inputs);
 const msg_voice_share_screen = (): LocalizedString => messages().voice_share_screen(empty());
 const msg_voice_share_screen_with_audio = (): LocalizedString => messages().voice_share_screen_with_audio(empty());
 const msg_voice_stop_share_screen = (): LocalizedString => messages().voice_stop_share_screen(empty());
@@ -975,6 +1033,8 @@ const msg_voice_microphone = (): LocalizedString => messages().voice_microphone(
 const msg_voice_speaker = (): LocalizedString => messages().voice_speaker(empty());
 const msg_voice_camera = (): LocalizedString => messages().voice_camera(empty());
 const msg_voice_fullscreen_feed = (): LocalizedString => messages().voice_fullscreen_feed(empty());
+const msg_voice_picture_in_picture = (): LocalizedString => messages().voice_picture_in_picture(empty());
+const msg_voice_exit_picture_in_picture = (): LocalizedString => messages().voice_exit_picture_in_picture(empty());
 const msg_voice_fullscreen_call = (): LocalizedString => messages().voice_fullscreen_call(empty());
 const msg_voice_exit_fullscreen_call = (): LocalizedString => messages().voice_exit_fullscreen_call(empty());
 const msg_voice_locally_mute_participant = (): LocalizedString => messages().voice_locally_mute_participant(empty());
@@ -984,10 +1044,13 @@ const msg_voice_unknown_device = (): LocalizedString => messages().voice_unknown
 const msg_voice_no_devices = (): LocalizedString => messages().voice_no_devices(empty());
 const msg_voice_participants = (): LocalizedString => messages().voice_participants(empty());
 const msg_voice_join_failed = (): LocalizedString => messages().voice_join_failed(empty());
+const msg_voice_call_no_longer_active = (): LocalizedString => messages().voice_call_no_longer_active(empty());
 const msg_voice_token_failed = (): LocalizedString => messages().voice_token_failed(empty());
 const msg_voice_encrypted_unsupported = (): LocalizedString => messages().voice_encrypted_unsupported(empty());
 const msg_voice_signaling_failed = (): LocalizedString => messages().voice_signaling_failed(empty());
 const msg_voice_disconnected = (): LocalizedString => messages().voice_disconnected(empty());
+const msg_voice_network_problem_title = (): LocalizedString => messages().voice_network_problem_title(empty());
+const msg_voice_network_problem_reconnecting = (): LocalizedString => messages().voice_network_problem_reconnecting(empty());
 const msg_voice_microphone_join_denied = (): LocalizedString => messages().voice_microphone_join_denied(empty());
 const msg_voice_microphone_join_not_found = (): LocalizedString => messages().voice_microphone_join_not_found(empty());
 const msg_voice_microphone_join_in_use = (): LocalizedString => messages().voice_microphone_join_in_use(empty());
@@ -1005,9 +1068,99 @@ const msg_voice_screen_share_failed = (): LocalizedString => messages().voice_sc
 const msg_voice_screen_share_unsupported = (): LocalizedString => messages().voice_screen_share_unsupported(empty());
 const msg_voice_screen_share_no_audio = (): LocalizedString => messages().voice_screen_share_no_audio(empty());
 const msg_voice_screen_share_audio_active = (): LocalizedString => messages().voice_screen_share_audio_active(empty());
+const msg_voice_audio_playback_failed = (): LocalizedString => messages().voice_audio_playback_failed(empty());
+const msg_voice_device_join_title = (): LocalizedString => messages().voice_device_join_title(empty());
+const msg_voice_device_join_description = (): LocalizedString => messages().voice_device_join_description(empty());
+const msg_voice_join_as_companion = (): LocalizedString => messages().voice_join_as_companion(empty());
+const msg_voice_companion_description = (): LocalizedString => messages().voice_companion_description(empty());
+const msg_voice_transfer_call = (): LocalizedString => messages().voice_transfer_call(empty());
+const msg_voice_transfer_description = (): LocalizedString => messages().voice_transfer_description(empty());
+const msg_voice_device_limit_reached = (): LocalizedString => messages().voice_device_limit_reached(empty());
+const msg_voice_device_badge = (
+  inputs: Parameters<LocaleMessages['voice_device_badge']>[0]
+): LocalizedString => messages().voice_device_badge(inputs);
+const msg_voice_device_audio_control_failed = (): LocalizedString => messages().voice_device_audio_control_failed(empty());
+const msg_voice_mute_device_microphone = (
+  inputs: Parameters<LocaleMessages['voice_mute_device_microphone']>[0]
+): LocalizedString => messages().voice_mute_device_microphone(inputs);
+const msg_voice_unmute_device_microphone = (
+  inputs: Parameters<LocaleMessages['voice_unmute_device_microphone']>[0]
+): LocalizedString => messages().voice_unmute_device_microphone(inputs);
+const msg_voice_mute_device_audio = (
+  inputs: Parameters<LocaleMessages['voice_mute_device_audio']>[0]
+): LocalizedString => messages().voice_mute_device_audio(inputs);
+const msg_voice_unmute_device_audio = (
+  inputs: Parameters<LocaleMessages['voice_unmute_device_audio']>[0]
+): LocalizedString => messages().voice_unmute_device_audio(inputs);
+const msg_voice_mute_call_audio = (): LocalizedString => messages().voice_mute_call_audio(empty());
+const msg_voice_unmute_call_audio = (): LocalizedString => messages().voice_unmute_call_audio(empty());
 const msg_voice_speaker_switch_failed = (): LocalizedString => messages().voice_speaker_switch_failed(empty());
 const msg_voice_device_switch_failed = (): LocalizedString => messages().voice_device_switch_failed(empty());
 const msg_voice_media_device_failed = (): LocalizedString => messages().voice_media_device_failed(empty());
+const msg_voice_screen_stats_open = (): LocalizedString => messages().voice_screen_stats_open(empty());
+const msg_voice_screen_stats_close = (): LocalizedString => messages().voice_screen_stats_close(empty());
+const msg_voice_screen_stats_title = (): LocalizedString => messages().voice_screen_stats_title(empty());
+const msg_voice_screen_stats_sending = (): LocalizedString => messages().voice_screen_stats_sending(empty());
+const msg_voice_screen_stats_receiving = (): LocalizedString => messages().voice_screen_stats_receiving(empty());
+const msg_voice_screen_stats_live = (): LocalizedString => messages().voice_screen_stats_live(empty());
+const msg_voice_screen_stats_updated_now = (): LocalizedString => messages().voice_screen_stats_updated_now(empty());
+const msg_voice_screen_stats_updated_seconds = (
+  inputs: Parameters<LocaleMessages['voice_screen_stats_updated_seconds']>[0]
+): LocalizedString => messages().voice_screen_stats_updated_seconds(inputs);
+const msg_voice_screen_stats_loading = (): LocalizedString => messages().voice_screen_stats_loading(empty());
+const msg_voice_screen_stats_unavailable = (): LocalizedString => messages().voice_screen_stats_unavailable(empty());
+const msg_voice_screen_stats_retrying = (): LocalizedString => messages().voice_screen_stats_retrying(empty());
+const msg_voice_screen_stats_resolution = (): LocalizedString => messages().voice_screen_stats_resolution(empty());
+const msg_voice_screen_stats_source_resolution = (): LocalizedString => messages().voice_screen_stats_source_resolution(empty());
+const msg_voice_screen_stats_fps = (): LocalizedString => messages().voice_screen_stats_fps(empty());
+const msg_voice_screen_stats_bitrate = (): LocalizedString => messages().voice_screen_stats_bitrate(empty());
+const msg_voice_screen_stats_packet_loss = (): LocalizedString => messages().voice_screen_stats_packet_loss(empty());
+const msg_voice_screen_stats_health_excellent = (): LocalizedString => messages().voice_screen_stats_health_excellent(empty());
+const msg_voice_screen_stats_health_good = (): LocalizedString => messages().voice_screen_stats_health_good(empty());
+const msg_voice_screen_stats_health_degraded = (): LocalizedString => messages().voice_screen_stats_health_degraded(empty());
+const msg_voice_screen_stats_health_poor = (): LocalizedString => messages().voice_screen_stats_health_poor(empty());
+const msg_voice_screen_stats_health_unknown = (): LocalizedString => messages().voice_screen_stats_health_unknown(empty());
+const msg_voice_screen_stats_last_60_seconds = (): LocalizedString => messages().voice_screen_stats_last_60_seconds(empty());
+const msg_voice_screen_stats_transport = (): LocalizedString => messages().voice_screen_stats_transport(empty());
+const msg_voice_screen_stats_video_pipeline = (): LocalizedString => messages().voice_screen_stats_video_pipeline(empty());
+const msg_voice_screen_stats_congestion_control = (): LocalizedString => messages().voice_screen_stats_congestion_control(empty());
+const msg_voice_screen_stats_reception_details = (): LocalizedString => messages().voice_screen_stats_reception_details(empty());
+const msg_voice_screen_stats_codec = (): LocalizedString => messages().voice_screen_stats_codec(empty());
+const msg_voice_screen_stats_rtt = (): LocalizedString => messages().voice_screen_stats_rtt(empty());
+const msg_voice_screen_stats_jitter = (): LocalizedString => messages().voice_screen_stats_jitter(empty());
+const msg_voice_screen_stats_available_bandwidth = (): LocalizedString => messages().voice_screen_stats_available_bandwidth(empty());
+const msg_voice_screen_stats_target_bitrate = (): LocalizedString => messages().voice_screen_stats_target_bitrate(empty());
+const msg_voice_screen_stats_packets = (): LocalizedString => messages().voice_screen_stats_packets(empty());
+const msg_voice_screen_stats_packets_in = (
+  inputs: Parameters<LocaleMessages['voice_screen_stats_packets_in']>[0]
+): LocalizedString => messages().voice_screen_stats_packets_in(inputs);
+const msg_voice_screen_stats_packets_out = (
+  inputs: Parameters<LocaleMessages['voice_screen_stats_packets_out']>[0]
+): LocalizedString => messages().voice_screen_stats_packets_out(inputs);
+const msg_voice_screen_stats_frames = (): LocalizedString => messages().voice_screen_stats_frames(empty());
+const msg_voice_screen_stats_key_frames = (): LocalizedString => messages().voice_screen_stats_key_frames(empty());
+const msg_voice_screen_stats_pauses = (): LocalizedString => messages().voice_screen_stats_pauses(empty());
+const msg_voice_screen_stats_frames_in = (
+  inputs: Parameters<LocaleMessages['voice_screen_stats_frames_in']>[0]
+): LocalizedString => messages().voice_screen_stats_frames_in(inputs);
+const msg_voice_screen_stats_frames_out = (
+  inputs: Parameters<LocaleMessages['voice_screen_stats_frames_out']>[0]
+): LocalizedString => messages().voice_screen_stats_frames_out(inputs);
+const msg_voice_screen_stats_frame_drop = (): LocalizedString => messages().voice_screen_stats_frame_drop(empty());
+const msg_voice_screen_stats_freezes = (): LocalizedString => messages().voice_screen_stats_freezes(empty());
+const msg_voice_screen_stats_jitter_buffer = (): LocalizedString => messages().voice_screen_stats_jitter_buffer(empty());
+const msg_voice_screen_stats_implementation = (): LocalizedString => messages().voice_screen_stats_implementation(empty());
+const msg_voice_screen_stats_power_efficient = (): LocalizedString => messages().voice_screen_stats_power_efficient(empty());
+const msg_voice_screen_stats_quality_limit = (): LocalizedString => messages().voice_screen_stats_quality_limit(empty());
+const msg_voice_screen_stats_resolution_changes = (): LocalizedString => messages().voice_screen_stats_resolution_changes(empty());
+const msg_voice_screen_stats_layers = (): LocalizedString => messages().voice_screen_stats_layers(empty());
+const msg_voice_screen_stats_feedback = (): LocalizedString => messages().voice_screen_stats_feedback(empty());
+const msg_voice_screen_stats_retransmissions = (): LocalizedString => messages().voice_screen_stats_retransmissions(empty());
+const msg_voice_screen_stats_candidate_path = (): LocalizedString => messages().voice_screen_stats_candidate_path(empty());
+const msg_voice_screen_stats_content_hint = (): LocalizedString => messages().voice_screen_stats_content_hint(empty());
+const msg_voice_screen_stats_yes = (): LocalizedString => messages().voice_screen_stats_yes(empty());
+const msg_voice_screen_stats_no = (): LocalizedString => messages().voice_screen_stats_no(empty());
+const msg_voice_screen_stats_local_only = (): LocalizedString => messages().voice_screen_stats_local_only(empty());
 const msg_composer_attach_file = (): LocalizedString => messages().composer_attach_file(empty());
 const msg_composer_send = (): LocalizedString => messages().composer_send(empty());
 const msg_composer_send_enter = (): LocalizedString => messages().composer_send_enter(empty());
@@ -1028,6 +1181,8 @@ const msg_composer_editing_placeholder = (): LocalizedString => messages().compo
 const msg_composer_drop_files_title = (): LocalizedString => messages().composer_drop_files_title(empty());
 const msg_composer_drop_files_subtitle = (): LocalizedString => messages().composer_drop_files_subtitle(empty());
 const msg_composer_send_failed = (): LocalizedString => messages().composer_send_failed(empty());
+const msg_composer_queued_offline = (): LocalizedString => messages().composer_queued_offline(empty());
+const msg_composer_attachments_need_connection = (): LocalizedString => messages().composer_attachments_need_connection(empty());
 const msg_composer_edit_failed = (): LocalizedString => messages().composer_edit_failed(empty());
 const msg_composer_mention_all_room_members = (): LocalizedString => messages().composer_mention_all_room_members(empty());
 const msg_composer_mention_members_here = (): LocalizedString => messages().composer_mention_members_here(empty());
@@ -1975,6 +2130,11 @@ export { msg_auth_login_welcome_title as 'auth.login.welcome_title' };
 export { msg_auth_login_welcome_page_title as 'auth.login.welcome_page_title' };
 export { msg_auth_login_welcome_description as 'auth.login.welcome_description' };
 export { msg_auth_login_add_server as 'auth.login.add_server' };
+export { msg_auth_login_offline_status as 'auth.login.offline.status' };
+export { msg_auth_login_offline_title as 'auth.login.offline.title' };
+export { msg_auth_login_offline_description as 'auth.login.offline.description' };
+export { msg_auth_login_offline_retry as 'auth.login.offline.retry' };
+export { msg_auth_login_offline_reconnect_hint as 'auth.login.offline.reconnect_hint' };
 export { msg_auth_login_password_reset_success as 'auth.login.password_reset_success' };
 export { msg_auth_login_continue_with_provider as 'auth.login.continue_with_provider' };
 export { msg_auth_login_connecting_provider as 'auth.login.connecting_provider' };
@@ -2078,6 +2238,10 @@ export { msg_chat_notifications_time_now as 'chat.notifications.time_now' };
 export { msg_chat_notifications_time_minutes as 'chat.notifications.time_minutes' };
 export { msg_chat_notifications_time_hours as 'chat.notifications.time_hours' };
 export { msg_chat_notifications_time_days as 'chat.notifications.time_days' };
+export { msg_chat_notifications_call_started as 'chat.notifications.call_started' };
+export { msg_chat_notifications_call_started_unknown as 'chat.notifications.call_started_unknown' };
+export { msg_chat_notifications_private_call_started as 'chat.notifications.private_call_started' };
+export { msg_chat_notifications_private_call_started_unknown as 'chat.notifications.private_call_started_unknown' };
 export { msg_chat_sign_out_title as 'chat.sign_out.title' };
 export { msg_chat_sign_out_current_server as 'chat.sign_out.current_server' };
 export { msg_chat_sign_out_all_servers as 'chat.sign_out.all_servers' };
@@ -2178,6 +2342,7 @@ export { msg_room_message_actions_edit as 'room.message.actions.edit' };
 export { msg_room_message_actions_more as 'room.message.actions.more' };
 export { msg_room_message_actions_edit_short as 'room.message.actions.edit_short' };
 export { msg_room_message_actions_copy_link as 'room.message.actions.copy_link' };
+export { msg_room_message_actions_share as 'room.message.actions.share' };
 export { msg_room_message_meta_thread as 'room.message.meta.thread' };
 export { msg_room_message_meta_reply_count_one as 'room.message.meta.reply_count_one' };
 export { msg_room_message_meta_reply_count_many as 'room.message.meta.reply_count_many' };
@@ -2315,8 +2480,42 @@ export { msg_ui_notifications as 'ui.notifications' };
 export { msg_ui_open_quick_switcher as 'ui.open_quick_switcher' };
 export { msg_ui_quick_switcher_shortcut as 'ui.quick_switcher_shortcut' };
 export { msg_ui_realtime_paused as 'ui.realtime_paused' };
+export { msg_ui_pwa_install_action as 'ui.pwa_install.action' };
+export { msg_ui_pwa_install_title as 'ui.pwa_install.title' };
+export { msg_ui_pwa_install_description as 'ui.pwa_install.description' };
+export { msg_ui_pwa_install_benefit_launch as 'ui.pwa_install.benefit_launch' };
+export { msg_ui_pwa_install_benefit_offline as 'ui.pwa_install.benefit_offline' };
+export { msg_ui_pwa_install_benefit_notifications as 'ui.pwa_install.benefit_notifications' };
+export { msg_ui_pwa_install_ios_title as 'ui.pwa_install.ios_title' };
+export { msg_ui_pwa_install_ios_share as 'ui.pwa_install.ios_share' };
+export { msg_ui_pwa_install_ios_home_screen as 'ui.pwa_install.ios_home_screen' };
+export { msg_ui_pwa_install_ios_confirm as 'ui.pwa_install.ios_confirm' };
+export { msg_ui_pwa_install_install_now as 'ui.pwa_install.install_now' };
+export { msg_ui_share_target_title as 'ui.share_target.title' };
+export { msg_ui_share_target_preview as 'ui.share_target.preview' };
+export { msg_ui_share_target_choose_destination as 'ui.share_target.choose_destination' };
+export { msg_ui_share_target_no_destination as 'ui.share_target.no_destination' };
+export { msg_ui_share_target_sign_in as 'ui.share_target.sign_in' };
+export { msg_ui_share_target_invalid_title as 'ui.share_target.invalid_title' };
+export { msg_ui_share_target_invalid_description as 'ui.share_target.invalid_description' };
+export { msg_ui_share_target_expired as 'ui.share_target.expired' };
 export { msg_ui_update_available as 'ui.update_available' };
 export { msg_ui_reload as 'ui.reload' };
+export { msg_ui_network_offline as 'ui.network.offline' };
+export { msg_ui_network_reconnecting as 'ui.network.reconnecting' };
+export { msg_ui_outbox_pending_title as 'ui.outbox.pending_title' };
+export { msg_ui_outbox_pending_message as 'ui.outbox.pending_message' };
+export { msg_ui_outbox_attention_title as 'ui.outbox.attention_title' };
+export { msg_ui_outbox_attention_message as 'ui.outbox.attention_message' };
+export { msg_ui_outbox_retry as 'ui.outbox.retry' };
+export { msg_ui_outbox_manage as 'ui.outbox.manage' };
+export { msg_ui_outbox_manager_title as 'ui.outbox.manager_title' };
+export { msg_ui_outbox_empty as 'ui.outbox.empty' };
+export { msg_ui_outbox_room_label as 'ui.outbox.room_label' };
+export { msg_ui_outbox_attachment_only as 'ui.outbox.attachment_only' };
+export { msg_ui_outbox_unsupported_server as 'ui.outbox.unsupported_server' };
+export { msg_ui_outbox_discard as 'ui.outbox.discard' };
+export { msg_ui_cached_timeline as 'ui.cached_timeline' };
 export { msg_ui_corresponding_source as 'ui.corresponding_source' };
 export { msg_ui_sign_out as 'ui.sign_out' };
 export { msg_ui_close as 'ui.close' };
@@ -2415,6 +2614,8 @@ export { msg_voice_join as 'voice.join' };
 export { msg_voice_join_call as 'voice.join_call' };
 export { msg_voice_start_call as 'voice.start_call' };
 export { msg_voice_leave as 'voice.leave' };
+export { msg_voice_active_call as 'voice.active_call' };
+export { msg_voice_call_in as 'voice.call_in' };
 export { msg_voice_share_screen as 'voice.share_screen' };
 export { msg_voice_share_screen_with_audio as 'voice.share_screen_with_audio' };
 export { msg_voice_stop_share_screen as 'voice.stop_share_screen' };
@@ -2433,6 +2634,8 @@ export { msg_voice_microphone as 'voice.microphone' };
 export { msg_voice_speaker as 'voice.speaker' };
 export { msg_voice_camera as 'voice.camera' };
 export { msg_voice_fullscreen_feed as 'voice.fullscreen_feed' };
+export { msg_voice_picture_in_picture as 'voice.picture_in_picture' };
+export { msg_voice_exit_picture_in_picture as 'voice.exit_picture_in_picture' };
 export { msg_voice_fullscreen_call as 'voice.fullscreen_call' };
 export { msg_voice_exit_fullscreen_call as 'voice.exit_fullscreen_call' };
 export { msg_voice_locally_mute_participant as 'voice.locally_mute_participant' };
@@ -2442,10 +2645,13 @@ export { msg_voice_unknown_device as 'voice.unknown_device' };
 export { msg_voice_no_devices as 'voice.no_devices' };
 export { msg_voice_participants as 'voice.participants' };
 export { msg_voice_join_failed as 'voice.join_failed' };
+export { msg_voice_call_no_longer_active as 'voice.call_no_longer_active' };
 export { msg_voice_token_failed as 'voice.token_failed' };
 export { msg_voice_encrypted_unsupported as 'voice.encrypted_unsupported' };
 export { msg_voice_signaling_failed as 'voice.signaling_failed' };
 export { msg_voice_disconnected as 'voice.disconnected' };
+export { msg_voice_network_problem_title as 'voice.network_problem_title' };
+export { msg_voice_network_problem_reconnecting as 'voice.network_problem_reconnecting' };
 export { msg_voice_microphone_join_denied as 'voice.microphone_join_denied' };
 export { msg_voice_microphone_join_not_found as 'voice.microphone_join_not_found' };
 export { msg_voice_microphone_join_in_use as 'voice.microphone_join_in_use' };
@@ -2463,9 +2669,79 @@ export { msg_voice_screen_share_failed as 'voice.screen_share_failed' };
 export { msg_voice_screen_share_unsupported as 'voice.screen_share_unsupported' };
 export { msg_voice_screen_share_no_audio as 'voice.screen_share_no_audio' };
 export { msg_voice_screen_share_audio_active as 'voice.screen_share_audio_active' };
+export { msg_voice_audio_playback_failed as 'voice.audio_playback_failed' };
+export { msg_voice_device_join_title as 'voice.device_join_title' };
+export { msg_voice_device_join_description as 'voice.device_join_description' };
+export { msg_voice_join_as_companion as 'voice.join_as_companion' };
+export { msg_voice_companion_description as 'voice.companion_description' };
+export { msg_voice_transfer_call as 'voice.transfer_call' };
+export { msg_voice_transfer_description as 'voice.transfer_description' };
+export { msg_voice_device_limit_reached as 'voice.device_limit_reached' };
+export { msg_voice_device_badge as 'voice.device_badge' };
+export { msg_voice_device_audio_control_failed as 'voice.device_audio_control_failed' };
+export { msg_voice_mute_device_microphone as 'voice.mute_device_microphone' };
+export { msg_voice_unmute_device_microphone as 'voice.unmute_device_microphone' };
+export { msg_voice_mute_device_audio as 'voice.mute_device_audio' };
+export { msg_voice_unmute_device_audio as 'voice.unmute_device_audio' };
+export { msg_voice_mute_call_audio as 'voice.mute_call_audio' };
+export { msg_voice_unmute_call_audio as 'voice.unmute_call_audio' };
 export { msg_voice_speaker_switch_failed as 'voice.speaker_switch_failed' };
 export { msg_voice_device_switch_failed as 'voice.device_switch_failed' };
 export { msg_voice_media_device_failed as 'voice.media_device_failed' };
+export { msg_voice_screen_stats_open as 'voice.screen_stats_open' };
+export { msg_voice_screen_stats_close as 'voice.screen_stats_close' };
+export { msg_voice_screen_stats_title as 'voice.screen_stats_title' };
+export { msg_voice_screen_stats_sending as 'voice.screen_stats_sending' };
+export { msg_voice_screen_stats_receiving as 'voice.screen_stats_receiving' };
+export { msg_voice_screen_stats_live as 'voice.screen_stats_live' };
+export { msg_voice_screen_stats_updated_now as 'voice.screen_stats_updated_now' };
+export { msg_voice_screen_stats_updated_seconds as 'voice.screen_stats_updated_seconds' };
+export { msg_voice_screen_stats_loading as 'voice.screen_stats_loading' };
+export { msg_voice_screen_stats_unavailable as 'voice.screen_stats_unavailable' };
+export { msg_voice_screen_stats_retrying as 'voice.screen_stats_retrying' };
+export { msg_voice_screen_stats_resolution as 'voice.screen_stats_resolution' };
+export { msg_voice_screen_stats_source_resolution as 'voice.screen_stats_source_resolution' };
+export { msg_voice_screen_stats_fps as 'voice.screen_stats_fps' };
+export { msg_voice_screen_stats_bitrate as 'voice.screen_stats_bitrate' };
+export { msg_voice_screen_stats_packet_loss as 'voice.screen_stats_packet_loss' };
+export { msg_voice_screen_stats_health_excellent as 'voice.screen_stats_health_excellent' };
+export { msg_voice_screen_stats_health_good as 'voice.screen_stats_health_good' };
+export { msg_voice_screen_stats_health_degraded as 'voice.screen_stats_health_degraded' };
+export { msg_voice_screen_stats_health_poor as 'voice.screen_stats_health_poor' };
+export { msg_voice_screen_stats_health_unknown as 'voice.screen_stats_health_unknown' };
+export { msg_voice_screen_stats_last_60_seconds as 'voice.screen_stats_last_60_seconds' };
+export { msg_voice_screen_stats_transport as 'voice.screen_stats_transport' };
+export { msg_voice_screen_stats_video_pipeline as 'voice.screen_stats_video_pipeline' };
+export { msg_voice_screen_stats_congestion_control as 'voice.screen_stats_congestion_control' };
+export { msg_voice_screen_stats_reception_details as 'voice.screen_stats_reception_details' };
+export { msg_voice_screen_stats_codec as 'voice.screen_stats_codec' };
+export { msg_voice_screen_stats_rtt as 'voice.screen_stats_rtt' };
+export { msg_voice_screen_stats_jitter as 'voice.screen_stats_jitter' };
+export { msg_voice_screen_stats_available_bandwidth as 'voice.screen_stats_available_bandwidth' };
+export { msg_voice_screen_stats_target_bitrate as 'voice.screen_stats_target_bitrate' };
+export { msg_voice_screen_stats_packets as 'voice.screen_stats_packets' };
+export { msg_voice_screen_stats_packets_in as 'voice.screen_stats_packets_in' };
+export { msg_voice_screen_stats_packets_out as 'voice.screen_stats_packets_out' };
+export { msg_voice_screen_stats_frames as 'voice.screen_stats_frames' };
+export { msg_voice_screen_stats_key_frames as 'voice.screen_stats_key_frames' };
+export { msg_voice_screen_stats_pauses as 'voice.screen_stats_pauses' };
+export { msg_voice_screen_stats_frames_in as 'voice.screen_stats_frames_in' };
+export { msg_voice_screen_stats_frames_out as 'voice.screen_stats_frames_out' };
+export { msg_voice_screen_stats_frame_drop as 'voice.screen_stats_frame_drop' };
+export { msg_voice_screen_stats_freezes as 'voice.screen_stats_freezes' };
+export { msg_voice_screen_stats_jitter_buffer as 'voice.screen_stats_jitter_buffer' };
+export { msg_voice_screen_stats_implementation as 'voice.screen_stats_implementation' };
+export { msg_voice_screen_stats_power_efficient as 'voice.screen_stats_power_efficient' };
+export { msg_voice_screen_stats_quality_limit as 'voice.screen_stats_quality_limit' };
+export { msg_voice_screen_stats_resolution_changes as 'voice.screen_stats_resolution_changes' };
+export { msg_voice_screen_stats_layers as 'voice.screen_stats_layers' };
+export { msg_voice_screen_stats_feedback as 'voice.screen_stats_feedback' };
+export { msg_voice_screen_stats_retransmissions as 'voice.screen_stats_retransmissions' };
+export { msg_voice_screen_stats_candidate_path as 'voice.screen_stats_candidate_path' };
+export { msg_voice_screen_stats_content_hint as 'voice.screen_stats_content_hint' };
+export { msg_voice_screen_stats_yes as 'voice.screen_stats_yes' };
+export { msg_voice_screen_stats_no as 'voice.screen_stats_no' };
+export { msg_voice_screen_stats_local_only as 'voice.screen_stats_local_only' };
 export { msg_composer_attach_file as 'composer.attach_file' };
 export { msg_composer_send as 'composer.send' };
 export { msg_composer_send_enter as 'composer.send_enter' };
@@ -2486,6 +2762,8 @@ export { msg_composer_editing_placeholder as 'composer.editing_placeholder' };
 export { msg_composer_drop_files_title as 'composer.drop_files_title' };
 export { msg_composer_drop_files_subtitle as 'composer.drop_files_subtitle' };
 export { msg_composer_send_failed as 'composer.send_failed' };
+export { msg_composer_queued_offline as 'composer.queued_offline' };
+export { msg_composer_attachments_need_connection as 'composer.attachments_need_connection' };
 export { msg_composer_edit_failed as 'composer.edit_failed' };
 export { msg_composer_mention_all_room_members as 'composer.mention.all_room_members' };
 export { msg_composer_mention_members_here as 'composer.mention.members_here' };

@@ -20,6 +20,8 @@ type MessagePostInput struct {
 	InReplyTo               string
 	AlsoSendToChannel       bool
 	LinkPreview             *corev1.LinkPreview
+	ClientRequestID         string
+	RequestFingerprint      []byte
 }
 
 // MessagePostAuthorizationInput describes the authorization preflight for a
@@ -117,9 +119,12 @@ func (s *MessageModel) PostMessage(ctx context.Context, input MessagePostInput) 
 	room := preflight.Authorization.Room
 	kind := preflight.Authorization.Kind
 
-	options := make([]PostMessageOption, 0, 1)
+	options := make([]PostMessageOption, 0, 2)
 	if videoProcessingAssetIDs := s.videoProcessingAssetIDsForPost(input); len(videoProcessingAssetIDs) > 0 {
 		options = append(options, WithVideoProcessingAssets(videoProcessingAssetIDs...))
+	}
+	if input.ClientRequestID != "" {
+		options = append(options, WithMessageRequestIdentity(input.ClientRequestID, input.RequestFingerprint))
 	}
 
 	event, err := s.core.PostMessage(ctx, kind, room.Id, input.ActorID, input.Body, input.AttachmentAssetIDs, input.ThreadRootEventID, input.InReplyTo, input.LinkPreview, input.AlsoSendToChannel, options...)
@@ -134,6 +139,9 @@ func (s *MessageModel) PostMessage(ctx context.Context, input MessagePostInput) 
 // PreflightPost checks authorization and request validity before a transport
 // uploads binary attachments.
 func (s *MessageModel) PreflightPost(ctx context.Context, input MessagePostInput) (*MessagePostPreflight, error) {
+	if err := validateMessageRequestIdentity(input.ClientRequestID, input.RequestFingerprint); err != nil {
+		return nil, err
+	}
 	authorization, err := s.AuthorizePost(ctx, MessagePostAuthorizationInput{
 		ActorID:           input.ActorID,
 		RoomID:            input.RoomID,
@@ -152,6 +160,25 @@ func (s *MessageModel) PreflightPost(ctx context.Context, input MessagePostInput
 	return &MessagePostPreflight{
 		Authorization: authorization,
 	}, nil
+}
+
+// FindIdempotentPost returns an already committed message for this request
+// identity after replaying the same authorization and validation gates.
+func (s *MessageModel) FindIdempotentPost(ctx context.Context, input MessagePostInput) (*MessagePostResult, error) {
+	if input.ClientRequestID == "" {
+		return nil, nil
+	}
+	if _, err := s.PreflightPost(ctx, input); err != nil {
+		return nil, err
+	}
+	event, err := s.core.findMessageRequestClaim(ctx, input.ActorID, input.RoomID, input.ClientRequestID, input.RequestFingerprint)
+	if err != nil {
+		return nil, err
+	}
+	if event == nil {
+		return nil, nil
+	}
+	return &MessagePostResult{Event: event}, nil
 }
 
 func (s *MessageModel) validatePostBeforeUpload(ctx context.Context, input MessagePostInput, authorization *MessagePostAuthorization) error {

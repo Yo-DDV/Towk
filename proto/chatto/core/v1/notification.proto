@@ -34,6 +34,7 @@ message Notification {
     MentionNotification mention = 101;
     ReplyNotification reply = 102;
     RoomMessageNotification room_message = 103;
+    CallStartedNotification call_started = 104;
   }
 }
 
@@ -106,4 +107,18 @@ message RoomMessageNotification {
   // Thread root event ID when the message was posted inside a thread.
   // Empty for root messages and channel echoes.
   string in_thread = 4;
+}
+
+// CallStartedNotification is created when a member starts a room call.
+// It is eligible only for current room members whose effective level is
+// ALL_MESSAGES and remains valid only while this exact call is active.
+message CallStartedNotification {
+  // Room where the call started.
+  string room_id = 1;
+
+  // Durable call-start event ID.
+  string event_id = 2;
+
+  // Stable call session ID used to reject stale join actions.
+  string call_id = 3;
 }

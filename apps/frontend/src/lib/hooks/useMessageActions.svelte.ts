@@ -3,7 +3,8 @@ import { toast } from '$lib/ui/toast';
 import { pushState } from '$app/navigation';
 import { getComposerContext, type MessagesStore } from '$lib/state/room';
 import { emojiToName } from '$lib/emoji';
-import { copyMessageLinkToClipboard } from '$lib/messageLinks';
+import { buildMessageLinkURL, copyMessageLinkToClipboard } from '$lib/messageLinks';
+import { canUseNativeShare, shareTowkMessage } from '$lib/pwa/nativeShare';
 import { createReactionAPI } from '$lib/api-client/reactions';
 import * as m from '$lib/i18n/messages';
 
@@ -127,10 +128,23 @@ export function useMessageActions() {
     await copyMessageLinkToClipboard(params.serverId, params.roomId, params.messageEventId);
   }
 
+  async function shareMessage(params: MessageActionParams) {
+    const result = await shareTowkMessage({
+      title: 'Towk',
+      text: params.messageBody,
+      url: buildMessageLinkURL(params.serverId, params.roomId, params.messageEventId)
+    });
+    if (result === 'unsupported' || result === 'failed') {
+      await copyMessageLink(params);
+    }
+  }
+
   return {
     ...reactionActions,
     startEdit,
     openDeleteConfirmation,
-    copyMessageLink
+    copyMessageLink,
+    shareMessage,
+    canShare: canUseNativeShare()
   };
 }

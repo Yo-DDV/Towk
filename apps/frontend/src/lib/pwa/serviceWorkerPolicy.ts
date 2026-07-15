@@ -1,10 +1,11 @@
 export const OFFLINE_SHELL_PATH = '/200.html';
 
-const NETWORK_ONLY_PATHS = ['/manifest.webmanifest'];
+const NETWORK_FIRST_PATHS = ['/manifest.webmanifest'];
 const NETWORK_ONLY_PREFIXES = ['/api', '/auth', '/oauth', '/assets', '/webhooks'];
 
 export interface ServiceWorkerPolicy {
   cacheableShellAsset: boolean;
+  networkFirstAsset: boolean;
   navigationRequest: boolean;
   networkOnly: boolean;
 }
@@ -26,17 +27,19 @@ export function classifyServiceWorkerRequest(
 ): ServiceWorkerPolicy {
   const url = new URL(requestUrl);
   const sameOrigin = url.origin === origin;
+  const networkFirstAsset =
+    request.method === 'GET' && sameOrigin && NETWORK_FIRST_PATHS.includes(url.pathname);
   const networkOnly =
     request.method !== 'GET' ||
     !sameOrigin ||
-    NETWORK_ONLY_PATHS.includes(url.pathname) ||
     NETWORK_ONLY_PREFIXES.some(
       (prefix) => url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)
     );
 
   return {
-    cacheableShellAsset: !networkOnly && shellAssetPaths.has(url.pathname),
-    navigationRequest: !networkOnly && request.mode === 'navigate',
+    cacheableShellAsset: !networkOnly && !networkFirstAsset && shellAssetPaths.has(url.pathname),
+    networkFirstAsset,
+    navigationRequest: !networkOnly && !networkFirstAsset && request.mode === 'navigate',
     networkOnly
   };
 }

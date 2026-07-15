@@ -29,6 +29,9 @@
     type QuoteInsertionContent
   } from '$lib/state/room';
   import { onRoomMessageMutated } from '$lib/state/room/messageMutationEvents';
+  import { onOutboxMessageSent } from '$lib/pwa/outboxEvents';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import CachedTimelineNotice from '$lib/components/CachedTimelineNotice.svelte';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
@@ -44,6 +47,8 @@
   } from '$lib/storage/roomSidebarPanel';
   import { serverStorageKey } from '$lib/storage/serverStorage';
   import { toast } from '$lib/ui/toast';
+  import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
+  import { callJoinActionFromURL } from '$lib/pwa/callJoinAction';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import { isMessagePostedEvent } from '$lib/render/eventKinds';
@@ -107,7 +112,12 @@
   let replyStateRoomId: string | null = null;
   const jumpState = composerContext.jumpState;
   const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
-  const roomMessageStore = new MessagesStore(connection(), () => currentUser.user?.id ?? null);
+  const roomMessageStore = new MessagesStore(
+    connection(),
+    () => currentUser.user?.id ?? null,
+    undefined,
+    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer()))
+  );
 
   onDestroy(() => {
     roomMessageStore.dispose();
@@ -126,8 +136,43 @@
     })
   );
 
+  $effect(() =>
+    onOutboxMessageSent((detail) => {
+      if (detail.scope.serverId !== getActiveServer() || detail.message.roomId !== roomId) return;
+      if (detail.result.event) roomMessageStore.ingestEvent(detail.result.event);
+      else void roomMessageStore.refreshCurrentWindow(null);
+    })
+  );
+
   // --- Extracted hooks ---
   const room = useRoomData(() => ({ roomId }));
+  let consumedCallJoinAction: string | null = null;
+
+  // An explicit native-notification action may join only the exact call that
+  // was advertised. The ordinary notification click has no query parameter
+  // and therefore only opens this room.
+  $effect(() => {
+    const action = callJoinActionFromURL(page.url);
+    if (!action) {
+      consumedCallJoinAction = null;
+      return;
+    }
+    if (room.roomData?.room.id !== roomId) return;
+
+    const actionKey = `${roomId}:${action.expectedCallId ?? 'invalid'}`;
+    if (consumedCallJoinAction === actionKey) return;
+    consumedCallJoinAction = actionKey;
+
+    replaceState(resolve(action.nextUrl as `/chat/${string}/${string}`), { ...page.state });
+
+    if (!action.expectedCallId || !serverInfo.livekitUrl) return;
+    void stores.voiceCall
+      .join(serverInfo.livekitUrl, roomId, 'ask', action.expectedCallId)
+      .catch((err) => {
+        stores.handleVoiceCallJoinFailed(roomId);
+        toast.error(getVoiceCallJoinErrorMessage(err));
+      });
+  });
 
   $effect(() => {
     const currentRoomId = roomId;
@@ -297,11 +342,7 @@
       pendingMainHighlightId = eventId;
       tick().then(async () => {
         const jumped = await jumpState.jumpToMessage(eventId);
-        if (
-          !jumped &&
-          mainHighlightRequestId === requestId &&
-          pendingMainHighlightId === eventId
-        ) {
+        if (!jumped && mainHighlightRequestId === requestId && pendingMainHighlightId === eventId) {
           pendingMainHighlightId = null;
           toast.error(m['room.jump_failed']());
         }
@@ -541,6 +582,10 @@
             {/if}
           {/snippet}
         </PaneHeader>
+
+        {#if roomMessageStore.isShowingCachedData}
+          <CachedTimelineNotice />
+        {/if}
 
         <RoomEventsPane
           {roomId}

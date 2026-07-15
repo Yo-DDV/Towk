@@ -33,13 +33,50 @@ const (
 	callReconcileLeaseRenewEvery      = 15 * time.Second
 	callReconcileLeaseRetryEvery      = 5 * time.Second
 	liveKitReconcileFailureKey        = "livekit.reconciliation.list_failures"
+	maxCallDevicesPerUser             = 2
 )
 
+var (
+	ErrCallDeviceLimit            = errors.New("maximum concurrent call devices reached")
+	ErrCallParticipantNotAdmitted = errors.New("call participant is not admitted")
+)
+
+type CallJoinMode int
+
+const (
+	CallJoinModeAsk CallJoinMode = iota
+	CallJoinModeCompanion
+	CallJoinModeTransfer
+)
+
+type CallJoinStatus int
+
+const (
+	CallJoinStatusJoined CallJoinStatus = iota + 1
+	CallJoinStatusSelectionRequired
+)
+
+type CallJoinResult struct {
+	Status              CallJoinStatus
+	ParticipantID       string
+	DeviceIndex         uint32
+	ActiveDeviceCount   int
+	CompanionAllowed    bool
+	RemovedParticipants []CallParticipant
+}
+
+type liveKitObservedParticipant struct {
+	UserID        string
+	ParticipantID string
+	DeviceIndex   uint32
+}
+
 type liveKitParticipantSnapshot struct {
-	SpaceID string
-	RoomID  string
-	CallID  string
-	UserIDs []string
+	SpaceID      string
+	RoomID       string
+	CallID       string
+	UserIDs      []string // legacy test/input compatibility
+	Participants []liveKitObservedParticipant
 }
 
 type liveKitParticipantLister interface {
@@ -51,15 +88,16 @@ type liveKitParticipantRemover interface {
 }
 
 type CallModel struct {
-	publisher      *events.Publisher
-	projection     *CallStateProjection
-	projector      *events.Projector
-	callKeys       kms.CallKeyStore
-	livekit        liveKitParticipantLister
-	reconcileLease *lease.Lease
-	memoryCacheKV  jetstream.KeyValue
-	logger         events.Logger
-	keyCleanup     *events.IncrementalEffectConsumer
+	publisher             *events.Publisher
+	projection            *CallStateProjection
+	projector             *events.Projector
+	callKeys              kms.CallKeyStore
+	livekit               liveKitParticipantLister
+	reconcileLease        *lease.Lease
+	memoryCacheKV         jetstream.KeyValue
+	logger                events.Logger
+	keyCleanup            *events.IncrementalEffectConsumer
+	onTransitionCommitted func()
 }
 
 type liveKitFailureCleanupSummary struct {
@@ -217,14 +255,32 @@ func (c *liveKitRoomClient) ListCallParticipants(ctx context.Context) ([]liveKit
 			}
 			return nil, err
 		}
+		participants := make([]liveKitObservedParticipant, 0, len(participantsResp.GetParticipants()))
 		userIDs := make([]string, 0, len(participantsResp.GetParticipants()))
 		for _, participant := range participantsResp.GetParticipants() {
-			if participant.GetIdentity() != "" {
-				userIDs = append(userIDs, participant.GetIdentity())
+			participantID := participant.GetIdentity()
+			if participantID == "" {
+				continue
 			}
+			metadata := ParseParticipantMetadata(participant.GetMetadata())
+			userID := metadata.UserID
+			if userID == "" {
+				userID = participantID
+			}
+			deviceIndex := metadata.DeviceIndex
+			if deviceIndex == 0 {
+				deviceIndex = 1
+			}
+			participants = append(participants, liveKitObservedParticipant{
+				UserID:        userID,
+				ParticipantID: participantID,
+				DeviceIndex:   deviceIndex,
+			})
+			userIDs = append(userIDs, userID)
 		}
+		sort.Slice(participants, func(i, j int) bool { return participants[i].ParticipantID < participants[j].ParticipantID })
 		sort.Strings(userIDs)
-		out = append(out, liveKitParticipantSnapshot{SpaceID: spaceID, RoomID: roomID, CallID: callID, UserIDs: userIDs})
+		out = append(out, liveKitParticipantSnapshot{SpaceID: spaceID, RoomID: roomID, CallID: callID, UserIDs: userIDs, Participants: participants})
 	}
 	return out, nil
 }
@@ -282,9 +338,24 @@ func (s *CallModel) GetE2EEKey(ctx context.Context, roomID string) (string, erro
 	if !ok || call.CallID == "" || call.E2EEKeyRef == "" {
 		return "", fmt.Errorf("no active voice call for room %s", roomID)
 	}
+	return s.GetE2EEKeyForCall(ctx, roomID, call.CallID)
+}
+
+func (s *CallModel) GetE2EEKeyForCall(ctx context.Context, roomID, callID string) (string, error) {
+	if s.callKeys == nil {
+		return "", fmt.Errorf("call key store is not initialized")
+	}
+	call, ok := s.projection.ActiveCall(roomID)
+	if !ok || call.CallID == "" || call.CallID != callID || call.E2EEKeyRef == "" {
+		return "", ErrCallNoLongerActive
+	}
 	key, err := s.callKeys.GetCallKey(ctx, call.E2EEKeyRef)
 	if err != nil {
 		return "", fmt.Errorf("read call E2EE key: %w", err)
+	}
+	current, ok := s.projection.ActiveCall(roomID)
+	if !ok || current.CallID != callID || current.E2EEKeyRef != call.E2EEKeyRef {
+		return "", ErrCallNoLongerActive
 	}
 	return key, nil
 }
@@ -329,23 +400,206 @@ func (s *CallModel) cleanupEndedCallKey(ctx context.Context, event *corev1.Event
 	return nil
 }
 
+// JoinUserParticipant applies call-device admission and transfer as one
+// room-aggregate OCC transaction. Selection-only requests never append facts.
+func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, participantID string, mode CallJoinMode, expectedCallID ...string) (CallJoinResult, error) {
+	if participantID == "" {
+		return CallJoinResult{}, fmt.Errorf("participant ID is required")
+	}
+	if mode < CallJoinModeAsk || mode > CallJoinModeTransfer {
+		return CallJoinResult{}, fmt.Errorf("invalid call join mode %d", mode)
+	}
+
+	aggregate := events.RoomAggregate(roomID)
+	filter := aggregate.AllEventsFilter()
+	expected := optionalCallID(expectedCallID)
+	for attempt := 0; attempt < callReconcileMaxRetries; attempt++ {
+		snapshot := s.projection.RoomSnapshot(roomID)
+		if expected != "" && snapshot.Call.CallID != expected {
+			return CallJoinResult{}, ErrCallNoLongerActive
+		}
+		userParticipants := callParticipantsByUser(snapshot.Participants, userID)
+		existing, alreadyJoined := callParticipantByID(userParticipants, userID, participantID)
+		activeDeviceCount := len(userParticipants)
+
+		if alreadyJoined && mode != CallJoinModeTransfer {
+			return CallJoinResult{
+				Status:            CallJoinStatusJoined,
+				ParticipantID:     existing.ParticipantID,
+				DeviceIndex:       existing.DeviceIndex,
+				ActiveDeviceCount: activeDeviceCount,
+				CompanionAllowed:  activeDeviceCount < maxCallDevicesPerUser,
+			}, nil
+		}
+		if !alreadyJoined && mode == CallJoinModeAsk && activeDeviceCount > 0 {
+			return CallJoinResult{
+				Status:            CallJoinStatusSelectionRequired,
+				ActiveDeviceCount: activeDeviceCount,
+				CompanionAllowed:  activeDeviceCount < maxCallDevicesPerUser,
+			}, nil
+		}
+		if !alreadyJoined && mode == CallJoinModeCompanion && activeDeviceCount >= maxCallDevicesPerUser {
+			return CallJoinResult{}, ErrCallDeviceLimit
+		}
+
+		deviceIndex := existing.DeviceIndex
+		if !alreadyJoined {
+			if mode == CallJoinModeTransfer {
+				deviceIndex = 1
+			} else {
+				deviceIndex = nextCallDeviceIndex(userParticipants)
+			}
+		}
+
+		removed := make([]CallParticipant, 0, len(userParticipants))
+		if mode == CallJoinModeTransfer {
+			for _, participant := range userParticipants {
+				if participant.ParticipantID != participantID {
+					removed = append(removed, participant)
+				}
+			}
+		}
+
+		callID := snapshot.Call.CallID
+		oldCallID := callID
+		rolloverCall := mode == CallJoinModeTransfer && !alreadyJoined && len(removed) > 0 && len(removed) == len(snapshot.Participants) && oldCallID != ""
+		var cleanupKeyRef string
+		var endedKeyRef string
+		entries := make([]events.BatchEntry, 0, len(removed)+4)
+		if callID == "" || rolloverCall {
+			if s.callKeys == nil {
+				return CallJoinResult{}, fmt.Errorf("call key store is not initialized")
+			}
+			var err error
+			callID = NewCallID()
+			cleanupKeyRef, _, err = s.callKeys.CreateCallKey(ctx, callID)
+			if err != nil {
+				return CallJoinResult{}, fmt.Errorf("create call key: %w", err)
+			}
+		}
+		for _, participant := range removed {
+			leftCallID := callID
+			if rolloverCall {
+				leftCallID = oldCallID
+			}
+			left := newCallParticipantConnectionEvent(roomID, userID, participant.ParticipantID, participant.DeviceIndex, leftCallID, false, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(left), Event: left})
+		}
+		if rolloverCall {
+			ended := newCallEndedEvent(roomID, userID, oldCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(ended), Event: ended})
+			endedKeyRef = snapshot.Call.E2EEKeyRef
+		}
+		if snapshot.Call.CallID == "" || rolloverCall {
+			started := newCallStartedEvent(roomID, userID, callID, cleanupKeyRef, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(started), Event: started})
+		}
+		if !alreadyJoined {
+			joined := newCallParticipantConnectionEvent(roomID, userID, participantID, deviceIndex, callID, true, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER)
+			entries = append(entries, events.BatchEntry{Subject: aggregate.SubjectFor(joined), Event: joined})
+		}
+
+		result := CallJoinResult{
+			Status:              CallJoinStatusJoined,
+			ParticipantID:       participantID,
+			DeviceIndex:         deviceIndex,
+			ActiveDeviceCount:   activeDeviceCount,
+			CompanionAllowed:    activeDeviceCount < maxCallDevicesPerUser,
+			RemovedParticipants: removed,
+		}
+		if len(entries) == 0 {
+			return result, nil
+		}
+		entries[0].ExpectedSeq = snapshot.Seq
+		entries[0].FilterSubject = filter
+		entries[0].HasOCC = true
+
+		seqs, err := s.publisher.AppendBatch(ctx, entries)
+		if err == nil {
+			if err := s.projector.WaitFor(ctx, events.SubjectPosition(filter, seqs[len(seqs)-1])); err != nil {
+				return CallJoinResult{}, err
+			}
+			if endedKeyRef != "" {
+				if err := s.cleanupQueuedCallKey(ctx, endedKeyRef); err != nil {
+					return CallJoinResult{}, fmt.Errorf("shred transferred call key: %w", err)
+				}
+			}
+			return result, nil
+		}
+		if cleanupKeyRef != "" {
+			if cleanupErr := s.callKeys.ShredCallKey(context.WithoutCancel(ctx), cleanupKeyRef); cleanupErr != nil && s.logger != nil {
+				s.logger.Warn("failed to clean up unused call key after join conflict", "error", cleanupErr, "key_ref", cleanupKeyRef)
+			}
+		}
+		if !errors.Is(err, events.ErrConflict) {
+			return CallJoinResult{}, err
+		}
+		if err := s.waitForLatestRoomTransition(ctx, filter); err != nil {
+			return CallJoinResult{}, err
+		}
+		select {
+		case <-ctx.Done():
+			return CallJoinResult{}, ctx.Err()
+		case <-time.After(time.Duration(1<<attempt) * time.Millisecond):
+		}
+	}
+	return CallJoinResult{}, fmt.Errorf("join call participant after %d attempts: %w", callReconcileMaxRetries, events.ErrConflict)
+}
+
+func callParticipantsByUser(active []CallParticipant, userID string) []CallParticipant {
+	participants := make([]CallParticipant, 0, len(active))
+	for _, participant := range active {
+		if participant.UserID == userID {
+			participants = append(participants, participant)
+		}
+	}
+	return participants
+}
+
+func nextCallDeviceIndex(active []CallParticipant) uint32 {
+	used := [maxCallDevicesPerUser + 1]bool{}
+	for _, participant := range active {
+		if participant.DeviceIndex > 0 && participant.DeviceIndex <= maxCallDevicesPerUser {
+			used[participant.DeviceIndex] = true
+		}
+	}
+	for index := uint32(1); index <= maxCallDevicesPerUser; index++ {
+		if !used[index] {
+			return index
+		}
+	}
+	return maxCallDevicesPerUser
+}
+
 func (s *CallModel) AppendJoined(ctx context.Context, roomID, userID string, source corev1.CallParticipantEventSource) error {
-	return s.appendParticipantTransition(ctx, roomID, userID, true, "", source)
+	return s.appendParticipantTransition(ctx, roomID, userID, userID, 1, true, "", source)
 }
 
 func (s *CallModel) AppendLeft(ctx context.Context, roomID, userID string, source corev1.CallParticipantEventSource) error {
-	return s.appendParticipantTransition(ctx, roomID, userID, false, "", source)
+	return s.appendParticipantTransition(ctx, roomID, userID, userID, 1, false, "", source)
 }
 
 func (s *CallModel) AppendJoinedForCall(ctx context.Context, roomID, userID, expectedCallID string, source corev1.CallParticipantEventSource) error {
-	return s.appendParticipantTransition(ctx, roomID, userID, true, expectedCallID, source)
+	return s.appendParticipantTransition(ctx, roomID, userID, userID, 1, true, expectedCallID, source)
 }
 
 func (s *CallModel) AppendLeftForCall(ctx context.Context, roomID, userID, expectedCallID string, source corev1.CallParticipantEventSource) error {
-	return s.appendParticipantTransition(ctx, roomID, userID, false, expectedCallID, source)
+	return s.appendParticipantTransition(ctx, roomID, userID, userID, 1, false, expectedCallID, source)
 }
 
-func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, userID string, joined bool, expectedCallID string, source corev1.CallParticipantEventSource) error {
+func (s *CallModel) AppendParticipantJoinedForCall(ctx context.Context, roomID, userID, participantID string, deviceIndex uint32, expectedCallID string, source corev1.CallParticipantEventSource) error {
+	return s.appendParticipantTransition(ctx, roomID, userID, participantID, deviceIndex, true, expectedCallID, source)
+}
+
+func (s *CallModel) AppendParticipantLeftForCall(ctx context.Context, roomID, userID, participantID, expectedCallID string, source corev1.CallParticipantEventSource) error {
+	return s.appendParticipantTransition(ctx, roomID, userID, participantID, 0, false, expectedCallID, source)
+}
+
+func (s *CallModel) AppendParticipantLeft(ctx context.Context, roomID, userID, participantID string, source corev1.CallParticipantEventSource) error {
+	return s.appendParticipantTransition(ctx, roomID, userID, participantID, 0, false, "", source)
+}
+
+func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, userID, participantID string, deviceIndex uint32, joined bool, expectedCallID string, source corev1.CallParticipantEventSource) error {
 	aggregate := events.RoomAggregate(roomID)
 	filter := aggregate.AllEventsFilter()
 	for attempt := 0; attempt < callReconcileMaxRetries; attempt++ {
@@ -353,11 +607,11 @@ func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, use
 		if expectedCallID != "" && snapshot.Call.CallID != expectedCallID {
 			return nil
 		}
-		if callParticipantTransitionAlreadyApplied(snapshot.Participants, userID, joined) {
+		if callParticipantTransitionAlreadyApplied(snapshot.Participants, userID, participantID, joined) {
 			return nil
 		}
 
-		entries, endedKeyRef, cleanupKeyRef, err := s.callTransitionBatch(ctx, aggregate, snapshot, roomID, userID, joined, source)
+		entries, endedKeyRef, cleanupKeyRef, err := s.callTransitionBatch(ctx, aggregate, snapshot, roomID, userID, participantID, deviceIndex, joined, source)
 		if err != nil {
 			return err
 		}
@@ -371,6 +625,9 @@ func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, use
 			}
 			if err := s.projector.WaitFor(ctx, events.SubjectPosition(filter, seq)); err != nil {
 				return err
+			}
+			if s.onTransitionCommitted != nil {
+				s.onTransitionCommitted()
 			}
 			return nil
 		}
@@ -395,7 +652,7 @@ func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, use
 	return fmt.Errorf("append call participant transition after %d attempts: %w", callReconcileMaxRetries, events.ErrConflict)
 }
 
-func (s *CallModel) callTransitionBatch(ctx context.Context, aggregate events.Aggregate, snapshot CallRoomSnapshot, roomID, userID string, joined bool, source corev1.CallParticipantEventSource) ([]events.BatchEntry, string, string, error) {
+func (s *CallModel) callTransitionBatch(ctx context.Context, aggregate events.Aggregate, snapshot CallRoomSnapshot, roomID, userID, participantID string, deviceIndex uint32, joined bool, source corev1.CallParticipantEventSource) ([]events.BatchEntry, string, string, error) {
 	if joined {
 		callID := snapshot.Call.CallID
 		if callID == "" {
@@ -408,7 +665,7 @@ func (s *CallModel) callTransitionBatch(ctx context.Context, aggregate events.Ag
 				return nil, "", "", fmt.Errorf("create call key: %w", err)
 			}
 			started := newCallStartedEvent(roomID, userID, callID, keyRef, source)
-			joinedEvent := newCallParticipantEvent(roomID, userID, callID, true, source)
+			joinedEvent := newCallParticipantConnectionEvent(roomID, userID, participantID, deviceIndex, callID, true, source)
 			return []events.BatchEntry{
 				{
 					Subject:       aggregate.SubjectFor(started),
@@ -424,7 +681,7 @@ func (s *CallModel) callTransitionBatch(ctx context.Context, aggregate events.Ag
 			}, "", keyRef, nil
 		}
 
-		joinedEvent := newCallParticipantEvent(roomID, userID, callID, true, source)
+		joinedEvent := newCallParticipantConnectionEvent(roomID, userID, participantID, deviceIndex, callID, true, source)
 		return []events.BatchEntry{{
 			Subject:       aggregate.SubjectFor(joinedEvent),
 			Event:         joinedEvent,
@@ -434,7 +691,7 @@ func (s *CallModel) callTransitionBatch(ctx context.Context, aggregate events.Ag
 		}}, "", "", nil
 	}
 
-	participant, ok := callParticipantByUser(snapshot.Participants, userID)
+	participant, ok := callParticipantByID(snapshot.Participants, userID, participantID)
 	if !ok {
 		return nil, "", "", nil
 	}
@@ -442,7 +699,7 @@ func (s *CallModel) callTransitionBatch(ctx context.Context, aggregate events.Ag
 	if callID == "" {
 		callID = snapshot.Call.CallID
 	}
-	leftEvent := newCallParticipantEvent(roomID, userID, callID, false, source)
+	leftEvent := newCallParticipantConnectionEvent(roomID, userID, participantID, participant.DeviceIndex, callID, false, source)
 	entries := []events.BatchEntry{{
 		Subject:       aggregate.SubjectFor(leftEvent),
 		Event:         leftEvent,
@@ -470,9 +727,9 @@ func (s *CallModel) waitForLatestRoomTransition(ctx context.Context, filter stri
 	return s.projector.WaitFor(ctx, tail)
 }
 
-func callParticipantTransitionAlreadyApplied(active []CallParticipant, userID string, joined bool) bool {
+func callParticipantTransitionAlreadyApplied(active []CallParticipant, userID, participantID string, joined bool) bool {
 	for _, participant := range active {
-		if participant.UserID == userID {
+		if participant.UserID == userID && participant.ParticipantID == participantID {
 			return joined
 		}
 	}
@@ -482,6 +739,15 @@ func callParticipantTransitionAlreadyApplied(active []CallParticipant, userID st
 func callParticipantByUser(active []CallParticipant, userID string) (CallParticipant, bool) {
 	for _, participant := range active {
 		if participant.UserID == userID {
+			return participant, true
+		}
+	}
+	return CallParticipant{}, false
+}
+
+func callParticipantByID(active []CallParticipant, userID, participantID string) (CallParticipant, bool) {
+	for _, participant := range active {
+		if participant.UserID == userID && participant.ParticipantID == participantID {
 			return participant, true
 		}
 	}
@@ -527,7 +793,54 @@ func (s *CallModel) reconciliationConflictResolved(roomID, userID string, joined
 }
 
 func (s *CallModel) appendReconciliationEvent(ctx context.Context, roomID, userID string, joined bool) error {
-	return s.appendParticipantTransition(ctx, roomID, userID, joined, "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION)
+	return s.appendParticipantTransition(ctx, roomID, userID, userID, 1, joined, "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION)
+}
+
+func (s *CallModel) ReconcileRoomConnections(ctx context.Context, roomID string, observedParticipants []liveKitObservedParticipant) error {
+	observed := make(map[string]liveKitObservedParticipant, len(observedParticipants))
+	for _, participant := range observedParticipants {
+		if participant.UserID == "" || participant.ParticipantID == "" {
+			continue
+		}
+		if participant.DeviceIndex == 0 {
+			participant.DeviceIndex = 1
+		}
+		observed[participant.ParticipantID] = participant
+	}
+
+	active := s.projection.Participants(roomID)
+	activeByParticipant := make(map[string]CallParticipant, len(active))
+	for _, participant := range active {
+		activeByParticipant[participant.ParticipantID] = participant
+		if _, ok := observed[participant.ParticipantID]; !ok {
+			if err := s.appendParticipantTransition(ctx, roomID, participant.UserID, participant.ParticipantID, participant.DeviceIndex, false, "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION); err != nil && !s.connectionReconciliationConflictResolved(roomID, participant.UserID, participant.ParticipantID, false, err) {
+				return err
+			}
+		}
+	}
+	for participantID, participant := range observed {
+		if _, ok := activeByParticipant[participantID]; !ok {
+			// Connection-scoped identities are admitted durably by JoinCall before
+			// LiveKit can issue a token. Never let reconciliation resurrect a
+			// transferred or explicitly-left connection. Legacy user-ID identities
+			// keep their historical webhook/reconciliation behavior.
+			if participant.ParticipantID != participant.UserID {
+				continue
+			}
+			if err := s.appendParticipantTransition(ctx, roomID, participant.UserID, participant.ParticipantID, participant.DeviceIndex, true, "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION); err != nil && !s.connectionReconciliationConflictResolved(roomID, participant.UserID, participant.ParticipantID, true, err) {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *CallModel) connectionReconciliationConflictResolved(roomID, userID, participantID string, joined bool, err error) bool {
+	if !errors.Is(err, events.ErrConflict) {
+		return false
+	}
+	_, found := callParticipantByID(s.projection.Participants(roomID), userID, participantID)
+	return found == joined
 }
 
 func newCallStartedEvent(roomID, userID, callID, keyRef string, source corev1.CallParticipantEventSource) *corev1.Event {
@@ -556,13 +869,19 @@ func newCallEndedEvent(roomID, userID, callID string, source corev1.CallParticip
 }
 
 func newCallParticipantEvent(roomID, userID, callID string, joined bool, source corev1.CallParticipantEventSource) *corev1.Event {
+	return newCallParticipantConnectionEvent(roomID, userID, "", 0, callID, joined, source)
+}
+
+func newCallParticipantConnectionEvent(roomID, userID, participantID string, deviceIndex uint32, callID string, joined bool, source corev1.CallParticipantEventSource) *corev1.Event {
 	if joined {
 		return newEvent(userID, &corev1.Event{
 			Event: &corev1.Event_VoiceCallParticipantJoined{
 				VoiceCallParticipantJoined: &corev1.CallParticipantJoinedEvent{
-					RoomId: roomID,
-					Source: source,
-					CallId: callID,
+					RoomId:        roomID,
+					Source:        source,
+					CallId:        callID,
+					ParticipantId: participantID,
+					DeviceIndex:   deviceIndex,
 				},
 			},
 		})
@@ -570,9 +889,11 @@ func newCallParticipantEvent(roomID, userID, callID string, joined bool, source 
 	return newEvent(userID, &corev1.Event{
 		Event: &corev1.Event_VoiceCallParticipantLeft{
 			VoiceCallParticipantLeft: &corev1.CallParticipantLeftEvent{
-				RoomId: roomID,
-				Source: source,
-				CallId: callID,
+				RoomId:        roomID,
+				Source:        source,
+				CallId:        callID,
+				ParticipantId: participantID,
+				DeviceIndex:   deviceIndex,
 			},
 		},
 	})
@@ -632,7 +953,18 @@ func (s *CallModel) reconcileWithLiveKit(ctx context.Context, cleanupContext fun
 			}
 			if s.liveKitSnapshotMatchesActiveCall(snapshot) {
 				observedRooms[snapshot.RoomID] = struct{}{}
-				if err := s.ReconcileRoomParticipants(ctx, snapshot.RoomID, snapshot.UserIDs); err != nil {
+				observed, evicted, err := s.evictUnadmittedLiveKitConnections(ctx, snapshot)
+				if err != nil {
+					return err
+				}
+				// A transfer can be observed between eviction of the previous
+				// connection and connection of the replacement. Defer absence cleanup
+				// for one reconciliation cycle so the admitted replacement is not
+				// removed in that narrow window.
+				if evicted > 0 {
+					continue
+				}
+				if err := s.ReconcileRoomConnections(ctx, snapshot.RoomID, observed); err != nil {
 					return err
 				}
 				continue
@@ -643,18 +975,60 @@ func (s *CallModel) reconcileWithLiveKit(ctx context.Context, cleanupContext fun
 			continue
 		}
 		observedRooms[snapshot.RoomID] = struct{}{}
-		if err := s.ReconcileRoomParticipants(ctx, snapshot.RoomID, snapshot.UserIDs); err != nil {
+		observed, evicted, err := s.evictUnadmittedLiveKitConnections(ctx, snapshot)
+		if err != nil {
+			return err
+		}
+		if evicted > 0 {
+			continue
+		}
+		if err := s.ReconcileRoomConnections(ctx, snapshot.RoomID, observed); err != nil {
 			return err
 		}
 	}
 	for _, roomID := range s.projection.ActiveRoomIDs() {
 		if _, ok := observedRooms[roomID]; !ok {
-			if err := s.ReconcileRoomParticipants(ctx, roomID, nil); err != nil {
+			if err := s.ReconcileRoomConnections(ctx, roomID, nil); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// evictUnadmittedLiveKitConnections makes durable call admission authoritative
+// for connection-scoped identities. This prevents a stale token, a missed
+// transfer eviction, or a late webhook from reviving an old device.
+func (s *CallModel) evictUnadmittedLiveKitConnections(ctx context.Context, snapshot liveKitParticipantSnapshot) ([]liveKitObservedParticipant, int, error) {
+	observed := snapshotObservedParticipants(snapshot)
+	active := s.projection.Participants(snapshot.RoomID)
+	activeByParticipant := make(map[string]CallParticipant, len(active))
+	for _, participant := range active {
+		activeByParticipant[participant.ParticipantID] = participant
+	}
+
+	admitted := make([]liveKitObservedParticipant, 0, len(observed))
+	var remover liveKitParticipantRemover
+	if candidate, ok := s.livekit.(liveKitParticipantRemover); ok {
+		remover = candidate
+	}
+	evicted := 0
+	for _, participant := range observed {
+		projected, found := activeByParticipant[participant.ParticipantID]
+		if participant.ParticipantID == participant.UserID ||
+			(found && projected.UserID == participant.UserID && projected.CallID == snapshot.CallID) {
+			admitted = append(admitted, participant)
+			continue
+		}
+		if remover == nil {
+			return nil, evicted, fmt.Errorf("evict unadmitted LiveKit participant %s: participant remover unavailable", participant.ParticipantID)
+		}
+		if err := remover.RemoveCallParticipant(ctx, snapshot.SpaceID, snapshot.RoomID, snapshot.CallID, participant.ParticipantID); err != nil {
+			return nil, evicted, fmt.Errorf("evict unadmitted LiveKit participant %s: %w", participant.ParticipantID, err)
+		}
+		evicted++
+	}
+	return admitted, evicted, nil
 }
 
 func (s *CallModel) waitForSnapshotRoomTail(ctx context.Context, roomID string) error {
@@ -686,11 +1060,11 @@ func (s *CallModel) cleanupUnmatchedLiveKitSnapshot(ctx context.Context, snapsho
 		return err
 	}
 	keyRef := kms.CallKeyRef(snapshot.CallID)
-	for _, userID := range snapshot.UserIDs {
-		if userID == "" {
+	for _, participant := range snapshotObservedParticipants(snapshot) {
+		if participant.ParticipantID == "" {
 			continue
 		}
-		if err := remover.RemoveCallParticipant(ctx, snapshot.SpaceID, snapshot.RoomID, snapshot.CallID, userID); err != nil {
+		if err := remover.RemoveCallParticipant(ctx, snapshot.SpaceID, snapshot.RoomID, snapshot.CallID, participant.ParticipantID); err != nil {
 			return fmt.Errorf("remove participant from unmatched LiveKit call: %w", err)
 		}
 	}
@@ -698,6 +1072,20 @@ func (s *CallModel) cleanupUnmatchedLiveKitSnapshot(ctx context.Context, snapsho
 		return fmt.Errorf("clean up unmatched LiveKit call key: %w", err)
 	}
 	return nil
+}
+
+func snapshotObservedParticipants(snapshot liveKitParticipantSnapshot) []liveKitObservedParticipant {
+	if len(snapshot.Participants) > 0 {
+		return append([]liveKitObservedParticipant(nil), snapshot.Participants...)
+	}
+	participants := make([]liveKitObservedParticipant, 0, len(snapshot.UserIDs))
+	for _, userID := range snapshot.UserIDs {
+		if userID == "" {
+			continue
+		}
+		participants = append(participants, liveKitObservedParticipant{UserID: userID, ParticipantID: userID, DeviceIndex: 1})
+	}
+	return participants
 }
 
 func (s *CallModel) ensureUnmatchedCallEndedFact(ctx context.Context, snapshot liveKitParticipantSnapshot) error {
@@ -798,7 +1186,7 @@ func (s *CallModel) endActiveCallsAfterLiveKitFailure(ctx context.Context) liveK
 	roomIDs := s.projection.ActiveRoomIDs()
 	summary.activeRooms = len(roomIDs)
 	for _, roomID := range roomIDs {
-		if err := s.ReconcileRoomParticipants(ctx, roomID, nil); err != nil {
+		if err := s.ReconcileRoomConnections(ctx, roomID, nil); err != nil {
 			summary.cleanupErrors++
 			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("room %s: %w", roomID, err))
 			continue

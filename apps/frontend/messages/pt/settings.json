@@ -173,7 +173,7 @@
         "enabled_title": "Notificações push ativadas",
         "enabled_description": "Towk usa a permissão de notificações do navegador ou do sistema operacional como interruptor. Para desativar as notificações, desative-as para este site nas configurações do navegador ou do sistema operacional.",
         "enable_title": "Ativar notificações push",
-        "enable_description": "Seja notificado sobre novas mensagens enquanto Towk estiver fechado ou em execução em segundo plano.",
+        "enable_description": "Receba chamadas e novas mensagens de salas ou privadas quando o Towk estiver fechado ou em segundo plano.",
         "enable_button": "Ativar",
         "enabling": "Ativando...",
         "blocked_error": "As notificações push são bloqueadas nas configurações do seu navegador ou sistema operacional.",
@@ -184,9 +184,9 @@
       },
       "push_prompt": {
         "title": "Ativar notificações push",
-        "message": "Receba alertas para cada nova mensagem de canal e direta quando o Towk estiver fechado ou em segundo plano.",
+        "message": "Receba alertas de chamadas e de cada nova mensagem de sala ou privada quando o Towk estiver fechado ou em segundo plano.",
         "blocked_title": "As notificações push estão bloqueadas",
-        "blocked_message": "O Towk não pode alertar sobre novas mensagens de canal e diretas quando está fechado. Ative as notificações nas configurações do navegador ou do sistema operacional.",
+        "blocked_message": "O Towk não pode alertar sobre chamadas nem sobre novas mensagens de sala ou privadas quando está fechado. Ative as notificações nas configurações do navegador ou do sistema operacional.",
         "blocked_action": "Como ativar",
         "ios_home_screen_title": "Adicione Towk à sua tela inicial",
         "ios_home_screen_message": "Nas versões iOS/iPadOS suportadas, abra Towk no ícone da tela inicial antes de ativar as notificações push.",
@@ -197,7 +197,7 @@
         "enable": "Ativar",
         "dismiss": "Agora não",
         "confirm_title": "Continuar sem notificações?",
-        "confirm_message": "Você pode perder novas mensagens de canal e diretas quando o Towk estiver fechado. O Towk lembrará você novamente mais tarde. Tem certeza de que deseja continuar?",
+        "confirm_message": "Você pode perder chamadas e novas mensagens de sala ou privadas quando o Towk estiver fechado. O Towk lembrará você novamente mais tarde. Tem certeza de que deseja continuar?",
         "confirm_action": "Continuar sem notificações"
       },
       "levels": {
@@ -217,15 +217,15 @@
         },
         "muted": {
           "label": "Silenciado",
-          "description": "Nenhuma notificação ou marcadores não lidos"
+          "description": "Nenhuma notificação, inclusive para chamadas e mensagens privadas."
         },
         "normal": {
           "label": "Normal",
-          "description": "Marcadores não lidos; notificações apenas para menções. Mensagens diretas sempre geram notificações"
+          "description": "Notificações para menções e mensagens privadas. As chamadas não geram notificações."
         },
         "all_messages": {
           "label": "Todas as mensagens",
-          "description": "Uma notificação para cada nova mensagem em salas e tópicos dos quais participa"
+          "description": "Notificações para todas as mensagens e chamadas em salas, tópicos e conversas privadas de que você participa."
         }
       },
       "sound": {

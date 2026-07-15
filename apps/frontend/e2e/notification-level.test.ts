@@ -29,12 +29,16 @@ test.describe('Notification Level - Notifications Settings', () => {
     await expect(page.getByText('Server Notification Level')).toBeVisible();
 
     // Verify the three server-level option labels are visible
-    await expect(page.getByText('No notifications or unread markers')).toBeVisible();
     await expect(
-      page.getByText('Unread markers; notifications only for mentions. DMs always notify')
+      page.getByText('No notifications, including calls and private messages.')
     ).toBeVisible();
     await expect(
-      page.getByText('A notification for every new message in joined rooms and threads')
+      page.getByText('Notifications for mentions and private messages. Calls are not notified.')
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        'Notifications for all messages and calls in joined rooms, threads, and private conversations.'
+      )
     ).toBeVisible();
 
     // Verify room overrides section is visible
@@ -53,7 +57,7 @@ test.describe('Notification Level - Notifications Settings', () => {
 
     // All Messages should be selected by default.
     const allMessagesButton = page.locator('button', { hasText: 'All Messages' }).filter({
-      hasText: 'every new message'
+      hasText: 'all messages and calls'
     });
     await expect(allMessagesButton).toHaveClass(/choice-row-selected/);
 

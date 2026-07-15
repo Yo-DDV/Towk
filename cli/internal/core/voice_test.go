@@ -462,6 +462,12 @@ func TestGenerateVoiceCallToken(t *testing.T) {
 	if room, ok := video["room"].(string); !ok || room != roomName {
 		t.Errorf("Token video.room = %v, want %q", video["room"], roomName)
 	}
+	if canPublishData, ok := video["canPublishData"].(bool); !ok || !canPublishData {
+		t.Error("Token video.canPublishData should be true")
+	}
+	if canUpdateMetadata, ok := video["canUpdateOwnMetadata"].(bool); !ok || canUpdateMetadata {
+		t.Error("Token video.canUpdateOwnMetadata should be false")
+	}
 
 	exp, ok := claims["exp"].(float64)
 	if !ok {
@@ -2030,6 +2036,10 @@ func TestVoiceCallE2EEKey_PerCallAndShreddedOnEnd(t *testing.T) {
 	if err := core.RecordCallParticipantJoined(ctx, KindChannel, roomID, "user1", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
 		t.Fatalf("RecordCallParticipantJoined() error = %v", err)
 	}
+	firstCall, ok := core.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("first call should be active")
+	}
 	key1, err := core.GetVoiceCallE2EEKey(ctx, roomID)
 	if err != nil {
 		t.Fatalf("GetVoiceCallE2EEKey() error = %v", err)
@@ -2043,6 +2053,9 @@ func TestVoiceCallE2EEKey_PerCallAndShreddedOnEnd(t *testing.T) {
 	}
 	if key1 != key2 {
 		t.Fatalf("E2EE key should be reused within the active call")
+	}
+	if exact, err := core.GetVoiceCallE2EEKeyForCall(ctx, roomID, firstCall.CallID); err != nil || exact != key1 {
+		t.Fatalf("GetVoiceCallE2EEKeyForCall() = %q, %v", exact, err)
 	}
 
 	callEvents, _, err := core.EventPublisher.SubjectEvents(ctx, events.RoomAggregate(roomID).AllEventsFilter())
@@ -2084,5 +2097,8 @@ func TestVoiceCallE2EEKey_PerCallAndShreddedOnEnd(t *testing.T) {
 	}
 	if key3 == "" || key3 == key1 {
 		t.Fatalf("New call should get a fresh E2EE key")
+	}
+	if _, err := core.GetVoiceCallE2EEKeyForCall(ctx, roomID, firstCall.CallID); !errors.Is(err, ErrCallNoLongerActive) {
+		t.Fatalf("old call key lookup error = %v, want ErrCallNoLongerActive", err)
 	}
 }

@@ -21,6 +21,8 @@
     "drop_files_title": "Solte os arquivos aqui",
     "drop_files_subtitle": "Os arquivos serão adicionados à sua mensagem",
     "send_failed": "Falha ao enviar mensagem",
+    "queued_offline": "Mensagem guardada com segurança. Será enviada quando a ligação regressar.",
+    "attachments_need_connection": "Mantenha este rascunho aberto: os anexos precisam de uma ligação antes de entrarem na fila.",
     "edit_failed": "Falha ao editar a mensagem",
     "mention": {
       "all_room_members": "Todos os membros da sala",

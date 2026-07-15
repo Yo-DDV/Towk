@@ -37,7 +37,7 @@ export async function loadCurrentUser(): Promise<CurrentUser | null> {
 
   if (isExplicitSignOutRedirectInProgress()) {
     cachedUser = null;
-    serverRegistry.clearOriginAuthentication();
+    await serverRegistry.clearOriginAuthentication();
     return null;
   }
 
@@ -56,7 +56,7 @@ export async function loadCurrentUser(): Promise<CurrentUser | null> {
       if (isAuthenticationRequiredError(err)) {
         if (isExplicitSignOutRedirectInProgress()) {
           cachedUser = null;
-          serverRegistry.clearOriginAuthentication();
+          await serverRegistry.clearOriginAuthentication();
           return null;
         }
         const cached = cachedUser;
@@ -68,7 +68,7 @@ export async function loadCurrentUser(): Promise<CurrentUser | null> {
           return cached;
         }
         cachedUser = null;
-        serverRegistry.clearOriginAuthentication();
+        await serverRegistry.clearOriginAuthentication();
         return null;
       }
       if (attempt === 0) {

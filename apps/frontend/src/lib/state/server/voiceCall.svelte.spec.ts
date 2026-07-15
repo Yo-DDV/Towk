@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { VoiceCallAPI } from '$lib/api-client/voiceCalls';
+import type { VoiceCallAPI, VoiceCallJoinMode } from '$lib/api-client/voiceCalls';
 
 const { soundMocks, toastMocks } = vi.hoisted(() => ({
   soundMocks: {
@@ -24,25 +24,31 @@ vi.mock('$lib/ui/toast', () => ({
 import {
   getVoiceCallMediaDeviceErrorMessage,
   getVoiceCallJoinErrorMessage,
+  PersistentReconnectPolicy,
   VoiceCallJoinError,
   VoiceCallState
 } from './voiceCall.svelte';
-import { AudioPresets, Room, ScreenSharePresets } from 'livekit-client';
+import { AudioPresets, DisconnectReason, Room, ScreenSharePresets } from 'livekit-client';
 
 const calls: string[] = [];
 let lastRoomOptions: Record<string, unknown> | null = null;
 let lastKeyProvider: { setKey: ReturnType<typeof vi.fn> } | null = null;
 let lastRoom: {
   disconnect: ReturnType<typeof vi.fn>;
+  startAudio: ReturnType<typeof vi.fn>;
+  registerRpcMethod: ReturnType<typeof vi.fn>;
+  unregisterRpcMethod: ReturnType<typeof vi.fn>;
   localParticipant: {
     setMicrophoneEnabled: ReturnType<typeof vi.fn>;
     setScreenShareEnabled: ReturnType<typeof vi.fn>;
     setCameraEnabled: ReturnType<typeof vi.fn>;
+    performRpc: ReturnType<typeof vi.fn>;
   };
   switchActiveDevice: ReturnType<typeof vi.fn>;
 } | null = null;
 let connectFailure: Error | null = null;
 let connectGate: { promise: Promise<void>; resolve: () => void } | null = null;
+let connectObserver: (() => void) | null = null;
 let microphoneGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let microphoneFailure: Error | null = null;
 let microphoneProcessor: { name: string } | null = null;
@@ -64,6 +70,23 @@ let screenShareFailure: Error | null = null;
 let screenShareAudioAvailable = false;
 let switchActiveDeviceFailure: Error | null = null;
 let roomEventHandlers = new Map<string, (...args: unknown[]) => void>();
+let roomRpcHandlers = new Map<
+  string,
+  (data: {
+    requestId: string;
+    callerIdentity: string;
+    payload: string;
+    responseTimeout: number;
+  }) => Promise<string>
+>();
+let performRpcFailure: Error | null = null;
+let performRpcResponder: (params: {
+  destinationIdentity: string;
+  method: string;
+  payload: string;
+  responseTimeout?: number;
+}) => string = () =>
+  JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
 let localTrackPublications: Array<{
   isMuted: boolean;
   track: {
@@ -167,10 +190,22 @@ vi.mock('livekit-client', () => {
           }
         }
       }),
+      performRpc: vi.fn(
+        async (params: {
+          destinationIdentity: string;
+          method: string;
+          payload: string;
+          responseTimeout?: number;
+        }) => {
+          if (performRpcFailure) throw performRpcFailure;
+          return performRpcResponder(params);
+        }
+      ),
       getTrackPublication: vi.fn(),
-      identity: 'local-user',
+      identity: 'device-1',
       name: 'Local User',
-      metadata: '',
+      metadata:
+        '{"userId":"local-user","participantId":"device-1","deviceIndex":1,"login":"local-user"}',
       connectionQuality: 'excellent',
       isSpeaking: false,
       audioLevel: 0,
@@ -182,6 +217,9 @@ vi.mock('livekit-client', () => {
       lastRoomOptions = options;
       lastRoom = {
         disconnect: this.disconnect,
+        startAudio: this.startAudio,
+        registerRpcMethod: this.registerRpcMethod,
+        unregisterRpcMethod: this.unregisterRpcMethod,
         localParticipant: this.localParticipant,
         switchActiveDevice: this.switchActiveDevice
       };
@@ -190,6 +228,22 @@ vi.mock('livekit-client', () => {
     on = vi.fn((event: string, handler: () => void) => {
       roomEventHandlers.set(event, handler);
       return this;
+    });
+    registerRpcMethod = vi.fn(
+      (
+        method: string,
+        handler: (data: {
+          requestId: string;
+          callerIdentity: string;
+          payload: string;
+          responseTimeout: number;
+        }) => Promise<string>
+      ) => {
+        roomRpcHandlers.set(method, handler);
+      }
+    );
+    unregisterRpcMethod = vi.fn((method: string) => {
+      roomRpcHandlers.delete(method);
     });
     switchActiveDevice = vi.fn(async (kind: MediaDeviceKind, deviceId: string) => {
       calls.push(`switchActiveDevice:${kind}:${deviceId}`);
@@ -200,26 +254,42 @@ vi.mock('livekit-client', () => {
     });
     connect = vi.fn(async () => {
       calls.push('connect');
+      connectObserver?.();
       await connectGate?.promise;
       if (connectFailure) {
         throw connectFailure;
       }
     });
+    state = 'connected';
     setE2EEEnabled = vi.fn(async (enabled: boolean) => {
       calls.push(`setE2EEEnabled:${enabled}`);
     });
     disconnect = vi.fn();
+    startAudio = vi.fn(async () => undefined);
     removeAllListeners = vi.fn();
   }
 
   return {
     Room: MockRoom,
     ExternalE2EEKeyProvider: MockExternalE2EEKeyProvider,
+    RpcError: class MockRpcError extends Error {
+      constructor(
+        readonly code: number,
+        message: string,
+        readonly data?: string
+      ) {
+        super(message);
+      }
+    },
     RoomEvent: {
       ParticipantConnected: 'ParticipantConnected',
+      ParticipantMetadataChanged: 'ParticipantMetadataChanged',
       ParticipantDisconnected: 'ParticipantDisconnected',
       TrackMuted: 'TrackMuted',
       TrackUnmuted: 'TrackUnmuted',
+      Reconnecting: 'Reconnecting',
+      SignalReconnecting: 'SignalReconnecting',
+      Reconnected: 'Reconnected',
       Disconnected: 'Disconnected',
       MediaDevicesChanged: 'MediaDevicesChanged',
       MediaDevicesError: 'MediaDevicesError',
@@ -249,7 +319,29 @@ vi.mock('livekit-client', () => {
       h720fps30: { encoding: { maxBitrate: 2_000_000, maxFramerate: 30 } },
       h1080fps30: { encoding: { maxBitrate: 5_000_000, maxFramerate: 30 } }
     },
-    VideoPresets: { h720: { resolution: {} } }
+    ConnectionState: {
+      Disconnected: 'disconnected',
+      Connecting: 'connecting',
+      Connected: 'connected',
+      Reconnecting: 'reconnecting',
+      SignalReconnecting: 'signalReconnecting'
+    },
+    VideoPresets: { h720: { resolution: {} } },
+    DisconnectReason: {
+      UNKNOWN_REASON: 0,
+      CLIENT_INITIATED: 1,
+      DUPLICATE_IDENTITY: 2,
+      SERVER_SHUTDOWN: 3,
+      PARTICIPANT_REMOVED: 4,
+      ROOM_DELETED: 5,
+      STATE_MISMATCH: 6,
+      JOIN_FAILURE: 7,
+      MIGRATION: 8,
+      SIGNAL_CLOSE: 9,
+      ROOM_CLOSED: 10,
+      CONNECTION_TIMEOUT: 14,
+      MEDIA_FAILURE: 15
+    }
   };
 });
 
@@ -265,11 +357,17 @@ function createVoiceCallClient(overrides: Partial<VoiceCallAPI> = {}): VoiceCall
     getActiveCall: vi.fn(async () => null),
     batchGetActiveCalls: vi.fn(async () => []),
     listCallParticipants: vi.fn(async () => []),
-    joinCall: vi.fn(async () => true),
+    joinCall: vi.fn(async () => ({
+      status: 'joined' as const,
+      participantId: 'device-1',
+      deviceIndex: 1
+    })),
     getCallToken: vi.fn(async () => ({
       token: 'livekit-token',
       e2eeKey: 'shared-e2ee-key',
-      callId: 'call-1'
+      callId: 'call-1',
+      participantId: 'device-1',
+      deviceIndex: 1
     })),
     leaveCall: vi.fn(async () => true),
     ...overrides
@@ -298,6 +396,7 @@ describe('VoiceCallState', () => {
     lastRoom = null;
     connectFailure = null;
     connectGate = null;
+    connectObserver = null;
     microphoneGate = null;
     microphoneFailure = null;
     microphoneProcessor = null;
@@ -312,6 +411,10 @@ describe('VoiceCallState', () => {
     screenShareAudioAvailable = false;
     switchActiveDeviceFailure = null;
     roomEventHandlers = new Map();
+    roomRpcHandlers = new Map();
+    performRpcFailure = null;
+    performRpcResponder = () =>
+      JSON.stringify({ version: 1, microphoneMuted: false, outputMuted: false, revision: 0 });
     localTrackPublications = [];
     mockRemoteParticipants = new Map();
     vi.stubGlobal('Worker', class MockWorker {});
@@ -332,7 +435,16 @@ describe('VoiceCallState', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('retries LiveKit immediately once and then every 2.5 seconds without a limit', () => {
+    const policy = new PersistentReconnectPolicy();
+
+    expect(policy.nextRetryDelayInMs({ retryCount: 0, elapsedMs: 0 })).toBe(0);
+    expect(policy.nextRetryDelayInMs({ retryCount: 1, elapsedMs: 100 })).toBe(2_500);
+    expect(policy.nextRetryDelayInMs({ retryCount: 10_000, elapsedMs: 86_400_000 })).toBe(2_500);
   });
 
   it('sets up LiveKit E2EE before connecting', async () => {
@@ -341,7 +453,7 @@ describe('VoiceCallState', () => {
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
 
-    expect(client.joinCall).toHaveBeenCalledWith('R1');
+    expect(client.joinCall).toHaveBeenCalledWith('R1', expect.any(String), 'ask');
     expect(lastKeyProvider?.setKey).toHaveBeenCalledWith('shared-e2ee-key');
     expect(lastRoomOptions?.encryption).toMatchObject({
       keyProvider: lastKeyProvider
@@ -350,6 +462,99 @@ describe('VoiceCallState', () => {
       calls.indexOf('setE2EEEnabled:true')
     );
     expect(calls.indexOf('setE2EEEnabled:true')).toBeLessThan(calls.indexOf('connect'));
+  });
+
+  it('binds a notification join action to the advertised call ID', async () => {
+    const client = createVoiceCallClient({
+      getCallToken: vi.fn(async () => ({
+        token: 'livekit-token',
+        e2eeKey: 'shared-e2ee-key',
+        callId: 'C-advertised',
+        participantId: 'device-1',
+        deviceIndex: 1
+      }))
+    });
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1', 'ask', 'C-advertised');
+
+    expect(client.joinCall).toHaveBeenCalledWith(
+      'R1',
+      expect.any(String),
+      'ask',
+      'C-advertised'
+    );
+    expect(client.getCallToken).toHaveBeenCalledWith(
+      'R1',
+      expect.any(String),
+      'C-advertised'
+    );
+  });
+
+  it('rejects a replacement call returned between the join intent and token response', async () => {
+    const client = createVoiceCallClient({
+      getCallToken: vi.fn(async () => ({
+        token: 'test-token',
+        e2eeKey: 'replacement-key',
+        callId: 'C-replacement',
+        participantId: 'device-1',
+        deviceIndex: 1
+      }))
+    });
+    const state = new VoiceCallState(client);
+
+    await expect(
+      state.join('wss://livekit.example.test', 'R1', 'ask', 'C-advertised')
+    ).rejects.toMatchObject({ userMessage: 'This call has ended.' });
+    expect(lastRoom).toBeNull();
+    expect(client.leaveCall).toHaveBeenCalledWith('R1', expect.any(String));
+  });
+
+  it('keeps the current call connected when a notification action is already stale', async () => {
+    const joinCall = vi.fn(
+      async (
+        _roomId: string,
+        _clientInstanceId: string,
+        _mode: VoiceCallJoinMode,
+        expectedCallId?: string
+      ) => {
+        if (expectedCallId) throw new Error('advertised call no longer active');
+        return {
+          status: 'joined' as const,
+          participantId: 'device-1',
+          deviceIndex: 1
+        };
+      }
+    );
+    const client = createVoiceCallClient({ joinCall });
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R-current');
+
+    await expect(
+      state.join('wss://livekit.example.test', 'R-target', 'ask', 'C-expired')
+    ).rejects.toThrow('advertised call no longer active');
+
+    expect(state.isInCall('R-current')).toBe(true);
+    expect(lastRoom).not.toBeNull();
+    expect(client.leaveCall).not.toHaveBeenCalled();
+  });
+
+  it('rotates a client identity copied from another active tab', async () => {
+    const copiedClientInstanceId = 'session_copied_from_another_tab';
+    const leaseKey = `towk.voice-call.client-instance-owner:${copiedClientInstanceId}`;
+    sessionStorage.setItem('towk.voice-call.client-instance-id', copiedClientInstanceId);
+    localStorage.setItem(leaseKey, 'page_other_active_tab');
+    const client = createVoiceCallClient();
+
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const usedClientInstanceId = vi.mocked(client.joinCall).mock.calls[0]?.[1];
+    expect(usedClientInstanceId).toEqual(expect.any(String));
+    expect(usedClientInstanceId).not.toBe(copiedClientInstanceId);
+    expect(sessionStorage.getItem('towk.voice-call.client-instance-id')).toBe(usedClientInstanceId);
+
+    localStorage.removeItem(leaseKey);
   });
 
   it('does not play a join sound without the participant join event', async () => {
@@ -374,6 +579,377 @@ describe('VoiceCallState', () => {
     expect(Room.getLocalDevices).toHaveBeenCalledWith('videoinput', false);
     expect(Room.getLocalDevices).not.toHaveBeenCalledWith('videoinput');
     expect(Room.getLocalDevices).not.toHaveBeenCalledWith('videoinput', true);
+  });
+
+  it('returns a device choice without creating a LiveKit connection', async () => {
+    const client = createVoiceCallClient({
+      joinCall: vi.fn(async () => ({
+        status: 'selection-required' as const,
+        activeDeviceCount: 1,
+        companionAllowed: true
+      }))
+    });
+    const state = new VoiceCallState(client);
+
+    await expect(state.join('wss://livekit.example.test', 'R1')).resolves.toEqual({
+      status: 'selection-required',
+      activeDeviceCount: 1,
+      companionAllowed: true
+    });
+
+    expect(client.getCallToken).not.toHaveBeenCalled();
+    expect(calls).not.toContain('connect');
+    expect(state.connected).toBe(false);
+    expect(state.connecting).toBe(false);
+    expect(state.roomId).toBeNull();
+  });
+
+  it('joins a companion with microphone and all incoming call audio muted', async () => {
+    const setVolume = vi.fn();
+    mockRemoteParticipants.set('remote-device', {
+      identity: 'remote-device',
+      name: 'Remote User',
+      metadata:
+        '{"userId":"remote-user","participantId":"remote-device","deviceIndex":1,"login":"remote"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume,
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [{ isMuted: false, track: { source: 'microphone' } }])
+    });
+    const client = createVoiceCallClient({
+      joinCall: vi.fn(async () => ({
+        status: 'joined' as const,
+        participantId: 'device-2',
+        deviceIndex: 2
+      })),
+      getCallToken: vi.fn(async () => ({
+        token: 'livekit-token',
+        e2eeKey: 'shared-e2ee-key',
+        callId: 'call-1',
+        participantId: 'device-2',
+        deviceIndex: 2
+      }))
+    });
+    const state = new VoiceCallState(client);
+    const observedAtConnect = vi.fn(() => {
+      expect(state.isMuted).toBe(true);
+      expect(state.isOutputMuted).toBe(true);
+    });
+    connectObserver = observedAtConnect;
+
+    await state.join('wss://livekit.example.test', 'R1', 'companion');
+
+    expect(observedAtConnect).toHaveBeenCalledOnce();
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalledWith(true);
+    expect(state.isMuted).toBe(true);
+    expect(state.isOutputMuted).toBe(true);
+    expect(setVolume).toHaveBeenCalledWith(0, 'microphone');
+    expect(setVolume).toHaveBeenCalledWith(0, 'screen_share_audio');
+    expect(state.callTransitionSoundDecision('join', 'R1', 'call-1', false)).toBe('skip');
+
+    await state.toggleOutputMute();
+
+    expect(lastRoom?.startAudio).toHaveBeenCalledOnce();
+    expect(state.isOutputMuted).toBe(false);
+    expect(setVolume).toHaveBeenCalledWith(1, 'microphone');
+    expect(setVolume).toHaveBeenCalledWith(1, 'screen_share_audio');
+  });
+
+  it('keeps account identity separate from the LiveKit connection identity', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(state.participants[0]).toMatchObject({
+      identity: 'device-1',
+      participantId: 'device-1',
+      userId: 'local-user',
+      deviceIndex: 1,
+      login: 'local-user'
+    });
+  });
+
+  it('accepts idempotent microphone and output commands only from a sibling device', async () => {
+    mockRemoteParticipants.set('device-2', {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    mockRemoteParticipants.set('other-user-device', {
+      identity: 'other-user-device',
+      name: 'Other User',
+      metadata:
+        '{"userId":"other-user","participantId":"other-user-device","deviceIndex":1,"login":"other-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    const handler = roomRpcHandlers.get('towk.device-audio-control.v1');
+
+    expect(handler).toBeDefined();
+    await expect(
+      handler?.({
+        requestId: 'unauthorized',
+        callerIdentity: 'other-user-device',
+        payload: JSON.stringify({
+          version: 1,
+          action: 'set-state',
+          target: 'microphone',
+          muted: true
+        }),
+        responseTimeout: 8_000
+      })
+    ).rejects.toThrow('Not authorized');
+
+    const firstResponse = await handler?.({
+      requestId: 'mute-microphone',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'microphone',
+        muted: true
+      }),
+      responseTimeout: 8_000
+    });
+    const secondResponse = await handler?.({
+      requestId: 'mute-microphone-again',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'microphone',
+        muted: true
+      }),
+      responseTimeout: 8_000
+    });
+
+    expect(JSON.parse(firstResponse ?? '{}')).toMatchObject({
+      microphoneMuted: true,
+      outputMuted: false
+    });
+    expect(secondResponse).toBe(firstResponse);
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledTimes(2);
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenLastCalledWith(false);
+
+    await handler?.({
+      requestId: 'mute-output',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'output',
+        muted: true
+      }),
+      responseTimeout: 8_000
+    });
+    const outputResponse = await handler?.({
+      requestId: 'unmute-output',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'output',
+        muted: false
+      }),
+      responseTimeout: 8_000
+    });
+
+    expect(lastRoom?.startAudio).toHaveBeenCalledOnce();
+    expect(JSON.parse(outputResponse ?? '{}')).toMatchObject({ outputMuted: false });
+  });
+
+  it('controls sibling audio through targeted RPC and fails closed for other accounts', async () => {
+    mockRemoteParticipants.set('device-2', {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    mockRemoteParticipants.set('other-user-device', {
+      identity: 'other-user-device',
+      name: 'Other User',
+      metadata:
+        '{"userId":"other-user","participantId":"other-user-device","deviceIndex":1,"login":"other-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    performRpcResponder = ({ payload }) => {
+      const request = JSON.parse(payload) as { action: string; target?: string; muted?: boolean };
+      if (request.action === 'get-state') {
+        return JSON.stringify({
+          version: 1,
+          microphoneMuted: true,
+          outputMuted: true,
+          revision: 4
+        });
+      }
+      return JSON.stringify({
+        version: 1,
+        microphoneMuted: request.target === 'microphone' ? request.muted : true,
+        outputMuted: request.target === 'output' ? request.muted : true,
+        revision: 5
+      });
+    };
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await flushPromises();
+    vi.mocked(lastRoom!.localParticipant.performRpc).mockClear();
+
+    await expect(
+      state.setSiblingAudioMuted('other-user-device', 'microphone', false)
+    ).resolves.toBe(false);
+    expect(lastRoom?.localParticipant.performRpc).not.toHaveBeenCalled();
+
+    await expect(state.setSiblingAudioMuted('device-2', 'microphone', false)).resolves.toBe(true);
+    expect(lastRoom?.localParticipant.performRpc).toHaveBeenCalledWith({
+      destinationIdentity: 'device-2',
+      method: 'towk.device-audio-control.v1',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'set-state',
+        target: 'microphone',
+        muted: false
+      }),
+      responseTimeout: 8_000
+    });
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      canControlAudio: true,
+      siblingMicrophoneMuted: false,
+      siblingOutputMuted: true
+    });
+
+    performRpcFailure = new Error('recipient disconnected');
+    await expect(state.setSiblingAudioMuted('device-2', 'output', false)).resolves.toBe(false);
+    expect(toastMocks.error).toHaveBeenCalledWith('Could not update the other device audio.');
+  });
+
+  it('retries sibling state sync when the peer has not observed the caller yet', async () => {
+    const sibling = {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    };
+    let syncAttempts = 0;
+    performRpcResponder = ({ payload }) => {
+      const request = JSON.parse(payload) as { action: string };
+      if (request.action === 'get-state') {
+        syncAttempts += 1;
+        if (syncAttempts === 1) throw new Error('caller not visible yet');
+      }
+      return JSON.stringify({
+        version: 1,
+        microphoneMuted: true,
+        outputMuted: false,
+        revision: 1
+      });
+    };
+
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    mockRemoteParticipants.set('device-2', sibling);
+    roomEventHandlers.get('ParticipantConnected')?.(sibling);
+    await flushPromises();
+
+    expect(syncAttempts).toBe(1);
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      canControlAudio: true,
+      siblingMicrophoneMuted: null,
+      siblingOutputMuted: null
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await flushPromises();
+
+    expect(syncAttempts).toBe(2);
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      siblingMicrophoneMuted: true,
+      siblingOutputMuted: false
+    });
+  });
+
+  it('ignores stale sibling state notifications that arrive out of order', async () => {
+    mockRemoteParticipants.set('device-2', {
+      identity: 'device-2',
+      name: 'Local User',
+      metadata:
+        '{"userId":"local-user","participantId":"device-2","deviceIndex":2,"login":"local-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    const handler = roomRpcHandlers.get('towk.device-audio-control.v1');
+
+    await handler?.({
+      requestId: 'new-state',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'state-changed',
+        state: { version: 1, microphoneMuted: false, outputMuted: false, revision: 8 }
+      }),
+      responseTimeout: 8_000
+    });
+    await handler?.({
+      requestId: 'stale-state',
+      callerIdentity: 'device-2',
+      payload: JSON.stringify({
+        version: 1,
+        action: 'state-changed',
+        state: { version: 1, microphoneMuted: true, outputMuted: true, revision: 7 }
+      }),
+      responseTimeout: 8_000
+    });
+
+    expect(
+      state.participants.find((participant) => participant.identity === 'device-2')
+    ).toMatchObject({
+      siblingMicrophoneMuted: false,
+      siblingOutputMuted: false
+    });
   });
 
   it('configures portable background noise suppression without automatic gain control', async () => {
@@ -502,6 +1078,224 @@ describe('VoiceCallState', () => {
     expect(soundMocks.playCallSound).not.toHaveBeenCalled();
   });
 
+  it('cleans up the local call immediately while the leave intent is still in flight', async () => {
+    const leaveGate = deferredVoid();
+    const leaveCall = vi.fn<VoiceCallAPI['leaveCall']>(async () => {
+      await leaveGate.promise;
+      return true;
+    });
+    const client = createVoiceCallClient({ leaveCall });
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const leaving = state.leave();
+    await flushPromises();
+
+    expect(state.isInAnyCall).toBe(false);
+    expect(state.roomId).toBeNull();
+
+    leaveGate.resolve();
+    await leaving;
+  });
+
+  it('keeps the call active while LiveKit reconnects and clears the state after recovery', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Reconnecting')?.();
+
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.roomId).toBe('R1');
+
+    roomEventHandlers.get('Reconnected')?.();
+
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(true);
+  });
+
+  it('shows recovery immediately for a browser offline signal and clears it after a short outage', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    window.dispatchEvent(new Event('offline'));
+
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.roomId).toBe('R1');
+
+    window.dispatchEvent(new Event('online'));
+
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(true);
+    await state.leave();
+  });
+
+  it('continues application recovery after a terminal network timeout until it succeeds', async () => {
+    vi.useFakeTimers();
+    const joinCall = vi
+      .fn<VoiceCallAPI['joinCall']>()
+      .mockResolvedValueOnce({ status: 'joined', participantId: 'device-1', deviceIndex: 1 })
+      .mockRejectedValueOnce(new Error('network unavailable'))
+      .mockResolvedValue({ status: 'joined', participantId: 'device-1', deviceIndex: 1 });
+    const client = createVoiceCallClient({ joinCall });
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.roomId).toBe('R1');
+
+    await vi.advanceTimersByTimeAsync(2_500);
+    await flushPromises();
+    expect(joinCall).toHaveBeenCalledTimes(2);
+    expect(state.reconnecting).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(30);
+
+    expect(joinCall).toHaveBeenCalledTimes(3);
+    expect(joinCall.mock.calls[1]).toEqual(['R1', joinCall.mock.calls[0][1], 'companion']);
+    expect(joinCall.mock.calls[2]).toEqual(['R1', joinCall.mock.calls[0][1], 'companion']);
+    expect(client.getCallToken).toHaveBeenCalledTimes(2);
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(2);
+    expect(client.leaveCall).not.toHaveBeenCalled();
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(true);
+  });
+
+  it('lets the user leave during recovery and cancels all later attempts', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+    await state.leave();
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.joinCall).toHaveBeenCalledTimes(1);
+    expect(client.leaveCall).toHaveBeenCalledWith('R1', expect.any(String));
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(false);
+  });
+
+  it('does not let a cancelled recovery disconnect a newer call when its connect resolves late', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const recoveryConnectGate = deferredVoid();
+    connectGate = recoveryConnectGate;
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(50);
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(2);
+    const recoveringRoom = lastRoom;
+
+    await state.leave();
+    connectGate = null;
+    await state.join('wss://livekit.example.test', 'R2');
+    const newerRoom = lastRoom;
+
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(3);
+    expect(state.roomId).toBe('R2');
+    expect(state.isInAnyCall).toBe(true);
+
+    expect(recoveringRoom).not.toBeNull();
+    expect(recoveringRoom).not.toBe(newerRoom);
+
+    recoveryConnectGate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(20);
+
+    expect(state.roomId).toBe('R2');
+    expect(state.isInAnyCall).toBe(true);
+    expect(newerRoom?.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not let cancelled media restoration mutate a newer call', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    const recoveryMicrophoneGate = deferredVoid();
+    microphoneGate = recoveryMicrophoneGate;
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.CONNECTION_TIMEOUT);
+    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(50);
+
+    expect(calls.filter((call) => call === 'connect')).toHaveLength(2);
+    expect(calls.filter((call) => call === 'setMicrophoneEnabled')).toHaveLength(2);
+
+    await state.leave();
+    microphoneGate = null;
+    await state.join('wss://livekit.example.test', 'R2');
+    const newerRoom = lastRoom;
+
+    recoveryMicrophoneGate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await flushPromises(20);
+
+    expect(state.roomId).toBe('R2');
+    expect(state.isInAnyCall).toBe(true);
+    expect(state.isMuted).toBe(false);
+    expect(newerRoom?.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not recover after a duplicate identity disconnect', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    toastMocks.error.mockClear();
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.DUPLICATE_IDENTITY);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.joinCall).toHaveBeenCalledTimes(1);
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(false);
+    expect(toastMocks.error).toHaveBeenCalledWith('Voice call disconnected');
+  });
+
+  it('does not recover after LiveKit closes the room', async () => {
+    vi.useFakeTimers();
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Disconnected')?.(DisconnectReason.ROOM_CLOSED);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(client.joinCall).toHaveBeenCalledTimes(1);
+    expect(state.reconnecting).toBe(false);
+    expect(state.isInAnyCall).toBe(false);
+  });
+
+  it('ignores projected leave and call-end events caused by a connection interruption', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    roomEventHandlers.get('Reconnecting')?.();
+    state.handleParticipantLeftEvent('R1', 'call-1', 'device-1', 'local-user', 'local-user');
+    state.handleCallEndedEvent('R1', 'call-1');
+
+    expect(lastRoom?.disconnect).not.toHaveBeenCalled();
+    expect(state.reconnecting).toBe(true);
+    expect(state.isInAnyCall).toBe(true);
+  });
+
   it('records a compensating leave when LiveKit connect fails after join intent', async () => {
     connectFailure = new Error('connect failed');
     const client = createVoiceCallClient();
@@ -511,7 +1305,7 @@ describe('VoiceCallState', () => {
     await expect(state.join('wss://livekit.example.test', 'R1')).rejects.toThrow('connect failed');
 
     expect(client.joinCall).toHaveBeenCalledTimes(1);
-    expect(client.leaveCall).toHaveBeenCalledWith('R1');
+    expect(client.leaveCall).toHaveBeenCalledWith('R1', expect.any(String));
     expect(state.isInAnyCall).toBe(false);
     expect(soundMocks.playCallSound).not.toHaveBeenCalled();
   });
@@ -544,17 +1338,21 @@ describe('VoiceCallState', () => {
     await state.join('wss://livekit.example.test', 'R1');
     soundMocks.playCallSound.mockClear();
 
-    state.handleParticipantLeftEvent('R1', 'call-1', 'remote-user', 'local-user');
+    state.handleParticipantLeftEvent('R1', 'call-1', 'remote-device', 'remote-user', 'local-user');
     expect(lastRoom?.disconnect).not.toHaveBeenCalled();
     expect(state.isInAnyCall).toBe(true);
     expect(soundMocks.playCallSound).not.toHaveBeenCalled();
 
-    state.handleParticipantLeftEvent('R1', 'old-call', 'local-user', 'local-user');
+    state.handleParticipantLeftEvent('R1', 'old-call', 'device-1', 'local-user', 'local-user');
     expect(lastRoom?.disconnect).not.toHaveBeenCalled();
     expect(state.isInAnyCall).toBe(true);
     expect(soundMocks.playCallSound).not.toHaveBeenCalled();
 
-    state.handleParticipantLeftEvent('R1', 'call-1', 'local-user', 'local-user');
+    state.handleParticipantLeftEvent('R1', 'call-1', 'device-2', 'local-user', 'local-user');
+    expect(lastRoom?.disconnect).not.toHaveBeenCalled();
+    expect(state.isInAnyCall).toBe(true);
+
+    state.handleParticipantLeftEvent('R1', 'call-1', 'device-1', 'local-user', 'local-user');
     expect(lastRoom?.disconnect).toHaveBeenCalledOnce();
     expect(client.joinCall).toHaveBeenCalledTimes(1);
     expect(client.leaveCall).not.toHaveBeenCalled();
@@ -604,7 +1402,7 @@ describe('VoiceCallState', () => {
     );
     expect(state.isScreenShareEnabled).toBe(true);
     expect(state.participants[0]).toMatchObject({
-      identity: 'local-user',
+      identity: 'device-1',
       isCameraEnabled: false,
       isScreenShareEnabled: true
     });
@@ -972,7 +1770,8 @@ describe('VoiceCallState', () => {
     state.toggleParticipantLocalMute('remote-user');
 
     expect(state.isParticipantLocallyMuted('remote-user')).toBe(true);
-    expect(setVolume).toHaveBeenLastCalledWith(0);
+    expect(setVolume).toHaveBeenCalledWith(0, 'microphone');
+    expect(setVolume).toHaveBeenCalledWith(0, 'screen_share_audio');
     expect(state.participants.find((p) => p.identity === 'remote-user')).toMatchObject({
       isLocallyMuted: true
     });
@@ -980,10 +1779,11 @@ describe('VoiceCallState', () => {
     state.toggleParticipantLocalMute('remote-user');
 
     expect(state.isParticipantLocallyMuted('remote-user')).toBe(false);
-    expect(setVolume).toHaveBeenLastCalledWith(1);
+    expect(setVolume).toHaveBeenCalledWith(1, 'microphone');
+    expect(setVolume).toHaveBeenCalledWith(1, 'screen_share_audio');
 
-    state.toggleParticipantLocalMute('local-user');
-    expect(state.isParticipantLocallyMuted('local-user')).toBe(false);
+    state.toggleParticipantLocalMute('device-1');
+    expect(state.isParticipantLocallyMuted('device-1')).toBe(false);
 
     state.toggleParticipantLocalMute('remote-user');
     expect(state.isParticipantLocallyMuted('remote-user')).toBe(true);

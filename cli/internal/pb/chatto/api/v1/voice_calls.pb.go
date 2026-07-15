@@ -23,6 +23,111 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// How a client wants to join when the same account is already connected.
+type JoinCallMode int32
+
+const (
+	// Ask the server to join directly only when no other device is connected.
+	JoinCallMode_JOIN_CALL_MODE_UNSPECIFIED JoinCallMode = 0
+	// Keep existing devices connected and join muted as a companion device.
+	JoinCallMode_JOIN_CALL_MODE_COMPANION JoinCallMode = 1
+	// Disconnect existing devices for the account and continue on this device.
+	JoinCallMode_JOIN_CALL_MODE_TRANSFER JoinCallMode = 2
+)
+
+// Enum value maps for JoinCallMode.
+var (
+	JoinCallMode_name = map[int32]string{
+		0: "JOIN_CALL_MODE_UNSPECIFIED",
+		1: "JOIN_CALL_MODE_COMPANION",
+		2: "JOIN_CALL_MODE_TRANSFER",
+	}
+	JoinCallMode_value = map[string]int32{
+		"JOIN_CALL_MODE_UNSPECIFIED": 0,
+		"JOIN_CALL_MODE_COMPANION":   1,
+		"JOIN_CALL_MODE_TRANSFER":    2,
+	}
+)
+
+func (x JoinCallMode) Enum() *JoinCallMode {
+	p := new(JoinCallMode)
+	*p = x
+	return p
+}
+
+func (x JoinCallMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JoinCallMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_chatto_api_v1_voice_calls_proto_enumTypes[0].Descriptor()
+}
+
+func (JoinCallMode) Type() protoreflect.EnumType {
+	return &file_chatto_api_v1_voice_calls_proto_enumTypes[0]
+}
+
+func (x JoinCallMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JoinCallMode.Descriptor instead.
+func (JoinCallMode) EnumDescriptor() ([]byte, []int) {
+	return file_chatto_api_v1_voice_calls_proto_rawDescGZIP(), []int{0}
+}
+
+// Outcome of recording a call join intent.
+type JoinCallStatus int32
+
+const (
+	JoinCallStatus_JOIN_CALL_STATUS_UNSPECIFIED JoinCallStatus = 0
+	// The connection was admitted to the call.
+	JoinCallStatus_JOIN_CALL_STATUS_JOINED JoinCallStatus = 1
+	// Another device is active and the user must choose companion or transfer.
+	JoinCallStatus_JOIN_CALL_STATUS_SELECTION_REQUIRED JoinCallStatus = 2
+)
+
+// Enum value maps for JoinCallStatus.
+var (
+	JoinCallStatus_name = map[int32]string{
+		0: "JOIN_CALL_STATUS_UNSPECIFIED",
+		1: "JOIN_CALL_STATUS_JOINED",
+		2: "JOIN_CALL_STATUS_SELECTION_REQUIRED",
+	}
+	JoinCallStatus_value = map[string]int32{
+		"JOIN_CALL_STATUS_UNSPECIFIED":        0,
+		"JOIN_CALL_STATUS_JOINED":             1,
+		"JOIN_CALL_STATUS_SELECTION_REQUIRED": 2,
+	}
+)
+
+func (x JoinCallStatus) Enum() *JoinCallStatus {
+	p := new(JoinCallStatus)
+	*p = x
+	return p
+}
+
+func (x JoinCallStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JoinCallStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_chatto_api_v1_voice_calls_proto_enumTypes[1].Descriptor()
+}
+
+func (JoinCallStatus) Type() protoreflect.EnumType {
+	return &file_chatto_api_v1_voice_calls_proto_enumTypes[1]
+}
+
+func (x JoinCallStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JoinCallStatus.Descriptor instead.
+func (JoinCallStatus) EnumDescriptor() ([]byte, []int) {
+	return file_chatto_api_v1_voice_calls_proto_rawDescGZIP(), []int{1}
+}
+
 // Request for active channel call snapshots.
 type ListActiveCallsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -454,7 +559,11 @@ type CallParticipant struct {
 	// When the user joined this call.
 	JoinedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=joined_at,json=joinedAt,proto3" json:"joined_at,omitempty"`
 	// Active call session ID.
-	CallId        string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	CallId string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	// Stable media-session participant ID for this browser/device connection.
+	ParticipantId string `protobuf:"bytes,4,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot for concurrent connections from the same account.
+	DeviceIndex   uint32 `protobuf:"varint,5,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -510,13 +619,35 @@ func (x *CallParticipant) GetCallId() string {
 	return ""
 }
 
+func (x *CallParticipant) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *CallParticipant) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
+}
+
 // Request to record joining a room call.
 type JoinCallRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Room whose call is being joined.
-	RoomId        string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Opaque browser-session identifier used to make retries idempotent.
+	// Empty is accepted for compatibility with older clients.
+	ClientInstanceId string `protobuf:"bytes,2,opt,name=client_instance_id,json=clientInstanceId,proto3" json:"client_instance_id,omitempty"`
+	// Requested behavior when another device for the account is active.
+	Mode JoinCallMode `protobuf:"varint,3,opt,name=mode,proto3,enum=chatto.api.v1.JoinCallMode" json:"mode,omitempty"`
+	// Optional. Exact active call advertised by a notification action. When it
+	// no longer matches, the request fails instead of starting a replacement.
+	ExpectedCallId string `protobuf:"bytes,4,opt,name=expected_call_id,json=expectedCallId,proto3" json:"expected_call_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *JoinCallRequest) Reset() {
@@ -556,13 +687,44 @@ func (x *JoinCallRequest) GetRoomId() string {
 	return ""
 }
 
+func (x *JoinCallRequest) GetClientInstanceId() string {
+	if x != nil {
+		return x.ClientInstanceId
+	}
+	return ""
+}
+
+func (x *JoinCallRequest) GetMode() JoinCallMode {
+	if x != nil {
+		return x.Mode
+	}
+	return JoinCallMode_JOIN_CALL_MODE_UNSPECIFIED
+}
+
+func (x *JoinCallRequest) GetExpectedCallId() string {
+	if x != nil {
+		return x.ExpectedCallId
+	}
+	return ""
+}
+
 // Response from recording a join intent.
 type JoinCallResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// True when a join fact was recorded.
-	Joined        bool `protobuf:"varint,1,opt,name=joined,proto3" json:"joined,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Joined bool `protobuf:"varint,1,opt,name=joined,proto3" json:"joined,omitempty"`
+	// Structured join outcome for multi-device clients.
+	Status JoinCallStatus `protobuf:"varint,2,opt,name=status,proto3,enum=chatto.api.v1.JoinCallStatus" json:"status,omitempty"`
+	// Media-session participant ID when joined.
+	ParticipantId string `protobuf:"bytes,3,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot when joined.
+	DeviceIndex uint32 `protobuf:"varint,4,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
+	// Number of other active connections for this account at decision time.
+	ActiveDeviceCount uint32 `protobuf:"varint,5,opt,name=active_device_count,json=activeDeviceCount,proto3" json:"active_device_count,omitempty"`
+	// Whether another companion connection can be admitted without a transfer.
+	CompanionAllowed bool `protobuf:"varint,6,opt,name=companion_allowed,json=companionAllowed,proto3" json:"companion_allowed,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *JoinCallResponse) Reset() {
@@ -602,13 +764,54 @@ func (x *JoinCallResponse) GetJoined() bool {
 	return false
 }
 
+func (x *JoinCallResponse) GetStatus() JoinCallStatus {
+	if x != nil {
+		return x.Status
+	}
+	return JoinCallStatus_JOIN_CALL_STATUS_UNSPECIFIED
+}
+
+func (x *JoinCallResponse) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *JoinCallResponse) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
+}
+
+func (x *JoinCallResponse) GetActiveDeviceCount() uint32 {
+	if x != nil {
+		return x.ActiveDeviceCount
+	}
+	return 0
+}
+
+func (x *JoinCallResponse) GetCompanionAllowed() bool {
+	if x != nil {
+		return x.CompanionAllowed
+	}
+	return false
+}
+
 // Request for a LiveKit token for a room call.
 type GetCallTokenRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Room whose active call should be joined.
-	RoomId        string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Must match the browser-session identifier admitted by JoinCall.
+	// Empty is accepted for compatibility with older clients.
+	ClientInstanceId string `protobuf:"bytes,2,opt,name=client_instance_id,json=clientInstanceId,proto3" json:"client_instance_id,omitempty"`
+	// Optional. Exact call selected by a notification action. A mismatch fails
+	// instead of issuing credentials for a replacement call.
+	ExpectedCallId string `protobuf:"bytes,3,opt,name=expected_call_id,json=expectedCallId,proto3" json:"expected_call_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetCallTokenRequest) Reset() {
@@ -648,6 +851,20 @@ func (x *GetCallTokenRequest) GetRoomId() string {
 	return ""
 }
 
+func (x *GetCallTokenRequest) GetClientInstanceId() string {
+	if x != nil {
+		return x.ClientInstanceId
+	}
+	return ""
+}
+
+func (x *GetCallTokenRequest) GetExpectedCallId() string {
+	if x != nil {
+		return x.ExpectedCallId
+	}
+	return ""
+}
+
 // LiveKit token details for joining a room call.
 type GetCallTokenResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -656,7 +873,11 @@ type GetCallTokenResponse struct {
 	// Shared E2EE key for this active call.
 	E2EeKey string `protobuf:"bytes,2,opt,name=e2ee_key,json=e2eeKey,proto3" json:"e2ee_key,omitempty"`
 	// Active call session ID.
-	CallId        string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	CallId string `protobuf:"bytes,3,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	// Media-session participant ID encoded as the LiveKit identity.
+	ParticipantId string `protobuf:"bytes,4,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot for this connection.
+	DeviceIndex   uint32 `protobuf:"varint,5,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -712,13 +933,30 @@ func (x *GetCallTokenResponse) GetCallId() string {
 	return ""
 }
 
+func (x *GetCallTokenResponse) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *GetCallTokenResponse) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
+}
+
 // Request to record leaving a room call.
 type LeaveCallRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. Room whose call is being left.
-	RoomId        string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Browser-session identifier for the exact connection leaving the call.
+	// Empty targets the legacy single-device participant only.
+	ClientInstanceId string `protobuf:"bytes,2,opt,name=client_instance_id,json=clientInstanceId,proto3" json:"client_instance_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *LeaveCallRequest) Reset() {
@@ -754,6 +992,13 @@ func (*LeaveCallRequest) Descriptor() ([]byte, []int) {
 func (x *LeaveCallRequest) GetRoomId() string {
 	if x != nil {
 		return x.RoomId
+	}
+	return ""
+}
+
+func (x *LeaveCallRequest) GetClientInstanceId() string {
+	if x != nil {
+		return x.ClientInstanceId
 	}
 	return ""
 }
@@ -829,25 +1074,48 @@ const file_chatto_api_v1_voice_calls_proto_rawDesc = "" +
 	"\x1bListCallParticipantsRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\"b\n" +
 	"\x1cListCallParticipantsResponse\x12B\n" +
-	"\fparticipants\x18\x01 \x03(\v2\x1e.chatto.api.v1.CallParticipantR\fparticipants\"\x8c\x01\n" +
+	"\fparticipants\x18\x01 \x03(\v2\x1e.chatto.api.v1.CallParticipantR\fparticipants\"\xd6\x01\n" +
 	"\x0fCallParticipant\x12'\n" +
 	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\x127\n" +
 	"\tjoined_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\bjoinedAt\x12\x17\n" +
-	"\acall_id\x18\x03 \x01(\tR\x06callId\"3\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callId\x12%\n" +
+	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"\xf7\x01\n" +
 	"\x0fJoinCallRequest\x12 \n" +
-	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\"*\n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12H\n" +
+	"\x12client_instance_id\x18\x02 \x01(\tB\x1a\xbaH\x17r\x15\x18\x80\x012\x10^[A-Za-z0-9_-]*$R\x10clientInstanceId\x12/\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x1b.chatto.api.v1.JoinCallModeR\x04mode\x12G\n" +
+	"\x10expected_call_id\x18\x04 \x01(\tB\x1d\xbaH\x1ar\x18\x18\x80\x012\x13^$|^[A-Za-z0-9_-]+$R\x0eexpectedCallId\"\x88\x02\n" +
 	"\x10JoinCallResponse\x12\x16\n" +
-	"\x06joined\x18\x01 \x01(\bR\x06joined\"7\n" +
+	"\x06joined\x18\x01 \x01(\bR\x06joined\x125\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x1d.chatto.api.v1.JoinCallStatusR\x06status\x12%\n" +
+	"\x0eparticipant_id\x18\x03 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x04 \x01(\rR\vdeviceIndex\x12.\n" +
+	"\x13active_device_count\x18\x05 \x01(\rR\x11activeDeviceCount\x12+\n" +
+	"\x11companion_allowed\x18\x06 \x01(\bR\x10companionAllowed\"\xca\x01\n" +
 	"\x13GetCallTokenRequest\x12 \n" +
-	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\"`\n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12H\n" +
+	"\x12client_instance_id\x18\x02 \x01(\tB\x1a\xbaH\x17r\x15\x18\x80\x012\x10^[A-Za-z0-9_-]*$R\x10clientInstanceId\x12G\n" +
+	"\x10expected_call_id\x18\x03 \x01(\tB\x1d\xbaH\x1ar\x18\x18\x80\x012\x13^$|^[A-Za-z0-9_-]+$R\x0eexpectedCallId\"\xaa\x01\n" +
 	"\x14GetCallTokenResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12\x19\n" +
 	"\be2ee_key\x18\x02 \x01(\tR\ae2eeKey\x12\x17\n" +
-	"\acall_id\x18\x03 \x01(\tR\x06callId\"4\n" +
+	"\acall_id\x18\x03 \x01(\tR\x06callId\x12%\n" +
+	"\x0eparticipant_id\x18\x04 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x05 \x01(\rR\vdeviceIndex\"~\n" +
 	"\x10LeaveCallRequest\x12 \n" +
-	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\"'\n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12H\n" +
+	"\x12client_instance_id\x18\x02 \x01(\tB\x1a\xbaH\x17r\x15\x18\x80\x012\x10^[A-Za-z0-9_-]*$R\x10clientInstanceId\"'\n" +
 	"\x11LeaveCallResponse\x12\x12\n" +
-	"\x04left\x18\x01 \x01(\bR\x04left2\xa5\x05\n" +
+	"\x04left\x18\x01 \x01(\bR\x04left*i\n" +
+	"\fJoinCallMode\x12\x1e\n" +
+	"\x1aJOIN_CALL_MODE_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18JOIN_CALL_MODE_COMPANION\x10\x01\x12\x1b\n" +
+	"\x17JOIN_CALL_MODE_TRANSFER\x10\x02*x\n" +
+	"\x0eJoinCallStatus\x12 \n" +
+	"\x1cJOIN_CALL_STATUS_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17JOIN_CALL_STATUS_JOINED\x10\x01\x12'\n" +
+	"#JOIN_CALL_STATUS_SELECTION_REQUIRED\x10\x022\xa5\x05\n" +
 	"\x10VoiceCallService\x12`\n" +
 	"\x0fListActiveCalls\x12%.chatto.api.v1.ListActiveCallsRequest\x1a&.chatto.api.v1.ListActiveCallsResponse\x12Z\n" +
 	"\rGetActiveCall\x12#.chatto.api.v1.GetActiveCallRequest\x1a$.chatto.api.v1.GetActiveCallResponse\x12l\n" +
@@ -870,56 +1138,61 @@ func file_chatto_api_v1_voice_calls_proto_rawDescGZIP() []byte {
 	return file_chatto_api_v1_voice_calls_proto_rawDescData
 }
 
+var file_chatto_api_v1_voice_calls_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_chatto_api_v1_voice_calls_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_chatto_api_v1_voice_calls_proto_goTypes = []any{
-	(*ListActiveCallsRequest)(nil),       // 0: chatto.api.v1.ListActiveCallsRequest
-	(*ListActiveCallsResponse)(nil),      // 1: chatto.api.v1.ListActiveCallsResponse
-	(*ActiveCall)(nil),                   // 2: chatto.api.v1.ActiveCall
-	(*GetActiveCallRequest)(nil),         // 3: chatto.api.v1.GetActiveCallRequest
-	(*GetActiveCallResponse)(nil),        // 4: chatto.api.v1.GetActiveCallResponse
-	(*BatchGetActiveCallsRequest)(nil),   // 5: chatto.api.v1.BatchGetActiveCallsRequest
-	(*BatchGetActiveCallsResponse)(nil),  // 6: chatto.api.v1.BatchGetActiveCallsResponse
-	(*ListCallParticipantsRequest)(nil),  // 7: chatto.api.v1.ListCallParticipantsRequest
-	(*ListCallParticipantsResponse)(nil), // 8: chatto.api.v1.ListCallParticipantsResponse
-	(*CallParticipant)(nil),              // 9: chatto.api.v1.CallParticipant
-	(*JoinCallRequest)(nil),              // 10: chatto.api.v1.JoinCallRequest
-	(*JoinCallResponse)(nil),             // 11: chatto.api.v1.JoinCallResponse
-	(*GetCallTokenRequest)(nil),          // 12: chatto.api.v1.GetCallTokenRequest
-	(*GetCallTokenResponse)(nil),         // 13: chatto.api.v1.GetCallTokenResponse
-	(*LeaveCallRequest)(nil),             // 14: chatto.api.v1.LeaveCallRequest
-	(*LeaveCallResponse)(nil),            // 15: chatto.api.v1.LeaveCallResponse
-	(*RoomSummary)(nil),                  // 16: chatto.api.v1.RoomSummary
-	(*User)(nil),                         // 17: chatto.api.v1.User
-	(*timestamppb.Timestamp)(nil),        // 18: google.protobuf.Timestamp
+	(JoinCallMode)(0),                    // 0: chatto.api.v1.JoinCallMode
+	(JoinCallStatus)(0),                  // 1: chatto.api.v1.JoinCallStatus
+	(*ListActiveCallsRequest)(nil),       // 2: chatto.api.v1.ListActiveCallsRequest
+	(*ListActiveCallsResponse)(nil),      // 3: chatto.api.v1.ListActiveCallsResponse
+	(*ActiveCall)(nil),                   // 4: chatto.api.v1.ActiveCall
+	(*GetActiveCallRequest)(nil),         // 5: chatto.api.v1.GetActiveCallRequest
+	(*GetActiveCallResponse)(nil),        // 6: chatto.api.v1.GetActiveCallResponse
+	(*BatchGetActiveCallsRequest)(nil),   // 7: chatto.api.v1.BatchGetActiveCallsRequest
+	(*BatchGetActiveCallsResponse)(nil),  // 8: chatto.api.v1.BatchGetActiveCallsResponse
+	(*ListCallParticipantsRequest)(nil),  // 9: chatto.api.v1.ListCallParticipantsRequest
+	(*ListCallParticipantsResponse)(nil), // 10: chatto.api.v1.ListCallParticipantsResponse
+	(*CallParticipant)(nil),              // 11: chatto.api.v1.CallParticipant
+	(*JoinCallRequest)(nil),              // 12: chatto.api.v1.JoinCallRequest
+	(*JoinCallResponse)(nil),             // 13: chatto.api.v1.JoinCallResponse
+	(*GetCallTokenRequest)(nil),          // 14: chatto.api.v1.GetCallTokenRequest
+	(*GetCallTokenResponse)(nil),         // 15: chatto.api.v1.GetCallTokenResponse
+	(*LeaveCallRequest)(nil),             // 16: chatto.api.v1.LeaveCallRequest
+	(*LeaveCallResponse)(nil),            // 17: chatto.api.v1.LeaveCallResponse
+	(*RoomSummary)(nil),                  // 18: chatto.api.v1.RoomSummary
+	(*User)(nil),                         // 19: chatto.api.v1.User
+	(*timestamppb.Timestamp)(nil),        // 20: google.protobuf.Timestamp
 }
 var file_chatto_api_v1_voice_calls_proto_depIdxs = []int32{
-	2,  // 0: chatto.api.v1.ListActiveCallsResponse.calls:type_name -> chatto.api.v1.ActiveCall
-	16, // 1: chatto.api.v1.ActiveCall.room:type_name -> chatto.api.v1.RoomSummary
-	9,  // 2: chatto.api.v1.ActiveCall.participants:type_name -> chatto.api.v1.CallParticipant
-	2,  // 3: chatto.api.v1.GetActiveCallResponse.call:type_name -> chatto.api.v1.ActiveCall
-	2,  // 4: chatto.api.v1.BatchGetActiveCallsResponse.calls:type_name -> chatto.api.v1.ActiveCall
-	9,  // 5: chatto.api.v1.ListCallParticipantsResponse.participants:type_name -> chatto.api.v1.CallParticipant
-	17, // 6: chatto.api.v1.CallParticipant.user:type_name -> chatto.api.v1.User
-	18, // 7: chatto.api.v1.CallParticipant.joined_at:type_name -> google.protobuf.Timestamp
-	0,  // 8: chatto.api.v1.VoiceCallService.ListActiveCalls:input_type -> chatto.api.v1.ListActiveCallsRequest
-	3,  // 9: chatto.api.v1.VoiceCallService.GetActiveCall:input_type -> chatto.api.v1.GetActiveCallRequest
-	5,  // 10: chatto.api.v1.VoiceCallService.BatchGetActiveCalls:input_type -> chatto.api.v1.BatchGetActiveCallsRequest
-	7,  // 11: chatto.api.v1.VoiceCallService.ListCallParticipants:input_type -> chatto.api.v1.ListCallParticipantsRequest
-	10, // 12: chatto.api.v1.VoiceCallService.JoinCall:input_type -> chatto.api.v1.JoinCallRequest
-	12, // 13: chatto.api.v1.VoiceCallService.GetCallToken:input_type -> chatto.api.v1.GetCallTokenRequest
-	14, // 14: chatto.api.v1.VoiceCallService.LeaveCall:input_type -> chatto.api.v1.LeaveCallRequest
-	1,  // 15: chatto.api.v1.VoiceCallService.ListActiveCalls:output_type -> chatto.api.v1.ListActiveCallsResponse
-	4,  // 16: chatto.api.v1.VoiceCallService.GetActiveCall:output_type -> chatto.api.v1.GetActiveCallResponse
-	6,  // 17: chatto.api.v1.VoiceCallService.BatchGetActiveCalls:output_type -> chatto.api.v1.BatchGetActiveCallsResponse
-	8,  // 18: chatto.api.v1.VoiceCallService.ListCallParticipants:output_type -> chatto.api.v1.ListCallParticipantsResponse
-	11, // 19: chatto.api.v1.VoiceCallService.JoinCall:output_type -> chatto.api.v1.JoinCallResponse
-	13, // 20: chatto.api.v1.VoiceCallService.GetCallToken:output_type -> chatto.api.v1.GetCallTokenResponse
-	15, // 21: chatto.api.v1.VoiceCallService.LeaveCall:output_type -> chatto.api.v1.LeaveCallResponse
-	15, // [15:22] is the sub-list for method output_type
-	8,  // [8:15] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	4,  // 0: chatto.api.v1.ListActiveCallsResponse.calls:type_name -> chatto.api.v1.ActiveCall
+	18, // 1: chatto.api.v1.ActiveCall.room:type_name -> chatto.api.v1.RoomSummary
+	11, // 2: chatto.api.v1.ActiveCall.participants:type_name -> chatto.api.v1.CallParticipant
+	4,  // 3: chatto.api.v1.GetActiveCallResponse.call:type_name -> chatto.api.v1.ActiveCall
+	4,  // 4: chatto.api.v1.BatchGetActiveCallsResponse.calls:type_name -> chatto.api.v1.ActiveCall
+	11, // 5: chatto.api.v1.ListCallParticipantsResponse.participants:type_name -> chatto.api.v1.CallParticipant
+	19, // 6: chatto.api.v1.CallParticipant.user:type_name -> chatto.api.v1.User
+	20, // 7: chatto.api.v1.CallParticipant.joined_at:type_name -> google.protobuf.Timestamp
+	0,  // 8: chatto.api.v1.JoinCallRequest.mode:type_name -> chatto.api.v1.JoinCallMode
+	1,  // 9: chatto.api.v1.JoinCallResponse.status:type_name -> chatto.api.v1.JoinCallStatus
+	2,  // 10: chatto.api.v1.VoiceCallService.ListActiveCalls:input_type -> chatto.api.v1.ListActiveCallsRequest
+	5,  // 11: chatto.api.v1.VoiceCallService.GetActiveCall:input_type -> chatto.api.v1.GetActiveCallRequest
+	7,  // 12: chatto.api.v1.VoiceCallService.BatchGetActiveCalls:input_type -> chatto.api.v1.BatchGetActiveCallsRequest
+	9,  // 13: chatto.api.v1.VoiceCallService.ListCallParticipants:input_type -> chatto.api.v1.ListCallParticipantsRequest
+	12, // 14: chatto.api.v1.VoiceCallService.JoinCall:input_type -> chatto.api.v1.JoinCallRequest
+	14, // 15: chatto.api.v1.VoiceCallService.GetCallToken:input_type -> chatto.api.v1.GetCallTokenRequest
+	16, // 16: chatto.api.v1.VoiceCallService.LeaveCall:input_type -> chatto.api.v1.LeaveCallRequest
+	3,  // 17: chatto.api.v1.VoiceCallService.ListActiveCalls:output_type -> chatto.api.v1.ListActiveCallsResponse
+	6,  // 18: chatto.api.v1.VoiceCallService.GetActiveCall:output_type -> chatto.api.v1.GetActiveCallResponse
+	8,  // 19: chatto.api.v1.VoiceCallService.BatchGetActiveCalls:output_type -> chatto.api.v1.BatchGetActiveCallsResponse
+	10, // 20: chatto.api.v1.VoiceCallService.ListCallParticipants:output_type -> chatto.api.v1.ListCallParticipantsResponse
+	13, // 21: chatto.api.v1.VoiceCallService.JoinCall:output_type -> chatto.api.v1.JoinCallResponse
+	15, // 22: chatto.api.v1.VoiceCallService.GetCallToken:output_type -> chatto.api.v1.GetCallTokenResponse
+	17, // 23: chatto.api.v1.VoiceCallService.LeaveCall:output_type -> chatto.api.v1.LeaveCallResponse
+	17, // [17:24] is the sub-list for method output_type
+	10, // [10:17] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_chatto_api_v1_voice_calls_proto_init() }
@@ -934,13 +1207,14 @@ func file_chatto_api_v1_voice_calls_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_api_v1_voice_calls_proto_rawDesc), len(file_chatto_api_v1_voice_calls_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      2,
 			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_chatto_api_v1_voice_calls_proto_goTypes,
 		DependencyIndexes: file_chatto_api_v1_voice_calls_proto_depIdxs,
+		EnumInfos:         file_chatto_api_v1_voice_calls_proto_enumTypes,
 		MessageInfos:      file_chatto_api_v1_voice_calls_proto_msgTypes,
 	}.Build()
 	File_chatto_api_v1_voice_calls_proto = out.File

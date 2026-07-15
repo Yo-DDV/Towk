@@ -21,6 +21,13 @@ import {
   createCacheForegroundBadgeIntentStorage,
   type ServiceWorkerBadgeIntent
 } from '$lib/pwa/notificationBadge.worker';
+import {
+  callNotificationClickUrl,
+  normalizeCallPushNotification,
+  type CallPushPayload
+} from '$lib/pwa/callNotification.worker';
+import { OUTBOX_SYNC_TAG } from '$lib/pwa/outboxPolicy';
+import { storeIncomingShare } from '$lib/pwa/shareInbox';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -29,8 +36,21 @@ const CACHE_NAME = `${CACHE_PREFIX}-${version}`;
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const LEGACY_CACHE_PREFIXES = ['chatto-shell'];
 const LEGACY_CACHE_NAMES = ['chatto-badge-state-v2'];
+const ESSENTIAL_STATIC_ASSETS = [
+  '/manifest.webmanifest',
+  '/icons/favicon.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-192.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/symbol-256.png'
+] as const;
 const SHELL_ASSETS = new Set([...build, ...files, OFFLINE_SHELL_PATH]);
-const PRECACHE_ASSETS = Array.from(new Set([...build, OFFLINE_SHELL_PATH, '/']));
+const PRECACHE_ASSETS = Array.from(
+  new Set([...build, ...ESSENTIAL_STATIC_ASSETS, OFFLINE_SHELL_PATH, '/'])
+);
+const REQUIRED_PRECACHE_ASSETS = new Set([...build, OFFLINE_SHELL_PATH, '/']);
 
 type ServiceWorkerAppBadgeNavigator = WorkerNavigator & {
   setAppBadge?: (contents?: number) => Promise<void>;
@@ -44,21 +64,32 @@ const badgeCoordinator = new ServiceWorkerBadgeCoordinator(
 );
 
 /**
- * Immediately activate new service worker versions.
- * Without this, users must close all tabs before updates take effect.
+ * Prepare a complete versioned shell. Updated workers remain waiting until the
+ * app confirms that reloading is safe (not while typing or in a call).
  */
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => Promise.all(PRECACHE_ASSETS.map((path) => cacheShellAsset(cache, path))))
+      .then((cache) =>
+        Promise.all(
+          PRECACHE_ASSETS.map((path) =>
+            cacheShellAsset(cache, path, REQUIRED_PRECACHE_ASSETS.has(path))
+          )
+        )
+      )
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
+      try {
+        await self.registration.navigationPreload?.enable();
+      } catch {
+        // Navigation preload is an optional acceleration. A browser runtime
+        // rejection must not block worker activation or offline availability.
+      }
       const cacheNames = await caches.keys();
       await Promise.all(
         cacheNames
@@ -76,7 +107,25 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  handleBadgeStateMessage(event);
+  if (handleLifecycleMessage(event)) return;
+  if (handleBadgeStateMessage(event)) return;
+  handleNotificationDismissMessage(event);
+});
+
+// Background Sync cannot safely send authenticated messages itself: Towk
+// credentials remain in the foreground connection stores, never IndexedDB.
+// When supported, the worker wakes controlled app windows so the encrypted
+// outbox can be replayed with the normal authenticated API client.
+self.addEventListener('sync', (event: Event) => {
+  const syncEvent = event as ExtendableEvent & { tag?: string };
+  if (syncEvent.tag !== OUTBOX_SYNC_TAG) return;
+  syncEvent.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) =>
+        Promise.all(clients.map((client) => client.postMessage({ type: OUTBOX_SYNC_TAG })))
+      )
+  );
 });
 
 /**
@@ -87,6 +136,11 @@ self.addEventListener('message', (event) => {
  * requests stay network-only so stale data never masquerades as live state.
  */
 self.addEventListener('fetch', (event) => {
+  if (isIncomingShareRequest(event.request)) {
+    event.respondWith(handleIncomingShare(event.request));
+    return;
+  }
+
   const policy = classifyServiceWorkerRequest(
     event.request,
     event.request.url,
@@ -95,6 +149,27 @@ self.addEventListener('fetch', (event) => {
   );
 
   if (policy.networkOnly) return;
+
+  if (policy.networkFirstAsset) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const url = new URL(event.request.url);
+        try {
+          const response = await fetch(event.request);
+          if (response.ok) {
+            await cache.put(url.pathname, response.clone());
+          }
+          return response;
+        } catch (error) {
+          const cached = await cache.match(url.pathname);
+          if (cached) return cached;
+          throw error;
+        }
+      })()
+    );
+    return;
+  }
 
   if (policy.cacheableShellAsset) {
     event.respondWith(
@@ -118,7 +193,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(event.request);
+          return (await event.preloadResponse) ?? (await fetch(event.request));
         } catch (err) {
           const cache = await caches.open(CACHE_NAME);
           const shell = await getCachedOfflineShell(cache);
@@ -130,19 +205,60 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-async function cacheShellAsset(cache: Cache, path: string): Promise<void> {
+function isIncomingShareRequest(request: Request): boolean {
+  const url = new URL(request.url);
+  return (
+    request.method === 'POST' &&
+    url.origin === self.location.origin &&
+    url.pathname === '/chat/share-target'
+  );
+}
+
+async function handleIncomingShare(request: Request): Promise<Response> {
+  const redirect = (suffix: string) =>
+    Response.redirect(new URL(`/chat/share-target${suffix}`, self.location.origin), 303);
+  try {
+    const form = await request.formData();
+    const field = (name: string) => {
+      const value = form.get(name);
+      return typeof value === 'string' ? value : '';
+    };
+    const files = form.getAll('files').filter((value): value is File => value instanceof File);
+    const shareId = await storeIncomingShare({
+      title: field('title'),
+      text: field('text'),
+      url: field('url'),
+      files
+    });
+    return redirect(`?shareId=${encodeURIComponent(shareId)}`);
+  } catch {
+    return redirect('?error=invalid');
+  }
+}
+async function cacheShellAsset(cache: Cache, path: string, required: boolean): Promise<void> {
   try {
     const response = await fetch(path, { cache: 'reload' });
-    if (!response.ok) return;
+    if (!response.ok) {
+      throw new Error(`Failed to precache ${path}: HTTP ${response.status}`);
+    }
     await cache.put(path, response);
-  } catch {
-    // A missing static fallback in local preview must not invalidate the whole
-    // service worker. Production nginx serves the same shell through /200.html.
+  } catch (error) {
+    if (required) throw error;
+    // Optional install metadata may be temporarily unavailable. The worker can
+    // still activate with a complete executable shell and refresh it later.
   }
 }
 
 async function getCachedOfflineShell(cache: Cache): Promise<Response | undefined> {
   return (await cache.match(OFFLINE_SHELL_PATH)) ?? cache.match('/');
+}
+
+function handleLifecycleMessage(event: ExtendableMessageEvent): boolean {
+  const message = event.data as Record<string, unknown> | undefined;
+  if (!message || message.type !== 'towk-skip-waiting') return false;
+
+  event.waitUntil(self.skipWaiting());
+  return true;
 }
 
 // Type for push notification payload from server
@@ -154,6 +270,8 @@ interface PushPayload {
   tag?: string;
   notificationId?: string;
   url?: string;
+  expiresAt?: number;
+  call?: CallPushPayload;
   // "dismiss" action is used to close notifications on other devices
   action?: 'dismiss';
 }
@@ -215,17 +333,40 @@ function handleBadgeStateMessage(event: ExtendableMessageEvent): boolean {
   return true;
 }
 
+function handleNotificationDismissMessage(event: ExtendableMessageEvent): boolean {
+  const message = event.data as Record<string, unknown> | undefined;
+  if (
+    !message ||
+    message.type !== 'towk-notification-dismiss' ||
+    typeof message.notificationId !== 'string'
+  ) {
+    return false;
+  }
+
+  event.waitUntil(
+    (async () => {
+      const notifications = await self.registration.getNotifications();
+      for (const notification of notifications) {
+        if (notification.data?.notificationId === message.notificationId) {
+          notification.close();
+        }
+      }
+    })()
+  );
+  return true;
+}
+
 function normalizePushNotification(payload: DeclarativePushPayload): NormalizedPushNotification {
   const notification = payload.notification;
   const notificationId = payload.notificationId ?? notification?.data?.notificationId;
   const url = payload.url ?? notification?.data?.url ?? notification?.navigate;
 
   return {
-    title: payload.title ?? notification?.title ?? 'New notification',
+    title: payload.title ?? notification?.title ?? 'Towk',
     options: {
       body: payload.body ?? notification?.body,
       icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
-      badge: payload.badge ?? notification?.badge ?? '/icons/icon-192.png',
+      badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
       tag: payload.tag ?? notification?.tag,
       data: {
         notificationId,
@@ -296,18 +437,19 @@ self.addEventListener('push', (event) => {
       const decoded = event.data.json() as unknown;
       if (typeof decoded !== 'object' || decoded === null) {
         console.error('Invalid push payload');
-        return;
+        payload = { title: 'Towk' };
+      } else {
+        payload = decoded as DeclarativePushPayload;
       }
-      payload = decoded as DeclarativePushPayload;
     } catch {
       console.error('Failed to parse push payload');
-      return;
+      payload = { title: 'Towk' };
     }
   } else if (declarativeNotification) {
     payload = declarativePayloadFromEventNotification(declarativeNotification);
   } else {
     console.warn('Push event received with no data or declarative notification');
-    return;
+    payload = { title: 'Towk' };
   }
 
   // Handle dismiss action - close matching notifications on this device
@@ -321,6 +463,13 @@ self.addEventListener('push', (event) => {
         await badgeCoordinator.reconcileAfterDismissPush();
       })()
     );
+    return;
+  }
+
+  if (payload.call) {
+    const notification = normalizeCallPushNotification(payload, Date.now(), navigator.language);
+    if (!notification) return;
+    event.waitUntil(self.registration.showNotification(notification.title, notification.options));
     return;
   }
 
@@ -348,8 +497,7 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const rawUrl =
-    typeof event.notification.data?.url === 'string' ? event.notification.data.url : undefined;
+  const rawUrl = callNotificationClickUrl(event.notification.data, event.action);
   event.waitUntil(
     (async () => {
       try {

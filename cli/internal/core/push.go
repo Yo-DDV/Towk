@@ -28,6 +28,7 @@ import (
 const (
 	pushEndpointOwnerKeyPrefix  = "push_endpoint_owner."
 	pushEndpointOwnerMaxRetries = 8
+	defaultPushLocale           = "en"
 )
 
 type pushEndpointOwner struct {
@@ -72,6 +73,16 @@ func (c *ChattoCore) SavePushSubscription(
 	userID string,
 	endpoint, p256dh, auth, userAgent string,
 ) (*corev1.PushSubscription, error) {
+	return c.SavePushSubscriptionWithLocale(ctx, userID, endpoint, p256dh, auth, userAgent, defaultPushLocale)
+}
+
+// SavePushSubscriptionWithLocale stores or updates a browser subscription and
+// its device-local Towk language. Existing callers remain English by default.
+func (c *ChattoCore) SavePushSubscriptionWithLocale(
+	ctx context.Context,
+	userID string,
+	endpoint, p256dh, auth, userAgent, locale string,
+) (*corev1.PushSubscription, error) {
 	if err := validatePushSubscription(endpoint, p256dh, auth, userAgent); err != nil {
 		return nil, err
 	}
@@ -82,6 +93,7 @@ func (c *ChattoCore) SavePushSubscription(
 		Auth:      auth,
 		CreatedAt: timestamppb.New(time.Now()),
 		UserAgent: userAgent,
+		Locale:    normalizePushLocale(locale),
 	}
 
 	data, err := proto.Marshal(subscription)
@@ -103,6 +115,15 @@ func (c *ChattoCore) SavePushSubscription(
 		"endpoint_hash", hashEndpoint(endpoint))
 
 	return subscription, nil
+}
+
+func normalizePushLocale(locale string) string {
+	switch strings.ToLower(strings.TrimSpace(locale)) {
+	case "de", "fr", "es", "pt":
+		return strings.ToLower(strings.TrimSpace(locale))
+	default:
+		return defaultPushLocale
+	}
 }
 
 func (c *ChattoCore) claimPushEndpointOwnership(ctx context.Context, userID, endpoint string) error {

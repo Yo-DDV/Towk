@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -234,6 +235,162 @@ func TestPrivateHandlersRequireAuth(t *testing.T) {
 		Body:   "hello",
 	}))
 	requireConnectCode(t, err, connect.CodeUnauthenticated)
+}
+
+func TestCreateMessageClientRequestIDReplaysCommittedMessage(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotent-message")
+	ctx := withCaller(env.ctx, env.viewer)
+	request := &apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "one logical message",
+		ClientRequestId: "request-123",
+	}
+	baselineCount := env.core.RoomTimeline.VisibleRoomEventCount(room.Id)
+
+	first, err := env.messages.CreateMessage(ctx, connect.NewRequest(request))
+	if err != nil {
+		t.Fatalf("first CreateMessage: %v", err)
+	}
+	second, err := env.messages.CreateMessage(ctx, connect.NewRequest(request))
+	if err != nil {
+		t.Fatalf("replayed CreateMessage: %v", err)
+	}
+
+	firstID := first.Msg.GetMessage().GetId()
+	secondID := second.Msg.GetMessage().GetId()
+	if firstID == "" || secondID != firstID {
+		t.Fatalf("message ids = %q, %q; want the same non-empty id", firstID, secondID)
+	}
+	if got := env.core.RoomTimeline.VisibleRoomEventCount(room.Id); got != baselineCount+1 {
+		t.Fatalf("visible event count = %d, want %d", got, baselineCount+1)
+	}
+	eventsOnRoom, _, err := env.core.EventPublisher.SubjectEvents(ctx, events.RoomAggregate(room.Id).AllEventsFilter())
+	if err != nil {
+		t.Fatalf("read room events: %v", err)
+	}
+	var requestProof []byte
+	for _, event := range eventsOnRoom {
+		if claim := event.GetMessageRequestClaimed(); claim != nil && claim.GetClientRequestId() == request.GetClientRequestId() {
+			requestProof = claim.GetRequestProof()
+			break
+		}
+	}
+	if len(requestProof) != sha256.Size {
+		t.Fatalf("request proof length = %d, want %d", len(requestProof), sha256.Size)
+	}
+	if bytes.Equal(requestProof, createMessageRequestFingerprint(request)) {
+		t.Fatal("durable request proof must not expose the raw message fingerprint")
+	}
+}
+
+func TestCreateMessageClientRequestIDRejectsDifferentPayload(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotency-conflict")
+	ctx := withCaller(env.ctx, env.viewer)
+	baselineCount := env.core.RoomTimeline.VisibleRoomEventCount(room.Id)
+
+	if _, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "original",
+		ClientRequestId: "request-456",
+	})); err != nil {
+		t.Fatalf("first CreateMessage: %v", err)
+	}
+	_, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "different",
+		ClientRequestId: "request-456",
+	}))
+	if got := connect.CodeOf(err); got != connect.CodeAlreadyExists {
+		t.Fatalf("reused client_request_id code = %v, want %v", got, connect.CodeAlreadyExists)
+	}
+	if got := env.core.RoomTimeline.VisibleRoomEventCount(room.Id); got != baselineCount+1 {
+		t.Fatalf("visible event count = %d, want %d", got, baselineCount+1)
+	}
+}
+
+func TestCreateMessageClientRequestIDCollapsesConcurrentAttempts(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotency-concurrent")
+	ctx := withCaller(env.ctx, env.viewer)
+	baselineCount := env.core.RoomTimeline.VisibleRoomEventCount(room.Id)
+	request := &apiv1.CreateMessageRequest{
+		RoomId:          room.Id,
+		Body:            "one concurrent message",
+		ClientRequestId: "request-concurrent-789",
+	}
+
+	const attempts = 8
+	start := make(chan struct{})
+	results := make(chan string, attempts)
+	errorsCh := make(chan error, attempts)
+	var group sync.WaitGroup
+	group.Add(attempts)
+	for range attempts {
+		go func() {
+			defer group.Done()
+			<-start
+			response, err := env.messages.CreateMessage(ctx, connect.NewRequest(request))
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			results <- response.Msg.GetMessage().GetId()
+		}()
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	close(errorsCh)
+
+	for err := range errorsCh {
+		t.Fatalf("concurrent CreateMessage: %v", err)
+	}
+	var committedID string
+	count := 0
+	for id := range results {
+		count++
+		if id == "" {
+			t.Fatal("concurrent CreateMessage returned an empty id")
+		}
+		if committedID == "" {
+			committedID = id
+		} else if id != committedID {
+			t.Fatalf("concurrent message id = %q, want %q", id, committedID)
+		}
+	}
+	if count != attempts {
+		t.Fatalf("successful attempts = %d, want %d", count, attempts)
+	}
+	if got := env.core.RoomTimeline.VisibleRoomEventCount(room.Id); got != baselineCount+1 {
+		t.Fatalf("visible event count = %d, want %d", got, baselineCount+1)
+	}
+}
+
+func TestCreateMessageClientRequestIDValidation(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("idempotency-validation")
+	ctx := withCaller(env.ctx, env.viewer)
+	tests := []struct {
+		name      string
+		requestID string
+	}{
+		{name: "contains spaces", requestID: "request with spaces"},
+		{name: "too long", requestID: strings.Repeat("a", 65)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+				RoomId:          room.Id,
+				Body:            "invalid request identity",
+				ClientRequestId: tt.requestID,
+			}))
+			if got := connect.CodeOf(err); got != connect.CodeInvalidArgument {
+				t.Fatalf("CreateMessage code = %v, want %v", got, connect.CodeInvalidArgument)
+			}
+		})
+	}
 }
 
 func TestBatchGetResourceRequestsValidateThroughConnectHandlers(t *testing.T) {
@@ -456,6 +613,9 @@ func TestServerDiscoveryServiceGetServerPublicMetadata(t *testing.T) {
 	}
 	if msg.GetProfile().GetVersion() != "9.8.7" {
 		t.Fatalf("profile version = %q, want 9.8.7", msg.GetProfile().GetVersion())
+	}
+	if capabilities := msg.GetProfile().GetCapabilities(); len(capabilities) != 1 || capabilities[0] != serverCapabilityMessageCreateIdempotency {
+		t.Fatalf("profile capabilities = %v, want %q", capabilities, serverCapabilityMessageCreateIdempotency)
 	}
 	if !msg.GetLogin().GetDirectRegistrationEnabled() {
 		t.Fatal("DirectRegistrationEnabled = false, want true")
@@ -4331,6 +4491,45 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	}
 }
 
+func TestNotificationServiceHydratesCallStartedNotification(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("notification-call-room")
+	actor, err := env.core.CreateUser(env.ctx, core.SystemActorID, "notification-call-actor", "Call Actor", "password")
+	if err != nil {
+		t.Fatalf("CreateUser actor: %v", err)
+	}
+	if _, err := env.core.AddMember(env.ctx, env.viewer.Id, core.KindChannel, room.Id, actor.Id); err != nil {
+		t.Fatalf("AddMember actor: %v", err)
+	}
+	if err := env.core.RecordCallParticipantJoined(env.ctx, core.KindChannel, room.Id, actor.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined: %v", err)
+	}
+	active, ok := env.core.CallState.ActiveCall(room.Id)
+	if !ok {
+		t.Fatal("call did not become active")
+	}
+	notification, err := env.core.CreateNotification(env.ctx, env.viewer.Id, actor.Id, &corev1.Notification{
+		Notification: &corev1.Notification_CallStarted{CallStarted: &corev1.CallStartedNotification{
+			RoomId:  room.Id,
+			EventId: "E-call-started",
+			CallId:  active.CallID,
+		}},
+	})
+	if err != nil || notification == nil {
+		t.Fatalf("CreateNotification call = %+v, %v", notification, err)
+	}
+
+	response, err := env.notifications.GetNotification(ctx, connect.NewRequest(&apiv1.GetNotificationRequest{NotificationId: notification.Id}))
+	if err != nil {
+		t.Fatalf("GetNotification: %v", err)
+	}
+	call := response.Msg.GetNotification().GetCallStarted()
+	if call.GetRoom().GetId() != room.Id || call.GetRoom().GetKind() != apiv1.RoomKind_ROOM_KIND_CHANNEL || call.GetEventId() != "E-call-started" || call.GetCallId() != active.CallID {
+		t.Fatalf("call notification = %+v", call)
+	}
+}
+
 func TestNotificationPreferencesServiceServerLevelPreference(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)
@@ -4399,6 +4598,7 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 		P256Dh:    connectAPITestPushP256DH,
 		Auth:      connectAPITestPushAuth,
 		UserAgent: stringPtr("test-agent"),
+		Locale:    stringPtr("fr"),
 	}))
 	if err != nil {
 		t.Fatalf("Subscribe: %v", err)
@@ -4410,7 +4610,7 @@ func TestPushNotificationServiceSubscribeAndUnsubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetUserPushSubscriptions: %v", err)
 	}
-	if len(subs) != 1 || subs[0].GetEndpoint() != "https://push.example.test/sub" || subs[0].GetUserAgent() != "test-agent" {
+	if len(subs) != 1 || subs[0].GetEndpoint() != "https://push.example.test/sub" || subs[0].GetUserAgent() != "test-agent" || subs[0].GetLocale() != "fr" {
 		t.Fatalf("stored subscriptions = %+v, want one saved subscription", subs)
 	}
 
@@ -4581,6 +4781,13 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	if tokenResp.Msg.GetToken() == "" || tokenResp.Msg.GetE2EeKey() == "" || tokenResp.Msg.GetCallId() != participants[0].GetCallId() {
 		t.Fatalf("GetCallToken response = %+v, want token/e2ee key/call id", tokenResp.Msg)
 	}
+	expectedJoin, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:         room.Id,
+		ExpectedCallId: activeCall.GetCallId(),
+	}))
+	if err != nil || !expectedJoin.Msg.GetJoined() {
+		t.Fatalf("JoinCall with current expected call = %+v, %v; want joined", expectedJoin, err)
+	}
 
 	leaveResp, err := env.voice.LeaveCall(ctx, connect.NewRequest(&apiv1.LeaveCallRequest{
 		RoomId: room.Id,
@@ -4600,10 +4807,154 @@ func TestVoiceCallServiceRecordsAndListsCalls(t *testing.T) {
 	if len(participantsResp.Msg.GetParticipants()) != 0 {
 		t.Fatalf("participants after leave = %+v, want none", participantsResp.Msg.GetParticipants())
 	}
+	if _, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:         room.Id,
+		ExpectedCallId: activeCall.GetCallId(),
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale expected JoinCall code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if _, ok := env.core.CallState.ActiveCall(room.Id); ok {
+		t.Fatal("stale expected JoinCall started a replacement call")
+	}
+	if err := env.core.RecordCallParticipantJoined(env.ctx, core.KindChannel, room.Id, nonMember.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("start replacement call: %v", err)
+	}
+	if _, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
+		RoomId:         room.Id,
+		ExpectedCallId: activeCall.GetCallId(),
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("stale expected GetCallToken code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	if err := env.core.RecordCallParticipantLeft(env.ctx, core.KindChannel, room.Id, nonMember.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("end replacement call: %v", err)
+	}
 	if _, err := env.voice.GetActiveCall(ctx, connect.NewRequest(&apiv1.GetActiveCallRequest{
 		RoomId: room.Id,
 	})); connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("GetActiveCall after leave code = %v, want not_found", connect.CodeOf(err))
+	}
+}
+
+func TestVoiceCallServiceSupportsCompanionAndTransferDevices(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("voice-multi-device")
+	env.api.config.LiveKit = config.LiveKitConfig{
+		Enabled:   true,
+		URL:       "ws://livekit.test",
+		APIKey:    "test-key",
+		APISecret: "test-secret",
+		ServerID:  "test-server",
+	}
+
+	first, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-1",
+	}))
+	if err != nil {
+		t.Fatalf("join first device: %v", err)
+	}
+	if !first.Msg.GetJoined() || first.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_JOINED || first.Msg.GetDeviceIndex() != 1 || first.Msg.GetParticipantId() == "" {
+		t.Fatalf("first join = %+v, want joined device 1", first.Msg)
+	}
+
+	choice, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+	}))
+	if err != nil {
+		t.Fatalf("request second-device choice: %v", err)
+	}
+	if choice.Msg.GetJoined() || choice.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_SELECTION_REQUIRED || !choice.Msg.GetCompanionAllowed() || choice.Msg.GetActiveDeviceCount() != 1 {
+		t.Fatalf("second-device choice = %+v", choice.Msg)
+	}
+
+	second, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+		Mode:             apiv1.JoinCallMode_JOIN_CALL_MODE_COMPANION,
+	}))
+	if err != nil {
+		t.Fatalf("join companion: %v", err)
+	}
+	if !second.Msg.GetJoined() || second.Msg.GetDeviceIndex() != 2 || second.Msg.GetParticipantId() == first.Msg.GetParticipantId() {
+		t.Fatalf("companion join = %+v, want distinct device 2", second.Msg)
+	}
+
+	participants, err := env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list two devices: %v", err)
+	}
+	if got := participants.Msg.GetParticipants(); len(got) != 2 || got[0].GetUser().GetId() != env.viewer.Id || got[1].GetUser().GetId() != env.viewer.Id || got[0].GetParticipantId() == got[1].GetParticipantId() {
+		t.Fatalf("participants = %+v, want two distinct connections for viewer", got)
+	}
+
+	thirdChoice, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-3",
+	}))
+	if err != nil {
+		t.Fatalf("request third-device choice: %v", err)
+	}
+	if thirdChoice.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_SELECTION_REQUIRED || thirdChoice.Msg.GetCompanionAllowed() || thirdChoice.Msg.GetActiveDeviceCount() != 2 {
+		t.Fatalf("third-device choice = %+v, want transfer only", thirdChoice.Msg)
+	}
+	if _, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-3",
+		Mode:             apiv1.JoinCallMode_JOIN_CALL_MODE_COMPANION,
+	})); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("third companion code = %v, want resource_exhausted", connect.CodeOf(err))
+	}
+
+	if _, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-not-admitted",
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("unadmitted token code = %v, want failed_precondition", connect.CodeOf(err))
+	}
+	token, err := env.voice.GetCallToken(ctx, connect.NewRequest(&apiv1.GetCallTokenRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+	}))
+	if err != nil {
+		t.Fatalf("get companion token: %v", err)
+	}
+	if token.Msg.GetParticipantId() != second.Msg.GetParticipantId() || token.Msg.GetDeviceIndex() != 2 {
+		t.Fatalf("companion token = %+v, want admitted connection", token.Msg)
+	}
+
+	if _, err := env.voice.LeaveCall(ctx, connect.NewRequest(&apiv1.LeaveCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-2",
+	})); err != nil {
+		t.Fatalf("leave companion: %v", err)
+	}
+	participants, err = env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list after companion leave: %v", err)
+	}
+	if got := participants.Msg.GetParticipants(); len(got) != 1 || got[0].GetParticipantId() != first.Msg.GetParticipantId() {
+		t.Fatalf("participants after exact leave = %+v, want first device", got)
+	}
+
+	transferred, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: "browser-session-3",
+		Mode:             apiv1.JoinCallMode_JOIN_CALL_MODE_TRANSFER,
+	}))
+	if err != nil {
+		t.Fatalf("transfer call: %v", err)
+	}
+	if !transferred.Msg.GetJoined() || transferred.Msg.GetDeviceIndex() != 1 {
+		t.Fatalf("transfer = %+v, want new primary", transferred.Msg)
+	}
+	participants, err = env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list after transfer: %v", err)
+	}
+	if got := participants.Msg.GetParticipants(); len(got) != 1 || got[0].GetParticipantId() != transferred.Msg.GetParticipantId() {
+		t.Fatalf("participants after transfer = %+v, want transferred device only", got)
 	}
 }
 

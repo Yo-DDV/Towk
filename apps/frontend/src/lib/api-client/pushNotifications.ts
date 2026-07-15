@@ -1,5 +1,5 @@
-import { authHeaders, createTowkClient } from "./connect.js";
-import { PushNotificationService } from "@towk/api-types/api/v1/push_notifications_connect";
+import { authHeaders, createTowkClient } from './connect.js';
+import { PushNotificationService } from '@towk/api-types/api/v1/push_notifications_connect';
 
 export type PushNotificationAPIConfig = {
   baseUrl: string;
@@ -12,6 +12,7 @@ export type SubscribePushInput = {
   p256dh: string;
   auth: string;
   userAgent?: string;
+  locale?: string;
 };
 
 export function createPushNotificationAPI(config: PushNotificationAPIConfig) {
@@ -24,9 +25,8 @@ export function createPushNotificationAPI(config: PushNotificationAPIConfig) {
     },
 
     async unsubscribe(endpoint: string): Promise<boolean> {
-      return (await client.unsubscribe({ endpoint }, { headers: headers() }))
-        .unsubscribed;
-    },
+      return (await client.unsubscribe({ endpoint }, { headers: headers() })).unsubscribed;
+    }
   };
 }
 

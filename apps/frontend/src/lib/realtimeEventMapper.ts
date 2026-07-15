@@ -397,7 +397,13 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
               : RoomEventKind.CallEnded;
       return {
         ...base,
-        event: { kind, roomId: value.roomId, callId: value.callId }
+        event: {
+          kind,
+          roomId: value.roomId,
+          callId: value.callId,
+          participantId: value.participantId,
+          deviceIndex: value.deviceIndex
+        }
       } as unknown as EventEnvelope;
     }
     case 'mentionNotification': {
