@@ -113,8 +113,20 @@ describe('NotificationStore', () => {
     );
     await store.fetch();
     expect(store.notifications).toHaveLength(2);
+    expect(store.pendingNotificationIds).toEqual(['n1', 'n2']);
+    expect(store.hasCompleteNotificationSnapshot).toBe(true);
     expect(store.error).toBeNull();
     expect(store.hasLoaded).toBe(true);
+  });
+
+  it('marks a fetched notification snapshot incomplete when the server total is capped', async () => {
+    const store = new NotificationStore(makeAPI({ notifications: page([mention('n1')], 3) }));
+
+    await store.fetch();
+
+    expect(store.pendingNotificationIds).toEqual(['n1']);
+    expect(store.unreadNotificationCount).toBe(3);
+    expect(store.hasCompleteNotificationSnapshot).toBe(false);
   });
 
   it('discards an older full-list response that arrives after a newer response', async () => {

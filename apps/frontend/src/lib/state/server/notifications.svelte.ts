@@ -161,6 +161,14 @@ export class NotificationStore {
     return this.notifications.length;
   }
 
+  get hasCompleteNotificationSnapshot(): boolean {
+    return this.hasLoaded && this.error === null && this.notifications.length === this.unreadNotificationCount;
+  }
+
+  get pendingNotificationIds(): string[] {
+    return this.notifications.map((notification) => notification.id);
+  }
+
   setUnreadNotificationCount(count: number): void {
     this.unreadNotificationCount = Math.max(0, count);
   }

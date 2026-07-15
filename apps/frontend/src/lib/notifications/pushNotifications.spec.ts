@@ -3,6 +3,7 @@ import {
   ensureRegistered,
   getPushCapability,
   onNotificationClick,
+  reconcileNativeNotifications,
   unsubscribe,
   unsubscribeForSignOut
 } from './pushNotifications';
@@ -96,9 +97,11 @@ function installPushGlobals() {
   subscribe = vi.fn();
   const getNotifications = vi.fn(async (): Promise<Notification[]> => []);
   const postMessage = vi.fn();
+  const activePostMessage = vi.fn();
   const setAppBadge = vi.fn(async () => {});
   const clearAppBadge = vi.fn(async () => {});
   const registration = {
+    active: { postMessage: activePostMessage },
     pushManager: {
       getSubscription,
       subscribe
@@ -133,7 +136,7 @@ function installPushGlobals() {
     clearAppBadge
   });
 
-  return { clearAppBadge, getNotifications, postMessage };
+  return { activePostMessage, clearAppBadge, getNotifications, postMessage };
 }
 
 function installCapabilityGlobals(options: {
@@ -487,6 +490,39 @@ describe('pushNotifications.ensureRegistered', () => {
     expect(subscription.unsubscribe).toHaveBeenCalledTimes(2);
     await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(false);
     expect(mocks.subscribePush).toHaveBeenCalledOnce();
+  });
+});
+
+describe('pushNotifications.reconcileNativeNotifications', () => {
+  it('posts a deduplicated authoritative pending id set to the active service worker', () => {
+    const pushGlobals = installPushGlobals();
+
+    reconcileNativeNotifications(['notification-1', 'notification-1', '', 'notification-2']);
+
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
+      type: 'towk-notification-state',
+      notificationIds: ['notification-1', 'notification-2']
+    });
+    expect(pushGlobals.activePostMessage).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the active service worker when the page is not controlled yet', async () => {
+    const pushGlobals = installPushGlobals();
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      serviceWorker: {
+        ...navigator.serviceWorker,
+        controller: null
+      }
+    });
+
+    reconcileNativeNotifications(['notification-3']);
+    await Promise.resolve();
+
+    expect(pushGlobals.activePostMessage).toHaveBeenCalledWith({
+      type: 'towk-notification-state',
+      notificationIds: ['notification-3']
+    });
   });
 });
 

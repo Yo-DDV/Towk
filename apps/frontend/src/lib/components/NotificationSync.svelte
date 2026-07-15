@@ -25,7 +25,10 @@ Include this component once in the chat layout (unconditionally).
   } from '$lib/notifications/appBadge';
   import type { EventEnvelope, EventHandler } from '$lib/eventBus.svelte';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
-  import { dismissNativeNotification } from '$lib/notifications/pushNotifications';
+  import {
+    dismissNativeNotification,
+    reconcileNativeNotifications
+  } from '$lib/notifications/pushNotifications';
 
   function notificationCreatedEvent(
     event: EventEnvelope['event']
@@ -214,6 +217,17 @@ Include this component once in the chat layout (unconditionally).
     if (badgeState.intent.kind === 'clear' && !badgeState.allStoresLoaded) return;
 
     syncServiceWorkerNotificationBadgeState(badgeState.intent);
+
+    const originServer = serverRegistry.originServer;
+    if (originServer) {
+      const originStore = serverRegistry.getStore(originServer.id);
+      if (
+        originStore.isAuthenticated &&
+        originStore.notifications.hasCompleteNotificationSnapshot
+      ) {
+        reconcileNativeNotifications(originStore.notifications.pendingNotificationIds);
+      }
+    }
 
     if (badgeState.intent.kind !== 'clear') {
       updateBadge(badgeState.intent);
