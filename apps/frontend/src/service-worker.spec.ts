@@ -76,7 +76,10 @@ function createMemoryCacheStorage() {
   };
 }
 
-async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
+async function importServiceWorker(
+  cacheStorage = createMemoryCacheStorage(),
+  origin = 'https://towk.example'
+) {
   const handlers = new Map<string, ServiceWorkerHandler[]>();
   const registration = {
     navigationPreload: {
@@ -97,7 +100,7 @@ async function importServiceWorker(cacheStorage = createMemoryCacheStorage()) {
   const skipWaiting = vi.fn(async () => {});
 
   vi.stubGlobal('self', {
-    location: { origin: 'https://towk.example' },
+    location: { origin },
     registration,
     clients,
     skipWaiting,
@@ -334,7 +337,7 @@ describe('service worker badge orchestration', () => {
       expect(consoleError).toHaveBeenCalledWith('Invalid push payload');
       expect(worker.registration.showNotification).toHaveBeenCalledOnce();
       expect(worker.registration.showNotification).toHaveBeenCalledWith('Towk', {
-        body: undefined,
+        body: 'Open Towk to view the notification',
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-monochrome-96.png',
         tag: undefined,
@@ -348,6 +351,57 @@ describe('service worker badge orchestration', () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  it('keeps regular push bodies app-owned when the payload body is absent', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New notification',
+          tag: 'notification-without-body',
+          url: 'https://towk.example/chat/-/room-1'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
+      body: 'Open Towk to view the notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'notification-without-body',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example/chat/-/room-1'
+      }
+    });
+  });
+
+  it('replaces browser origin bodies so Android never displays the served host or port', async () => {
+    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New notification',
+          body: 'towk.example:8443',
+          tag: 'origin-body',
+          url: 'https://towk.example:8443/chat/-/room-1'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
+      body: 'Open Towk to view the notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'origin-body',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example:8443/chat/-/room-1'
+      }
+    });
   });
 
   it('closes a native notification from an online realtime dismissal without a Web Push', async () => {
@@ -411,6 +465,35 @@ describe('service worker badge orchestration', () => {
       data: {
         notificationId: 'notif-2',
         url: 'https://towk.example/chat/-/room-2?highlight=event-2'
+      }
+    });
+  });
+
+  it('sanitizes declarative origin bodies before showing the notification', async () => {
+    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+
+    await worker.dispatch('push', {
+      notification: {
+        title: 'Declarative notification',
+        body: 'https://towk.example:8443/',
+        tag: 'notification-origin',
+        icon: 'https://towk.example:8443/icons/icon-192.png',
+        badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+        data: {
+          notificationId: 'notif-origin',
+          url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
+        }
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Declarative notification', {
+      body: 'Open Towk to view the notification',
+      icon: 'https://towk.example:8443/icons/icon-192.png',
+      badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+      tag: 'notification-origin',
+      data: {
+        notificationId: 'notif-origin',
+        url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
       }
     });
   });
