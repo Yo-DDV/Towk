@@ -280,6 +280,7 @@ interface PushPayload {
 interface DeclarativePushPayload extends PushPayload {
   web_push?: number;
   mutable?: boolean;
+  app_badge?: string | number;
   notification?: DeclarativeNotificationPayload;
 }
 
@@ -408,7 +409,7 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
         url
       }
     },
-    appBadgeIntent: declarativeAppBadgeIntent(notification?.app_badge)
+    appBadgeIntent: declarativeAppBadgeIntent(notification?.app_badge ?? payload.app_badge)
   };
 }
 
@@ -476,6 +477,16 @@ function declarativeAppBadgeIntent(appBadge: unknown): ServiceWorkerBadgeIntent 
   return normalized > 0 ? { kind: 'count', count: normalized } : { kind: 'clear' };
 }
 
+async function applyPushAppBadgeIntent(intent: ServiceWorkerBadgeIntent): Promise<void> {
+  if (intent.kind === 'count') {
+    await badgeCoordinator.setPushAppBadgeCount(intent.count);
+  } else if (intent.kind === 'flag') {
+    await badgeCoordinator.setProvisionalPushFlagBadge();
+  } else {
+    await badgeCoordinator.setPushAppBadgeCount(0);
+  }
+}
+
 function notificationData(data: unknown): DeclarativeNotificationPayload['data'] {
   if (typeof data !== 'object' || data === null) return undefined;
   return {
@@ -533,7 +544,13 @@ self.addEventListener('push', (event) => {
   if (payload.call) {
     const notification = normalizeCallPushNotification(payload, Date.now(), navigator.language);
     if (!notification) return;
-    event.waitUntil(self.registration.showNotification(notification.title, notification.options));
+    badgeCoordinator.recordRegularPush();
+    event.waitUntil(
+      Promise.all([
+        self.registration.showNotification(notification.title, notification.options),
+        applyPushAppBadgeIntent(declarativeAppBadgeIntent(payload.app_badge))
+      ])
+    );
     return;
   }
 
@@ -543,11 +560,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     Promise.all([
       self.registration.showNotification(notification.title, notification.options),
-      notification.appBadgeIntent.kind === 'count'
-        ? badgeCoordinator.setPushAppBadgeCount(notification.appBadgeIntent.count)
-        : notification.appBadgeIntent.kind === 'flag'
-          ? badgeCoordinator.setProvisionalPushFlagBadge()
-          : badgeCoordinator.setPushAppBadgeCount(0)
+      applyPushAppBadgeIntent(notification.appBadgeIntent)
     ])
   );
 });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isAppleMobileDevice, isInstalledPwa, type InstallEnvironment } from './installPrompt';
+import {
+  isAndroidDevice,
+  isAppleMobileDevice,
+  isInstalledPwa,
+  isLegacyAndroidStandaloneInstall,
+  type InstallEnvironment
+} from './installPrompt';
 
 function environment(overrides: Partial<InstallEnvironment> = {}): InstallEnvironment {
   return {
@@ -32,5 +38,52 @@ describe('PWA install environment', () => {
     expect(isInstalledPwa(environment({ displayModeWindowControlsOverlay: true }))).toBe(true);
     expect(isInstalledPwa(environment({ standalone: true }))).toBe(true);
     expect(isInstalledPwa(environment())).toBe(false);
+  });
+
+  it('detects Android browsers without matching Apple mobile devices', () => {
+    expect(isAndroidDevice(environment({ userAgent: 'Mozilla/5.0 (Linux; Android 15)' }))).toBe(
+      true
+    );
+    expect(isAndroidDevice(environment({ userAgent: 'Mozilla/5.0 (iPhone)' }))).toBe(false);
+    expect(isAndroidDevice(environment())).toBe(false);
+  });
+
+  it('flags stale Android standalone installs that can show Chrome URL-copy notifications', () => {
+    expect(
+      isLegacyAndroidStandaloneInstall(
+        environment({
+          userAgent: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141',
+          platform: 'Linux armv8l',
+          maxTouchPoints: 5,
+          displayModeStandalone: true
+        })
+      )
+    ).toBe(true);
+  });
+
+  it('does not flag current Android minimal-ui installs or non-Android standalone apps', () => {
+    expect(
+      isLegacyAndroidStandaloneInstall(
+        environment({
+          userAgent: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141',
+          platform: 'Linux armv8l',
+          maxTouchPoints: 5,
+          displayModeStandalone: false,
+          displayModeMinimalUi: true
+        })
+      )
+    ).toBe(false);
+    expect(
+      isLegacyAndroidStandaloneInstall(
+        environment({
+          userAgent: 'Mozilla/5.0 (iPhone)',
+          displayModeStandalone: true,
+          standalone: true
+        })
+      )
+    ).toBe(false);
+    expect(isLegacyAndroidStandaloneInstall(environment({ displayModeStandalone: true }))).toBe(
+      false
+    );
   });
 });

@@ -18,6 +18,7 @@ const { mocks } = vi.hoisted(() => {
       hasCompleteNotificationSnapshot: true,
       pendingNotificationIds: [] as string[],
       hasLoaded: true,
+      loading: false,
       addNotification: vi.fn(() => Promise.resolve(true)),
       removeNotification: vi.fn(),
       consumeLocalDismissal: vi.fn(),
@@ -141,6 +142,7 @@ describe('NotificationSync', () => {
     mocks.store.notifications.hasCompleteNotificationSnapshot = true;
     mocks.store.notifications.pendingNotificationIds = [];
     mocks.store.notifications.hasLoaded = true;
+    mocks.store.notifications.loading = false;
     mocks.store.roomUnread.hasAnyUnread = false;
     mocks.store.notifications.addNotification.mockResolvedValue(true);
     mocks.store.notifications.removeNotification.mockReturnValue(null);
@@ -166,6 +168,46 @@ describe('NotificationSync', () => {
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     expect(mocks.store.rooms.incrementUnreadNotification).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledOnce());
+  });
+
+  it('loads authoritative notification state once when the app starts without a loaded snapshot', async () => {
+    mocks.store.notifications.hasLoaded = false;
+
+    await renderAndWaitForSubscription();
+
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce());
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+  });
+
+  it('does not force a launch refresh when the notification snapshot is already loaded', async () => {
+    await renderAndWaitForSubscription();
+
+    expect(mocks.store.notifications.fetch).not.toHaveBeenCalled();
+    expect(mocks.store.rooms.refreshNotificationCounts).not.toHaveBeenCalled();
+  });
+
+  it('refreshes authoritative notification state when the visible app regains focus', async () => {
+    await renderAndWaitForSubscription();
+
+    window.dispatchEvent(new Event('focus'));
+
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce());
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+  });
+
+  it('coalesces focus and online refreshes into one active pass and one final dirty pass', async () => {
+    const fetch = deferred<void>();
+    mocks.store.notifications.fetch.mockReturnValue(fetch.promise);
+    await renderAndWaitForSubscription();
+
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+
+    expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce();
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    fetch.resolve();
+    await vi.waitFor(() => expect(mocks.store.notifications.fetch).toHaveBeenCalledTimes(2));
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledTimes(2);
   });
 
   it('coalesces count refreshes for a burst and performs one final authoritative pass', async () => {

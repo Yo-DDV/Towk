@@ -17,7 +17,12 @@
       "ios_share": "Tap the Share button in Safari.",
       "ios_home_screen": "Choose Add to Home Screen.",
       "ios_confirm": "Confirm by tapping Add.",
-      "install_now": "Install now"
+      "install_now": "Install now",
+      "android_standalone_notice": {
+        "title": "Update the Android app install.",
+        "body": "This install is still using Chrome’s old standalone mode, which can show the system “copy URL” notification. Open Towk in Chrome, remove the old home-screen icon, then install it again from Chrome to apply the current app mode.",
+        "open_in_browser": "Open in Chrome"
+      }
     },
     "share_target": {
       "title": "Share to Towk",

@@ -198,6 +198,7 @@ func (p Payload) MarshalJSON() ([]byte, error) {
 		URL            string                   `json:"url,omitempty"`
 		ExpiresAt      int64                    `json:"expiresAt,omitempty"`
 		Call           *CallPushPayload         `json:"call,omitempty"`
+		AppBadge       string                   `json:"app_badge,omitempty"`
 		Action         string                   `json:"action,omitempty"`
 		WebPush        int                      `json:"web_push,omitempty"`
 		Mutable        bool                     `json:"mutable,omitempty"`
@@ -214,6 +215,7 @@ func (p Payload) MarshalJSON() ([]byte, error) {
 		URL:            p.URL,
 		ExpiresAt:      p.ExpiresAt,
 		Call:           p.Call,
+		AppBadge:       p.AppBadge,
 		Action:         p.Action,
 	}
 	if p.declarativeNotificationEligible() {

@@ -12,7 +12,8 @@ and PWA badge updates.
 Include this component once in the chat layout (unconditionally).
 -->
 <script lang="ts">
-  import { SvelteMap } from 'svelte/reactivity';
+  import { onMount } from 'svelte';
+  import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { eventBusManager } from '$lib/state/server/eventBus.svelte';
   import { userPreferences } from '$lib/state/userPreferences.svelte';
@@ -29,6 +30,97 @@ Include this component once in the chat layout (unconditionally).
     dismissNativeNotification,
     reconcileNativeNotifications
   } from '$lib/notifications/pushNotifications';
+
+  type ServerStores = ReturnType<typeof serverRegistry.getStore>;
+  type RefreshWork = { pending: Promise<void>; dirty: boolean };
+  type AuthoritativeRefreshWork = RefreshWork & { refresh: () => Promise<void> };
+
+  const attemptedInitialNotificationStateRefreshes = new SvelteSet<string>();
+  const pendingNotificationStateRefreshes = new SvelteMap<string, AuthoritativeRefreshWork>();
+
+  function refreshAuthoritativeNotificationState(
+    instanceId: string,
+    stores: ServerStores
+  ): Promise<void> {
+    const existing = pendingNotificationStateRefreshes.get(instanceId);
+    if (existing) {
+      existing.dirty = true;
+      existing.refresh = () => refreshNotificationState(stores);
+      return existing.pending;
+    }
+
+    const work: AuthoritativeRefreshWork = {
+      pending: Promise.resolve(),
+      dirty: false,
+      refresh: () => refreshNotificationState(stores)
+    };
+    pendingNotificationStateRefreshes.set(instanceId, work);
+    work.pending = (async () => {
+      do {
+        work.dirty = false;
+        await work.refresh();
+      } while (work.dirty);
+    })().finally(() => {
+      if (pendingNotificationStateRefreshes.get(instanceId) === work) {
+        pendingNotificationStateRefreshes.delete(instanceId);
+      }
+    });
+    return work.pending;
+  }
+
+  async function refreshNotificationState(stores: ServerStores): Promise<void> {
+    const [notifications, roomCounts] = await Promise.allSettled([
+      stores.notifications.fetch(),
+      stores.rooms.refreshNotificationCounts()
+    ]);
+
+    if (notifications.status === 'rejected') {
+      console.error(
+        'Failed to refresh notifications during app-level reconciliation:',
+        notifications.reason
+      );
+    }
+    if (roomCounts.status === 'rejected') {
+      console.error(
+        'Failed to refresh room notification counts during app-level reconciliation:',
+        roomCounts.reason
+      );
+    }
+  }
+
+  function needsAuthoritativeNotificationRefresh(stores: ServerStores): boolean {
+    return !stores.notifications.hasLoaded && !stores.notifications.loading;
+  }
+
+  function scheduleMissingNotificationStateRefresh(instanceId: string, stores: ServerStores): void {
+    if (
+      !needsAuthoritativeNotificationRefresh(stores) ||
+      attemptedInitialNotificationStateRefreshes.has(instanceId)
+    ) {
+      return;
+    }
+    attemptedInitialNotificationStateRefreshes.add(instanceId);
+    void refreshAuthoritativeNotificationState(instanceId, stores);
+  }
+
+  function refreshAllAuthenticatedNotificationState(options: { onlyMissing?: boolean } = {}): void {
+    for (const instance of serverRegistry.servers) {
+      const stores = serverRegistry.getStore(instance.id);
+      if (!stores.isAuthenticated) continue;
+      if (options.onlyMissing) {
+        scheduleMissingNotificationStateRefresh(instance.id, stores);
+        continue;
+      }
+      void refreshAuthoritativeNotificationState(instance.id, stores);
+    }
+  }
+
+  function refreshVisibleAuthenticatedNotificationState(
+    options: { onlyMissing?: boolean } = {}
+  ): void {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    refreshAllAuthenticatedNotificationState(options);
+  }
 
   function notificationCreatedEvent(
     event: EventEnvelope['event']
@@ -57,9 +149,8 @@ Include this component once in the chat layout (unconditionally).
   // Uses the event bus manager directly (not Svelte context) to handle all instances.
   $effect(() => {
     const cleanups: (() => void)[] = [];
-    type CoalescedWork = { pending: Promise<void>; dirty: boolean };
-    const pendingCountRefreshes = new SvelteMap<string, CoalescedWork>();
-    const pendingUnknownDismissalReconciliations = new SvelteMap<string, CoalescedWork>();
+    const pendingCountRefreshes = new SvelteMap<string, RefreshWork>();
+    const pendingUnknownDismissalReconciliations = new SvelteMap<string, RefreshWork>();
 
     function refreshCountsOnce(instanceId: string, refresh: () => Promise<void>): Promise<void> {
       const existing = pendingCountRefreshes.get(instanceId);
@@ -68,7 +159,7 @@ Include this component once in the chat layout (unconditionally).
         return existing.pending;
       }
 
-      const work: CoalescedWork = { pending: Promise.resolve(), dirty: false };
+      const work: RefreshWork = { pending: Promise.resolve(), dirty: false };
       pendingCountRefreshes.set(instanceId, work);
       work.pending = (async () => {
         let finalError: unknown;
@@ -100,7 +191,7 @@ Include this component once in the chat layout (unconditionally).
         return;
       }
 
-      const work: CoalescedWork = { pending: Promise.resolve(), dirty: false };
+      const work: RefreshWork = { pending: Promise.resolve(), dirty: false };
       pendingUnknownDismissalReconciliations.set(instanceId, work);
       work.pending = (async () => {
         let finalError: unknown;
@@ -123,7 +214,12 @@ Include this component once in the chat layout (unconditionally).
 
     for (const instance of serverRegistry.servers) {
       const stores = serverRegistry.getStore(instance.id);
-      if (!stores.isAuthenticated) continue;
+      if (!stores.isAuthenticated) {
+        attemptedInitialNotificationStateRefreshes.delete(instance.id);
+        continue;
+      }
+
+      scheduleMissingNotificationStateRefresh(instance.id, stores);
 
       const bus = eventBusManager.getBus(instance.id);
       if (!bus) continue;
@@ -234,5 +330,26 @@ Include this component once in the chat layout (unconditionally).
     } else {
       clearBadge();
     }
+  });
+
+  onMount(() => {
+    refreshVisibleAuthenticatedNotificationState({ onlyMissing: true });
+
+    const handleVisibleResume = () => refreshVisibleAuthenticatedNotificationState();
+    const handleOnline = () => refreshAllAuthenticatedNotificationState();
+
+    document.addEventListener('visibilitychange', handleVisibleResume);
+    window.addEventListener('focus', handleVisibleResume);
+    window.addEventListener('pageshow', handleVisibleResume);
+    window.addEventListener('online', handleOnline);
+    navigator.serviceWorker?.addEventListener('controllerchange', handleVisibleResume);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibleResume);
+      window.removeEventListener('focus', handleVisibleResume);
+      window.removeEventListener('pageshow', handleVisibleResume);
+      window.removeEventListener('online', handleOnline);
+      navigator.serviceWorker?.removeEventListener('controllerchange', handleVisibleResume);
+    };
   });
 </script>

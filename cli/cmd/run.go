@@ -619,7 +619,8 @@ func pushNotificationUsesCountBadge(notification *corev1.Notification) bool {
 	case *corev1.Notification_DmMessage,
 		*corev1.Notification_Mention,
 		*corev1.Notification_Reply,
-		*corev1.Notification_RoomMessage:
+		*corev1.Notification_RoomMessage,
+		*corev1.Notification_CallStarted:
 		return true
 	default:
 		return false

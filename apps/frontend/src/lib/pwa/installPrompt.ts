@@ -21,6 +21,10 @@ export function isAppleMobileDevice(environment: InstallEnvironment): boolean {
   );
 }
 
+export function isAndroidDevice(environment: InstallEnvironment): boolean {
+  return /Android/u.test(environment.userAgent);
+}
+
 export function isInstalledPwa(environment: InstallEnvironment): boolean {
   return (
     environment.displayModeStandalone ||
@@ -28,6 +32,14 @@ export function isInstalledPwa(environment: InstallEnvironment): boolean {
     environment.displayModeMinimalUi === true ||
     environment.displayModeWindowControlsOverlay === true ||
     environment.standalone === true
+  );
+}
+
+export function isLegacyAndroidStandaloneInstall(environment: InstallEnvironment): boolean {
+  return (
+    isAndroidDevice(environment) &&
+    environment.displayModeStandalone &&
+    environment.displayModeMinimalUi !== true
   );
 }
 

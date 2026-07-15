@@ -490,6 +490,43 @@ describe('service worker badge orchestration', () => {
     });
   });
 
+  it('accepts a root app badge count for imperative regular push fallbacks', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'New message',
+          body: 'Fallback body',
+          tag: 'notification-root-badge',
+          url: 'https://towk.example/chat/-/room-2?highlight=event-2',
+          app_badge: '6'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('New message', {
+      body: 'Fallback body',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'notification-root-badge',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example/chat/-/room-2?highlight=event-2'
+      }
+    });
+    expect(worker.setAppBadge).toHaveBeenCalledWith(6);
+  });
+
   it('sanitizes declarative origin bodies before showing the notification', async () => {
     const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
 
@@ -639,6 +676,91 @@ describe('service worker badge orchestration', () => {
       }
     );
     expect(worker.setAppBadge).toHaveBeenCalledWith(3);
+  });
+
+  it('applies the authoritative app badge count for imperative call pushes', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'Ignored backend title',
+          tag: 'call-C1',
+          notificationId: 'N-call',
+          url: 'https://towk.example/chat/-/room-1',
+          expiresAt: Date.now() + 30_000,
+          app_badge: '4',
+          call: {
+            actorName: 'Alice',
+            actorKnown: true,
+            roomName: 'General',
+            callId: 'C1',
+            joinUrl: 'https://towk.example/chat/-/room-1?joinCall=C1'
+          }
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Alice started a call', {
+      body: 'In #General',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'call-C1',
+      data: {
+        notificationId: 'N-call',
+        url: 'https://towk.example/chat/-/room-1',
+        joinUrl: 'https://towk.example/chat/-/room-1?joinCall=C1',
+        callId: 'C1'
+      },
+      actions: [
+        { action: 'view-room', title: 'View room' },
+        { action: 'join-call', title: 'Join' }
+      ]
+    });
+    expect(worker.setAppBadge).toHaveBeenCalledWith(4);
+  });
+
+  it('uses a provisional app badge flag when an imperative call push has no count', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-badge-state',
+        notificationCount: 0,
+        serviceWorkerAppBadgeEnabled: true
+      }
+    });
+    worker.setAppBadge.mockClear();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          tag: 'call-C2',
+          notificationId: 'N-call-2',
+          url: 'https://towk.example/chat/-/room-2',
+          expiresAt: Date.now() + 30_000,
+          call: {
+            actorName: 'Bob',
+            actorKnown: true,
+            roomName: 'General',
+            callId: 'C2',
+            joinUrl: 'https://towk.example/chat/-/room-2?joinCall=C2'
+          }
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledOnce();
+    expect(worker.setAppBadge).toHaveBeenCalledWith();
   });
 
   it('uses declarative navigate as the fallback notification click URL', async () => {

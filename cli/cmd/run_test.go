@@ -169,6 +169,18 @@ func TestPushNotificationUsesCountBadgeForEveryPersistentNotificationType(t *tes
 			},
 			want: true,
 		},
+		{
+			name: "call started",
+			notification: &corev1.Notification{
+				Notification: &corev1.Notification_CallStarted{
+					CallStarted: &corev1.CallStartedNotification{
+						RoomId: "room-1",
+						CallId: "call-1",
+					},
+				},
+			},
+			want: true,
+		},
 		{name: "nil", notification: nil, want: false},
 	}
 

@@ -101,6 +101,18 @@ func TestBuildPayloadFromCallStartedNotificationIsShortLivedAndActionable(t *tes
 	if payload.TTL != 60 || payload.Urgency != webpush.UrgencyHigh || payload.Topic != "call-C1" {
 		t.Fatalf("delivery = ttl=%d urgency=%q topic=%q", payload.TTL, payload.Urgency, payload.Topic)
 	}
+	payload.AppBadge = "4"
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal call payload: %v", err)
+	}
+	var encoded map[string]any
+	if err := json.Unmarshal(data, &encoded); err != nil {
+		t.Fatalf("unmarshal call payload: %v", err)
+	}
+	if encoded["app_badge"] != "4" {
+		t.Fatalf("app_badge = %v, want 4", encoded["app_badge"])
+	}
 	if payload.declarativeNotificationEligible() {
 		t.Fatal("call payload unexpectedly enabled declarative delivery")
 	}

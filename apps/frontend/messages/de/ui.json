@@ -17,7 +17,12 @@
       "ios_share": "Tippe in Safari auf die Teilen-Taste.",
       "ios_home_screen": "Wähle Zum Home-Bildschirm.",
       "ios_confirm": "Bestätige mit Hinzufügen.",
-      "install_now": "Jetzt installieren"
+      "install_now": "Jetzt installieren",
+      "android_standalone_notice": {
+        "title": "Aktualisiere die Android-Installation.",
+        "body": "Diese Installation nutzt noch den alten eigenständigen Chrome-Modus, der die Systembenachrichtigung „URL kopieren“ anzeigen kann. Öffne Towk in Chrome, entferne das alte Startbildschirm-Symbol und installiere die App anschließend erneut aus Chrome, um den aktuellen App-Modus zu übernehmen.",
+        "open_in_browser": "In Chrome öffnen"
+      }
     },
     "share_target": {
       "title": "Mit Towk teilen",

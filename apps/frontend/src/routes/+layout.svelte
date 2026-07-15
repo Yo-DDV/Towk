@@ -11,6 +11,7 @@
   import IdleTracker from '$lib/components/IdleTracker.svelte';
   import MobileSidebarChrome from '$lib/components/MobileSidebarChrome.svelte';
   import NetworkStatusNotifier from '$lib/components/NetworkStatusNotifier.svelte';
+  import PwaAndroidStandaloneNotice from '$lib/components/PwaAndroidStandaloneNotice.svelte';
   import PwaLaunchHandler from '$lib/components/PwaLaunchHandler.svelte';
   import UpdateNotifier from '$lib/components/UpdateNotifier.svelte';
   import { usePageTitle, usePinchZoomPrevention, useVisualViewport } from '$lib/hooks';
@@ -76,6 +77,7 @@
 <GlobalKeyboardShortcuts />
 <IdleTracker />
 <NetworkStatusNotifier />
+<PwaAndroidStandaloneNotice />
 <UpdateNotifier />
 <PwaLaunchHandler />
 
