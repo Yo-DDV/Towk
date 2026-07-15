@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/elliptic"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -311,6 +312,55 @@ func (c *ChattoCore) PushSubscriptionCurrentForUser(ctx context.Context, userID 
 	return c.pushSubscriptionRevisionOwnedByUser(ctx, userID, subscription.Endpoint, entry.Revision())
 }
 
+// DismissNotificationFromPushSubscription dismisses a notification using only
+// the browser PushSubscription proof available to a service worker. This keeps
+// native notification-center closes synchronized even when no authenticated app
+// window is open, without storing bearer tokens in the worker.
+func (c *ChattoCore) DismissNotificationFromPushSubscription(ctx context.Context, endpoint, auth, notificationID string) (bool, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	auth = strings.TrimSpace(auth)
+	notificationID = strings.TrimSpace(notificationID)
+	if err := validatePushDismissalCredential(endpoint, auth, notificationID); err != nil {
+		return false, err
+	}
+
+	owner, err := c.getPushEndpointOwner(ctx, endpoint)
+	if err != nil {
+		return false, err
+	}
+	if owner == nil || owner.UserID == "" {
+		return false, nil
+	}
+
+	key := pushSubscriptionKey(owner.UserID, endpoint)
+	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
+	if isRuntimeStateKeyAbsent(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to get push subscription: %w", err)
+	}
+	if entry.Revision() != owner.SubscriptionRevision {
+		return false, nil
+	}
+
+	var current corev1.PushSubscription
+	if err := proto.Unmarshal(entry.Value(), &current); err != nil {
+		return false, fmt.Errorf("failed to unmarshal push subscription: %w", err)
+	}
+	if current.GetEndpoint() != endpoint {
+		return false, nil
+	}
+	if subtle.ConstantTimeCompare([]byte(current.GetAuth()), []byte(auth)) != 1 {
+		return false, nil
+	}
+
+	if _, err := c.DismissNotification(ctx, owner.UserID, notificationID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (c *ChattoCore) getPushEndpointOwner(ctx context.Context, endpoint string) (*pushEndpointOwner, error) {
 	entry, err := c.storage.runtimeStateKV.Get(ctx, pushEndpointOwnerKey(endpoint))
 	if isRuntimeStateKeyAbsent(err) {
@@ -385,6 +435,36 @@ func validatePushSubscription(endpoint, p256dh, auth, userAgent string) error {
 	}
 	if x, y := elliptic.Unmarshal(elliptic.P256(), p256dhBytes); x == nil || y == nil {
 		return invalidArgument("push p256dh key must contain a valid P-256 public point")
+	}
+	authBytes, err := decodePushBase64URL(auth)
+	if err != nil || len(authBytes) != 16 {
+		return invalidArgument("push auth secret must be a base64url-encoded 16-byte value")
+	}
+	parsedEndpoint, err := url.Parse(endpoint)
+	if err != nil || parsedEndpoint.Scheme != "https" || parsedEndpoint.Hostname() == "" || parsedEndpoint.User != nil {
+		return invalidArgument("push endpoint must be an absolute HTTPS URL without user credentials")
+	}
+	if parsedEndpoint.Fragment != "" {
+		return invalidArgument("push endpoint must not contain a URL fragment")
+	}
+	if address := net.ParseIP(parsedEndpoint.Hostname()); address != nil && !isPublicPushEndpointIP(address) {
+		return invalidArgument("push endpoint must not target a local or private address")
+	}
+	return nil
+}
+
+func validatePushDismissalCredential(endpoint, auth, notificationID string) error {
+	if err := validateStringMaxLength("push endpoint", endpoint, MaxPushEndpointLength); err != nil {
+		return err
+	}
+	if err := validateStringMaxLength("push auth secret", auth, MaxPushAuthLength); err != nil {
+		return err
+	}
+	if err := validateStringMaxLength("notification ID", notificationID, 128); err != nil {
+		return err
+	}
+	if endpoint == "" || auth == "" || notificationID == "" {
+		return invalidArgument("push endpoint, auth secret, and notification ID are required")
 	}
 	authBytes, err := decodePushBase64URL(auth)
 	if err != nil || len(authBytes) != 16 {

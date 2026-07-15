@@ -43,6 +43,15 @@ type TestWindowClient = {
   postMessage: ReturnType<typeof vi.fn>;
 };
 
+type TestPushSubscription = {
+  toJSON: () => {
+    endpoint?: string;
+    keys?: {
+      auth?: string;
+    };
+  };
+};
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((res) => {
@@ -93,6 +102,9 @@ async function importServiceWorker(
   const registration = {
     navigationPreload: {
       enable: vi.fn(async () => {})
+    },
+    pushManager: {
+      getSubscription: vi.fn(async (): Promise<TestPushSubscription | null> => null)
     },
     getNotifications: vi.fn(
       async (_options?: { tag?: string }): Promise<TestNativeNotification[]> => []
@@ -523,6 +535,70 @@ describe('service worker badge orchestration', () => {
     expect(client.postMessage).toHaveBeenCalledWith({
       type: 'towk-native-notification-closed',
       notificationId: 'notification-closed-from-tray',
+      source: 'native-close'
+    });
+  });
+
+  it('acknowledges native notification-center closes directly with the current push subscription proof', async () => {
+    const worker = await importServiceWorker();
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ dismissed: true }), { status: 202 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    worker.registration.pushManager.getSubscription.mockResolvedValueOnce({
+      toJSON: () => ({
+        endpoint: 'https://push.example.com/subscription',
+        keys: { auth: 'auth-secret' }
+      })
+    });
+
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-closed-directly'
+        }
+      }
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/push/notification-close',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'omit',
+        cache: 'no-store',
+        body: JSON.stringify({
+          endpoint: 'https://push.example.com/subscription',
+          auth: 'auth-secret',
+          notificationId: 'notification-closed-directly'
+        })
+      })
+    );
+    expect(worker.clients.matchAll).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the native-close outbox when direct push-subscription acknowledgement fails', async () => {
+    const worker = await importServiceWorker();
+    const client = { postMessage: vi.fn() };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+    worker.registration.pushManager.getSubscription.mockResolvedValueOnce({
+      toJSON: () => ({
+        endpoint: 'https://push.example.com/subscription',
+        keys: { auth: 'auth-secret' }
+      })
+    });
+    worker.clients.matchAll.mockResolvedValueOnce([client]);
+
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-close-server-offline'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-close-server-offline',
       source: 'native-close'
     });
   });

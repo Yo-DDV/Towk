@@ -41,6 +41,7 @@ const CACHE_NAME = `${CACHE_PREFIX}-${version}`;
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const NATIVE_NOTIFICATION_CLOSE_OUTBOX_CACHE_NAME = 'towk-native-notification-close-outbox-v1';
 const NATIVE_NOTIFICATION_CLOSE_OUTBOX_REQUEST = '/__towk/native-notification-close-outbox';
+const PUSH_NOTIFICATION_CLOSE_ENDPOINT = '/api/push/notification-close';
 const MAX_NATIVE_NOTIFICATION_CLOSE_OUTBOX_IDS = 100;
 const LEGACY_CACHE_PREFIXES = ['chatto-shell'];
 const LEGACY_CACHE_NAMES = ['chatto-badge-state-v2'];
@@ -320,6 +321,13 @@ type NormalizedPushNotification = {
   title: string;
   options: NativeNotificationOptions;
   appBadgeIntent: ServiceWorkerBadgeIntent;
+};
+
+type PushSubscriptionJSON = {
+  endpoint?: string;
+  keys?: {
+    auth?: string;
+  };
 };
 
 type NativeNotificationOptions = NotificationOptions & {
@@ -701,11 +709,49 @@ self.addEventListener('notificationclose', (event) => {
     (async () => {
       await badgeCoordinator.reconcileAfterNotificationClick().catch(() => {});
       if (!notificationId) return;
+      if (await acknowledgeNativeNotificationCloseWithPushSubscription(notificationId)) {
+        await removeNativeNotificationCloseOutboxIds([notificationId]);
+        return;
+      }
       await addNativeNotificationCloseOutboxId(notificationId);
       await dispatchNativeNotificationCloseIds([notificationId], 'native-close');
     })()
   );
 });
+
+async function acknowledgeNativeNotificationCloseWithPushSubscription(
+  notificationId: string
+): Promise<boolean> {
+  try {
+    const subscription = await self.registration.pushManager.getSubscription();
+    if (!subscription) return false;
+
+    const subscriptionJSON = subscription.toJSON() as PushSubscriptionJSON;
+    const endpoint = subscriptionJSON.endpoint;
+    const auth = subscriptionJSON.keys?.auth;
+    if (!endpoint || !auth) return false;
+
+    const response = await fetch(PUSH_NOTIFICATION_CLOSE_ENDPOINT, {
+      method: 'POST',
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        endpoint,
+        auth,
+        notificationId
+      })
+    });
+    if (response.status !== 202) return false;
+
+    const result = (await response.json().catch(() => null)) as { dismissed?: unknown } | null;
+    return result?.dismissed === true;
+  } catch {
+    return false;
+  }
+}
 
 async function nativeNotificationCloseOutboxCache(): Promise<Cache> {
   return caches.open(NATIVE_NOTIFICATION_CLOSE_OUTBOX_CACHE_NAME);

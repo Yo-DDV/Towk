@@ -235,6 +235,7 @@ func (s *HTTPServer) setupRoutes() error {
 	s.setupAuthRoutes()
 	s.setupOAuthRoutes()
 	s.setupAssetRoutes()
+	s.setupPushNotificationRoutes()
 
 	if err := s.setupFrontendRoutes(); err != nil {
 		return err

@@ -9,9 +9,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
+	"hmans.de/chatto/internal/core/subjects"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -249,6 +251,104 @@ func TestSavePushSubscription(t *testing.T) {
 			t.Fatalf("ApplicationOrigin = %q, want https://app.example.com", sub.ApplicationOrigin)
 		}
 	})
+}
+
+func TestDismissNotificationFromPushSubscription(t *testing.T) {
+	core, nc := setupTestCore(t)
+	ctx := context.Background()
+	userID := "push-dismiss-user"
+	endpoint := "https://push.example.com/dismiss"
+	auth := testPushAuth(1)
+	rotatedAuth := testPushAuth(2)
+
+	if _, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, auth, "browser"); err != nil {
+		t.Fatalf("SavePushSubscription: %v", err)
+	}
+
+	liveSubject := subjects.LiveSyncUserEvent(userID, "notification_dismissed")
+	liveSub, err := nc.SubscribeSync(liveSubject)
+	if err != nil {
+		t.Fatalf("SubscribeSync(%s): %v", liveSubject, err)
+	}
+	defer liveSub.Unsubscribe()
+	if err := nc.Flush(); err != nil {
+		t.Fatalf("Flush subscription: %v", err)
+	}
+
+	notification, err := core.CreateNotification(ctx, userID, "actor", &corev1.Notification{
+		Notification: &corev1.Notification_DmMessage{
+			DmMessage: &corev1.DMMessageNotification{RoomId: "dm-room", EventId: "event-1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification: %v", err)
+	}
+
+	dismissed, err := core.DismissNotificationFromPushSubscription(ctx, endpoint, testPushAuth(9), notification.Id)
+	if err != nil {
+		t.Fatalf("DismissNotificationFromPushSubscription wrong auth: %v", err)
+	}
+	if dismissed {
+		t.Fatal("wrong push auth dismissed the notification")
+	}
+	stillPending, err := core.GetNotification(ctx, userID, notification.Id)
+	if err != nil {
+		t.Fatalf("GetNotification after wrong auth: %v", err)
+	}
+	if stillPending == nil {
+		t.Fatal("notification disappeared after wrong push auth")
+	}
+
+	dismissed, err = core.DismissNotificationFromPushSubscription(ctx, endpoint, auth, notification.Id)
+	if err != nil {
+		t.Fatalf("DismissNotificationFromPushSubscription: %v", err)
+	}
+	if !dismissed {
+		t.Fatal("valid push subscription proof did not dismiss the notification")
+	}
+	gone, err := core.GetNotification(ctx, userID, notification.Id)
+	if err != nil {
+		t.Fatalf("GetNotification after dismiss: %v", err)
+	}
+	if gone != nil {
+		t.Fatal("notification still pending after valid push subscription dismissal")
+	}
+	if _, err := liveSub.NextMsg(2 * time.Second); err != nil {
+		t.Fatalf("waiting for notification_dismissed live event: %v", err)
+	}
+	dismissed, err = core.DismissNotificationFromPushSubscription(ctx, endpoint, auth, notification.Id)
+	if err != nil {
+		t.Fatalf("DismissNotificationFromPushSubscription repeated close: %v", err)
+	}
+	if !dismissed {
+		t.Fatal("valid repeated push subscription dismissal was not accepted as idempotent")
+	}
+
+	if _, err := core.SavePushSubscription(ctx, userID, endpoint, testPushP256DH, rotatedAuth, "browser"); err != nil {
+		t.Fatalf("Rotate SavePushSubscription: %v", err)
+	}
+	rotatedNotification, err := core.CreateNotification(ctx, userID, "actor", &corev1.Notification{
+		Notification: &corev1.Notification_DmMessage{
+			DmMessage: &corev1.DMMessageNotification{RoomId: "dm-room", EventId: "event-2"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification after rotation: %v", err)
+	}
+	dismissed, err = core.DismissNotificationFromPushSubscription(ctx, endpoint, auth, rotatedNotification.Id)
+	if err != nil {
+		t.Fatalf("DismissNotificationFromPushSubscription stale auth: %v", err)
+	}
+	if dismissed {
+		t.Fatal("stale push auth dismissed after subscription rotation")
+	}
+	dismissed, err = core.DismissNotificationFromPushSubscription(ctx, endpoint, rotatedAuth, rotatedNotification.Id)
+	if err != nil {
+		t.Fatalf("DismissNotificationFromPushSubscription rotated auth: %v", err)
+	}
+	if !dismissed {
+		t.Fatal("current rotated push auth did not dismiss the notification")
+	}
 }
 
 func TestSavePushSubscriptionSupersedesOlderEndpointForSameClientID(t *testing.T) {
