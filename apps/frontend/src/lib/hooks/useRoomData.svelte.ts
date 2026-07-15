@@ -20,6 +20,7 @@ export type RoomData = {
   canPostMessage: boolean;
   canPostInThread: boolean;
   canAttach: boolean;
+  canVoice: boolean;
   canReact: boolean;
   canManageOthersMessage: boolean;
   canEchoMessage: boolean;
@@ -122,6 +123,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
           canPostMessage: loadedRoom.canPostMessage,
           canPostInThread: loadedRoom.canPostInThread,
           canAttach: loadedRoom.canAttach,
+          canVoice: loadedRoom.canVoice,
           canReact: loadedRoom.canReact,
           canManageOthersMessage: loadedRoom.canManageOthersMessage,
           canEchoMessage: loadedRoom.canEchoMessage,

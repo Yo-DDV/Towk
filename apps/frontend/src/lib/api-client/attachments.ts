@@ -52,6 +52,10 @@ export type RoomFileItem = {
         assetUrl: ExpiringAssetUrl | null;
       }>;
     } | null;
+    voiceMessage: {
+      durationMs: number;
+      waveformPeaks: number[];
+    } | null;
   };
 };
 
@@ -169,7 +173,13 @@ function attachment(value?: Asset): RoomFileItem['attachment'] {
     height: value?.height ?? 0,
     assetUrl: assetUrl(value?.assetUrl),
     thumbnailAssetUrl: assetUrl(value?.thumbnailAssetUrl),
-    videoProcessing: videoProcessing(value?.videoProcessing)
+    videoProcessing: videoProcessing(value?.videoProcessing),
+    voiceMessage: value?.voiceMessage
+      ? {
+          durationMs: Number(value.voiceMessage.durationMs),
+          waveformPeaks: [...value.voiceMessage.waveformPeaks]
+        }
+      : null
   };
 }
 

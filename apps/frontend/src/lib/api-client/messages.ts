@@ -4,6 +4,7 @@ import { MessageService } from '@towk/api-types/api/v1/messages_connect';
 import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
 import { createAssetUploadAPI } from './assetUploads.js';
 import { MAX_MESSAGE_ATTACHMENTS } from '$lib/attachments/filePolicy';
+import type { VoiceMessageMetadataInput } from '$lib/voiceMessages/policy';
 
 export { MAX_MESSAGE_ATTACHMENTS };
 
@@ -19,6 +20,7 @@ export type CreateMessageInput = {
   body: string;
   attachmentAssetIds?: string[];
   attachments?: File[] | null;
+  voiceMessage?: VoiceMessageMetadataInput | null;
   threadRootEventId?: string | null;
   inReplyTo?: string | null;
   alsoSendToChannel?: boolean;
@@ -35,6 +37,7 @@ export type PreparedMessageInput = {
   alsoSendToChannel: boolean;
   linkPreviewToken: string;
   clientRequestId: string;
+  isVoiceMessage?: boolean;
 };
 
 export type UpdateMessageInput = {
@@ -75,7 +78,8 @@ export function createMessageAPI(config: MessageAPIConfig) {
       inReplyTo: input.inReplyTo ?? null,
       alsoSendToChannel: input.alsoSendToChannel ?? false,
       linkPreviewToken: input.linkPreview?.previewToken ?? '',
-      clientRequestId: input.clientRequestId?.trim() || createClientRequestId()
+      clientRequestId: input.clientRequestId?.trim() || createClientRequestId(),
+      isVoiceMessage: !!input.voiceMessage
     };
   }
 
@@ -194,7 +198,8 @@ export function createMessageAPI(config: MessageAPIConfig) {
 function validateMessageAttachments(input: CreateMessageInput): void {
   const existingAssetIds = input.attachmentAssetIds ?? [];
   const pendingFiles = input.attachments ?? [];
-  if (existingAssetIds.length + pendingFiles.length > MAX_MESSAGE_ATTACHMENTS) {
+  const voiceMessageCount = input.voiceMessage ? 1 : 0;
+  if (existingAssetIds.length + pendingFiles.length + voiceMessageCount > MAX_MESSAGE_ATTACHMENTS) {
     throw new RangeError(`message attachment count exceeds ${MAX_MESSAGE_ATTACHMENTS}`);
   }
   if (new Set(existingAssetIds).size !== existingAssetIds.length) {
@@ -204,15 +209,27 @@ function validateMessageAttachments(input: CreateMessageInput): void {
 
 async function uploadMessageAttachments(config: MessageAPIConfig, input: CreateMessageInput) {
   const files = input.attachments;
-  if (!files?.length) return [];
+  const voiceMessage = input.voiceMessage;
+  if (!files?.length && !voiceMessage) return [];
   const uploads = createAssetUploadAPI(config);
-  const assets = await Promise.all(
-    files.map((file) =>
-      uploads.uploadAttachment({
-        roomId: input.roomId,
-        file
-      })
-    )
+  const genericUploads = (files ?? []).map((file) =>
+    uploads.uploadAttachment({
+      roomId: input.roomId,
+      file
+    })
   );
+  const voiceUpload = voiceMessage
+    ? [
+        uploads.uploadAttachment({
+          roomId: input.roomId,
+          file: voiceMessage.file,
+          voiceMessage: {
+            durationMs: BigInt(Math.round(voiceMessage.durationMs)),
+            waveformPeaks: voiceMessage.waveformPeaks
+          }
+        })
+      ]
+    : [];
+  const assets = await Promise.all([...genericUploads, ...voiceUpload]);
   return assets.map((asset) => asset.assetId);
 }

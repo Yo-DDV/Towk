@@ -266,6 +266,93 @@ describe('createMessageAPI', () => {
     expect(request.alsoSendToChannel).toBe(true);
   });
 
+  it('uploads first-class voice metadata and marks the prepared outbox message', async () => {
+    mocks.createUpload.mockResolvedValue(
+      new CreateUploadResponse({
+        upload: new AssetUpload({
+          uploadId: 'upload-voice',
+          roomId: 'room-1',
+          status: AssetUploadStatus.OPEN,
+          committedOffset: 0n,
+          size: 4n,
+          maxChunkSize: 1024
+        })
+      })
+    );
+    mocks.uploadChunk.mockResolvedValue(
+      new UploadChunkResponse({
+        upload: new AssetUpload({
+          uploadId: 'upload-voice',
+          status: AssetUploadStatus.OPEN,
+          committedOffset: 4n,
+          size: 4n,
+          maxChunkSize: 1024
+        })
+      })
+    );
+    mocks.completeUpload.mockResolvedValue(
+      new CompleteUploadResponse({
+        upload: new AssetUpload({
+          uploadId: 'upload-voice',
+          status: AssetUploadStatus.COMPLETED,
+          committedOffset: 4n,
+          size: 4n,
+          assetId: 'asset-voice'
+        }),
+        asset: new Asset({
+          id: 'asset-voice',
+          filename: 'voice-message.webm',
+          contentType: 'audio/webm'
+        })
+      })
+    );
+    mocks.createMessage.mockResolvedValue(
+      new CreateMessageResponse({
+        message: new Message({ id: 'evt-voice', actorId: 'user-1', roomId: 'room-1' })
+      })
+    );
+
+    const file = new File([new Uint8Array([0x1a, 0x45, 0xdf, 0xa3])], 'voice-message.webm', {
+      type: 'audio/webm'
+    });
+    const api = createMessageAPI({
+      baseUrl: 'https://remote.example.test/api/connect',
+      bearerToken: null
+    });
+
+    const prepared = await api.prepareMessage({
+      roomId: 'room-1',
+      body: '',
+      voiceMessage: {
+        file,
+        durationMs: 1_234,
+        waveformPeaks: Array.from({ length: 32 }, (_, index) => index / 31)
+      }
+    });
+
+    expect(mocks.createUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        roomId: 'room-1',
+        filename: 'voice-message.webm',
+        contentType: 'audio/webm',
+        size: 4n,
+        voiceMessage: {
+          durationMs: 1_234n,
+          waveformPeaks: expect.arrayContaining([0, 1])
+        }
+      }),
+      { headers: undefined }
+    );
+    expect(prepared.attachmentAssetIds).toEqual(['asset-voice']);
+    expect(prepared.isVoiceMessage).toBe(true);
+
+    await api.createPreparedMessage(prepared);
+    expect(mocks.createMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ attachmentAssetIds: ['asset-voice'], body: '' }),
+      { headers: undefined }
+    );
+  });
+
   it('cancels an upload session when attachment completion fails', async () => {
     mocks.createUpload.mockResolvedValue(
       new CreateUploadResponse({

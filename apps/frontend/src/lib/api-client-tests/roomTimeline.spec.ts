@@ -11,6 +11,7 @@ import {
   Message,
   MessageAssetUrl,
   MessageAttachment,
+  MessageVoiceMetadata,
   MessageVideoProcessing,
   MessageVideoProcessingStatus,
   MessageVideoVariant
@@ -288,6 +289,19 @@ describe('roomTimelinePageToEventConnectionPage', () => {
                         })
                       ]
                     })
+                  }),
+                  new MessageAttachment({
+                    id: 'a-voice',
+                    filename: 'voice-message.webm',
+                    contentType: 'audio/webm',
+                    assetUrl: new MessageAssetUrl({
+                      url: '/assets/files/a-voice',
+                      expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                    }),
+                    voiceMessage: new MessageVoiceMetadata({
+                      durationMs: 2_345n,
+                      waveformPeaks: [0.1, 0.8, 0.3]
+                    })
                   })
                 ],
                 thread: {
@@ -353,6 +367,15 @@ describe('roomTimelinePageToEventConnectionPage', () => {
                   assetUrl: { url: '/assets/files/a-variant' }
                 }
               ]
+            }
+          },
+          {
+            id: 'a-voice',
+            filename: 'voice-message.webm',
+            contentType: 'audio/webm',
+            voiceMessage: {
+              durationMs: 2345,
+              waveformPeaks: [0.1, 0.8, 0.3]
             }
           }
         ],

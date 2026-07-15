@@ -886,6 +886,7 @@ const msg_ui_outbox_room_label = (
   inputs: Parameters<LocaleMessages['ui_outbox_room_label']>[0]
 ): LocalizedString => messages().ui_outbox_room_label(inputs);
 const msg_ui_outbox_attachment_only = (): LocalizedString => messages().ui_outbox_attachment_only(empty());
+const msg_ui_outbox_voice_message = (): LocalizedString => messages().ui_outbox_voice_message(empty());
 const msg_ui_outbox_unsupported_server = (): LocalizedString => messages().ui_outbox_unsupported_server(empty());
 const msg_ui_outbox_discard = (): LocalizedString => messages().ui_outbox_discard(empty());
 const msg_ui_cached_timeline = (): LocalizedString => messages().ui_cached_timeline(empty());
@@ -977,6 +978,7 @@ const msg_message_preview_attachments_count = (
 const msg_message_preview_attachment_image = (): LocalizedString => messages().message_preview_attachment_image(empty());
 const msg_message_preview_attachment_video = (): LocalizedString => messages().message_preview_attachment_video(empty());
 const msg_message_preview_attachment_audio = (): LocalizedString => messages().message_preview_attachment_audio(empty());
+const msg_message_preview_voice_message = (): LocalizedString => messages().message_preview_voice_message(empty());
 const msg_message_preview_attachment_file = (): LocalizedString => messages().message_preview_attachment_file(empty());
 const msg_welcome_verified = (): LocalizedString => messages().welcome_verified(empty());
 const msg_room_list_active_call = (): LocalizedString => messages().room_list_active_call(empty());
@@ -1183,6 +1185,32 @@ const msg_composer_drop_files_subtitle = (): LocalizedString => messages().compo
 const msg_composer_send_failed = (): LocalizedString => messages().composer_send_failed(empty());
 const msg_composer_queued_offline = (): LocalizedString => messages().composer_queued_offline(empty());
 const msg_composer_attachments_need_connection = (): LocalizedString => messages().composer_attachments_need_connection(empty());
+const msg_composer_voice_record = (): LocalizedString => messages().composer_voice_record(empty());
+const msg_composer_voice_requesting_microphone = (): LocalizedString => messages().composer_voice_requesting_microphone(empty());
+const msg_composer_voice_recording = (): LocalizedString => messages().composer_voice_recording(empty());
+const msg_composer_voice_stop = (): LocalizedString => messages().composer_voice_stop(empty());
+const msg_composer_voice_cancel_recording = (): LocalizedString => messages().composer_voice_cancel_recording(empty());
+const msg_composer_voice_delete_draft = (): LocalizedString => messages().composer_voice_delete_draft(empty());
+const msg_composer_voice_record_again = (): LocalizedString => messages().composer_voice_record_again(empty());
+const msg_composer_voice_send = (): LocalizedString => messages().composer_voice_send(empty());
+const msg_composer_voice_play = (): LocalizedString => messages().composer_voice_play(empty());
+const msg_composer_voice_pause = (): LocalizedString => messages().composer_voice_pause(empty());
+const msg_composer_voice_seek = (): LocalizedString => messages().composer_voice_seek(empty());
+const msg_composer_voice_playback_speed = (
+  inputs: Parameters<LocaleMessages['composer_voice_playback_speed']>[0]
+): LocalizedString => messages().composer_voice_playback_speed(inputs);
+const msg_composer_voice_limit_remaining = (
+  inputs: Parameters<LocaleMessages['composer_voice_limit_remaining']>[0]
+): LocalizedString => messages().composer_voice_limit_remaining(inputs);
+const msg_composer_voice_connection_required = (): LocalizedString => messages().composer_voice_connection_required(empty());
+const msg_composer_voice_unsupported = (): LocalizedString => messages().composer_voice_unsupported(empty());
+const msg_composer_voice_microphone_denied = (): LocalizedString => messages().composer_voice_microphone_denied(empty());
+const msg_composer_voice_microphone_not_found = (): LocalizedString => messages().composer_voice_microphone_not_found(empty());
+const msg_composer_voice_microphone_in_use = (): LocalizedString => messages().composer_voice_microphone_in_use(empty());
+const msg_composer_voice_recording_failed = (): LocalizedString => messages().composer_voice_recording_failed(empty());
+const msg_composer_voice_playback_failed = (): LocalizedString => messages().composer_voice_playback_failed(empty());
+const msg_composer_voice_too_short = (): LocalizedString => messages().composer_voice_too_short(empty());
+const msg_composer_voice_too_large = (): LocalizedString => messages().composer_voice_too_large(empty());
 const msg_composer_edit_failed = (): LocalizedString => messages().composer_edit_failed(empty());
 const msg_composer_mention_all_room_members = (): LocalizedString => messages().composer_mention_all_room_members(empty());
 const msg_composer_mention_members_here = (): LocalizedString => messages().composer_mention_members_here(empty());
@@ -1353,6 +1381,7 @@ const msg_rbac_permission_descriptions_room_ban_member = (): LocalizedString => 
 const msg_rbac_permission_descriptions_message_post = (): LocalizedString => messages().rbac_permission_descriptions_message_post(empty());
 const msg_rbac_permission_descriptions_message_post_in_thread = (): LocalizedString => messages().rbac_permission_descriptions_message_post_in_thread(empty());
 const msg_rbac_permission_descriptions_message_attach = (): LocalizedString => messages().rbac_permission_descriptions_message_attach(empty());
+const msg_rbac_permission_descriptions_message_voice = (): LocalizedString => messages().rbac_permission_descriptions_message_voice(empty());
 const msg_rbac_permission_descriptions_message_echo = (): LocalizedString => messages().rbac_permission_descriptions_message_echo(empty());
 const msg_rbac_permission_descriptions_message_manage = (): LocalizedString => messages().rbac_permission_descriptions_message_manage(empty());
 const msg_rbac_permission_descriptions_message_react = (): LocalizedString => messages().rbac_permission_descriptions_message_react(empty());
@@ -2513,6 +2542,7 @@ export { msg_ui_outbox_manager_title as 'ui.outbox.manager_title' };
 export { msg_ui_outbox_empty as 'ui.outbox.empty' };
 export { msg_ui_outbox_room_label as 'ui.outbox.room_label' };
 export { msg_ui_outbox_attachment_only as 'ui.outbox.attachment_only' };
+export { msg_ui_outbox_voice_message as 'ui.outbox.voice_message' };
 export { msg_ui_outbox_unsupported_server as 'ui.outbox.unsupported_server' };
 export { msg_ui_outbox_discard as 'ui.outbox.discard' };
 export { msg_ui_cached_timeline as 'ui.cached_timeline' };
@@ -2592,6 +2622,7 @@ export { msg_message_preview_attachments_count as 'message_preview.attachments_c
 export { msg_message_preview_attachment_image as 'message_preview.attachment_image' };
 export { msg_message_preview_attachment_video as 'message_preview.attachment_video' };
 export { msg_message_preview_attachment_audio as 'message_preview.attachment_audio' };
+export { msg_message_preview_voice_message as 'message_preview.voice_message' };
 export { msg_message_preview_attachment_file as 'message_preview.attachment_file' };
 export { msg_welcome_verified as 'welcome.verified' };
 export { msg_room_list_active_call as 'room_list.active_call' };
@@ -2764,6 +2795,28 @@ export { msg_composer_drop_files_subtitle as 'composer.drop_files_subtitle' };
 export { msg_composer_send_failed as 'composer.send_failed' };
 export { msg_composer_queued_offline as 'composer.queued_offline' };
 export { msg_composer_attachments_need_connection as 'composer.attachments_need_connection' };
+export { msg_composer_voice_record as 'composer.voice.record' };
+export { msg_composer_voice_requesting_microphone as 'composer.voice.requesting_microphone' };
+export { msg_composer_voice_recording as 'composer.voice.recording' };
+export { msg_composer_voice_stop as 'composer.voice.stop' };
+export { msg_composer_voice_cancel_recording as 'composer.voice.cancel_recording' };
+export { msg_composer_voice_delete_draft as 'composer.voice.delete_draft' };
+export { msg_composer_voice_record_again as 'composer.voice.record_again' };
+export { msg_composer_voice_send as 'composer.voice.send' };
+export { msg_composer_voice_play as 'composer.voice.play' };
+export { msg_composer_voice_pause as 'composer.voice.pause' };
+export { msg_composer_voice_seek as 'composer.voice.seek' };
+export { msg_composer_voice_playback_speed as 'composer.voice.playback_speed' };
+export { msg_composer_voice_limit_remaining as 'composer.voice.limit_remaining' };
+export { msg_composer_voice_connection_required as 'composer.voice.connection_required' };
+export { msg_composer_voice_unsupported as 'composer.voice.unsupported' };
+export { msg_composer_voice_microphone_denied as 'composer.voice.microphone_denied' };
+export { msg_composer_voice_microphone_not_found as 'composer.voice.microphone_not_found' };
+export { msg_composer_voice_microphone_in_use as 'composer.voice.microphone_in_use' };
+export { msg_composer_voice_recording_failed as 'composer.voice.recording_failed' };
+export { msg_composer_voice_playback_failed as 'composer.voice.playback_failed' };
+export { msg_composer_voice_too_short as 'composer.voice.too_short' };
+export { msg_composer_voice_too_large as 'composer.voice.too_large' };
 export { msg_composer_edit_failed as 'composer.edit_failed' };
 export { msg_composer_mention_all_room_members as 'composer.mention.all_room_members' };
 export { msg_composer_mention_members_here as 'composer.mention.members_here' };
@@ -2900,6 +2953,7 @@ export { msg_rbac_permission_descriptions_room_ban_member as 'rbac.permission_de
 export { msg_rbac_permission_descriptions_message_post as 'rbac.permission_descriptions.message_post' };
 export { msg_rbac_permission_descriptions_message_post_in_thread as 'rbac.permission_descriptions.message_post_in_thread' };
 export { msg_rbac_permission_descriptions_message_attach as 'rbac.permission_descriptions.message_attach' };
+export { msg_rbac_permission_descriptions_message_voice as 'rbac.permission_descriptions.message_voice' };
 export { msg_rbac_permission_descriptions_message_echo as 'rbac.permission_descriptions.message_echo' };
 export { msg_rbac_permission_descriptions_message_manage as 'rbac.permission_descriptions.message_manage' };
 export { msg_rbac_permission_descriptions_message_react as 'rbac.permission_descriptions.message_react' };

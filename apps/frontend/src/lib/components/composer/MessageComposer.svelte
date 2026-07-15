@@ -39,6 +39,8 @@
   import { supportsMessageCreateIdempotency } from '$lib/pwa/outboxPolicy';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { deleteIncomingShare, getIncomingShare } from '$lib/pwa/shareInbox';
+  import VoiceMessageRecorder from './VoiceMessageRecorder.svelte';
+  import type { VoiceMessageDraft } from '$lib/voiceMessages/policy';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
 
@@ -80,6 +82,7 @@
     placeholder: customPlaceholder,
     canPost = true,
     canAttach = true,
+    canVoice = false,
     autoFocus = true,
     onReady,
     onTyping,
@@ -96,6 +99,7 @@
     placeholder?: string;
     canPost?: boolean;
     canAttach?: boolean;
+    canVoice?: boolean;
     autoFocus?: boolean;
     onReady?: (api: MessageComposerApi) => void;
     onTyping?: () => void;
@@ -327,7 +331,9 @@
         manualRichMode =
           (draft?.richMode ?? false) || (userChangedText && untrack(() => manualRichMode));
         untrack(() => editorApi)?.setContent(message);
-        attachments.restore(currentFiles.length > 0 ? [...draftFiles, ...currentFiles] : draftFiles);
+        attachments.restore(
+          currentFiles.length > 0 ? [...draftFiles, ...currentFiles] : draftFiles
+        );
         loadedDraftKey = DRAFT_KEY;
         void consumeIncomingShare(loadVersion, message);
       })
@@ -409,6 +415,7 @@
   let loading = $state(false);
   let roleMentionCheckLoading = $state(false);
   let fileInputElement = $state<HTMLInputElement>();
+  let voiceRecorderActive = $state(false);
 
   // A realtime disconnect does not prevent composing or queueing a message.
   // Note: loading is intentionally excluded — the editor stays editable during sends
@@ -583,6 +590,8 @@
     alsoSendToChannel: boolean;
     wasRichComposer: boolean;
     clientRequestId: string;
+    voiceMessage?: VoiceMessageDraft;
+    preserveComposerDraft?: boolean;
   };
 
   type SendPreparedPostResponse = {
@@ -624,6 +633,7 @@
         body: post.bodyToSend,
         attachmentAssetIds: post.attachmentAssetIds,
         attachments: post.attachmentAssetIds?.length ? null : post.filesToSend,
+        voiceMessage: post.voiceMessage,
         threadRootEventId: post.threadRootEventId,
         inReplyTo: post.inReplyTo,
         linkPreview: post.linkPreviewInput,
@@ -652,7 +662,7 @@
     error: unknown,
     post: PreparedPost,
     prepared: PreparedMessageInput | null
-  ) {
+  ): Promise<boolean> {
     const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
     if (
       scope &&
@@ -664,18 +674,19 @@
         // Preview tokens are short-lived server capabilities. The message is
         // durable; an expired optional preview must never block its replay.
         await pwaOutbox.queue(scope, { ...prepared, linkPreviewToken: '' });
-        await clearAcceptedDraft();
+        if (!post.preserveComposerDraft) await clearAcceptedDraft();
         toast.success(m['composer.queued_offline']());
         onCancelReply?.();
         alsoSendToChannel = false;
-        return;
+        return true;
       } catch (queueError) {
         console.error('Failed to queue message:', queueError);
       }
     }
     toast.error(m['composer.send_failed']());
     console.error('Error creating message:', error);
-    restorePreparedPost(post);
+    if (!post.preserveComposerDraft) restorePreparedPost(post);
+    return false;
   }
 
   async function clearAcceptedDraft() {
@@ -689,7 +700,7 @@
   async function handlePostSuccess(response: SendPreparedPostResponse, post: PreparedPost) {
     // Complete the serialized local delete before exposing the accepted event.
     // A caller may reload as soon as the message appears in the timeline.
-    await clearAcceptedDraft();
+    if (!post.preserveComposerDraft) await clearAcceptedDraft();
 
     // Notify parent before scrolling so it can synchronously ingest the
     // returned event and make the target row available.
@@ -709,22 +720,32 @@
 
     // Reset "also send to channel" checkbox after successful send
     alsoSendToChannel = false;
-    manualRichMode = false;
+    if (!post.preserveComposerDraft) manualRichMode = false;
   }
 
-  async function submitPreparedPost(preparedPost: PreparedPost) {
-    if (typeof navigator !== 'undefined' && !navigator.onLine && preparedPost.filesToSend?.length) {
-      toast.warning(m['composer.attachments_need_connection']());
-      return;
+  async function submitPreparedPost(preparedPost: PreparedPost): Promise<boolean> {
+    if (
+      typeof navigator !== 'undefined' &&
+      !navigator.onLine &&
+      (preparedPost.filesToSend?.length || preparedPost.voiceMessage)
+    ) {
+      toast.warning(
+        preparedPost.voiceMessage
+          ? m['composer.voice.connection_required']()
+          : m['composer.attachments_need_connection']()
+      );
+      return false;
     }
     // Optimistically clear the editor so the user can start typing the next
     // message immediately (matches Slack/Discord behavior).
-    autocomplete.reset();
-    message = '';
-    manualRichMode = false;
-    editorApi?.setContent('');
-    attachments.clear();
-    linkPreviews.clear();
+    if (!preparedPost.preserveComposerDraft) {
+      autocomplete.reset();
+      message = '';
+      manualRichMode = false;
+      editorApi?.setContent('');
+      attachments.clear();
+      linkPreviews.clear();
+    }
 
     loading = true;
 
@@ -732,9 +753,10 @@
       const response = await sendPreparedPost(preparedPost);
 
       if (response.error) {
-        await handlePostFailure(response.error, preparedPost, response.prepared);
+        return await handlePostFailure(response.error, preparedPost, response.prepared);
       } else {
         await handlePostSuccess(response, preparedPost);
+        return true;
       }
     } finally {
       loading = false;
@@ -794,6 +816,23 @@
     }
 
     await submitPreparedPost(preparedPost);
+  }
+
+  async function sendVoiceMessage(draft: VoiceMessageDraft): Promise<boolean> {
+    const preparedPost: PreparedPost = {
+      roomId,
+      bodyToSend: '',
+      filesToSend: null,
+      threadRootEventId: inThread ?? null,
+      inReplyTo: inReplyTo ?? null,
+      linkPreviewInput: null,
+      alsoSendToChannel,
+      wasRichComposer: false,
+      clientRequestId: crypto.randomUUID(),
+      voiceMessage: draft,
+      preserveComposerDraft: true
+    };
+    return submitPreparedPost(preparedPost);
   }
 
   async function editMessage() {
@@ -1092,60 +1131,74 @@
       />
     {/if}
     <!-- Attachment button - hidden in edit mode (editMessage only supports text) -->
-    {#if !isEditing && canAttach}
+    {#if !isEditing && canAttach && !voiceRecorderActive}
       <button
         type="button"
         onclick={() => fileInputElement?.click()}
         disabled={inputDisabled}
-        class="flex h-8 w-11 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition-[color,scale] duration-100 active:scale-[0.96] enabled:hover:text-text disabled:cursor-not-allowed"
+        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed"
         title={m['composer.attach_file']()}
+        aria-label={m['composer.attach_file']()}
       >
         <span class="iconify text-xl uil--file-upload"></span>
       </button>
     {/if}
 
     <!-- Text input (TipTap editor) -->
-    {#await tipTapEditorModule}
-      <div class="min-h-8 min-w-0 flex-1 py-1" aria-hidden="true"></div>
-    {:then { default: TipTapEditor }}
-      <TipTapEditor
-        placeholder={currentPlaceholder}
-        editable={!inputDisabled}
-        autofocus={autoFocus && shouldAutoFocus()}
-        {testid}
-        onUpdate={handleEditorUpdate}
-        onKeyDown={handleEditorKeyDown}
-        onPaste={handlePaste}
-        onNextEnterWillSendChange={(value) => (editorNextEnterWillSend = value)}
-        onRichStructureChange={handleRichStructureChange}
-        onReady={handleEditorReady}
+    {#if !voiceRecorderActive}
+      {#await tipTapEditorModule}
+        <div class="min-h-11 min-w-0 flex-1 py-1" aria-hidden="true"></div>
+      {:then { default: TipTapEditor }}
+        <TipTapEditor
+          placeholder={currentPlaceholder}
+          editable={!inputDisabled}
+          autofocus={autoFocus && shouldAutoFocus()}
+          {testid}
+          onUpdate={handleEditorUpdate}
+          onKeyDown={handleEditorKeyDown}
+          onPaste={handlePaste}
+          onNextEnterWillSendChange={(value) => (editorNextEnterWillSend = value)}
+          onRichStructureChange={handleRichStructureChange}
+          onReady={handleEditorReady}
+        />
+      {/await}
+    {/if}
+
+    {#if !isEditing && canVoice}
+      <VoiceMessageRecorder
+        disabled={inputDisabled || loading || roleMentionCheckLoading}
+        maxUploadSize={serverInfo.maxVoiceMessageUploadSize}
+        onSend={sendVoiceMessage}
+        onActiveChange={(active) => (voiceRecorderActive = active)}
       />
-    {/await}
+    {/if}
 
-    <div class="flex h-8 shrink-0 items-center gap-2">
-      {#if submitHint && canSubmit}
-        <span
-          aria-hidden="true"
-          title={submitHint}
-          class="px-0.5 text-xs leading-none font-medium whitespace-nowrap text-muted/75"
+    {#if !voiceRecorderActive}
+      <div class="flex h-11 shrink-0 items-center gap-2">
+        {#if submitHint && canSubmit}
+          <span
+            aria-hidden="true"
+            title={submitHint}
+            class="px-0.5 text-xs leading-none font-medium whitespace-nowrap text-muted/75"
+          >
+            {submitHint}
+          </span>
+        {/if}
+
+        <!-- Send button -->
+        <button
+          type="button"
+          onpointerdown={(e) => e.preventDefault()}
+          onclick={handleSubmit}
+          disabled={!canSubmit}
+          class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={m['composer.send']()}
+          title={isRichComposer ? m['composer.send_ctrl_enter']() : m['composer.send_enter']()}
         >
-          {submitHint}
-        </span>
-      {/if}
-
-      <!-- Send button -->
-      <button
-        type="button"
-        onpointerdown={(e) => e.preventDefault()}
-        onclick={handleSubmit}
-        disabled={!canSubmit}
-        class="flex h-8 w-8 cursor-pointer items-center justify-center rounded text-muted transition-[color,scale] duration-100 active:scale-[0.96] enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
-        aria-label={m['composer.send']()}
-        title={isRichComposer ? m['composer.send_ctrl_enter']() : m['composer.send_enter']()}
-      >
-        <span class="iconify text-xl uil--telegram-alt"></span>
-      </button>
-    </div>
+          <span class="iconify text-xl uil--telegram-alt"></span>
+        </button>
+      </div>
+    {/if}
   </div>
 
   <!-- Also send to channel checkbox (thread replies only, when permitted) -->

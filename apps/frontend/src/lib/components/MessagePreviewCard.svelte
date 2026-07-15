@@ -59,6 +59,7 @@ unknown instance) the component renders nothing.
     thumbnailAssetUrl: ExpiringAssetUrl | null;
     videoThumbnailAssetUrl: ExpiringAssetUrl | null;
     thumbnailUrl: string | null;
+    isVoiceMessage: boolean;
   }
 
   let preview = $state<{
@@ -172,7 +173,8 @@ unknown instance) the component renders nothing.
               contentType: a.contentType,
               thumbnailAssetUrl,
               videoThumbnailAssetUrl,
-              thumbnailUrl: displayThumbnailAssetUrl?.url ?? null
+              thumbnailUrl: displayThumbnailAssetUrl?.url ?? null,
+              isVoiceMessage: !!a.voiceMessage
             };
           }),
           actor: ev.actor ? useRenderData(UserAvatarViewData, ev.actor) : null,
@@ -198,10 +200,11 @@ unknown instance) the component renders nothing.
   const bodyMarkdown = $derived(preview?.body ?? '');
   const hasBody = $derived(bodyMarkdown.trim().length > 0);
 
-  function attachmentLabel(contentType: string): string {
-    if (contentType.startsWith('image/')) return m['message_preview.attachment_image']();
-    if (contentType.startsWith('video/')) return m['message_preview.attachment_video']();
-    if (contentType.startsWith('audio/')) return m['message_preview.attachment_audio']();
+  function attachmentLabel(attachment: Pick<Attachment, 'contentType' | 'isVoiceMessage'>): string {
+    if (attachment.isVoiceMessage) return m['message_preview.voice_message']();
+    if (attachment.contentType.startsWith('image/')) return m['message_preview.attachment_image']();
+    if (attachment.contentType.startsWith('video/')) return m['message_preview.attachment_video']();
+    if (attachment.contentType.startsWith('audio/')) return m['message_preview.attachment_audio']();
     return m['message_preview.attachment_file']();
   }
 
@@ -459,7 +462,7 @@ unknown instance) the component renders nothing.
                     aria-hidden="true"
                   ></span>
                 {:else}
-                  {attachmentLabel(attachment.contentType)}
+                  {attachmentLabel(attachment)}
                 {/if}
               </div>
             {/if}
@@ -470,7 +473,7 @@ unknown instance) the component renders nothing.
           {#if !hasBody}
             <span class="text-xs text-muted">
               {preview.attachments.length === 1
-                ? attachmentLabel(preview.attachments[0].contentType)
+                ? attachmentLabel(preview.attachments[0])
                 : m['message_preview.attachments_count']({
                     count: preview.attachments.length
                   })}

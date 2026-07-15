@@ -39,6 +39,7 @@
     onClose,
     canPostInThread = true,
     canAttach = true,
+    canVoice = false,
     canEchoMessage = false,
     highlightEventId = null,
     pendingQuote = null,
@@ -53,6 +54,7 @@
     onClose: () => void;
     canPostInThread?: boolean;
     canAttach?: boolean;
+    canVoice?: boolean;
     canEchoMessage?: boolean;
     highlightEventId?: string | null;
     pendingQuote?: QuoteInsertionRequest | null;
@@ -381,6 +383,7 @@
     placeholder={m['room.thread.reply_placeholder']()}
     {canPost}
     {canAttach}
+    {canVoice}
     showAlsoSendToChannel={canEchoMessage}
     onEscape={onClose}
     onReady={(api: MessageComposerApi) => {

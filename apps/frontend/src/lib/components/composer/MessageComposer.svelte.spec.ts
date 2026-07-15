@@ -86,6 +86,7 @@ const mockInstanceStores = {
     videoProcessingEnabled: false,
     maxUploadSize: 25 * 1024 * 1024,
     maxVideoUploadSize: 25 * 1024 * 1024,
+    maxVoiceMessageUploadSize: 32 * 1024 * 1024,
     capabilities: ['message.create-idempotency-v1']
   },
   roomUnread: {
@@ -346,6 +347,7 @@ describe('MessageComposer', () => {
     mockInstanceStores.serverInfo.videoProcessingEnabled = false;
     mockInstanceStores.serverInfo.maxUploadSize = 25 * 1024 * 1024;
     mockInstanceStores.serverInfo.maxVideoUploadSize = 25 * 1024 * 1024;
+    mockInstanceStores.serverInfo.maxVoiceMessageUploadSize = 32 * 1024 * 1024;
     mockInstanceStores.serverInfo.capabilities = ['message.create-idempotency-v1'];
     registryServerState.userId = null;
     mockInstanceStores.roomUnread.setRoomUnread.mockClear();
@@ -427,6 +429,24 @@ describe('MessageComposer', () => {
       await findEditor(container);
       expect(q(container, 'button[title="Attach file"]')).toBeNull();
       expect(q(container, 'input[type="file"]')).toBeNull();
+    });
+
+    it('shows the voice recorder only when the room grants voice messages', async () => {
+      const allowed = renderMessageComposer({ roomId: 'room_voice_allowed', canVoice: true });
+      await findEditor(allowed.container);
+      await expect
+        .element(
+          allowed.container.querySelector<HTMLButtonElement>(
+            '[data-testid="voice-message-record-button"]'
+          )
+        )
+        .toBeInTheDocument();
+
+      const denied = renderMessageComposer({ roomId: 'room_voice_denied', canVoice: false });
+      await findEditor(denied.container);
+      expect(
+        denied.container.querySelector('[data-testid="voice-message-record-button"]')
+      ).toBeNull();
     });
 
     it('renders hidden file input', async () => {

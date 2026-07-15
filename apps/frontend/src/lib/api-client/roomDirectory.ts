@@ -35,6 +35,7 @@ export type DirectoryRoomDetails = DirectoryRoomSummary & {
   canPostMessage: boolean;
   canPostInThread: boolean;
   canAttach: boolean;
+  canVoice: boolean;
   canReact: boolean;
   canEchoMessage: boolean;
   canManageOthersMessage: boolean;
@@ -74,6 +75,7 @@ export { RoomKind };
 
 const RoomPermission = {
   Attach: 'message.attach',
+  Voice: 'message.voice',
   BanMember: 'room.ban-member',
   CreateRoom: 'room.create',
   EchoMessage: 'message.echo',
@@ -170,6 +172,7 @@ function mapDirectoryRoomDetails(
     canPostMessage: hasRoomPermission(entry.viewerState, RoomPermission.PostMessage),
     canPostInThread: hasRoomPermission(entry.viewerState, RoomPermission.PostInThread),
     canAttach: hasRoomPermission(entry.viewerState, RoomPermission.Attach),
+    canVoice: hasRoomPermission(entry.viewerState, RoomPermission.Voice),
     canReact: hasRoomPermission(entry.viewerState, RoomPermission.React),
     canEchoMessage: hasRoomPermission(entry.viewerState, RoomPermission.EchoMessage),
     canManageOthersMessage: hasRoomPermission(entry.viewerState, RoomPermission.ManageMessage),

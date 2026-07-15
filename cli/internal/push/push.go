@@ -271,6 +271,9 @@ func (p Payload) declarativeNotificationEligible() bool {
 type PayloadContext struct {
 	// MessagePreview is a truncated preview of the message body
 	MessagePreview string
+	// IsVoiceMessage selects a localized, privacy-preserving fallback when the
+	// message has no text body but carries a first-class voice attachment.
+	IsVoiceMessage bool
 	// RoomName is the name of the room (for mentions)
 	RoomName string
 	// IsPrivate distinguishes one-to-one conversations from channel rooms.
@@ -292,6 +295,7 @@ type notificationCopy struct {
 	roomMessage        string
 	roomMessageInRoom  string
 	roomMessageBody    string
+	voiceMessageBody   string
 	defaultTitle       string
 	defaultDescription string
 }
@@ -310,6 +314,7 @@ var notificationCopies = map[string]notificationCopy{
 		roomMessage:        "@%s posted a message",
 		roomMessageInRoom:  "@%s posted in #%s",
 		roomMessageBody:    "Open Towk to read the message",
+		voiceMessageBody:   "Voice message",
 		defaultTitle:       "New notification",
 		defaultDescription: "You have a new notification",
 	},
@@ -326,6 +331,7 @@ var notificationCopies = map[string]notificationCopy{
 		roomMessage:        "@%s hat eine Nachricht gesendet",
 		roomMessageInRoom:  "@%s hat in #%s geschrieben",
 		roomMessageBody:    "Öffne Towk, um die Nachricht zu lesen",
+		voiceMessageBody:   "Sprachnachricht",
 		defaultTitle:       "Neue Benachrichtigung",
 		defaultDescription: "Du hast eine neue Benachrichtigung",
 	},
@@ -342,6 +348,7 @@ var notificationCopies = map[string]notificationCopy{
 		roomMessage:        "@%s a publié un message",
 		roomMessageInRoom:  "@%s a publié un message dans #%s",
 		roomMessageBody:    "Ouvrez Towk pour lire le message",
+		voiceMessageBody:   "Message vocal",
 		defaultTitle:       "Nouvelle notification",
 		defaultDescription: "Vous avez une nouvelle notification",
 	},
@@ -358,6 +365,7 @@ var notificationCopies = map[string]notificationCopy{
 		roomMessage:        "@%s publicó un mensaje",
 		roomMessageInRoom:  "@%s publicó un mensaje en #%s",
 		roomMessageBody:    "Abre Towk para leer el mensaje",
+		voiceMessageBody:   "Mensaje de voz",
 		defaultTitle:       "Nueva notificación",
 		defaultDescription: "Tienes una nueva notificación",
 	},
@@ -374,6 +382,7 @@ var notificationCopies = map[string]notificationCopy{
 		roomMessage:        "@%s publicou uma mensagem",
 		roomMessageInRoom:  "@%s publicou uma mensagem em #%s",
 		roomMessageBody:    "Abra o Towk para ler a mensagem",
+		voiceMessageBody:   "Mensagem de voz",
 		defaultTitle:       "Nova notificação",
 		defaultDescription: "Você tem uma nova notificação",
 	},
@@ -644,11 +653,17 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		preview = truncatePreview(payloadCtx.MessagePreview)
 		roomName = payloadCtx.RoomName
 	}
+	fallbackBody := func(generic string) string {
+		if payloadCtx != nil && payloadCtx.IsVoiceMessage && strings.TrimSpace(preview) == "" {
+			return copy.voiceMessageBody
+		}
+		return generic
+	}
 
 	switch n := notif.Notification.(type) {
 	case *corev1.Notification_DmMessage:
 		payload.Title = fmt.Sprintf(copy.directMessage, actorDisplayName)
-		payload.Body = notificationBody(preview, copy.directMessageBody)
+		payload.Body = notificationBody(preview, fallbackBody(copy.directMessageBody))
 		payload.Tag = "dm-" + n.DmMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.DmMessage.RoomId, n.DmMessage.InThread, n.DmMessage.EventId)
 
@@ -658,7 +673,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.mention, actorDisplayName)
 		}
-		payload.Body = notificationBody(preview, copy.mentionBody)
+		payload.Body = notificationBody(preview, fallbackBody(copy.mentionBody))
 		payload.Tag = "mention-" + n.Mention.EventId
 		payload.URL = buildNotificationURL(baseURL, n.Mention.RoomId, n.Mention.InThread, n.Mention.EventId)
 
@@ -668,7 +683,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.reply, actorDisplayName)
 		}
-		payload.Body = notificationBody(preview, copy.replyBody)
+		payload.Body = notificationBody(preview, fallbackBody(copy.replyBody))
 		payload.Tag = "reply-" + n.Reply.EventId
 		payload.URL = buildNotificationURL(baseURL, n.Reply.RoomId, n.Reply.InThread, n.Reply.EventId)
 
@@ -678,7 +693,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.roomMessage, actorDisplayName)
 		}
-		payload.Body = notificationBody(preview, copy.roomMessageBody)
+		payload.Body = notificationBody(preview, fallbackBody(copy.roomMessageBody))
 		payload.Tag = "room-message-" + n.RoomMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.RoomMessage.RoomId, n.RoomMessage.InThread, n.RoomMessage.EventId)
 

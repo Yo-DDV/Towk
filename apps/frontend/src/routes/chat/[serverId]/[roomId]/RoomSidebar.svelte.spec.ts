@@ -251,6 +251,7 @@ function roomData(members: RoomMember[], totalCount: number, hasMore: boolean): 
     canPostMessage: true,
     canPostInThread: true,
     canAttach: true,
+    canVoice: true,
     canReact: true,
     canManageOthersMessage: false,
     canEchoMessage: false,
@@ -299,7 +300,8 @@ function roomFile(
         expiresAt: '2099-01-01T00:00:00Z'
       },
       thumbnailAssetUrl: null,
-      videoProcessing: null
+      videoProcessing: null,
+      voiceMessage: null
     }
   };
 }
@@ -337,6 +339,18 @@ function roomAudioFile(filename: string) {
         url: `/assets/files/att-${filename}/image/120x120/cover?access=broken`,
         expiresAt: '2099-01-01T00:00:00Z'
       }
+    }
+  };
+}
+
+function roomVoiceFile(filename: string) {
+  const base = roomAudioFile(filename);
+  return {
+    ...base,
+    attachment: {
+      ...base.attachment,
+      contentType: 'audio/webm;codecs=opus',
+      voiceMessage: { durationMs: 65_000, waveformPeaks: [0.1, 0.8, 0.3] }
     }
   };
 }
@@ -1871,6 +1885,29 @@ describe('RoomSidebar', () => {
       expect(container.textContent).toContain('song.mp3');
       expect(container.querySelector('img')).toBeFalsy();
       expect(container.querySelector('.mdi--file-music-outline')).toBeTruthy();
+    });
+  });
+
+  it('labels first-class voice messages without exposing their technical filename', async () => {
+    attachmentMocks.listRoomAttachments.mockResolvedValueOnce({
+      items: [roomVoiceFile('voice-message-20260715.webm')],
+      totalCount: 1,
+      hasMore: false
+    });
+
+    const { container } = render(RoomSidebarTestHarness, {
+      props: {
+        activePanel: 'files',
+        roomData: roomData([member(1)], 1, false)
+      }
+    });
+
+    await vi.waitFor(() => {
+      const labels = roomFileRowLabels(container);
+      expect(labels).toHaveLength(1);
+      expect(labels[0]).toContain('Voice message');
+      expect(labels[0]).toContain('1:05');
+      expect(labels[0]).not.toContain('voice-message-20260715.webm');
     });
   });
 

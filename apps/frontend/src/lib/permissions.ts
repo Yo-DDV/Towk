@@ -49,6 +49,9 @@ export const PERMISSION_METADATA: Record<string, PermissionMetadata> = {
   'message.attach': {
     description: m['rbac.permission_descriptions.message_attach']
   },
+  'message.voice': {
+    description: m['rbac.permission_descriptions.message_voice']
+  },
   'message.echo': {
     description: m['rbac.permission_descriptions.message_echo']
   },

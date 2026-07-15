@@ -116,6 +116,10 @@ export type MessageAttachmentView = {
   assetUrl?: AssetURL | null;
   thumbnailAssetUrl?: AssetURL | null;
   videoProcessing?: VideoProcessingView | null;
+  voiceMessage?: {
+    durationMs: number;
+    waveformPeaks: number[];
+  } | null;
 };
 
 export type ReactionSummaryView = {

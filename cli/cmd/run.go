@@ -624,15 +624,16 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 		return nil
 	}
 
-	// Extract message body from the event
+	// Extract message body and attachment kind from the event.
 	if _, ok := event.Event.(*corev1.Event_MessagePosted); ok {
-		body, err := chattoCore.GetMessageBody(ctx, kind, event.Id)
+		body, err := chattoCore.GetFullMessageBody(ctx, kind, event.Id)
 		if err != nil {
 			logger.Debug("Failed to fetch message body for push notification preview",
 				"event_id", event.Id,
 				"error", err)
-		} else {
-			payloadCtx.MessagePreview = body
+		} else if body != nil {
+			payloadCtx.MessagePreview = body.Body
+			payloadCtx.IsVoiceMessage = containsVoiceMessage(body.Attachments)
 		}
 	}
 
@@ -650,6 +651,15 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 	}
 
 	return payloadCtx
+}
+
+func containsVoiceMessage(attachments []*corev1.Attachment) bool {
+	for _, attachment := range attachments {
+		if attachment.GetVoiceMessage() != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func pushNotificationUsesCountBadge(notification *corev1.Notification) bool {

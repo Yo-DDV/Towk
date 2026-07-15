@@ -117,6 +117,7 @@
       "message_post": "Post root messages in rooms and start DMs",
       "message_post_in_thread": "Post replies inside a thread",
       "message_attach": "Attach files to messages",
+      "message_voice": "Record and send voice messages",
       "message_echo": "When posting in a thread, also surface the message in the main channel",
       "message_manage": "Edit and delete other users' messages",
       "message_react": "Add and remove reactions on messages",

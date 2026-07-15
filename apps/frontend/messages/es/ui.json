@@ -46,6 +46,7 @@
       "empty": "No hay mensajes pendientes.",
       "room_label": "Sala {room}",
       "attachment_only": "Mensaje con archivos adjuntos",
+      "voice_message": "Mensaje de voz",
       "unsupported_server": "Este servidor no puede reintentar el mensaje automáticamente de forma segura. Consérvalo aquí o descártalo.",
       "discard": "Descartar"
     },

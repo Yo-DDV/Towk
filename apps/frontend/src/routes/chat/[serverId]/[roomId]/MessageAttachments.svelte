@@ -12,6 +12,7 @@
 
   type RawAttachment = MessageAttachmentView;
   import VideoPlayer from '$lib/components/chat/VideoPlayer.svelte';
+  import VoiceMessagePlayer from '$lib/components/chat/VoiceMessagePlayer.svelte';
   import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
   import { pushState } from '$app/navigation';
@@ -594,6 +595,27 @@
             type="button"
             onclick={(e) => openDeleteConfirmation(attachment, e)}
             class="attachment-remove-button z-10 md:group-hover/attachment:opacity-100"
+            aria-label={m['room.attachment.delete_label']()}
+            title={m['room.attachment.delete_label']()}
+          >
+            <span class="iconify text-sm uil--times"></span>
+          </button>
+        {/if}
+      </div>
+    {:else if attachment.voiceMessage && attachment.url}
+      <div class="group/attachment relative min-w-0 pr-7">
+        <VoiceMessagePlayer
+          src={attachment.url}
+          durationMs={attachment.voiceMessage.durationMs}
+          waveformPeaks={attachment.voiceMessage.waveformPeaks}
+          filename={attachment.filename}
+          onMediaError={() => refreshAfterAssetError(attachment, 'asset')}
+        />
+        {#if canDeleteAttachment}
+          <button
+            type="button"
+            onclick={(e) => openDeleteConfirmation(attachment, e)}
+            class="attachment-remove-button md:group-hover/attachment:opacity-100"
             aria-label={m['room.attachment.delete_label']()}
             title={m['room.attachment.delete_label']()}
           >

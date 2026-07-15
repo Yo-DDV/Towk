@@ -62,6 +62,7 @@ const { soundMocks, apiMocks } = vi.hoisted(() => ({
         videoProcessingEnabled: false,
         maxUploadSize: 25,
         maxVideoUploadSize: 25,
+        maxVoiceMessageUploadSize: 32,
         messageEditWindowSeconds: 3600,
         viewerPermissions: {},
         viewerCanManageServer: false,
@@ -73,6 +74,7 @@ const { soundMocks, apiMocks } = vi.hoisted(() => ({
         viewerCanPostMessages: false,
         viewerCanPostInThreads: false,
         viewerCanAttachFiles: false,
+        viewerCanSendVoiceMessages: false,
         viewerCanManageMessages: false,
         viewerCanReactToMessages: false,
         viewerCanEchoMessages: false,
@@ -356,6 +358,7 @@ beforeEach(() => {
     videoProcessingEnabled: false,
     maxUploadSize: 25,
     maxVideoUploadSize: 25,
+    maxVoiceMessageUploadSize: 32,
     messageEditWindowSeconds: 3600,
     viewerPermissions: {},
     viewerCanManageServer: false,
@@ -367,6 +370,7 @@ beforeEach(() => {
     viewerCanPostMessages: false,
     viewerCanPostInThreads: false,
     viewerCanAttachFiles: false,
+    viewerCanSendVoiceMessages: false,
     viewerCanManageMessages: false,
     viewerCanReactToMessages: false,
     viewerCanEchoMessages: false,
@@ -523,6 +527,7 @@ describe('ServerStateStore live server updates', () => {
       videoProcessingEnabled: true,
       maxUploadSize: 100,
       maxVideoUploadSize: 200,
+      maxVoiceMessageUploadSize: 300,
       messageEditWindowSeconds: 120,
       motd: 'Fresh MOTD',
       viewerPermissions: {},
@@ -535,6 +540,7 @@ describe('ServerStateStore live server updates', () => {
       viewerCanPostMessages: false,
       viewerCanPostInThreads: false,
       viewerCanAttachFiles: false,
+      viewerCanSendVoiceMessages: true,
       viewerCanManageMessages: false,
       viewerCanReactToMessages: false,
       viewerCanEchoMessages: false,
@@ -577,6 +583,7 @@ describe('ServerStateStore live server updates', () => {
     expect(store.serverInfo.motd).toBe('Fresh MOTD');
     expect(store.serverInfo.pushNotificationsEnabled).toBe(true);
     expect(store.serverInfo.livekitUrl).toBe('wss://livekit');
+    expect(store.serverInfo.maxVoiceMessageUploadSize).toBe(300);
   });
 
   it('forwards RoomGroupsUpdatedEvent to public room-state stores by default', async () => {
