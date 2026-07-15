@@ -188,8 +188,24 @@ func pwaManifestIconFallbacks(value any) []map[string]string {
 	return fallbacks
 }
 
-func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte, error) {
-	if icons == nil {
+func androidChromiumNeedsBrowserDisplay(userAgent string) bool {
+	ua := strings.ToLower(userAgent)
+	if !strings.Contains(ua, "android") {
+		return false
+	}
+	if strings.Contains(ua, "firefox/") || strings.Contains(ua, "fennec/") {
+		return false
+	}
+	return strings.Contains(ua, "chrome/") ||
+		strings.Contains(ua, "crios/") ||
+		strings.Contains(ua, "edga/") ||
+		strings.Contains(ua, "opr/") ||
+		strings.Contains(ua, "samsungbrowser/")
+}
+
+func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAgent string) ([]byte, error) {
+	forceBrowserDisplay := androidChromiumNeedsBrowserDisplay(userAgent)
+	if icons == nil && !forceBrowserDisplay {
 		return staticManifest, nil
 	}
 
@@ -198,21 +214,31 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte
 		return nil, err
 	}
 
-	manifest["icons"] = append(
-		pwaManifestIcons(icons.Icon192, icons.Icon512),
-		pwaManifestIconFallbacks(manifest["icons"])...,
-	)
-	if shortcuts, ok := manifest["shortcuts"].([]any); ok {
-		for _, shortcut := range shortcuts {
-			shortcutMap, ok := shortcut.(map[string]any)
-			if !ok {
-				continue
+	if icons != nil {
+		manifest["icons"] = append(
+			pwaManifestIcons(icons.Icon192, icons.Icon512),
+			pwaManifestIconFallbacks(manifest["icons"])...,
+		)
+		if shortcuts, ok := manifest["shortcuts"].([]any); ok {
+			for _, shortcut := range shortcuts {
+				shortcutMap, ok := shortcut.(map[string]any)
+				if !ok {
+					continue
+				}
+				shortcutMap["icons"] = append(
+					[]map[string]string{{"src": icons.Icon192, "sizes": "192x192"}},
+					pwaManifestIconFallbacks(shortcutMap["icons"])...,
+				)
 			}
-			shortcutMap["icons"] = append(
-				[]map[string]string{{"src": icons.Icon192, "sizes": "192x192"}},
-				pwaManifestIconFallbacks(shortcutMap["icons"])...,
-			)
 		}
+	}
+	if forceBrowserDisplay {
+		// Android Chrome/Chromium shows a browser-owned foreground notification
+		// for non-browser installed web app display modes. It is outside the
+		// Web Push/Notification API and cannot be dismissed by Towk JavaScript, so
+		// Android Chromium launches use an ordinary browser display mode.
+		manifest["display"] = "browser"
+		manifest["display_override"] = []string{"browser"}
 	}
 
 	return json.MarshalIndent(manifest, "", "  ")
@@ -278,11 +304,18 @@ func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-	content, err = dynamicPWAManifest(content, s.currentPWAIconURLs(c.Request.Context()))
+	content, err = dynamicPWAManifest(
+		content,
+		s.currentPWAIconURLs(c.Request.Context()),
+		c.GetHeader("User-Agent"),
+	)
 	if err != nil {
 		s.logger.Warn("failed to generate dynamic PWA manifest", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
+	}
+	if androidChromiumNeedsBrowserDisplay(c.GetHeader("User-Agent")) {
+		c.Header("Vary", "User-Agent")
 	}
 	c.Data(http.StatusOK, "application/manifest+json", content)
 }
