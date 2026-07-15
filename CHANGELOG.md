@@ -4,6 +4,13 @@ All notable changes to Towk. Subsequent entries are maintained from conventional
 commits on `main`; this first standalone release entry is curated to separate
 Towk work from the inherited Chatto history.
 
+## [0.6.1](https://github.com/Yo-DDV/Towk/compare/v0.6.0...v0.6.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* **release:** refresh Alpine tzdata pin ([5af7f59](https://github.com/Yo-DDV/Towk/commit/5af7f597ecaabc0bcceca4802dd659175c9efc33))
+
 ## [0.6.0](https://github.com/Yo-DDV/Towk/compare/v0.5.0...v0.6.0) (2026-07-15)
 
 
