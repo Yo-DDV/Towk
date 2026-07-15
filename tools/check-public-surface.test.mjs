@@ -99,3 +99,18 @@ test('native clipboard CI installs only the portable toolchain', async () => {
   assert.match(nativeClipboardJob, /^      MISE_TASK_RUN_AUTO_INSTALL: "false"$/m);
   assert.match(nativeClipboardJob, /^          mise-install-args: go node$/m);
 });
+
+test('quick checks and heavy diagnostics keep their intended triggers', async () => {
+  const quickGate = await readFile('.github/workflows/quick-gate.yml', 'utf8');
+  const fullCi = await readFile('.github/workflows/ci.yml', 'utf8');
+  const security = await readFile('.github/workflows/security.yml', 'utf8');
+
+  assert.match(quickGate, /^  pull_request:\s*$/m);
+  assert.doesNotMatch(quickGate, /^  (?:push|schedule):\s*$/m);
+  assert.match(quickGate, /timeout-minutes: 2/);
+
+  for (const workflow of [fullCi, security]) {
+    assert.match(workflow, /^  workflow_dispatch:\s*$/m);
+    assert.doesNotMatch(workflow, /^  (?:push|pull_request|pull_request_target|schedule):\s*$/m);
+  }
+});

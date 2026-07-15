@@ -1,15 +1,13 @@
-name: security
+name: security (manual)
 
 on:
-  schedule:
-    - cron: "23 4 * * 1"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: security-${{ github.event.pull_request.number || github.ref }}
+  group: security-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
