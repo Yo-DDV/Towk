@@ -314,6 +314,14 @@ type PushEventWithDeclarativeNotification = PushEvent & {
   notification?: DeclarativePushEventNotification | null;
 };
 
+const NOTIFICATION_BODY_FALLBACKS: Record<string, string> = {
+  en: 'Open Towk to view the notification',
+  de: 'Öffne Towk, um die Benachrichtigung anzuzeigen',
+  fr: 'Ouvrez Towk pour afficher la notification',
+  es: 'Abre Towk para ver la notificación',
+  pt: 'Abra o Towk para ver a notificação'
+};
+
 function handleBadgeStateMessage(event: ExtendableMessageEvent): boolean {
   const message = event.data as Record<string, unknown> | undefined;
   if (!message || message.type !== 'towk-badge-state') return false;
@@ -360,11 +368,12 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
   const notification = payload.notification;
   const notificationId = payload.notificationId ?? notification?.data?.notificationId;
   const url = payload.url ?? notification?.data?.url ?? notification?.navigate;
+  const body = payload.body ?? notification?.body;
 
   return {
     title: payload.title ?? notification?.title ?? 'Towk',
     options: {
-      body: payload.body ?? notification?.body,
+      body: normalizeNotificationBody(body),
       icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
       badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
       tag: payload.tag ?? notification?.tag,
@@ -375,6 +384,35 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
     },
     appBadgeIntent: declarativeAppBadgeIntent(notification?.app_badge)
   };
+}
+
+function normalizeNotificationBody(body: unknown): string {
+  const value = typeof body === 'string' ? body.trim() : '';
+  if (value === '' || isServingOriginBody(value)) {
+    return notificationBodyFallback(navigator.language);
+  }
+  return value;
+}
+
+function notificationBodyFallback(locale: string | undefined): string {
+  const language = locale?.toLowerCase().split('-')[0] ?? 'en';
+  return NOTIFICATION_BODY_FALLBACKS[language] ?? NOTIFICATION_BODY_FALLBACKS.en;
+}
+
+function isServingOriginBody(body: string): boolean {
+  const candidate = body.replace(/\/+$/, '');
+  try {
+    const current = new URL(self.location.origin);
+    const origin = current.origin.replace(/\/+$/, '');
+    const aliases = new Set([origin, current.host, current.hostname]);
+    if (current.port !== '') aliases.add(`${current.hostname}:${current.port}`);
+    if (aliases.has(candidate)) return true;
+
+    const candidateUrl = new URL(candidate);
+    return candidateUrl.origin.replace(/\/+$/, '') === origin;
+  } catch {
+    return false;
+  }
 }
 
 function declarativePayloadFromEventNotification(
