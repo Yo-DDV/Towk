@@ -154,7 +154,7 @@ describe('app.html metadata', () => {
   });
 
   it('prefers minimal-ui before standalone to avoid Android browser-owned URL-copy notifications', () => {
-    expect(manifest.display).toBe('standalone');
+    expect(manifest.display).toBe('minimal-ui');
     expect(manifest.display_override).toEqual(['minimal-ui', 'standalone', 'browser']);
   });
 
