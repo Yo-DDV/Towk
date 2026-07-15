@@ -140,13 +140,18 @@ func TestImmutableAssetCaching(t *testing.T) {
 		assert.Empty(t, w.Header().Get("ETag"))
 	})
 
-	t.Run("service worker returns revalidate cache policy", func(t *testing.T) {
+	t.Run("service worker returns no-store cache policy for browser and CDN", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/service-worker.js", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, cacheControlRevalidate, w.Header().Get("Cache-Control"))
+		assert.Equal(t, cacheControlNoCache, w.Header().Get("Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("CDN-Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("Cloudflare-CDN-Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("Surrogate-Control"))
+		assert.Equal(t, "no-cache", w.Header().Get("Pragma"))
+		assert.Equal(t, "0", w.Header().Get("Expires"))
 		assert.Empty(t, w.Header().Get("ETag"))
 	})
 }
@@ -172,7 +177,9 @@ func TestServiceWorkerETag(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Equal(t, cacheControlRevalidate, w.Header().Get("Cache-Control"))
+		assert.Equal(t, cacheControlNoCache, w.Header().Get("Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("CDN-Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("Cloudflare-CDN-Cache-Control"))
 		assert.Equal(t, etag, w.Header().Get("ETag"))
 		assert.Equal(t, string(content), w.Body.String())
 	})
@@ -184,7 +191,9 @@ func TestServiceWorkerETag(t *testing.T) {
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotModified, w.Code)
-		assert.Equal(t, cacheControlRevalidate, w.Header().Get("Cache-Control"))
+		assert.Equal(t, cacheControlNoCache, w.Header().Get("Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("CDN-Cache-Control"))
+		assert.Equal(t, "no-store", w.Header().Get("Cloudflare-CDN-Cache-Control"))
 		assert.Equal(t, etag, w.Header().Get("ETag"))
 		assert.Empty(t, w.Body.String())
 	})

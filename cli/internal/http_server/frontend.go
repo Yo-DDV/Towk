@@ -24,10 +24,8 @@ var embeddedWebUIFS embed.FS
 
 // Cache control headers for different file types
 const (
-	// HTML files must never be cached to ensure users get the latest version
-	cacheControlNoCache = "no-store, no-cache, must-revalidate"
-	// Service worker bytes should be revalidated without forcing a full refetch
-	cacheControlRevalidate = "no-cache, must-revalidate"
+	// HTML and PWA control files must never be cached to ensure users get the latest version.
+	cacheControlNoCache = "no-store, no-cache, must-revalidate, max-age=0"
 	// Hashed assets (in _app/) are immutable - cache for 1 year
 	cacheControlImmutable   = "public, max-age=31536000, immutable"
 	contentSecurityPolicy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'"
@@ -48,6 +46,15 @@ func setFrontendSecurityHeaders(c *gin.Context) {
 	c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 	c.Header("Content-Security-Policy", contentSecurityPolicy)
 	c.Header("Strict-Transport-Security", strictTransportSecurity)
+}
+
+func setNoStoreCacheHeaders(c *gin.Context) {
+	c.Header("Cache-Control", cacheControlNoCache)
+	c.Header("CDN-Cache-Control", "no-store")
+	c.Header("Cloudflare-CDN-Cache-Control", "no-store")
+	c.Header("Surrogate-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 }
 
 // extractImmutableETag extracts an ETag from a SvelteKit immutable asset path.
@@ -117,10 +124,10 @@ func setFrontendCacheHeaders(c *gin.Context) {
 			}
 		}
 	} else if urlPath == "/service-worker.js" {
-		c.Header("Cache-Control", cacheControlRevalidate)
+		setNoStoreCacheHeaders(c)
 	} else {
 		// For HTML and other non-hashed files, prevent caching
-		c.Header("Cache-Control", cacheControlNoCache)
+		setNoStoreCacheHeaders(c)
 	}
 	c.Next()
 }
