@@ -8,26 +8,33 @@
   } from '$lib/pwa/installPrompt';
 
   let visible = $state(false);
-  let openButton = $state<HTMLButtonElement | undefined>();
+  let chromeLinkHref = $state<string | undefined>();
+  let openLink = $state<HTMLAnchorElement | undefined>();
 
   const componentId = $props.id();
   const titleId = `${componentId}-title`;
   const descriptionId = `${componentId}-description`;
 
+  function externalHref(node: HTMLAnchorElement, href: string | undefined) {
+    if (href) node.setAttribute('href', href);
+    return {
+      update(nextHref: string | undefined) {
+        if (nextHref) {
+          node.setAttribute('href', nextHref);
+        } else {
+          node.removeAttribute('href');
+        }
+      }
+    };
+  }
+
   onMount(() => {
     if (!isLegacyAndroidStandaloneInstall(currentInstallEnvironment())) return;
 
+    chromeLinkHref = chromeAndroidIntentUrl(window.location.href) ?? window.location.href;
     visible = true;
-    queueMicrotask(() => openButton?.focus());
+    queueMicrotask(() => openLink?.focus());
   });
-
-  function openInBrowser() {
-    window.open(
-      chromeAndroidIntentUrl(window.location.href) ?? window.location.href,
-      '_blank',
-      'noopener,noreferrer'
-    );
-  }
 </script>
 
 {#if visible}
@@ -55,15 +62,22 @@
           <p id={descriptionId} class="text-sm leading-relaxed text-muted">
             {m['ui.pwa_install.android_standalone_notice.body']()}
           </p>
-          <button
-            bind:this={openButton}
-            type="button"
-            class="btn-primary w-full text-sm"
-            onclick={openInBrowser}
-          >
-            <span class="iconify text-lg uil--external-link-alt" aria-hidden="true"></span>
-            {m['ui.pwa_install.android_standalone_notice.open_in_browser']()}
-          </button>
+          {#if chromeLinkHref}
+            <!-- svelte-ignore a11y_missing_attribute -->
+            <a
+              bind:this={openLink}
+              use:externalHref={chromeLinkHref}
+              data-testid="pwa-android-standalone-open"
+              aria-describedby={descriptionId}
+              class="btn-primary w-full text-sm"
+            >
+              <span class="iconify text-lg uil--external-link-alt" aria-hidden="true"></span>
+              {m['ui.pwa_install.android_standalone_notice.open_in_browser']()}
+            </a>
+          {/if}
+          <p class="text-xs leading-relaxed text-muted">
+            {m['ui.pwa_install.android_standalone_notice.close_old_app']()}
+          </p>
         </div>
       </div>
     </div>

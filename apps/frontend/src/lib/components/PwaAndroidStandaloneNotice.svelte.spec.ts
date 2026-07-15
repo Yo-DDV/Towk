@@ -54,7 +54,6 @@ async function settle() {
 describe('PwaAndroidStandaloneNotice', () => {
   beforeEach(() => {
     setReactiveLocale('en');
-    vi.spyOn(window, 'open').mockImplementation(() => null);
   });
 
   afterEach(() => {
@@ -78,15 +77,14 @@ describe('PwaAndroidStandaloneNotice', () => {
     await expect.element(q(container, '[role="dialog"]')).toBeVisible();
     expect(container.textContent).toContain('Update the Android app install.');
     expect(container.textContent).toContain('old standalone mode');
+    expect(container.textContent).toContain('leaves the old installed container');
 
-    q(container, 'button')!.click();
-
-    const [target, windowTarget, features] = vi.mocked(window.open).mock.calls[0]!;
-    expect(target).toContain('package=com.android.chrome');
-    expect(target).toContain(`S.browser_fallback_url=${encodeURIComponent(window.location.href)}`);
-    expect(windowTarget).toBe('_blank');
-    expect(features).toBe('noopener,noreferrer');
-    await expect.element(q(container, '[role="dialog"]')).toBeVisible();
+    const chromeLink = q(container, '[data-testid="pwa-android-standalone-open"]')!;
+    expect(chromeLink.getAttribute('href')).toContain('package=com.android.chrome');
+    expect(chromeLink.getAttribute('href')).toContain(
+      `S.browser_fallback_url=${encodeURIComponent(window.location.href)}`
+    );
+    expect(chromeLink.getAttribute('target')).toBeNull();
   });
 
   it('does not show for current Android minimal-ui installs', async () => {

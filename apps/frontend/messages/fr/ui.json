@@ -21,7 +21,8 @@
       "android_standalone_notice": {
         "title": "Mettez à jour l’installation Android.",
         "body": "Cette installation utilise encore l’ancien mode autonome de Chrome, qui peut afficher la notification système « copier l’URL ». Ouvrez Towk dans Chrome, supprimez l’ancienne icône de l’écran d’accueil, puis réinstallez l’application depuis Chrome pour appliquer le mode actuel.",
-        "open_in_browser": "Ouvrir dans Chrome"
+        "open_in_browser": "Ouvrir dans Chrome",
+        "close_old_app": "Cette action quitte l’ancien conteneur installé. Si Android affiche encore la notification Chrome, fermez Towk depuis les applications récentes et utilisez l’onglet Chrome pour le réinstaller."
       }
     },
     "share_target": {

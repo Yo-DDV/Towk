@@ -21,7 +21,8 @@
       "android_standalone_notice": {
         "title": "Update the Android app install.",
         "body": "This install is still using Chrome’s old standalone mode, which can show the system “copy URL” notification. Open Towk in Chrome, remove the old home-screen icon, then install it again from Chrome to apply the current app mode.",
-        "open_in_browser": "Open in Chrome"
+        "open_in_browser": "Open in Chrome",
+        "close_old_app": "This action leaves the old installed container. If Android still shows the Chrome notification, close Towk from the app switcher and use the Chrome tab to reinstall it."
       }
     },
     "share_target": {

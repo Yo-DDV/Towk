@@ -21,7 +21,8 @@
       "android_standalone_notice": {
         "title": "Aktualisiere die Android-Installation.",
         "body": "Diese Installation nutzt noch den alten eigenständigen Chrome-Modus, der die Systembenachrichtigung „URL kopieren“ anzeigen kann. Öffne Towk in Chrome, entferne das alte Startbildschirm-Symbol und installiere die App anschließend erneut aus Chrome, um den aktuellen App-Modus zu übernehmen.",
-        "open_in_browser": "In Chrome öffnen"
+        "open_in_browser": "In Chrome öffnen",
+        "close_old_app": "Diese Aktion verlässt den alten installierten Container. Wenn Android die Chrome-Benachrichtigung weiterhin zeigt, schließe Towk über die zuletzt verwendeten Apps und installiere es über den Chrome-Tab erneut."
       }
     },
     "share_target": {
