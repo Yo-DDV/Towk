@@ -162,6 +162,78 @@ func TestVoiceMessageUploadPersistsMetadataAndUsesIndependentPermission(t *testi
 	}
 }
 
+func TestVoiceMessageUploadWorksInDMRoom(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	sender, err := core.CreateUser(ctx, SystemActorID, "voice-dm-sender", "Voice DM Sender", "password")
+	if err != nil {
+		t.Fatalf("CreateUser sender: %v", err)
+	}
+	recipient, err := core.CreateUser(ctx, SystemActorID, "voice-dm-recipient", "Voice DM Recipient", "password")
+	if err != nil {
+		t.Fatalf("CreateUser recipient: %v", err)
+	}
+	dm, created, err := core.RoomCommands().StartDM(ctx, RoomStartDMInput{
+		ActorID:        sender.Id,
+		ParticipantIDs: []string{recipient.Id},
+	})
+	if err != nil {
+		t.Fatalf("StartDM: %v", err)
+	}
+	if !created || KindOfRoom(dm) != KindDM {
+		t.Fatalf("StartDM created=%v kind=%v, want new DM", created, KindOfRoom(dm))
+	}
+
+	content := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("dm voice payload")...)
+	sum := sha256.Sum256(content)
+	upload, err := core.AssetUploads().CreateUpload(ctx, AssetUploadCreateInput{
+		ActorID: sender.Id, RoomID: dm.Id, Filename: "voice-message.webm", ContentType: "audio/webm; codecs=opus",
+		Size: int64(len(content)), SHA256: hex.EncodeToString(sum[:]),
+		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_234, WaveformPeaks: testVoicePeaks(32)},
+	})
+	if err != nil {
+		t.Fatalf("CreateUpload in DM: %v", err)
+	}
+	chunkSum := sha256.Sum256(content)
+	if _, err := core.AssetUploads().UploadChunk(ctx, AssetUploadChunkInput{
+		ActorID: sender.Id, UploadID: upload.UploadID, Content: content, ChunkSHA256: hex.EncodeToString(chunkSum[:]),
+	}); err != nil {
+		t.Fatalf("UploadChunk in DM: %v", err)
+	}
+	_, attachment, err := core.AssetUploads().CompleteUpload(ctx, AssetUploadCompleteInput{ActorID: sender.Id, UploadID: upload.UploadID})
+	if err != nil {
+		t.Fatalf("CompleteUpload in DM: %v", err)
+	}
+	if got := attachment.GetVoiceMessage().GetDurationMs(); got != 1_234 {
+		t.Fatalf("DM attachment voice duration = %d, want 1234", got)
+	}
+
+	result, err := core.Messages().PostMessage(ctx, MessagePostInput{ActorID: sender.Id, RoomID: dm.Id, AttachmentAssetIDs: []string{attachment.GetId()}})
+	if err != nil {
+		t.Fatalf("PostMessage in DM: %v", err)
+	}
+	if result == nil || result.Event == nil {
+		t.Fatalf("PostMessage in DM result = %+v, want event", result)
+	}
+	postedAttachments, err := core.MessageAttachments(ctx, MessageAttachmentsInput{
+		ActorID: sender.Id,
+		RoomID:  dm.Id,
+		EventID: result.Event.Id,
+	})
+	if err != nil {
+		t.Fatalf("MessageAttachments in DM: %v", err)
+	}
+	found := false
+	for _, postedAttachment := range postedAttachments {
+		if postedAttachment.GetId() == attachment.GetId() && postedAttachment.GetVoiceMessage() != nil {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("posted DM voice attachment %s not found in DM timeline", attachment.GetId())
+	}
+}
+
 func TestVoiceMessageUploadRejectsMismatchedContainer(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
