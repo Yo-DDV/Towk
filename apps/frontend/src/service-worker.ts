@@ -450,8 +450,9 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
   const url = payload.url ?? notification?.data?.url ?? notification?.navigate;
   const body = payload.body ?? notification?.body;
   const tag = payload.tag ?? notification?.tag;
+  const lang = normalizeNotificationLang(payload.lang ?? notification?.lang);
   const options: NativeNotificationOptions = {
-    body: normalizeNotificationBody(body),
+    body: normalizeNotificationBody(body, lang ?? navigator.language),
     icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
     badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
     tag,
@@ -461,7 +462,6 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
     }
   };
 
-  const lang = normalizeNotificationLang(payload.lang ?? notification?.lang);
   if (lang) options.lang = lang;
   const dir = normalizeNotificationDirection(payload.dir ?? notification?.dir);
   if (dir) options.dir = dir;
@@ -480,10 +480,10 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
   };
 }
 
-function normalizeNotificationBody(body: unknown): string {
+function normalizeNotificationBody(body: unknown, fallbackLocale: string | undefined): string {
   const value = typeof body === 'string' ? body.trim() : '';
   if (value === '' || isServingOriginBody(value)) {
-    return notificationBodyFallback(navigator.language);
+    return notificationBodyFallback(fallbackLocale);
   }
   return value;
 }

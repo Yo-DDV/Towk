@@ -383,6 +383,33 @@ describe('service worker badge orchestration', () => {
     });
   });
 
+  it('uses the payload locale for regular push fallback bodies', async () => {
+    const worker = await importServiceWorker();
+
+    await worker.dispatch('push', {
+      data: {
+        json: () => ({
+          title: 'Nouvelle notification',
+          lang: 'fr-FR',
+          tag: 'notification-with-french-fallback',
+          url: 'https://towk.example/chat/-/room-1'
+        })
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Nouvelle notification', {
+      body: 'Ouvrez Towk pour afficher la notification',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-monochrome-96.png',
+      tag: 'notification-with-french-fallback',
+      lang: 'fr-FR',
+      data: {
+        notificationId: undefined,
+        url: 'https://towk.example/chat/-/room-1'
+      }
+    });
+  });
+
   it('replaces browser origin bodies so Android never displays the served host or port', async () => {
     const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
 
@@ -405,6 +432,37 @@ describe('service worker badge orchestration', () => {
       data: {
         notificationId: undefined,
         url: 'https://towk.example:8443/chat/-/room-1'
+      }
+    });
+  });
+
+  it('uses the declarative payload locale when sanitizing origin fallback bodies', async () => {
+    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+
+    await worker.dispatch('push', {
+      notification: {
+        title: 'Notification déclarative',
+        body: 'https://towk.example:8443/',
+        lang: 'fr',
+        tag: 'notification-origin-fr',
+        icon: 'https://towk.example:8443/icons/icon-192.png',
+        badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+        data: {
+          notificationId: 'notif-origin-fr',
+          url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
+        }
+      }
+    });
+
+    expect(worker.registration.showNotification).toHaveBeenCalledWith('Notification déclarative', {
+      body: 'Ouvrez Towk pour afficher la notification',
+      icon: 'https://towk.example:8443/icons/icon-192.png',
+      badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
+      tag: 'notification-origin-fr',
+      lang: 'fr',
+      data: {
+        notificationId: 'notif-origin-fr',
+        url: 'https://towk.example:8443/chat/-/room-3?highlight=event-3'
       }
     });
   });
