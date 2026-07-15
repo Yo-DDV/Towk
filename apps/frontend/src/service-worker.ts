@@ -26,6 +26,11 @@ import {
   normalizeCallPushNotification,
   type CallPushPayload
 } from '$lib/pwa/callNotification.worker';
+import {
+  NATIVE_NOTIFICATION_CLOSE_ACK_MESSAGE_TYPE,
+  NATIVE_NOTIFICATION_CLOSE_DRAIN_MESSAGE_TYPE,
+  nativeNotificationClosedMessage
+} from '$lib/pwa/notificationClose.worker';
 import { OUTBOX_SYNC_TAG } from '$lib/pwa/outboxPolicy';
 import { storeIncomingShare } from '$lib/pwa/shareInbox';
 
@@ -34,6 +39,9 @@ declare const self: ServiceWorkerGlobalScope;
 const CACHE_PREFIX = 'towk-shell';
 const CACHE_NAME = `${CACHE_PREFIX}-${version}`;
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
+const NATIVE_NOTIFICATION_CLOSE_OUTBOX_CACHE_NAME = 'towk-native-notification-close-outbox-v1';
+const NATIVE_NOTIFICATION_CLOSE_OUTBOX_REQUEST = '/__towk/native-notification-close-outbox';
+const MAX_NATIVE_NOTIFICATION_CLOSE_OUTBOX_IDS = 100;
 const LEGACY_CACHE_PREFIXES = ['chatto-shell'];
 const LEGACY_CACHE_NAMES = ['chatto-badge-state-v2'];
 const ESSENTIAL_STATIC_ASSETS = [
@@ -108,6 +116,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (handleLifecycleMessage(event)) return;
   if (handleBadgeStateMessage(event)) return;
+  if (handleNativeNotificationCloseOutboxMessage(event)) return;
   if (handleNotificationStateMessage(event)) return;
   handleNotificationDismissMessage(event);
 });
@@ -365,6 +374,27 @@ function handleNotificationDismissMessage(event: ExtendableMessageEvent): boolea
   return true;
 }
 
+function handleNativeNotificationCloseOutboxMessage(event: ExtendableMessageEvent): boolean {
+  const message = event.data as Record<string, unknown> | undefined;
+  if (!message) return false;
+
+  if (
+    message.type === NATIVE_NOTIFICATION_CLOSE_ACK_MESSAGE_TYPE &&
+    typeof message.notificationId === 'string' &&
+    message.notificationId !== ''
+  ) {
+    event.waitUntil(removeNativeNotificationCloseOutboxIds([message.notificationId]));
+    return true;
+  }
+
+  if (message.type === NATIVE_NOTIFICATION_CLOSE_DRAIN_MESSAGE_TYPE) {
+    event.waitUntil(replayNativeNotificationCloseOutbox());
+    return true;
+  }
+
+  return false;
+}
+
 function handleNotificationStateMessage(event: ExtendableMessageEvent): boolean {
   const message = event.data as Record<string, unknown> | undefined;
   if (!message || message.type !== 'towk-notification-state') return false;
@@ -593,12 +623,99 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 /**
- * Reconcile the dock badge when the user dismisses a native notification from
- * the operating-system notification center without opening Towk.
+ * Reconcile the dock badge and persist the dismissal intent when the user
+ * dismisses a native notification from the operating-system notification
+ * center. The service worker has no bearer token for multi-server API calls;
+ * it therefore queues the intent and asks authenticated app windows to dismiss
+ * the server-side notification, then replays the queue on the next launch.
  */
 self.addEventListener('notificationclose', (event) => {
-  event.waitUntil(badgeCoordinator.reconcileAfterNotificationClick().catch(() => {}));
+  const notificationId = notificationData(event.notification.data)?.notificationId;
+  event.waitUntil(
+    (async () => {
+      await badgeCoordinator.reconcileAfterNotificationClick().catch(() => {});
+      if (!notificationId) return;
+      await addNativeNotificationCloseOutboxId(notificationId);
+      await dispatchNativeNotificationCloseIds([notificationId], 'native-close');
+    })()
+  );
 });
+
+async function nativeNotificationCloseOutboxCache(): Promise<Cache> {
+  return caches.open(NATIVE_NOTIFICATION_CLOSE_OUTBOX_CACHE_NAME);
+}
+
+async function readNativeNotificationCloseOutboxIds(): Promise<string[]> {
+  try {
+    const cache = await nativeNotificationCloseOutboxCache();
+    const response = await cache.match(NATIVE_NOTIFICATION_CLOSE_OUTBOX_REQUEST);
+    if (!response) return [];
+    const decoded = (await response.json()) as unknown;
+    if (!Array.isArray(decoded)) return [];
+    return uniqueNotificationIds(decoded);
+  } catch {
+    return [];
+  }
+}
+
+async function writeNativeNotificationCloseOutboxIds(ids: Iterable<unknown>): Promise<void> {
+  const normalized = uniqueNotificationIds(ids).slice(-MAX_NATIVE_NOTIFICATION_CLOSE_OUTBOX_IDS);
+  const cache = await nativeNotificationCloseOutboxCache();
+  await cache.put(
+    NATIVE_NOTIFICATION_CLOSE_OUTBOX_REQUEST,
+    new Response(JSON.stringify(normalized), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  );
+}
+
+async function addNativeNotificationCloseOutboxId(notificationId: string): Promise<void> {
+  const current = await readNativeNotificationCloseOutboxIds();
+  if (current.includes(notificationId)) return;
+  await writeNativeNotificationCloseOutboxIds([...current, notificationId]);
+}
+
+async function removeNativeNotificationCloseOutboxIds(notificationIds: string[]): Promise<void> {
+  const dismissed = new Set(uniqueNotificationIds(notificationIds));
+  if (dismissed.size === 0) return;
+  const remaining = (await readNativeNotificationCloseOutboxIds()).filter(
+    (notificationId) => !dismissed.has(notificationId)
+  );
+  await writeNativeNotificationCloseOutboxIds(remaining);
+}
+
+async function replayNativeNotificationCloseOutbox(): Promise<void> {
+  const pending = await readNativeNotificationCloseOutboxIds();
+  if (pending.length === 0) return;
+  await dispatchNativeNotificationCloseIds(pending, 'replay');
+}
+
+async function dispatchNativeNotificationCloseIds(
+  notificationIds: string[],
+  source: 'native-close' | 'replay'
+): Promise<void> {
+  const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  if (clients.length === 0) return;
+
+  const ids = uniqueNotificationIds(notificationIds);
+  await Promise.all(
+    clients.flatMap((client) =>
+      ids.map((notificationId) =>
+        client.postMessage(nativeNotificationClosedMessage(notificationId, source))
+      )
+    )
+  );
+}
+
+function uniqueNotificationIds(values: Iterable<unknown>): string[] {
+  return Array.from(
+    new Set(
+      Array.from(values).filter(
+        (value): value is string => typeof value === 'string' && value.trim() !== ''
+      )
+    )
+  );
+}
 
 // Export empty object for SvelteKit to recognize this as a module
 export {};

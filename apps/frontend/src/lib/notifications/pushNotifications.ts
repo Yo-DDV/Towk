@@ -12,6 +12,12 @@ import {
   NOTIFICATION_CLICK_ACK_MESSAGE_TYPE,
   NOTIFICATION_CLICK_MESSAGE_TYPE
 } from '$lib/pwa/notificationClick.worker';
+import {
+  NATIVE_NOTIFICATION_CLOSED_MESSAGE_TYPE,
+  NATIVE_NOTIFICATION_CLOSE_ACK_MESSAGE_TYPE,
+  NATIVE_NOTIFICATION_CLOSE_DRAIN_MESSAGE_TYPE,
+  type NativeNotificationClosedMessage
+} from '$lib/pwa/notificationClose.worker';
 import { getLocale } from '$lib/i18n/runtime';
 import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
 
@@ -409,6 +415,20 @@ export function reconcileNativeNotifications(notificationIds: Iterable<string>):
   });
 }
 
+export function drainNativeNotificationCloseOutbox(): void {
+  postServiceWorkerMessage({
+    type: NATIVE_NOTIFICATION_CLOSE_DRAIN_MESSAGE_TYPE
+  });
+}
+
+export function acknowledgeNativeNotificationClose(notificationId: string): void {
+  if (notificationId === '') return;
+  postServiceWorkerMessage({
+    type: NATIVE_NOTIFICATION_CLOSE_ACK_MESSAGE_TYPE,
+    notificationId
+  });
+}
+
 async function clearLocalNotificationSurfaces(): Promise<void> {
   // This is an authoritative account boundary. Reset the worker's persisted
   // push count as well as the currently rendered badge so a later push cannot
@@ -479,6 +499,29 @@ export function onNotificationClick(callback: (url: string) => void | Promise<vo
           // WindowClient.navigate() after its timeout.
         }
       })();
+    }
+  };
+
+  navigator.serviceWorker.addEventListener('message', handler);
+  return () => navigator.serviceWorker.removeEventListener('message', handler);
+}
+
+export function onNativeNotificationClose(
+  callback: (notificationId: string, source: NativeNotificationClosedMessage['source']) => void
+): () => void {
+  if (!('serviceWorker' in navigator)) {
+    return () => {};
+  }
+
+  const handler = (event: MessageEvent) => {
+    if (
+      event.data?.type === NATIVE_NOTIFICATION_CLOSED_MESSAGE_TYPE &&
+      typeof event.data.notificationId === 'string'
+    ) {
+      callback(
+        event.data.notificationId,
+        event.data.source === 'replay' ? 'replay' : 'native-close'
+      );
     }
   };
 

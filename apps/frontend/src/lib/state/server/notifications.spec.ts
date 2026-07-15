@@ -200,6 +200,29 @@ describe('NotificationStore', () => {
     expect(store.unreadNotificationCount).toBe(0);
   });
 
+  it('dismissById dismisses an uncached native-close notification on the server', async () => {
+    const api = makeAPI();
+    const store = new NotificationStore(api);
+
+    await expect(store.dismissById('native-close-id')).resolves.toBe(true);
+
+    expect(api.dismissNotification).toHaveBeenCalledWith('native-close-id');
+    expect(store.notifications).toEqual([]);
+  });
+
+  it('dismissById reuses the optimistic local path when the notification is cached', async () => {
+    const api = makeAPI();
+    const store = new NotificationStore(api);
+    store.notifications = [mention('cached-native-close')];
+    store.unreadNotificationCount = 1;
+
+    await expect(store.dismissById('cached-native-close')).resolves.toBe(true);
+
+    expect(api.dismissNotification).toHaveBeenCalledWith('cached-native-close');
+    expect(store.notifications).toEqual([]);
+    expect(store.unreadNotificationCount).toBe(0);
+  });
+
   it('fetchRoomNotification returns the newest room-scoped notification and caches it', async () => {
     const roomMention = mention('room-mention');
     const store = new NotificationStore(makeAPI({ roomNotifications: page([roomMention], 4) }));

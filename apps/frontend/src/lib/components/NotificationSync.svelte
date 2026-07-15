@@ -27,7 +27,10 @@ Include this component once in the chat layout (unconditionally).
   import type { EventEnvelope, EventHandler } from '$lib/eventBus.svelte';
   import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
   import {
+    acknowledgeNativeNotificationClose,
     dismissNativeNotification,
+    drainNativeNotificationCloseOutbox,
+    onNativeNotificationClose,
     reconcileNativeNotifications
   } from '$lib/notifications/pushNotifications';
 
@@ -334,9 +337,23 @@ Include this component once in the chat layout (unconditionally).
 
   onMount(() => {
     refreshVisibleAuthenticatedNotificationState({ onlyMissing: true });
+    drainNativeNotificationCloseOutbox();
 
     const handleVisibleResume = () => refreshVisibleAuthenticatedNotificationState();
     const handleOnline = () => refreshAllAuthenticatedNotificationState();
+    const stopNativeNotificationClose = onNativeNotificationClose((notificationId) => {
+      const originServer = serverRegistry.originServer;
+      if (!originServer) return;
+      const stores = serverRegistry.getStore(originServer.id);
+      if (!stores.isAuthenticated) return;
+
+      void (async () => {
+        const dismissed = await stores.notifications.dismissById(notificationId);
+        if (!dismissed) return;
+        acknowledgeNativeNotificationClose(notificationId);
+        await refreshAuthoritativeNotificationState(originServer.id, stores);
+      })();
+    });
 
     document.addEventListener('visibilitychange', handleVisibleResume);
     window.addEventListener('focus', handleVisibleResume);
@@ -350,6 +367,7 @@ Include this component once in the chat layout (unconditionally).
       window.removeEventListener('pageshow', handleVisibleResume);
       window.removeEventListener('online', handleOnline);
       navigator.serviceWorker?.removeEventListener('controllerchange', handleVisibleResume);
+      stopNativeNotificationClose();
     };
   });
 </script>

@@ -25,7 +25,7 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 - An offline launch renders a localized offline state without network-dependent images, with explicit retry guidance. A running client also shows one persistent offline notice and replaces it with a reconnecting notice when the browser reports network recovery.
 - Protected uploaded asset loads use direct signed asset URLs owned by the foreground app. The worker does not receive registered-server API bearer tokens, does not proxy asset requests, and does not cache protected asset bodies.
 - Push notifications continue to display native OS notifications and route notification clicks into the SPA.
-- Push dismiss payloads still close matching visible notifications on the device.
+- Push dismiss payloads still close matching visible notifications on the device, and native notification-center closes are replayed through the next authenticated foreground app window so the server-side notification state can synchronize across devices.
 - Text messages that fail for a retryable network reason can enter a bounded encrypted outbox. Each logical send keeps one stable client request ID, so a lost response and a retry cannot create duplicate messages. Users can inspect, retry, or discard pending items. Unuploaded attachments remain in the encrypted draft rather than entering the outbox and are uploaded after connectivity returns.
 - Drafts and recent timeline windows are encrypted per server account with non-extractable device keys. Account removal writes a durable revocation tombstone and crypto-shreds that account namespace before an explicit sign-out redirect. Other open tabs stop new writes through an origin-scoped lifecycle signal, while IndexedDB key-generation checks reject stale writes even if a tab is suspended or receives the signal late. Records have age, count, and byte quotas and remain eviction-tolerant.
 - The installed app can receive text, links, supported media, PDFs, and text files from an operating-system share sheet or file handler. Incoming payloads are validated, encrypted in a short-lived device inbox, and require an explicit destination conversation; Towk never auto-sends shared content.
@@ -46,10 +46,10 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 **Why:** A deploy can replace hashed JavaScript and CSS chunks. Versioned cache names let the new worker populate a fresh shell cache and delete older shell caches during activation.
 **Tradeoff:** A user briefly stores two shell versions during update. The cached asset set is small, so this is acceptable.
 
-### 3. SvelteKit owns registration
+### 3. Explicit registration bypasses stale HTTP cache
 
-**Decision:** The frontend relies on SvelteKit's production service-worker registration instead of registering manually from the push-notification setup component.
-**Why:** The service worker is now useful even when Web Push is not enabled. Registration should be tied to the PWA shell, not to push settings.
+**Decision:** The frontend registers Towk's service worker explicitly with `updateViaCache: none`.
+**Why:** The service worker is useful even when Web Push is not enabled, and stale HTTP/CDN cache reuse for `/service-worker.js` can leave installed PWAs on old notification behavior. Registration is tied to the PWA shell, not to push settings.
 **Tradeoff:** Production users get the service worker whenever the app includes one. The worker's fetch policy is conservative to make that safe.
 
 ### 4. Protected assets stay outside the worker

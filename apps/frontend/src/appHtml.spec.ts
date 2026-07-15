@@ -153,7 +153,7 @@ describe('app.html metadata', () => {
     ]);
   });
 
-  it('prefers minimal-ui without standalone fallback to avoid Android browser-owned URL-copy notifications', () => {
+  it('prefers minimal-ui without standalone fallback for the static cross-browser manifest', () => {
     expect(manifest.display).toBe('minimal-ui');
     expect(manifest.display_override).toEqual(['minimal-ui', 'browser']);
   });

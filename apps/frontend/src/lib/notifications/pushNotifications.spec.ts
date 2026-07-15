@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  acknowledgeNativeNotificationClose,
+  drainNativeNotificationCloseOutbox,
   ensureRegistered,
   getPushCapability,
+  onNativeNotificationClose,
   onNotificationClick,
   reconcileNativeNotifications,
   unsubscribe,
@@ -523,6 +526,42 @@ describe('pushNotifications.reconcileNativeNotifications', () => {
       type: 'towk-notification-state',
       notificationIds: ['notification-3']
     });
+  });
+});
+
+describe('pushNotifications native notification close helpers', () => {
+  it('asks the service worker to drain and acknowledge native close intents', () => {
+    const pushGlobals = installPushGlobals();
+
+    drainNativeNotificationCloseOutbox();
+    acknowledgeNativeNotificationClose('notification-1');
+
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-close-drain'
+    });
+    expect(pushGlobals.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-close-ack',
+      notificationId: 'notification-1'
+    });
+  });
+
+  it('listens for native close events replayed by the service worker', () => {
+    const serviceWorker = stubServiceWorker();
+    const callback = vi.fn();
+    const stop = onNativeNotificationClose(callback);
+
+    serviceWorker.dispatchMessage({
+      data: {
+        type: 'towk-native-notification-closed',
+        notificationId: 'notification-2',
+        source: 'replay'
+      },
+      ports: []
+    });
+
+    expect(callback).toHaveBeenCalledWith('notification-2', 'replay');
+    stop();
+    expect(serviceWorker.listenerCount()).toBe(0);
   });
 });
 

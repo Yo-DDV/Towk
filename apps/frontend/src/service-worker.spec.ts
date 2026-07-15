@@ -34,6 +34,10 @@ type TestNativeNotification = {
   data?: { notificationId?: string };
 };
 
+type TestWindowClient = {
+  postMessage: ReturnType<typeof vi.fn>;
+};
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((res) => {
@@ -92,7 +96,7 @@ async function importServiceWorker(
   };
   const clients = {
     claim: vi.fn(async () => {}),
-    matchAll: vi.fn(async () => []),
+    matchAll: vi.fn(async (): Promise<TestWindowClient[]> => []),
     openWindow: vi.fn(async () => null)
   };
   const setAppBadge = vi.fn(async () => {});
@@ -438,6 +442,72 @@ describe('service worker badge orchestration', () => {
     expect(stillPending.close).not.toHaveBeenCalled();
     expect(unmanaged.close).not.toHaveBeenCalled();
     expect(worker.registration.showNotification).not.toHaveBeenCalled();
+  });
+
+  it('queues native notification-center closes and forwards them to controlled clients', async () => {
+    const worker = await importServiceWorker();
+    const client = { postMessage: vi.fn() };
+    worker.clients.matchAll.mockResolvedValueOnce([client]);
+
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-closed-from-tray'
+        }
+      }
+    });
+
+    expect(client.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-closed-from-tray',
+      source: 'native-close'
+    });
+  });
+
+  it('replays queued native notification closes until the foreground app acknowledges them', async () => {
+    const cacheStorage = createMemoryCacheStorage();
+    const worker = await importServiceWorker(cacheStorage);
+    const firstClient = { postMessage: vi.fn() };
+    const secondClient = { postMessage: vi.fn() };
+
+    worker.clients.matchAll.mockResolvedValueOnce([firstClient]);
+    await worker.dispatch('notificationclose', {
+      notification: {
+        data: {
+          notificationId: 'notification-replay'
+        }
+      }
+    });
+
+    worker.clients.matchAll.mockResolvedValueOnce([secondClient]);
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-native-notification-close-drain'
+      }
+    });
+
+    expect(secondClient.postMessage).toHaveBeenCalledWith({
+      type: 'towk-native-notification-closed',
+      notificationId: 'notification-replay',
+      source: 'replay'
+    });
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-native-notification-close-ack',
+        notificationId: 'notification-replay'
+      }
+    });
+
+    const thirdClient = { postMessage: vi.fn() };
+    worker.clients.matchAll.mockResolvedValueOnce([thirdClient]);
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-native-notification-close-drain'
+      }
+    });
+
+    expect(thirdClient.postMessage).not.toHaveBeenCalled();
   });
 
   it('uses declarative push notification fields when legacy root fields are absent', async () => {

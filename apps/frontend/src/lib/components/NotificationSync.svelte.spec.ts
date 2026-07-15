@@ -20,6 +20,7 @@ const { mocks } = vi.hoisted(() => {
       hasLoaded: true,
       loading: false,
       addNotification: vi.fn(() => Promise.resolve(true)),
+      dismissById: vi.fn(() => Promise.resolve(true)),
       removeNotification: vi.fn(),
       consumeLocalDismissal: vi.fn(),
       fetch: vi.fn(() => Promise.resolve())
@@ -45,7 +46,14 @@ const { mocks } = vi.hoisted(() => {
       updateBadge: vi.fn(() => Promise.resolve()),
       clearBadge: vi.fn(() => Promise.resolve()),
       syncServiceWorkerNotificationBadgeState: vi.fn(),
+      acknowledgeNativeNotificationClose: vi.fn(),
       dismissNativeNotification: vi.fn(),
+      drainNativeNotificationCloseOutbox: vi.fn(),
+      nativeNotificationCloseHandlers: new Set<(notificationId: string, source: string) => void>(),
+      onNativeNotificationClose: vi.fn((handler: (notificationId: string, source: string) => void) => {
+        mocks.nativeNotificationCloseHandlers.add(handler);
+        return () => mocks.nativeNotificationCloseHandlers.delete(handler);
+      }),
       reconcileNativeNotifications: vi.fn()
     }
   };
@@ -94,7 +102,10 @@ vi.mock('$lib/notifications/appBadge', () => ({
 }));
 
 vi.mock('$lib/notifications/pushNotifications', () => ({
+  acknowledgeNativeNotificationClose: mocks.acknowledgeNativeNotificationClose,
   dismissNativeNotification: mocks.dismissNativeNotification,
+  drainNativeNotificationCloseOutbox: mocks.drainNativeNotificationCloseOutbox,
+  onNativeNotificationClose: mocks.onNativeNotificationClose,
   reconcileNativeNotifications: mocks.reconcileNativeNotifications
 }));
 
@@ -145,10 +156,12 @@ describe('NotificationSync', () => {
     mocks.store.notifications.loading = false;
     mocks.store.roomUnread.hasAnyUnread = false;
     mocks.store.notifications.addNotification.mockResolvedValue(true);
+    mocks.store.notifications.dismissById.mockResolvedValue(true);
     mocks.store.notifications.removeNotification.mockReturnValue(null);
     mocks.store.notifications.consumeLocalDismissal.mockReturnValue(false);
     mocks.store.notifications.fetch.mockResolvedValue(undefined);
     mocks.store.rooms.refreshNotificationCounts.mockResolvedValue(undefined);
+    mocks.nativeNotificationCloseHandlers.clear();
   });
 
   it('reconciles authoritative counts on notification creation instead of incrementing locally', async () => {
@@ -184,6 +197,35 @@ describe('NotificationSync', () => {
 
     expect(mocks.store.notifications.fetch).not.toHaveBeenCalled();
     expect(mocks.store.rooms.refreshNotificationCounts).not.toHaveBeenCalled();
+    expect(mocks.drainNativeNotificationCloseOutbox).toHaveBeenCalledOnce();
+  });
+
+  it('dismisses native notification-center close replays through the origin server store', async () => {
+    await renderAndWaitForSubscription();
+
+    for (const handler of mocks.nativeNotificationCloseHandlers) {
+      handler('notification-from-tray', 'replay');
+    }
+
+    await vi.waitFor(() =>
+      expect(mocks.store.notifications.dismissById).toHaveBeenCalledWith('notification-from-tray')
+    );
+    expect(mocks.acknowledgeNativeNotificationClose).toHaveBeenCalledWith('notification-from-tray');
+    expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
+    expect(mocks.store.notifications.fetch).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a native close intent queued when the origin account is not authenticated', async () => {
+    mocks.store.isAuthenticated = false;
+    render(NotificationSync);
+    await vi.waitFor(() => expect(mocks.nativeNotificationCloseHandlers.size).toBe(1));
+
+    for (const handler of mocks.nativeNotificationCloseHandlers) {
+      handler('notification-from-signed-out-account', 'native-close');
+    }
+
+    expect(mocks.store.notifications.dismissById).not.toHaveBeenCalled();
+    expect(mocks.acknowledgeNativeNotificationClose).not.toHaveBeenCalled();
   });
 
   it('refreshes authoritative notification state when the visible app regains focus', async () => {

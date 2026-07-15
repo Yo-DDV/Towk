@@ -195,7 +195,7 @@ func pwaManifestIconFallbacks(value any) []map[string]string {
 	return fallbacks
 }
 
-const androidChromiumInstallManifestID = "/?towk-install=android-minimal-ui-v2"
+const androidChromiumInstallManifestID = "/?towk-install=android-browser-v3"
 
 func usesAndroidChromiumInstallManifestVariant(userAgent string) bool {
 	ua := strings.ToLower(userAgent)
@@ -243,14 +243,15 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAge
 	}
 	if androidChromiumInstallVariant {
 		// Android Chrome/Chromium shows a browser-owned foreground notification
-		// for standalone installed web apps. It is outside the Web
-		// Push/Notification API and cannot be dismissed by Towk JavaScript.
-		// Chromium skips that notification for MINIMAL_UI, while still keeping
-		// the app installable. A dedicated Android install id avoids reusing a
-		// stale WebAPK/container that was created before this display policy.
+		// for app-like installed windows. It is outside the Web Push/Notification
+		// API and cannot be dismissed by Towk JavaScript. Browser mode is the only
+		// pure-web manifest mode that keeps Chrome's own URL surface visible and
+		// avoids that foreground disclosure on affected Android devices. A
+		// dedicated Android install id avoids reusing a stale WebAPK/container
+		// that was created before this display policy.
 		manifest["id"] = androidChromiumInstallManifestID
-		manifest["display"] = "minimal-ui"
-		manifest["display_override"] = []string{"minimal-ui", "browser"}
+		manifest["display"] = "browser"
+		manifest["display_override"] = []string{"browser"}
 	}
 
 	return json.MarshalIndent(manifest, "", "  ")

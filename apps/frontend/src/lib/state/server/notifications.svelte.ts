@@ -388,6 +388,34 @@ export class NotificationStore {
   }
 
   /**
+   * Dismiss a notification when the trigger only carries the server-side ID
+   * (for example an operating-system notification-center close event replayed
+   * by the service worker). This keeps the server as the source of truth even
+   * when the current cached page is missing, stale, or capped.
+   */
+  async dismissById(notificationId: string): Promise<boolean> {
+    if (notificationId === '') return false;
+
+    const removed = this.notifications.find((n) => n.id === notificationId);
+    if (removed) return this.dismiss(notificationId);
+
+    this.#markLocalDismissal(notificationId);
+    try {
+      if (!(await this.#api.dismissNotification(notificationId))) {
+        this.#locallyDismissedNotificationIds.delete(notificationId);
+        return false;
+      }
+      this.#invalidateFetch();
+      this.notifications = this.notifications.filter((n) => n.id !== notificationId);
+      return true;
+    } catch (e) {
+      console.error('Failed to dismiss notification:', e);
+      this.#locallyDismissedNotificationIds.delete(notificationId);
+      return false;
+    }
+  }
+
+  /**
    * Dismiss all notifications. Optimistic: clears locally first, rolls back
    * on failure.
    */
