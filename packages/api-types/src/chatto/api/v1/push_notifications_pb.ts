@@ -48,6 +48,22 @@ export class SubscribePushRequest extends Message<SubscribePushRequest> {
    */
   locale?: string;
 
+  /**
+   * Stable Towk browser-installation identifier. It lets the server replace a
+   * superseded endpoint for this installation without collapsing real devices.
+   *
+   * @generated from field: optional string client_id = 6;
+   */
+  clientId?: string;
+
+  /**
+   * Origin that registered the browser subscription. Used for diagnostics and
+   * safe lifecycle cleanup across installed web app context refreshes.
+   *
+   * @generated from field: optional string application_origin = 7;
+   */
+  applicationOrigin?: string;
+
   constructor(data?: PartialMessage<SubscribePushRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -61,6 +77,8 @@ export class SubscribePushRequest extends Message<SubscribePushRequest> {
     { no: 3, name: "auth", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "user_agent", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 5, name: "locale", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 6, name: "client_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 7, name: "application_origin", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SubscribePushRequest {

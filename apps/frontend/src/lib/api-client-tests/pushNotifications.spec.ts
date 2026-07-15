@@ -47,7 +47,9 @@ describe('createPushNotificationAPI', () => {
         endpoint: 'https://push.example/sub',
         p256dh: 'p256dh-key',
         auth: 'auth-secret',
-        userAgent: 'browser'
+        userAgent: 'browser',
+        clientId: 'client-1',
+        applicationOrigin: 'https://origin.test'
       })
     ).resolves.toBe(true);
     await expect(api.unsubscribe('https://push.example/sub')).resolves.toBe(true);
@@ -61,7 +63,9 @@ describe('createPushNotificationAPI', () => {
         endpoint: 'https://push.example/sub',
         p256dh: 'p256dh-key',
         auth: 'auth-secret',
-        userAgent: 'browser'
+        userAgent: 'browser',
+        clientId: 'client-1',
+        applicationOrigin: 'https://origin.test'
       },
       { headers: { Authorization: 'Bearer token' } }
     );

@@ -46,6 +46,8 @@ Request to store a PushSubscription returned by the browser Push API.
 | `auth` | `string` | Authentication secret from PushSubscription.keys.auth. |
 | `user_agent` | `optional string` | Optional browser user-agent string for device identification. |
 | `locale` | `optional string` | Optional Towk UI language selected by this browser. The server normalizes unsupported and legacy-empty values to English. |
+| `client_id` | `optional string` | Stable Towk browser-installation identifier. It lets the server replace a superseded endpoint for this installation without collapsing real devices. |
+| `application_origin` | `optional string` | Origin that registered the browser subscription. Used for diagnostics and safe lifecycle cleanup across installed web app context refreshes. |
 
 
 <a id="chatto-api-v1-SubscribePushResponse"></a>

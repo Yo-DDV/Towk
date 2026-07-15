@@ -29,7 +29,9 @@ let registrationQueue: Promise<void> = Promise.resolve();
 let registrationGeneration = 0;
 let registrationsSuspended = false;
 const registeredVapidKeyStorageKey = 'towk:push:registered-vapid-public-key';
+const pushClientIdStorageKey = 'towk:push:client-id';
 let registeredVapidKeyFallback: string | null = null;
+let pushClientIdFallback: string | null = null;
 
 export type PushCapability = 'supported' | 'ios_home_screen_required' | 'unsupported';
 
@@ -268,7 +270,9 @@ async function registerGrantedSubscription(
       p256dh: json.keys.p256dh,
       auth: json.keys.auth,
       userAgent: navigator.userAgent,
-      locale: getLocale()
+      locale: getLocale(),
+      clientId: currentPushClientId(),
+      applicationOrigin: currentApplicationOrigin()
     });
 
     if (!saved) {
@@ -331,6 +335,48 @@ function rememberRegisteredVapidPublicKey(vapidPublicKey: string): void {
     window.localStorage.setItem(registeredVapidKeyStorageKey, vapidPublicKey);
   } catch {
     // The in-memory fallback still prevents churn during this page lifetime.
+  }
+}
+
+function currentPushClientId(): string {
+  try {
+    const stored = window.localStorage.getItem(pushClientIdStorageKey);
+    if (stored) {
+      pushClientIdFallback = stored;
+      return stored;
+    }
+  } catch {
+    if (pushClientIdFallback) return pushClientIdFallback;
+  }
+
+  const next = createPushClientId();
+  pushClientIdFallback = next;
+  try {
+    window.localStorage.setItem(pushClientIdStorageKey, next);
+  } catch {
+    // The server can still deduplicate within this page lifetime.
+  }
+  return next;
+}
+
+function createPushClientId(): string {
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef?.randomUUID) {
+    return cryptoRef.randomUUID();
+  }
+  if (cryptoRef?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    cryptoRef.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  return `fallback-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function currentApplicationOrigin(): string | undefined {
+  try {
+    return window.location?.origin || undefined;
+  } catch {
+    return undefined;
   }
 }
 

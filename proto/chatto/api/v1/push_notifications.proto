@@ -44,6 +44,14 @@ message SubscribePushRequest {
   // Optional Towk UI language selected by this browser. The server normalizes
   // unsupported and legacy-empty values to English.
   optional string locale = 5 [(buf.validate.field).string.max_len = 16];
+
+  // Stable Towk browser-installation identifier. It lets the server replace a
+  // superseded endpoint for this installation without collapsing real devices.
+  optional string client_id = 6 [(buf.validate.field).string.max_len = 128];
+
+  // Origin that registered the browser subscription. Used for diagnostics and
+  // safe lifecycle cleanup across installed web app context refreshes.
+  optional string application_origin = 7 [(buf.validate.field).string.max_len = 512];
 }
 
 // Response from storing a browser push subscription.

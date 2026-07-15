@@ -25,7 +25,15 @@ func (s *pushNotificationService) Subscribe(ctx context.Context, req *connect.Re
 	if req.Msg.UserAgent != nil {
 		userAgent = req.Msg.GetUserAgent()
 	}
-	if _, err := s.api.core.SavePushSubscriptionWithLocale(ctx, caller.UserID, req.Msg.GetEndpoint(), req.Msg.GetP256Dh(), req.Msg.GetAuth(), userAgent, req.Msg.GetLocale()); err != nil {
+	clientID := ""
+	if req.Msg.ClientId != nil {
+		clientID = req.Msg.GetClientId()
+	}
+	applicationOrigin := ""
+	if req.Msg.ApplicationOrigin != nil {
+		applicationOrigin = req.Msg.GetApplicationOrigin()
+	}
+	if _, err := s.api.core.SavePushSubscriptionWithMetadata(ctx, caller.UserID, req.Msg.GetEndpoint(), req.Msg.GetP256Dh(), req.Msg.GetAuth(), userAgent, req.Msg.GetLocale(), clientID, applicationOrigin); err != nil {
 		return nil, connectError(err)
 	}
 

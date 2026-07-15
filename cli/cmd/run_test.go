@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -82,6 +83,39 @@ func TestLocalizedPushBatches(t *testing.T) {
 		}
 		if batch.payload.Badge != "https://towk.example/icons/badge-monochrome-96.png" {
 			t.Fatalf("notification badge = %q", batch.payload.Badge)
+		}
+	}
+}
+
+func TestDedupePushSubscriptionsByClientIDKeepsNewestInstallationEndpoint(t *testing.T) {
+	oldTime := timestamppb.New(time.Unix(100, 0))
+	newTime := timestamppb.New(time.Unix(200, 0))
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/legacy-a"},
+		{Endpoint: "https://push.example/device-old", ClientId: "device-1", CreatedAt: oldTime},
+		{Endpoint: "https://push.example/other-device", ClientId: "device-2", CreatedAt: oldTime},
+		{Endpoint: "https://push.example/device-new", ClientId: "device-1", CreatedAt: newTime},
+		{Endpoint: "https://push.example/legacy-b"},
+	}
+
+	deduped := dedupePushSubscriptionsByClientID(subscriptions)
+
+	got := make([]string, 0, len(deduped))
+	for _, subscription := range deduped {
+		got = append(got, subscription.Endpoint)
+	}
+	want := []string{
+		"https://push.example/legacy-a",
+		"https://push.example/device-new",
+		"https://push.example/other-device",
+		"https://push.example/legacy-b",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("deduped endpoints = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("deduped endpoints = %v, want %v", got, want)
 		}
 	}
 }

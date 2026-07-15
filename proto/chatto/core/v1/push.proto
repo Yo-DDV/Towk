@@ -34,4 +34,10 @@ message PushSubscription {
   // Towk UI language selected by this browser (en, de, fr, es, or pt).
   // Legacy or unsupported values are treated as English when delivering.
   string locale = 6;
+
+  // Stable Towk browser-installation identifier. Empty on legacy subscriptions.
+  string client_id = 7;
+
+  // Origin that registered this subscription. Empty on legacy subscriptions.
+  string application_origin = 8;
 }

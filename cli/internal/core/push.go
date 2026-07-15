@@ -83,17 +83,39 @@ func (c *ChattoCore) SavePushSubscriptionWithLocale(
 	userID string,
 	endpoint, p256dh, auth, userAgent, locale string,
 ) (*corev1.PushSubscription, error) {
+	return c.SavePushSubscriptionWithMetadata(ctx, userID, endpoint, p256dh, auth, userAgent, locale, "", "")
+}
+
+// SavePushSubscriptionWithMetadata stores or updates a browser subscription and
+// replaces older endpoints for the same Towk browser installation. The client ID
+// is intentionally scoped to Towk, not inferred from user-agent, so real devices
+// and separate browsers for the same account keep independent subscriptions.
+func (c *ChattoCore) SavePushSubscriptionWithMetadata(
+	ctx context.Context,
+	userID string,
+	endpoint, p256dh, auth, userAgent, locale, clientID, applicationOrigin string,
+) (*corev1.PushSubscription, error) {
+	clientID, err := normalizePushClientID(clientID)
+	if err != nil {
+		return nil, err
+	}
+	applicationOrigin, err = normalizePushApplicationOrigin(applicationOrigin)
+	if err != nil {
+		return nil, err
+	}
 	if err := validatePushSubscription(endpoint, p256dh, auth, userAgent); err != nil {
 		return nil, err
 	}
 
 	subscription := &corev1.PushSubscription{
-		Endpoint:  endpoint,
-		P256Dh:    p256dh,
-		Auth:      auth,
-		CreatedAt: timestamppb.New(time.Now()),
-		UserAgent: userAgent,
-		Locale:    normalizePushLocale(locale),
+		Endpoint:          endpoint,
+		P256Dh:            p256dh,
+		Auth:              auth,
+		CreatedAt:         timestamppb.New(time.Now()),
+		UserAgent:         userAgent,
+		Locale:            normalizePushLocale(locale),
+		ClientId:          clientID,
+		ApplicationOrigin: applicationOrigin,
 	}
 
 	data, err := proto.Marshal(subscription)
@@ -109,12 +131,84 @@ func (c *ChattoCore) SavePushSubscriptionWithLocale(
 	if err := c.claimPushEndpointOwnership(ctx, userID, endpoint); err != nil {
 		return nil, err
 	}
+	if err := c.deleteSupersededPushSubscriptions(ctx, userID, subscription); err != nil {
+		c.logger.Warn("Failed to delete superseded push subscriptions",
+			"user_id", userID,
+			"endpoint_hash", hashEndpoint(endpoint),
+			"error", err)
+	}
 
 	c.logger.Debug("Push subscription saved",
 		"user_id", userID,
 		"endpoint_hash", hashEndpoint(endpoint))
 
 	return subscription, nil
+}
+
+func normalizePushClientID(clientID string) (string, error) {
+	clientID = strings.TrimSpace(clientID)
+	if err := validateStringMaxLength("push client ID", clientID, MaxPushClientIDLength); err != nil {
+		return "", err
+	}
+	if clientID == "" {
+		return "", nil
+	}
+	for _, r := range clientID {
+		switch {
+		case r >= 'a' && r <= 'z':
+		case r >= 'A' && r <= 'Z':
+		case r >= '0' && r <= '9':
+		case r == '-' || r == '_' || r == '.' || r == ':':
+		default:
+			return "", invalidArgument("push client ID contains unsupported characters")
+		}
+	}
+	return clientID, nil
+}
+
+func normalizePushApplicationOrigin(applicationOrigin string) (string, error) {
+	applicationOrigin = strings.TrimSpace(applicationOrigin)
+	if err := validateStringMaxLength("push application origin", applicationOrigin, MaxPushApplicationOriginLength); err != nil {
+		return "", err
+	}
+	if applicationOrigin == "" {
+		return "", nil
+	}
+	parsedOrigin, err := url.Parse(applicationOrigin)
+	if err != nil || (parsedOrigin.Scheme != "https" && parsedOrigin.Scheme != "http") || parsedOrigin.Host == "" || parsedOrigin.User != nil {
+		return "", invalidArgument("push application origin must be an HTTP(S) origin without credentials")
+	}
+	if parsedOrigin.Path != "" || parsedOrigin.RawQuery != "" || parsedOrigin.Fragment != "" {
+		return "", invalidArgument("push application origin must not contain a path, query, or fragment")
+	}
+	return parsedOrigin.Scheme + "://" + parsedOrigin.Host, nil
+}
+
+func (c *ChattoCore) deleteSupersededPushSubscriptions(ctx context.Context, userID string, current *corev1.PushSubscription) error {
+	if current.GetClientId() == "" || current.GetCreatedAt() == nil {
+		return nil
+	}
+	subscriptions, err := c.GetUserPushSubscriptions(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to list push subscriptions for deduplication: %w", err)
+	}
+
+	currentCreatedAt := current.GetCreatedAt().AsTime()
+	for _, subscription := range subscriptions {
+		if subscription.GetEndpoint() == current.GetEndpoint() || subscription.GetClientId() != current.GetClientId() || subscription.GetCreatedAt() == nil {
+			continue
+		}
+		// Only the newest registration for a Towk browser installation should
+		// remove older endpoints. This prevents two concurrent refreshes from
+		// deleting each other if they race.
+		if !subscription.GetCreatedAt().AsTime().Before(currentCreatedAt) {
+			continue
+		}
+		if err := c.DeletePushSubscription(ctx, userID, subscription.GetEndpoint()); err != nil {
+			return fmt.Errorf("failed to delete superseded push subscription: %w", err)
+		}
+	}
+	return nil
 }
 
 func normalizePushLocale(locale string) string {

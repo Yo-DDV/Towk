@@ -122,6 +122,9 @@ function installPushGlobals() {
     Notification,
     PushManager: class PushManager {},
     atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+    location: {
+      origin: 'https://origin.test'
+    },
     localStorage: {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
@@ -253,6 +256,7 @@ describe('pushNotifications.ensureRegistered', () => {
     permission = 'default';
     installPushGlobals();
     window.localStorage.setItem('towk:push:registered-vapid-public-key', 'dmFwaWQ');
+    window.localStorage.setItem('towk:push:client-id', 'client-existing');
     mocks.createPushNotificationAPI.mockReset();
     mocks.createPushNotificationAPI.mockReturnValue({
       subscribe: mocks.subscribePush,
@@ -290,8 +294,32 @@ describe('pushNotifications.ensureRegistered', () => {
       p256dh: 'p256dh-key',
       auth: 'auth-secret',
       userAgent: 'test-agent',
-      locale: 'fr'
+      locale: 'fr',
+      clientId: 'client-existing',
+      applicationOrigin: 'https://origin.test'
     });
+  });
+
+  it('creates and reuses a stable browser installation ID for server-side deduplication', async () => {
+    permission = 'granted';
+    window.localStorage.removeItem('towk:push:client-id');
+    const subscription = makeSubscription('https://push.example/client-id');
+    getSubscription.mockResolvedValue(subscription);
+
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(true);
+    await expect(ensureRegistered('dmFwaWQ', { prompt: false })).resolves.toBe(true);
+
+    const generated = window.localStorage.getItem('towk:push:client-id');
+    expect(generated).toEqual(expect.any(String));
+    expect(generated?.length).toBeGreaterThan(0);
+    expect(mocks.subscribePush).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ clientId: generated })
+    );
+    expect(mocks.subscribePush).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ clientId: generated })
+    );
   });
 
   it('creates and saves a subscription when permission is granted and none exists', async () => {

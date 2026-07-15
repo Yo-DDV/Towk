@@ -226,6 +226,161 @@ func TestSavePushSubscription(t *testing.T) {
 			t.Fatalf("unsupported locale = %q, want en", fallback.Locale)
 		}
 	})
+
+	t.Run("stores client metadata", func(t *testing.T) {
+		sub, err := core.SavePushSubscriptionWithMetadata(
+			ctx,
+			userID,
+			"https://push.example.com/with-client",
+			p256dh,
+			auth,
+			userAgent,
+			"fr",
+			"browser-client-1",
+			"https://app.example.com",
+		)
+		if err != nil {
+			t.Fatalf("SavePushSubscriptionWithMetadata error: %v", err)
+		}
+		if sub.ClientId != "browser-client-1" {
+			t.Fatalf("ClientId = %q, want browser-client-1", sub.ClientId)
+		}
+		if sub.ApplicationOrigin != "https://app.example.com" {
+			t.Fatalf("ApplicationOrigin = %q, want https://app.example.com", sub.ApplicationOrigin)
+		}
+	})
+}
+
+func TestSavePushSubscriptionSupersedesOlderEndpointForSameClientID(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := context.Background()
+
+	userID := "push-user-supersede"
+	_, err := core.SavePushSubscriptionWithMetadata(
+		ctx,
+		userID,
+		"https://push.example.com/old",
+		testPushP256DH,
+		testPushAuth(1),
+		"Browser/1",
+		"fr",
+		"same-installation",
+		"https://app.example.com",
+	)
+	if err != nil {
+		t.Fatalf("Save old subscription: %v", err)
+	}
+	_, err = core.SavePushSubscriptionWithMetadata(
+		ctx,
+		userID,
+		"https://push.example.com/other-client",
+		testPushP256DH,
+		testPushAuth(2),
+		"Browser/1",
+		"fr",
+		"other-installation",
+		"https://app.example.com",
+	)
+	if err != nil {
+		t.Fatalf("Save other-client subscription: %v", err)
+	}
+	_, err = core.SavePushSubscriptionWithLocale(
+		ctx,
+		userID,
+		"https://push.example.com/legacy",
+		testPushP256DH,
+		testPushAuth(3),
+		"Browser/1",
+		"fr",
+	)
+	if err != nil {
+		t.Fatalf("Save legacy subscription: %v", err)
+	}
+
+	newer, err := core.SavePushSubscriptionWithMetadata(
+		ctx,
+		userID,
+		"https://push.example.com/new",
+		testPushP256DH,
+		testPushAuth(4),
+		"Browser/1",
+		"fr",
+		"same-installation",
+		"https://app.example.com",
+	)
+	if err != nil {
+		t.Fatalf("Save new subscription: %v", err)
+	}
+
+	subscriptions, err := core.GetUserPushSubscriptions(ctx, userID)
+	if err != nil {
+		t.Fatalf("GetUserPushSubscriptions: %v", err)
+	}
+	seen := map[string]*corev1.PushSubscription{}
+	for _, subscription := range subscriptions {
+		seen[subscription.Endpoint] = subscription
+	}
+	if _, ok := seen["https://push.example.com/old"]; ok {
+		t.Fatalf("old endpoint was not superseded: %+v", subscriptions)
+	}
+	if seen[newer.Endpoint] == nil || seen["https://push.example.com/other-client"] == nil || seen["https://push.example.com/legacy"] == nil {
+		t.Fatalf("subscriptions after supersede = %+v, want new, other-client and legacy", subscriptions)
+	}
+}
+
+func TestSavePushSubscriptionRejectsUnsafeClientMetadata(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := context.Background()
+
+	tests := []struct {
+		name              string
+		clientID          string
+		applicationOrigin string
+	}{
+		{
+			name:     "client ID path separator",
+			clientID: "bad/client",
+		},
+		{
+			name:     "client ID too long",
+			clientID: strings.Repeat("c", MaxPushClientIDLength+1),
+		},
+		{
+			name:              "application origin with path",
+			clientID:          "client",
+			applicationOrigin: "https://app.example.com/path",
+		},
+		{
+			name:              "application origin with credentials",
+			clientID:          "client",
+			applicationOrigin: "https://user@app.example.com",
+		},
+		{
+			name:              "application origin too long",
+			clientID:          "client",
+			applicationOrigin: "https://" + strings.Repeat("a", MaxPushApplicationOriginLength),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			endpointSuffix := strings.NewReplacer(" ", "-", "/", "-").Replace(tt.name)
+			_, err := core.SavePushSubscriptionWithMetadata(
+				ctx,
+				"push-user-invalid-metadata",
+				"https://push.example.com/"+endpointSuffix,
+				testPushP256DH,
+				testPushAuth(1),
+				"Browser/1",
+				"fr",
+				tt.clientID,
+				tt.applicationOrigin,
+			)
+			if !errors.Is(err, ErrInvalidArgument) {
+				t.Fatalf("SavePushSubscriptionWithMetadata error = %v, want ErrInvalidArgument", err)
+			}
+		})
+	}
 }
 
 func TestSavePushSubscription_StringLengthLimits(t *testing.T) {

@@ -43,9 +43,13 @@ type PushSubscription struct {
 	UserAgent string `protobuf:"bytes,5,opt,name=user_agent,json=userAgent,proto3" json:"user_agent,omitempty"`
 	// Towk UI language selected by this browser (en, de, fr, es, or pt).
 	// Legacy or unsupported values are treated as English when delivering.
-	Locale        string `protobuf:"bytes,6,opt,name=locale,proto3" json:"locale,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Locale string `protobuf:"bytes,6,opt,name=locale,proto3" json:"locale,omitempty"`
+	// Stable Towk browser-installation identifier. Empty on legacy subscriptions.
+	ClientId string `protobuf:"bytes,7,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// Origin that registered this subscription. Empty on legacy subscriptions.
+	ApplicationOrigin string `protobuf:"bytes,8,opt,name=application_origin,json=applicationOrigin,proto3" json:"application_origin,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *PushSubscription) Reset() {
@@ -120,11 +124,25 @@ func (x *PushSubscription) GetLocale() string {
 	return ""
 }
 
+func (x *PushSubscription) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *PushSubscription) GetApplicationOrigin() string {
+	if x != nil {
+		return x.ApplicationOrigin
+	}
+	return ""
+}
+
 var File_chatto_core_v1_push_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_push_proto_rawDesc = "" +
 	"\n" +
-	"\x19chatto/core/v1/push.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcc\x01\n" +
+	"\x19chatto/core/v1/push.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x98\x02\n" +
 	"\x10PushSubscription\x12\x1a\n" +
 	"\bendpoint\x18\x01 \x01(\tR\bendpoint\x12\x16\n" +
 	"\x06p256dh\x18\x02 \x01(\tR\x06p256dh\x12\x12\n" +
@@ -133,7 +151,9 @@ const file_chatto_core_v1_push_proto_rawDesc = "" +
 	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12\x1d\n" +
 	"\n" +
 	"user_agent\x18\x05 \x01(\tR\tuserAgent\x12\x16\n" +
-	"\x06locale\x18\x06 \x01(\tR\x06localeB\xac\x01\n" +
+	"\x06locale\x18\x06 \x01(\tR\x06locale\x12\x1b\n" +
+	"\tclient_id\x18\a \x01(\tR\bclientId\x12-\n" +
+	"\x12application_origin\x18\b \x01(\tR\x11applicationOriginB\xac\x01\n" +
 	"\x12com.chatto.core.v1B\tPushProtoP\x01Z1hmans.de/chatto/internal/pb/chatto/core/v1;corev1\xa2\x02\x03CCX\xaa\x02\x0eChatto.Core.V1\xca\x02\x0eChatto\\Core\\V1\xe2\x02\x1aChatto\\Core\\V1\\GPBMetadata\xea\x02\x10Chatto::Core::V1b\x06proto3"
 
 var (
