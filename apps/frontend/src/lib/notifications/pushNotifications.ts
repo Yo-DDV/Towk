@@ -89,6 +89,22 @@ async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration
   }
 }
 
+function postServiceWorkerMessage(message: unknown): void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+  const container = navigator.serviceWorker;
+  if (container.controller) {
+    container.controller.postMessage(message);
+    return;
+  }
+
+  void container.ready
+    .then((registration) => {
+      (container.controller ?? registration.active)?.postMessage(message);
+    })
+    .catch(() => {});
+}
+
 /**
  * Get the current push subscription, if any.
  */
@@ -371,9 +387,25 @@ export async function unsubscribe(): Promise<boolean> {
 
 /** Close the matching native notification while this PWA is already online. */
 export function dismissNativeNotification(notificationId: string): void {
-  navigator.serviceWorker?.controller?.postMessage({
+  postServiceWorkerMessage({
     type: 'towk-notification-dismiss',
     notificationId
+  });
+}
+
+/** Close delivered native notifications that are no longer pending on the server. */
+export function reconcileNativeNotifications(notificationIds: Iterable<string>): void {
+  const pendingIds = Array.from(
+    new Set(
+      Array.from(notificationIds).filter(
+        (notificationId) => typeof notificationId === 'string' && notificationId !== ''
+      )
+    )
+  );
+
+  postServiceWorkerMessage({
+    type: 'towk-notification-state',
+    notificationIds: pendingIds
   });
 }
 

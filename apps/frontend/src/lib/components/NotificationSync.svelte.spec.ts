@@ -12,9 +12,11 @@ const { mocks } = vi.hoisted(() => {
   const store = {
     isAuthenticated: true,
     notifications: {
-      notifications: [] as Array<{ kind: string }>,
+      notifications: [] as Array<{ id?: string; kind: string }>,
       count: 0,
       unreadNotificationCount: 0,
+      hasCompleteNotificationSnapshot: true,
+      pendingNotificationIds: [] as string[],
       hasLoaded: true,
       addNotification: vi.fn(() => Promise.resolve(true)),
       removeNotification: vi.fn(),
@@ -42,7 +44,8 @@ const { mocks } = vi.hoisted(() => {
       updateBadge: vi.fn(() => Promise.resolve()),
       clearBadge: vi.fn(() => Promise.resolve()),
       syncServiceWorkerNotificationBadgeState: vi.fn(),
-      dismissNativeNotification: vi.fn()
+      dismissNativeNotification: vi.fn(),
+      reconcileNativeNotifications: vi.fn()
     }
   };
 });
@@ -90,7 +93,8 @@ vi.mock('$lib/notifications/appBadge', () => ({
 }));
 
 vi.mock('$lib/notifications/pushNotifications', () => ({
-  dismissNativeNotification: mocks.dismissNativeNotification
+  dismissNativeNotification: mocks.dismissNativeNotification,
+  reconcileNativeNotifications: mocks.reconcileNativeNotifications
 }));
 
 function dispatch(event: Record<string, unknown>) {
@@ -134,6 +138,8 @@ describe('NotificationSync', () => {
     mocks.store.notifications.notifications = [];
     mocks.store.notifications.count = 0;
     mocks.store.notifications.unreadNotificationCount = 0;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = true;
+    mocks.store.notifications.pendingNotificationIds = [];
     mocks.store.notifications.hasLoaded = true;
     mocks.store.roomUnread.hasAnyUnread = false;
     mocks.store.notifications.addNotification.mockResolvedValue(true);
@@ -318,9 +324,10 @@ describe('NotificationSync', () => {
   });
 
   it('uses the exact pending-notification total for loaded stores', async () => {
-    mocks.store.notifications.notifications = [{ kind: 'directMessage' }];
+    mocks.store.notifications.notifications = [{ id: 'notification-1', kind: 'directMessage' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 1;
+    mocks.store.notifications.pendingNotificationIds = ['notification-1'];
 
     await renderAndWaitForSubscription();
 
@@ -331,13 +338,30 @@ describe('NotificationSync', () => {
       kind: 'count',
       count: 1
     });
+    expect(mocks.reconcileNativeNotifications).toHaveBeenCalledWith(['notification-1']);
     expect(mocks.clearBadge).not.toHaveBeenCalled();
+  });
+
+  it('does not reconcile native notifications from an incomplete capped snapshot', async () => {
+    mocks.store.notifications.notifications = [{ id: 'notification-1', kind: 'directMessage' }];
+    mocks.store.notifications.count = 1;
+    mocks.store.notifications.unreadNotificationCount = 3;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = false;
+    mocks.store.notifications.pendingNotificationIds = ['notification-1'];
+
+    await renderAndWaitForSubscription();
+
+    await vi.waitFor(() =>
+      expect(mocks.updateBadge).toHaveBeenCalledWith({ kind: 'count', count: 3 })
+    );
+    expect(mocks.reconcileNativeNotifications).not.toHaveBeenCalled();
   });
 
   it('uses the server total even when the cached page is capped', async () => {
     mocks.store.notifications.notifications = [{ kind: 'directMessage' }];
     mocks.store.notifications.count = 1;
     mocks.store.notifications.unreadNotificationCount = 3;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = false;
 
     await renderAndWaitForSubscription();
 
@@ -389,6 +413,7 @@ describe('NotificationSync', () => {
   it('still publishes a positive count before all stores are loaded', async () => {
     mocks.store.notifications.hasLoaded = false;
     mocks.store.notifications.unreadNotificationCount = 2;
+    mocks.store.notifications.hasCompleteNotificationSnapshot = false;
 
     await renderAndWaitForSubscription();
 

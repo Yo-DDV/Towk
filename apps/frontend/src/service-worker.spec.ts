@@ -423,6 +423,27 @@ describe('service worker badge orchestration', () => {
     expect(worker.registration.showNotification).not.toHaveBeenCalled();
   });
 
+  it('closes stale native notifications after a foreground state reconciliation', async () => {
+    const worker = await importServiceWorker();
+    const stillPending = { data: { notificationId: 'notification-1' }, close: vi.fn() };
+    const stale = { data: { notificationId: 'notification-2' }, close: vi.fn() };
+    const unmanaged = { close: vi.fn() };
+    worker.registration.getNotifications.mockResolvedValueOnce([stillPending, stale, unmanaged]);
+
+    await worker.dispatch('message', {
+      data: {
+        type: 'towk-notification-state',
+        notificationIds: ['notification-1']
+      }
+    });
+
+    expect(worker.registration.getNotifications).toHaveBeenCalledOnce();
+    expect(stale.close).toHaveBeenCalledOnce();
+    expect(stillPending.close).not.toHaveBeenCalled();
+    expect(unmanaged.close).not.toHaveBeenCalled();
+    expect(worker.registration.showNotification).not.toHaveBeenCalled();
+  });
+
   it('uses declarative push notification fields when legacy root fields are absent', async () => {
     const worker = await importServiceWorker();
 

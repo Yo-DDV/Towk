@@ -109,6 +109,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (handleLifecycleMessage(event)) return;
   if (handleBadgeStateMessage(event)) return;
+  if (handleNotificationStateMessage(event)) return;
   handleNotificationDismissMessage(event);
 });
 
@@ -356,6 +357,31 @@ function handleNotificationDismissMessage(event: ExtendableMessageEvent): boolea
       const notifications = await self.registration.getNotifications();
       for (const notification of notifications) {
         if (notification.data?.notificationId === message.notificationId) {
+          notification.close();
+        }
+      }
+    })()
+  );
+  return true;
+}
+
+function handleNotificationStateMessage(event: ExtendableMessageEvent): boolean {
+  const message = event.data as Record<string, unknown> | undefined;
+  if (!message || message.type !== 'towk-notification-state') return false;
+
+  const rawNotificationIds = message.notificationIds;
+  if (!Array.isArray(rawNotificationIds)) return false;
+
+  const pendingNotificationIds = new Set(
+    rawNotificationIds.filter((id): id is string => typeof id === 'string' && id !== '')
+  );
+
+  event.waitUntil(
+    (async () => {
+      const notifications = await self.registration.getNotifications();
+      for (const notification of notifications) {
+        const notificationId = notification.data?.notificationId;
+        if (typeof notificationId === 'string' && !pendingNotificationIds.has(notificationId)) {
           notification.close();
         }
       }
