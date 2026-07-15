@@ -9,10 +9,12 @@ the next navigation triggers a reload to avoid stale chunk errors.
 Include this component once at the root layout level.
 -->
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { onNavigate } from '$app/navigation';
   import { updated } from '$app/state';
   import { idleState } from '$lib/state/idle.svelte';
   import { activatePendingServiceWorker } from '$lib/pwa/serviceWorkerUpdate';
+  import { startVersionUpdateMonitor } from '$lib/pwa/versionUpdateMonitor';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
@@ -33,9 +35,7 @@ Include this component once at the root layout level.
     }
   }
 
-  $effect(() => {
-    if (!updated.current) return;
-
+  function handleAvailableUpdate() {
     if (!updateToastShown) {
       updateToastShown = true;
       toast.info(m['ui.update_available'](), 0, {
@@ -48,12 +48,32 @@ Include this component once at the root layout level.
       serverConnectionManager.originClient.forceReconnect('app update detected');
     }
 
-    // Auto-reload as soon as it's safe. The effect re-runs when the user
-    // blurs the composer / leaves a call, so a busy user just sees the
-    // toast until they idle out.
     if (idleState.canSafelyReload) {
       void reloadLatestVersion();
     }
+  }
+
+  onMount(() => {
+    const monitor = startVersionUpdateMonitor(updated, handleAvailableUpdate);
+
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') void monitor.checkNow();
+    };
+    const checkWhenOnline = () => void monitor.checkNow();
+
+    document.addEventListener('visibilitychange', checkWhenVisible);
+    window.addEventListener('online', checkWhenOnline);
+
+    return () => {
+      monitor.stop();
+      document.removeEventListener('visibilitychange', checkWhenVisible);
+      window.removeEventListener('online', checkWhenOnline);
+    };
+  });
+
+  $effect(() => {
+    if (!updated.current) return;
+    handleAvailableUpdate();
   });
 
   // Fallback: if the toast was dismissed, use the next safe navigation to
