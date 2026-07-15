@@ -45,6 +45,8 @@ func TestLocalizedPushBatches(t *testing.T) {
 	subscriptions := []*corev1.PushSubscription{
 		{Endpoint: "https://push.example/fr-1", Locale: "fr"},
 		{Endpoint: "https://push.example/de", Locale: "de"},
+		{Endpoint: "https://push.example/es", Locale: "es"},
+		{Endpoint: "https://push.example/pt", Locale: "pt"},
 		{Endpoint: "https://push.example/legacy"},
 		{Endpoint: "https://push.example/fr-2", Locale: "FR"},
 		{Endpoint: "https://push.example/unsupported", Locale: "it"},
@@ -59,8 +61,8 @@ func TestLocalizedPushBatches(t *testing.T) {
 		"5",
 	)
 
-	if len(batches) != 3 {
-		t.Fatalf("batch count = %d, want 3", len(batches))
+	if len(batches) != 5 {
+		t.Fatalf("batch count = %d, want 5", len(batches))
 	}
 	if got := len(batches[0].subscriptions); got != 2 {
 		t.Fatalf("English fallback subscription count = %d, want 2", got)
@@ -85,6 +87,18 @@ func TestLocalizedPushBatches(t *testing.T) {
 	}
 	if batches[2].payload.Lang != "fr" || batches[2].payload.Dir != "ltr" {
 		t.Fatalf("French metadata = lang=%q dir=%q", batches[2].payload.Lang, batches[2].payload.Dir)
+	}
+	if batches[3].payload.Title != "@Alice publicó un mensaje en #general" {
+		t.Fatalf("Spanish title = %q", batches[3].payload.Title)
+	}
+	if batches[3].payload.Lang != "es" || batches[3].payload.Dir != "ltr" {
+		t.Fatalf("Spanish metadata = lang=%q dir=%q", batches[3].payload.Lang, batches[3].payload.Dir)
+	}
+	if batches[4].payload.Title != "@Alice publicou uma mensagem em #general" {
+		t.Fatalf("Portuguese title = %q", batches[4].payload.Title)
+	}
+	if batches[4].payload.Lang != "pt" || batches[4].payload.Dir != "ltr" {
+		t.Fatalf("Portuguese metadata = lang=%q dir=%q", batches[4].payload.Lang, batches[4].payload.Dir)
 	}
 	for _, batch := range batches {
 		if batch.payload.AppBadge != "5" {
