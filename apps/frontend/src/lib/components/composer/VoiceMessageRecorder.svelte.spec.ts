@@ -94,6 +94,9 @@ describe('VoiceMessageRecorder', () => {
         autoGainControl: false
       }
     });
+    const liveWaveform = container.querySelector('[data-testid="voice-message-live-waveform"]');
+    expect(liveWaveform).not.toBeNull();
+    expect(liveWaveform?.querySelectorAll('span[style*="height"]').length).toBe(42);
 
     await userEvent.click(container.querySelector('button[aria-label="Stop recording"]')!);
     await vi.waitFor(() =>

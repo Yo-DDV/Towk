@@ -39,8 +39,8 @@ describe('voice message policy', () => {
   it('maps quiet waveform samples to visible UI levels without changing silence', () => {
     expect(visualWaveformLevel(0)).toBe(0);
     expect(visualWaveformLevel(Number.NaN)).toBe(0);
-    expect(visualWaveformLevel(0.02)).toBeGreaterThan(0.1);
-    expect(visualWaveformLevel(0.1)).toBeGreaterThan(0.3);
+    expect(visualWaveformLevel(0.02)).toBeGreaterThan(0.25);
+    expect(visualWaveformLevel(0.1)).toBeGreaterThan(0.45);
     expect(visualWaveformLevel(1.5)).toBe(1);
   });
 

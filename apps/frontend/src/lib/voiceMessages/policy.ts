@@ -66,7 +66,7 @@ export function normalizedWaveformLevel(samples: Uint8Array): number {
 export function visualWaveformLevel(level: number): number {
   const safeLevel = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
   if (safeLevel <= 0) return 0;
-  return Math.min(1, Math.max(0.1, Math.pow(safeLevel, 0.45)));
+  return Math.min(1, Math.max(0.16, Math.pow(safeLevel, 0.32)));
 }
 
 export function reduceWaveformPeaks(

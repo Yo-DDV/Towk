@@ -365,6 +365,7 @@
       <div class="min-w-0 flex-1">
         <div
           class="relative flex h-11 items-center gap-[2px] overflow-hidden rounded-full bg-background/35 px-3"
+          data-testid="voice-message-live-waveform"
           aria-hidden="true"
         >
           <span class="absolute inset-x-3 top-1/2 h-px bg-primary/20"></span>
