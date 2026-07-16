@@ -603,7 +603,7 @@
         {/if}
       </div>
     {:else if attachment.voiceMessage && attachment.url}
-      <div class="group/attachment relative min-w-0 pr-7">
+      <div class="group/attachment relative w-full max-w-[31rem] min-w-0 pr-7">
         <VoiceMessagePlayer
           src={attachment.url}
           durationMs={attachment.voiceMessage.durationMs}

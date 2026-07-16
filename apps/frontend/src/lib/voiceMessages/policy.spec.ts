@@ -5,6 +5,7 @@ import {
   recorderFileExtension,
   reduceWaveformPeaks,
   selectVoiceRecorderMimeType,
+  visualWaveformLevel,
   voiceMessageFilename
 } from './policy';
 
@@ -33,6 +34,14 @@ describe('voice message policy', () => {
   it('computes a bounded RMS level from analyser samples', () => {
     expect(normalizedWaveformLevel(new Uint8Array([128, 128, 128]))).toBe(0);
     expect(normalizedWaveformLevel(new Uint8Array([0, 255]))).toBe(1);
+  });
+
+  it('maps quiet waveform samples to visible UI levels without changing silence', () => {
+    expect(visualWaveformLevel(0)).toBe(0);
+    expect(visualWaveformLevel(Number.NaN)).toBe(0);
+    expect(visualWaveformLevel(0.02)).toBeGreaterThan(0.1);
+    expect(visualWaveformLevel(0.1)).toBeGreaterThan(0.3);
+    expect(visualWaveformLevel(1.5)).toBe(1);
   });
 
   it('reduces arbitrary samples to a fixed, sanitized waveform', () => {

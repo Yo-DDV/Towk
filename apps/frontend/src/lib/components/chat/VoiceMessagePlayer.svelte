@@ -2,7 +2,11 @@
   import { onDestroy } from 'svelte';
   import * as m from '$lib/i18n/messages';
   import { toast } from '$lib/ui/toast';
-  import { formatVoiceMessageTime } from '$lib/voiceMessages/policy';
+  import {
+    formatVoiceMessageTime,
+    reduceWaveformPeaks,
+    visualWaveformLevel
+  } from '$lib/voiceMessages/policy';
   import {
     claimVoiceMessagePlayback,
     releaseVoiceMessagePlayback
@@ -43,10 +47,15 @@
       : 0
   );
   const remainingMs = $derived(Math.max(0, (effectiveDurationSeconds - currentTimeSeconds) * 1000));
-  const normalizedPeaks = $derived(
+  const displayPeaks = $derived(
     waveformPeaks.length > 0
-      ? waveformPeaks.map((peak) => Math.max(0.04, Math.min(1, Number.isFinite(peak) ? peak : 0)))
-      : Array.from({ length: 48 }, (_, index) => 0.2 + ((index * 7) % 9) / 20)
+      ? reduceWaveformPeaks(waveformPeaks, localPreview ? 48 : 42)
+      : Array.from({ length: localPreview ? 48 : 42 }, (_, index) => 0.2 + ((index * 7) % 9) / 20)
+  );
+  const normalizedPeaks = $derived(
+    displayPeaks.map((peak) =>
+      Math.max(0.06, visualWaveformLevel(Number.isFinite(peak) ? peak : 0))
+    )
   );
 
   async function togglePlayback() {
@@ -103,7 +112,7 @@
     'voice-message-player flex min-w-0 items-center gap-2.5 rounded-2xl border px-2.5 py-2 shadow-sm',
     localPreview
       ? 'w-full border-primary/30 bg-primary/8'
-      : 'w-[min(31rem,calc(100vw-6rem))] border-border bg-surface-200/80'
+      : 'w-full max-w-full border-border bg-surface-200/80'
   ]}
   data-testid={localPreview ? 'voice-message-preview' : 'voice-message-player'}
 >
@@ -135,15 +144,21 @@
   </button>
 
   <div class="min-w-0 flex-1">
-    <div class="relative h-8 min-w-0" data-testid="voice-message-waveform">
-      <div class="pointer-events-none absolute inset-0 flex items-center gap-[2px] overflow-hidden">
+    <div
+      class="relative h-10 min-w-0 overflow-hidden rounded-full bg-background/35 px-2"
+      data-testid="voice-message-waveform"
+    >
+      <div class="pointer-events-none absolute inset-x-2 top-1/2 h-px bg-muted/25"></div>
+      <div class="pointer-events-none absolute inset-x-2 inset-y-0 flex items-center gap-[2px] overflow-hidden">
         {#each normalizedPeaks as peak, index (index)}
           <span
             class={[
-              'min-w-[2px] flex-1 rounded-full transition-colors',
-              (index + 1) / normalizedPeaks.length <= progress ? 'bg-primary' : 'bg-muted/35'
+              'min-w-[3px] flex-1 rounded-full transition-[background-color,height,opacity]',
+              (index + 1) / normalizedPeaks.length <= progress
+                ? 'bg-primary opacity-100'
+                : 'bg-muted/40 opacity-80'
             ]}
-            style={`height: ${Math.max(3, Math.round(peak * 26))}px`}
+            style={`height: ${Math.max(4, Math.round(peak * 36))}px`}
             aria-hidden="true"
           ></span>
         {/each}

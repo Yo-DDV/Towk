@@ -1103,7 +1103,7 @@
   <!-- Unified input container -->
   <div
     class={[
-      'relative flex items-start gap-4 rounded-xl bg-surface py-2 pr-3',
+      'relative flex items-start gap-3 rounded-xl bg-surface py-2 pr-2',
       isEditing ? 'pl-3' : 'pl-2'
     ]}
     class:opacity-50={inputDisabled}
@@ -1145,36 +1145,25 @@
     {/if}
 
     <!-- Text input (TipTap editor) -->
-    {#if !voiceRecorderActive}
-      {#await tipTapEditorModule}
-        <div class="min-h-11 min-w-0 flex-1 py-1" aria-hidden="true"></div>
-      {:then { default: TipTapEditor }}
-        <TipTapEditor
-          placeholder={currentPlaceholder}
-          editable={!inputDisabled}
-          autofocus={autoFocus && shouldAutoFocus()}
-          {testid}
-          onUpdate={handleEditorUpdate}
-          onKeyDown={handleEditorKeyDown}
-          onPaste={handlePaste}
-          onNextEnterWillSendChange={(value) => (editorNextEnterWillSend = value)}
-          onRichStructureChange={handleRichStructureChange}
-          onReady={handleEditorReady}
-        />
-      {/await}
-    {/if}
-
-    {#if !isEditing && canVoice}
-      <VoiceMessageRecorder
-        disabled={inputDisabled || loading || roleMentionCheckLoading}
-        maxUploadSize={serverInfo.maxVoiceMessageUploadSize}
-        onSend={sendVoiceMessage}
-        onActiveChange={(active) => (voiceRecorderActive = active)}
+    {#await tipTapEditorModule}
+      <div class="min-h-11 min-w-0 flex-1 py-1" aria-hidden="true"></div>
+    {:then { default: TipTapEditor }}
+      <TipTapEditor
+        placeholder={currentPlaceholder}
+        editable={!inputDisabled}
+        autofocus={autoFocus && shouldAutoFocus()}
+        {testid}
+        onUpdate={handleEditorUpdate}
+        onKeyDown={handleEditorKeyDown}
+        onPaste={handlePaste}
+        onNextEnterWillSendChange={(value) => (editorNextEnterWillSend = value)}
+        onRichStructureChange={handleRichStructureChange}
+        onReady={handleEditorReady}
       />
-    {/if}
+    {/await}
 
-    {#if !voiceRecorderActive}
-      <div class="flex h-11 shrink-0 items-center gap-2">
+    <div class="flex h-11 shrink-0 items-center gap-1">
+      {#if !voiceRecorderActive}
         {#if submitHint && canSubmit}
           <span
             aria-hidden="true"
@@ -1184,7 +1173,18 @@
             {submitHint}
           </span>
         {/if}
+      {/if}
 
+      {#if !isEditing && canVoice}
+        <VoiceMessageRecorder
+          disabled={inputDisabled || loading || roleMentionCheckLoading}
+          maxUploadSize={serverInfo.maxVoiceMessageUploadSize}
+          onSend={sendVoiceMessage}
+          onActiveChange={(active) => (voiceRecorderActive = active)}
+        />
+      {/if}
+
+      {#if !voiceRecorderActive}
         <!-- Send button -->
         <button
           type="button"
@@ -1197,8 +1197,8 @@
         >
           <span class="iconify text-xl uil--telegram-alt"></span>
         </button>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
 
   <!-- Also send to channel checkbox (thread replies only, when permitted) -->

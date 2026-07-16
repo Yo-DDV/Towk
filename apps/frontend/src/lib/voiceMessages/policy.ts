@@ -63,6 +63,12 @@ export function normalizedWaveformLevel(samples: Uint8Array): number {
   return Math.min(1, Math.sqrt(squaredTotal / samples.length) * 2.4);
 }
 
+export function visualWaveformLevel(level: number): number {
+  const safeLevel = Number.isFinite(level) ? Math.max(0, Math.min(1, level)) : 0;
+  if (safeLevel <= 0) return 0;
+  return Math.min(1, Math.max(0.1, Math.pow(safeLevel, 0.45)));
+}
+
 export function reduceWaveformPeaks(
   samples: readonly number[],
   targetCount = VOICE_MESSAGE_WAVEFORM_PEAK_COUNT

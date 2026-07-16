@@ -26,9 +26,13 @@ describe('VoiceMessagePlayer', () => {
     audio.dispatchEvent(new Event('loadedmetadata'));
     await tick();
 
-    expect(container.querySelectorAll('[data-testid="voice-message-waveform"] span')).toHaveLength(
-      4
-    );
+    const waveformBars = [
+      ...container.querySelectorAll<HTMLElement>('[data-testid="voice-message-waveform"] span')
+    ];
+    const waveformHeights = waveformBars.map((bar) => Number.parseInt(bar.style.height, 10));
+    expect(waveformBars).toHaveLength(42);
+    expect(Math.max(...waveformHeights)).toBeGreaterThan(28);
+    expect(new Set(waveformHeights).size).toBeGreaterThan(2);
     expect(container.textContent).toContain('0:12');
 
     const seek = container.querySelector('input[type="range"]') as HTMLInputElement;
@@ -64,6 +68,22 @@ describe('VoiceMessagePlayer', () => {
     await expect
       .element(container.querySelector<HTMLButtonElement>('button[aria-label="Pause voice message"]'))
       .toBeInTheDocument();
+  });
+
+  it('stays bounded by a narrow message column', async () => {
+    const { container } = render(VoiceMessagePlayer, {
+      props: {
+        src: 'data:audio/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvKB',
+        durationMs: 4_000,
+        waveformPeaks: Array.from({ length: 64 }, (_, index) => (index % 5 === 0 ? 0.85 : 0.12)),
+        filename: 'voice-message.webm'
+      }
+    });
+    container.style.width = '280px';
+    await tick();
+
+    const player = container.querySelector<HTMLElement>('[data-testid="voice-message-player"]')!;
+    expect(Math.ceil(player.getBoundingClientRect().width)).toBeLessThanOrEqual(280);
   });
 
   it('shows a localized error when playback cannot start', async () => {

@@ -12,6 +12,7 @@
     normalizedWaveformLevel,
     reduceWaveformPeaks,
     selectVoiceRecorderMimeType,
+    visualWaveformLevel,
     voiceMessageFilename,
     type VoiceMessageDraft
   } from '$lib/voiceMessages/policy';
@@ -33,7 +34,7 @@
   let mode = $state<RecorderMode>('idle');
   let elapsedMs = $state(0);
   let liveLevel = $state(0);
-  let livePeaks = $state<number[]>(Array.from({ length: 36 }, () => 0.04));
+  let livePeaks = $state<number[]>(Array.from({ length: 42 }, () => 0));
   let draft = $state<VoiceMessageDraft | null>(null);
 
   let mediaRecorder: MediaRecorder | null = null;
@@ -52,6 +53,10 @@
 
   const isActive = $derived(mode !== 'idle');
   const isNearLimit = $derived(elapsedMs >= VOICE_MESSAGE_MAX_DURATION_MS - 60_000);
+  const visualLiveLevel = $derived(visualWaveformLevel(liveLevel));
+  const visualLivePeaks = $derived(
+    livePeaks.map((peak) => Math.max(0.05, visualWaveformLevel(peak)))
+  );
 
   $effect(() => {
     onActiveChange?.(isActive);
@@ -93,7 +98,7 @@
     clearDraft();
     elapsedMs = 0;
     liveLevel = 0;
-    livePeaks = Array.from({ length: 36 }, () => 0.04);
+    livePeaks = Array.from({ length: 42 }, () => 0);
     mode = 'idle';
   }
 
@@ -120,7 +125,7 @@
     const level = normalizedWaveformLevel(analyserSamples);
     liveLevel = level;
     recordedPeaks.push(level);
-    livePeaks = [...livePeaks.slice(1), Math.max(0.04, level)];
+    livePeaks = [...livePeaks.slice(1), level];
     animationFrame = requestAnimationFrame(sampleWaveform);
   }
 
@@ -208,7 +213,7 @@
       discardStoppedRecording = false;
       elapsedMs = 0;
       liveLevel = 0;
-      livePeaks = Array.from({ length: 36 }, () => 0.04);
+      livePeaks = Array.from({ length: 42 }, () => 0);
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordedChunks.push(event.data);
@@ -292,24 +297,44 @@
   });
 </script>
 
-{#if mode === 'idle'}
-  <button
-    type="button"
-    onclick={startRecording}
-    {disabled}
-    class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,transform] active:scale-95 enabled:hover:bg-surface-highlighted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
-    aria-label={m['composer.voice.record']()}
-    title={m['composer.voice.record']()}
-    data-testid="voice-message-record-button"
-  >
-    <span class="iconify text-xl uil--microphone" aria-hidden="true"></span>
-  </button>
-{:else}
-  <div
-    class="voice-capture-panel flex min-h-14 min-w-0 flex-1 items-center gap-2 rounded-2xl border border-primary/25 bg-surface-200/90 px-2 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.16)]"
-    data-testid="voice-message-recorder"
-    aria-live="polite"
-  >
+<div class="relative h-11 w-11 shrink-0">
+  {#if mode === 'idle'}
+    <button
+      type="button"
+      onclick={startRecording}
+      {disabled}
+      class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,transform] active:scale-95 enabled:hover:bg-surface-highlighted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+      aria-label={m['composer.voice.record']()}
+      title={m['composer.voice.record']()}
+      data-testid="voice-message-record-button"
+    >
+      <span class="iconify text-xl uil--microphone" aria-hidden="true"></span>
+    </button>
+  {:else}
+    <span
+      class={[
+        'flex h-11 w-11 items-center justify-center rounded-full',
+        mode === 'recording' || mode === 'stopping'
+          ? 'bg-red-500/12 text-red-400'
+          : 'bg-primary/12 text-primary'
+      ]}
+      aria-hidden="true"
+    >
+      <span
+        class={[
+          'iconify text-xl',
+          mode === 'sending' || mode === 'requesting' ? 'animate-spin uil--spinner-alt' : 'uil--microphone'
+        ]}
+      ></span>
+    </span>
+  {/if}
+
+  {#if mode !== 'idle'}
+    <div
+      class="voice-capture-panel fixed inset-x-2 bottom-[5.25rem] z-40 flex min-h-16 min-w-0 items-center gap-2 rounded-[1.65rem] border border-primary/25 bg-surface-200/95 px-2.5 py-2 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur sm:absolute sm:inset-x-auto sm:right-0 sm:bottom-[calc(100%+0.625rem)] sm:w-[min(28rem,calc(100vw-1rem))]"
+      data-testid="voice-message-recorder"
+      aria-live="polite"
+    >
     {#if mode === 'requesting'}
       <span
         class="ml-2 iconify animate-spin text-xl text-primary uil--spinner-alt"
@@ -338,22 +363,26 @@
       </button>
 
       <div class="min-w-0 flex-1">
-        <div class="flex h-7 items-center gap-[3px] overflow-hidden" aria-hidden="true">
-          {#each livePeaks as peak, index (index)}
+        <div
+          class="relative flex h-11 items-center gap-[2px] overflow-hidden rounded-full bg-background/35 px-3"
+          aria-hidden="true"
+        >
+          <span class="absolute inset-x-3 top-1/2 h-px bg-primary/20"></span>
+          {#each visualLivePeaks as peak, index (index)}
             <span
-              class="min-w-[2px] flex-1 rounded-full bg-primary transition-[height] duration-75 motion-reduce:transition-none"
-              style={`height: ${Math.max(3, Math.round(peak * 24))}px; opacity: ${0.45 + peak * 0.55}`}
+              class="relative min-w-[3px] flex-1 rounded-full bg-primary transition-[height,opacity] duration-75 motion-reduce:transition-none"
+              style={`height: ${Math.max(4, Math.round(peak * 36))}px; opacity: ${0.36 + peak * 0.64}`}
             ></span>
           {/each}
         </div>
-        <div class="flex items-center justify-between gap-2 text-[11px] leading-none">
+        <div class="mt-1 flex items-center justify-between gap-2 px-1 text-[11px] leading-none">
           <span class={['font-mono tabular-nums', isNearLimit ? 'text-amber-400' : 'text-muted']}>
             {formatVoiceMessageTime(elapsedMs)}
           </span>
           <span class="flex items-center gap-1 text-muted">
             <span
               class="h-1.5 w-1.5 rounded-full bg-red-500 motion-safe:animate-pulse"
-              style={`transform: scale(${1 + liveLevel * 0.7})`}
+              style={`transform: scale(${1 + visualLiveLevel * 0.85})`}
               aria-hidden="true"
             ></span>
             {isNearLimit
@@ -419,9 +448,10 @@
             'iconify text-xl',
             mode === 'sending' ? 'animate-spin uil--spinner-alt' : 'uil--telegram-alt'
           ]}
-          aria-hidden="true"
-        ></span>
+        aria-hidden="true"
+      ></span>
       </button>
     {/if}
-  </div>
-{/if}
+    </div>
+  {/if}
+</div>
