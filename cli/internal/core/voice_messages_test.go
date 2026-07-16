@@ -2,10 +2,13 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"math"
+	"os"
 	"testing"
 	"time"
 )
@@ -71,9 +74,93 @@ func TestValidateVoiceMessageContainer(t *testing.T) {
 	}
 }
 
+func TestPrepareCompletedVoicePayloadNormalizesWebMToMP4(t *testing.T) {
+	ctx := testContext(t)
+	normalizedContent := testVoiceMP4Content("normalized webm voice")
+	stubVoiceMessageTranscoder(t, normalizedContent)
+
+	uploadedContent := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("webm input")...)
+	input := testTempVoiceFile(t, uploadedContent)
+	defer os.Remove(input.Name())
+	defer input.Close()
+	session := &AssetUploadSession{
+		Filename:     "voice-message.webm",
+		ContentType:  "audio/webm",
+		Size:         int64(len(uploadedContent)),
+		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
+	}
+
+	payload, err := prepareCompletedUploadPayload(ctx, session, input)
+	if err != nil {
+		t.Fatalf("prepareCompletedUploadPayload: %v", err)
+	}
+	defer payload.cleanup()
+	if payload.filename != "voice-message.m4a" {
+		t.Fatalf("normalized filename = %q, want voice-message.m4a", payload.filename)
+	}
+	if payload.contentType != "audio/mp4" {
+		t.Fatalf("normalized content type = %q, want audio/mp4", payload.contentType)
+	}
+	if payload.size != int64(len(normalizedContent)) {
+		t.Fatalf("normalized size = %d, want %d", payload.size, len(normalizedContent))
+	}
+	got, err := io.ReadAll(payload.reader)
+	if err != nil {
+		t.Fatalf("read normalized payload: %v", err)
+	}
+	if !bytes.Equal(got, normalizedContent) {
+		t.Fatal("normalized payload bytes do not match transcoder output")
+	}
+}
+
+func TestPrepareCompletedVoicePayloadKeepsMP4WithoutTranscoder(t *testing.T) {
+	previousTranscoder := voiceMessageTranscodeToMP4
+	voiceMessageTranscodeToMP4 = func(context.Context, string, string) error {
+		t.Fatal("audio/mp4 voice messages must not require transcoding")
+		return nil
+	}
+	t.Cleanup(func() { voiceMessageTranscodeToMP4 = previousTranscoder })
+
+	ctx := testContext(t)
+	content := testVoiceMP4Content("native ios voice")
+	input := testTempVoiceFile(t, content)
+	defer os.Remove(input.Name())
+	defer input.Close()
+	session := &AssetUploadSession{
+		Filename:     "voice-message.mp4",
+		ContentType:  "audio/mp4",
+		Size:         int64(len(content)),
+		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
+	}
+
+	payload, err := prepareCompletedUploadPayload(ctx, session, input)
+	if err != nil {
+		t.Fatalf("prepareCompletedUploadPayload: %v", err)
+	}
+	defer payload.cleanup()
+	if payload.filename != "voice-message.m4a" {
+		t.Fatalf("mp4 filename = %q, want voice-message.m4a", payload.filename)
+	}
+	if payload.contentType != "audio/mp4" {
+		t.Fatalf("mp4 content type = %q, want audio/mp4", payload.contentType)
+	}
+	if payload.size != int64(len(content)) {
+		t.Fatalf("mp4 size = %d, want %d", payload.size, len(content))
+	}
+	got, err := io.ReadAll(payload.reader)
+	if err != nil {
+		t.Fatalf("read mp4 payload: %v", err)
+	}
+	if !bytes.Equal(got, content) {
+		t.Fatal("mp4 payload bytes changed without transcoding")
+	}
+}
+
 func TestVoiceMessageUploadPersistsMetadataAndUsesIndependentPermission(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
+	normalizedContent := testVoiceMP4Content("normalized channel voice")
+	stubVoiceMessageTranscoder(t, normalizedContent)
 	user, err := core.CreateUser(ctx, SystemActorID, "voice-uploader", "Voice Uploader", "password")
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
@@ -127,6 +214,22 @@ func TestVoiceMessageUploadPersistsMetadataAndUsesIndependentPermission(t *testi
 	if got := attachment.GetVoiceMessage().GetDurationMs(); got != 1_234 {
 		t.Fatalf("attachment voice duration = %d, want 1234", got)
 	}
+	if got := attachment.GetContentType(); got != "audio/mp4" {
+		t.Fatalf("attachment content type = %q, want audio/mp4", got)
+	}
+	if got := attachment.GetFilename(); got != "voice-message.m4a" {
+		t.Fatalf("attachment filename = %q, want voice-message.m4a", got)
+	}
+	if got := attachment.GetSize(); got != int64(len(normalizedContent)) {
+		t.Fatalf("attachment size = %d, want %d", got, len(normalizedContent))
+	}
+	storedContent, err := core.storage.serverAssets.GetBytes(ctx, attachment.GetId())
+	if err != nil {
+		t.Fatalf("read stored normalized voice attachment: %v", err)
+	}
+	if !bytes.Equal(storedContent, normalizedContent) {
+		t.Fatal("stored voice attachment was not normalized to mp4 payload")
+	}
 	declared, ok := core.Assets.AssetCreation(attachment.GetId())
 	if !ok || declared.GetAsset().GetVoiceMessage() == nil {
 		t.Fatalf("durable voice metadata missing: %+v", declared)
@@ -165,6 +268,7 @@ func TestVoiceMessageUploadPersistsMetadataAndUsesIndependentPermission(t *testi
 func TestVoiceMessageUploadWorksInDMRoom(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
+	stubVoiceMessageTranscoder(t, testVoiceMP4Content("normalized dm voice"))
 	sender, err := core.CreateUser(ctx, SystemActorID, "voice-dm-sender", "Voice DM Sender", "password")
 	if err != nil {
 		t.Fatalf("CreateUser sender: %v", err)
@@ -206,6 +310,9 @@ func TestVoiceMessageUploadWorksInDMRoom(t *testing.T) {
 	}
 	if got := attachment.GetVoiceMessage().GetDurationMs(); got != 1_234 {
 		t.Fatalf("DM attachment voice duration = %d, want 1234", got)
+	}
+	if got := attachment.GetContentType(); got != "audio/mp4" {
+		t.Fatalf("DM attachment content type = %q, want audio/mp4", got)
 	}
 
 	result, err := core.Messages().PostMessage(ctx, MessagePostInput{ActorID: sender.Id, RoomID: dm.Id, AttachmentAssetIDs: []string{attachment.GetId()}})
@@ -286,4 +393,37 @@ func testVoicePeaks(count int) []float32 {
 		peaks[i] = float32((i%8)+1) / 8
 	}
 	return peaks
+}
+
+func stubVoiceMessageTranscoder(t *testing.T, output []byte) {
+	t.Helper()
+	previousTranscoder := voiceMessageTranscodeToMP4
+	voiceMessageTranscodeToMP4 = func(_ context.Context, _ string, outputPath string) error {
+		return os.WriteFile(outputPath, output, 0o600)
+	}
+	t.Cleanup(func() { voiceMessageTranscodeToMP4 = previousTranscoder })
+}
+
+func testVoiceMP4Content(suffix string) []byte {
+	header := []byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'M', '4', 'A', ' ', 0x00, 0x00, 0x00, 0x00}
+	return append(append([]byte(nil), header...), []byte(suffix)...)
+}
+
+func testTempVoiceFile(t *testing.T, content []byte) *os.File {
+	t.Helper()
+	tmp, err := os.CreateTemp("", "towk-voice-test-*")
+	if err != nil {
+		t.Fatalf("CreateTemp: %v", err)
+	}
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		t.Fatalf("write temp voice file: %v", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		tmp.Close()
+		os.Remove(tmp.Name())
+		t.Fatalf("rewind temp voice file: %v", err)
+	}
+	return tmp
 }

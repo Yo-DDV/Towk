@@ -5,8 +5,9 @@ export const VOICE_MESSAGE_WAVEFORM_PEAK_COUNT = 64;
 export const VOICE_MESSAGE_AUDIO_BITS_PER_SECOND = 48_000;
 
 export const VOICE_MESSAGE_RECORDER_MIME_TYPES = [
-  'audio/webm;codecs=opus',
+  'audio/mp4;codecs=mp4a.40.2',
   'audio/mp4',
+  'audio/webm;codecs=opus',
   'audio/ogg;codecs=opus'
 ] as const;
 

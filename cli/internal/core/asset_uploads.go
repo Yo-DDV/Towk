@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,13 +24,16 @@ import (
 )
 
 const (
-	assetUploadKeyPrefix             = "asset_upload."
-	assetUploadTempObjectPrefix      = "asset-upload."
-	defaultAssetUploadSessionTTL     = 15 * time.Minute
-	defaultPendingAttachmentAssetTTL = 24 * time.Hour
-	defaultAssetUploadChunkSize      = 512 * 1024
-	assetUploadCleanupInterval       = 5 * time.Minute
-	assetUploadOrphanChunkMaxAge     = defaultAssetUploadSessionTTL + time.Hour
+	assetUploadKeyPrefix              = "asset_upload."
+	assetUploadTempObjectPrefix       = "asset-upload."
+	defaultAssetUploadSessionTTL      = 15 * time.Minute
+	defaultPendingAttachmentAssetTTL  = 24 * time.Hour
+	defaultAssetUploadChunkSize       = 512 * 1024
+	assetUploadCleanupInterval        = 5 * time.Minute
+	assetUploadOrphanChunkMaxAge      = defaultAssetUploadSessionTTL + time.Hour
+	normalizedVoiceMessageContentType = "audio/mp4"
+	normalizedVoiceMessageExtension   = ".m4a"
+	voiceMessageTranscodeTimeout      = 5 * time.Minute
 )
 
 type AssetUploadStatus string
@@ -83,6 +88,16 @@ type AssetUploadSession struct {
 	ChunkKeys       []string                    `json:"chunk_keys,omitempty"`
 	VoiceMessage    *VoiceMessageUploadMetadata `json:"voice_message,omitempty"`
 }
+
+type completedUploadPayload struct {
+	reader      io.ReadSeeker
+	cleanup     func()
+	filename    string
+	contentType string
+	size        int64
+}
+
+var voiceMessageTranscodeToMP4 = runVoiceMessageTranscodeToMP4
 
 type AssetUploadModel struct {
 	core *ChattoCore
@@ -542,7 +557,15 @@ func (m *AssetUploadModel) materializeUpload(ctx context.Context, session *Asset
 
 func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *AssetUploadSession, reader io.ReadSeeker) (*corev1.Attachment, bool, error) {
 	attachmentID := NewAssetID()
-	contentType := session.ContentType
+	payload, err := prepareCompletedUploadPayload(ctx, session, reader)
+	if err != nil {
+		return nil, false, err
+	}
+	defer payload.cleanup()
+
+	reader = payload.reader
+	contentType := payload.contentType
+	filename := payload.filename
 	isImage := strings.HasPrefix(contentType, "image/")
 	var content []byte
 	var size int64
@@ -561,7 +584,7 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 		animatedGIF = contentType == "image/gif" && assets.IsAnimatedGIF(content)
 		reader = bytes.NewReader(content)
 	} else {
-		size = session.Size
+		size = payload.size
 		if _, err := reader.Seek(0, io.SeekStart); err != nil {
 			return nil, false, fmt.Errorf("rewind upload temp file: %w", err)
 		}
@@ -586,7 +609,7 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 			Name: attachmentID,
 			Headers: map[string][]string{
 				"Content-Type": {contentType},
-				"Filename":     {session.Filename},
+				"Filename":     {filename},
 				"Room-Id":      {session.RoomID},
 			},
 		}, reader); err != nil {
@@ -602,7 +625,7 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 	return &corev1.Attachment{
 		Id:           attachmentID,
 		RoomId:       session.RoomID,
-		Filename:     session.Filename,
+		Filename:     filename,
 		ContentType:  contentType,
 		Size:         size,
 		Width:        width,
@@ -610,6 +633,124 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 		Storage:      storage,
 		VoiceMessage: voiceMessageMetadataProto(session.VoiceMessage),
 	}, animatedGIF, nil
+}
+
+func prepareCompletedUploadPayload(ctx context.Context, session *AssetUploadSession, reader io.ReadSeeker) (*completedUploadPayload, error) {
+	payload := &completedUploadPayload{
+		reader:      reader,
+		cleanup:     func() {},
+		filename:    session.Filename,
+		contentType: session.ContentType,
+		size:        session.Size,
+	}
+	if session.VoiceMessage == nil {
+		return payload, nil
+	}
+	payload.filename = normalizedVoiceMessageFilename(session.Filename)
+	payload.contentType = normalizedVoiceMessageContentType
+	if session.ContentType == normalizedVoiceMessageContentType {
+		return payload, nil
+	}
+
+	input, ok := reader.(*os.File)
+	if !ok {
+		return nil, fmt.Errorf("voice message normalization requires a materialized upload file")
+	}
+	output, err := os.CreateTemp("", "towk-voice-message-*.m4a")
+	if err != nil {
+		return nil, fmt.Errorf("create normalized voice message temp file: %w", err)
+	}
+	outputPath := output.Name()
+	if err := output.Close(); err != nil {
+		os.Remove(outputPath)
+		return nil, fmt.Errorf("close normalized voice message temp file: %w", err)
+	}
+	if err := voiceMessageTranscodeToMP4(ctx, input.Name(), outputPath); err != nil {
+		os.Remove(outputPath)
+		return nil, err
+	}
+
+	outputReader, err := os.Open(outputPath)
+	if err != nil {
+		os.Remove(outputPath)
+		return nil, fmt.Errorf("open normalized voice message: %w", err)
+	}
+	cleanup := func() {
+		outputReader.Close()
+		os.Remove(outputPath)
+	}
+	if err := validateVoiceMessageContainer(outputReader, normalizedVoiceMessageContentType); err != nil {
+		cleanup()
+		return nil, err
+	}
+	info, err := outputReader.Stat()
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("stat normalized voice message: %w", err)
+	}
+	if info.Size() <= 0 {
+		cleanup()
+		return nil, invalidArgument("normalized voice message must contain audio data")
+	}
+	if _, err := outputReader.Seek(0, io.SeekStart); err != nil {
+		cleanup()
+		return nil, fmt.Errorf("rewind normalized voice message: %w", err)
+	}
+
+	payload.reader = outputReader
+	payload.cleanup = cleanup
+	payload.size = info.Size()
+	return payload, nil
+}
+
+func normalizedVoiceMessageFilename(filename string) string {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		return "voice-message" + normalizedVoiceMessageExtension
+	}
+	ext := filepath.Ext(filename)
+	if ext == "" {
+		return filename + normalizedVoiceMessageExtension
+	}
+	return strings.TrimSuffix(filename, ext) + normalizedVoiceMessageExtension
+}
+
+func runVoiceMessageTranscodeToMP4(ctx context.Context, inputPath, outputPath string) error {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return fmt.Errorf("ffmpeg is required to normalize voice messages for iOS playback: %w", err)
+	}
+	transcodeCtx, cancel := context.WithTimeout(ctx, voiceMessageTranscodeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(
+		transcodeCtx,
+		ffmpegPath,
+		"-hide_banner",
+		"-loglevel",
+		"error",
+		"-i",
+		inputPath,
+		"-vn",
+		"-map",
+		"0:a:0",
+		"-c:a",
+		"aac",
+		"-b:a",
+		"96k",
+		"-movflags",
+		"+faststart",
+		"-f",
+		"mp4",
+		"-y",
+		outputPath,
+	)
+	if err := cmd.Run(); err != nil {
+		if errors.Is(transcodeCtx.Err(), context.DeadlineExceeded) {
+			return fmt.Errorf("voice message normalization timed out after %s", voiceMessageTranscodeTimeout)
+		}
+		return fmt.Errorf("voice message normalization failed: %w", err)
+	}
+	return nil
 }
 
 func (m *AssetUploadModel) deleteUploadChunks(ctx context.Context, session *AssetUploadSession) {

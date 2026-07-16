@@ -11,7 +11,11 @@ import {
 
 describe('voice message policy', () => {
   it('selects the first browser-supported recorder format', () => {
+    expect(selectVoiceRecorderMimeType(() => true)).toBe('audio/mp4;codecs=mp4a.40.2');
     expect(selectVoiceRecorderMimeType((mime) => mime === 'audio/mp4')).toBe('audio/mp4');
+    expect(selectVoiceRecorderMimeType((mime) => mime === 'audio/webm;codecs=opus')).toBe(
+      'audio/webm;codecs=opus'
+    );
     expect(selectVoiceRecorderMimeType(() => false)).toBeUndefined();
   });
 
