@@ -973,8 +973,8 @@ func TestAsset_OriginalAttachment_HasCacheHeaders(t *testing.T) {
 
 	// Verify caching headers
 	cacheControl := originalResp.Header.Get("Cache-Control")
-	if cacheControl != protectedAssetCacheControl {
-		t.Errorf("Expected Cache-Control: %s, got: %s", protectedAssetCacheControl, cacheControl)
+	if cacheControl != "private, no-cache" {
+		t.Errorf("Expected revalidating private cache policy, got: %s", cacheControl)
 	}
 
 	etag := originalResp.Header.Get("ETag")
@@ -985,6 +985,74 @@ func TestAsset_OriginalAttachment_HasCacheHeaders(t *testing.T) {
 	vary := originalResp.Header.Get("Vary")
 	if vary != "Accept-Encoding, Authorization, Cookie" {
 		t.Errorf("Expected Vary: Accept-Encoding, Authorization, Cookie, got: %s", vary)
+	}
+}
+
+func TestAsset_StableThumbnail_RevalidatesAfterAuthorization(t *testing.T) {
+	env := setupAssetTestServer(t)
+
+	user, err := env.core.CreateUser(env.ctx, "system", "thumbnail-revalidation", "Thumbnail Revalidation", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	room, err := env.core.CreateRoom(env.ctx, user.Id, "channel", "", "thumbnail-revalidation", "Thumbnail Revalidation")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := env.core.JoinRoom(env.ctx, user.Id, "channel", user.Id, room.Id); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+	env.login(t, "thumbnail-revalidation", "password123")
+
+	imageData := createAssetTestPNG(t, 400, 300)
+	_, attachment := env.postAssetMessageWithAttachment(t, room.Id, "thumbnail", imageData, "thumbnail.png")
+	thumbnailURL := env.server.URL + attachment.GetThumbnailAssetUrl().GetUrl()
+
+	first, err := env.client.Get(thumbnailURL)
+	if err != nil {
+		t.Fatalf("initial thumbnail GET: %v", err)
+	}
+	first.Body.Close()
+	if first.StatusCode != http.StatusOK {
+		t.Fatalf("initial thumbnail status = %d, want 200", first.StatusCode)
+	}
+	if got := first.Header.Get("Cache-Control"); got != "private, no-cache" {
+		t.Fatalf("thumbnail Cache-Control = %q, want private, no-cache", got)
+	}
+	etag := first.Header.Get("ETag")
+	if etag == "" {
+		t.Fatal("thumbnail ETag is empty")
+	}
+
+	revalidate, err := http.NewRequest(http.MethodGet, thumbnailURL, nil)
+	if err != nil {
+		t.Fatalf("build revalidation request: %v", err)
+	}
+	revalidate.Header.Set("If-None-Match", etag)
+	revalidated, err := env.client.Do(revalidate)
+	if err != nil {
+		t.Fatalf("thumbnail revalidation: %v", err)
+	}
+	revalidated.Body.Close()
+	if revalidated.StatusCode != http.StatusNotModified {
+		t.Fatalf("thumbnail revalidation status = %d, want 304", revalidated.StatusCode)
+	}
+
+	if err := env.core.LeaveRoom(env.ctx, user.Id, "channel", user.Id, room.Id); err != nil {
+		t.Fatalf("LeaveRoom: %v", err)
+	}
+	revoked, err := http.NewRequest(http.MethodGet, thumbnailURL, nil)
+	if err != nil {
+		t.Fatalf("build revoked revalidation request: %v", err)
+	}
+	revoked.Header.Set("If-None-Match", etag)
+	revokedResp, err := env.client.Do(revoked)
+	if err != nil {
+		t.Fatalf("revoked thumbnail revalidation: %v", err)
+	}
+	revokedResp.Body.Close()
+	if revokedResp.StatusCode != http.StatusForbidden {
+		t.Fatalf("revoked thumbnail revalidation status = %d, want 403", revokedResp.StatusCode)
 	}
 }
 

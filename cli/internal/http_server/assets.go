@@ -20,7 +20,10 @@ import (
 	"hmans.de/chatto/pkg/signedurl"
 )
 
-const protectedAssetCacheControl = "private, no-store"
+// Private caches may retain authenticated media bytes, but every reuse must
+// revalidate against Towk so membership and ticket revocation remain immediate.
+// The service worker does not persist these responses.
+const protectedAssetCacheControl = "private, no-cache"
 
 func (s *HTTPServer) setupAssetRoutes() {
 	// Server assets use *path which catches everything including /t/signedPath for transforms
@@ -414,6 +417,16 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 	if req.Authorize != nil && !req.Authorize(c) {
 		return
 	}
+	public := req.Authorize == nil
+	etag := fmt.Sprintf("\"%s\"", cacheKey)
+	c.Header("Cache-Control", transformedAssetCacheControl(public))
+	c.Header("ETag", etag)
+	c.Header("Vary", transformedAssetVary(public))
+	c.Header("X-Content-Type-Options", "nosniff")
+	if attachmentIfNoneMatch(c.GetHeader("If-None-Match"), etag) {
+		c.Status(http.StatusNotModified)
+		return
+	}
 
 	// Try cache first
 	if cached, err := s.core.GetCachedResize(ctx, cacheKey); err == nil && cached != nil {
@@ -421,9 +434,6 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 			"asset_id", req.AssetID,
 			"cache_key", cacheKey)
 
-		c.Header("Cache-Control", transformedAssetCacheControl(req.Authorize == nil))
-		c.Header("ETag", fmt.Sprintf("\"%s-%d-%d-%s\"", req.AssetID, params.Width, params.Height, params.Fit))
-		c.Header("Vary", transformedAssetVary(req.Authorize == nil))
 		c.Header("X-Cache", "HIT")
 		c.Data(http.StatusOK, assets.DetectImageContentType(cached), cached)
 		return
@@ -498,9 +508,6 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 	}
 
 	// Set cache headers for long-term caching (immutable content)
-	c.Header("Cache-Control", transformedAssetCacheControl(req.Authorize == nil))
-	c.Header("ETag", fmt.Sprintf("\"%s-%d-%d-%s\"", req.AssetID, params.Width, params.Height, params.Fit))
-	c.Header("Vary", transformedAssetVary(req.Authorize == nil))
 	c.Header("X-Cache", "MISS")
 
 	// Serve the transformed image with appropriate content type
