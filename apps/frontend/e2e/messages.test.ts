@@ -196,43 +196,50 @@ test('post message with image attachment', async ({ page, chatPage, roomPage }) 
   ).toBeVisible();
 });
 
-test('image attachment refreshes URL after an expired lazy-load request', async ({
-  page,
-  chatPage,
-  roomPage
-}) => {
-  await createAndLoginTestUser(page);
-  await chatPage.goto();
-  await chatPage.enterRoom('general');
+test.describe('expired asset URL recovery', () => {
+  // Playwright cannot route a request already handled by a service worker.
+  // This test owns the synthetic 403, so block registration in this context
+  // instead of racing the PWA worker activation.
+  test.use({ serviceWorkers: 'block' });
 
-  let refreshQueryCount = 0;
+  test('image attachment refreshes URL after an expired lazy-load request', async ({
+    page,
+    chatPage,
+    roomPage
+  }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
 
-  await page.route('**/api/connect/chatto.api.v1.AssetService/BatchGetAssets', async (route) => {
-    refreshQueryCount += 1;
-    await route.continue();
+    let refreshQueryCount = 0;
+
+    await page.route('**/api/connect/chatto.api.v1.AssetService/BatchGetAssets', async (route) => {
+      refreshQueryCount += 1;
+      await route.continue();
+    });
+
+    let failedAssetLoad = false;
+    await page.route('**/assets/files/**', async (route) => {
+      if (!failedAssetLoad && route.request().method() === 'GET') {
+        failedAssetLoad = true;
+        await route.fulfill({ status: 403, body: 'expired asset access ticket' });
+        return;
+      }
+      await route.continue();
+    });
+
+    await roomPage.sendAttachment('e2e/fixtures/brighton.jpg', 'Expired lazy image');
+
+    await expect.poll(() => failedAssetLoad, { timeout: TIMEOUTS.UI_STANDARD }).toBe(true);
+    await expect.poll(() => refreshQueryCount, { timeout: TIMEOUTS.UI_STANDARD }).toBeGreaterThan(0);
+    await expect
+      .poll(
+        async () =>
+          roomPage.attachmentImage.first().evaluate((img) => img.complete && img.naturalWidth > 0),
+        { timeout: TIMEOUTS.COMPLEX_OPERATION }
+      )
+      .toBe(true);
   });
-
-  let failedAssetLoad = false;
-  await page.route('**/assets/files/**', async (route) => {
-    if (!failedAssetLoad && route.request().method() === 'GET') {
-      failedAssetLoad = true;
-      await route.fulfill({ status: 403, body: 'expired asset access ticket' });
-      return;
-    }
-    await route.continue();
-  });
-
-  await roomPage.sendAttachment('e2e/fixtures/brighton.jpg', 'Expired lazy image');
-
-  await expect.poll(() => failedAssetLoad, { timeout: TIMEOUTS.UI_STANDARD }).toBe(true);
-  await expect.poll(() => refreshQueryCount, { timeout: TIMEOUTS.UI_STANDARD }).toBeGreaterThan(0);
-  await expect
-    .poll(
-      async () =>
-        roomPage.attachmentImage.first().evaluate((img) => img.complete && img.naturalWidth > 0),
-      { timeout: TIMEOUTS.COMPLEX_OPERATION }
-    )
-    .toBe(true);
 });
 
 test('can post message with attachment but no text', async ({ page, chatPage, roomPage }) => {
