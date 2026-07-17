@@ -57,6 +57,89 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 	}
 }
 
+func TestPerformanceConfigDefaultsAndValidation(t *testing.T) {
+	if got := (PerformanceConfig{}).DefaultProfileOrLegacy(); got != PerformanceProfileLegacy {
+		t.Fatalf("omitted default profile = %q, want %q", got, PerformanceProfileLegacy)
+	}
+	if got := (PerformanceConfig{DefaultProfile: " BALANCED "}).DefaultProfileOrLegacy(); got != PerformanceProfileBalanced {
+		t.Fatalf("normalized default profile = %q, want %q", got, PerformanceProfileBalanced)
+	}
+
+	base := func() ChattoConfig {
+		return ChattoConfig{
+			Webserver: WebserverConfig{
+				Port:                4000,
+				CookieSigningSecret: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+			},
+			Core: CoreConfig{
+				SecretKey: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+				Assets:    AssetsConfig{SigningSecret: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"},
+			},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		configure func(*ChattoConfig)
+		want      string
+	}{
+		{"unknown profile", func(cfg *ChattoConfig) { cfg.Performance.DefaultProfile = "turbo" }, "performance.default_profile must be one of"},
+		{"negative worker cap", func(cfg *ChattoConfig) { cfg.Performance.MaxVideoWorkers = -1 }, "performance.max_video_workers must be between 0 and 64"},
+		{"oversized worker cap", func(cfg *ChattoConfig) { cfg.Performance.MaxAssetUploadWorkers = 65 }, "performance.max_asset_upload_workers must be between 0 and 64"},
+		{"oversized admission cap", func(cfg *ChattoConfig) { cfg.Performance.MaxImageTransformAdmissions = 257 }, "performance.max_image_transform_admissions must be between 0 and 256"},
+		{"admissions below workers", func(cfg *ChattoConfig) {
+			cfg.Performance.MaxImageTransformWorkers = 4
+			cfg.Performance.MaxImageTransformAdmissions = 3
+		}, "performance.max_image_transform_admissions must be greater than or equal to max_image_transform_workers"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := base()
+			tt.configure(&cfg)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Validate error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestReadConfig_PerformanceControlsFromEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("change working directory: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(originalDir) })
+
+	t.Setenv("CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	t.Setenv("CHATTO_WEBSERVER_PORT", "4000")
+	t.Setenv("CHATTO_CORE_SECRET_KEY", "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+	t.Setenv("CHATTO_CORE_ASSETS_SIGNING_SECRET", "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff")
+	t.Setenv("CHATTO_PERFORMANCE_DEFAULT_PROFILE", "performance")
+	t.Setenv("CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_WORKERS", "4")
+	t.Setenv("CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_ADMISSIONS", "12")
+	t.Setenv("CHATTO_PERFORMANCE_MAX_ASSET_UPLOAD_WORKERS", "6")
+	t.Setenv("CHATTO_PERFORMANCE_MAX_LINK_PREVIEW_WORKERS", "3")
+	t.Setenv("CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS", "2")
+
+	cfg, err := ReadConfig("")
+	if err != nil {
+		t.Fatalf("ReadConfig: %v", err)
+	}
+	if cfg.Performance.DefaultProfileOrLegacy() != PerformanceProfilePerformance ||
+		cfg.Performance.MaxImageTransformWorkers != 4 ||
+		cfg.Performance.MaxImageTransformAdmissions != 12 ||
+		cfg.Performance.MaxAssetUploadWorkers != 6 ||
+		cfg.Performance.MaxLinkPreviewWorkers != 3 ||
+		cfg.Performance.MaxVideoWorkers != 2 {
+		t.Fatalf("performance env controls = %+v", cfg.Performance)
+	}
+}
+
 func TestAssetStoreMaxBytesDefaultsAndSaturatesInvalidValues(t *testing.T) {
 	assets := AssetsConfig{}
 	if got := assets.MaxStoreBytesOrDefault(); got != int64(DefaultAssetStoreMaxBytes) {
