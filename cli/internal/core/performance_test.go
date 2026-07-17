@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"hmans.de/chatto/internal/config"
@@ -47,6 +48,85 @@ func TestPerformanceManagerOwnerPolicyAndOperatorCap(t *testing.T) {
 	}
 	if got := status.CapReasons["video_workers"]; len(got) != 1 || got[0] != capReasonOperator {
 		t.Fatalf("video cap reasons = %v", got)
+	}
+}
+
+func TestPerformanceManagerAppliesEveryEnvelopeInPrecedenceOrder(t *testing.T) {
+	projection := NewConfigProjection()
+	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{
+		SchemaVersion: 1,
+		Profile:       config.PerformanceProfileCustom,
+		CustomLimits:  performanceLimitsToProto(PerformanceLimits{12, 32, 12, 12, 12}),
+		Revision:      3,
+	})
+	manager := newPerformanceManager(config.PerformanceConfig{
+		MaxImageTransformWorkers:    8,
+		MaxImageTransformAdmissions: 24,
+		MaxAssetUploadWorkers:       8,
+		MaxLinkPreviewWorkers:       8,
+		MaxVideoWorkers:             8,
+	}, projection, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 4, MemoryBytes: 1 << 30}
+	})
+
+	status := manager.Status()
+	if status.Effective.ImageTransformWorkers != 1 || status.Effective.VideoWorkers != 1 {
+		t.Fatalf("memory-heavy limits = %#v, want 1", status.Effective)
+	}
+	if got, want := status.CapReasons["image_transform_workers"], []string{capReasonOperator, capReasonCPU, capReasonMemory}; !slices.Equal(got, want) {
+		t.Fatalf("image transform cap reasons = %v, want %v", got, want)
+	}
+	if got, want := status.CapReasons["link_preview_workers"], []string{capReasonOperator, capReasonCPU}; !slices.Equal(got, want) {
+		t.Fatalf("link preview cap reasons = %v, want %v", got, want)
+	}
+}
+
+func TestPerformanceManagerPreservesHistoricalUpgradeAndUsesBalancedForNewConfig(t *testing.T) {
+	projection := NewConfigProjection()
+	detect := func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 8, MemoryBytes: 8 << 30}
+	}
+
+	historical := newPerformanceManager(config.PerformanceConfig{}, projection, detect).Status()
+	if historical.Source != performanceSourceHistorical || historical.RequestedProfile != config.PerformanceProfileLegacy {
+		t.Fatalf("historical status = %#v", historical)
+	}
+	if historical.Effective != performancePreset(config.PerformanceProfileBalanced) {
+		t.Fatalf("historical limits = %#v, want balanced-compatible limits", historical.Effective)
+	}
+
+	newConfig := newPerformanceManager(config.PerformanceConfig{DefaultProfile: config.PerformanceProfileBalanced}, projection, detect).Status()
+	if newConfig.Source != performanceSourceOperatorDefault || newConfig.RequestedProfile != config.PerformanceProfileBalanced {
+		t.Fatalf("new-config status = %#v", newConfig)
+	}
+}
+
+func TestPerformanceManagerReplicasSharePolicyAndDeriveLocalEnvelopeAfterRestart(t *testing.T) {
+	policy := &configv1.ServerPerformancePolicy{
+		SchemaVersion: 1,
+		Profile:       config.PerformanceProfilePerformance,
+		Revision:      11,
+	}
+	projection := NewConfigProjection()
+	applyPerformancePolicy(t, projection, policy)
+	replayedProjection := NewConfigProjection()
+	applyPerformancePolicy(t, replayedProjection, policy)
+
+	large := newPerformanceManager(config.PerformanceConfig{}, projection, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 8, MemoryBytes: 8 << 30}
+	}).Status()
+	small := newPerformanceManager(config.PerformanceConfig{}, replayedProjection, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 1, MemoryBytes: 768 << 20}
+	}).Status()
+
+	if large.Revision != 11 || small.Revision != 11 || large.RequestedProfile != small.RequestedProfile {
+		t.Fatalf("replica policy mismatch: large=%#v small=%#v", large, small)
+	}
+	if large.Effective.ImageTransformWorkers != 4 || small.Effective.ImageTransformWorkers != 1 {
+		t.Fatalf("replica effective limits: large=%#v small=%#v", large.Effective, small.Effective)
+	}
+	if len(small.CapReasons["image_transform_workers"]) == 0 {
+		t.Fatal("small replica did not explain its local cap")
 	}
 }
 
