@@ -127,6 +127,7 @@ const (
 	EventServerLogoCleared                  = "server_logo_cleared"
 	EventServerBannerSet                    = "server_banner_set"
 	EventServerBannerCleared                = "server_banner_cleared"
+	EventServerPerformancePolicyChanged     = "server_performance_policy_changed"
 	EventUserTimezoneChanged                = "user_timezone_changed"
 	EventUserTimezoneCleared                = "user_timezone_cleared"
 	EventUserTimeFormatChanged              = "user_time_format_changed"
@@ -305,6 +306,8 @@ func EventTypeOf(e *corev1.Event) string {
 		return EventServerBannerSet
 	case *corev1.Event_ServerBannerCleared:
 		return EventServerBannerCleared
+	case *corev1.Event_ServerPerformancePolicyChanged:
+		return EventServerPerformancePolicyChanged
 	case *corev1.Event_UserTimezoneChanged:
 		return EventUserTimezoneChanged
 	case *corev1.Event_UserTimezoneCleared:
