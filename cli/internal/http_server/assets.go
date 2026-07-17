@@ -27,6 +27,7 @@ func (s *HTTPServer) setupAssetRoutes() {
 	// These handlers probe both NATS and S3 backends automatically
 	s.router.GET("/assets/server/*path", s.serveServerAsset)
 	s.router.GET("/assets/files/:assetID", s.serveStableAttachment)
+	s.router.HEAD("/assets/files/:assetID", s.serveStableAttachment)
 	s.router.GET("/assets/files/:assetID/image/:dimensions/:fit", s.serveStableTransformedAttachment)
 }
 
@@ -151,6 +152,21 @@ func (s *HTTPServer) serveStableAttachment(c *gin.Context) {
 	if !ok {
 		return
 	}
+	etag := fmt.Sprintf("\"%s\"", assetID)
+	setStableAttachmentResponseHeaders(c, attachment.GetContentType(), etag)
+
+	// Authorization above deliberately precedes conditional handling. A stale
+	// ticket must not turn an otherwise forbidden request into a metadata-only
+	// 304 response.
+	if attachmentIfNoneMatch(c.GetHeader("If-None-Match"), etag) {
+		c.Status(http.StatusNotModified)
+		return
+	}
+	if c.Request.Method == http.MethodHead {
+		c.Header("Content-Length", strconv.FormatInt(attachment.GetSize(), 10))
+		c.Status(http.StatusOK)
+		return
+	}
 
 	if protectedAssetDeliveryMode(attachment) == deliveryS3Redirect {
 		if presignedURL, err := s.core.TryPresignedAttachmentURL(ctx, attachment, core.S3AssetRedirectTTL); err == nil {
@@ -174,12 +190,10 @@ func (s *HTTPServer) serveStableAttachment(c *gin.Context) {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	setOriginalAttachmentSecurityHeaders(c, contentType)
-
-	c.Header("Cache-Control", protectedAssetCacheControl)
-	c.Header("ETag", fmt.Sprintf("\"%s\"", assetID))
-	c.Header("Vary", "Accept-Encoding, Authorization, Cookie")
-	c.DataFromReader(http.StatusOK, info.Size, contentType, reader, nil)
+	setStableAttachmentResponseHeaders(c, contentType, etag)
+	if err := writeStableAttachmentBody(c, reader, info.Size, contentType, etag); err != nil {
+		s.logger.Warn("Stable attachment response interrupted", "error", err, "attachment_id", assetID)
+	}
 }
 
 const originalAttachmentSandboxCSP = "sandbox"

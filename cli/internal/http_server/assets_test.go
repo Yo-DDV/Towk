@@ -14,6 +14,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -726,6 +727,45 @@ func TestAsset_StableS3VideoRedirectsUnlessProxyForcesStream(t *testing.T) {
 		t.Fatalf("Expected short-lived presigned S3 Location, got %q", got)
 	}
 
+	headReq, err := http.NewRequest(http.MethodHead, env.server.URL+attachmentURL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create S3 HEAD request: %v", err)
+	}
+	headResp, err := noRedirectClient.Do(headReq)
+	if err != nil {
+		t.Fatalf("Failed to fetch S3 video metadata: %v", err)
+	}
+	headBody, err := io.ReadAll(headResp.Body)
+	headResp.Body.Close()
+	if err != nil {
+		t.Fatalf("Failed to read S3 HEAD body: %v", err)
+	}
+	if headResp.StatusCode != http.StatusOK {
+		t.Fatalf("Expected S3 video HEAD 200, got %d", headResp.StatusCode)
+	}
+	if len(headBody) != 0 || headResp.Header.Get("Location") != "" {
+		t.Fatalf("Expected metadata-only S3 HEAD, body=%d location=%q", len(headBody), headResp.Header.Get("Location"))
+	}
+	if got := headResp.Header.Get("Content-Length"); got != strconv.Itoa(len("fake-video-bytes")) {
+		t.Fatalf("S3 HEAD Content-Length = %q, want %d", got, len("fake-video-bytes"))
+	}
+
+	conditionalReq, err := http.NewRequest(http.MethodGet, env.server.URL+attachmentURL, nil)
+	if err != nil {
+		t.Fatalf("Failed to create S3 conditional request: %v", err)
+	}
+	conditionalReq.Header.Set("If-None-Match", fmt.Sprintf("\"%s\"", attachment.GetId()))
+	conditionalResp, err := noRedirectClient.Do(conditionalReq)
+	if err != nil {
+		t.Fatalf("Failed to fetch S3 video conditionally: %v", err)
+	}
+	conditionalResp.Body.Close()
+	if conditionalResp.StatusCode != http.StatusNotModified {
+		t.Fatalf("Expected S3 conditional request 304, got %d", conditionalResp.StatusCode)
+	}
+	if conditionalResp.Header.Get("Location") != "" {
+		t.Fatalf("Expected no presigned redirect on 304, got %q", conditionalResp.Header.Get("Location"))
+	}
 }
 
 func TestAsset_StableNilStorageS3VideoRedirectsViaProbe(t *testing.T) {
@@ -894,6 +934,193 @@ func TestAsset_OriginalAttachment_HasCacheHeaders(t *testing.T) {
 	if vary != "Accept-Encoding, Authorization, Cookie" {
 		t.Errorf("Expected Vary: Accept-Encoding, Authorization, Cookie, got: %s", vary)
 	}
+}
+
+func TestAsset_StableAttachment_HTTPValidatorsAndRanges(t *testing.T) {
+	env := setupAssetTestServer(t)
+
+	user, err := env.core.CreateUser(env.ctx, "system", "rangeassetuser", "Range Asset User", "password123")
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	room, err := env.core.CreateRoom(env.ctx, user.Id, "channel", "", "range-assets", "Range Assets")
+	if err != nil {
+		t.Fatalf("Failed to create room: %v", err)
+	}
+	if _, err := env.core.JoinRoom(env.ctx, user.Id, "channel", user.Id, room.Id); err != nil {
+		t.Fatalf("Failed to join room: %v", err)
+	}
+	env.login(t, "rangeassetuser", "password123")
+
+	data := []byte("0123456789abcdef")
+	_, attachment := env.postAssetMessageWithAttachmentContentType(
+		t,
+		room.Id,
+		"range fixture",
+		data,
+		"range.bin",
+		"application/octet-stream",
+	)
+	attachmentURL := env.server.URL + attachment.GetAssetUrl().GetUrl()
+	etag := fmt.Sprintf("\"%s\"", attachment.GetId())
+
+	doRequest := func(t *testing.T, method string, headers map[string]string) *http.Response {
+		t.Helper()
+		req, err := http.NewRequest(method, attachmentURL, nil)
+		if err != nil {
+			t.Fatalf("Failed to create %s request: %v", method, err)
+		}
+		for name, value := range headers {
+			req.Header.Set(name, value)
+		}
+		resp, err := env.client.Do(req)
+		if err != nil {
+			t.Fatalf("%s attachment request failed: %v", method, err)
+		}
+		return resp
+	}
+	readBody := func(t *testing.T, resp *http.Response) []byte {
+		t.Helper()
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("Failed to read attachment response: %v", err)
+		}
+		return body
+	}
+
+	t.Run("full GET advertises byte ranges", func(t *testing.T) {
+		resp := doRequest(t, http.MethodGet, nil)
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		if !bytes.Equal(body, data) {
+			t.Fatalf("body = %q, want %q", body, data)
+		}
+		if got := resp.Header.Get("ETag"); got != etag {
+			t.Fatalf("ETag = %q, want %q", got, etag)
+		}
+		if got := resp.Header.Get("Accept-Ranges"); got != "bytes" {
+			t.Fatalf("Accept-Ranges = %q, want bytes", got)
+		}
+	})
+
+	t.Run("HEAD returns metadata without a body", func(t *testing.T) {
+		resp := doRequest(t, http.MethodHead, nil)
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200", resp.StatusCode)
+		}
+		if len(body) != 0 {
+			t.Fatalf("HEAD body length = %d, want 0", len(body))
+		}
+		if got := resp.Header.Get("Content-Length"); got != strconv.Itoa(len(data)) {
+			t.Fatalf("Content-Length = %q, want %d", got, len(data))
+		}
+		if got := resp.Header.Get("ETag"); got != etag {
+			t.Fatalf("ETag = %q, want %q", got, etag)
+		}
+	})
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		t.Run(method+" If-None-Match", func(t *testing.T) {
+			resp := doRequest(t, method, map[string]string{"If-None-Match": "W/" + etag})
+			body := readBody(t, resp)
+			if resp.StatusCode != http.StatusNotModified {
+				t.Fatalf("status = %d, want 304", resp.StatusCode)
+			}
+			if len(body) != 0 {
+				t.Fatalf("304 body length = %d, want 0", len(body))
+			}
+		})
+	}
+	t.Run("If-None-Match wildcard", func(t *testing.T) {
+		resp := doRequest(t, http.MethodGet, map[string]string{"If-None-Match": "*"})
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusNotModified {
+			t.Fatalf("status = %d, want 304", resp.StatusCode)
+		}
+		if len(body) != 0 {
+			t.Fatalf("304 body length = %d, want 0", len(body))
+		}
+	})
+
+	tests := []struct {
+		name        string
+		rangeHeader string
+		ifRange     string
+		wantStatus  int
+		wantBody    string
+		wantRange   string
+		wantLength  string
+	}{
+		{name: "bounded", rangeHeader: "bytes=2-5", wantStatus: http.StatusPartialContent, wantBody: "2345", wantRange: "bytes 2-5/16", wantLength: "4"},
+		{name: "open ended", rangeHeader: "bytes=10-", wantStatus: http.StatusPartialContent, wantBody: "abcdef", wantRange: "bytes 10-15/16", wantLength: "6"},
+		{name: "suffix", rangeHeader: "bytes=-4", wantStatus: http.StatusPartialContent, wantBody: "cdef", wantRange: "bytes 12-15/16", wantLength: "4"},
+		{name: "matching If-Range", rangeHeader: "bytes=2-5", ifRange: etag, wantStatus: http.StatusPartialContent, wantBody: "2345", wantRange: "bytes 2-5/16", wantLength: "4"},
+		{name: "mismatched If-Range", rangeHeader: "bytes=2-5", ifRange: "\"other\"", wantStatus: http.StatusOK, wantBody: string(data), wantLength: "16"},
+		{name: "weak If-Range does not match", rangeHeader: "bytes=2-5", ifRange: "W/" + etag, wantStatus: http.StatusOK, wantBody: string(data), wantLength: "16"},
+		{name: "malformed range ignored", rangeHeader: "bytes=not-a-range", wantStatus: http.StatusOK, wantBody: string(data), wantLength: "16"},
+		{name: "multiple ranges ignored", rangeHeader: "bytes=0-1,4-5", wantStatus: http.StatusOK, wantBody: string(data), wantLength: "16"},
+		{name: "unsatisfiable", rangeHeader: "bytes=99-", wantStatus: http.StatusRequestedRangeNotSatisfiable, wantRange: "bytes */16", wantLength: "0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			headers := map[string]string{"Range": tt.rangeHeader}
+			if tt.ifRange != "" {
+				headers["If-Range"] = tt.ifRange
+			}
+			resp := doRequest(t, http.MethodGet, headers)
+			body := readBody(t, resp)
+			if resp.StatusCode != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+			if string(body) != tt.wantBody {
+				t.Fatalf("body = %q, want %q", body, tt.wantBody)
+			}
+			if got := resp.Header.Get("Content-Range"); got != tt.wantRange {
+				t.Fatalf("Content-Range = %q, want %q", got, tt.wantRange)
+			}
+			if got := resp.Header.Get("Content-Length"); got != tt.wantLength {
+				t.Fatalf("Content-Length = %q, want %q", got, tt.wantLength)
+			}
+		})
+	}
+}
+
+func FuzzParseStableByteRange(f *testing.F) {
+	for _, seed := range []struct {
+		header string
+		size   int64
+	}{
+		{header: "", size: 16},
+		{header: "bytes=0-0", size: 16},
+		{header: "bytes=15-", size: 16},
+		{header: "bytes=-8", size: 16},
+		{header: "bytes=999999999999999999999999-", size: 16},
+		{header: "bytes=0-1,4-5", size: 16},
+		{header: "bytes=0-0", size: 0},
+		{header: "bytes=0-0", size: -1},
+	} {
+		f.Add(seed.header, seed.size)
+	}
+
+	f.Fuzz(func(t *testing.T, header string, size int64) {
+		parsed, result := parseStableByteRange(header, size)
+		if result != stableRangeSatisfiable {
+			return
+		}
+		if size <= 0 {
+			t.Fatalf("satisfiable range for non-positive size %d", size)
+		}
+		if parsed.start < 0 || parsed.start >= size {
+			t.Fatalf("start %d outside [0,%d)", parsed.start, size)
+		}
+		if parsed.length <= 0 || parsed.length > size-parsed.start {
+			t.Fatalf("length %d invalid for start %d and size %d", parsed.length, parsed.start, size)
+		}
+	})
 }
 
 func TestAsset_StableURLAcceptsAccessTicketAndBearerAuth(t *testing.T) {
@@ -1262,7 +1489,12 @@ func TestAsset_RevokedMembership_RevokesStableURL(t *testing.T) {
 		t.Fatalf("LeaveRoom: %v", err)
 	}
 
-	r2, err := plainClient.Get(env.server.URL + attachmentURL)
+	postLeaveReq, err := http.NewRequest(http.MethodGet, env.server.URL+attachmentURL, nil)
+	if err != nil {
+		t.Fatalf("post-leave request: %v", err)
+	}
+	postLeaveReq.Header.Set("If-None-Match", fmt.Sprintf("\"%s\"", attachment.GetId()))
+	r2, err := plainClient.Do(postLeaveReq)
 	if err != nil {
 		t.Fatalf("post-leave GET: %v", err)
 	}
