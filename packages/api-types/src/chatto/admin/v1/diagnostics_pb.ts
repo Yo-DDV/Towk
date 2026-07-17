@@ -7,6 +7,166 @@ import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialM
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 
 /**
+ * Runtime performance profile exposed to server owners.
+ *
+ * @generated from enum chatto.admin.v1.AdminPerformanceProfile
+ */
+export enum AdminPerformanceProfile {
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_PROFILE_ECONOMY = 1;
+   */
+  ECONOMY = 1,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_PROFILE_BALANCED = 2;
+   */
+  BALANCED = 2,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_PROFILE_PERFORMANCE = 3;
+   */
+  PERFORMANCE = 3,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_PROFILE_CUSTOM = 4;
+   */
+  CUSTOM = 4,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_PROFILE_LEGACY = 5;
+   */
+  LEGACY = 5,
+}
+// Retrieve enum metadata with: proto3.getEnumType(AdminPerformanceProfile)
+proto3.util.setEnumType(AdminPerformanceProfile, "chatto.admin.v1.AdminPerformanceProfile", [
+  { no: 0, name: "ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED" },
+  { no: 1, name: "ADMIN_PERFORMANCE_PROFILE_ECONOMY" },
+  { no: 2, name: "ADMIN_PERFORMANCE_PROFILE_BALANCED" },
+  { no: 3, name: "ADMIN_PERFORMANCE_PROFILE_PERFORMANCE" },
+  { no: 4, name: "ADMIN_PERFORMANCE_PROFILE_CUSTOM" },
+  { no: 5, name: "ADMIN_PERFORMANCE_PROFILE_LEGACY" },
+]);
+
+/**
+ * Source of the currently requested runtime policy.
+ *
+ * @generated from enum chatto.admin.v1.AdminPerformancePolicySource
+ */
+export enum AdminPerformancePolicySource {
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL = 1;
+   */
+  HISTORICAL = 1,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT = 2;
+   */
+  OPERATOR_DEFAULT = 2,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER = 3;
+   */
+  OWNER = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(AdminPerformancePolicySource)
+proto3.util.setEnumType(AdminPerformancePolicySource, "chatto.admin.v1.AdminPerformancePolicySource", [
+  { no: 0, name: "ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED" },
+  { no: 1, name: "ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL" },
+  { no: 2, name: "ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT" },
+  { no: 3, name: "ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER" },
+]);
+
+/**
+ * Runtime work pools controlled by a performance policy.
+ *
+ * @generated from enum chatto.admin.v1.AdminPerformanceLimitField
+ */
+export enum AdminPerformanceLimitField {
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS = 1;
+   */
+  IMAGE_TRANSFORM_WORKERS = 1,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS = 2;
+   */
+  IMAGE_TRANSFORM_ADMISSIONS = 2,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS = 3;
+   */
+  ASSET_UPLOAD_WORKERS = 3,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS = 4;
+   */
+  LINK_PREVIEW_WORKERS = 4,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS = 5;
+   */
+  VIDEO_WORKERS = 5,
+}
+// Retrieve enum metadata with: proto3.getEnumType(AdminPerformanceLimitField)
+proto3.util.setEnumType(AdminPerformanceLimitField, "chatto.admin.v1.AdminPerformanceLimitField", [
+  { no: 0, name: "ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED" },
+  { no: 1, name: "ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS" },
+  { no: 2, name: "ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS" },
+  { no: 3, name: "ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS" },
+  { no: 4, name: "ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS" },
+  { no: 5, name: "ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS" },
+]);
+
+/**
+ * Reason why an effective value is below its requested value.
+ *
+ * @generated from enum chatto.admin.v1.AdminPerformanceCapReason
+ */
+export enum AdminPerformanceCapReason {
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP = 1;
+   */
+  OPERATOR_CAP = 1,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU = 2;
+   */
+  PROCESS_CPU = 2,
+
+  /**
+   * @generated from enum value: ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY = 3;
+   */
+  PROCESS_MEMORY = 3,
+}
+// Retrieve enum metadata with: proto3.getEnumType(AdminPerformanceCapReason)
+proto3.util.setEnumType(AdminPerformanceCapReason, "chatto.admin.v1.AdminPerformanceCapReason", [
+  { no: 0, name: "ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED" },
+  { no: 1, name: "ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP" },
+  { no: 2, name: "ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU" },
+  { no: 3, name: "ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY" },
+]);
+
+/**
  * Request to read owner-only server diagnostics.
  *
  * @generated from message chatto.admin.v1.GetSystemInfoRequest
@@ -85,6 +245,431 @@ export class GetSystemInfoResponse extends Message<GetSystemInfoResponse> {
 
   static equals(a: GetSystemInfoResponse | PlainMessage<GetSystemInfoResponse> | undefined, b: GetSystemInfoResponse | PlainMessage<GetSystemInfoResponse> | undefined): boolean {
     return proto3.util.equals(GetSystemInfoResponse, a, b);
+  }
+}
+
+/**
+ * Bounded worker values for one runtime performance policy.
+ *
+ * @generated from message chatto.admin.v1.AdminPerformanceLimits
+ */
+export class AdminPerformanceLimits extends Message<AdminPerformanceLimits> {
+  /**
+   * @generated from field: int32 image_transform_workers = 1;
+   */
+  imageTransformWorkers = 0;
+
+  /**
+   * @generated from field: int32 image_transform_admissions = 2;
+   */
+  imageTransformAdmissions = 0;
+
+  /**
+   * @generated from field: int32 asset_upload_workers = 3;
+   */
+  assetUploadWorkers = 0;
+
+  /**
+   * @generated from field: int32 link_preview_workers = 4;
+   */
+  linkPreviewWorkers = 0;
+
+  /**
+   * @generated from field: int32 video_workers = 5;
+   */
+  videoWorkers = 0;
+
+  constructor(data?: PartialMessage<AdminPerformanceLimits>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.AdminPerformanceLimits";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "image_transform_workers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "image_transform_admissions", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "asset_upload_workers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "link_preview_workers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "video_workers", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AdminPerformanceLimits {
+    return new AdminPerformanceLimits().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AdminPerformanceLimits {
+    return new AdminPerformanceLimits().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AdminPerformanceLimits {
+    return new AdminPerformanceLimits().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AdminPerformanceLimits | PlainMessage<AdminPerformanceLimits> | undefined, b: AdminPerformanceLimits | PlainMessage<AdminPerformanceLimits> | undefined): boolean {
+    return proto3.util.equals(AdminPerformanceLimits, a, b);
+  }
+}
+
+/**
+ * Process-visible resource envelope used to compute effective values.
+ *
+ * @generated from message chatto.admin.v1.AdminPerformanceEnvelope
+ */
+export class AdminPerformanceEnvelope extends Message<AdminPerformanceEnvelope> {
+  /**
+   * @generated from field: int32 cpus = 1;
+   */
+  cpus = 0;
+
+  /**
+   * @generated from field: int64 memory_bytes = 2;
+   */
+  memoryBytes = protoInt64.zero;
+
+  /**
+   * @generated from field: string cpu_source = 3;
+   */
+  cpuSource = "";
+
+  /**
+   * @generated from field: string memory_source = 4;
+   */
+  memorySource = "";
+
+  constructor(data?: PartialMessage<AdminPerformanceEnvelope>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.AdminPerformanceEnvelope";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "cpus", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 2, name: "memory_bytes", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "cpu_source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "memory_source", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AdminPerformanceEnvelope {
+    return new AdminPerformanceEnvelope().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AdminPerformanceEnvelope {
+    return new AdminPerformanceEnvelope().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AdminPerformanceEnvelope {
+    return new AdminPerformanceEnvelope().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AdminPerformanceEnvelope | PlainMessage<AdminPerformanceEnvelope> | undefined, b: AdminPerformanceEnvelope | PlainMessage<AdminPerformanceEnvelope> | undefined): boolean {
+    return proto3.util.equals(AdminPerformanceEnvelope, a, b);
+  }
+}
+
+/**
+ * Reduction reasons for one runtime work pool.
+ *
+ * @generated from message chatto.admin.v1.AdminPerformanceLimitCap
+ */
+export class AdminPerformanceLimitCap extends Message<AdminPerformanceLimitCap> {
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceLimitField field = 1;
+   */
+  field = AdminPerformanceLimitField.UNSPECIFIED;
+
+  /**
+   * @generated from field: repeated chatto.admin.v1.AdminPerformanceCapReason reasons = 2;
+   */
+  reasons: AdminPerformanceCapReason[] = [];
+
+  constructor(data?: PartialMessage<AdminPerformanceLimitCap>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.AdminPerformanceLimitCap";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "field", kind: "enum", T: proto3.getEnumType(AdminPerformanceLimitField) },
+    { no: 2, name: "reasons", kind: "enum", T: proto3.getEnumType(AdminPerformanceCapReason), repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AdminPerformanceLimitCap {
+    return new AdminPerformanceLimitCap().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AdminPerformanceLimitCap {
+    return new AdminPerformanceLimitCap().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AdminPerformanceLimitCap {
+    return new AdminPerformanceLimitCap().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AdminPerformanceLimitCap | PlainMessage<AdminPerformanceLimitCap> | undefined, b: AdminPerformanceLimitCap | PlainMessage<AdminPerformanceLimitCap> | undefined): boolean {
+    return proto3.util.equals(AdminPerformanceLimitCap, a, b);
+  }
+}
+
+/**
+ * Requested and effective performance state. Operator caps use zero to mean
+ * automatic process-envelope derivation, never unlimited.
+ *
+ * @generated from message chatto.admin.v1.AdminPerformanceSettings
+ */
+export class AdminPerformanceSettings extends Message<AdminPerformanceSettings> {
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceProfile requested_profile = 1;
+   */
+  requestedProfile = AdminPerformanceProfile.UNSPECIFIED;
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceProfile effective_profile = 2;
+   */
+  effectiveProfile = AdminPerformanceProfile.UNSPECIFIED;
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformancePolicySource source = 3;
+   */
+  source = AdminPerformancePolicySource.UNSPECIFIED;
+
+  /**
+   * @generated from field: uint32 schema_version = 4;
+   */
+  schemaVersion = 0;
+
+  /**
+   * @generated from field: string revision = 5;
+   */
+  revision = "";
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceLimits requested_limits = 6;
+   */
+  requestedLimits?: AdminPerformanceLimits;
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceLimits effective_limits = 7;
+   */
+  effectiveLimits?: AdminPerformanceLimits;
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceLimits operator_caps = 8;
+   */
+  operatorCaps?: AdminPerformanceLimits;
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceEnvelope envelope = 9;
+   */
+  envelope?: AdminPerformanceEnvelope;
+
+  /**
+   * @generated from field: repeated chatto.admin.v1.AdminPerformanceLimitCap caps = 10;
+   */
+  caps: AdminPerformanceLimitCap[] = [];
+
+  /**
+   * @generated from field: string policy_error = 11;
+   */
+  policyError = "";
+
+  /**
+   * @generated from field: bool restart_required = 12;
+   */
+  restartRequired = false;
+
+  constructor(data?: PartialMessage<AdminPerformanceSettings>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.AdminPerformanceSettings";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "requested_profile", kind: "enum", T: proto3.getEnumType(AdminPerformanceProfile) },
+    { no: 2, name: "effective_profile", kind: "enum", T: proto3.getEnumType(AdminPerformanceProfile) },
+    { no: 3, name: "source", kind: "enum", T: proto3.getEnumType(AdminPerformancePolicySource) },
+    { no: 4, name: "schema_version", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
+    { no: 5, name: "revision", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "requested_limits", kind: "message", T: AdminPerformanceLimits },
+    { no: 7, name: "effective_limits", kind: "message", T: AdminPerformanceLimits },
+    { no: 8, name: "operator_caps", kind: "message", T: AdminPerformanceLimits },
+    { no: 9, name: "envelope", kind: "message", T: AdminPerformanceEnvelope },
+    { no: 10, name: "caps", kind: "message", T: AdminPerformanceLimitCap, repeated: true },
+    { no: 11, name: "policy_error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "restart_required", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AdminPerformanceSettings {
+    return new AdminPerformanceSettings().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AdminPerformanceSettings {
+    return new AdminPerformanceSettings().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AdminPerformanceSettings {
+    return new AdminPerformanceSettings().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AdminPerformanceSettings | PlainMessage<AdminPerformanceSettings> | undefined, b: AdminPerformanceSettings | PlainMessage<AdminPerformanceSettings> | undefined): boolean {
+    return proto3.util.equals(AdminPerformanceSettings, a, b);
+  }
+}
+
+/**
+ * @generated from message chatto.admin.v1.GetPerformanceSettingsRequest
+ */
+export class GetPerformanceSettingsRequest extends Message<GetPerformanceSettingsRequest> {
+  constructor(data?: PartialMessage<GetPerformanceSettingsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.GetPerformanceSettingsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPerformanceSettingsRequest {
+    return new GetPerformanceSettingsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPerformanceSettingsRequest {
+    return new GetPerformanceSettingsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPerformanceSettingsRequest {
+    return new GetPerformanceSettingsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPerformanceSettingsRequest | PlainMessage<GetPerformanceSettingsRequest> | undefined, b: GetPerformanceSettingsRequest | PlainMessage<GetPerformanceSettingsRequest> | undefined): boolean {
+    return proto3.util.equals(GetPerformanceSettingsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message chatto.admin.v1.GetPerformanceSettingsResponse
+ */
+export class GetPerformanceSettingsResponse extends Message<GetPerformanceSettingsResponse> {
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceSettings settings = 1;
+   */
+  settings?: AdminPerformanceSettings;
+
+  constructor(data?: PartialMessage<GetPerformanceSettingsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.GetPerformanceSettingsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "settings", kind: "message", T: AdminPerformanceSettings },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetPerformanceSettingsResponse {
+    return new GetPerformanceSettingsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetPerformanceSettingsResponse {
+    return new GetPerformanceSettingsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetPerformanceSettingsResponse {
+    return new GetPerformanceSettingsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: GetPerformanceSettingsResponse | PlainMessage<GetPerformanceSettingsResponse> | undefined, b: GetPerformanceSettingsResponse | PlainMessage<GetPerformanceSettingsResponse> | undefined): boolean {
+    return proto3.util.equals(GetPerformanceSettingsResponse, a, b);
+  }
+}
+
+/**
+ * @generated from message chatto.admin.v1.UpdatePerformanceSettingsRequest
+ */
+export class UpdatePerformanceSettingsRequest extends Message<UpdatePerformanceSettingsRequest> {
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceProfile profile = 1;
+   */
+  profile = AdminPerformanceProfile.UNSPECIFIED;
+
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceLimits custom_limits = 2;
+   */
+  customLimits?: AdminPerformanceLimits;
+
+  /**
+   * @generated from field: string expected_revision = 3;
+   */
+  expectedRevision = "";
+
+  constructor(data?: PartialMessage<UpdatePerformanceSettingsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.UpdatePerformanceSettingsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "profile", kind: "enum", T: proto3.getEnumType(AdminPerformanceProfile) },
+    { no: 2, name: "custom_limits", kind: "message", T: AdminPerformanceLimits },
+    { no: 3, name: "expected_revision", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdatePerformanceSettingsRequest {
+    return new UpdatePerformanceSettingsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdatePerformanceSettingsRequest {
+    return new UpdatePerformanceSettingsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdatePerformanceSettingsRequest {
+    return new UpdatePerformanceSettingsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdatePerformanceSettingsRequest | PlainMessage<UpdatePerformanceSettingsRequest> | undefined, b: UpdatePerformanceSettingsRequest | PlainMessage<UpdatePerformanceSettingsRequest> | undefined): boolean {
+    return proto3.util.equals(UpdatePerformanceSettingsRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message chatto.admin.v1.UpdatePerformanceSettingsResponse
+ */
+export class UpdatePerformanceSettingsResponse extends Message<UpdatePerformanceSettingsResponse> {
+  /**
+   * @generated from field: chatto.admin.v1.AdminPerformanceSettings settings = 1;
+   */
+  settings?: AdminPerformanceSettings;
+
+  constructor(data?: PartialMessage<UpdatePerformanceSettingsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.admin.v1.UpdatePerformanceSettingsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "settings", kind: "message", T: AdminPerformanceSettings },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdatePerformanceSettingsResponse {
+    return new UpdatePerformanceSettingsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdatePerformanceSettingsResponse {
+    return new UpdatePerformanceSettingsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdatePerformanceSettingsResponse {
+    return new UpdatePerformanceSettingsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdatePerformanceSettingsResponse | PlainMessage<UpdatePerformanceSettingsResponse> | undefined, b: UpdatePerformanceSettingsResponse | PlainMessage<UpdatePerformanceSettingsResponse> | undefined): boolean {
+    return proto3.util.equals(UpdatePerformanceSettingsResponse, a, b);
   }
 }
 

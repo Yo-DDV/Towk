@@ -7,6 +7,7 @@
 package adminv1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -20,6 +21,230 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+// Runtime performance profile exposed to server owners.
+type AdminPerformanceProfile int32
+
+const (
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED AdminPerformanceProfile = 0
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ECONOMY     AdminPerformanceProfile = 1
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED    AdminPerformanceProfile = 2
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_PERFORMANCE AdminPerformanceProfile = 3
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_CUSTOM      AdminPerformanceProfile = 4
+	AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_LEGACY      AdminPerformanceProfile = 5
+)
+
+// Enum value maps for AdminPerformanceProfile.
+var (
+	AdminPerformanceProfile_name = map[int32]string{
+		0: "ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED",
+		1: "ADMIN_PERFORMANCE_PROFILE_ECONOMY",
+		2: "ADMIN_PERFORMANCE_PROFILE_BALANCED",
+		3: "ADMIN_PERFORMANCE_PROFILE_PERFORMANCE",
+		4: "ADMIN_PERFORMANCE_PROFILE_CUSTOM",
+		5: "ADMIN_PERFORMANCE_PROFILE_LEGACY",
+	}
+	AdminPerformanceProfile_value = map[string]int32{
+		"ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED": 0,
+		"ADMIN_PERFORMANCE_PROFILE_ECONOMY":     1,
+		"ADMIN_PERFORMANCE_PROFILE_BALANCED":    2,
+		"ADMIN_PERFORMANCE_PROFILE_PERFORMANCE": 3,
+		"ADMIN_PERFORMANCE_PROFILE_CUSTOM":      4,
+		"ADMIN_PERFORMANCE_PROFILE_LEGACY":      5,
+	}
+)
+
+func (x AdminPerformanceProfile) Enum() *AdminPerformanceProfile {
+	p := new(AdminPerformanceProfile)
+	*p = x
+	return p
+}
+
+func (x AdminPerformanceProfile) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AdminPerformanceProfile) Descriptor() protoreflect.EnumDescriptor {
+	return file_chatto_admin_v1_diagnostics_proto_enumTypes[0].Descriptor()
+}
+
+func (AdminPerformanceProfile) Type() protoreflect.EnumType {
+	return &file_chatto_admin_v1_diagnostics_proto_enumTypes[0]
+}
+
+func (x AdminPerformanceProfile) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AdminPerformanceProfile.Descriptor instead.
+func (AdminPerformanceProfile) EnumDescriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{0}
+}
+
+// Source of the currently requested runtime policy.
+type AdminPerformancePolicySource int32
+
+const (
+	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED      AdminPerformancePolicySource = 0
+	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL       AdminPerformancePolicySource = 1
+	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT AdminPerformancePolicySource = 2
+	AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER            AdminPerformancePolicySource = 3
+)
+
+// Enum value maps for AdminPerformancePolicySource.
+var (
+	AdminPerformancePolicySource_name = map[int32]string{
+		0: "ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED",
+		1: "ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL",
+		2: "ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT",
+		3: "ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER",
+	}
+	AdminPerformancePolicySource_value = map[string]int32{
+		"ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED":      0,
+		"ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL":       1,
+		"ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT": 2,
+		"ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER":            3,
+	}
+)
+
+func (x AdminPerformancePolicySource) Enum() *AdminPerformancePolicySource {
+	p := new(AdminPerformancePolicySource)
+	*p = x
+	return p
+}
+
+func (x AdminPerformancePolicySource) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AdminPerformancePolicySource) Descriptor() protoreflect.EnumDescriptor {
+	return file_chatto_admin_v1_diagnostics_proto_enumTypes[1].Descriptor()
+}
+
+func (AdminPerformancePolicySource) Type() protoreflect.EnumType {
+	return &file_chatto_admin_v1_diagnostics_proto_enumTypes[1]
+}
+
+func (x AdminPerformancePolicySource) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AdminPerformancePolicySource.Descriptor instead.
+func (AdminPerformancePolicySource) EnumDescriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{1}
+}
+
+// Runtime work pools controlled by a performance policy.
+type AdminPerformanceLimitField int32
+
+const (
+	AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED                AdminPerformanceLimitField = 0
+	AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS    AdminPerformanceLimitField = 1
+	AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS AdminPerformanceLimitField = 2
+	AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS       AdminPerformanceLimitField = 3
+	AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS       AdminPerformanceLimitField = 4
+	AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS              AdminPerformanceLimitField = 5
+)
+
+// Enum value maps for AdminPerformanceLimitField.
+var (
+	AdminPerformanceLimitField_name = map[int32]string{
+		0: "ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED",
+		1: "ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS",
+		2: "ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS",
+		3: "ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS",
+		4: "ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS",
+		5: "ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS",
+	}
+	AdminPerformanceLimitField_value = map[string]int32{
+		"ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED":                0,
+		"ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS":    1,
+		"ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS": 2,
+		"ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS":       3,
+		"ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS":       4,
+		"ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS":              5,
+	}
+)
+
+func (x AdminPerformanceLimitField) Enum() *AdminPerformanceLimitField {
+	p := new(AdminPerformanceLimitField)
+	*p = x
+	return p
+}
+
+func (x AdminPerformanceLimitField) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AdminPerformanceLimitField) Descriptor() protoreflect.EnumDescriptor {
+	return file_chatto_admin_v1_diagnostics_proto_enumTypes[2].Descriptor()
+}
+
+func (AdminPerformanceLimitField) Type() protoreflect.EnumType {
+	return &file_chatto_admin_v1_diagnostics_proto_enumTypes[2]
+}
+
+func (x AdminPerformanceLimitField) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AdminPerformanceLimitField.Descriptor instead.
+func (AdminPerformanceLimitField) EnumDescriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{2}
+}
+
+// Reason why an effective value is below its requested value.
+type AdminPerformanceCapReason int32
+
+const (
+	AdminPerformanceCapReason_ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED    AdminPerformanceCapReason = 0
+	AdminPerformanceCapReason_ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP   AdminPerformanceCapReason = 1
+	AdminPerformanceCapReason_ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU    AdminPerformanceCapReason = 2
+	AdminPerformanceCapReason_ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY AdminPerformanceCapReason = 3
+)
+
+// Enum value maps for AdminPerformanceCapReason.
+var (
+	AdminPerformanceCapReason_name = map[int32]string{
+		0: "ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED",
+		1: "ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP",
+		2: "ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU",
+		3: "ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY",
+	}
+	AdminPerformanceCapReason_value = map[string]int32{
+		"ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED":    0,
+		"ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP":   1,
+		"ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU":    2,
+		"ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY": 3,
+	}
+)
+
+func (x AdminPerformanceCapReason) Enum() *AdminPerformanceCapReason {
+	p := new(AdminPerformanceCapReason)
+	*p = x
+	return p
+}
+
+func (x AdminPerformanceCapReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AdminPerformanceCapReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_chatto_admin_v1_diagnostics_proto_enumTypes[3].Descriptor()
+}
+
+func (AdminPerformanceCapReason) Type() protoreflect.EnumType {
+	return &file_chatto_admin_v1_diagnostics_proto_enumTypes[3]
+}
+
+func (x AdminPerformanceCapReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AdminPerformanceCapReason.Descriptor instead.
+func (AdminPerformanceCapReason) EnumDescriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{3}
+}
 
 // Request to read owner-only server diagnostics.
 type GetSystemInfoRequest struct {
@@ -113,6 +338,523 @@ func (x *GetSystemInfoResponse) GetProjections() []*AdminProjectionState {
 	return nil
 }
 
+// Bounded worker values for one runtime performance policy.
+type AdminPerformanceLimits struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	ImageTransformWorkers    int32                  `protobuf:"varint,1,opt,name=image_transform_workers,json=imageTransformWorkers,proto3" json:"image_transform_workers,omitempty"`
+	ImageTransformAdmissions int32                  `protobuf:"varint,2,opt,name=image_transform_admissions,json=imageTransformAdmissions,proto3" json:"image_transform_admissions,omitempty"`
+	AssetUploadWorkers       int32                  `protobuf:"varint,3,opt,name=asset_upload_workers,json=assetUploadWorkers,proto3" json:"asset_upload_workers,omitempty"`
+	LinkPreviewWorkers       int32                  `protobuf:"varint,4,opt,name=link_preview_workers,json=linkPreviewWorkers,proto3" json:"link_preview_workers,omitempty"`
+	VideoWorkers             int32                  `protobuf:"varint,5,opt,name=video_workers,json=videoWorkers,proto3" json:"video_workers,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *AdminPerformanceLimits) Reset() {
+	*x = AdminPerformanceLimits{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminPerformanceLimits) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminPerformanceLimits) ProtoMessage() {}
+
+func (x *AdminPerformanceLimits) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminPerformanceLimits.ProtoReflect.Descriptor instead.
+func (*AdminPerformanceLimits) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AdminPerformanceLimits) GetImageTransformWorkers() int32 {
+	if x != nil {
+		return x.ImageTransformWorkers
+	}
+	return 0
+}
+
+func (x *AdminPerformanceLimits) GetImageTransformAdmissions() int32 {
+	if x != nil {
+		return x.ImageTransformAdmissions
+	}
+	return 0
+}
+
+func (x *AdminPerformanceLimits) GetAssetUploadWorkers() int32 {
+	if x != nil {
+		return x.AssetUploadWorkers
+	}
+	return 0
+}
+
+func (x *AdminPerformanceLimits) GetLinkPreviewWorkers() int32 {
+	if x != nil {
+		return x.LinkPreviewWorkers
+	}
+	return 0
+}
+
+func (x *AdminPerformanceLimits) GetVideoWorkers() int32 {
+	if x != nil {
+		return x.VideoWorkers
+	}
+	return 0
+}
+
+// Process-visible resource envelope used to compute effective values.
+type AdminPerformanceEnvelope struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cpus          int32                  `protobuf:"varint,1,opt,name=cpus,proto3" json:"cpus,omitempty"`
+	MemoryBytes   int64                  `protobuf:"varint,2,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"`
+	CpuSource     string                 `protobuf:"bytes,3,opt,name=cpu_source,json=cpuSource,proto3" json:"cpu_source,omitempty"`
+	MemorySource  string                 `protobuf:"bytes,4,opt,name=memory_source,json=memorySource,proto3" json:"memory_source,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminPerformanceEnvelope) Reset() {
+	*x = AdminPerformanceEnvelope{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminPerformanceEnvelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminPerformanceEnvelope) ProtoMessage() {}
+
+func (x *AdminPerformanceEnvelope) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminPerformanceEnvelope.ProtoReflect.Descriptor instead.
+func (*AdminPerformanceEnvelope) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AdminPerformanceEnvelope) GetCpus() int32 {
+	if x != nil {
+		return x.Cpus
+	}
+	return 0
+}
+
+func (x *AdminPerformanceEnvelope) GetMemoryBytes() int64 {
+	if x != nil {
+		return x.MemoryBytes
+	}
+	return 0
+}
+
+func (x *AdminPerformanceEnvelope) GetCpuSource() string {
+	if x != nil {
+		return x.CpuSource
+	}
+	return ""
+}
+
+func (x *AdminPerformanceEnvelope) GetMemorySource() string {
+	if x != nil {
+		return x.MemorySource
+	}
+	return ""
+}
+
+// Reduction reasons for one runtime work pool.
+type AdminPerformanceLimitCap struct {
+	state         protoimpl.MessageState      `protogen:"open.v1"`
+	Field         AdminPerformanceLimitField  `protobuf:"varint,1,opt,name=field,proto3,enum=chatto.admin.v1.AdminPerformanceLimitField" json:"field,omitempty"`
+	Reasons       []AdminPerformanceCapReason `protobuf:"varint,2,rep,packed,name=reasons,proto3,enum=chatto.admin.v1.AdminPerformanceCapReason" json:"reasons,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminPerformanceLimitCap) Reset() {
+	*x = AdminPerformanceLimitCap{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminPerformanceLimitCap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminPerformanceLimitCap) ProtoMessage() {}
+
+func (x *AdminPerformanceLimitCap) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminPerformanceLimitCap.ProtoReflect.Descriptor instead.
+func (*AdminPerformanceLimitCap) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AdminPerformanceLimitCap) GetField() AdminPerformanceLimitField {
+	if x != nil {
+		return x.Field
+	}
+	return AdminPerformanceLimitField_ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED
+}
+
+func (x *AdminPerformanceLimitCap) GetReasons() []AdminPerformanceCapReason {
+	if x != nil {
+		return x.Reasons
+	}
+	return nil
+}
+
+// Requested and effective performance state. Operator caps use zero to mean
+// automatic process-envelope derivation, never unlimited.
+type AdminPerformanceSettings struct {
+	state            protoimpl.MessageState       `protogen:"open.v1"`
+	RequestedProfile AdminPerformanceProfile      `protobuf:"varint,1,opt,name=requested_profile,json=requestedProfile,proto3,enum=chatto.admin.v1.AdminPerformanceProfile" json:"requested_profile,omitempty"`
+	EffectiveProfile AdminPerformanceProfile      `protobuf:"varint,2,opt,name=effective_profile,json=effectiveProfile,proto3,enum=chatto.admin.v1.AdminPerformanceProfile" json:"effective_profile,omitempty"`
+	Source           AdminPerformancePolicySource `protobuf:"varint,3,opt,name=source,proto3,enum=chatto.admin.v1.AdminPerformancePolicySource" json:"source,omitempty"`
+	SchemaVersion    uint32                       `protobuf:"varint,4,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	Revision         string                       `protobuf:"bytes,5,opt,name=revision,proto3" json:"revision,omitempty"`
+	RequestedLimits  *AdminPerformanceLimits      `protobuf:"bytes,6,opt,name=requested_limits,json=requestedLimits,proto3" json:"requested_limits,omitempty"`
+	EffectiveLimits  *AdminPerformanceLimits      `protobuf:"bytes,7,opt,name=effective_limits,json=effectiveLimits,proto3" json:"effective_limits,omitempty"`
+	OperatorCaps     *AdminPerformanceLimits      `protobuf:"bytes,8,opt,name=operator_caps,json=operatorCaps,proto3" json:"operator_caps,omitempty"`
+	Envelope         *AdminPerformanceEnvelope    `protobuf:"bytes,9,opt,name=envelope,proto3" json:"envelope,omitempty"`
+	Caps             []*AdminPerformanceLimitCap  `protobuf:"bytes,10,rep,name=caps,proto3" json:"caps,omitempty"`
+	PolicyError      string                       `protobuf:"bytes,11,opt,name=policy_error,json=policyError,proto3" json:"policy_error,omitempty"`
+	RestartRequired  bool                         `protobuf:"varint,12,opt,name=restart_required,json=restartRequired,proto3" json:"restart_required,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AdminPerformanceSettings) Reset() {
+	*x = AdminPerformanceSettings{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminPerformanceSettings) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminPerformanceSettings) ProtoMessage() {}
+
+func (x *AdminPerformanceSettings) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminPerformanceSettings.ProtoReflect.Descriptor instead.
+func (*AdminPerformanceSettings) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AdminPerformanceSettings) GetRequestedProfile() AdminPerformanceProfile {
+	if x != nil {
+		return x.RequestedProfile
+	}
+	return AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED
+}
+
+func (x *AdminPerformanceSettings) GetEffectiveProfile() AdminPerformanceProfile {
+	if x != nil {
+		return x.EffectiveProfile
+	}
+	return AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED
+}
+
+func (x *AdminPerformanceSettings) GetSource() AdminPerformancePolicySource {
+	if x != nil {
+		return x.Source
+	}
+	return AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED
+}
+
+func (x *AdminPerformanceSettings) GetSchemaVersion() uint32 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
+}
+
+func (x *AdminPerformanceSettings) GetRevision() string {
+	if x != nil {
+		return x.Revision
+	}
+	return ""
+}
+
+func (x *AdminPerformanceSettings) GetRequestedLimits() *AdminPerformanceLimits {
+	if x != nil {
+		return x.RequestedLimits
+	}
+	return nil
+}
+
+func (x *AdminPerformanceSettings) GetEffectiveLimits() *AdminPerformanceLimits {
+	if x != nil {
+		return x.EffectiveLimits
+	}
+	return nil
+}
+
+func (x *AdminPerformanceSettings) GetOperatorCaps() *AdminPerformanceLimits {
+	if x != nil {
+		return x.OperatorCaps
+	}
+	return nil
+}
+
+func (x *AdminPerformanceSettings) GetEnvelope() *AdminPerformanceEnvelope {
+	if x != nil {
+		return x.Envelope
+	}
+	return nil
+}
+
+func (x *AdminPerformanceSettings) GetCaps() []*AdminPerformanceLimitCap {
+	if x != nil {
+		return x.Caps
+	}
+	return nil
+}
+
+func (x *AdminPerformanceSettings) GetPolicyError() string {
+	if x != nil {
+		return x.PolicyError
+	}
+	return ""
+}
+
+func (x *AdminPerformanceSettings) GetRestartRequired() bool {
+	if x != nil {
+		return x.RestartRequired
+	}
+	return false
+}
+
+type GetPerformanceSettingsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPerformanceSettingsRequest) Reset() {
+	*x = GetPerformanceSettingsRequest{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPerformanceSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPerformanceSettingsRequest) ProtoMessage() {}
+
+func (x *GetPerformanceSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPerformanceSettingsRequest.ProtoReflect.Descriptor instead.
+func (*GetPerformanceSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{6}
+}
+
+type GetPerformanceSettingsResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Settings      *AdminPerformanceSettings `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPerformanceSettingsResponse) Reset() {
+	*x = GetPerformanceSettingsResponse{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPerformanceSettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPerformanceSettingsResponse) ProtoMessage() {}
+
+func (x *GetPerformanceSettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPerformanceSettingsResponse.ProtoReflect.Descriptor instead.
+func (*GetPerformanceSettingsResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetPerformanceSettingsResponse) GetSettings() *AdminPerformanceSettings {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
+type UpdatePerformanceSettingsRequest struct {
+	state            protoimpl.MessageState  `protogen:"open.v1"`
+	Profile          AdminPerformanceProfile `protobuf:"varint,1,opt,name=profile,proto3,enum=chatto.admin.v1.AdminPerformanceProfile" json:"profile,omitempty"`
+	CustomLimits     *AdminPerformanceLimits `protobuf:"bytes,2,opt,name=custom_limits,json=customLimits,proto3" json:"custom_limits,omitempty"`
+	ExpectedRevision string                  `protobuf:"bytes,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UpdatePerformanceSettingsRequest) Reset() {
+	*x = UpdatePerformanceSettingsRequest{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdatePerformanceSettingsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdatePerformanceSettingsRequest) ProtoMessage() {}
+
+func (x *UpdatePerformanceSettingsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdatePerformanceSettingsRequest.ProtoReflect.Descriptor instead.
+func (*UpdatePerformanceSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UpdatePerformanceSettingsRequest) GetProfile() AdminPerformanceProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED
+}
+
+func (x *UpdatePerformanceSettingsRequest) GetCustomLimits() *AdminPerformanceLimits {
+	if x != nil {
+		return x.CustomLimits
+	}
+	return nil
+}
+
+func (x *UpdatePerformanceSettingsRequest) GetExpectedRevision() string {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return ""
+}
+
+type UpdatePerformanceSettingsResponse struct {
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	Settings      *AdminPerformanceSettings `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdatePerformanceSettingsResponse) Reset() {
+	*x = UpdatePerformanceSettingsResponse{}
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdatePerformanceSettingsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdatePerformanceSettingsResponse) ProtoMessage() {}
+
+func (x *UpdatePerformanceSettingsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdatePerformanceSettingsResponse.ProtoReflect.Descriptor instead.
+func (*UpdatePerformanceSettingsResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *UpdatePerformanceSettingsResponse) GetSettings() *AdminPerformanceSettings {
+	if x != nil {
+		return x.Settings
+	}
+	return nil
+}
+
 // Broker and application diagnostics shown on the server admin system page.
 type AdminSystemInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -130,7 +872,7 @@ type AdminSystemInfo struct {
 
 func (x *AdminSystemInfo) Reset() {
 	*x = AdminSystemInfo{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[2]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -142,7 +884,7 @@ func (x *AdminSystemInfo) String() string {
 func (*AdminSystemInfo) ProtoMessage() {}
 
 func (x *AdminSystemInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[2]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -155,7 +897,7 @@ func (x *AdminSystemInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminSystemInfo.ProtoReflect.Descriptor instead.
 func (*AdminSystemInfo) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{2}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AdminSystemInfo) GetConnection() *AdminConnectionInfo {
@@ -207,7 +949,7 @@ type AdminConnectionInfo struct {
 
 func (x *AdminConnectionInfo) Reset() {
 	*x = AdminConnectionInfo{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[3]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -219,7 +961,7 @@ func (x *AdminConnectionInfo) String() string {
 func (*AdminConnectionInfo) ProtoMessage() {}
 
 func (x *AdminConnectionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[3]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -232,7 +974,7 @@ func (x *AdminConnectionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminConnectionInfo.ProtoReflect.Descriptor instead.
 func (*AdminConnectionInfo) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{3}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AdminConnectionInfo) GetConnected() bool {
@@ -302,7 +1044,7 @@ type AdminAccountInfo struct {
 
 func (x *AdminAccountInfo) Reset() {
 	*x = AdminAccountInfo{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[4]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -314,7 +1056,7 @@ func (x *AdminAccountInfo) String() string {
 func (*AdminAccountInfo) ProtoMessage() {}
 
 func (x *AdminAccountInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[4]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -327,7 +1069,7 @@ func (x *AdminAccountInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminAccountInfo.ProtoReflect.Descriptor instead.
 func (*AdminAccountInfo) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{4}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AdminAccountInfo) GetMemory() int64 {
@@ -401,7 +1143,7 @@ type AdminServerStats struct {
 
 func (x *AdminServerStats) Reset() {
 	*x = AdminServerStats{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[5]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -413,7 +1155,7 @@ func (x *AdminServerStats) String() string {
 func (*AdminServerStats) ProtoMessage() {}
 
 func (x *AdminServerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[5]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -426,7 +1168,7 @@ func (x *AdminServerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminServerStats.ProtoReflect.Descriptor instead.
 func (*AdminServerStats) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{5}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AdminServerStats) GetUserCount() int32 {
@@ -471,7 +1213,7 @@ type AdminNatsStats struct {
 
 func (x *AdminNatsStats) Reset() {
 	*x = AdminNatsStats{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[6]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -483,7 +1225,7 @@ func (x *AdminNatsStats) String() string {
 func (*AdminNatsStats) ProtoMessage() {}
 
 func (x *AdminNatsStats) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[6]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -496,7 +1238,7 @@ func (x *AdminNatsStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminNatsStats.ProtoReflect.Descriptor instead.
 func (*AdminNatsStats) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{6}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AdminNatsStats) GetTotalMessages() int64 {
@@ -572,7 +1314,7 @@ type AdminNatsStreamInfo struct {
 
 func (x *AdminNatsStreamInfo) Reset() {
 	*x = AdminNatsStreamInfo{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[7]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -584,7 +1326,7 @@ func (x *AdminNatsStreamInfo) String() string {
 func (*AdminNatsStreamInfo) ProtoMessage() {}
 
 func (x *AdminNatsStreamInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[7]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -597,7 +1339,7 @@ func (x *AdminNatsStreamInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminNatsStreamInfo.ProtoReflect.Descriptor instead.
 func (*AdminNatsStreamInfo) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{7}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AdminNatsStreamInfo) GetName() string {
@@ -718,7 +1460,7 @@ type AdminNatsConsumerInfo struct {
 
 func (x *AdminNatsConsumerInfo) Reset() {
 	*x = AdminNatsConsumerInfo{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[8]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -730,7 +1472,7 @@ func (x *AdminNatsConsumerInfo) String() string {
 func (*AdminNatsConsumerInfo) ProtoMessage() {}
 
 func (x *AdminNatsConsumerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[8]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -743,7 +1485,7 @@ func (x *AdminNatsConsumerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminNatsConsumerInfo.ProtoReflect.Descriptor instead.
 func (*AdminNatsConsumerInfo) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{8}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *AdminNatsConsumerInfo) GetStream() string {
@@ -899,7 +1641,7 @@ type AdminProjectionState struct {
 
 func (x *AdminProjectionState) Reset() {
 	*x = AdminProjectionState{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[9]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -911,7 +1653,7 @@ func (x *AdminProjectionState) String() string {
 func (*AdminProjectionState) ProtoMessage() {}
 
 func (x *AdminProjectionState) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[9]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -924,7 +1666,7 @@ func (x *AdminProjectionState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminProjectionState.ProtoReflect.Descriptor instead.
 func (*AdminProjectionState) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{9}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AdminProjectionState) GetKey() string {
@@ -1054,7 +1796,7 @@ type AdminProjectionMetric struct {
 
 func (x *AdminProjectionMetric) Reset() {
 	*x = AdminProjectionMetric{}
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[10]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1066,7 +1808,7 @@ func (x *AdminProjectionMetric) String() string {
 func (*AdminProjectionMetric) ProtoMessage() {}
 
 func (x *AdminProjectionMetric) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[10]
+	mi := &file_chatto_admin_v1_diagnostics_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1079,7 +1821,7 @@ func (x *AdminProjectionMetric) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminProjectionMetric.ProtoReflect.Descriptor instead.
 func (*AdminProjectionMetric) Descriptor() ([]byte, []int) {
-	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{10}
+	return file_chatto_admin_v1_diagnostics_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *AdminProjectionMetric) GetName() string {
@@ -1107,12 +1849,50 @@ var File_chatto_admin_v1_diagnostics_proto protoreflect.FileDescriptor
 
 const file_chatto_admin_v1_diagnostics_proto_rawDesc = "" +
 	"\n" +
-	"!chatto/admin/v1/diagnostics.proto\x12\x0fchatto.admin.v1\"\x16\n" +
+	"!chatto/admin/v1/diagnostics.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\"\x16\n" +
 	"\x14GetSystemInfoRequest\"\xa3\x01\n" +
 	"\x15GetSystemInfoResponse\x12A\n" +
 	"\vsystem_info\x18\x01 \x01(\v2 .chatto.admin.v1.AdminSystemInfoR\n" +
 	"systemInfo\x12G\n" +
-	"\vprojections\x18\x02 \x03(\v2%.chatto.admin.v1.AdminProjectionStateR\vprojections\"\x82\x02\n" +
+	"\vprojections\x18\x02 \x03(\v2%.chatto.admin.v1.AdminProjectionStateR\vprojections\"\x97\x02\n" +
+	"\x16AdminPerformanceLimits\x126\n" +
+	"\x17image_transform_workers\x18\x01 \x01(\x05R\x15imageTransformWorkers\x12<\n" +
+	"\x1aimage_transform_admissions\x18\x02 \x01(\x05R\x18imageTransformAdmissions\x120\n" +
+	"\x14asset_upload_workers\x18\x03 \x01(\x05R\x12assetUploadWorkers\x120\n" +
+	"\x14link_preview_workers\x18\x04 \x01(\x05R\x12linkPreviewWorkers\x12#\n" +
+	"\rvideo_workers\x18\x05 \x01(\x05R\fvideoWorkers\"\x95\x01\n" +
+	"\x18AdminPerformanceEnvelope\x12\x12\n" +
+	"\x04cpus\x18\x01 \x01(\x05R\x04cpus\x12!\n" +
+	"\fmemory_bytes\x18\x02 \x01(\x03R\vmemoryBytes\x12\x1d\n" +
+	"\n" +
+	"cpu_source\x18\x03 \x01(\tR\tcpuSource\x12#\n" +
+	"\rmemory_source\x18\x04 \x01(\tR\fmemorySource\"\xa3\x01\n" +
+	"\x18AdminPerformanceLimitCap\x12A\n" +
+	"\x05field\x18\x01 \x01(\x0e2+.chatto.admin.v1.AdminPerformanceLimitFieldR\x05field\x12D\n" +
+	"\areasons\x18\x02 \x03(\x0e2*.chatto.admin.v1.AdminPerformanceCapReasonR\areasons\"\x9c\x06\n" +
+	"\x18AdminPerformanceSettings\x12U\n" +
+	"\x11requested_profile\x18\x01 \x01(\x0e2(.chatto.admin.v1.AdminPerformanceProfileR\x10requestedProfile\x12U\n" +
+	"\x11effective_profile\x18\x02 \x01(\x0e2(.chatto.admin.v1.AdminPerformanceProfileR\x10effectiveProfile\x12E\n" +
+	"\x06source\x18\x03 \x01(\x0e2-.chatto.admin.v1.AdminPerformancePolicySourceR\x06source\x12%\n" +
+	"\x0eschema_version\x18\x04 \x01(\rR\rschemaVersion\x12\x1a\n" +
+	"\brevision\x18\x05 \x01(\tR\brevision\x12R\n" +
+	"\x10requested_limits\x18\x06 \x01(\v2'.chatto.admin.v1.AdminPerformanceLimitsR\x0frequestedLimits\x12R\n" +
+	"\x10effective_limits\x18\a \x01(\v2'.chatto.admin.v1.AdminPerformanceLimitsR\x0feffectiveLimits\x12L\n" +
+	"\roperator_caps\x18\b \x01(\v2'.chatto.admin.v1.AdminPerformanceLimitsR\foperatorCaps\x12E\n" +
+	"\benvelope\x18\t \x01(\v2).chatto.admin.v1.AdminPerformanceEnvelopeR\benvelope\x12=\n" +
+	"\x04caps\x18\n" +
+	" \x03(\v2).chatto.admin.v1.AdminPerformanceLimitCapR\x04caps\x12!\n" +
+	"\fpolicy_error\x18\v \x01(\tR\vpolicyError\x12)\n" +
+	"\x10restart_required\x18\f \x01(\bR\x0frestartRequired\"\x1f\n" +
+	"\x1dGetPerformanceSettingsRequest\"g\n" +
+	"\x1eGetPerformanceSettingsResponse\x12E\n" +
+	"\bsettings\x18\x01 \x01(\v2).chatto.admin.v1.AdminPerformanceSettingsR\bsettings\"\xfa\x01\n" +
+	" UpdatePerformanceSettingsRequest\x12P\n" +
+	"\aprofile\x18\x01 \x01(\x0e2(.chatto.admin.v1.AdminPerformanceProfileB\f\xbaH\t\x82\x01\x06\x10\x01 \x00 \x05R\aprofile\x12L\n" +
+	"\rcustom_limits\x18\x02 \x01(\v2'.chatto.admin.v1.AdminPerformanceLimitsR\fcustomLimits\x126\n" +
+	"\x11expected_revision\x18\x03 \x01(\tB\t\xbaH\x06r\x04\x10\x01\x18\x14R\x10expectedRevision\"j\n" +
+	"!UpdatePerformanceSettingsResponse\x12E\n" +
+	"\bsettings\x18\x01 \x01(\v2).chatto.admin.v1.AdminPerformanceSettingsR\bsettings\"\x82\x02\n" +
 	"\x0fAdminSystemInfo\x12D\n" +
 	"\n" +
 	"connection\x18\x01 \x01(\v2$.chatto.admin.v1.AdminConnectionInfoR\n" +
@@ -1210,9 +1990,35 @@ const file_chatto_admin_v1_diagnostics_proto_rawDesc = "" +
 	"\x15AdminProjectionMetric\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value\x12\x14\n" +
-	"\x05bytes\x18\x03 \x01(\x03R\x05bytes2y\n" +
+	"\x05bytes\x18\x03 \x01(\x03R\x05bytes*\x8a\x02\n" +
+	"\x17AdminPerformanceProfile\x12)\n" +
+	"%ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED\x10\x00\x12%\n" +
+	"!ADMIN_PERFORMANCE_PROFILE_ECONOMY\x10\x01\x12&\n" +
+	"\"ADMIN_PERFORMANCE_PROFILE_BALANCED\x10\x02\x12)\n" +
+	"%ADMIN_PERFORMANCE_PROFILE_PERFORMANCE\x10\x03\x12$\n" +
+	" ADMIN_PERFORMANCE_PROFILE_CUSTOM\x10\x04\x12$\n" +
+	" ADMIN_PERFORMANCE_PROFILE_LEGACY\x10\x05*\xe0\x01\n" +
+	"\x1cAdminPerformancePolicySource\x12/\n" +
+	"+ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED\x10\x00\x12.\n" +
+	"*ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL\x10\x01\x124\n" +
+	"0ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT\x10\x02\x12)\n" +
+	"%ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER\x10\x03*\xe5\x02\n" +
+	"\x1aAdminPerformanceLimitField\x12-\n" +
+	")ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED\x10\x00\x129\n" +
+	"5ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS\x10\x01\x12<\n" +
+	"8ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS\x10\x02\x126\n" +
+	"2ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS\x10\x03\x126\n" +
+	"2ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS\x10\x04\x12/\n" +
+	"+ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS\x10\x05*\xd7\x01\n" +
+	"\x19AdminPerformanceCapReason\x12,\n" +
+	"(ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED\x10\x00\x12-\n" +
+	")ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP\x10\x01\x12,\n" +
+	"(ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU\x10\x02\x12/\n" +
+	"+ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY\x10\x032\xf9\x02\n" +
 	"\x17AdminDiagnosticsService\x12^\n" +
-	"\rGetSystemInfo\x12%.chatto.admin.v1.GetSystemInfoRequest\x1a&.chatto.admin.v1.GetSystemInfoResponseB\xba\x01\n" +
+	"\rGetSystemInfo\x12%.chatto.admin.v1.GetSystemInfoRequest\x1a&.chatto.admin.v1.GetSystemInfoResponse\x12y\n" +
+	"\x16GetPerformanceSettings\x12..chatto.admin.v1.GetPerformanceSettingsRequest\x1a/.chatto.admin.v1.GetPerformanceSettingsResponse\x12\x82\x01\n" +
+	"\x19UpdatePerformanceSettings\x121.chatto.admin.v1.UpdatePerformanceSettingsRequest\x1a2.chatto.admin.v1.UpdatePerformanceSettingsResponseB\xba\x01\n" +
 	"\x13com.chatto.admin.v1B\x10DiagnosticsProtoP\x01Z3hmans.de/chatto/internal/pb/chatto/admin/v1;adminv1\xa2\x02\x03CAX\xaa\x02\x0fChatto.Admin.V1\xca\x02\x0fChatto\\Admin\\V1\xe2\x02\x1bChatto\\Admin\\V1\\GPBMetadata\xea\x02\x11Chatto::Admin::V1b\x06proto3"
 
 var (
@@ -1227,37 +2033,68 @@ func file_chatto_admin_v1_diagnostics_proto_rawDescGZIP() []byte {
 	return file_chatto_admin_v1_diagnostics_proto_rawDescData
 }
 
-var file_chatto_admin_v1_diagnostics_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_chatto_admin_v1_diagnostics_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_chatto_admin_v1_diagnostics_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_chatto_admin_v1_diagnostics_proto_goTypes = []any{
-	(*GetSystemInfoRequest)(nil),  // 0: chatto.admin.v1.GetSystemInfoRequest
-	(*GetSystemInfoResponse)(nil), // 1: chatto.admin.v1.GetSystemInfoResponse
-	(*AdminSystemInfo)(nil),       // 2: chatto.admin.v1.AdminSystemInfo
-	(*AdminConnectionInfo)(nil),   // 3: chatto.admin.v1.AdminConnectionInfo
-	(*AdminAccountInfo)(nil),      // 4: chatto.admin.v1.AdminAccountInfo
-	(*AdminServerStats)(nil),      // 5: chatto.admin.v1.AdminServerStats
-	(*AdminNatsStats)(nil),        // 6: chatto.admin.v1.AdminNatsStats
-	(*AdminNatsStreamInfo)(nil),   // 7: chatto.admin.v1.AdminNatsStreamInfo
-	(*AdminNatsConsumerInfo)(nil), // 8: chatto.admin.v1.AdminNatsConsumerInfo
-	(*AdminProjectionState)(nil),  // 9: chatto.admin.v1.AdminProjectionState
-	(*AdminProjectionMetric)(nil), // 10: chatto.admin.v1.AdminProjectionMetric
+	(AdminPerformanceProfile)(0),              // 0: chatto.admin.v1.AdminPerformanceProfile
+	(AdminPerformancePolicySource)(0),         // 1: chatto.admin.v1.AdminPerformancePolicySource
+	(AdminPerformanceLimitField)(0),           // 2: chatto.admin.v1.AdminPerformanceLimitField
+	(AdminPerformanceCapReason)(0),            // 3: chatto.admin.v1.AdminPerformanceCapReason
+	(*GetSystemInfoRequest)(nil),              // 4: chatto.admin.v1.GetSystemInfoRequest
+	(*GetSystemInfoResponse)(nil),             // 5: chatto.admin.v1.GetSystemInfoResponse
+	(*AdminPerformanceLimits)(nil),            // 6: chatto.admin.v1.AdminPerformanceLimits
+	(*AdminPerformanceEnvelope)(nil),          // 7: chatto.admin.v1.AdminPerformanceEnvelope
+	(*AdminPerformanceLimitCap)(nil),          // 8: chatto.admin.v1.AdminPerformanceLimitCap
+	(*AdminPerformanceSettings)(nil),          // 9: chatto.admin.v1.AdminPerformanceSettings
+	(*GetPerformanceSettingsRequest)(nil),     // 10: chatto.admin.v1.GetPerformanceSettingsRequest
+	(*GetPerformanceSettingsResponse)(nil),    // 11: chatto.admin.v1.GetPerformanceSettingsResponse
+	(*UpdatePerformanceSettingsRequest)(nil),  // 12: chatto.admin.v1.UpdatePerformanceSettingsRequest
+	(*UpdatePerformanceSettingsResponse)(nil), // 13: chatto.admin.v1.UpdatePerformanceSettingsResponse
+	(*AdminSystemInfo)(nil),                   // 14: chatto.admin.v1.AdminSystemInfo
+	(*AdminConnectionInfo)(nil),               // 15: chatto.admin.v1.AdminConnectionInfo
+	(*AdminAccountInfo)(nil),                  // 16: chatto.admin.v1.AdminAccountInfo
+	(*AdminServerStats)(nil),                  // 17: chatto.admin.v1.AdminServerStats
+	(*AdminNatsStats)(nil),                    // 18: chatto.admin.v1.AdminNatsStats
+	(*AdminNatsStreamInfo)(nil),               // 19: chatto.admin.v1.AdminNatsStreamInfo
+	(*AdminNatsConsumerInfo)(nil),             // 20: chatto.admin.v1.AdminNatsConsumerInfo
+	(*AdminProjectionState)(nil),              // 21: chatto.admin.v1.AdminProjectionState
+	(*AdminProjectionMetric)(nil),             // 22: chatto.admin.v1.AdminProjectionMetric
 }
 var file_chatto_admin_v1_diagnostics_proto_depIdxs = []int32{
-	2,  // 0: chatto.admin.v1.GetSystemInfoResponse.system_info:type_name -> chatto.admin.v1.AdminSystemInfo
-	9,  // 1: chatto.admin.v1.GetSystemInfoResponse.projections:type_name -> chatto.admin.v1.AdminProjectionState
-	3,  // 2: chatto.admin.v1.AdminSystemInfo.connection:type_name -> chatto.admin.v1.AdminConnectionInfo
-	4,  // 3: chatto.admin.v1.AdminSystemInfo.account:type_name -> chatto.admin.v1.AdminAccountInfo
-	6,  // 4: chatto.admin.v1.AdminSystemInfo.nats:type_name -> chatto.admin.v1.AdminNatsStats
-	5,  // 5: chatto.admin.v1.AdminSystemInfo.stats:type_name -> chatto.admin.v1.AdminServerStats
-	7,  // 6: chatto.admin.v1.AdminNatsStats.streams:type_name -> chatto.admin.v1.AdminNatsStreamInfo
-	8,  // 7: chatto.admin.v1.AdminNatsStats.consumers:type_name -> chatto.admin.v1.AdminNatsConsumerInfo
-	10, // 8: chatto.admin.v1.AdminProjectionState.metrics:type_name -> chatto.admin.v1.AdminProjectionMetric
-	0,  // 9: chatto.admin.v1.AdminDiagnosticsService.GetSystemInfo:input_type -> chatto.admin.v1.GetSystemInfoRequest
-	1,  // 10: chatto.admin.v1.AdminDiagnosticsService.GetSystemInfo:output_type -> chatto.admin.v1.GetSystemInfoResponse
-	10, // [10:11] is the sub-list for method output_type
-	9,  // [9:10] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	14, // 0: chatto.admin.v1.GetSystemInfoResponse.system_info:type_name -> chatto.admin.v1.AdminSystemInfo
+	21, // 1: chatto.admin.v1.GetSystemInfoResponse.projections:type_name -> chatto.admin.v1.AdminProjectionState
+	2,  // 2: chatto.admin.v1.AdminPerformanceLimitCap.field:type_name -> chatto.admin.v1.AdminPerformanceLimitField
+	3,  // 3: chatto.admin.v1.AdminPerformanceLimitCap.reasons:type_name -> chatto.admin.v1.AdminPerformanceCapReason
+	0,  // 4: chatto.admin.v1.AdminPerformanceSettings.requested_profile:type_name -> chatto.admin.v1.AdminPerformanceProfile
+	0,  // 5: chatto.admin.v1.AdminPerformanceSettings.effective_profile:type_name -> chatto.admin.v1.AdminPerformanceProfile
+	1,  // 6: chatto.admin.v1.AdminPerformanceSettings.source:type_name -> chatto.admin.v1.AdminPerformancePolicySource
+	6,  // 7: chatto.admin.v1.AdminPerformanceSettings.requested_limits:type_name -> chatto.admin.v1.AdminPerformanceLimits
+	6,  // 8: chatto.admin.v1.AdminPerformanceSettings.effective_limits:type_name -> chatto.admin.v1.AdminPerformanceLimits
+	6,  // 9: chatto.admin.v1.AdminPerformanceSettings.operator_caps:type_name -> chatto.admin.v1.AdminPerformanceLimits
+	7,  // 10: chatto.admin.v1.AdminPerformanceSettings.envelope:type_name -> chatto.admin.v1.AdminPerformanceEnvelope
+	8,  // 11: chatto.admin.v1.AdminPerformanceSettings.caps:type_name -> chatto.admin.v1.AdminPerformanceLimitCap
+	9,  // 12: chatto.admin.v1.GetPerformanceSettingsResponse.settings:type_name -> chatto.admin.v1.AdminPerformanceSettings
+	0,  // 13: chatto.admin.v1.UpdatePerformanceSettingsRequest.profile:type_name -> chatto.admin.v1.AdminPerformanceProfile
+	6,  // 14: chatto.admin.v1.UpdatePerformanceSettingsRequest.custom_limits:type_name -> chatto.admin.v1.AdminPerformanceLimits
+	9,  // 15: chatto.admin.v1.UpdatePerformanceSettingsResponse.settings:type_name -> chatto.admin.v1.AdminPerformanceSettings
+	15, // 16: chatto.admin.v1.AdminSystemInfo.connection:type_name -> chatto.admin.v1.AdminConnectionInfo
+	16, // 17: chatto.admin.v1.AdminSystemInfo.account:type_name -> chatto.admin.v1.AdminAccountInfo
+	18, // 18: chatto.admin.v1.AdminSystemInfo.nats:type_name -> chatto.admin.v1.AdminNatsStats
+	17, // 19: chatto.admin.v1.AdminSystemInfo.stats:type_name -> chatto.admin.v1.AdminServerStats
+	19, // 20: chatto.admin.v1.AdminNatsStats.streams:type_name -> chatto.admin.v1.AdminNatsStreamInfo
+	20, // 21: chatto.admin.v1.AdminNatsStats.consumers:type_name -> chatto.admin.v1.AdminNatsConsumerInfo
+	22, // 22: chatto.admin.v1.AdminProjectionState.metrics:type_name -> chatto.admin.v1.AdminProjectionMetric
+	4,  // 23: chatto.admin.v1.AdminDiagnosticsService.GetSystemInfo:input_type -> chatto.admin.v1.GetSystemInfoRequest
+	10, // 24: chatto.admin.v1.AdminDiagnosticsService.GetPerformanceSettings:input_type -> chatto.admin.v1.GetPerformanceSettingsRequest
+	12, // 25: chatto.admin.v1.AdminDiagnosticsService.UpdatePerformanceSettings:input_type -> chatto.admin.v1.UpdatePerformanceSettingsRequest
+	5,  // 26: chatto.admin.v1.AdminDiagnosticsService.GetSystemInfo:output_type -> chatto.admin.v1.GetSystemInfoResponse
+	11, // 27: chatto.admin.v1.AdminDiagnosticsService.GetPerformanceSettings:output_type -> chatto.admin.v1.GetPerformanceSettingsResponse
+	13, // 28: chatto.admin.v1.AdminDiagnosticsService.UpdatePerformanceSettings:output_type -> chatto.admin.v1.UpdatePerformanceSettingsResponse
+	26, // [26:29] is the sub-list for method output_type
+	23, // [23:26] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_chatto_admin_v1_diagnostics_proto_init() }
@@ -1265,19 +2102,20 @@ func file_chatto_admin_v1_diagnostics_proto_init() {
 	if File_chatto_admin_v1_diagnostics_proto != nil {
 		return
 	}
-	file_chatto_admin_v1_diagnostics_proto_msgTypes[9].OneofWrappers = []any{}
+	file_chatto_admin_v1_diagnostics_proto_msgTypes[17].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_admin_v1_diagnostics_proto_rawDesc), len(file_chatto_admin_v1_diagnostics_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   11,
+			NumEnums:      4,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_chatto_admin_v1_diagnostics_proto_goTypes,
 		DependencyIndexes: file_chatto_admin_v1_diagnostics_proto_depIdxs,
+		EnumInfos:         file_chatto_admin_v1_diagnostics_proto_enumTypes,
 		MessageInfos:      file_chatto_admin_v1_diagnostics_proto_msgTypes,
 	}.Build()
 	File_chatto_admin_v1_diagnostics_proto = out.File

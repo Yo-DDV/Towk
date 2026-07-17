@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetSystemInfoRequest, GetSystemInfoResponse } from "./diagnostics_pb.js";
+import { GetPerformanceSettingsRequest, GetPerformanceSettingsResponse, GetSystemInfoRequest, GetSystemInfoResponse, UpdatePerformanceSettingsRequest, UpdatePerformanceSettingsResponse } from "./diagnostics_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -24,6 +24,28 @@ export const AdminDiagnosticsService = {
       name: "GetSystemInfo",
       I: GetSystemInfoRequest,
       O: GetSystemInfoResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Returns requested and effective runtime limits. Requires owner.
+     *
+     * @generated from rpc chatto.admin.v1.AdminDiagnosticsService.GetPerformanceSettings
+     */
+    getPerformanceSettings: {
+      name: "GetPerformanceSettings",
+      I: GetPerformanceSettingsRequest,
+      O: GetPerformanceSettingsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Changes the owner-requested policy with optimistic concurrency. Requires owner.
+     *
+     * @generated from rpc chatto.admin.v1.AdminDiagnosticsService.UpdatePerformanceSettings
+     */
+    updatePerformanceSettings: {
+      name: "UpdatePerformanceSettings",
+      I: UpdatePerformanceSettingsRequest,
+      O: UpdatePerformanceSettingsResponse,
       kind: MethodKind.Unary,
     },
   }

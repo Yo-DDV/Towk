@@ -48,3 +48,65 @@ Owner-only operational diagnostics for the Towk server.
 | --- | --- | --- |
 | `system_info` | [`AdminSystemInfo`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminSystemInfo) | Broker connection, account, and JetStream state. |
 | `projections` | repeated [`AdminProjectionState`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminProjectionState) | Event-sourced projection health and memory estimates. |
+
+
+<a id="chatto-admin-v1-AdminDiagnosticsService-GetPerformanceSettings"></a>
+
+### GetPerformanceSettings
+
+Returns requested and effective runtime limits. Requires owner.
+
+```http
+POST /api/connect/chatto.admin.v1.AdminDiagnosticsService/GetPerformanceSettings
+```
+
+<a id="chatto-admin-v1-GetPerformanceSettingsRequest"></a>
+
+#### Input: GetPerformanceSettingsRequest
+
+No message description provided.
+
+
+<a id="chatto-admin-v1-GetPerformanceSettingsResponse"></a>
+
+#### Result: GetPerformanceSettingsResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `settings` | [`AdminPerformanceSettings`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminPerformanceSettings) | No field description provided. |
+
+
+<a id="chatto-admin-v1-AdminDiagnosticsService-UpdatePerformanceSettings"></a>
+
+### UpdatePerformanceSettings
+
+Changes the owner-requested policy with optimistic concurrency. Requires owner.
+
+```http
+POST /api/connect/chatto.admin.v1.AdminDiagnosticsService/UpdatePerformanceSettings
+```
+
+<a id="chatto-admin-v1-UpdatePerformanceSettingsRequest"></a>
+
+#### Input: UpdatePerformanceSettingsRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `profile` | [`AdminPerformanceProfile`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminPerformanceProfile) | No field description provided. |
+| `custom_limits` | [`AdminPerformanceLimits`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminPerformanceLimits) | No field description provided. |
+| `expected_revision` | `string` | No field description provided. |
+
+
+<a id="chatto-admin-v1-UpdatePerformanceSettingsResponse"></a>
+
+#### Result: UpdatePerformanceSettingsResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `settings` | [`AdminPerformanceSettings`](/reference/connectrpc-api/types/#chatto-admin-v1-AdminPerformanceSettings) | No field description provided. |

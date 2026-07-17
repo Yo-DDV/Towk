@@ -1,7 +1,9 @@
 package core
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +95,64 @@ func (c *ChattoCore) LinkPreviewWorkerLimit() int {
 
 func (c *ChattoCore) VideoWorkerLimit() int {
 	return c.PerformanceStatus().Effective.VideoWorkers
+}
+
+func (c *ChattoCore) GetPerformanceSettings(ctx context.Context, actorID string) (PerformanceStatus, error) {
+	if err := c.requirePerformanceOwner(ctx, actorID); err != nil {
+		return PerformanceStatus{}, err
+	}
+	return c.PerformanceStatus(), nil
+}
+
+func (c *ChattoCore) UpdatePerformanceSettings(ctx context.Context, actorID string, expectedRevision uint64, profile string, custom PerformanceLimits) (PerformanceStatus, error) {
+	if err := c.requirePerformanceOwner(ctx, actorID); err != nil {
+		return PerformanceStatus{}, err
+	}
+	if expectedRevision == math.MaxUint64 {
+		return PerformanceStatus{}, invalidArgument("performance policy revision is out of range")
+	}
+	profile = strings.ToLower(strings.TrimSpace(profile))
+	policy := &configv1.ServerPerformancePolicy{
+		SchemaVersion: performancePolicySchemaVersion,
+		Profile:       profile,
+		Revision:      expectedRevision + 1,
+	}
+	if profile == config.PerformanceProfileCustom {
+		policy.CustomLimits = performanceLimitsToProto(custom)
+	}
+	if err := validatePerformancePolicy(policy); err != nil {
+		return PerformanceStatus{}, err
+	}
+
+	_, err := c.configManager.UpdateServerConfigFunc(ctx, actorID, func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
+		currentRevision := uint64(0)
+		if current.GetPerformancePolicy() != nil {
+			currentRevision = current.GetPerformancePolicy().GetRevision()
+		}
+		if currentRevision != expectedRevision {
+			return nil, ErrConfigConflict
+		}
+		current.PerformancePolicy = clonePerformancePolicy(policy)
+		return current, nil
+	})
+	if err != nil {
+		return PerformanceStatus{}, err
+	}
+	return c.PerformanceStatus(), nil
+}
+
+func (c *ChattoCore) requirePerformanceOwner(ctx context.Context, actorID string) error {
+	if err := requireAuthenticatedActor(actorID); err != nil {
+		return err
+	}
+	isOwner, err := c.IsServerOwner(ctx, actorID)
+	if err != nil {
+		return fmt.Errorf("check owner role: %w", err)
+	}
+	if !isOwner {
+		return ErrPermissionDenied
+	}
+	return nil
 }
 
 func NewPerformanceManager(cfg config.PerformanceConfig, projection *ConfigProjection) *PerformanceManager {

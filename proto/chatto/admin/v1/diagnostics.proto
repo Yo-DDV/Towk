@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package chatto.admin.v1;
 
+import "buf/validate/validate.proto";
+
 // Request to read owner-only server diagnostics.
 message GetSystemInfoRequest {}
 
@@ -11,6 +13,98 @@ message GetSystemInfoResponse {
   AdminSystemInfo system_info = 1;
   // Event-sourced projection health and memory estimates.
   repeated AdminProjectionState projections = 2;
+}
+
+// Runtime performance profile exposed to server owners.
+enum AdminPerformanceProfile {
+  ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED = 0;
+  ADMIN_PERFORMANCE_PROFILE_ECONOMY = 1;
+  ADMIN_PERFORMANCE_PROFILE_BALANCED = 2;
+  ADMIN_PERFORMANCE_PROFILE_PERFORMANCE = 3;
+  ADMIN_PERFORMANCE_PROFILE_CUSTOM = 4;
+  ADMIN_PERFORMANCE_PROFILE_LEGACY = 5;
+}
+
+// Source of the currently requested runtime policy.
+enum AdminPerformancePolicySource {
+  ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED = 0;
+  ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL = 1;
+  ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT = 2;
+  ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER = 3;
+}
+
+// Runtime work pools controlled by a performance policy.
+enum AdminPerformanceLimitField {
+  ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED = 0;
+  ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS = 1;
+  ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS = 2;
+  ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS = 3;
+  ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS = 4;
+  ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS = 5;
+}
+
+// Reason why an effective value is below its requested value.
+enum AdminPerformanceCapReason {
+  ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED = 0;
+  ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP = 1;
+  ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU = 2;
+  ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY = 3;
+}
+
+// Bounded worker values for one runtime performance policy.
+message AdminPerformanceLimits {
+  int32 image_transform_workers = 1;
+  int32 image_transform_admissions = 2;
+  int32 asset_upload_workers = 3;
+  int32 link_preview_workers = 4;
+  int32 video_workers = 5;
+}
+
+// Process-visible resource envelope used to compute effective values.
+message AdminPerformanceEnvelope {
+  int32 cpus = 1;
+  int64 memory_bytes = 2;
+  string cpu_source = 3;
+  string memory_source = 4;
+}
+
+// Reduction reasons for one runtime work pool.
+message AdminPerformanceLimitCap {
+  AdminPerformanceLimitField field = 1;
+  repeated AdminPerformanceCapReason reasons = 2;
+}
+
+// Requested and effective performance state. Operator caps use zero to mean
+// automatic process-envelope derivation, never unlimited.
+message AdminPerformanceSettings {
+  AdminPerformanceProfile requested_profile = 1;
+  AdminPerformanceProfile effective_profile = 2;
+  AdminPerformancePolicySource source = 3;
+  uint32 schema_version = 4;
+  string revision = 5;
+  AdminPerformanceLimits requested_limits = 6;
+  AdminPerformanceLimits effective_limits = 7;
+  AdminPerformanceLimits operator_caps = 8;
+  AdminPerformanceEnvelope envelope = 9;
+  repeated AdminPerformanceLimitCap caps = 10;
+  string policy_error = 11;
+  bool restart_required = 12;
+}
+
+message GetPerformanceSettingsRequest {}
+
+message GetPerformanceSettingsResponse {
+  AdminPerformanceSettings settings = 1;
+}
+
+message UpdatePerformanceSettingsRequest {
+  AdminPerformanceProfile profile = 1 [(buf.validate.field).enum = {defined_only: true, not_in: [0, 5]}];
+  AdminPerformanceLimits custom_limits = 2;
+  string expected_revision = 3 [(buf.validate.field).string = {min_len: 1, max_len: 20}];
+}
+
+message UpdatePerformanceSettingsResponse {
+  AdminPerformanceSettings settings = 1;
 }
 
 // Broker and application diagnostics shown on the server admin system page.
@@ -200,4 +294,8 @@ service AdminDiagnosticsService {
   // Returns broker, JetStream, and projection diagnostics. Requires the
   // server owner role.
   rpc GetSystemInfo(GetSystemInfoRequest) returns (GetSystemInfoResponse);
+  // Returns requested and effective runtime limits. Requires owner.
+  rpc GetPerformanceSettings(GetPerformanceSettingsRequest) returns (GetPerformanceSettingsResponse);
+  // Changes the owner-requested policy with optimistic concurrency. Requires owner.
+  rpc UpdatePerformanceSettings(UpdatePerformanceSettingsRequest) returns (UpdatePerformanceSettingsResponse);
 }
