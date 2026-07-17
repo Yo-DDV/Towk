@@ -261,11 +261,13 @@ func runServer(configPath string) {
 }
 
 func performanceConfigWithLegacyVideoCap(performance config.PerformanceConfig, video config.VideoConfig) config.PerformanceConfig {
-	if video.MaxConcurrent > 0 && video.MaxConcurrent <= config.MaxPerformanceWorkers &&
-		(performance.MaxVideoWorkers == 0 || video.MaxConcurrent < performance.MaxVideoWorkers) {
+	legacyCap := min(video.MaxConcurrent, config.MaxPerformanceWorkers)
+	if legacyCap > 0 &&
+		(performance.MaxVideoWorkers == 0 || legacyCap < performance.MaxVideoWorkers) {
 		// Preserve the historical video.max_concurrent operator ceiling while
-		// performance profiles become the canonical runtime policy.
-		performance.MaxVideoWorkers = video.MaxConcurrent
+		// performance profiles become the canonical runtime policy. Values above
+		// the supported worker range are conservatively clamped, not reset.
+		performance.MaxVideoWorkers = legacyCap
 	}
 	return performance
 }

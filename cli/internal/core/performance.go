@@ -184,12 +184,11 @@ func (m *PerformanceManager) Status() PerformanceStatus {
 		policy = m.projection.PerformancePolicy()
 	}
 	status.RequestedProfile, status.Source, status.SchemaVersion, status.Revision, status.Requested, status.PolicyError = m.requested(policy)
-	status.EffectiveProfile = status.RequestedProfile
 	if status.PolicyError != "" {
-		status.EffectiveProfile = config.PerformanceProfileEconomy
 		status.Requested = performancePreset(config.PerformanceProfileEconomy)
 	}
 	status.Effective = m.effective(status.Requested, status.Envelope, status.OperatorCaps, status.CapReasons)
+	status.EffectiveProfile = effectivePerformanceProfile(status.Effective)
 	return status
 }
 
@@ -247,7 +246,12 @@ func (m *PerformanceManager) effective(requested PerformanceLimits, envelope run
 	workers := boundedPerformanceValue("image_transform_workers", requested.ImageTransformWorkers, operator.ImageTransformWorkers, cpus, memoryHeavy, reasons)
 	admissionCPU := min(config.MaxPerformanceAdmissions, max(workers, cpus*8))
 	admissions := boundedPerformanceValue("image_transform_admissions", requested.ImageTransformAdmissions, operator.ImageTransformAdmissions, admissionCPU, config.MaxPerformanceAdmissions, reasons)
-	admissions = max(workers, admissions)
+	if admissions < workers {
+		workers = admissions
+		for _, reason := range reasons["image_transform_admissions"] {
+			reasons["image_transform_workers"] = appendPerformanceReason(reasons["image_transform_workers"], reason)
+		}
+	}
 
 	return PerformanceLimits{
 		ImageTransformWorkers:    workers,
@@ -256,6 +260,28 @@ func (m *PerformanceManager) effective(requested PerformanceLimits, envelope run
 		LinkPreviewWorkers:       boundedPerformanceValue("link_preview_workers", requested.LinkPreviewWorkers, operator.LinkPreviewWorkers, cpus, memoryLink, reasons),
 		VideoWorkers:             boundedPerformanceValue("video_workers", requested.VideoWorkers, operator.VideoWorkers, cpus, memoryHeavy, reasons),
 	}
+}
+
+func appendPerformanceReason(reasons []string, reason string) []string {
+	for _, existing := range reasons {
+		if existing == reason {
+			return reasons
+		}
+	}
+	return append(reasons, reason)
+}
+
+func effectivePerformanceProfile(limits PerformanceLimits) string {
+	for _, profile := range []string{
+		config.PerformanceProfileEconomy,
+		config.PerformanceProfileBalanced,
+		config.PerformanceProfilePerformance,
+	} {
+		if limits == performancePreset(profile) {
+			return profile
+		}
+	}
+	return config.PerformanceProfileCustom
 }
 
 func boundedPerformanceValue(name string, requested, operator, cpu, memory int, reasons map[string][]string) int {

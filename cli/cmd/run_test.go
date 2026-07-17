@@ -24,7 +24,7 @@ func TestPerformanceConfigWithLegacyVideoCap(t *testing.T) {
 		{"legacy cap retained", config.PerformanceConfig{}, config.VideoConfig{MaxConcurrent: 1}, 1},
 		{"stricter new cap retained", config.PerformanceConfig{MaxVideoWorkers: 2}, config.VideoConfig{MaxConcurrent: 4}, 2},
 		{"stricter legacy cap retained", config.PerformanceConfig{MaxVideoWorkers: 4}, config.VideoConfig{MaxConcurrent: 2}, 2},
-		{"invalid oversized legacy cap ignored", config.PerformanceConfig{}, config.VideoConfig{MaxConcurrent: config.MaxPerformanceWorkers + 1}, 0},
+		{"oversized legacy cap clamped", config.PerformanceConfig{}, config.VideoConfig{MaxConcurrent: config.MaxPerformanceWorkers + 1}, config.MaxPerformanceWorkers},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
