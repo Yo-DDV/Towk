@@ -304,7 +304,7 @@
     showMobileNav
   />
 
-  <div class="min-h-0 flex-1 overflow-y-auto">
+  <div class="min-h-0 flex-1 overflow-y-auto" data-testid="admin-system-scroll">
     <div class="flex flex-col gap-6 p-6">
       {#if loading}
         <div class="text-muted">{m['admin.system.loading']()}</div>
@@ -497,7 +497,7 @@
 
         <Panel title={m['admin.system.broker']()} icon="iconify uil--server">
           <div class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
-            <div class="rounded-lg border border-border bg-surface-100/70 p-4">
+            <div class="min-w-0 rounded-lg border border-border bg-surface-100/70 p-4">
               <div class="text-sm text-muted">{m['admin.common.status']()}</div>
               <div class="mt-1 flex items-center gap-2 text-xl font-semibold">
                 <span
@@ -518,20 +518,20 @@
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
-              <div>
+            <div class="grid min-w-0 grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-4">
+              <div class="min-w-0">
                 <div class="text-sm text-muted">{m['admin.common.version']()}</div>
                 <div class="font-mono text-sm">{systemInfo.connection.version || '-'}</div>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-sm text-muted">{m['admin.system.rtt']()}</div>
                 <div class="font-mono text-sm">{systemInfo.connection.rtt || '-'}</div>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-sm text-muted">{m['admin.system.max_payload']()}</div>
                 <div class="font-mono text-sm">{formatBytes(systemInfo.connection.maxPayload)}</div>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="text-sm text-muted">{m['admin.system.server_name']()}</div>
                 <div class="truncate font-mono text-sm" title={systemInfo.connection.serverName}>
                   {systemInfo.connection.serverName || '-'}
