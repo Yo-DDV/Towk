@@ -36,6 +36,12 @@ const (
 	// AdminDiagnosticsServiceGetSystemInfoProcedure is the fully-qualified name of the
 	// AdminDiagnosticsService's GetSystemInfo RPC.
 	AdminDiagnosticsServiceGetSystemInfoProcedure = "/chatto.admin.v1.AdminDiagnosticsService/GetSystemInfo"
+	// AdminDiagnosticsServiceGetPerformanceSettingsProcedure is the fully-qualified name of the
+	// AdminDiagnosticsService's GetPerformanceSettings RPC.
+	AdminDiagnosticsServiceGetPerformanceSettingsProcedure = "/chatto.admin.v1.AdminDiagnosticsService/GetPerformanceSettings"
+	// AdminDiagnosticsServiceUpdatePerformanceSettingsProcedure is the fully-qualified name of the
+	// AdminDiagnosticsService's UpdatePerformanceSettings RPC.
+	AdminDiagnosticsServiceUpdatePerformanceSettingsProcedure = "/chatto.admin.v1.AdminDiagnosticsService/UpdatePerformanceSettings"
 )
 
 // AdminDiagnosticsServiceClient is a client for the chatto.admin.v1.AdminDiagnosticsService
@@ -44,6 +50,10 @@ type AdminDiagnosticsServiceClient interface {
 	// Returns broker, JetStream, and projection diagnostics. Requires the
 	// server owner role.
 	GetSystemInfo(context.Context, *connect.Request[v1.GetSystemInfoRequest]) (*connect.Response[v1.GetSystemInfoResponse], error)
+	// Returns requested and effective runtime limits. Requires owner.
+	GetPerformanceSettings(context.Context, *connect.Request[v1.GetPerformanceSettingsRequest]) (*connect.Response[v1.GetPerformanceSettingsResponse], error)
+	// Changes the owner-requested policy with optimistic concurrency. Requires owner.
+	UpdatePerformanceSettings(context.Context, *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error)
 }
 
 // NewAdminDiagnosticsServiceClient constructs a client for the
@@ -63,17 +73,42 @@ func NewAdminDiagnosticsServiceClient(httpClient connect.HTTPClient, baseURL str
 			connect.WithSchema(adminDiagnosticsServiceMethods.ByName("GetSystemInfo")),
 			connect.WithClientOptions(opts...),
 		),
+		getPerformanceSettings: connect.NewClient[v1.GetPerformanceSettingsRequest, v1.GetPerformanceSettingsResponse](
+			httpClient,
+			baseURL+AdminDiagnosticsServiceGetPerformanceSettingsProcedure,
+			connect.WithSchema(adminDiagnosticsServiceMethods.ByName("GetPerformanceSettings")),
+			connect.WithClientOptions(opts...),
+		),
+		updatePerformanceSettings: connect.NewClient[v1.UpdatePerformanceSettingsRequest, v1.UpdatePerformanceSettingsResponse](
+			httpClient,
+			baseURL+AdminDiagnosticsServiceUpdatePerformanceSettingsProcedure,
+			connect.WithSchema(adminDiagnosticsServiceMethods.ByName("UpdatePerformanceSettings")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // adminDiagnosticsServiceClient implements AdminDiagnosticsServiceClient.
 type adminDiagnosticsServiceClient struct {
-	getSystemInfo *connect.Client[v1.GetSystemInfoRequest, v1.GetSystemInfoResponse]
+	getSystemInfo             *connect.Client[v1.GetSystemInfoRequest, v1.GetSystemInfoResponse]
+	getPerformanceSettings    *connect.Client[v1.GetPerformanceSettingsRequest, v1.GetPerformanceSettingsResponse]
+	updatePerformanceSettings *connect.Client[v1.UpdatePerformanceSettingsRequest, v1.UpdatePerformanceSettingsResponse]
 }
 
 // GetSystemInfo calls chatto.admin.v1.AdminDiagnosticsService.GetSystemInfo.
 func (c *adminDiagnosticsServiceClient) GetSystemInfo(ctx context.Context, req *connect.Request[v1.GetSystemInfoRequest]) (*connect.Response[v1.GetSystemInfoResponse], error) {
 	return c.getSystemInfo.CallUnary(ctx, req)
+}
+
+// GetPerformanceSettings calls chatto.admin.v1.AdminDiagnosticsService.GetPerformanceSettings.
+func (c *adminDiagnosticsServiceClient) GetPerformanceSettings(ctx context.Context, req *connect.Request[v1.GetPerformanceSettingsRequest]) (*connect.Response[v1.GetPerformanceSettingsResponse], error) {
+	return c.getPerformanceSettings.CallUnary(ctx, req)
+}
+
+// UpdatePerformanceSettings calls
+// chatto.admin.v1.AdminDiagnosticsService.UpdatePerformanceSettings.
+func (c *adminDiagnosticsServiceClient) UpdatePerformanceSettings(ctx context.Context, req *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error) {
+	return c.updatePerformanceSettings.CallUnary(ctx, req)
 }
 
 // AdminDiagnosticsServiceHandler is an implementation of the
@@ -82,6 +117,10 @@ type AdminDiagnosticsServiceHandler interface {
 	// Returns broker, JetStream, and projection diagnostics. Requires the
 	// server owner role.
 	GetSystemInfo(context.Context, *connect.Request[v1.GetSystemInfoRequest]) (*connect.Response[v1.GetSystemInfoResponse], error)
+	// Returns requested and effective runtime limits. Requires owner.
+	GetPerformanceSettings(context.Context, *connect.Request[v1.GetPerformanceSettingsRequest]) (*connect.Response[v1.GetPerformanceSettingsResponse], error)
+	// Changes the owner-requested policy with optimistic concurrency. Requires owner.
+	UpdatePerformanceSettings(context.Context, *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error)
 }
 
 // NewAdminDiagnosticsServiceHandler builds an HTTP handler from the service implementation. It
@@ -97,10 +136,26 @@ func NewAdminDiagnosticsServiceHandler(svc AdminDiagnosticsServiceHandler, opts 
 		connect.WithSchema(adminDiagnosticsServiceMethods.ByName("GetSystemInfo")),
 		connect.WithHandlerOptions(opts...),
 	)
+	adminDiagnosticsServiceGetPerformanceSettingsHandler := connect.NewUnaryHandler(
+		AdminDiagnosticsServiceGetPerformanceSettingsProcedure,
+		svc.GetPerformanceSettings,
+		connect.WithSchema(adminDiagnosticsServiceMethods.ByName("GetPerformanceSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
+	adminDiagnosticsServiceUpdatePerformanceSettingsHandler := connect.NewUnaryHandler(
+		AdminDiagnosticsServiceUpdatePerformanceSettingsProcedure,
+		svc.UpdatePerformanceSettings,
+		connect.WithSchema(adminDiagnosticsServiceMethods.ByName("UpdatePerformanceSettings")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/chatto.admin.v1.AdminDiagnosticsService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case AdminDiagnosticsServiceGetSystemInfoProcedure:
 			adminDiagnosticsServiceGetSystemInfoHandler.ServeHTTP(w, r)
+		case AdminDiagnosticsServiceGetPerformanceSettingsProcedure:
+			adminDiagnosticsServiceGetPerformanceSettingsHandler.ServeHTTP(w, r)
+		case AdminDiagnosticsServiceUpdatePerformanceSettingsProcedure:
+			adminDiagnosticsServiceUpdatePerformanceSettingsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -112,4 +167,12 @@ type UnimplementedAdminDiagnosticsServiceHandler struct{}
 
 func (UnimplementedAdminDiagnosticsServiceHandler) GetSystemInfo(context.Context, *connect.Request[v1.GetSystemInfoRequest]) (*connect.Response[v1.GetSystemInfoResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.admin.v1.AdminDiagnosticsService.GetSystemInfo is not implemented"))
+}
+
+func (UnimplementedAdminDiagnosticsServiceHandler) GetPerformanceSettings(context.Context, *connect.Request[v1.GetPerformanceSettingsRequest]) (*connect.Response[v1.GetPerformanceSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.admin.v1.AdminDiagnosticsService.GetPerformanceSettings is not implemented"))
+}
+
+func (UnimplementedAdminDiagnosticsServiceHandler) UpdatePerformanceSettings(context.Context, *connect.Request[v1.UpdatePerformanceSettingsRequest]) (*connect.Response[v1.UpdatePerformanceSettingsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.admin.v1.AdminDiagnosticsService.UpdatePerformanceSettings is not implemented"))
 }

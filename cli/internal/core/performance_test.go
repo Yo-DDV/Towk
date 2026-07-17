@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"testing"
 
 	"hmans.de/chatto/internal/config"
@@ -96,6 +97,50 @@ func TestValidatePerformancePolicyRejectsUnsafeCustomLimits(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("unsafe custom limits were accepted")
+	}
+}
+
+func TestUpdatePerformanceSettingsRequiresOwnerAndRejectsStaleRevision(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	ctx := testContext(t)
+	member, err := chattoCore.CreateUser(ctx, SystemActorID, "performance-member", "Performance Member", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := chattoCore.GetPerformanceSettings(ctx, member.Id); !errors.Is(err, ErrPermissionDenied) {
+		t.Fatalf("member get error = %v, want permission denied", err)
+	}
+	owner, err := chattoCore.CreateUser(ctx, SystemActorID, "performance-owner", "Performance Owner", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := chattoCore.AssignServerRole(ctx, SystemActorID, owner.Id, RoleOwner); err != nil {
+		t.Fatal(err)
+	}
+
+	initial, err := chattoCore.GetPerformanceSettings(ctx, owner.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial.Revision != 0 || initial.Source != performanceSourceHistorical {
+		t.Fatalf("initial status = %#v", initial)
+	}
+	updated, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfileBalanced, PerformanceLimits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Revision != 1 || updated.Source != performanceSourceOwner {
+		t.Fatalf("updated status = %#v", updated)
+	}
+	if _, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfileEconomy, PerformanceLimits{}); !errors.Is(err, ErrConfigConflict) {
+		t.Fatalf("stale update error = %v, want config conflict", err)
+	}
+	current, err := chattoCore.GetPerformanceSettings(ctx, owner.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Revision != 1 || current.RequestedProfile != config.PerformanceProfileBalanced {
+		t.Fatalf("stale update changed policy: %#v", current)
 	}
 }
 

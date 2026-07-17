@@ -972,6 +972,66 @@ JetStream stream state.
 | `replicas` | `int32` | Configured stream replica count. |
 | `cluster_leader` | `string` | Current cluster leader, when reported by NATS. |
 
+<a id="chatto-admin-v1-AdminPerformanceEnvelope"></a>
+
+### AdminPerformanceEnvelope
+
+Process-visible resource envelope used to compute effective values.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `cpus` | `int32` | No field description provided. |
+| `memory_bytes` | `int64` | No field description provided. |
+| `cpu_source` | `string` | No field description provided. |
+| `memory_source` | `string` | No field description provided. |
+
+<a id="chatto-admin-v1-AdminPerformanceLimitCap"></a>
+
+### AdminPerformanceLimitCap
+
+Reduction reasons for one runtime work pool.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `field` | [`AdminPerformanceLimitField`](#chatto-admin-v1-AdminPerformanceLimitField) | No field description provided. |
+| `reasons` | repeated [`AdminPerformanceCapReason`](#chatto-admin-v1-AdminPerformanceCapReason) | No field description provided. |
+
+<a id="chatto-admin-v1-AdminPerformanceLimits"></a>
+
+### AdminPerformanceLimits
+
+Bounded worker values for one runtime performance policy.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `image_transform_workers` | `int32` | No field description provided. |
+| `image_transform_admissions` | `int32` | No field description provided. |
+| `asset_upload_workers` | `int32` | No field description provided. |
+| `link_preview_workers` | `int32` | No field description provided. |
+| `video_workers` | `int32` | No field description provided. |
+
+<a id="chatto-admin-v1-AdminPerformanceSettings"></a>
+
+### AdminPerformanceSettings
+
+Requested and effective performance state. Operator caps use zero to mean
+automatic process-envelope derivation, never unlimited.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `requested_profile` | [`AdminPerformanceProfile`](#chatto-admin-v1-AdminPerformanceProfile) | No field description provided. |
+| `effective_profile` | [`AdminPerformanceProfile`](#chatto-admin-v1-AdminPerformanceProfile) | No field description provided. |
+| `source` | [`AdminPerformancePolicySource`](#chatto-admin-v1-AdminPerformancePolicySource) | No field description provided. |
+| `schema_version` | `uint32` | No field description provided. |
+| `revision` | `string` | No field description provided. |
+| `requested_limits` | [`AdminPerformanceLimits`](#chatto-admin-v1-AdminPerformanceLimits) | No field description provided. |
+| `effective_limits` | [`AdminPerformanceLimits`](#chatto-admin-v1-AdminPerformanceLimits) | No field description provided. |
+| `operator_caps` | [`AdminPerformanceLimits`](#chatto-admin-v1-AdminPerformanceLimits) | No field description provided. |
+| `envelope` | [`AdminPerformanceEnvelope`](#chatto-admin-v1-AdminPerformanceEnvelope) | No field description provided. |
+| `caps` | repeated [`AdminPerformanceLimitCap`](#chatto-admin-v1-AdminPerformanceLimitCap) | No field description provided. |
+| `policy_error` | `string` | No field description provided. |
+| `restart_required` | `bool` | No field description provided. |
+
 <a id="chatto-admin-v1-AdminProjectionMetric"></a>
 
 ### AdminProjectionMetric
@@ -1447,6 +1507,62 @@ Outcome of recording a call join intent.
 | `JOIN_CALL_STATUS_UNSPECIFIED` | `0` | No value description provided. |
 | `JOIN_CALL_STATUS_JOINED` | `1` | The connection was admitted to the call. |
 | `JOIN_CALL_STATUS_SELECTION_REQUIRED` | `2` | Another device is active and the user must choose companion or transfer. |
+
+<a id="chatto-admin-v1-AdminPerformanceCapReason"></a>
+
+### AdminPerformanceCapReason
+
+Reason why an effective value is below its requested value.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ADMIN_PERFORMANCE_CAP_REASON_UNSPECIFIED` | `0` | No value description provided. |
+| `ADMIN_PERFORMANCE_CAP_REASON_OPERATOR_CAP` | `1` | No value description provided. |
+| `ADMIN_PERFORMANCE_CAP_REASON_PROCESS_CPU` | `2` | No value description provided. |
+| `ADMIN_PERFORMANCE_CAP_REASON_PROCESS_MEMORY` | `3` | No value description provided. |
+
+<a id="chatto-admin-v1-AdminPerformanceLimitField"></a>
+
+### AdminPerformanceLimitField
+
+Runtime work pools controlled by a performance policy.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ADMIN_PERFORMANCE_LIMIT_FIELD_UNSPECIFIED` | `0` | No value description provided. |
+| `ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_WORKERS` | `1` | No value description provided. |
+| `ADMIN_PERFORMANCE_LIMIT_FIELD_IMAGE_TRANSFORM_ADMISSIONS` | `2` | No value description provided. |
+| `ADMIN_PERFORMANCE_LIMIT_FIELD_ASSET_UPLOAD_WORKERS` | `3` | No value description provided. |
+| `ADMIN_PERFORMANCE_LIMIT_FIELD_LINK_PREVIEW_WORKERS` | `4` | No value description provided. |
+| `ADMIN_PERFORMANCE_LIMIT_FIELD_VIDEO_WORKERS` | `5` | No value description provided. |
+
+<a id="chatto-admin-v1-AdminPerformancePolicySource"></a>
+
+### AdminPerformancePolicySource
+
+Source of the currently requested runtime policy.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ADMIN_PERFORMANCE_POLICY_SOURCE_UNSPECIFIED` | `0` | No value description provided. |
+| `ADMIN_PERFORMANCE_POLICY_SOURCE_HISTORICAL` | `1` | No value description provided. |
+| `ADMIN_PERFORMANCE_POLICY_SOURCE_OPERATOR_DEFAULT` | `2` | No value description provided. |
+| `ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER` | `3` | No value description provided. |
+
+<a id="chatto-admin-v1-AdminPerformanceProfile"></a>
+
+### AdminPerformanceProfile
+
+Runtime performance profile exposed to server owners.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `ADMIN_PERFORMANCE_PROFILE_UNSPECIFIED` | `0` | No value description provided. |
+| `ADMIN_PERFORMANCE_PROFILE_ECONOMY` | `1` | No value description provided. |
+| `ADMIN_PERFORMANCE_PROFILE_BALANCED` | `2` | No value description provided. |
+| `ADMIN_PERFORMANCE_PROFILE_PERFORMANCE` | `3` | No value description provided. |
+| `ADMIN_PERFORMANCE_PROFILE_CUSTOM` | `4` | No value description provided. |
+| `ADMIN_PERFORMANCE_PROFILE_LEGACY` | `5` | No value description provided. |
 
 <a id="chatto-admin-v1-PermissionDecision"></a>
 

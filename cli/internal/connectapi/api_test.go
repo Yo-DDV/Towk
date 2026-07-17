@@ -1735,6 +1735,88 @@ func TestAdminDiagnosticsServiceGetSystemInfoRequiresOwner(t *testing.T) {
 	}
 }
 
+func TestAdminDiagnosticsPerformanceSettingsRequireOwnerAndUseRevision(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	getRequest := connect.NewRequest(&adminv1.GetPerformanceSettingsRequest{})
+	if _, err := env.adminDiagnostics.GetPerformanceSettings(env.ctx, getRequest); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated GetPerformanceSettings code = %v, want unauthenticated", connect.CodeOf(err))
+	}
+
+	member, err := env.core.CreateUser(env.ctx, core.SystemActorID, "performance-api-member", "Performance API Member", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.adminDiagnostics.GetPerformanceSettings(withCaller(env.ctx, member), getRequest); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("member GetPerformanceSettings code = %v, want permission denied", connect.CodeOf(err))
+	}
+	if err := env.core.AssignServerRole(env.ctx, core.SystemActorID, env.viewer.Id, core.RoleOwner); err != nil {
+		t.Fatal(err)
+	}
+	ownerCtx := withCaller(env.ctx, env.viewer)
+	initial, err := env.adminDiagnostics.GetPerformanceSettings(ownerCtx, getRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if initial.Msg.GetSettings().GetRevision() != "0" || initial.Msg.GetSettings().GetRequestedProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_LEGACY {
+		t.Fatalf("initial performance settings = %#v", initial.Msg.GetSettings())
+	}
+
+	updated, err := env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
+		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED,
+		ExpectedRevision: "0",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Msg.GetSettings().GetRevision() != "1" || updated.Msg.GetSettings().GetSource() != adminv1.AdminPerformancePolicySource_ADMIN_PERFORMANCE_POLICY_SOURCE_OWNER {
+		t.Fatalf("updated performance settings = %#v", updated.Msg.GetSettings())
+	}
+
+	_, err = env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
+		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_ECONOMY,
+		ExpectedRevision: "0",
+	}))
+	if connect.CodeOf(err) != connect.CodeAborted {
+		t.Fatalf("stale update code = %v, want aborted", connect.CodeOf(err))
+	}
+	current, err := env.adminDiagnostics.GetPerformanceSettings(ownerCtx, getRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Msg.GetSettings().GetRevision() != "1" || current.Msg.GetSettings().GetRequestedProfile() != adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED {
+		t.Fatalf("stale update changed settings = %#v", current.Msg.GetSettings())
+	}
+
+	if _, err := env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
+		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_CUSTOM,
+		ExpectedRevision: "1",
+		CustomLimits:     &adminv1.AdminPerformanceLimits{},
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("invalid custom update code = %v, want invalid argument", connect.CodeOf(err))
+	}
+	if _, err := env.adminDiagnostics.UpdatePerformanceSettings(ownerCtx, connect.NewRequest(&adminv1.UpdatePerformanceSettingsRequest{
+		Profile:          adminv1.AdminPerformanceProfile_ADMIN_PERFORMANCE_PROFILE_BALANCED,
+		ExpectedRevision: "1",
+		CustomLimits:     &adminv1.AdminPerformanceLimits{ImageTransformWorkers: 1},
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("preset with custom limits code = %v, want invalid argument", connect.CodeOf(err))
+	}
+
+	events, err := env.core.ListEventLog(ownerCtx, env.viewer.Id, core.EventLogQuery{
+		Limit: 10,
+		Filter: core.EventLogFilter{
+			EventType: "ServerPerformancePolicyChangedEvent",
+			ActorID:   env.viewer.Id,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events.Entries) != 1 || events.Entries[0].ActorID != env.viewer.Id {
+		t.Fatalf("performance policy audit entries = %#v", events.Entries)
+	}
+}
+
 func TestAdminEventLogServiceListsFiltersAndReadsEntries(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 

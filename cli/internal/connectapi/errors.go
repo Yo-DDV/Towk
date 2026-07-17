@@ -38,6 +38,9 @@ func connectError(err error) error {
 	if errors.Is(err, core.ErrRoomNameExists) {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	}
+	if errors.Is(err, core.ErrConfigConflict) {
+		return connect.NewError(connect.CodeAborted, err)
+	}
 	if errors.Is(err, core.ErrLoginAlreadyTaken) ||
 		errors.Is(err, core.ErrEmailAlreadyVerified) ||
 		errors.Is(err, core.ErrExternalIdentityAlreadyClaimed) ||
