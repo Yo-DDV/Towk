@@ -127,7 +127,7 @@ const (
 // PerformanceConfig defines the operator-owned ceiling for runtime worker
 // policies. Zero caps mean "derive from the detected process envelope", never
 // unlimited. DefaultProfile is written as balanced by `towk init`; an omitted
-// value preserves historical limits for upgraded configurations.
+// value preserves the historical preset for upgraded configurations.
 type PerformanceConfig struct {
 	DefaultProfile              string `toml:"default_profile,omitempty" env:"CHATTO_PERFORMANCE_DEFAULT_PROFILE" comment:"Runtime profile used when no owner policy exists. New configurations use balanced; omit to preserve historical upgrade behavior."`
 	MaxImageTransformWorkers    int    `toml:"max_image_transform_workers,commented" env:"CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_WORKERS" comment:"Operator ceiling for concurrent image transforms. Zero derives a safe ceiling from process resources."`

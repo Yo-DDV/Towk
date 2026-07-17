@@ -183,10 +183,12 @@ detected CPU/memory envelope, an optional operator cap, and the owner's request.
 The browser cannot change container resources or override operator limits.
 
 `env.example` and `init-env.sh` use `balanced` for new installations. Existing
-installations that omit `CHATTO_PERFORMANCE_DEFAULT_PROFILE` retain their
-historical worker policy until an owner explicitly saves a profile. The
-optional `CHATTO_PERFORMANCE_MAX_*` variables are hard per-process ceilings;
-leave them unset to derive bounded ceilings from the process envelope.
+installations that omit `CHATTO_PERFORMANCE_DEFAULT_PROFILE` retain the
+historical preset for pools that were already bounded until an owner explicitly
+saves a profile. Upload chunk writes gain a balanced process-local bound instead
+of remaining unbounded. The optional `CHATTO_PERFORMANCE_MAX_*` variables are
+hard per-process ceilings; leave them unset to derive bounded ceilings from the
+process envelope.
 
 The checked-in resource values are conservative starting points, not user-count
 or latency guarantees. A small host can lower all four services and select the

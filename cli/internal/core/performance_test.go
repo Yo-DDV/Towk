@@ -81,6 +81,31 @@ func TestPerformanceManagerAppliesEveryEnvelopeInPrecedenceOrder(t *testing.T) {
 	}
 }
 
+func TestPerformanceManagerAdmissionOperatorCapAlsoBoundsWorkers(t *testing.T) {
+	projection := NewConfigProjection()
+	applyPerformancePolicy(t, projection, &configv1.ServerPerformancePolicy{
+		SchemaVersion: 1,
+		Profile:       config.PerformanceProfilePerformance,
+		Revision:      4,
+	})
+	manager := newPerformanceManager(config.PerformanceConfig{
+		MaxImageTransformAdmissions: 1,
+	}, projection, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30}
+	})
+
+	status := manager.Status()
+	if status.Effective.ImageTransformWorkers != 1 || status.Effective.ImageTransformAdmissions != 1 {
+		t.Fatalf("image transform limits = %#v, want workers and admissions bounded to 1", status.Effective)
+	}
+	if !slices.Contains(status.CapReasons["image_transform_workers"], capReasonOperator) {
+		t.Fatalf("worker cap reasons = %v, want inherited operator admission cap", status.CapReasons["image_transform_workers"])
+	}
+	if status.EffectiveProfile != config.PerformanceProfileCustom {
+		t.Fatalf("effective profile = %q, want custom after partial caps", status.EffectiveProfile)
+	}
+}
+
 func TestPerformanceManagerPreservesHistoricalUpgradeAndUsesBalancedForNewConfig(t *testing.T) {
 	projection := NewConfigProjection()
 	detect := func() runtimecap.Capacity {
@@ -93,6 +118,9 @@ func TestPerformanceManagerPreservesHistoricalUpgradeAndUsesBalancedForNewConfig
 	}
 	if historical.Effective != performancePreset(config.PerformanceProfileBalanced) {
 		t.Fatalf("historical limits = %#v, want balanced-compatible limits", historical.Effective)
+	}
+	if historical.EffectiveProfile != config.PerformanceProfileBalanced {
+		t.Fatalf("historical effective profile = %q, want balanced", historical.EffectiveProfile)
 	}
 
 	newConfig := newPerformanceManager(config.PerformanceConfig{DefaultProfile: config.PerformanceProfileBalanced}, projection, detect).Status()
