@@ -136,7 +136,9 @@
   function applyPerformanceSettings(settings: AdminPerformanceSettings) {
     performanceSettings = settings;
     selectedProfile =
-      settings.requestedProfile === 'legacy' ? 'balanced' : settings.requestedProfile;
+      settings.requestedProfile === 'legacy' || settings.requestedProfile === 'unknown'
+        ? 'balanced'
+        : settings.requestedProfile;
     customLimits = { ...settings.requestedLimits };
   }
 
@@ -198,6 +200,8 @@
         return m['admin.system.performance_profile_custom']();
       case 'legacy':
         return m['admin.system.performance_profile_legacy']();
+      case 'unknown':
+        return m['admin.system.performance_source_unknown']();
     }
   }
 
@@ -371,7 +375,9 @@
                         <span class="font-semibold">{performanceProfileLabel(profile)}</span>
                         <span class="flex flex-wrap justify-end gap-1">
                           {#if profile === 'balanced'}
-                            <Pill tone="primary">{m['admin.system.performance_recommended']()}</Pill>
+                            <Pill tone="primary">
+                              {m['admin.system.performance_recommended']()}
+                            </Pill>
                           {/if}
                           {#if selectedProfile === profile}
                             <Pill tone="success">{m['admin.system.performance_selected']()}</Pill>

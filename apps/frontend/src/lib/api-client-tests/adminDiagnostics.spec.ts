@@ -126,6 +126,28 @@ describe('admin diagnostics client', () => {
     );
   });
 
+  it('does not mislabel an unknown future performance profile as historical', async () => {
+    mocks.getPerformanceSettings.mockResolvedValue({
+      settings: {
+        requestedProfile: AdminPerformanceProfile.UNSPECIFIED,
+        effectiveProfile: AdminPerformanceProfile.ECONOMY,
+        source: AdminPerformancePolicySource.OWNER,
+        revision: '19',
+        policyError: 'unsupported policy schema',
+        caps: []
+      }
+    });
+
+    const current = await getAdminPerformanceSettings({
+      baseUrl: 'https://chat.example.test/api/connect',
+      bearerToken: 'token'
+    });
+
+    expect(current.requestedProfile).toBe('unknown');
+    expect(current.effectiveProfile).toBe('economy');
+    expect(current.source).toBe('owner');
+  });
+
   it('loads admin diagnostics and maps int64 and optional fields', async () => {
     mocks.getSystemInfo.mockResolvedValue({
       systemInfo: {

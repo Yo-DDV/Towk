@@ -208,6 +208,11 @@ After changing only the owner profile in the UI, no container restart is
 required. A rolling or multi-replica deployment may report different effective
 limits per process when replicas have different resource envelopes.
 
+The owner-selected profile is stored in Towk's event stream and is therefore
+included in the normal Towk backup and restore workflow. Operator-owned `.env`,
+Compose and Kubernetes resource settings remain outside that data archive and
+must be backed up with the deployment configuration.
+
 ## Usage
 
 ```bash

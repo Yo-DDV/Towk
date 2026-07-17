@@ -115,8 +115,14 @@ export type AdminProjectionMetric = {
   bytes: number;
 };
 
-export type PerformanceProfile = 'economy' | 'balanced' | 'performance' | 'custom' | 'legacy';
-export type MutablePerformanceProfile = Exclude<PerformanceProfile, 'legacy'>;
+export type PerformanceProfile =
+  | 'economy'
+  | 'balanced'
+  | 'performance'
+  | 'custom'
+  | 'legacy'
+  | 'unknown';
+export type MutablePerformanceProfile = Exclude<PerformanceProfile, 'legacy' | 'unknown'>;
 export type PerformancePolicySource = 'historical' | 'operator_default' | 'owner' | 'unknown';
 export type PerformanceLimitField =
   | 'image_transform_workers'
@@ -342,8 +348,9 @@ function performanceProfileFromProto(profile: AdminPerformanceProfile): Performa
     case AdminPerformanceProfile.CUSTOM:
       return 'custom';
     case AdminPerformanceProfile.LEGACY:
-    default:
       return 'legacy';
+    default:
+      return 'unknown';
   }
 }
 
