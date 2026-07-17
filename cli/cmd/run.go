@@ -146,6 +146,7 @@ func runServer(configPath string) {
 		exitCode = 1
 		return
 	}
+	chattoCore.ConfigurePerformance(performanceConfigWithLegacyVideoCap(cfg.Performance, cfg.Video))
 
 	// Set asset base URL for absolute asset URLs (required for cross-origin clients)
 	if cfg.Webserver.URL != "" {
@@ -257,6 +258,16 @@ func runServer(configPath string) {
 		log.Error("Server failed", "error", err)
 		exitCode = 1
 	}
+}
+
+func performanceConfigWithLegacyVideoCap(performance config.PerformanceConfig, video config.VideoConfig) config.PerformanceConfig {
+	if video.MaxConcurrent > 0 && video.MaxConcurrent <= config.MaxPerformanceWorkers &&
+		(performance.MaxVideoWorkers == 0 || video.MaxConcurrent < performance.MaxVideoWorkers) {
+		// Preserve the historical video.max_concurrent operator ceiling while
+		// performance profiles become the canonical runtime policy.
+		performance.MaxVideoWorkers = video.MaxConcurrent
+	}
+	return performance
 }
 
 func printBanner() {

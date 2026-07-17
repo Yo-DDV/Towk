@@ -120,21 +120,25 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 		router.Use(requestLogger(logger))
 	}
 
+	assetTransforms := newAssetTransformCoordinator(defaultConcurrentAssetTransforms, defaultAdmittedAssetTransforms)
+	if cfg.Core != nil {
+		assetTransforms = newDynamicAssetTransformCoordinator(
+			func() int { workers, _ := cfg.Core.ImageTransformLimits(); return workers },
+			func() int { _, admissions := cfg.Core.ImageTransformLimits(); return admissions },
+		)
+	}
 	s := &HTTPServer{
-		config:     cfg.Config,
-		nc:         cfg.NC,
-		router:     router,
-		core:       cfg.Core,
-		mailer:     mailer,
-		mockMailer: mockMailer,
-		addr:       cfg.Addr,
-		version:    cfg.Version,
-		logger:     logger,
-		metrics:    newProcessMetrics(),
-		assetTransforms: newAssetTransformCoordinator(
-			defaultConcurrentAssetTransforms,
-			defaultAdmittedAssetTransforms,
-		),
+		config:          cfg.Config,
+		nc:              cfg.NC,
+		router:          router,
+		core:            cfg.Core,
+		mailer:          mailer,
+		mockMailer:      mockMailer,
+		addr:            cfg.Addr,
+		version:         cfg.Version,
+		logger:          logger,
+		metrics:         newProcessMetrics(),
+		assetTransforms: assetTransforms,
 	}
 
 	// Set up all routes
@@ -148,9 +152,13 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 func (s *HTTPServer) transformCoordinator() *assetTransformCoordinator {
 	s.assetTransformOnce.Do(func() {
 		if s.assetTransforms == nil {
-			s.assetTransforms = newAssetTransformCoordinator(
-				defaultConcurrentAssetTransforms,
-				defaultAdmittedAssetTransforms,
+			if s.core == nil {
+				s.assetTransforms = newAssetTransformCoordinator(defaultConcurrentAssetTransforms, defaultAdmittedAssetTransforms)
+				return
+			}
+			s.assetTransforms = newDynamicAssetTransformCoordinator(
+				func() int { workers, _ := s.core.ImageTransformLimits(); return workers },
+				func() int { _, admissions := s.core.ImageTransformLimits(); return admissions },
 			)
 		}
 	})
