@@ -5,7 +5,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
@@ -54,6 +56,32 @@ func TestAssetUploadReservationAccountsForStorageBackend(t *testing.T) {
 	}
 	if got := initialAssetUploadReservationBytes(math.MaxInt64, false); got != math.MaxInt64 {
 		t.Fatalf("overflowing NATS reservation = %d, want saturated MaxInt64", got)
+	}
+}
+
+func TestAssetUploadReservationLedgerHasBoundedCardinality(t *testing.T) {
+	core := setupAssetUploadCapacityCore(t, 8*1024*1024)
+	ctx := testContext(t)
+	userID, roomID := setupAssetUploadCapacityRoom(t, core, ctx)
+	ledger := assetUploadCapacityLedger{Reservations: make(map[string]assetUploadCapacityReservation, assetUploadCapacityMaxEntries)}
+	for i := range assetUploadCapacityMaxEntries {
+		ledger.Reservations[fmt.Sprintf("%064d", i)] = assetUploadCapacityReservation{ExpiresAt: time.Now().Add(time.Minute)}
+	}
+	if len(ledger.Reservations) != assetUploadCapacityMaxEntries {
+		t.Fatalf("ledger entries = %d, want %d", len(ledger.Reservations), assetUploadCapacityMaxEntries)
+	}
+	data, err := json.Marshal(ledger)
+	if err != nil {
+		t.Fatalf("marshal bounded ledger: %v", err)
+	}
+	if len(data) >= 1024*1024 {
+		t.Fatalf("bounded ledger payload = %d bytes, want below 1 MiB", len(data))
+	}
+	if err := core.AssetUploads().storeCapacityReservations(ctx, ledger, 0, true); err != nil {
+		t.Fatalf("store full reservation ledger: %v", err)
+	}
+	if _, err := core.AssetUploads().CreateUpload(ctx, assetUploadCreateInput(userID, roomID, "bounded.bin", 0)); err != ErrAssetStorageCapacity {
+		t.Fatalf("CreateUpload with full ledger error = %v, want ErrAssetStorageCapacity", err)
 	}
 }
 

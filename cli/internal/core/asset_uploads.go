@@ -32,6 +32,7 @@ const (
 	assetUploadOrphanChunkMaxAge     = defaultAssetUploadSessionTTL + time.Hour
 	assetUploadCapacityHeadroomRatio = 20
 	assetUploadCapacityMaxRetries    = 32
+	assetUploadCapacityMaxEntries    = 4096
 )
 
 // AssetUploadMaxChunkSize is the largest resumable upload chunk accepted by
@@ -630,6 +631,9 @@ func (m *AssetUploadModel) reserveCapacity(ctx context.Context, uploadID string,
 			return err
 		}
 		pruneAssetUploadCapacityLedger(&ledger, now)
+		if len(ledger.Reservations) >= assetUploadCapacityMaxEntries {
+			return ErrAssetStorageCapacity
+		}
 
 		usedBytes, maxBytes, err := m.serverAssetsCapacity(ctx)
 		if err != nil {

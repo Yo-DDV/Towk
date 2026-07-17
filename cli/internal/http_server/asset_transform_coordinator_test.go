@@ -292,3 +292,42 @@ func TestAssetTransformCoordinatorPanicDoesNotLeakAdmission(t *testing.T) {
 		t.Fatalf("job after panic result = %#v", result)
 	}
 }
+
+func TestAssetTransformCoordinatorCloseCancelsRunningAndQueuedJobs(t *testing.T) {
+	coordinator := newAssetTransformCoordinator(1, 2)
+	workStarted := make(chan struct{})
+	work := func(ctx context.Context) (*assetTransformOutput, error) {
+		select {
+		case <-workStarted:
+		default:
+			close(workStarted)
+		}
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+
+	results := make(chan error, 2)
+	for _, key := range []string{"running", "queued"} {
+		go func(key string) {
+			_, err := coordinator.Do(context.Background(), key, work)
+			results <- err
+		}(key)
+	}
+	select {
+	case <-workStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("running transform did not start")
+	}
+	waitForTransformJobs(t, coordinator, 2)
+
+	coordinator.Close()
+	for range 2 {
+		if err := <-results; !errors.Is(err, context.Canceled) {
+			t.Fatalf("closed transform error = %v, want context canceled", err)
+		}
+	}
+	waitForTransformJobs(t, coordinator, 0)
+	if _, err := coordinator.Do(context.Background(), "after-close", work); !errors.Is(err, errAssetTransformClosed) {
+		t.Fatalf("post-close transform error = %v, want errAssetTransformClosed", err)
+	}
+}

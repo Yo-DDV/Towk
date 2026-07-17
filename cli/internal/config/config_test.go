@@ -119,6 +119,13 @@ func TestValidateLinkPreviewAssetControls(t *testing.T) {
 			want: "core.assets.link_previews.max_store_bytes must not exceed 9223372036854775807 bytes",
 		},
 		{
+			name: "derivative cache quota exceeds signed JetStream limit",
+			configure: func(cfg *ChattoConfig) {
+				cfg.Core.Assets.Cache.MaxBytes = datasize.ByteSize(math.MaxInt64) + 1
+			},
+			want: "core.assets.cache.max_bytes must not exceed 9223372036854775807 bytes",
+		},
+		{
 			name: "negative fetch window",
 			configure: func(cfg *ChattoConfig) {
 				cfg.Core.Assets.LinkPreviews.FetchWindow = Duration(-time.Minute)

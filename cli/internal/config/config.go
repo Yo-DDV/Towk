@@ -1406,6 +1406,9 @@ func (c *ChattoConfig) Validate() error {
 	if c.Core.Assets.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
 		errs = append(errs, "core.assets.max_store_bytes must not exceed 9223372036854775807 bytes")
 	}
+	if c.Core.Assets.Cache.MaxBytes > datasize.ByteSize(math.MaxInt64) {
+		errs = append(errs, "core.assets.cache.max_bytes must not exceed 9223372036854775807 bytes")
+	}
 	if c.Core.Assets.LinkPreviews.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
 		errs = append(errs, "core.assets.link_previews.max_store_bytes must not exceed 9223372036854775807 bytes")
 	}
