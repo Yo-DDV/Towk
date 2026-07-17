@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -45,6 +46,9 @@ type HTTPServer struct {
 	version    string
 	logger     *log.Logger
 	metrics    *processMetrics
+
+	assetTransformOnce sync.Once
+	assetTransforms    *assetTransformCoordinator
 
 	// Optional test hook used to make password-login revocation races deterministic.
 	passwordLoginSessionCreatedHook func(*gin.Context, string, uint64)
@@ -127,6 +131,10 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 		version:    cfg.Version,
 		logger:     logger,
 		metrics:    newProcessMetrics(),
+		assetTransforms: newAssetTransformCoordinator(
+			defaultConcurrentAssetTransforms,
+			defaultAdmittedAssetTransforms,
+		),
 	}
 
 	// Set up all routes
@@ -135,6 +143,24 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 	}
 
 	return s, nil
+}
+
+func (s *HTTPServer) transformCoordinator() *assetTransformCoordinator {
+	s.assetTransformOnce.Do(func() {
+		if s.assetTransforms == nil {
+			s.assetTransforms = newAssetTransformCoordinator(
+				defaultConcurrentAssetTransforms,
+				defaultAdmittedAssetTransforms,
+			)
+		}
+	})
+	return s.assetTransforms
+}
+
+func (s *HTTPServer) closeTransformCoordinator() {
+	if s.assetTransforms != nil {
+		s.assetTransforms.Close()
+	}
 }
 
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
@@ -246,6 +272,7 @@ func (s *HTTPServer) setupRoutes() error {
 
 // Run starts the HTTP server(s) and blocks until ctx is cancelled or an error occurs.
 func (s *HTTPServer) Run(ctx context.Context) error {
+	defer s.closeTransformCoordinator()
 
 	var servers []*http.Server
 	var tlsServer *http.Server
