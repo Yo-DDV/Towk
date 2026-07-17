@@ -67,6 +67,50 @@ func TestFetcherBoundsConcurrentRemoteWork(t *testing.T) {
 	}
 }
 
+func TestFetcherUsesLiveWorkerLimit(t *testing.T) {
+	fetcher := NewFetcher(nil, nil, nil)
+	var limit atomic.Int32
+	limit.Store(1)
+	fetcher.SetWorkerLimit(func() int { return int(limit.Load()) })
+
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	work := func() (*FetchResult, error) {
+		started <- struct{}{}
+		<-release
+		return &FetchResult{}, nil
+	}
+	done := make(chan error, 2)
+	for range 2 {
+		go func() {
+			_, err := fetcher.withFetchSlot(context.Background(), work)
+			done <- err
+		}()
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("first link-preview worker did not start")
+	}
+	select {
+	case <-started:
+		t.Fatal("second link-preview worker started above live limit")
+	case <-time.After(50 * time.Millisecond):
+	}
+	limit.Store(2)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("waiting link-preview worker did not observe raised limit")
+	}
+	close(release)
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestFetcherCoalescesConcurrentRequestsForNormalizedURL(t *testing.T) {
 	restoreLocalhost := AllowLocalhostForTesting()
 	defer restoreLocalhost()

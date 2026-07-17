@@ -22,13 +22,14 @@ type ConfigProjection struct {
 }
 
 type serverConfigState struct {
-	serverName       string
-	description      string
-	welcomeMessage   string
-	motd             string
-	blockedUsernames *string
-	logo             *corev1.AssetRecord
-	banner           *corev1.AssetRecord
+	serverName        string
+	description       string
+	welcomeMessage    string
+	motd              string
+	blockedUsernames  *string
+	performancePolicy *configv1.ServerPerformancePolicy
+	logo              *corev1.AssetRecord
+	banner            *corev1.AssetRecord
 }
 
 type userConfigState struct {
@@ -77,6 +78,8 @@ func (p *ConfigProjection) Apply(event *corev1.Event, _ uint64) error {
 	case *corev1.Event_ServerBlockedUsernamesChanged:
 		blocked := e.ServerBlockedUsernamesChanged.GetBlockedUsernames()
 		p.server.blockedUsernames = &blocked
+	case *corev1.Event_ServerPerformancePolicyChanged:
+		p.server.performancePolicy = clonePerformancePolicy(e.ServerPerformancePolicyChanged.GetPolicy())
 	case *corev1.Event_ServerLogoSet:
 		p.server.logo = cloneAssetRecord(e.ServerLogoSet.GetAsset())
 	case *corev1.Event_ServerLogoCleared:
@@ -161,19 +164,29 @@ func (p *ConfigProjection) Get() *configv1.ServerConfig {
 		p.server.description == "" &&
 		p.server.welcomeMessage == "" &&
 		p.server.motd == "" &&
-		p.server.blockedUsernames == nil {
+		p.server.blockedUsernames == nil &&
+		p.server.performancePolicy == nil {
 		return nil
 	}
 	cfg := &configv1.ServerConfig{
-		ServerName:     p.server.serverName,
-		Description:    p.server.description,
-		WelcomeMessage: p.server.welcomeMessage,
-		Motd:           p.server.motd,
+		ServerName:        p.server.serverName,
+		Description:       p.server.description,
+		WelcomeMessage:    p.server.welcomeMessage,
+		Motd:              p.server.motd,
+		PerformancePolicy: clonePerformancePolicy(p.server.performancePolicy),
 	}
 	if p.server.blockedUsernames != nil {
 		cfg.BlockedUsernames = *p.server.blockedUsernames
 	}
 	return cfg
+}
+
+// PerformancePolicy returns a detached snapshot of the owner-requested
+// runtime policy. Nil means no owner policy has been written yet.
+func (p *ConfigProjection) PerformancePolicy() *configv1.ServerPerformancePolicy {
+	p.RLock()
+	defer p.RUnlock()
+	return clonePerformancePolicy(p.server.performancePolicy)
 }
 
 func (p *ConfigProjection) ServerLogo() (*corev1.AssetRecord, bool, error) {

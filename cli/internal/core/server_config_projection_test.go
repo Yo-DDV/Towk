@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
@@ -94,6 +95,24 @@ func TestServerConfigProjection_GetReturnsClone(t *testing.T) {
 
 	cfg2 := p.Get()
 	require.Equal(t, "Original", cfg2.ServerName)
+}
+
+func TestServerConfigProjection_PerformancePolicyReturnsClone(t *testing.T) {
+	p := NewServerConfigProjection()
+	policy := &configv1.ServerPerformancePolicy{
+		SchemaVersion: 1,
+		Profile:       "balanced",
+		Revision:      3,
+	}
+	require.NoError(t, p.Apply(&corev1.Event{Event: &corev1.Event_ServerPerformancePolicyChanged{
+		ServerPerformancePolicyChanged: &corev1.ServerPerformancePolicyChangedEvent{Policy: policy},
+	}}, 1))
+
+	first := p.PerformancePolicy()
+	require.Equal(t, policy, first)
+	first.Profile = "economy"
+	require.Equal(t, "balanced", p.PerformancePolicy().GetProfile())
+	require.Equal(t, "balanced", p.Get().GetPerformancePolicy().GetProfile())
 }
 
 func TestServerConfigProjection_UnknownEventTypesIgnored(t *testing.T) {

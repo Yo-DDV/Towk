@@ -176,6 +176,29 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 	})
 }
 
+func TestConfigManager_PerformancePolicyRoundTrip(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	policy := &configv1.ServerPerformancePolicy{
+		SchemaVersion: 1,
+		Profile:       "performance",
+		Revision:      1,
+	}
+	if err := core.configManager.SetServerConfig(ctx, "owner", &configv1.ServerConfig{PerformancePolicy: policy}); err != nil {
+		t.Fatalf("set performance policy: %v", err)
+	}
+	got, err := core.configManager.GetServerConfig(ctx)
+	if err != nil {
+		t.Fatalf("get performance policy: %v", err)
+	}
+	if got.GetPerformancePolicy().GetProfile() != "performance" || got.GetPerformancePolicy().GetRevision() != 1 {
+		t.Fatalf("performance policy = %#v", got.GetPerformancePolicy())
+	}
+	if status := core.PerformanceStatus(); status.Source != performanceSourceOwner || status.Revision != 1 {
+		t.Fatalf("effective performance status = %#v", status)
+	}
+}
+
 func TestConfigManager_ServerConfigStringLengthLimits(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

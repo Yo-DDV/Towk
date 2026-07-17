@@ -198,6 +198,10 @@ func (m *AssetUploadModel) UploadChunk(ctx context.Context, input AssetUploadChu
 		return nil, invalidArgument("chunk exceeds declared upload size")
 	}
 	chunkKey := assetUploadTempObjectKey(session.UploadID, input.Offset)
+	if err := m.core.assetUploadLimiter.Acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer m.core.assetUploadLimiter.Release()
 	if _, err := m.core.storage.serverAssets.Put(ctx, jetstream.ObjectMeta{
 		Name: chunkKey,
 		Headers: map[string][]string{

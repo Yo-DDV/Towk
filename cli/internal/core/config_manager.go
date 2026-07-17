@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/events"
 	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -151,6 +152,32 @@ func validateServerConfig(cfg *configv1.ServerConfig) error {
 			return err
 		}
 	}
+	if err := validatePerformancePolicy(cfg.GetPerformancePolicy()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validatePerformancePolicy(policy *configv1.ServerPerformancePolicy) error {
+	if policy == nil {
+		return nil
+	}
+	if policy.GetSchemaVersion() != performancePolicySchemaVersion {
+		return invalidArgument("performance policy schema version must be 1")
+	}
+	profile := strings.ToLower(strings.TrimSpace(policy.GetProfile()))
+	switch profile {
+	case config.PerformanceProfileEconomy, config.PerformanceProfileBalanced, config.PerformanceProfilePerformance:
+		if policy.GetCustomLimits() != nil {
+			return invalidArgument("custom performance limits require the custom profile")
+		}
+	case config.PerformanceProfileCustom:
+		if _, err := performanceLimitsFromProto(policy.GetCustomLimits()); err != nil {
+			return err
+		}
+	default:
+		return invalidArgument("performance profile must be one of: economy, balanced, performance, custom")
+	}
 	return nil
 }
 
@@ -168,6 +195,13 @@ func cloneServerConfig(cfg *configv1.ServerConfig) *configv1.ServerConfig {
 		return nil
 	}
 	return proto.Clone(cfg).(*configv1.ServerConfig)
+}
+
+func clonePerformancePolicy(policy *configv1.ServerPerformancePolicy) *configv1.ServerPerformancePolicy {
+	if policy == nil {
+		return nil
+	}
+	return proto.Clone(policy).(*configv1.ServerPerformancePolicy)
 }
 
 func serverConfigEvents(actorID string, current, next *configv1.ServerConfig) []*corev1.Event {
@@ -198,6 +232,13 @@ func serverConfigEvents(actorID string, current, next *configv1.ServerConfig) []
 	if current.GetBlockedUsernames() != next.GetBlockedUsernames() {
 		evs = append(evs, newEvent(actorID, &corev1.Event{Event: &corev1.Event_ServerBlockedUsernamesChanged{
 			ServerBlockedUsernamesChanged: &corev1.ServerBlockedUsernamesChangedEvent{BlockedUsernames: next.GetBlockedUsernames()},
+		}}))
+	}
+	if !proto.Equal(current.GetPerformancePolicy(), next.GetPerformancePolicy()) {
+		evs = append(evs, newEvent(actorID, &corev1.Event{Event: &corev1.Event_ServerPerformancePolicyChanged{
+			ServerPerformancePolicyChanged: &corev1.ServerPerformancePolicyChangedEvent{
+				Policy: clonePerformancePolicy(next.GetPerformancePolicy()),
+			},
 		}}))
 	}
 	return evs
