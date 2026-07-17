@@ -115,6 +115,28 @@ Update these values (generate secrets with `openssl rand -hex 32`):
 - `CHATTO_CORE_SECRET_KEY` - Bearer-token and account-flow verifier key
 - `CHATTO_CORE_ASSETS_SIGNING_SECRET` - Asset URL signing secret
 
+### Performance policy and pod resources
+
+The pod's `resources.limits`, CPU affinity and optional
+`CHATTO_PERFORMANCE_MAX_*` values form the operator-owned envelope.
+`CHATTO_PERFORMANCE_DEFAULT_PROFILE=balanced` selects the initial runtime media
+policy for new deployments. Server owners can later choose economy, balanced,
+performance, or bounded custom concurrency in **Server administration →
+System** without changing the Deployment.
+
+Effective worker counts never exceed the pod's detected cgroup envelope or the
+optional `CHATTO_PERFORMANCE_MAX_*` caps in `secrets.local.yaml`. Changing pod
+resources or operator caps requires a rollout; changing only the owner profile
+applies live to newly admitted work. Different replicas can report different
+effective values when their node or pod envelopes differ. The example sets a
+memory limit but deliberately leaves CPU as a request; add a CPU limit only
+when a hard CPU ceiling is appropriate for the cluster's scheduling and
+throttling policy.
+
+Resource examples are starting points rather than capacity guarantees. Measure
+CPU, memory, storage latency and call quality with the intended workload before
+raising limits, and size NATS independently for retained media and events.
+
 ### NATS TLS secret
 
 The manifests require a TLS certificate for the internal DNS name `nats` and
