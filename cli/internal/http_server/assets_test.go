@@ -69,6 +69,15 @@ func setupAssetTestServerWithConfig(t *testing.T, useS3 bool) *assetTestEnv {
 }
 
 func setupAssetTestServerWithOptions(t *testing.T, useS3 bool, videoEnabled bool) *assetTestEnv {
+	return setupAssetTestServerWithAssetConfig(t, useS3, videoEnabled, nil)
+}
+
+func setupAssetTestServerWithAssetConfig(
+	t *testing.T,
+	useS3 bool,
+	videoEnabled bool,
+	mutate func(*config.AssetsConfig),
+) *assetTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -84,6 +93,9 @@ func setupAssetTestServerWithOptions(t *testing.T, useS3 bool, videoEnabled bool
 			Enabled: true,
 			TTL:     config.Duration(7 * 24 * time.Hour), // 7 days
 		},
+	}
+	if mutate != nil {
+		mutate(&assetsCfg)
 	}
 	if useS3 {
 		s3Server := fakes3.NewServer(t)
@@ -338,6 +350,46 @@ func TestAsset_TransformedImage_CacheHitMiss(t *testing.T) {
 	xCache := transformResp2.Header.Get("X-Cache")
 	if xCache != "HIT" {
 		t.Errorf("Expected X-Cache: HIT, got: %s", xCache)
+	}
+}
+
+func TestAsset_TransformedImage_FullCacheFallsBackWithoutBreakingDelivery(t *testing.T) {
+	env := setupAssetTestServerWithAssetConfig(t, false, false, func(cfg *config.AssetsConfig) {
+		cfg.Cache.MaxBytes = 1
+	})
+
+	user, err := env.core.CreateUser(env.ctx, "system", "fullcacheuser", "Full Cache User", "password123")
+	if err != nil {
+		t.Fatalf("Failed to create user: %v", err)
+	}
+	room, err := env.core.CreateRoom(env.ctx, user.Id, "channel", "", "full-cache", "Full Cache")
+	if err != nil {
+		t.Fatalf("Failed to create room: %v", err)
+	}
+	if _, err := env.core.JoinRoom(env.ctx, user.Id, "channel", user.Id, room.Id); err != nil {
+		t.Fatalf("Failed to join room: %v", err)
+	}
+	env.login(t, "fullcacheuser", "password123")
+
+	imageData := createAssetTestPNG(t, 640, 480)
+	_, attachment := env.postAssetMessageWithAttachment(t, room.Id, "full cache fallback", imageData, "full-cache.png")
+	thumbnailURL := attachment.GetThumbnailAssetUrl().GetUrl()
+	for attempt := 1; attempt <= 2; attempt++ {
+		resp, err := env.client.Get(env.server.URL + thumbnailURL)
+		if err != nil {
+			t.Fatalf("attempt %d: transformed request failed: %v", attempt, err)
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			t.Fatalf("attempt %d: read transformed response: %v", attempt, readErr)
+		}
+		if resp.StatusCode != http.StatusOK || len(body) == 0 {
+			t.Fatalf("attempt %d: status=%d body=%d", attempt, resp.StatusCode, len(body))
+		}
+		if got := resp.Header.Get("X-Cache"); got != "MISS" {
+			t.Fatalf("attempt %d: X-Cache = %q, want MISS after rejected cache write", attempt, got)
+		}
 	}
 }
 

@@ -33,6 +33,7 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 	t.Setenv("CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_IP", "80")
 	t.Setenv("CHATTO_CORE_ASSETS_LINK_PREVIEWS_FETCH_PER_USER", "20")
 	t.Setenv("CHATTO_CORE_ASSETS_LINK_PREVIEWS_PENDING_TTL", "26h")
+	t.Setenv("CHATTO_CORE_ASSETS_CACHE_MAX_BYTES", "128 MB")
 
 	cfg, err := ReadConfig("")
 	if err != nil {
@@ -51,6 +52,9 @@ func TestReadConfig_LinkPreviewAssetControlsFromEnv(t *testing.T) {
 	if got.PendingTTLOrDefault() != 26*time.Hour {
 		t.Fatalf("pending_ttl = %s, want 26h", got.PendingTTLOrDefault())
 	}
+	if cfg.Core.Assets.Cache.MaxBytes != 128*datasize.MB {
+		t.Fatalf("cache max_bytes = %d, want %d", cfg.Core.Assets.Cache.MaxBytes, 128*datasize.MB)
+	}
 }
 
 func TestAssetStoreMaxBytesDefaultsAndSaturatesInvalidValues(t *testing.T) {
@@ -61,15 +65,22 @@ func TestAssetStoreMaxBytesDefaultsAndSaturatesInvalidValues(t *testing.T) {
 	if got := assets.LinkPreviews.MaxStoreBytesOrDefault(); got != int64(datasize.GB) {
 		t.Fatalf("default link-preview asset quota = %d, want %d", got, datasize.GB)
 	}
+	if got := assets.Cache.MaxBytesOrDefault(); got != int64(DefaultAssetCacheMaxBytes) {
+		t.Fatalf("default derivative cache quota = %d, want %d", got, DefaultAssetCacheMaxBytes)
+	}
 
 	tooLarge := datasize.ByteSize(math.MaxInt64) + 1
 	assets.MaxStoreBytes = tooLarge
 	assets.LinkPreviews.MaxStoreBytes = tooLarge
+	assets.Cache.MaxBytes = tooLarge
 	if got := assets.MaxStoreBytesOrDefault(); got != math.MaxInt64 {
 		t.Fatalf("primary asset quota overflow guard = %d, want %d", got, int64(math.MaxInt64))
 	}
 	if got := assets.LinkPreviews.MaxStoreBytesOrDefault(); got != math.MaxInt64 {
 		t.Fatalf("link-preview asset quota overflow guard = %d, want %d", got, int64(math.MaxInt64))
+	}
+	if got := assets.Cache.MaxBytesOrDefault(); got != math.MaxInt64 {
+		t.Fatalf("derivative cache quota overflow guard = %d, want %d", got, int64(math.MaxInt64))
 	}
 }
 

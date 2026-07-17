@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
+	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/pkg/signedurl"
@@ -211,6 +213,26 @@ func TestMediaModelCacheOperations(t *testing.T) {
 	got, err = service.GetCachedResize(ctx, key)
 	if err != nil || got != nil {
 		t.Fatalf("GetCachedResize after delete = %q, %v; want nil, nil", string(got), err)
+	}
+}
+
+func TestMediaModelCacheHasHardByteQuota(t *testing.T) {
+	_, nc := setupTestCoreWithCache(t)
+	ctx := testContext(t)
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("create JetStream client: %v", err)
+	}
+	stream, err := js.Stream(ctx, "OBJ_ASSET_CACHE")
+	if err != nil {
+		t.Fatalf("open asset cache stream: %v", err)
+	}
+	info, err := stream.Info(ctx)
+	if err != nil {
+		t.Fatalf("read asset cache stream info: %v", err)
+	}
+	if got, want := info.Config.MaxBytes, int64(config.DefaultAssetCacheMaxBytes); got != want {
+		t.Fatalf("asset cache MaxBytes = %d, want %d", got, want)
 	}
 }
 

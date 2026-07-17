@@ -1277,6 +1277,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 				Storage:     jetstream.FileStorage,
 				Compression: true,
 				TTL:         cfg.Assets.Cache.TTLOrDefault(),
+				MaxBytes:    cfg.Assets.Cache.MaxBytesOrDefault(),
 				Replicas:    cfg.Replicas,
 			})
 		})
