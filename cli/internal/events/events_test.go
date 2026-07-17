@@ -14,9 +14,13 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/dynamicpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/internal/testutil"
 )
@@ -1786,6 +1790,60 @@ func TestMessagePostedEvent_RemovedLegacyMessageBodyIDRoundTripsUnknown(t *testi
 	}
 	if got := decoded.ProtoReflect().GetUnknown(); len(got) == 0 {
 		t.Fatal("expected legacy message_body_id to remain in unknown fields")
+	}
+}
+
+func TestPerformancePolicyEventSurvivesLegacyEventSchemaRoundTrip(t *testing.T) {
+	event := &corev1.Event{Event: &corev1.Event_ServerPerformancePolicyChanged{
+		ServerPerformancePolicyChanged: &corev1.ServerPerformancePolicyChangedEvent{
+			Policy: &configv1.ServerPerformancePolicy{
+				SchemaVersion: 1,
+				Profile:       "balanced",
+				Revision:      7,
+			},
+		},
+	}}
+	encoded, err := proto.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	legacyFileProto := protodesc.ToFileDescriptorProto(corev1.File_chatto_core_v1_event_proto)
+	for _, message := range legacyFileProto.GetMessageType() {
+		if message.GetName() != "Event" {
+			continue
+		}
+		fields := message.GetField()[:0]
+		for _, field := range message.GetField() {
+			if field.GetNumber() != 518 {
+				fields = append(fields, field)
+			}
+		}
+		message.Field = fields
+	}
+	legacyFile, err := protodesc.NewFile(legacyFileProto, protoregistry.GlobalFiles)
+	if err != nil {
+		t.Fatalf("build legacy event descriptor: %v", err)
+	}
+	legacyEvent := dynamicpb.NewMessage(legacyFile.Messages().ByName("Event"))
+	if err := proto.Unmarshal(encoded, legacyEvent); err != nil {
+		t.Fatalf("legacy reader rejected performance event: %v", err)
+	}
+	if len(legacyEvent.GetUnknown()) == 0 {
+		t.Fatal("legacy reader did not preserve the unknown performance event")
+	}
+
+	roundTripped, err := proto.Marshal(legacyEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored corev1.Event
+	if err := proto.Unmarshal(roundTripped, &restored); err != nil {
+		t.Fatalf("current reader rejected legacy round-trip: %v", err)
+	}
+	policy := restored.GetServerPerformancePolicyChanged().GetPolicy()
+	if policy.GetProfile() != "balanced" || policy.GetRevision() != 7 {
+		t.Fatalf("restored performance policy = %#v", policy)
 	}
 }
 

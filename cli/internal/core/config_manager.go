@@ -97,7 +97,7 @@ func (cm *ConfigManager) UpdateServerConfigFunc(
 		if updated == nil {
 			return nil, fmt.Errorf("update function returned nil config")
 		}
-		if err := validateServerConfig(updated); err != nil {
+		if err := validateServerConfigUpdate(baseline, updated); err != nil {
 			return nil, err
 		}
 
@@ -110,6 +110,17 @@ func (cm *ConfigManager) UpdateServerConfigFunc(
 		}
 	}
 	return nil, ErrConfigConflict
+}
+
+// validateServerConfigUpdate permits an unchanged future performance policy to
+// pass through an unrelated semantic config edit. The current binary still
+// rejects attempts to create or modify a policy schema it does not understand.
+func validateServerConfigUpdate(current, next *configv1.ServerConfig) error {
+	candidate := cloneServerConfig(next)
+	if proto.Equal(current.GetPerformancePolicy(), next.GetPerformancePolicy()) {
+		candidate.PerformancePolicy = nil
+	}
+	return validateServerConfig(candidate)
 }
 
 // publish writes the server config by emitting semantic config events on the

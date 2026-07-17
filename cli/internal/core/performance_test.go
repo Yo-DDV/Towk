@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 
 	"hmans.de/chatto/internal/config"
@@ -249,6 +250,55 @@ func TestUpdatePerformanceSettingsRequiresOwnerAndRejectsStaleRevision(t *testin
 	}
 	if current.Revision != 1 || current.RequestedProfile != config.PerformanceProfileBalanced {
 		t.Fatalf("stale update changed policy: %#v", current)
+	}
+}
+
+func TestUpdatePerformanceSettingsRejectsOneOfTwoConcurrentOwnerWrites(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	ctx := testContext(t)
+	owner, err := chattoCore.CreateUser(ctx, SystemActorID, "concurrent-performance-owner", "Concurrent Performance Owner", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := chattoCore.AssignServerRole(ctx, SystemActorID, owner.Id, RoleOwner); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for _, profile := range []string{config.PerformanceProfileEconomy, config.PerformanceProfilePerformance} {
+		go func() {
+			ready.Done()
+			<-start
+			_, updateErr := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, profile, PerformanceLimits{})
+			errs <- updateErr
+		}()
+	}
+	ready.Wait()
+	close(start)
+
+	successes, conflicts := 0, 0
+	for range 2 {
+		switch updateErr := <-errs; {
+		case updateErr == nil:
+			successes++
+		case errors.Is(updateErr, ErrConfigConflict):
+			conflicts++
+		default:
+			t.Fatalf("concurrent update error = %v", updateErr)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("concurrent results = %d successes, %d conflicts; want one of each", successes, conflicts)
+	}
+	status, err := chattoCore.GetPerformanceSettings(ctx, owner.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Revision != 1 || status.Source != performanceSourceOwner {
+		t.Fatalf("concurrent final status = %#v", status)
 	}
 }
 
