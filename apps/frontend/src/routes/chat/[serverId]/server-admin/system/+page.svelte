@@ -1,11 +1,26 @@
 <script lang="ts">
+  import { Code, ConnectError } from '@connectrpc/connect';
   import { onMount } from 'svelte';
-  import { getAdminSystemInfo, type AdminSystemInfo } from '$lib/api-client/adminDiagnostics';
+  import {
+    getAdminPerformanceSettings,
+    getAdminSystemInfo,
+    updateAdminPerformanceSettings,
+    type AdminPerformanceSettings,
+    type AdminSystemInfo,
+    type MutablePerformanceProfile,
+    type PerformanceCapReason,
+    type PerformanceLimitField,
+    type PerformanceLimits,
+    type PerformancePolicySource,
+    type PerformanceProfile
+  } from '$lib/api-client/adminDiagnostics';
   import { Panel, StatCard, DataTable, formatBytes, formatNumber } from '$lib/components/admin';
   import { Hint, Pill } from '$lib/ui';
+  import { Button } from '$lib/ui/form';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
+  import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
 
   const connection = useConnection();
@@ -13,6 +28,39 @@
   let systemInfo = $state.raw<AdminSystemInfo | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let performanceSettings = $state.raw<AdminPerformanceSettings | null>(null);
+  let performanceLoading = $state(true);
+  let performanceSaving = $state(false);
+  let performanceError = $state(false);
+  let selectedProfile = $state<MutablePerformanceProfile>('balanced');
+  let customLimits = $state<PerformanceLimits>({
+    image_transform_workers: 2,
+    image_transform_admissions: 8,
+    asset_upload_workers: 4,
+    link_preview_workers: 2,
+    video_workers: 2
+  });
+
+  const mutableProfiles: MutablePerformanceProfile[] = [
+    'economy',
+    'balanced',
+    'performance',
+    'custom'
+  ];
+  const performanceFields: PerformanceLimitField[] = [
+    'image_transform_workers',
+    'image_transform_admissions',
+    'asset_upload_workers',
+    'link_preview_workers',
+    'video_workers'
+  ];
+  const customLimitsValid = $derived(
+    performanceFields.every((field) => {
+      const value = customLimits[field];
+      const maximum = field === 'image_transform_admissions' ? 256 : 64;
+      return Number.isInteger(value) && value >= 1 && value <= maximum;
+    }) && customLimits.image_transform_admissions >= customLimits.image_transform_workers
+  );
 
   const streams = $derived(systemInfo?.nats.streams ?? []);
   const consumers = $derived(systemInfo?.nats.consumers ?? []);
@@ -85,9 +133,132 @@
     }
   }
 
+  function applyPerformanceSettings(settings: AdminPerformanceSettings) {
+    performanceSettings = settings;
+    selectedProfile =
+      settings.requestedProfile === 'legacy' ? 'balanced' : settings.requestedProfile;
+    customLimits = { ...settings.requestedLimits };
+  }
+
+  async function loadPerformanceSettings() {
+    performanceLoading = true;
+    performanceError = false;
+    try {
+      applyPerformanceSettings(await getAdminPerformanceSettings(apiConfig()));
+    } catch {
+      performanceSettings = null;
+      performanceError = true;
+    } finally {
+      performanceLoading = false;
+    }
+  }
+
+  async function savePerformanceSettings() {
+    if (!performanceSettings || performanceSaving) return;
+    if (selectedProfile === 'custom' && !customLimitsValid) {
+      toast.error(m['admin.system.performance_custom_invalid']());
+      return;
+    }
+
+    performanceSaving = true;
+    try {
+      const settings = await updateAdminPerformanceSettings(apiConfig(), {
+        profile: selectedProfile,
+        expectedRevision: performanceSettings.revision,
+        customLimits: selectedProfile === 'custom' ? { ...customLimits } : undefined
+      });
+      applyPerformanceSettings(settings);
+      toast.success(m['admin.system.performance_saved']());
+    } catch (err) {
+      if (err instanceof ConnectError && err.code === Code.Aborted) {
+        await loadPerformanceSettings();
+        toast.error(m['admin.system.performance_save_conflict']());
+      } else {
+        toast.error(m['admin.system.performance_save_failed']());
+      }
+    } finally {
+      performanceSaving = false;
+    }
+  }
+
   onMount(() => {
     void loadSystemInfo();
+    void loadPerformanceSettings();
   });
+
+  function performanceProfileLabel(profile: PerformanceProfile): string {
+    switch (profile) {
+      case 'economy':
+        return m['admin.system.performance_profile_economy']();
+      case 'balanced':
+        return m['admin.system.performance_profile_balanced']();
+      case 'performance':
+        return m['admin.system.performance_profile_performance']();
+      case 'custom':
+        return m['admin.system.performance_profile_custom']();
+      case 'legacy':
+        return m['admin.system.performance_profile_legacy']();
+    }
+  }
+
+  function performanceProfileDescription(profile: MutablePerformanceProfile): string {
+    switch (profile) {
+      case 'economy':
+        return m['admin.system.performance_profile_economy_description']();
+      case 'balanced':
+        return m['admin.system.performance_profile_balanced_description']();
+      case 'performance':
+        return m['admin.system.performance_profile_performance_description']();
+      case 'custom':
+        return m['admin.system.performance_profile_custom_description']();
+    }
+  }
+
+  function performanceFieldLabel(field: PerformanceLimitField): string {
+    switch (field) {
+      case 'image_transform_workers':
+        return m['admin.system.performance_field_image_transform_workers']();
+      case 'image_transform_admissions':
+        return m['admin.system.performance_field_image_transform_admissions']();
+      case 'asset_upload_workers':
+        return m['admin.system.performance_field_asset_upload_workers']();
+      case 'link_preview_workers':
+        return m['admin.system.performance_field_link_preview_workers']();
+      case 'video_workers':
+        return m['admin.system.performance_field_video_workers']();
+    }
+  }
+
+  function performanceSourceLabel(source: PerformancePolicySource): string {
+    switch (source) {
+      case 'historical':
+        return m['admin.system.performance_source_historical']();
+      case 'operator_default':
+        return m['admin.system.performance_source_operator_default']();
+      case 'owner':
+        return m['admin.system.performance_source_owner']();
+      case 'unknown':
+        return m['admin.system.performance_source_unknown']();
+    }
+  }
+
+  function performanceCapReasonLabel(reason: PerformanceCapReason): string {
+    switch (reason) {
+      case 'operator_cap':
+        return m['admin.system.performance_cap_operator_cap']();
+      case 'process_cpu':
+        return m['admin.system.performance_cap_process_cpu']();
+      case 'process_memory':
+        return m['admin.system.performance_cap_process_memory']();
+      case 'unknown':
+        return m['admin.system.performance_cap_unknown']();
+    }
+  }
+
+  function updateCustomLimit(field: PerformanceLimitField, event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    customLimits = { ...customLimits, [field]: Number(input.value) };
+  }
 
   function formatLimit(limit: number, formatter: (n: number) => string = String): string {
     return limit <= 0 ? m['admin.system.unlimited']() : formatter(limit);
@@ -136,6 +307,188 @@
       {:else if error}
         <Hint tone="danger">{error}</Hint>
       {:else if systemInfo}
+        <Panel
+          title={m['admin.system.performance_title']()}
+          subtitle={m['admin.system.performance_subtitle']()}
+          icon="iconify uil--tachometer-fast"
+        >
+          {#if performanceLoading}
+            <div class="text-sm text-muted" aria-live="polite">
+              {m['admin.system.performance_loading']()}
+            </div>
+          {:else if performanceError || !performanceSettings}
+            <Hint tone="danger">{m['admin.system.performance_load_failed']()}</Hint>
+          {:else}
+            <div class="space-y-6" data-testid="performance-settings">
+              <div class="flex flex-wrap items-center gap-2">
+                <Pill tone="subtle">{performanceSourceLabel(performanceSettings.source)}</Pill>
+                <Pill tone="primary">
+                  {m['admin.system.performance_requested']()}:
+                  {performanceProfileLabel(performanceSettings.requestedProfile)}
+                </Pill>
+                <Pill tone="success">
+                  {m['admin.system.performance_effective']()}:
+                  {performanceProfileLabel(performanceSettings.effectiveProfile)}
+                </Pill>
+              </div>
+
+              {#if performanceSettings.requestedProfile === 'legacy'}
+                <Hint tone="info">
+                  <span class="font-medium">
+                    {m['admin.system.performance_profile_legacy']()}
+                  </span>
+                  — {m['admin.system.performance_profile_legacy_description']()}
+                </Hint>
+              {/if}
+
+              {#if performanceSettings.policyError}
+                <Hint tone="danger">{m['admin.system.performance_policy_error']()}</Hint>
+              {/if}
+
+              {#if performanceSettings.restartRequired}
+                <Hint tone="warning">{m['admin.system.performance_restart_required']()}</Hint>
+              {/if}
+
+              <fieldset class="space-y-3">
+                <legend class="text-sm font-semibold">
+                  {m['admin.system.performance_profile']()}
+                </legend>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {#each mutableProfiles as profile (profile)}
+                    <button
+                      type="button"
+                      class={[
+                        'min-h-24 rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+                        selectedProfile === profile
+                          ? 'border-primary bg-primary/10 shadow-sm'
+                          : 'border-border bg-surface-100/70 hover:border-primary/50 hover:bg-surface-200/70'
+                      ]}
+                      aria-pressed={selectedProfile === profile}
+                      onclick={() => (selectedProfile = profile)}
+                      data-testid={`performance-profile-${profile}`}
+                    >
+                      <span class="flex items-center justify-between gap-2">
+                        <span class="font-semibold">{performanceProfileLabel(profile)}</span>
+                        <span class="flex flex-wrap justify-end gap-1">
+                          {#if profile === 'balanced'}
+                            <Pill tone="primary">{m['admin.system.performance_recommended']()}</Pill>
+                          {/if}
+                          {#if selectedProfile === profile}
+                            <Pill tone="success">{m['admin.system.performance_selected']()}</Pill>
+                          {/if}
+                        </span>
+                      </span>
+                      <span class="mt-2 block text-sm text-muted">
+                        {performanceProfileDescription(profile)}
+                      </span>
+                    </button>
+                  {/each}
+                </div>
+              </fieldset>
+
+              {#if selectedProfile === 'custom'}
+                <div class="rounded-xl border border-border bg-surface-100/70 p-4">
+                  <p class="mb-4 text-sm text-muted">
+                    {m['admin.system.performance_custom_help']()}
+                  </p>
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {#each performanceFields as field (field)}
+                      <label class="grid gap-1.5 text-sm font-medium">
+                        <span>{performanceFieldLabel(field)}</span>
+                        <input
+                          class="bg-surface-50 min-h-11 w-full rounded-lg border border-border px-3 font-mono text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                          type="number"
+                          min="1"
+                          max={field === 'image_transform_admissions' ? 256 : 64}
+                          step="1"
+                          value={customLimits[field]}
+                          aria-invalid={!customLimitsValid || undefined}
+                          oninput={(event) => updateCustomLimit(field, event)}
+                          data-testid={`performance-limit-${field}`}
+                        />
+                      </label>
+                    {/each}
+                  </div>
+                  {#if !customLimitsValid}
+                    <p class="mt-3 text-sm text-danger" role="alert">
+                      {m['admin.system.performance_custom_invalid']()}
+                    </p>
+                  {/if}
+                </div>
+              {/if}
+
+              <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                <div class="rounded-xl border border-border bg-surface-100/70 p-4">
+                  <h3 class="text-sm font-semibold">
+                    {m['admin.system.performance_process_envelope']()}
+                  </h3>
+                  <div class="mt-3 space-y-2 text-sm text-muted">
+                    <div>
+                      {m['admin.system.performance_cpu_count']({
+                        count: formatNumber(performanceSettings.envelope.cpus)
+                      })}
+                    </div>
+                    <div>
+                      {performanceSettings.envelope.memoryBytes > 0
+                        ? m['admin.system.performance_memory_amount']({
+                            amount: formatBytes(performanceSettings.envelope.memoryBytes)
+                          })
+                        : m['admin.system.performance_memory_unknown']()}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rounded-xl border border-border bg-surface-100/70 p-4">
+                  <h3 class="text-sm font-semibold">
+                    {m['admin.system.performance_limits']()}
+                  </h3>
+                  <div class="mt-3 divide-y divide-border">
+                    {#each performanceFields as field (field)}
+                      <div
+                        class="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+                      >
+                        <div class="min-w-0 text-sm font-medium">
+                          {performanceFieldLabel(field)}
+                        </div>
+                        <div class="text-sm sm:text-right">
+                          <div class="font-mono">
+                            {m['admin.system.performance_limit_summary']({
+                              requested: formatNumber(performanceSettings.requestedLimits[field]),
+                              effective: formatNumber(performanceSettings.effectiveLimits[field])
+                            })}
+                          </div>
+                          {#if (performanceSettings.caps[field]?.length ?? 0) > 0}
+                            <div class="mt-1 text-xs text-warning">
+                              {m['admin.system.performance_capped_by']({
+                                reasons: (performanceSettings.caps[field] ?? [])
+                                  .map(performanceCapReasonLabel)
+                                  .join(', ')
+                              })}
+                            </div>
+                          {/if}
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                </div>
+              </div>
+
+              <Hint>{m['admin.system.performance_live_apply']()}</Hint>
+
+              <div class="flex justify-end">
+                <Button
+                  variant="primary"
+                  loading={performanceSaving}
+                  disabled={selectedProfile === 'custom' && !customLimitsValid}
+                  onclick={savePerformanceSettings}
+                >
+                  {m['admin.system.performance_save']()}
+                </Button>
+              </div>
+            </div>
+          {/if}
+        </Panel>
+
         <Panel title={m['admin.system.broker']()} icon="iconify uil--server">
           <div class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
             <div class="rounded-lg border border-border bg-surface-100/70 p-4">
