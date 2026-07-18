@@ -66,6 +66,9 @@ type ChattoCore struct {
 	permissionResolver *PermissionResolver  // Hierarchical permission resolver
 	linkPreviewCache   *linkpreview.Cache   // Cache for link preview metadata
 	linkPreviewFetcher *linkpreview.Fetcher // Fetcher for link preview metadata
+	// voiceMessageTranscodeSlots bounds CPU-heavy ffmpeg normalization. Browser
+	// formats other than MP4 must never create one process per concurrent upload.
+	voiceMessageTranscodeSlots chan struct{}
 
 	// VideoMaxUploadSize is the maximum size for video uploads in bytes.
 	// When set (> 0), video attachments use this limit instead of the asset limit.
@@ -1102,6 +1105,7 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		bootDone:                  make(chan struct{}),
 		notificationCallbackSlots: make(chan struct{}, maxConcurrentNotificationCallbacks),
 	}
+	core.voiceMessageTranscodeSlots = make(chan struct{}, defaultMaxConcurrentVoiceMessageTranscodes)
 
 	callReconcileLease, err := lease.New(js, storage.memoryCacheKV, lease.Options{
 		Name:       callReconcileLeaseName,

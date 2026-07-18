@@ -23,6 +23,8 @@ import (
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
+const defaultMaxConcurrentVoiceMessageTranscodes = 2
+
 const (
 	assetUploadKeyPrefix              = "asset_upload."
 	assetUploadTempObjectPrefix       = "asset-upload."
@@ -557,7 +559,7 @@ func (m *AssetUploadModel) materializeUpload(ctx context.Context, session *Asset
 
 func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *AssetUploadSession, reader io.ReadSeeker) (*corev1.Attachment, bool, error) {
 	attachmentID := NewAssetID()
-	payload, err := prepareCompletedUploadPayload(ctx, session, reader)
+	payload, err := prepareCompletedUploadPayload(ctx, session, reader, m.core.voiceMessageTranscodeSlots)
 	if err != nil {
 		return nil, false, err
 	}
@@ -635,7 +637,12 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 	}, animatedGIF, nil
 }
 
-func prepareCompletedUploadPayload(ctx context.Context, session *AssetUploadSession, reader io.ReadSeeker) (*completedUploadPayload, error) {
+func prepareCompletedUploadPayload(
+	ctx context.Context,
+	session *AssetUploadSession,
+	reader io.ReadSeeker,
+	transcodeSlots chan struct{},
+) (*completedUploadPayload, error) {
 	payload := &completedUploadPayload{
 		reader:      reader,
 		cleanup:     func() {},
@@ -655,6 +662,15 @@ func prepareCompletedUploadPayload(ctx context.Context, session *AssetUploadSess
 	input, ok := reader.(*os.File)
 	if !ok {
 		return nil, fmt.Errorf("voice message normalization requires a materialized upload file")
+	}
+	if transcodeSlots == nil {
+		return nil, fmt.Errorf("voice message normalization capacity is not initialized")
+	}
+	select {
+	case transcodeSlots <- struct{}{}:
+		defer func() { <-transcodeSlots }()
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 	output, err := os.CreateTemp("", "towk-voice-message-*.m4a")
 	if err != nil {

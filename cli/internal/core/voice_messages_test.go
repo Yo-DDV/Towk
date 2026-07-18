@@ -90,7 +90,7 @@ func TestPrepareCompletedVoicePayloadNormalizesWebMToMP4(t *testing.T) {
 		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
 	}
 
-	payload, err := prepareCompletedUploadPayload(ctx, session, input)
+	payload, err := prepareCompletedUploadPayload(ctx, session, input, make(chan struct{}, defaultMaxConcurrentVoiceMessageTranscodes))
 	if err != nil {
 		t.Fatalf("prepareCompletedUploadPayload: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestPrepareCompletedVoicePayloadKeepsMP4WithoutTranscoder(t *testing.T) {
 		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
 	}
 
-	payload, err := prepareCompletedUploadPayload(ctx, session, input)
+	payload, err := prepareCompletedUploadPayload(ctx, session, input, make(chan struct{}, defaultMaxConcurrentVoiceMessageTranscodes))
 	if err != nil {
 		t.Fatalf("prepareCompletedUploadPayload: %v", err)
 	}
@@ -153,6 +153,100 @@ func TestPrepareCompletedVoicePayloadKeepsMP4WithoutTranscoder(t *testing.T) {
 	}
 	if !bytes.Equal(got, content) {
 		t.Fatal("mp4 payload bytes changed without transcoding")
+	}
+}
+
+func TestPrepareCompletedVoicePayloadBoundsConcurrentTranscodes(t *testing.T) {
+	previousTranscoder := voiceMessageTranscodeToMP4
+	started := make(chan struct{}, 4)
+	release := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	voiceMessageTranscodeToMP4 = func(_ context.Context, _ string, outputPath string) error {
+		started <- struct{}{}
+		<-release
+		return os.WriteFile(outputPath, testVoiceMP4Content("bounded voice"), 0o600)
+	}
+	t.Cleanup(func() { voiceMessageTranscodeToMP4 = previousTranscoder })
+
+	results := make(chan error, 4)
+	transcodeSlots := make(chan struct{}, defaultMaxConcurrentVoiceMessageTranscodes)
+	for range 4 {
+		input := testTempVoiceFile(t, append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("webm input")...))
+		t.Cleanup(func() {
+			input.Close()
+			os.Remove(input.Name())
+		})
+		session := &AssetUploadSession{
+			Filename:     "voice-message.webm",
+			ContentType:  "audio/webm",
+			Size:         14,
+			VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
+		}
+		go func() {
+			payload, err := prepareCompletedUploadPayload(context.Background(), session, input, transcodeSlots)
+			if payload != nil {
+				payload.cleanup()
+			}
+			results <- err
+		}()
+	}
+
+	for range 2 {
+		select {
+		case <-started:
+		case <-time.After(3 * time.Second):
+			t.Fatal("voice transcode did not start")
+		}
+	}
+	select {
+	case <-started:
+		t.Fatal("more than two voice transcodes started concurrently")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release)
+	released = true
+	for range 4 {
+		if err := <-results; err != nil {
+			t.Fatalf("prepareCompletedUploadPayload: %v", err)
+		}
+	}
+}
+
+func TestPrepareCompletedVoicePayloadCancelsWhileWaitingForTranscodeCapacity(t *testing.T) {
+	previousTranscoder := voiceMessageTranscodeToMP4
+	voiceMessageTranscodeToMP4 = func(context.Context, string, string) error {
+		t.Fatal("cancelled admission must not start the transcoder")
+		return nil
+	}
+	t.Cleanup(func() { voiceMessageTranscodeToMP4 = previousTranscoder })
+
+	input := testTempVoiceFile(t, append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("webm input")...))
+	defer os.Remove(input.Name())
+	defer input.Close()
+	session := &AssetUploadSession{
+		Filename:     "voice-message.webm",
+		ContentType:  "audio/webm",
+		Size:         14,
+		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
+	}
+	transcodeSlots := make(chan struct{}, 1)
+	transcodeSlots <- struct{}{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	payload, err := prepareCompletedUploadPayload(ctx, session, input, transcodeSlots)
+	if payload != nil {
+		payload.cleanup()
+		t.Fatal("cancelled admission returned a payload")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("prepareCompletedUploadPayload error = %v, want context canceled", err)
 	}
 }
 
