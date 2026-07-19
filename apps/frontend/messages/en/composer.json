@@ -18,6 +18,7 @@
     "code_language": "Code language",
     "placeholder": "Type a message...",
     "room_placeholder": "Send a message in #{room}…",
+    "room_placeholder_compact": "#{room} · Message…",
     "editing_placeholder": "Editing message...",
     "drop_files_title": "Drop files here",
     "drop_files_subtitle": "Files will be added to your message",

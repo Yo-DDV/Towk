@@ -29,6 +29,7 @@
   import { hasVisibleContent } from '$lib/validation';
   import { extractMentions, hasRoleOrVirtualMention } from '$lib/mentions';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { sidebarNav } from '$lib/state/globals.svelte';
   import EmojiAutocomplete from '$lib/components/composer/EmojiAutocomplete.svelte';
   import MentionAutocomplete from '$lib/components/composer/MentionAutocomplete.svelte';
   import type { TipTapEditorApi } from './TipTapEditor.svelte';
@@ -208,7 +209,9 @@
       ? m['composer.editing_placeholder']()
       : (customPlaceholder ??
           (roomName?.trim()
-            ? m['composer.room_placeholder']({ room: roomName.trim() })
+            ? sidebarNav.isMobile
+              ? m['composer.room_placeholder_compact']({ room: roomName.trim() })
+              : m['composer.room_placeholder']({ room: roomName.trim() })
             : m['composer.placeholder']()))
   );
 

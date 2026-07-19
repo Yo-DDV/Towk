@@ -9,6 +9,7 @@ import type { QuoteInsertionContent, RoomMember } from '$lib/state/room';
 import { PresenceStatus } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import { pwaOutbox } from '$lib/pwa/outbox.svelte';
+import { sidebarNav } from '$lib/state/globals.svelte';
 
 function postedMessageEvent(
   id = 'msg_123',
@@ -343,6 +344,7 @@ async function selectFirstAttachment(input: HTMLInputElement, file = imageFile()
 
 describe('MessageComposer', () => {
   beforeEach(() => {
+    sidebarNav.setMobile(false);
     window.getSelection()?.removeAllRanges();
     mockInstanceStores.serverInfo.videoProcessingEnabled = false;
     mockInstanceStores.serverInfo.maxUploadSize = 25 * 1024 * 1024;
@@ -406,6 +408,7 @@ describe('MessageComposer', () => {
   });
 
   afterEach(() => {
+    sidebarNav.setMobile(false);
     window.getSelection()?.removeAllRanges();
     vi.restoreAllMocks();
   });
@@ -530,6 +533,21 @@ describe('MessageComposer', () => {
             'p.is-editor-empty[data-placeholder="Send a message in #project-chat…"]'
           )
         )
+        .toBeInTheDocument();
+    });
+
+    it('keeps the channel name visible in the compact mobile placeholder', async () => {
+      const { container } = renderMessageComposer({
+        roomId: 'room_mobile',
+        roomName: 'project-chat'
+      });
+
+      await findEditor(container);
+      sidebarNav.setMobile(true);
+      await tick();
+
+      await expect
+        .element(q(container, 'p.is-editor-empty[data-placeholder="#project-chat · Message…"]'))
         .toBeInTheDocument();
     });
 
