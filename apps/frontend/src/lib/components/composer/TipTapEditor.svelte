@@ -1121,7 +1121,11 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
             MarkdownListMarkerAfterHardBreak,
             TrailingParagraphAfterCodeBlock,
             ClearMarksOnEmptyDocument,
-            Placeholder.configure({ placeholder })
+            // The editor is created before asynchronously loaded room metadata is available.
+            // Keep the placeholder callback connected to the current Svelte prop so a later
+            // transaction can rebuild the decoration without recreating the editor or losing
+            // a draft.
+            Placeholder.configure({ placeholder: () => placeholder })
           ],
           content: '',
           contentType: 'markdown',
@@ -1180,13 +1184,12 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
 
   // React to placeholder prop changes (e.g., switching between normal and edit mode)
   $effect(() => {
+    const nextPlaceholder = placeholder;
     if (!editor) return;
-    const ext = editor.extensionManager.extensions.find((e) => e.name === 'placeholder');
-    if (ext && ext.options.placeholder !== placeholder) {
-      ext.options.placeholder = placeholder;
-      // Force ProseMirror to re-render decorations with the new placeholder
-      editor.view.dispatch(editor.state.tr);
-    }
+    // Force ProseMirror to re-render the placeholder decoration. The configured callback
+    // reads the live prop binding without rebuilding the editor; nextPlaceholder keeps this
+    // effect subscribed to prop changes and labels the transaction for diagnostics.
+    editor.view.dispatch(editor.state.tr.setMeta('placeholderChanged', nextPlaceholder));
   });
 </script>
 

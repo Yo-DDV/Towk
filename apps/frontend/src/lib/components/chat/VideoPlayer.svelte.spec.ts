@@ -5,6 +5,7 @@ import { VideoProcessingStatus } from '$lib/render/types';
 import VideoPlayer from './VideoPlayer.svelte';
 
 const TRANSPARENT_THUMBNAIL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
+const LAZY_PLAYER_TIMEOUT_MS = 10_000;
 
 function renderAutoLoopVideo({ width, height }: { width: number; height: number }) {
   return render(VideoPlayer, {
@@ -75,12 +76,16 @@ function video(container: HTMLElement): HTMLVideoElement {
 }
 
 async function mediaPlayer(container: HTMLElement): Promise<HTMLElement> {
-  await expect.poll(() => container.querySelector('media-player')).toBeTruthy();
+  await expect
+    .poll(() => container.querySelector('media-player'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
+    .toBeTruthy();
   return container.querySelector<HTMLElement>('media-player')!;
 }
 
 async function posterImage(container: HTMLElement): Promise<HTMLImageElement> {
-  await expect.poll(() => container.querySelector('.vds-poster img')).toBeTruthy();
+  await expect
+    .poll(() => container.querySelector('.vds-poster img'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
+    .toBeTruthy();
   return container.querySelector<HTMLImageElement>('.vds-poster img')!;
 }
 

@@ -513,6 +513,26 @@ describe('MessageComposer', () => {
         .toBeInTheDocument();
     });
 
+    it('updates the placeholder when room metadata finishes loading', async () => {
+      const rendered = renderMessageComposer({ roomId: 'room_loading' });
+
+      await findEditor(rendered.container);
+      await expect
+        .element(q(rendered.container, 'p.is-editor-empty[data-placeholder="Type a message..."]'))
+        .toBeInTheDocument();
+
+      await rendered.rerender({ roomId: rendered.roomId, roomName: 'project-chat' });
+
+      await expect
+        .element(
+          q(
+            rendered.container,
+            'p.is-editor-empty[data-placeholder="Send a message in #project-chat…"]'
+          )
+        )
+        .toBeInTheDocument();
+    });
+
     it('keeps an explicit placeholder ahead of the channel placeholder', async () => {
       const { container } = renderMessageComposer({
         roomId: 'room_custom',
