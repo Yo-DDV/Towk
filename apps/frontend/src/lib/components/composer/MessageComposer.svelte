@@ -76,6 +76,7 @@
 
   let {
     roomId,
+    roomName,
     inThread,
     inReplyTo,
     replyDisplayName,
@@ -93,6 +94,7 @@
     showAlsoSendToChannel = false
   }: {
     roomId: string;
+    roomName?: string;
     inThread?: string;
     inReplyTo?: string;
     replyDisplayName?: string;
@@ -204,7 +206,10 @@
   let currentPlaceholder = $derived(
     isEditing
       ? m['composer.editing_placeholder']()
-      : (customPlaceholder ?? m['composer.placeholder']())
+      : (customPlaceholder ??
+          (roomName?.trim()
+            ? m['composer.room_placeholder']({ room: roomName.trim() })
+            : m['composer.placeholder']()))
   );
 
   // Testid for E2E tests - distinguishes main input from thread reply input

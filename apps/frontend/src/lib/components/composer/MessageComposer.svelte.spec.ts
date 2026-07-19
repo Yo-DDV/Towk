@@ -498,6 +498,33 @@ describe('MessageComposer', () => {
         .element(q(container, 'p.is-editor-empty[data-placeholder="Type a message..."]'))
         .toBeInTheDocument();
     });
+
+    it('includes the channel name in the placeholder when available', async () => {
+      const { container } = renderMessageComposer({
+        roomId: 'room_named',
+        roomName: 'project-chat'
+      });
+
+      await findEditor(container);
+      await expect
+        .element(
+          q(container, 'p.is-editor-empty[data-placeholder="Send a message in #project-chat…"]')
+        )
+        .toBeInTheDocument();
+    });
+
+    it('keeps an explicit placeholder ahead of the channel placeholder', async () => {
+      const { container } = renderMessageComposer({
+        roomId: 'room_custom',
+        roomName: 'project-chat',
+        placeholder: 'Reply to thread…'
+      });
+
+      await findEditor(container);
+      await expect
+        .element(q(container, 'p.is-editor-empty[data-placeholder="Reply to thread…"]'))
+        .toBeInTheDocument();
+    });
   });
 
   describe('file input configuration', () => {

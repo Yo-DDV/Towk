@@ -606,6 +606,7 @@
 
         <MessageComposer
           {roomId}
+          roomName={!room.isDM ? room.roomData?.room.name : undefined}
           canPost={permissions.canPostMessage}
           canAttach={composerCanAttach}
           canVoice={composerCanVoice}

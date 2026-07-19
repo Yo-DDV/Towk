@@ -1225,6 +1225,9 @@ const msg_composer_open_link = (): LocalizedString => messages().composer_open_l
 const msg_composer_remove_link = (): LocalizedString => messages().composer_remove_link(empty());
 const msg_composer_code_language = (): LocalizedString => messages().composer_code_language(empty());
 const msg_composer_placeholder = (): LocalizedString => messages().composer_placeholder(empty());
+const msg_composer_room_placeholder = (
+  inputs: Parameters<LocaleMessages['composer_room_placeholder']>[0]
+): LocalizedString => messages().composer_room_placeholder(inputs);
 const msg_composer_editing_placeholder = (): LocalizedString => messages().composer_editing_placeholder(empty());
 const msg_composer_drop_files_title = (): LocalizedString => messages().composer_drop_files_title(empty());
 const msg_composer_drop_files_subtitle = (): LocalizedString => messages().composer_drop_files_subtitle(empty());
@@ -2942,6 +2945,7 @@ export { msg_composer_open_link as 'composer.open_link' };
 export { msg_composer_remove_link as 'composer.remove_link' };
 export { msg_composer_code_language as 'composer.code_language' };
 export { msg_composer_placeholder as 'composer.placeholder' };
+export { msg_composer_room_placeholder as 'composer.room_placeholder' };
 export { msg_composer_editing_placeholder as 'composer.editing_placeholder' };
 export { msg_composer_drop_files_title as 'composer.drop_files_title' };
 export { msg_composer_drop_files_subtitle as 'composer.drop_files_subtitle' };
