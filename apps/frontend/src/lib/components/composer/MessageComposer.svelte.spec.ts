@@ -417,6 +417,38 @@ describe('MessageComposer', () => {
       await expect.element(await findEditor(container)).toBeInTheDocument();
     });
 
+    it('centers the editor within the composer focus shell', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+
+      const editor = await findEditor(container);
+      const shell = q(container, '[data-testid="message-composer-shell"]');
+      const outsideFocusTarget = document.createElement('button');
+      container.before(outsideFocusTarget);
+
+      await expect.element(shell).toBeInTheDocument();
+      await expect.element(shell).toHaveClass('composer-focus-shell', 'items-center');
+
+      outsideFocusTarget.focus();
+      await tick();
+      expect(shell!.matches(':focus-within')).toBe(false);
+      const idleRect = shell!.getBoundingClientRect();
+      const idleShadow = getComputedStyle(shell!).boxShadow;
+
+      editor.focus();
+      await tick();
+
+      const focusedRect = shell!.getBoundingClientRect();
+      expect(document.activeElement).toBe(editor);
+      await vi.waitFor(
+        () => expect(getComputedStyle(shell!).boxShadow).not.toBe(idleShadow),
+        1_000
+      );
+      expect(focusedRect.width).toBe(idleRect.width);
+      expect(focusedRect.height).toBe(idleRect.height);
+
+      outsideFocusTarget.remove();
+    });
+
     it('renders the attachment button', async () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
 

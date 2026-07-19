@@ -109,9 +109,36 @@ describe('VideoPlayer', () => {
     const player = await mediaPlayer(container);
     const poster = await posterImage(container);
 
-    expect(frame(container).getAttribute('style')).toContain('aspect-ratio: 480 / 270');
+    expect(frame(container).getAttribute('style')).toContain('aspect-ratio: 640 / 360');
     expect(player.dataset.fit).toBe('cover');
     expect(getComputedStyle(poster).objectFit).toBe('cover');
+  });
+
+  it('gives portrait posted videos a watchable responsive inline frame', async () => {
+    const { container } = renderPostedVideo({
+      width: 1080,
+      height: 1920,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    const player = await mediaPlayer(container);
+    const style = frame(container).getAttribute('style');
+
+    expect(style).toContain('aspect-ratio: 360 / 640');
+    expect(style).toContain('width: min(100%, 360px, 40.5svh)');
+    expect(player.dataset.fit).toBe('contain');
+  });
+
+  it('lets landscape posted videos use the available message width', async () => {
+    const { container } = renderPostedVideo({
+      width: 1920,
+      height: 1080,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    await mediaPlayer(container);
+
+    expect(frame(container).getAttribute('style')).toContain('aspect-ratio: 640 / 360');
   });
 
   it('passes every portable MP4 variant to Vidstack with explicit media metadata', async () => {

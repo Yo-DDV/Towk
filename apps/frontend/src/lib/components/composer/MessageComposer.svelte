@@ -1103,8 +1103,9 @@
 
   <!-- Unified input container -->
   <div
+    data-testid="message-composer-shell"
     class={[
-      'relative flex items-start gap-3 rounded-xl bg-surface py-2 pr-2',
+      'composer-focus-shell relative flex items-center gap-3 rounded-xl bg-surface py-2 pr-2',
       isEditing ? 'pl-3' : 'pl-2'
     ]}
     class:opacity-50={inputDisabled}
@@ -1287,6 +1288,69 @@
 {/if}
 
 <style>
+  @property --composer-orbit-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  .composer-focus-shell {
+    --composer-focus-orange: #e8783b;
+    --composer-focus-highlight: #f9a763;
+    isolation: isolate;
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.24);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-border) 72%, transparent);
+    transition:
+      background-color 160ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .composer-focus-shell:focus-within {
+    box-shadow:
+      inset 0 0 0 1px rgba(232, 120, 59, 0.78),
+      0 0 0 1px rgba(232, 120, 59, 0.28),
+      0 0 1.15rem rgba(232, 120, 59, 0.24);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--composer-focus-orange) 78%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--composer-focus-orange) 28%, transparent),
+      0 0 1.15rem color-mix(in srgb, var(--composer-focus-orange) 24%, transparent);
+  }
+
+  @supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+    .composer-focus-shell::before {
+      position: absolute;
+      z-index: 2;
+      inset: 0;
+      padding: 1px;
+      border-radius: inherit;
+      background: conic-gradient(
+        from var(--composer-orbit-angle),
+        transparent 0deg 270deg,
+        color-mix(in srgb, var(--composer-focus-orange) 26%, transparent) 294deg,
+        var(--composer-focus-highlight) 316deg,
+        var(--composer-focus-orange) 334deg,
+        transparent 360deg
+      );
+      content: '';
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease;
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+    }
+
+    .composer-focus-shell:focus-within::before {
+      animation: composer-focus-orbit 3.2s linear infinite;
+      opacity: 0.92;
+    }
+  }
+
   .sending {
     position: relative;
     overflow: hidden;
@@ -1306,6 +1370,28 @@
     }
     100% {
       background-position: -200% 0;
+    }
+  }
+
+  @keyframes composer-focus-orbit {
+    to {
+      --composer-orbit-angle: 360deg;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .composer-focus-shell,
+    .composer-focus-shell::before {
+      transition: none;
+    }
+
+    .composer-focus-shell:focus-within::before {
+      animation: none;
+      opacity: 0;
+    }
+
+    .sending {
+      animation: none;
     }
   }
 </style>

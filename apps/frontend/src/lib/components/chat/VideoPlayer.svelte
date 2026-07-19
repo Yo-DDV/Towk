@@ -61,8 +61,11 @@
     onMediaError?: () => void;
   } = $props();
 
-  const MAX_WIDTH = 480;
-  const MAX_HEIGHT = 320;
+  const AUTO_LOOP_MAX_WIDTH = 480;
+  const AUTO_LOOP_MAX_HEIGHT = 320;
+  const POSTED_VIDEO_MAX_WIDTH = 640;
+  const POSTED_VIDEO_MAX_HEIGHT = 640;
+  const VIEWPORT_HEIGHT_BUDGET = 72;
   const WIDESCREEN_RATIO = 16 / 9;
   const NEAR_SQUARE_LANDSCAPE_MAX_RATIO = 1.5;
 
@@ -110,7 +113,9 @@
   const displaySize = $derived.by(() => {
     const w = frameDimensions.width;
     const h = frameDimensions.height;
-    const scale = Math.min(MAX_WIDTH / w, MAX_HEIGHT / h, 1);
+    const maxWidth = autoLoop ? AUTO_LOOP_MAX_WIDTH : POSTED_VIDEO_MAX_WIDTH;
+    const maxHeight = autoLoop ? AUTO_LOOP_MAX_HEIGHT : POSTED_VIDEO_MAX_HEIGHT;
+    const scale = Math.min(maxWidth / w, maxHeight / h, 1);
     return {
       width: Math.round(w * scale),
       height: Math.round(h * scale)
@@ -125,9 +130,16 @@
       : 'contain';
   });
 
-  const frameStyle = $derived(
-    `width: ${displaySize.width}px; max-width: 100%; aspect-ratio: ${displaySize.width} / ${displaySize.height};`
-  );
+  const frameStyle = $derived.by(() => {
+    const viewportWidthBudget = Number(
+      ((displaySize.width / displaySize.height) * VIEWPORT_HEIGHT_BUDGET).toFixed(3)
+    );
+    return [
+      `width: min(100%, ${displaySize.width}px)`,
+      `width: min(100%, ${displaySize.width}px, ${viewportWidthBudget}svh)`,
+      `aspect-ratio: ${displaySize.width} / ${displaySize.height}`
+    ].join('; ');
+  });
 
   // Vidstack auto-detects media type from URL extensions, but our stable asset
   // URLs have no extension (/assets/files/...). Give every portable MP4 variant
