@@ -2,8 +2,8 @@
 @component
 
 Reusable toast-style notice for persistent, user-actionable prompts that should
-float above the app chrome. Unlike transient toasts, callers control when this
-appears and disappears.
+float above the current pane without covering the global app header. Unlike
+transient toasts, callers control when this appears and disappears.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
@@ -66,7 +66,7 @@ appears and disappears.
 </script>
 
 <div
-  class="pointer-events-none fixed top-[calc(env(safe-area-inset-top,0px)+0.75rem)] right-3 left-3 z-[60] flex justify-center sm:top-[calc(env(safe-area-inset-top,0px)+1rem)]"
+  class="pointer-events-none fixed top-[calc(env(safe-area-inset-top,0px)+3.5rem)] right-3 left-3 z-[60] flex justify-center md:top-16"
 >
   <section
     class="pointer-events-auto w-full max-w-4xl menu"
