@@ -68,7 +68,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup mise
-        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # zizmor: ignore[cache-poisoning] v4; CI only verifies source
+        uses: jdx/mise-action@dad1bfd3df957f44999b559dd69dc1671cb4e9ea # zizmor: ignore[cache-poisoning] v4; CI only verifies source
         with:
           experimental: true
 
