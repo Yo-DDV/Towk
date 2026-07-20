@@ -54,7 +54,7 @@ deployment remains operationally and legally independent.
 | Area | Capabilities |
 |---|---|
 | Conversations | Rooms, direct messages, replies, threads, reactions, mentions and presence |
-| Content | File attachments, image handling, link previews and optional video processing |
+| Content | File attachments, voice messages, image handling, link previews and optional video processing |
 | Administration | Granular roles, permissions, room groups and server administration |
 | Notifications | Realtime delivery, Web Push, badges and configurable notification levels |
 | Calls | LiveKit voice and video rooms, screen sharing and media E2EE |

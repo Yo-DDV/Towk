@@ -1,11 +1,11 @@
 ---
 title: Media & Attachments
-description: Operate Towk uploads, image transforms, room files, link previews, S3 storage, and video processing.
+description: Operate Towk uploads, voice messages, image transforms, room files, link previews, S3 storage, and video processing.
 ---
 
 import { Aside, CardGrid, LinkCard } from "@astrojs/starlight/components";
 
-Towk can handle ordinary file uploads, images, videos, avatars, server branding images, link-preview images, and animated GIFs. Video transcoding is optional. Small deployments can keep assets in NATS ObjectStore; larger deployments should usually move assets to S3-compatible storage.
+Towk can handle ordinary file uploads, first-class voice messages, images, videos, avatars, server branding images, link-preview images, and animated GIFs. Video transcoding is optional. Small deployments can keep assets in NATS ObjectStore; larger deployments should usually move assets to S3-compatible storage.
 
 ## What Members Can Upload
 
@@ -17,16 +17,17 @@ On Windows, macOS, and Linux, Towk accepts every file object the browser exposes
 | ---------- | -------- |
 | Images | Dimensions are inspected, image URLs can request resized WebP variants, and thumbnails are cached when enabled. |
 | Documents and ordinary files | Stored as persisted assets and exposed through signed URLs. |
+| Voice messages | Recorded from the composer, reviewed locally before send, stored as typed audio assets with duration and waveform metadata, then rendered with Towk's waveform player. |
 | Archives | ZIP, 7z, RAR, tar, and compressed archives are accepted as opaque files and are not extracted by Towk. |
 | Executables and installers | Direct executable, installer, command-script, WebAssembly, and macro-enabled Office payloads are rejected by browser metadata/content checks and authoritative server checks. |
-| Videos | Stored and rendered as originals by default; when processing is enabled, Towk also generates a thumbnail and web-friendly variants. |
+| Videos | Stored as originals; when processing is enabled, Towk also generates a thumbnail and portable MP4 variants for cross-platform playback. |
 | Animated GIFs | Uploaded as images when video processing is disabled; routed through video processing when enabled. |
 | Avatars, logos, banners | Stored in the same asset system but gated by profile or admin permissions. |
 | Link-preview images | Downloaded, converted to a size-limited WebP, and stored in a dedicated quota-bounded NATS object store. |
 
 The default general upload limit is 25 MB and applies to original videos while processing is disabled. Enabling video processing gives videos a separate 100 MB default limit.
 
-Each message is limited to 10 attachments. Upload sessions use 512 KiB chunks, expire after 15 minutes while open, and unclaimed completed assets expire after 24 hours. These application bounds complement, but do not replace, the storage quota and request-rate controls of the NATS, S3, reverse-proxy, or WAF layer.
+Each message is limited to 10 attachments. Upload sessions use chunks of at most 1 MiB, expire after 15 minutes while open, and unclaimed completed assets expire after 24 hours. These application bounds complement, but do not replace, the storage quota and request-rate controls of the NATS, S3, reverse-proxy, or WAF layer.
 
 `SERVER_ASSETS` also has a hard 10 GB JetStream quota by default. Configure it with `core.assets.max_store_bytes` or `CHATTO_CORE_ASSETS_MAX_STORE_BYTES`. The limit covers NATS-backed assets and temporary upload chunks; when S3 is enabled, the final bucket still needs its own provider-side quota and monitoring. Lowering the NATS limit preserves existing objects and blocks new writes until usage is back under the limit.
 
@@ -40,11 +41,25 @@ File attachments require:
 - `message.post` or `message.post-in-thread`
 - `message.attach`
 
+First-class voice messages require room membership, `message.post` or
+`message.post-in-thread`, and `message.voice`. They do not require
+`message.attach` unless the same message also includes ordinary file
+attachments. Towk rechecks `message.voice` when the upload starts, when the
+asset is completed, and when the message is posted, so revoking the permission
+cannot be bypassed by an in-progress recording.
+
 Attachment URLs are signed per user and still check that the signed user can access the room. If a user leaves, is removed, or loses room access, new asset fetches fail even if an old message still contains the URL.
 
 <Aside type="note">
   Signed attachment URLs are bearer capabilities until they expire. Towk keeps their TTL bounded and checks the signed user's current room access on every protected asset fetch.
 </Aside>
+
+Streamed protected originals and derivatives use a private revalidating browser
+cache. Towk authorizes the ticket and current room membership before it can
+return `304 Not Modified`; the Service Worker does not persist the body. Heavy
+passive S3-backed originals may instead redirect after authorization to a
+short-lived object URL whose response is not stored. Streamed originals also
+support a single HTTP byte range for media seeking.
 
 ## Room Files
 
@@ -71,17 +86,44 @@ Switching to S3 affects new assets. Existing NATS-stored assets continue to work
 
 ## Video And Animated GIF Processing
 
-Video processing is optional and disabled by default. Original videos remain shareable without it and use the general attachment limit. Browser playback depends on the browser supporting the original codec; the original remains available as a room file. When processing is enabled, Towk requires `ffmpeg` and `ffprobe`, keeps the original upload, generates a thumbnail, and creates web-friendly MP4 variants based on the source resolution.
+Video processing is optional and disabled by default. Original videos remain shareable without it and use the general attachment limit. Browser playback then depends on the browser and operating system supporting the original container and codec; the original remains available as a room file. When processing is enabled, Towk requires `ffmpeg` and `ffprobe`, keeps the original upload, generates a thumbnail, and creates portable MP4 variants based on the source resolution. Processed sources are bounded by upload size, duration, and source display pixel area so a small but extremely long or oversized file cannot monopolize the transcoder.
+
+Mobile uploads can arrive with incomplete metadata. Towk normalizes common video extensions such as `.mov`, `.m4v`, `.mp4`, and `.webm` when the browser sends an empty or generic MIME type, so phone-origin videos still enter the media pipeline. The web client mirrors that limited video-candidate policy for upload-limit feedback, local previews, and the upload metadata it sends, while the server remains the authoritative validator. When video processing is enabled and no processing manifest exists yet, the client waits for the processed portable variant for every user video source instead of relying on the raw original. Browser labels such as MP4 or WebM are containers, not a cross-platform codec guarantee.
+
+When video processing is disabled, original videos and GIFs still remain available as attachments, but cross-platform playback is limited to what the viewer's browser and operating system can decode natively.
+
+Voice messages use the same room-scoped asset pipeline but are not controlled by
+`CHATTO_VIDEO_ENABLED`. Browsers record different audio containers, so Towk
+accepts WebM/Opus, MP4/AAC, and Ogg/Opus voice uploads, validates the declared
+container, probes the uploaded input with `ffprobe`, rejects containers that
+include a video track, and normalizes non-MP4 recordings into M4A/AAC before
+making the asset durable. That gives iOS, Android, Linux, Firefox, Safari,
+Chrome, and Chromium-based PWAs one playback-oriented audio format while
+preventing voice messages from becoming a bypass for video uploads. Non-MP4
+normalization uses `ffmpeg`; voice probes and normalization both share the
+media-transcode worker pool. MP4 voice uploads can complete without transcoding
+after the input probe passes.
+
+Ordinary audio attachments are different from first-class voice messages: Towk
+stores them as user-provided files, renders the browser's native audio player
+when possible, and always keeps a download action visible. Native playback then
+depends on the viewer's operating system and browser codec support.
 
 Enable it only when the server has CPU and temporary disk space for transcoding:
 
 ```toml
+[performance]
+default_profile = "balanced"
+max_video_workers = 2
 [video]
 enabled = true
-max_concurrent = 2
 ```
 
-The official Docker image includes the required ffmpeg tools. Host installs need those binaries installed separately.
+The official Docker image includes the required ffmpeg tools. Host installs need
+those binaries installed separately for video/GIF processing and for
+cross-platform voice-message normalization. Tune throughput with the runtime
+performance profile and `performance.max_video_workers`; keep
+`video.max_concurrent` only for compatibility with older configuration files.
 
 <Aside type="caution">
   Video processing is currently in-process and best-effort. Towk records durable asset processing state and retries missed unmanifested video assets on boot, but operators should still treat transcoding as CPU-heavy background work.
@@ -96,6 +138,7 @@ Uploaded HTML, XHTML, SVG, XML, and XML-derived active document formats are serv
 <CardGrid>
   <LinkCard title="S3 Storage" href="/guides/infrastructure/s3-storage/" description="Configure S3-compatible storage for persisted assets." />
   <LinkCard title="Video Processing" href="/guides/infrastructure/video-processing/" description="Enable ffmpeg-backed video and animated-GIF processing." />
+  <LinkCard title="Asset Upload API" href="/reference/connectrpc-api/asset-uploads/" description="Typed API reference for uploads, including voice-message metadata." />
   <LinkCard title="Backup & Restore" href="/guides/operations/backup-restore/" description="Plan backups that include asset storage and encryption keys." />
   <LinkCard title="Room Attachment API" href="/reference/connectrpc-api/rooms/#chatto-api-v1-RoomService-ListRoomAttachments" description="Typed API reference for room attachment list reads." />
 </CardGrid>

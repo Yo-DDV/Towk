@@ -846,6 +846,7 @@
           {roomId}
           eventId={isEcho ? messageEvent!.echoOfEventId! : event.id}
           canDeleteAttachment={isAuthor}
+          videoProcessingEnabled={serverInfo.videoProcessingEnabled}
         />
 
         <!-- Link preview (only for MessagePostedEvent) -->

@@ -268,7 +268,7 @@
       "performance_field_image_transform_admissions": "Admisiones de transformación de imágenes",
       "performance_field_asset_upload_workers": "Workers de subida",
       "performance_field_link_preview_workers": "Workers de vista previa de enlaces",
-      "performance_field_video_workers": "Workers de vídeo",
+      "performance_field_video_workers": "Workers de transcodificación multimedia",
       "performance_process_envelope": "Capacidad del proceso detectada",
       "performance_cpu_count": "{count} CPU disponibles",
       "performance_memory_amount": "{amount} de memoria disponible",

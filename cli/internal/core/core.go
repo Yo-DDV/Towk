@@ -69,14 +69,24 @@ type ChattoCore struct {
 	permissionResolver *PermissionResolver  // Hierarchical permission resolver
 	linkPreviewCache   *linkpreview.Cache   // Cache for link preview metadata
 	linkPreviewFetcher *linkpreview.Fetcher // Fetcher for link preview metadata
-	// voiceMessageTranscodeSlots bounds CPU-heavy ffmpeg normalization. Browser
-	// formats other than MP4 must never create one process per concurrent upload.
-	voiceMessageTranscodeSlots chan struct{}
+	// mediaTranscodeLimiter bounds every CPU-heavy ffmpeg path with one shared
+	// live capacity selected by the performance policy.
+	mediaTranscodeLimiter *runtimecap.Limiter
 
 	// VideoMaxUploadSize is the maximum size for video uploads in bytes.
 	// When set (> 0), video attachments use this limit instead of the asset limit.
 	// Set this after ChattoCore is created, from VideoConfig.
 	VideoMaxUploadSize int64
+
+	// MediaFFmpegPath is the optional operator-provided ffmpeg path shared by
+	// video processing and non-MP4 voice-message normalization. When empty,
+	// voice normalization falls back to PATH lookup.
+	MediaFFmpegPath string
+
+	// MediaFFprobePath is the optional operator-provided ffprobe path shared by
+	// video processing and voice-message duration verification. When empty,
+	// voice verification falls back to PATH lookup.
+	MediaFFprobePath string
 
 	// OnNotificationCreated is called when a notification is created.
 	// Used by the push notification system to send Web Push notifications.
@@ -1110,8 +1120,8 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		bootDone:                  make(chan struct{}),
 		notificationCallbackSlots: make(chan struct{}, maxConcurrentNotificationCallbacks),
 	}
-	core.voiceMessageTranscodeSlots = make(chan struct{}, defaultMaxConcurrentVoiceMessageTranscodes)
 	core.assetUploadLimiter = runtimecap.NewLimiter(core.AssetUploadWorkerLimit)
+	core.mediaTranscodeLimiter = runtimecap.NewLimiter(core.VideoWorkerLimit)
 
 	callReconcileLease, err := lease.New(js, storage.memoryCacheKV, lease.Options{
 		Name:       callReconcileLeaseName,

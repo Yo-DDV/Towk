@@ -487,10 +487,8 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 		}
 
 		var transformStarted time.Time
-		finishTransform := func() {}
 		if s.config.Metrics.Enabled && s.metrics != nil {
 			transformStarted = time.Now()
-			finishTransform = s.metrics.mediaTransformStarted()
 		}
 
 		var result *assets.TransformResult
@@ -501,7 +499,6 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 		} else {
 			result, err = assets.TransformImage(data, params.Width, params.Height, assets.FitMode(params.Fit))
 		}
-		finishTransform()
 		if s.config.Metrics.Enabled && s.metrics != nil {
 			outcome := mediaTransformSuccess
 			if err != nil {

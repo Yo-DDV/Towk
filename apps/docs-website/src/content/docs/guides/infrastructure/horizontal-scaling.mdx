@@ -165,6 +165,20 @@ Towk is fully stateless, so load balancing is straightforward:
 
 The [Docker Compose deployment guide](/guides/deployment/docker-compose/) includes a Caddy configuration that handles this automatically.
 
+## Runtime performance profiles across replicas
+
+The owner-selected performance profile is shared through Towk's event stream,
+so all replicas receive the same requested policy. The effective worker counts
+are still computed per process from that request, the replica's detected
+CPU/memory envelope, and any `performance.max_*` operator caps. Replicas with
+different pod or container limits can therefore show different effective media
+concurrency values.
+
+Keep the resource envelope and `CHATTO_PERFORMANCE_MAX_*` caps consistent across
+replicas unless you deliberately run mixed-size workers. After changing pod,
+container, or Compose limits, check **Server administration → System** on the
+updated deployment before drawing capacity conclusions.
+
 ## What You Need to Keep Consistent
 
 | Setting | Must match across server processes? | Notes |
@@ -176,6 +190,7 @@ The [Docker Compose deployment guide](/guides/deployment/docker-compose/) includ
 | `core.assets.signing_secret` | Yes | Asset URL signing |
 | `webserver.url` | Yes | Public URL for absolute links |
 | `livekit.server_id` | Yes, within one Towk server | Use a different value only across Towk servers sharing one LiveKit cluster |
+| `performance.max_*` operator caps | Recommended | Keep caps aligned unless you intentionally run heterogeneous worker envelopes |
 
 <CardGrid>
   <LinkCard title="High Availability" href="/guides/infrastructure/high-availability/" description="NATS clustering and JetStream replication for fault tolerance." />

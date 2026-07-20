@@ -5,11 +5,18 @@ description: How to enable and configure video processing in Towk.
 
 import { Aside } from '@astrojs/starlight/components';
 
-Towk can transcode uploaded videos into multiple quality variants for adaptive playback. When processing is enabled and a user uploads a video, the server generates optimized versions (e.g. 720p, 480p) and a thumbnail, then serves them through a built-in video player. Without processing, Towk still stores and renders the original video.
+Towk can transcode uploaded videos into multiple quality variants for adaptive playback. When processing is enabled and a user uploads a video, the server generates optimized MP4 variants (H.264/AAC), a thumbnail, and then serves them through a built-in video player. Without processing, Towk still stores the original video, but browser playback then depends on the original container and codec being supported by the viewer's browser and operating system.
+
+The same `ffmpeg` binary is also used for first-class voice messages when a
+browser records WebM/Opus or Ogg/Opus. Those recordings are normalized into
+M4A/AAC during upload completion so every supported PWA target can play them
+through the custom voice player. Voice-message normalization does not require
+`CHATTO_VIDEO_ENABLED`, but it does require `ffmpeg` when the uploaded voice
+asset is not already MP4/AAC.
 
 ## Prerequisites
 
-Video processing requires **ffmpeg** and **ffprobe** to be installed on the server. The official Towk Docker image includes both.
+Video processing requires **ffmpeg** and **ffprobe** to be installed on the server. Cross-platform voice-message normalization requires **ffmpeg**. The official Towk Docker image includes both tools.
 
 If you're running Towk outside Docker, install ffmpeg through your system's package manager:
 
@@ -57,23 +64,43 @@ All settings live under the `[video]` section in `towk.toml`. See the [Environme
 | `enabled` | `false` | Enable video processing |
 | `ffmpeg_path` | auto-detect | Path to `ffmpeg` binary |
 | `ffprobe_path` | auto-detect | Path to `ffprobe` binary |
-| `max_concurrent` | `2` | Max concurrent transcoding jobs |
+| `max_concurrent` | `2` | Legacy compatibility setting. Current media admission is governed by the runtime performance profile and the shared media-transcode worker pool. |
 | `max_upload_size` | `100 MB` | Max upload size for video files while processing is enabled |
+| `max_duration` | `20m` | Max source video/GIF duration accepted for server-side processing |
+| `max_pixels` | `8294400` | Max source display pixel area accepted for server-side processing. The default is 3840×2160. |
 | `temp_dir` | system temp | Directory for temporary transcoding files |
 
 ### Tuning Concurrency
 
-Each transcoding job uses significant CPU. The default of 2 concurrent jobs is conservative. On a dedicated server with more cores, you can increase this:
+Each video/GIF transcoding job and each non-MP4 voice-message normalization uses CPU and temporary disk space. The active concurrency control is the runtime performance profile selected by a server owner in **Server administration → System**, bounded by the detected CPU/memory envelope and any operator caps from the deployment configuration.
+
+Use these layers together:
+
+- choose **Economy**, **Balanced**, **Performance**, or a bounded **Custom** profile in the admin UI for newly admitted work;
+- set `CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS` / `performance.max_video_workers` when the operator needs a hard per-process ceiling for video variants, animated-GIF optimization, and voice-message normalization;
+- keep `video.max_concurrent` only for compatibility with older configuration files. It is not the primary tuning lever for the current shared media-transcode pool.
 
 ```toml
+[performance]
+default_profile = "balanced"
+max_video_workers = 4
 [video]
 enabled = true
-max_concurrent = 4
+max_duration = "20m"
+max_pixels = 8294400
 ```
+
+See the [Environment Variables](/reference/environment-variables/#performance) reference and the deployment guide for the complete performance-envelope model.
+
+<Aside type="note">
+  The setting still uses the historical `video_workers` naming in diagnostics
+  and generated API schemas, but its scope is the shared media-transcode pool:
+  video variants, animated GIFs, and voice-message normalization.
+</Aside>
 
 ### Custom Binary Paths
 
-If `ffmpeg` and `ffprobe` aren't in your `PATH`, specify their locations explicitly:
+If `ffmpeg` and `ffprobe` aren't in your `PATH`, specify their locations explicitly. Towk also uses the configured `ffmpeg_path` to normalize non-MP4 voice messages for portable playback.
 
 ```toml
 [video]
@@ -87,10 +114,42 @@ ffprobe_path = "/usr/local/bin/ffprobe"
 1. A user uploads a video through the chat composer
 2. The original file is stored immediately and the message is posted
 3. The video appears with a "Processing..." indicator
-4. In the background, Towk transcodes the video into multiple quality variants and generates a thumbnail
+4. In the background, Towk transcodes the video into MP4/H.264/AAC variants and generates a thumbnail
 5. Once processing completes, the player switches to adaptive playback with quality selection
 
-If processing fails (e.g. corrupt file or unsupported codec), the message and original upload remain available as the fallback.
+If processing fails (e.g. corrupt file or unsupported codec), Towk keeps the
+message and original source asset when the source is still available, but the
+embedded player reports the processing failure instead of pretending that raw
+source playback is portable.
+
+## Cross-platform video compatibility
+
+Phones and browsers do not always agree on upload metadata. For example, a mobile browser can send a `.mov` or `.m4v` file with an empty or generic MIME type, and an iOS-origin video can use a source codec that is not reliably playable on every Linux, Windows, Android, or desktop browser.
+
+Towk treats the browser-provided MIME type as a hint, not as the only authority. Common mobile video extensions are normalized during upload when the declared type is missing or generic:
+
+| Extension | Normalized content type |
+| --------- | ----------------------- |
+| `.mov`, `.qt` | `video/quicktime` |
+| `.m4v`, `.mp4` | `video/mp4` |
+| `.webm` | `video/webm` |
+
+The web client uses the same narrow extension list for pre-upload size feedback,
+local previews, and the upload metadata it sends when the browser reports an
+empty or generic MIME type. That keeps mobile UX consistent with server behavior
+without treating arbitrary extensions or explicit non-video MIME types as
+trusted media.
+
+When video processing is enabled, these assets enter the video pipeline and
+receive portable MP4 variants. Until a processing manifest exists, the web
+client waits for the processed portable variant for every user video source
+instead of opening the raw original in the embedded player. Browser-provided
+labels such as MP4 or WebM are still containers, not a guarantee that every
+viewer can decode the embedded codec. Waiting for the portable variant avoids a
+blank native player on platforms that cannot decode the sender's original
+codec, such as an iPhone-origin source viewed from a Linux desktop browser.
+
+When video processing is disabled, Towk cannot manufacture a portable variant. In that mode, the raw original remains the source of truth and viewers depend on their browser and operating system codec support.
 
 ## Storage Considerations
 

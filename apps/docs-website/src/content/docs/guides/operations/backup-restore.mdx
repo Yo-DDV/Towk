@@ -20,6 +20,7 @@ This is the easiest backup to restore correctly. Keep the passphrase somewhere s
 Backups contain all persistent JetStream streams, KV buckets, and object stores:
 
 - **Server data** — users, memberships, roles, permissions, notifications, rooms, messages, threads, reactions, message bodies
+- **Owner-managed runtime configuration facts** — including the performance profile selected in Server administration
 - **Call facts** — room-scoped call start/join/leave/end events used to rebuild active call participant state
 - **NATS-backed assets** — user avatars, server icon and banner, message attachments, and persisted link-preview images
 
@@ -34,6 +35,13 @@ Certain streams are intentionally excluded:
 | LiveKit E2EE call keys | Stored in `ENCRYPTION_KEYS` and excluded unless key backups are explicitly included; active calls cannot be recovered without them |
 | Link preview cache | Regeneratable on demand |
 | Asset cache | Regeneratable (resized image variants) |
+
+Deployment-owned configuration is outside the Towk data archive. Back up your
+`towk.toml`, `.env`, Docker Compose files, Kubernetes manifests, resource
+limits, `CHATTO_PERFORMANCE_MAX_*` operator caps, TLS material, and external S3
+bucket policy with your normal infrastructure backup process. A restored Towk
+archive can restore the owner-selected performance profile, but it cannot
+recreate host CPU/memory limits or external object-storage contents.
 
 <Aside type="tip">
   Use `--encrypt --include-keys` for the simplest complete backup of the built-in KMS. A monolithic encrypted backup is simpler to automate, easier to test, and harder to restore incorrectly.

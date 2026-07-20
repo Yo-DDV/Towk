@@ -30,6 +30,8 @@ type assetTransformFailure struct {
 	cause   error
 }
 
+type assetTransformJobObserver func(active, pending int)
+
 func (e *assetTransformFailure) Error() string {
 	return e.cause.Error()
 }
@@ -54,20 +56,38 @@ type assetTransformCoordinator struct {
 	jobs      map[string]*assetTransformJob
 	workers   *runtimecap.Limiter
 	admission *runtimecap.Limiter
+	observer  assetTransformJobObserver
+	active    int
+	pending   int
 	closed    bool
 }
 
-func newAssetTransformCoordinator(workerCapacity, admittedCapacity int) *assetTransformCoordinator {
-	return newDynamicAssetTransformCoordinator(func() int { return workerCapacity }, func() int { return admittedCapacity })
+func newAssetTransformCoordinator(
+	workerCapacity, admittedCapacity int,
+	observers ...assetTransformJobObserver,
+) *assetTransformCoordinator {
+	return newDynamicAssetTransformCoordinator(
+		func() int { return workerCapacity },
+		func() int { return admittedCapacity },
+		observers...,
+	)
 }
 
-func newDynamicAssetTransformCoordinator(workerCapacity, admittedCapacity func() int) *assetTransformCoordinator {
+func newDynamicAssetTransformCoordinator(
+	workerCapacity, admittedCapacity func() int,
+	observers ...assetTransformJobObserver,
+) *assetTransformCoordinator {
 	workerLimit := func() int { return max(1, workerCapacity()) }
 	admissionLimit := func() int { return max(workerLimit(), admittedCapacity()) }
+	var observer assetTransformJobObserver
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
 	return &assetTransformCoordinator{
 		jobs:      make(map[string]*assetTransformJob),
 		workers:   runtimecap.NewLimiter(workerLimit),
 		admission: runtimecap.NewLimiter(admissionLimit),
+		observer:  observer,
 	}
 }
 
@@ -102,6 +122,8 @@ func (c *assetTransformCoordinator) Do(
 		waiters: 1,
 	}
 	c.jobs[key] = job
+	c.pending++
+	c.publishStateLocked()
 	c.mu.Unlock()
 
 	go c.run(jobCtx, key, job, work)
@@ -116,29 +138,46 @@ func (c *assetTransformCoordinator) run(
 ) {
 	workerAcquired := false
 	defer func() {
-		if workerAcquired {
-			c.workers.Release()
-		}
 		if recovered := recover(); recovered != nil {
 			job.result = nil
 			job.err = fmt.Errorf("asset transform panicked: %v", recovered)
 		}
 
 		c.mu.Lock()
+		if workerAcquired {
+			c.active--
+		} else {
+			c.pending--
+		}
 		if c.jobs[key] == job {
 			delete(c.jobs, key)
 		}
+		c.publishStateLocked()
 		close(job.done)
 		c.mu.Unlock()
+		if workerAcquired {
+			c.workers.Release()
+		}
 		job.cancel()
 		c.admission.Release()
 	}()
 
 	if err := c.workers.Acquire(ctx); err == nil {
+		c.mu.Lock()
+		c.pending--
+		c.active++
+		c.publishStateLocked()
+		c.mu.Unlock()
 		workerAcquired = true
 		job.result, job.err = work(ctx)
 	} else {
 		job.err = err
+	}
+}
+
+func (c *assetTransformCoordinator) publishStateLocked() {
+	if c.observer != nil {
+		c.observer(c.active, c.pending)
 	}
 }
 

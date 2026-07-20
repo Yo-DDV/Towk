@@ -130,6 +130,9 @@ func normalizeAttachmentUploadMetadata(filename, contentType string) (string, st
 		return "", "", invalidArgument("content type is invalid")
 	}
 	contentType = strings.ToLower(mediaType)
+	if inferred, ok := inferVideoAttachmentContentType(filename, contentType); ok {
+		contentType = inferred
+	}
 
 	if _, blocked := blockedAttachmentExecutableExtensions[attachmentFilenameExtension(filename)]; blocked {
 		return "", "", invalidArgument("executable attachments are not allowed")
@@ -138,6 +141,22 @@ func normalizeAttachmentUploadMetadata(filename, contentType string) (string, st
 		return "", "", invalidArgument("executable attachments are not allowed")
 	}
 	return filename, contentType, nil
+}
+
+func inferVideoAttachmentContentType(filename, contentType string) (string, bool) {
+	if contentType != "application/octet-stream" {
+		return "", false
+	}
+	switch attachmentFilenameExtension(filename) {
+	case "mov", "qt":
+		return "video/quicktime", true
+	case "m4v", "mp4":
+		return "video/mp4", true
+	case "webm":
+		return "video/webm", true
+	default:
+		return "", false
+	}
 }
 
 func attachmentFilenameExtension(filename string) string {

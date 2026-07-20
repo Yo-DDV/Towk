@@ -340,6 +340,9 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 	if probeResult.Height == 0 {
 		return s.failProcessing(ctx, req, fmt.Errorf("no video stream found in file"))
 	}
+	if err := s.validateSourceForProcessing(probeResult); err != nil {
+		return s.failProcessing(ctx, req, err)
+	}
 
 	s.logger.Info("Video probed",
 		"asset_id", req.AssetID,
@@ -450,6 +453,30 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 		"variants", len(variants),
 	)
 
+	return nil
+}
+
+func (s *Service) validateSourceForProcessing(probeResult *ProbeResult) error {
+	if probeResult == nil {
+		return fmt.Errorf("missing video metadata")
+	}
+	if probeResult.Width <= 0 || probeResult.Height <= 0 {
+		return fmt.Errorf("video dimensions could not be determined")
+	}
+	if probeResult.DurationMs <= 0 && probeResult.VideoCodec != "gif" {
+		return fmt.Errorf("video duration could not be determined")
+	}
+	if maxDuration := s.config.MaxDurationOrDefault(); maxDuration > 0 && probeResult.DurationMs > int64(maxDuration/time.Millisecond) {
+		return fmt.Errorf("video duration %s exceeds configured video.max_duration %s", time.Duration(probeResult.DurationMs)*time.Millisecond, maxDuration)
+	}
+	maxPixels := s.config.MaxPixelsOrDefault()
+	if maxPixels <= 0 {
+		return nil
+	}
+	sourcePixels := int64(probeResult.Width) * int64(probeResult.Height)
+	if sourcePixels > maxPixels {
+		return fmt.Errorf("video source area %d pixels exceeds configured video.max_pixels %d", sourcePixels, maxPixels)
+	}
 	return nil
 }
 

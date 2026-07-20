@@ -103,6 +103,38 @@ describe('AttachmentsState', () => {
     expect(prepareFilesMock).not.toHaveBeenCalled();
   });
 
+  it('uses the video-specific upload limit for mobile videos with generic MIME types', async () => {
+    limits.maxUploadSize = 1;
+    limits.maxVideoUploadSize = 10;
+    const mov = new File([new Uint8Array(2)], 'IMG_0420.MOV', { type: '' });
+    const mp4 = new File([new Uint8Array(2)], 'clip.mp4', { type: 'application/octet-stream' });
+
+    await state.stageFiles([mov, mp4]);
+
+    expect(state.selectedFiles.map((file) => [file.name, file.type, file.size])).toEqual([
+      ['IMG_0420.MOV', 'video/quicktime', 2],
+      ['clip.mp4', 'video/mp4', 2]
+    ]);
+    expect(prepareFilesMock).toHaveBeenCalledWith([mov, mp4]);
+  });
+
+  it('keeps generic non-video files on the standard upload limit', async () => {
+    limits.maxUploadSize = 1;
+    limits.maxVideoUploadSize = 10;
+
+    await state.stageFiles([
+      new File([new Uint8Array(2)], 'report.pdf', { type: 'application/octet-stream' })
+    ]);
+
+    expect(
+      getToasts()
+        .map((t) => t.message)
+        .join('\n')
+    ).toContain('report.pdf is too large');
+    expect(state.filesWithUrls).toEqual([]);
+    expect(prepareFilesMock).not.toHaveBeenCalled();
+  });
+
   it('rejects executable files before preparing them', async () => {
     await state.stageFiles([
       new File([new Uint8Array([0x4d, 0x5a, 0x90, 0x00])], 'renamed.txt', {

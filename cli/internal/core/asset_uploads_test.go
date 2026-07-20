@@ -59,6 +59,42 @@ func TestAssetUploadReservationAccountsForStorageBackend(t *testing.T) {
 	}
 }
 
+func TestAssetUploadFinalReservationUsesGeneratedSizeAndRepairsLegacyGap(t *testing.T) {
+	core := setupAssetUploadCapacityCore(t, 8*1024*1024)
+	ctx := testContext(t)
+	model := core.AssetUploads()
+	uploadID := NewAssetID()
+	expiresAt := time.Now().Add(time.Hour)
+
+	if err := model.reserveCapacity(ctx, uploadID, 1024*1024, expiresAt); err != nil {
+		t.Fatalf("reserve input capacity: %v", err)
+	}
+	if err := model.setCapacityReservation(ctx, uploadID, 3*1024*1024, expiresAt); err != nil {
+		t.Fatalf("resize final capacity: %v", err)
+	}
+	ledger, err := model.loadCapacityReservations(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ledger.Reservations[uploadID].RemainingBytes; got != 3*1024*1024 {
+		t.Fatalf("final reservation = %d, want 3 MiB", got)
+	}
+
+	if err := model.releaseCapacityReservation(ctx, uploadID); err != nil {
+		t.Fatalf("release reservation: %v", err)
+	}
+	if err := model.setCapacityReservation(ctx, uploadID, 1024*1024, expiresAt); err != nil {
+		t.Fatalf("repair missing reservation: %v", err)
+	}
+	ledger, err = model.loadCapacityReservations(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ledger.Reservations[uploadID].RemainingBytes; got != 1024*1024 {
+		t.Fatalf("repaired reservation = %d, want 1 MiB", got)
+	}
+}
+
 func TestAssetUploadReservationLedgerHasBoundedCardinality(t *testing.T) {
 	core := setupAssetUploadCapacityCore(t, 8*1024*1024)
 	ctx := testContext(t)

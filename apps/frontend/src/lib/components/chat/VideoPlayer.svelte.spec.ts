@@ -28,11 +28,27 @@ function renderAutoLoopVideo({ width, height }: { width: number; height: number 
 function renderPostedVideo({
   width,
   height,
-  thumbnailUrl = null
+  thumbnailUrl = null,
+  variants = [
+    {
+      url: 'https://chat.example.test/clip.mp4',
+      quality: `${height}p`,
+      width,
+      height,
+      size: 1024
+    }
+  ]
 }: {
   width: number;
   height: number;
   thumbnailUrl?: string | null;
+  variants?: Array<{
+    url: string;
+    quality: string;
+    width: number;
+    height: number;
+    size: number;
+  }>;
 }) {
   return render(VideoPlayer, {
     props: {
@@ -41,15 +57,7 @@ function renderPostedVideo({
       width,
       height,
       thumbnailUrl,
-      variants: [
-        {
-          url: 'https://chat.example.test/clip.mp4',
-          quality: `${height}p`,
-          width,
-          height,
-          size: 1024
-        }
-      ]
+      variants
     }
   });
 }
@@ -106,6 +114,79 @@ describe('VideoPlayer', () => {
     expect(getComputedStyle(poster).objectFit).toBe('cover');
   });
 
+  it('passes every portable MP4 variant to Vidstack with explicit media metadata', async () => {
+    const { container } = renderPostedVideo({
+      width: 1280,
+      height: 720,
+      variants: [
+        {
+          url: 'https://chat.example.test/clip-480.mp4',
+          quality: '480p',
+          width: 854,
+          height: 480,
+          size: 512
+        },
+        {
+          url: 'https://chat.example.test/clip-720.mp4',
+          quality: '720p',
+          width: 1280,
+          height: 720,
+          size: 1024
+        }
+      ]
+    });
+
+    const player = await mediaPlayer(container);
+
+    expect((player as HTMLElement & { src?: unknown }).src).toEqual([
+      {
+        src: 'https://chat.example.test/clip-720.mp4',
+        type: 'video/mp4',
+        width: 1280,
+        height: 720
+      },
+      {
+        src: 'https://chat.example.test/clip-480.mp4',
+        type: 'video/mp4',
+        width: 854,
+        height: 480
+      }
+    ]);
+  });
+
+  it('opens fullscreen with the highest quality variant', async () => {
+    const { fullscreenVideo } = await import('$lib/state/globals.svelte');
+    fullscreenVideo.close();
+
+    const { container } = renderPostedVideo({
+      width: 1280,
+      height: 720,
+      variants: [
+        {
+          url: 'https://chat.example.test/clip-480.mp4',
+          quality: '480p',
+          width: 854,
+          height: 480,
+          size: 512
+        },
+        {
+          url: 'https://chat.example.test/clip-720.mp4',
+          quality: '720p',
+          width: 1280,
+          height: 720,
+          size: 1024
+        }
+      ]
+    });
+
+    const player = await mediaPlayer(container);
+    player.dispatchEvent(new Event('media-enter-fullscreen-request', { cancelable: true }));
+    await tick();
+
+    expect(fullscreenVideo.src).toBe('https://chat.example.test/clip-720.mp4');
+    fullscreenVideo.close();
+  });
+
   it('corrects stale metadata after the browser loads intrinsic video dimensions', async () => {
     const { container } = renderAutoLoopVideo({ width: 1024, height: 768 });
     const media = video(container);
@@ -147,5 +228,35 @@ describe('VideoPlayer', () => {
     const fallback = container.querySelector<HTMLImageElement>('img[alt="animated.gif"]');
     expect(fallback?.getAttribute('src')).toBe(TRANSPARENT_THUMBNAIL);
     expect(onMediaError).toHaveBeenCalledOnce();
+  });
+
+  it('uses the lightest processed variant for animated GIF autoloop playback', () => {
+    const { container } = render(VideoPlayer, {
+      props: {
+        status: VideoProcessingStatus.Completed,
+        filename: 'animated.gif',
+        autoLoop: true,
+        variants: [
+          {
+            url: 'https://chat.example.test/animated-720.mp4',
+            quality: '720p',
+            width: 1280,
+            height: 720,
+            size: 4096
+          },
+          {
+            url: 'https://chat.example.test/animated-480.mp4',
+            quality: '480p',
+            width: 854,
+            height: 480,
+            size: 1024
+          }
+        ]
+      } as never
+    });
+
+    expect(container.querySelector('source')?.getAttribute('src')).toBe(
+      'https://chat.example.test/animated-480.mp4'
+    );
   });
 });

@@ -253,6 +253,57 @@ func TestUpdatePerformanceSettingsRequiresOwnerAndRejectsStaleRevision(t *testin
 	}
 }
 
+func TestMediaTranscodeAdmissionFollowsLivePerformancePolicy(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	chattoCore.performance = newPerformanceManager(config.PerformanceConfig{}, chattoCore.ServerConfig, func() runtimecap.Capacity {
+		return runtimecap.Capacity{CPUs: 16, MemoryBytes: 16 << 30, CPUSource: "test", MemorySource: "test"}
+	})
+	ctx := testContext(t)
+	owner, err := chattoCore.CreateUser(ctx, SystemActorID, "voice-performance-owner", "Voice Performance Owner", "password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := chattoCore.AssignServerRole(ctx, SystemActorID, owner.Id, RoleOwner); err != nil {
+		t.Fatal(err)
+	}
+
+	economy, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, 0, config.PerformanceProfileEconomy, PerformanceLimits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if economy.Effective.VideoWorkers != 1 {
+		t.Fatalf("economy video workers = %d, want 1", economy.Effective.VideoWorkers)
+	}
+	if !chattoCore.mediaTranscodeLimiter.TryAcquire() {
+		t.Fatal("economy profile rejected its first voice transcode")
+	}
+	if chattoCore.mediaTranscodeLimiter.TryAcquire() {
+		chattoCore.mediaTranscodeLimiter.Release()
+		t.Fatal("economy profile admitted a second concurrent voice transcode")
+	}
+	chattoCore.mediaTranscodeLimiter.Release()
+
+	performance, err := chattoCore.UpdatePerformanceSettings(ctx, owner.Id, economy.Revision, config.PerformanceProfilePerformance, PerformanceLimits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if performance.Effective.VideoWorkers != 4 {
+		t.Fatalf("performance video workers = %d, want 4", performance.Effective.VideoWorkers)
+	}
+	for range 4 {
+		if !chattoCore.mediaTranscodeLimiter.TryAcquire() {
+			t.Fatal("performance profile rejected one of four voice transcodes")
+		}
+	}
+	if chattoCore.mediaTranscodeLimiter.TryAcquire() {
+		chattoCore.mediaTranscodeLimiter.Release()
+		t.Fatal("performance profile admitted a fifth concurrent voice transcode")
+	}
+	for range 4 {
+		chattoCore.mediaTranscodeLimiter.Release()
+	}
+}
+
 func TestUpdatePerformanceSettingsRejectsOneOfTwoConcurrentOwnerWrites(t *testing.T) {
 	chattoCore, _ := setupTestCore(t)
 	ctx := testContext(t)

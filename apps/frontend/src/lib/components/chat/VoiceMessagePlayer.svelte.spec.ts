@@ -53,12 +53,13 @@ describe('VoiceMessagePlayer', () => {
     await tick();
 
     const waveformBars = [
-      ...container.querySelectorAll<HTMLElement>('[data-waveform-layer="base"] span')
+      ...container.querySelectorAll<HTMLElement>('[data-waveform-layer="base"] > span')
     ];
     const waveform = container.querySelector<HTMLElement>('[data-testid="voice-message-waveform"]');
     const waveformHeights = waveformBars.map((bar) => Number.parseInt(bar.style.height, 10));
     expect(waveformBars).toHaveLength(42);
-    expect(waveform?.querySelectorAll('span')).toHaveLength(42);
+    expect(waveform?.querySelectorAll('[data-waveform-layer="base"] > span')).toHaveLength(42);
+    expect(waveform?.querySelectorAll('.voice-waveform-fill')).toHaveLength(0);
     expect(waveform?.querySelector('.h-px')).toBeNull();
     expect(Math.max(...waveformHeights)).toBeGreaterThan(28);
     expect(new Set(waveformHeights).size).toBeGreaterThan(2);
@@ -83,7 +84,17 @@ describe('VoiceMessagePlayer', () => {
       container.querySelectorAll(
         '[data-testid="voice-message-progress"] [data-progress-state="played"]'
       )
-    ).toHaveLength(18);
+    ).toHaveLength(17);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="voice-message-progress"] [data-progress-state="active"]'
+      )
+    ).toHaveLength(1);
+    expect(
+      container.querySelector<HTMLElement>(
+        '[data-testid="voice-message-progress"] [data-progress-state="active"]'
+      )
+    ).toHaveAttribute('data-progress-fill', '0.500');
 
     const speed = container.querySelector('button[aria-label^="Playback speed"]')!;
     await userEvent.click(speed);
@@ -143,14 +154,21 @@ describe('VoiceMessagePlayer', () => {
     const progress = container.querySelector<HTMLElement>('[data-testid="voice-message-progress"]');
     expect(progress).not.toBeNull();
     expect(progress).toHaveAttribute('data-played-bars', '32');
-    expect(progress!.querySelectorAll('[data-progress-state="played"]')).toHaveLength(32);
+    expect(progress!.querySelectorAll('[data-progress-state="played"]')).toHaveLength(31);
+    expect(progress!.querySelectorAll('[data-progress-state="active"]')).toHaveLength(1);
     expect(progress!.querySelectorAll('[data-progress-state="remaining"]')).toHaveLength(10);
+    expect(
+      progress!.querySelector('[data-progress-state="played"]')?.classList
+    ).toContain('voice-waveform-bar--played');
+    expect(
+      progress!.querySelector('[data-progress-state="active"]')?.classList
+    ).toContain('voice-waveform-bar--active');
     expect(progress!.querySelector('[data-progress-state="played"]')?.classList).toContain(
-      'bg-accent'
+      'voice-waveform-bar'
     );
-    expect(progress!.querySelector('[data-progress-state="remaining"]')?.classList).toContain(
-      'bg-muted/25'
-    );
+    expect(
+      progress!.querySelector('[data-progress-state="remaining"]')?.classList
+    ).toContain('voice-waveform-bar--remaining');
     expect(progress!.style.clipPath).toBe('');
 
     Object.defineProperty(audio, 'paused', { configurable: true, writable: true, value: true });
@@ -222,6 +240,7 @@ describe('VoiceMessagePlayer', () => {
     const progress = container.querySelector<HTMLElement>('[data-testid="voice-message-progress"]');
     expect(progress).toHaveAttribute('data-played-bars', '21');
     expect(progress?.querySelectorAll('[data-progress-state="played"]')).toHaveLength(21);
+    expect(progress?.querySelectorAll('[data-progress-state="active"]')).toHaveLength(0);
   });
 
   it('stops progress work in the background and resumes it when visible', async () => {

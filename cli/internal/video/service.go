@@ -5,10 +5,10 @@
 // AssetProcessingSucceeded / AssetProcessingFailed events. It implements
 // service.Service for lifecycle management.
 //
-// Architecture: process-local bounded concurrency via semaphore. Message posts
-// ask this service to spawn local work and return immediately so the public API
-// never blocks on ffmpeg. This intentionally remains best-effort until a real
-// durable task queue exists.
+// Architecture: process-local bounded concurrency through the shared media
+// transcode limiter. Message posts ask this service to spawn local work and
+// return immediately so the public API never blocks on ffmpeg. This
+// intentionally remains best-effort until a real durable task queue exists.
 package video
 
 import (
@@ -22,7 +22,6 @@ import (
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
-	"hmans.de/chatto/internal/runtimecap"
 )
 
 // processRequest is the in-process shape passed to the worker after the
@@ -42,7 +41,6 @@ type Service struct {
 	logger      *log.Logger
 	ffmpegPath  string
 	ffprobePath string
-	workers     *runtimecap.Limiter
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -63,7 +61,6 @@ func NewService(chattoCore *core.ChattoCore, cfg config.VideoConfig, logger *log
 		ctx:    ctx,
 		cancel: cancel,
 	}
-	s.workers = runtimecap.NewLimiter(chattoCore.VideoWorkerLimit)
 	if err := s.resolveTools(); err != nil {
 		cancel()
 		return nil, err
@@ -142,10 +139,10 @@ func (s *Service) StartProcessing(_ context.Context, assetID, messageEventID str
 
 	go func() {
 		defer s.wg.Done()
-		if err := s.workers.Acquire(s.ctx); err != nil {
+		if err := s.core.AcquireMediaTranscode(s.ctx); err != nil {
 			return
 		}
-		defer s.workers.Release()
+		defer s.core.ReleaseMediaTranscode()
 		if err := s.processAsset(s.ctx, assetID, messageEventID); err != nil {
 			s.logger.Error("Video processing failed", "asset_id", assetID, "error", err)
 		}

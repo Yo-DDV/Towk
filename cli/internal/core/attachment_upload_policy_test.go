@@ -27,6 +27,39 @@ func TestNormalizeAttachmentUploadMetadata(t *testing.T) {
 		name        string
 		filename    string
 		contentType string
+		want        string
+	}{
+		{name: "empty iphone mov", filename: "IMG_0420.MOV", contentType: "", want: "video/quicktime"},
+		{name: "generic iphone mov", filename: "IMG_0420.mov", contentType: "application/octet-stream", want: "video/quicktime"},
+		{name: "generic m4v", filename: "clip.M4V", contentType: "Application/Octet-Stream", want: "video/mp4"},
+		{name: "generic mp4", filename: "clip.mp4", contentType: "application/octet-stream", want: "video/mp4"},
+		{name: "generic webm", filename: "clip.webm", contentType: "application/octet-stream", want: "video/webm"},
+	} {
+		t.Run("infers video content type for "+tt.name, func(t *testing.T) {
+			filename, contentType, err := normalizeAttachmentUploadMetadata(tt.filename, tt.contentType)
+			if err != nil {
+				t.Fatalf("normalizeAttachmentUploadMetadata: %v", err)
+			}
+			if filename != tt.filename || contentType != tt.want {
+				t.Fatalf("metadata = %q, %q, want %q, %q", filename, contentType, tt.filename, tt.want)
+			}
+		})
+	}
+
+	t.Run("keeps explicit non-generic content type", func(t *testing.T) {
+		_, contentType, err := normalizeAttachmentUploadMetadata("clip.mov", "text/plain")
+		if err != nil {
+			t.Fatalf("normalizeAttachmentUploadMetadata: %v", err)
+		}
+		if contentType != "text/plain" {
+			t.Fatalf("content type = %q, want text/plain", contentType)
+		}
+	})
+
+	for _, tt := range []struct {
+		name        string
+		filename    string
+		contentType string
 	}{
 		{name: "windows executable", filename: "program.EXE"},
 		{name: "windows installer", filename: "installer.msi"},

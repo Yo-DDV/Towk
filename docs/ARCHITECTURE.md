@@ -827,8 +827,10 @@ The HMAC uses `[core.assets].signing_secret`. The HTTP handler verifies the
 ticket signature, expiry, asset ID, and transform parameters, then resolves the
 asset and room scope from `AssetProjection`. Every request checks that the
 signed user is still a member of the asset's room before serving the binary.
-Protected asset responses use `private, no-store`; image resize results may
-still be cached internally by the server. Towk streams protected asset bytes
+Streamed protected asset responses use `private, no-cache` with an `ETag` only
+after the ticket, asset state, and current room membership pass authorization;
+the Service Worker does not persist those response bodies. Image resize results
+may also be cached internally by the server. Towk streams protected asset bytes
 by default, but can redirect heavy passive originals such as video, audio, and
 large files to short-lived presigned S3 URLs after the same authorization check.
 
@@ -861,12 +863,14 @@ using the display derivative as a download replacement.
 **Caching:**
 
 Transformed images are generated on-demand. Public server assets can be cached
-aggressively; protected attachment responses are not browser-cacheable because
-ticket expiry and room-membership revocation must be checked on every fetch:
+aggressively. A private browser cache may retain a protected response body, but
+it must revalidate through Towk so ticket expiry, deletion, and room-membership
+revocation are checked before reuse:
 
-- Stable and legacy attachment originals and derivatives: `Cache-Control: private, no-store`
+- Streamed stable attachment originals and derivatives: `Cache-Control: private, no-cache`, with authorization before `304`
+- Heavy passive S3 originals: authorized short-lived redirect to an object response using `private, no-store`
 - Server-scoped public assets and signed server transforms: public immutable/cacheable responses
-- `ETag` based on asset ID and transform parameters
+- Original `ETag` based on asset ID; derivative `ETag` based on the versioned transform-cache key
 - Optional `ASSET_CACHE` object-store entries can cache resized bytes server-side
 
 **Output Format:**

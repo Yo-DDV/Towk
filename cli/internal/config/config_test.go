@@ -91,6 +91,11 @@ func TestPerformanceConfigDefaultsAndValidation(t *testing.T) {
 			cfg.Performance.MaxImageTransformWorkers = 4
 			cfg.Performance.MaxImageTransformAdmissions = 3
 		}, "performance.max_image_transform_admissions must be greater than or equal to max_image_transform_workers"},
+		{"negative video duration", func(cfg *ChattoConfig) { cfg.Video.MaxDuration = Duration(-time.Second) }, "video.max_duration must be positive when set"},
+		{"negative video pixel area", func(cfg *ChattoConfig) { cfg.Video.MaxPixels = -1 }, "video.max_pixels must be positive when set"},
+		{"oversized video upload size", func(cfg *ChattoConfig) {
+			cfg.Video.MaxUploadSize = datasize.ByteSize(math.MaxInt64) + 1
+		}, "video.max_upload_size must not exceed 9223372036854775807 bytes"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,6 +130,8 @@ func TestReadConfig_PerformanceControlsFromEnv(t *testing.T) {
 	t.Setenv("CHATTO_PERFORMANCE_MAX_ASSET_UPLOAD_WORKERS", "6")
 	t.Setenv("CHATTO_PERFORMANCE_MAX_LINK_PREVIEW_WORKERS", "3")
 	t.Setenv("CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS", "2")
+	t.Setenv("CHATTO_VIDEO_MAX_DURATION", "30m")
+	t.Setenv("CHATTO_VIDEO_MAX_PIXELS", "12441600")
 
 	cfg, err := ReadConfig("")
 	if err != nil {
@@ -137,6 +144,9 @@ func TestReadConfig_PerformanceControlsFromEnv(t *testing.T) {
 		cfg.Performance.MaxLinkPreviewWorkers != 3 ||
 		cfg.Performance.MaxVideoWorkers != 2 {
 		t.Fatalf("performance env controls = %+v", cfg.Performance)
+	}
+	if cfg.Video.MaxDuration.Duration() != 30*time.Minute || cfg.Video.MaxPixels != 12441600 {
+		t.Fatalf("video processing env bounds = duration %s pixels %d", cfg.Video.MaxDuration.Duration(), cfg.Video.MaxPixels)
 	}
 }
 

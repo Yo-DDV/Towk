@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -61,7 +60,7 @@ func newProcessMetrics() *processMetrics {
 		}, []string{"outcome", "size_class"}),
 		mediaTransformJobs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "towk_media_transform_jobs",
-			Help: "Current process-local image transform jobs by bounded state; pending remains zero while the synchronous transform path has no admission queue.",
+			Help: "Current process-local image transform jobs by bounded coordinator state.",
 		}, []string{"state"}),
 		assetUploadRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "towk_asset_upload_operations_total",
@@ -143,12 +142,9 @@ func (m *processMetrics) observeMediaTransform(outcome mediaTransformOutcome, si
 	m.mediaTransformDuration.WithLabelValues(boundedMediaTransformOutcome(outcome), mediaSizeClass(sizeBytes)).Observe(duration.Seconds())
 }
 
-func (m *processMetrics) mediaTransformStarted() func() {
-	m.mediaTransformJobs.WithLabelValues("active").Inc()
-	var once sync.Once
-	return func() {
-		once.Do(func() { m.mediaTransformJobs.WithLabelValues("active").Dec() })
-	}
+func (m *processMetrics) setMediaTransformJobs(active, pending int) {
+	m.mediaTransformJobs.WithLabelValues("active").Set(float64(max(active, 0)))
+	m.mediaTransformJobs.WithLabelValues("pending").Set(float64(max(pending, 0)))
 }
 
 func (m *processMetrics) ObserveAssetUpload(operation connectapi.AssetUploadOperation, outcome connectapi.AssetUploadOutcome, sizeBytes int64, duration time.Duration) {
