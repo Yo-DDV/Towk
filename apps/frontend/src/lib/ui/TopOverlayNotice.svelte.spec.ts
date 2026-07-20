@@ -36,6 +36,8 @@ describe('TopOverlayNotice', () => {
     expect(container.querySelector('section')).toHaveClass('menu');
     expect(container.querySelector('.menu-section')).not.toBeNull();
     expect(container.firstElementChild?.className).toContain('safe-area-inset-top');
+    expect(container.firstElementChild?.className).toContain('+3.5rem');
+    expect(container.firstElementChild).toHaveClass('md:top-16');
     await expect.element(buttonWithText(container, 'Not now')).toHaveClass('btn-secondary');
 
     buttonWithText(container, 'Enable').click();

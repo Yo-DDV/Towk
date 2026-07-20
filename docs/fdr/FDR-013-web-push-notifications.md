@@ -1,7 +1,7 @@
 # FDR-013: Web Push Notifications
 
 **Status:** Active
-**Last reviewed:** 2026-07-15
+**Last reviewed:** 2026-07-20
 
 ## Overview
 
@@ -107,9 +107,9 @@ Users can opt in to receive notifications through the browser's W3C Web Push sys
 
 ### 11. Browser-owned installed-app controls
 
-**Decision:** Towk uses `minimal-ui` as its static preferred installed display mode and falls back directly to `browser`; it deliberately does not keep `standalone` in the display fallback chain. Android Chromium manifest requests receive a dedicated browser-mode install `id` and are never frozen by the service worker cache, because affected Android Chrome builds can show a fixed browser-owned foreground URL-copy notification for app-like installed windows.
-**Why:** Chromium owns the Android URL-copy notification that can appear while an installed PWA is open in an app-like window. It is created by the browser's installed-web-app integration, not by Towk's service worker or Web Push sender. Browser display mode keeps the normal Chrome URL surface available, so Chrome no longer needs to expose that URL-copy affordance through a foreground notification.
-**Tradeoff:** Android Chromium opens in the browser surface instead of a completely standalone app frame. Existing Android installs can still require user-driven uninstall/reinstall or Chrome's own manifest update cycle before Chrome applies the new identity. A fully native-app-style Android installed-app notification model requires a packaged mobile distribution strategy rather than a web-manifest-only change.
+**Decision:** Towk keeps a canonical `standalone` manifest across user agents and treats Chrome's Android URL-copy disclosure as a browser-owned control. It is not app notification state and does not alter Towk's Web Push payloads, service-worker close handling, unread counts, or cross-device dismissal synchronization.
+**Why:** Browser-owned UI must not drive app-owned notification semantics. Keeping those layers separate allows Towk to provide the requested app-like installation without regressing notification delivery or trying to control an API surface the browser does not expose.
+**Tradeoff:** Android users can see both Towk notifications and Chrome's own installed-app disclosure. Avoiding that disclosure while retaining native-style app chrome would require a packaged Android strategy; switching the web manifest back to browser mode is not acceptable because it removes the intended PWA install experience.
 
 ### 12. Progressive call actions with exact-call validation
 

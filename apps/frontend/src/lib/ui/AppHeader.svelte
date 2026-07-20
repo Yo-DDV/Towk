@@ -78,6 +78,8 @@
       </button>
     {/if}
 
+    <PwaInstallButton remindersEnabled={Boolean(originStore?.currentUser.user)} />
+
     <!-- Connection lost indicator: only show when an authenticated server has lost connection.
          Skip the origin server if the user isn't authenticated (no WebSocket expected). -->
     {#if originStore?.currentUser.user && serverConnectionManager.originClient.showConnectionLostIcon}
@@ -102,8 +104,6 @@
 
   <!-- Actions: Version + Logout -->
   <div class="flex items-center gap-3">
-    <PwaInstallButton />
-
     {#if deployedVersion}
       <a
         href={`https://github.com/Yo-DDV/towk${correspondingSourcePath}`}

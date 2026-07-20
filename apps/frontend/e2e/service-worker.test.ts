@@ -28,6 +28,41 @@ type BadgeStateSnapshot = {
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const BADGE_STATE_REQUEST = '/__chatto/foreground-badge-intent';
 
+test('serves one standalone manifest without guessing Chromium installability', async ({
+  page,
+  request
+}) => {
+  const response = await request.get('/manifest.webmanifest', {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36'
+    }
+  });
+  expect(response.ok()).toBe(true);
+  expect(response.headers()['vary'] ?? '').not.toContain('User-Agent');
+  const manifest = (await response.json()) as {
+    id?: string;
+    display?: string;
+    display_override?: string[];
+    icons?: Array<{ sizes?: string }>;
+    related_applications?: Array<{ platform?: string; url?: string }>;
+    prefer_related_applications?: boolean;
+  };
+  expect(manifest.id).toBe('/');
+  expect(manifest.display).toBe('standalone');
+  expect(manifest.display_override).toEqual(['standalone']);
+  expect(manifest.icons?.some((icon) => icon.sizes === '192x192')).toBe(true);
+  expect(manifest.icons?.some((icon) => icon.sizes === '512x512')).toBe(true);
+  expect(manifest.related_applications).toEqual([
+    { platform: 'webapp', url: '/manifest.webmanifest' }
+  ]);
+  expect(manifest.prefer_related_applications).toBe(false);
+
+  await page.goto('/');
+  await expect(page.locator('[data-pwa-status]')).toHaveCount(0);
+  await expect(page.getByTestId('pwa-install-reminder')).toHaveCount(0);
+});
+
 test('service worker caches only the app shell and serves it offline', async ({
   page,
   context

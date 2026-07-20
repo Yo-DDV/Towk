@@ -202,8 +202,9 @@ func TestServiceWorkerETag(t *testing.T) {
 func TestDynamicPWAManifest(t *testing.T) {
 	staticManifest := []byte(`{
   "name": "Towk",
-  "display": "minimal-ui",
-  "display_override": ["minimal-ui", "browser"],
+  "id": "/",
+  "display": "standalone",
+  "display_override": ["standalone"],
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
@@ -217,7 +218,7 @@ func TestDynamicPWAManifest(t *testing.T) {
 }`)
 
 	t.Run("keeps static manifest when no server logo is available", func(t *testing.T) {
-		got, err := dynamicPWAManifest(staticManifest, nil, "")
+		got, err := dynamicPWAManifest(staticManifest, nil)
 		if err != nil {
 			t.Fatalf("dynamicPWAManifest: %v", err)
 		}
@@ -228,7 +229,7 @@ func TestDynamicPWAManifest(t *testing.T) {
 		got, err := dynamicPWAManifest(staticManifest, &pwaServerIconURLs{
 			Icon192: "/assets/server/logo/t/192",
 			Icon512: "/assets/server/logo/t/512",
-		}, "")
+		})
 		if err != nil {
 			t.Fatalf("dynamicPWAManifest: %v", err)
 		}
@@ -259,38 +260,6 @@ func TestDynamicPWAManifest(t *testing.T) {
 		assert.Equal(t, "image/png", shortcutIcons[1].(map[string]any)["type"])
 	})
 
-	t.Run("uses browser mode for Android Chromium with a refreshed app id", func(t *testing.T) {
-		got, err := dynamicPWAManifest(
-			staticManifest,
-			nil,
-			"Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36",
-		)
-		if err != nil {
-			t.Fatalf("dynamicPWAManifest: %v", err)
-		}
-
-		var manifest map[string]any
-		if err := json.Unmarshal(got, &manifest); err != nil {
-			t.Fatalf("unmarshal manifest: %v", err)
-		}
-
-		assert.Equal(t, androidChromiumInstallManifestID, manifest["id"])
-		assert.Equal(t, "browser", manifest["display"])
-		assert.Equal(t, []any{"browser"}, manifest["display_override"])
-	})
-
-	t.Run("keeps minimal-ui for non-Android browsers", func(t *testing.T) {
-		got, err := dynamicPWAManifest(
-			staticManifest,
-			nil,
-			"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36",
-		)
-		if err != nil {
-			t.Fatalf("dynamicPWAManifest: %v", err)
-		}
-
-		assert.Equal(t, string(staticManifest), string(got))
-	})
 }
 
 func TestInjectAppleTouchIcon(t *testing.T) {
@@ -514,15 +483,16 @@ func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
 	assert.Equal(t, "image/png", icons[4].(map[string]any)["type"])
 }
 
-func TestServePWAWebManifestUsesAndroidChromiumInstallVariant(t *testing.T) {
+func TestServePWAWebManifestKeepsStableInstallIdentityAcrossUserAgents(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockFS := fstest.MapFS{
 		"manifest.webmanifest": &fstest.MapFile{
 			Data: []byte(`{
+  "id": "/",
   "name": "Towk",
-  "display": "minimal-ui",
-  "display_override": ["minimal-ui", "browser"],
+  "display": "standalone",
+  "display_override": ["standalone"],
   "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
 }`),
 		},
@@ -541,15 +511,15 @@ func TestServePWAWebManifestUsesAndroidChromiumInstallVariant(t *testing.T) {
 	server.router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "User-Agent", w.Header().Get("Vary"))
+	assert.Empty(t, w.Header().Get("Vary"))
 
 	var manifest map[string]any
 	if err := json.Unmarshal(w.Body.Bytes(), &manifest); err != nil {
 		t.Fatalf("unmarshal manifest: %v", err)
 	}
-	assert.Equal(t, androidChromiumInstallManifestID, manifest["id"])
-	assert.Equal(t, "browser", manifest["display"])
-	assert.Equal(t, []any{"browser"}, manifest["display_override"])
+	assert.Equal(t, "/", manifest["id"])
+	assert.Equal(t, "standalone", manifest["display"])
+	assert.Equal(t, []any{"standalone"}, manifest["display_override"])
 }
 
 func TestFrontendFallbackDoesNotServeReservedBackendPrefixes(t *testing.T) {

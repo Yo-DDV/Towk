@@ -9,12 +9,15 @@
     visible = $bindable(false),
     title,
     size = 'md',
+    tall = false,
     describedBy,
     onclose
   }: {
     visible?: boolean;
     title?: string;
     size?: 'sm' | 'md' | 'lg';
+    /** Allow content-heavy dialogs to use nearly the full dynamic viewport height. */
+    tall?: boolean;
     /** ID of an element that describes the dialog (forwarded to aria-describedby). */
     describedBy?: string;
     children: Snippet;
@@ -63,9 +66,7 @@
             'input:not([type="hidden"]):not([disabled]),textarea:not([disabled]),select:not([disabled])';
           const active = document.activeElement;
           const alreadyOnField =
-            active instanceof HTMLElement &&
-            node.contains(active) &&
-            active.matches(fieldSelector);
+            active instanceof HTMLElement && node.contains(active) && active.matches(fieldSelector);
           if (alreadyOnField) return;
           const target =
             node.querySelector<HTMLElement>(fieldSelector) ??
@@ -143,7 +144,12 @@
     <!-- Outer "tray" frame, mirroring the .menu utility used by ContextMenu/QuickSwitcher. -->
     <div class="rounded-lg border border-text/10 bg-surface-100 p-2 shadow-xl">
       <!-- Inner content well, mirroring .menu-section. -->
-      <div class="max-h-[78vh] overflow-y-auto rounded-md bg-background p-3">
+      <div
+        class={[
+          'overflow-y-auto rounded-md bg-background p-3',
+          tall ? 'max-h-[calc(100dvh-2rem)]' : 'max-h-[78vh]'
+        ]}
+      >
         <!--
           Header row holds the title (if any) and the close button, so
           they share a baseline and the title isn't artificially indented

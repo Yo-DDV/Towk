@@ -7,8 +7,8 @@
   "dir": "ltr",
   "start_url": "/",
   "scope": "/",
-  "display": "minimal-ui",
-  "display_override": ["minimal-ui", "browser"],
+  "display": "standalone",
+  "display_override": ["standalone"],
   "launch_handler": {
     "client_mode": ["focus-existing", "auto"]
   },
@@ -44,6 +44,12 @@
   "theme_color": "#03040b",
   "categories": ["communication", "social", "productivity"],
   "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "/manifest.webmanifest"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
