@@ -4,15 +4,15 @@ import { createClient } from '@connectrpc/connect';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { readFile } from 'fs/promises';
 import { sha256 } from 'js-sha256';
-import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
-import { MessageService } from '@towk/api-types/api/v1/messages_connect';
-import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_connect';
+import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_pb';
+import { MessageService } from '@towk/api-types/api/v1/messages_pb';
+import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_pb';
 import { NotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
-import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_connect';
-import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
-import { AdminServerService } from '@towk/api-types/admin/v1/server_connect';
-import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_connect';
-import { ViewerService } from '@towk/api-types/api/v1/viewer_connect';
+import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_pb';
+import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
+import { AdminServerService } from '@towk/api-types/admin/v1/server_pb';
+import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_pb';
+import { ViewerService } from '@towk/api-types/api/v1/viewer_pb';
 import { startServer, stopServer, type ServerInfo } from './server';
 
 function connectBaseUrl(remoteBaseURL: string): string {

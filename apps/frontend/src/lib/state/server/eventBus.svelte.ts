@@ -6,6 +6,7 @@
  */
 
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import type {
   EventBusCatchUpReason,
   EventBusCatchUpPhase,
@@ -20,13 +21,17 @@ import { roomEventKind } from '$lib/render/eventKinds';
 import { realtimeEventToEventEnvelope } from '$lib/realtimeEventMapper';
 import { currentPushClientId } from '$lib/notifications/pushClientId';
 import { appState } from '$lib/state/globals.svelte';
+
 import {
-  RealtimeClientFrame,
-  RealtimeClientHello,
-  RealtimeClientState,
-  RealtimeServerFrame,
-  RealtimeSubscribeEvents
+  RealtimeClientFrameSchema,
+  RealtimeClientHelloSchema,
+  RealtimeClientStateSchema,
+  RealtimeServerFrameSchema,
+  RealtimeSubscribeEventsSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
+
+import type { RealtimeServerFrame } from '@towk/api-types/realtime/v1/realtime_pb';
+
 import type { ServerConnection } from './serverConnection.svelte';
 
 const DEFAULT_HEARTBEAT_STALL_MS = 75_000;
@@ -71,35 +76,44 @@ function clientHelloFrame(
   pushClientId: string,
   foreground: boolean
 ): Uint8Array {
-  return new RealtimeClientFrame({
-    frame: {
-      case: 'hello',
-      value: new RealtimeClientHello({
-        protocolVersion: 1,
-        bearerToken: token ?? undefined,
-        pushClientId,
-        foreground
-      })
-    }
-  }).toBinary();
+  return toBinary(
+    RealtimeClientFrameSchema,
+    create(RealtimeClientFrameSchema, {
+      frame: {
+        case: 'hello',
+        value: create(RealtimeClientHelloSchema, {
+          protocolVersion: 1,
+          bearerToken: token ?? undefined,
+          pushClientId,
+          foreground
+        })
+      }
+    })
+  );
 }
 
 function clientStateFrame(foreground: boolean): Uint8Array {
-  return new RealtimeClientFrame({
-    frame: {
-      case: 'clientState',
-      value: new RealtimeClientState({ foreground })
-    }
-  }).toBinary();
+  return toBinary(
+    RealtimeClientFrameSchema,
+    create(RealtimeClientFrameSchema, {
+      frame: {
+        case: 'clientState',
+        value: create(RealtimeClientStateSchema, { foreground })
+      }
+    })
+  );
 }
 
 function subscribeEventsFrame(): Uint8Array {
-  return new RealtimeClientFrame({
-    frame: {
-      case: 'subscribeEvents',
-      value: new RealtimeSubscribeEvents()
-    }
-  }).toBinary();
+  return toBinary(
+    RealtimeClientFrameSchema,
+    create(RealtimeClientFrameSchema, {
+      frame: {
+        case: 'subscribeEvents',
+        value: create(RealtimeSubscribeEventsSchema)
+      }
+    })
+  );
 }
 
 function heartbeatStallMsForInterval(seconds: number): number {
@@ -302,7 +316,7 @@ class EventBusManager {
           if (stopped || socket !== nextSocket) return;
           let frame: RealtimeServerFrame;
           try {
-            frame = RealtimeServerFrame.fromBinary(await messageDataToBytes(message.data));
+            frame = fromBinary(RealtimeServerFrameSchema, await messageDataToBytes(message.data));
           } catch (err) {
             console.error(`[eventBus:${serverId}] failed to decode realtime frame`, err);
             return;

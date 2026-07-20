@@ -1,18 +1,24 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { create } from '@bufbuild/protobuf';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { createMessageAPI, MAX_MESSAGE_ATTACHMENTS } from '$lib/api-client/messages';
-import { CreateMessageResponse, UpdateMessageResponse } from '@towk/api-types/api/v1/messages_pb';
 import {
-  AssetUpload,
+  CreateMessageResponseSchema,
+  UpdateMessageResponseSchema
+} from '@towk/api-types/api/v1/messages_pb';
+
+import {
+  AssetUploadSchema,
   AssetUploadStatus,
-  CompleteUploadResponse,
-  CreateUploadResponse,
-  UploadChunkResponse
+  CompleteUploadResponseSchema,
+  CreateUploadResponseSchema,
+  UploadChunkResponseSchema
 } from '@towk/api-types/api/v1/asset_uploads_pb';
-import { Asset } from '@towk/api-types/api/v1/attachments_pb';
-import { Message } from '@towk/api-types/api/v1/message_types_pb';
+
+import { AssetSchema } from '@towk/api-types/api/v1/attachments_pb';
+import { MessageSchema } from '@towk/api-types/api/v1/message_types_pb';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -90,11 +96,11 @@ describe('createMessageAPI', () => {
 
   it('posts a message with bearer auth and maps the renderable event response', async () => {
     mocks.createMessage.mockResolvedValue(
-      new CreateMessageResponse({
-        message: new Message({
+      create(CreateMessageResponseSchema, {
+        message: create(MessageSchema, {
           id: 'evt-1',
           actorId: 'user-1',
-          createdAt: Timestamp.fromDate(new Date('2026-06-20T10:00:00Z')),
+          createdAt: timestampFromDate(new Date('2026-06-20T10:00:00Z')),
           roomId: 'room-1',
           body: 'hello',
           thread: { viewerState: { isFollowing: true } }
@@ -166,8 +172,8 @@ describe('createMessageAPI', () => {
 
   it('uploads browser files through AssetUploadService and posts attachment asset IDs', async () => {
     mocks.createUpload.mockResolvedValue(
-      new CreateUploadResponse({
-        upload: new AssetUpload({
+      create(CreateUploadResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-note',
           roomId: 'room-1',
           status: AssetUploadStatus.OPEN,
@@ -179,8 +185,8 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.uploadChunk.mockResolvedValue(
-      new UploadChunkResponse({
-        upload: new AssetUpload({
+      create(UploadChunkResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-note',
           roomId: 'room-1',
           status: AssetUploadStatus.OPEN,
@@ -191,15 +197,15 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.completeUpload.mockResolvedValue(
-      new CompleteUploadResponse({
-        upload: new AssetUpload({
+      create(CompleteUploadResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-note',
           status: AssetUploadStatus.COMPLETED,
           committedOffset: 5n,
           size: 5n,
           assetId: 'asset-note'
         }),
-        asset: new Asset({
+        asset: create(AssetSchema, {
           id: 'asset-note',
           filename: 'note.txt',
           contentType: 'text/plain'
@@ -207,8 +213,8 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.createMessage.mockResolvedValue(
-      new CreateMessageResponse({
-        message: new Message({
+      create(CreateMessageResponseSchema, {
+        message: create(MessageSchema, {
           id: 'evt-attachment',
           actorId: 'user-1',
           roomId: 'room-1',
@@ -268,8 +274,8 @@ describe('createMessageAPI', () => {
 
   it('uploads first-class voice metadata and marks the prepared outbox message', async () => {
     mocks.createUpload.mockResolvedValue(
-      new CreateUploadResponse({
-        upload: new AssetUpload({
+      create(CreateUploadResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-voice',
           roomId: 'room-1',
           status: AssetUploadStatus.OPEN,
@@ -280,8 +286,8 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.uploadChunk.mockResolvedValue(
-      new UploadChunkResponse({
-        upload: new AssetUpload({
+      create(UploadChunkResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-voice',
           status: AssetUploadStatus.OPEN,
           committedOffset: 4n,
@@ -291,15 +297,15 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.completeUpload.mockResolvedValue(
-      new CompleteUploadResponse({
-        upload: new AssetUpload({
+      create(CompleteUploadResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-voice',
           status: AssetUploadStatus.COMPLETED,
           committedOffset: 4n,
           size: 4n,
           assetId: 'asset-voice'
         }),
-        asset: new Asset({
+        asset: create(AssetSchema, {
           id: 'asset-voice',
           filename: 'voice-message.webm',
           contentType: 'audio/webm'
@@ -307,8 +313,8 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.createMessage.mockResolvedValue(
-      new CreateMessageResponse({
-        message: new Message({ id: 'evt-voice', actorId: 'user-1', roomId: 'room-1' })
+      create(CreateMessageResponseSchema, {
+        message: create(MessageSchema, { id: 'evt-voice', actorId: 'user-1', roomId: 'room-1' })
       })
     );
 
@@ -355,8 +361,8 @@ describe('createMessageAPI', () => {
 
   it('cancels an upload session when attachment completion fails', async () => {
     mocks.createUpload.mockResolvedValue(
-      new CreateUploadResponse({
-        upload: new AssetUpload({
+      create(CreateUploadResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-rejected',
           roomId: 'room-1',
           status: AssetUploadStatus.OPEN,
@@ -367,8 +373,8 @@ describe('createMessageAPI', () => {
       })
     );
     mocks.uploadChunk.mockResolvedValue(
-      new UploadChunkResponse({
-        upload: new AssetUpload({
+      create(UploadChunkResponseSchema, {
+        upload: create(AssetUploadSchema, {
           uploadId: 'upload-rejected',
           status: AssetUploadStatus.OPEN,
           committedOffset: 1n,
@@ -437,11 +443,11 @@ describe('createMessageAPI', () => {
 
   it('updates a message through MessageService', async () => {
     mocks.updateMessage.mockResolvedValue(
-      new UpdateMessageResponse({
-        message: new Message({
+      create(UpdateMessageResponseSchema, {
+        message: create(MessageSchema, {
           id: 'event-1',
           actorId: 'user-1',
-          createdAt: Timestamp.fromDate(new Date('2026-06-20T10:00:00Z')),
+          createdAt: timestampFromDate(new Date('2026-06-20T10:00:00Z')),
           roomId: 'room-1',
           body: 'edited'
         })
@@ -497,7 +503,7 @@ describe('createMessageAPI', () => {
   });
 
   it('can patch message echo state without sending a body', async () => {
-    mocks.updateMessage.mockResolvedValue(new UpdateMessageResponse());
+    mocks.updateMessage.mockResolvedValue(create(UpdateMessageResponseSchema));
 
     const api = createMessageAPI({
       baseUrl: 'https://remote.example.test/api/connect',

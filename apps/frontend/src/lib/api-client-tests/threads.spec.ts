@@ -2,6 +2,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { createThreadAPI } from '$lib/api-client/threads';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -51,7 +52,7 @@ describe('createThreadAPI', () => {
           thread: {
             threadRootEventId: 'root-1',
             replyCount: 2,
-            lastReplyAt: { toDate: () => lastReplyAt },
+            lastReplyAt: timestampFromDate(lastReplyAt),
             viewerState: { hasUnread: true }
           },
           rootMessage: undefined

@@ -5,16 +5,20 @@ import {
 } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import { NotificationLevel as ApiNotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
-import { RealtimeEventEnvelope, RealtimeHeartbeat } from '@towk/api-types/realtime/v1/realtime_pb';
+import type {
+  RealtimeEventEnvelope,
+  RealtimeHeartbeat
+} from '@towk/api-types/realtime/v1/realtime_pb';
 import { PresenceStatus as ApiPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { TimeFormat as ApiTimeFormat } from '@towk/api-types/api/v1/viewer_pb';
 import type { EventEnvelope } from '$lib/eventBus.svelte';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
-function timestampToISO(value: { toDate(): Date } | undefined): string {
-  return value?.toDate().toISOString() ?? new Date().toISOString();
+function timestampToISO(value: RealtimeEventEnvelope['createdAt']): string {
+  return protobufTimestampToISOString(value) ?? new Date().toISOString();
 }
 
-function optionalTimestampToISO(value: { toDate(): Date } | undefined): string | null {
+function optionalTimestampToISO(value: RealtimeEventEnvelope['createdAt']): string | null {
   return value ? timestampToISO(value) : null;
 }
 

@@ -1,6 +1,6 @@
 import { authHeaders, createTowkClient } from './connect.js';
 import * as m from '$lib/i18n/messages';
-import { AdminPermissionService } from '@towk/api-types/admin/v1/permissions_connect';
+import { AdminPermissionService } from '@towk/api-types/admin/v1/permissions_pb';
 import {
   PermissionDecision,
   PermissionScopeKind,

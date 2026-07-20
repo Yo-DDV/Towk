@@ -7,10 +7,11 @@ import {
   type ConnectAPIConfig
 } from './connect.js';
 import * as m from '$lib/i18n/messages';
-import { Timestamp } from '@bufbuild/protobuf';
-import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
 import type { Room, RoomBan as APIRoomBan } from '@towk/api-types/api/v1/rooms_pb';
 import { mapDirectoryMember, type DirectoryMember } from './memberDirectory.js';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type { ConnectAPIConfig } from './connect.js';
 
@@ -69,8 +70,8 @@ function roomBan(ban: APIRoomBan): RoomBanSummary {
     moderatorId: ban.moderatorId,
     moderator: ban.moderator ? mapDirectoryMember(ban.moderator) : null,
     reason: ban.reason,
-    createdAt: ban.createdAt?.toDate().toISOString() ?? null,
-    expiresAt: ban.expiresAt?.toDate().toISOString() ?? null
+    createdAt: protobufTimestampToISOString(ban.createdAt) ?? null,
+    expiresAt: protobufTimestampToISOString(ban.expiresAt) ?? null
   };
 }
 
@@ -81,9 +82,7 @@ function roomValidationError(err: unknown, input: { name?: string; description?:
     return new Error(m['room.create.name_too_long']({ max: ROOM_NAME_MAX_LENGTH }));
   }
   if ((input.description ?? '').length > ROOM_DESCRIPTION_MAX_LENGTH) {
-    return new Error(
-      m['room.create.description_too_long']({ max: ROOM_DESCRIPTION_MAX_LENGTH })
-    );
+    return new Error(m['room.create.description_too_long']({ max: ROOM_DESCRIPTION_MAX_LENGTH }));
   }
 
   return err;
@@ -265,7 +264,7 @@ export function createRoomCommandAPI(config: ConnectAPIConfig) {
             roomId: input.roomId,
             userId: input.userId,
             reason: input.reason,
-            expiresAt: input.expiresAt ? Timestamp.fromDate(new Date(input.expiresAt)) : undefined
+            expiresAt: input.expiresAt ? timestampFromDate(new Date(input.expiresAt)) : undefined
           },
           { headers: headers() }
         );

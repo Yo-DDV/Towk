@@ -1,5 +1,5 @@
 import { authHeaders, createTowkClient } from './connect.js';
-import { PushNotificationService } from '@towk/api-types/api/v1/push_notifications_connect';
+import { PushNotificationService } from '@towk/api-types/api/v1/push_notifications_pb';
 
 export type PushNotificationAPIConfig = {
   baseUrl: string;

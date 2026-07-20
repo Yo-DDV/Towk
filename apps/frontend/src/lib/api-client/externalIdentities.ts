@@ -5,12 +5,12 @@ import {
   type ConnectAPIConfig
 } from './connect.js';
 import * as m from '$lib/i18n/messages';
-import { ExternalIdentityAuthService } from '@towk/api-types/chatto/auth/v1/external_identity_auth_connect';
+import { ExternalIdentityAuthService } from '@towk/api-types/chatto/auth/v1/external_identity_auth_pb';
 import {
   ExternalIdentityFlowKind,
   type PendingExternalIdentity as APIPendingExternalIdentity
 } from '@towk/api-types/chatto/auth/v1/external_identity_auth_pb';
-import { MyAccountService } from '@towk/api-types/api/v1/account_connect';
+import { MyAccountService } from '@towk/api-types/api/v1/account_pb';
 import {
   type ExternalIdentityProvider as APIExternalIdentityProvider,
   type LinkedExternalIdentity as APILinkedExternalIdentity

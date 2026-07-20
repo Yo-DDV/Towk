@@ -1,26 +1,28 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampNow } from '@bufbuild/protobuf/wkt';
+import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 
 import { realtimeEventToEventEnvelope } from '$lib/realtimeEventMapper';
 import { RoomEventKind } from '$lib/render/eventKinds';
+
 import {
-  RealtimeCallEvent,
-  RealtimeEventEnvelope,
-  RealtimeMentionNotificationEvent,
-  RealtimeNewDirectMessageNotificationEvent,
-  RealtimeNotificationCreatedEvent
+  RealtimeCallEventSchema,
+  RealtimeEventEnvelopeSchema,
+  RealtimeMentionNotificationEventSchema,
+  RealtimeNewDirectMessageNotificationEventSchema,
+  RealtimeNotificationCreatedEventSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
 
 describe('realtimeEventToEventEnvelope', () => {
   it('preserves the exact call connection on participant transitions', () => {
     const event = realtimeEventToEventEnvelope(
-      new RealtimeEventEnvelope({
+      create(RealtimeEventEnvelopeSchema, {
         id: 'evt-call-left',
-        createdAt: Timestamp.now(),
+        createdAt: timestampNow(),
         actorId: 'user-1',
         event: {
           case: 'callParticipantLeft',
-          value: new RealtimeCallEvent({
+          value: create(RealtimeCallEventSchema, {
             roomId: 'room-1',
             callId: 'call-1',
             participantId: 'device-2',
@@ -49,13 +51,13 @@ describe('realtimeEventToEventEnvelope', () => {
 
   it('preserves mention notification display data', () => {
     const event = realtimeEventToEventEnvelope(
-      new RealtimeEventEnvelope({
+      create(RealtimeEventEnvelopeSchema, {
         id: 'evt-mention',
-        createdAt: Timestamp.now(),
+        createdAt: timestampNow(),
         actorId: 'user-1',
         event: {
           case: 'mentionNotification',
-          value: new RealtimeMentionNotificationEvent({
+          value: create(RealtimeMentionNotificationEventSchema, {
             roomId: 'room-1',
             actorUserId: 'user-1',
             roomName: 'General',
@@ -81,13 +83,13 @@ describe('realtimeEventToEventEnvelope', () => {
 
   it('preserves DM notification display data', () => {
     const event = realtimeEventToEventEnvelope(
-      new RealtimeEventEnvelope({
+      create(RealtimeEventEnvelopeSchema, {
         id: 'evt-dm',
-        createdAt: Timestamp.now(),
+        createdAt: timestampNow(),
         actorId: 'user-2',
         event: {
           case: 'newDirectMessageNotification',
-          value: new RealtimeNewDirectMessageNotificationEvent({
+          value: create(RealtimeNewDirectMessageNotificationEventSchema, {
             roomId: 'dm-1',
             senderId: 'user-2',
             senderDisplayName: 'Grace Hopper',
@@ -115,12 +117,12 @@ describe('realtimeEventToEventEnvelope', () => {
 
   it('preserves per-client notification-center suppression', () => {
     const event = realtimeEventToEventEnvelope(
-      new RealtimeEventEnvelope({
+      create(RealtimeEventEnvelopeSchema, {
         id: 'evt-notification-created',
-        createdAt: Timestamp.now(),
+        createdAt: timestampNow(),
         event: {
           case: 'notificationCreated',
-          value: new RealtimeNotificationCreatedEvent({
+          value: create(RealtimeNotificationCreatedEventSchema, {
             notificationId: 'notification-1',
             roomId: 'room-1',
             notificationCenterSuppressed: true

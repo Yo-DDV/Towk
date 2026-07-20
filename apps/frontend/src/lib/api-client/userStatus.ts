@@ -2,10 +2,12 @@ import {
   authHeaders,
   createTowkClient,
   handleAuthError,
-  type ConnectAPIConfig,
-} from "./connect.js";
-import { Timestamp } from "@bufbuild/protobuf";
-import { MyAccountService } from "@towk/api-types/api/v1/account_connect";
+  type ConnectAPIConfig
+} from './connect.js';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
+import { MyAccountService } from '@towk/api-types/api/v1/account_pb';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type CustomUserStatusAPIConfig = ConnectAPIConfig & {
   serverId: string;
@@ -23,7 +25,7 @@ export async function updateCustomStatus(
     emoji: string;
     text: string;
     expiresAt?: string | null;
-  },
+  }
 ): Promise<CustomUserStatus | null> {
   const client = createUserStatusClient(config);
   try {
@@ -31,11 +33,9 @@ export async function updateCustomStatus(
       {
         emoji: input.emoji,
         text: input.text,
-        expiresAt: input.expiresAt
-          ? Timestamp.fromDate(new Date(input.expiresAt))
-          : undefined,
+        expiresAt: input.expiresAt ? timestampFromDate(new Date(input.expiresAt)) : undefined
       },
-      { headers: authHeaders(config) },
+      { headers: authHeaders(config) }
     );
     return apiStatus(response.status);
   } catch (err) {
@@ -44,14 +44,11 @@ export async function updateCustomStatus(
 }
 
 export async function deleteCustomStatus(
-  config: CustomUserStatusAPIConfig,
+  config: CustomUserStatusAPIConfig
 ): Promise<CustomUserStatus | null> {
   const client = createUserStatusClient(config);
   try {
-    const response = await client.deleteCustomStatus(
-      {},
-      { headers: authHeaders(config) },
-    );
+    const response = await client.deleteCustomStatus({}, { headers: authHeaders(config) });
     return apiStatus(response.status);
   } catch (err) {
     handleAuthError(config, err);
@@ -67,16 +64,14 @@ function apiStatus(
     | {
         emoji: string;
         text: string;
-        expiresAt?: { toDate(): Date };
+        expiresAt?: Timestamp;
       }
-    | undefined,
+    | undefined
 ): CustomUserStatus | null {
   if (!status) return null;
   return {
     emoji: status.emoji,
     text: status.text,
-    expiresAt: status.expiresAt
-      ? status.expiresAt.toDate().toISOString()
-      : null,
+    expiresAt: protobufTimestampToISOString(status.expiresAt) ?? null
   };
 }

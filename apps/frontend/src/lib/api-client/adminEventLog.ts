@@ -1,12 +1,8 @@
-import { Timestamp } from "@bufbuild/protobuf";
-import {
-  authHeaders,
-  Code,
-  ConnectError,
-  createTowkClient,
-} from "./connect.js";
-import { AdminEventLogService } from "@towk/api-types/admin/v1/event_log_connect";
-import type { AdminEventLogEntry as APIAdminEventLogEntry } from "@towk/api-types/admin/v1/event_log_pb";
+import { timestampFromDate, type Timestamp } from '@bufbuild/protobuf/wkt';
+import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
+import { AdminEventLogService } from '@towk/api-types/admin/v1/event_log_pb';
+import type { AdminEventLogEntry as APIAdminEventLogEntry } from '@towk/api-types/admin/v1/event_log_pb';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type AdminEventLogAPIConfig = {
   baseUrl: string;
@@ -46,10 +42,10 @@ export type AdminEventLogPage = {
 export type AdminEventLogAPI = ReturnType<typeof createAdminEventLogAPI>;
 
 export const EMPTY_ADMIN_EVENT_LOG_FILTER: AdminEventLogFilter = {
-  eventType: "",
-  actorId: "",
-  createdAtFrom: "",
-  createdAtTo: "",
+  eventType: '',
+  actorId: '',
+  createdAtFrom: '',
+  createdAtTo: ''
 };
 
 export function createAdminEventLogAPI(config: AdminEventLogAPIConfig) {
@@ -66,11 +62,9 @@ export function createAdminEventLogAPI(config: AdminEventLogAPIConfig) {
         {
           limit: input.limit,
           before: input.before ?? undefined,
-          filter: eventLogFilterInput(
-            input.filter ?? EMPTY_ADMIN_EVENT_LOG_FILTER,
-          ),
+          filter: eventLogFilterInput(input.filter ?? EMPTY_ADMIN_EVENT_LOG_FILTER)
         },
-        { headers: headers() },
+        { headers: headers() }
       );
       return {
         entries: response.entries.map(adminEventLogEntry),
@@ -79,7 +73,7 @@ export function createAdminEventLogAPI(config: AdminEventLogAPIConfig) {
         totalCount: String(response.totalCount),
         scannedCount: response.scannedCount,
         scanLimit: response.scanLimit,
-        scanLimited: response.scanLimited,
+        scanLimited: response.scanLimited
       };
     },
 
@@ -90,17 +84,13 @@ export function createAdminEventLogAPI(config: AdminEventLogAPIConfig) {
 
     async getEvent(sequence: string): Promise<AdminEventLogEntry | null> {
       try {
-        const response = await client.getEvent(
-          { sequence },
-          { headers: headers() },
-        );
+        const response = await client.getEvent({ sequence }, { headers: headers() });
         return response.entry ? adminEventLogEntry(response.entry) : null;
       } catch (error) {
-        if (error instanceof ConnectError && error.code === Code.NotFound)
-          return null;
+        if (error instanceof ConnectError && error.code === Code.NotFound) return null;
         throw error;
       }
-    },
+    }
   };
 }
 
@@ -110,22 +100,17 @@ function eventLogFilterInput(filter: AdminEventLogFilter) {
     eventType: filter.eventType || undefined,
     actorId: filter.actorId || undefined,
     createdAtFrom: timestampFromISO(filter.createdAtFrom),
-    createdAtTo: timestampFromISO(filter.createdAtTo),
+    createdAtTo: timestampFromISO(filter.createdAtTo)
   };
 }
 
 function hasActiveEventLogFilter(filter: AdminEventLogFilter): boolean {
-  return Boolean(
-    filter.eventType ||
-    filter.actorId ||
-    filter.createdAtFrom ||
-    filter.createdAtTo,
-  );
+  return Boolean(filter.eventType || filter.actorId || filter.createdAtFrom || filter.createdAtTo);
 }
 
 function timestampFromISO(value: string): Timestamp | undefined {
   if (!value) return undefined;
-  return Timestamp.fromDate(new Date(value));
+  return timestampFromDate(new Date(value));
 }
 
 function adminEventLogEntry(entry: APIAdminEventLogEntry): AdminEventLogEntry {
@@ -137,7 +122,7 @@ function adminEventLogEntry(entry: APIAdminEventLogEntry): AdminEventLogEntry {
     eventType: entry.eventType,
     eventId: entry.eventId,
     actorId: entry.actorId,
-    createdAt: entry.createdAt?.toDate().toISOString() ?? "",
-    payloadJson: entry.payloadJson,
+    createdAt: protobufTimestampToISOString(entry.createdAt) ?? '',
+    payloadJson: entry.payloadJson
   };
 }

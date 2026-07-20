@@ -1,4 +1,5 @@
-import { protoInt64, Timestamp } from '@bufbuild/protobuf';
+import { protoInt64 } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAdminEventLogAPI } from '$lib/api-client/adminEventLog';
@@ -32,7 +33,7 @@ function apiEntry(sequence: string) {
     eventType: 'UserJoinedRoomEvent',
     eventId: `event-${sequence}`,
     actorId: 'actor-1',
-    createdAt: Timestamp.fromDate(new Date('2026-01-01T12:00:00.000Z')),
+    createdAt: timestampFromDate(new Date('2026-01-01T12:00:00.000Z')),
     payloadJson: `{"id":"event-${sequence}"}`
   };
 }
@@ -89,8 +90,8 @@ describe('createAdminEventLogAPI', () => {
         filter: {
           eventType: 'UserJoinedRoomEvent',
           actorId: 'actor-1',
-          createdAtFrom: Timestamp.fromDate(new Date('2026-01-01T00:00:00.000Z')),
-          createdAtTo: Timestamp.fromDate(new Date('2026-01-02T00:00:00.000Z'))
+          createdAtFrom: timestampFromDate(new Date('2026-01-01T00:00:00.000Z')),
+          createdAtTo: timestampFromDate(new Date('2026-01-02T00:00:00.000Z'))
         }
       },
       { headers: { Authorization: 'Bearer token' } }

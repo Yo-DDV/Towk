@@ -1,6 +1,7 @@
-import { authHeaders, createTowkClient, handleAuthError } from "./connect.js";
-import { RoomService } from "@towk/api-types/api/v1/rooms_connect";
-import { ThreadService } from "@towk/api-types/api/v1/threads_connect";
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
+import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
+import { ThreadService } from '@towk/api-types/api/v1/threads_pb';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type ConnectAPIConfig = {
   serverId?: string;
@@ -31,14 +32,13 @@ export function createReadStateAPI(config: ConnectAPIConfig) {
         const response = await rooms.markRoomAsRead(
           {
             roomId: input.roomId,
-            upToEventId: input.upToEventId ?? "",
+            upToEventId: input.upToEventId ?? ''
           },
-          { headers: headers() },
+          { headers: headers() }
         );
         return {
-          lastReadAt: response.lastReadAt?.toDate().toISOString() ?? null,
-          previousLastReadAt:
-            response.previousLastReadAt?.toDate().toISOString() ?? null,
+          lastReadAt: protobufTimestampToISOString(response.lastReadAt) ?? null,
+          previousLastReadAt: protobufTimestampToISOString(response.previousLastReadAt) ?? null
         };
       } catch (err) {
         return handleAuthError(config, err);
@@ -55,17 +55,16 @@ export function createReadStateAPI(config: ConnectAPIConfig) {
           {
             roomId: input.roomId,
             threadRootEventId: input.threadRootEventId,
-            upToEventId: input.upToEventId ?? "",
+            upToEventId: input.upToEventId ?? ''
           },
-          { headers: headers() },
+          { headers: headers() }
         );
         return {
-          previousReadAt:
-            response.previousReadAt?.toDate().toISOString() ?? null,
+          previousReadAt: protobufTimestampToISOString(response.previousReadAt) ?? null
         };
       } catch (err) {
         return handleAuthError(config, err);
       }
-    },
+    }
   };
 }

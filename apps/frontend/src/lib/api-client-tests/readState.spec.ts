@@ -1,4 +1,4 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
@@ -42,8 +42,8 @@ describe('createReadStateAPI', () => {
 
   it('marks a room read with bearer auth and converts timestamp fields', async () => {
     mocks.markRoomAsRead.mockResolvedValue({
-      lastReadAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
-      previousLastReadAt: Timestamp.fromDate(new Date('2026-06-01T11:00:00Z'))
+      lastReadAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
+      previousLastReadAt: timestampFromDate(new Date('2026-06-01T11:00:00Z'))
     });
 
     const api = createReadStateAPI({
@@ -77,7 +77,7 @@ describe('createReadStateAPI', () => {
 
   it('marks a thread read without auth headers when no token is available', async () => {
     mocks.markThreadAsRead.mockResolvedValue({
-      previousReadAt: Timestamp.fromDate(new Date('2026-06-01T10:00:00Z'))
+      previousReadAt: timestampFromDate(new Date('2026-06-01T10:00:00Z'))
     });
 
     const api = createReadStateAPI({

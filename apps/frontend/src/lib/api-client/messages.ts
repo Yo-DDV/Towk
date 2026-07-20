@@ -1,6 +1,6 @@
 import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
 import type { LinkPreviewInput, RoomEventView } from './renderTypes.js';
-import { MessageService } from '@towk/api-types/api/v1/messages_connect';
+import { MessageService } from '@towk/api-types/api/v1/messages_pb';
 import { messageToRawEvent, timelineUsersForMessages } from './roomTimeline.js';
 import { createAssetUploadAPI } from './assetUploads.js';
 import { MAX_MESSAGE_ATTACHMENTS } from '$lib/attachments/filePolicy';

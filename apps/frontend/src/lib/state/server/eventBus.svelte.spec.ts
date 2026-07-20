@@ -1,20 +1,25 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampNow } from '@bufbuild/protobuf/wkt';
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 import { createEventBusHandlerRegistrar, getRealtimeEventEnvelope } from '$lib/eventBus.svelte';
 import { RoomEventKind } from '$lib/render/eventKinds';
+
 import {
-  RealtimeClientFrame,
-  RealtimeEventEnvelope,
-  RealtimeClose,
-  RealtimeError,
-  RealtimeHeartbeat,
-  RealtimeMentionNotificationEvent,
-  RealtimeServerFrame,
-  RealtimeServerHello,
-  RealtimeServerUpdatedEvent,
-  RealtimeSubscribed
+  RealtimeClientFrameSchema,
+  RealtimeEventEnvelopeSchema,
+  RealtimeCloseSchema,
+  RealtimeErrorSchema,
+  RealtimeHeartbeatSchema,
+  RealtimeMentionNotificationEventSchema,
+  RealtimeServerFrameSchema,
+  RealtimeServerHelloSchema,
+  RealtimeServerUpdatedEventSchema,
+  RealtimeSubscribedSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
+
+import type { RealtimeServerFrame } from '@towk/api-types/realtime/v1/realtime_pb';
+
 import { appState } from '$lib/state/globals.svelte';
 import { eventBusManager, setRealtimeSocketFactoryForTests } from './eventBus.svelte';
 import type { ConnectionStatus, ServerConnection } from './serverConnection.svelte';
@@ -47,7 +52,7 @@ class FakeRealtimeSocket {
   }
 
   async receive(frame: RealtimeServerFrame): Promise<void> {
-    this.onmessage?.({ data: frame.toBinary() });
+    this.onmessage?.({ data: toBinary(RealtimeServerFrameSchema, frame) });
     await Promise.resolve();
   }
 
@@ -104,7 +109,7 @@ const PUSH_FOREGROUND_CAPABILITY = 'chatto.realtime.push-foreground.v1';
 let sockets: FakeRealtimeSocket[];
 
 function serverFrame(frame: RealtimeServerFrame['frame']): RealtimeServerFrame {
-  return new RealtimeServerFrame({ frame });
+  return create(RealtimeServerFrameSchema, { frame });
 }
 
 function helloFrame(
@@ -113,7 +118,7 @@ function helloFrame(
 ): RealtimeServerFrame {
   return serverFrame({
     case: 'hello',
-    value: new RealtimeServerHello({
+    value: create(RealtimeServerHelloSchema, {
       protocolVersion: 1,
       serverVersion: 'test',
       heartbeatIntervalSeconds,
@@ -123,18 +128,18 @@ function helloFrame(
 }
 
 function subscribedFrame(): RealtimeServerFrame {
-  return serverFrame({ case: 'subscribed', value: new RealtimeSubscribed() });
+  return serverFrame({ case: 'subscribed', value: create(RealtimeSubscribedSchema) });
 }
 
 function serverUpdatedFrame(id = 'evt-1'): RealtimeServerFrame {
   return serverFrame({
     case: 'event',
-    value: new RealtimeEventEnvelope({
+    value: create(RealtimeEventEnvelopeSchema, {
       id,
-      createdAt: Timestamp.now(),
+      createdAt: timestampNow(),
       event: {
         case: 'serverUpdated',
-        value: new RealtimeServerUpdatedEvent({
+        value: create(RealtimeServerUpdatedEventSchema, {
           name: 'Updated',
           description: 'Description',
           logoUrl: 'https://example.test/logo.png'
@@ -147,20 +152,20 @@ function serverUpdatedFrame(id = 'evt-1'): RealtimeServerFrame {
 function heartbeatFrame(): RealtimeServerFrame {
   return serverFrame({
     case: 'heartbeat',
-    value: new RealtimeHeartbeat({ id: 'heartbeat-1', createdAt: Timestamp.now() })
+    value: create(RealtimeHeartbeatSchema, { id: 'heartbeat-1', createdAt: timestampNow() })
   });
 }
 
 function mentionNotificationFrame(): RealtimeServerFrame {
   return serverFrame({
     case: 'event',
-    value: new RealtimeEventEnvelope({
+    value: create(RealtimeEventEnvelopeSchema, {
       id: 'evt-mention',
-      createdAt: Timestamp.now(),
+      createdAt: timestampNow(),
       actorId: 'user-1',
       event: {
         case: 'mentionNotification',
-        value: new RealtimeMentionNotificationEvent({
+        value: create(RealtimeMentionNotificationEventSchema, {
           roomId: 'room-1',
           actorUserId: 'user-1',
           actorDisplayName: 'Ada Lovelace',
@@ -254,7 +259,7 @@ describe('eventBusManager realtime transport', () => {
     const socket = sockets[0];
     socket.open();
 
-    const hello = RealtimeClientFrame.fromBinary(socket.sent[0]).frame;
+    const hello = fromBinary(RealtimeClientFrameSchema, socket.sent[0]).frame;
     expect(hello.case).toBe('hello');
     if (hello.case !== 'hello') throw new Error('expected realtime hello');
     expect(hello.value.pushClientId).toBe('device-a');
@@ -262,14 +267,14 @@ describe('eventBusManager realtime transport', () => {
 
     await socket.receive(helloFrame(10, [PUSH_FOREGROUND_CAPABILITY]));
     await socket.receive(subscribedFrame());
-    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+    expect(fromBinary(RealtimeClientFrameSchema, socket.sent.at(-1)!).frame).toMatchObject({
       case: 'clientState',
       value: { foreground: true }
     });
 
     appState.isFocused = false;
     window.dispatchEvent(new Event('blur'));
-    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+    expect(fromBinary(RealtimeClientFrameSchema, socket.sent.at(-1)!).frame).toMatchObject({
       case: 'clientState',
       value: { foreground: false }
     });
@@ -282,7 +287,7 @@ describe('eventBusManager realtime transport', () => {
 
     appState.isVisible = true;
     document.dispatchEvent(new Event('visibilitychange'));
-    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+    expect(fromBinary(RealtimeClientFrameSchema, socket.sent.at(-1)!).frame).toMatchObject({
       case: 'clientState',
       value: { foreground: true }
     });
@@ -290,7 +295,7 @@ describe('eventBusManager realtime transport', () => {
     const sentBeforeRefresh = socket.sent.length;
     await vi.advanceTimersByTimeAsync(5_000);
     expect(socket.sent).toHaveLength(sentBeforeRefresh + 1);
-    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+    expect(fromBinary(RealtimeClientFrameSchema, socket.sent.at(-1)!).frame).toMatchObject({
       case: 'clientState',
       value: { foreground: true }
     });
@@ -326,13 +331,13 @@ describe('eventBusManager realtime transport', () => {
         eventBusManager.startBus(TEST_SERVER, fake as unknown as ServerConnection);
         const socket = sockets[0];
         socket.open();
-        expect(RealtimeClientFrame.fromBinary(socket.sent[0]).frame).toMatchObject({
+        expect(fromBinary(RealtimeClientFrameSchema, socket.sent[0]).frame).toMatchObject({
           case: 'hello',
           value: { foreground: true }
         });
         await socket.receive(helloFrame(10, [PUSH_FOREGROUND_CAPABILITY]));
         await socket.receive(subscribedFrame());
-        expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+        expect(fromBinary(RealtimeClientFrameSchema, socket.sent.at(-1)!).frame).toMatchObject({
           case: 'clientState',
           value: { foreground: true }
         });
@@ -342,7 +347,7 @@ describe('eventBusManager realtime transport', () => {
 
         expect(appState.isPresent).toBe(true);
         expect(socket.sent).toHaveLength(sentBeforeRefresh + 1);
-        expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+        expect(fromBinary(RealtimeClientFrameSchema, socket.sent.at(-1)!).frame).toMatchObject({
           case: 'clientState',
           value: { foreground: true }
         });
@@ -362,7 +367,7 @@ describe('eventBusManager realtime transport', () => {
     const { socket } = await startAndSubscribe();
 
     expect(socket.sent).toHaveLength(2);
-    expect(RealtimeClientFrame.fromBinary(socket.sent[0]).frame).toMatchObject({
+    expect(fromBinary(RealtimeClientFrameSchema, socket.sent[0]).frame).toMatchObject({
       case: 'hello',
       value: { pushClientId: 'device-a' }
     });
@@ -375,7 +380,7 @@ describe('eventBusManager realtime transport', () => {
     appState.isVisible = true;
 
     const { socket } = await startAndSubscribe();
-    const firstHello = RealtimeClientFrame.fromBinary(socket.sent[0]).frame;
+    const firstHello = fromBinary(RealtimeClientFrameSchema, socket.sent[0]).frame;
     expect(firstHello).toMatchObject({
       case: 'hello',
       value: { foreground: true }
@@ -386,7 +391,7 @@ describe('eventBusManager realtime transport', () => {
     vi.advanceTimersByTime(0);
     expect(sockets).toHaveLength(2);
     sockets[1].open();
-    const reconnectHello = RealtimeClientFrame.fromBinary(sockets[1].sent[0]).frame;
+    const reconnectHello = fromBinary(RealtimeClientFrameSchema, sockets[1].sent[0]).frame;
     expect(reconnectHello).toMatchObject({
       case: 'hello',
       value: { foreground: false }
@@ -417,7 +422,7 @@ describe('eventBusManager realtime transport', () => {
 
     vi.advanceTimersByTime(5_000);
     expect(reconnectSocket.sent).toHaveLength(1);
-    expect(RealtimeClientFrame.fromBinary(reconnectSocket.sent[0]).frame.case).toBe('hello');
+    expect(fromBinary(RealtimeClientFrameSchema, reconnectSocket.sent[0]).frame.case).toBe('hello');
   });
 
   it('dispatches protobuf realtime events to existing event handlers', async () => {
@@ -531,7 +536,7 @@ describe('eventBusManager realtime transport', () => {
     await socket.receive(
       serverFrame({
         case: 'error',
-        value: new RealtimeError({
+        value: create(RealtimeErrorSchema, {
           code: 'authentication_required',
           message: 'session expired',
           fatal: true
@@ -553,7 +558,7 @@ describe('eventBusManager realtime transport', () => {
     await socket.receive(
       serverFrame({
         case: 'close',
-        value: new RealtimeClose({
+        value: create(RealtimeCloseSchema, {
           code: 'authentication_required',
           message: 'session expired',
           reconnect: true
@@ -574,7 +579,7 @@ describe('eventBusManager realtime transport', () => {
     await socket.receive(
       serverFrame({
         case: 'close',
-        value: new RealtimeClose({
+        value: create(RealtimeCloseSchema, {
           code: 'maintenance',
           reconnect: true,
           retryAfterMs: 0xffffffff
@@ -595,7 +600,7 @@ describe('eventBusManager realtime transport', () => {
     await socket.receive(
       serverFrame({
         case: 'close',
-        value: new RealtimeClose({
+        value: create(RealtimeCloseSchema, {
           code: 'retry',
           reconnect: true,
           retryAfterMs: 0
@@ -702,9 +707,9 @@ describe('eventBusManager realtime transport', () => {
     await socket.receive(
       serverFrame({
         case: 'event',
-        value: new RealtimeEventEnvelope({
+        value: create(RealtimeEventEnvelopeSchema, {
           id: 'evt-room',
-          createdAt: Timestamp.now(),
+          createdAt: timestampNow(),
           event: {
             case: 'roomUniversalChanged',
             value: { roomId: 'room-1', universal: false }

@@ -1,15 +1,19 @@
 import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
+import { create } from '@bufbuild/protobuf';
 import { FitMode } from './renderTypes.js';
 import type { ExpiringAssetUrl, RefreshedAttachmentUrls } from './attachmentUrls.js';
-import { ImageFitMode, ImageTransformOptions } from '@towk/api-types/api/v1/common_pb';
-import { AssetService } from '@towk/api-types/api/v1/attachments_connect';
+import { ImageFitMode, ImageTransformOptionsSchema } from '@towk/api-types/api/v1/common_pb';
+import type { ImageTransformOptions } from '@towk/api-types/api/v1/common_pb';
+import { AssetService } from '@towk/api-types/api/v1/attachments_pb';
 import type { Asset } from '@towk/api-types/api/v1/attachments_pb';
-import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
+import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
 import {
   MessageVideoProcessingStatus,
   type MessageAssetUrl,
   type MessageVideoProcessing
 } from '@towk/api-types/api/v1/message_types_pb';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type AttachmentAPIConfig = {
   serverId?: string;
@@ -143,7 +147,7 @@ function refreshedAttachmentUrlMap(
 }
 
 function thumbnailOptions(options: AttachmentRefreshOptions): ImageTransformOptions {
-  return new ImageTransformOptions({
+  return create(ImageTransformOptionsSchema, {
     width: options.width,
     height: options.height,
     fit: options.fit === FitMode.Contain ? ImageFitMode.CONTAIN : ImageFitMode.COVER
@@ -153,7 +157,7 @@ function thumbnailOptions(options: AttachmentRefreshOptions): ImageTransformOpti
 function roomFileItem(item: {
   messageEventId: string;
   threadRootEventId: string;
-  createdAt?: { toDate(): Date };
+  createdAt?: Timestamp;
   attachment?: Asset;
 }): RoomFileItem {
   return {
@@ -230,6 +234,6 @@ function assetUrl(value?: MessageAssetUrl): ExpiringAssetUrl | null {
   };
 }
 
-function timestampToISO(timestamp: { toDate(): Date } | undefined): string {
-  return timestamp ? timestamp.toDate().toISOString() : '';
+function timestampToISO(timestamp: Timestamp | undefined): string {
+  return protobufTimestampToISOString(timestamp) ?? '';
 }

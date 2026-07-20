@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { DirectoryMember as APIDirectoryMember } from '@towk/api-types/api/v1/member_directory_pb';
-import { User as APIUser } from '@towk/api-types/api/v1/users_pb';
+import { create } from '@bufbuild/protobuf';
+import { DirectoryMemberSchema as APIDirectoryMemberSchema } from '@towk/api-types/api/v1/member_directory_pb';
+import { UserSchema as APIUserSchema } from '@towk/api-types/api/v1/users_pb';
 import { createUserAPI, mapUserSummary } from '$lib/api-client/users';
 
 const mocks = vi.hoisted(() => ({
@@ -31,8 +32,8 @@ describe('createUserAPI', () => {
   it('loads user summaries in batches and sends bearer auth', async () => {
     mocks.batchGetUsers.mockResolvedValue({
       users: [
-        new APIDirectoryMember({
-          user: new APIUser({
+        create(APIDirectoryMemberSchema, {
+          user: create(APIUserSchema, {
             id: 'U1',
             login: 'alice',
             displayName: 'Alice',
@@ -71,7 +72,7 @@ describe('createUserAPI', () => {
   it('maps missing avatar URLs to null', () => {
     expect(
       mapUserSummary(
-        new APIUser({
+        create(APIUserSchema, {
           id: 'U2',
           login: 'bob',
           displayName: 'Bob',

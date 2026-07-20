@@ -1,13 +1,7 @@
-import {
-  Code,
-  ConnectError,
-  createClient,
-  type Client,
-  type Transport,
-} from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-web";
-import type { ServiceType } from "@bufbuild/protobuf";
-import { notifyAuthenticationRequired } from "./hooks.js";
+import { Code, ConnectError, createClient, type Client, type Transport } from '@connectrpc/connect';
+import { createConnectTransport } from '@connectrpc/connect-web';
+import type { DescService } from '@bufbuild/protobuf';
+import { notifyAuthenticationRequired } from './hooks.js';
 
 export type ConnectAPIConfig = {
   serverId?: string;
@@ -21,67 +15,55 @@ export type PublicConnectAPIConfig = {
 };
 
 export function connectEndpoint(baseUrl: string): string {
-  return new URL("/api/connect", baseUrl).toString();
+  return new URL('/api/connect', baseUrl).toString();
 }
 
 export function createTowkTransport(
   config: { baseUrl: string },
-  options: { useBinaryFormat?: boolean } = {},
+  options: { useBinaryFormat?: boolean } = {}
 ): Transport {
   return createConnectTransport({
     baseUrl: config.baseUrl,
-    useBinaryFormat: options.useBinaryFormat ?? true,
+    useBinaryFormat: options.useBinaryFormat ?? true
   });
 }
 
-export function createTowkClient<T extends ServiceType>(
+export function createTowkClient<T extends DescService>(
   service: T,
-  config: { baseUrl: string },
+  config: { baseUrl: string }
 ): Client<T> {
   return createClient(service, createTowkTransport(config));
 }
 
-export function createPublicTowkClient<T extends ServiceType>(
+export function createPublicTowkClient<T extends DescService>(
   service: T,
-  baseUrl: string,
+  baseUrl: string
 ): Client<T> {
   return createClient(
     service,
-    createTowkTransport(
-      { baseUrl: connectEndpoint(baseUrl) },
-      { useBinaryFormat: false },
-    ),
+    createTowkTransport({ baseUrl: connectEndpoint(baseUrl) }, { useBinaryFormat: false })
   );
 }
 
 export function authHeaders(
-  config: Pick<ConnectAPIConfig, "bearerToken">,
+  config: Pick<ConnectAPIConfig, 'bearerToken'>
 ): HeadersInit | undefined {
-  return config.bearerToken
-    ? { Authorization: `Bearer ${config.bearerToken}` }
-    : undefined;
+  return config.bearerToken ? { Authorization: `Bearer ${config.bearerToken}` } : undefined;
 }
 
 export function handleAuthError(
-  config: Pick<ConnectAPIConfig, "serverId" | "onAuthenticationRequired">,
-  err: unknown,
+  config: Pick<ConnectAPIConfig, 'serverId' | 'onAuthenticationRequired'>,
+  err: unknown
 ): never {
-  if (
-    err instanceof ConnectError &&
-    err.code === Code.Unauthenticated &&
-    config.serverId
-  ) {
-    notifyAuthenticationRequired(
-      config.serverId,
-      config.onAuthenticationRequired,
-    );
+  if (err instanceof ConnectError && err.code === Code.Unauthenticated && config.serverId) {
+    notifyAuthenticationRequired(config.serverId, config.onAuthenticationRequired);
   }
   throw err;
 }
 
 export async function withAuth<T>(
-  config: Pick<ConnectAPIConfig, "serverId" | "onAuthenticationRequired">,
-  operation: () => Promise<T>,
+  config: Pick<ConnectAPIConfig, 'serverId' | 'onAuthenticationRequired'>,
+  operation: () => Promise<T>
 ): Promise<T> {
   try {
     return await operation();

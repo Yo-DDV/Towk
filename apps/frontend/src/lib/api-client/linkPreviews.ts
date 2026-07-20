@@ -1,6 +1,6 @@
-import { authHeaders, createTowkClient, handleAuthError } from "./connect.js";
-import { MessageService } from "@towk/api-types/api/v1/messages_connect";
-import type { LinkPreview } from "@towk/api-types/api/v1/link_previews_pb";
+import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
+import { MessageService } from '@towk/api-types/api/v1/messages_pb';
+import type { LinkPreview } from '@towk/api-types/api/v1/link_previews_pb';
 
 export type LinkPreviewAPIConfig = {
   serverId?: string;
@@ -27,21 +27,18 @@ export function createLinkPreviewAPI(config: LinkPreviewAPIConfig) {
   return {
     async fetchLinkPreview(url: string): Promise<ComposerLinkPreview | null> {
       try {
-        const response = await client.fetchLinkPreview(
-          { url },
-          { headers: headers() },
-        );
+        const response = await client.fetchLinkPreview({ url }, { headers: headers() });
         return composerLinkPreview(response.preview, response.previewToken);
       } catch (err) {
         return handleAuthError(config, err);
       }
-    },
+    }
   };
 }
 
 function composerLinkPreview(
   preview: LinkPreview | undefined,
-  previewToken: string,
+  previewToken: string
 ): ComposerLinkPreview | null {
   if (!preview || !previewToken) return null;
   return {
@@ -53,6 +50,6 @@ function composerLinkPreview(
     imageAssetId: preview.imageAssetId || null,
     siteName: preview.siteName || null,
     embedType: preview.embedType || null,
-    embedId: preview.embedId || null,
+    embedId: preview.embedId || null
   };
 }

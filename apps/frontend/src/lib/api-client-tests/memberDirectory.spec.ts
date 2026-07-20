@@ -1,4 +1,4 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PresenceStatus } from '$lib/api-client/renderTypes';
@@ -66,11 +66,11 @@ describe('createMemberDirectoryAPI', () => {
             customStatus: {
               emoji: ':seedling:',
               text: 'Focus',
-              expiresAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z'))
+              expiresAt: timestampFromDate(new Date('2026-06-01T12:00:00Z'))
             }
           },
           roles: ['everyone', 'admin'],
-          createdAt: Timestamp.fromDate(new Date('2026-01-01T09:00:00Z'))
+          createdAt: timestampFromDate(new Date('2026-01-01T09:00:00Z'))
         }
       ],
       page: { totalCount: 2n, hasMore: true }
@@ -140,9 +140,7 @@ describe('createMemberDirectoryAPI', () => {
       id: 'U1',
       presenceStatus: PresenceStatus.Online
     });
-    await expect(api.batchGetUsers(['U1', 'missing'])).resolves.toMatchObject([
-      { id: 'U1' }
-    ]);
+    await expect(api.batchGetUsers(['U1', 'missing'])).resolves.toMatchObject([{ id: 'U1' }]);
 
     expect(mocks.getUser).toHaveBeenNthCalledWith(
       1,
@@ -274,20 +272,20 @@ describe('createMemberDirectoryAPI', () => {
       users: [
         {
           user: {
-              id: 'U3',
-              login: 'carol',
-              displayName: 'Carol',
-              deleted: false,
+            id: 'U3',
+            login: 'carol',
+            displayName: 'Carol',
+            deleted: false,
             presenceStatus: APIPresenceStatus.OFFLINE
           },
           roles: []
         },
         {
           user: {
-              id: 'U4',
-              login: 'dave',
-              displayName: 'Dave',
-              deleted: false,
+            id: 'U4',
+            login: 'dave',
+            displayName: 'Dave',
+            deleted: false,
             presenceStatus: APIPresenceStatus.UNSPECIFIED
           },
           roles: []

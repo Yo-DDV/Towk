@@ -5,7 +5,7 @@ import {
   type ConnectAPIConfig as BaseConnectAPIConfig
 } from './connect.js';
 import * as m from '$lib/i18n/messages';
-import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_connect';
+import { NotificationPreferencesService } from '@towk/api-types/api/v1/notification_preferences_pb';
 import {
   NotificationLevel,
   type NotificationPreference as APINotificationPreference

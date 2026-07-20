@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { create } from '@bufbuild/protobuf';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { Code, ConnectError } from '@connectrpc/connect';
-import { LinkPreview, FetchLinkPreviewResponse } from '@towk/api-types/api/v1/link_previews_pb';
+import {
+  LinkPreviewSchema,
+  FetchLinkPreviewResponseSchema
+} from '@towk/api-types/api/v1/link_previews_pb';
 import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
 
 const mocks = vi.hoisted(() => ({
@@ -39,8 +43,8 @@ describe('createLinkPreviewAPI', () => {
 
   it('fetches a preview with bearer auth and maps optional fields', async () => {
     mocks.fetchLinkPreview.mockResolvedValue(
-      new FetchLinkPreviewResponse({
-        preview: new LinkPreview({
+      create(FetchLinkPreviewResponseSchema, {
+        preview: create(LinkPreviewSchema, {
           url: 'https://example.com/story',
           title: 'Story',
           description: 'Description',
@@ -77,7 +81,7 @@ describe('createLinkPreviewAPI', () => {
   });
 
   it('returns null when the server has no preview', async () => {
-    mocks.fetchLinkPreview.mockResolvedValue(new FetchLinkPreviewResponse());
+    mocks.fetchLinkPreview.mockResolvedValue(create(FetchLinkPreviewResponseSchema));
 
     const api = createLinkPreviewAPI({
       baseUrl: 'https://remote.example.test/api/connect',

@@ -1,5 +1,5 @@
 import { Code, ConnectError } from '@connectrpc/connect';
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { PresenceStatus } from '$lib/api-client/renderTypes';
@@ -273,7 +273,7 @@ describe('createRoomCommandAPI', () => {
         roomId: 'room-1',
         userId: 'user-1',
         reason: 'policy',
-        expiresAt: expect.objectContaining({ toDate: expect.any(Function) })
+        expiresAt: timestampFromDate(new Date('2026-06-01T12:00:00.000Z'))
       },
       { headers: { Authorization: 'Bearer remote-token' } }
     );
@@ -308,7 +308,7 @@ describe('createRoomCommandAPI', () => {
               presenceStatus: APIPresenceStatus.AWAY
             },
             roles: [],
-            createdAt: Timestamp.fromDate(new Date('2026-01-01T09:00:00Z'))
+            createdAt: timestampFromDate(new Date('2026-01-01T09:00:00Z'))
           },
           moderatorId: 'mod-1',
           moderator: {
@@ -322,8 +322,8 @@ describe('createRoomCommandAPI', () => {
             roles: []
           },
           reason: 'policy',
-          createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
-          expiresAt: Timestamp.fromDate(new Date('2026-06-02T12:00:00Z'))
+          createdAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
+          expiresAt: timestampFromDate(new Date('2026-06-02T12:00:00Z'))
         }
       ],
       page: { totalCount: 1n, hasMore: false }

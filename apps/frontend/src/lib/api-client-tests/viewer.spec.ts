@@ -1,4 +1,4 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NotificationLevel as APINotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
@@ -44,14 +44,14 @@ describe('getCurrentUserViaConnect', () => {
           customStatus: {
             emoji: ':wave:',
             text: 'here',
-            expiresAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z'))
+            expiresAt: timestampFromDate(new Date('2026-06-01T12:00:00Z'))
           },
           presenceStatus: APIPresenceStatus.AWAY
         },
         hasVerifiedEmail: true,
         hasPassword: true,
         viewerCanDeleteAccount: true,
-        lastLoginChange: Timestamp.fromDate(new Date('2026-05-20T09:30:00Z')),
+        lastLoginChange: timestampFromDate(new Date('2026-05-20T09:30:00Z')),
         settings: {
           timezone: 'Europe/Berlin',
           timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR
