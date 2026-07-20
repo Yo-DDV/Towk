@@ -101,6 +101,9 @@ mise test
 mise build
 ```
 
+Media and capacity changes use the reproducible gates in the
+[performance qualification protocol](docs/PERFORMANCE.md).
+
 ## Releases and deployment
 
 Towk images are built from this repository, scanned before publication, and tied

@@ -3,6 +3,7 @@ package connectapi
 import (
 	"context"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -15,6 +16,10 @@ type assetUploadService struct {
 }
 
 func (s *assetUploadService) CreateUpload(ctx context.Context, req *connect.Request[apiv1.CreateUploadRequest]) (*connect.Response[apiv1.CreateUploadResponse], error) {
+	started := time.Now()
+	outcome := AssetUploadError
+	sizeBytes := req.Msg.GetSize()
+	defer func() { s.api.observeAssetUpload(AssetUploadCreate, outcome, sizeBytes, time.Since(started)) }()
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
@@ -35,10 +40,15 @@ func (s *assetUploadService) CreateUpload(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, connectError(err)
 	}
+	outcome = AssetUploadSuccess
 	return connect.NewResponse(&apiv1.CreateUploadResponse{Upload: apiAssetUpload(upload)}), nil
 }
 
 func (s *assetUploadService) UploadChunk(ctx context.Context, req *connect.Request[apiv1.UploadChunkRequest]) (*connect.Response[apiv1.UploadChunkResponse], error) {
+	started := time.Now()
+	outcome := AssetUploadError
+	sizeBytes := int64(len(req.Msg.GetContent()))
+	defer func() { s.api.observeAssetUpload(AssetUploadChunk, outcome, sizeBytes, time.Since(started)) }()
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
@@ -53,6 +63,7 @@ func (s *assetUploadService) UploadChunk(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, connectError(err)
 	}
+	outcome = AssetUploadSuccess
 	return connect.NewResponse(&apiv1.UploadChunkResponse{Upload: apiAssetUpload(upload)}), nil
 }
 
@@ -69,6 +80,10 @@ func (s *assetUploadService) GetUpload(ctx context.Context, req *connect.Request
 }
 
 func (s *assetUploadService) CompleteUpload(ctx context.Context, req *connect.Request[apiv1.CompleteUploadRequest]) (*connect.Response[apiv1.CompleteUploadResponse], error) {
+	started := time.Now()
+	outcome := AssetUploadError
+	var sizeBytes int64 = -1
+	defer func() { s.api.observeAssetUpload(AssetUploadComplete, outcome, sizeBytes, time.Since(started)) }()
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
@@ -80,6 +95,8 @@ func (s *assetUploadService) CompleteUpload(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, connectError(err)
 	}
+	sizeBytes = upload.Size
+	outcome = AssetUploadSuccess
 	return connect.NewResponse(&apiv1.CompleteUploadResponse{
 		Upload: apiAssetUpload(upload),
 		Asset:  (&attachmentMapper{api: s.api}).asset(attachment, caller.UserID, assetThumbnailOptions(nil)),
@@ -87,6 +104,10 @@ func (s *assetUploadService) CompleteUpload(ctx context.Context, req *connect.Re
 }
 
 func (s *assetUploadService) CancelUpload(ctx context.Context, req *connect.Request[apiv1.CancelUploadRequest]) (*connect.Response[apiv1.CancelUploadResponse], error) {
+	started := time.Now()
+	outcome := AssetUploadError
+	var sizeBytes int64 = -1
+	defer func() { s.api.observeAssetUpload(AssetUploadCancel, outcome, sizeBytes, time.Since(started)) }()
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
@@ -98,7 +119,15 @@ func (s *assetUploadService) CancelUpload(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, connectError(err)
 	}
+	sizeBytes = upload.Size
+	outcome = AssetUploadSuccess
 	return connect.NewResponse(&apiv1.CancelUploadResponse{Upload: apiAssetUpload(upload)}), nil
+}
+
+func (a *API) observeAssetUpload(operation AssetUploadOperation, outcome AssetUploadOutcome, sizeBytes int64, duration time.Duration) {
+	if a != nil && a.assetUploadObserver != nil {
+		a.assetUploadObserver.ObserveAssetUpload(operation, outcome, sizeBytes, duration)
+	}
 }
 
 func apiAssetUpload(upload *core.AssetUploadSession) *apiv1.AssetUpload {

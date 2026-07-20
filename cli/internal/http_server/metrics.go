@@ -6,19 +6,258 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"hmans.de/chatto/internal/connectapi"
 )
 
 type processMetrics struct {
 	realtimeWebSocketConnections atomic.Int64
+	mediaRequests                *prometheus.CounterVec
+	mediaRequestDuration         *prometheus.HistogramVec
+	mediaResponseBytes           *prometheus.CounterVec
+	mediaCache                   *prometheus.CounterVec
+	mediaRange                   *prometheus.CounterVec
+	mediaTransformDuration       *prometheus.HistogramVec
+	mediaTransformJobs           *prometheus.GaugeVec
+	assetUploadRequests          *prometheus.CounterVec
+	assetUploadDuration          *prometheus.HistogramVec
+	assetUploadBytes             *prometheus.CounterVec
 }
 
 func newProcessMetrics() *processMetrics {
-	return &processMetrics{}
+	m := &processMetrics{
+		mediaRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "towk_media_requests_total",
+			Help: "Media delivery requests handled by this Towk process.",
+		}, []string{"operation", "outcome", "size_class"}),
+		mediaRequestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "towk_media_request_duration_seconds",
+			Help:    "Media delivery request duration in this Towk process.",
+			Buckets: mediaDurationBuckets,
+		}, []string{"operation", "size_class"}),
+		mediaResponseBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "towk_media_response_bytes_total",
+			Help: "Media response bytes written by this Towk process.",
+		}, []string{"operation"}),
+		mediaCache: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "towk_media_cache_lookups_total",
+			Help: "Media derivative cache lookup results in this Towk process.",
+		}, []string{"operation", "result"}),
+		mediaRange: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "towk_media_range_requests_total",
+			Help: "Media requests carrying a Range header by final HTTP status class.",
+		}, []string{"operation", "status"}),
+		mediaTransformDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "towk_media_transform_duration_seconds",
+			Help:    "Cold image transform duration in this Towk process.",
+			Buckets: mediaDurationBuckets,
+		}, []string{"outcome", "size_class"}),
+		mediaTransformJobs: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "towk_media_transform_jobs",
+			Help: "Current process-local image transform jobs by bounded state; pending remains zero while the synchronous transform path has no admission queue.",
+		}, []string{"state"}),
+		assetUploadRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "towk_asset_upload_operations_total",
+			Help: "Resumable asset upload operations handled by this Towk process.",
+		}, []string{"operation", "outcome", "size_class"}),
+		assetUploadDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "towk_asset_upload_operation_duration_seconds",
+			Help:    "Resumable asset upload operation duration in this Towk process.",
+			Buckets: mediaDurationBuckets,
+		}, []string{"operation", "outcome"}),
+		assetUploadBytes: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "towk_asset_upload_bytes_total",
+			Help: "Successfully declared or transferred asset upload bytes observed by this Towk process.",
+		}, []string{"operation"}),
+	}
+	m.mediaTransformJobs.WithLabelValues("active").Set(0)
+	m.mediaTransformJobs.WithLabelValues("pending").Set(0)
+	return m
+}
+
+var mediaDurationBuckets = []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 1, 5}
+
+const mediaMetricsMaximumSeries = 592
+
+type mediaOperation string
+
+const (
+	mediaOperationServerOriginal      mediaOperation = "server_original"
+	mediaOperationServerTransform     mediaOperation = "server_transform"
+	mediaOperationAttachmentOriginal  mediaOperation = "attachment_original"
+	mediaOperationAttachmentTransform mediaOperation = "attachment_transform"
+)
+
+type mediaCacheResult string
+
+const (
+	mediaCacheNone  mediaCacheResult = "none"
+	mediaCacheHit   mediaCacheResult = "hit"
+	mediaCacheMiss  mediaCacheResult = "miss"
+	mediaCacheError mediaCacheResult = "error"
+)
+
+type mediaTransformOutcome string
+
+const (
+	mediaTransformSuccess mediaTransformOutcome = "success"
+	mediaTransformError   mediaTransformOutcome = "error"
+)
+
+func (m *processMetrics) collectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		m.mediaRequests,
+		m.mediaRequestDuration,
+		m.mediaResponseBytes,
+		m.mediaCache,
+		m.mediaRange,
+		m.mediaTransformDuration,
+		m.mediaTransformJobs,
+		m.assetUploadRequests,
+		m.assetUploadDuration,
+		m.assetUploadBytes,
+	}
+}
+
+func (m *processMetrics) observeMediaRequest(operation mediaOperation, cache mediaCacheResult, status int, sizeBytes int64, duration time.Duration) {
+	operationLabel := boundedMediaOperation(operation)
+	sizeClass := mediaSizeClass(sizeBytes)
+	m.mediaRequests.WithLabelValues(operationLabel, mediaRequestOutcome(status), sizeClass).Inc()
+	m.mediaRequestDuration.WithLabelValues(operationLabel, sizeClass).Observe(duration.Seconds())
+	m.mediaResponseBytes.WithLabelValues(operationLabel).Add(float64(max(sizeBytes, 0)))
+	m.mediaCache.WithLabelValues(operationLabel, boundedMediaCacheResult(cache)).Inc()
+}
+
+func (m *processMetrics) observeMediaRange(operation mediaOperation, status int) {
+	m.mediaRange.WithLabelValues(boundedMediaOperation(operation), mediaRangeStatus(status)).Inc()
+}
+
+func (m *processMetrics) observeMediaTransform(outcome mediaTransformOutcome, sizeBytes int64, duration time.Duration) {
+	m.mediaTransformDuration.WithLabelValues(boundedMediaTransformOutcome(outcome), mediaSizeClass(sizeBytes)).Observe(duration.Seconds())
+}
+
+func (m *processMetrics) mediaTransformStarted() func() {
+	m.mediaTransformJobs.WithLabelValues("active").Inc()
+	var once sync.Once
+	return func() {
+		once.Do(func() { m.mediaTransformJobs.WithLabelValues("active").Dec() })
+	}
+}
+
+func (m *processMetrics) ObserveAssetUpload(operation connectapi.AssetUploadOperation, outcome connectapi.AssetUploadOutcome, sizeBytes int64, duration time.Duration) {
+	operationLabel := boundedAssetUploadOperation(operation)
+	outcomeLabel := boundedAssetUploadOutcome(outcome)
+	m.assetUploadRequests.WithLabelValues(operationLabel, outcomeLabel, mediaSizeClass(sizeBytes)).Inc()
+	m.assetUploadDuration.WithLabelValues(operationLabel, outcomeLabel).Observe(duration.Seconds())
+	if outcomeLabel == string(connectapi.AssetUploadSuccess) {
+		m.assetUploadBytes.WithLabelValues(operationLabel).Add(float64(max(sizeBytes, 0)))
+	}
+}
+
+const mediaCacheContextKey = "towk.media.cache_result"
+
+func (s *HTTPServer) finishMediaRequest(c *gin.Context, operation mediaOperation, started time.Time) {
+	if s.metrics == nil {
+		return
+	}
+	cache := mediaCacheNone
+	if value, ok := c.Get(mediaCacheContextKey); ok {
+		if observed, valid := value.(mediaCacheResult); valid {
+			cache = observed
+		}
+	}
+	status := c.Writer.Status()
+	s.metrics.observeMediaRequest(operation, cache, status, int64(c.Writer.Size()), time.Since(started))
+	if c.GetHeader("Range") != "" {
+		s.metrics.observeMediaRange(operation, status)
+	}
+}
+
+func boundedMediaOperation(operation mediaOperation) string {
+	switch operation {
+	case mediaOperationServerOriginal, mediaOperationServerTransform, mediaOperationAttachmentOriginal, mediaOperationAttachmentTransform:
+		return string(operation)
+	default:
+		return "other"
+	}
+}
+
+func boundedMediaCacheResult(result mediaCacheResult) string {
+	switch result {
+	case mediaCacheNone, mediaCacheHit, mediaCacheMiss, mediaCacheError:
+		return string(result)
+	default:
+		return string(mediaCacheError)
+	}
+}
+
+func boundedMediaTransformOutcome(outcome mediaTransformOutcome) string {
+	if outcome == mediaTransformSuccess {
+		return string(mediaTransformSuccess)
+	}
+	return string(mediaTransformError)
+}
+
+func boundedAssetUploadOperation(operation connectapi.AssetUploadOperation) string {
+	switch operation {
+	case connectapi.AssetUploadCreate, connectapi.AssetUploadChunk, connectapi.AssetUploadComplete, connectapi.AssetUploadCancel:
+		return string(operation)
+	default:
+		return "other"
+	}
+}
+
+func boundedAssetUploadOutcome(outcome connectapi.AssetUploadOutcome) string {
+	if outcome == connectapi.AssetUploadSuccess {
+		return string(connectapi.AssetUploadSuccess)
+	}
+	return string(connectapi.AssetUploadError)
+}
+
+func mediaRequestOutcome(status int) string {
+	switch {
+	case status >= 200 && status < 300:
+		return "success"
+	case status >= 300 && status < 400:
+		return "redirect"
+	case status == http.StatusBadRequest:
+		return "invalid"
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return "unauthorized"
+	case status == http.StatusNotFound:
+		return "not_found"
+	default:
+		return "error"
+	}
+}
+
+func mediaRangeStatus(status int) string {
+	switch status {
+	case http.StatusOK, http.StatusPartialContent, http.StatusRequestedRangeNotSatisfiable:
+		return fmt.Sprint(status)
+	default:
+		return "other"
+	}
+}
+
+func mediaSizeClass(sizeBytes int64) string {
+	switch {
+	case sizeBytes < 0:
+		return "unknown"
+	case sizeBytes <= 1<<20:
+		return "small"
+	case sizeBytes <= 32<<20:
+		return "medium"
+	default:
+		return "large"
+	}
 }
 
 func (m *processMetrics) realtimeWebSocketOpened() {
@@ -44,6 +283,7 @@ func (s *HTTPServer) newMetricsServer() (*http.Server, error) {
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		newChattoCollector(s),
 	)
+	registry.MustRegister(s.metrics.collectors()...)
 
 	mux := http.NewServeMux()
 	mux.Handle(s.config.Metrics.PathOrDefault(), promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
