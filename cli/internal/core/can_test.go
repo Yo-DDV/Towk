@@ -539,6 +539,21 @@ func TestCanHelpers_RoomOverrides(t *testing.T) {
 		core.ClearRoomPermissionState(ctx, SystemActorID, room.Id, RoleEveryone, PermMessagePostInThread)
 	})
 
+	t.Run("CanSendVoiceMessages respects room-level denial", func(t *testing.T) {
+		core.GrantServerPermission(ctx, SystemActorID, RoleEveryone, PermMessageVoice)
+		core.DenyRoomPermission(ctx, SystemActorID, room.Id, RoleEveryone, PermMessageVoice)
+
+		can, err := core.CanSendVoiceMessages(ctx, member.Id, KindChannel, room.Id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if can {
+			t.Error("CanSendVoiceMessages should return false when room denies message.voice")
+		}
+
+		core.ClearRoomPermissionState(ctx, SystemActorID, room.Id, RoleEveryone, PermMessageVoice)
+	})
+
 	t.Run("CanReactToMessage respects room-level grant", func(t *testing.T) {
 		// Clear message.react from everyone at space level
 		core.ClearServerPermissionState(ctx, SystemActorID, RoleEveryone, PermMessageReact)

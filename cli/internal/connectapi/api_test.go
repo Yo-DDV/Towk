@@ -2848,6 +2848,9 @@ func TestServerServiceGetMotdAndRuntimeConfig(t *testing.T) {
 	if runtime.GetMaxUploadSize() <= 0 || runtime.GetMaxVideoUploadSize() <= 0 {
 		t.Fatalf("upload sizes = %d/%d, want positive values", runtime.GetMaxUploadSize(), runtime.GetMaxVideoUploadSize())
 	}
+	if runtime.GetMaxVoiceMessageUploadSize() != core.MaxVoiceMessageUploadSize {
+		t.Fatalf("MaxVoiceMessageUploadSize = %d, want %d", runtime.GetMaxVoiceMessageUploadSize(), core.MaxVoiceMessageUploadSize)
+	}
 	if runtime.GetMessageEditWindowSeconds() != int32(core.MessageEditWindow/time.Second) {
 		t.Fatalf("MessageEditWindowSeconds = %d, want %d", runtime.GetMessageEditWindowSeconds(), int32(core.MessageEditWindow/time.Second))
 	}
@@ -6093,6 +6096,66 @@ func TestAssetUploadServiceCompleteRechecksAttachmentPermission(t *testing.T) {
 	}))
 	if connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("CompleteUpload after attach permission revoked code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	}
+}
+
+func TestAssetUploadServiceVoiceMessageContract(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("voice-message-contract")
+	ctx := withCaller(env.ctx, env.viewer)
+	if err := env.core.DenyRoomPermission(env.ctx, core.SystemActorID, room.Id, core.RoleEveryone, core.PermMessageAttach); err != nil {
+		t.Fatalf("DenyRoomPermission attach: %v", err)
+	}
+
+	content := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("voice payload")...)
+	sum := sha256.Sum256(content)
+	peaks := make([]float32, 32)
+	for i := range peaks {
+		peaks[i] = float32((i%8)+1) / 8
+	}
+	created, err := env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
+		RoomId: room.Id, Filename: "voice-message.webm", ContentType: "audio/webm; codecs=opus",
+		Size: int64(len(content)), Sha256: hex.EncodeToString(sum[:]),
+		VoiceMessage: &apiv1.MessageVoiceMetadata{DurationMs: 1_234, WaveformPeaks: peaks},
+	}))
+	if err != nil {
+		t.Fatalf("CreateUpload with ordinary attachments denied: %v", err)
+	}
+	if got := created.Msg.GetUpload().GetVoiceMessage().GetDurationMs(); got != 1_234 {
+		t.Fatalf("created voice duration = %d, want 1234", got)
+	}
+	chunkSum := sha256.Sum256(content)
+	if _, err := env.assetUploads.UploadChunk(ctx, connect.NewRequest(&apiv1.UploadChunkRequest{
+		UploadId: created.Msg.GetUpload().GetUploadId(), Content: content, ChunkSha256: hex.EncodeToString(chunkSum[:]),
+	})); err != nil {
+		t.Fatalf("UploadChunk: %v", err)
+	}
+	completed, err := env.assetUploads.CompleteUpload(ctx, connect.NewRequest(&apiv1.CompleteUploadRequest{UploadId: created.Msg.GetUpload().GetUploadId()}))
+	if err != nil {
+		t.Fatalf("CompleteUpload: %v", err)
+	}
+	asset := completed.Msg.GetAsset()
+	if asset.GetVoiceMessage().GetDurationMs() != 1_234 || len(asset.GetVoiceMessage().GetWaveformPeaks()) != len(peaks) {
+		t.Fatalf("completed voice metadata = %+v", asset.GetVoiceMessage())
+	}
+
+	posted, err := env.messages.CreateMessage(ctx, connect.NewRequest(&apiv1.CreateMessageRequest{
+		RoomId: room.Id, AttachmentAssetIds: []string{asset.GetId()},
+	}))
+	if err != nil {
+		t.Fatalf("CreateMessage: %v", err)
+	}
+	attachments := posted.Msg.GetMessage().GetAttachments()
+	if len(attachments) != 1 || attachments[0].GetVoiceMessage().GetDurationMs() != 1_234 {
+		t.Fatalf("posted voice attachments = %+v", attachments)
+	}
+
+	fetched, err := env.assets.GetAsset(ctx, connect.NewRequest(&apiv1.GetAssetRequest{RoomId: room.Id, AssetId: asset.GetId()}))
+	if err != nil {
+		t.Fatalf("GetAsset: %v", err)
+	}
+	if fetched.Msg.GetAsset().GetVoiceMessage().GetDurationMs() != 1_234 {
+		t.Fatalf("fetched voice metadata = %+v", fetched.Msg.GetAsset().GetVoiceMessage())
 	}
 }
 

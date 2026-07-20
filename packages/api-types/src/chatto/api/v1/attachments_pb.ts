@@ -5,7 +5,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
-import { MessageAssetUrl, MessageVideoProcessing } from "./message_types_pb.js";
+import { MessageAssetUrl, MessageVideoProcessing, MessageVoiceMetadata } from "./message_types_pb.js";
 import { ImageTransformOptions } from "./common_pb.js";
 
 /**
@@ -77,6 +77,13 @@ export class Asset extends Message<Asset> {
    */
   videoProcessing?: MessageVideoProcessing;
 
+  /**
+   * Voice-message metadata. Absent for ordinary audio assets.
+   *
+   * @generated from field: chatto.api.v1.MessageVoiceMetadata voice_message = 10;
+   */
+  voiceMessage?: MessageVoiceMetadata;
+
   constructor(data?: PartialMessage<Asset>) {
     super();
     proto3.util.initPartial(data, this);
@@ -94,6 +101,7 @@ export class Asset extends Message<Asset> {
     { no: 7, name: "asset_url", kind: "message", T: MessageAssetUrl },
     { no: 8, name: "thumbnail_asset_url", kind: "message", T: MessageAssetUrl },
     { no: 9, name: "video_processing", kind: "message", T: MessageVideoProcessing },
+    { no: 10, name: "voice_message", kind: "message", T: MessageVoiceMetadata },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Asset {

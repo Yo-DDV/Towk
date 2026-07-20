@@ -100,7 +100,9 @@ type AssetUpload struct {
 	// Upload expiry. Clients should create a new upload after this time.
 	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	// Asset ID after completion.
-	AssetId       string `protobuf:"bytes,9,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	AssetId string `protobuf:"bytes,9,opt,name=asset_id,json=assetId,proto3" json:"asset_id,omitempty"`
+	// Voice-message metadata supplied when this is a recorder upload.
+	VoiceMessage  *MessageVoiceMetadata `protobuf:"bytes,10,opt,name=voice_message,json=voiceMessage,proto3" json:"voice_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -198,6 +200,13 @@ func (x *AssetUpload) GetAssetId() string {
 	return ""
 }
 
+func (x *AssetUpload) GetVoiceMessage() *MessageVoiceMetadata {
+	if x != nil {
+		return x.VoiceMessage
+	}
+	return nil
+}
+
 // Request to start a room-scoped attachment upload.
 type CreateUploadRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -210,7 +219,10 @@ type CreateUploadRequest struct {
 	// Required total file size in bytes.
 	Size int64 `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
 	// Required SHA-256 digest of the complete file, lowercase hexadecimal.
-	Sha256        string `protobuf:"bytes,5,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	Sha256 string `protobuf:"bytes,5,opt,name=sha256,proto3" json:"sha256,omitempty"`
+	// Marks this upload as a first-class voice message and carries the waveform.
+	// Omit for ordinary audio and file attachments.
+	VoiceMessage  *MessageVoiceMetadata `protobuf:"bytes,8,opt,name=voice_message,json=voiceMessage,proto3" json:"voice_message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -278,6 +290,13 @@ func (x *CreateUploadRequest) GetSha256() string {
 		return x.Sha256
 	}
 	return ""
+}
+
+func (x *CreateUploadRequest) GetVoiceMessage() *MessageVoiceMetadata {
+	if x != nil {
+		return x.VoiceMessage
+	}
+	return nil
 }
 
 // Response after creating an upload.
@@ -734,7 +753,7 @@ var File_chatto_api_v1_asset_uploads_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_asset_uploads_proto_rawDesc = "" +
 	"\n" +
-	"!chatto/api/v1/asset_uploads.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fchatto/api/v1/attachments.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd0\x02\n" +
+	"!chatto/api/v1/asset_uploads.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fchatto/api/v1/attachments.proto\x1a!chatto/api/v1/message_types.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9a\x03\n" +
 	"\vAssetUpload\x12\x1b\n" +
 	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x17\n" +
 	"\aroom_id\x18\x02 \x01(\tR\x06roomId\x128\n" +
@@ -745,13 +764,16 @@ const file_chatto_api_v1_asset_uploads_proto_rawDesc = "" +
 	"\x06sha256\x18\a \x01(\tR\x06sha256\x129\n" +
 	"\n" +
 	"expires_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x19\n" +
-	"\basset_id\x18\t \x01(\tR\aassetId\"\x83\x02\n" +
+	"\basset_id\x18\t \x01(\tR\aassetId\x12H\n" +
+	"\rvoice_message\x18\n" +
+	" \x01(\v2#.chatto.api.v1.MessageVoiceMetadataR\fvoiceMessage\"\xcd\x02\n" +
 	"\x13CreateUploadRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12#\n" +
 	"\bfilename\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bfilename\x12!\n" +
 	"\fcontent_type\x18\x03 \x01(\tR\vcontentType\x12\x1b\n" +
 	"\x04size\x18\x04 \x01(\x03B\a\xbaH\x04\"\x02(\x00R\x04size\x12-\n" +
-	"\x06sha256\x18\x05 \x01(\tB\x15\xbaH\x12r\x102\x0e^[a-f0-9]{64}$R\x06sha256J\x04\b\x06\x10\aJ\x04\b\a\x10\bR\x14thread_root_event_idR\x14also_send_to_channel\"J\n" +
+	"\x06sha256\x18\x05 \x01(\tB\x15\xbaH\x12r\x102\x0e^[a-f0-9]{64}$R\x06sha256\x12H\n" +
+	"\rvoice_message\x18\b \x01(\v2#.chatto.api.v1.MessageVoiceMetadataR\fvoiceMessageJ\x04\b\x06\x10\aJ\x04\b\a\x10\bR\x14thread_root_event_idR\x14also_send_to_channel\"J\n" +
 	"\x14CreateUploadResponse\x122\n" +
 	"\x06upload\x18\x01 \x01(\v2\x1a.chatto.api.v1.AssetUploadR\x06upload\"\xb8\x01\n" +
 	"\x12UploadChunkRequest\x12$\n" +
@@ -815,32 +837,35 @@ var file_chatto_api_v1_asset_uploads_proto_goTypes = []any{
 	(*CancelUploadRequest)(nil),    // 10: chatto.api.v1.CancelUploadRequest
 	(*CancelUploadResponse)(nil),   // 11: chatto.api.v1.CancelUploadResponse
 	(*timestamppb.Timestamp)(nil),  // 12: google.protobuf.Timestamp
-	(*Asset)(nil),                  // 13: chatto.api.v1.Asset
+	(*MessageVoiceMetadata)(nil),   // 13: chatto.api.v1.MessageVoiceMetadata
+	(*Asset)(nil),                  // 14: chatto.api.v1.Asset
 }
 var file_chatto_api_v1_asset_uploads_proto_depIdxs = []int32{
 	0,  // 0: chatto.api.v1.AssetUpload.status:type_name -> chatto.api.v1.AssetUploadStatus
 	12, // 1: chatto.api.v1.AssetUpload.expires_at:type_name -> google.protobuf.Timestamp
-	1,  // 2: chatto.api.v1.CreateUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
-	1,  // 3: chatto.api.v1.UploadChunkResponse.upload:type_name -> chatto.api.v1.AssetUpload
-	1,  // 4: chatto.api.v1.GetUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
-	1,  // 5: chatto.api.v1.CompleteUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
-	13, // 6: chatto.api.v1.CompleteUploadResponse.asset:type_name -> chatto.api.v1.Asset
-	1,  // 7: chatto.api.v1.CancelUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
-	2,  // 8: chatto.api.v1.AssetUploadService.CreateUpload:input_type -> chatto.api.v1.CreateUploadRequest
-	4,  // 9: chatto.api.v1.AssetUploadService.UploadChunk:input_type -> chatto.api.v1.UploadChunkRequest
-	6,  // 10: chatto.api.v1.AssetUploadService.GetUpload:input_type -> chatto.api.v1.GetUploadRequest
-	8,  // 11: chatto.api.v1.AssetUploadService.CompleteUpload:input_type -> chatto.api.v1.CompleteUploadRequest
-	10, // 12: chatto.api.v1.AssetUploadService.CancelUpload:input_type -> chatto.api.v1.CancelUploadRequest
-	3,  // 13: chatto.api.v1.AssetUploadService.CreateUpload:output_type -> chatto.api.v1.CreateUploadResponse
-	5,  // 14: chatto.api.v1.AssetUploadService.UploadChunk:output_type -> chatto.api.v1.UploadChunkResponse
-	7,  // 15: chatto.api.v1.AssetUploadService.GetUpload:output_type -> chatto.api.v1.GetUploadResponse
-	9,  // 16: chatto.api.v1.AssetUploadService.CompleteUpload:output_type -> chatto.api.v1.CompleteUploadResponse
-	11, // 17: chatto.api.v1.AssetUploadService.CancelUpload:output_type -> chatto.api.v1.CancelUploadResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	13, // 2: chatto.api.v1.AssetUpload.voice_message:type_name -> chatto.api.v1.MessageVoiceMetadata
+	13, // 3: chatto.api.v1.CreateUploadRequest.voice_message:type_name -> chatto.api.v1.MessageVoiceMetadata
+	1,  // 4: chatto.api.v1.CreateUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
+	1,  // 5: chatto.api.v1.UploadChunkResponse.upload:type_name -> chatto.api.v1.AssetUpload
+	1,  // 6: chatto.api.v1.GetUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
+	1,  // 7: chatto.api.v1.CompleteUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
+	14, // 8: chatto.api.v1.CompleteUploadResponse.asset:type_name -> chatto.api.v1.Asset
+	1,  // 9: chatto.api.v1.CancelUploadResponse.upload:type_name -> chatto.api.v1.AssetUpload
+	2,  // 10: chatto.api.v1.AssetUploadService.CreateUpload:input_type -> chatto.api.v1.CreateUploadRequest
+	4,  // 11: chatto.api.v1.AssetUploadService.UploadChunk:input_type -> chatto.api.v1.UploadChunkRequest
+	6,  // 12: chatto.api.v1.AssetUploadService.GetUpload:input_type -> chatto.api.v1.GetUploadRequest
+	8,  // 13: chatto.api.v1.AssetUploadService.CompleteUpload:input_type -> chatto.api.v1.CompleteUploadRequest
+	10, // 14: chatto.api.v1.AssetUploadService.CancelUpload:input_type -> chatto.api.v1.CancelUploadRequest
+	3,  // 15: chatto.api.v1.AssetUploadService.CreateUpload:output_type -> chatto.api.v1.CreateUploadResponse
+	5,  // 16: chatto.api.v1.AssetUploadService.UploadChunk:output_type -> chatto.api.v1.UploadChunkResponse
+	7,  // 17: chatto.api.v1.AssetUploadService.GetUpload:output_type -> chatto.api.v1.GetUploadResponse
+	9,  // 18: chatto.api.v1.AssetUploadService.CompleteUpload:output_type -> chatto.api.v1.CompleteUploadResponse
+	11, // 19: chatto.api.v1.AssetUploadService.CancelUpload:output_type -> chatto.api.v1.CancelUploadResponse
+	15, // [15:20] is the sub-list for method output_type
+	10, // [10:15] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_chatto_api_v1_asset_uploads_proto_init() }
@@ -849,6 +874,7 @@ func file_chatto_api_v1_asset_uploads_proto_init() {
 		return
 	}
 	file_chatto_api_v1_attachments_proto_init()
+	file_chatto_api_v1_message_types_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

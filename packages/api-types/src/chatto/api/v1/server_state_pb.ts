@@ -135,6 +135,13 @@ export class ServerRuntimeConfig extends Message<ServerRuntimeConfig> {
    */
   messageEditWindowSeconds = 0;
 
+  /**
+   * Maximum first-class voice-message upload size in bytes.
+   *
+   * @generated from field: int64 max_voice_message_upload_size = 9;
+   */
+  maxVoiceMessageUploadSize = protoInt64.zero;
+
   constructor(data?: PartialMessage<ServerRuntimeConfig>) {
     super();
     proto3.util.initPartial(data, this);
@@ -150,6 +157,7 @@ export class ServerRuntimeConfig extends Message<ServerRuntimeConfig> {
     { no: 6, name: "max_upload_size", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 7, name: "max_video_upload_size", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 8, name: "message_edit_window_seconds", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 9, name: "max_voice_message_upload_size", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ServerRuntimeConfig {

@@ -154,6 +154,18 @@ message AssetRecord {
     NATSAsset nats = 10;
     S3Asset s3 = 11;
   }
+
+  // First-class voice-message metadata. Absent for ordinary audio files.
+  VoiceMessageMetadata voice_message = 20;
+}
+
+// Metadata produced by Towk's voice-message recorder.
+message VoiceMessageMetadata {
+  // Measured recording duration in milliseconds.
+  int64 duration_ms = 1;
+
+  // Normalized amplitude envelope used by clients to render the waveform.
+  repeated float waveform_peaks = 2;
 }
 
 message RoomMembership {
@@ -256,6 +268,9 @@ message Attachment {
   // video variants and thumbnails, which carry their parent video's
   // attachment ID in their URL locator instead).
   string message_body_id = 10;
+
+  // First-class voice-message metadata. Absent for ordinary audio files.
+  VoiceMessageMetadata voice_message = 11;
 }
 
 // MessageBody stores the encrypted content and body-owned metadata of a

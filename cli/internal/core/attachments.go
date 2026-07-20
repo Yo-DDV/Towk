@@ -371,13 +371,14 @@ func attachmentFromAsset(asset *corev1.AssetRecord) *corev1.Attachment {
 	}
 	width, height := assetDimensions(asset)
 	return &corev1.Attachment{
-		Id:          asset.GetId(),
-		Filename:    asset.GetFilename(),
-		ContentType: asset.GetContentType(),
-		Size:        asset.GetSize(),
-		Width:       width,
-		Height:      height,
-		Storage:     assetStorageFromAsset(asset),
+		Id:           asset.GetId(),
+		Filename:     asset.GetFilename(),
+		ContentType:  asset.GetContentType(),
+		Size:         asset.GetSize(),
+		Width:        width,
+		Height:       height,
+		Storage:      assetStorageFromAsset(asset),
+		VoiceMessage: cloneVoiceMessageMetadata(asset.GetVoiceMessage()),
 	}
 }
 
@@ -439,11 +440,14 @@ func assetFromDeprecatedAsset(storage *corev1.DeprecatedAsset, filename, content
 }
 
 func applyAssetMetadataFromAttachment(asset *corev1.AssetRecord, attachment *corev1.Attachment) {
-	if asset == nil || attachment == nil || (attachment.GetWidth() == 0 && attachment.GetHeight() == 0) {
+	if asset == nil || attachment == nil {
 		return
 	}
-	asset.Width = attachment.GetWidth()
-	asset.Height = attachment.GetHeight()
+	if attachment.GetWidth() != 0 || attachment.GetHeight() != 0 {
+		asset.Width = attachment.GetWidth()
+		asset.Height = attachment.GetHeight()
+	}
+	asset.VoiceMessage = cloneVoiceMessageMetadata(attachment.GetVoiceMessage())
 }
 
 func assetDimensions(asset *corev1.AssetRecord) (int32, int32) {

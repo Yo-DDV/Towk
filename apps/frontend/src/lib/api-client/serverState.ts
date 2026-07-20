@@ -25,6 +25,7 @@ export type AuthenticatedServerState = {
   videoProcessingEnabled: boolean;
   maxUploadSize: number;
   maxVideoUploadSize: number;
+  maxVoiceMessageUploadSize: number;
   messageEditWindowSeconds: number;
   viewerPermissions: Record<string, boolean>;
   viewerCanManageServer: boolean;
@@ -36,6 +37,7 @@ export type AuthenticatedServerState = {
   viewerCanPostMessages: boolean;
   viewerCanPostInThreads: boolean;
   viewerCanAttachFiles: boolean;
+  viewerCanSendVoiceMessages: boolean;
   viewerCanManageMessages: boolean;
   viewerCanReactToMessages: boolean;
   viewerCanEchoMessages: boolean;
@@ -150,6 +152,7 @@ export async function getAuthenticatedServerState(
     videoProcessingEnabled: runtime?.videoProcessingEnabled ?? false,
     maxUploadSize: Number(runtime?.maxUploadSize ?? 0),
     maxVideoUploadSize: Number(runtime?.maxVideoUploadSize ?? 0),
+    maxVoiceMessageUploadSize: Number(runtime?.maxVoiceMessageUploadSize ?? 0),
     messageEditWindowSeconds: runtime?.messageEditWindowSeconds ?? 0,
     viewerPermissions,
     viewerCanManageServer: can('server.manage'),
@@ -161,6 +164,7 @@ export async function getAuthenticatedServerState(
     viewerCanPostMessages: can('message.post'),
     viewerCanPostInThreads: can('message.post-in-thread'),
     viewerCanAttachFiles: can('message.attach'),
+    viewerCanSendVoiceMessages: can('message.voice'),
     viewerCanManageMessages: can('message.manage'),
     viewerCanReactToMessages: can('message.react'),
     viewerCanEchoMessages: can('message.echo'),

@@ -985,6 +985,7 @@ func TestPermissionResolver_DMContract(t *testing.T) {
 		{PermMessagePost, expected{true, true}, "core DM capability"},
 		{PermMessagePostInThread, expected{true, true}, "core DM capability"},
 		{PermMessageAttach, expected{true, true}, "core DM capability"},
+		{PermMessageVoice, expected{true, true}, "core DM capability"},
 		{PermMessageReact, expected{true, true}, "core DM capability"},
 	}
 
@@ -1037,6 +1038,35 @@ func TestPermissionResolver_DMAttachDefaultAllowRespectsExplicitDeny(t *testing.
 	}
 	if got {
 		t.Fatal("explicit server deny should override the DM message.attach default allow")
+	}
+}
+
+func TestPermissionResolver_DMVoiceDefaultAllowRespectsExplicitDeny(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	regular, _ := core.CreateUser(ctx, "system", "dmvoicedeny", "DM Voice Deny", "password123")
+	dmRoomID := "R_dm_voice_deny_test"
+
+	if err := core.ClearServerPermissionState(ctx, SystemActorID, RoleEveryone, PermMessageVoice); err != nil {
+		t.Fatalf("ClearServerPermissionState: %v", err)
+	}
+	got, err := core.permissionResolver.HasRoomPermission(ctx, regular.Id, KindDM, dmRoomID, PermMessageVoice)
+	if err != nil {
+		t.Fatalf("HasRoomPermission before deny: %v", err)
+	}
+	if !got {
+		t.Fatal("message.voice should default-allow for DM participants without a persisted grant")
+	}
+	if err := core.DenyServerPermission(ctx, SystemActorID, RoleEveryone, PermMessageVoice); err != nil {
+		t.Fatalf("DenyServerPermission: %v", err)
+	}
+	got, err = core.permissionResolver.HasRoomPermission(ctx, regular.Id, KindDM, dmRoomID, PermMessageVoice)
+	if err != nil {
+		t.Fatalf("HasRoomPermission after deny: %v", err)
+	}
+	if got {
+		t.Fatal("explicit server deny should override the DM message.voice default allow")
 	}
 }
 

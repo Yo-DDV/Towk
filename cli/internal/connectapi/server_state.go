@@ -48,11 +48,12 @@ func (s *serverService) serverRuntimeConfig() *apiv1.ServerRuntimeConfig {
 		maxVideoUploadSize = int64(s.api.config.Video.MaxUploadSizeOrDefault())
 	}
 	runtime := &apiv1.ServerRuntimeConfig{
-		PushNotificationsEnabled: s.api.config.Push.IsConfigured(),
-		VideoProcessingEnabled:   s.api.config.Video.Enabled,
-		MaxUploadSize:            maxUploadSize,
-		MaxVideoUploadSize:       maxVideoUploadSize,
-		MessageEditWindowSeconds: int32(core.MessageEditWindow / time.Second),
+		PushNotificationsEnabled:  s.api.config.Push.IsConfigured(),
+		VideoProcessingEnabled:    s.api.config.Video.Enabled,
+		MaxUploadSize:             maxUploadSize,
+		MaxVideoUploadSize:        maxVideoUploadSize,
+		MaxVoiceMessageUploadSize: core.MaxVoiceMessageUploadSize,
+		MessageEditWindowSeconds:  int32(core.MessageEditWindow / time.Second),
 	}
 	if s.api.config.Push.IsConfigured() {
 		runtime.VapidPublicKey = stringPtr(s.api.config.Push.VAPIDPublicKey)

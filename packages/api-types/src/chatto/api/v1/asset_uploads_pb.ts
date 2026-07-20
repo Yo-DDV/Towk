@@ -5,6 +5,7 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64, Timestamp } from "@bufbuild/protobuf";
+import { MessageVoiceMetadata } from "./message_types_pb.js";
 import { Asset } from "./attachments_pb.js";
 
 /**
@@ -118,6 +119,13 @@ export class AssetUpload extends Message<AssetUpload> {
    */
   assetId = "";
 
+  /**
+   * Voice-message metadata supplied when this is a recorder upload.
+   *
+   * @generated from field: chatto.api.v1.MessageVoiceMetadata voice_message = 10;
+   */
+  voiceMessage?: MessageVoiceMetadata;
+
   constructor(data?: PartialMessage<AssetUpload>) {
     super();
     proto3.util.initPartial(data, this);
@@ -135,6 +143,7 @@ export class AssetUpload extends Message<AssetUpload> {
     { no: 7, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "expires_at", kind: "message", T: Timestamp },
     { no: 9, name: "asset_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 10, name: "voice_message", kind: "message", T: MessageVoiceMetadata },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AssetUpload {
@@ -195,6 +204,14 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
    */
   sha256 = "";
 
+  /**
+   * Marks this upload as a first-class voice message and carries the waveform.
+   * Omit for ordinary audio and file attachments.
+   *
+   * @generated from field: chatto.api.v1.MessageVoiceMetadata voice_message = 8;
+   */
+  voiceMessage?: MessageVoiceMetadata;
+
   constructor(data?: PartialMessage<CreateUploadRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -208,6 +225,7 @@ export class CreateUploadRequest extends Message<CreateUploadRequest> {
     { no: 3, name: "content_type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "size", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 5, name: "sha256", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 8, name: "voice_message", kind: "message", T: MessageVoiceMetadata },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateUploadRequest {
