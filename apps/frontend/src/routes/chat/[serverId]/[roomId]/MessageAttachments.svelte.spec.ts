@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { tick } from 'svelte';
 import MessageAttachments from './MessageAttachments.svelte';
 import { FitMode, type MessageAttachmentView } from '$lib/render/types';
 import type { RefreshedAttachmentUrls } from '$lib/attachments/attachmentUrls';
@@ -170,6 +171,19 @@ describe('MessageAttachments', () => {
     expect(image.className).toContain('w-full');
   });
 
+  it('uses the original GIF instead of an animated thumbnail derivative', () => {
+    const { container } = renderAttachment(
+      imageAttachment({
+        filename: 'animated.gif',
+        contentType: 'image/gif'
+      })
+    );
+
+    const { image } = imageFrame(container, 'animated.gif');
+
+    expect(image.getAttribute('src')).toBe(transparentGif);
+  });
+
   it('uses a subtle attachment remove control when deletion is allowed', () => {
     const { container } = renderAttachment(
       imageAttachment({
@@ -234,6 +248,41 @@ describe('MessageAttachments', () => {
     expect(container.querySelectorAll('[data-testid="voice-message-player"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-testid="audio-player"]')).toHaveLength(1);
     expect(container.textContent).toContain('song.ogg');
+  });
+
+  it('keeps the voice delete control inside the player at narrow widths', async () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'voice_delete',
+        filename: 'voice-message.webm',
+        contentType: 'audio/webm',
+        assetUrl: {
+          url: 'data:audio/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvKB',
+          expiresAt: '2027-05-29T15:00:00Z'
+        },
+        voiceMessage: { durationMs: 4_200, waveformPeaks: [0.1, 0.8, 0.3] }
+      }),
+      { canDeleteAttachment: true }
+    );
+    container.style.width = '280px';
+    await tick();
+
+    const attachment = container.querySelector<HTMLElement>(
+      '[data-testid="voice-message-attachment"]'
+    );
+    const player = container.querySelector<HTMLElement>('[data-testid="voice-message-player"]');
+    const deleteControl = container.querySelector<HTMLElement>(
+      '[aria-label="Delete attachment"]'
+    );
+
+    expect(attachment).not.toBeNull();
+    expect(attachment!.classList).not.toContain('pr-7');
+    expect(player?.classList).toContain('pr-[3.25rem]');
+    expect(deleteControl?.classList).toContain('voice-message-remove-button');
+    expect(deleteControl?.classList).toContain('top-2');
+    expect(deleteControl?.classList).toContain('right-2');
+    expect(deleteControl?.classList).toContain('h-11');
+    expect(deleteControl?.classList).toContain('w-11');
   });
 
   it('does not render empty media URLs for attachments that are missing asset URLs', () => {
@@ -342,6 +391,46 @@ describe('MessageAttachments', () => {
           ],
           imageIndex: 0
         }
+      });
+    });
+  });
+
+  it('opens GIFs in the lightbox from the original asset URL', async () => {
+    attachmentMocks.refreshAssetUrls.mockResolvedValue(
+      new Map([
+        [
+          'att_1',
+          {
+            assetUrl: {
+              url: 'https://cdn.example.test/original.gif',
+              expiresAt: '2027-05-29T15:00:00Z'
+            },
+            thumbnailAssetUrl: {
+              url: 'https://cdn.example.test/animated-thumbnail.webp',
+              expiresAt: '2027-05-29T15:00:00Z'
+            },
+            videoThumbnailAssetUrl: null,
+            variantAssetUrls: new Map()
+          }
+        ]
+      ])
+    );
+    const { container } = renderAttachment(
+      imageAttachment({ filename: 'animated.gif', contentType: 'image/gif' })
+    );
+
+    imageFrame(container, 'animated.gif').button.click();
+
+    await vi.waitFor(() => {
+      expect(attachmentMocks.pushState).toHaveBeenCalledWith('', {
+        modal: expect.objectContaining({
+          imageItems: [
+            expect.objectContaining({
+              src: 'https://cdn.example.test/original.gif',
+              originalSrc: 'https://cdn.example.test/original.gif'
+            })
+          ]
+        })
       });
     });
   });

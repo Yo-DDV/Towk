@@ -1209,6 +1209,11 @@ const msg_composer_voice_microphone_not_found = (): LocalizedString => messages(
 const msg_composer_voice_microphone_in_use = (): LocalizedString => messages().composer_voice_microphone_in_use(empty());
 const msg_composer_voice_recording_failed = (): LocalizedString => messages().composer_voice_recording_failed(empty());
 const msg_composer_voice_playback_failed = (): LocalizedString => messages().composer_voice_playback_failed(empty());
+const msg_composer_voice_loading = (): LocalizedString => messages().composer_voice_loading(empty());
+const msg_composer_voice_buffering = (): LocalizedString => messages().composer_voice_buffering(empty());
+const msg_composer_voice_offline = (): LocalizedString => messages().composer_voice_offline(empty());
+const msg_composer_voice_retry = (): LocalizedString => messages().composer_voice_retry(empty());
+const msg_composer_voice_retry_short = (): LocalizedString => messages().composer_voice_retry_short(empty());
 const msg_composer_voice_too_short = (): LocalizedString => messages().composer_voice_too_short(empty());
 const msg_composer_voice_too_large = (): LocalizedString => messages().composer_voice_too_large(empty());
 const msg_composer_edit_failed = (): LocalizedString => messages().composer_edit_failed(empty());
@@ -2815,6 +2820,11 @@ export { msg_composer_voice_microphone_not_found as 'composer.voice.microphone_n
 export { msg_composer_voice_microphone_in_use as 'composer.voice.microphone_in_use' };
 export { msg_composer_voice_recording_failed as 'composer.voice.recording_failed' };
 export { msg_composer_voice_playback_failed as 'composer.voice.playback_failed' };
+export { msg_composer_voice_loading as 'composer.voice.loading' };
+export { msg_composer_voice_buffering as 'composer.voice.buffering' };
+export { msg_composer_voice_offline as 'composer.voice.offline' };
+export { msg_composer_voice_retry as 'composer.voice.retry' };
+export { msg_composer_voice_retry_short as 'composer.voice.retry_short' };
 export { msg_composer_voice_too_short as 'composer.voice.too_short' };
 export { msg_composer_voice_too_large as 'composer.voice.too_large' };
 export { msg_composer_edit_failed as 'composer.edit_failed' };

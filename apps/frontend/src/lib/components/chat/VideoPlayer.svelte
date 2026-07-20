@@ -39,6 +39,7 @@
     reasonCode = null,
     filename,
     autoLoop = false,
+    fallbackImageUrl = null,
     onMediaError
   }: {
     status: VideoProcessingStatus;
@@ -49,6 +50,7 @@
     reasonCode?: string | null;
     filename: string;
     autoLoop?: boolean;
+    fallbackImageUrl?: string | null;
     onMediaError?: () => void;
   } = $props();
 
@@ -60,6 +62,7 @@
   // Existing processed videos can carry stale encoded dimensions. Once the
   // browser loads the media, prefer its intrinsic display size for the frame.
   let measuredMedia = $state<{ src: string; width: number; height: number } | null>(null);
+  let failedAutoLoopSource = $state<string | null>(null);
 
   // Pick the best variant (highest quality available)
   const selectedVariant = $derived(
@@ -127,6 +130,14 @@
   const videoSrc = $derived(
     selectedVariant ? { src: selectedVariant.url, type: 'video/mp4' } : undefined
   );
+  const showAutoLoopFallback = $derived(
+    Boolean(
+      autoLoop &&
+      fallbackImageUrl &&
+      selectedVariant &&
+      failedAutoLoopSource === selectedVariant.url
+    )
+  );
 
   const failureMessage = $derived.by(() => {
     switch (reasonCode) {
@@ -159,6 +170,12 @@
     if (event.currentTarget instanceof HTMLVideoElement) {
       syncVideoDimensions(event.currentTarget);
     }
+  }
+
+  function handleAutoLoopError() {
+    if (!selectedVariant || failedAutoLoopSource === selectedVariant.url) return;
+    failedAutoLoopSource = selectedVariant.url;
+    onMediaError?.();
   }
 
   function observePlayerVideo(node: HTMLElement) {
@@ -234,18 +251,28 @@
 {#if status === 'COMPLETED' && selectedVariant && autoLoop}
   <!-- Converted GIFs use a native <video> for reliable autoplay + loop behavior. -->
   <div class="embed-frame" style={frameStyle}>
-    <video
-      autoplay
-      loop
-      muted
-      playsinline
-      data-autoloop
-      onerror={onMediaError}
-      onloadedmetadata={handleVideoMetadata}
-      class="block h-full w-full object-contain"
-    >
-      <source src={selectedVariant.url} type="video/mp4" onerror={onMediaError} />
-    </video>
+    {#if showAutoLoopFallback}
+      <img
+        src={fallbackImageUrl!}
+        alt={filename}
+        loading="lazy"
+        class="block h-full w-full object-contain"
+      />
+    {:else}
+      <video
+        autoplay
+        loop
+        muted
+        playsinline
+        poster={thumbnailUrl ?? fallbackImageUrl ?? undefined}
+        data-autoloop
+        onerror={handleAutoLoopError}
+        onloadedmetadata={handleVideoMetadata}
+        class="block h-full w-full object-contain"
+      >
+        <source src={selectedVariant.url} type="video/mp4" onerror={handleAutoLoopError} />
+      </video>
+    {/if}
   </div>
 {:else if status === 'COMPLETED' && selectedVariant && elementsReady}
   <div class="embed-frame" style={frameStyle}>

@@ -44,6 +44,11 @@
       "microphone_in_use": "Le microphone est déjà utilisé par une autre application.",
       "recording_failed": "Impossible d’enregistrer le message vocal. Veuillez réessayer.",
       "playback_failed": "Impossible de lire ce message vocal. Veuillez réessayer.",
+      "loading": "Chargement du message vocal…",
+      "buffering": "Mise en mémoire tampon…",
+      "offline": "En attente d’une connexion…",
+      "retry": "Réessayer de lire le message vocal",
+      "retry_short": "Réessayer",
       "too_short": "Cet enregistrement est trop court. Attendez un instant avant de l’arrêter.",
       "too_large": "Ce message vocal est trop volumineux pour être envoyé. Enregistrez un message plus court."
     },

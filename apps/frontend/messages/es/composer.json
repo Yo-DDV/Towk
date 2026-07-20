@@ -44,6 +44,11 @@
       "microphone_in_use": "Otra aplicación ya está utilizando el micrófono.",
       "recording_failed": "No se ha podido grabar el mensaje de voz. Inténtalo de nuevo.",
       "playback_failed": "No se ha podido reproducir este mensaje de voz. Inténtalo de nuevo.",
+      "loading": "Cargando el mensaje de voz…",
+      "buffering": "Almacenando en búfer…",
+      "offline": "Esperando conexión…",
+      "retry": "Reintentar el mensaje de voz",
+      "retry_short": "Reintentar",
       "too_short": "La grabación es demasiado corta. Espera un momento antes de detenerla.",
       "too_large": "Este mensaje de voz es demasiado grande para enviarlo. Graba uno más corto."
     },
