@@ -417,6 +417,14 @@ func setupPushNotifications(chattoCore *core.ChattoCore, cfg config.ChattoConfig
 		subscriptions = filterOwnedPushSubscriptions(ctx, chattoCore, notification.RecipientId, subscriptions, logger)
 		subscriptions = push.FilterSubscriptionsByCanonicalOrigin(subscriptions, cfg.Webserver.URL)
 		subscriptions = dedupePushSubscriptionsByClientID(subscriptions)
+		subscriptions = filterForegroundPushSubscriptionsForNotification(
+			ctx,
+			notification.RecipientId,
+			notification,
+			subscriptions,
+			chattoCore.IsPushClientForeground,
+			logger,
+		)
 		if len(subscriptions) == 0 {
 			return
 		}
@@ -561,6 +569,99 @@ func dedupePushSubscriptionsByClientID(subscriptions []*corev1.PushSubscription)
 	return result
 }
 
+const pushForegroundLookupConcurrency = 8
+
+type pushForegroundChecker func(context.Context, string, string) (bool, error)
+
+func filterForegroundPushSubscriptionsForNotification(
+	ctx context.Context,
+	recipientID string,
+	notification *corev1.Notification,
+	subscriptions []*corev1.PushSubscription,
+	isForeground pushForegroundChecker,
+	logger *log.Logger,
+) []*corev1.PushSubscription {
+	if notification != nil && notification.GetCallStarted() != nil {
+		return subscriptions
+	}
+	return filterForegroundPushSubscriptions(ctx, recipientID, subscriptions, isForeground, logger)
+}
+
+// filterForegroundPushSubscriptions removes only the subscription belonging to
+// a browser installation that currently has a foreground Towk window. Legacy
+// subscriptions and lookup failures remain eligible so presence tracking can
+// never make a notification disappear.
+func filterForegroundPushSubscriptions(
+	ctx context.Context,
+	recipientID string,
+	subscriptions []*corev1.PushSubscription,
+	isForeground pushForegroundChecker,
+	logger *log.Logger,
+) []*corev1.PushSubscription {
+	type lookupResult struct {
+		foreground bool
+		err        error
+	}
+
+	clientIDs := make([]string, 0, len(subscriptions))
+	results := make(map[string]*lookupResult, len(subscriptions))
+	for _, subscription := range subscriptions {
+		clientID := subscription.GetClientId()
+		if clientID == "" {
+			continue
+		}
+		if _, exists := results[clientID]; exists {
+			continue
+		}
+		results[clientID] = &lookupResult{}
+		clientIDs = append(clientIDs, clientID)
+	}
+
+	group, lookupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(pushForegroundLookupConcurrency)
+	for _, clientID := range clientIDs {
+		clientID := clientID
+		group.Go(func() error {
+			foreground, err := isForeground(lookupCtx, recipientID, clientID)
+			result := results[clientID]
+			result.foreground = foreground
+			result.err = err
+			return nil
+		})
+	}
+	_ = group.Wait()
+
+	filtered := make([]*corev1.PushSubscription, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		clientID := subscription.GetClientId()
+		if clientID == "" {
+			filtered = append(filtered, subscription)
+			continue
+		}
+		result := results[clientID]
+		if result.err != nil {
+			if logger != nil {
+				logger.Warn("Push foreground lookup failed; delivering notification",
+					"recipient_id", recipientID,
+					"client_id", clientID,
+					"error", result.err)
+			}
+			filtered = append(filtered, subscription)
+			continue
+		}
+		if !result.foreground {
+			filtered = append(filtered, subscription)
+			continue
+		}
+		if logger != nil {
+			logger.Debug("Skipped Web Push for foreground browser client",
+				"recipient_id", recipientID,
+				"client_id", clientID)
+		}
+	}
+	return filtered
+}
+
 func pushSubscriptionNewer(candidate, current *corev1.PushSubscription) bool {
 	candidateCreatedAt := candidate.GetCreatedAt()
 	currentCreatedAt := current.GetCreatedAt()
@@ -574,7 +675,9 @@ func pushSubscriptionNewer(candidate, current *corev1.PushSubscription) bool {
 }
 
 // fetchPayloadContext builds the payload context with message preview and room name.
-// This is best-effort - if fetching fails, returns nil and the notification will have a generic body.
+// Newly posted messages carry a transient snapshot in the callback context so
+// their push never depends on a second projection/decryption read. The
+// canonical body lookup remains for callbacks created outside PostMessage.
 func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notification *corev1.Notification, logger *log.Logger) *push.PayloadContext {
 	var roomID, eventID string
 	var kind core.RoomKind
@@ -623,31 +726,24 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 		if err != nil {
 			logger.Debug("Failed to resolve room kind for push notification preview",
 				"room_id", roomID, "error", err)
-			return nil
 		}
 	}
 
-	// Fetch the message to get its body
-	event, err := chattoCore.GetRoomEventByEventID(ctx, kind, roomID, eventID)
-	if err != nil {
-		logger.Debug("Failed to fetch event for push notification preview",
-			"event_id", eventID,
-			"error", err)
-		return nil
-	}
-	if event == nil {
-		return nil
-	}
-
-	// Extract message body and attachment kind from the event.
-	if _, ok := event.Event.(*corev1.Event_MessagePosted); ok {
-		body, err := chattoCore.GetFullMessageBody(ctx, kind, event.Id)
+	if snapshot, ok := core.NotificationMessageSnapshotFromContext(ctx, eventID); ok {
+		payloadCtx.MessagePreview = snapshot.Body
+		payloadCtx.AttachmentFilenames = snapshot.AttachmentFilenames
+		payloadCtx.AttachmentCount = snapshot.AttachmentCount
+		payloadCtx.IsVoiceMessage = snapshot.IsVoiceMessage
+	} else {
+		body, err := chattoCore.GetFullMessageBodyByEventID(ctx, eventID)
 		if err != nil {
-			logger.Debug("Failed to fetch message body for push notification preview",
-				"event_id", event.Id,
+			logger.Warn("Failed to fetch message body for push notification preview",
+				"event_id", eventID,
 				"error", err)
 		} else if body != nil {
 			payloadCtx.MessagePreview = body.Body
+			payloadCtx.AttachmentCount = len(body.Attachments)
+			payloadCtx.AttachmentFilenames = attachmentFilenames(body.Attachments)
 			payloadCtx.IsVoiceMessage = containsVoiceMessage(body.Attachments)
 		}
 	}
@@ -655,6 +751,9 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 	// For notifications shown as channel activity, also fetch the room name.
 	switch notification.Notification.(type) {
 	case *corev1.Notification_Mention, *corev1.Notification_Reply, *corev1.Notification_RoomMessage:
+		if kind == "" {
+			break
+		}
 		room, err := chattoCore.GetRoom(ctx, kind, roomID)
 		if err != nil {
 			logger.Debug("Failed to fetch room for push notification",
@@ -666,6 +765,16 @@ func fetchPayloadContext(ctx context.Context, chattoCore *core.ChattoCore, notif
 	}
 
 	return payloadCtx
+}
+
+func attachmentFilenames(attachments []*corev1.Attachment) []string {
+	filenames := make([]string, 0, len(attachments))
+	for _, attachment := range attachments {
+		if filename := strings.TrimSpace(attachment.GetFilename()); filename != "" {
+			filenames = append(filenames, filename)
+		}
+	}
+	return filenames
 }
 
 func containsVoiceMessage(attachments []*corev1.Attachment) bool {

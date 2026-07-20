@@ -31,12 +31,14 @@ const (
 	realtimeHandshakeTimeout         = 10 * time.Second
 	realtimeWriteTimeout             = 10 * time.Second
 	realtimeHeartbeatIntervalSeconds = uint32(core.MyEventsHeartbeatInterval / time.Second)
+	realtimePushForegroundCapability = "chatto.realtime.push-foreground.v1"
 )
 
 var realtimeServerCapabilities = []string{
 	"chatto.realtime.events.live.v1",
 	"chatto.realtime.heartbeat.v1",
 	"chatto.realtime.ping.v1",
+	realtimePushForegroundCapability,
 }
 
 func (s *HTTPServer) setupRealtimeAPI(allowedOrigins []string) {
@@ -169,6 +171,26 @@ func (s *HTTPServer) serveRealtimeWebSocket(parent context.Context, conn *websoc
 		return
 	}
 
+	var pushForegroundLease *core.PushForegroundLease
+	initialPushForeground := clientHello.GetForeground()
+	if clientHello.GetPushClientId() != "" {
+		pushForegroundLease, err = s.core.NewPushForegroundLease(user.Id, clientHello.GetPushClientId())
+		if err != nil {
+			s.logger.Warn("Realtime push foreground tracking unavailable",
+				"user_id", user.Id,
+				"error", err)
+			pushForegroundLease = nil
+		} else {
+			defer func() {
+				if err := pushForegroundLease.Close(); err != nil {
+					s.logger.Warn("Failed to release realtime push foreground lease",
+						"user_id", user.Id,
+						"error", err)
+				}
+			}()
+		}
+	}
+
 	if err := writeFrame(&realtimev1.RealtimeServerFrame{Frame: &realtimev1.RealtimeServerFrame_Hello{
 		Hello: &realtimev1.RealtimeServerHello{
 			ProtocolVersion:          realtimeProtocolVersion,
@@ -206,8 +228,15 @@ func (s *HTTPServer) serveRealtimeWebSocket(parent context.Context, conn *websoc
 	}}); err != nil {
 		return
 	}
+	if pushForegroundLease != nil && initialPushForeground {
+		if err := pushForegroundLease.SetForeground(true); err != nil {
+			s.logger.Warn("Failed to activate realtime push foreground lease",
+				"user_id", user.Id,
+				"error", err)
+		}
+	}
 
-	go s.readRealtimeControlFrames(ctx, cancel, conn, writeFrame)
+	go s.readRealtimeControlFrames(ctx, cancel, conn, writeFrame, pushForegroundLease)
 
 	for {
 		select {
@@ -257,7 +286,13 @@ func readRealtimeClientFrame(conn *websocket.Conn, timeout time.Duration) (*real
 	return &frame, nil
 }
 
-func (s *HTTPServer) readRealtimeControlFrames(ctx context.Context, cancel context.CancelFunc, conn *websocket.Conn, writeFrame func(*realtimev1.RealtimeServerFrame) error) {
+func (s *HTTPServer) readRealtimeControlFrames(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	conn *websocket.Conn,
+	writeFrame func(*realtimev1.RealtimeServerFrame) error,
+	pushForegroundLease *core.PushForegroundLease,
+) {
 	defer cancel()
 	for {
 		select {
@@ -287,6 +322,13 @@ func (s *HTTPServer) readRealtimeControlFrames(ctx context.Context, cancel conte
 			_ = writeFrame(&realtimev1.RealtimeServerFrame{Frame: &realtimev1.RealtimeServerFrame_Pong{
 				Pong: &realtimev1.RealtimePong{Nonce: payload.Ping.GetNonce()},
 			}})
+		case *realtimev1.RealtimeClientFrame_ClientState:
+			if pushForegroundLease == nil {
+				continue
+			}
+			if err := pushForegroundLease.SetForeground(payload.ClientState.GetForeground()); err != nil {
+				s.logger.Warn("Failed to refresh realtime push foreground lease", "error", err)
+			}
 		default:
 			_ = writeFrame(&realtimev1.RealtimeServerFrame{Frame: &realtimev1.RealtimeServerFrame_Error{
 				Error: &realtimev1.RealtimeError{Code: "bad_frame", Message: "unexpected control frame", Fatal: true},

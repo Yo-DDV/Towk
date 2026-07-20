@@ -70,13 +70,15 @@
     compact = false,
     roomId,
     messageStore = null,
-    onOpenThread
+    onOpenThread,
+    threadHasUnread
   }: {
     event: RoomEventView;
     compact?: boolean;
     roomId: string;
     messageStore?: MessagesStore | null;
     onOpenThread?: OpenThreadHandler;
+    threadHasUnread?: boolean;
   } = $props();
 
   const connection = useConnection();
@@ -423,7 +425,7 @@
 
   // Check if this thread has pending reply notifications
   const hasThreadNotification = $derived(
-    hasReplies && event && notificationStore.hasThreadNotification(event.id)
+    hasReplies && event && (threadHasUnread ?? notificationStore.hasThreadNotification(event.id))
   );
   const hasMessageFooter = $derived(
     (isEcho && !!onOpenThread) ||

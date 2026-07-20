@@ -5,10 +5,7 @@ import {
 } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import { NotificationLevel as ApiNotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
-import {
-  RealtimeEventEnvelope,
-  RealtimeHeartbeat
-} from '@towk/api-types/realtime/v1/realtime_pb';
+import { RealtimeEventEnvelope, RealtimeHeartbeat } from '@towk/api-types/realtime/v1/realtime_pb';
 import { PresenceStatus as ApiPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { TimeFormat as ApiTimeFormat } from '@towk/api-types/api/v1/viewer_pb';
 import type { EventEnvelope } from '$lib/eventBus.svelte';
@@ -230,7 +227,8 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
           roomId: value.roomId ?? null,
           eventId: value.eventId ?? null,
           inReplyToId: value.inReplyToId ?? null,
-          silent: value.silent
+          silent: value.silent,
+          notificationCenterSuppressed: value.notificationCenterSuppressed
         }
       } as unknown as EventEnvelope;
     }

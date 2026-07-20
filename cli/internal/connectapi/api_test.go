@@ -29,6 +29,7 @@ import (
 	"connectrpc.com/grpcreflect"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -4540,6 +4541,60 @@ func TestNotificationServiceListsAndDismissesNotifications(t *testing.T) {
 	}
 	if counts[room.Id] != 1 || counts["dm-room"] != 1 {
 		t.Fatalf("ListRoomNotificationCounts = %+v, want counts for channel and DM rooms", counts)
+	}
+
+	for _, notification := range []*corev1.Notification{mention, dm} {
+		suppressed, err := env.core.SuppressNotificationCenterForClient(env.ctx, env.viewer.Id, notification.Id, "client-a")
+		if err != nil {
+			t.Fatalf("SuppressNotificationCenterForClient(%s): %v", notification.Id, err)
+		}
+		if !suppressed {
+			t.Fatalf("SuppressNotificationCenterForClient(%s) = false, want true", notification.Id)
+		}
+	}
+	clientList, err := env.notifications.ListNotifications(ctx, connect.NewRequest(&apiv1.ListNotificationsRequest{PushClientId: proto.String("client-a")}))
+	if err != nil {
+		t.Fatalf("ListNotifications(client-a): %v", err)
+	}
+	if clientList.Msg.GetPage().GetTotalCount() != 0 || len(clientList.Msg.GetNotifications()) != 0 {
+		t.Fatalf("ListNotifications(client-a) = %+v, want empty", clientList.Msg)
+	}
+	otherClientList, err := env.notifications.ListNotifications(ctx, connect.NewRequest(&apiv1.ListNotificationsRequest{PushClientId: proto.String("client-b")}))
+	if err != nil {
+		t.Fatalf("ListNotifications(client-b): %v", err)
+	}
+	if otherClientList.Msg.GetPage().GetTotalCount() != 2 || len(otherClientList.Msg.GetNotifications()) != 2 {
+		t.Fatalf("ListNotifications(client-b) = %+v, want both notifications", otherClientList.Msg)
+	}
+	if _, err := env.notifications.GetNotification(ctx, connect.NewRequest(&apiv1.GetNotificationRequest{
+		NotificationId: mention.Id,
+		PushClientId:   proto.String("client-a"),
+	})); connect.CodeOf(err) != connect.CodeNotFound {
+		t.Fatalf("GetNotification(client-a) code = %v, want not_found", connect.CodeOf(err))
+	}
+	clientBatch, err := env.notifications.BatchGetNotifications(ctx, connect.NewRequest(&apiv1.BatchGetNotificationsRequest{
+		NotificationIds: []string{mention.Id, dm.Id},
+		PushClientId:    proto.String("client-a"),
+	}))
+	if err != nil {
+		t.Fatalf("BatchGetNotifications(client-a): %v", err)
+	}
+	if len(clientBatch.Msg.GetNotifications()) != 0 {
+		t.Fatalf("BatchGetNotifications(client-a) = %+v, want empty", clientBatch.Msg.GetNotifications())
+	}
+	clientHas, err := env.notifications.HasNotifications(ctx, connect.NewRequest(&apiv1.HasNotificationsRequest{PushClientId: proto.String("client-a")}))
+	if err != nil {
+		t.Fatalf("HasNotifications(client-a): %v", err)
+	}
+	if clientHas.Msg.GetHasNotifications() {
+		t.Fatal("HasNotifications(client-a) = true, want false")
+	}
+	clientRoomCounts, err := env.notifications.ListRoomNotificationCounts(ctx, connect.NewRequest(&apiv1.ListRoomNotificationCountsRequest{}))
+	if err != nil {
+		t.Fatalf("ListRoomNotificationCounts(after client suppression): %v", err)
+	}
+	if len(clientRoomCounts.Msg.GetRoomCounts()) != 2 {
+		t.Fatalf("room counts after client suppression = %+v, want global channel signals preserved", clientRoomCounts.Msg.GetRoomCounts())
 	}
 
 	dismissResp, err := env.notifications.DismissNotification(ctx, connect.NewRequest(&apiv1.DismissNotificationRequest{NotificationId: mention.Id}))

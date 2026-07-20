@@ -1,8 +1,10 @@
 import { Timestamp } from '@bufbuild/protobuf';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
 import { createEventBusHandlerRegistrar, getRealtimeEventEnvelope } from '$lib/eventBus.svelte';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import {
+  RealtimeClientFrame,
   RealtimeEventEnvelope,
   RealtimeClose,
   RealtimeError,
@@ -13,6 +15,7 @@ import {
   RealtimeServerUpdatedEvent,
   RealtimeSubscribed
 } from '@towk/api-types/realtime/v1/realtime_pb';
+import { appState } from '$lib/state/globals.svelte';
 import { eventBusManager, setRealtimeSocketFactoryForTests } from './eventBus.svelte';
 import type { ConnectionStatus, ServerConnection } from './serverConnection.svelte';
 
@@ -97,19 +100,24 @@ class FakeServerConnection {
 }
 
 const TEST_SERVER = 'test-server-bus';
+const PUSH_FOREGROUND_CAPABILITY = 'chatto.realtime.push-foreground.v1';
 let sockets: FakeRealtimeSocket[];
 
 function serverFrame(frame: RealtimeServerFrame['frame']): RealtimeServerFrame {
   return new RealtimeServerFrame({ frame });
 }
 
-function helloFrame(heartbeatIntervalSeconds = 10): RealtimeServerFrame {
+function helloFrame(
+  heartbeatIntervalSeconds = 10,
+  capabilities: string[] = []
+): RealtimeServerFrame {
   return serverFrame({
     case: 'hello',
     value: new RealtimeServerHello({
       protocolVersion: 1,
       serverVersion: 'test',
-      heartbeatIntervalSeconds
+      heartbeatIntervalSeconds,
+      capabilities
     })
   });
 }
@@ -215,6 +223,9 @@ describe('eventBusManager realtime transport', () => {
     consoleWarn.mockRestore();
     consoleDebug.mockRestore();
     vi.useRealTimers();
+    window.localStorage.removeItem('towk:push:client-id');
+    appState.isFocused = true;
+    appState.isVisible = true;
   });
 
   it('opens /api/realtime, sends hello, then subscribes after server hello', async () => {
@@ -230,6 +241,183 @@ describe('eventBusManager realtime transport', () => {
     expect(sockets[0].sent).toHaveLength(2);
     await sockets[0].receive(subscribedFrame());
     expect(fake.status).toBe('connected');
+  });
+
+  it('keeps native push enabled on other devices while suppressing this foreground client', async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem('towk:push:client-id', 'device-a');
+    appState.isFocused = true;
+    appState.isVisible = true;
+
+    const fake = new FakeServerConnection();
+    eventBusManager.startBus(TEST_SERVER, fake as unknown as ServerConnection);
+    const socket = sockets[0];
+    socket.open();
+
+    const hello = RealtimeClientFrame.fromBinary(socket.sent[0]).frame;
+    expect(hello.case).toBe('hello');
+    if (hello.case !== 'hello') throw new Error('expected realtime hello');
+    expect(hello.value.pushClientId).toBe('device-a');
+    expect(hello.value.foreground).toBe(true);
+
+    await socket.receive(helloFrame(10, [PUSH_FOREGROUND_CAPABILITY]));
+    await socket.receive(subscribedFrame());
+    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+      case: 'clientState',
+      value: { foreground: true }
+    });
+
+    appState.isFocused = false;
+    window.dispatchEvent(new Event('blur'));
+    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+      case: 'clientState',
+      value: { foreground: false }
+    });
+
+    const sentWhileBackground = socket.sent.length;
+    appState.isVisible = false;
+    appState.isFocused = true;
+    window.dispatchEvent(new Event('focus'));
+    expect(socket.sent).toHaveLength(sentWhileBackground);
+
+    appState.isVisible = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+      case: 'clientState',
+      value: { foreground: true }
+    });
+
+    const sentBeforeRefresh = socket.sent.length;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(socket.sent).toHaveLength(sentBeforeRefresh + 1);
+    expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+      case: 'clientState',
+      value: { foreground: true }
+    });
+  });
+
+  it.each([
+    ['standalone', 'standalone', false],
+    ['fullscreen', 'fullscreen', false],
+    ['minimal-ui', 'minimal-ui', false],
+    ['window-controls-overlay', 'window-controls-overlay', false],
+    ['iOS Home Screen', null, true]
+  ] as const)(
+    'suppresses native push for a foreground %s app on this client only',
+    async (_label, displayMode, navigatorStandalone) => {
+      vi.useFakeTimers();
+      window.localStorage.setItem('towk:push:client-id', 'device-a');
+      appState.isFocused = true;
+      appState.isVisible = true;
+      const standaloneDescriptor = Object.getOwnPropertyDescriptor(navigator, 'standalone');
+      Object.defineProperty(navigator, 'standalone', {
+        configurable: true,
+        value: navigatorStandalone
+      });
+      const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation(
+        (query) =>
+          ({
+            matches: displayMode !== null && query === `(display-mode: ${displayMode})`
+          }) as MediaQueryList
+      );
+
+      try {
+        const fake = new FakeServerConnection();
+        eventBusManager.startBus(TEST_SERVER, fake as unknown as ServerConnection);
+        const socket = sockets[0];
+        socket.open();
+        expect(RealtimeClientFrame.fromBinary(socket.sent[0]).frame).toMatchObject({
+          case: 'hello',
+          value: { foreground: true }
+        });
+        await socket.receive(helloFrame(10, [PUSH_FOREGROUND_CAPABILITY]));
+        await socket.receive(subscribedFrame());
+        expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+          case: 'clientState',
+          value: { foreground: true }
+        });
+
+        const sentBeforeRefresh = socket.sent.length;
+        await vi.advanceTimersByTimeAsync(5_000);
+
+        expect(appState.isPresent).toBe(true);
+        expect(socket.sent).toHaveLength(sentBeforeRefresh + 1);
+        expect(RealtimeClientFrame.fromBinary(socket.sent.at(-1)!).frame).toMatchObject({
+          case: 'clientState',
+          value: { foreground: true }
+        });
+      } finally {
+        matchMedia.mockRestore();
+        if (standaloneDescriptor) {
+          Object.defineProperty(navigator, 'standalone', standaloneDescriptor);
+        } else {
+          Reflect.deleteProperty(navigator, 'standalone');
+        }
+      }
+    }
+  );
+
+  it('does not send client-state control frames to an older realtime server', async () => {
+    window.localStorage.setItem('towk:push:client-id', 'device-a');
+    const { socket } = await startAndSubscribe();
+
+    expect(socket.sent).toHaveLength(2);
+    expect(RealtimeClientFrame.fromBinary(socket.sent[0]).frame).toMatchObject({
+      case: 'hello',
+      value: { pushClientId: 'device-a' }
+    });
+  });
+
+  it('recomputes foreground state when the realtime socket reconnects', async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem('towk:push:client-id', 'device-a');
+    appState.isFocused = true;
+    appState.isVisible = true;
+
+    const { socket } = await startAndSubscribe();
+    const firstHello = RealtimeClientFrame.fromBinary(socket.sent[0]).frame;
+    expect(firstHello).toMatchObject({
+      case: 'hello',
+      value: { foreground: true }
+    });
+
+    appState.isFocused = false;
+    socket.serverClose();
+    vi.advanceTimersByTime(0);
+    expect(sockets).toHaveLength(2);
+    sockets[1].open();
+    const reconnectHello = RealtimeClientFrame.fromBinary(sockets[1].sent[0]).frame;
+    expect(reconnectHello).toMatchObject({
+      case: 'hello',
+      value: { foreground: false }
+    });
+  });
+
+  it('does not reuse foreground capability before a reconnected stream subscribes', async () => {
+    vi.useFakeTimers();
+    window.localStorage.setItem('towk:push:client-id', 'device-a');
+    appState.isFocused = true;
+    appState.isVisible = true;
+
+    eventBusManager.startBus(
+      TEST_SERVER,
+      new FakeServerConnection() as unknown as ServerConnection
+    );
+    const firstSocket = sockets[0];
+    firstSocket.open();
+    await firstSocket.receive(helloFrame(10, [PUSH_FOREGROUND_CAPABILITY]));
+    await firstSocket.receive(subscribedFrame());
+
+    firstSocket.serverClose();
+    vi.advanceTimersByTime(0);
+    expect(sockets).toHaveLength(2);
+    const reconnectSocket = sockets[1];
+    reconnectSocket.open();
+    expect(reconnectSocket.sent).toHaveLength(1);
+
+    vi.advanceTimersByTime(5_000);
+    expect(reconnectSocket.sent).toHaveLength(1);
+    expect(RealtimeClientFrame.fromBinary(reconnectSocket.sent[0]).frame.case).toBe('hello');
   });
 
   it('dispatches protobuf realtime events to existing event handlers', async () => {

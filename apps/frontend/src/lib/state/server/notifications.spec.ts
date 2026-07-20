@@ -12,7 +12,9 @@ import {
 
 type MockNotificationAPI = NotificationAPI & {
   listNotifications: ReturnType<typeof vi.fn>;
+  listNotificationSignals: ReturnType<typeof vi.fn>;
   getNotification: ReturnType<typeof vi.fn>;
+  getNotificationSignal: ReturnType<typeof vi.fn>;
   batchGetNotifications: ReturnType<typeof vi.fn>;
   listRoomNotifications: ReturnType<typeof vi.fn>;
   hasNotifications: ReturnType<typeof vi.fn>;
@@ -41,10 +43,14 @@ function deferred<T>() {
 function makeAPI(
   options: {
     notifications?: NotificationPage;
+    signals?: NotificationPage;
     roomNotifications?: NotificationPage;
     notificationsError?: Error;
     roomNotificationsError?: Error;
     getNotification?: (
+      notificationId: string
+    ) => Promise<NotificationItem | null> | NotificationItem | null;
+    getNotificationSignal?: (
       notificationId: string
     ) => Promise<NotificationItem | null> | NotificationItem | null;
     dismissNotification?: (notificationId: string) => Promise<boolean> | boolean;
@@ -56,10 +62,22 @@ function makeAPI(
       if (options.notificationsError) throw options.notificationsError;
       return options.notifications ?? page([]);
     }),
+    listNotificationSignals: vi
+      .fn()
+      .mockResolvedValue(options.signals ?? options.notifications ?? page([])),
     getNotification: vi
       .fn()
       .mockImplementation(async (notificationId: string) =>
         options.getNotification ? options.getNotification(notificationId) : null
+      ),
+    getNotificationSignal: vi
+      .fn()
+      .mockImplementation(async (notificationId: string) =>
+        options.getNotificationSignal
+          ? options.getNotificationSignal(notificationId)
+          : options.getNotification
+            ? options.getNotification(notificationId)
+            : null
       ),
     batchGetNotifications: vi.fn().mockResolvedValue([]),
     listRoomNotifications: vi.fn().mockImplementation(async () => {
@@ -117,6 +135,48 @@ describe('NotificationStore', () => {
     expect(store.hasCompleteNotificationSnapshot).toBe(true);
     expect(store.error).toBeNull();
     expect(store.hasLoaded).toBe(true);
+  });
+
+  it('keeps foreground-hidden center rows separate from global channel and thread signals', async () => {
+    const threadMention = {
+      ...mention('foreground-thread'),
+      mentionInThread: 'thread-root'
+    } as NotificationItem;
+    const store = new NotificationStore(
+      makeAPI({ notifications: page([]), signals: page([threadMention]) })
+    );
+
+    await store.fetch();
+
+    expect(store.notifications).toEqual([]);
+    expect(store.unreadNotificationCount).toBe(0);
+    expect(store.signalNotifications.map((notification) => notification.id)).toEqual([
+      'foreground-thread'
+    ]);
+    expect(store.signalNotificationCount).toBe(1);
+    expect(store.hasThreadNotification('thread-root')).toBe(true);
+    expect(store.hasRoomNotification('r1')).toBe(true);
+    expect(store.hasSpaceNotification()).toBe(true);
+  });
+
+  it('hydrates a foreground-hidden signal without adding it to the center', async () => {
+    const signal = {
+      ...mention('live-signal'),
+      mentionInThread: 'signal-thread'
+    } as NotificationItem;
+    const store = new NotificationStore(
+      makeAPI({
+        notifications: page([]),
+        getNotificationSignal: (notificationId) => (notificationId === signal.id ? signal : null)
+      })
+    );
+
+    await expect(store.addNotificationSignal(signal.id)).resolves.toBe(true);
+
+    expect(store.notifications).toEqual([]);
+    expect(store.unreadNotificationCount).toBe(0);
+    expect(store.signalNotificationCount).toBe(1);
+    expect(store.hasThreadNotification('signal-thread')).toBe(true);
   });
 
   it('marks a fetched notification snapshot incomplete when the server total is capped', async () => {
@@ -223,7 +283,34 @@ describe('NotificationStore', () => {
     expect(store.unreadNotificationCount).toBe(0);
   });
 
-  it('fetchRoomNotification returns the newest room-scoped notification and caches it', async () => {
+  it('dismissById removes a foreground-hidden signal and its global server count', async () => {
+    const api = makeAPI();
+    const store = new NotificationStore(api);
+    store.signalNotifications = [mention('hidden-signal')];
+    store.signalNotificationCount = 1;
+
+    await expect(store.dismissById('hidden-signal')).resolves.toBe(true);
+
+    expect(store.notifications).toEqual([]);
+    expect(store.signalNotifications).toEqual([]);
+    expect(store.signalNotificationCount).toBe(0);
+  });
+
+  it('restores a foreground-hidden signal count when dismissal fails', async () => {
+    const api = makeAPI({ dismissNotification: () => false });
+    const store = new NotificationStore(api);
+    store.signalNotifications = [mention('restore-signal')];
+    store.signalNotificationCount = 1;
+
+    await expect(store.dismissById('restore-signal')).resolves.toBe(false);
+
+    expect(store.signalNotifications.map((notification) => notification.id)).toEqual([
+      'restore-signal'
+    ]);
+    expect(store.signalNotificationCount).toBe(1);
+  });
+
+  it('fetchRoomNotification caches the newest room signal without leaking it into the center', async () => {
     const roomMention = mention('room-mention');
     const store = new NotificationStore(makeAPI({ roomNotifications: page([roomMention], 4) }));
 
@@ -234,7 +321,8 @@ describe('NotificationStore', () => {
       totalCount: 4,
       notification: roomMention
     });
-    expect(store.notifications.map((n) => n.id)).toEqual(['room-mention']);
+    expect(store.notifications).toEqual([]);
+    expect(store.signalNotifications.map((n) => n.id)).toEqual(['room-mention']);
   });
 
   it('fetchRoomNotification reports an empty room-scoped notification result', async () => {

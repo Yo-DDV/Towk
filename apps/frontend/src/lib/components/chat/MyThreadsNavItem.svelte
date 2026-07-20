@@ -3,7 +3,6 @@
   import { serverIdToSegment } from '$lib/navigation';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { notificationTarget } from '$lib/state/server/notifications.svelte';
   import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import * as m from '$lib/i18n/messages';
 
@@ -11,9 +10,7 @@
 
   const notificationStore = serverRegistry.getStore(getActiveServer()).notifications;
 
-  const hasUnread = $derived(
-    notificationStore.notifications.some((n) => notificationTarget(n).threadRootId !== null)
-  );
+  const hasUnread = $derived(notificationStore.threadsWithNotifications.size > 0);
 </script>
 
 <a

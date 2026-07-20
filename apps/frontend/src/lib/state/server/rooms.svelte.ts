@@ -211,6 +211,14 @@ export class RoomsStore {
   rooms = $state<RoomsListItem[]>([]);
   roomGroups = $state<RoomsListGroup[] | null>(null);
   isInitialLoading = $state(true);
+
+  get totalNotificationCount(): number {
+    return this.rooms.reduce((total, room) => total + room.viewerNotificationCount, 0);
+  }
+
+  firstRoomWithNotifications(): RoomsListItem | null {
+    return this.rooms.find((room) => room.viewerNotificationCount > 0) ?? null;
+  }
   // The viewer's user ID, captured from the same sidebar bootstrap query that
   // produced DM `room.members`. Use this in preference to a global auth
   // context when filtering self out of DM labels and avatars.

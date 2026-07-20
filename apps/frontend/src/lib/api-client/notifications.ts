@@ -9,6 +9,7 @@ import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { PresenceStatus } from './renderTypes.js';
+import { currentPushClientId } from '$lib/notifications/pushClientId';
 import * as m from '$lib/i18n/messages';
 
 export type NotificationAPIConfig = {
@@ -114,6 +115,7 @@ export type NotificationPage = {
 export function createNotificationAPI(config: NotificationAPIConfig) {
   const client = createTowkClient(NotificationService, config);
   const headers = () => authHeaders(config);
+  const pushClientId = () => currentPushClientId();
   const listRoomNotificationCounts = async (): Promise<Record<string, number>> => {
     const response = await client.listRoomNotificationCounts({}, { headers: headers() });
     return Object.fromEntries(
@@ -123,6 +125,15 @@ export function createNotificationAPI(config: NotificationAPIConfig) {
 
   return {
     async listNotifications(limit = 50, offset = 0): Promise<NotificationPage> {
+      return notificationPage(
+        await client.listNotifications(
+          { page: { limit, offset }, pushClientId: pushClientId() },
+          { headers: headers() }
+        )
+      );
+    },
+
+    async listNotificationSignals(limit = 50, offset = 0): Promise<NotificationPage> {
       return notificationPage(
         await client.listNotifications({ page: { limit, offset } }, { headers: headers() })
       );
@@ -139,6 +150,21 @@ export function createNotificationAPI(config: NotificationAPIConfig) {
 
     async getNotification(notificationId: string): Promise<NotificationItem | null> {
       try {
+        const response = await client.getNotification(
+          { notificationId, pushClientId: pushClientId() },
+          { headers: headers() }
+        );
+        return response.notification ? notificationItem(response.notification) : null;
+      } catch (err) {
+        if (err instanceof ConnectError && err.code === Code.NotFound) {
+          return null;
+        }
+        throw err;
+      }
+    },
+
+    async getNotificationSignal(notificationId: string): Promise<NotificationItem | null> {
+      try {
         const response = await client.getNotification({ notificationId }, { headers: headers() });
         return response.notification ? notificationItem(response.notification) : null;
       } catch (err) {
@@ -151,7 +177,7 @@ export function createNotificationAPI(config: NotificationAPIConfig) {
 
     async batchGetNotifications(notificationIds: string[]): Promise<NotificationItem[]> {
       const response = await client.batchGetNotifications(
-        { notificationIds },
+        { notificationIds, pushClientId: pushClientId() },
         { headers: headers() }
       );
       return response.notifications.flatMap((item) => {
@@ -161,7 +187,9 @@ export function createNotificationAPI(config: NotificationAPIConfig) {
     },
 
     async hasNotifications(): Promise<boolean> {
-      return (await client.hasNotifications({}, { headers: headers() })).hasNotifications;
+      return (
+        await client.hasNotifications({ pushClientId: pushClientId() }, { headers: headers() })
+      ).hasNotifications;
     },
 
     async listRoomNotificationCounts(): Promise<Record<string, number>> {

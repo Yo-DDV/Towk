@@ -291,6 +291,12 @@ func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificati
 
 	// Publish sync event for cross-device sync (WebSocket)
 	c.publishNotificationDismissedEvent(ctx, userID, notificationID)
+	if err := c.deleteNotificationCenterSuppressions(ctx, userID, notificationID); err != nil {
+		c.logger.Warn("Failed to delete per-client notification-center suppressions",
+			"notification_id", notificationID,
+			"user_id", userID,
+			"error", err)
+	}
 
 	// Call the optional notification-dismissal integration (if set).
 	// Run asynchronously to avoid blocking notification dismissal
@@ -383,6 +389,12 @@ func (c *ChattoCore) dismissAllNotifications(ctx context.Context, userID string,
 		deleted++
 
 		c.publishNotificationDismissedEvent(ctx, userID, notificationID)
+		if err := c.deleteNotificationCenterSuppressions(ctx, userID, notificationID); err != nil {
+			c.logger.Warn("Failed to delete per-client notification-center suppressions",
+				"notification_id", notificationID,
+				"user_id", userID,
+				"error", err)
+		}
 
 		if notif != nil {
 			dismissedNotifications = append(dismissedNotifications, notif)

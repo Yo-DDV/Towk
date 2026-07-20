@@ -519,7 +519,10 @@ func (*NotificationItem_CallStarted) isNotificationItem_Kind() {}
 type ListNotificationsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Page request. Defaults to 50 results when absent or limit is zero.
-	Page          *PageRequest `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	Page *PageRequest `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	// Stable browser-installation ID shared with Web Push and realtime presence.
+	// When present, rows suppressed while this installation was foreground are omitted.
+	PushClientId  *string `protobuf:"bytes,4,opt,name=push_client_id,json=pushClientId,proto3,oneof" json:"push_client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -559,6 +562,13 @@ func (x *ListNotificationsRequest) GetPage() *PageRequest {
 		return x.Page
 	}
 	return nil
+}
+
+func (x *ListNotificationsRequest) GetPushClientId() string {
+	if x != nil && x.PushClientId != nil {
+		return *x.PushClientId
+	}
+	return ""
 }
 
 // Request for pending notifications scoped to one room.
@@ -676,8 +686,10 @@ type GetNotificationRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required notification ID.
 	NotificationId string `protobuf:"bytes,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Stable browser-installation ID used for per-client notification-center visibility.
+	PushClientId  *string `protobuf:"bytes,2,opt,name=push_client_id,json=pushClientId,proto3,oneof" json:"push_client_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetNotificationRequest) Reset() {
@@ -713,6 +725,13 @@ func (*GetNotificationRequest) Descriptor() ([]byte, []int) {
 func (x *GetNotificationRequest) GetNotificationId() string {
 	if x != nil {
 		return x.NotificationId
+	}
+	return ""
+}
+
+func (x *GetNotificationRequest) GetPushClientId() string {
+	if x != nil && x.PushClientId != nil {
+		return *x.PushClientId
 	}
 	return ""
 }
@@ -769,8 +788,10 @@ type BatchGetNotificationsRequest struct {
 	// Required notification IDs. Unknown or dismissed IDs are omitted from the
 	// response.
 	NotificationIds []string `protobuf:"bytes,1,rep,name=notification_ids,json=notificationIds,proto3" json:"notification_ids,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// Stable browser-installation ID used for per-client notification-center visibility.
+	PushClientId  *string `protobuf:"bytes,2,opt,name=push_client_id,json=pushClientId,proto3,oneof" json:"push_client_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *BatchGetNotificationsRequest) Reset() {
@@ -808,6 +829,13 @@ func (x *BatchGetNotificationsRequest) GetNotificationIds() []string {
 		return x.NotificationIds
 	}
 	return nil
+}
+
+func (x *BatchGetNotificationsRequest) GetPushClientId() string {
+	if x != nil && x.PushClientId != nil {
+		return *x.PushClientId
+	}
+	return ""
 }
 
 // Batch pending notification response.
@@ -914,7 +942,9 @@ func (x *ListRoomNotificationsResponse) GetPage() *PageInfo {
 
 // Request for a lightweight pending notification check.
 type HasNotificationsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Stable browser-installation ID used for per-client notification-center visibility.
+	PushClientId  *string `protobuf:"bytes,1,opt,name=push_client_id,json=pushClientId,proto3,oneof" json:"push_client_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -947,6 +977,13 @@ func (x *HasNotificationsRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use HasNotificationsRequest.ProtoReflect.Descriptor instead.
 func (*HasNotificationsRequest) Descriptor() ([]byte, []int) {
 	return file_chatto_api_v1_notifications_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *HasNotificationsRequest) GetPushClientId() string {
+	if x != nil && x.PushClientId != nil {
+		return *x.PushClientId
+	}
+	return ""
 }
 
 // Lightweight pending notification check.
@@ -1349,28 +1386,36 @@ const file_chatto_api_v1_notifications_proto_rawDesc = "" +
 	"\x05reply\x18\f \x01(\v2 .chatto.api.v1.ReplyNotificationH\x00R\x05reply\x12K\n" +
 	"\froom_message\x18\r \x01(\v2&.chatto.api.v1.RoomMessageNotificationH\x00R\vroomMessage\x12K\n" +
 	"\fcall_started\x18\x0e \x01(\v2&.chatto.api.v1.CallStartedNotificationH\x00R\vcallStartedB\x06\n" +
-	"\x04kindJ\x04\b\x04\x10\x05R\asummary\"e\n" +
+	"\x04kindJ\x04\b\x04\x10\x05R\asummary\"\xad\x01\n" +
 	"\x18ListNotificationsRequest\x12.\n" +
-	"\x04page\x18\x03 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\x05limitR\x06offset\"\x8b\x01\n" +
+	"\x04page\x18\x03 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04page\x123\n" +
+	"\x0epush_client_id\x18\x04 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01H\x00R\fpushClientId\x88\x01\x01B\x11\n" +
+	"\x0f_push_client_idJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\x05limitR\x06offset\"\x8b\x01\n" +
 	"\x1cListRoomNotificationsRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12.\n" +
 	"\x04page\x18\x04 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05limitR\x06offset\"\xc5\x01\n" +
 	"\x19ListNotificationsResponse\x12E\n" +
 	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12+\n" +
-	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_moreR\vserver_name\"J\n" +
+	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_moreR\vserver_name\"\x92\x01\n" +
 	"\x16GetNotificationRequest\x120\n" +
-	"\x0fnotification_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0enotificationId\"q\n" +
+	"\x0fnotification_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0enotificationId\x123\n" +
+	"\x0epush_client_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01H\x00R\fpushClientId\x88\x01\x01B\x11\n" +
+	"\x0f_push_client_id\"q\n" +
 	"\x17GetNotificationResponse\x12C\n" +
-	"\fnotification\x18\x01 \x01(\v2\x1f.chatto.api.v1.NotificationItemR\fnotificationJ\x04\b\x02\x10\x03R\vserver_name\"[\n" +
+	"\fnotification\x18\x01 \x01(\v2\x1f.chatto.api.v1.NotificationItemR\fnotificationJ\x04\b\x02\x10\x03R\vserver_name\"\xa3\x01\n" +
 	"\x1cBatchGetNotificationsRequest\x12;\n" +
 	"\x10notification_ids\x18\x01 \x03(\tB\x10\xbaH\r\x92\x01\n" +
-	"\b\x01\x10d\"\x04r\x02\x10\x01R\x0fnotificationIds\"y\n" +
+	"\b\x01\x10d\"\x04r\x02\x10\x01R\x0fnotificationIds\x123\n" +
+	"\x0epush_client_id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01H\x00R\fpushClientId\x88\x01\x01B\x11\n" +
+	"\x0f_push_client_id\"y\n" +
 	"\x1dBatchGetNotificationsResponse\x12E\n" +
 	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotificationsJ\x04\b\x02\x10\x03R\vserver_name\"\xc9\x01\n" +
 	"\x1dListRoomNotificationsResponse\x12E\n" +
 	"\rnotifications\x18\x01 \x03(\v2\x1f.chatto.api.v1.NotificationItemR\rnotifications\x12+\n" +
-	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_moreR\vserver_name\"\x19\n" +
-	"\x17HasNotificationsRequest\"G\n" +
+	"\x04page\x18\x05 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05R\vtotal_countR\bhas_moreR\vserver_name\"a\n" +
+	"\x17HasNotificationsRequest\x123\n" +
+	"\x0epush_client_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01H\x00R\fpushClientId\x88\x01\x01B\x11\n" +
+	"\x0f_push_client_id\"G\n" +
 	"\x18HasNotificationsResponse\x12+\n" +
 	"\x11has_notifications\x18\x01 \x01(\bR\x10hasNotifications\"Q\n" +
 	"\x15RoomNotificationCount\x12\x17\n" +
@@ -1506,6 +1551,10 @@ func file_chatto_api_v1_notifications_proto_init() {
 		(*NotificationItem_RoomMessage)(nil),
 		(*NotificationItem_CallStarted)(nil),
 	}
+	file_chatto_api_v1_notifications_proto_msgTypes[6].OneofWrappers = []any{}
+	file_chatto_api_v1_notifications_proto_msgTypes[9].OneofWrappers = []any{}
+	file_chatto_api_v1_notifications_proto_msgTypes[11].OneofWrappers = []any{}
+	file_chatto_api_v1_notifications_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

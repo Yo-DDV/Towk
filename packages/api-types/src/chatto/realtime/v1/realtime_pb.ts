@@ -88,6 +88,14 @@ export class RealtimeClientFrame extends Message<RealtimeClientFrame> {
      */
     value: RealtimePing;
     case: "ping";
+  } | {
+    /**
+     * Refreshes this browser installation's foreground delivery state.
+     *
+     * @generated from field: chatto.realtime.v1.RealtimeClientState client_state = 5;
+     */
+    value: RealtimeClientState;
+    case: "clientState";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<RealtimeClientFrame>) {
@@ -101,6 +109,7 @@ export class RealtimeClientFrame extends Message<RealtimeClientFrame> {
     { no: 1, name: "hello", kind: "message", T: RealtimeClientHello, oneof: "frame" },
     { no: 2, name: "subscribe_events", kind: "message", T: RealtimeSubscribeEvents, oneof: "frame" },
     { no: 3, name: "ping", kind: "message", T: RealtimePing, oneof: "frame" },
+    { no: 5, name: "client_state", kind: "message", T: RealtimeClientState, oneof: "frame" },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RealtimeClientFrame {
@@ -241,6 +250,20 @@ export class RealtimeClientHello extends Message<RealtimeClientHello> {
    */
   bearerToken?: string;
 
+  /**
+   * Stable ID shared with this browser installation's push subscription.
+   *
+   * @generated from field: optional string push_client_id = 4;
+   */
+  pushClientId?: string;
+
+  /**
+   * Whether the app is focused and visible when the socket opens.
+   *
+   * @generated from field: optional bool foreground = 5;
+   */
+  foreground?: boolean;
+
   constructor(data?: PartialMessage<RealtimeClientHello>) {
     super();
     proto3.util.initPartial(data, this);
@@ -251,6 +274,8 @@ export class RealtimeClientHello extends Message<RealtimeClientHello> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "protocol_version", kind: "scalar", T: 13 /* ScalarType.UINT32 */ },
     { no: 2, name: "bearer_token", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 4, name: "push_client_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 5, name: "foreground", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RealtimeClientHello {
@@ -441,6 +466,46 @@ export class RealtimePing extends Message<RealtimePing> {
 
   static equals(a: RealtimePing | PlainMessage<RealtimePing> | undefined, b: RealtimePing | PlainMessage<RealtimePing> | undefined): boolean {
     return proto3.util.equals(RealtimePing, a, b);
+  }
+}
+
+/**
+ * Refreshable device-local state used to avoid redundant native PUSH while
+ * this exact browser installation is focused and visible.
+ *
+ * @generated from message chatto.realtime.v1.RealtimeClientState
+ */
+export class RealtimeClientState extends Message<RealtimeClientState> {
+  /**
+   * @generated from field: bool foreground = 1;
+   */
+  foreground = false;
+
+  constructor(data?: PartialMessage<RealtimeClientState>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "chatto.realtime.v1.RealtimeClientState";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "foreground", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RealtimeClientState {
+    return new RealtimeClientState().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RealtimeClientState {
+    return new RealtimeClientState().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RealtimeClientState {
+    return new RealtimeClientState().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: RealtimeClientState | PlainMessage<RealtimeClientState> | undefined, b: RealtimeClientState | PlainMessage<RealtimeClientState> | undefined): boolean {
+    return proto3.util.equals(RealtimeClientState, a, b);
   }
 }
 
@@ -1564,6 +1629,14 @@ export class RealtimeNotificationCreatedEvent extends Message<RealtimeNotificati
    */
   silent = false;
 
+  /**
+   * True when this exact foreground browser installation must keep the event
+   * as an in-app channel signal but omit it from its notification center.
+   *
+   * @generated from field: bool notification_center_suppressed = 6;
+   */
+  notificationCenterSuppressed = false;
+
   constructor(data?: PartialMessage<RealtimeNotificationCreatedEvent>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1577,6 +1650,7 @@ export class RealtimeNotificationCreatedEvent extends Message<RealtimeNotificati
     { no: 3, name: "event_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 4, name: "in_reply_to_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
     { no: 5, name: "silent", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "notification_center_suppressed", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RealtimeNotificationCreatedEvent {

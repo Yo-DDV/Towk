@@ -2137,6 +2137,7 @@ Request for the authenticated viewer's pending notifications.
 | Field | Type | Description |
 | --- | --- | --- |
 | `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | Page request. Defaults to 50 results when absent or limit is zero. |
+| `push_client_id` | `optional string` | Stable browser-installation ID shared with Web Push and realtime presence. When present, rows suppressed while this installation was foreground are omitted. |
 
 
 <a id="chatto-api-v1-ListNotificationsResponse"></a>
@@ -2171,6 +2172,7 @@ Request one pending notification for the authenticated viewer.
 | Field | Type | Description |
 | --- | --- | --- |
 | `notification_id` | `string` | Required notification ID. |
+| `push_client_id` | `optional string` | Stable browser-installation ID used for per-client notification-center visibility. |
 
 
 <a id="chatto-api-v1-GetNotificationResponse"></a>
@@ -2203,6 +2205,7 @@ Request pending notifications for a set of stable notification IDs.
 | Field | Type | Description |
 | --- | --- | --- |
 | `notification_ids` | `repeated string` | Required notification IDs. Unknown or dismissed IDs are omitted from the response. |
+| `push_client_id` | `optional string` | Stable browser-installation ID used for per-client notification-center visibility. |
 
 
 <a id="chatto-api-v1-BatchGetNotificationsResponse"></a>
@@ -2293,6 +2296,10 @@ POST /api/connect/chatto.api.v1.NotificationService/HasNotifications
 #### Input: HasNotificationsRequest
 
 Request for a lightweight pending notification check.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `push_client_id` | `optional string` | Stable browser-installation ID used for per-client notification-center visibility. |
 
 
 <a id="chatto-api-v1-HasNotificationsResponse"></a>

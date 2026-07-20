@@ -271,6 +271,10 @@ func (p Payload) declarativeNotificationEligible() bool {
 type PayloadContext struct {
 	// MessagePreview is a truncated preview of the message body
 	MessagePreview string
+	// AttachmentFilenames and AttachmentCount describe attachment-only
+	// messages without embedding their binary content in the push payload.
+	AttachmentFilenames []string
+	AttachmentCount     int
 	// IsVoiceMessage selects a localized, privacy-preserving fallback when the
 	// message has no text body but carries a first-class voice attachment.
 	IsVoiceMessage bool
@@ -285,16 +289,17 @@ type PayloadContext struct {
 type notificationCopy struct {
 	unknownActor       string
 	directMessage      string
-	directMessageBody  string
 	mention            string
 	mentionInRoom      string
-	mentionBody        string
 	reply              string
 	replyInRoom        string
-	replyBody          string
 	roomMessage        string
 	roomMessageInRoom  string
-	roomMessageBody    string
+	messageBody        string
+	attachmentBody     string
+	attachmentsBody    string
+	attachmentNamed    string
+	attachmentsNamed   string
 	voiceMessageBody   string
 	defaultTitle       string
 	defaultDescription string
@@ -304,16 +309,17 @@ var notificationCopies = map[string]notificationCopy{
 	"en": {
 		unknownActor:       "Someone",
 		directMessage:      "@%s sent you a new DM",
-		directMessageBody:  "Open Towk to read the direct message",
 		mention:            "@%s mentioned you",
 		mentionInRoom:      "@%s mentioned you in #%s",
-		mentionBody:        "Open Towk to read the mention",
 		reply:              "@%s replied to you",
 		replyInRoom:        "@%s replied to you in #%s",
-		replyBody:          "Open Towk to read the reply",
 		roomMessage:        "@%s posted a message",
 		roomMessageInRoom:  "@%s posted in #%s",
-		roomMessageBody:    "Open Towk to read the message",
+		messageBody:        "Message",
+		attachmentBody:     "Attachment",
+		attachmentsBody:    "%d attachments",
+		attachmentNamed:    "Attachment: %s",
+		attachmentsNamed:   "Attachments: %s",
 		voiceMessageBody:   "Voice message",
 		defaultTitle:       "New notification",
 		defaultDescription: "You have a new notification",
@@ -321,16 +327,17 @@ var notificationCopies = map[string]notificationCopy{
 	"de": {
 		unknownActor:       "Jemand",
 		directMessage:      "@%s hat dir eine neue Direktnachricht gesendet",
-		directMessageBody:  "Öffne Towk, um die Direktnachricht zu lesen",
 		mention:            "@%s hat dich erwähnt",
 		mentionInRoom:      "@%s hat dich in #%s erwähnt",
-		mentionBody:        "Öffne Towk, um die Erwähnung zu lesen",
 		reply:              "@%s hat dir geantwortet",
 		replyInRoom:        "@%s hat dir in #%s geantwortet",
-		replyBody:          "Öffne Towk, um die Antwort zu lesen",
 		roomMessage:        "@%s hat eine Nachricht gesendet",
 		roomMessageInRoom:  "@%s hat in #%s geschrieben",
-		roomMessageBody:    "Öffne Towk, um die Nachricht zu lesen",
+		messageBody:        "Nachricht",
+		attachmentBody:     "Anhang",
+		attachmentsBody:    "%d Anhänge",
+		attachmentNamed:    "Anhang: %s",
+		attachmentsNamed:   "Anhänge: %s",
 		voiceMessageBody:   "Sprachnachricht",
 		defaultTitle:       "Neue Benachrichtigung",
 		defaultDescription: "Du hast eine neue Benachrichtigung",
@@ -338,16 +345,17 @@ var notificationCopies = map[string]notificationCopy{
 	"fr": {
 		unknownActor:       "Quelqu’un",
 		directMessage:      "@%s vous a envoyé un nouveau message privé",
-		directMessageBody:  "Ouvrez Towk pour lire le message privé",
 		mention:            "@%s vous a mentionné",
 		mentionInRoom:      "@%s vous a mentionné dans #%s",
-		mentionBody:        "Ouvrez Towk pour lire la mention",
 		reply:              "@%s vous a répondu",
 		replyInRoom:        "@%s vous a répondu dans #%s",
-		replyBody:          "Ouvrez Towk pour lire la réponse",
 		roomMessage:        "@%s a publié un message",
 		roomMessageInRoom:  "@%s a publié un message dans #%s",
-		roomMessageBody:    "Ouvrez Towk pour lire le message",
+		messageBody:        "Message",
+		attachmentBody:     "Pièce jointe",
+		attachmentsBody:    "%d pièces jointes",
+		attachmentNamed:    "Pièce jointe : %s",
+		attachmentsNamed:   "Pièces jointes : %s",
 		voiceMessageBody:   "Message vocal",
 		defaultTitle:       "Nouvelle notification",
 		defaultDescription: "Vous avez une nouvelle notification",
@@ -355,16 +363,17 @@ var notificationCopies = map[string]notificationCopy{
 	"es": {
 		unknownActor:       "Alguien",
 		directMessage:      "@%s te envió un nuevo mensaje directo",
-		directMessageBody:  "Abre Towk para leer el mensaje directo",
 		mention:            "@%s te mencionó",
 		mentionInRoom:      "@%s te mencionó en #%s",
-		mentionBody:        "Abre Towk para leer la mención",
 		reply:              "@%s te respondió",
 		replyInRoom:        "@%s te respondió en #%s",
-		replyBody:          "Abre Towk para leer la respuesta",
 		roomMessage:        "@%s publicó un mensaje",
 		roomMessageInRoom:  "@%s publicó un mensaje en #%s",
-		roomMessageBody:    "Abre Towk para leer el mensaje",
+		messageBody:        "Mensaje",
+		attachmentBody:     "Archivo adjunto",
+		attachmentsBody:    "%d archivos adjuntos",
+		attachmentNamed:    "Archivo adjunto: %s",
+		attachmentsNamed:   "Archivos adjuntos: %s",
 		voiceMessageBody:   "Mensaje de voz",
 		defaultTitle:       "Nueva notificación",
 		defaultDescription: "Tienes una nueva notificación",
@@ -372,16 +381,17 @@ var notificationCopies = map[string]notificationCopy{
 	"pt": {
 		unknownActor:       "Alguém",
 		directMessage:      "@%s enviou uma nova mensagem direta para você",
-		directMessageBody:  "Abra o Towk para ler a mensagem direta",
 		mention:            "@%s mencionou você",
 		mentionInRoom:      "@%s mencionou você em #%s",
-		mentionBody:        "Abra o Towk para ler a menção",
 		reply:              "@%s respondeu a você",
 		replyInRoom:        "@%s respondeu a você em #%s",
-		replyBody:          "Abra o Towk para ler a resposta",
 		roomMessage:        "@%s publicou uma mensagem",
 		roomMessageInRoom:  "@%s publicou uma mensagem em #%s",
-		roomMessageBody:    "Abra o Towk para ler a mensagem",
+		messageBody:        "Mensagem",
+		attachmentBody:     "Anexo",
+		attachmentsBody:    "%d anexos",
+		attachmentNamed:    "Anexo: %s",
+		attachmentsNamed:   "Anexos: %s",
 		voiceMessageBody:   "Mensagem de voz",
 		defaultTitle:       "Nova notificação",
 		defaultDescription: "Você tem uma nova notificação",
@@ -438,6 +448,40 @@ func notificationBody(preview, fallback string) string {
 		return fallback
 	}
 	return preview
+}
+
+func messageFallbackBody(copy notificationCopy, payloadCtx *PayloadContext) string {
+	if payloadCtx == nil {
+		return copy.messageBody
+	}
+	if payloadCtx.IsVoiceMessage {
+		return copy.voiceMessageBody
+	}
+
+	filenames := make([]string, 0, len(payloadCtx.AttachmentFilenames))
+	for _, filename := range payloadCtx.AttachmentFilenames {
+		if filename = strings.Join(strings.Fields(filename), " "); filename != "" {
+			filenames = append(filenames, filename)
+		}
+	}
+	attachmentCount := payloadCtx.AttachmentCount
+	if attachmentCount < len(filenames) {
+		attachmentCount = len(filenames)
+	}
+	if attachmentCount == 0 {
+		return copy.messageBody
+	}
+	if len(filenames) == attachmentCount {
+		joined := strings.Join(filenames, ", ")
+		if attachmentCount == 1 {
+			return truncatePreview(fmt.Sprintf(copy.attachmentNamed, joined))
+		}
+		return truncatePreview(fmt.Sprintf(copy.attachmentsNamed, joined))
+	}
+	if attachmentCount == 1 {
+		return copy.attachmentBody
+	}
+	return fmt.Sprintf(copy.attachmentsBody, attachmentCount)
 }
 
 // SendResult contains the result of a push notification send attempt.
@@ -653,17 +697,12 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		preview = truncatePreview(payloadCtx.MessagePreview)
 		roomName = payloadCtx.RoomName
 	}
-	fallbackBody := func(generic string) string {
-		if payloadCtx != nil && payloadCtx.IsVoiceMessage && strings.TrimSpace(preview) == "" {
-			return copy.voiceMessageBody
-		}
-		return generic
-	}
+	fallback := messageFallbackBody(copy, payloadCtx)
 
 	switch n := notif.Notification.(type) {
 	case *corev1.Notification_DmMessage:
 		payload.Title = fmt.Sprintf(copy.directMessage, actorDisplayName)
-		payload.Body = notificationBody(preview, fallbackBody(copy.directMessageBody))
+		payload.Body = notificationBody(preview, fallback)
 		payload.Tag = "dm-" + n.DmMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.DmMessage.RoomId, n.DmMessage.InThread, n.DmMessage.EventId)
 
@@ -673,7 +712,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.mention, actorDisplayName)
 		}
-		payload.Body = notificationBody(preview, fallbackBody(copy.mentionBody))
+		payload.Body = notificationBody(preview, fallback)
 		payload.Tag = "mention-" + n.Mention.EventId
 		payload.URL = buildNotificationURL(baseURL, n.Mention.RoomId, n.Mention.InThread, n.Mention.EventId)
 
@@ -683,7 +722,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.reply, actorDisplayName)
 		}
-		payload.Body = notificationBody(preview, fallbackBody(copy.replyBody))
+		payload.Body = notificationBody(preview, fallback)
 		payload.Tag = "reply-" + n.Reply.EventId
 		payload.URL = buildNotificationURL(baseURL, n.Reply.RoomId, n.Reply.InThread, n.Reply.EventId)
 
@@ -693,7 +732,7 @@ func BuildLocalizedPayloadFromNotification(notif *corev1.Notification, actorDisp
 		} else {
 			payload.Title = fmt.Sprintf(copy.roomMessage, actorDisplayName)
 		}
-		payload.Body = notificationBody(preview, fallbackBody(copy.roomMessageBody))
+		payload.Body = notificationBody(preview, fallback)
 		payload.Tag = "room-message-" + n.RoomMessage.EventId
 		payload.URL = buildNotificationURL(baseURL, n.RoomMessage.RoomId, n.RoomMessage.InThread, n.RoomMessage.EventId)
 

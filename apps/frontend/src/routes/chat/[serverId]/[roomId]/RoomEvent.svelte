@@ -11,13 +11,15 @@
     compact = false,
     roomId,
     messageStore = null,
-    onOpenThread
+    onOpenThread,
+    threadHasUnread
   }: {
     event: RoomEventView;
     compact?: boolean;
     roomId: string;
     messageStore?: MessagesStore | null;
     onOpenThread?: OpenThreadHandler;
+    threadHasUnread?: boolean;
   } = $props();
 
   // Join/leave events are confusing in DM 1:1 conversations. Post-PR(b) we
@@ -31,7 +33,7 @@
 {#if !event?.event || isDMJoinLeave}
   <!-- Skip unknown event types, stale virtualizer items, and join/leave events in DM rooms -->
 {:else if isMessagePostedEvent(event.event)}
-  <MessageEvent {event} {compact} {roomId} {messageStore} {onOpenThread} />
+  <MessageEvent {event} {compact} {roomId} {messageStore} {onOpenThread} {threadHasUnread} />
 {:else}
   <SystemEvent {event} />
 {/if}

@@ -346,6 +346,149 @@ func TestCreateNotification(t *testing.T) {
 	})
 }
 
+func TestNotificationCenterSuppressionIsScopedPerClientAndNeverHidesCalls(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	ctx := testContext(t)
+	starter := createCallNotificationUser(t, chattoCore, ctx, "notification-center-starter")
+	recipient := createCallNotificationUser(t, chattoCore, ctx, "notification-center-recipient")
+	recipientID := recipient.Id
+	room, err := chattoCore.CreateRoom(ctx, starter.Id, KindChannel, "", "notification-center-room", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := chattoCore.AddMember(ctx, starter.Id, KindChannel, room.Id, recipient.Id); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	if err := chattoCore.RecordCallParticipantJoined(ctx, KindChannel, room.Id, starter.Id, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("RecordCallParticipantJoined: %v", err)
+	}
+	if err := chattoCore.callNotifications.consume(ctx); err != nil {
+		t.Fatalf("consume call notification: %v", err)
+	}
+	initialNotifications, err := chattoCore.GetNotifications(ctx, recipientID)
+	if err != nil {
+		t.Fatalf("GetNotifications(after call): %v", err)
+	}
+	if len(initialNotifications) != 1 || initialNotifications[0].GetCallStarted() == nil {
+		t.Fatalf("initial notifications = %+v, want one call", initialNotifications)
+	}
+	call := initialNotifications[0]
+
+	message, err := chattoCore.CreateNotification(ctx, recipientID, starter.Id, &corev1.Notification{
+		Notification: &corev1.Notification_DmMessage{DmMessage: &corev1.DMMessageNotification{
+			RoomId: "dm-room", EventId: "message-event",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification(message): %v", err)
+	}
+	suppressed, err := chattoCore.SuppressNotificationCenterForClient(ctx, recipientID, message.Id, "client-a")
+	if err != nil {
+		t.Fatalf("SuppressNotificationCenterForClient(message): %v", err)
+	}
+	if !suppressed {
+		t.Fatal("message suppression = false, want true")
+	}
+	callSuppressed, err := chattoCore.SuppressNotificationCenterForClient(ctx, recipientID, call.Id, "client-a")
+	if err != nil {
+		t.Fatalf("SuppressNotificationCenterForClient(call): %v", err)
+	}
+	if callSuppressed {
+		t.Fatal("call suppression = true, want false")
+	}
+
+	clientAMessage, err := chattoCore.GetNotificationForClient(ctx, recipientID, message.Id, "client-a")
+	if err != nil {
+		t.Fatalf("GetNotificationForClient(client-a, message): %v", err)
+	}
+	if clientAMessage != nil {
+		t.Fatalf("client-a message = %+v, want hidden", clientAMessage)
+	}
+	clientBMessage, err := chattoCore.GetNotificationForClient(ctx, recipientID, message.Id, "client-b")
+	if err != nil {
+		t.Fatalf("GetNotificationForClient(client-b, message): %v", err)
+	}
+	if clientBMessage == nil || clientBMessage.Id != message.Id {
+		t.Fatalf("client-b message = %+v, want %q", clientBMessage, message.Id)
+	}
+	clientACall, err := chattoCore.GetNotificationForClient(ctx, recipientID, call.Id, "client-a")
+	if err != nil {
+		t.Fatalf("GetNotificationForClient(client-a, call): %v", err)
+	}
+	if clientACall == nil || clientACall.Id != call.Id {
+		t.Fatalf("client-a call = %+v, want %q", clientACall, call.Id)
+	}
+
+	clientANotifications, err := chattoCore.GetNotificationsForClient(ctx, recipientID, "client-a")
+	if err != nil {
+		t.Fatalf("GetNotificationsForClient(client-a): %v", err)
+	}
+	if len(clientANotifications) != 1 || clientANotifications[0].Id != call.Id {
+		t.Fatalf("client-a notifications = %+v, want call only", clientANotifications)
+	}
+	clientBNotifications, err := chattoCore.GetNotificationsForClient(ctx, recipientID, "client-b")
+	if err != nil {
+		t.Fatalf("GetNotificationsForClient(client-b): %v", err)
+	}
+	if len(clientBNotifications) != 2 {
+		t.Fatalf("client-b notifications = %d, want 2", len(clientBNotifications))
+	}
+	legacyNotifications, err := chattoCore.GetNotificationsForClient(ctx, recipientID, "")
+	if err != nil {
+		t.Fatalf("GetNotificationsForClient(legacy): %v", err)
+	}
+	if len(legacyNotifications) != 2 {
+		t.Fatalf("legacy notifications = %d, want 2", len(legacyNotifications))
+	}
+}
+
+func TestNotificationCenterSuppressionPreservesConcurrentClientMarkers(t *testing.T) {
+	chattoCore, _ := setupTestCore(t)
+	ctx := testContext(t)
+	recipientID := "notification-center-concurrent"
+	notification, err := chattoCore.CreateNotification(ctx, recipientID, "actor", &corev1.Notification{
+		Notification: &corev1.Notification_Mention{Mention: &corev1.MentionNotification{
+			RoomId: "room", EventId: "event",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CreateNotification: %v", err)
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+	for _, clientID := range []string{"client-a", "client-b"} {
+		clientID := clientID
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			suppressed, err := chattoCore.SuppressNotificationCenterForClient(ctx, recipientID, notification.Id, clientID)
+			if err != nil {
+				errs <- err
+				return
+			}
+			if !suppressed {
+				errs <- errors.New("suppression unexpectedly refused")
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent suppression: %v", err)
+	}
+
+	for _, clientID := range []string{"client-a", "client-b"} {
+		got, err := chattoCore.GetNotificationForClient(ctx, recipientID, notification.Id, clientID)
+		if err != nil {
+			t.Fatalf("GetNotificationForClient(%s): %v", clientID, err)
+		}
+		if got != nil {
+			t.Fatalf("GetNotificationForClient(%s) = %+v, want hidden", clientID, got)
+		}
+	}
+}
+
 func TestCreateNotificationRejectsInvalidInputWithoutMutatingCaller(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)

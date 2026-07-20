@@ -9,7 +9,10 @@
 
   import { useRenderData } from '$lib/render/data';
   import { RoomEventViewDocument, type RoomEventView } from '$lib/render/types';
-  import { createThreadAPI, type FollowedThread as APIFollowedThread } from '$lib/api-client/threads';
+  import {
+    createThreadAPI,
+    type FollowedThread as APIFollowedThread
+  } from '$lib/api-client/threads';
   import { EmptyState, Hint, PaneHeader } from '$lib/ui';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button } from '$lib/ui/form';
@@ -275,6 +278,7 @@
                   event={thread.rootMessage}
                   roomId={thread.roomId}
                   onOpenThread={() => navigateToThread(thread)}
+                  threadHasUnread={thread.hasUnread}
                 />
               {:else}
                 <div class="px-2 md:mx-2">

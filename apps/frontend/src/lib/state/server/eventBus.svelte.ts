@@ -18,9 +18,12 @@ import type {
 import { attachRealtimeEventEnvelope } from '$lib/eventBus.svelte';
 import { roomEventKind } from '$lib/render/eventKinds';
 import { realtimeEventToEventEnvelope } from '$lib/realtimeEventMapper';
+import { currentPushClientId } from '$lib/notifications/pushClientId';
+import { appState } from '$lib/state/globals.svelte';
 import {
   RealtimeClientFrame,
   RealtimeClientHello,
+  RealtimeClientState,
   RealtimeServerFrame,
   RealtimeSubscribeEvents
 } from '@towk/api-types/realtime/v1/realtime_pb';
@@ -34,6 +37,8 @@ const CATCH_UP_RETRY_MS = 2_500;
 const RECONNECT_WAIT_MS = 5_000;
 const MIN_SERVER_RECONNECT_WAIT_MS = 1_000;
 const MAX_SERVER_RECONNECT_WAIT_MS = 60_000;
+const PUSH_FOREGROUND_CAPABILITY = 'chatto.realtime.push-foreground.v1';
+const PUSH_FOREGROUND_REFRESH_MS = 5_000;
 
 type RealtimeMessageEvent = { data: ArrayBuffer | Blob | Uint8Array };
 type RealtimeCloseEvent = { code?: number; reason?: string };
@@ -61,14 +66,29 @@ async function messageDataToBytes(data: RealtimeMessageEvent['data']): Promise<U
   return new Uint8Array(await data.arrayBuffer());
 }
 
-function clientHelloFrame(token: string | null): Uint8Array {
+function clientHelloFrame(
+  token: string | null,
+  pushClientId: string,
+  foreground: boolean
+): Uint8Array {
   return new RealtimeClientFrame({
     frame: {
       case: 'hello',
       value: new RealtimeClientHello({
         protocolVersion: 1,
-        bearerToken: token ?? undefined
+        bearerToken: token ?? undefined,
+        pushClientId,
+        foreground
       })
+    }
+  }).toBinary();
+}
+
+function clientStateFrame(foreground: boolean): Uint8Array {
+  return new RealtimeClientFrame({
+    frame: {
+      case: 'clientState',
+      value: new RealtimeClientState({ foreground })
     }
   }).toBinary();
 }
@@ -124,6 +144,42 @@ class EventBusManager {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let catchUpRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
+    const pushClientId = currentPushClientId();
+    let pushForegroundSupported = false;
+    let realtimeSubscribed = false;
+    let lastPushForeground: boolean | undefined;
+
+    // Installed PWAs and ordinary tabs share the same lifecycle contract:
+    // only this visible, focused window suppresses this installation's
+    // non-call native delivery. Calls remain eligible in the server fanout.
+    const canSuppressNativePush = () => appState.isPresent;
+
+    const sendPushForegroundState = (foreground: boolean, force = false) => {
+      if (stopped) return;
+      if (!force && foreground === lastPushForeground) return;
+      lastPushForeground = foreground;
+      if (
+        !pushForegroundSupported ||
+        !realtimeSubscribed ||
+        !socket ||
+        socket.readyState !== WebSocket.OPEN
+      ) {
+        return;
+      }
+      socket.send(clientStateFrame(foreground));
+    };
+
+    const handlePushForegroundChange = () => {
+      sendPushForegroundState(canSuppressNativePush());
+    };
+    window.addEventListener('focus', handlePushForegroundChange);
+    window.addEventListener('blur', handlePushForegroundChange);
+    document.addEventListener('visibilitychange', handlePushForegroundChange);
+    const pushForegroundRefresh = setInterval(() => {
+      if (stopped) return;
+      const foreground = canSuppressNativePush();
+      sendPushForegroundState(foreground, foreground);
+    }, PUSH_FOREGROUND_REFRESH_MS);
 
     const debugState = () => ({
       generation,
@@ -173,6 +229,9 @@ class EventBusManager {
     const detachSocket = (close = true) => {
       const current = socket;
       socket = null;
+      pushForegroundSupported = false;
+      realtimeSubscribed = false;
+      lastPushForeground = undefined;
       if (!current) return;
       current.onopen = null;
       current.onmessage = null;
@@ -213,6 +272,9 @@ class EventBusManager {
     const connect = (reason: string) => {
       if (stopped) return;
       clearReconnectTimer();
+      pushForegroundSupported = false;
+      realtimeSubscribed = false;
+      lastPushForeground = undefined;
       generation++;
       const socketGeneration = generation;
       lastEventAt = Date.now();
@@ -230,7 +292,9 @@ class EventBusManager {
       nextSocket.onopen = () => {
         if (stopped || socket !== nextSocket) return;
         console.debug(`[eventBus:${serverId}] realtime socket opened`, debugState());
-        nextSocket.send(clientHelloFrame(serverConnection.bearerToken));
+        nextSocket.send(
+          clientHelloFrame(serverConnection.bearerToken, pushClientId, canSuppressNativePush())
+        );
       };
 
       nextSocket.onmessage = (message) => {
@@ -250,9 +314,17 @@ class EventBusManager {
               heartbeatStallMs = heartbeatStallMsForInterval(
                 frame.frame.value.heartbeatIntervalSeconds
               );
+              pushForegroundSupported = frame.frame.value.capabilities.includes(
+                PUSH_FOREGROUND_CAPABILITY
+              );
               nextSocket.send(subscribeEventsFrame());
               return;
             case 'subscribed':
+              realtimeSubscribed = true;
+              {
+                const foreground = canSuppressNativePush();
+                sendPushForegroundState(foreground, foreground);
+              }
               reconnectAttempts = 0;
               serverConnection.setRealtimeConnectionStatus('connected');
               console.debug(`[eventBus:${serverId}] realtime stream subscribed`, {
@@ -380,6 +452,10 @@ class EventBusManager {
       if (catchUpRetryTimer) clearTimeout(catchUpRetryTimer);
       clearReconnectTimer();
       clearInterval(heartbeatWatchdog);
+      clearInterval(pushForegroundRefresh);
+      window.removeEventListener('focus', handlePushForegroundChange);
+      window.removeEventListener('blur', handlePushForegroundChange);
+      document.removeEventListener('visibilitychange', handlePushForegroundChange);
       unregisterReconnect();
       detachSocket(true);
       serverConnection.setRealtimeConnectionStatus('disconnected');

@@ -125,9 +125,11 @@ Include this component once in the chat layout (unconditionally).
     refreshAllAuthenticatedNotificationState(options);
   }
 
-  function notificationCreatedEvent(
-    event: EventEnvelope['event']
-  ): { notificationId: string; silent?: boolean } | null {
+  function notificationCreatedEvent(event: EventEnvelope['event']): {
+    notificationId: string;
+    silent?: boolean;
+    notificationCenterSuppressed?: boolean;
+  } | null {
     if (
       !event ||
       !('notificationId' in event) ||
@@ -136,7 +138,12 @@ Include this component once in the chat layout (unconditionally).
     ) {
       return null;
     }
-    return { notificationId: event.notificationId, silent: event.silent === true };
+    return {
+      notificationId: event.notificationId,
+      silent: event.silent === true,
+      notificationCenterSuppressed:
+        'notificationCenterSuppressed' in event && event.notificationCenterSuppressed === true
+    };
   }
 
   function notificationDismissedEvent(
@@ -237,6 +244,20 @@ Include this component once in the chat layout (unconditionally).
             const notification = notificationCreatedEvent(event.event);
             if (!notification) break;
             void (async () => {
+              if (notification.notificationCenterSuppressed) {
+                notificationStore.removeCenterNotification(notification.notificationId);
+                await Promise.allSettled([
+                  notificationStore.addNotificationSignal(notification.notificationId),
+                  refreshCountsOnce(instance.id, () => stores.rooms.refreshNotificationCounts())
+                ]);
+                if (!notification.silent) {
+                  playNotificationSound(
+                    userPreferences.notificationSound,
+                    userPreferences.notificationSoundFilters
+                  );
+                }
+                return;
+              }
               const [hydrated] = await Promise.allSettled([
                 notificationStore.addNotification(notification.notificationId),
                 refreshCountsOnce(instance.id, () => stores.rooms.refreshNotificationCounts())

@@ -142,8 +142,11 @@ export class NotificationStore {
   #api: NotificationAPI;
   #locallyDismissedNotificationIds = new SvelteSet<string>();
   #fetchGeneration = 0;
+  #signalFetchGeneration = 0;
   notifications = $state<NotificationItem[]>([]);
+  signalNotifications = $state<NotificationItem[]>([]);
   unreadNotificationCount = $state(0);
+  signalNotificationCount = $state(0);
   loading = $state(false);
   hasLoaded = $state(false);
   error = $state<string | null>(null);
@@ -162,11 +165,24 @@ export class NotificationStore {
   }
 
   get hasCompleteNotificationSnapshot(): boolean {
-    return this.hasLoaded && this.error === null && this.notifications.length === this.unreadNotificationCount;
+    return (
+      this.hasLoaded &&
+      this.error === null &&
+      this.notifications.length === this.unreadNotificationCount
+    );
   }
 
   get pendingNotificationIds(): string[] {
     return this.notifications.map((notification) => notification.id);
+  }
+
+  get allNotificationSignals(): NotificationItem[] {
+    const seen = new SvelteSet<string>();
+    return [...this.signalNotifications, ...this.notifications].filter((notification) => {
+      if (seen.has(notification.id)) return false;
+      seen.add(notification.id);
+      return true;
+    });
   }
 
   setUnreadNotificationCount(count: number): void {
@@ -179,7 +195,7 @@ export class NotificationStore {
    */
   get threadsWithNotifications(): SvelteSet<string> {
     const threadIds = new SvelteSet<string>();
-    for (const n of this.notifications) {
+    for (const n of this.allNotificationSignals) {
       const threadRootId = notificationTarget(n).threadRootId;
       if (threadRootId) threadIds.add(threadRootId);
     }
@@ -190,14 +206,16 @@ export class NotificationStore {
    * Check if a specific thread has pending notifications.
    */
   hasThreadNotification(threadRootId: string): boolean {
-    return this.notifications.some((n) => notificationTarget(n).threadRootId === threadRootId);
+    return this.allNotificationSignals.some(
+      (n) => notificationTarget(n).threadRootId === threadRootId
+    );
   }
 
   /**
    * Check if a specific room has pending non-DM notifications.
    */
   hasRoomNotification(roomId: string): boolean {
-    return this.notifications.some((n) => {
+    return this.allNotificationSignals.some((n) => {
       const t = notificationTarget(n);
       return !t.isDM && t.roomId === roomId;
     });
@@ -211,7 +229,7 @@ export class NotificationStore {
    * parameter for call-site compatibility — it's ignored.
    */
   hasSpaceNotification(_spaceId?: string): boolean {
-    return this.notifications.some((n) => !notificationTarget(n).isDM);
+    return this.allNotificationSignals.some((n) => !notificationTarget(n).isDM);
   }
 
   /**
@@ -219,14 +237,14 @@ export class NotificationStore {
    * Notifications are sorted most-recent-first, so .find returns the freshest.
    */
   getSpaceNotification(_spaceId?: string): NotificationItem | undefined {
-    return this.notifications.find((n) => !notificationTarget(n).isDM);
+    return this.allNotificationSignals.find((n) => !notificationTarget(n).isDM);
   }
 
   /**
    * Get the most recent non-DM notification for a room.
    */
   getRoomNotification(roomId: string): NotificationItem | undefined {
-    return this.notifications.find((n) => {
+    return this.allNotificationSignals.find((n) => {
       const t = notificationTarget(n);
       return !t.isDM && t.roomId === roomId;
     });
@@ -236,7 +254,7 @@ export class NotificationStore {
    * Check if there are any pending DM notifications.
    */
   hasDMNotifications(): boolean {
-    return this.notifications.some((n) => isDMNotification(n));
+    return this.allNotificationSignals.some((n) => isDMNotification(n));
   }
 
   /**
@@ -244,7 +262,7 @@ export class NotificationStore {
    * Returns undefined if no DM notifications exist.
    */
   getDMNotification(): NotificationItem | undefined {
-    return this.notifications.find((n) => isDMNotification(n));
+    return this.allNotificationSignals.find((n) => isDMNotification(n));
   }
 
   /**
@@ -252,14 +270,14 @@ export class NotificationStore {
    * Counterpart to {@link hasRoomNotification}, which excludes DMs.
    */
   hasDMRoomNotification(roomId: string): boolean {
-    return this.notifications.some((n) => isDMNotification(n) && n.room.id === roomId);
+    return this.allNotificationSignals.some((n) => isDMNotification(n) && n.room.id === roomId);
   }
 
   /**
    * Get the most recent notification for a DM conversation.
    */
   getDMRoomNotification(roomId: string): NotificationItem | undefined {
-    return this.notifications.find((n) => isDMNotification(n) && n.room.id === roomId);
+    return this.allNotificationSignals.find((n) => isDMNotification(n) && n.room.id === roomId);
   }
 
   getCachedRoomNotification(
@@ -284,6 +302,7 @@ export class NotificationStore {
     const generation = ++this.#fetchGeneration;
     this.loading = true;
     this.error = null;
+    const signalFetch = this.fetchNotificationSignals();
 
     try {
       const page = await this.#api.listNotifications(50);
@@ -301,9 +320,27 @@ export class NotificationStore {
       this.error = e instanceof Error ? e.message : 'Failed to fetch notifications';
       console.error('Failed to fetch notifications:', e);
     } finally {
+      await signalFetch;
       if (generation === this.#fetchGeneration) {
         this.loading = false;
       }
+    }
+  }
+
+  async fetchNotificationSignals(): Promise<void> {
+    const generation = ++this.#signalFetchGeneration;
+    try {
+      const page = await this.#api.listNotificationSignals(50);
+      if (generation !== this.#signalFetchGeneration) return;
+      const signals = page.items.filter(
+        (notification) => !this.#locallyDismissedNotificationIds.has(notification.id)
+      );
+      const locallyDismissedPageItems = page.items.length - signals.length;
+      this.signalNotifications = signals;
+      this.signalNotificationCount = Math.max(0, page.totalCount - locallyDismissedPageItems);
+    } catch (e) {
+      if (generation !== this.#signalFetchGeneration) return;
+      console.error('Failed to fetch notification signals:', e);
     }
   }
 
@@ -319,7 +356,7 @@ export class NotificationStore {
       const page = await this.#api.listRoomNotifications(roomId, 1);
       const notification = page.items[0] ?? null;
       if (notification) {
-        this.#upsertNotification(notification);
+        this.#upsertSignalNotification(notification);
       }
 
       return {
@@ -364,16 +401,16 @@ export class NotificationStore {
   async dismiss(notificationId: string): Promise<boolean> {
     const removed = this.notifications.find((n) => n.id === notificationId);
     if (!removed) return false;
+    const removedSignal = this.signalNotifications.find((n) => n.id === notificationId);
 
-    this.#invalidateFetch();
-    this.notifications = this.notifications.filter((n) => n.id !== notificationId);
-    this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+    this.removeNotification(notificationId);
     this.#markLocalDismissal(notificationId);
 
     try {
       if (!(await this.#api.dismissNotification(notificationId))) {
         this.#locallyDismissedNotificationIds.delete(notificationId);
         this.#restoreNotification(removed);
+        this.#restoreNotificationSignal(removedSignal ?? removed);
         this.unreadNotificationCount += 1;
         return false;
       }
@@ -382,6 +419,7 @@ export class NotificationStore {
       console.error('Failed to dismiss notification:', e);
       this.#locallyDismissedNotificationIds.delete(notificationId);
       this.#restoreNotification(removed);
+      this.#restoreNotificationSignal(removedSignal ?? removed);
       this.unreadNotificationCount += 1;
       return false;
     }
@@ -396,21 +434,23 @@ export class NotificationStore {
   async dismissById(notificationId: string): Promise<boolean> {
     if (notificationId === '') return false;
 
-    const removed = this.notifications.find((n) => n.id === notificationId);
-    if (removed) return this.dismiss(notificationId);
+    const removedCenter = this.notifications.find((n) => n.id === notificationId);
+    if (removedCenter) return this.dismiss(notificationId);
+    const removedSignal = this.signalNotifications.find((n) => n.id === notificationId);
 
     this.#markLocalDismissal(notificationId);
+    this.removeNotification(notificationId);
     try {
       if (!(await this.#api.dismissNotification(notificationId))) {
         this.#locallyDismissedNotificationIds.delete(notificationId);
+        if (removedSignal) this.#restoreNotificationSignal(removedSignal);
         return false;
       }
-      this.#invalidateFetch();
-      this.notifications = this.notifications.filter((n) => n.id !== notificationId);
       return true;
     } catch (e) {
       console.error('Failed to dismiss notification:', e);
       this.#locallyDismissedNotificationIds.delete(notificationId);
+      if (removedSignal) this.#restoreNotificationSignal(removedSignal);
       return false;
     }
   }
@@ -421,13 +461,18 @@ export class NotificationStore {
    */
   async dismissAll(): Promise<number> {
     const original = this.notifications;
+    const originalSignals = this.signalNotifications;
     const originalCount = this.unreadNotificationCount;
-    if (original.length === 0 && originalCount === 0) return 0;
+    const originalSignalCount = this.signalNotificationCount;
+    if (original.length === 0 && originalSignalCount === 0 && originalCount === 0) return 0;
 
     this.#invalidateFetch();
+    this.#invalidateSignalFetch();
     this.notifications = [];
+    this.signalNotifications = [];
     this.unreadNotificationCount = 0;
-    for (const notification of original) {
+    this.signalNotificationCount = 0;
+    for (const notification of this.#uniqueNotifications([...original, ...originalSignals])) {
       this.#markLocalDismissal(notification.id);
     }
 
@@ -435,11 +480,13 @@ export class NotificationStore {
       return await this.#api.dismissAllNotifications();
     } catch (e) {
       console.error('Failed to dismiss all notifications:', e);
-      for (const notification of original) {
+      for (const notification of this.#uniqueNotifications([...original, ...originalSignals])) {
         this.#locallyDismissedNotificationIds.delete(notification.id);
       }
       this.notifications = original;
+      this.signalNotifications = originalSignals;
       this.unreadNotificationCount = originalCount;
+      this.signalNotificationCount = originalSignalCount;
       await this.fetch();
       return 0;
     }
@@ -451,6 +498,12 @@ export class NotificationStore {
    */
   #restoreNotification(notification: NotificationItem): void {
     this.#upsertNotification(notification);
+  }
+
+  #restoreNotificationSignal(notification: NotificationItem): void {
+    if (this.#upsertSignalNotification(notification)) {
+      this.signalNotificationCount++;
+    }
   }
 
   #upsertNotification(notification: NotificationItem): boolean {
@@ -465,6 +518,27 @@ export class NotificationStore {
     return !existed;
   }
 
+  #upsertSignalNotification(notification: NotificationItem): boolean {
+    const existed = this.signalNotifications.some((candidate) => candidate.id === notification.id);
+    this.#invalidateSignalFetch();
+    this.signalNotifications = [
+      ...this.signalNotifications.filter((n) => n.id !== notification.id),
+      notification
+    ]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 50);
+    return !existed;
+  }
+
+  #uniqueNotifications(notifications: NotificationItem[]): NotificationItem[] {
+    const seen = new SvelteSet<string>();
+    return notifications.filter((notification) => {
+      if (seen.has(notification.id)) return false;
+      seen.add(notification.id);
+      return true;
+    });
+  }
+
   #invalidateFetch(): void {
     const shouldRestart = this.loading;
     this.#fetchGeneration++;
@@ -477,6 +551,10 @@ export class NotificationStore {
         }
       });
     }
+  }
+
+  #invalidateSignalFetch(): void {
+    this.#signalFetchGeneration++;
   }
 
   #markLocalDismissal(notificationId: string): void {
@@ -508,6 +586,10 @@ export class NotificationStore {
       const notification = await this.#api.getNotification(notificationId);
       if (!notification || this.#locallyDismissedNotificationIds.has(notificationId)) return false;
 
+      if (this.#upsertSignalNotification(notification)) {
+        this.signalNotificationCount++;
+      }
+
       if (this.#upsertNotification(notification)) {
         this.unreadNotificationCount++;
         return true;
@@ -524,15 +606,49 @@ export class NotificationStore {
     }
   }
 
-  /**
-   * Remove a notification by ID (for cross-device sync).
-   */
-  removeNotification(notificationId: string) {
+  async addNotificationSignal(notificationId: string): Promise<boolean> {
+    if (!notificationId) return false;
+    try {
+      const notification = await this.#api.getNotificationSignal(notificationId);
+      if (!notification || this.#locallyDismissedNotificationIds.has(notificationId)) return false;
+      const added = this.#upsertSignalNotification(notification);
+      if (added) this.signalNotificationCount++;
+      return added;
+    } catch (e) {
+      console.error('Failed to hydrate notification signal:', e);
+      const alreadyPresent = this.signalNotifications.some(
+        (notification) => notification.id === notificationId
+      );
+      await this.fetchNotificationSignals();
+      return (
+        !alreadyPresent &&
+        this.signalNotifications.some((notification) => notification.id === notificationId)
+      );
+    }
+  }
+
+  removeCenterNotification(notificationId: string): string | null {
     const removed = this.notifications.find((n) => n.id === notificationId);
     this.#invalidateFetch();
     this.notifications = this.notifications.filter((n) => n.id !== notificationId);
     if (removed) {
       this.unreadNotificationCount = Math.max(0, this.unreadNotificationCount - 1);
+    }
+    return removed ? notificationTarget(removed).roomId : null;
+  }
+
+  /**
+   * Remove a notification by ID (for cross-device sync).
+   */
+  removeNotification(notificationId: string) {
+    const removed =
+      this.notifications.find((n) => n.id === notificationId) ??
+      this.signalNotifications.find((n) => n.id === notificationId);
+    const removedCenter = this.removeCenterNotification(notificationId);
+    this.#invalidateSignalFetch();
+    this.signalNotifications = this.signalNotifications.filter((n) => n.id !== notificationId);
+    if (removed || removedCenter) {
+      this.signalNotificationCount = Math.max(0, this.signalNotificationCount - 1);
     }
     return removed ? notificationTarget(removed).roomId : null;
   }

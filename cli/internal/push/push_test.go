@@ -522,7 +522,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Title != "@Alice sent you a new DM" {
 			t.Errorf("Expected '@Alice sent you a new DM', got %s", payload.Title)
 		}
-		if payload.Body != "Open Towk to read the direct message" {
+		if payload.Body != "Message" {
 			t.Errorf("Expected fallback body, got %s", payload.Body)
 		}
 		if payload.Tag != "dm-event-789" {
@@ -573,7 +573,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Title != "@Bob mentioned you" {
 			t.Errorf("Expected '@Bob mentioned you', got %s", payload.Title)
 		}
-		if payload.Body != "Open Towk to read the mention" {
+		if payload.Body != "Message" {
 			t.Errorf("Expected fallback body, got %s", payload.Body)
 		}
 		if payload.URL != "https://towk.example.com/chat/-/room-2?highlight=event-3" {
@@ -659,7 +659,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 		if payload.Title != "@Diana replied to you" {
 			t.Errorf("Expected '@Diana replied to you', got %s", payload.Title)
 		}
-		if payload.Body != "Open Towk to read the reply" {
+		if payload.Body != "Message" {
 			t.Errorf("Expected fallback body, got %s", payload.Body)
 		}
 		if payload.Tag != "reply-reply-event" {
@@ -785,7 +785,7 @@ func TestBuildPayloadFromNotification(t *testing.T) {
 
 		payload := BuildPayloadFromNotification(notif, "Eve", baseURL, nil)
 
-		if payload.Body != "Open Towk to read the message" {
+		if payload.Body != "Message" {
 			t.Errorf("Expected fallback body, got %s", payload.Body)
 		}
 		expectedURL := "https://towk.example.com/chat/-/room-news/thread-root?highlight=thread-reply"
@@ -882,16 +882,17 @@ func TestNotificationCopyForLocale(t *testing.T) {
 			want: notificationCopy{
 				unknownActor:       "Someone",
 				directMessage:      "@%s sent you a new DM",
-				directMessageBody:  "Open Towk to read the direct message",
 				mention:            "@%s mentioned you",
 				mentionInRoom:      "@%s mentioned you in #%s",
-				mentionBody:        "Open Towk to read the mention",
 				reply:              "@%s replied to you",
 				replyInRoom:        "@%s replied to you in #%s",
-				replyBody:          "Open Towk to read the reply",
 				roomMessage:        "@%s posted a message",
 				roomMessageInRoom:  "@%s posted in #%s",
-				roomMessageBody:    "Open Towk to read the message",
+				messageBody:        "Message",
+				attachmentBody:     "Attachment",
+				attachmentsBody:    "%d attachments",
+				attachmentNamed:    "Attachment: %s",
+				attachmentsNamed:   "Attachments: %s",
 				voiceMessageBody:   "Voice message",
 				defaultTitle:       "New notification",
 				defaultDescription: "You have a new notification",
@@ -902,16 +903,17 @@ func TestNotificationCopyForLocale(t *testing.T) {
 			want: notificationCopy{
 				unknownActor:       "Jemand",
 				directMessage:      "@%s hat dir eine neue Direktnachricht gesendet",
-				directMessageBody:  "Öffne Towk, um die Direktnachricht zu lesen",
 				mention:            "@%s hat dich erwähnt",
 				mentionInRoom:      "@%s hat dich in #%s erwähnt",
-				mentionBody:        "Öffne Towk, um die Erwähnung zu lesen",
 				reply:              "@%s hat dir geantwortet",
 				replyInRoom:        "@%s hat dir in #%s geantwortet",
-				replyBody:          "Öffne Towk, um die Antwort zu lesen",
 				roomMessage:        "@%s hat eine Nachricht gesendet",
 				roomMessageInRoom:  "@%s hat in #%s geschrieben",
-				roomMessageBody:    "Öffne Towk, um die Nachricht zu lesen",
+				messageBody:        "Nachricht",
+				attachmentBody:     "Anhang",
+				attachmentsBody:    "%d Anhänge",
+				attachmentNamed:    "Anhang: %s",
+				attachmentsNamed:   "Anhänge: %s",
 				voiceMessageBody:   "Sprachnachricht",
 				defaultTitle:       "Neue Benachrichtigung",
 				defaultDescription: "Du hast eine neue Benachrichtigung",
@@ -922,16 +924,17 @@ func TestNotificationCopyForLocale(t *testing.T) {
 			want: notificationCopy{
 				unknownActor:       "Quelqu’un",
 				directMessage:      "@%s vous a envoyé un nouveau message privé",
-				directMessageBody:  "Ouvrez Towk pour lire le message privé",
 				mention:            "@%s vous a mentionné",
 				mentionInRoom:      "@%s vous a mentionné dans #%s",
-				mentionBody:        "Ouvrez Towk pour lire la mention",
 				reply:              "@%s vous a répondu",
 				replyInRoom:        "@%s vous a répondu dans #%s",
-				replyBody:          "Ouvrez Towk pour lire la réponse",
 				roomMessage:        "@%s a publié un message",
 				roomMessageInRoom:  "@%s a publié un message dans #%s",
-				roomMessageBody:    "Ouvrez Towk pour lire le message",
+				messageBody:        "Message",
+				attachmentBody:     "Pièce jointe",
+				attachmentsBody:    "%d pièces jointes",
+				attachmentNamed:    "Pièce jointe : %s",
+				attachmentsNamed:   "Pièces jointes : %s",
 				voiceMessageBody:   "Message vocal",
 				defaultTitle:       "Nouvelle notification",
 				defaultDescription: "Vous avez une nouvelle notification",
@@ -942,16 +945,17 @@ func TestNotificationCopyForLocale(t *testing.T) {
 			want: notificationCopy{
 				unknownActor:       "Alguien",
 				directMessage:      "@%s te envió un nuevo mensaje directo",
-				directMessageBody:  "Abre Towk para leer el mensaje directo",
 				mention:            "@%s te mencionó",
 				mentionInRoom:      "@%s te mencionó en #%s",
-				mentionBody:        "Abre Towk para leer la mención",
 				reply:              "@%s te respondió",
 				replyInRoom:        "@%s te respondió en #%s",
-				replyBody:          "Abre Towk para leer la respuesta",
 				roomMessage:        "@%s publicó un mensaje",
 				roomMessageInRoom:  "@%s publicó un mensaje en #%s",
-				roomMessageBody:    "Abre Towk para leer el mensaje",
+				messageBody:        "Mensaje",
+				attachmentBody:     "Archivo adjunto",
+				attachmentsBody:    "%d archivos adjuntos",
+				attachmentNamed:    "Archivo adjunto: %s",
+				attachmentsNamed:   "Archivos adjuntos: %s",
 				voiceMessageBody:   "Mensaje de voz",
 				defaultTitle:       "Nueva notificación",
 				defaultDescription: "Tienes una nueva notificación",
@@ -962,16 +966,17 @@ func TestNotificationCopyForLocale(t *testing.T) {
 			want: notificationCopy{
 				unknownActor:       "Alguém",
 				directMessage:      "@%s enviou uma nova mensagem direta para você",
-				directMessageBody:  "Abra o Towk para ler a mensagem direta",
 				mention:            "@%s mencionou você",
 				mentionInRoom:      "@%s mencionou você em #%s",
-				mentionBody:        "Abra o Towk para ler a menção",
 				reply:              "@%s respondeu a você",
 				replyInRoom:        "@%s respondeu a você em #%s",
-				replyBody:          "Abra o Towk para ler a resposta",
 				roomMessage:        "@%s publicou uma mensagem",
 				roomMessageInRoom:  "@%s publicou uma mensagem em #%s",
-				roomMessageBody:    "Abra o Towk para ler a mensagem",
+				messageBody:        "Mensagem",
+				attachmentBody:     "Anexo",
+				attachmentsBody:    "%d anexos",
+				attachmentNamed:    "Anexo: %s",
+				attachmentsNamed:   "Anexos: %s",
 				voiceMessageBody:   "Mensagem de voz",
 				defaultTitle:       "Nova notificação",
 				defaultDescription: "Você tem uma nova notificação",
@@ -1027,7 +1032,7 @@ func TestBuildLocalizedPayloadFromNotification(t *testing.T) {
 		&PayloadContext{RoomName: "général", MessagePreview: "   "},
 		"fr",
 	)
-	if fallbackPayload.Body != "Ouvrez Towk pour lire le message" {
+	if fallbackPayload.Body != "Message" {
 		t.Fatalf("localized fallback body = %q", fallbackPayload.Body)
 	}
 
@@ -1040,6 +1045,114 @@ func TestBuildLocalizedPayloadFromNotification(t *testing.T) {
 	)
 	if voicePayload.Body != "Message vocal" {
 		t.Fatalf("localized voice body = %q", voicePayload.Body)
+	}
+}
+
+func TestBuildLocalizedAttachmentOnlyPushBodies(t *testing.T) {
+	notif := &corev1.Notification{Notification: &corev1.Notification_RoomMessage{
+		RoomMessage: &corev1.RoomMessageNotification{RoomId: "room", EventId: "attachment-event"},
+	}}
+	tests := map[string]struct {
+		single string
+		many   string
+		count  string
+	}{
+		"en": {single: "Attachment: report.pdf", many: "Attachments: photo.jpg, report.pdf", count: "2 attachments"},
+		"de": {single: "Anhang: report.pdf", many: "Anhänge: photo.jpg, report.pdf", count: "2 Anhänge"},
+		"fr": {single: "Pièce jointe : report.pdf", many: "Pièces jointes : photo.jpg, report.pdf", count: "2 pièces jointes"},
+		"es": {single: "Archivo adjunto: report.pdf", many: "Archivos adjuntos: photo.jpg, report.pdf", count: "2 archivos adjuntos"},
+		"pt": {single: "Anexo: report.pdf", many: "Anexos: photo.jpg, report.pdf", count: "2 anexos"},
+	}
+	for locale, want := range tests {
+		t.Run(locale+"/single", func(t *testing.T) {
+			payload := BuildLocalizedPayloadFromNotification(
+				notif,
+				"Alice",
+				"https://towk.example",
+				&PayloadContext{AttachmentFilenames: []string{"report.pdf"}},
+				locale,
+			)
+			if payload.Body != want.single {
+				t.Fatalf("single attachment body = %q, want %q", payload.Body, want.single)
+			}
+		})
+		t.Run(locale+"/many", func(t *testing.T) {
+			payload := BuildLocalizedPayloadFromNotification(
+				notif,
+				"Alice",
+				"https://towk.example",
+				&PayloadContext{AttachmentFilenames: []string{"photo.jpg", "report.pdf"}},
+				locale,
+			)
+			if payload.Body != want.many {
+				t.Fatalf("multiple attachment body = %q, want %q", payload.Body, want.many)
+			}
+		})
+		t.Run(locale+"/partial-filenames", func(t *testing.T) {
+			payload := BuildLocalizedPayloadFromNotification(
+				notif,
+				"Alice",
+				"https://towk.example",
+				&PayloadContext{AttachmentFilenames: []string{"photo.jpg"}, AttachmentCount: 2},
+				locale,
+			)
+			if payload.Body != want.count {
+				t.Fatalf("partial attachment body = %q, want %q", payload.Body, want.count)
+			}
+		})
+	}
+}
+
+func TestMessagePushFallbackNeverAsksToOpenTowk(t *testing.T) {
+	notifications := []*corev1.Notification{
+		{Notification: &corev1.Notification_DmMessage{DmMessage: &corev1.DMMessageNotification{RoomId: "dm", EventId: "event"}}},
+		{Notification: &corev1.Notification_Mention{Mention: &corev1.MentionNotification{RoomId: "room", EventId: "event"}}},
+		{Notification: &corev1.Notification_Reply{Reply: &corev1.ReplyNotification{RoomId: "room", EventId: "event"}}},
+		{Notification: &corev1.Notification_RoomMessage{RoomMessage: &corev1.RoomMessageNotification{RoomId: "room", EventId: "event"}}},
+	}
+	want := map[string]string{
+		"en": "Message",
+		"de": "Nachricht",
+		"fr": "Message",
+		"es": "Mensaje",
+		"pt": "Mensagem",
+	}
+	for locale, expected := range want {
+		for index, notification := range notifications {
+			payload := BuildLocalizedPayloadFromNotification(
+				notification,
+				"Alice",
+				"https://towk.example",
+				&PayloadContext{},
+				locale,
+			)
+			if payload.Body != expected {
+				t.Fatalf("locale %s kind %d body = %q, want %q", locale, index, payload.Body, expected)
+			}
+			if strings.Contains(strings.ToLower(payload.Body), "towk") {
+				t.Fatalf("locale %s kind %d still asks to open Towk: %q", locale, index, payload.Body)
+			}
+		}
+	}
+}
+
+func TestMessageBodyTakesPriorityOverAttachmentFallback(t *testing.T) {
+	notif := &corev1.Notification{Notification: &corev1.Notification_RoomMessage{
+		RoomMessage: &corev1.RoomMessageNotification{RoomId: "room", EventId: "event"},
+	}}
+	payload := BuildLocalizedPayloadFromNotification(
+		notif,
+		"Alice",
+		"https://towk.example",
+		&PayloadContext{
+			MessagePreview:      "Caption shown exactly",
+			AttachmentFilenames: []string{"photo.jpg"},
+			AttachmentCount:     1,
+		},
+		"en",
+	)
+	if payload.Body != "Caption shown exactly" {
+		t.Fatalf("captioned attachment body = %q", payload.Body)
 	}
 }
 
@@ -1075,7 +1188,6 @@ func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T)
 		name         string
 		notification *corev1.Notification
 		wantTitle    map[string]string
-		wantBody     map[string]string
 	}{
 		{
 			name: "direct message",
@@ -1088,13 +1200,6 @@ func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T)
 				"fr": "@Alice vous a envoyé un nouveau message privé",
 				"es": "@Alice te envió un nuevo mensaje directo",
 				"pt": "@Alice enviou uma nova mensagem direta para você",
-			},
-			wantBody: map[string]string{
-				"en": "Open Towk to read the direct message",
-				"de": "Öffne Towk, um die Direktnachricht zu lesen",
-				"fr": "Ouvrez Towk pour lire le message privé",
-				"es": "Abre Towk para leer el mensaje directo",
-				"pt": "Abra o Towk para ler a mensagem direta",
 			},
 		},
 		{
@@ -1109,13 +1214,6 @@ func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T)
 				"es": "@Alice te mencionó en #general",
 				"pt": "@Alice mencionou você em #general",
 			},
-			wantBody: map[string]string{
-				"en": "Open Towk to read the mention",
-				"de": "Öffne Towk, um die Erwähnung zu lesen",
-				"fr": "Ouvrez Towk pour lire la mention",
-				"es": "Abre Towk para leer la mención",
-				"pt": "Abra o Towk para ler a menção",
-			},
 		},
 		{
 			name: "reply",
@@ -1128,13 +1226,6 @@ func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T)
 				"fr": "@Alice vous a répondu dans #general",
 				"es": "@Alice te respondió en #general",
 				"pt": "@Alice respondeu a você em #general",
-			},
-			wantBody: map[string]string{
-				"en": "Open Towk to read the reply",
-				"de": "Öffne Towk, um die Antwort zu lesen",
-				"fr": "Ouvrez Towk pour lire la réponse",
-				"es": "Abre Towk para leer la respuesta",
-				"pt": "Abra o Towk para ler a resposta",
 			},
 		},
 		{
@@ -1149,13 +1240,6 @@ func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T)
 				"es": "@Alice publicó un mensaje en #general",
 				"pt": "@Alice publicou uma mensagem em #general",
 			},
-			wantBody: map[string]string{
-				"en": "Open Towk to read the message",
-				"de": "Öffne Towk, um die Nachricht zu lesen",
-				"fr": "Ouvrez Towk pour lire le message",
-				"es": "Abre Towk para leer el mensaje",
-				"pt": "Abra o Towk para ler a mensagem",
-			},
 		},
 	}
 
@@ -1166,14 +1250,14 @@ func TestBuildLocalizedPayloadCoversEveryNotificationKindAndLocale(t *testing.T)
 					tt.notification,
 					"Alice",
 					"https://towk.example",
-					&PayloadContext{RoomName: "general"},
+					&PayloadContext{RoomName: "general", MessagePreview: "The exact message remains visible"},
 					locale,
 				)
 				if payload.Title != tt.wantTitle[locale] {
 					t.Fatalf("title = %q, want %q", payload.Title, tt.wantTitle[locale])
 				}
-				if payload.Body != tt.wantBody[locale] {
-					t.Fatalf("body = %q, want %q", payload.Body, tt.wantBody[locale])
+				if payload.Body != "The exact message remains visible" {
+					t.Fatalf("body = %q, want exact message preview", payload.Body)
 				}
 			})
 		}

@@ -746,6 +746,7 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// projection-keyed event_id is the new canonical identifier.
 	messageBodyKey := event.Id
 	c.logger.Debug("Message posted", "kind", kind, "room_id", room_id, "message_body_key", messageBodyKey, "sequence_id", sequenceID, "user_id", user_id)
+	notificationCtx := withNotificationMessageSnapshot(ctx, event.Id, body, resolvedAssets)
 
 	// Mark the room as read for the poster. For root posts, the just-
 	// published event is the new last root. For thread replies, we look up
@@ -816,14 +817,14 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 		// messages are handled by one exclusive DM fanout below so a mention or
 		// reply inside a DM cannot produce duplicate notifications and pushes.
 		if len(mentionedUserIDs) > 0 {
-			mentionNotifiedUserIDs = c.notifyMentionedUsers(ctx, kind, room_id, user_id, event.Id, inThread, mentionedUserIDs, directMentionedUserIDs)
+			mentionNotifiedUserIDs = c.notifyMentionedUsers(notificationCtx, kind, room_id, user_id, event.Id, inThread, mentionedUserIDs, directMentionedUserIDs)
 		}
 
 		// Notify the author of the message being replied to (best-effort).
 		// Runs before notifyThreadFollowers so the more specific inReplyTo
 		// notification takes priority.
 		if inReplyTo != "" {
-			replyNotifiedUserID = c.notifyInReplyToAuthor(ctx, kind, room_id, user_id, event.Id, inReplyTo, inThread, mentionNotifiedUserIDs)
+			replyNotifiedUserID = c.notifyInReplyToAuthor(notificationCtx, kind, room_id, user_id, event.Id, inReplyTo, inThread, mentionNotifiedUserIDs)
 		}
 
 		// Mention recipients must not also get an ambient followed-thread
@@ -834,13 +835,13 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 			if replyNotifiedUserID != "" {
 				skipIDs = append(skipIDs, replyNotifiedUserID)
 			}
-			threadFollowerNotifiedUserIDs = c.notifyThreadFollowers(ctx, kind, room_id, user_id, event.Id, inThread, skipIDs)
+			threadFollowerNotifiedUserIDs = c.notifyThreadFollowers(notificationCtx, kind, room_id, user_id, event.Id, inThread, skipIDs)
 		}
 	}
 
 	// Notify DM participants for every new message (best-effort)
 	if kind == KindDM {
-		c.notifyDMParticipants(ctx, room_id, user_id, event.Id, inThread)
+		c.notifyDMParticipants(notificationCtx, room_id, user_id, event.Id, inThread)
 	}
 
 	// Notify room members who have ALL_MESSAGES notification level.
@@ -861,7 +862,7 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// ALL_MESSAGES path channel-only makes duplicate prevention independent of
 	// a second participant-list read succeeding.
 	if kind != KindDM {
-		c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, event.Id, inThread, alreadyNotified)
+		c.notifyAllMessageSubscribers(notificationCtx, kind, room_id, user_id, event.Id, inThread, alreadyNotified)
 	}
 
 	// Publish echo event to the message subject if "also send to channel" was requested.
@@ -882,7 +883,8 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 					echoAlreadyNotified[uid] = true
 				}
 			}
-			c.notifyAllMessageSubscribers(ctx, kind, room_id, user_id, echoID, "", echoAlreadyNotified)
+			echoNotificationCtx := withNotificationMessageSnapshot(ctx, echoID, body, resolvedAssets)
+			c.notifyAllMessageSubscribers(echoNotificationCtx, kind, room_id, user_id, echoID, "", echoAlreadyNotified)
 		}
 	}
 

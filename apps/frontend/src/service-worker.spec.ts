@@ -14,6 +14,8 @@ vi.mock('$lib/pwa/shareInbox', () => shareInboxMock);
 
 type ServiceWorkerHandler = (event: {
   data?: unknown;
+  source?: { type?: string; focused?: boolean; visibilityState?: string };
+  ports?: Array<{ postMessage: (message: unknown) => void }>;
   notification?: {
     title?: string;
     body?: string;
@@ -41,6 +43,9 @@ type TestNativeNotification = {
 
 type TestWindowClient = {
   postMessage: ReturnType<typeof vi.fn>;
+  type?: string;
+  focused?: boolean;
+  visibilityState?: string;
 };
 
 type TestPushSubscription = {
@@ -354,7 +359,7 @@ describe('service worker badge orchestration', () => {
       expect(consoleError).toHaveBeenCalledWith('Invalid push payload');
       expect(worker.registration.showNotification).toHaveBeenCalledOnce();
       expect(worker.registration.showNotification).toHaveBeenCalledWith('Towk', {
-        body: 'Open Towk to view the notification',
+        body: 'Message',
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-monochrome-96.png',
         tag: undefined,
@@ -384,7 +389,7 @@ describe('service worker badge orchestration', () => {
     });
 
     expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
-      body: 'Open Towk to view the notification',
+      body: 'Message',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-monochrome-96.png',
       tag: 'notification-without-body',
@@ -410,7 +415,7 @@ describe('service worker badge orchestration', () => {
     });
 
     expect(worker.registration.showNotification).toHaveBeenCalledWith('Nouvelle notification', {
-      body: 'Ouvrez Towk pour afficher la notification',
+      body: 'Message',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-monochrome-96.png',
       tag: 'notification-with-french-fallback',
@@ -423,7 +428,10 @@ describe('service worker badge orchestration', () => {
   });
 
   it('replaces browser origin bodies so Android never displays the served host or port', async () => {
-    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+    const worker = await importServiceWorker(
+      createMemoryCacheStorage(),
+      'https://towk.example:8443'
+    );
 
     await worker.dispatch('push', {
       data: {
@@ -437,7 +445,7 @@ describe('service worker badge orchestration', () => {
     });
 
     expect(worker.registration.showNotification).toHaveBeenCalledWith('New notification', {
-      body: 'Open Towk to view the notification',
+      body: 'Message',
       icon: '/icons/icon-192.png',
       badge: '/icons/badge-monochrome-96.png',
       tag: 'origin-body',
@@ -448,8 +456,11 @@ describe('service worker badge orchestration', () => {
     });
   });
 
-  it('uses the declarative payload locale when sanitizing origin fallback bodies', async () => {
-    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+  it('preserves a localized app-owned declarative message that equals the serving origin', async () => {
+    const worker = await importServiceWorker(
+      createMemoryCacheStorage(),
+      'https://towk.example:8443'
+    );
 
     await worker.dispatch('push', {
       notification: {
@@ -467,7 +478,7 @@ describe('service worker badge orchestration', () => {
     });
 
     expect(worker.registration.showNotification).toHaveBeenCalledWith('Notification déclarative', {
-      body: 'Ouvrez Towk pour afficher la notification',
+      body: 'https://towk.example:8443/',
       icon: 'https://towk.example:8443/icons/icon-192.png',
       badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
       tag: 'notification-origin-fr',
@@ -579,7 +590,10 @@ describe('service worker badge orchestration', () => {
   it('falls back to the native-close outbox when direct push-subscription acknowledgement fails', async () => {
     const worker = await importServiceWorker();
     const client = { postMessage: vi.fn() };
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 503 }))
+    );
     worker.registration.pushManager.getSubscription.mockResolvedValueOnce({
       toJSON: () => ({
         endpoint: 'https://push.example.com/subscription',
@@ -742,8 +756,11 @@ describe('service worker badge orchestration', () => {
     expect(worker.setAppBadge).toHaveBeenCalledWith(6);
   });
 
-  it('sanitizes declarative origin bodies before showing the notification', async () => {
-    const worker = await importServiceWorker(createMemoryCacheStorage(), 'https://towk.example:8443');
+  it('preserves an app-owned declarative message even when it equals the serving origin', async () => {
+    const worker = await importServiceWorker(
+      createMemoryCacheStorage(),
+      'https://towk.example:8443'
+    );
 
     await worker.dispatch('push', {
       notification: {
@@ -760,7 +777,7 @@ describe('service worker badge orchestration', () => {
     });
 
     expect(worker.registration.showNotification).toHaveBeenCalledWith('Declarative notification', {
-      body: 'Open Towk to view the notification',
+      body: 'https://towk.example:8443/',
       icon: 'https://towk.example:8443/icons/icon-192.png',
       badge: 'https://towk.example:8443/icons/badge-monochrome-96.png',
       tag: 'notification-origin',

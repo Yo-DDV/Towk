@@ -422,6 +422,14 @@ export class ListNotificationsRequest extends Message<ListNotificationsRequest> 
    */
   page?: PageRequest;
 
+  /**
+   * Stable browser-installation ID shared with Web Push and realtime presence.
+   * When present, rows suppressed while this installation was foreground are omitted.
+   *
+   * @generated from field: optional string push_client_id = 4;
+   */
+  pushClientId?: string;
+
   constructor(data?: PartialMessage<ListNotificationsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -431,6 +439,7 @@ export class ListNotificationsRequest extends Message<ListNotificationsRequest> 
   static readonly typeName = "chatto.api.v1.ListNotificationsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 3, name: "page", kind: "message", T: PageRequest },
+    { no: 4, name: "push_client_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListNotificationsRequest {
@@ -561,6 +570,13 @@ export class GetNotificationRequest extends Message<GetNotificationRequest> {
    */
   notificationId = "";
 
+  /**
+   * Stable browser-installation ID used for per-client notification-center visibility.
+   *
+   * @generated from field: optional string push_client_id = 2;
+   */
+  pushClientId?: string;
+
   constructor(data?: PartialMessage<GetNotificationRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -570,6 +586,7 @@ export class GetNotificationRequest extends Message<GetNotificationRequest> {
   static readonly typeName = "chatto.api.v1.GetNotificationRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "notification_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "push_client_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetNotificationRequest {
@@ -644,6 +661,13 @@ export class BatchGetNotificationsRequest extends Message<BatchGetNotificationsR
    */
   notificationIds: string[] = [];
 
+  /**
+   * Stable browser-installation ID used for per-client notification-center visibility.
+   *
+   * @generated from field: optional string push_client_id = 2;
+   */
+  pushClientId?: string;
+
   constructor(data?: PartialMessage<BatchGetNotificationsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -653,6 +677,7 @@ export class BatchGetNotificationsRequest extends Message<BatchGetNotificationsR
   static readonly typeName = "chatto.api.v1.BatchGetNotificationsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "notification_ids", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "push_client_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): BatchGetNotificationsRequest {
@@ -769,6 +794,13 @@ export class ListRoomNotificationsResponse extends Message<ListRoomNotifications
  * @generated from message chatto.api.v1.HasNotificationsRequest
  */
 export class HasNotificationsRequest extends Message<HasNotificationsRequest> {
+  /**
+   * Stable browser-installation ID used for per-client notification-center visibility.
+   *
+   * @generated from field: optional string push_client_id = 1;
+   */
+  pushClientId?: string;
+
   constructor(data?: PartialMessage<HasNotificationsRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -777,6 +809,7 @@ export class HasNotificationsRequest extends Message<HasNotificationsRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "chatto.api.v1.HasNotificationsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "push_client_id", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): HasNotificationsRequest {

@@ -362,6 +362,18 @@ describe('RoomsStore - refresh', () => {
     });
   });
 
+  it('aggregates global channel signals independently from the filtered notification center', async () => {
+    const store = makeStore({
+      roomDirectoryAPI: makeRoomDirectoryAPI([makeRoom('general'), makeRoom('random')]),
+      notificationAPI: makeNotificationAPI({ general: 2, random: 3 })
+    });
+
+    await store.refresh();
+    await vi.waitFor(() => expect(store.totalNotificationCount).toBe(5));
+
+    expect(store.firstRoomWithNotifications()?.id).toBe('general');
+  });
+
   it('refreshes notification counts for an already-loaded room list', async () => {
     let countQueries = 0;
     const notificationAPI = makeNotificationAPI();
