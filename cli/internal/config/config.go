@@ -340,8 +340,9 @@ func (c *WebserverConfig) EffectivePort() int {
 
 // AssetsCacheConfig contains settings for caching resized images.
 type AssetsCacheConfig struct {
-	Enabled bool     `toml:"enabled" env:"CHATTO_CORE_ASSETS_CACHE_ENABLED" comment:"Enable caching for resized images. Default: false (opt-in)."`
-	TTL     Duration `toml:"ttl" env:"CHATTO_CORE_ASSETS_CACHE_TTL" comment:"Time-to-live for cached images. Supports '7d', '1w', '168h', etc. Default: 7d."`
+	Enabled  bool              `toml:"enabled" env:"CHATTO_CORE_ASSETS_CACHE_ENABLED" comment:"Enable caching for resized images. Default: false (opt-in)."`
+	TTL      Duration          `toml:"ttl" env:"CHATTO_CORE_ASSETS_CACHE_TTL" comment:"Time-to-live for cached images. Supports '7d', '1w', '168h', etc. Default: 7d."`
+	MaxBytes datasize.ByteSize `toml:"max_bytes,commented" env:"CHATTO_CORE_ASSETS_CACHE_MAX_BYTES" comment:"Hard JetStream quota for cached image derivatives. A full cache falls back to uncached delivery. Default: 1 GB."`
 }
 
 // StorageBackend defines where new asset uploads are stored.
@@ -448,6 +449,18 @@ func (c *AssetsCacheConfig) TTLOrDefault() time.Duration {
 		return 7 * 24 * time.Hour // 7 days
 	}
 	return c.TTL.Duration()
+}
+
+const DefaultAssetCacheMaxBytes datasize.ByteSize = datasize.GB
+
+func (c *AssetsCacheConfig) MaxBytesOrDefault() int64 {
+	if c.MaxBytes == 0 {
+		return int64(DefaultAssetCacheMaxBytes)
+	}
+	if c.MaxBytes > datasize.ByteSize(math.MaxInt64) {
+		return math.MaxInt64
+	}
+	return int64(c.MaxBytes)
 }
 
 // AssetsConfig contains settings for asset storage (attachments, thumbnails, etc.).
@@ -1392,6 +1405,9 @@ func (c *ChattoConfig) Validate() error {
 	}
 	if c.Core.Assets.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
 		errs = append(errs, "core.assets.max_store_bytes must not exceed 9223372036854775807 bytes")
+	}
+	if c.Core.Assets.Cache.MaxBytes > datasize.ByteSize(math.MaxInt64) {
+		errs = append(errs, "core.assets.cache.max_bytes must not exceed 9223372036854775807 bytes")
 	}
 	if c.Core.Assets.LinkPreviews.MaxStoreBytes > datasize.ByteSize(math.MaxInt64) {
 		errs = append(errs, "core.assets.link_previews.max_store_bytes must not exceed 9223372036854775807 bytes")

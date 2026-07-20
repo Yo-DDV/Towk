@@ -129,6 +129,14 @@ Primary compatibility evidence:
 
 **Tradeoff:** Exhausting the shared store blocks every new write that uses `SERVER_ASSETS`, including temporary S3 upload chunks, until space is reclaimed or the quota is raised. Operators must still provision disk alerts, retention, backups, and an independent bucket quota for S3. See the [NATS Go object-store configuration](https://github.com/nats-io/nats.go/blob/v1.52.0/jetstream/object.go) and [NATS server maximum-bytes enforcement](https://github.com/nats-io/nats-server/blob/v2.14.3/server/stream.go).
 
+### 15. Slow NATS downloads use a delivery-specific deadline
+
+**Decision:** A NATS-backed attachment download without a caller-supplied deadline receives a 30-minute delivery deadline. Client cancellation still stops the object reader immediately, and a shorter deadline supplied by an upstream caller remains authoritative. JetStream management and other API calls retain their existing 30-second default timeout.
+
+**Why:** NATS Go wraps `ObjectStore.Get` calls that lack a deadline with the JetStream client's default timeout. The application's 30-second API timeout would therefore truncate a valid 25 MB attachment after roughly 15 MB on a 4 Mbit/s connection. The delivery-specific bound covers the default 100 MB video ceiling at approximately 0.5 Mbit/s without turning every JetStream operation into a long-running call.
+
+**Tradeoff:** A connected slow client can retain one bounded object reader for longer than an ordinary API request. Disconnect cancellation, the existing per-file limits, and the finite deadline bound that exposure; operators should still enforce connection and request-rate controls at their reverse proxy.
+
 ## Permissions
 
 Posting an attachment requires room membership, the relevant message-posting permission (`message.post` or `message.post-in-thread`), and `message.attach`. The `message.attach` permission is configurable at server, group, and room scope and only gates message attachments; server branding uploads, user avatars, link previews, and attachment deletion use their existing checks.

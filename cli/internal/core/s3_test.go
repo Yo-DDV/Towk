@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -240,6 +242,70 @@ func TestS3Client_PathPrefixUsesPhysicalKeyAndReturnsLogicalKey(t *testing.T) {
 	require.NoError(t, prefixedClient.DeleteObject(ctx, logicalKey))
 	_, err = verifierClient.StatObject(ctx, physicalKey)
 	require.Error(t, err)
+}
+
+func TestS3Client_PresignedURLExpiresAgainstRealProvider(t *testing.T) {
+	endpoint := os.Getenv("CHATTO_TEST_S3_ENDPOINT")
+	accessKey := os.Getenv("CHATTO_TEST_S3_ACCESS_KEY_ID")
+	secretKey := os.Getenv("CHATTO_TEST_S3_SECRET_ACCESS_KEY")
+	bucket := os.Getenv("CHATTO_TEST_S3_BUCKET")
+	if endpoint == "" || accessKey == "" || secretKey == "" || bucket == "" {
+		t.Skip("set the CHATTO_TEST_S3_* variables to run the real S3-compatible provider test")
+	}
+
+	useSSL := strings.HasPrefix(endpoint, "https://")
+	pathStyle := true
+	client, err := core.NewS3Client(config.S3Config{
+		Endpoint:        endpoint,
+		Bucket:          bucket,
+		AccessKeyID:     accessKey,
+		SecretAccessKey: secretKey,
+		UseSSL:          &useSSL,
+		PathStyle:       &pathStyle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, client)
+
+	ctx := context.Background()
+	require.NoError(t, client.EnsureBucket(ctx))
+
+	key := fmt.Sprintf("integration/presigned-expiry-%d.txt", time.Now().UnixNano())
+	content := []byte("short-lived capability")
+	_, err = client.PutObjectFromBytes(ctx, key, content, "text/plain")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = client.DeleteObject(context.Background(), key)
+	})
+
+	presignedURL, err := client.PresignedGetURL(ctx, key, time.Second)
+	require.NoError(t, err)
+	require.Equal(t, "1", presignedURL.Query().Get("X-Amz-Expires"))
+
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+	get := func() (int, []byte) {
+		resp, requestErr := httpClient.Get(presignedURL.String())
+		require.NoError(t, requestErr)
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
+		require.NoError(t, readErr)
+		return resp.StatusCode, body
+	}
+
+	status, body := get()
+	require.Equal(t, http.StatusOK, status)
+	require.Equal(t, content, body)
+
+	deadline := time.Now().Add(6 * time.Second)
+	for {
+		status, _ = get()
+		if status == http.StatusForbidden {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("presigned URL remained usable after its one-second expiry; last status %d", status)
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 }
 
 // TestS3KeyHelpers tests the S3 key generation helpers.

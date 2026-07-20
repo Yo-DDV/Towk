@@ -227,6 +227,44 @@ type StableAssetURL struct {
 	ExpiresAt time.Time
 }
 
+// natsObjectDeliveryTimeout bounds a slow NATS-backed download without
+// inheriting JetStream's much shorter API timeout. Thirty minutes covers the
+// default 100 MB video ceiling at roughly 0.5 Mbit/s while request cancellation
+// still releases the reader immediately when the client disconnects.
+const natsObjectDeliveryTimeout = 30 * time.Minute
+
+type natsObjectDeliveryResult struct {
+	jetstream.ObjectResult
+	cancel context.CancelFunc
+}
+
+func (r *natsObjectDeliveryResult) Read(p []byte) (int, error) {
+	n, err := r.ObjectResult.Read(p)
+	if err != nil {
+		r.cancel()
+	}
+	return n, err
+}
+
+func (r *natsObjectDeliveryResult) Close() error {
+	err := r.ObjectResult.Close()
+	r.cancel()
+	return err
+}
+
+func getNATSObjectForDelivery(ctx context.Context, store jetstream.ObjectStore, name string) (jetstream.ObjectResult, error) {
+	if _, hasDeadline := ctx.Deadline(); hasDeadline {
+		return store.Get(ctx, name)
+	}
+	deliveryCtx, cancel := context.WithTimeout(ctx, natsObjectDeliveryTimeout)
+	result, err := store.Get(deliveryCtx, name)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	return &natsObjectDeliveryResult{ObjectResult: result, cancel: cancel}, nil
+}
+
 // GetAttachment retrieves an attachment by ID from NATS ObjectStore.
 // This is the legacy path for attachments stored in NATS.
 // Returns a reader for the attachment content and the object info.
@@ -236,13 +274,14 @@ func (c *MediaModel) GetAttachment(ctx context.Context, attachmentID string) (io
 		return nil, nil, fmt.Errorf("failed to get attachments store: %w", err)
 	}
 
-	result, err := store.Get(ctx, attachmentID)
+	result, err := getNATSObjectForDelivery(ctx, store, attachmentID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get attachment: %w", err)
 	}
 
 	info, err := result.Info()
 	if err != nil {
+		_ = result.Close()
 		return nil, nil, fmt.Errorf("failed to get attachment info: %w", err)
 	}
 
@@ -809,10 +848,20 @@ func (c *MediaModel) StoreCachedResize(ctx context.Context, key string, data []b
 		},
 	}, bytes.NewReader(data))
 	if err != nil {
+		if imageCacheCapacityExceeded(err) {
+			return fmt.Errorf("%w: %w", ErrImageCacheCapacity, err)
+		}
 		return fmt.Errorf("failed to store cached resize: %w", err)
 	}
 
 	return nil
+}
+
+func imageCacheCapacityExceeded(err error) bool {
+	var apiErr *jetstream.APIError
+	return errors.As(err, &apiErr) &&
+		apiErr.ErrorCode == 10077 && // NATS JSStreamStoreFailedF; no exported client constant.
+		apiErr.Description == "maximum bytes exceeded"
 }
 
 // DeleteCachedResizesForAttachment deletes all cached resizes for an
