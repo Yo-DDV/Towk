@@ -46,6 +46,7 @@
   let installedThisSession = $state(false);
   let installFailed = $state(false);
   let installing = $state(false);
+  let manualGuideVisible = $state(false);
   let reminderVisible = $state(false);
   let platform = $state<InstallPlatform>('other');
   let browser = $state<InstallBrowser>('other');
@@ -54,10 +55,6 @@
   let visitStartedAt = 0;
 
   const installed = $derived(installedContext || installedThisSession);
-  const actionLabel = $derived(
-    installed ? m['ui.pwa_install.action_installed']() : m['ui.pwa_install.action_install']()
-  );
-
   function refreshInstallContext() {
     const environment = currentInstallEnvironment();
     installedContext = isInstalledPwa(environment);
@@ -73,6 +70,7 @@
 
   function openDialog() {
     reminderVisible = false;
+    manualGuideVisible = false;
     dialogVisible = true;
   }
 
@@ -113,18 +111,22 @@
     if (!installEvent || installing) return;
     installing = true;
     const promptEvent = installEvent;
-    installEvent = null;
     clearCapturedInstallPromptEvent(promptEvent);
     installFailed = false;
     try {
       await promptEvent.prompt();
       const choice = await promptEvent.userChoice;
       if (choice.outcome === 'accepted') {
+        dialogVisible = false;
         installedThisSession = true;
         reminderVisible = false;
+      } else {
+        installEvent = null;
       }
     } catch {
+      installEvent = null;
       installFailed = true;
+      manualGuideVisible = true;
     } finally {
       installing = false;
     }
@@ -155,6 +157,7 @@
     }
 
     function handleInstalled() {
+      dialogVisible = false;
       installedThisSession = true;
       installEvent = null;
       clearCapturedInstallPromptEvent();
@@ -207,84 +210,53 @@
   });
 </script>
 
-<button
-  type="button"
-  class={['relative app-header-icon', installed ? 'text-success' : 'text-warning']}
-  onclick={openDialog}
-  aria-label={actionLabel}
-  title={actionLabel}
-  data-pwa-status={installed ? 'installed' : 'browser'}
->
-  <span
-    class={['iconify text-lg', installed ? 'uil--check-circle' : 'uil--import']}
-    aria-hidden="true"
-  ></span>
-  <span
-    class={[
-      'absolute right-1.5 bottom-1.5 size-2 rounded-full ring-2 ring-surface-100',
-      installed ? 'bg-success' : 'bg-warning'
-    ]}
-    aria-hidden="true"
-  ></span>
-</button>
+{#if !installed}
+  <button
+    type="button"
+    class="relative app-header-icon text-warning"
+    onclick={openDialog}
+    aria-label={m['ui.pwa_install.action_install']()}
+    title={m['ui.pwa_install.action_install']()}
+    data-pwa-status="browser"
+  >
+    <span class="iconify text-lg uil--import" aria-hidden="true"></span>
+    <span
+      class="absolute right-1.5 bottom-1.5 size-2 rounded-full bg-warning ring-2 ring-surface-100"
+      aria-hidden="true"
+    ></span>
+  </button>
 
-<Dialog
-  bind:visible={dialogVisible}
-  title={installed ? m['ui.pwa_install.installed_title']() : m['ui.pwa_install.title']()}
-  size="lg"
->
-  <div class="flex flex-col gap-4 text-sm">
-    <div class="flex items-start gap-3 rounded-lg bg-surface-100 p-3">
-      <img src="/icons/icon-192.png" alt="" class="size-12 shrink-0 rounded-xl" />
-      <div class="min-w-0">
-        <p class="font-semibold text-text">Towk</p>
-        <p class={['mt-0.5 text-xs font-medium', installed ? 'text-success' : 'text-warning']}>
-          {installed
-            ? m['ui.pwa_install.status_installed']()
-            : m['ui.pwa_install.status_browser']()}
+  <Dialog bind:visible={dialogVisible} title={m['ui.pwa_install.title']()} size="lg">
+    <div class="flex flex-col gap-4 text-sm" data-testid="pwa-install-dialog-content">
+      <div class="flex items-center gap-3">
+        <img src="/icons/icon-192.png" alt="" class="size-12 shrink-0 rounded-xl" />
+        <p class="min-w-0 text-base leading-snug font-medium text-text">
+          {m['ui.pwa_install.description']()}
         </p>
       </div>
-    </div>
 
-    {#if installed}
-      <p>{m['ui.pwa_install.installed_description']()}</p>
-    {:else}
-      <p>{m['ui.pwa_install.description']()}</p>
-      <p class="rounded-md border border-accent/20 bg-accent/5 p-3 text-muted">
-        {m['ui.pwa_install.explanation']()}
-      </p>
-    {/if}
-
-    <ul class="grid gap-2 sm:grid-cols-3">
-      <li class="rounded-md border border-text/10 p-2.5">
-        <span class="iconify text-lg text-accent uil--window" aria-hidden="true"></span>
-        <p class="mt-1 text-xs text-muted">{m['ui.pwa_install.benefit_launch']()}</p>
-      </li>
-      <li class="rounded-md border border-text/10 p-2.5">
-        <span class="iconify text-lg text-accent uil--bolt-alt" aria-hidden="true"></span>
-        <p class="mt-1 text-xs text-muted">{m['ui.pwa_install.benefit_focus']()}</p>
-      </li>
-      <li class="rounded-md border border-text/10 p-2.5">
-        <span class="iconify text-lg text-accent uil--bell" aria-hidden="true"></span>
-        <p class="mt-1 text-xs text-muted">{m['ui.pwa_install.benefit_notifications']()}</p>
-      </li>
-    </ul>
-
-    {#if !installed}
-      {#if installEvent}
-        <div class="rounded-lg border border-success/25 bg-success/5 p-3">
-          <p class="font-medium text-text">{m['ui.pwa_install.native_title']()}</p>
-          <p class="mt-1 text-xs text-muted">{m['ui.pwa_install.native_description']()}</p>
-        </div>
-        <Button
-          fullWidth
-          loading={installing}
-          loadingText={m['ui.pwa_install.installing']()}
-          onclick={install}
+      <ul class="flex flex-wrap gap-2" aria-label={m['ui.pwa_install.benefits_label']()}>
+        <li
+          class="flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1.5 text-xs text-muted"
         >
-          {m['ui.pwa_install.install_now']()}
-        </Button>
-      {/if}
+          <span class="iconify shrink-0 text-base text-accent uil--rocket" aria-hidden="true"
+          ></span>
+          <span>{m['ui.pwa_install.benefit_launch']()}</span>
+        </li>
+        <li
+          class="flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1.5 text-xs text-muted"
+        >
+          <span class="iconify shrink-0 text-base text-accent uil--window" aria-hidden="true"
+          ></span>
+          <span>{m['ui.pwa_install.benefit_focus']()}</span>
+        </li>
+        <li
+          class="flex items-center gap-1.5 rounded-full bg-surface-100 px-2.5 py-1.5 text-xs text-muted"
+        >
+          <span class="iconify shrink-0 text-base text-accent uil--bell" aria-hidden="true"></span>
+          <span>{m['ui.pwa_install.benefit_notifications']()}</span>
+        </li>
+      </ul>
 
       {#if installFailed}
         <p
@@ -295,15 +267,42 @@
         </p>
       {/if}
 
-      <div>
-        <p class="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
-          {m['ui.pwa_install.guide_title']()}
-        </p>
+      {#if installEvent}
+        <Button
+          fullWidth
+          loading={installing}
+          loadingText={m['ui.pwa_install.installing']()}
+          onclick={install}
+        >
+          {m['ui.pwa_install.install_now']()}
+        </Button>
+
+        <button
+          type="button"
+          class="flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-1 py-1.5 text-left text-xs font-medium text-muted transition-colors hover:text-text"
+          onclick={() => (manualGuideVisible = !manualGuideVisible)}
+          aria-expanded={manualGuideVisible}
+          data-testid="pwa-install-manual-toggle"
+        >
+          <span>{m['ui.pwa_install.manual_help']()}</span>
+          <span
+            class={[
+              'iconify shrink-0 text-base transition-transform uil--angle-down',
+              manualGuideVisible && 'rotate-180'
+            ]}
+            aria-hidden="true"
+          ></span>
+        </button>
+
+        {#if manualGuideVisible}
+          <PwaInstallGuide {guide} {browser} />
+        {/if}
+      {:else}
         <PwaInstallGuide {guide} {browser} />
-      </div>
-    {/if}
-  </div>
-</Dialog>
+      {/if}
+    </div>
+  </Dialog>
+{/if}
 
 {#if reminderVisible && !dialogVisible}
   <div

@@ -66,7 +66,7 @@ describe('PwaInstallButton', () => {
     vi.restoreAllMocks();
   });
 
-  it('always shows browser status and the recommended Safari iOS guide', async () => {
+  it('shows the install control and the recommended Safari iOS guide', async () => {
     setBrowserEnvironment({
       userAgent:
         'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1',
@@ -82,7 +82,7 @@ describe('PwaInstallButton', () => {
 
     expect(container.textContent).toContain('Safari on iPhone or iPad');
     expect(container.textContent).toContain('Recommended on iPhone and iPad');
-    expect(container.textContent).toContain('If shown, turn on Open as Web App');
+    expect(container.textContent).toContain('Turn on Open as Web App');
     expect(container.querySelector('[data-testid="pwa-install-browser-icon"]')).toHaveClass(
       'iconify-color',
       'logos--safari'
@@ -91,7 +91,7 @@ describe('PwaInstallButton', () => {
     unmount();
   });
 
-  it('reports an installed display mode without showing install instructions', async () => {
+  it('removes the install control entirely in an installed display mode', async () => {
     setBrowserEnvironment({
       userAgent:
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36',
@@ -100,12 +100,51 @@ describe('PwaInstallButton', () => {
     const { container, unmount } = render(PwaInstallButton);
     await settle();
 
-    expect(statusButton(container).dataset.pwaStatus).toBe('installed');
+    expect(container.querySelector('[data-pwa-status]')).toBeNull();
+    expect(container.querySelector('[data-testid="pwa-install-guide"]')).toBeNull();
+    unmount();
+  });
+
+  it('keeps the native Android install path compact until help is requested', async () => {
+    setBrowserEnvironment({
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36'
+    });
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      userChoice: Promise.resolve({ outcome: 'dismissed' as const, platform: 'web' })
+    });
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+
+    window.dispatchEvent(event);
     statusButton(container).click();
     await settle();
 
-    expect(container.textContent).toContain('Towk is ready in app mode');
+    expect(container.textContent).toContain('Install now');
+    expect(container.textContent).not.toContain('This browser is ready');
     expect(container.querySelector('[data-testid="pwa-install-guide"]')).toBeNull();
+
+    buttonWithText(container, 'Installation help').click();
+    await settle();
+    expect(container.querySelector('[data-testid="pwa-install-guide"]')).not.toBeNull();
+    expect(container.textContent).toContain('Choose Add to Home screen, then Install');
+    unmount();
+  });
+
+  it('warns that Firefox on Linux cannot install Towk and recommends a supported browser', async () => {
+    setBrowserEnvironment({
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:152.0) Gecko/20100101 Firefox/152.0'
+    });
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+
+    statusButton(container).click();
+    await settle();
+
+    expect(container.textContent).toContain('Firefox cannot install Towk on this system');
+    expect(container.textContent).toContain('Open this page in Chrome or Edge');
+    expect(container.textContent).not.toContain('Install now');
     unmount();
   });
 
@@ -130,7 +169,7 @@ describe('PwaInstallButton', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(prompt).toHaveBeenCalledOnce();
-    expect(statusButton(container).dataset.pwaStatus).toBe('installed');
+    expect(container.querySelector('[data-pwa-status]')).toBeNull();
     expect(container.textContent).not.toContain('Install now');
     unmount();
   });
@@ -155,7 +194,7 @@ describe('PwaInstallButton', () => {
     await settle();
 
     expect(prompt).toHaveBeenCalledOnce();
-    expect(statusButton(container).dataset.pwaStatus).toBe('installed');
+    expect(container.querySelector('[data-pwa-status]')).toBeNull();
     expect(
       (window as Window & { __towkInstallPrompt?: Event | null }).__towkInstallPrompt
     ).toBeNull();

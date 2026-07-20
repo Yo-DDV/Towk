@@ -61,6 +61,7 @@ export type InstallGuide =
   | 'windows_firefox'
   | 'macos_safari'
   | 'desktop_chromium'
+  | 'desktop_firefox_unsupported'
   | 'desktop_other';
 
 export function isAppleMobileDevice(environment: InstallEnvironment): boolean {
@@ -119,6 +120,9 @@ export function selectInstallGuide(
   if (platform === 'windows' && browser === 'firefox') return 'windows_firefox';
   if (platform === 'macos' && browser === 'safari') return 'macos_safari';
   if (['chrome', 'edge', 'opera'].includes(browser)) return 'desktop_chromium';
+  if (browser === 'firefox' && ['linux', 'macos'].includes(platform)) {
+    return 'desktop_firefox_unsupported';
+  }
   return 'desktop_other';
 }
 

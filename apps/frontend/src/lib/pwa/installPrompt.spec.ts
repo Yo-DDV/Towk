@@ -138,6 +138,7 @@ describe('PWA install environment', () => {
     expect(selectInstallGuide('windows', 'firefox')).toBe('windows_firefox');
     expect(selectInstallGuide('macos', 'safari')).toBe('macos_safari');
     expect(selectInstallGuide('linux', 'chrome')).toBe('desktop_chromium');
-    expect(selectInstallGuide('macos', 'firefox')).toBe('desktop_other');
+    expect(selectInstallGuide('linux', 'firefox')).toBe('desktop_firefox_unsupported');
+    expect(selectInstallGuide('macos', 'firefox')).toBe('desktop_firefox_unsupported');
   });
 });
