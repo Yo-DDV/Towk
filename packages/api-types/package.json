@@ -30,14 +30,13 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist src/chatto"
+    "clean": "rm -rf dist src/chatto src/buf"
   },
   "dependencies": {
     "@bufbuild/protobuf": "2.12.1"
   },
   "devDependencies": {
-    "@bufbuild/protoc-gen-es": "^1.10.0",
-    "@connectrpc/protoc-gen-connect-es": "1.7.0",
+    "@bufbuild/protoc-gen-es": "^2.12.1",
     "typescript": "^5.9.3"
   }
 }

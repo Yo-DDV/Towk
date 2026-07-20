@@ -1,4 +1,4 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
@@ -66,7 +66,7 @@ describe('createNotificationAPI', () => {
       notifications: [
         {
           id: 'n1',
-          createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
+          createdAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
           actor: {
             id: 'u1',
             login: 'alice',
@@ -270,7 +270,7 @@ describe('createNotificationAPI', () => {
   it('gets and batch gets notifications', async () => {
     const item = {
       id: 'n1',
-      createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
+      createdAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
       actor: {
         user: {
           id: 'u1',

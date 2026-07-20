@@ -1,15 +1,10 @@
-import {
-  authHeaders,
-  Code,
-  ConnectError,
-  createTowkClient,
-} from "./connect.js";
-import * as m from "$lib/i18n/messages";
-import { AdminRoleService } from "@towk/api-types/admin/v1/roles_connect";
-import type { AdminRole as APIAdminRole } from "@towk/api-types/admin/v1/roles_pb";
-import { RoleService } from "@towk/api-types/api/v1/roles_connect";
-import type { Role as APIRole } from "@towk/api-types/api/v1/roles_pb";
-import type { User as APIUser } from "@towk/api-types/api/v1/users_pb";
+import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
+import * as m from '$lib/i18n/messages';
+import { AdminRoleService } from '@towk/api-types/admin/v1/roles_pb';
+import type { AdminRole as APIAdminRole } from '@towk/api-types/admin/v1/roles_pb';
+import { RoleService } from '@towk/api-types/api/v1/roles_pb';
+import type { Role as APIRole } from '@towk/api-types/api/v1/roles_pb';
+import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 
 export type RoleAPIConfig = {
   baseUrl: string;
@@ -70,7 +65,7 @@ export function createRoleAPI(config: RoleAPIConfig) {
       return {
         roles: response.roles.map((role) => serverRoleFromPublic(role)),
         viewerCanManageRoles: false,
-        viewerCanAssignRoles: false,
+        viewerCanAssignRoles: false
       };
     },
 
@@ -87,10 +82,7 @@ export function createRoleAPI(config: RoleAPIConfig) {
     },
 
     async batchGetPublicRoles(names: string[]): Promise<ServerRole[]> {
-      const response = await client.batchGetRoles(
-        { names },
-        { headers: headers() },
-      );
+      const response = await client.batchGetRoles({ names }, { headers: headers() });
       return response.roles.map((role) => serverRoleFromPublic(role));
     },
 
@@ -99,45 +91,39 @@ export function createRoleAPI(config: RoleAPIConfig) {
       return {
         roles: response.roles.map(serverRoleFromAdmin),
         viewerCanManageRoles: response.viewerCanManageRoles,
-        viewerCanAssignRoles: response.viewerCanAssignRoles,
+        viewerCanAssignRoles: response.viewerCanAssignRoles
       };
     },
 
     async getRole(name: string): Promise<RoleDetails> {
-      const response = await adminClient.getRole(
-        { name },
-        { headers: headers() },
-      );
+      const response = await adminClient.getRole({ name }, { headers: headers() });
       return {
         roles: [],
         role: response.role ? serverRoleFromAdmin(response.role) : null,
         users: response.users.map(roleUser),
         viewerCanManageRoles: response.viewerCanManageRoles,
-        viewerCanAssignRoles: response.viewerCanAssignRoles,
+        viewerCanAssignRoles: response.viewerCanAssignRoles
       };
     },
 
     async createRole(input: CreateRoleInput): Promise<ServerRole> {
       const response = await adminClient.createRole(input, {
-        headers: headers(),
+        headers: headers()
       });
       return requiredAdminRole(response.role);
     },
 
     async updateRole(input: UpdateRoleInput): Promise<ServerRole> {
       const response = await adminClient.updateRole(input, {
-        headers: headers(),
+        headers: headers()
       });
       return requiredAdminRole(response.role);
     },
 
     async deleteRole(name: string): Promise<boolean> {
-      const response = await adminClient.deleteRole(
-        { name },
-        { headers: headers() },
-      );
+      const response = await adminClient.deleteRole({ name }, { headers: headers() });
       return response.deleted;
-    },
+    }
   };
 }
 
@@ -145,26 +131,22 @@ export type RoleAPI = ReturnType<typeof createRoleAPI>;
 
 function requiredAdminRole(role: APIAdminRole | undefined): ServerRole {
   if (!role) {
-    throw new Error(m["common.error.unexpected_server_response"]());
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return serverRoleFromAdmin(role);
 }
 
 function serverRoleFromAdmin(role: APIAdminRole): ServerRole {
   if (!role.role) {
-    throw new Error(m["common.error.unexpected_server_response"]());
+    throw new Error(m['common.error.unexpected_server_response']());
   }
-  return serverRoleFromPublic(
-    role.role,
-    role.permissions,
-    role.permissionDenials,
-  );
+  return serverRoleFromPublic(role.role, role.permissions, role.permissionDenials);
 }
 
 function serverRoleFromPublic(
   role: APIRole,
   permissions: string[] = [],
-  permissionDenials: string[] = [],
+  permissionDenials: string[] = []
 ): ServerRole {
   return {
     name: role.name,
@@ -174,7 +156,7 @@ function serverRoleFromPublic(
     permissionDenials: [...permissionDenials],
     isSystem: role.isSystem,
     position: role.position,
-    pingable: role.pingable,
+    pingable: role.pingable
   };
 }
 
@@ -182,6 +164,6 @@ function roleUser(user: APIUser): RoleUser {
   return {
     id: user.id,
     login: user.login,
-    displayName: user.displayName,
+    displayName: user.displayName
   };
 }

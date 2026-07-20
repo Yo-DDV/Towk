@@ -6,7 +6,7 @@ import {
   handleAuthError,
   type ConnectAPIConfig
 } from './connect.js';
-import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_connect';
+import { RoomDirectoryService } from '@towk/api-types/api/v1/room_directory_pb';
 import type {
   RoomGroup,
   RoomGroupItem,

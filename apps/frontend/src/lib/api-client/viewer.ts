@@ -1,10 +1,11 @@
 import { authHeaders, createTowkClient } from './connect.js';
 import * as m from '$lib/i18n/messages';
-import { ViewerService } from '@towk/api-types/api/v1/viewer_connect';
+import { ViewerService } from '@towk/api-types/api/v1/viewer_pb';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { NotificationLevel as APINotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
 import { TimeFormat as APITimeFormat } from '@towk/api-types/api/v1/viewer_pb';
 import { NotificationLevel, PresenceStatus, TimeFormat } from './renderTypes.js';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type ViewerAPIConfig = {
   serverId?: string;
@@ -105,14 +106,14 @@ export async function getViewerStateViaConnect(config: ViewerAPIConfig): Promise
         ? {
             emoji: user.customStatus.emoji,
             text: user.customStatus.text,
-            expiresAt: user.customStatus.expiresAt?.toDate().toISOString() ?? null
+            expiresAt: protobufTimestampToISOString(user.customStatus.expiresAt) ?? null
           }
         : null,
       presenceStatus: apiPresenceStatus(user.presenceStatus),
       hasVerifiedEmail: response.user.hasVerifiedEmail,
       hasPassword: response.user.hasPassword ?? false,
       viewerCanDeleteAccount: response.user.viewerCanDeleteAccount ?? false,
-      lastLoginChange: response.user.lastLoginChange?.toDate().toISOString() ?? null,
+      lastLoginChange: protobufTimestampToISOString(response.user.lastLoginChange) ?? null,
       settings: response.user.settings
         ? {
             timezone: response.user.settings.timezone ?? null,

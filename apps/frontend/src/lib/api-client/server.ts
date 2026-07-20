@@ -1,5 +1,5 @@
 import { createPublicTowkClient } from './connect.js';
-import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_connect';
+import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_pb';
 import { mapServerProfile } from './serverProfile.js';
 import * as m from '$lib/i18n/messages';
 

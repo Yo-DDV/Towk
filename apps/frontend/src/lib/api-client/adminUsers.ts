@@ -1,10 +1,11 @@
-import { authHeaders, createTowkClient } from "./connect.js";
-import * as m from "$lib/i18n/messages";
-import { AdminUserService } from "@towk/api-types/admin/v1/members_connect";
-import type { AdminMember as APIAdminMember } from "@towk/api-types/admin/v1/members_pb";
-import type { AdminRole as APIAdminRole } from "@towk/api-types/admin/v1/roles_pb";
-import type { Role as APIRole } from "@towk/api-types/api/v1/roles_pb";
-import type { User as APIUser } from "@towk/api-types/api/v1/users_pb";
+import { authHeaders, createTowkClient } from './connect.js';
+import * as m from '$lib/i18n/messages';
+import { AdminUserService } from '@towk/api-types/admin/v1/members_pb';
+import type { AdminMember as APIAdminMember } from '@towk/api-types/admin/v1/members_pb';
+import type { AdminRole as APIAdminRole } from '@towk/api-types/admin/v1/roles_pb';
+import type { Role as APIRole } from '@towk/api-types/api/v1/roles_pb';
+import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type AdminUserManagementAPIConfig = {
   baseUrl: string;
@@ -86,9 +87,7 @@ export type AdminRoleMutationResult = {
   member: AdminMember | null;
 };
 
-export function createAdminUserManagementAPI(
-  config: AdminUserManagementAPIConfig,
-) {
+export function createAdminUserManagementAPI(config: AdminUserManagementAPIConfig) {
   const client = createTowkClient(AdminUserService, config);
   const headers = () => authHeaders(config);
 
@@ -99,25 +98,23 @@ export function createAdminUserManagementAPI(
           search: input.search || undefined,
           page: {
             limit: input.limit,
-            offset: input.offset,
-          },
+            offset: input.offset
+          }
         },
-        { headers: headers() },
+        { headers: headers() }
       );
       return {
         users: response.members.map(adminMember),
         roles: response.roles.map(adminRoleSummary),
         totalCount: Number(response.page?.totalCount ?? 0),
-        hasMore: response.page?.hasMore ?? false,
+        hasMore: response.page?.hasMore ?? false
       };
     },
 
-    async getMember(
-      target: string | AdminMemberTarget,
-    ): Promise<AdminMemberDetails> {
+    async getMember(target: string | AdminMemberTarget): Promise<AdminMemberDetails> {
       const response = await client.getMember(
         { target: adminMemberTarget(target) },
-        { headers: headers() },
+        { headers: headers() }
       );
       return {
         member: response.member ? adminMember(response.member) : null,
@@ -125,35 +122,23 @@ export function createAdminUserManagementAPI(
         availablePermissions: [...response.availablePermissions],
         viewerCanAssignRoles: response.viewerCanAssignRoles,
         viewerCanManageRoles: response.viewerCanManageRoles,
-        viewerCanManageUserPermissions: response.viewerCanManageUserPermissions,
+        viewerCanManageUserPermissions: response.viewerCanManageUserPermissions
       };
     },
 
-    async assignRole(
-      userId: string,
-      roleName: string,
-    ): Promise<AdminRoleMutationResult> {
-      const response = await client.assignRole(
-        { userId, roleName },
-        { headers: headers() },
-      );
+    async assignRole(userId: string, roleName: string): Promise<AdminRoleMutationResult> {
+      const response = await client.assignRole({ userId, roleName }, { headers: headers() });
       return {
         changed: true,
-        member: response.member ? adminMember(response.member) : null,
+        member: response.member ? adminMember(response.member) : null
       };
     },
 
-    async revokeRole(
-      userId: string,
-      roleName: string,
-    ): Promise<AdminRoleMutationResult> {
-      const response = await client.revokeRole(
-        { userId, roleName },
-        { headers: headers() },
-      );
+    async revokeRole(userId: string, roleName: string): Promise<AdminRoleMutationResult> {
+      const response = await client.revokeRole({ userId, roleName }, { headers: headers() });
       return {
         changed: true,
-        member: response.member ? adminMember(response.member) : null,
+        member: response.member ? adminMember(response.member) : null
       };
     },
 
@@ -162,67 +147,59 @@ export function createAdminUserManagementAPI(
       return adminManagedUser(response.user);
     },
 
-    async updateUserPassword(
-      userId: string,
-      password: string,
-    ): Promise<AdminMember> {
+    async updateUserPassword(userId: string, password: string): Promise<AdminMember> {
       const response = await client.updateUserPassword(
         { userId, password },
-        { headers: headers() },
+        { headers: headers() }
       );
       if (!response.member) {
-        throw new Error(m["common.error.unexpected_server_response"]());
+        throw new Error(m['common.error.unexpected_server_response']());
       }
       return adminMember(response.member);
     },
 
     async clearUsernameCooldown(userId: string): Promise<boolean> {
-      const response = await client.clearUsernameCooldown(
-        { userId },
-        { headers: headers() },
-      );
+      const response = await client.clearUsernameCooldown({ userId }, { headers: headers() });
       return response.cleared;
     },
 
     async deleteUser(input: AdminDeleteUserInput): Promise<boolean> {
       const response = await client.deleteUser(input, { headers: headers() });
       return response.deleted;
-    },
+    }
   };
 }
 
-export type AdminUserManagementAPI = ReturnType<
-  typeof createAdminUserManagementAPI
->;
+export type AdminUserManagementAPI = ReturnType<typeof createAdminUserManagementAPI>;
 
 function adminMemberTarget(
-  target: string | AdminMemberTarget,
-): { case: "userId"; value: string } | { case: "login"; value: string } {
-  if (typeof target === "string") {
-    return { case: "userId", value: target };
+  target: string | AdminMemberTarget
+): { case: 'userId'; value: string } | { case: 'login'; value: string } {
+  if (typeof target === 'string') {
+    return { case: 'userId', value: target };
   }
-  if ("login" in target) {
-    return { case: "login", value: target.login };
+  if ('login' in target) {
+    return { case: 'login', value: target.login };
   }
-  return { case: "userId", value: target.userId };
+  return { case: 'userId', value: target.userId };
 }
 
 function adminManagedUser(user: APIUser | undefined): AdminManagedUser {
   if (!user) {
-    throw new Error(m["common.error.unexpected_server_response"]());
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     id: user.id,
     login: user.login,
     displayName: user.displayName,
-    avatarUrl: user.avatarUrl ?? null,
+    avatarUrl: user.avatarUrl ?? null
   };
 }
 
 function adminMember(member: APIAdminMember): AdminMember {
   const summary = member.user;
   if (!summary) {
-    throw new Error(m["common.error.unexpected_server_response"]());
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     id: summary.id,
@@ -230,30 +207,30 @@ function adminMember(member: APIAdminMember): AdminMember {
     displayName: summary.displayName,
     avatarUrl: summary.avatarUrl ?? null,
     roles: [...member.roles],
-    createdAt: member.createdAt?.toDate().toISOString() ?? null,
+    createdAt: protobufTimestampToISOString(member.createdAt) ?? null,
     deleted: summary.deleted,
     hasVerifiedEmail: member.hasVerifiedEmail,
     verifiedEmails: [...member.verifiedEmails],
     viewerCanDeleteAccount: member.viewerCanDeleteAccount,
-    lastLoginChange: member.lastLoginChange?.toDate().toISOString() ?? null,
+    lastLoginChange: protobufTimestampToISOString(member.lastLoginChange) ?? null
   };
 }
 
 function adminRoleSummary(role: APIRole): AdminRoleSummary {
   return {
     name: role.name,
-    displayName: role.displayName,
+    displayName: role.displayName
   };
 }
 
 function adminRoleDetails(role: APIAdminRole): AdminRoleDetails {
   if (!role.role) {
-    throw new Error(m["common.error.unexpected_server_response"]());
+    throw new Error(m['common.error.unexpected_server_response']());
   }
   return {
     ...adminRoleSummary(role.role),
     position: role.role.position,
     permissions: [...role.permissions],
-    permissionDenials: [...role.permissionDenials],
+    permissionDenials: [...role.permissionDenials]
   };
 }

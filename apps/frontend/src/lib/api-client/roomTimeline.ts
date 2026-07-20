@@ -1,13 +1,15 @@
 import { notifyUserSummaries } from './hooks.js';
+import { create } from '@bufbuild/protobuf';
 import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
 import type { RawEvent, EventConnectionPage, UserSummaryForCache } from './events.js';
 import { RoomEventKind } from './eventKinds.js';
 import { PresenceStatus, type RoomEventView } from './renderTypes.js';
-import { MessageService } from '@towk/api-types/api/v1/messages_connect';
-import { RoomService } from '@towk/api-types/api/v1/rooms_connect';
-import { ThreadService } from '@towk/api-types/api/v1/threads_connect';
+import { MessageService } from '@towk/api-types/api/v1/messages_pb';
+import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
+import { ThreadService } from '@towk/api-types/api/v1/threads_pb';
 import { createUserAPI } from './users.js';
-import { RoomTimelinePage } from '@towk/api-types/api/v1/room_timeline_pb';
+import { RoomTimelinePageSchema } from '@towk/api-types/api/v1/room_timeline_pb';
+import type { RoomTimelineEvent, RoomTimelinePage } from '@towk/api-types/api/v1/room_timeline_pb';
 import type { LinkPreview } from '@towk/api-types/api/v1/link_previews_pb';
 import { MessageVideoProcessingStatus } from '@towk/api-types/api/v1/message_types_pb';
 import type {
@@ -16,8 +18,9 @@ import type {
   MessageVoiceMetadata,
   MessageVideoProcessing
 } from '@towk/api-types/api/v1/message_types_pb';
-import type { RoomTimelineEvent } from '@towk/api-types/api/v1/room_timeline_pb';
 import type { User } from '@towk/api-types/api/v1/users_pb';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type RoomTimelineAPIConfig = {
   serverId?: string;
@@ -76,7 +79,9 @@ export function createRoomTimelineAPI(config: RoomTimelineAPIConfig): RoomTimeli
           { headers: headers() }
         );
         primeTimelineUserIncludes(config, response.page?.includes?.users ?? {});
-        return roomTimelinePageToEventConnectionPage(response.page ?? new RoomTimelinePage());
+        return roomTimelinePageToEventConnectionPage(
+          response.page ?? create(RoomTimelinePageSchema)
+        );
       } catch (err) {
         return handleAuthError(config, err);
       }
@@ -122,7 +127,9 @@ export function createRoomTimelineAPI(config: RoomTimelineAPIConfig): RoomTimeli
           { headers: headers() }
         );
         primeTimelineUserIncludes(config, response.page?.includes?.users ?? {});
-        return roomTimelinePageToEventConnectionPage(response.page ?? new RoomTimelinePage());
+        return roomTimelinePageToEventConnectionPage(
+          response.page ?? create(RoomTimelinePageSchema)
+        );
       } catch (err) {
         return handleAuthError(config, err);
       }
@@ -467,10 +474,10 @@ function assetUrlView(assetUrl?: MessageAssetUrl) {
   };
 }
 
-function timestampToISO(timestamp: { toDate(): Date } | undefined): string {
+function timestampToISO(timestamp: Timestamp | undefined): string {
   return timestampToISOOrNull(timestamp) ?? new Date(0).toISOString();
 }
 
-function timestampToISOOrNull(timestamp: { toDate(): Date } | undefined): string | null {
-  return timestamp ? timestamp.toDate().toISOString() : null;
+function timestampToISOOrNull(timestamp: Timestamp | undefined): string | null {
+  return protobufTimestampToISOString(timestamp) ?? null;
 }

@@ -1,22 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { create } from '@bufbuild/protobuf';
 import { configureApiClientHooks } from '$lib/api-client/hooks';
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
+
 import {
-  RoomTimelineEvent,
-  RoomTimelinePage,
-  RoomTimelineRoomEvent,
-  RoomMessagePosted
+  RoomTimelineEventSchema,
+  RoomTimelinePageSchema,
+  RoomTimelineRoomEventSchema,
+  RoomMessagePostedSchema
 } from '@towk/api-types/api/v1/room_timeline_pb';
+
 import {
-  Message,
-  MessageAssetUrl,
-  MessageAttachment,
-  MessageVoiceMetadata,
-  MessageVideoProcessing,
+  MessageSchema,
+  MessageAssetUrlSchema,
+  MessageAttachmentSchema,
+  MessageVoiceMetadataSchema,
+  MessageVideoProcessingSchema,
   MessageVideoProcessingStatus,
-  MessageVideoVariant
+  MessageVideoVariantSchema
 } from '@towk/api-types/api/v1/message_types_pb';
-import { User } from '@towk/api-types/api/v1/users_pb';
+
+import { UserSchema } from '@towk/api-types/api/v1/users_pb';
 import {
   __resetUserSummaryCachesForTests,
   primeUserSummaryCache
@@ -82,7 +86,7 @@ describe('createRoomTimelineAPI', () => {
 
   it('sends thread page requests with bearer auth and opaque cursors', async () => {
     mocks.getThreadEvents.mockResolvedValue({
-      page: new RoomTimelinePage({
+      page: create(RoomTimelinePageSchema, {
         startCursor: 'tl:opaque-start',
         endCursor: 'tl:opaque-end',
         hasOlder: false,
@@ -128,7 +132,7 @@ describe('createRoomTimelineAPI', () => {
 
   it('sends thread-around requests with the anchor event id', async () => {
     mocks.getThreadEventsAround.mockResolvedValue({
-      page: new RoomTimelinePage({ hasOlder: true, hasNewer: true })
+      page: create(RoomTimelinePageSchema, { hasOlder: true, hasNewer: true })
     });
 
     const api = createRoomTimelineAPI({
@@ -158,7 +162,7 @@ describe('createRoomTimelineAPI', () => {
 
   it('gets messages with bearer auth', async () => {
     mocks.getMessage.mockResolvedValue({
-      message: new Message({
+      message: create(MessageSchema, {
         id: 'reply-1',
         actorId: 'u1',
         roomId: 'room-1',
@@ -215,21 +219,21 @@ describe('createRoomTimelineAPI', () => {
 
 describe('roomTimelinePageToEventConnectionPage', () => {
   it('maps hydrated protobuf room timeline pages into the message render shape', () => {
-    const page = new RoomTimelinePage({
+    const page = create(RoomTimelinePageSchema, {
       startCursor: 'tl:opaque-start',
       endCursor: 'tl:opaque-end',
       hasOlder: true,
       hasNewer: false,
       includes: {
         users: {
-          u1: new User({
+          u1: create(UserSchema, {
             id: 'u1',
             login: 'alice',
             displayName: 'Alice',
             avatarUrl: '/avatars/u1',
             deleted: false
           }),
-          u2: new User({
+          u2: create(UserSchema, {
             id: 'u2',
             login: 'bob',
             displayName: 'Bob',
@@ -238,67 +242,67 @@ describe('roomTimelinePageToEventConnectionPage', () => {
         }
       },
       events: [
-        new RoomTimelineEvent({
+        create(RoomTimelineEventSchema, {
           id: 'm1',
-          createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
+          createdAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
           actorId: 'u1',
           event: {
             case: 'messagePosted',
-            value: new RoomMessagePosted({
-              message: new Message({
+            value: create(RoomMessagePostedSchema, {
+              message: create(MessageSchema, {
                 id: 'm1',
                 roomId: 'room-1',
                 actorId: 'u1',
-                createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
+                createdAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
                 body: 'hello',
                 attachments: [
-                  new MessageAttachment({
+                  create(MessageAttachmentSchema, {
                     id: 'a-video',
                     filename: 'clip.mp4',
                     contentType: 'video/mp4',
                     width: 1280,
                     height: 720,
-                    assetUrl: new MessageAssetUrl({
+                    assetUrl: create(MessageAssetUrlSchema, {
                       url: '/assets/files/a-video',
-                      expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                      expiresAt: timestampFromDate(new Date('2026-06-01T13:00:00Z'))
                     }),
-                    thumbnailAssetUrl: new MessageAssetUrl({
+                    thumbnailAssetUrl: create(MessageAssetUrlSchema, {
                       url: '/assets/files/a-video/image/960x800/contain',
-                      expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                      expiresAt: timestampFromDate(new Date('2026-06-01T13:00:00Z'))
                     }),
-                    videoProcessing: new MessageVideoProcessing({
+                    videoProcessing: create(MessageVideoProcessingSchema, {
                       status: MessageVideoProcessingStatus.COMPLETED,
                       durationMs: 1234n,
                       width: 1280,
                       height: 720,
                       sourceAvailable: true,
-                      thumbnailAssetUrl: new MessageAssetUrl({
+                      thumbnailAssetUrl: create(MessageAssetUrlSchema, {
                         url: '/assets/files/a-thumb',
-                        expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                        expiresAt: timestampFromDate(new Date('2026-06-01T13:00:00Z'))
                       }),
                       variants: [
-                        new MessageVideoVariant({
+                        create(MessageVideoVariantSchema, {
                           quality: '720p',
                           width: 1280,
                           height: 720,
                           size: 4567n,
-                          assetUrl: new MessageAssetUrl({
+                          assetUrl: create(MessageAssetUrlSchema, {
                             url: '/assets/files/a-variant',
-                            expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                            expiresAt: timestampFromDate(new Date('2026-06-01T13:00:00Z'))
                           })
                         })
                       ]
                     })
                   }),
-                  new MessageAttachment({
+                  create(MessageAttachmentSchema, {
                     id: 'a-voice',
                     filename: 'voice-message.webm',
                     contentType: 'audio/webm',
-                    assetUrl: new MessageAssetUrl({
+                    assetUrl: create(MessageAssetUrlSchema, {
                       url: '/assets/files/a-voice',
-                      expiresAt: Timestamp.fromDate(new Date('2026-06-01T13:00:00Z'))
+                      expiresAt: timestampFromDate(new Date('2026-06-01T13:00:00Z'))
                     }),
-                    voiceMessage: new MessageVoiceMetadata({
+                    voiceMessage: create(MessageVoiceMetadataSchema, {
                       durationMs: 2_345n,
                       waveformPeaks: [0.1, 0.8, 0.3]
                     })
@@ -322,13 +326,13 @@ describe('roomTimelinePageToEventConnectionPage', () => {
             })
           }
         }),
-        new RoomTimelineEvent({
+        create(RoomTimelineEventSchema, {
           id: 'join1',
-          createdAt: Timestamp.fromDate(new Date('2026-06-01T12:00:01Z')),
+          createdAt: timestampFromDate(new Date('2026-06-01T12:00:01Z')),
           actorId: 'u2',
           event: {
             case: 'userJoinedRoom',
-            value: new RoomTimelineRoomEvent({ roomId: 'room-1' })
+            value: create(RoomTimelineRoomEventSchema, { roomId: 'room-1' })
           }
         })
       ]

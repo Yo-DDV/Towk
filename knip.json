@@ -36,8 +36,6 @@
         "src/**/*.{js,ts,svelte}"
       ],
       "ignoreDependencies": [
-        "@bufbuild/protoc-gen-es",
-        "@connectrpc/protoc-gen-connect-es",
         "@iconify/json",
         "@iconify/tailwind4",
         "@inlang/plugin-m-function-matcher",
@@ -55,6 +53,9 @@
     },
     "apps/docs-website": {
       "ignoreDependencies": ["@fontsource-variable/ibm-plex-sans"]
+    },
+    "packages/api-types": {
+      "ignoreDependencies": ["@bufbuild/protoc-gen-es"]
     }
   }
 }

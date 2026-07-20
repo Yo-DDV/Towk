@@ -27,6 +27,7 @@ async function collectGeneratedTypeScript(relativeDir) {
 }
 
 await collectGeneratedTypeScript('packages/api-types/src/chatto');
+await collectGeneratedTypeScript('packages/api-types/src/buf');
 
 for (const generatedFile of generatedFiles) {
   const filePath = path.join(repoRoot, generatedFile);

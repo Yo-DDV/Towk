@@ -1,5 +1,5 @@
 import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
-import { NotificationService } from '@towk/api-types/api/v1/notifications_connect';
+import { NotificationService } from '@towk/api-types/api/v1/notifications_pb';
 import type {
   ListRoomNotificationsResponse,
   ListNotificationsResponse,
@@ -11,6 +11,7 @@ import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { PresenceStatus } from './renderTypes.js';
 import { currentPushClientId } from '$lib/notifications/pushClientId';
 import * as m from '$lib/i18n/messages';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type NotificationAPIConfig = {
   baseUrl: string;
@@ -230,7 +231,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
   const actor = notificationActor(item.actor);
   const base = {
     id: item.id,
-    createdAt: item.createdAt?.toDate().toISOString() ?? new Date(0).toISOString(),
+    createdAt: protobufTimestampToISOString(item.createdAt) ?? new Date(0).toISOString(),
     actor
   };
 
@@ -337,7 +338,7 @@ function notificationActor(actor: APIUser | undefined): NotificationActor | null
       ? {
           emoji: actor.customStatus.emoji,
           text: actor.customStatus.text,
-          expiresAt: actor.customStatus.expiresAt?.toDate().toISOString() ?? null
+          expiresAt: protobufTimestampToISOString(actor.customStatus.expiresAt) ?? null
         }
       : null
   };

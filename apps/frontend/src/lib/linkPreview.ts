@@ -5,7 +5,7 @@
  * IANA TLD list so that bare-domain URLs like www.hmans.dev are detected.
  */
 
-import LinkifyIt from 'linkify-it';
+import { LinkifyIt } from 'linkify-it';
 import MarkdownIt from 'markdown-it';
 import tlds from 'tlds';
 
@@ -36,11 +36,7 @@ export function extractURLs(text: string, maxURLs = 1): string[] {
     if (result.length >= maxURLs) return;
 
     let url = rawUrl;
-    if (
-      rawText &&
-      !/^[a-z][a-z0-9+.-]*:/i.test(rawText) &&
-      /^http:\/\//i.test(url)
-    ) {
+    if (rawText && !/^[a-z][a-z0-9+.-]*:/i.test(rawText) && /^http:\/\//i.test(url)) {
       // linkify-it adds http:// to bare domains; upgrade those to https://.
       url = url.replace(/^http:\/\//i, 'https://');
     }

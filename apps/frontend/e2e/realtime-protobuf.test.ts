@@ -1,10 +1,19 @@
 import type { Page } from '@playwright/test';
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { test, expect } from './setup';
 import { DMPage } from './pages';
 import { createAndLoginTestUser, type TestUser } from './fixtures/testUser';
 import { withServerUser } from './fixtures/serverUser';
 import { TIMEOUTS } from './constants';
+
 import {
+  RealtimeClientFrameSchema,
+  RealtimeClientHelloSchema,
+  RealtimeServerFrameSchema,
+  RealtimeSubscribeEventsSchema
+} from '@towk/api-types/realtime/v1/realtime_pb';
+
+import type {
   RealtimeClientFrame,
   RealtimeClientHello,
   RealtimeEventEnvelope,
@@ -63,17 +72,17 @@ class RealtimeProtobufClient {
 
     const client = new RealtimeProtobufClient(socket);
     client.send(
-      new RealtimeClientFrame({
+      create(RealtimeClientFrameSchema, {
         frame: {
           case: 'hello',
-          value: new RealtimeClientHello({ protocolVersion: 1, bearerToken })
+          value: create(RealtimeClientHelloSchema, { protocolVersion: 1, bearerToken })
         }
       })
     );
     await client.waitForFrame((frame) => frame.frame.case === 'hello');
     client.send(
-      new RealtimeClientFrame({
-        frame: { case: 'subscribeEvents', value: new RealtimeSubscribeEvents() }
+      create(RealtimeClientFrameSchema, {
+        frame: { case: 'subscribeEvents', value: create(RealtimeSubscribeEventsSchema) }
       })
     );
     await client.waitForFrame((frame) => frame.frame.case === 'subscribed');
@@ -86,7 +95,7 @@ class RealtimeProtobufClient {
   }
 
   send(frame: RealtimeClientFrame): void {
-    this.#socket.send(frame.toBinary());
+    this.#socket.send(toBinary(RealtimeClientFrameSchema, frame));
   }
 
   waitForEvent(
@@ -124,7 +133,7 @@ class RealtimeProtobufClient {
   }
 
   async #handleMessage(data: unknown): Promise<void> {
-    const frame = RealtimeServerFrame.fromBinary(await websocketDataToBytes(data));
+    const frame = fromBinary(RealtimeServerFrameSchema, await websocketDataToBytes(data));
     const waiterIndex = this.#waiters.findIndex((waiter) => waiter.predicate(frame));
     if (waiterIndex >= 0) {
       const [waiter] = this.#waiters.splice(waiterIndex, 1);

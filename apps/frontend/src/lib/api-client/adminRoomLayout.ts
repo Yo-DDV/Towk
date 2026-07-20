@@ -1,5 +1,5 @@
 import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
-import { AdminRoomLayoutService } from '@towk/api-types/admin/v1/room_layout_connect';
+import { AdminRoomLayoutService } from '@towk/api-types/admin/v1/room_layout_pb';
 import {
   AdminRoomLayoutItemKind,
   type AdminRoomLayoutGroup as APIAdminRoomLayoutGroup,

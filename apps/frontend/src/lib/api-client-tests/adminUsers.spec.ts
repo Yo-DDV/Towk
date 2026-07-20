@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAdminUserManagementAPI } from '$lib/api-client/adminUsers';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -64,7 +65,7 @@ describe('createAdminUserManagementAPI', () => {
             deleted: false
           },
           roles: ['admin'],
-          createdAt: { toDate: () => createdAt },
+          createdAt: timestampFromDate(createdAt),
           hasVerifiedEmail: true,
           verifiedEmails: ['alice@example.test'],
           viewerCanDeleteAccount: true,
@@ -126,7 +127,7 @@ describe('createAdminUserManagementAPI', () => {
         hasVerifiedEmail: false,
         verifiedEmails: [],
         viewerCanDeleteAccount: false,
-        lastLoginChange: { toDate: () => lastLoginChange }
+        lastLoginChange: timestampFromDate(lastLoginChange)
       },
       roles: [
         {

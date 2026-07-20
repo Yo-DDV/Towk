@@ -1,12 +1,12 @@
 import { authHeaders, createTowkClient } from './connect.js';
-import { AdminDiagnosticsService } from '@towk/api-types/admin/v1/diagnostics_connect';
+import { AdminDiagnosticsService } from '@towk/api-types/admin/v1/diagnostics_pb';
 import {
-  AdminPerformanceSettings as AdminPerformanceSettingsMessage,
   AdminPerformanceCapReason,
   AdminPerformanceLimitField,
   AdminPerformancePolicySource,
   AdminPerformanceProfile
 } from '@towk/api-types/admin/v1/diagnostics_pb';
+import type { AdminPerformanceSettings as AdminPerformanceSettingsMessage } from '@towk/api-types/admin/v1/diagnostics_pb';
 
 export type AdminDiagnosticsAPIConfig = {
   baseUrl: string;

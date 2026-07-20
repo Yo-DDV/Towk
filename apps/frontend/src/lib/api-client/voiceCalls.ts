@@ -1,6 +1,8 @@
 import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
-import { VoiceCallService } from '@towk/api-types/api/v1/voice_calls_connect';
+import { VoiceCallService } from '@towk/api-types/api/v1/voice_calls_pb';
 import { JoinCallMode, JoinCallStatus } from '@towk/api-types/api/v1/voice_calls_pb';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type VoiceCallAPIConfig = {
   baseUrl: string;
@@ -60,7 +62,7 @@ type APICallParticipant = {
     deleted: boolean;
     avatarUrl?: string;
   };
-  joinedAt?: { toDate(): Date };
+  joinedAt?: Timestamp;
   callId: string;
   participantId: string;
   deviceIndex: number;
@@ -184,7 +186,7 @@ function callParticipant(participant: APICallParticipant): VoiceCallParticipant[
         deleted: summary.deleted,
         avatarUrl: summary.avatarUrl ?? null
       },
-      joinedAt: participant.joinedAt?.toDate().toISOString() ?? new Date(0).toISOString(),
+      joinedAt: protobufTimestampToISOString(participant.joinedAt) ?? new Date(0).toISOString(),
       callId: participant.callId,
       participantId: participant.participantId || summary.id,
       deviceIndex: participant.deviceIndex || 1

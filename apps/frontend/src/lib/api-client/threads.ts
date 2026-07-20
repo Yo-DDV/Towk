@@ -1,8 +1,10 @@
 import { authHeaders, createTowkClient, handleAuthError } from './connect.js';
-import { ThreadService } from '@towk/api-types/api/v1/threads_connect';
+import { ThreadService } from '@towk/api-types/api/v1/threads_pb';
 import type { User } from '@towk/api-types/api/v1/users_pb';
 import type { RawEvent } from './events.js';
 import { messageToRawEvent } from './roomTimeline.js';
+import type { Timestamp } from '@bufbuild/protobuf/wkt';
+import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type ConnectAPIConfig = {
   serverId?: string;
@@ -120,6 +122,6 @@ function mapThreadFollowState(state: {
   };
 }
 
-function timestampToISOOrNull(timestamp: { toDate(): Date } | undefined): string | null {
-  return timestamp ? timestamp.toDate().toISOString() : null;
+function timestampToISOOrNull(timestamp: Timestamp | undefined): string | null {
+  return protobufTimestampToISOString(timestamp) ?? null;
 }

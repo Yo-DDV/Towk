@@ -1,4 +1,4 @@
-import { Timestamp } from '@bufbuild/protobuf';
+import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Code, ConnectError } from '@connectrpc/connect';
 import { createVoiceCallAPI } from '$lib/api-client/voiceCalls';
@@ -60,7 +60,7 @@ describe('createVoiceCallAPI', () => {
         deleted: false,
         avatarUrl: 'https://cdn/avatar.webp'
       },
-      joinedAt: Timestamp.fromDate(new Date('2026-06-01T12:00:00Z')),
+      joinedAt: timestampFromDate(new Date('2026-06-01T12:00:00Z')),
       callId: 'call-1',
       participantId: 'device-1',
       deviceIndex: 1

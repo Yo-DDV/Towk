@@ -1,6 +1,6 @@
 import { sha256 } from 'js-sha256';
 import * as m from '$lib/i18n/messages';
-import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
+import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_pb';
 import type { MessageVoiceMetadata } from '@towk/api-types/api/v1/message_types_pb';
 import {
   authHeaders,
