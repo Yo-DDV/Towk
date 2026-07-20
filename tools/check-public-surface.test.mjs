@@ -69,7 +69,9 @@ test('the contribution policy rejects private paths and internal choreography', 
 test('release workflows keep stable publication manual and immutable', async () => {
   const releaseWorkflow = await readFile('.github/workflows/release.yml', 'utf8');
   const imageWorkflow = await readFile('.github/workflows/build-image.yml', 'utf8');
+  const quickGate = await readFile('.github/workflows/quick-gate.yml', 'utf8');
   const releaseConfig = await readFile('.goreleaser.yml', 'utf8');
+  const runtimeVerifier = await readFile('tools/verify-runtime-image.sh', 'utf8');
 
   assert.doesNotMatch(releaseWorkflow, /^\s*push:\s*$/m);
   assert.match(releaseWorkflow, /Refuse an already-published release/);
@@ -84,6 +86,9 @@ test('release workflows keep stable publication manual and immutable', async () 
   assert.match(imageWorkflow, /Refusing to replace existing image tag/);
   assert.match(imageWorkflow, /Unable to prove that image tag is absent/);
   assert.match(imageWorkflow, /git show -s --format=%cI/);
+  assert.match(quickGate, /bash tools\/runtime-image-process_test\.sh/);
+  assert.match(runtimeVerifier, /wait_for_runtime_ids "\$container" "\$expected_uid" "\$expected_gid"/);
+  assert.doesNotMatch(runtimeVerifier, /wait_for_container/);
   assert.match(releaseConfig, /release:\n\s+disable: true/);
   assert.match(releaseConfig, /mod_timestamp: "946684800"/);
 });
