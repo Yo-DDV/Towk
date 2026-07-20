@@ -384,14 +384,12 @@ describe('MessageAttachments', () => {
       '[data-testid="voice-message-attachment"]'
     );
     const player = container.querySelector<HTMLElement>('[data-testid="voice-message-player"]');
-    const deleteControl = container.querySelector<HTMLElement>(
-      '[aria-label="Delete attachment"]'
-    );
+    const deleteControl = container.querySelector<HTMLElement>('[aria-label="Delete attachment"]');
 
     expect(attachment).not.toBeNull();
     expect(attachment!.classList).not.toContain('pr-7');
     expect(attachment!.classList).toContain('overflow-hidden');
-    expect(player?.classList).toContain('pr-11');
+    expect(player?.classList).toContain('pr-12');
     expect(deleteControl?.classList).toContain('voice-message-remove-button');
     expect(deleteControl?.classList).toContain('top-1/2');
     expect(deleteControl?.classList).toContain('right-1');

@@ -269,8 +269,8 @@
 
 <div
   class={[
-    'voice-message-player flex min-w-0 items-center gap-2.5 rounded-2xl border py-2 shadow-sm',
-    reserveTrailingControl ? 'pl-2.5 pr-11' : 'px-2.5',
+    'voice-message-player min-w-0 rounded-2xl border py-2 shadow-sm',
+    reserveTrailingControl ? 'pr-12 pl-2.5' : 'px-2.5',
     localPreview
       ? 'w-full border-primary/30 bg-primary/8'
       : 'w-full max-w-full border-border bg-surface-200/80'
@@ -294,25 +294,25 @@
     {filename}
   </audio>
 
-  <button
-    type="button"
-    onclick={togglePlayback}
-    class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110"
-    aria-label={paused ? m['composer.voice.play']() : m['composer.voice.pause']()}
-    title={paused ? m['composer.voice.play']() : m['composer.voice.pause']()}
-    disabled={loading}
-  >
-    <span class={['iconify text-xl', paused ? 'uil--play' : 'uil--pause']} aria-hidden="true"
-    ></span>
-  </button>
+  <div class="flex min-w-0 items-center gap-2.5" data-testid="voice-message-controls">
+    <button
+      type="button"
+      onclick={togglePlayback}
+      class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110"
+      aria-label={paused ? m['composer.voice.play']() : m['composer.voice.pause']()}
+      title={paused ? m['composer.voice.play']() : m['composer.voice.pause']()}
+      disabled={loading}
+    >
+      <span class={['iconify text-xl', paused ? 'uil--play' : 'uil--pause']} aria-hidden="true"
+      ></span>
+    </button>
 
-  <div class="min-w-0 flex-1">
     <div
-      class="relative h-[44px] min-w-0 overflow-hidden rounded-full bg-background/35 px-2"
+      class="relative flex h-[44px] min-w-0 flex-1 flex-col overflow-hidden rounded-full bg-background/35 px-2 pt-1.5 pb-1"
       data-testid="voice-message-waveform"
     >
       <div
-        class="pointer-events-none absolute inset-x-2 inset-y-0 flex items-center gap-px overflow-hidden sm:gap-[2px]"
+        class="pointer-events-none flex min-h-0 flex-1 items-center gap-px overflow-hidden sm:gap-[2px]"
         data-waveform-layer="base"
         data-testid="voice-message-progress"
         data-played-bars={playedBarCount}
@@ -329,7 +329,7 @@
             ]}
             data-progress-state={barState}
             data-progress-fill={barFill.toFixed(3)}
-            style={`height: ${Math.max(4, Math.round(peak * 36))}px`}
+            style={`height: ${Math.max(4, Math.round(peak * 26))}px`}
             aria-hidden="true"
           ></span>
         {/each}
@@ -344,54 +344,60 @@
         class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         aria-label={m['composer.voice.seek']()}
       />
-    </div>
-
-    {#if status === 'loading' || status === 'buffering' || status === 'offline' || status === 'error'}
       <div
-        class="mt-1 flex min-w-0 items-center justify-between gap-2 rounded-lg bg-background/45 px-2 py-1 text-[11px] leading-tight text-muted"
-        data-testid="voice-message-status"
-        aria-live="polite"
+        class="pointer-events-none flex h-3 shrink-0 items-center justify-end px-0.5"
+        data-testid="voice-message-meta"
       >
-        <span class="min-w-0">
-          {status === 'loading'
-            ? m['composer.voice.loading']()
-            : status === 'buffering'
-              ? m['composer.voice.buffering']()
-              : status === 'offline'
-                ? m['composer.voice.offline']()
-                : m['composer.voice.playback_failed']()}
+        <span
+          class="rounded-full bg-background/50 px-1.5 font-mono text-[10px] leading-none text-muted tabular-nums"
+          data-testid="voice-message-time"
+        >
+          {paused && currentTimeSeconds === 0
+            ? formatVoiceMessageTime(durationMs)
+            : `−${formatVoiceMessageTime(remainingMs)}`}
         </span>
-        {#if status === 'error' || status === 'offline'}
-          <button
-            type="button"
-            onclick={retryPlayback}
-            class="min-h-[44px] shrink-0 cursor-pointer rounded-full bg-surface-highlighted px-2.5 font-semibold text-text disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={m['composer.voice.retry']()}
-            disabled={status === 'offline'}
-          >
-            {m['composer.voice.retry_short']()}
-          </button>
-        {/if}
       </div>
-    {/if}
-
-    <div class="mt-0.5 flex items-center justify-between gap-2 text-[11px] leading-none text-muted">
-      <span class="font-mono tabular-nums">
-        {paused && currentTimeSeconds === 0
-          ? formatVoiceMessageTime(durationMs)
-          : `−${formatVoiceMessageTime(remainingMs)}`}
-      </span>
-      <button
-        type="button"
-        onclick={cyclePlaybackRate}
-        class="min-h-[44px] min-w-[44px] cursor-pointer rounded-full px-1.5 font-semibold text-muted transition-colors hover:bg-surface-highlighted hover:text-text"
-        aria-label={m['composer.voice.playback_speed']({ rate: playbackRate })}
-        title={m['composer.voice.playback_speed']({ rate: playbackRate })}
-      >
-        {playbackRate}×
-      </button>
     </div>
+
+    <button
+      type="button"
+      onclick={cyclePlaybackRate}
+      class="h-[44px] w-[44px] shrink-0 cursor-pointer rounded-full px-1.5 text-[11px] font-semibold text-muted transition-colors hover:bg-surface-highlighted hover:text-text"
+      aria-label={m['composer.voice.playback_speed']({ rate: playbackRate })}
+      title={m['composer.voice.playback_speed']({ rate: playbackRate })}
+    >
+      {playbackRate}×
+    </button>
   </div>
+
+  {#if status === 'loading' || status === 'buffering' || status === 'offline' || status === 'error'}
+    <div
+      class="mt-1 flex min-w-0 items-center justify-between gap-2 rounded-lg bg-background/45 px-2 py-1 text-[11px] leading-tight text-muted"
+      data-testid="voice-message-status"
+      aria-live="polite"
+    >
+      <span class="min-w-0">
+        {status === 'loading'
+          ? m['composer.voice.loading']()
+          : status === 'buffering'
+            ? m['composer.voice.buffering']()
+            : status === 'offline'
+              ? m['composer.voice.offline']()
+              : m['composer.voice.playback_failed']()}
+      </span>
+      {#if status === 'error' || status === 'offline'}
+        <button
+          type="button"
+          onclick={retryPlayback}
+          class="min-h-[44px] shrink-0 cursor-pointer rounded-full bg-surface-highlighted px-2.5 font-semibold text-text disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={m['composer.voice.retry']()}
+          disabled={status === 'offline'}
+        >
+          {m['composer.voice.retry_short']()}
+        </button>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 <style>
