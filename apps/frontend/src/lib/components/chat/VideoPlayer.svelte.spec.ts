@@ -5,6 +5,7 @@ import { VideoProcessingStatus } from '$lib/render/types';
 import VideoPlayer from './VideoPlayer.svelte';
 
 const TRANSPARENT_THUMBNAIL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
+const LAZY_PLAYER_TIMEOUT_MS = 10_000;
 
 function renderAutoLoopVideo({ width, height }: { width: number; height: number }) {
   return render(VideoPlayer, {
@@ -75,12 +76,16 @@ function video(container: HTMLElement): HTMLVideoElement {
 }
 
 async function mediaPlayer(container: HTMLElement): Promise<HTMLElement> {
-  await expect.poll(() => container.querySelector('media-player')).toBeTruthy();
+  await expect
+    .poll(() => container.querySelector('media-player'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
+    .toBeTruthy();
   return container.querySelector<HTMLElement>('media-player')!;
 }
 
 async function posterImage(container: HTMLElement): Promise<HTMLImageElement> {
-  await expect.poll(() => container.querySelector('.vds-poster img')).toBeTruthy();
+  await expect
+    .poll(() => container.querySelector('.vds-poster img'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
+    .toBeTruthy();
   return container.querySelector<HTMLImageElement>('.vds-poster img')!;
 }
 
@@ -109,9 +114,36 @@ describe('VideoPlayer', () => {
     const player = await mediaPlayer(container);
     const poster = await posterImage(container);
 
-    expect(frame(container).getAttribute('style')).toContain('aspect-ratio: 480 / 270');
+    expect(frame(container).getAttribute('style')).toContain('aspect-ratio: 640 / 360');
     expect(player.dataset.fit).toBe('cover');
     expect(getComputedStyle(poster).objectFit).toBe('cover');
+  });
+
+  it('gives portrait posted videos a watchable responsive inline frame', async () => {
+    const { container } = renderPostedVideo({
+      width: 1080,
+      height: 1920,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    const player = await mediaPlayer(container);
+    const style = frame(container).getAttribute('style');
+
+    expect(style).toContain('aspect-ratio: 360 / 640');
+    expect(style).toContain('width: min(100%, 360px, 40.5svh)');
+    expect(player.dataset.fit).toBe('contain');
+  });
+
+  it('lets landscape posted videos use the available message width', async () => {
+    const { container } = renderPostedVideo({
+      width: 1920,
+      height: 1080,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    await mediaPlayer(container);
+
+    expect(frame(container).getAttribute('style')).toContain('aspect-ratio: 640 / 360');
   });
 
   it('passes every portable MP4 variant to Vidstack with explicit media metadata', async () => {

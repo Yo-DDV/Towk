@@ -17,6 +17,8 @@
     "remove_link": "Quitar enlace",
     "code_language": "lenguaje de código",
     "placeholder": "Escribe un mensaje...",
+    "room_placeholder": "Enviar un mensaje en #{room}…",
+    "room_placeholder_compact": "#{room} · Mensaje…",
     "editing_placeholder": "Editando mensaje...",
     "drop_files_title": "Suelta archivos aquí",
     "drop_files_subtitle": "Los archivos se añadirán a tu mensaje.",

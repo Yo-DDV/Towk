@@ -9,6 +9,7 @@ import type { QuoteInsertionContent, RoomMember } from '$lib/state/room';
 import { PresenceStatus } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import { pwaOutbox } from '$lib/pwa/outbox.svelte';
+import { sidebarNav } from '$lib/state/globals.svelte';
 
 function postedMessageEvent(
   id = 'msg_123',
@@ -343,6 +344,7 @@ async function selectFirstAttachment(input: HTMLInputElement, file = imageFile()
 
 describe('MessageComposer', () => {
   beforeEach(() => {
+    sidebarNav.setMobile(false);
     window.getSelection()?.removeAllRanges();
     mockInstanceStores.serverInfo.videoProcessingEnabled = false;
     mockInstanceStores.serverInfo.maxUploadSize = 25 * 1024 * 1024;
@@ -406,6 +408,7 @@ describe('MessageComposer', () => {
   });
 
   afterEach(() => {
+    sidebarNav.setMobile(false);
     window.getSelection()?.removeAllRanges();
     vi.restoreAllMocks();
   });
@@ -415,6 +418,38 @@ describe('MessageComposer', () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
 
       await expect.element(await findEditor(container)).toBeInTheDocument();
+    });
+
+    it('centers the editor within the composer focus shell', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+
+      const editor = await findEditor(container);
+      const shell = q(container, '[data-testid="message-composer-shell"]');
+      const outsideFocusTarget = document.createElement('button');
+      container.before(outsideFocusTarget);
+
+      await expect.element(shell).toBeInTheDocument();
+      await expect.element(shell).toHaveClass('composer-focus-shell', 'items-center');
+
+      outsideFocusTarget.focus();
+      await tick();
+      expect(shell!.matches(':focus-within')).toBe(false);
+      const idleRect = shell!.getBoundingClientRect();
+      const idleShadow = getComputedStyle(shell!).boxShadow;
+
+      editor.focus();
+      await tick();
+
+      const focusedRect = shell!.getBoundingClientRect();
+      expect(document.activeElement).toBe(editor);
+      await vi.waitFor(
+        () => expect(getComputedStyle(shell!).boxShadow).not.toBe(idleShadow),
+        1_000
+      );
+      expect(focusedRect.width).toBe(idleRect.width);
+      expect(focusedRect.height).toBe(idleRect.height);
+
+      outsideFocusTarget.remove();
     });
 
     it('renders the attachment button', async () => {
@@ -464,6 +499,107 @@ describe('MessageComposer', () => {
       // TipTap Placeholder extension sets data-placeholder on the empty paragraph
       await expect
         .element(q(container, 'p.is-editor-empty[data-placeholder="Type a message..."]'))
+        .toBeInTheDocument();
+    });
+
+    it('includes the channel name in the placeholder when available', async () => {
+      const { container } = renderMessageComposer({
+        roomId: 'room_named',
+        roomName: 'project-chat'
+      });
+
+      await findEditor(container);
+      await expect
+        .element(
+          q(container, 'p.is-editor-empty[data-placeholder="Send a message in #project-chat…"]')
+        )
+        .toBeInTheDocument();
+    });
+
+    it('updates the placeholder when room metadata finishes loading', async () => {
+      const rendered = renderMessageComposer({ roomId: 'room_loading' });
+
+      await findEditor(rendered.container);
+      await expect
+        .element(q(rendered.container, 'p.is-editor-empty[data-placeholder="Type a message..."]'))
+        .toBeInTheDocument();
+
+      await rendered.rerender({ roomId: rendered.roomId, roomName: 'project-chat' });
+
+      await expect
+        .element(
+          q(
+            rendered.container,
+            'p.is-editor-empty[data-placeholder="Send a message in #project-chat…"]'
+          )
+        )
+        .toBeInTheDocument();
+    });
+
+    it('keeps the channel name visible in the compact mobile placeholder', async () => {
+      const { container } = renderMessageComposer({
+        roomId: 'room_mobile',
+        roomName: 'project-chat'
+      });
+
+      await findEditor(container);
+      sidebarNav.setMobile(true);
+      await tick();
+
+      await expect
+        .element(q(container, 'p.is-editor-empty[data-placeholder="#project-chat · Message…"]'))
+        .toBeInTheDocument();
+    });
+
+    it('keeps a long empty placeholder out of the caret flow on narrow layouts', async () => {
+      sidebarNav.setMobile(true);
+      const { container } = renderMessageComposer({
+        roomId: 'room_fold',
+        roomName: 'dev-notifications-pr110-with-a-long-suffix',
+        canVoice: true
+      });
+
+      const editor = await findEditor(container);
+      const shell = q(container, '[data-testid="message-composer-shell"]');
+      const placeholder = q(container, 'p.is-editor-empty[data-placeholder]');
+      expect(shell).not.toBeNull();
+      expect(placeholder).not.toBeNull();
+
+      for (const width of [280, 304, 552]) {
+        shell!.style.width = `${width}px`;
+        await tick();
+
+        const placeholderStyle = getComputedStyle(placeholder!, '::before');
+        expect(placeholderStyle.position).toBe('absolute');
+        expect(placeholderStyle.overflow).toBe('hidden');
+        expect(placeholderStyle.textOverflow).toBe('ellipsis');
+        expect(placeholderStyle.whiteSpace).toBe('nowrap');
+
+        editor.focus();
+        await tick();
+        expect(editor.scrollWidth).toBeLessThanOrEqual(editor.clientWidth);
+        expect(editor.scrollLeft).toBe(0);
+      }
+
+      await typeInEditor(
+        editor,
+        'A real message remains editable and wraps normally after the placeholder disappears.'
+      );
+      expect(q(container, 'p.is-editor-empty[data-placeholder]')).toBeNull();
+      expect(editor.textContent).toContain('A real message remains editable');
+      expect(editor.scrollWidth).toBeLessThanOrEqual(editor.clientWidth);
+    });
+
+    it('keeps an explicit placeholder ahead of the channel placeholder', async () => {
+      const { container } = renderMessageComposer({
+        roomId: 'room_custom',
+        roomName: 'project-chat',
+        placeholder: 'Reply to thread…'
+      });
+
+      await findEditor(container);
+      await expect
+        .element(q(container, 'p.is-editor-empty[data-placeholder="Reply to thread…"]'))
         .toBeInTheDocument();
     });
   });

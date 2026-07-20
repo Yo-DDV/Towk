@@ -17,6 +17,8 @@
     "remove_link": "Link entfernen",
     "code_language": "Codesprache",
     "placeholder": "Nachricht schreiben...",
+    "room_placeholder": "Nachricht in #{room} senden…",
+    "room_placeholder_compact": "#{room} · Nachricht…",
     "editing_placeholder": "Nachricht wird bearbeitet...",
     "drop_files_title": "Dateien hier ablegen",
     "drop_files_subtitle": "Dateien werden deiner Nachricht hinzugefügt",

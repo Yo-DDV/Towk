@@ -1,7 +1,7 @@
 export const SOURCE_REPOSITORY_URL = 'https://github.com/Yo-DDV/towk';
 
 const SEMVER_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
-const DEVELOPMENT_COMMIT = /(?:^|-)dev-([0-9a-f]{7,40})$/i;
+const DEVELOPMENT_COMMIT = /(?:^|-)dev-([0-9a-f]{7,40})(?:-[0-9A-Za-z.-]+)?$/i;
 
 /** Return the corresponding-source URL for a version reported by the Towk server. */
 export function sourcePathForVersion(version: string): string {

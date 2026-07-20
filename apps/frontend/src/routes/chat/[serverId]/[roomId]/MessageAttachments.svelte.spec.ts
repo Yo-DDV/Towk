@@ -258,6 +258,7 @@ describe('MessageAttachments', () => {
     const player = container.querySelector<HTMLVideoElement>('[data-testid="raw-video-player"]');
 
     expect(player).not.toBeNull();
+    expect(player?.className).toContain('raw-inline-video');
 
     Object.defineProperty(player!, 'videoWidth', { configurable: true, value: 0 });
     Object.defineProperty(player!, 'videoHeight', { configurable: true, value: 0 });

@@ -98,6 +98,11 @@
     },
     "cached_timeline": "Showing this device’s encrypted history while Towk reconnects.",
     "corresponding_source": "View corresponding source for Towk {version}",
+    "version_info": {
+      "open": "Version information",
+      "title": "Server version",
+      "source": "View corresponding source"
+    },
     "sign_out": "Sign out",
     "close": "Close",
     "auth_status": {

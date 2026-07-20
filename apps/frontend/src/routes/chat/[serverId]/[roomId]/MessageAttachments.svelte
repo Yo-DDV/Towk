@@ -629,7 +629,7 @@
             controls
             preload="metadata"
             src={attachment.url}
-            class="max-h-64 max-w-full"
+            class="raw-inline-video"
             aria-label={attachment.filename}
             data-testid="raw-video-player"
             onerror={() => handleRawVideoError(attachment)}
@@ -666,7 +666,7 @@
           <button
             type="button"
             onclick={(e) => openDeleteConfirmation(attachment, e)}
-            class="attachment-remove-button voice-message-remove-button top-1/2 right-1 h-11 w-11 -translate-y-1/2 md:group-hover/attachment:opacity-100"
+            class="voice-message-remove-button attachment-remove-button top-1/2 right-1 h-11 w-11 -translate-y-1/2 md:group-hover/attachment:opacity-100"
             aria-label={m['room.attachment.delete_label']()}
             title={m['room.attachment.delete_label']()}
           >
@@ -690,7 +690,7 @@
           <button
             type="button"
             onclick={() => openDownload(attachment)}
-            class="flex min-h-[44px] min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-surface-highlighted hover:text-text"
+            class="flex min-h-[44px] max-w-full min-w-0 items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-surface-highlighted hover:text-text"
             aria-label={m['room.attachment.download_label']({ filename: attachment.filename })}
             title={m['room.attachment.download_label']({ filename: attachment.filename })}
             data-testid="audio-download-button"
@@ -798,3 +798,20 @@
     </div>
   {/if}
 {/if}
+
+<style>
+  .raw-inline-video {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: min(100%, 40rem);
+    max-height: 40rem;
+    object-fit: contain;
+  }
+
+  @supports (height: 1svh) {
+    .raw-inline-video {
+      max-height: min(72svh, 40rem);
+    }
+  }
+</style>

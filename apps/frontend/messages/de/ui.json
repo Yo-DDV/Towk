@@ -98,6 +98,11 @@
     },
     "cached_timeline": "Der verschlüsselte Verlauf dieses Geräts wird während der Wiederverbindung angezeigt.",
     "corresponding_source": "Zugehörigen Towk-Quellcode für {version} anzeigen",
+    "version_info": {
+      "open": "Versionsinformationen",
+      "title": "Serverversion",
+      "source": "Zugehörigen Quellcode anzeigen"
+    },
     "sign_out": "Abmelden",
     "close": "Schließen",
     "auth_status": {
