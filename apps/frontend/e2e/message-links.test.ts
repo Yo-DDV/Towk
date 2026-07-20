@@ -186,14 +186,15 @@ test.describe('Message links', () => {
     });
 
     // "Jump to Present" SHOULD appear (we jumped to an old message)
-    await expect(page.getByTestId('jump-to-present')).toBeVisible({
+    const jumpToPresent = page.locator('[data-testid="jump-to-present"]:not([inert])');
+    await expect(jumpToPresent).toBeVisible({
       timeout: TIMEOUTS.UI_STANDARD
     });
 
     // Activate "Jump to Present" to return to the latest messages. The floating
-    // button can sit over a moving scroll layer, so avoid pointer interception
-    // from timeline content while still exercising the button's click handler.
-    await page.getByTestId('jump-to-present').evaluate((button: HTMLElement) => button.click());
+    // button can sit over a moving scroll layer. Svelte also keeps the outgoing
+    // transition node inert briefly, so target the active control explicitly.
+    await jumpToPresent.click({ force: true });
 
     // The latest filler should become visible
     await expect(page.getByText(`Filler 60 - ${timestamp}`)).toBeVisible({
@@ -201,9 +202,7 @@ test.describe('Message links', () => {
     });
 
     // "Jump to Present" button should disappear after returning to present
-    await expect(page.getByTestId('jump-to-present')).not.toBeVisible({
-      timeout: TIMEOUTS.UI_STANDARD
-    });
+    await expect(jumpToPresent).toHaveCount(0, { timeout: TIMEOUTS.UI_STANDARD });
   });
 
   test('clicking a message link in body navigates in-app without opening a new window', async ({

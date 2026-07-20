@@ -13,7 +13,10 @@
  * This hook detects the keyboard by comparing `visualViewport.height` to a
  * stored reference height (captured when no keyboard is visible). When the
  * keyboard is open, it sets an explicit body height to shrink above the
- * keyboard. When closed, it clears the override and lets CSS handle sizing.
+ * keyboard. iOS may also move the visual viewport while focusing the editor,
+ * so the fixed body is aligned with `offsetTop` instead of remaining anchored
+ * to the layout viewport. When closed, it clears the overrides and lets CSS
+ * handle sizing.
  *
  * Also counteracts iOS Safari's scroll-to-focus behavior that shifts the
  * document even when the body is `position: fixed`.
@@ -30,12 +33,12 @@ export function useVisualViewport() {
     let lastWidth = vv.width;
 
     function update() {
-      // Orientation change: width changed, so reset reference and let CSS handle it.
+      // After an orientation change, the layout viewport provides the new
+      // keyboard-free reference height on iOS. Continue through the normal
+      // keyboard check so a keyboard that stayed open remains accounted for.
       if (vv!.width !== lastWidth) {
-        fullHeight = vv!.height;
+        fullHeight = document.documentElement.clientHeight || vv!.height;
         lastWidth = vv!.width;
-        document.body.style.height = '';
-        return;
       }
 
       // Keyboard detection: if visual viewport is significantly shorter than
@@ -43,12 +46,16 @@ export function useVisualViewport() {
       const keyboardLikelyOpen = vv!.height < fullHeight * 0.75;
 
       if (keyboardLikelyOpen) {
-        // Override body height to shrink above the keyboard.
+        // Fill the visual viewport rather than only shortening the body. iOS
+        // can shift that viewport during focus, and ignoring the offset leaves
+        // the same number of pixels clipped below the keyboard.
         document.body.style.height = `${vv!.height}px`;
+        document.body.style.top = `${vv!.offsetTop}px`;
       } else {
         // No keyboard — update reference, clear override, let CSS inset:0 handle sizing.
         fullHeight = vv!.height;
         document.body.style.height = '';
+        document.body.style.top = '';
       }
 
       // Prevent iOS Safari from scrolling the document when focusing inputs.
@@ -59,12 +66,15 @@ export function useVisualViewport() {
 
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
+    vv.addEventListener('scrollend', update);
     update();
 
     return () => {
       vv.removeEventListener('resize', update);
       vv.removeEventListener('scroll', update);
+      vv.removeEventListener('scrollend', update);
       document.body.style.height = '';
+      document.body.style.top = '';
     };
   });
 }
