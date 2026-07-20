@@ -63,7 +63,6 @@ describe('VoiceMessagePlayer', () => {
     expect(waveform?.querySelector('.h-px')).toBeNull();
     expect(Math.max(...waveformHeights)).toBeGreaterThan(24);
     expect(new Set(waveformHeights).size).toBeGreaterThan(2);
-    expect(container.querySelector('[data-testid="voice-message-meta"]')).not.toBeNull();
     expect(container.textContent).toContain('0:12');
     expect(container.querySelector('button[aria-label="Play voice message"]')?.classList).toContain(
       'h-[44px]'
@@ -112,6 +111,7 @@ describe('VoiceMessagePlayer', () => {
         filename: 'voice-message.webm'
       }
     });
+    container.style.width = '280px';
     await tick();
 
     const controls = container.querySelector<HTMLElement>(
@@ -122,16 +122,23 @@ describe('VoiceMessagePlayer', () => {
     const waveform = container.querySelector<HTMLElement>(
       '[data-testid="voice-message-waveform"]'
     )!;
-    const meta = container.querySelector<HTMLElement>('[data-testid="voice-message-meta"]')!;
     const time = container.querySelector<HTMLElement>('[data-testid="voice-message-time"]')!;
 
     expect(controls.classList).toContain('items-center');
     expect(play.parentElement).toBe(controls);
     expect(waveform.parentElement).toBe(controls);
+    expect(time.parentElement).toBe(controls);
     expect(speed.parentElement).toBe(controls);
-    expect(meta.parentElement).toBe(waveform);
-    expect(time.parentElement).toBe(meta);
-    expect(meta.classList).toContain('justify-end');
+    expect(time.nextElementSibling).toBe(speed);
+    expect(controls.scrollWidth).toBeLessThanOrEqual(controls.clientWidth);
+    const timeBounds = time.getBoundingClientRect();
+    const speedBounds = speed.getBoundingClientRect();
+    expect(
+      Math.abs(
+        (timeBounds.top + timeBounds.bottom) / 2 - (speedBounds.top + speedBounds.bottom) / 2
+      )
+    ).toBeLessThanOrEqual(1);
+    expect(timeBounds.right).toBeLessThanOrEqual(speedBounds.left);
     expect(play.classList).toContain('h-[44px]');
     expect(play.classList).toContain('w-[44px]');
     expect(speed.classList).toContain('h-[44px]');
