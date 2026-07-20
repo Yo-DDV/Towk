@@ -53,7 +53,8 @@ jobs:
           set -euo pipefail
           goreleaser check
           actionlint .github/workflows/*.yml
-          bash -n tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          bash tools/verify-compose-project-name.sh
           docker buildx build --check --build-arg TARGETARCH=amd64 -f docker/Dockerfile.goreleaser .
           docker buildx build --check --build-arg TARGETARCH=amd64 -f docker/Dockerfile.towk .
 

@@ -93,6 +93,18 @@ test('release workflows keep stable publication manual and immutable', async () 
   assert.match(releaseConfig, /mod_timestamp: "946684800"/);
 });
 
+test('Compose naming checks cover fresh installs, existing projects, and safe renames', async () => {
+  const quickGate = await readFile('.github/workflows/quick-gate.yml', 'utf8');
+  const verifier = await readFile('tools/verify-compose-project-name.sh', 'utf8');
+
+  assert.match(quickGate, /bash tools\/verify-compose-project-name\.sh/);
+  assert.match(verifier, /docker compose config --format json/);
+  assert.match(verifier, /assert_rendered_project "\$generated" towk/);
+  assert.match(verifier, /assert_rendered_project "\$existing" dockercompose/);
+  assert.match(verifier, /assert_safe_rename "\$rename"/);
+  assert.match(verifier, /unsafe_rename=.*unsafe-rename/);
+});
+
 test('native clipboard CI installs only the portable toolchain', async () => {
   const setupAction = await readFile('.github/actions/setup/action.yml', 'utf8');
   const ciWorkflow = await readFile('.github/workflows/ci.yml', 'utf8');
