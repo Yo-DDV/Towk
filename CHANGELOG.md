@@ -4,6 +4,14 @@ All notable changes to Towk. Subsequent entries are maintained from conventional
 commits on `main`; this first standalone release entry is curated to separate
 Towk work from the inherited Chatto history.
 
+## [0.7.1](https://github.com/Yo-DDV/Towk/compare/v0.7.0...v0.7.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* **ci:** diagnose runtime image startup exits ([#131](https://github.com/Yo-DDV/Towk/issues/131)) ([e196724](https://github.com/Yo-DDV/Towk/commit/e196724a92d638e5a9d6c24ce249d30bd0c50e17))
+* **compose:** use Towk default project names ([#133](https://github.com/Yo-DDV/Towk/issues/133)) ([1587fae](https://github.com/Yo-DDV/Towk/commit/1587fae2db3fdbbd8b9d9ade210c79ec5fd46304))
+
 ## [0.7.0](https://github.com/Yo-DDV/Towk/compare/v0.6.1...v0.7.0) (2026-07-20)
 
 
