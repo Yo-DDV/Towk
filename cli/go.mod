@@ -20,9 +20,9 @@ require (
 	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/aws/aws-sdk-go-v2 v1.42.1
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.28
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.105.0
-	github.com/aws/smithy-go v1.27.3
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.29
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.105.2
+	github.com/aws/smithy-go v1.27.4
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/charmbracelet/log v1.0.0
@@ -35,7 +35,7 @@ require (
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.4.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/livekit/protocol v1.49.0
+	github.com/livekit/protocol v1.50.0
 	github.com/markbates/goth v1.82.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/mocktools/go-smtp-mock/v2 v2.5.4
@@ -46,6 +46,7 @@ require (
 	github.com/otiai10/opengraph/v2 v2.2.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/prometheus/client_golang v1.23.2
+	github.com/rivo/uniseg v0.4.7
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
@@ -175,7 +176,6 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.1 // indirect
 	github.com/redis/go-redis/v9 v9.20.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sanity-io/litter v1.5.8 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
