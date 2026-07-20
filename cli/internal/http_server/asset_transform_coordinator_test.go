@@ -271,6 +271,74 @@ func TestAssetTransformCoordinatorBoundsDistinctAdmission(t *testing.T) {
 	}
 }
 
+func TestAssetTransformCoordinatorLoweringCapacityDoesNotCancelInFlight(t *testing.T) {
+	var workers atomic.Int32
+	workers.Store(2)
+	coordinator := newDynamicAssetTransformCoordinator(func() int { return int(workers.Load()) }, func() int { return 3 })
+	t.Cleanup(coordinator.Close)
+
+	started := make(chan string, 3)
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	releaseThird := make(chan struct{})
+	start := func(key string, release <-chan struct{}) <-chan error {
+		result := make(chan error, 1)
+		go func() {
+			_, err := coordinator.Do(context.Background(), key, func(context.Context) (*assetTransformOutput, error) {
+				started <- key
+				<-release
+				return &assetTransformOutput{}, nil
+			})
+			result <- err
+		}()
+		return result
+	}
+
+	first := start("first", releaseFirst)
+	second := start("second", releaseSecond)
+	for range 2 {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("initial transform did not start")
+		}
+	}
+	workers.Store(1)
+	third := start("third", releaseThird)
+	select {
+	case key := <-started:
+		t.Fatalf("%s started above lowered worker capacity", key)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(releaseFirst)
+	if err := <-first; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case key := <-started:
+		t.Fatalf("%s started while one worker still occupies lowered capacity", key)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(releaseSecond)
+	if err := <-second; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case key := <-started:
+		if key != "third" {
+			t.Fatalf("started %q, want third", key)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queued transform did not start after capacity became available")
+	}
+	close(releaseThird)
+	if err := <-third; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAssetTransformCoordinatorPanicDoesNotLeakAdmission(t *testing.T) {
 	coordinator := newAssetTransformCoordinator(1, 1)
 	t.Cleanup(coordinator.Close)

@@ -114,6 +114,39 @@ type DiagnosticsConfig struct {
 	StartupCPUProfile string `toml:"startup_cpu_profile,commented" env:"CHATTO_DIAGNOSTICS_STARTUP_CPU_PROFILE" comment:"Write a Go CPU profile covering process startup through core boot to this path. Disabled when empty."`
 }
 
+const (
+	PerformanceProfileLegacy      = "legacy"
+	PerformanceProfileEconomy     = "economy"
+	PerformanceProfileBalanced    = "balanced"
+	PerformanceProfilePerformance = "performance"
+	PerformanceProfileCustom      = "custom"
+	MaxPerformanceWorkers         = 64
+	MaxPerformanceAdmissions      = 256
+)
+
+// PerformanceConfig defines the operator-owned ceiling for runtime worker
+// policies. Zero caps mean "derive from the detected process envelope", never
+// unlimited. DefaultProfile is written as balanced by `towk init`; an omitted
+// value preserves the historical preset for upgraded configurations.
+type PerformanceConfig struct {
+	DefaultProfile              string `toml:"default_profile,omitempty" env:"CHATTO_PERFORMANCE_DEFAULT_PROFILE" comment:"Runtime profile used when no owner policy exists. New configurations use balanced; omit to preserve historical upgrade behavior."`
+	MaxImageTransformWorkers    int    `toml:"max_image_transform_workers,commented" env:"CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_WORKERS" comment:"Operator ceiling for concurrent image transforms. Zero derives a safe ceiling from process resources."`
+	MaxImageTransformAdmissions int    `toml:"max_image_transform_admissions,commented" env:"CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_ADMISSIONS" comment:"Operator ceiling for admitted image transforms, including queued work. Zero derives a bounded ceiling."`
+	MaxAssetUploadWorkers       int    `toml:"max_asset_upload_workers,commented" env:"CHATTO_PERFORMANCE_MAX_ASSET_UPLOAD_WORKERS" comment:"Operator ceiling for concurrent asset-upload chunk writes. Zero derives a bounded ceiling."`
+	MaxLinkPreviewWorkers       int    `toml:"max_link_preview_workers,commented" env:"CHATTO_PERFORMANCE_MAX_LINK_PREVIEW_WORKERS" comment:"Operator ceiling for concurrent link-preview fetches. Zero derives a safe ceiling from process resources."`
+	MaxVideoWorkers             int    `toml:"max_video_workers,commented" env:"CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS" comment:"Operator ceiling for concurrent video-processing jobs. Zero derives a safe ceiling from process resources."`
+}
+
+// DefaultProfileOrLegacy keeps upgraded configurations without an explicit
+// profile on the historical runtime behavior.
+func (c PerformanceConfig) DefaultProfileOrLegacy() string {
+	profile := strings.ToLower(strings.TrimSpace(c.DefaultProfile))
+	if profile == "" {
+		return PerformanceProfileLegacy
+	}
+	return profile
+}
+
 // OperatorAPIConfig controls the local root-equivalent operator API socket.
 type OperatorAPIConfig struct {
 	Enabled    bool   `toml:"enabled" env:"CHATTO_OPERATOR_API_ENABLED" comment:"Enable the local operator API Unix socket. Default: false."`
@@ -1062,6 +1095,7 @@ type ChattoConfig struct {
 	Metrics     MetricsConfig     `toml:"metrics,commented" comment:"Process-local Prometheus metrics endpoint."`
 	Exporter    ExporterConfig    `toml:"exporter,commented" comment:"Deployment-wide Prometheus metrics exporter."`
 	Diagnostics DiagnosticsConfig `toml:"diagnostics,commented" comment:"Opt-in diagnostics for local benchmarking and operator troubleshooting."`
+	Performance PerformanceConfig `toml:"performance,omitempty" comment:"Operator ceilings and the default runtime performance policy."`
 	OperatorAPI OperatorAPIConfig `toml:"operator_api,commented" comment:"Local root-equivalent operator API Unix socket. Disabled by default."`
 	Core        CoreConfig        `toml:"core" comment:"Core service configuration."`
 	Auth        AuthConfig        `toml:"auth" comment:"Authentication configuration."`
@@ -1162,6 +1196,32 @@ func (c *ChattoConfig) Validate() error {
 		if strings.TrimSpace(c.OperatorAPI.SocketMode) != "" {
 			errs = append(errs, "operator_api.socket_mode is no longer supported; operator API sockets always use mode 0600")
 		}
+	}
+
+	switch c.Performance.DefaultProfileOrLegacy() {
+	case PerformanceProfileLegacy, PerformanceProfileEconomy, PerformanceProfileBalanced, PerformanceProfilePerformance:
+	default:
+		errs = append(errs, "performance.default_profile must be one of: legacy, economy, balanced, performance")
+	}
+	performanceCaps := []struct {
+		name  string
+		value int
+		max   int
+	}{
+		{"max_image_transform_workers", c.Performance.MaxImageTransformWorkers, MaxPerformanceWorkers},
+		{"max_image_transform_admissions", c.Performance.MaxImageTransformAdmissions, MaxPerformanceAdmissions},
+		{"max_asset_upload_workers", c.Performance.MaxAssetUploadWorkers, MaxPerformanceWorkers},
+		{"max_link_preview_workers", c.Performance.MaxLinkPreviewWorkers, MaxPerformanceWorkers},
+		{"max_video_workers", c.Performance.MaxVideoWorkers, MaxPerformanceWorkers},
+	}
+	for _, cap := range performanceCaps {
+		if cap.value < 0 || cap.value > cap.max {
+			errs = append(errs, fmt.Sprintf("performance.%s must be between 0 and %d", cap.name, cap.max))
+		}
+	}
+	if c.Performance.MaxImageTransformAdmissions > 0 && c.Performance.MaxImageTransformWorkers > 0 &&
+		c.Performance.MaxImageTransformAdmissions < c.Performance.MaxImageTransformWorkers {
+		errs = append(errs, "performance.max_image_transform_admissions must be greater than or equal to max_image_transform_workers")
 	}
 
 	// Port ranges (port 0 is allowed when TLS is enabled, as it defaults to 443)

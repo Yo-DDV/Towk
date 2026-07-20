@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
+	"hmans.de/chatto/internal/runtimecap"
 )
 
 const (
@@ -50,22 +52,22 @@ type assetTransformJob struct {
 type assetTransformCoordinator struct {
 	mu        sync.Mutex
 	jobs      map[string]*assetTransformJob
-	workers   chan struct{}
-	admission chan struct{}
+	workers   *runtimecap.Limiter
+	admission *runtimecap.Limiter
 	closed    bool
 }
 
 func newAssetTransformCoordinator(workerCapacity, admittedCapacity int) *assetTransformCoordinator {
-	if workerCapacity < 1 {
-		workerCapacity = 1
-	}
-	if admittedCapacity < workerCapacity {
-		admittedCapacity = workerCapacity
-	}
+	return newDynamicAssetTransformCoordinator(func() int { return workerCapacity }, func() int { return admittedCapacity })
+}
+
+func newDynamicAssetTransformCoordinator(workerCapacity, admittedCapacity func() int) *assetTransformCoordinator {
+	workerLimit := func() int { return max(1, workerCapacity()) }
+	admissionLimit := func() int { return max(workerLimit(), admittedCapacity()) }
 	return &assetTransformCoordinator{
 		jobs:      make(map[string]*assetTransformJob),
-		workers:   make(chan struct{}, workerCapacity),
-		admission: make(chan struct{}, admittedCapacity),
+		workers:   runtimecap.NewLimiter(workerLimit),
+		admission: runtimecap.NewLimiter(admissionLimit),
 	}
 }
 
@@ -88,9 +90,7 @@ func (c *assetTransformCoordinator) Do(
 		c.mu.Unlock()
 		return c.wait(ctx, key, job)
 	}
-	select {
-	case c.admission <- struct{}{}:
-	default:
+	if !c.admission.TryAcquire() {
 		c.mu.Unlock()
 		return nil, errAssetTransformBusy
 	}
@@ -117,7 +117,7 @@ func (c *assetTransformCoordinator) run(
 	workerAcquired := false
 	defer func() {
 		if workerAcquired {
-			<-c.workers
+			c.workers.Release()
 		}
 		if recovered := recover(); recovered != nil {
 			job.result = nil
@@ -131,15 +131,14 @@ func (c *assetTransformCoordinator) run(
 		close(job.done)
 		c.mu.Unlock()
 		job.cancel()
-		<-c.admission
+		c.admission.Release()
 	}()
 
-	select {
-	case c.workers <- struct{}{}:
+	if err := c.workers.Acquire(ctx); err == nil {
 		workerAcquired = true
 		job.result, job.err = work(ctx)
-	case <-ctx.Done():
-		job.err = ctx.Err()
+	} else {
+		job.err = err
 	}
 }
 

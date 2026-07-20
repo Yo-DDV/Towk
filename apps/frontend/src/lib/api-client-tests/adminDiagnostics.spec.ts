@@ -1,11 +1,23 @@
 import { protoInt64 } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAdminSystemInfo } from '$lib/api-client/adminDiagnostics';
+import {
+  getAdminPerformanceSettings,
+  getAdminSystemInfo,
+  updateAdminPerformanceSettings
+} from '$lib/api-client/adminDiagnostics';
+import {
+  AdminPerformanceCapReason,
+  AdminPerformanceLimitField,
+  AdminPerformancePolicySource,
+  AdminPerformanceProfile
+} from '@towk/api-types/admin/v1/diagnostics_pb';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   createConnectTransport: vi.fn(),
-  getSystemInfo: vi.fn()
+  getSystemInfo: vi.fn(),
+  getPerformanceSettings: vi.fn(),
+  updatePerformanceSettings: vi.fn()
 }));
 
 vi.mock('@connectrpc/connect', async (importOriginal) => {
@@ -20,15 +32,120 @@ vi.mock('@connectrpc/connect-web', () => ({
   createConnectTransport: mocks.createConnectTransport
 }));
 
-describe('getAdminSystemInfo', () => {
+describe('admin diagnostics client', () => {
   beforeEach(() => {
     mocks.createClient.mockReset();
     mocks.createConnectTransport.mockReset();
     mocks.getSystemInfo.mockReset();
+    mocks.getPerformanceSettings.mockReset();
+    mocks.updatePerformanceSettings.mockReset();
     mocks.createConnectTransport.mockReturnValue({ kind: 'transport' });
     mocks.createClient.mockReturnValue({
-      getSystemInfo: mocks.getSystemInfo
+      getSystemInfo: mocks.getSystemInfo,
+      getPerformanceSettings: mocks.getPerformanceSettings,
+      updatePerformanceSettings: mocks.updatePerformanceSettings
     });
+  });
+
+  it('maps truthful performance limits and sends custom updates with the expected revision', async () => {
+    const settings = {
+      requestedProfile: AdminPerformanceProfile.CUSTOM,
+      effectiveProfile: AdminPerformanceProfile.BALANCED,
+      source: AdminPerformancePolicySource.OWNER,
+      schemaVersion: 1,
+      revision: '12',
+      requestedLimits: {
+        imageTransformWorkers: 6,
+        imageTransformAdmissions: 12,
+        assetUploadWorkers: 5,
+        linkPreviewWorkers: 4,
+        videoWorkers: 3
+      },
+      effectiveLimits: {
+        imageTransformWorkers: 2,
+        imageTransformAdmissions: 8,
+        assetUploadWorkers: 4,
+        linkPreviewWorkers: 2,
+        videoWorkers: 2
+      },
+      operatorCaps: {
+        imageTransformWorkers: 8,
+        imageTransformAdmissions: 32,
+        assetUploadWorkers: 8,
+        linkPreviewWorkers: 8,
+        videoWorkers: 4
+      },
+      envelope: {
+        cpus: 2,
+        memoryBytes: protoInt64.parse(4 * 1024 * 1024 * 1024),
+        cpuSource: 'cgroup',
+        memorySource: 'cgroup'
+      },
+      caps: [
+        {
+          field: AdminPerformanceLimitField.VIDEO_WORKERS,
+          reasons: [AdminPerformanceCapReason.PROCESS_CPU]
+        }
+      ],
+      policyError: '',
+      restartRequired: false
+    };
+    mocks.getPerformanceSettings.mockResolvedValue({ settings });
+    mocks.updatePerformanceSettings.mockResolvedValue({ settings });
+
+    const config = {
+      baseUrl: 'https://chat.example.test/api/connect',
+      bearerToken: 'token'
+    };
+    const current = await getAdminPerformanceSettings(config);
+
+    expect(current.requestedProfile).toBe('custom');
+    expect(current.effectiveProfile).toBe('balanced');
+    expect(current.envelope.memoryBytes).toBe(4 * 1024 * 1024 * 1024);
+    expect(current.caps.video_workers).toEqual(['process_cpu']);
+
+    await updateAdminPerformanceSettings(config, {
+      profile: 'custom',
+      expectedRevision: current.revision,
+      customLimits: current.requestedLimits
+    });
+
+    expect(mocks.updatePerformanceSettings).toHaveBeenCalledWith(
+      {
+        profile: AdminPerformanceProfile.CUSTOM,
+        expectedRevision: '12',
+        customLimits: {
+          imageTransformWorkers: 6,
+          imageTransformAdmissions: 12,
+          assetUploadWorkers: 5,
+          linkPreviewWorkers: 4,
+          videoWorkers: 3
+        }
+      },
+      { headers: { Authorization: 'Bearer token' } }
+    );
+  });
+
+  it('does not mislabel an unknown future performance profile as historical', async () => {
+    mocks.getPerformanceSettings.mockResolvedValue({
+      settings: {
+        requestedProfile: AdminPerformanceProfile.UNSPECIFIED,
+        effectiveProfile: AdminPerformanceProfile.ECONOMY,
+        source: AdminPerformancePolicySource.OWNER,
+        revision: '19',
+        policyError: 'unsupported policy schema',
+        caps: []
+      }
+    });
+
+    const current = await getAdminPerformanceSettings({
+      baseUrl: 'https://chat.example.test/api/connect',
+      bearerToken: 'token'
+    });
+
+    expect(current.requestedProfile).toBe('unknown');
+    expect(current.effectiveProfile).toBe('economy');
+    expect(current.source).toBe('owner');
   });
 
   it('loads admin diagnostics and maps int64 and optional fields', async () => {

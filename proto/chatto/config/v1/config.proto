@@ -26,4 +26,25 @@ message ServerConfig {
 
   // Server description, used for OG link-preview metadata and the welcome card.
   string description = 7;
+
+  // Owner-requested runtime performance policy. Absence preserves the
+  // historical runtime limits for upgraded installations.
+  ServerPerformancePolicy performance_policy = 8;
+}
+
+// Bounded worker policy stored as a durable server configuration fact.
+message PerformanceLimits {
+  int32 image_transform_workers = 1;
+  int32 image_transform_admissions = 2;
+  int32 asset_upload_workers = 3;
+  int32 link_preview_workers = 4;
+  int32 video_workers = 5;
+}
+
+// Versioned owner-requested performance policy.
+message ServerPerformancePolicy {
+  uint32 schema_version = 1;
+  string profile = 2;
+  PerformanceLimits custom_limits = 3;
+  uint64 revision = 4;
 }

@@ -169,6 +169,9 @@ func TestInitGeneratesCoreSecret(t *testing.T) {
 	if cfg.NATS.Replicas != 1 {
 		t.Fatalf("generated NATS replicas = %d, want 1", cfg.NATS.Replicas)
 	}
+	if got := cfg.Performance.DefaultProfileOrLegacy(); got != config.PerformanceProfileBalanced {
+		t.Fatalf("generated performance profile = %q, want %q", got, config.PerformanceProfileBalanced)
+	}
 	if cfg.NATS.Embedded.Port != 0 {
 		t.Fatalf("generated embedded NATS port = %d, want 0 when port is commented out", cfg.NATS.Embedded.Port)
 	}

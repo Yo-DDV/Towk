@@ -25,6 +25,7 @@ import (
 	"hmans.de/chatto/internal/kms"
 	"hmans.de/chatto/internal/lease"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/runtimecap"
 )
 
 // ============================================================================
@@ -43,6 +44,8 @@ type ChattoCore struct {
 	encryption         *encryptionManager
 	dekResolver        *unwrappedDEKResolver
 	configManager      *ConfigManager
+	performance        *PerformanceManager
+	assetUploadLimiter *runtimecap.Limiter
 	roomModel          *RoomModel
 	roomCommands       *RoomCommandModel
 	roomDirectoryReads *RoomDirectoryReadModel
@@ -1041,6 +1044,7 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 
 	configModel := NewConfigModel(eventPublisher, serverConfigProjector, serverConfigProjection)
 	configMgr := NewConfigManager(configModel, serverConfigProjection)
+	performance := NewPerformanceManager(config.PerformanceConfig{}, serverConfigProjection)
 	roomMgr := newRoomModel(
 		roomDirectory,
 		roomDirectoryProjector,
@@ -1066,6 +1070,7 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		encryption:                encMgr,
 		dekResolver:               dekResolver,
 		configManager:             configMgr,
+		performance:               performance,
 		roomModel:                 roomMgr,
 		userModel:                 userMgr,
 		rbacModel:                 rbacMgr,
@@ -1106,6 +1111,7 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 		notificationCallbackSlots: make(chan struct{}, maxConcurrentNotificationCallbacks),
 	}
 	core.voiceMessageTranscodeSlots = make(chan struct{}, defaultMaxConcurrentVoiceMessageTranscodes)
+	core.assetUploadLimiter = runtimecap.NewLimiter(core.AssetUploadWorkerLimit)
 
 	callReconcileLease, err := lease.New(js, storage.memoryCacheKV, lease.Options{
 		Name:       callReconcileLeaseName,
@@ -1160,6 +1166,7 @@ func NewChattoCore(ctx context.Context, nc *nats.Conn, cfg config.CoreConfig) (*
 	core.linkPreviewCache = linkpreview.NewCache(storage.runtimeStateKV)
 	assetsConfig := core.AssetsConfig()
 	core.linkPreviewFetcher = linkpreview.NewFetcher(&assetsConfig, NewAssetID, core.storeLinkPreviewImage)
+	core.linkPreviewFetcher.SetWorkerLimit(core.LinkPreviewWorkerLimit)
 
 	// ensureChannelRoomsAreInAGroup is deferred to core.Run() — it
 	// needs the projectors to be live so its CreateRoomGroup /

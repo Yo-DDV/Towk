@@ -164,6 +164,55 @@ Fill in the placeholders and make sure the LiveKit key and secret are the same
 in `.env` and `livekit.yaml`. LiveKit requires its API secret to be at least 32
 characters.
 
+## Performance envelopes and runtime profiles
+
+Performance has two separate control layers:
+
+1. The operator sets hard container ceilings with `TOWK_CPU_LIMIT`,
+   `TOWK_MEMORY_LIMIT`, and the corresponding NATS, LiveKit, and Caddy
+   variables in `.env`. Changing these values requires recreating the affected
+   service.
+2. A server owner selects **Economy**, **Balanced**, **Performance**, or a
+   bounded **Custom** policy in **Server administration → System**. This
+   changes media concurrency live for newly admitted work and never interrupts
+   work already in progress.
+
+Towk displays both the requested policy and the effective worker limits. The
+effective values can be lower because the process applies the smallest of the
+detected CPU/memory envelope, an optional operator cap, and the owner's request.
+The browser cannot change container resources or override operator limits.
+
+`env.example` and `init-env.sh` use `balanced` for new installations. Existing
+installations that omit `CHATTO_PERFORMANCE_DEFAULT_PROFILE` retain the
+historical preset for pools that were already bounded until an owner explicitly
+saves a profile. Upload chunk writes gain a balanced process-local bound instead
+of remaining unbounded. The optional `CHATTO_PERFORMANCE_MAX_*` variables are
+hard per-process ceilings; leave them unset to derive bounded ceilings from the
+process envelope.
+
+The checked-in resource values are conservative starting points, not user-count
+or latency guarantees. A small host can lower all four services and select the
+economy policy. A larger host can raise the service ceilings and select the
+performance policy, but should still monitor CPU, memory, storage latency and
+call quality under its real workload. Do not raise only Towk while leaving NATS
+storage or LiveKit constrained.
+
+After changing a container ceiling, render and recreate the stack:
+
+```bash
+docker compose config
+docker compose up -d --force-recreate
+```
+
+After changing only the owner profile in the UI, no container restart is
+required. A rolling or multi-replica deployment may report different effective
+limits per process when replicas have different resource envelopes.
+
+The owner-selected profile is stored in Towk's event stream and is therefore
+included in the normal Towk backup and restore workflow. Operator-owned `.env`,
+Compose and Kubernetes resource settings remain outside that data archive and
+must be backed up with the deployment configuration.
+
 ## Usage
 
 ```bash

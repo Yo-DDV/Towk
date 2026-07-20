@@ -36,9 +36,12 @@ type ServerConfig struct {
 	// Checked case-insensitively during registration.
 	BlockedUsernames string `protobuf:"bytes,4,opt,name=blocked_usernames,json=blockedUsernames,proto3" json:"blocked_usernames,omitempty"`
 	// Server description, used for OG link-preview metadata and the welcome card.
-	Description   string `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Description string `protobuf:"bytes,7,opt,name=description,proto3" json:"description,omitempty"`
+	// Owner-requested runtime performance policy. Absence preserves the
+	// historical runtime limits for upgraded installations.
+	PerformancePolicy *ServerPerformancePolicy `protobuf:"bytes,8,opt,name=performance_policy,json=performancePolicy,proto3" json:"performance_policy,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *ServerConfig) Reset() {
@@ -106,18 +109,183 @@ func (x *ServerConfig) GetDescription() string {
 	return ""
 }
 
+func (x *ServerConfig) GetPerformancePolicy() *ServerPerformancePolicy {
+	if x != nil {
+		return x.PerformancePolicy
+	}
+	return nil
+}
+
+// Bounded worker policy stored as a durable server configuration fact.
+type PerformanceLimits struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	ImageTransformWorkers    int32                  `protobuf:"varint,1,opt,name=image_transform_workers,json=imageTransformWorkers,proto3" json:"image_transform_workers,omitempty"`
+	ImageTransformAdmissions int32                  `protobuf:"varint,2,opt,name=image_transform_admissions,json=imageTransformAdmissions,proto3" json:"image_transform_admissions,omitempty"`
+	AssetUploadWorkers       int32                  `protobuf:"varint,3,opt,name=asset_upload_workers,json=assetUploadWorkers,proto3" json:"asset_upload_workers,omitempty"`
+	LinkPreviewWorkers       int32                  `protobuf:"varint,4,opt,name=link_preview_workers,json=linkPreviewWorkers,proto3" json:"link_preview_workers,omitempty"`
+	VideoWorkers             int32                  `protobuf:"varint,5,opt,name=video_workers,json=videoWorkers,proto3" json:"video_workers,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *PerformanceLimits) Reset() {
+	*x = PerformanceLimits{}
+	mi := &file_chatto_config_v1_config_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PerformanceLimits) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PerformanceLimits) ProtoMessage() {}
+
+func (x *PerformanceLimits) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_config_v1_config_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PerformanceLimits.ProtoReflect.Descriptor instead.
+func (*PerformanceLimits) Descriptor() ([]byte, []int) {
+	return file_chatto_config_v1_config_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PerformanceLimits) GetImageTransformWorkers() int32 {
+	if x != nil {
+		return x.ImageTransformWorkers
+	}
+	return 0
+}
+
+func (x *PerformanceLimits) GetImageTransformAdmissions() int32 {
+	if x != nil {
+		return x.ImageTransformAdmissions
+	}
+	return 0
+}
+
+func (x *PerformanceLimits) GetAssetUploadWorkers() int32 {
+	if x != nil {
+		return x.AssetUploadWorkers
+	}
+	return 0
+}
+
+func (x *PerformanceLimits) GetLinkPreviewWorkers() int32 {
+	if x != nil {
+		return x.LinkPreviewWorkers
+	}
+	return 0
+}
+
+func (x *PerformanceLimits) GetVideoWorkers() int32 {
+	if x != nil {
+		return x.VideoWorkers
+	}
+	return 0
+}
+
+// Versioned owner-requested performance policy.
+type ServerPerformancePolicy struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SchemaVersion uint32                 `protobuf:"varint,1,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
+	Profile       string                 `protobuf:"bytes,2,opt,name=profile,proto3" json:"profile,omitempty"`
+	CustomLimits  *PerformanceLimits     `protobuf:"bytes,3,opt,name=custom_limits,json=customLimits,proto3" json:"custom_limits,omitempty"`
+	Revision      uint64                 `protobuf:"varint,4,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServerPerformancePolicy) Reset() {
+	*x = ServerPerformancePolicy{}
+	mi := &file_chatto_config_v1_config_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServerPerformancePolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerPerformancePolicy) ProtoMessage() {}
+
+func (x *ServerPerformancePolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_config_v1_config_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerPerformancePolicy.ProtoReflect.Descriptor instead.
+func (*ServerPerformancePolicy) Descriptor() ([]byte, []int) {
+	return file_chatto_config_v1_config_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ServerPerformancePolicy) GetSchemaVersion() uint32 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
+}
+
+func (x *ServerPerformancePolicy) GetProfile() string {
+	if x != nil {
+		return x.Profile
+	}
+	return ""
+}
+
+func (x *ServerPerformancePolicy) GetCustomLimits() *PerformanceLimits {
+	if x != nil {
+		return x.CustomLimits
+	}
+	return nil
+}
+
+func (x *ServerPerformancePolicy) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
 var File_chatto_config_v1_config_proto protoreflect.FileDescriptor
 
 const file_chatto_config_v1_config_proto_rawDesc = "" +
 	"\n" +
-	"\x1dchatto/config/v1/config.proto\x12\x10chatto.config.v1\"\xe1\x01\n" +
+	"\x1dchatto/config/v1/config.proto\x12\x10chatto.config.v1\"\xbb\x02\n" +
 	"\fServerConfig\x12'\n" +
 	"\x0fwelcome_message\x18\x01 \x01(\tR\x0ewelcomeMessage\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
 	"serverName\x12\x12\n" +
 	"\x04motd\x18\x03 \x01(\tR\x04motd\x12+\n" +
 	"\x11blocked_usernames\x18\x04 \x01(\tR\x10blockedUsernames\x12 \n" +
-	"\vdescription\x18\a \x01(\tR\vdescriptionJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\bog_titleR\x0eog_descriptionB\xbc\x01\n" +
+	"\vdescription\x18\a \x01(\tR\vdescription\x12X\n" +
+	"\x12performance_policy\x18\b \x01(\v2).chatto.config.v1.ServerPerformancePolicyR\x11performancePolicyJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\bog_titleR\x0eog_description\"\x92\x02\n" +
+	"\x11PerformanceLimits\x126\n" +
+	"\x17image_transform_workers\x18\x01 \x01(\x05R\x15imageTransformWorkers\x12<\n" +
+	"\x1aimage_transform_admissions\x18\x02 \x01(\x05R\x18imageTransformAdmissions\x120\n" +
+	"\x14asset_upload_workers\x18\x03 \x01(\x05R\x12assetUploadWorkers\x120\n" +
+	"\x14link_preview_workers\x18\x04 \x01(\x05R\x12linkPreviewWorkers\x12#\n" +
+	"\rvideo_workers\x18\x05 \x01(\x05R\fvideoWorkers\"\xc0\x01\n" +
+	"\x17ServerPerformancePolicy\x12%\n" +
+	"\x0eschema_version\x18\x01 \x01(\rR\rschemaVersion\x12\x18\n" +
+	"\aprofile\x18\x02 \x01(\tR\aprofile\x12H\n" +
+	"\rcustom_limits\x18\x03 \x01(\v2#.chatto.config.v1.PerformanceLimitsR\fcustomLimits\x12\x1a\n" +
+	"\brevision\x18\x04 \x01(\x04R\brevisionB\xbc\x01\n" +
 	"\x14com.chatto.config.v1B\vConfigProtoP\x01Z5hmans.de/chatto/internal/pb/chatto/config/v1;configv1\xa2\x02\x03CCX\xaa\x02\x10Chatto.Config.V1\xca\x02\x10Chatto\\Config\\V1\xe2\x02\x1cChatto\\Config\\V1\\GPBMetadata\xea\x02\x12Chatto::Config::V1b\x06proto3"
 
 var (
@@ -132,16 +300,20 @@ func file_chatto_config_v1_config_proto_rawDescGZIP() []byte {
 	return file_chatto_config_v1_config_proto_rawDescData
 }
 
-var file_chatto_config_v1_config_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_chatto_config_v1_config_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_chatto_config_v1_config_proto_goTypes = []any{
-	(*ServerConfig)(nil), // 0: chatto.config.v1.ServerConfig
+	(*ServerConfig)(nil),            // 0: chatto.config.v1.ServerConfig
+	(*PerformanceLimits)(nil),       // 1: chatto.config.v1.PerformanceLimits
+	(*ServerPerformancePolicy)(nil), // 2: chatto.config.v1.ServerPerformancePolicy
 }
 var file_chatto_config_v1_config_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	2, // 0: chatto.config.v1.ServerConfig.performance_policy:type_name -> chatto.config.v1.ServerPerformancePolicy
+	1, // 1: chatto.config.v1.ServerPerformancePolicy.custom_limits:type_name -> chatto.config.v1.PerformanceLimits
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_chatto_config_v1_config_proto_init() }
@@ -155,7 +327,7 @@ func file_chatto_config_v1_config_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_config_v1_config_proto_rawDesc), len(file_chatto_config_v1_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

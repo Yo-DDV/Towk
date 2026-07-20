@@ -22,6 +22,7 @@ import (
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/core"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/runtimecap"
 )
 
 // processRequest is the in-process shape passed to the worker after the
@@ -41,7 +42,7 @@ type Service struct {
 	logger      *log.Logger
 	ffmpegPath  string
 	ffprobePath string
-	sem         chan struct{}
+	workers     *runtimecap.Limiter
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -59,10 +60,10 @@ func NewService(chattoCore *core.ChattoCore, cfg config.VideoConfig, logger *log
 		core:   chattoCore,
 		config: cfg,
 		logger: logger,
-		sem:    make(chan struct{}, cfg.MaxConcurrentOrDefault()),
 		ctx:    ctx,
 		cancel: cancel,
 	}
+	s.workers = runtimecap.NewLimiter(chattoCore.VideoWorkerLimit)
 	if err := s.resolveTools(); err != nil {
 		cancel()
 		return nil, err
@@ -78,7 +79,7 @@ func (s *Service) Run(ctx context.Context) error {
 }
 
 func (s *Service) run(ctx context.Context, shutdownTimeout time.Duration) error {
-	maxConcurrent := s.config.MaxConcurrentOrDefault()
+	maxConcurrent := s.core.VideoWorkerLimit()
 	s.logger.Info("Video processing service started",
 		"ffmpeg", s.ffmpegPath,
 		"ffprobe", s.ffprobePath,
@@ -141,12 +142,10 @@ func (s *Service) StartProcessing(_ context.Context, assetID, messageEventID str
 
 	go func() {
 		defer s.wg.Done()
-		select {
-		case s.sem <- struct{}{}:
-			defer func() { <-s.sem }()
-		case <-s.ctx.Done():
+		if err := s.workers.Acquire(s.ctx); err != nil {
 			return
 		}
+		defer s.workers.Release()
 		if err := s.processAsset(s.ctx, assetID, messageEventID); err != nil {
 			s.logger.Error("Video processing failed", "asset_id", assetID, "error", err)
 		}

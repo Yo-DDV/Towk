@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 // ============================================================================
@@ -174,6 +175,29 @@ func TestConfigManager_UpdateServerConfigFunc(t *testing.T) {
 			t.Error("expected at least one successful update")
 		}
 	})
+}
+
+func TestConfigManager_PerformancePolicyRoundTrip(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	policy := &configv1.ServerPerformancePolicy{
+		SchemaVersion: 1,
+		Profile:       "performance",
+		Revision:      1,
+	}
+	if err := core.configManager.SetServerConfig(ctx, "owner", &configv1.ServerConfig{PerformancePolicy: policy}); err != nil {
+		t.Fatalf("set performance policy: %v", err)
+	}
+	got, err := core.configManager.GetServerConfig(ctx)
+	if err != nil {
+		t.Fatalf("get performance policy: %v", err)
+	}
+	if got.GetPerformancePolicy().GetProfile() != "performance" || got.GetPerformancePolicy().GetRevision() != 1 {
+		t.Fatalf("performance policy = %#v", got.GetPerformancePolicy())
+	}
+	if status := core.PerformanceStatus(); status.Source != performanceSourceOwner || status.Revision != 1 {
+		t.Fatalf("effective performance status = %#v", status)
+	}
 }
 
 func TestConfigManager_ServerConfigStringLengthLimits(t *testing.T) {
@@ -624,6 +648,41 @@ func TestConfigManager_IsUsernameBlocked(t *testing.T) {
 			t.Error("expected 'admin' to NOT be blocked with custom list")
 		}
 	})
+}
+
+func TestConfigManager_UnchangedFuturePerformancePolicyDoesNotBlockOtherConfig(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	futurePolicy := &configv1.ServerPerformancePolicy{
+		SchemaVersion: 99,
+		Profile:       "future-profile",
+		Revision:      42,
+	}
+	if err := core.ServerConfig.Apply(&corev1.Event{Event: &corev1.Event_ServerPerformancePolicyChanged{
+		ServerPerformancePolicyChanged: &corev1.ServerPerformancePolicyChangedEvent{Policy: futurePolicy},
+	}}, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, err := core.configManager.UpdateServerConfigFunc(ctx, "test", func(current *configv1.ServerConfig) (*configv1.ServerConfig, error) {
+		current.ServerName = "Compatible Edit"
+		return current, nil
+	})
+	if err != nil {
+		t.Fatalf("unrelated config edit was blocked by unchanged future policy: %v", err)
+	}
+	if updated.GetServerName() != "Compatible Edit" || updated.GetPerformancePolicy().GetRevision() != 42 {
+		t.Fatalf("updated config = %#v", updated)
+	}
+	if got := core.ServerConfig.PerformancePolicy(); got.GetSchemaVersion() != 99 || got.GetRevision() != 42 {
+		t.Fatalf("future policy changed during unrelated edit: %#v", got)
+	}
+
+	changed := cloneServerConfig(updated)
+	changed.PerformancePolicy.Profile = "different-future-profile"
+	if err := validateServerConfigUpdate(updated, changed); err == nil {
+		t.Fatal("changing an unsupported future policy was accepted")
+	}
 }
 
 func TestParseBlockedUsernames(t *testing.T) {

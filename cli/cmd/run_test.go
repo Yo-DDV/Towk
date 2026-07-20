@@ -14,6 +14,28 @@ import (
 	"hmans.de/chatto/internal/testutil"
 )
 
+func TestPerformanceConfigWithLegacyVideoCap(t *testing.T) {
+	tests := []struct {
+		name        string
+		performance config.PerformanceConfig
+		video       config.VideoConfig
+		want        int
+	}{
+		{"legacy cap retained", config.PerformanceConfig{}, config.VideoConfig{MaxConcurrent: 1}, 1},
+		{"stricter new cap retained", config.PerformanceConfig{MaxVideoWorkers: 2}, config.VideoConfig{MaxConcurrent: 4}, 2},
+		{"stricter legacy cap retained", config.PerformanceConfig{MaxVideoWorkers: 4}, config.VideoConfig{MaxConcurrent: 2}, 2},
+		{"oversized legacy cap clamped", config.PerformanceConfig{}, config.VideoConfig{MaxConcurrent: config.MaxPerformanceWorkers + 1}, config.MaxPerformanceWorkers},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := performanceConfigWithLegacyVideoCap(tc.performance, tc.video)
+			if got.MaxVideoWorkers != tc.want {
+				t.Fatalf("max video workers = %d, want %d", got.MaxVideoWorkers, tc.want)
+			}
+		})
+	}
+}
+
 func TestSetupPushNotificationsDoesNotRegisterSilentDismissPushes(t *testing.T) {
 	chattoCore := &core.ChattoCore{}
 	setupPushNotifications(chattoCore, config.ChattoConfig{Push: config.PushConfig{

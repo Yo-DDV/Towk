@@ -23,6 +23,7 @@ import (
 
 	"hmans.de/chatto/internal/assets"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/runtimecap"
 )
 
 const (
@@ -69,7 +70,7 @@ type Fetcher struct {
 	storeImage   StoreImageFunc
 	logger       *log.Logger
 	fetchGroup   singleflight.Group
-	fetchSlots   chan struct{}
+	fetchSlots   *runtimecap.Limiter
 }
 
 // NewFetcher creates a new link preview fetcher.
@@ -82,8 +83,14 @@ func NewFetcher(assetsConfig *assets.Config, newAssetID func() string, storeImag
 		newAssetID:   newAssetID,
 		storeImage:   storeImage,
 		logger:       log.WithPrefix("linkpreview"),
-		fetchSlots:   make(chan struct{}, MaxConcurrentFetches),
+		fetchSlots:   runtimecap.NewLimiter(func() int { return MaxConcurrentFetches }),
 	}
+}
+
+// SetWorkerLimit installs a live process-local concurrency source. Existing
+// work is never cancelled when the limit is lowered.
+func (f *Fetcher) SetWorkerLimit(limit func() int) {
+	f.fetchSlots = runtimecap.NewLimiter(limit)
 }
 
 // FetchResult contains the fetched link preview metadata.
@@ -115,12 +122,10 @@ func (f *Fetcher) fetchWithSlot(ctx context.Context, rawURL string) (*FetchResul
 }
 
 func (f *Fetcher) withFetchSlot(ctx context.Context, work func() (*FetchResult, error)) (*FetchResult, error) {
-	select {
-	case f.fetchSlots <- struct{}{}:
-		defer func() { <-f.fetchSlots }()
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	if err := f.fetchSlots.Acquire(ctx); err != nil {
+		return nil, err
 	}
+	defer f.fetchSlots.Release()
 	return work()
 }
 

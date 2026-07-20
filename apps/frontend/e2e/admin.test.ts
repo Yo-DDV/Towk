@@ -265,6 +265,30 @@ test.describe('Admin System Page', () => {
     // Should see account usage stat cards
     await adminPage.expectSystemStatsVisible();
   });
+
+  test('system diagnostics do not create internal horizontal overflow on narrow mobile viewports', async ({
+    page,
+    adminPage
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await createAndLoginAdminUser(page);
+
+    await adminPage.gotoSystem();
+
+    const scrollContainer = page.getByTestId('admin-system-scroll');
+    await expect(scrollContainer).toBeVisible();
+
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const dimensions = await scrollContainer.evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth
+      }));
+      expect(dimensions.scrollWidth, `system diagnostics overflow at ${width}px`).toBeLessThanOrEqual(
+        dimensions.clientWidth
+      );
+    }
+  });
 });
 
 test.describe('Admin Navigation', () => {
