@@ -529,6 +529,7 @@
     const visualViewport = window.visualViewport;
     visualViewport?.addEventListener('resize', keepBottomAnchored);
     visualViewport?.addEventListener('scroll', keepBottomAnchored);
+    visualViewport?.addEventListener('scrollend', keepBottomAnchored);
 
     return () => {
       viewportObserver.disconnect();
@@ -536,6 +537,7 @@
       mutationObserver.disconnect();
       visualViewport?.removeEventListener('resize', keepBottomAnchored);
       visualViewport?.removeEventListener('scroll', keepBottomAnchored);
+      visualViewport?.removeEventListener('scrollend', keepBottomAnchored);
     };
   });
 
@@ -564,9 +566,30 @@
     }
   });
 
+  // Lock to prevent virtua's scroll corrections from immediately re-enabling
+  // auto-scroll after we detect a user scroll-up. Without this, $fixScrollJump
+  // can adjust the scroll position back near the bottom within the same frame,
+  // causing handleVirtuaScroll to see distanceFromBottom < 50 and re-enable.
+  let scrollUpLock = false;
+  let scrollUpLockTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function prepareExplicitBottomScroll() {
+    // A reply-link click or drag inside the timeline arms scroll intent. Once the
+    // user explicitly asks to return to the present, that older gesture must not
+    // cancel or relock the programmatic bottom convergence.
+    userScrollIntentAt = 0;
+    cancelBottomScroll();
+    scrollUpLock = false;
+    if (scrollUpLockTimer) {
+      clearTimeout(scrollUpLockTimer);
+      scrollUpLockTimer = null;
+    }
+    setShouldScrollToBottom(true);
+  }
+
   // Scroll to bottom when clicking the new messages indicator
   function scrollToBottom() {
-    setShouldScrollToBottom(true);
+    prepareExplicitBottomScroll();
     onReachedBottom?.();
     void requestBottomScroll();
   }
@@ -575,9 +598,8 @@
     // The replacement latest window must perform a fresh initial-style bottom
     // scroll. Virtua otherwise preserves the historical window's offset when
     // the keyed data is replaced and can leave the user stranded mid-window.
-    setShouldScrollToBottom(true);
+    prepareExplicitBottomScroll();
     initialScrollDone = false;
-    scrollUpLock = false;
     onReachedBottom?.();
     const requestedRoomId = roomId;
     const intentAtStart = userScrollIntentAt;
@@ -586,13 +608,6 @@
     if (roomId !== requestedRoomId || userScrollIntentAt !== intentAtStart) return;
     void requestBottomScroll();
   }
-
-  // Lock to prevent virtua's scroll corrections from immediately re-enabling
-  // auto-scroll after we detect a user scroll-up. Without this, $fixScrollJump
-  // can adjust the scroll position back near the bottom within the same frame,
-  // causing handleVirtuaScroll to see distanceFromBottom < 50 and re-enable.
-  let scrollUpLock = false;
-  let scrollUpLockTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Timestamp of the most recent user-driven scroll signal (wheel or touchmove).
   // The scroll-up branch in handleVirtuaScroll only fires when this is recent,
