@@ -1,0 +1,14 @@
+---
+# Use this override only when intentionally changing COMPOSE_PROJECT_NAME for an
+# existing installation. Set each variable to the current volume name reported
+# by `docker compose config --format json` before stopping the old project.
+volumes:
+  nats_data:
+    external: true
+    name: ${TOWK_EXISTING_NATS_VOLUME:?required}
+  caddy_data:
+    external: true
+    name: ${TOWK_EXISTING_CADDY_DATA_VOLUME:?required}
+  caddy_config:
+    external: true
+    name: ${TOWK_EXISTING_CADDY_CONFIG_VOLUME:?required}

@@ -49,6 +49,12 @@ hostname.
 
    Replace `chat.example.com` with your Towk domain and `admin@example.com` with the email address you will use for the first account. The script generates `.env` and `livekit.generated.yaml` with matching NATS, Towk, and LiveKit secrets.
 
+   The generated environment sets `COMPOSE_PROJECT_NAME=towk`. Docker will
+   therefore name the default containers `towk-towk-1`, `towk-nats-1`,
+   `towk-livekit-1`, and `towk-caddy-1`, with the same `towk` prefix for the
+   default network and named volumes. To choose another name for a new
+   installation, edit this value before the first `docker compose up`.
+
    Set `TOWK_IMAGE` in `.env` to an immutable `ghcr.io/yo-ddv/towk` tag and digest from the repository Packages page. The generated placeholder deliberately prevents an accidental floating deployment.
 
 4. **Configure SMTP**
@@ -263,6 +269,67 @@ the owner-selected profile.
 />
 
 ## Updating and rollback
+
+<Aside type="caution">
+  Keep `COMPOSE_PROJECT_NAME` unchanged after the first start. It selects the
+  whole Compose namespace, including containers, the network, and named
+  volumes. New installations use `towk`; an older `.env` without this setting
+  should keep it absent during a routine application update so Compose retains
+  its existing directory-derived namespace. Do not overwrite an existing
+  `.env` with `env.example` or rerun `init-env.sh --force` during that update.
+</Aside>
+
+### Change the project name intentionally
+
+For an existing installation, changing `COMPOSE_PROJECT_NAME` is a controlled
+migration. First create the Towk backup shown below, save `.env`, and render the
+current configuration before stopping anything:
+
+```bash
+cp .env .env.before-project-rename
+docker compose config --format json > compose.before-project-rename.json
+```
+
+Record the rendered names of `nats_data`, `caddy_data`, and `caddy_config`.
+Stop the old project while its original `.env` is still active:
+
+```bash
+docker compose stop
+```
+
+Then set the desired project name and those exact existing volume names in
+`.env`. The values below are examples; use the names from your rendered file:
+
+```dotenv
+COMPOSE_PROJECT_NAME=my-towk
+TOWK_EXISTING_NATS_VOLUME=dockercompose_nats_data
+TOWK_EXISTING_CADDY_DATA_VOLUME=dockercompose_caddy_data
+TOWK_EXISTING_CADDY_CONFIG_VOLUME=dockercompose_caddy_config
+```
+
+Render and start with the checked-in migration override:
+
+```bash
+docker compose -f compose.yml -f compose.project-name.override.yml config
+docker compose -f compose.yml -f compose.project-name.override.yml up -d
+docker compose -f compose.yml -f compose.project-name.override.yml ps
+```
+
+The override marks the three existing volumes as external. The renamed project
+gets new container and network names while continuing to use the original data
+volumes; Compose cannot delete those volumes through this override. Keep the
+override and variables in future commands for the renamed installation.
+
+For rollback, stop the renamed project, restore the old `.env`, and restart the
+still-present original containers:
+
+```bash
+docker compose -f compose.yml -f compose.project-name.override.yml stop
+cp .env.before-project-rename .env
+docker compose start
+```
+
+Do not run `docker compose down -v` during this migration.
 
 Before an update, create a Towk backup and keep a copy of your deployment
 configuration:
