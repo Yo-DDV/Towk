@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(dirname "$0")/runtime-image-process.sh"
+
 image="${1:?usage: verify-runtime-image.sh IMAGE}"
 work="$(mktemp -d "${TMPDIR:-/tmp}/towk-runtime-verify.XXXXXX")"
 chmod 0700 "$work"
@@ -39,17 +41,6 @@ if docker run --rm -e PGID=invalid "$image" version >"$work/pgid-invalid.out" 2>
 fi
 grep -Fq "PGID must be a numeric group ID" "$work/pgid-invalid.out"
 
-wait_for_container() {
-  for _ in $(seq 1 40); do
-    if [ "$(docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null || true)" = "true" ]; then
-      return 0
-    fi
-    sleep 0.25
-  done
-  docker logs "$container" >&2 || true
-  return 1
-}
-
 assert_runtime_ids() {
   expected_uid="$1"
   expected_gid="$2"
@@ -57,9 +48,7 @@ assert_runtime_ids() {
   run_data="$(mktemp -d "$data/run.XXXXXX")"
   chmod 0777 "$run_data"
   docker run -d --name "$container" "$@" -v "$config:/config" -v "$run_data:/data" "$image" start >/dev/null
-  wait_for_container
-  ids="$(docker top "$container" -eo pid,uid,gid | awk 'NR == 2 {print $2 ":" $3}')"
-  test "$ids" = "${expected_uid}:${expected_gid}"
+  wait_for_runtime_ids "$container" "$expected_uid" "$expected_gid"
   docker rm -f "$container" >/dev/null
 }
 
@@ -91,7 +80,7 @@ printf '[\n' > "$config/chatto.toml"
 run_data="$(mktemp -d "$data/run.XXXXXX")"
 chmod 0777 "$run_data"
 docker run -d --name "$container" -v "$config:/config" -v "$run_data:/data" "$image" start -c /config/explicit.toml >/dev/null
-wait_for_container
+wait_for_runtime_ids "$container" 1000 1000
 docker rm -f "$container" >/dev/null
 
 echo "Verified Towk runtime identity, config priority, compatibility fallback, and legal bundle."

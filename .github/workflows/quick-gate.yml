@@ -33,4 +33,5 @@ jobs:
           git diff --check "${empty_tree}" HEAD
           node --check tools/check-public-surface.mjs
           node tools/check-public-surface.mjs
-          bash -n tools/verify-release-archives.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          bash -n tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
+          bash tools/runtime-image-process_test.sh
