@@ -3,6 +3,8 @@ package core
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"image"
 	"image/png"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -977,6 +980,41 @@ func setupTestCoreWithCache(t *testing.T) (*ChattoCore, *nats.Conn) {
 	startCoreServices(t, core)
 
 	return core, nc
+}
+
+func TestImageCacheCapacityExceededRecognizesOnlyBoundedQuotaFailure(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "wrapped maximum bytes exceeded",
+			err: fmt.Errorf("put object: %w", &jetstream.APIError{
+				Code:        503,
+				ErrorCode:   10077,
+				Description: "maximum bytes exceeded",
+			}),
+			want: true,
+		},
+		{
+			name: "different stream store failure",
+			err: &jetstream.APIError{
+				Code:        503,
+				ErrorCode:   10077,
+				Description: "storage unavailable",
+			},
+		},
+		{name: "unrelated failure", err: errors.New("write failed")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := imageCacheCapacityExceeded(tt.err); got != tt.want {
+				t.Fatalf("imageCacheCapacityExceeded() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestChattoCore_DeleteAttachment_CleansUpCache(t *testing.T) {

@@ -164,6 +164,17 @@ var (
 	// resource limit configured via [limits] (e.g. max_users).
 	ErrLimitExceeded = errors.New("instance limit reached")
 
+	// ErrAssetStorageCapacity is returned before an upload is admitted when its
+	// temporary and durable copies would consume the reserved SERVER_ASSETS
+	// headroom.
+	ErrAssetStorageCapacity = errors.New("asset storage capacity reached")
+
+	// ErrImageCacheCapacity reports an expected best-effort derivative-cache
+	// write rejection. Media delivery continues from the freshly transformed
+	// bytes; callers may suppress warning-level log amplification for this
+	// bounded fallback while preserving unexpected cache failures.
+	ErrImageCacheCapacity = errors.New("image cache capacity reached")
+
 	// ErrServerNotBootstrapped is returned by API-layer helpers that need
 	// the deployment's primary space ID before its bootstrap has run.
 	ErrServerNotBootstrapped = errors.New("instance not bootstrapped")

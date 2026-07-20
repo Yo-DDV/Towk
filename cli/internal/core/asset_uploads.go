@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,16 +28,24 @@ const defaultMaxConcurrentVoiceMessageTranscodes = 2
 
 const (
 	assetUploadKeyPrefix              = "asset_upload."
+	assetUploadCapacityKey            = "asset_upload_capacity"
 	assetUploadTempObjectPrefix       = "asset-upload."
 	defaultAssetUploadSessionTTL      = 15 * time.Minute
 	defaultPendingAttachmentAssetTTL  = 24 * time.Hour
-	defaultAssetUploadChunkSize       = 512 * 1024
 	assetUploadCleanupInterval        = 5 * time.Minute
 	assetUploadOrphanChunkMaxAge      = defaultAssetUploadSessionTTL + time.Hour
+	assetUploadCapacityHeadroomRatio  = 20
+	assetUploadCapacityMaxRetries     = 32
+	assetUploadCapacityMaxEntries     = 4096
 	normalizedVoiceMessageContentType = "audio/mp4"
 	normalizedVoiceMessageExtension   = ".m4a"
 	voiceMessageTranscodeTimeout      = 5 * time.Minute
 )
+
+// AssetUploadMaxChunkSize is the largest resumable upload chunk accepted by
+// the core and by the Connect request limit. One MiB halves the request count
+// of the former policy while bounding per-request memory and retry exposure.
+const AssetUploadMaxChunkSize = 1024 * 1024
 
 type AssetUploadStatus string
 
@@ -91,6 +100,15 @@ type AssetUploadSession struct {
 	VoiceMessage    *VoiceMessageUploadMetadata `json:"voice_message,omitempty"`
 }
 
+type assetUploadCapacityReservation struct {
+	RemainingBytes int64     `json:"remaining_bytes"`
+	ExpiresAt      time.Time `json:"expires_at"`
+}
+
+type assetUploadCapacityLedger struct {
+	Reservations map[string]assetUploadCapacityReservation `json:"reservations"`
+}
+
 type completedUploadPayload struct {
 	reader      io.ReadSeeker
 	cleanup     func()
@@ -131,8 +149,13 @@ func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCr
 	}
 
 	now := time.Now()
+	uploadID := NewAssetID()
+	expiresAt := now.Add(defaultAssetUploadSessionTTL)
+	if err := m.reserveCapacity(ctx, uploadID, input.Size, expiresAt); err != nil {
+		return nil, err
+	}
 	session := &AssetUploadSession{
-		UploadID:     NewAssetID(),
+		UploadID:     uploadID,
 		ActorID:      input.ActorID,
 		RoomID:       input.RoomID,
 		Filename:     filename,
@@ -140,15 +163,17 @@ func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCr
 		Size:         input.Size,
 		SHA256:       strings.ToLower(input.SHA256),
 		Status:       AssetUploadStatusOpen,
-		MaxChunkSize: defaultAssetUploadChunkSize,
-		ExpiresAt:    now.Add(defaultAssetUploadSessionTTL),
+		MaxChunkSize: AssetUploadMaxChunkSize,
+		ExpiresAt:    expiresAt,
 		VoiceMessage: cloneVoiceMessageUploadMetadata(input.VoiceMessage),
 	}
 	value, err := json.Marshal(session)
 	if err != nil {
+		m.releaseCapacityBestEffort(ctx, uploadID)
 		return nil, err
 	}
 	if _, err := m.core.storage.runtimeStateKV.Create(ctx, assetUploadKey(session.UploadID), value, jetstream.KeyTTL(time.Until(session.ExpiresAt))); err != nil {
+		m.releaseCapacityBestEffort(ctx, uploadID)
 		return nil, fmt.Errorf("create upload session: %w", err)
 	}
 	return session, nil
@@ -210,6 +235,9 @@ func (m *AssetUploadModel) UploadChunk(ctx context.Context, input AssetUploadChu
 		_ = m.core.storage.serverAssets.Delete(ctx, chunkKey)
 		return nil, err
 	}
+	if err := m.reduceCapacityReservation(ctx, session.UploadID, int64(len(input.Content))); err != nil {
+		m.core.logger.Warn("Failed to reduce asset upload capacity reservation", "upload_id", session.UploadID, "error", err)
+	}
 	return session, nil
 }
 
@@ -257,6 +285,7 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 			m.core.logger.Warn("Failed to mark rejected asset upload as cancelled", "upload_id", session.UploadID, "error", updateErr)
 		}
 		m.deleteUploadChunks(ctx, session)
+		m.releaseCapacityBestEffort(ctx, session.UploadID)
 		if deleteErr := m.core.storage.runtimeStateKV.Delete(ctx, assetUploadKey(session.UploadID)); deleteErr != nil && !errors.Is(deleteErr, jetstream.ErrKeyNotFound) && !errors.Is(deleteErr, jetstream.ErrKeyDeleted) {
 			m.core.logger.Warn("Failed to delete rejected asset upload session", "upload_id", session.UploadID, "error", deleteErr)
 		}
@@ -279,6 +308,7 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 		return nil, nil, err
 	}
 	m.deleteUploadChunks(ctx, session)
+	m.releaseCapacityBestEffort(ctx, session.UploadID)
 	return session, attachment, nil
 }
 
@@ -298,6 +328,7 @@ func (m *AssetUploadModel) CancelUpload(ctx context.Context, input AssetUploadCa
 		return nil, err
 	}
 	m.deleteUploadChunks(ctx, session)
+	m.releaseCapacityBestEffort(ctx, session.UploadID)
 	_ = m.core.storage.runtimeStateKV.Delete(ctx, assetUploadKey(session.UploadID))
 	return session, nil
 }
@@ -355,6 +386,7 @@ func (m *AssetUploadModel) cleanupExpiredUploadSessions(ctx context.Context, now
 		if err := json.Unmarshal(entry.Value(), &session); err != nil {
 			m.core.logger.Warn("Deleting malformed asset upload session", "upload_key", key, "error", err)
 			_ = m.core.storage.runtimeStateKV.Delete(ctx, key)
+			m.releaseCapacityBestEffort(ctx, strings.TrimPrefix(key, assetUploadKeyPrefix))
 			continue
 		}
 		expired := !session.ExpiresAt.After(now)
@@ -365,6 +397,7 @@ func (m *AssetUploadModel) cleanupExpiredUploadSessions(ctx context.Context, now
 			continue
 		}
 		m.deleteUploadChunks(ctx, &session)
+		m.releaseCapacityBestEffort(ctx, session.UploadID)
 		_ = m.core.storage.runtimeStateKV.Delete(ctx, key)
 	}
 	return nil
@@ -775,6 +808,218 @@ func (m *AssetUploadModel) deleteUploadChunks(ctx context.Context, session *Asse
 			m.core.logger.Warn("Failed to delete asset upload chunk", "upload_id", session.UploadID, "error", err)
 		}
 	}
+}
+
+func (m *AssetUploadModel) reserveCapacity(ctx context.Context, uploadID string, size int64, expiresAt time.Time) error {
+	remaining := initialAssetUploadReservationBytes(size, m.core.ShouldUseS3())
+	for range assetUploadCapacityMaxRetries {
+		now := time.Now()
+		ledger, revision, absent, err := m.loadCapacityReservationsWithRevision(ctx)
+		if err != nil {
+			return err
+		}
+		pruneAssetUploadCapacityLedger(&ledger, now)
+		if len(ledger.Reservations) >= assetUploadCapacityMaxEntries {
+			return ErrAssetStorageCapacity
+		}
+
+		usedBytes, maxBytes, err := m.serverAssetsCapacity(ctx)
+		if err != nil {
+			return err
+		}
+		reservedBytes := assetUploadReservedBytes(ledger)
+		headroomBytes := assetUploadCapacityHeadroom(maxBytes)
+		if exceedsInt64Limit(maxBytes, usedBytes, reservedBytes, remaining, headroomBytes) {
+			// Capacity details are operational data. Keep the public error stable
+			// and non-enumerating for authenticated room members.
+			return ErrAssetStorageCapacity
+		}
+
+		ledger.Reservations[uploadID] = assetUploadCapacityReservation{
+			RemainingBytes: remaining,
+			ExpiresAt:      expiresAt,
+		}
+		if err := m.storeCapacityReservations(ctx, ledger, revision, absent); err == nil {
+			return nil
+		} else if isRuntimeStateRevisionConflict(err) {
+			continue
+		} else {
+			return fmt.Errorf("reserve asset upload capacity: %w", err)
+		}
+	}
+	return fmt.Errorf("asset upload capacity reservation conflicted after %d retries", assetUploadCapacityMaxRetries)
+}
+
+func (m *AssetUploadModel) serverAssetsCapacity(ctx context.Context) (int64, int64, error) {
+	// ObjectStore.Status mutates cached stream information in nats.go and is not
+	// safe for concurrent calls on the shared ObjectStore handle. A fresh stream
+	// handle keeps admission race-free and exposes the effective runtime quota.
+	stream, err := m.core.js.Stream(ctx, "OBJ_SERVER_ASSETS")
+	if err != nil {
+		return 0, 0, fmt.Errorf("open SERVER_ASSETS stream: %w", err)
+	}
+	info, err := stream.Info(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("inspect SERVER_ASSETS capacity: %w", err)
+	}
+	return saturatingUint64ToInt64(info.State.Bytes), info.Config.MaxBytes, nil
+}
+
+func (m *AssetUploadModel) reduceCapacityReservation(ctx context.Context, uploadID string, committedBytes int64) error {
+	if committedBytes <= 0 {
+		return nil
+	}
+	return m.mutateCapacityReservation(ctx, uploadID, func(reservation assetUploadCapacityReservation) (assetUploadCapacityReservation, bool) {
+		reservation.RemainingBytes = max(0, reservation.RemainingBytes-committedBytes)
+		return reservation, true
+	})
+}
+
+func (m *AssetUploadModel) releaseCapacityBestEffort(ctx context.Context, uploadID string) {
+	if err := m.releaseCapacityReservation(ctx, uploadID); err != nil {
+		m.core.logger.Warn("Failed to release asset upload capacity reservation", "upload_id", uploadID, "error", err)
+	}
+}
+
+func (m *AssetUploadModel) releaseCapacityReservation(ctx context.Context, uploadID string) error {
+	return m.mutateCapacityReservation(ctx, uploadID, func(reservation assetUploadCapacityReservation) (assetUploadCapacityReservation, bool) {
+		return reservation, false
+	})
+}
+
+func (m *AssetUploadModel) mutateCapacityReservation(ctx context.Context, uploadID string, mutate func(assetUploadCapacityReservation) (assetUploadCapacityReservation, bool)) error {
+	for range assetUploadCapacityMaxRetries {
+		ledger, revision, absent, err := m.loadCapacityReservationsWithRevision(ctx)
+		if err != nil {
+			return err
+		}
+		if absent {
+			return nil
+		}
+		pruneAssetUploadCapacityLedger(&ledger, time.Now())
+		reservation, ok := ledger.Reservations[uploadID]
+		if !ok {
+			return nil
+		}
+		if updated, keep := mutate(reservation); keep {
+			ledger.Reservations[uploadID] = updated
+		} else {
+			delete(ledger.Reservations, uploadID)
+		}
+		if err := m.storeCapacityReservations(ctx, ledger, revision, false); err == nil {
+			return nil
+		} else if isRuntimeStateRevisionConflict(err) {
+			continue
+		} else {
+			return err
+		}
+	}
+	return fmt.Errorf("asset upload capacity update conflicted after %d retries", assetUploadCapacityMaxRetries)
+}
+
+func (m *AssetUploadModel) loadCapacityReservations(ctx context.Context) (assetUploadCapacityLedger, error) {
+	ledger, _, _, err := m.loadCapacityReservationsWithRevision(ctx)
+	return ledger, err
+}
+
+func (m *AssetUploadModel) loadCapacityReservationsWithRevision(ctx context.Context) (assetUploadCapacityLedger, uint64, bool, error) {
+	ledger := assetUploadCapacityLedger{Reservations: make(map[string]assetUploadCapacityReservation)}
+	entry, err := m.core.storage.runtimeStateKV.Get(ctx, assetUploadCapacityKey)
+	if err != nil {
+		if isRuntimeStateKeyAbsent(err) {
+			return ledger, 0, true, nil
+		}
+		return ledger, 0, false, fmt.Errorf("load asset upload capacity reservations: %w", err)
+	}
+	if err := json.Unmarshal(entry.Value(), &ledger); err != nil {
+		return ledger, 0, false, fmt.Errorf("decode asset upload capacity reservations: %w", err)
+	}
+	if ledger.Reservations == nil {
+		ledger.Reservations = make(map[string]assetUploadCapacityReservation)
+	}
+	return ledger, entry.Revision(), false, nil
+}
+
+func (m *AssetUploadModel) storeCapacityReservations(ctx context.Context, ledger assetUploadCapacityLedger, revision uint64, create bool) error {
+	data, err := json.Marshal(ledger)
+	if err != nil {
+		return err
+	}
+	ttl := defaultAssetUploadSessionTTL + time.Minute
+	if create {
+		_, err = m.core.storage.runtimeStateKV.Create(ctx, assetUploadCapacityKey, data, jetstream.KeyTTL(ttl))
+		return err
+	}
+	_, err = m.core.updateRuntimeStateTokenTTL(ctx, assetUploadCapacityKey, data, revision, ttl)
+	return err
+}
+
+func pruneAssetUploadCapacityLedger(ledger *assetUploadCapacityLedger, now time.Time) {
+	for uploadID, reservation := range ledger.Reservations {
+		if !reservation.ExpiresAt.After(now) {
+			delete(ledger.Reservations, uploadID)
+		}
+	}
+}
+
+func assetUploadReservedBytes(ledger assetUploadCapacityLedger) int64 {
+	var total int64
+	for _, reservation := range ledger.Reservations {
+		total = saturatingAddInt64(total, reservation.RemainingBytes)
+	}
+	return total
+}
+
+func initialAssetUploadReservationBytes(size int64, useS3 bool) int64 {
+	if useS3 {
+		return size
+	}
+	return saturatingAddInt64(size, size)
+}
+
+func assetUploadCapacityHeadroom(maxBytes int64) int64 {
+	if maxBytes <= 0 {
+		return 0
+	}
+	return max(1, maxBytes/assetUploadCapacityHeadroomRatio)
+}
+
+func saturatingUint64ToInt64(value uint64) int64 {
+	if value > math.MaxInt64 {
+		return math.MaxInt64
+	}
+	return int64(value)
+}
+
+func saturatingAddInt64(values ...int64) int64 {
+	var total int64
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if total > math.MaxInt64-value {
+			return math.MaxInt64
+		}
+		total += value
+	}
+	return total
+}
+
+func exceedsInt64Limit(limit int64, values ...int64) bool {
+	if limit < 0 {
+		return true
+	}
+	remaining := limit
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if value > remaining {
+			return true
+		}
+		remaining -= value
+	}
+	return false
 }
 
 func assetUploadKey(uploadID string) string {

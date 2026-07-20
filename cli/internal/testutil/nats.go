@@ -13,6 +13,10 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
+// JetStream validates the sum of configured stream quotas against this budget.
+// This is a logical test limit, not a preallocation on disk.
+const testJetStreamMaxStore = int64(64 << 30)
+
 var (
 	sharedNATSMu     sync.Mutex
 	sharedNATSOnce   sync.Once
@@ -27,10 +31,11 @@ func StartNATS(t testing.TB) (*server.Server, *nats.Conn) {
 	t.Helper()
 
 	ns, err := server.NewServer(&server.Options{
-		JetStream:  true,
-		DontListen: true,
-		StoreDir:   t.TempDir(),
-		NoSigs:     true,
+		JetStream:         true,
+		JetStreamMaxStore: testJetStreamMaxStore,
+		DontListen:        true,
+		StoreDir:          t.TempDir(),
+		NoSigs:            true,
 	})
 	if err != nil {
 		t.Fatalf("Failed to create NATS server: %v", err)
@@ -183,10 +188,11 @@ func sharedNATS(t testing.TB) *server.Server {
 		sharedNATSStore = storeDir
 
 		sharedNATSServer, sharedNATSErr = server.NewServer(&server.Options{
-			JetStream:  true,
-			DontListen: true,
-			StoreDir:   storeDir,
-			NoSigs:     true,
+			JetStream:         true,
+			JetStreamMaxStore: testJetStreamMaxStore,
+			DontListen:        true,
+			StoreDir:          storeDir,
+			NoSigs:            true,
 		})
 		if sharedNATSErr != nil {
 			return

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nats-io/nats.go/jetstream"
+	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/pkg/signedurl"
@@ -21,6 +23,72 @@ func TestNewMediaModelWiresCore(t *testing.T) {
 
 	if service.ChattoCore != core {
 		t.Fatal("core facade was not wired")
+	}
+}
+
+func TestGetNATSObjectForDeliveryOutlivesJetStreamDefaultTimeout(t *testing.T) {
+	_, nc := setupTestCore(t)
+	js, err := jetstream.New(nc, jetstream.WithDefaultTimeout(50*time.Millisecond))
+	if err != nil {
+		t.Fatalf("create JetStream client: %v", err)
+	}
+	setupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	store, err := js.CreateObjectStore(setupCtx, jetstream.ObjectStoreConfig{Bucket: "DELIVERY_TIMEOUT"})
+	if err != nil {
+		t.Fatalf("create object store: %v", err)
+	}
+	payload := bytes.Repeat([]byte("towk-media"), 64*1024)
+	if _, err := store.PutBytes(setupCtx, "large-object", payload); err != nil {
+		t.Fatalf("put object: %v", err)
+	}
+
+	result, err := getNATSObjectForDelivery(context.Background(), store, "large-object")
+	if err != nil {
+		t.Fatalf("get object: %v", err)
+	}
+	defer result.Close()
+
+	// JetStream applies its default timeout to ObjectStore.Get when the input
+	// context has no deadline. Delaying consumption beyond that timeout models
+	// a response writer blocked by a slow client.
+	time.Sleep(150 * time.Millisecond)
+	got, err := io.ReadAll(result)
+	if err != nil {
+		t.Fatalf("read object after JetStream default timeout: %v", err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("read %d bytes, want %d", len(got), len(payload))
+	}
+}
+
+func TestGetNATSObjectForDeliveryHonorsCallerDeadline(t *testing.T) {
+	_, nc := setupTestCore(t)
+	js, err := jetstream.New(nc, jetstream.WithDefaultTimeout(5*time.Second))
+	if err != nil {
+		t.Fatalf("create JetStream client: %v", err)
+	}
+	setupCtx, cancelSetup := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelSetup()
+	store, err := js.CreateObjectStore(setupCtx, jetstream.ObjectStoreConfig{Bucket: "DELIVERY_CALLER_DEADLINE"})
+	if err != nil {
+		t.Fatalf("create object store: %v", err)
+	}
+	payload := bytes.Repeat([]byte("towk-media"), 64*1024)
+	if _, err := store.PutBytes(setupCtx, "large-object", payload); err != nil {
+		t.Fatalf("put object: %v", err)
+	}
+
+	callerCtx, cancelCaller := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancelCaller()
+	result, err := getNATSObjectForDelivery(callerCtx, store, "large-object")
+	if err != nil {
+		t.Fatalf("get object: %v", err)
+	}
+	defer result.Close()
+	time.Sleep(150 * time.Millisecond)
+	if _, err := io.ReadAll(result); err == nil {
+		t.Fatal("read unexpectedly outlived the caller deadline")
 	}
 }
 
@@ -211,6 +279,26 @@ func TestMediaModelCacheOperations(t *testing.T) {
 	got, err = service.GetCachedResize(ctx, key)
 	if err != nil || got != nil {
 		t.Fatalf("GetCachedResize after delete = %q, %v; want nil, nil", string(got), err)
+	}
+}
+
+func TestMediaModelCacheHasHardByteQuota(t *testing.T) {
+	_, nc := setupTestCoreWithCache(t)
+	ctx := testContext(t)
+	js, err := jetstream.New(nc)
+	if err != nil {
+		t.Fatalf("create JetStream client: %v", err)
+	}
+	stream, err := js.Stream(ctx, "OBJ_ASSET_CACHE")
+	if err != nil {
+		t.Fatalf("open asset cache stream: %v", err)
+	}
+	info, err := stream.Info(ctx)
+	if err != nil {
+		t.Fatalf("read asset cache stream info: %v", err)
+	}
+	if got, want := info.Config.MaxBytes, int64(config.DefaultAssetCacheMaxBytes); got != want {
+		t.Fatalf("asset cache MaxBytes = %d, want %d", got, want)
 	}
 }
 
