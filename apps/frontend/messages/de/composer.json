@@ -44,6 +44,11 @@
       "microphone_in_use": "Das Mikrofon wird bereits von einer anderen Anwendung verwendet.",
       "recording_failed": "Die Sprachnachricht konnte nicht aufgenommen werden. Bitte versuche es erneut.",
       "playback_failed": "Diese Sprachnachricht konnte nicht abgespielt werden. Bitte versuche es erneut.",
+      "loading": "Sprachnachricht wird geladen…",
+      "buffering": "Wird gepuffert…",
+      "offline": "Warten auf eine Verbindung…",
+      "retry": "Sprachnachricht erneut versuchen",
+      "retry_short": "Erneut versuchen",
       "too_short": "Diese Aufnahme ist zu kurz. Warte einen Moment, bevor du sie stoppst.",
       "too_large": "Diese Sprachnachricht ist zu groß zum Senden. Nimm eine kürzere Nachricht auf."
     },

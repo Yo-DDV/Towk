@@ -216,7 +216,14 @@
   }
 
   function imageAttachmentUrl(attachment: Attachment): string | null {
+    if (attachment.contentType === 'image/gif') return attachment.url;
     return attachment.thumbnailUrl ?? attachment.url;
+  }
+
+  function imageAttachmentRole(attachment: Attachment): 'asset' | 'thumbnail' {
+    return attachment.contentType === 'image/gif' || !attachment.thumbnailUrl
+      ? 'asset'
+      : 'thumbnail';
   }
 
   function updateGalleryScrollEdges(el: HTMLElement) {
@@ -400,18 +407,21 @@
     // lightbox can't hit an expired URL mid-session.
     const freshUrls = await refreshLightboxUrls();
     const imageItems: ImageItem[] = imageAttachments
-      .map((a) => ({
-        id: a.id,
-        src:
-          normalizeAssetUrl(
-            freshUrls.has(a.id) ? freshUrls.get(a.id)!.thumbnailAssetUrl : a.thumbnailAssetUrl
-          )?.url ?? '',
-        originalSrc: normalizeAssetUrl(
+      .map((a) => {
+        const assetUrl = normalizeAssetUrl(
           freshUrls.has(a.id) ? freshUrls.get(a.id)!.assetUrl : a.assetUrl
-        )?.url,
-        alt: a.filename,
-        filename: a.filename
-      }))
+        )?.url;
+        const thumbnailUrl = normalizeAssetUrl(
+          freshUrls.has(a.id) ? freshUrls.get(a.id)!.thumbnailAssetUrl : a.thumbnailAssetUrl
+        )?.url;
+        return {
+          id: a.id,
+          src: a.contentType === 'image/gif' ? (assetUrl ?? '') : (thumbnailUrl ?? assetUrl ?? ''),
+          originalSrc: assetUrl,
+          alt: a.filename,
+          filename: a.filename
+        };
+      })
       .filter((item) => item.src !== '');
     if (imageItems.length === 0) {
       toast.error(m['room.attachment.image_refresh_failed']());
@@ -492,8 +502,7 @@
             display?.fit === 'contain' ? 'object-contain' : 'object-cover',
             display ? 'h-full w-full' : 'max-h-32 w-auto'
           ]}
-          onerror={() =>
-            refreshAfterAssetError(attachment, attachment.thumbnailUrl ? 'thumbnail' : 'asset')}
+          onerror={() => refreshAfterAssetError(attachment, imageAttachmentRole(attachment))}
         />
       {:else}
         <span class="flex h-16 w-16 items-center justify-center text-muted" aria-hidden="true">
@@ -530,6 +539,7 @@
           reasonCode={attachment.videoProcessing.reasonCode}
           filename={attachment.filename}
           autoLoop
+          fallbackImageUrl={attachment.url}
           onMediaError={() => refreshAfterAssetError(attachment, 'video')}
         />
         {#if canDeleteAttachment}
@@ -603,19 +613,23 @@
         {/if}
       </div>
     {:else if attachment.voiceMessage && attachment.url}
-      <div class="group/attachment relative w-full max-w-[31rem] min-w-0 pr-7">
+      <div
+        class="group/attachment relative w-full max-w-[31rem] min-w-0"
+        data-testid="voice-message-attachment"
+      >
         <VoiceMessagePlayer
           src={attachment.url}
           durationMs={attachment.voiceMessage.durationMs}
           waveformPeaks={attachment.voiceMessage.waveformPeaks}
           filename={attachment.filename}
+          reserveTrailingControl={canDeleteAttachment}
           onMediaError={() => refreshAfterAssetError(attachment, 'asset')}
         />
         {#if canDeleteAttachment}
           <button
             type="button"
             onclick={(e) => openDeleteConfirmation(attachment, e)}
-            class="attachment-remove-button md:group-hover/attachment:opacity-100"
+            class="attachment-remove-button voice-message-remove-button top-2 right-2 h-11 w-11 md:group-hover/attachment:opacity-100"
             aria-label={m['room.attachment.delete_label']()}
             title={m['room.attachment.delete_label']()}
           >

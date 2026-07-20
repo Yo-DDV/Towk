@@ -19,6 +19,9 @@
 
   type RecorderMode = 'idle' | 'requesting' | 'recording' | 'stopping' | 'review' | 'sending';
 
+  const LIVE_WAVEFORM_SAMPLE_COUNT = 42;
+  const LIVE_WAVEFORM_SAMPLE_INTERVAL_MS = 100;
+
   let {
     disabled = false,
     maxUploadSize = VOICE_MESSAGE_DEFAULT_MAX_SIZE,
@@ -34,7 +37,7 @@
   let mode = $state<RecorderMode>('idle');
   let elapsedMs = $state(0);
   let liveLevel = $state(0);
-  let livePeaks = $state<number[]>(Array.from({ length: 42 }, () => 0));
+  let livePeaks = $state<number[]>(Array.from({ length: LIVE_WAVEFORM_SAMPLE_COUNT }, () => 0));
   let draft = $state<VoiceMessageDraft | null>(null);
 
   let mediaRecorder: MediaRecorder | null = null;
@@ -43,6 +46,7 @@
   let analyser: AnalyserNode | null = null;
   let analyserSamples: Uint8Array<ArrayBuffer> | null = null;
   let animationFrame = 0;
+  let lastWaveformSampleAt = Number.NEGATIVE_INFINITY;
   let elapsedTimer: ReturnType<typeof setInterval> | null = null;
   let startedAt = 0;
   let recordedChunks: Blob[] = [];
@@ -70,6 +74,7 @@
   function stopAnalyser() {
     if (animationFrame) cancelAnimationFrame(animationFrame);
     animationFrame = 0;
+    lastWaveformSampleAt = Number.NEGATIVE_INFINITY;
     analyser = null;
     analyserSamples = null;
     if (audioContext) void audioContext.close();
@@ -98,7 +103,7 @@
     clearDraft();
     elapsedMs = 0;
     liveLevel = 0;
-    livePeaks = Array.from({ length: 42 }, () => 0);
+    livePeaks = Array.from({ length: LIVE_WAVEFORM_SAMPLE_COUNT }, () => 0);
     mode = 'idle';
   }
 
@@ -119,13 +124,18 @@
     }
   }
 
-  function sampleWaveform() {
+  function sampleWaveform(timestamp: number) {
     if (!analyser || !analyserSamples || mode !== 'recording') return;
-    analyser.getByteTimeDomainData(analyserSamples);
-    const level = normalizedWaveformLevel(analyserSamples);
-    liveLevel = level;
-    recordedPeaks.push(level);
-    livePeaks = [...livePeaks.slice(1), level];
+
+    if (timestamp - lastWaveformSampleAt >= LIVE_WAVEFORM_SAMPLE_INTERVAL_MS) {
+      analyser.getByteTimeDomainData(analyserSamples);
+      const level = normalizedWaveformLevel(analyserSamples);
+      liveLevel = level;
+      recordedPeaks.push(level);
+      livePeaks = [...livePeaks.slice(1), level];
+      lastWaveformSampleAt = timestamp;
+    }
+
     animationFrame = requestAnimationFrame(sampleWaveform);
   }
 
@@ -213,7 +223,7 @@
       discardStoppedRecording = false;
       elapsedMs = 0;
       liveLevel = 0;
-      livePeaks = Array.from({ length: 42 }, () => 0);
+      livePeaks = Array.from({ length: LIVE_WAVEFORM_SAMPLE_COUNT }, () => 0);
 
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordedChunks.push(event.data);
@@ -237,8 +247,9 @@
 
       mode = 'recording';
       startedAt = performance.now();
+      lastWaveformSampleAt = Number.NEGATIVE_INFINITY;
       recorder.start(1000);
-      sampleWaveform();
+      sampleWaveform(startedAt);
       elapsedTimer = setInterval(updateElapsed, 100);
     } catch (error) {
       if (destroyed || generation !== captureGeneration) return;
@@ -297,13 +308,13 @@
   });
 </script>
 
-<div class="relative h-11 w-11 shrink-0">
+<div class="relative h-[44px] w-[44px] shrink-0">
   {#if mode === 'idle'}
     <button
       type="button"
       onclick={startRecording}
       {disabled}
-      class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,transform] active:scale-95 enabled:hover:bg-surface-highlighted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+      class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,transform] active:scale-95 enabled:hover:bg-surface-highlighted enabled:hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
       aria-label={m['composer.voice.record']()}
       title={m['composer.voice.record']()}
       data-testid="voice-message-record-button"
@@ -313,7 +324,7 @@
   {:else}
     <span
       class={[
-        'flex h-11 w-11 items-center justify-center rounded-full',
+        'flex h-[44px] w-[44px] items-center justify-center rounded-full',
         mode === 'recording' || mode === 'stopping'
           ? 'bg-red-500/12 text-red-400'
           : 'bg-primary/12 text-primary'
@@ -346,7 +357,7 @@
       <button
         type="button"
         onclick={cancelRecording}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text"
+        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text"
         aria-label={m['common.cancel']()}
       >
         <span class="iconify text-xl uil--times" aria-hidden="true"></span>
@@ -355,7 +366,7 @@
       <button
         type="button"
         onclick={cancelRecording}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400"
+        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400"
         aria-label={m['composer.voice.cancel_recording']()}
         title={m['composer.voice.cancel_recording']()}
       >
@@ -364,7 +375,7 @@
 
       <div class="min-w-0 flex-1">
         <div
-          class="relative flex h-11 items-center gap-[2px] overflow-hidden rounded-full bg-background/35 px-3"
+          class="relative flex h-[44px] items-center gap-[2px] overflow-hidden rounded-full bg-background/35 px-3"
           data-testid="voice-message-live-waveform"
           aria-hidden="true"
         >
@@ -399,7 +410,7 @@
         type="button"
         onclick={stopRecording}
         disabled={mode === 'stopping'}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-transform active:scale-95 disabled:cursor-wait disabled:opacity-60"
+        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition-transform active:scale-95 disabled:cursor-wait disabled:opacity-60"
         aria-label={m['composer.voice.stop']()}
         title={m['composer.voice.stop']()}
       >
@@ -410,7 +421,7 @@
         type="button"
         onclick={cancelRecording}
         disabled={mode === 'sending'}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400 disabled:opacity-50"
+        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400 disabled:opacity-50"
         aria-label={m['composer.voice.delete_draft']()}
         title={m['composer.voice.delete_draft']()}
       >
@@ -429,7 +440,7 @@
         type="button"
         onclick={recordAgain}
         disabled={mode === 'sending'}
-        class="hidden h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-text disabled:opacity-50 sm:flex"
+        class="hidden h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-text disabled:opacity-50 sm:flex"
         aria-label={m['composer.voice.record_again']()}
         title={m['composer.voice.record_again']()}
       >
@@ -440,7 +451,7 @@
         type="button"
         onclick={sendDraft}
         disabled={mode === 'sending'}
-        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
+        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
         aria-label={m['composer.voice.send']()}
         title={m['composer.voice.send']()}
       >

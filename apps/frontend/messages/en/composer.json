@@ -44,6 +44,11 @@
       "microphone_in_use": "The microphone is already in use by another application.",
       "recording_failed": "The voice message could not be recorded. Please try again.",
       "playback_failed": "This voice message could not be played. Please try again.",
+      "loading": "Loading voice message…",
+      "buffering": "Buffering…",
+      "offline": "Waiting for a connection…",
+      "retry": "Retry voice message",
+      "retry_short": "Retry",
       "too_short": "That recording was too short. Hold on for a moment before stopping it.",
       "too_large": "This voice message is too large to send. Record a shorter message."
     },

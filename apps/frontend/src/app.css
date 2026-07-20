@@ -366,6 +366,10 @@
   }
 }
 
+.attachment-remove-button.voice-message-remove-button {
+  @apply top-2 right-2 h-11 w-11;
+}
+
 /* Skeleton loading utility */
 @utility skeleton {
   @apply relative overflow-hidden opacity-30;
