@@ -308,11 +308,11 @@
     </button>
 
     <div
-      class="relative flex h-[44px] min-w-0 flex-1 items-center overflow-hidden rounded-full bg-background/35 px-2"
+      class="voice-waveform-viewport relative flex h-[44px] min-w-0 flex-1 items-center overflow-hidden rounded-full bg-background/35 px-2"
       data-testid="voice-message-waveform"
     >
       <div
-        class="pointer-events-none flex min-h-0 flex-1 items-center gap-px overflow-hidden sm:gap-[2px]"
+        class="voice-waveform-bars pointer-events-none flex min-h-0 flex-1 items-center gap-px overflow-hidden"
         data-waveform-layer="base"
         data-testid="voice-message-progress"
         data-played-bars={playedBarCount}
@@ -397,6 +397,36 @@
 </div>
 
 <style>
+  .voice-waveform-viewport {
+    container-type: inline-size;
+  }
+
+  .voice-waveform-bars {
+    gap: 1px;
+  }
+
+  @container (min-width: 12rem) {
+    .voice-waveform-bars {
+      gap: 2px;
+    }
+  }
+
+  @container (max-width: 10rem) {
+    .voice-waveform-bar:nth-child(even) {
+      display: none;
+    }
+  }
+
+  @container (max-width: 4.5rem) {
+    .voice-waveform-bars {
+      gap: 0.5px;
+    }
+
+    .voice-waveform-bar:not(:nth-child(4n + 1)) {
+      display: none;
+    }
+  }
+
   .voice-waveform-bar {
     background-color: var(--color-muted);
     background-color: color-mix(in srgb, var(--color-muted) 34%, transparent);

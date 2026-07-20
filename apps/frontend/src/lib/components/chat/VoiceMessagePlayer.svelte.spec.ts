@@ -429,6 +429,32 @@ describe('VoiceMessagePlayer', () => {
     ).toBe(true);
   });
 
+  it('keeps the draft preview waveform visible inside the compact recorder panel', async () => {
+    const { container } = render(VoiceMessagePlayer, {
+      props: {
+        src: 'data:audio/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvKB',
+        durationMs: 11_000,
+        waveformPeaks: Array.from({ length: 64 }, (_, index) =>
+          index % 4 === 0 ? 0.9 : 0.24
+        ),
+        filename: 'voice-message.webm',
+        localPreview: true
+      }
+    });
+    const waveform = container.querySelector<HTMLElement>(
+      '[data-testid="voice-message-waveform"]'
+    )!;
+    waveform.style.width = '98px';
+    await tick();
+    const waveformLayer = waveform.querySelector<HTMLElement>('[data-waveform-layer="base"]')!;
+    const visibleBars = [
+      ...waveform.querySelectorAll<HTMLElement>('[data-progress-state]')
+    ].filter((bar) => getComputedStyle(bar).display !== 'none');
+
+    expect(visibleBars).toHaveLength(24);
+    expect(getComputedStyle(waveformLayer).columnGap).toBe('1px');
+  });
+
   it('shows a localized error when playback cannot start', async () => {
     const { container } = render(VoiceMessagePlayer, {
       props: {
