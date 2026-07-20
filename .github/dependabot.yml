@@ -28,6 +28,25 @@ updates:
     ignore:
       - dependency-name: esrap
         versions: ["2.2.13"]
+      # svelte-check 4.7.3 crashes during startup with TypeScript 7.x.
+      - dependency-name: typescript
+        versions: [">=7.0.0 <8.0.0"]
+      # vite-plugin-devtools-json 1.0.0 does not accept Vite 8 yet.
+      - dependency-name: vite
+        versions: [">=8.0.0 <9.0.0"]
+      - dependency-name: "@sveltejs/vite-plugin-svelte"
+        versions: [">=7.0.0 <8.0.0"]
+      # Keep compile-time Node APIs aligned with the Node 22 runtime in mise and Docker.
+      - dependency-name: "@types/node"
+        versions: [">=23.0.0"]
+      # Version 3 makes render() asynchronous and requires a dedicated test migration.
+      - dependency-name: vitest-browser-svelte
+        versions: [">=3.0.0 <4.0.0"]
+      # ESLint 10 enables new core rules that need a dedicated Svelte-aware migration.
+      - dependency-name: eslint
+        versions: [">=10.0.0 <11.0.0"]
+      - dependency-name: "@eslint/js"
+        versions: [">=10.0.0 <11.0.0"]
     groups:
       production-dependencies:
         dependency-type: production

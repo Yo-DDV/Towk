@@ -325,8 +325,13 @@
 
   function registerInput(node: HTMLInputElement) {
     inputEl = node;
-    queueMicrotask(() => node.focus());
+    const focus = () => {
+      if (inputEl === node && quickSwitcher.visible && dialogEl?.open) node.focus();
+    };
+    queueMicrotask(focus);
+    const focusFrame = requestAnimationFrame(focus);
     return () => {
+      cancelAnimationFrame(focusFrame);
       if (inputEl === node) inputEl = undefined;
     };
   }
@@ -518,8 +523,10 @@
       <div class="menu-section">
         <div class="flex items-center gap-2 px-3 py-1.5">
           <span class="sidebar-icon iconify text-muted uil--search"></span>
+          <!-- svelte-ignore a11y_autofocus -->
           <input
             {@attach registerInput}
+            autofocus
             bind:value={query}
             oninput={handleQueryInput}
             onkeydown={handleKeydown}

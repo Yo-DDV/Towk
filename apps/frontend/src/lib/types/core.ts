@@ -74,6 +74,10 @@ export const PermMessagePostInThread: Permission = "message.post-in-thread";
  */
 export const PermMessageAttach: Permission = "message.attach";
 /**
+ * PermMessageVoice allows recording and posting first-class voice messages.
+ */
+export const PermMessageVoice: Permission = "message.voice";
+/**
  * PermMessageManage allows moderating other users' messages in a room
  * (editing or deleting). Authors editing or deleting their own messages do
  * NOT need this permission; it is always allowed.

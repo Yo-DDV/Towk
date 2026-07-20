@@ -20,7 +20,7 @@
     "overrides": {
       "cookie": "0.7.2",
       "esbuild": "0.28.1",
-      "esrap": "2.2.8",
+      "svelte>esrap": "2.2.12",
       "js-yaml": "4.2.0",
       "ws": "8.21.0"
     },
@@ -34,6 +34,6 @@
     ]
   },
   "devDependencies": {
-    "knip": "^6.22.0"
+    "knip": "^6.27.0"
   }
 }
