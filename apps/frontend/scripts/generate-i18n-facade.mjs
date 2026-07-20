@@ -1,5 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
+import { parseMessageFunctionNames, parseMessageInputTypes } from './i18n-facade-parser.mjs';
+
 const root = new URL('..', import.meta.url);
 const enTypesUrl = new URL('./src/lib/paraglide/messages/en.d.ts', root);
 const messageIndexUrl = new URL('./src/lib/paraglide/messages/_index.js', root);
@@ -11,9 +13,7 @@ const messageIndex = readFileSync(messageIndexUrl, 'utf8');
 const settings = JSON.parse(readFileSync(settingsUrl, 'utf8'));
 const baseLocale = settings.baseLocale;
 const nonBaseLocales = settings.locales.filter((locale) => locale !== baseLocale);
-const functionNames = [...source.matchAll(/^export const ([A-Za-z0-9_]+):/gm)].map(
-  ([, name]) => name
-);
+const functionNames = parseMessageFunctionNames(source);
 const aliases = new Map(
   [...messageIndex.matchAll(/^export \{ ([A-Za-z0-9_]+) as "([^"]+)" \}$/gm)].map(
     ([, name, alias]) => [name, alias]
@@ -24,11 +24,7 @@ if (functionNames.length === 0) {
   throw new Error('No Paraglide message functions found in src/lib/paraglide/messages/en.d.ts');
 }
 
-const typeNames = new Map(
-  [...source.matchAll(/^export type ([A-Za-z0-9_]+Inputs) = ([\s\S]*?);\n/gm)].map(
-    ([, typeName, body]) => [typeName, body.trim()]
-  )
-);
+const typeNames = parseMessageInputTypes(source);
 
 function inputTypeName(functionName) {
   return `${functionName
