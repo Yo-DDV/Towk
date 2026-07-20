@@ -7,7 +7,8 @@ import {
   RealtimeCallEvent,
   RealtimeEventEnvelope,
   RealtimeMentionNotificationEvent,
-  RealtimeNewDirectMessageNotificationEvent
+  RealtimeNewDirectMessageNotificationEvent,
+  RealtimeNotificationCreatedEvent
 } from '@towk/api-types/realtime/v1/realtime_pb';
 
 describe('realtimeEventToEventEnvelope', () => {
@@ -109,6 +110,35 @@ describe('realtimeEventToEventEnvelope', () => {
       id: 'user-2',
       displayName: 'Grace Hopper',
       avatarUrl: '/assets/avatar.png'
+    });
+  });
+
+  it('preserves per-client notification-center suppression', () => {
+    const event = realtimeEventToEventEnvelope(
+      new RealtimeEventEnvelope({
+        id: 'evt-notification-created',
+        createdAt: Timestamp.now(),
+        event: {
+          case: 'notificationCreated',
+          value: new RealtimeNotificationCreatedEvent({
+            notificationId: 'notification-1',
+            roomId: 'room-1',
+            notificationCenterSuppressed: true
+          })
+        }
+      })
+    ) as unknown as {
+      event: {
+        kind: string;
+        notificationId: string;
+        notificationCenterSuppressed: boolean;
+      };
+    };
+
+    expect(event.event).toMatchObject({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'notification-1',
+      notificationCenterSuppressed: true
     });
   });
 });

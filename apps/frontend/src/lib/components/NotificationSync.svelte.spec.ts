@@ -20,6 +20,8 @@ const { mocks } = vi.hoisted(() => {
       hasLoaded: true,
       loading: false,
       addNotification: vi.fn(() => Promise.resolve(true)),
+      addNotificationSignal: vi.fn(() => Promise.resolve(true)),
+      removeCenterNotification: vi.fn(),
       dismissById: vi.fn(() => Promise.resolve(true)),
       removeNotification: vi.fn(),
       consumeLocalDismissal: vi.fn(),
@@ -50,10 +52,12 @@ const { mocks } = vi.hoisted(() => {
       dismissNativeNotification: vi.fn(),
       drainNativeNotificationCloseOutbox: vi.fn(),
       nativeNotificationCloseHandlers: new Set<(notificationId: string, source: string) => void>(),
-      onNativeNotificationClose: vi.fn((handler: (notificationId: string, source: string) => void) => {
-        mocks.nativeNotificationCloseHandlers.add(handler);
-        return () => mocks.nativeNotificationCloseHandlers.delete(handler);
-      }),
+      onNativeNotificationClose: vi.fn(
+        (handler: (notificationId: string, source: string) => void) => {
+          mocks.nativeNotificationCloseHandlers.add(handler);
+          return () => mocks.nativeNotificationCloseHandlers.delete(handler);
+        }
+      ),
       reconcileNativeNotifications: vi.fn()
     }
   };
@@ -156,6 +160,8 @@ describe('NotificationSync', () => {
     mocks.store.notifications.loading = false;
     mocks.store.roomUnread.hasAnyUnread = false;
     mocks.store.notifications.addNotification.mockResolvedValue(true);
+    mocks.store.notifications.addNotificationSignal.mockResolvedValue(true);
+    mocks.store.notifications.removeCenterNotification.mockReturnValue(null);
     mocks.store.notifications.dismissById.mockResolvedValue(true);
     mocks.store.notifications.removeNotification.mockReturnValue(null);
     mocks.store.notifications.consumeLocalDismissal.mockReturnValue(false);
@@ -181,6 +187,55 @@ describe('NotificationSync', () => {
     expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
     expect(mocks.store.rooms.incrementUnreadNotification).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledOnce());
+  });
+
+  it('keeps a foreground message out of this client notification center while preserving channel signals', async () => {
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'foreground-message',
+      roomId: 'room-2',
+      eventId: 'event-2',
+      inReplyToId: null,
+      silent: false,
+      notificationCenterSuppressed: true
+    });
+
+    expect(mocks.store.notifications.addNotification).not.toHaveBeenCalled();
+    expect(mocks.store.notifications.removeCenterNotification).toHaveBeenCalledWith(
+      'foreground-message'
+    );
+    expect(mocks.store.notifications.addNotificationSignal).toHaveBeenCalledWith(
+      'foreground-message'
+    );
+    await vi.waitFor(() =>
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce()
+    );
+    await vi.waitFor(() => expect(mocks.playNotificationSound).toHaveBeenCalledOnce());
+  });
+
+  it('keeps silent foreground messages out of the center without playing a sound', async () => {
+    await renderAndWaitForSubscription();
+
+    dispatch({
+      kind: RoomEventKind.NotificationCreated,
+      notificationId: 'foreground-silent-message',
+      silent: true,
+      notificationCenterSuppressed: true
+    });
+
+    expect(mocks.store.notifications.addNotification).not.toHaveBeenCalled();
+    expect(mocks.store.notifications.removeCenterNotification).toHaveBeenCalledWith(
+      'foreground-silent-message'
+    );
+    expect(mocks.store.notifications.addNotificationSignal).toHaveBeenCalledWith(
+      'foreground-silent-message'
+    );
+    await vi.waitFor(() =>
+      expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce()
+    );
+    expect(mocks.playNotificationSound).not.toHaveBeenCalled();
   });
 
   it('loads authoritative notification state once when the app starts without a loaded snapshot', async () => {

@@ -20,6 +20,7 @@ import {
 } from '$lib/pwa/notificationClose.worker';
 import { getLocale } from '$lib/i18n/runtime';
 import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
+import { currentPushClientId } from './pushClientId';
 
 type EnsureRegisteredOptions = {
   prompt: boolean;
@@ -29,9 +30,7 @@ let registrationQueue: Promise<void> = Promise.resolve();
 let registrationGeneration = 0;
 let registrationsSuspended = false;
 const registeredVapidKeyStorageKey = 'towk:push:registered-vapid-public-key';
-const pushClientIdStorageKey = 'towk:push:client-id';
 let registeredVapidKeyFallback: string | null = null;
-let pushClientIdFallback: string | null = null;
 
 export type PushCapability = 'supported' | 'ios_home_screen_required' | 'unsupported';
 
@@ -336,40 +335,6 @@ function rememberRegisteredVapidPublicKey(vapidPublicKey: string): void {
   } catch {
     // The in-memory fallback still prevents churn during this page lifetime.
   }
-}
-
-function currentPushClientId(): string {
-  try {
-    const stored = window.localStorage.getItem(pushClientIdStorageKey);
-    if (stored) {
-      pushClientIdFallback = stored;
-      return stored;
-    }
-  } catch {
-    if (pushClientIdFallback) return pushClientIdFallback;
-  }
-
-  const next = createPushClientId();
-  pushClientIdFallback = next;
-  try {
-    window.localStorage.setItem(pushClientIdStorageKey, next);
-  } catch {
-    // The server can still deduplicate within this page lifetime.
-  }
-  return next;
-}
-
-function createPushClientId(): string {
-  const cryptoRef = globalThis.crypto;
-  if (cryptoRef?.randomUUID) {
-    return cryptoRef.randomUUID();
-  }
-  if (cryptoRef?.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    cryptoRef.getRandomValues(bytes);
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-  }
-  return `fallback-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 function currentApplicationOrigin(): string | undefined {

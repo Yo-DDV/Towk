@@ -351,7 +351,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
     }
     roomsStore.decrementUnreadNotification(roomId);
-    void notificationStore.dismiss(notification.id).then((dismissed) => {
+    void notificationStore.dismissById(notification.id).then((dismissed) => {
       if (!dismissed) {
         roomsStore.incrementUnreadNotification(roomId);
         return;

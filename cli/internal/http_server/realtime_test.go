@@ -35,6 +35,104 @@ func TestRealtimeAuthenticatedUserPreservesAuthenticationValidationError(t *test
 	}
 }
 
+func TestRealtimeForegroundPushLeaseFollowsDeviceStateAndConnectionLifecycle(t *testing.T) {
+	env := setupWebSocketTestServer(t)
+	user, err := env.core.CreateUser(env.ctx, core.SystemActorID, "rt-push-state", "RT Push State", "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := env.core.CreateAuthToken(env.ctx, user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn := env.connectRealtime(t)
+	sendRealtimeClientFrame(t, conn, &realtimev1.RealtimeClientFrame{Frame: &realtimev1.RealtimeClientFrame_Hello{
+		Hello: &realtimev1.RealtimeClientHello{
+			ProtocolVersion: realtimeProtocolVersion,
+			BearerToken:     proto.String(token),
+			PushClientId:    proto.String("device-a"),
+			Foreground:      proto.Bool(true),
+		},
+	}})
+	hello, ok := readRealtimeServerFrame(t, conn, 5*time.Second)
+	if !ok || hello.GetHello() == nil {
+		t.Fatalf("first realtime frame = %v, want hello", hello)
+	}
+	if !slices.Contains(hello.GetHello().GetCapabilities(), realtimePushForegroundCapability) {
+		t.Fatalf("realtime capabilities = %v, want %q", hello.GetHello().GetCapabilities(), realtimePushForegroundCapability)
+	}
+	sendRealtimeClientFrame(t, conn, &realtimev1.RealtimeClientFrame{Frame: &realtimev1.RealtimeClientFrame_SubscribeEvents{
+		SubscribeEvents: &realtimev1.RealtimeSubscribeEvents{},
+	}})
+	if subscribed, ok := readRealtimeServerFrame(t, conn, 5*time.Second); !ok || subscribed.GetSubscribed() == nil {
+		t.Fatalf("second realtime frame = %v, want subscribed", subscribed)
+	}
+
+	assertRealtimePushForeground(t, env.core, user.Id, "device-a", true)
+	sendRealtimeClientFrame(t, conn, &realtimev1.RealtimeClientFrame{Frame: &realtimev1.RealtimeClientFrame_ClientState{
+		ClientState: &realtimev1.RealtimeClientState{Foreground: false},
+	}})
+	assertRealtimePushForeground(t, env.core, user.Id, "device-a", false)
+	sendRealtimeClientFrame(t, conn, &realtimev1.RealtimeClientFrame{Frame: &realtimev1.RealtimeClientFrame_ClientState{
+		ClientState: &realtimev1.RealtimeClientState{Foreground: true},
+	}})
+	assertRealtimePushForeground(t, env.core, user.Id, "device-a", true)
+
+	if err := conn.Close(); err != nil {
+		t.Fatal(err)
+	}
+	assertRealtimePushForeground(t, env.core, user.Id, "device-a", false)
+}
+
+func TestRealtimeForegroundPushLeaseWaitsForEventSubscription(t *testing.T) {
+	env := setupWebSocketTestServer(t)
+	user, err := env.core.CreateUser(env.ctx, core.SystemActorID, "rt-push-handshake", "RT Push Handshake", "password123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := env.core.CreateAuthToken(env.ctx, user.Id)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn := env.connectRealtime(t)
+	defer conn.Close()
+	sendRealtimeClientFrame(t, conn, &realtimev1.RealtimeClientFrame{Frame: &realtimev1.RealtimeClientFrame_Hello{
+		Hello: &realtimev1.RealtimeClientHello{
+			ProtocolVersion: realtimeProtocolVersion,
+			BearerToken:     proto.String(token),
+			PushClientId:    proto.String("device-handshake"),
+			Foreground:      proto.Bool(true),
+		},
+	}})
+	if hello, ok := readRealtimeServerFrame(t, conn, 5*time.Second); !ok || hello.GetHello() == nil {
+		t.Fatalf("first realtime frame = %v, want hello", hello)
+	}
+
+	assertRealtimePushForeground(t, env.core, user.Id, "device-handshake", false)
+}
+
+func assertRealtimePushForeground(t testing.TB, chattoCore *core.ChattoCore, userID, clientID string, want bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		got, err := chattoCore.IsPushClientForeground(ctx, userID, clientID)
+		cancel()
+		if err == nil && got == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				t.Fatalf("IsPushClientForeground(%q, %q): %v", userID, clientID, err)
+			}
+			t.Fatalf("IsPushClientForeground(%q, %q) = %v, want %v", userID, clientID, got, want)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func TestRealtimeWebSocketConnectionLimitRejectsAndReleases(t *testing.T) {
 	env := setupWebSocketTestServerWithMaxConnections(t, 1)
 	first := env.dialRealtime(t)

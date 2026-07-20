@@ -23,6 +23,8 @@ message RealtimeClientFrame {
     RealtimeSubscribeEvents subscribe_events = 2;
     // Application-level ping. The server replies with `pong`.
     RealtimePing ping = 3;
+    // Refreshes this browser installation's foreground delivery state.
+    RealtimeClientState client_state = 5;
   }
 }
 
@@ -55,6 +57,10 @@ message RealtimeClientHello {
   uint32 protocol_version = 1;
   // Optional bearer token. When present, it takes precedence over cookie auth.
   optional string bearer_token = 2;
+  // Stable ID shared with this browser installation's push subscription.
+  optional string push_client_id = 4;
+  // Whether the app is focused and visible when the socket opens.
+  optional bool foreground = 5;
 }
 
 // Initial server hello.
@@ -87,6 +93,12 @@ message RealtimeSubscribed {
 message RealtimePing {
   // Client-chosen opaque value echoed in the pong.
   string nonce = 1;
+}
+
+// Refreshable device-local state used to avoid redundant native PUSH while
+// this exact browser installation is focused and visible.
+message RealtimeClientState {
+  bool foreground = 1;
 }
 
 // Application-level pong.
@@ -345,6 +357,9 @@ message RealtimeNotificationCreatedEvent {
   optional string in_reply_to_id = 4;
   // True when the notification should not alert.
   bool silent = 5;
+  // True when this exact foreground browser installation must keep the event
+  // as an in-app channel signal but omit it from its notification center.
+  bool notification_center_suppressed = 6;
 }
 
 // Notification-dismissed signal for the connected user.

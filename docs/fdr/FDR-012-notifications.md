@@ -17,11 +17,13 @@ Towk has a persistent notification system surfaced through a bell icon and notif
 - Message notifications auto-expire after 90 days. Call-start notifications stop being visible or deliverable after 60 seconds and disappear immediately when that exact call ends, the recipient leaves the room, or the recipient opts down from ALL_MESSAGES. Their hidden backing record retains the normal storage TTL so a long-running call can still emit a tagged native dismissal when it ends.
 - Dismissing a notification removes it everywhere — across all the user's open tabs and devices.
 - Delivery and reads revalidate the current preference, message, read marker, room, and membership state. A cleanup race or corrupt key/value identity therefore cannot expose an inaccessible notification or dismiss a different healthy notification. Message and room deletion scan the notification state itself rather than only current membership, so residual records for former members are also closed and removed.
-- A notification sound plays and the in-app and installed PWA notification badges update in real time as new notifications arrive.
+- A notification sound and room, thread, and server attention signals update in real time as new notifications arrive. The bell and installed PWA badge follow the notification-center rows visible to that exact browser installation.
 - The installed PWA dock badge reflects pending notifications only; ordinary unread rooms stay in the in-app sidebar unless the user has configured them to create notifications.
 - Users can choose and locally shape the notification sound on each browser with volume, tone, and effect controls.
-- Sidebar orange dots for mentions, replies, DMs, and all-message subscriptions derive from pending notification records.
+- Sidebar orange dots for mentions, replies, DMs, and all-message subscriptions derive from the same pending notifications shown in Towk's notification center.
 - A recipient's Do Not Disturb presence still stores new notifications and updates counts, but those creation events are silent: no notification sound and no web push while DND is active.
+- When the exact browser installation is actively showing Towk in a visible, focused window, whether an ordinary tab or an installed PWA, a non-call notification remains in Towk's in-app notification center but stays out of that client's native browser/OS notification center. Its sound and room, thread, and server attention signals remain in-app. Hidden, unfocused, disconnected, and closed clients stay eligible for native delivery. Other installations for the same account retain their native-push eligibility, including when another computer or phone is left open.
+- A newly started channel or private-conversation call is the foreground exception: if the recipient's notification level makes the call eligible, it remains visible in the in-app notification center and eligible for native delivery even while that exact client is focused and visible.
 
 ## Notification Levels
 
@@ -124,6 +126,18 @@ from API callers.
 **Decision:** Towk uses one canonical manifest identity (`/`) and `display: standalone` on every platform. The product prioritizes a real app-like installed window over keeping Android Chromium in browser mode. Towk still does not attempt to dismiss or spoof Chrome's fixed browser-owned URL-copy notification because it is outside the Web Push and Notifications APIs.
 **Why:** `display: browser` prevents Chrome's normal installability event and can reduce installation to a generic shortcut. A standalone manifest restores the intended installed-app experience while preserving the existing app-owned notification, badge, close, and synchronization paths.
 **Tradeoff:** Affected Android Chrome versions may show their browser-owned disclosure while the installed app is open. Installations or shortcuts created under the previous dedicated browser-mode identity (`/?towk-install=android-browser-v3`) do not share the canonical identity and can require removal and reinstall. Chrome can otherwise take up to its own manifest-update cycle to apply display changes.
+
+### 14. Foreground native delivery is per installation and preserves in-app attention
+
+**Decision:** Persistent notification creation, in-app notification-center visibility, and realtime publication remain global to the user account. Every browser context, including installed display modes and the iOS Home Screen app, advertises the same visible-and-focused state for its stable installation ID only to filter native delivery. A non-call notification therefore remains visible inside Towk while native push is skipped for the matching foreground installation. The same notification stays native-push eligible on other installations. Call-start notifications bypass the native-push foreground filter.
+**Why:** Foreground delivery is a property of the current window, not of whether the browser presents it as an installed app. Page Visibility defines a minimized window as hidden, and Towk's canonical installed shell uses the lifecycle-conformant `standalone` mode documented in FDR-027. Treating installed apps as permanently background would recreate native duplicates while the user is already in Towk.
+**Tradeoff:** Browser lifecycle signals and manifest updates remain browser-owned. An existing installation may need a full relaunch or reinstall before a display-mode change takes effect. Lookup errors, legacy subscriptions, and clients that have not loaded the foreground-capable realtime protocol remain eligible rather than risking cross-device loss. Global notification-center visibility, dismissal, read, membership, and lifecycle cleanup continue to operate on the one persistent notification record.
+
+### 15. Push previews do not duplicate message plaintext in notification storage
+
+**Decision:** A successful message post passes an exact-event body and attachment snapshot only through the asynchronous delivery context. Push construction uses that transient snapshot first and the canonical message projection as a fallback. Persistent notification records contain event references and routing metadata, not a second plaintext copy of the message.
+**Why:** A native notification must show the actual message instead of asking the user to open Towk, but retaining message plaintext for the notification's separate 90-day lifetime would create an unnecessary privacy and deletion surface.
+**Tradeoff:** An attachment-only message uses localized attachment or voice-message copy, and a genuinely empty or unavailable body uses a neutral localized message label. It never falls back to an instruction to open the application.
 
 ## Permissions
 

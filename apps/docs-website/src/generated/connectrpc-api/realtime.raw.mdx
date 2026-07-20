@@ -88,6 +88,7 @@ be `hello`; after the server replies with `hello`, clients send
 | `frame.hello` | [`RealtimeClientHello`](#chatto-realtime-v1-RealtimeClientHello) | Opens the protocol session and optionally carries a bearer token. |
 | `frame.subscribe_events` | [`RealtimeSubscribeEvents`](#chatto-realtime-v1-RealtimeSubscribeEvents) | Starts the caller's authorized live-event stream. |
 | `frame.ping` | [`RealtimePing`](#chatto-realtime-v1-RealtimePing) | Application-level ping. The server replies with `pong`. |
+| `frame.client_state` | [`RealtimeClientState`](#chatto-realtime-v1-RealtimeClientState) | Refreshes this browser installation's foreground delivery state. |
 
 
 
@@ -101,6 +102,21 @@ Initial client hello.
 | --- | --- | --- |
 | `protocol_version` | `uint32` | Protocol version requested by the client. The current version is 1. |
 | `bearer_token` | `optional string` | Optional bearer token. When present, it takes precedence over cookie auth. |
+| `push_client_id` | `optional string` | Stable ID shared with this browser installation's push subscription. |
+| `foreground` | `optional bool` | Whether the app is focused and visible when the socket opens. |
+
+
+
+<a id="chatto-realtime-v1-RealtimeClientState"></a>
+
+### RealtimeClientState
+
+Refreshable device-local state used to avoid redundant native PUSH while
+this exact browser installation is focused and visible.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `foreground` | `bool` | No field description provided. |
 
 
 
@@ -317,6 +333,7 @@ opened in context.
 | `event_id` | `optional string` | Event ID associated with the notification, when the notification navigates to an event. |
 | `in_reply_to_id` | `optional string` | Parent event ID for reply notifications, when known. |
 | `silent` | `bool` | True when the notification should not alert. |
+| `notification_center_suppressed` | `bool` | True when this exact foreground browser installation must keep the event as an in-app channel signal but omit it from its notification center. |
 
 
 

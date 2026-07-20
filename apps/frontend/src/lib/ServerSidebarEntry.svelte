@@ -21,6 +21,8 @@
   import ServerIcon from './ServerIcon.svelte';
   import { onMount } from 'svelte';
   import * as m from '$lib/i18n/messages';
+  import { RoomType } from '$lib/render/types';
+  import type { NotificationItem } from '$lib/api-client/notifications';
 
   let {
     serverId,
@@ -224,8 +226,18 @@
   // from either a channel mention/reply or a DM message. Prefer channel
   // notifications when both are present.
   async function handleServerNotificationClick() {
-    const notification =
+    let notification: NotificationItem | null | undefined =
       notificationStore.getSpaceNotification() ?? notificationStore.getDMNotification();
+    if (!notification) {
+      const room = stores.rooms.firstRoomWithNotifications();
+      if (room) {
+        notification = (
+          await notificationStore.resolveRoomNotification(room.id, {
+            isDM: room.type === RoomType.Dm
+          })
+        ).notification;
+      }
+    }
     if (!notification) {
       await goto(resolve('/chat/notifications'));
       return;
@@ -236,7 +248,9 @@
     if (target.eventId && target.roomId) {
       stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
     }
-    void notificationStore.dismiss(notification.id);
+    void notificationStore.dismissById(notification.id).then((dismissed) => {
+      if (dismissed) void stores.rooms.refreshNotificationCounts();
+    });
 
     const path = notificationStore.getCleanPath(serverId, notification);
     // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
@@ -270,7 +284,7 @@
   href={resolve('/chat/[serverId]', { serverId: serverSegment })}
   selected={isActiveServer}
   indicator={stores.serverIndicator()}
-  notificationCount={notificationStore.unreadNotificationCount}
+  notificationCount={notificationStore.signalNotificationCount}
   onIndicatorClick={handleServerIndicatorClick}
   title={iconTitle}
   dimmed={iconDimmed}

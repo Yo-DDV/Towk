@@ -96,6 +96,9 @@ message ListNotificationsRequest {
 
   // Page request. Defaults to 50 results when absent or limit is zero.
   PageRequest page = 3;
+  // Stable browser-installation ID shared with Web Push and realtime presence.
+  // When present, rows suppressed while this installation was foreground are omitted.
+  optional string push_client_id = 4 [(buf.validate.field).string.max_len = 128];
 }
 
 // Request for pending notifications scoped to one room.
@@ -124,6 +127,8 @@ message ListNotificationsResponse {
 message GetNotificationRequest {
   // Required notification ID.
   string notification_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Stable browser-installation ID used for per-client notification-center visibility.
+  optional string push_client_id = 2 [(buf.validate.field).string.max_len = 128];
 }
 
 // Pending notification response.
@@ -146,6 +151,8 @@ message BatchGetNotificationsRequest {
       string: {min_len: 1}
     }
   }];
+  // Stable browser-installation ID used for per-client notification-center visibility.
+  optional string push_client_id = 2 [(buf.validate.field).string.max_len = 128];
 }
 
 // Batch pending notification response.
@@ -170,7 +177,10 @@ message ListRoomNotificationsResponse {
 }
 
 // Request for a lightweight pending notification check.
-message HasNotificationsRequest {}
+message HasNotificationsRequest {
+  // Stable browser-installation ID used for per-client notification-center visibility.
+  optional string push_client_id = 1 [(buf.validate.field).string.max_len = 128];
+}
 
 // Lightweight pending notification check.
 message HasNotificationsResponse {

@@ -31,6 +31,10 @@ vi.mock('@connectrpc/connect-web', () => ({
   createConnectTransport: mocks.createConnectTransport
 }));
 
+vi.mock('$lib/notifications/pushClientId', () => ({
+  currentPushClientId: () => 'client-test'
+}));
+
 describe('createNotificationAPI', () => {
   beforeEach(() => {
     mocks.createClient.mockReset();
@@ -94,7 +98,7 @@ describe('createNotificationAPI', () => {
       useBinaryFormat: true
     });
     expect(mocks.listNotifications).toHaveBeenCalledWith(
-      { page: { limit: 50, offset: 0 } },
+      { page: { limit: 50, offset: 0 }, pushClientId: 'client-test' },
       { headers: { Authorization: 'Bearer token' } }
     );
     expect(page).toEqual({
@@ -121,6 +125,32 @@ describe('createNotificationAPI', () => {
         }
       ]
     });
+  });
+
+  it('loads global channel signals without applying the current installation filter', async () => {
+    mocks.listNotifications.mockResolvedValue({
+      page: { totalCount: 0n, hasMore: false },
+      notifications: []
+    });
+    mocks.getNotification.mockResolvedValue({ notification: undefined });
+
+    const api = createNotificationAPI({ baseUrl: '/api/connect', bearerToken: null });
+
+    await expect(api.listNotificationSignals()).resolves.toEqual({
+      totalCount: 0,
+      hasMore: false,
+      items: []
+    });
+    await expect(api.getNotificationSignal('signal-1')).resolves.toBeNull();
+
+    expect(mocks.listNotifications).toHaveBeenCalledWith(
+      { page: { limit: 50, offset: 0 } },
+      { headers: undefined }
+    );
+    expect(mocks.getNotification).toHaveBeenCalledWith(
+      { notificationId: 'signal-1' },
+      { headers: undefined }
+    );
   });
 
   it('maps room notification reads and dismiss mutations without auth headers', async () => {
@@ -170,6 +200,10 @@ describe('createNotificationAPI', () => {
 
     expect(mocks.listRoomNotifications).toHaveBeenCalledWith(
       { roomId: 'dm-1', page: { limit: 1, offset: 0 } },
+      { headers: undefined }
+    );
+    expect(mocks.hasNotifications).toHaveBeenCalledWith(
+      { pushClientId: 'client-test' },
       { headers: undefined }
     );
   });
@@ -273,11 +307,11 @@ describe('createNotificationAPI', () => {
     ]);
 
     expect(mocks.getNotification).toHaveBeenCalledWith(
-      { notificationId: 'n1' },
+      { notificationId: 'n1', pushClientId: 'client-test' },
       { headers: { Authorization: 'Bearer token' } }
     );
     expect(mocks.batchGetNotifications).toHaveBeenCalledWith(
-      { notificationIds: ['n1', 'missing'] },
+      { notificationIds: ['n1', 'missing'], pushClientId: 'client-test' },
       { headers: { Authorization: 'Bearer token' } }
     );
   });

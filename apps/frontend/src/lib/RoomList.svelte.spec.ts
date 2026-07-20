@@ -41,6 +41,7 @@ const { mocks } = vi.hoisted(() => ({
           notification: null
         }),
         dismiss: vi.fn(),
+        dismissById: vi.fn(),
         getCleanPath: vi.fn().mockReturnValue('/chat/-/room')
       },
       notificationLevels: {
@@ -354,9 +355,7 @@ describe('RoomList', () => {
 
     await expect.element(q(container, '[href="/chat/-/dm-with-participants"]')).toBeInTheDocument();
     const dmRow = q(container, '[href="/chat/-/dm-with-participants"]');
-    expect(dmRow?.querySelectorAll('[data-testid="room-call-participant-avatar"]')).toHaveLength(
-      2
-    );
+    expect(dmRow?.querySelectorAll('[data-testid="room-call-participant-avatar"]')).toHaveLength(2);
   });
 
   it('renders the active-call phone icon when participants are not loaded', async () => {
@@ -662,6 +661,7 @@ describe('RoomList', () => {
     });
     mocks.store.notifications.getCleanPath.mockReturnValue('/chat/-/channel-1/thread-1');
     mocks.store.notifications.dismiss.mockResolvedValue(true);
+    mocks.store.notifications.dismissById.mockResolvedValue(true);
 
     const { container } = render(RoomList);
 
@@ -683,7 +683,7 @@ describe('RoomList', () => {
         mocks.goto.mock.invocationCallOrder[0]
       );
       expect(mocks.store.rooms.decrementUnreadNotification).toHaveBeenCalledWith('channel-1');
-      expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('mention-1');
+      expect(mocks.store.notifications.dismissById).toHaveBeenCalledWith('mention-1');
       expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
       expect(mocks.goto).toHaveBeenCalledWith('/chat/-/channel-1/thread-1');
     });
@@ -699,6 +699,7 @@ describe('RoomList', () => {
     });
     mocks.store.notifications.getCleanPath.mockReturnValue('/chat/-/dm-with-participants');
     mocks.store.notifications.dismiss.mockResolvedValue(true);
+    mocks.store.notifications.dismissById.mockResolvedValue(true);
 
     const { container } = render(RoomList);
 
@@ -721,7 +722,7 @@ describe('RoomList', () => {
       expect(mocks.appUi.disableRoomCallWideFor.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.goto.mock.invocationCallOrder[0]
       );
-      expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('dm-1');
+      expect(mocks.store.notifications.dismissById).toHaveBeenCalledWith('dm-1');
       expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalledOnce();
       expect(mocks.goto).toHaveBeenCalledWith('/chat/-/dm-with-participants');
     });
@@ -747,7 +748,7 @@ describe('RoomList', () => {
       });
       expect(mocks.store.rooms.clearUnreadNotifications).toHaveBeenCalledWith('channel-1');
       expect(mocks.goto).not.toHaveBeenCalled();
-      expect(mocks.store.notifications.dismiss).not.toHaveBeenCalled();
+      expect(mocks.store.notifications.dismissById).not.toHaveBeenCalled();
     });
   });
 });

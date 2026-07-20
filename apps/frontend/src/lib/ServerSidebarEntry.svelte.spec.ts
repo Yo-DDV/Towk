@@ -50,10 +50,22 @@ const { mocks } = vi.hoisted(() => {
           fetch: vi.fn().mockResolvedValue(undefined),
           setUnreadNotificationCount: vi.fn(),
           unreadNotificationCount: 0,
+          signalNotificationCount: 0,
           getSpaceNotification: vi.fn().mockReturnValue(null),
           getDMNotification: vi.fn().mockReturnValue(null),
+          resolveRoomNotification: vi.fn().mockResolvedValue({
+            ok: true,
+            totalCount: 0,
+            notification: null
+          }),
           dismiss: vi.fn(),
+          dismissById: vi.fn().mockResolvedValue(true),
           getCleanPath: vi.fn().mockReturnValue('/chat/remote.example.com/room-1')
+        },
+        rooms: {
+          totalNotificationCount: 0,
+          firstRoomWithNotifications: vi.fn().mockReturnValue(null),
+          refreshNotificationCounts: vi.fn().mockResolvedValue(undefined)
         },
         roomUnread: {
           captureSnapshotRevision: vi.fn().mockReturnValue(0),
@@ -237,9 +249,14 @@ describe('ServerSidebarEntry', () => {
     mocks.store.notifications.fetch.mockResolvedValue(undefined);
     mocks.store.notifications.setUnreadNotificationCount.mockClear();
     mocks.store.notifications.unreadNotificationCount = 0;
+    mocks.store.notifications.signalNotificationCount = 0;
     mocks.store.notifications.getSpaceNotification.mockReturnValue(null);
     mocks.store.notifications.getDMNotification.mockReturnValue(null);
     mocks.store.notifications.dismiss.mockClear();
+    mocks.store.notifications.dismissById.mockClear();
+    mocks.store.rooms.totalNotificationCount = 0;
+    mocks.store.rooms.firstRoomWithNotifications.mockReset().mockReturnValue(null);
+    mocks.store.rooms.refreshNotificationCounts.mockReset().mockResolvedValue(undefined);
     mocks.store.notifications.getCleanPath.mockReturnValue('/chat/remote.example.com/room-1');
     mocks.store.roomUnread.clear.mockClear();
     mocks.store.roomUnread.captureSnapshotRevision.mockClear();
@@ -444,7 +461,7 @@ describe('ServerSidebarEntry', () => {
       mentionInThread: 'thread-1'
     };
     mocks.store.serverIndicator.mockReturnValue('notification');
-    mocks.store.notifications.unreadNotificationCount = 1;
+    mocks.store.notifications.signalNotificationCount = 1;
     mocks.store.notifications.getSpaceNotification.mockReturnValue(notification);
     mocks.store.notifications.getCleanPath.mockReturnValue(
       '/chat/remote.example.com/room-1/thread-1'
@@ -471,7 +488,7 @@ describe('ServerSidebarEntry', () => {
         'thread-1',
         'event-1'
       );
-      expect(mocks.store.notifications.dismiss).toHaveBeenCalledWith('mention-1');
+      expect(mocks.store.notifications.dismissById).toHaveBeenCalledWith('mention-1');
       expect(mocks.goto).toHaveBeenCalledWith('/chat/remote.example.com/room-1/thread-1');
     });
   });

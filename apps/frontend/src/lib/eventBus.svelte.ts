@@ -116,6 +116,7 @@ type EventEnvelopeEvent =
       eventId?: string | null;
       inReplyToId?: string | null;
       silent?: boolean;
+      notificationCenterSuppressed?: boolean;
     }
   | { kind: typeof RoomEventKind.NotificationDismissed; notificationId: string }
   | {

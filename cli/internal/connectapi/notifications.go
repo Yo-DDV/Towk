@@ -23,7 +23,7 @@ func (s *notificationService) ListNotifications(ctx context.Context, req *connec
 	if err != nil {
 		return nil, err
 	}
-	return s.notificationPage(ctx, caller.UserID, req.Msg.GetPage(), nil)
+	return s.notificationPage(ctx, caller.UserID, req.Msg.GetPushClientId(), req.Msg.GetPage(), nil)
 }
 
 func (s *notificationService) GetNotification(ctx context.Context, req *connect.Request[apiv1.GetNotificationRequest]) (*connect.Response[apiv1.GetNotificationResponse], error) {
@@ -32,7 +32,7 @@ func (s *notificationService) GetNotification(ctx context.Context, req *connect.
 		return nil, err
 	}
 
-	notification, err := s.api.core.GetNotification(ctx, caller.UserID, req.Msg.GetNotificationId())
+	notification, err := s.api.core.GetNotificationForClient(ctx, caller.UserID, req.Msg.GetNotificationId(), req.Msg.GetPushClientId())
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -64,7 +64,7 @@ func (s *notificationService) BatchGetNotifications(ctx context.Context, req *co
 		}
 		seen[notificationID] = struct{}{}
 
-		notification, err := s.api.core.GetNotification(ctx, caller.UserID, notificationID)
+		notification, err := s.api.core.GetNotificationForClient(ctx, caller.UserID, notificationID, req.Msg.GetPushClientId())
 		if err != nil {
 			return nil, connectError(err)
 		}
@@ -101,12 +101,12 @@ func (s *notificationService) ListRoomNotifications(ctx context.Context, req *co
 	}), nil
 }
 
-func (s *notificationService) HasNotifications(ctx context.Context, _ *connect.Request[apiv1.HasNotificationsRequest]) (*connect.Response[apiv1.HasNotificationsResponse], error) {
+func (s *notificationService) HasNotifications(ctx context.Context, req *connect.Request[apiv1.HasNotificationsRequest]) (*connect.Response[apiv1.HasNotificationsResponse], error) {
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
 	}
-	has, err := s.api.core.HasUnreadNotifications(ctx, caller.UserID)
+	has, err := s.api.core.HasUnreadNotificationsForClient(ctx, caller.UserID, req.Msg.GetPushClientId())
 	if err != nil {
 		return nil, connectError(err)
 	}
@@ -167,8 +167,8 @@ func (s *notificationService) DismissAllNotifications(ctx context.Context, _ *co
 	return connect.NewResponse(&apiv1.DismissAllNotificationsResponse{DismissedCount: int32(count)}), nil
 }
 
-func (s *notificationService) notificationPage(ctx context.Context, userID string, pageRequest *apiv1.PageRequest, matches func(*corev1.Notification) bool) (*connect.Response[apiv1.ListNotificationsResponse], error) {
-	notifications, err := s.api.core.GetNotifications(ctx, userID)
+func (s *notificationService) notificationPage(ctx context.Context, userID, pushClientID string, pageRequest *apiv1.PageRequest, matches func(*corev1.Notification) bool) (*connect.Response[apiv1.ListNotificationsResponse], error) {
+	notifications, err := s.api.core.GetNotificationsForClient(ctx, userID, pushClientID)
 	if err != nil {
 		return nil, connectError(err)
 	}

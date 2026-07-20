@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { test } from './setup';
 import { ChatPage, NotificationsPage } from './pages';
 import { createAndLoginTestUser, loginAsAdmin, loginTestUser } from './fixtures/testUser';
@@ -14,9 +14,22 @@ import {
 import * as routes from './routes';
 import { POLLING_INTERVALS, TIMEOUTS } from './constants';
 
+async function setAppForeground(page: Page, foreground: boolean): Promise<void> {
+  await page.evaluate((isForeground) => {
+    Object.defineProperty(document, 'visibilityState', {
+      value: isForeground ? 'visible' : 'hidden',
+      writable: true,
+      configurable: true
+    });
+    window.dispatchEvent(new Event(isForeground ? 'focus' : 'blur'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, foreground);
+  await page.waitForTimeout(200);
+}
+
 test.describe('Mention Notifications', () => {
-  // Note: Toast notifications for mentions were removed - the bell icon with notification badge
-  // and room-level mention indicators are now the primary notification feedback.
+  // Foreground non-call activity remains visible through room, thread, and server signals.
+  // The bell notification center is intentionally reserved for background delivery and calls.
 
   test('shows mention indicator in room list when mentioned', async ({
     page,
@@ -180,9 +193,9 @@ test.describe('All Messages Notifications', () => {
     await expect(notificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await expect(notificationBadge).toHaveText('1');
 
+    await notificationsPage.expectBellIndicatorVisible();
     await notificationsPage.goto();
-    const notification = notificationsPage.getNotificationBySummary('posted a message');
-    await expect(notification).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
+    await notificationsPage.expectNotificationCount(1);
   });
 });
 
@@ -255,7 +268,7 @@ test.describe('Thread Reply Notifications (Cascading Indicators)', () => {
 // is reintroduced.
 
 test.describe('Notification Bell & Page', () => {
-  test('bell icon shows indicator when there are notifications', async ({
+  test('foreground non-call activity remains in the Towk notification center', async ({
     page,
     chatPage,
     notificationsPage,
@@ -273,8 +286,14 @@ test.describe('Notification Bell & Page', () => {
     // User B: Mention User A to create a notification
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'bell icon test');
 
-    // User A: Bell should now have indicator
+    // User A: in-app channel signals and the Towk notification center remain current.
+    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
+    await expect(generalLink.getByTestId('room-notification-badge')).toBeVisible({
+      timeout: TIMEOUTS.REALTIME_EVENT
+    });
     await notificationsPage.expectBellIndicatorVisible();
+    await notificationsPage.goto();
+    await notificationsPage.expectNotificationWithSummary('mentioned you');
   });
 
   test('clicking bell navigates to notifications page', async ({
@@ -318,7 +337,9 @@ test.describe('Notification Page Display', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
+    await setAppForeground(page, false);
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'notification display test');
+    await setAppForeground(page, true);
 
     // User A: Navigate to notifications page
     await notificationsPage.goto();
@@ -354,12 +375,14 @@ test.describe('Notification Page Display', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Reply to User A's message
+    await setAppForeground(page, false);
     await postThreadReplyFromServerUser(
       browser!,
       serverURL,
       rootMessage,
       'Reply to trigger notification'
     );
+    await setAppForeground(page, true);
 
     // User A: Navigate to notifications page
     await notificationsPage.goto();
@@ -393,6 +416,7 @@ test.describe('Notification Page Display', () => {
 
     // User B: Create multiple notifications (mention in the second room + reply in general)
     // Using separate rooms so notifications aren't deduplicated
+    await setAppForeground(page, false);
     await withServerUser(browser!, serverURL, async ({ page: page2, chatPage, roomPage }) => {
       // Join the second room via Browse Rooms (User B doesn't have room.create)
       await joinRoomFromOverview(page2, secondRoomName);
@@ -408,6 +432,7 @@ test.describe('Notification Page Display', () => {
       await roomPage.expectThreadPaneVisible();
       await roomPage.postThreadReply('Reply notification');
     });
+    await setAppForeground(page, true);
 
     // User A: Verify both notifications appear
     // Use longer timeout to allow real-time events to propagate
@@ -430,7 +455,9 @@ test.describe('Notification Dismissal', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
+    await setAppForeground(page, false);
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'dismiss test');
+    await setAppForeground(page, true);
 
     // User A: Navigate to notifications and dismiss
     await notificationsPage.goto();
@@ -465,6 +492,7 @@ test.describe('Notification Dismissal', () => {
 
     // User B: Create multiple notifications (mention in second room + reply in general)
     // Using separate rooms so notifications aren't deduplicated
+    await setAppForeground(page, false);
     await withServerUser(browser!, serverURL, async ({ page: page2, chatPage, roomPage }) => {
       // Join the second room via Browse Rooms (User B doesn't have room.create)
       await joinRoomFromOverview(page2, secondRoomName);
@@ -480,6 +508,7 @@ test.describe('Notification Dismissal', () => {
       await roomPage.expectThreadPaneVisible();
       await roomPage.postThreadReply('Clear all test 2');
     });
+    await setAppForeground(page, true);
 
     // User A: Dismiss all
     // Use longer timeout to allow real-time events to propagate
@@ -505,7 +534,9 @@ test.describe('Notification Dismissal', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
+    await setAppForeground(page, false);
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'bell clear test');
+    await setAppForeground(page, true);
 
     // User A: Verify bell has indicator
     await notificationsPage.expectBellIndicatorVisible();
@@ -534,7 +565,9 @@ test.describe('Navigation from Notifications', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A
+    await setAppForeground(page, false);
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'nav test');
+    await setAppForeground(page, true);
 
     // User A: Click notification
     await notificationsPage.goto();
@@ -565,7 +598,9 @@ test.describe('Navigation from Notifications', () => {
 
     // User B: Reply to thread
     const replyText = `Reply for nav test ${Date.now()}`;
+    await setAppForeground(page, false);
     await postThreadReplyFromServerUser(browser!, serverURL, rootMessage, replyText);
+    await setAppForeground(page, true);
 
     // User A: Click notification
     await notificationsPage.goto();
@@ -595,7 +630,9 @@ test.describe('Navigation from Notifications', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A in general room (User B can't post in announcements due to RBAC)
+    await setAppForeground(page, false);
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'dismiss on click test');
+    await setAppForeground(page, true);
 
     // User A: Click notification
     await notificationsPage.goto();
@@ -610,8 +647,8 @@ test.describe('Navigation from Notifications', () => {
   });
 });
 
-test.describe('Cross-Tab Sync', () => {
-  test('new notification appears in second tab without refresh', async ({
+test.describe('Cross-device Sync', () => {
+  test('both devices keep their center notification while one device is foreground', async ({
     page,
     chatPage,
     notificationsPage,
@@ -632,11 +669,14 @@ test.describe('Cross-Tab Sync', () => {
       await notificationsPage.expectBellIndicatorNotVisible();
       await notificationsPage1b.expectBellIndicatorNotVisible();
 
-      // User B: Create account and mention User A in general (User B can't post in announcements due to RBAC)
+      await setAppForeground(page1b, false);
+
+      // User B creates a notification while the first installation remains foreground.
       await postMentionFromServerUser(browser!, serverURL, userA.login, 'cross tab test');
 
-      // Both of User A's tabs should show bell indicator
+      // The Towk center remains account-wide on both installations; only native push is filtered.
       await notificationsPage.expectBellIndicatorVisible();
+      await setAppForeground(page1b, true);
       await notificationsPage1b.expectBellIndicatorVisible();
 
       // Navigate to notifications page in second tab - should see the notification
@@ -661,8 +701,11 @@ test.describe('Cross-Tab Sync', () => {
       await page1b.goto(routes.space());
       const notificationsPage1b = new NotificationsPage(page1b);
 
-      // User B: Mention User A in general (User B can't post in announcements due to RBAC)
+      await setAppForeground(page, false);
+      await setAppForeground(page1b, false);
       await postMentionFromServerUser(browser!, serverURL, userA.login, 'cross tab dismiss test');
+      await setAppForeground(page, true);
+      await setAppForeground(page1b, true);
 
       // Both tabs should show bell indicator
       await notificationsPage.expectBellIndicatorVisible();
@@ -700,13 +743,14 @@ test.describe('Cross-Tab Sync', () => {
     await withLoggedInServerWindow(browser!, serverURL, userA, async ({ page: page1b }) => {
       const notificationsPage1b = new NotificationsPage(page1b);
 
-      // User B: Mention User A in general (User B can't post in announcements due to RBAC)
+      await setAppForeground(page1b, false);
       await postMentionFromServerUser(
         browser!,
         serverURL,
         userA.login,
         'room entry dismiss sync test'
       );
+      await setAppForeground(page1b, true);
 
       // User A (tab 2): Go to notifications page and verify notification exists
       await notificationsPage1b.gotoDirectly();
@@ -745,8 +789,12 @@ test.describe('Cross-Tab Sync', () => {
       'Reply for thread sync test'
     );
 
-    // User A: Verify bell indicator
+    // The foreground center and thread signal remain visible inside Towk.
     await notificationsPage.expectBellIndicatorVisible();
+    const threadLink = page.getByRole('link', { name: /1 reply/i });
+    await expect(threadLink.locator('.bg-warning')).toBeVisible({
+      timeout: TIMEOUTS.REALTIME_EVENT
+    });
 
     // User A: Open the thread (auto-dismisses reply notification)
     await chatPage.enterRoom('general');
@@ -785,24 +833,28 @@ test.describe('Cross-Tab Sync', () => {
       // mention badge is visible in the sidebar.
       await page1b.goto(routes.space());
       const chatPage1b = new ChatPage(page1b);
+      const notificationsPage1b = new NotificationsPage(page1b);
       await chatPage1b.enterRoom('announcements');
       const generalLink1b = chatPage1b.roomList.locator('a', { hasText: '# general' });
       const generalMentionBadge1b = generalLink1b.getByTestId('room-notification-badge');
 
-      // User B: mention User A in #general.
+      // Only the first installation is backgrounded; the second stays foreground.
+      await setAppForeground(page, false);
       await postMentionFromServerUser(
         browser!,
         serverURL,
         userA.login,
         'cross-device mention sync test'
       );
+      await setAppForeground(page, true);
 
-      // Both tabs show the room-level mention badge and the bell.
+      // Both installations show the same account-wide Towk center and channel signals.
       await expect(generalMentionBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(generalMentionBadge).toHaveText('1');
       await expect(generalMentionBadge1b).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
       await expect(generalMentionBadge1b).toHaveText('1');
       await notificationsPage.expectBellIndicatorVisible();
+      await notificationsPage1b.expectBellIndicatorVisible();
 
       // Tab 1: dismiss the mention via the bell panel — does NOT enter the
       // room. Pre-fix this would only sync the bell across tabs; the
@@ -834,7 +886,7 @@ test.describe('Cross-Tab Sync', () => {
 });
 
 test.describe('Real-time Notification Updates', () => {
-  test('notification appears in real-time while on notifications page', async ({
+  test('foreground notifications page updates for non-call activity', async ({
     page,
     chatPage,
     notificationsPage,
@@ -852,13 +904,12 @@ test.describe('Real-time Notification Updates', () => {
     // User B: Mention User A while A is on notifications page
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'real-time test');
 
-    // User A: Notification should appear without refresh
-    const notification = notificationsPage.getNotificationBySummary('mentioned you');
-    await expect(notification).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
-
-    // Empty state should be gone, Clear all should be visible
-    await expect(notificationsPage.emptyState).not.toBeVisible();
+    await notificationsPage.expectBellIndicatorVisible();
+    await notificationsPage.expectNotificationWithSummary('mentioned you');
     await notificationsPage.expectClearAllVisible();
+    await expect(serverNotificationBadge(page)).toBeVisible({
+      timeout: TIMEOUTS.REALTIME_EVENT
+    });
   });
 
   test('notification count updates in real-time', async ({
@@ -879,7 +930,8 @@ test.describe('Real-time Notification Updates', () => {
     await notificationsPage.goto();
     await notificationsPage.expectEmptyState();
 
-    // User B: Create multiple notifications
+    // User B: Create multiple notifications while this installation is backgrounded.
+    await setAppForeground(page, false);
     await withServerUser(browser!, serverURL, async ({ chatPage, roomPage }) => {
       // First notification (mention) - User B posts in general since they can't post in announcements
       await chatPage.enterRoom('general');
@@ -897,11 +949,12 @@ test.describe('Real-time Notification Updates', () => {
 
     // User A: Should see 2 notifications
     await notificationsPage.expectNotificationCount(2);
+    await setAppForeground(page, true);
   });
 });
 
 test.describe('Page Title Notification Count', () => {
-  test('page title shows count prefix when there are notifications', async ({
+  test('foreground non-call activity increments the Towk center title count', async ({
     page,
     chatPage,
     browser,
@@ -918,7 +971,9 @@ test.describe('Page Title Notification Count', () => {
     // User B: Mention User A in general (User B can't post in announcements due to RBAC)
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'page title test');
 
-    // User A: Page title should now show (1) prefix
+    await expect(serverNotificationBadge(page)).toBeVisible({
+      timeout: TIMEOUTS.REALTIME_EVENT
+    });
     await expect(page).toHaveTitle(/^\(1\) /, { timeout: TIMEOUTS.REALTIME_EVENT });
   });
 
@@ -946,6 +1001,7 @@ test.describe('Page Title Notification Count', () => {
 
     // User B: Create multiple notifications (mention in second room + reply in general)
     // Using separate rooms so notifications aren't deduplicated
+    await setAppForeground(page, false);
     await withServerUser(browser!, serverURL, async ({ page: page2, chatPage, roomPage }) => {
       // Join the second room via Browse Rooms (User B doesn't have room.create)
       await joinRoomFromOverview(page2, secondRoomName);
@@ -967,6 +1023,7 @@ test.describe('Page Title Notification Count', () => {
 
     // User A: Title should show (2)
     await expect(page).toHaveTitle(/^\(2\) /, { timeout: TIMEOUTS.REALTIME_EVENT });
+    await setAppForeground(page, true);
   });
 
   test('page title returns to normal after dismissing all notifications', async ({
@@ -982,7 +1039,9 @@ test.describe('Page Title Notification Count', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Mention User A in general (User B can't post in announcements due to RBAC)
+    await setAppForeground(page, false);
     await postMentionFromServerUser(browser!, serverURL, userA.login, 'title dismiss test');
+    await setAppForeground(page, true);
 
     // User A: Verify title has count
     await expect(page).toHaveTitle(/^\(1\) /, { timeout: TIMEOUTS.REALTIME_EVENT });
@@ -1017,6 +1076,7 @@ test.describe('Page Title Notification Count', () => {
 
     // User B: Create two notifications (mention in second room + reply in general)
     // Using separate rooms so notifications aren't deduplicated
+    await setAppForeground(page, false);
     await withServerUser(browser!, serverURL, async ({ page: page2, chatPage, roomPage }) => {
       // Join the second room via Browse Rooms (User B doesn't have room.create)
       await joinRoomFromOverview(page2, secondRoomName);
@@ -1032,6 +1092,7 @@ test.describe('Page Title Notification Count', () => {
       await roomPage.expectThreadPaneVisible();
       await roomPage.postThreadReply('Title decrement 2');
     });
+    await setAppForeground(page, true);
 
     // User A: Verify title shows (2)
     await expect(page).toHaveTitle(/^\(2\) /, { timeout: TIMEOUTS.REALTIME_EVENT });
@@ -1143,7 +1204,7 @@ test.describe('Clickable Notification Badges', () => {
 });
 
 test.describe('Room Reply Notifications', () => {
-  test('room reply creates bell indicator and notification page entry', async ({
+  test('foreground room reply keeps channel signals and a center entry', async ({
     page,
     chatPage,
     roomPage,
@@ -1154,7 +1215,6 @@ test.describe('Room Reply Notifications', () => {
     // User A: Create account and post a message
     await createAndLoginTestUser(page);
     await chatPage.goto();
-    const serverName = await chatPage.getServerName();
     await chatPage.enterRoom('general');
     const rootMessage = `Room reply notify test ${Date.now()}`;
     await roomPage.sendMessage(rootMessage);
@@ -1170,7 +1230,6 @@ test.describe('Room Reply Notifications', () => {
       `Reply from User B ${Date.now()}`
     );
 
-    // User A: Bell indicator should appear
     await notificationsPage.expectBellIndicatorVisible();
 
     // Verify notification badge on general room in room list.
@@ -1184,11 +1243,9 @@ test.describe('Room Reply Notifications', () => {
     await expect(notificationBadge).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
     await expect(notificationBadge).toHaveText('1');
 
-    // Verify notification page shows reply notification with correct content
+    // The Towk center remains visible while native delivery is filtered separately.
     await notificationsPage.goto();
-    const notification = notificationsPage.getNotificationBySummary('replied to your message');
-    await expect(notification).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
-    await notificationsPage.expectNotificationWithLocation(notification, 'general', serverName);
+    await notificationsPage.expectNotificationCount(1);
   });
 
   test('clicking room reply notification navigates to room with highlight', async ({
@@ -1208,7 +1265,9 @@ test.describe('Room Reply Notifications', () => {
     await chatPage.enterRoom('announcements');
 
     // User B: Reply to User A's message in room
+    await setAppForeground(page, false);
     await postRoomReplyFromServerUser(browser!, serverURL, rootMessage, `Nav reply ${Date.now()}`);
+    await setAppForeground(page, true);
 
     // User A: Click the reply notification
     await notificationsPage.goto();
@@ -1246,8 +1305,11 @@ test.describe('Room Reply Notifications', () => {
       `Dismiss reply ${Date.now()}`
     );
 
-    // User A: Verify bell indicator appears
     await notificationsPage.expectBellIndicatorVisible();
+    const generalLink = chatPage.roomList.locator('a', { hasText: '# general' });
+    await expect(generalLink.getByTestId('room-notification-badge')).toBeVisible({
+      timeout: TIMEOUTS.REALTIME_EVENT
+    });
 
     // User A: Enter the general room (should auto-dismiss the reply notification)
     await chatPage.enterRoom('general');

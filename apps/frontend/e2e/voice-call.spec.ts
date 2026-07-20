@@ -24,6 +24,7 @@ import {
   joinRoomViaConnect
 } from './fixtures/connectHelpers';
 import { DMPage } from './pages/DMPage';
+import { ChatPage, NotificationsPage } from './pages';
 import { TIMEOUTS } from './constants';
 
 // Configure the test server with LiveKit credentials via the server fixture.
@@ -485,6 +486,76 @@ test.describe('Voice calls', () => {
       });
 
       await expect(callIcon).not.toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
+    });
+  });
+
+  test('foreground channel call remains in the notification center', async ({
+    page,
+    chatPage,
+    browser,
+    serverURL
+  }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    const spaceId = await chatPage.getServerScopeId();
+    const roomId = await getRoomIdByNameViaConnect(page, 'general');
+    await chatPage.enterRoom('announcements');
+    const notificationsPage = new NotificationsPage(page);
+
+    await withServerUser(browser!, serverURL, async ({ page: page2, user: userB }) => {
+      await joinRoomViaConnect(page2, roomId);
+      await page.request.post('/webhooks/test/call-join', {
+        data: {
+          spaceId,
+          roomId,
+          userId: userB.id,
+          displayName: userB.displayName,
+          login: userB.login
+        }
+      });
+
+      await notificationsPage.expectBellIndicatorVisible();
+      await notificationsPage.goto();
+      await notificationsPage.expectNotificationWithSummary('started a call');
+
+      await page.request.post('/webhooks/test/call-leave', {
+        data: { spaceId, roomId, userId: userB.id }
+      });
+    });
+  });
+
+  test('foreground one-to-one call remains in the notification center', async ({
+    page,
+    browser,
+    serverURL
+  }) => {
+    await createAndLoginTestUser(page);
+
+    await withServerUser(browser!, serverURL, async ({ user: userB }) => {
+      const dmPage = new DMPage(page);
+      await dmPage.startConversation(userB.login);
+      const { roomId } = await getIdsFromUrlViaConnect(page);
+      const chatPage = new ChatPage(page);
+      const spaceId = await chatPage.getServerScopeId();
+      const notificationsPage = new NotificationsPage(page);
+
+      await page.request.post('/webhooks/test/call-join', {
+        data: {
+          spaceId,
+          roomId,
+          userId: userB.id,
+          displayName: userB.displayName,
+          login: userB.login
+        }
+      });
+
+      await notificationsPage.expectBellIndicatorVisible();
+      await notificationsPage.goto();
+      await notificationsPage.expectNotificationWithSummary('is calling you');
+
+      await page.request.post('/webhooks/test/call-leave', {
+        data: { spaceId, roomId, userId: userB.id }
+      });
     });
   });
 

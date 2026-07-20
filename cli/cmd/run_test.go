@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/config"
@@ -69,6 +73,150 @@ func TestContainsVoiceMessage(t *testing.T) {
 	}}) {
 		t.Fatal("voice attachment was not detected")
 	}
+}
+
+func TestPostedMessagePushContextCarriesExactContentForEveryMessageKind(t *testing.T) {
+	_, nc := testutil.StartNATS(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	chattoCore, err := core.NewChattoCore(ctx, nc, config.CoreConfig{
+		SecretKey: "push-context-test-secret",
+		Assets: config.AssetsConfig{
+			SigningSecret: "push-context-test-signing-secret",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewChattoCore: %v", err)
+	}
+	runCtx, stop := context.WithCancel(context.Background())
+	runDone := make(chan error, 1)
+	go func() { runDone <- chattoCore.Run(runCtx) }()
+	t.Cleanup(func() {
+		stop()
+		select {
+		case <-runDone:
+		case <-time.After(5 * time.Second):
+			t.Error("ChattoCore.Run did not stop")
+		}
+	})
+	if err := chattoCore.WaitForBoot(ctx); err != nil {
+		t.Fatalf("WaitForBoot: %v", err)
+	}
+
+	author, err := chattoCore.CreateUser(ctx, core.SystemActorID, "push-author", "Push Author", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(author): %v", err)
+	}
+	recipient, err := chattoCore.CreateUser(ctx, core.SystemActorID, "push-recipient", "Push Recipient", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(recipient): %v", err)
+	}
+	room, err := chattoCore.CreateRoom(ctx, author.Id, core.KindChannel, "", "push-context", "")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := chattoCore.AddMember(ctx, author.Id, core.KindChannel, room.Id, recipient.Id); err != nil {
+		t.Fatalf("AddMember: %v", err)
+	}
+	if err := chattoCore.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetRoomNotificationLevel: %v", err)
+	}
+
+	type callbackResult struct {
+		notification *corev1.Notification
+		payloadCtx   *push.PayloadContext
+	}
+	contexts := make(chan callbackResult, 1)
+	chattoCore.OnNotificationCreated = func(callbackCtx context.Context, notification *corev1.Notification) {
+		contexts <- callbackResult{
+			notification: notification,
+			payloadCtx:   fetchPayloadContext(callbackCtx, chattoCore, notification, log.WithPrefix("push-context-test")),
+		}
+	}
+	assertCallback := func(kind, message string) {
+		t.Helper()
+		select {
+		case result := <-contexts:
+			payloadCtx := result.payloadCtx
+			if result.notification == nil {
+				t.Fatal("notification = nil")
+			}
+			switch kind {
+			case "dm":
+				if result.notification.GetDmMessage() == nil {
+					t.Fatalf("notification kind = %T, want DM", result.notification.GetNotification())
+				}
+			case "mention":
+				if result.notification.GetMention() == nil {
+					t.Fatalf("notification kind = %T, want mention", result.notification.GetNotification())
+				}
+			case "reply":
+				if result.notification.GetReply() == nil {
+					t.Fatalf("notification kind = %T, want reply", result.notification.GetNotification())
+				}
+			case "room_message":
+				if result.notification.GetRoomMessage() == nil {
+					t.Fatalf("notification kind = %T, want room message", result.notification.GetNotification())
+				}
+			default:
+				t.Fatalf("unsupported expected notification kind %q", kind)
+			}
+			if payloadCtx == nil {
+				t.Fatal("payload context = nil")
+			}
+			if payloadCtx.MessagePreview != message {
+				t.Fatalf("message preview = %q, want %q", payloadCtx.MessagePreview, message)
+			}
+			if kind != "dm" && payloadCtx.RoomName != room.Name {
+				t.Fatalf("room name = %q, want %q", payloadCtx.RoomName, room.Name)
+			}
+			fallbackCtx := fetchPayloadContext(context.Background(), chattoCore, result.notification, log.WithPrefix("push-context-fallback-test"))
+			if fallbackCtx == nil || fallbackCtx.MessagePreview != message {
+				t.Fatalf("canonical fallback preview = %#v, want %q", fallbackCtx, message)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for %s notification callback", kind)
+		}
+	}
+
+	const roomMessage = "The exact room message must remain visible 🔔"
+	if _, err := chattoCore.PostMessage(ctx, core.KindChannel, room.Id, author.Id, roomMessage, nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(room): %v", err)
+	}
+	assertCallback("room_message", roomMessage)
+
+	if err := chattoCore.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(NORMAL): %v", err)
+	}
+	const mentionMessage = "@push-recipient The exact mention must remain visible"
+	if _, err := chattoCore.PostMessage(ctx, core.KindChannel, room.Id, author.Id, mentionMessage, nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(mention): %v", err)
+	}
+	assertCallback("mention", mentionMessage)
+
+	root, err := chattoCore.PostMessage(ctx, core.KindChannel, room.Id, recipient.Id, "Reply target", nil, "", "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(reply target): %v", err)
+	}
+	if err := chattoCore.SetRoomNotificationLevel(ctx, recipient.Id, room.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
+		t.Fatalf("SetRoomNotificationLevel(ALL_MESSAGES for reply): %v", err)
+	}
+	const replyMessage = "The exact reply must remain visible"
+	if _, err := chattoCore.PostMessage(ctx, core.KindChannel, room.Id, author.Id, replyMessage, nil, "", root.Id, nil, false); err != nil {
+		t.Fatalf("PostMessage(reply): %v", err)
+	}
+	assertCallback("reply", replyMessage)
+
+	dm, _, err := chattoCore.FindOrCreateDM(ctx, author.Id, []string{recipient.Id})
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+	const dmMessage = "The exact direct message must remain visible"
+	if _, err := chattoCore.PostMessage(ctx, core.KindDM, dm.Id, author.Id, dmMessage, nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage(DM): %v", err)
+	}
+	assertCallback("dm", dmMessage)
 }
 
 func TestLocalizedPushBatches(t *testing.T) {
@@ -203,6 +351,161 @@ func TestCanonicalOriginFilteringPrecedesClientIDDedupe(t *testing.T) {
 
 	if len(deduped) != 1 || deduped[0].Endpoint != "https://push.example/canonical-old" {
 		t.Fatalf("delivered subscriptions = %+v, want canonical origin even when alternate endpoint is newer", deduped)
+	}
+}
+
+func TestFilterForegroundPushSubscriptionsSuppressesOnlyTheActiveDevice(t *testing.T) {
+	lookupFailure := errors.New("presence lookup unavailable")
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/active", ClientId: "client-active"},
+		{Endpoint: "https://push.example/background", ClientId: "client-background"},
+		{Endpoint: "https://push.example/legacy"},
+		{Endpoint: "https://push.example/fail-open", ClientId: "client-error"},
+	}
+	queries := map[string]int{}
+	var queriesMu sync.Mutex
+	wrongUserID := ""
+
+	filtered := filterForegroundPushSubscriptions(
+		context.Background(),
+		"user-1",
+		subscriptions,
+		func(_ context.Context, userID, clientID string) (bool, error) {
+			if userID != "user-1" {
+				queriesMu.Lock()
+				wrongUserID = userID
+				queriesMu.Unlock()
+			}
+			queriesMu.Lock()
+			queries[clientID]++
+			queriesMu.Unlock()
+			switch clientID {
+			case "client-active":
+				return true, nil
+			case "client-error":
+				return false, lookupFailure
+			default:
+				return false, nil
+			}
+		},
+		nil,
+	)
+
+	got := make([]string, 0, len(filtered))
+	for _, subscription := range filtered {
+		got = append(got, subscription.Endpoint)
+	}
+	want := []string{
+		"https://push.example/background",
+		"https://push.example/legacy",
+		"https://push.example/fail-open",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("filtered endpoints = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("filtered endpoints = %v, want %v", got, want)
+		}
+	}
+	queriesMu.Lock()
+	defer queriesMu.Unlock()
+	if wrongUserID != "" {
+		t.Fatalf("foreground lookup user = %q, want user-1", wrongUserID)
+	}
+	if queries["client-active"] != 1 || queries["client-background"] != 1 || queries["client-error"] != 1 {
+		t.Fatalf("foreground queries = %v, want one per identified device", queries)
+	}
+	if _, queriedLegacy := queries[""]; queriedLegacy {
+		t.Fatalf("legacy subscription without client ID was queried: %v", queries)
+	}
+}
+
+func TestForegroundFilteringCoversEveryNotificationKindAndKeepsEveryLocaleOnOtherDevices(t *testing.T) {
+	notifications := map[string]*corev1.Notification{
+		"direct message": {
+			RecipientId: "user-1",
+			Notification: &corev1.Notification_DmMessage{
+				DmMessage: &corev1.DMMessageNotification{RoomId: "dm", EventId: "event"},
+			},
+		},
+		"mention": {
+			RecipientId: "user-1",
+			Notification: &corev1.Notification_Mention{
+				Mention: &corev1.MentionNotification{RoomId: "room", EventId: "event"},
+			},
+		},
+		"reply": {
+			RecipientId: "user-1",
+			Notification: &corev1.Notification_Reply{
+				Reply: &corev1.ReplyNotification{RoomId: "room", EventId: "event"},
+			},
+		},
+		"room message": {
+			RecipientId: "user-1",
+			Notification: &corev1.Notification_RoomMessage{
+				RoomMessage: &corev1.RoomMessageNotification{RoomId: "room", EventId: "event"},
+			},
+		},
+		"call": {
+			RecipientId: "user-1",
+			Notification: &corev1.Notification_CallStarted{
+				CallStarted: &corev1.CallStartedNotification{RoomId: "room", EventId: "event", CallId: "call"},
+			},
+		},
+	}
+	subscriptions := []*corev1.PushSubscription{
+		{Endpoint: "https://push.example/active", ClientId: "client-active", Locale: "fr"},
+		{Endpoint: "https://push.example/en", ClientId: "client-en", Locale: "en"},
+		{Endpoint: "https://push.example/de", ClientId: "client-de", Locale: "de"},
+		{Endpoint: "https://push.example/fr", ClientId: "client-fr", Locale: "fr"},
+		{Endpoint: "https://push.example/es", ClientId: "client-es", Locale: "es"},
+		{Endpoint: "https://push.example/pt", ClientId: "client-pt", Locale: "pt"},
+	}
+	for name, notification := range notifications {
+		t.Run(name, func(t *testing.T) {
+			filtered := filterForegroundPushSubscriptionsForNotification(
+				context.Background(),
+				"user-1",
+				notification,
+				subscriptions,
+				func(_ context.Context, _, clientID string) (bool, error) {
+					return clientID == "client-active", nil
+				},
+				nil,
+			)
+			batches := localizedPushBatches(
+				filtered,
+				notification,
+				"Alice",
+				"https://towk.example",
+				&push.PayloadContext{RoomName: "general"},
+				"5",
+			)
+			seenLocales := map[string]bool{}
+			delivered := 0
+			for _, batch := range batches {
+				seenLocales[batch.payload.Lang] = true
+				delivered += len(batch.subscriptions)
+				for _, subscription := range batch.subscriptions {
+					if notification.GetCallStarted() == nil && subscription.GetClientId() == "client-active" {
+						t.Fatal("foreground client reached a localized delivery batch")
+					}
+				}
+			}
+			wantDelivered := 5
+			if notification.GetCallStarted() != nil {
+				wantDelivered = 6
+			}
+			if delivered != wantDelivered {
+				t.Fatalf("delivered subscriptions = %d, want %d", delivered, wantDelivered)
+			}
+			for _, locale := range []string{"en", "de", "fr", "es", "pt"} {
+				if !seenLocales[locale] {
+					t.Fatalf("localized batches = %v, missing %q", seenLocales, locale)
+				}
+			}
+		})
 	}
 }
 

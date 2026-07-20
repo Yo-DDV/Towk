@@ -357,11 +357,11 @@ type PushEventWithDeclarativeNotification = PushEvent & {
 };
 
 const NOTIFICATION_BODY_FALLBACKS: Record<string, string> = {
-  en: 'Open Towk to view the notification',
-  de: 'Öffne Towk, um die Benachrichtigung anzuzeigen',
-  fr: 'Ouvrez Towk pour afficher la notification',
-  es: 'Abre Towk para ver la notificación',
-  pt: 'Abra o Towk para ver a notificação'
+  en: 'Message',
+  de: 'Nachricht',
+  fr: 'Message',
+  es: 'Mensaje',
+  pt: 'Mensagem'
 };
 
 function handleBadgeStateMessage(event: ExtendableMessageEvent): boolean {
@@ -460,7 +460,11 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
   const tag = payload.tag ?? notification?.tag;
   const lang = normalizeNotificationLang(payload.lang ?? notification?.lang);
   const options: NativeNotificationOptions = {
-    body: normalizeNotificationBody(body, lang ?? navigator.language),
+    body: normalizeNotificationBody(
+      body,
+      lang ?? navigator.language,
+      typeof notificationId === 'string' && notificationId.trim() !== ''
+    ),
     icon: payload.icon ?? notification?.icon ?? '/icons/icon-192.png',
     badge: payload.badge ?? notification?.badge ?? '/icons/badge-monochrome-96.png',
     tag,
@@ -488,9 +492,13 @@ function normalizePushNotification(payload: DeclarativePushPayload): NormalizedP
   };
 }
 
-function normalizeNotificationBody(body: unknown, fallbackLocale: string | undefined): string {
+function normalizeNotificationBody(
+  body: unknown,
+  fallbackLocale: string | undefined,
+  appOwned: boolean
+): string {
   const value = typeof body === 'string' ? body.trim() : '';
-  if (value === '' || isServingOriginBody(value)) {
+  if (value === '' || (!appOwned && isServingOriginBody(value))) {
     return notificationBodyFallback(fallbackLocale);
   }
   return value;

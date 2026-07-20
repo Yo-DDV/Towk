@@ -31,9 +31,19 @@ const { soundMocks, apiMocks } = vi.hoisted(() => ({
     listNotifications: vi.fn(() =>
       Promise.resolve({
         items: [],
-        unreadCount: 0
+        totalCount: 0,
+        hasMore: false
       })
     ),
+    listNotificationSignals: vi.fn(() =>
+      Promise.resolve({
+        items: [],
+        totalCount: 0,
+        hasMore: false
+      })
+    ),
+    getNotification: vi.fn(() => Promise.resolve(null)),
+    getNotificationSignal: vi.fn(() => Promise.resolve(null)),
     listAdminEventLogEvents: vi.fn(() =>
       Promise.resolve({
         entries: [],
@@ -187,6 +197,9 @@ vi.mock('$lib/api-client/notifications', () => ({
   },
   createNotificationAPI: vi.fn(() => ({
     listNotifications: apiMocks.listNotifications,
+    listNotificationSignals: apiMocks.listNotificationSignals,
+    getNotification: apiMocks.getNotification,
+    getNotificationSignal: apiMocks.getNotificationSignal,
     listRoomNotifications: vi.fn(),
     hasNotifications: vi.fn(),
     listNotificationCounts: apiMocks.listNotificationCounts,
@@ -342,8 +355,16 @@ beforeEach(() => {
   apiMocks.listNotificationCounts.mockResolvedValue({});
   apiMocks.listNotifications.mockResolvedValue({
     items: [],
-    unreadCount: 0
+    totalCount: 0,
+    hasMore: false
   });
+  apiMocks.listNotificationSignals.mockResolvedValue({
+    items: [],
+    totalCount: 0,
+    hasMore: false
+  });
+  apiMocks.getNotification.mockResolvedValue(null);
+  apiMocks.getNotificationSignal.mockResolvedValue(null);
   apiMocks.getAuthenticatedServerState.mockResolvedValue({
     name: 'Store Event Test',
     version: 'test',
@@ -466,6 +487,32 @@ describe('ServerStateStore authentication state', () => {
 });
 
 describe('ServerStateStore notification indicators', () => {
+  it('uses global room notification counts when this client center is filtered', async () => {
+    apiMocks.listRooms.mockResolvedValue([
+      {
+        id: 'general',
+        name: 'general',
+        description: null,
+        kind: 1,
+        archived: false,
+        isUniversal: false,
+        isMember: true,
+        hasUnread: false,
+        canJoinRoom: true
+      }
+    ] as never);
+    apiMocks.listNotificationCounts.mockResolvedValue({ general: 1 });
+    apiMocks.listNotifications.mockResolvedValue({ items: [], totalCount: 0, hasMore: false });
+    const store = makeStore(new FakeServerConnection([]));
+
+    await store.rooms.refresh();
+    await vi.waitFor(() => expect(store.rooms.totalNotificationCount).toBe(1));
+    store.notifications.signalNotificationCount = 1;
+
+    expect(store.notifications.unreadNotificationCount).toBe(0);
+    expect(store.serverIndicator()).toBe('notification');
+  });
+
   it('suppresses plain unread attention for muted rooms while preserving audible overrides', () => {
     const store = makeStore(new FakeServerConnection([]));
     store.roomUnread.setRoomUnread('muted-room', true);
