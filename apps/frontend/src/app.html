@@ -69,6 +69,25 @@
         });
       })();
     </script>
+    <script data-pwa-install-bootstrap>
+      // Chrome can emit beforeinstallprompt while the public shell is still
+      // loading. Preserve that one-shot event until the authenticated header
+      // is mounted, while keeping the native dialog behind a user gesture.
+      (() => {
+        window.__towkInstallPrompt = null;
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+          event.preventDefault();
+          window.__towkInstallPrompt = event;
+          window.dispatchEvent(new Event('towk:pwa-install-prompt-captured'));
+        });
+
+        window.addEventListener('appinstalled', () => {
+          window.__towkInstallPrompt = null;
+          window.dispatchEvent(new Event('towk:pwa-install-prompt-cleared'));
+        });
+      })();
+    </script>
     <!-- OG_META_PLACEHOLDER -->
     <meta
       name="viewport"

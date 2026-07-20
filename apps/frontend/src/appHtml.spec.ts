@@ -9,6 +9,9 @@ const manifest = JSON.parse(
   readFileSync(new URL('../static/manifest.webmanifest', import.meta.url), 'utf8')
 ) as WebAppManifest;
 const themeScript = appHtml.match(/<script>\s*([\s\S]*?)\s*<\/script>/i)?.[1];
+const pwaInstallScript = appHtml.match(
+  /<script data-pwa-install-bootstrap>\s*([\s\S]*?)\s*<\/script>/i
+)?.[1];
 
 type WebAppManifest = {
   icons?: Array<{ src?: string; sizes?: string; type?: string; purpose?: string }>;
@@ -121,7 +124,46 @@ function runThemeScript({
   };
 }
 
+function runPwaInstallScript() {
+  if (!pwaInstallScript) throw new Error('PWA install bootstrap script not found');
+
+  const listeners = new Map<string, (event: Event) => void>();
+  const dispatched: string[] = [];
+  const browserWindow = {
+    __towkInstallPrompt: undefined as Event | null | undefined,
+    addEventListener(type: string, listener: (event: Event) => void) {
+      listeners.set(type, listener);
+    },
+    dispatchEvent(event: Event) {
+      dispatched.push(event.type);
+      return true;
+    }
+  };
+
+  runInNewContext(pwaInstallScript, { Event, window: browserWindow });
+
+  return { browserWindow, dispatched, listeners };
+}
+
 describe('app.html metadata', () => {
+  it('captures the native install prompt before the manifest is discovered', () => {
+    const { browserWindow, dispatched, listeners } = runPwaInstallScript();
+    const prompt = new Event('beforeinstallprompt', { cancelable: true });
+
+    listeners.get('beforeinstallprompt')?.(prompt);
+
+    expect(prompt.defaultPrevented).toBe(true);
+    expect(browserWindow.__towkInstallPrompt).toBe(prompt);
+    expect(dispatched).toContain('towk:pwa-install-prompt-captured');
+    expect(appHtml.indexOf('data-pwa-install-bootstrap')).toBeLessThan(
+      appHtml.indexOf('rel="manifest"')
+    );
+
+    listeners.get('appinstalled')?.(new Event('appinstalled'));
+    expect(browserWindow.__towkInstallPrompt).toBeNull();
+    expect(dispatched).toContain('towk:pwa-install-prompt-cleared');
+  });
+
   it('defines theme colors matching the outer frame background colors', () => {
     expect(metaContent('theme-color', 'light')).toBe('#f7f9fc');
     expect(metaContent('theme-color', 'dark')).toBe('#0b1020');

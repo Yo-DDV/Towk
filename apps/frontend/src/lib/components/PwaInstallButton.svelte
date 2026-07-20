@@ -13,9 +13,13 @@
     type InstallReminderState
   } from '$lib/pwa/installReminderPolicy';
   import {
+    INSTALL_PROMPT_CAPTURED_EVENT,
+    INSTALL_PROMPT_CLEARED_EVENT,
+    clearCapturedInstallPromptEvent,
     currentInstallEnvironment,
     detectInstallBrowser,
     detectInstallPlatform,
+    getCapturedInstallPromptEvent,
     isInstalledPwa,
     selectInstallGuide,
     type BeforeInstallPromptEvent,
@@ -62,6 +66,7 @@
     guide = selectInstallGuide(platform, browser);
     if (installedContext) {
       installEvent = null;
+      clearCapturedInstallPromptEvent();
       reminderVisible = false;
     }
   }
@@ -109,6 +114,7 @@
     installing = true;
     const promptEvent = installEvent;
     installEvent = null;
+    clearCapturedInstallPromptEvent(promptEvent);
     installFailed = false;
     try {
       await promptEvent.prompt();
@@ -126,6 +132,7 @@
 
   onMount(() => {
     refreshInstallContext();
+    installEvent = installedContext ? null : getCapturedInstallPromptEvent();
     visitStartedAt = Date.now();
     reminderState = recordInstallVisit(reminderSlot.get());
     reminderSlot.set(reminderState);
@@ -137,9 +144,20 @@
       installFailed = false;
     }
 
+    function handleCapturedInstallPrompt() {
+      installEvent = getCapturedInstallPromptEvent();
+      installedThisSession = false;
+      installFailed = false;
+    }
+
+    function handleClearedInstallPrompt() {
+      installEvent = null;
+    }
+
     function handleInstalled() {
       installedThisSession = true;
       installEvent = null;
+      clearCapturedInstallPromptEvent();
       reminderVisible = false;
     }
 
@@ -162,6 +180,8 @@
     const reminderPoll = window.setInterval(checkReminder, 30_000);
 
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    window.addEventListener(INSTALL_PROMPT_CAPTURED_EVENT, handleCapturedInstallPrompt);
+    window.addEventListener(INSTALL_PROMPT_CLEARED_EVENT, handleClearedInstallPrompt);
     window.addEventListener('appinstalled', handleInstalled);
     window.addEventListener('focus', refreshInstallContext);
     window.addEventListener('pageshow', refreshInstallContext);
@@ -173,6 +193,8 @@
       window.clearTimeout(initialReminderTimer);
       window.clearInterval(reminderPoll);
       window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+      window.removeEventListener(INSTALL_PROMPT_CAPTURED_EVENT, handleCapturedInstallPrompt);
+      window.removeEventListener(INSTALL_PROMPT_CLEARED_EVENT, handleClearedInstallPrompt);
       window.removeEventListener('appinstalled', handleInstalled);
       window.removeEventListener('focus', refreshInstallContext);
       window.removeEventListener('pageshow', refreshInstallContext);

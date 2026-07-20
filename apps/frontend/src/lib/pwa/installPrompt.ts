@@ -3,6 +3,25 @@ export type BeforeInstallPromptEvent = Event & {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 };
 
+export const INSTALL_PROMPT_CAPTURED_EVENT = 'towk:pwa-install-prompt-captured';
+export const INSTALL_PROMPT_CLEARED_EVENT = 'towk:pwa-install-prompt-cleared';
+
+type InstallPromptWindow = Window & {
+  __towkInstallPrompt?: BeforeInstallPromptEvent | null;
+};
+
+export function getCapturedInstallPromptEvent(): BeforeInstallPromptEvent | null {
+  if (typeof window === 'undefined') return null;
+  return (window as InstallPromptWindow).__towkInstallPrompt ?? null;
+}
+
+export function clearCapturedInstallPromptEvent(expected?: BeforeInstallPromptEvent): void {
+  if (typeof window === 'undefined') return;
+  const target = window as InstallPromptWindow;
+  if (expected && target.__towkInstallPrompt !== expected) return;
+  target.__towkInstallPrompt = null;
+}
+
 export type InstallEnvironment = {
   userAgent: string;
   platform: string;

@@ -58,6 +58,7 @@ describe('PwaInstallButton', () => {
   beforeEach(() => {
     setReactiveLocale('en');
     localStorage.clear();
+    delete (window as Window & { __towkInstallPrompt?: Event | null }).__towkInstallPrompt;
   });
 
   afterEach(() => {
@@ -131,6 +132,33 @@ describe('PwaInstallButton', () => {
     expect(prompt).toHaveBeenCalledOnce();
     expect(statusButton(container).dataset.pwaStatus).toBe('installed');
     expect(container.textContent).not.toContain('Install now');
+    unmount();
+  });
+
+  it('retains a native install event captured before the authenticated header mounts', async () => {
+    setBrowserEnvironment({
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36'
+    });
+    const prompt = vi.fn().mockResolvedValue(undefined);
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt,
+      userChoice: Promise.resolve({ outcome: 'accepted' as const, platform: 'web' })
+    });
+    (window as Window & { __towkInstallPrompt?: Event | null }).__towkInstallPrompt = event;
+
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+    statusButton(container).click();
+    await settle();
+    buttonWithText(container, 'Install now').click();
+    await settle();
+
+    expect(prompt).toHaveBeenCalledOnce();
+    expect(statusButton(container).dataset.pwaStatus).toBe('installed');
+    expect(
+      (window as Window & { __towkInstallPrompt?: Event | null }).__towkInstallPrompt
+    ).toBeNull();
     unmount();
   });
 
