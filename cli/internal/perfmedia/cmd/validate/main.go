@@ -52,7 +52,7 @@ func (paths *repeatedPaths) Set(value string) error {
 func runWithOutput(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("towk-media-validate", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	kind := flags.String("kind", "", "validation kind: stability, delivery-stability, or monitoring")
+	kind := flags.String("kind", "", "validation kind: stability, delivery-stability, monitoring, or capacity")
 	var inputPaths repeatedPaths
 	flags.Var(&inputPaths, "input", "structured JSON input; repeat for delivery-stability")
 	maximumDeviation := flags.Float64("maximum-deviation-percent", 10, "delivery stability maximum deviation")
@@ -157,8 +157,28 @@ func runWithOutput(args []string, output io.Writer) error {
 		if !assessment.Accepted && !*allowUnverified {
 			return fmt.Errorf("monitoring overhead is %s", assessment.Status)
 		}
+	case "capacity":
+		if len(inputPaths) != 1 {
+			return errors.New("capacity validation requires exactly one --input")
+		}
+		input, err := openValidationInput(inputPaths[0])
+		if err != nil {
+			return err
+		}
+		defer input.Close()
+		var report perfmedia.CapacityQualificationReport
+		if err := decodeStrict(input, &report); err != nil {
+			return err
+		}
+		assessment := perfmedia.AssessCapacityQualification(report)
+		if err := encoder.Encode(assessment); err != nil {
+			return err
+		}
+		if !assessment.Accepted && !*allowUnverified {
+			return fmt.Errorf("capacity qualification is %s", assessment.Status)
+		}
 	default:
-		return errors.New("--kind must be stability, delivery-stability, or monitoring")
+		return errors.New("--kind must be stability, delivery-stability, monitoring, or capacity")
 	}
 	return nil
 }

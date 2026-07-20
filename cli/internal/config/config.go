@@ -134,7 +134,7 @@ type PerformanceConfig struct {
 	MaxImageTransformAdmissions int    `toml:"max_image_transform_admissions,commented" env:"CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_ADMISSIONS" comment:"Operator ceiling for admitted image transforms, including queued work. Zero derives a bounded ceiling."`
 	MaxAssetUploadWorkers       int    `toml:"max_asset_upload_workers,commented" env:"CHATTO_PERFORMANCE_MAX_ASSET_UPLOAD_WORKERS" comment:"Operator ceiling for concurrent asset-upload chunk writes. Zero derives a bounded ceiling."`
 	MaxLinkPreviewWorkers       int    `toml:"max_link_preview_workers,commented" env:"CHATTO_PERFORMANCE_MAX_LINK_PREVIEW_WORKERS" comment:"Operator ceiling for concurrent link-preview fetches. Zero derives a safe ceiling from process resources."`
-	MaxVideoWorkers             int    `toml:"max_video_workers,commented" env:"CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS" comment:"Operator ceiling for concurrent video-processing jobs. Zero derives a safe ceiling from process resources."`
+	MaxVideoWorkers             int    `toml:"max_video_workers,commented" env:"CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS" comment:"Operator ceiling for concurrent media transcodes, including video processing and voice-message normalization. Zero derives a safe ceiling from process resources."`
 }
 
 // DefaultProfileOrLegacy keeps upgraded configurations without an explicit
@@ -982,16 +982,28 @@ func (c *PushConfig) IsConfigured() bool {
 
 // VideoConfig contains settings for the video processing service.
 type VideoConfig struct {
-	Enabled       bool              `toml:"enabled" env:"CHATTO_VIDEO_ENABLED" comment:"Enable video processing (transcoding, thumbnails). Requires ffmpeg installed on the system."`
+	Enabled       bool              `toml:"enabled" env:"CHATTO_VIDEO_ENABLED" comment:"Enable video processing (transcoding, thumbnails). Requires ffmpeg and ffprobe installed on the system."`
 	FFmpegPath    string            `toml:"ffmpeg_path,commented" env:"CHATTO_VIDEO_FFMPEG_PATH" comment:"Path to ffmpeg binary. Auto-detected from PATH if empty."`
 	FFprobePath   string            `toml:"ffprobe_path,commented" env:"CHATTO_VIDEO_FFPROBE_PATH" comment:"Path to ffprobe binary. Auto-detected from PATH if empty."`
 	MaxConcurrent int               `toml:"max_concurrent,commented" env:"CHATTO_VIDEO_MAX_CONCURRENT" comment:"Maximum number of videos to process simultaneously. Default: 2."`
 	MaxUploadSize datasize.ByteSize `toml:"max_upload_size,commented" env:"CHATTO_VIDEO_MAX_UPLOAD_SIZE" comment:"Maximum size for video uploads when video processing is enabled. Disabled processing uses the general attachment limit. Supports human-readable formats like '100 MB'. Default: 100 MB."`
+	MaxDuration   Duration          `toml:"max_duration,commented" env:"CHATTO_VIDEO_MAX_DURATION" comment:"Maximum source video or animated GIF duration accepted for server-side processing. Supports values like '20m' or '1h'. Default: 20m."`
+	MaxPixels     int64             `toml:"max_pixels,commented" env:"CHATTO_VIDEO_MAX_PIXELS" comment:"Maximum source display pixel area accepted for server-side processing. Default: 8294400 (3840x2160). Increase for 8K-capable servers."`
 	TempDir       string            `toml:"temp_dir,commented" env:"CHATTO_VIDEO_TEMP_DIR" comment:"Temporary directory for video processing. Default: system temp directory."`
 }
 
-// DefaultVideoMaxUploadSize is the default maximum size for video uploads (100 MB).
-const DefaultVideoMaxUploadSize datasize.ByteSize = 100 * datasize.MB
+const (
+	// DefaultVideoMaxUploadSize is the default maximum size for video uploads (100 MB).
+	DefaultVideoMaxUploadSize datasize.ByteSize = 100 * datasize.MB
+
+	// DefaultVideoMaxDuration is the default maximum source duration for videos
+	// and animated GIFs admitted to server-side processing.
+	DefaultVideoMaxDuration Duration = Duration(20 * time.Minute)
+
+	// DefaultVideoMaxPixels is the default maximum source display area admitted
+	// to server-side processing (3840x2160).
+	DefaultVideoMaxPixels int64 = 3840 * 2160
+)
 
 // MaxConcurrentOrDefault returns the max concurrent workers, defaulting to 2.
 func (c *VideoConfig) MaxConcurrentOrDefault() int {
@@ -1007,6 +1019,22 @@ func (c *VideoConfig) MaxUploadSizeOrDefault() datasize.ByteSize {
 		return DefaultVideoMaxUploadSize
 	}
 	return c.MaxUploadSize
+}
+
+// MaxDurationOrDefault returns the max source duration, defaulting to 20 minutes.
+func (c *VideoConfig) MaxDurationOrDefault() time.Duration {
+	if c.MaxDuration == 0 {
+		return DefaultVideoMaxDuration.Duration()
+	}
+	return c.MaxDuration.Duration()
+}
+
+// MaxPixelsOrDefault returns the max source display pixel area, defaulting to 4K.
+func (c *VideoConfig) MaxPixelsOrDefault() int64 {
+	if c.MaxPixels == 0 {
+		return DefaultVideoMaxPixels
+	}
+	return c.MaxPixels
 }
 
 // LiveKitConfig contains settings for LiveKit voice call integration.
@@ -1102,7 +1130,7 @@ type ChattoConfig struct {
 	Limits      LimitsConfig      `toml:"limits,commented" comment:"Instance-wide resource limits. Use -1 for unlimited."`
 	SMTP        SMTPConfig        `toml:"smtp" comment:"SMTP configuration for transactional emails."`
 	Push        PushConfig        `toml:"push,commented" comment:"Web Push notification configuration."`
-	Video       VideoConfig       `toml:"video,commented" comment:"Video processing configuration. Requires ffmpeg."`
+	Video       VideoConfig       `toml:"video,commented" comment:"Video processing configuration. Requires ffmpeg and ffprobe."`
 	LiveKit     LiveKitConfig     `toml:"livekit,commented" comment:"LiveKit voice call configuration."`
 	NATS        NATSConfig        `toml:"nats"`
 	Bootstrap   BootstrapConfig   `toml:"bootstrap,commented" comment:"Dev/E2E-only: users and spaces auto-created on startup. ONLY honored by builds compiled with the 'bootstrap' build tag; release binaries ignore this section entirely."`
@@ -1222,6 +1250,15 @@ func (c *ChattoConfig) Validate() error {
 	if c.Performance.MaxImageTransformAdmissions > 0 && c.Performance.MaxImageTransformWorkers > 0 &&
 		c.Performance.MaxImageTransformAdmissions < c.Performance.MaxImageTransformWorkers {
 		errs = append(errs, "performance.max_image_transform_admissions must be greater than or equal to max_image_transform_workers")
+	}
+	if c.Video.MaxUploadSize > datasize.ByteSize(math.MaxInt64) {
+		errs = append(errs, "video.max_upload_size must not exceed 9223372036854775807 bytes")
+	}
+	if c.Video.MaxDuration != 0 && c.Video.MaxDuration.Duration() <= 0 {
+		errs = append(errs, "video.max_duration must be positive when set")
+	}
+	if c.Video.MaxPixels < 0 {
+		errs = append(errs, "video.max_pixels must be positive when set")
 	}
 
 	// Port ranges (port 0 is allowed when TLS is enabled, as it defaults to 443)

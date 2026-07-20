@@ -30,6 +30,13 @@
     size: number;
   };
 
+  type VidstackVideoSource = {
+    src: string;
+    type: 'video/mp4';
+    width?: number;
+    height?: number;
+  };
+
   let {
     status,
     variants = [],
@@ -64,20 +71,18 @@
   let measuredMedia = $state<{ src: string; width: number; height: number } | null>(null);
   let failedAutoLoopSource = $state<string | null>(null);
 
-  // Pick the best variant (highest quality available)
-  const selectedVariant = $derived(
-    variants.length > 0
-      ? variants.reduce((best, v) => (v.height > best.height ? v : best), variants[0])
-      : null
-  );
+  const sortedVariants = $derived.by(() => sortVariantsByDisplayHeight(variants));
+  const highestVariant = $derived(sortedVariants[0] ?? null);
+  const lightestVariant = $derived(sortedVariants[sortedVariants.length - 1] ?? null);
+  const autoLoopVariant = $derived(lightestVariant ?? highestVariant);
 
   const sourceDimensions = $derived.by(() => {
-    if (measuredMedia && measuredMedia.src === selectedVariant?.url) {
+    if (measuredMedia && sortedVariants.some((variant) => variant.url === measuredMedia?.src)) {
       return measuredMedia;
     }
     return {
-      width: positiveDimension(width) ?? positiveDimension(selectedVariant?.width) ?? 480,
-      height: positiveDimension(height) ?? positiveDimension(selectedVariant?.height) ?? 270
+      width: positiveDimension(width) ?? positiveDimension(highestVariant?.width) ?? 480,
+      height: positiveDimension(height) ?? positiveDimension(highestVariant?.height) ?? 270
     };
   });
 
@@ -88,7 +93,7 @@
 
     if (
       status === 'COMPLETED' &&
-      selectedVariant &&
+      highestVariant &&
       !autoLoop &&
       ratio >= 1 &&
       ratio < NEAR_SQUARE_LANDSCAPE_MAX_RATIO
@@ -113,7 +118,7 @@
   });
 
   const fitMode = $derived.by(() => {
-    if (status !== 'COMPLETED' || !selectedVariant || autoLoop) return 'contain';
+    if (status !== 'COMPLETED' || !highestVariant || autoLoop) return 'contain';
     return frameDimensions.width / frameDimensions.height >
       sourceDimensions.width / sourceDimensions.height
       ? 'cover'
@@ -125,17 +130,16 @@
   );
 
   // Vidstack auto-detects media type from URL extensions, but our stable asset
-  // URLs have no extension (/assets/files/...). We must provide an
-  // explicit type so Vidstack recognizes it as video/mp4.
-  const videoSrc = $derived(
-    selectedVariant ? { src: selectedVariant.url, type: 'video/mp4' } : undefined
-  );
+  // URLs have no extension (/assets/files/...). Give every portable MP4 variant
+  // an explicit type and dimensions so the player can keep quality selection
+  // automatic instead of forcing the heaviest file for every inline playback.
+  const videoSources = $derived.by(() => videoSourcesForVariants(sortedVariants));
   const showAutoLoopFallback = $derived(
     Boolean(
       autoLoop &&
       fallbackImageUrl &&
-      selectedVariant &&
-      failedAutoLoopSource === selectedVariant.url
+      autoLoopVariant &&
+      failedAutoLoopSource === autoLoopVariant.url
     )
   );
 
@@ -154,13 +158,34 @@
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
   }
 
+  function sortVariantsByDisplayHeight(items: Variant[]): Variant[] {
+    return [...items].sort((a, b) => {
+      const heightDelta = (positiveDimension(b.height) ?? 0) - (positiveDimension(a.height) ?? 0);
+      if (heightDelta !== 0) return heightDelta;
+      const widthDelta = (positiveDimension(b.width) ?? 0) - (positiveDimension(a.width) ?? 0);
+      if (widthDelta !== 0) return widthDelta;
+      return (positiveDimension(b.size) ?? 0) - (positiveDimension(a.size) ?? 0);
+    });
+  }
+
+  function videoSourcesForVariants(items: Variant[]): VidstackVideoSource[] {
+    return items
+      .filter((variant) => variant.url)
+      .map((variant) => ({
+        src: variant.url,
+        type: 'video/mp4',
+        width: positiveDimension(variant.width) ?? undefined,
+        height: positiveDimension(variant.height) ?? undefined
+      }));
+  }
+
   function syncVideoDimensions(video: HTMLVideoElement) {
-    if (!selectedVariant) return;
+    if (!highestVariant) return;
     const videoWidth = positiveDimension(video.videoWidth);
     const videoHeight = positiveDimension(video.videoHeight);
     if (!videoWidth || !videoHeight) return;
     measuredMedia = {
-      src: selectedVariant.url,
+      src: video.currentSrc || video.src || autoLoopVariant?.url || highestVariant.url,
       width: videoWidth,
       height: videoHeight
     };
@@ -173,8 +198,8 @@
   }
 
   function handleAutoLoopError() {
-    if (!selectedVariant || failedAutoLoopSource === selectedVariant.url) return;
-    failedAutoLoopSource = selectedVariant.url;
+    if (!autoLoopVariant || failedAutoLoopSource === autoLoopVariant.url) return;
+    failedAutoLoopSource = autoLoopVariant.url;
     onMediaError?.();
   }
 
@@ -213,12 +238,12 @@
   function interceptFullscreenRequest(node: HTMLElement) {
     function handleFullscreenRequest(e: Event) {
       e.preventDefault();
-      if (!selectedVariant) return;
+      if (!highestVariant) return;
 
       const video = node.querySelector('video');
       if (video) video.pause();
 
-      fullscreenVideo.open(selectedVariant.url, thumbnailUrl ?? null, video?.currentTime ?? 0);
+      fullscreenVideo.open(highestVariant.url, thumbnailUrl ?? null, video?.currentTime ?? 0);
 
       // Request native fullscreen on the overlay after Svelte renders it.
       // tick() preserves the user activation from this click event.
@@ -237,18 +262,48 @@
     };
   }
 
+  function enableAutoQualitySelection(node: HTMLElement) {
+    const player = node as HTMLElement & {
+      qualities?: { autoSelect?: () => void };
+    };
+    let cancelled = false;
+
+    async function selectAutomatically() {
+      await tick();
+      if (cancelled) return;
+      try {
+        player.qualities?.autoSelect?.();
+      } catch {
+        // Quality auto-selection is an enhancement. Playback must continue if
+        // the custom element has not exposed the quality controller yet.
+      }
+    }
+
+    void selectAutomatically();
+    node.addEventListener('can-play', selectAutomatically, { once: true });
+    node.addEventListener('provider-change', selectAutomatically, { once: true });
+
+    return () => {
+      cancelled = true;
+      node.removeEventListener('can-play', selectAutomatically);
+      node.removeEventListener('provider-change', selectAutomatically);
+    };
+  }
+
   function attachMediaPlayer(node: HTMLElement) {
     const cleanupFullscreen = interceptFullscreenRequest(node);
     const cleanupVideoObserver = observePlayerVideo(node);
+    const cleanupQualitySelection = enableAutoQualitySelection(node);
 
     return () => {
       cleanupFullscreen();
       cleanupVideoObserver();
+      cleanupQualitySelection();
     };
   }
 </script>
 
-{#if status === 'COMPLETED' && selectedVariant && autoLoop}
+{#if status === 'COMPLETED' && autoLoopVariant && autoLoop}
   <!-- Converted GIFs use a native <video> for reliable autoplay + loop behavior. -->
   <div class="embed-frame" style={frameStyle}>
     {#if showAutoLoopFallback}
@@ -270,15 +325,15 @@
         onloadedmetadata={handleVideoMetadata}
         class="block h-full w-full object-contain"
       >
-        <source src={selectedVariant.url} type="video/mp4" onerror={handleAutoLoopError} />
+        <source src={autoLoopVariant.url} type="video/mp4" onerror={handleAutoLoopError} />
       </video>
     {/if}
   </div>
-{:else if status === 'COMPLETED' && selectedVariant && elementsReady}
+{:else if status === 'COMPLETED' && highestVariant && elementsReady}
   <div class="embed-frame" style={frameStyle}>
     <media-player
       {@attach attachMediaPlayer}
-      src={videoSrc}
+      src={videoSources}
       playsinline
       onerror={onMediaError}
       data-fit={fitMode}

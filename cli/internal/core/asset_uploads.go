@@ -22,9 +22,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"hmans.de/chatto/internal/assets"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+	"hmans.de/chatto/internal/runtimecap"
 )
-
-const defaultMaxConcurrentVoiceMessageTranscodes = 2
 
 const (
 	assetUploadKeyPrefix              = "asset_upload."
@@ -40,6 +39,8 @@ const (
 	normalizedVoiceMessageContentType = "audio/mp4"
 	normalizedVoiceMessageExtension   = ".m4a"
 	voiceMessageTranscodeTimeout      = 5 * time.Minute
+	voiceMessageProbeTimeout          = 15 * time.Second
+	voiceMessageDurationToleranceMS   = 1500
 )
 
 // AssetUploadMaxChunkSize is the largest resumable upload chunk accepted by
@@ -117,7 +118,10 @@ type completedUploadPayload struct {
 	size        int64
 }
 
-var voiceMessageTranscodeToMP4 = runVoiceMessageTranscodeToMP4
+var (
+	voiceMessageTranscodeToMP4 = runVoiceMessageTranscodeToMP4
+	voiceMessageProbeDuration  = runVoiceMessageProbeDuration
+)
 
 type AssetUploadModel struct {
 	core *ChattoCore
@@ -596,7 +600,7 @@ func (m *AssetUploadModel) materializeUpload(ctx context.Context, session *Asset
 
 func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *AssetUploadSession, reader io.ReadSeeker) (*corev1.Attachment, bool, error) {
 	attachmentID := NewAssetID()
-	payload, err := prepareCompletedUploadPayload(ctx, session, reader, m.core.voiceMessageTranscodeSlots)
+	payload, err := prepareCompletedUploadPayload(ctx, session, reader, m.core.mediaTranscodeLimiter, m.core.MediaFFmpegPath, m.core.MediaFFprobePath)
 	if err != nil {
 		return nil, false, err
 	}
@@ -626,6 +630,17 @@ func (m *AssetUploadModel) storeCompletedUpload(ctx context.Context, session *As
 		size = payload.size
 		if _, err := reader.Seek(0, io.SeekStart); err != nil {
 			return nil, false, fmt.Errorf("rewind upload temp file: %w", err)
+		}
+	}
+	if err := m.checkUploadSize(contentType, size); err != nil {
+		return nil, false, err
+	}
+	if err := validateVoiceMessageUpload(session.VoiceMessage, contentType, size); err != nil {
+		return nil, false, err
+	}
+	if !m.core.ShouldUseS3() {
+		if err := m.setCapacityReservation(ctx, session.UploadID, size, session.ExpiresAt); err != nil {
+			return nil, false, err
 		}
 	}
 
@@ -678,7 +693,9 @@ func prepareCompletedUploadPayload(
 	ctx context.Context,
 	session *AssetUploadSession,
 	reader io.ReadSeeker,
-	transcodeSlots chan struct{},
+	transcodeLimiter *runtimecap.Limiter,
+	ffmpegPath string,
+	ffprobePath string,
 ) (*completedUploadPayload, error) {
 	payload := &completedUploadPayload{
 		reader:      reader,
@@ -692,23 +709,24 @@ func prepareCompletedUploadPayload(
 	}
 	payload.filename = normalizedVoiceMessageFilename(session.Filename)
 	payload.contentType = normalizedVoiceMessageContentType
+	input, ok := reader.(*os.File)
+	if !ok {
+		return nil, fmt.Errorf("voice message verification requires a materialized upload file")
+	}
+	if transcodeLimiter == nil {
+		return nil, fmt.Errorf("voice message media verification capacity is not initialized")
+	}
+	if err := transcodeLimiter.Acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer transcodeLimiter.Release()
+	if err := verifyVoiceMessageDuration(ctx, session, ffprobePath, input.Name()); err != nil {
+		return nil, err
+	}
 	if session.ContentType == normalizedVoiceMessageContentType {
 		return payload, nil
 	}
 
-	input, ok := reader.(*os.File)
-	if !ok {
-		return nil, fmt.Errorf("voice message normalization requires a materialized upload file")
-	}
-	if transcodeSlots == nil {
-		return nil, fmt.Errorf("voice message normalization capacity is not initialized")
-	}
-	select {
-	case transcodeSlots <- struct{}{}:
-		defer func() { <-transcodeSlots }()
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
 	output, err := os.CreateTemp("", "towk-voice-message-*.m4a")
 	if err != nil {
 		return nil, fmt.Errorf("create normalized voice message temp file: %w", err)
@@ -718,7 +736,7 @@ func prepareCompletedUploadPayload(
 		os.Remove(outputPath)
 		return nil, fmt.Errorf("close normalized voice message temp file: %w", err)
 	}
-	if err := voiceMessageTranscodeToMP4(ctx, input.Name(), outputPath); err != nil {
+	if err := voiceMessageTranscodeToMP4(ctx, ffmpegPath, input.Name(), outputPath); err != nil {
 		os.Remove(outputPath)
 		return nil, err
 	}
@@ -733,6 +751,10 @@ func prepareCompletedUploadPayload(
 		os.Remove(outputPath)
 	}
 	if err := validateVoiceMessageContainer(outputReader, normalizedVoiceMessageContentType); err != nil {
+		cleanup()
+		return nil, err
+	}
+	if err := verifyVoiceMessageDuration(ctx, session, ffprobePath, outputPath); err != nil {
 		cleanup()
 		return nil, err
 	}
@@ -768,10 +790,121 @@ func normalizedVoiceMessageFilename(filename string) string {
 	return strings.TrimSuffix(filename, ext) + normalizedVoiceMessageExtension
 }
 
-func runVoiceMessageTranscodeToMP4(ctx context.Context, inputPath, outputPath string) error {
-	ffmpegPath, err := exec.LookPath("ffmpeg")
+type voiceMessageProbeOutput struct {
+	Streams []voiceMessageProbeStream `json:"streams"`
+	Format  struct {
+		Duration string `json:"duration"`
+	} `json:"format"`
+}
+
+type voiceMessageProbeStream struct {
+	CodecType string `json:"codec_type"`
+	Duration  string `json:"duration"`
+}
+
+func verifyVoiceMessageDuration(ctx context.Context, session *AssetUploadSession, ffprobePath, inputPath string) error {
+	if session == nil || session.VoiceMessage == nil {
+		return nil
+	}
+	durationMS, err := voiceMessageProbeDuration(ctx, ffprobePath, inputPath)
 	if err != nil {
-		return fmt.Errorf("ffmpeg is required to normalize voice messages for iOS playback: %w", err)
+		if errors.Is(err, ErrInvalidArgument) {
+			return err
+		}
+		return fmt.Errorf("verify voice message duration: %w", err)
+	}
+	if durationMS < MinVoiceMessageDurationMS || durationMS > MaxVoiceMessageDurationMS {
+		return invalidArgument(fmt.Sprintf("voice message audio duration must be between %d and %d milliseconds", MinVoiceMessageDurationMS, MaxVoiceMessageDurationMS))
+	}
+	declared := session.VoiceMessage.DurationMS
+	if absInt64(durationMS-declared) > voiceMessageDurationToleranceMS {
+		return invalidArgument("voice message declared duration does not match the uploaded audio")
+	}
+	session.VoiceMessage.DurationMS = durationMS
+	return nil
+}
+
+func runVoiceMessageProbeDuration(ctx context.Context, ffprobePath, inputPath string) (int64, error) {
+	if ffprobePath == "" {
+		var err error
+		ffprobePath, err = exec.LookPath("ffprobe")
+		if err != nil {
+			return 0, fmt.Errorf("ffprobe is required to verify voice message duration: %w", err)
+		}
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, voiceMessageProbeTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(
+		probeCtx,
+		ffprobePath,
+		"-v",
+		"error",
+		"-print_format",
+		"json",
+		"-show_streams",
+		"-show_format",
+		inputPath,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) {
+			return 0, invalidArgument("voice message audio duration could not be determined before timeout")
+		}
+		return 0, invalidArgument("voice message audio metadata could not be verified")
+	}
+	var probe voiceMessageProbeOutput
+	if err := json.Unmarshal(output, &probe); err != nil {
+		return 0, fmt.Errorf("parse voice message duration probe: %w", err)
+	}
+	hasAudio := false
+	durationMS, ok := parseProbeDurationMS(probe.Format.Duration)
+	for _, stream := range probe.Streams {
+		if stream.CodecType == "video" {
+			return 0, invalidArgument("voice messages must not contain a video track")
+		}
+		if stream.CodecType != "audio" {
+			continue
+		}
+		hasAudio = true
+		if !ok {
+			durationMS, ok = parseProbeDurationMS(stream.Duration)
+		}
+	}
+	if !hasAudio {
+		return 0, invalidArgument("voice messages must contain an audio track")
+	}
+	if !ok {
+		return 0, invalidArgument("voice message audio duration could not be determined")
+	}
+	return durationMS, nil
+}
+
+func parseProbeDurationMS(raw string) (int64, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "N/A" {
+		return 0, false
+	}
+	seconds, err := strconv.ParseFloat(raw, 64)
+	if err != nil || math.IsNaN(seconds) || math.IsInf(seconds, 0) || seconds <= 0 {
+		return 0, false
+	}
+	return int64(math.Round(seconds * 1000)), true
+}
+
+func absInt64(value int64) int64 {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
+func runVoiceMessageTranscodeToMP4(ctx context.Context, ffmpegPath, inputPath, outputPath string) error {
+	if ffmpegPath == "" {
+		var err error
+		ffmpegPath, err = exec.LookPath("ffmpeg")
+		if err != nil {
+			return fmt.Errorf("ffmpeg is required to normalize voice messages for iOS playback: %w", err)
+		}
 	}
 	transcodeCtx, cancel := context.WithTimeout(ctx, voiceMessageTranscodeTimeout)
 	defer cancel()
@@ -783,6 +916,8 @@ func runVoiceMessageTranscodeToMP4(ctx context.Context, inputPath, outputPath st
 		"error",
 		"-i",
 		inputPath,
+		"-t",
+		fmt.Sprintf("%.3f", float64(MaxVoiceMessageDurationMS+voiceMessageDurationToleranceMS)/1000),
 		"-vn",
 		"-map",
 		"0:a:0",
@@ -879,6 +1014,51 @@ func (m *AssetUploadModel) reduceCapacityReservation(ctx context.Context, upload
 	})
 }
 
+func (m *AssetUploadModel) setCapacityReservation(
+	ctx context.Context,
+	uploadID string,
+	remainingBytes int64,
+	expiresAt time.Time,
+) error {
+	if remainingBytes < 0 || !expiresAt.After(time.Now()) {
+		return ErrAssetStorageCapacity
+	}
+	for range assetUploadCapacityMaxRetries {
+		now := time.Now()
+		ledger, revision, absent, err := m.loadCapacityReservationsWithRevision(ctx)
+		if err != nil {
+			return err
+		}
+		pruneAssetUploadCapacityLedger(&ledger, now)
+		if _, exists := ledger.Reservations[uploadID]; !exists && len(ledger.Reservations) >= assetUploadCapacityMaxEntries {
+			return ErrAssetStorageCapacity
+		}
+
+		usedBytes, maxBytes, err := m.serverAssetsCapacity(ctx)
+		if err != nil {
+			return err
+		}
+		reservedBytes := assetUploadReservedBytesExcluding(ledger, uploadID)
+		headroomBytes := assetUploadCapacityHeadroom(maxBytes)
+		if exceedsInt64Limit(maxBytes, usedBytes, reservedBytes, remainingBytes, headroomBytes) {
+			return ErrAssetStorageCapacity
+		}
+
+		ledger.Reservations[uploadID] = assetUploadCapacityReservation{
+			RemainingBytes: remainingBytes,
+			ExpiresAt:      expiresAt,
+		}
+		if err := m.storeCapacityReservations(ctx, ledger, revision, absent); err == nil {
+			return nil
+		} else if isRuntimeStateRevisionConflict(err) {
+			continue
+		} else {
+			return fmt.Errorf("set asset upload capacity reservation: %w", err)
+		}
+	}
+	return fmt.Errorf("asset upload capacity reservation conflicted after %d retries", assetUploadCapacityMaxRetries)
+}
+
 func (m *AssetUploadModel) releaseCapacityBestEffort(ctx context.Context, uploadID string) {
 	if err := m.releaseCapacityReservation(ctx, uploadID); err != nil {
 		m.core.logger.Warn("Failed to release asset upload capacity reservation", "upload_id", uploadID, "error", err)
@@ -969,6 +1149,17 @@ func pruneAssetUploadCapacityLedger(ledger *assetUploadCapacityLedger, now time.
 func assetUploadReservedBytes(ledger assetUploadCapacityLedger) int64 {
 	var total int64
 	for _, reservation := range ledger.Reservations {
+		total = saturatingAddInt64(total, reservation.RemainingBytes)
+	}
+	return total
+}
+
+func assetUploadReservedBytesExcluding(ledger assetUploadCapacityLedger, uploadID string) int64 {
+	total := int64(0)
+	for reservedUploadID, reservation := range ledger.Reservations {
+		if reservedUploadID == uploadID {
+			continue
+		}
 		total = saturatingAddInt64(total, reservation.RemainingBytes)
 	}
 	return total

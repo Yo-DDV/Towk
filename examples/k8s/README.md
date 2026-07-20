@@ -211,15 +211,42 @@ kubectl -n towk rollout status deployment/towk
 
 ## Updating
 
+Before changing the image, create a Towk backup using the
+[Backup & Restore guide](../../apps/docs-website/src/content/docs/guides/operations/backup-restore.mdx)
+and keep a copy of the exact manifests and secrets you are about to replace.
+The owner-selected performance profile is part of Towk's event stream; pod
+resources, `CHATTO_PERFORMANCE_MAX_*` operator caps, TLS material, and external
+object-storage buckets are cluster/operator configuration and must be backed up
+separately.
+
 ```bash
 # Update to a new image
 kubectl -n towk set image deployment/towk towk=ghcr.io/yo-ddv/towk:<immutable-tag>@sha256:<digest>
+kubectl -n towk rollout status deployment/towk
 
 # Or update the manifest and apply
 kubectl apply -f towk.yaml
+kubectl -n towk rollout status deployment/towk
 ```
 
 The deployment uses a rolling update strategy with `maxUnavailable: 0` to ensure zero-downtime updates.
+
+After the rollout, verify the ingress, sign in, send a text message, exercise
+an attachment or video flow that matters to your deployment, and check
+**Server administration → System** for the requested performance profile and
+effective limits.
+
+To roll back application code, either reapply the previous manifest with the
+previous immutable image reference or use the deployment rollout history when it
+matches the version you want to return to:
+
+```bash
+kubectl -n towk rollout undo deployment/towk
+kubectl -n towk rollout status deployment/towk
+```
+
+Only restore Towk data when you intentionally need to return NATS state to an
+older backup snapshot.
 
 ## Storage
 

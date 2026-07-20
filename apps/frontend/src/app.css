@@ -367,7 +367,11 @@
 }
 
 .attachment-remove-button.voice-message-remove-button {
-  @apply top-2 right-2 h-11 w-11;
+  @apply top-1/2 right-1 h-11 w-11 -translate-y-1/2;
+
+  &::before {
+    @apply h-7 w-7;
+  }
 }
 
 /* Skeleton loading utility */

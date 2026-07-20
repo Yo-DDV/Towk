@@ -3,7 +3,9 @@ import { prepareFiles } from '$lib/attachments/prepareFiles';
 import {
   hasBlockedExecutableMetadata,
   hasUnsafeAttachmentFilename,
+  inferredVideoAttachmentContentType,
   isBlockedExecutableFile,
+  isVideoAttachmentFileCandidate,
   MAX_MESSAGE_ATTACHMENTS
 } from '$lib/attachments/filePolicy';
 import * as m from '$lib/i18n/messages';
@@ -19,6 +21,12 @@ function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} bytes`;
+}
+
+function fileWithInferredVideoContentType(file: File): File {
+  const contentType = inferredVideoAttachmentContentType(file);
+  if (!contentType || file.type === contentType) return file;
+  return new File([file], file.name, { type: contentType, lastModified: file.lastModified });
 }
 
 export class AttachmentsState {
@@ -53,7 +61,7 @@ export class AttachmentsState {
         continue;
       }
 
-      const isVideo = file.type.startsWith('video/');
+      const isVideo = isVideoAttachmentFileCandidate(file);
       const limit = isVideo ? limits.maxVideoUploadSize : limits.maxUploadSize;
       if (file.size > limit) {
         toast.error(
@@ -71,10 +79,13 @@ export class AttachmentsState {
   }
 
   filesToPreviewItems(files: File[]): FileWithUrl[] {
-    return files.map((file) => ({
-      file,
-      url: URL.createObjectURL(file)
-    }));
+    return files.map((file) => {
+      const previewFile = fileWithInferredVideoContentType(file);
+      return {
+        file: previewFile,
+        url: URL.createObjectURL(previewFile)
+      };
+    });
   }
 
   async stageFiles(files: File[]): Promise<void> {

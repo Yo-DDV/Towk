@@ -18,6 +18,7 @@
   } from '$lib/voiceMessages/policy';
 
   type RecorderMode = 'idle' | 'requesting' | 'recording' | 'stopping' | 'review' | 'sending';
+  type CompatibleAudioContextConstructor = typeof AudioContext;
 
   const LIVE_WAVEFORM_SAMPLE_COUNT = 42;
   const LIVE_WAVEFORM_SAMPLE_INTERVAL_MS = 100;
@@ -124,6 +125,15 @@
     }
   }
 
+  function audioContextConstructor(): CompatibleAudioContextConstructor | undefined {
+    if (typeof window === 'undefined') return undefined;
+    return (
+      window.AudioContext ??
+      (window as typeof window & { webkitAudioContext?: CompatibleAudioContextConstructor })
+        .webkitAudioContext
+    );
+  }
+
   function sampleWaveform(timestamp: number) {
     if (!analyser || !analyserSamples || mode !== 'recording') return;
 
@@ -181,8 +191,23 @@
     if (
       typeof navigator === 'undefined' ||
       !navigator.mediaDevices?.getUserMedia ||
-      typeof MediaRecorder === 'undefined'
+      typeof MediaRecorder === 'undefined' ||
+      typeof MediaRecorder.isTypeSupported !== 'function'
     ) {
+      toast.error(m['composer.voice.unsupported']());
+      return;
+    }
+
+    const AudioContextCtor = audioContextConstructor();
+    if (!AudioContextCtor) {
+      toast.error(m['composer.voice.unsupported']());
+      return;
+    }
+
+    const selectedMimeType = selectVoiceRecorderMimeType((mimeType) =>
+      MediaRecorder.isTypeSupported(mimeType)
+    );
+    if (!selectedMimeType) {
       toast.error(m['composer.voice.unsupported']());
       return;
     }
@@ -203,18 +228,11 @@
         return;
       }
 
-      const selectedMimeType = selectVoiceRecorderMimeType((mimeType) =>
-        MediaRecorder.isTypeSupported(mimeType)
-      );
-      const recorder = selectedMimeType
-        ? new MediaRecorder(stream, {
-            mimeType: selectedMimeType,
-            audioBitsPerSecond: VOICE_MESSAGE_AUDIO_BITS_PER_SECOND
-          })
-        : new MediaRecorder(stream, {
-            audioBitsPerSecond: VOICE_MESSAGE_AUDIO_BITS_PER_SECOND
-          });
-      const outputMimeType = recorder.mimeType || selectedMimeType || 'audio/webm';
+      const recorder = new MediaRecorder(stream, {
+        mimeType: selectedMimeType,
+        audioBitsPerSecond: VOICE_MESSAGE_AUDIO_BITS_PER_SECOND
+      });
+      const outputMimeType = recorder.mimeType || selectedMimeType;
 
       mediaStream = stream;
       mediaRecorder = recorder;
@@ -237,7 +255,7 @@
       };
       recorder.onstop = () => finalizeRecording(generation, outputMimeType);
 
-      audioContext = new AudioContext();
+      audioContext = new AudioContextCtor();
       const source = audioContext.createMediaStreamSource(stream);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;

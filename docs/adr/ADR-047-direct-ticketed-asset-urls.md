@@ -42,9 +42,11 @@ ADR-039 is superseded.
 - **Remote server media stays compatible.** Browser media elements can fetch
   remote attachments without relying on cross-site cookies or Authorization
   headers.
-- **Protected asset bodies remain uncached by the browser-visible response
-  policy.** Originals and derivatives continue to use `private, no-store`
-  unless served through the explicit server-side transform cache.
+- **Protected asset bodies remain private and authorization stays live.** As
+  refined by ADR-052, streamed originals and derivatives use `private,
+  no-cache` with validators. The browser may retain a body, but Towk checks the
+  current ticket and room membership before every conditional reuse. The
+  Service Worker does not persist protected bodies.
 - **Heavy passive S3-backed originals may redirect.** Towk authorizes the
   stable asset request first, then may return a short-lived presigned object URL
   for video, audio, or large passive files. Active document types still stream

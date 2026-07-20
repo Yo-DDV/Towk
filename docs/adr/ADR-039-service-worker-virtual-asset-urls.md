@@ -9,6 +9,11 @@ URLs. Browser media now uses direct ticketed asset URLs and foreground clients
 refresh those URLs before expiry or after media load errors. This ADR remains as
 historical context for the removed privacy-hardening design.
 
+**Update (2026-07-17):** [ADR-052](ADR-052-authorized-private-media-revalidation.md)
+replaced the protected media cache policy with authorized private
+revalidation. Current stable protected media responses use `private, no-cache`;
+heavy passive S3 object redirects keep `private, no-store`.
+
 ## Context
 
 Towk's browser client can connect to multiple registered servers. A page served by one Towk server may render attachment media from another registered server. Native browser media elements such as `<img>` and `<video>` cannot reliably attach Towk's registered-server bearer token to those cross-origin subresource requests, and SameSite cookie behavior makes relying on remote-server cookies brittle.
@@ -30,7 +35,7 @@ In Service Worker-controlled browser sessions, the frontend renders stable asset
 
 The virtual URL is not a bearer credential. It only resolves inside a Towk client whose Service Worker has received the matching server registration and hidden ticketed target from the app. The frontend registers a hidden mapping from the virtual URL to the current ticketed target URL, and the worker resolves fetches by using that mapping or, for same-origin cookie sessions, by rebuilding the target from the registered server URL and asset path.
 
-For full `GET` requests, the worker fetches the hidden ticketed target and adds `X-Chatto-Asset-Proxy: 1`. The backend treats that proxy header as a request to stream the asset through Towk instead of redirecting originals to S3. Protected asset responses use `private, no-store`, and the worker does not cache response bodies; every protected asset load reaches the server so ticket expiry, deletion, and room-membership revocation are rechecked.
+For full `GET` requests, the worker fetches the hidden ticketed target and adds `X-Chatto-Asset-Proxy: 1`. The backend treats that proxy header as a request to stream the asset through Towk instead of redirecting originals to S3. In this removed design, protected asset responses used `private, no-store`, and the worker did not cache response bodies; every protected asset load reached the server so ticket expiry, deletion, and room-membership revocation were rechecked. Current stable protected media uses authorized `private, no-cache` revalidation as described in ADR-052.
 
 The restart and fallback paths are explicit and intentional:
 

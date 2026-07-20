@@ -2,11 +2,13 @@ package video
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"hmans.de/chatto/internal/config"
 )
 
 func TestSelectVariantHeights(t *testing.T) {
@@ -194,6 +196,119 @@ func TestThumbnailDimensions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateSourceForProcessing(t *testing.T) {
+	t.Run("accepts source within configured bounds", func(t *testing.T) {
+		svc := &Service{config: config.VideoConfig{
+			MaxDuration: config.Duration(10 * time.Second),
+			MaxPixels:   640 * 480,
+		}}
+		if err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: int64((10 * time.Second) / time.Millisecond),
+			Width:      640,
+			Height:     480,
+		}); err != nil {
+			t.Fatalf("validateSourceForProcessing returned error: %v", err)
+		}
+	})
+
+	t.Run("rejects source longer than configured duration", func(t *testing.T) {
+		svc := &Service{config: config.VideoConfig{MaxDuration: config.Duration(10 * time.Second)}}
+		err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: int64((10*time.Second + time.Millisecond) / time.Millisecond),
+			Width:      1280,
+			Height:     720,
+		})
+		if err == nil || !strings.Contains(err.Error(), "video.max_duration") {
+			t.Fatalf("validateSourceForProcessing error = %v, want video.max_duration rejection", err)
+		}
+	})
+
+	t.Run("rejects non-gif source without detectable duration", func(t *testing.T) {
+		svc := &Service{}
+		err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 0,
+			Width:      1280,
+			Height:     720,
+			VideoCodec: "h264",
+		})
+		if err == nil || !strings.Contains(err.Error(), "duration") {
+			t.Fatalf("validateSourceForProcessing error = %v, want duration rejection", err)
+		}
+	})
+
+	t.Run("accepts gif source without detectable duration", func(t *testing.T) {
+		svc := &Service{}
+		if err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 0,
+			Width:      320,
+			Height:     240,
+			VideoCodec: "gif",
+		}); err != nil {
+			t.Fatalf("validateSourceForProcessing gif fallback returned error: %v", err)
+		}
+	})
+
+	t.Run("rejects source without detectable dimensions", func(t *testing.T) {
+		svc := &Service{}
+		err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 1_000,
+			Width:      0,
+			Height:     720,
+			VideoCodec: "h264",
+		})
+		if err == nil || !strings.Contains(err.Error(), "dimensions") {
+			t.Fatalf("validateSourceForProcessing error = %v, want dimensions rejection", err)
+		}
+	})
+
+	t.Run("rejects source above configured pixel area", func(t *testing.T) {
+		svc := &Service{config: config.VideoConfig{MaxPixels: 640 * 480}}
+		err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 1_000,
+			Width:      641,
+			Height:     480,
+		})
+		if err == nil || !strings.Contains(err.Error(), "video.max_pixels") {
+			t.Fatalf("validateSourceForProcessing error = %v, want video.max_pixels rejection", err)
+		}
+	})
+
+	t.Run("default accepts 4K within 20 minutes", func(t *testing.T) {
+		svc := &Service{}
+		if err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: int64((20 * time.Minute) / time.Millisecond),
+			Width:      3840,
+			Height:     2160,
+		}); err != nil {
+			t.Fatalf("validateSourceForProcessing returned error: %v", err)
+		}
+	})
+
+	t.Run("default rejects longer than 20 minutes", func(t *testing.T) {
+		svc := &Service{}
+		err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: int64((20*time.Minute + time.Millisecond) / time.Millisecond),
+			Width:      1920,
+			Height:     1080,
+		})
+		if err == nil || !strings.Contains(err.Error(), "video.max_duration") {
+			t.Fatalf("validateSourceForProcessing error = %v, want default duration rejection", err)
+		}
+	})
+
+	t.Run("default rejects above 4K source area", func(t *testing.T) {
+		svc := &Service{}
+		err := svc.validateSourceForProcessing(&ProbeResult{
+			DurationMs: 1_000,
+			Width:      7680,
+			Height:     4320,
+		})
+		if err == nil || !strings.Contains(err.Error(), "video.max_pixels") {
+			t.Fatalf("validateSourceForProcessing error = %v, want default pixel rejection", err)
+		}
+	})
 }
 
 func TestServiceRunReturnsWhenShutdownWaitTimesOut(t *testing.T) {

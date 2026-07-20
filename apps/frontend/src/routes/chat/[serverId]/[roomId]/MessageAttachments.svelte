@@ -7,7 +7,7 @@
 <script lang="ts">
   import type { RenderType } from '$lib/render/data';
   import { useRenderData } from '$lib/render/data';
-  import type { MessageAttachmentView } from '$lib/render/types';
+  import { VideoProcessingStatus, type MessageAttachmentView } from '$lib/render/types';
   import type { ImageItem } from '$lib/ui/ImageModal.svelte';
 
   type RawAttachment = MessageAttachmentView;
@@ -37,13 +37,15 @@
     serverId,
     roomId,
     eventId,
-    canDeleteAttachment = false
+    canDeleteAttachment = false,
+    videoProcessingEnabled = true
   }: {
     attachments: readonly RenderType<typeof MessageAttachmentViewData>[];
     serverId: string;
     roomId: string;
     eventId: string;
     canDeleteAttachment?: boolean;
+    videoProcessingEnabled?: boolean;
   } = $props();
 
   let refreshedAttachmentUrls = $state.raw(new Map<string, RefreshedAttachmentUrls>());
@@ -224,6 +226,19 @@
     return attachment.contentType === 'image/gif' || !attachment.thumbnailUrl
       ? 'asset'
       : 'thumbnail';
+  }
+
+  function shouldWaitForPortableVideoVariant(attachment: Attachment): boolean {
+    return (
+      videoProcessingEnabled &&
+      attachment.contentType.startsWith('video/') &&
+      Boolean(attachment.url) &&
+      !attachment.videoProcessing
+    );
+  }
+
+  function handleRawVideoError(attachment: Attachment) {
+    refreshAfterAssetError(attachment, 'asset');
   }
 
   function updateGalleryScrollEdges(el: HTMLElement) {
@@ -580,11 +595,33 @@
           </button>
         {/if}
       </div>
+    {:else if shouldWaitForPortableVideoVariant(attachment)}
+      <div class="group/attachment relative min-w-0">
+        <VideoPlayer
+          status={VideoProcessingStatus.Processing}
+          filename={attachment.filename}
+          width={attachment.width}
+          height={attachment.height}
+          onMediaError={() => refreshAfterAssetError(attachment, 'video')}
+        />
+        {#if canDeleteAttachment}
+          <button
+            type="button"
+            onclick={(e) => openDeleteConfirmation(attachment, e)}
+            class="attachment-remove-button z-10 md:group-hover/attachment:opacity-100"
+            aria-label={m['room.attachment.delete_label']()}
+            title={m['room.attachment.delete_label']()}
+          >
+            <span class="iconify text-sm uil--times"></span>
+          </button>
+        {/if}
+      </div>
     {:else if attachment.contentType.startsWith('video/') && attachment.url}
       <!--
-          Render the original while no processing manifest exists. This is the
-          permanent representation when video processing is disabled and the
-          temporary fallback before processing starts when it is enabled.
+          Render raw video only when the instance has disabled video processing.
+          When processing is enabled, every user video waits for the portable
+          MP4/H.264 variant instead of relying on the source codec chosen by the
+          sender's OS (for example iPhone HEVC inside MP4).
         -->
       <div class="group/attachment relative min-w-0">
         <div class="embed-frame">
@@ -595,7 +632,7 @@
             class="max-h-64 max-w-full"
             aria-label={attachment.filename}
             data-testid="raw-video-player"
-            onerror={() => refreshAfterAssetError(attachment, 'asset')}
+            onerror={() => handleRawVideoError(attachment)}
           >
             <track kind="captions" />
           </video>
@@ -614,7 +651,7 @@
       </div>
     {:else if attachment.voiceMessage && attachment.url}
       <div
-        class="group/attachment relative w-full max-w-[31rem] min-w-0"
+        class="group/attachment relative w-full max-w-[min(31rem,calc(100vw-5.5rem))] min-w-0 overflow-hidden rounded-2xl"
         data-testid="voice-message-attachment"
       >
         <VoiceMessagePlayer
@@ -629,7 +666,7 @@
           <button
             type="button"
             onclick={(e) => openDeleteConfirmation(attachment, e)}
-            class="attachment-remove-button voice-message-remove-button top-2 right-2 h-11 w-11 md:group-hover/attachment:opacity-100"
+            class="attachment-remove-button voice-message-remove-button top-1/2 right-1 h-11 w-11 -translate-y-1/2 md:group-hover/attachment:opacity-100"
             aria-label={m['room.attachment.delete_label']()}
             title={m['room.attachment.delete_label']()}
           >
@@ -639,18 +676,28 @@
       </div>
     {:else if attachment.contentType.startsWith('audio/') && attachment.url}
       <div class="group/attachment relative min-w-0">
-        <div class="embed-frame flex items-center gap-3 px-3 py-2">
+        <div class="embed-frame flex min-w-0 flex-wrap items-center gap-2 px-3 py-2">
           <audio
             controls
             preload="metadata"
             src={attachment.url}
-            class="h-8 max-w-xs"
+            class="h-8 min-w-0 flex-1 basis-56"
             data-testid="audio-player"
             onerror={() => refreshAfterAssetError(attachment, 'asset')}
           >
             {attachment.filename}
           </audio>
-          <span class="text-sm text-muted">{attachment.filename}</span>
+          <button
+            type="button"
+            onclick={() => openDownload(attachment)}
+            class="flex min-h-[44px] min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-surface-highlighted hover:text-text"
+            aria-label={m['room.attachment.download_label']({ filename: attachment.filename })}
+            title={m['room.attachment.download_label']({ filename: attachment.filename })}
+            data-testid="audio-download-button"
+          >
+            <span class="iconify shrink-0 text-base uil--download-alt"></span>
+            <span class="min-w-0 truncate">{attachment.filename}</span>
+          </button>
         </div>
         {#if canDeleteAttachment}
           <button

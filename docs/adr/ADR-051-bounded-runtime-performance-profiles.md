@@ -6,7 +6,7 @@
 
 Towk runs on hosts that range from small community VPS instances to larger
 dedicated servers. The deployment currently carries independent static limits
-for Towk, NATS, LiveKit, Caddy, image transforms, link previews, video workers,
+for Towk, NATS, LiveKit, Caddy, image transforms, link previews, media transcode workers,
 and realtime connections. Raising one of those values in isolation can move the
 bottleneck or increase memory pressure without increasing useful throughput.
 
@@ -79,6 +79,17 @@ Runtime worker admission reads the projected policy. Lowering a limit never
 cancels work that was already admitted. New work waits or is rejected according
 to the existing subsystem contract until active work is below the new limit.
 Raising a limit can admit later work without a process restart.
+
+The media-transcode worker limit is one shared process-local admission pool for
+video processing, animated-GIF processing, and voice-message normalization.
+Voice-message duration verification also uses the configured media probe path
+before a completed voice attachment is made durable, and non-MP4 voice
+normalization caps the `ffmpeg` output duration to the voice-message envelope
+plus a short tolerance.
+The existing API, configuration, and environment field names retain
+`video_workers` for schema compatibility, while the owner UI describes their
+effective scope. This prevents two independent `ffmpeg` pools from each
+consuming the full profile limit at the same time.
 
 Infrastructure values such as container memory, container CPU, NATS resources,
 and process startup-only listeners remain operator-owned and are marked as

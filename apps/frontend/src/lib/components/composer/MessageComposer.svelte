@@ -25,6 +25,7 @@
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
   import { prefersTouchActions } from '$lib/utils/inputCapabilities';
   import { readClipboardFiles } from '$lib/attachments/clipboardFiles';
+  import { isVideoAttachmentFileCandidate } from '$lib/attachments/filePolicy';
   import { hasVisibleContent } from '$lib/validation';
   import { extractMentions, hasRoleOrVirtualMention } from '$lib/mentions';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -1053,7 +1054,7 @@
         <div class="relative">
           {#if file.type.startsWith('image/')}
             <img src={url} alt={file.name} class="h-16 w-16 rounded-md object-cover" />
-          {:else if file.type.startsWith('video/')}
+          {:else if isVideoAttachmentFileCandidate(file)}
             <!-- Browser renders the first frame as a thumbnail from the object URL -->
             <video
               data-testid="video-attachment-preview"

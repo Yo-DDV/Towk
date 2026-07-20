@@ -503,6 +503,20 @@ describe('MessageComposer', () => {
         .toBeTruthy();
     });
 
+    it('renders mobile video files with generic MIME types as video previews', async () => {
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const input = q(container, 'input[type="file"]') as HTMLInputElement;
+
+      await selectFiles(input, [
+        new File(['video'], 'IMG_0420.MOV', { type: 'application/octet-stream' })
+      ]);
+
+      await expect
+        .poll(() => q(container, '[data-testid="video-attachment-preview"]'))
+        .toBeTruthy();
+      expect(q(container, '[data-testid="file-attachment-preview"]')).toBeNull();
+    });
+
     it('rejects selected files over the server upload size limit', async () => {
       mockInstanceStores.serverInfo.maxUploadSize = 1;
       const { container } = renderMessageComposer({ roomId: 'room_456' });

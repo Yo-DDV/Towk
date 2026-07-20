@@ -8,6 +8,7 @@ const getUserMedia = vi.fn();
 let analyserReadCount = 0;
 let nextAnimationFrameID = 1;
 let animationFrames = new Map<number, FrameRequestCallback>();
+let supportedRecorderMimeTypes = new Set(['audio/webm;codecs=opus']);
 
 function runNextAnimationFrame(timestamp: number) {
   const next = animationFrames.entries().next().value as [number, FrameRequestCallback] | undefined;
@@ -18,7 +19,7 @@ function runNextAnimationFrame(timestamp: number) {
 
 class FakeMediaRecorder {
   static isTypeSupported(mimeType: string) {
-    return mimeType === 'audio/webm;codecs=opus';
+    return supportedRecorderMimeTypes.has(mimeType);
   }
 
   state: RecordingState = 'inactive';
@@ -75,6 +76,7 @@ describe('VoiceMessageRecorder', () => {
     getUserMedia.mockResolvedValue({
       getTracks: () => [{ stop: trackStop }]
     });
+    supportedRecorderMimeTypes = new Set(['audio/webm;codecs=opus']);
     Object.defineProperty(navigator, 'mediaDevices', {
       configurable: true,
       value: { getUserMedia }
@@ -157,6 +159,47 @@ describe('VoiceMessageRecorder', () => {
     await vi.waitFor(() =>
       expect(container.querySelector('[data-testid="voice-message-preview"]')).not.toBeNull()
     );
+  });
+
+  it('does not request microphone access when no server-supported recording format exists', async () => {
+    supportedRecorderMimeTypes = new Set();
+    const { container } = render(VoiceMessageRecorder, {
+      props: { onSend: vi.fn(async () => true) }
+    });
+
+    await userEvent.click(container.querySelector('button[aria-label="Record a voice message"]')!);
+
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(trackStop).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="voice-message-live-waveform"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="Record a voice message"]')).not.toBeNull();
+  });
+
+  it('does not request microphone access when waveform analysis is unavailable', async () => {
+    vi.stubGlobal('AudioContext', undefined);
+    vi.stubGlobal('webkitAudioContext', undefined);
+    const { container } = render(VoiceMessageRecorder, {
+      props: { onSend: vi.fn(async () => true) }
+    });
+
+    await userEvent.click(container.querySelector('button[aria-label="Record a voice message"]')!);
+
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(trackStop).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="voice-message-live-waveform"]')).toBeNull();
+  });
+
+  it('uses the prefixed audio context fallback on older WebKit engines', async () => {
+    vi.stubGlobal('AudioContext', undefined);
+    vi.stubGlobal('webkitAudioContext', FakeAudioContext);
+    const { container } = render(VoiceMessageRecorder, {
+      props: { onSend: vi.fn(async () => true) }
+    });
+
+    await userEvent.click(container.querySelector('button[aria-label="Record a voice message"]')!);
+
+    expect(getUserMedia).toHaveBeenCalledOnce();
+    expect(container.querySelector('[data-testid="voice-message-live-waveform"]')).not.toBeNull();
   });
 
   it('samples a stable multi-second waveform window independently of display frame rate', async () => {

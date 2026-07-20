@@ -87,6 +87,34 @@ func TestDeliveryStabilityRejectsUnverifiedResult(t *testing.T) {
 	}
 }
 
+func TestCapacityValidationRejectsUnverifiedReportUnlessExplicitlyAllowed(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "capacity.json")
+	writeResult(t, path, perfmedia.CapacityQualificationReport{})
+
+	var output bytes.Buffer
+	err := runWithOutput([]string{"--kind", "capacity", "--input", path}, &output)
+	if err == nil || !strings.Contains(err.Error(), "capacity qualification is UNVERIFIED") {
+		t.Fatalf("runWithOutput error = %v, want unverified capacity rejection", err)
+	}
+	if !strings.Contains(output.String(), `"status": "UNVERIFIED"`) {
+		t.Fatalf("output = %s, want UNVERIFIED assessment", output.String())
+	}
+
+	output.Reset()
+	if err := runWithOutput([]string{"--kind", "capacity", "--input", path, "--allow-unverified"}, &output); err != nil {
+		t.Fatalf("runWithOutput with --allow-unverified: %v", err)
+	}
+}
+
+func TestCapacityValidationRequiresExactlyOneInput(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "capacity.json")
+	writeResult(t, path, perfmedia.CapacityQualificationReport{})
+	err := runWithOutput([]string{"--kind", "capacity", "--input", path, "--input", path}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "exactly one") {
+		t.Fatalf("runWithOutput error = %v, want single-input rejection", err)
+	}
+}
+
 func writeResult(t *testing.T, path string, value any) {
 	t.Helper()
 	content, err := json.Marshal(value)

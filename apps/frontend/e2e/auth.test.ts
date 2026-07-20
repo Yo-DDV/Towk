@@ -2,6 +2,7 @@ import { test, expect } from './setup';
 import { csrfHeaders } from './fixtures/csrf';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { connectPost } from './fixtures/connectHelpers';
+import { TIMEOUTS } from './constants';
 import * as routes from './routes';
 
 interface E2EViewerResponse {
@@ -102,9 +103,13 @@ test.describe('Return URL after login', () => {
     // Should be redirected to the original URL
     await page.waitForURL(routes.settings);
 
-    // sessionStorage should now be cleared
-    const returnUrl = await page.evaluate(() => sessionStorage.getItem('returnUrl'));
-    expect(returnUrl).toBeNull();
+    // The URL can change before the authenticated layout finishes its cleanup.
+    // Wait for that observable side effect instead of racing it under parallel load.
+    await expect
+      .poll(() => page.evaluate(() => sessionStorage.getItem('returnUrl')), {
+        timeout: TIMEOUTS.UI_STANDARD
+      })
+      .toBeNull();
 
     // Refreshing should not redirect back to login (no redirect loop)
     await page.reload();

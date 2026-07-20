@@ -26,3 +26,33 @@ Use `/readyz` for readiness and startup probes, and `/healthz` for liveness prob
 </CardGrid>
 
 The minimal manifests live in [`examples/k8s`](https://github.com/Yo-DDV/Towk/tree/main/examples/k8s). Replace the deliberately invalid Towk image placeholder with an immutable published tag and digest before applying them.
+
+## Updates, rollback, and performance envelopes
+
+Kubernetes deployments should pin Towk to an immutable image tag and digest.
+Before changing it, create a Towk backup, keep the previous manifests and
+secrets, and record the current pod resource envelope.
+
+```bash
+kubectl -n towk set image deployment/towk towk=ghcr.io/yo-ddv/towk:<immutable-tag>@sha256:<digest>
+kubectl -n towk rollout status deployment/towk
+```
+
+After the rollout, verify `/readyz`, sign in through the ingress, send a text
+message, exercise an attachment or video flow that matters to your server, and
+check **Server administration → System** for the requested performance profile
+and effective limits.
+
+Rollback is normally an application-image operation:
+
+```bash
+kubectl -n towk rollout undo deployment/towk
+kubectl -n towk rollout status deployment/towk
+```
+
+Only restore Towk data when you intentionally need to return NATS state to an
+older backup snapshot. The owner-selected performance profile is stored in
+Towk's event stream and is included in Towk backups. Pod resources,
+`CHATTO_PERFORMANCE_MAX_*` operator caps, Kubernetes secrets, TLS material, and
+external object-storage buckets remain operator-owned deployment state and must
+be backed up separately.

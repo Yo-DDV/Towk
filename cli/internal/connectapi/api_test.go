@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
@@ -6183,6 +6184,7 @@ func TestAssetUploadServiceCompleteRechecksAttachmentPermission(t *testing.T) {
 
 func TestAssetUploadServiceVoiceMessageContract(t *testing.T) {
 	env := newConnectAPITestEnv(t)
+	env.core.MediaFFprobePath = fakeFFprobeBinary(t, 1_234)
 	room := env.createJoinedRoom("voice-message-contract")
 	ctx := withCaller(env.ctx, env.viewer)
 	if err := env.core.DenyRoomPermission(env.ctx, core.SystemActorID, room.Id, core.RoleEveryone, core.PermMessageAttach); err != nil {
@@ -6243,6 +6245,17 @@ func TestAssetUploadServiceVoiceMessageContract(t *testing.T) {
 	if fetched.Msg.GetAsset().GetVoiceMessage().GetDurationMs() != 1_234 {
 		t.Fatalf("fetched voice metadata = %+v", fetched.Msg.GetAsset().GetVoiceMessage())
 	}
+}
+
+func fakeFFprobeBinary(t *testing.T, durationMS int64) string {
+	t.Helper()
+	path := t.TempDir() + "/ffprobe"
+	output := fmt.Sprintf(`{"streams":[{"codec_type":"audio","duration":"%.3f"}],"format":{"duration":"%.3f"}}`, float64(durationMS)/1000, float64(durationMS)/1000)
+	script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '%s'\n", output)
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake ffprobe: %v", err)
+	}
+	return path
 }
 
 func TestAssetUploadServiceRejectsChecksumOffsetAndIncompleteComplete(t *testing.T) {

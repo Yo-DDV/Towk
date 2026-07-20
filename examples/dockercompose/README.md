@@ -146,6 +146,7 @@ those values.
    - `CHATTO_SMTP_*` - Required for direct email/password registration, email verification, and password reset.
    - `PUID` and `PGID` - Optional host user/group IDs for files Towk writes to mounted volumes. Defaults to `1000:1000`.
    - `CHATTO_OPERATOR_API_*` - Enables the private in-container operator socket used by `towk operator ...`.
+   - `CHATTO_VIDEO_ENABLED=true` - Enables ffmpeg-based MP4 variants and thumbnails so videos uploaded from iPhone or other OS/browser stacks remain playable across Linux, Android, iOS, Firefox, Safari, Chrome, and Chromium-based PWAs. The image also uses ffmpeg to normalize non-MP4 voice messages into M4A/AAC for the same playback compatibility.
 
    Leave `LIVEKIT_CONFIG_FILE=./livekit.generated.yaml` unless you deliberately
    want to maintain `livekit.yaml` by hand.
@@ -295,10 +296,37 @@ is fully trusted; socket access is root-equivalent Towk authority.
 ## Updating
 
 ```bash
-# Pull new images and recreate containers
-docker compose pull
-docker compose up -d
+# Back up Towk data and keep the current deployment envelope
+docker compose exec -u towk towk /towk backup --encrypt --include-keys -o /tmp/towk-before-update.tar.gz.age
+docker compose cp towk:/tmp/towk-before-update.tar.gz.age ./towk-before-update.tar.gz.age
+cp .env .env.before-update
+docker compose config > compose.rendered.before-update.yaml
+docker compose images
+
+# Set TOWK_IMAGE in .env to the new immutable tag and digest, then update Towk
+docker compose pull towk
+docker compose up -d towk
+docker compose ps
 ```
+
+After the update, sign in, send a text message, verify an attachment or video
+flow that matters to your server, and check **Server administration → System**
+for the requested performance profile and effective limits.
+
+To roll back application code, restore the previous `TOWK_IMAGE` value from
+`.env.before-update`, re-render the Compose configuration, and recreate only
+the Towk service:
+
+```bash
+cp .env.before-update .env
+docker compose config
+docker compose up -d towk
+```
+
+Only restore a data backup when you intentionally need to return data to an
+older snapshot. The owner-selected performance profile is part of Towk data;
+`.env`, Compose resource ceilings, certificates, and external object-storage
+buckets are operator-managed and must be backed up separately.
 
 ## Volumes
 

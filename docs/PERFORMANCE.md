@@ -14,7 +14,7 @@ The current media suite isolates:
 
 - image transformations for HD JPEG, large JPEG, alpha PNG, and animated GIF;
 - NATS derivative-cache reads;
-- resumable 512 KiB upload chunks;
+- resumable 1 MiB upload chunks;
 - 1 MiB and 25 MiB upload materialization;
 - media request, cache, transform, Range, and upload metrics overhead;
 - full-stack NATS or S3 delivery with cold and warm cache states;
@@ -351,10 +351,12 @@ the media handlers and upload API do not populate media collectors. The labels
 are fixed enums and size classes; request, user, room, asset, filename, URL, and
 cache-key identifiers are forbidden.
 
-Image transforms are synchronous today: the transform job metric reports the
-real active count and an explicit zero `pending` state. It does not invent a
-queue or rejection count that the current request path does not have. Admission
-control and capacity behavior belong to a separately reviewed change.
+The process-local transform coordinator bounds distinct work. The transform
+job metric reports jobs holding an execution slot as `active` and admitted jobs
+waiting for a slot as `pending`. Requests coalesced onto the same derivative do
+not create additional jobs. Requests rejected because the admission bound is
+full appear through the bounded media-request outcome metric; there is no
+asset-key or waiter-count label.
 
 Compare matched metrics-off and metrics-on campaigns. Both sets need at least
 three samples and identical qualification conditions:
@@ -379,6 +381,146 @@ surface at 592 series.
 
 The metrics listener remains internal. pprof stays inaccessible unless
 `[metrics].pprof` is explicitly enabled for a bounded diagnostic session.
+
+## Capacity and resilience qualification
+
+The runtime profile names are concurrency policies, not user-count or latency
+guarantees. A public capacity statement requires one structured report tied to
+the exact full revision and accepted by the repository validator:
+
+```sh
+mise run perf-media-validate -- \
+  --kind capacity \
+  --input .context/perf/capacity-report.json
+```
+
+The JSON top level contains `revision`, `runs`, and `scale_points`. Unknown
+fields, trailing JSON, files above 10 MiB, missing evidence, and reused run IDs
+are rejected. Every run has a random 32-hex-character `run_id`, the exact report
+revision, the declared profile/backend/cache/network/path/phase, a measured
+resource envelope, the requested and effective performance limits, an explicit
+non-idle load vector, request and error counts, memory evidence, CPU-use and
+CPU-throttling evidence, and lifecycle counters.
+Do not put endpoints, access tickets, credentials, user data, room IDs, host
+paths, or deployment identifiers in this report.
+
+Common run objects use these exact fields:
+
+| Field group | Required fields |
+| ----------- | --------------- |
+| Identity and cell | `run_id`, `revision`, `profile`, `backend`, `cache_state`, `network`, `path`, `phase`, `duration_seconds`, `preflight_status` |
+| Envelope | `logical_cpus`, `memory_limit_bytes`, `host_memory_bytes`, `architecture`, `cpu_model`, `cgroup_fingerprint`, `thermal_proven` |
+| Applied policy | `requested_limits`, `effective_limits` with image-transform workers/admissions, asset-upload workers, link-preview workers, and media-transcode workers (`video_workers` in the stable schema) |
+| Traffic | `load`, `requests`, `unexpected_server_errors` |
+| Resources | `working_set_p95_bytes`, `working_set_peak_bytes`, `host_memory_peak_bytes`, `cpu_usage_seconds`, `cpu_throttled_seconds` |
+| Lifecycle | `crash_count`, `panic_count`, `oom_kill_count`, `residual_goroutines`, `residual_temp_files` |
+
+`load` records `idle_connections`, `active_connections`,
+`messages_per_second`, `concurrent_uploads`, `upload_mbps`,
+`cold_transforms_per_second`, `warm_reads_per_second`, `audio_publishers`,
+`audio_subscribers`, `video_publishers`, `video_subscribers`, `egress_mbps`,
+`corpus_gib`, `read_mib_per_second`, `write_mib_per_second`, and
+`storage_p95_millis`. Individual lanes may be zero, but the vector as a whole
+must be finite, non-negative, and non-idle.
+
+Phase-specific evidence uses:
+
+| Phase | Additional required evidence |
+| ----- | ---------------------------- |
+| `overload` | `admission_bounded`, `admission_subsystem`, `admission_rejections`, `admission_limit`, `peak_admitted` |
+| `recovery` | `preceding_overload_run_id`, `recovery_seconds`, `baseline_throughput_per_second`, `recovered_throughput_per_second`, `baseline_p95_millis`, `recovered_p95_millis` |
+| `soak` | Balanced profile, two-hour `duration_seconds`, common resource and lifecycle evidence |
+
+Each `scale_points` entry contains `cpus`, `memory_limit_bytes`,
+`throughput_per_second`, `separate_generator`, and optional bounded
+`bottleneck` evidence.
+
+### Nominal envelopes
+
+| Profile | Qualification envelope | Minimum nominal observation |
+| ------- | ---------------------- | --------------------------- |
+| `economy` | 1 logical CPU, 2 GiB process memory | 30 minutes |
+| `balanced` | 2 logical CPUs, 4 GiB process memory | 30 minutes |
+| `performance` | 8 logical CPUs, 16 GiB process memory | 30 minutes |
+| `custom` | Explicit measured CPU/memory envelope | 30 minutes |
+
+The standard rows are controlled comparison envelopes, not minimum deployment
+sizes and not recommendations to reserve the whole host for Towk. A Custom row
+must record a valid bounded requested policy and the effective policy observed
+after operator and process limits; effective values may not exceed requested
+values. Standard rows must record their exact preset values. Each nominal
+report must provide pairwise coverage across all of these factors:
+
+- profile: `economy`, `balanced`, `performance`, `custom`;
+- backend: `nats`, `s3`;
+- cache state: `cold`, `warm`, `full`;
+- shaped network: `normal`, `degraded`;
+- application path: `direct`, `caddy_tls`.
+
+The independent HTTP delivery campaign still tests `lan` in addition to the
+two shaped profiles. The capacity matrix excludes `lan` because its purpose is
+to compare constrained envelopes under repeatable network pressure.
+
+Every accepted run must satisfy all of these budgets:
+
+- preflight status is `VERIFIED`, including cgroup-scoped pressure and thermal
+  evidence;
+- unexpected server errors stay strictly below 0.1% of requests;
+- process working-set p95 stays at or below 70% of its memory limit;
+- process working-set peak stays at or below 80% of its memory limit and is not
+  lower than its p95;
+- host memory peak stays at or below 85% of host memory;
+- CPU throttled time stays at or below 5% of measured CPU-use time;
+- no crash, panic, OOM kill, leaked goroutine, or residual temporary file is
+  observed.
+
+### Scaling curve
+
+The report includes measured 1, 2, 4, and 8 CPU points with exactly 2 GiB of
+process memory per CPU. Throughput must increase monotonically. Each doubling
+targets at least 1.5 times the previous throughput and at least 60% parallel
+efficiency relative to the 1 CPU point. A result below either target can remain
+accepted only when it carries bounded measured bottleneck evidence; the
+validator publishes that evidence as a limitation rather than hiding it.
+
+Any reported point at 12 CPUs or more requires a separate load generator.
+Custom 12, 18, or 24 CPU capacity is measured on that hardware and is never
+extrapolated from the 8 CPU curve.
+
+### Overload, recovery, and soak
+
+Each profile, including Custom, needs a linked overload/recovery pair:
+
+1. Apply at least ten minutes of real overload. Record the saturated subsystem
+   (`image_transform`, `asset_upload`, `link_preview`, or `video`). Admission
+   must stay bounded, reach that subsystem's effective limit, and produce
+   expected admission rejections instead of unbounded queue growth.
+2. Remove the overload and observe recovery for at least one minute. Recovery
+   must complete within 60 seconds, restore at least 90% of baseline
+   throughput, and keep recovered p95 at or below 110% of baseline p95.
+3. Run an additional Balanced soak for at least two hours under the declared
+   non-idle load.
+
+The recovery row carries `preceding_overload_run_id`; the validator requires it
+to identify an overload row with the same profile, resource envelope, requested
+and effective limits, backend, cache state, network, and application path. This
+prevents an unrelated healthy sample from being presented as recovery evidence.
+
+The report is `VERIFIED` only when the complete capacity, scaling, overload,
+recovery, and soak contract passes. `--allow-unverified` prints diagnostic
+reasons but does not create qualification evidence. Unit-test fixtures that
+exercise the validator are not benchmark results and must never be published
+as measured capacity.
+
+### Current publication status
+
+The repository intentionally publishes no universal user-count or media
+latency promise for Economy, Balanced, Performance, ARM64, or large Custom
+hosts until accepted reports from the stated envelopes exist. Missing thermal
+telemetry, a shared load generator, an unstable repeated campaign, or an
+unmeasured device/architecture remains `UNVERIFIED`; it is not filled by an
+estimate. This explicit absence is safer than presenting profile presets as
+capacity measurements.
 
 ## Result classification
 

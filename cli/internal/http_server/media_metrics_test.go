@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -98,28 +99,121 @@ func TestMediaMetricsHaveBoundedCardinality(t *testing.T) {
 	}
 }
 
-func TestMediaTransformActiveGaugeReturnsToZero(t *testing.T) {
+func TestMediaTransformJobGaugesTrackCoordinatorQueue(t *testing.T) {
 	metrics := newProcessMetrics()
-	done := metrics.mediaTransformStarted()
-	done()
-	done() // completion is idempotent so error paths cannot underflow the gauge
+	coordinator := newAssetTransformCoordinator(1, 2, metrics.setMediaTransformJobs)
+	t.Cleanup(coordinator.Close)
 
+	firstStarted := make(chan struct{})
+	secondStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+	results := make(chan error, 2)
+
+	go func() {
+		_, err := coordinator.Do(context.Background(), "first", func(context.Context) (*assetTransformOutput, error) {
+			close(firstStarted)
+			<-releaseFirst
+			return &assetTransformOutput{}, nil
+		})
+		results <- err
+	}()
+	<-firstStarted
+
+	go func() {
+		_, err := coordinator.Do(context.Background(), "second", func(context.Context) (*assetTransformOutput, error) {
+			close(secondStarted)
+			<-releaseSecond
+			return &assetTransformOutput{}, nil
+		})
+		results <- err
+	}()
+
+	waitForMediaTransformJobGauges(t, metrics, 1, 1)
+	close(releaseFirst)
+	<-secondStarted
+	waitForMediaTransformJobGauges(t, metrics, 1, 0)
+	close(releaseSecond)
+
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitForMediaTransformJobGauges(t, metrics, 0, 0)
+}
+
+func TestMediaTransformJobGaugesReturnToZeroAfterCancellationAndPanic(t *testing.T) {
+	metrics := newProcessMetrics()
+	coordinator := newAssetTransformCoordinator(1, 2, metrics.setMediaTransformJobs)
+	t.Cleanup(coordinator.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan error, 2)
+	work := func(ctx context.Context) (*assetTransformOutput, error) {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	for _, key := range []string{"active", "pending"} {
+		go func(key string) {
+			_, err := coordinator.Do(ctx, key, work)
+			results <- err
+		}(key)
+	}
+	waitForMediaTransformJobGauges(t, metrics, 1, 1)
+	cancel()
+	for range 2 {
+		if err := <-results; err == nil {
+			t.Fatal("cancelled transform returned nil error")
+		}
+	}
+	waitForMediaTransformJobGauges(t, metrics, 0, 0)
+
+	if _, err := coordinator.Do(context.Background(), "panic", func(context.Context) (*assetTransformOutput, error) {
+		panic("metric cleanup")
+	}); err == nil {
+		t.Fatal("panicking transform returned nil error")
+	}
+	waitForMediaTransformJobGauges(t, metrics, 0, 0)
+}
+
+func waitForMediaTransformJobGauges(t *testing.T, metrics *processMetrics, active, pending float64) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if mediaTransformJobGauge(t, metrics, "active") == active &&
+			mediaTransformJobGauge(t, metrics, "pending") == pending {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf(
+		"transform job gauges active=%v pending=%v, want active=%v pending=%v",
+		mediaTransformJobGauge(t, metrics, "active"),
+		mediaTransformJobGauge(t, metrics, "pending"),
+		active,
+		pending,
+	)
+}
+
+func mediaTransformJobGauge(t *testing.T, metrics *processMetrics, state string) float64 {
+	t.Helper()
 	registry := prometheus.NewPedanticRegistry()
 	registry.MustRegister(metrics.collectors()...)
 	families, err := registry.Gather()
 	if err != nil {
-		t.Fatalf("Gather: %v", err)
+		t.Fatal(err)
 	}
 	for _, family := range families {
 		if family.GetName() != "towk_media_transform_jobs" {
 			continue
 		}
 		for _, metric := range family.GetMetric() {
-			if len(metric.GetLabel()) == 1 && metric.GetLabel()[0].GetValue() == "active" && metric.GetGauge().GetValue() != 0 {
-				t.Fatalf("active transform jobs = %v, want 0", metric.GetGauge().GetValue())
+			if len(metric.GetLabel()) == 1 && metric.GetLabel()[0].GetValue() == state {
+				return metric.GetGauge().GetValue()
 			}
 		}
-		return
 	}
-	t.Fatal("towk_media_transform_jobs metric is missing")
+	t.Fatalf("towk_media_transform_jobs{%q} is missing", state)
+	return 0
 }

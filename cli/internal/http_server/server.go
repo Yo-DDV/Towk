@@ -120,11 +120,21 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 		router.Use(requestLogger(logger))
 	}
 
-	assetTransforms := newAssetTransformCoordinator(defaultConcurrentAssetTransforms, defaultAdmittedAssetTransforms)
+	metrics := newProcessMetrics()
+	var transformObserver assetTransformJobObserver
+	if cfg.Config.Metrics.Enabled {
+		transformObserver = metrics.setMediaTransformJobs
+	}
+	assetTransforms := newAssetTransformCoordinator(
+		defaultConcurrentAssetTransforms,
+		defaultAdmittedAssetTransforms,
+		transformObserver,
+	)
 	if cfg.Core != nil {
 		assetTransforms = newDynamicAssetTransformCoordinator(
 			func() int { workers, _ := cfg.Core.ImageTransformLimits(); return workers },
 			func() int { _, admissions := cfg.Core.ImageTransformLimits(); return admissions },
+			transformObserver,
 		)
 	}
 	s := &HTTPServer{
@@ -137,7 +147,7 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 		addr:            cfg.Addr,
 		version:         cfg.Version,
 		logger:          logger,
-		metrics:         newProcessMetrics(),
+		metrics:         metrics,
 		assetTransforms: assetTransforms,
 	}
 
@@ -152,13 +162,22 @@ func NewHTTPServer(cfg HTTPServerConfig) (*HTTPServer, error) {
 func (s *HTTPServer) transformCoordinator() *assetTransformCoordinator {
 	s.assetTransformOnce.Do(func() {
 		if s.assetTransforms == nil {
+			var observer assetTransformJobObserver
+			if s.config.Metrics.Enabled && s.metrics != nil {
+				observer = s.metrics.setMediaTransformJobs
+			}
 			if s.core == nil {
-				s.assetTransforms = newAssetTransformCoordinator(defaultConcurrentAssetTransforms, defaultAdmittedAssetTransforms)
+				s.assetTransforms = newAssetTransformCoordinator(
+					defaultConcurrentAssetTransforms,
+					defaultAdmittedAssetTransforms,
+					observer,
+				)
 				return
 			}
 			s.assetTransforms = newDynamicAssetTransformCoordinator(
 				func() int { workers, _ := s.core.ImageTransformLimits(); return workers },
 				func() int { _, admissions := s.core.ImageTransformLimits(); return admissions },
+				observer,
 			)
 		}
 	})

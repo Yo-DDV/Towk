@@ -23,6 +23,76 @@ Owners and permissioned admins use the admin UI for daily operations. Depending 
 
 The system pages expose operational metadata, not conversation content; they do not provide a special endpoint for reading every message or file. This application boundary does not constrain an infrastructure operator who controls the running process, storage, and encryption keys. See [Encryption at Rest and Data Erasure](/guides/operations/privacy-erasure/) for the threat model.
 
+## Performance Profiles And Resource Envelopes
+
+Towk separates host capacity from live media concurrency:
+
+1. The deployment operator sets CPU, memory, storage, and optional
+   `CHATTO_PERFORMANCE_MAX_*` ceilings. Changing a container or pod envelope
+   requires a service recreation or rollout.
+2. A server owner selects Economy, Balanced, Performance, or Custom in
+   **Server administration → System**. This updates newly admitted work live;
+   work already in progress is not cancelled.
+
+| Requested profile | Image workers | Image admissions | Upload workers | Link-preview workers | Media-transcode workers |
+| ----------------- | ------------: | ---------------: | -------------: | -------------------: | ----------------------: |
+| Economy | 1 | 4 | 2 | 1 | 1 |
+| Balanced | 2 | 8 | 4 | 2 | 2 |
+| Performance | 4 | 16 | 8 | 4 | 4 |
+
+These values are requests, not hardware sizing or user-count guarantees. Each
+process applies the smallest limit from the requested profile, explicit
+operator caps, detected process CPU capacity, and detected process memory.
+The System page shows requested and effective values separately and explains
+each reduction. A Custom policy accepts 1–64 workers and 1–256 image admissions;
+image admissions must be at least the requested image-worker count.
+
+New generated configurations use Balanced. Existing installations without an
+explicit default preserve their historical bounded behavior until an owner
+saves a profile. Invalid or future policy data falls back conservatively and is
+reported to owners instead of being guessed.
+
+Use Economy as the first trial on a small constrained VPS, Balanced as the
+normal starting policy, and Performance only after raising and observing the
+whole deployment envelope. Towk, NATS storage, LiveKit, and the reverse proxy
+have separate resource limits; raising one service alone can merely move the
+bottleneck. Follow the [public performance qualification protocol](https://github.com/Yo-DDV/Towk/blob/main/docs/PERFORMANCE.md)
+before publishing capacity or latency claims.
+
+### Diagnose Before Raising Limits
+
+Start with the effective values and cap reasons in the System page, then match
+the symptom to bounded metrics. Do not change several resource layers at once.
+
+| Symptom | Check first | Safe interpretation |
+| ------- | ----------- | ------------------- |
+| Requested profile is higher than effective | Process CPU/memory envelope and `operator_cap`, `process_cpu`, or `process_memory` reasons | Towk is honoring a lower hard boundary. Raise only the measured bottleneck, then recreate the service when the deployment envelope changed. |
+| First image render is slow but later renders improve | `towk_media_transform_duration_seconds` and `towk_media_cache_lookups_total` | Cold transforms cost CPU. Enable and size the derivative cache only when storage has headroom; a full cache deliberately falls back to uncached delivery. |
+| Streamed protected media downloads fully on every view | Response `Cache-Control`, `ETag`, and conditional request/response behavior | Towk-streamed originals and derivatives should use `private, no-cache` and can return an authorized `304`. A short-lived S3 object response for heavy passive media intentionally remains `private, no-store`. Never rewrite protected responses to `public`. |
+| Seeking returns `416` | `towk_media_range_requests_total` and the exact `Range` header | Streamed originals support one valid byte range. Multiple, malformed, or unsatisfiable ranges are rejected intentionally. Verify that the reverse proxy preserves `Range`, `If-Range`, `ETag`, and `Content-Range`. |
+| Uploads return resource exhaustion | `towk_asset_upload_operations_total`, JetStream `SERVER_ASSETS` usage, temporary-chunk reservations, and external S3 quota | More upload workers cannot fix storage exhaustion. Reclaim space or raise a measured storage quota before increasing concurrency. |
+| Admission rejections rise under load | Active work, queue/admission limit, CPU throttling, memory and storage p95 | Bounded rejection protects the process. Scale the proven bottleneck or lower the requested policy; do not remove the bound. |
+
+Keep labels aggregated. Media metrics deliberately omit user, room, asset,
+filename, URL, cache key, and request identifiers. Enable pprof only for a
+bounded local diagnostic and disable it afterward.
+
+### Safe Profile Change
+
+1. Record the current requested and effective profile, cap reasons, deployment
+   resource limits, storage use, and media latency/error baseline.
+2. Change one profile or one operator ceiling at a time.
+3. Observe new admissions, memory, CPU throttling, storage p95, upload errors,
+   transform latency, and call quality before continuing.
+4. If latency, errors, throttling, or memory cross the accepted envelope,
+   restore the previous owner profile immediately. Already admitted work is
+   allowed to finish; new work follows the restored bound.
+
+Changing only the owner policy does not require a restart. Changing a container
+or pod resource or an environment cap requires a recreation or rollout. The
+owner policy is included in Towk event-stream backups; Compose, Kubernetes, and
+environment settings are separate operator data and need their own backup.
+
 ## Metrics
 
 Enable the per-process metrics listener when you want Prometheus scraping for one running Towk process:
@@ -112,12 +182,44 @@ Use it for tasks such as:
 
 ## Upgrade Practice
 
-1. Read the release notes before upgrading.
-2. Make a fresh backup before changing versions.
-3. For larger servers, restore a copy into a scratch environment and boot the new version against it.
-4. Check admin system diagnostics and projection readiness after startup.
-5. Watch logs and metrics during the first minutes after upgrade.
-6. For `0.x` releases, review API changes if you run bots or custom clients.
+1. Read the release notes and keep the exact previous immutable image or binary.
+2. Back up Towk state, asset storage, encryption keys according to your policy,
+   and the separate deployment configuration.
+3. Record the current performance policy revision, effective limits, operator
+   caps, storage quotas, and a short metrics baseline.
+4. For larger servers, restore a copy into a scratch environment and boot the
+   new version against it. Otherwise use a bounded canary before moving all
+   traffic.
+5. Require readiness and projection replay, then smoke-test an authenticated
+   original download, a single Range response, authorized `ETag` revalidation,
+   an upload larger than one chunk, an image transform, a voice message, and a
+   call join before widening the rollout.
+6. Watch media errors, p95, cache results, admission, memory, CPU throttling,
+   NATS storage, and LiveKit call quality during the canary window.
+7. For `0.x` releases, review API changes if you run bots or custom clients.
+
+### Binary Rollback
+
+Rollback is an operator action, not a profile change:
+
+1. Stop widening traffic and preserve the failed canary evidence.
+2. Restore the previous immutable binary or image with its previous deployment
+   envelope and operator caps.
+3. Re-run readiness, projection replay, authenticated media, upload, voice, and
+   call smoke tests before restoring normal traffic.
+4. Confirm that the restored runtime uses conservative limits. Older binaries
+   ignore the newer versioned owner performance policy. Restore that version's
+   native worker settings and container/pod envelope; use
+   `CHATTO_PERFORMANCE_MAX_*` only when the restored binary documents support
+   for those variables.
+5. Restore data only when release notes identify an incompatible data change or
+   the rollback checks prove corruption. Do not overwrite healthy event or
+   asset state merely because a canary was reverted.
+
+Derivative cache keys include an encoding version, so a binary rollback does
+not reinterpret newer derivative bytes under an older key. Upload metadata and
+the owner policy remain durable; a compatible older client learns the accepted
+chunk size from the server instead of assuming 1 MiB.
 
 ## Related Guides
 

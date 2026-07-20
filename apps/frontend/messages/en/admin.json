@@ -268,7 +268,7 @@
       "performance_field_image_transform_admissions": "Image transform admissions",
       "performance_field_asset_upload_workers": "Upload workers",
       "performance_field_link_preview_workers": "Link preview workers",
-      "performance_field_video_workers": "Video workers",
+      "performance_field_video_workers": "Media transcode workers",
       "performance_process_envelope": "Detected process envelope",
       "performance_cpu_count": "{count} CPUs available",
       "performance_memory_amount": "{amount} memory available",

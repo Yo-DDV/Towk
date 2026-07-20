@@ -80,7 +80,7 @@ function fileAttachment(overrides: Partial<MessageAttachmentView>): MessageAttac
 
 function renderAttachments(
   attachments: MessageAttachmentView[],
-  options: { canDeleteAttachment?: boolean } = {}
+  options: { canDeleteAttachment?: boolean; videoProcessingEnabled?: boolean } = {}
 ) {
   return render(MessageAttachments, {
     props: {
@@ -95,7 +95,7 @@ function renderAttachments(
 
 function renderAttachment(
   attachment: MessageAttachmentView,
-  options: { canDeleteAttachment?: boolean } = {}
+  options: { canDeleteAttachment?: boolean; videoProcessingEnabled?: boolean } = {}
 ) {
   return renderAttachments([attachment], options);
 }
@@ -200,7 +200,7 @@ describe('MessageAttachments', () => {
     expect(deleteControl!.className).not.toContain('embed-control-button');
   });
 
-  it('renders an original video with accessible playback and deletion controls', () => {
+  it('waits for a portable variant before rendering a raw MP4 when video processing is enabled', () => {
     const { container } = renderAttachment(
       fileAttachment({
         id: 'raw_video',
@@ -214,11 +214,123 @@ describe('MessageAttachments', () => {
       { canDeleteAttachment: true }
     );
 
+    expect(container.querySelector('[data-testid="raw-video-player"]')).toBeNull();
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Delete attachment"]')).not.toBeNull();
+  });
+
+  it('renders a raw video player only when portable video processing is unavailable', () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'raw_video_disabled_processing',
+        filename: 'original.mp4',
+        contentType: 'video/mp4',
+        assetUrl: {
+          url: 'https://chat.example.test/original.mp4',
+          expiresAt: '2027-05-29T15:00:00Z'
+        }
+      }),
+      { canDeleteAttachment: true, videoProcessingEnabled: false }
+    );
+
     const player = container.querySelector<HTMLVideoElement>('[data-testid="raw-video-player"]');
     expect(player).not.toBeNull();
     expect(player!.getAttribute('src')).toBe('https://chat.example.test/original.mp4');
     expect(player!.getAttribute('aria-label')).toBe('original.mp4');
+    expect(container.querySelector('.animate-spin')).toBeNull();
     expect(container.querySelector('[aria-label="Delete attachment"]')).not.toBeNull();
+  });
+
+  it('keeps the raw video player when portable video processing is unavailable', async () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'server_without_processing',
+        filename: 'iphone-screen-recording.mp4',
+        contentType: 'video/mp4',
+        assetUrl: {
+          url: 'https://chat.example.test/iphone-screen-recording.mp4',
+          expiresAt: '2027-05-29T15:00:00Z'
+        }
+      }),
+      { videoProcessingEnabled: false }
+    );
+
+    const player = container.querySelector<HTMLVideoElement>('[data-testid="raw-video-player"]');
+
+    expect(player).not.toBeNull();
+
+    Object.defineProperty(player!, 'videoWidth', { configurable: true, value: 0 });
+    Object.defineProperty(player!, 'videoHeight', { configurable: true, value: 0 });
+
+    player!.dispatchEvent(new Event('loadedmetadata'));
+    await tick();
+
+    expect(container.querySelector('[data-testid="raw-video-player"]')).not.toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+    expect(attachmentMocks.refreshAssetUrls).not.toHaveBeenCalled();
+  });
+
+  it('keeps the raw video player after playback errors when portable video processing is unavailable', async () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'server_without_processing_error',
+        filename: 'iphone-video.mp4',
+        contentType: 'video/mp4',
+        assetUrl: {
+          url: 'https://chat.example.test/iphone-video.mp4',
+          expiresAt: '2027-05-29T15:00:00Z'
+        }
+      }),
+      { videoProcessingEnabled: false }
+    );
+
+    const player = container.querySelector<HTMLVideoElement>('[data-testid="raw-video-player"]');
+
+    expect(player).not.toBeNull();
+
+    player!.dispatchEvent(new Event('error'));
+    await tick();
+
+    expect(container.querySelector('[data-testid="raw-video-player"]')).not.toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
+    expect(attachmentMocks.refreshAssetUrls).toHaveBeenCalled();
+  });
+
+  it('waits for a portable variant before rendering a QuickTime video', () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'iphone_video',
+        filename: 'IMG_0420.MOV',
+        contentType: 'video/quicktime',
+        assetUrl: {
+          url: 'https://chat.example.test/IMG_0420.MOV',
+          expiresAt: '2027-05-29T15:00:00Z'
+        }
+      }),
+      { canDeleteAttachment: true }
+    );
+
+    expect(container.querySelector('[data-testid="raw-video-player"]')).toBeNull();
+    expect(container.querySelector('.animate-spin')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Delete attachment"]')).not.toBeNull();
+  });
+
+  it('does not show an infinite processing placeholder for QuickTime when video processing is unavailable', () => {
+    const { container } = renderAttachment(
+      fileAttachment({
+        id: 'iphone_video_disabled_processing',
+        filename: 'IMG_0420.MOV',
+        contentType: 'video/quicktime',
+        assetUrl: {
+          url: 'https://chat.example.test/IMG_0420.MOV',
+          expiresAt: '2027-05-29T15:00:00Z'
+        }
+      }),
+      { videoProcessingEnabled: false }
+    );
+
+    expect(container.querySelector('[data-testid="raw-video-player"]')).not.toBeNull();
+    expect(container.querySelector('.animate-spin')).toBeNull();
   });
 
   it('renders first-class voice metadata with the custom player while keeping generic audio native', () => {
@@ -247,6 +359,7 @@ describe('MessageAttachments', () => {
 
     expect(container.querySelectorAll('[data-testid="voice-message-player"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-testid="audio-player"]')).toHaveLength(1);
+    expect(container.querySelector('[data-testid="audio-download-button"]')).not.toBeNull();
     expect(container.textContent).toContain('song.ogg');
   });
 
@@ -277,12 +390,19 @@ describe('MessageAttachments', () => {
 
     expect(attachment).not.toBeNull();
     expect(attachment!.classList).not.toContain('pr-7');
-    expect(player?.classList).toContain('pr-[3.25rem]');
+    expect(attachment!.classList).toContain('overflow-hidden');
+    expect(player?.classList).toContain('pr-11');
     expect(deleteControl?.classList).toContain('voice-message-remove-button');
-    expect(deleteControl?.classList).toContain('top-2');
-    expect(deleteControl?.classList).toContain('right-2');
+    expect(deleteControl?.classList).toContain('top-1/2');
+    expect(deleteControl?.classList).toContain('right-1');
+    expect(deleteControl?.classList).toContain('-translate-y-1/2');
+    expect(deleteControl?.classList).not.toContain('top-2');
+    expect(deleteControl?.classList).not.toContain('right-2');
     expect(deleteControl?.classList).toContain('h-11');
     expect(deleteControl?.classList).toContain('w-11');
+    expect(deleteControl!.getBoundingClientRect().right).toBeLessThanOrEqual(
+      attachment!.getBoundingClientRect().right
+    );
   });
 
   it('does not render empty media URLs for attachments that are missing asset URLs', () => {

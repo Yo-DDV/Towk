@@ -1,7 +1,7 @@
 # FDR-029: Voice Messages
 
 **Status:** Active
-**Last reviewed:** 2026-07-16
+**Last reviewed:** 2026-07-18
 
 ## Overview
 
@@ -32,9 +32,9 @@ Room members can record, review, send, and play first-class voice messages in ch
 
 ### 3. Recording format is capability-negotiated, verified, and normalized
 
-**Decision:** Clients choose a supported recorder format with `MediaRecorder.isTypeSupported`, preferring MP4/AAC when the browser can record it and falling back to WebM/Opus or Ogg/Opus where needed. The server accepts first-class voice metadata only for `audio/webm`, `audio/mp4`, or `audio/ogg`, validates duration and 24–96 finite waveform peaks, verifies the corresponding WebM, ISO-BMFF, or Ogg container signature, and normalizes non-MP4 voice uploads into an `audio/mp4` M4A/AAC asset before making the attachment durable. Process-local admission bounds concurrent normalization, and a completion waiting for capacity remains cancellable without starting `ffmpeg`.
+**Decision:** Clients choose a supported recorder format with `MediaRecorder.isTypeSupported`, preferring MP4/AAC when the browser can record it and falling back to WebM/Opus or Ogg/Opus where needed. The server accepts first-class voice metadata only for `audio/webm`, `audio/mp4`, or `audio/ogg`, validates duration and 24–96 finite waveform peaks, verifies the corresponding WebM, ISO-BMFF, or Ogg container signature, verifies the uploaded input with `ffprobe`, rejects containers that include a video track, and normalizes non-MP4 voice uploads into an `audio/mp4` M4A/AAC asset before making the attachment durable. The normalized output is probed again before storage so its real audio duration remains authoritative. Process-local admission bounds concurrent voice probes and normalization with the effective media-transcode worker limit from the active performance policy, normalization honors the operator-provided `video.ffmpeg_path`, and duration verification honors `video.ffprobe_path` when those fields are set. Lowering that limit does not cancel work already admitted, and a completion waiting for capacity remains cancellable without starting `ffprobe` or `ffmpeg`.
 **Why:** Browser recording formats differ, and playback support differs too. A Chrome or Android client may record WebM/Opus that an iPhone PWA cannot reliably play. Capability negotiation preserves recording reach, while server-side normalization gives all clients one playback-oriented asset format and server validation preserves the semantic contract.
-**Tradeoff:** Browsers with `MediaRecorder` but none of the accepted formats cannot record a first-class voice message. Non-MP4 voice uploads require `ffmpeg` during upload completion; MP4 voice uploads remain accepted without transcoding. Generic audio upload remains available when `message.attach` allows it.
+**Tradeoff:** Browsers with `MediaRecorder` but none of the accepted formats cannot record a first-class voice message. First-class voice uploads require `ffprobe` during upload completion; non-MP4 voice uploads also require `ffmpeg`. MP4 voice uploads remain accepted without transcoding, but their actual audio duration and absence of video track are still verified. Generic audio upload remains available when `message.attach` allows it.
 
 The browser lifecycle and format boundary follows [MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder), [MDN `dataavailable`](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/dataavailable_event), [WebKit's MediaRecorder guidance](https://webkit.org/blog/11353/mediarecorder-api/), and the [MediaStream Recording specification](https://www.w3.org/TR/mediastream-recording/). These are volatile browser capabilities and must be rechecked before changing the support matrix.
 

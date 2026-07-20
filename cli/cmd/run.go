@@ -147,6 +147,8 @@ func runServer(configPath string) {
 		return
 	}
 	chattoCore.ConfigurePerformance(performanceConfigWithLegacyVideoCap(cfg.Performance, cfg.Video))
+	chattoCore.MediaFFmpegPath = cfg.Video.FFmpegPath
+	chattoCore.MediaFFprobePath = cfg.Video.FFprobePath
 
 	// Set asset base URL for absolute asset URLs (required for cross-origin clients)
 	if cfg.Webserver.URL != "" {
@@ -226,8 +228,8 @@ func runServer(configPath string) {
 	if cfg.Video.Enabled {
 		videoSvc, err := video.NewService(chattoCore, cfg.Video, log.WithPrefix("video"))
 		if err != nil {
-			log.Error("ffmpeg not found — video processing disabled", "error", err)
-			log.Error("Install ffmpeg: brew install ffmpeg (macOS) or apk add ffmpeg (Alpine)")
+			log.Error("media tools unavailable — video processing disabled", "error", err)
+			log.Error("Install ffmpeg and ffprobe: brew install ffmpeg (macOS) or apk add ffmpeg (Alpine)")
 		} else {
 			g.Go(func() error {
 				return videoSvc.Run(ctx)

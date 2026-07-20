@@ -1,5 +1,15 @@
 export const MAX_MESSAGE_ATTACHMENTS = 10;
 
+const genericUploadMimeTypes = new Set(['', 'application/octet-stream']);
+const videoUploadExtensions = new Set(['mov', 'qt', 'm4v', 'mp4', 'webm']);
+const inferredGenericVideoMimeTypes = new Map([
+  ['mov', 'video/quicktime'],
+  ['qt', 'video/quicktime'],
+  ['m4v', 'video/mp4'],
+  ['mp4', 'video/mp4'],
+  ['webm', 'video/webm']
+]);
+
 const blockedExecutableExtensions = new Set([
   'aab',
   'action',
@@ -217,6 +227,22 @@ function fileExtension(filename: string): string {
 
 function normalizedMimeType(contentType: string): string {
   return contentType.split(';', 1)[0].trim().toLocaleLowerCase('en-US');
+}
+
+export function isVideoAttachmentFileCandidate(file: Pick<File, 'name' | 'type'>): boolean {
+  const mimeType = normalizedMimeType(file.type);
+  if (mimeType.startsWith('video/')) return true;
+  if (!genericUploadMimeTypes.has(mimeType)) return false;
+  return videoUploadExtensions.has(fileExtension(file.name));
+}
+
+export function inferredVideoAttachmentContentType(
+  file: Pick<File, 'name' | 'type'>
+): string | null {
+  const mimeType = normalizedMimeType(file.type);
+  if (mimeType.startsWith('video/')) return mimeType;
+  if (!genericUploadMimeTypes.has(mimeType)) return null;
+  return inferredGenericVideoMimeTypes.get(fileExtension(file.name)) ?? null;
 }
 
 export function hasUnsafeAttachmentFilename(filename: string): boolean {

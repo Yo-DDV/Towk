@@ -268,7 +268,7 @@
       "performance_field_image_transform_admissions": "Zulassungen für Bildumwandlung",
       "performance_field_asset_upload_workers": "Upload-Worker",
       "performance_field_link_preview_workers": "Worker für Linkvorschauen",
-      "performance_field_video_workers": "Video-Worker",
+      "performance_field_video_workers": "Worker für Medien-Transkodierung",
       "performance_process_envelope": "Erkannter Prozessrahmen",
       "performance_cpu_count": "{count} CPUs verfügbar",
       "performance_memory_amount": "{amount} Arbeitsspeicher verfügbar",

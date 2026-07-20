@@ -145,6 +145,38 @@ The exporter exposes deployment-wide Towk metrics. Run it as `towk exporter` aga
   Write a Go CPU profile covering process startup through core boot to this path. Useful for local projection replay benchmarking; disabled when empty.
 </EnvVar>
 
+## Performance
+
+The operator-owned settings below are hard per-process ceilings. A server owner
+can request Economy, Balanced, Performance, or bounded Custom concurrency in
+the System administration page, but effective values always remain below these
+caps and the CPU/memory envelope detected by the process. Zero or an omitted cap
+means “derive a bounded value”; it never means unlimited.
+
+<EnvVar name="CHATTO_PERFORMANCE_DEFAULT_PROFILE" toml="performance.default_profile">
+  Runtime profile used when no owner policy exists. `towk init` and the deployment examples set `balanced` for new configurations. An upgraded configuration that omits this value retains the historical bounded preset until an owner saves a policy.
+</EnvVar>
+
+<EnvVar name="CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_WORKERS" toml="performance.max_image_transform_workers">
+  Operator ceiling for concurrent image transforms. Valid explicit values are 1 through 64.
+</EnvVar>
+
+<EnvVar name="CHATTO_PERFORMANCE_MAX_IMAGE_TRANSFORM_ADMISSIONS" toml="performance.max_image_transform_admissions">
+  Operator ceiling for admitted image transforms, including queued work. Valid explicit values are 1 through 256 and the value also caps transform workers.
+</EnvVar>
+
+<EnvVar name="CHATTO_PERFORMANCE_MAX_ASSET_UPLOAD_WORKERS" toml="performance.max_asset_upload_workers">
+  Operator ceiling for concurrent upload-chunk writes. Valid explicit values are 1 through 64.
+</EnvVar>
+
+<EnvVar name="CHATTO_PERFORMANCE_MAX_LINK_PREVIEW_WORKERS" toml="performance.max_link_preview_workers">
+  Operator ceiling for concurrent link-preview fetches. Valid explicit values are 1 through 64.
+</EnvVar>
+
+<EnvVar name="CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS" toml="performance.max_video_workers">
+  Operator ceiling for the shared media-transcode worker pool used by video variants, animated-GIF optimization, and voice-message normalization. Valid explicit values are 1 through 64.
+</EnvVar>
+
 ## Operator API
 
 <EnvVar name="CHATTO_OPERATOR_API_ENABLED" toml="operator_api.enabled" default="false">
@@ -223,6 +255,10 @@ Only used when `storage_backend` is set to `s3`. See the [S3 Storage guide](/gui
 
 <EnvVar name="CHATTO_CORE_ASSETS_CACHE_TTL" toml="core.assets.cache.ttl" default="7d">
   Time-to-live for cached images. Supports durations like `7d`, `1w`, `168h`.
+</EnvVar>
+
+<EnvVar name="CHATTO_CORE_ASSETS_CACHE_MAX_BYTES" toml="core.assets.cache.max_bytes" default="1 GB">
+  Hard JetStream quota for cached image derivatives. When the cache is full, Towk generates and serves the derivative without caching it; authorization and user delivery do not depend on cache admission.
 </EnvVar>
 
 ### Link Preview Storage
@@ -472,7 +508,7 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_FFMPEG_PATH" toml="video.ffmpeg_path">
-  Path to the `ffmpeg` binary. If not set, Towk looks for `ffmpeg` in `PATH`.
+  Path to the `ffmpeg` binary. If not set, Towk looks for `ffmpeg` in `PATH`. This path is used by video processing and by non-MP4 voice-message normalization.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_FFPROBE_PATH" toml="video.ffprobe_path">
@@ -480,11 +516,19 @@ See [External Login Providers](/guides/integrations/external-login-providers/) f
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_MAX_CONCURRENT" toml="video.max_concurrent" default="2">
-  Maximum number of videos to process concurrently. Higher values use more CPU and memory.
+  Legacy compatibility setting for older video-processing configurations. Current deployments should tune concurrent media transcoding through `CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS` and the runtime performance profile selected in Server administration.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_MAX_UPLOAD_SIZE" toml="video.max_upload_size" default="100 MB">
   Max upload size for video files (e.g., `100MB`, `200 MiB`) while video processing is enabled. When it is disabled, videos use `CHATTO_CORE_ASSETS_MAX_UPLOAD_SIZE` like other attachments.
+</EnvVar>
+
+<EnvVar name="CHATTO_VIDEO_MAX_DURATION" toml="video.max_duration" default="20m">
+  Max source video or animated GIF duration accepted for server-side processing. This bounds CPU and temporary-disk exposure independently from file size.
+</EnvVar>
+
+<EnvVar name="CHATTO_VIDEO_MAX_PIXELS" toml="video.max_pixels" default="8294400">
+  Max source display pixel area accepted for server-side processing. The default is 3840×2160. Increase it only on servers sized for larger sources.
 </EnvVar>
 
 <EnvVar name="CHATTO_VIDEO_TEMP_DIR" toml="video.temp_dir">

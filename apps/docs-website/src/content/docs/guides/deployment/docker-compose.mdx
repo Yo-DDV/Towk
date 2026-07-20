@@ -238,23 +238,72 @@ CHATTO_PUSH_VAPID_PRIVATE_KEY=...
 CHATTO_PUSH_VAPID_SUBJECT=admin@example.com
 ```
 
-### Video Processing
+### Video Processing And Voice Normalization
 
-The official Towk Docker image includes `ffmpeg`. To enable video transcoding, add to `.env`:
+The official Towk Docker image includes `ffmpeg` and `ffprobe`. `ffmpeg` is
+used automatically to normalize non-MP4 voice messages into M4A/AAC for
+cross-platform playback. To also enable video transcoding, add to `.env`:
 
 ```bash
 CHATTO_VIDEO_ENABLED=true
 # Optional tuning
-# CHATTO_VIDEO_MAX_CONCURRENT=2
+# CHATTO_PERFORMANCE_MAX_VIDEO_WORKERS=2
 # CHATTO_VIDEO_MAX_UPLOAD_SIZE=100MB
 # CHATTO_VIDEO_TEMP_DIR=/tmp
 ```
 
+Use **Server administration → System** to choose the live runtime profile. The
+environment variable above is only a hard operator ceiling; it does not replace
+the owner-selected profile.
+
 <LinkCard
   title="Video Processing"
   href="/guides/infrastructure/video-processing/"
-  description="Transcoding options, concurrency tuning, and storage considerations."
+  description="Transcoding, voice normalization, concurrency tuning, and storage considerations."
 />
+
+## Updating and rollback
+
+Before an update, create a Towk backup and keep a copy of your deployment
+configuration:
+
+```bash
+docker compose exec -u towk towk /towk backup --encrypt --include-keys -o /tmp/towk-before-update.tar.gz.age
+docker compose cp towk:/tmp/towk-before-update.tar.gz.age ./towk-before-update.tar.gz.age
+cp .env .env.before-update
+docker compose config > compose.rendered.before-update.yaml
+docker compose images
+```
+
+Pin `TOWK_IMAGE` to the immutable tag and digest you want to run, then recreate
+the application:
+
+```bash
+docker compose pull towk
+docker compose up -d towk
+docker compose ps
+```
+
+After the update, verify the web endpoint, sign in, send a text message, upload
+an image, upload or play a video when video processing is enabled, and join a
+call if LiveKit is configured. Check **Server administration → System** to
+confirm that the requested performance profile and effective limits match the
+host envelope you intended.
+
+To roll back application code, restore the previous immutable `TOWK_IMAGE`
+value in `.env`, render the Compose configuration again, and recreate `towk`:
+
+```bash
+cp .env.before-update .env
+docker compose config
+docker compose up -d towk
+```
+
+Only run `towk restore` when you intentionally need to restore application
+data. The owner-selected performance profile is stored in Towk's event stream
+and is included in Towk backups; `.env`, Compose resource ceilings, certificates
+and external S3 buckets remain operator-managed and must be backed up
+separately.
 
 ## Disabling Voice and Video Calls
 

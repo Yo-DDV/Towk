@@ -71,6 +71,19 @@
       : Math.min(normalizedPeaks.length, Math.ceil(progress * normalizedPeaks.length))
   );
 
+  function waveformBarFill(index: number): number {
+    if (normalizedPeaks.length === 0) return 0;
+    const fill = progress * normalizedPeaks.length - index;
+    return Math.max(0, Math.min(1, fill));
+  }
+
+  function waveformBarState(index: number): 'played' | 'active' | 'remaining' {
+    const fill = waveformBarFill(index);
+    if (fill >= 0.999) return 'played';
+    if (fill > 0) return 'active';
+    return 'remaining';
+  }
+
   function stopProgressLoop() {
     if (animationFrame !== null) cancelAnimationFrame(animationFrame);
     animationFrame = null;
@@ -257,7 +270,7 @@
 <div
   class={[
     'voice-message-player flex min-w-0 items-center gap-2.5 rounded-2xl border py-2 shadow-sm',
-    reserveTrailingControl ? 'pl-2.5 pr-[3.25rem]' : 'px-2.5',
+    reserveTrailingControl ? 'pl-2.5 pr-11' : 'px-2.5',
     localPreview
       ? 'w-full border-primary/30 bg-primary/8'
       : 'w-full max-w-full border-border bg-surface-200/80'
@@ -305,12 +318,17 @@
         data-played-bars={playedBarCount}
       >
         {#each normalizedPeaks as peak, index (index)}
+          {@const barFill = waveformBarFill(index)}
+          {@const barState = waveformBarState(index)}
           <span
             class={[
-              'min-w-0 flex-1 rounded-full transition-[background-color,opacity] duration-75 ease-linear motion-reduce:transition-none',
-              index < playedBarCount ? 'bg-accent opacity-100' : 'bg-muted/25 opacity-60'
+              'voice-waveform-bar relative min-w-0 flex-1 rounded-full transition-[background-color,box-shadow,filter,opacity,transform] duration-100 ease-linear motion-reduce:transition-none',
+              barState === 'played' && 'voice-waveform-bar--played',
+              barState === 'active' && 'voice-waveform-bar--active',
+              barState === 'remaining' && 'voice-waveform-bar--remaining'
             ]}
-            data-progress-state={index < playedBarCount ? 'played' : 'remaining'}
+            data-progress-state={barState}
+            data-progress-fill={barFill.toFixed(3)}
             style={`height: ${Math.max(4, Math.round(peak * 36))}px`}
             aria-hidden="true"
           ></span>
@@ -375,3 +393,43 @@
     </div>
   </div>
 </div>
+
+<style>
+  .voice-waveform-bar {
+    background-color: var(--color-muted);
+    background-color: color-mix(in srgb, var(--color-muted) 34%, transparent);
+  }
+
+  .voice-waveform-bar--played,
+  .voice-waveform-bar--active {
+    background: var(--color-accent);
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-accent) 82%, white 18%),
+      color-mix(in srgb, var(--color-accent) 88%, black 12%)
+    );
+    box-shadow: 0 0 8px rgb(14 165 233 / 0.22);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-accent) 34%, transparent);
+    opacity: 1;
+  }
+
+  .voice-waveform-bar--active {
+    filter: brightness(1.18);
+    transform: scaleY(1.08);
+  }
+
+  .voice-waveform-bar--remaining {
+    opacity: 0.5;
+  }
+
+  :global(:root[data-theme='dark']) .voice-waveform-bar {
+    background-color: var(--color-muted);
+    background-color: color-mix(in srgb, var(--color-muted) 46%, transparent);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .voice-waveform-bar {
+      transition: none;
+    }
+  }
+</style>

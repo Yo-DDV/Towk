@@ -97,6 +97,21 @@ func (c *ChattoCore) VideoWorkerLimit() int {
 	return c.PerformanceStatus().Effective.VideoWorkers
 }
 
+// AcquireMediaTranscode reserves one process-local slot shared by video,
+// animated-GIF, and voice-message ffmpeg work.
+func (c *ChattoCore) AcquireMediaTranscode(ctx context.Context) error {
+	if c == nil || c.mediaTranscodeLimiter == nil {
+		return fmt.Errorf("media transcode capacity is not initialized")
+	}
+	return c.mediaTranscodeLimiter.Acquire(ctx)
+}
+
+func (c *ChattoCore) ReleaseMediaTranscode() {
+	if c != nil && c.mediaTranscodeLimiter != nil {
+		c.mediaTranscodeLimiter.Release()
+	}
+}
+
 func (c *ChattoCore) GetPerformanceSettings(ctx context.Context, actorID string) (PerformanceStatus, error) {
 	if err := c.requirePerformanceOwner(ctx, actorID); err != nil {
 		return PerformanceStatus{}, err
@@ -341,7 +356,7 @@ func performanceLimitsFromProto(limits *configv1.PerformanceLimits) (Performance
 		name  string
 		value int
 		max   int
-	}{{"image transform workers", result.ImageTransformWorkers, config.MaxPerformanceWorkers}, {"image transform admissions", result.ImageTransformAdmissions, config.MaxPerformanceAdmissions}, {"asset upload workers", result.AssetUploadWorkers, config.MaxPerformanceWorkers}, {"link preview workers", result.LinkPreviewWorkers, config.MaxPerformanceWorkers}, {"video workers", result.VideoWorkers, config.MaxPerformanceWorkers}}
+	}{{"image transform workers", result.ImageTransformWorkers, config.MaxPerformanceWorkers}, {"image transform admissions", result.ImageTransformAdmissions, config.MaxPerformanceAdmissions}, {"asset upload workers", result.AssetUploadWorkers, config.MaxPerformanceWorkers}, {"link preview workers", result.LinkPreviewWorkers, config.MaxPerformanceWorkers}, {"media transcode workers", result.VideoWorkers, config.MaxPerformanceWorkers}}
 	for _, value := range values {
 		if value.value < 1 || value.value > value.max {
 			return PerformanceLimits{}, invalidArgument(fmt.Sprintf("%s must be between 1 and %d", value.name, value.max))
