@@ -85,6 +85,11 @@ func protectedAssetDeliveryMode(attachment *corev1.Attachment) assetDeliveryMode
 }
 
 func (s *HTTPServer) serveServerAsset(c *gin.Context) {
+	operation := mediaOperationServerOriginal
+	if s.config.Metrics.Enabled {
+		started := time.Now()
+		defer func() { s.finishMediaRequest(c, operation, started) }()
+	}
 	path := c.Param("path")
 
 	// Trim leading slash
@@ -98,6 +103,7 @@ func (s *HTTPServer) serveServerAsset(c *gin.Context) {
 		key := path[:idx]
 		signedPath := path[idx+3:] // skip "/t/"
 		if key != "" && signedPath != "" {
+			operation = mediaOperationServerTransform
 			s.serveTransformedServerAsset(c, key, signedPath)
 			return
 		}
@@ -144,6 +150,10 @@ func (s *HTTPServer) serveServerAsset(c *gin.Context) {
 // The URL identifies the binary, while the access ticket (or, for API clients,
 // the request's cookie/bearer token) authorizes access.
 func (s *HTTPServer) serveStableAttachment(c *gin.Context) {
+	if s.config.Metrics.Enabled {
+		started := time.Now()
+		defer func() { s.finishMediaRequest(c, mediaOperationAttachmentOriginal, started) }()
+	}
 	ctx := c.Request.Context()
 	assetID := c.Param("assetID")
 
@@ -217,6 +227,10 @@ func originalAttachmentNeedsSandbox(contentType string) bool {
 // Transform dimensions remain visible and stable in the URL. Authorization
 // comes from the asset-scoped access ticket or request credentials.
 func (s *HTTPServer) serveStableTransformedAttachment(c *gin.Context) {
+	if s.config.Metrics.Enabled {
+		started := time.Now()
+		defer func() { s.finishMediaRequest(c, mediaOperationAttachmentTransform, started) }()
+	}
 	ctx := c.Request.Context()
 	assetID := c.Param("assetID")
 	params, err := parseStableTransformParams(c.Param("dimensions"), c.Param("fit"))
@@ -393,8 +407,17 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 	// Build cache key with prefix to distinguish between asset types
 	cacheKey := core.ImageCacheKey(req.CachePrefix, req.AssetID, params.Width, params.Height, params.Fit)
 
-	// Try cache first
-	if cached, err := s.core.GetCachedResize(ctx, cacheKey); err == nil && cached != nil {
+	// Try cache first. The metric records only a bounded result, never an asset
+	// or cache key.
+	cached, cacheErr := s.core.GetCachedResize(ctx, cacheKey)
+	if cacheErr != nil {
+		if s.config.Metrics.Enabled {
+			c.Set(mediaCacheContextKey, mediaCacheError)
+		}
+	} else if cached != nil {
+		if s.config.Metrics.Enabled {
+			c.Set(mediaCacheContextKey, mediaCacheHit)
+		}
 		s.logger.Debug("Cache hit for transformed asset",
 			"asset_id", req.AssetID,
 			"cache_key", cacheKey)
@@ -410,6 +433,8 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 		c.Header("X-Cache", "HIT")
 		c.Data(http.StatusOK, assets.DetectImageContentType(cached), cached)
 		return
+	} else if s.config.Metrics.Enabled {
+		c.Set(mediaCacheContextKey, mediaCacheMiss)
 	}
 
 	// Cache miss - fetch the asset first
@@ -444,7 +469,14 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 		return
 	}
 
-	// Transform the image
+	// Transform the image while keeping process-local concurrency and duration
+	// observable without exporting request identifiers.
+	var transformStarted time.Time
+	finishTransform := func() {}
+	if s.config.Metrics.Enabled && s.metrics != nil {
+		transformStarted = time.Now()
+		finishTransform = s.metrics.mediaTransformStarted()
+	}
 	var result *assets.TransformResult
 	if req.JPEGQuality > 0 {
 		result, err = assets.TransformImageWithOptions(data, params.Width, params.Height, assets.FitMode(params.Fit), assets.TransformOptions{
@@ -452,6 +484,14 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 		})
 	} else {
 		result, err = assets.TransformImage(data, params.Width, params.Height, assets.FitMode(params.Fit))
+	}
+	finishTransform()
+	if s.config.Metrics.Enabled && s.metrics != nil {
+		outcome := mediaTransformSuccess
+		if err != nil {
+			outcome = mediaTransformError
+		}
+		s.metrics.observeMediaTransform(outcome, int64(len(data)), time.Since(transformStarted))
 	}
 	if err != nil {
 		s.logger.Error("Failed to transform image", "error", err)

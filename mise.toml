@@ -298,6 +298,45 @@ dir = "cli"
 env = { CHATTO_BENCH_HEAP_PROFILE_DIR = "../.context/bench/projections" }
 run = "go test -trimpath ./internal/core -run '^$' -bench '^BenchmarkProjectionRetainedHeap$' -benchmem -benchtime=1x -count=1"
 
+[tasks.perf-media-corpus]
+description = "Generate the deterministic synthetic media performance corpus"
+depends = ["setup-cli"]
+dir = "cli"
+run = "go run ./internal/perfmedia/cmd/corpus --repo-root .. --output ${TOWK_MEDIA_CORPUS_DIR:-../.context/perf/media-corpus} --profile ${TOWK_MEDIA_CORPUS_PROFILE:-standard}"
+
+[tasks.bench-media]
+description = "Benchmark media transforms, cache reads, and resumable upload storage paths"
+depends = ["setup-cli"]
+dir = "cli"
+run = """
+benchmark_tmp="${TOWK_MEDIA_BENCH_TMPDIR:-$(pwd)/../.context/perf/tmp}"
+mkdir -p "$benchmark_tmp"
+export TMPDIR="$(cd "$benchmark_tmp" && pwd -P)"
+
+go test -trimpath ./internal/perfmedia -run '^$' -bench '^BenchmarkImageTransform$' -benchmem -benchtime=${TOWK_MEDIA_TRANSFORM_BENCHTIME:-1s} -count=${CHATTO_BENCH_COUNT:-5}
+go test -trimpath ./internal/core -run '^$' -bench '^BenchmarkMediaStorage/cache_read_512KiB$' -benchmem -benchtime=${TOWK_MEDIA_CACHE_BENCHTIME:-250x} -count=${CHATTO_BENCH_COUNT:-5}
+go test -trimpath ./internal/core -run '^$' -bench '^BenchmarkMediaStorage/upload_chunk_512KiB$' -benchmem -benchtime=${TOWK_MEDIA_UPLOAD_BENCHTIME:-25x} -count=${CHATTO_BENCH_COUNT:-5}
+go test -trimpath ./internal/core -run '^$' -bench '^BenchmarkMediaStorage/materialize_.*$' -benchmem -benchtime=${TOWK_MEDIA_MATERIALIZE_BENCHTIME:-50x} -count=${CHATTO_BENCH_COUNT:-5}
+"""
+
+[tasks.perf-media-preflight]
+description = "Capture and enforce the media performance qualification preflight"
+depends = ["setup-cli"]
+dir = "cli"
+run = "go run ./internal/perfmedia/cmd/preflight --repo-root .. --output ${TOWK_MEDIA_PREFLIGHT_OUTPUT:-../.context/perf/media-preflight.json}"
+
+[tasks.perf-media-validate]
+description = "Validate media campaign stability or monitoring overhead from structured JSON"
+depends = ["setup-cli"]
+dir = "cli"
+run = "go run ./internal/perfmedia/cmd/validate"
+
+[tasks.perf-media-delivery]
+description = "Run a bounded full-stack media delivery campaign from a private workload file"
+depends = ["setup-cli"]
+dir = "cli"
+run = "go run ./internal/perfmedia/cmd/delivery"
+
 # =============================================================================
 # Testing
 # =============================================================================

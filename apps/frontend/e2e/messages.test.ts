@@ -6,6 +6,7 @@ import { TIMEOUTS } from './constants';
 import { test } from './setup';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { withServerUser } from './fixtures/serverUser';
+import { reloadCurrentPage } from './fixtures/navigation';
 import type { MessageComponent, RoomPage } from './pages';
 
 type GeneratedImageAttachment = {
@@ -454,7 +455,7 @@ test('user can delete their own message', async ({ page, chatPage, roomPage }) =
 
     // Reload proves the API/protobuf timestamp hydrates into the same timer
     // behavior; no visibilitychange/resume signal is involved.
-    await page.reload();
+    await reloadCurrentPage(page);
     await deletedMessage.expectDeleted();
     await advancePastTombstoneGrace(page);
     await expect(deletedMessage.locator).toHaveCount(0);

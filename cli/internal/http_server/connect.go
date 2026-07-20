@@ -37,7 +37,14 @@ func (s *HTTPServer) newOperatorAPIServer() *http.Server {
 }
 
 func (s *HTTPServer) setupConnectAPIOnRouter(router gin.IRouter) {
-	api := connectapi.New(s.core, s.config, s.version)
+	if s.metrics == nil {
+		s.metrics = newProcessMetrics()
+	}
+	var apiOptions []connectapi.Option
+	if s.config.Metrics.Enabled {
+		apiOptions = append(apiOptions, connectapi.WithAssetUploadObserver(s.metrics))
+	}
+	api := connectapi.New(s.core, s.config, s.version, apiOptions...)
 	authMiddleware := authn.NewMiddleware(authenticateConnectRequest, connectapi.HandlerOptions()...)
 	for _, handler := range api.Handlers() {
 		serviceHandler := handler.Handler

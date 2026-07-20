@@ -5,6 +5,7 @@ import { withServerUser } from './fixtures/serverUser';
 import { postMessagesViaConnect, postThreadReplyViaConnect } from './fixtures/connectHelpers';
 import { TIMEOUTS, POLLING_INTERVALS } from './constants';
 import { waitForRoomReady } from './fixtures/realtimeSync';
+import { reloadCurrentPage } from './fixtures/navigation';
 
 /**
  * Scroll a container to the top using native mouse wheel events.
@@ -61,7 +62,7 @@ test.describe('Message pane auto-scroll', () => {
 
     // Reload onto the authoritative API row so the timer and the later scroll
     // interaction exercise the same lifecycle users get after revisiting.
-    await page.reload();
+    await reloadCurrentPage(page);
     await expect(page.getByText(fillers.at(-1)!)).toBeVisible({
       timeout: TIMEOUTS.UI_STANDARD
     });

@@ -43,13 +43,20 @@ type Handler struct {
 // API owns Towk's ConnectRPC service implementations. It deliberately has no
 // dependency on the Gin HTTP server so API methods stay transport-package local.
 type API struct {
-	core    *core.ChattoCore
-	config  config.ChattoConfig
-	version string
+	core                *core.ChattoCore
+	config              config.ChattoConfig
+	version             string
+	assetUploadObserver AssetUploadObserver
 }
 
-func New(core *core.ChattoCore, config config.ChattoConfig, version string) *API {
-	return &API{core: core, config: config, version: version}
+func New(core *core.ChattoCore, config config.ChattoConfig, version string, options ...Option) *API {
+	api := &API{core: core, config: config, version: version}
+	for _, option := range options {
+		if option != nil {
+			option(api)
+		}
+	}
+	return api
 }
 
 // HandlerOptions returns the common Connect handler options used for Towk's

@@ -40,10 +40,11 @@ import (
 
 // assetTestEnv holds all test dependencies for asset tests
 type assetTestEnv struct {
-	server *httptest.Server
-	client *http.Client
-	core   *core.ChattoCore
-	ctx    context.Context
+	server     *httptest.Server
+	client     *http.Client
+	core       *core.ChattoCore
+	httpServer *HTTPServer
+	ctx        context.Context
 }
 
 // setupAssetTestServer creates a test server for asset testing with caching enabled.
@@ -60,14 +61,14 @@ func setupAssetTestServerWithS3(t *testing.T) *assetTestEnv {
 }
 
 func setupAssetTestServerWithS3AndVideo(t *testing.T) *assetTestEnv {
-	return setupAssetTestServerWithOptions(t, true, true)
+	return setupAssetTestServerWithOptions(t, true, true, false)
 }
 
 func setupAssetTestServerWithConfig(t *testing.T, useS3 bool) *assetTestEnv {
-	return setupAssetTestServerWithOptions(t, useS3, false)
+	return setupAssetTestServerWithOptions(t, useS3, false, false)
 }
 
-func setupAssetTestServerWithOptions(t *testing.T, useS3 bool, videoEnabled bool) *assetTestEnv {
+func setupAssetTestServerWithOptions(t *testing.T, useS3 bool, videoEnabled bool, metricsEnabled bool) *assetTestEnv {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -125,6 +126,9 @@ func setupAssetTestServerWithOptions(t *testing.T, useS3 bool, videoEnabled bool
 	s := &HTTPServer{
 		config: config.ChattoConfig{
 			Auth: config.AuthConfig{},
+			Metrics: config.MetricsConfig{
+				Enabled: metricsEnabled,
+			},
 			Webserver: config.WebserverConfig{
 				URL:                 "http://localhost:4000",
 				CookieSigningSecret: "test-secret-key-32-bytes-long!!",
@@ -157,10 +161,11 @@ func setupAssetTestServerWithOptions(t *testing.T, useS3 bool, videoEnabled bool
 	}
 
 	return &assetTestEnv{
-		server: ts,
-		client: client,
-		core:   chattoCore,
-		ctx:    ctx,
+		server:     ts,
+		client:     client,
+		core:       chattoCore,
+		httpServer: s,
+		ctx:        ctx,
 	}
 }
 
@@ -274,6 +279,121 @@ func (env *assetTestEnv) deleteAssetMessage(t *testing.T, roomID, eventID string
 // ============================================================================
 // Asset Caching Tests
 // ============================================================================
+
+func TestAssetMetricsTrackBoundedUploadCacheAndRangeSignals(t *testing.T) {
+	env := setupAssetTestServerWithOptions(t, false, false, true)
+	user, err := env.core.CreateUser(env.ctx, "system", "metricsuser", "Metrics User", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	room, err := env.core.CreateRoom(env.ctx, user.Id, "channel", "", "metrics-room", "Metrics Room")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := env.core.JoinRoom(env.ctx, user.Id, "channel", user.Id, room.Id); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+	env.login(t, "metricsuser", "password123")
+
+	imageData := createAssetTestPNG(t, 400, 300)
+	_, attachment := env.postAssetMessageWithAttachment(t, room.Id, "metrics", imageData, "metrics.png")
+	thumbnailURL := attachment.GetThumbnailAssetUrl().GetUrl()
+	attachmentURL := attachment.GetAssetUrl().GetUrl()
+	if thumbnailURL == "" || attachmentURL == "" {
+		t.Fatal("attachment URLs are missing")
+	}
+
+	for range 2 {
+		resp, err := env.client.Get(env.server.URL + thumbnailURL)
+		if err != nil {
+			t.Fatalf("GET transformed attachment: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET transformed attachment status = %d", resp.StatusCode)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	req, err := http.NewRequest(http.MethodGet, env.server.URL+attachmentURL, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Range", "bytes=0-0")
+	resp, err := env.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET ranged original attachment: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("baseline Range status = %d, want 200 before Range support", resp.StatusCode)
+	}
+
+	metricsServer, err := env.httpServer.newMetricsServer()
+	if err != nil {
+		t.Fatalf("newMetricsServer: %v", err)
+	}
+	metricsHTTP := httptest.NewServer(metricsServer.Handler)
+	t.Cleanup(metricsHTTP.Close)
+	text := scrapeMetricsText(t, metricsHTTP.URL+"/metrics")
+	for _, want := range []string{
+		`towk_asset_upload_operations_total{operation="create",outcome="success",size_class="small"} 1`,
+		`towk_asset_upload_operations_total{operation="chunk",outcome="success",size_class="small"} 1`,
+		`towk_asset_upload_operations_total{operation="complete",outcome="success",size_class="small"} 1`,
+		`towk_media_cache_lookups_total{operation="attachment_transform",result="hit"} 1`,
+		`towk_media_cache_lookups_total{operation="attachment_transform",result="miss"} 1`,
+		`towk_media_range_requests_total{operation="attachment_original",status="200"} 1`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("metrics body missing %q\n%s", want, text)
+		}
+	}
+	for _, forbidden := range []string{user.Id, room.Id, attachment.GetId(), "metricsuser"} {
+		if forbidden != "" && strings.Contains(text, forbidden) {
+			t.Fatalf("metrics body leaked request identifier %q", forbidden)
+		}
+	}
+}
+
+func TestAssetMetricsStayIdleWhenDisabled(t *testing.T) {
+	env := setupAssetTestServer(t)
+	user, err := env.core.CreateUser(env.ctx, "system", "metricsoff", "Metrics Off", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	room, err := env.core.CreateRoom(env.ctx, user.Id, "channel", "", "metrics-off-room", "Metrics Off Room")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+	if _, err := env.core.JoinRoom(env.ctx, user.Id, "channel", user.Id, room.Id); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+	env.login(t, "metricsoff", "password123")
+
+	imageData := createAssetTestPNG(t, 400, 300)
+	_, attachment := env.postAssetMessageWithAttachment(t, room.Id, "metrics off", imageData, "metrics-off.png")
+	resp, err := env.client.Get(env.server.URL + attachment.GetThumbnailAssetUrl().GetUrl())
+	if err != nil {
+		t.Fatalf("GET transformed attachment: %v", err)
+	}
+	resp.Body.Close()
+
+	metricsServer, err := env.httpServer.newMetricsServer()
+	if err != nil {
+		t.Fatalf("newMetricsServer: %v", err)
+	}
+	metricsHTTP := httptest.NewServer(metricsServer.Handler)
+	t.Cleanup(metricsHTTP.Close)
+	text := scrapeMetricsText(t, metricsHTTP.URL+"/metrics")
+	for _, unexpected := range []string{
+		"towk_asset_upload_operations_total{",
+		"towk_media_requests_total{",
+		"towk_media_transform_duration_seconds{",
+	} {
+		if strings.Contains(text, unexpected) {
+			t.Fatalf("disabled metrics unexpectedly exported %q", unexpected)
+		}
+	}
+}
 
 func TestAsset_TransformedImage_CacheHitMiss(t *testing.T) {
 	env := setupAssetTestServer(t)
