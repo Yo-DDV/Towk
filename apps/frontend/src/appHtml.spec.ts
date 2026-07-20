@@ -153,9 +153,9 @@ describe('app.html metadata', () => {
     ]);
   });
 
-  it('prefers minimal-ui without standalone fallback for the static cross-browser manifest', () => {
-    expect(manifest.display).toBe('minimal-ui');
-    expect(manifest.display_override).toEqual(['minimal-ui', 'browser']);
+  it('uses one app-like display mode for every installable browser', () => {
+    expect(manifest.display).toBe('standalone');
+    expect(manifest.display_override).toEqual(['standalone']);
   });
 
   it('reuses an existing installed window when launch handling is supported', () => {

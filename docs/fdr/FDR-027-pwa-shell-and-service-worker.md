@@ -1,11 +1,11 @@
 # FDR-027: PWA Shell & Service Worker
 
 **Status:** Active
-**Last reviewed:** 2026-07-14
+**Last reviewed:** 2026-07-20
 
 ## Overview
 
-Towk ships a service worker so the installed web app can launch reliably, update safely, and handle push notifications. The worker caches the SPA fallback shell, SvelteKit build assets, and essential install icons during install, then caches other static PWA assets when the browser actually requests them. The web manifest is always network-only because it is browser-specific on Android Chromium and may carry current server branding. The worker deliberately does not cache chat data, API responses, live-event traffic, web-manifest responses, or protected uploaded asset bodies.
+Towk ships a service worker so the installed web app can launch reliably, update safely, and handle push notifications. The worker caches the SPA fallback shell, SvelteKit build assets, and essential install icons during install, then caches other static PWA assets when the browser actually requests them. The web manifest is always network-only because it may carry current server branding and browsers must be able to refresh install metadata promptly. The worker deliberately does not cache chat data, API responses, live-event traffic, web-manifest responses, or protected uploaded asset bodies.
 
 Offline support means the app can open and show its normal disconnected state instead of the browser's generic offline page. Authenticated accounts also keep bounded encrypted drafts and their pending attachments, pending text messages, and recent room timelines on the device. Cached timelines are visibly identified as cached state; they never masquerade as a live server response. Offline search and offline attachment upload are not supported.
 
@@ -29,7 +29,8 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 - Text messages that fail for a retryable network reason can enter a bounded encrypted outbox. Each logical send keeps one stable client request ID, so a lost response and a retry cannot create duplicate messages. Users can inspect, retry, or discard pending items. Unuploaded attachments remain in the encrypted draft rather than entering the outbox and are uploaded after connectivity returns.
 - Drafts and recent timeline windows are encrypted per server account with non-extractable device keys. Account removal writes a durable revocation tombstone and crypto-shreds that account namespace before an explicit sign-out redirect. Other open tabs stop new writes through an origin-scoped lifecycle signal, while IndexedDB key-generation checks reject stale writes even if a tab is suspended or receives the signal late. Records have age, count, and byte quotas and remain eviction-tolerant.
 - The installed app can receive text, links, supported media, PDFs, and text files from an operating-system share sheet or file handler. Incoming payloads are validated, encrypted in a short-lived device inbox, and require an explicit destination conversation; Towk never auto-sends shared content.
-- Chromium install prompts are shown only after the browser exposes `beforeinstallprompt`; iPhone and iPad users receive Safari Home Screen instructions. The first critical queued message or persisted draft attachment makes a best-effort persistent-storage request from the related user action.
+- The header always exposes installed-versus-browser status. A native Chromium install dialog opens only from the user's click after `beforeinstallprompt`; otherwise Towk shows platform-specific instructions for iOS/iPadOS Safari and Chrome, Android Chromium and Firefox, Windows Firefox, macOS Safari, and desktop Chromium.
+- A local install reminder waits for a return visit and one minute of engagement, never invokes native browser UI automatically, avoids calls and active text input, and can be snoozed for fourteen days. The first critical queued message or persisted draft attachment still makes a best-effort persistent-storage request only from the related user action.
 - Native Web Share, launch handling, file handling, app shortcuts, screen Wake Lock during calls, Media Session call controls, and video Picture-in-Picture are capability-detected enhancements. Correctness never depends on their presence.
 
 ## Design Decisions
@@ -38,7 +39,7 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 
 **Decision:** Cache only the app shell and static PWA assets that do not expose private server state. Build assets are mandatory during install; essential icons are best-effort during install; nonessential static assets are cached lazily. The manifest is served from the network only and never falls back to a cached copy.
 **Why:** Towk is a real-time chat app. Serving stale messages, permissions, assets, or notification state as if they were live would be worse than showing the disconnected state.
-**Tradeoff:** The shell cache alone never supplies room or message data. An already scoped account may separately show its labeled encrypted timeline window, while full static asset coverage accumulates as the app requests assets. Offline launches cannot refresh install metadata, but they also cannot pin an Android-specific manifest variant or stale branding.
+**Tradeoff:** The shell cache alone never supplies room or message data. An already scoped account may separately show its labeled encrypted timeline window, while full static asset coverage accumulates as the app requests assets. Offline launches cannot refresh install metadata or current branding.
 
 ### 2. Versioned cache names
 
@@ -90,16 +91,16 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 
 ### 10. Installed-app APIs are progressive enhancements
 
-**Decision:** Towk capability-detects install prompts, native sharing, launch/file handling, persistent storage, Wake Lock, Media Session call actions, and standards or WebKit Picture-in-Picture. Every rejection or missing API falls back to normal in-app navigation and controls.
+**Decision:** Towk uses one stable manifest identity with `display: standalone`, capability-detects native install prompts, and otherwise renders a guide selected from the current platform and browser. Native sharing, launch/file handling, persistent storage, Wake Lock, Media Session call actions, and standards or WebKit Picture-in-Picture remain capability-detected. Every rejection or missing API falls back to normal in-app navigation and controls.
 **Why:** PWA APIs differ materially across iOS/iPadOS, Android, Chromium desktop, Safari, and Firefox. Detecting behavior at runtime keeps one web codebase usable without falsely advertising unavailable OS integration.
-**Tradeoff:** The exact install surface and system controls vary by browser. Manifest handlers may require reinstall or a browser metadata refresh before an existing installation exposes them.
+**Tradeoff:** The exact install surface and system controls vary by browser. The earlier Android browser-mode identity cannot be upgraded into the canonical app identity in place; those shortcuts may need removal and reinstall. Other manifest changes can require a browser metadata refresh before an existing installation exposes them.
 
 ## Platform capability policy
 
-- **iOS and iPadOS Home Screen:** service-worker shell, encrypted local state, Web Push, badges, Web Share, Media Session, Wake Lock, and WebKit/standard video Picture-in-Picture are used when exposed. Installation uses Safari's Share → Add to Home Screen flow. Share-target, file-handler, Background Sync, and mobile screen capture availability are not assumed.
+- **iOS and iPadOS Home Screen:** service-worker shell, encrypted local state, Web Push, badges, Web Share, Media Session, Wake Lock, and WebKit/standard video Picture-in-Picture are used when exposed. Safari is the recommended installation route because its flow explicitly offers Open as Web App; Chrome's Share → Add to Home Screen route is also documented. Share-target, file-handler, Background Sync, and mobile screen capture availability are not assumed.
 - **Android Chromium PWA:** service-worker shell, browser install prompt, Web Share/share target, push, badges, encrypted local state, Wake Lock, Media Session, and foreground outbox retries are available when the browser grants them. Background Sync remains an optional wake-up hint.
-- **Chromium desktop on Windows/Linux:** adds launch reuse, file handlers, share target where the host exposes it, and standard video Picture-in-Picture. Existing installations may need a manifest refresh or reinstall for new OS registrations.
-- **Safari, Firefox, and other desktop browsers:** the portable shell, encrypted local state, foreground retries, and supported notification/media APIs remain active. Unsupported manifest or background enhancements are skipped.
+- **Desktop:** Chromium on Windows, Linux, macOS, and ChromeOS uses its native install surface when exposed. Safari on macOS uses Add to Dock. Firefox 143 or later on Windows exposes its Web apps address-bar action; Firefox on macOS and Linux does not currently expose that installed-app surface, so Towk recommends Chrome/Edge or Safari as applicable.
+- **Other browsers:** the portable shell, encrypted local state, foreground retries, and supported notification/media APIs remain active. Unsupported manifest or background enhancements are skipped and the guide routes the user to a supported browser.
 - **Storage:** cache and IndexedDB remain eviction-tolerant. Towk requests persistent storage only when critical unsynced local data or a draft attachment is first persisted, never during passive startup or installation alone.
 
 ## Standards and vendor references
@@ -107,7 +108,14 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 - [MDN: Offline and background operation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Offline_and_background_operation)
 - [MDN: NavigationPreloadManager](https://developer.mozilla.org/en-US/docs/Web/API/NavigationPreloadManager)
 - [Chrome: Handling service worker updates](https://developer.chrome.com/docs/workbox/handling-service-worker-updates)
+- [Chrome: PWA install criteria](https://web.dev/articles/install-criteria)
+- [Chrome Help: Use web apps](https://support.google.com/chrome/answer/9658361)
 - [Chrome: Background Sync](https://developer.chrome.com/docs/workbox/modules/workbox-background-sync)
+- [Apple: Turn a website into an app in Safari on iPhone](https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios)
+- [Apple: Use a website as an app in Safari on Mac](https://support.apple.com/guide/safari/use-a-website-as-an-app-ibrw9e991864/mac)
+- [Mozilla: Use Web Apps with Firefox for Android](https://support.mozilla.org/kb/use-web-apps-firefox-android)
+- [Mozilla: Use web apps in Firefox for Windows](https://support.mozilla.org/kb/web-apps-firefox-windows)
+- [Microsoft Edge: Use Progressive Web Apps](https://learn.microsoft.com/microsoft-edge/progressive-web-apps-chromium/ux)
 - [WebKit: Web Push for Web Apps on iOS and iPadOS](https://webkit.org/blog/13966/web-push-for-web-apps-on-ios-and-ipados/)
 - [MDN: StorageManager.persist()](https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/persist)
 - [MDN: Web Share Target](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/share_target)

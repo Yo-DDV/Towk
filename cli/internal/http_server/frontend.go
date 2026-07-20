@@ -195,26 +195,8 @@ func pwaManifestIconFallbacks(value any) []map[string]string {
 	return fallbacks
 }
 
-const androidChromiumInstallManifestID = "/?towk-install=android-browser-v3"
-
-func usesAndroidChromiumInstallManifestVariant(userAgent string) bool {
-	ua := strings.ToLower(userAgent)
-	if !strings.Contains(ua, "android") {
-		return false
-	}
-	if strings.Contains(ua, "firefox/") || strings.Contains(ua, "fennec/") {
-		return false
-	}
-	return strings.Contains(ua, "chrome/") ||
-		strings.Contains(ua, "crios/") ||
-		strings.Contains(ua, "edga/") ||
-		strings.Contains(ua, "opr/") ||
-		strings.Contains(ua, "samsungbrowser/")
-}
-
-func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAgent string) ([]byte, error) {
-	androidChromiumInstallVariant := usesAndroidChromiumInstallManifestVariant(userAgent)
-	if icons == nil && !androidChromiumInstallVariant {
+func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte, error) {
+	if icons == nil {
 		return staticManifest, nil
 	}
 
@@ -241,19 +223,6 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, userAge
 			}
 		}
 	}
-	if androidChromiumInstallVariant {
-		// Android Chrome/Chromium shows a browser-owned foreground notification
-		// for app-like installed windows. It is outside the Web Push/Notification
-		// API and cannot be dismissed by Towk JavaScript. Browser mode is the only
-		// pure-web manifest mode that keeps Chrome's own URL surface visible and
-		// avoids that foreground disclosure on affected Android devices. A
-		// dedicated Android install id avoids reusing a stale WebAPK/container
-		// that was created before this display policy.
-		manifest["id"] = androidChromiumInstallManifestID
-		manifest["display"] = "browser"
-		manifest["display_override"] = []string{"browser"}
-	}
-
 	return json.MarshalIndent(manifest, "", "  ")
 }
 
@@ -320,15 +289,11 @@ func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
 	content, err = dynamicPWAManifest(
 		content,
 		s.currentPWAIconURLs(c.Request.Context()),
-		c.GetHeader("User-Agent"),
 	)
 	if err != nil {
 		s.logger.Warn("failed to generate dynamic PWA manifest", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
-	}
-	if usesAndroidChromiumInstallManifestVariant(c.GetHeader("User-Agent")) {
-		c.Header("Vary", "User-Agent")
 	}
 	c.Data(http.StatusOK, "application/manifest+json", content)
 }

@@ -499,6 +499,10 @@
   @apply -m-2 flex h-11 w-11 cursor-pointer items-center justify-center rounded transition-[background-color,color,scale] hover:text-text active:scale-[0.96] active:bg-surface-200;
 }
 
+@utility guide-step {
+  @apply flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-xs font-semibold text-text;
+}
+
 /* Compact inline icon-only action for row/input affordances such as copy,
  * dismiss, and clear. Larger toolbar icons should use HeaderIconButton or
  * pane-header-icon-button instead.
