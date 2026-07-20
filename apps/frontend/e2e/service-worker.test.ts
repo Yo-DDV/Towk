@@ -28,7 +28,7 @@ type BadgeStateSnapshot = {
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const BADGE_STATE_REQUEST = '/__chatto/foreground-badge-intent';
 
-test('serves one standalone manifest and exposes browser install status', async ({
+test('serves one standalone manifest without guessing Chromium installability', async ({
   page,
   request
 }) => {
@@ -45,22 +45,22 @@ test('serves one standalone manifest and exposes browser install status', async 
     display?: string;
     display_override?: string[];
     icons?: Array<{ sizes?: string }>;
+    related_applications?: Array<{ platform?: string; url?: string }>;
+    prefer_related_applications?: boolean;
   };
   expect(manifest.id).toBe('/');
   expect(manifest.display).toBe('standalone');
   expect(manifest.display_override).toEqual(['standalone']);
   expect(manifest.icons?.some((icon) => icon.sizes === '192x192')).toBe(true);
   expect(manifest.icons?.some((icon) => icon.sizes === '512x512')).toBe(true);
+  expect(manifest.related_applications).toEqual([
+    { platform: 'webapp', url: '/manifest.webmanifest' }
+  ]);
+  expect(manifest.prefer_related_applications).toBe(false);
 
   await page.goto('/');
-  const status = page.getByRole('button', { name: 'Install Towk' });
-  await expect(status).toBeVisible();
-  await expect(status).toHaveAttribute('data-pwa-status', 'browser');
-  await status.click();
-  await expect(page.getByRole('heading', { name: 'Install Towk as an app' })).toBeVisible();
-  await expect(page.getByTestId('pwa-install-guide')).toContainText(
-    'Chrome, Edge, or Opera on this computer'
-  );
+  await expect(page.locator('[data-pwa-status]')).toHaveCount(0);
+  await expect(page.getByTestId('pwa-install-reminder')).toHaveCount(0);
 });
 
 test('service worker caches only the app shell and serves it offline', async ({

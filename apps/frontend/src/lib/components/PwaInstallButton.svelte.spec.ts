@@ -40,6 +40,13 @@ function setBrowserEnvironment({
   );
 }
 
+function setInstalledRelatedApps(apps: Array<{ platform: string; id?: string; url?: string }>) {
+  Object.defineProperty(navigator, 'getInstalledRelatedApps', {
+    configurable: true,
+    value: vi.fn().mockResolvedValue(apps)
+  });
+}
+
 function statusButton(container: Element): HTMLButtonElement {
   const button = container.querySelector<HTMLButtonElement>('[data-pwa-status]');
   if (!button) throw new Error('PWA status button not found');
@@ -62,6 +69,8 @@ describe('PwaInstallButton', () => {
   });
 
   afterEach(() => {
+    delete (navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> })
+      .getInstalledRelatedApps;
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -105,6 +114,52 @@ describe('PwaInstallButton', () => {
     unmount();
   });
 
+  it('removes install promotions when Chromium reports the related PWA as installed', async () => {
+    setBrowserEnvironment({
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36'
+    });
+    setInstalledRelatedApps([
+      { platform: 'webapp', id: '/', url: 'https://chat.example.test/manifest.webmanifest' }
+    ]);
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt: vi.fn().mockResolvedValue(undefined),
+      userChoice: Promise.resolve({ outcome: 'dismissed' as const, platform: 'web' })
+    });
+    (window as Window & { __towkInstallPrompt?: Event | null }).__towkInstallPrompt = event;
+
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+
+    expect(container.querySelector('[data-pwa-status]')).toBeNull();
+    expect(container.querySelector('[data-testid="pwa-install-reminder"]')).toBeNull();
+    expect(
+      (window as Window & { __towkInstallPrompt?: Event | null }).__towkInstallPrompt
+    ).toBeNull();
+    unmount();
+  });
+
+  it('does not guess that Chromium can install until a native prompt is available', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T12:00:00Z'));
+    setBrowserEnvironment({
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36'
+    });
+    localStorage.setItem(
+      'chatto:pwaInstallReminder',
+      JSON.stringify({ visits: 1, lastShownAt: 0, snoozedUntil: 0 })
+    );
+
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+    await vi.advanceTimersByTimeAsync(PWA_INSTALL_REMINDER_DELAY_MS + 30_000);
+    await settle();
+
+    expect(container.querySelector('[data-pwa-status]')).toBeNull();
+    expect(container.querySelector('[data-testid="pwa-install-reminder"]')).toBeNull();
+    unmount();
+  });
+
   it('keeps the native Android install path compact until help is requested', async () => {
     setBrowserEnvironment({
       userAgent:
@@ -118,6 +173,7 @@ describe('PwaInstallButton', () => {
     await settle();
 
     window.dispatchEvent(event);
+    await settle();
     statusButton(container).click();
     await settle();
 
@@ -144,7 +200,26 @@ describe('PwaInstallButton', () => {
 
     expect(container.textContent).toContain('Firefox cannot install Towk on this system');
     expect(container.textContent).toContain('Open this page in Chrome or Edge');
+    expect(container.textContent).not.toContain('Safari');
+    expect(container.querySelector('.logos--safari')).toBeNull();
     expect(container.textContent).not.toContain('Install now');
+    unmount();
+  });
+
+  it('recommends Safari only when Firefox is running on macOS', async () => {
+    setBrowserEnvironment({
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 15.0; rv:152.0) Gecko/20100101 Firefox/152.0',
+      platform: 'MacIntel'
+    });
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+
+    statusButton(container).click();
+    await settle();
+
+    expect(container.textContent).toContain('Open this page in Safari, Chrome, or Edge');
+    expect(container.querySelector('.logos--safari')).not.toBeNull();
     unmount();
   });
 
@@ -162,6 +237,7 @@ describe('PwaInstallButton', () => {
     await settle();
 
     window.dispatchEvent(event);
+    await settle();
     statusButton(container).click();
     await settle();
     buttonWithText(container, 'Install now').click();
@@ -214,6 +290,7 @@ describe('PwaInstallButton', () => {
     await settle();
 
     window.dispatchEvent(event);
+    await settle();
     statusButton(container).click();
     await settle();
     buttonWithText(container, 'Install now').click();
@@ -237,6 +314,14 @@ describe('PwaInstallButton', () => {
     const { container, unmount } = render(PwaInstallButton);
     await settle();
 
+    window.dispatchEvent(
+      Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        userChoice: Promise.resolve({ outcome: 'dismissed' as const, platform: 'web' })
+      })
+    );
+    await settle();
+
     await vi.advanceTimersByTimeAsync(PWA_INSTALL_REMINDER_DELAY_MS);
     await settle();
     expect(container.querySelector('[data-testid="pwa-install-reminder"]')).not.toBeNull();
@@ -248,6 +333,38 @@ describe('PwaInstallButton', () => {
       snoozedUntil?: number;
     };
     expect(saved.snoozedUntil).toBeGreaterThan(Date.now());
+    unmount();
+  });
+
+  it('opens the native install prompt directly from an eligible reminder', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-20T12:00:00Z'));
+    setBrowserEnvironment({
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36'
+    });
+    localStorage.setItem(
+      'chatto:pwaInstallReminder',
+      JSON.stringify({ visits: 1, lastShownAt: 0, snoozedUntil: 0 })
+    );
+    const prompt = vi.fn().mockResolvedValue(undefined);
+    const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), {
+      prompt,
+      userChoice: Promise.resolve({ outcome: 'accepted' as const, platform: 'web' })
+    });
+
+    const { container, unmount } = render(PwaInstallButton);
+    await settle();
+    window.dispatchEvent(event);
+    await settle();
+    await vi.advanceTimersByTimeAsync(PWA_INSTALL_REMINDER_DELAY_MS);
+    await settle();
+
+    buttonWithText(container, 'Install now').click();
+    await settle();
+
+    expect(prompt).toHaveBeenCalledOnce();
+    expect(container.querySelector('[data-testid="pwa-install-reminder"]')).toBeNull();
+    expect(container.querySelector('[data-pwa-status]')).toBeNull();
     unmount();
   });
 

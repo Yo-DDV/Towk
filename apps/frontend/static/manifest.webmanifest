@@ -44,6 +44,12 @@
   "theme_color": "#03040b",
   "categories": ["communication", "social", "productivity"],
   "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "/manifest.webmanifest"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",

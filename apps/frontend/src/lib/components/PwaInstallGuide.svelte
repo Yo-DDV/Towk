@@ -1,8 +1,12 @@
 <script lang="ts">
-  import type { InstallBrowser, InstallGuide } from '$lib/pwa/installPrompt';
+  import type { InstallBrowser, InstallGuide, InstallPlatform } from '$lib/pwa/installPrompt';
   import * as m from '$lib/i18n/messages';
 
-  let { guide, browser }: { guide: InstallGuide; browser: InstallBrowser } = $props();
+  let {
+    guide,
+    browser,
+    platform
+  }: { guide: InstallGuide; browser: InstallBrowser; platform: InstallPlatform } = $props();
 
   const icon = $derived.by(() => {
     if (browser === 'safari') return 'logos--safari';
@@ -33,6 +37,26 @@
   });
 
   const unsupported = $derived(guide === 'desktop_firefox_unsupported');
+
+  const unsupportedDescription = $derived(
+    platform === 'macos'
+      ? m['ui.pwa_install.desktop_firefox_unsupported_macos_description']()
+      : m['ui.pwa_install.desktop_firefox_unsupported_linux_description']()
+  );
+
+  const supportedBrowsers = $derived(
+    platform === 'macos'
+      ? m['ui.pwa_install.desktop_firefox_supported_browsers_macos']()
+      : m['ui.pwa_install.desktop_firefox_supported_browsers_linux']()
+  );
+
+  const desktopOtherOpen = $derived.by(() => {
+    if (platform === 'macos') return m['ui.pwa_install.desktop_other_open_macos']();
+    if (['windows', 'linux', 'chromeos'].includes(platform)) {
+      return m['ui.pwa_install.desktop_other_open_chromium']();
+    }
+    return m['ui.pwa_install.desktop_other_open']();
+  });
 </script>
 
 <section
@@ -65,14 +89,15 @@
 
   {#if unsupported}
     <p class="mt-3 text-sm leading-relaxed text-muted">
-      {m['ui.pwa_install.desktop_firefox_unsupported_description']()}
+      {unsupportedDescription}
     </p>
     <div class="mt-3 flex items-center gap-2 rounded-md bg-background px-2.5 py-2">
+      {#if platform === 'macos'}
+        <span class="iconify-color size-5 shrink-0 logos--safari" aria-hidden="true"></span>
+      {/if}
       <span class="iconify-color size-5 shrink-0 logos--chrome" aria-hidden="true"></span>
       <span class="iconify-color size-5 shrink-0 logos--microsoft-edge" aria-hidden="true"></span>
-      <span class="text-xs text-muted"
-        >{m['ui.pwa_install.desktop_firefox_supported_browsers']()}</span
-      >
+      <span class="text-xs text-muted">{supportedBrowsers}</span>
     </div>
   {:else}
     <ol class="mt-3 space-y-2.5 text-sm text-muted">
@@ -171,7 +196,7 @@
         </li>
       {:else}
         <li class="flex gap-2.5">
-          <span class="guide-step">1</span><span>{m['ui.pwa_install.desktop_other_open']()}</span>
+          <span class="guide-step">1</span><span>{desktopOtherOpen}</span>
         </li>
         <li class="flex gap-2.5">
           <span class="guide-step">2</span><span>{m['ui.pwa_install.desktop_other_return']()}</span>

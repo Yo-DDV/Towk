@@ -64,6 +64,14 @@ export type InstallGuide =
   | 'desktop_firefox_unsupported'
   | 'desktop_other';
 
+type InstalledRelatedApplication = {
+  platform?: string;
+};
+
+type RelatedAppsNavigator = Navigator & {
+  getInstalledRelatedApps?: () => Promise<InstalledRelatedApplication[]>;
+};
+
 export function isAppleMobileDevice(environment: InstallEnvironment): boolean {
   return (
     /iPad|iPhone|iPod/u.test(environment.userAgent) ||
@@ -78,6 +86,27 @@ export function isInstalledPwa(environment: InstallEnvironment): boolean {
     environment.displayModeMinimalUi === true ||
     environment.displayModeWindowControlsOverlay === true ||
     environment.standalone === true
+  );
+}
+
+export async function hasInstalledRelatedPwa(
+  target: RelatedAppsNavigator = navigator as RelatedAppsNavigator
+): Promise<boolean> {
+  if (typeof target.getInstalledRelatedApps !== 'function') return false;
+  try {
+    const relatedApps = await target.getInstalledRelatedApps();
+    return relatedApps.some((app) => app.platform === 'webapp');
+  } catch {
+    return false;
+  }
+}
+
+export function usesBeforeInstallPrompt(
+  platform: InstallPlatform,
+  browser: InstallBrowser
+): boolean {
+  return (
+    platform !== 'ios' && ['chrome', 'edge', 'opera', 'samsung'].includes(browser)
   );
 }
 

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   detectInstallBrowser,
   detectInstallPlatform,
+  hasInstalledRelatedPwa,
   isAppleMobileDevice,
   isInstalledPwa,
   selectInstallGuide,
+  usesBeforeInstallPrompt,
   type InstallEnvironment
 } from './installPrompt';
 
@@ -39,6 +41,35 @@ describe('PWA install environment', () => {
     expect(isInstalledPwa(environment({ displayModeWindowControlsOverlay: true }))).toBe(true);
     expect(isInstalledPwa(environment({ standalone: true }))).toBe(true);
     expect(isInstalledPwa(environment())).toBe(false);
+  });
+
+  it('recognizes only a related installed web app and fails closed when detection is unavailable', async () => {
+    expect(
+      await hasInstalledRelatedPwa({
+        getInstalledRelatedApps: async () => [{ platform: 'play' }, { platform: 'webapp' }]
+      } as Navigator & { getInstalledRelatedApps: () => Promise<Array<{ platform: string }>> })
+    ).toBe(true);
+    expect(
+      await hasInstalledRelatedPwa({
+        getInstalledRelatedApps: async () => [{ platform: 'play' }]
+      } as Navigator & { getInstalledRelatedApps: () => Promise<Array<{ platform: string }>> })
+    ).toBe(false);
+    expect(await hasInstalledRelatedPwa({} as Navigator)).toBe(false);
+    expect(
+      await hasInstalledRelatedPwa({
+        getInstalledRelatedApps: async () => {
+          throw new Error('installed-app detection unavailable');
+        }
+      } as Navigator & { getInstalledRelatedApps: () => Promise<never> })
+    ).toBe(false);
+  });
+
+  it('waits for a native prompt only in browsers that expose beforeinstallprompt', () => {
+    expect(usesBeforeInstallPrompt('linux', 'chrome')).toBe(true);
+    expect(usesBeforeInstallPrompt('android', 'samsung')).toBe(true);
+    expect(usesBeforeInstallPrompt('ios', 'chrome')).toBe(false);
+    expect(usesBeforeInstallPrompt('macos', 'safari')).toBe(false);
+    expect(usesBeforeInstallPrompt('linux', 'firefox')).toBe(false);
   });
 
   it.each([
