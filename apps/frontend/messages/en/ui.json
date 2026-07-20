@@ -46,6 +46,7 @@
       "empty": "No message is waiting.",
       "room_label": "Room {room}",
       "attachment_only": "Message with attachments",
+      "voice_message": "Voice message",
       "unsupported_server": "This server cannot safely retry the message automatically. Keep it here or discard it.",
       "discard": "Discard"
     },

@@ -6,13 +6,11 @@ import { FitMode } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import type { RefreshedAttachmentUrls } from '$lib/attachments/attachmentUrls';
 
-const { getRoomEventsAroundMock, timelineResults, refreshAssetUrlsMock } = vi.hoisted(
-  () => ({
-    getRoomEventsAroundMock: vi.fn(),
-    timelineResults: [] as unknown[],
-    refreshAssetUrlsMock: vi.fn()
-  })
-);
+const { getRoomEventsAroundMock, timelineResults, refreshAssetUrlsMock } = vi.hoisted(() => ({
+  getRoomEventsAroundMock: vi.fn(),
+  timelineResults: [] as unknown[],
+  refreshAssetUrlsMock: vi.fn()
+}));
 
 function testImageUrl(label: string): string {
   return `/icons/favicon.png?label=${label}`;

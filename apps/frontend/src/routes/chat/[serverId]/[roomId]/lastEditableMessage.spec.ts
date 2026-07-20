@@ -11,6 +11,7 @@ const canEchoRoomPermissions: RoomPermissions = {
   canPostMessage: true,
   canPostInThread: true,
   canAttach: true,
+  canVoice: true,
   canReact: true,
   canManageOthersMessage: false,
   canEchoMessage: true,

@@ -1,7 +1,7 @@
 # FDR-029: Voice Messages
 
 **Status:** Active
-**Last reviewed:** 2026-07-15
+**Last reviewed:** 2026-07-16
 
 ## Overview
 
@@ -30,11 +30,11 @@ Room members can record, review, send, and play first-class voice messages in ch
 **Why:** The existing path already provides resumable chunks, configured size limits, ownership, pending-asset expiry, NATS/S3 storage, signed reads, and message lifecycle cleanup. A parallel voice storage system would duplicate security and retention behavior.
 **Tradeoff:** The review blob remains browser-local until send. The 20-minute cap, a 32 MiB voice-specific ceiling, and the deployment upload limit bound memory and network use.
 
-### 3. Recording format is capability-negotiated and verified
+### 3. Recording format is capability-negotiated, verified, and normalized
 
-**Decision:** Clients choose a supported recorder format with `MediaRecorder.isTypeSupported`, preferring Opus WebM where available and using MP4/AAC on WebKit-class engines or Ogg/Opus where supported. The server accepts first-class voice metadata only for `audio/webm`, `audio/mp4`, or `audio/ogg`, validates duration and 24–96 finite waveform peaks, and verifies the corresponding WebM, ISO-BMFF, or Ogg container signature before creating the durable asset.
-**Why:** Browser recording formats differ, and trusting only a client-provided MIME type would let arbitrary data masquerade as a voice recording. Capability negotiation preserves reach while server validation preserves the semantic contract.
-**Tradeoff:** Browsers with `MediaRecorder` but none of the accepted formats cannot record a first-class voice message. Generic audio upload remains available when `message.attach` allows it.
+**Decision:** Clients choose a supported recorder format with `MediaRecorder.isTypeSupported`, preferring MP4/AAC when the browser can record it and falling back to WebM/Opus or Ogg/Opus where needed. The server accepts first-class voice metadata only for `audio/webm`, `audio/mp4`, or `audio/ogg`, validates duration and 24–96 finite waveform peaks, verifies the corresponding WebM, ISO-BMFF, or Ogg container signature, and normalizes non-MP4 voice uploads into an `audio/mp4` M4A/AAC asset before making the attachment durable. Process-local admission bounds concurrent normalization, and a completion waiting for capacity remains cancellable without starting `ffmpeg`.
+**Why:** Browser recording formats differ, and playback support differs too. A Chrome or Android client may record WebM/Opus that an iPhone PWA cannot reliably play. Capability negotiation preserves recording reach, while server-side normalization gives all clients one playback-oriented asset format and server validation preserves the semantic contract.
+**Tradeoff:** Browsers with `MediaRecorder` but none of the accepted formats cannot record a first-class voice message. Non-MP4 voice uploads require `ffmpeg` during upload completion; MP4 voice uploads remain accepted without transcoding. Generic audio upload remains available when `message.attach` allows it.
 
 The browser lifecycle and format boundary follows [MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder), [MDN `dataavailable`](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/dataavailable_event), [WebKit's MediaRecorder guidance](https://webkit.org/blog/11353/mediarecorder-api/), and the [MediaStream Recording specification](https://www.w3.org/TR/mediastream-recording/). These are volatile browser capabilities and must be rechecked before changing the support matrix.
 

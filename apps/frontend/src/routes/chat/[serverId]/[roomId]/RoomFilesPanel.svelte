@@ -11,6 +11,7 @@ Room-scoped file list for the room sidebar.
   import { fileDateGroup, formatDateTime } from '$lib/utils/formatTime';
   import { getLocale } from '$lib/i18n/runtime';
   import * as m from '$lib/i18n/messages';
+  import { formatVoiceMessageTime } from '$lib/voiceMessages/policy';
 
   type RoomFileGroup = {
     key: string;
@@ -83,6 +84,19 @@ Room-scoped file list for the room sidebar.
 
   function openFile(item: RoomFileItem): void {
     onOpenFile?.(item.messageEventId, item.threadRootEventId ?? null);
+  }
+
+  function fileDisplayName(item: RoomFileItem): string {
+    return item.attachment.voiceMessage
+      ? m['message_preview.voice_message']()
+      : item.attachment.filename;
+  }
+
+  function fileSecondaryLabel(item: RoomFileItem): string {
+    const timestamp = formatTimestamp(item.createdAt);
+    return item.attachment.voiceMessage
+      ? `${formatVoiceMessageTime(item.attachment.voiceMessage.durationMs)} · ${timestamp}`
+      : timestamp;
   }
 
   function handleThumbnailError(item: RoomFileItem, url: string): void {
@@ -181,7 +195,7 @@ Room-scoped file list for the room sidebar.
                   type="button"
                   class="sidebar-item min-h-14 w-full cursor-pointer gap-3 text-left"
                   onclick={() => openFile(item)}
-                  title={m['room.sidebar.jump_to_file']({ filename: item.attachment.filename })}
+                  title={m['room.sidebar.jump_to_file']({ filename: fileDisplayName(item) })}
                   data-testid="room-file-row"
                 >
                   <span
@@ -206,9 +220,8 @@ Room-scoped file list for the room sidebar.
                     {/if}
                   </span>
                   <span class="min-w-0 flex-1">
-                    <span class="block truncate text-sm">{item.attachment.filename}</span>
-                    <span class="block truncate text-xs text-muted"
-                      >{formatTimestamp(item.createdAt)}</span
+                    <span class="block truncate text-sm">{fileDisplayName(item)}</span>
+                    <span class="block truncate text-xs text-muted">{fileSecondaryLabel(item)}</span
                     >
                   </span>
                 </button>

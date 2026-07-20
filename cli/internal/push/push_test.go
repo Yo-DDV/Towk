@@ -892,6 +892,7 @@ func TestNotificationCopyForLocale(t *testing.T) {
 				roomMessage:        "@%s posted a message",
 				roomMessageInRoom:  "@%s posted in #%s",
 				roomMessageBody:    "Open Towk to read the message",
+				voiceMessageBody:   "Voice message",
 				defaultTitle:       "New notification",
 				defaultDescription: "You have a new notification",
 			},
@@ -911,6 +912,7 @@ func TestNotificationCopyForLocale(t *testing.T) {
 				roomMessage:        "@%s hat eine Nachricht gesendet",
 				roomMessageInRoom:  "@%s hat in #%s geschrieben",
 				roomMessageBody:    "Öffne Towk, um die Nachricht zu lesen",
+				voiceMessageBody:   "Sprachnachricht",
 				defaultTitle:       "Neue Benachrichtigung",
 				defaultDescription: "Du hast eine neue Benachrichtigung",
 			},
@@ -930,6 +932,7 @@ func TestNotificationCopyForLocale(t *testing.T) {
 				roomMessage:        "@%s a publié un message",
 				roomMessageInRoom:  "@%s a publié un message dans #%s",
 				roomMessageBody:    "Ouvrez Towk pour lire le message",
+				voiceMessageBody:   "Message vocal",
 				defaultTitle:       "Nouvelle notification",
 				defaultDescription: "Vous avez une nouvelle notification",
 			},
@@ -949,6 +952,7 @@ func TestNotificationCopyForLocale(t *testing.T) {
 				roomMessage:        "@%s publicó un mensaje",
 				roomMessageInRoom:  "@%s publicó un mensaje en #%s",
 				roomMessageBody:    "Abre Towk para leer el mensaje",
+				voiceMessageBody:   "Mensaje de voz",
 				defaultTitle:       "Nueva notificación",
 				defaultDescription: "Tienes una nueva notificación",
 			},
@@ -968,6 +972,7 @@ func TestNotificationCopyForLocale(t *testing.T) {
 				roomMessage:        "@%s publicou uma mensagem",
 				roomMessageInRoom:  "@%s publicou uma mensagem em #%s",
 				roomMessageBody:    "Abra o Towk para ler a mensagem",
+				voiceMessageBody:   "Mensagem de voz",
 				defaultTitle:       "Nova notificação",
 				defaultDescription: "Você tem uma nova notificação",
 			},
@@ -1024,6 +1029,44 @@ func TestBuildLocalizedPayloadFromNotification(t *testing.T) {
 	)
 	if fallbackPayload.Body != "Ouvrez Towk pour lire le message" {
 		t.Fatalf("localized fallback body = %q", fallbackPayload.Body)
+	}
+
+	voicePayload := BuildLocalizedPayloadFromNotification(
+		notif,
+		"Alice",
+		"https://towk.example.com",
+		&PayloadContext{RoomName: "général", IsVoiceMessage: true},
+		"fr",
+	)
+	if voicePayload.Body != "Message vocal" {
+		t.Fatalf("localized voice body = %q", voicePayload.Body)
+	}
+}
+
+func TestBuildLocalizedVoiceMessagePushBodies(t *testing.T) {
+	notif := &corev1.Notification{Notification: &corev1.Notification_DmMessage{
+		DmMessage: &corev1.DMMessageNotification{RoomId: "dm", EventId: "voice-event"},
+	}}
+	want := map[string]string{
+		"en": "Voice message",
+		"de": "Sprachnachricht",
+		"fr": "Message vocal",
+		"es": "Mensaje de voz",
+		"pt": "Mensagem de voz",
+	}
+	for locale, expected := range want {
+		t.Run(locale, func(t *testing.T) {
+			payload := BuildLocalizedPayloadFromNotification(
+				notif,
+				"Alice",
+				"https://towk.example.com",
+				&PayloadContext{IsVoiceMessage: true},
+				locale,
+			)
+			if payload.Body != expected {
+				t.Fatalf("voice push body = %q, want %q", payload.Body, expected)
+			}
+		})
 	}
 }
 

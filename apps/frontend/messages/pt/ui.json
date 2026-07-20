@@ -46,6 +46,7 @@
       "empty": "Não há mensagens em espera.",
       "room_label": "Sala {room}",
       "attachment_only": "Mensagem com anexos",
+      "voice_message": "Mensagem de voz",
       "unsupported_server": "Este servidor não pode repetir a mensagem automaticamente em segurança. Mantenha-a aqui ou descarte-a.",
       "discard": "Descartar"
     },

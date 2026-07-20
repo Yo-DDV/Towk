@@ -117,6 +117,7 @@
       "message_post": "Publier des messages principaux dans les salons et démarrer des conversations directes",
       "message_post_in_thread": "Publier des réponses dans un fil de discussion",
       "message_attach": "Joindre des fichiers aux messages",
+      "message_voice": "Enregistrer et envoyer des messages vocaux",
       "message_echo": "Afficher aussi la réponse dans le salon principal lorsqu’elle est publiée dans un fil",
       "message_manage": "Modifier et supprimer les messages des autres utilisateurs",
       "message_react": "Ajouter et supprimer des réactions sur les messages",

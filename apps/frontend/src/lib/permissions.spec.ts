@@ -12,6 +12,7 @@ describe('PERMISSION_METADATA', () => {
       'message.post',
       'message.post-in-thread',
       'message.react',
+      'message.voice',
       'role.assign',
       'role.manage',
       'room.ban-member',

@@ -103,7 +103,10 @@
                 })}
               </p>
               <p class="mt-1 line-clamp-3 text-sm whitespace-pre-wrap text-text">
-                {item.record.value.body || m['ui.outbox.attachment_only']()}
+                {item.record.value.body ||
+                  (item.record.value.isVoiceMessage
+                    ? m['ui.outbox.voice_message']()
+                    : m['ui.outbox.attachment_only']())}
               </p>
               {#if item.record.value.lastError}
                 <p class="mt-1 line-clamp-2 text-xs text-warning">

@@ -117,6 +117,7 @@
       "message_post": "Publicar mensagens raiz em salas e iniciar DMs",
       "message_post_in_thread": "Postar respostas dentro de um tópico",
       "message_attach": "Anexar arquivos às mensagens",
+      "message_voice": "Gravar e enviar mensagens de voz",
       "message_echo": "Ao postar em um tópico, exiba também a mensagem no canal principal",
       "message_manage": "Edite e exclua mensagens de outros usuários",
       "message_react": "Adicionar e remover reações nas mensagens",

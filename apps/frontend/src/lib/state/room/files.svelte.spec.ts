@@ -40,7 +40,8 @@ function roomFileItem(): RoomFileItem {
         url: '/assets/files/att-1/image/120x120/cover?stale=1',
         expiresAt: '2026-07-03T13:00:00.000Z'
       },
-      videoProcessing: null
+      videoProcessing: null,
+      voiceMessage: null
     }
   };
 }

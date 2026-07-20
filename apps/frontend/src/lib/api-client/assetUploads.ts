@@ -1,6 +1,7 @@
 import { sha256 } from 'js-sha256';
 import * as m from '$lib/i18n/messages';
 import { AssetUploadService } from '@towk/api-types/api/v1/asset_uploads_connect';
+import type { MessageVoiceMetadata } from '@towk/api-types/api/v1/message_types_pb';
 import {
   authHeaders,
   createTowkClient,
@@ -20,6 +21,7 @@ export type UploadedAsset = {
 export type UploadAttachmentOptions = {
   roomId: string;
   file: File;
+  voiceMessage?: Pick<MessageVoiceMetadata, 'durationMs' | 'waveformPeaks'>;
   onProgress?: (committedBytes: number, totalBytes: number) => void;
 };
 
@@ -40,7 +42,13 @@ export function createAssetUploadAPI(config: ConnectAPIConfig) {
             filename: options.file.name || 'attachment',
             contentType: options.file.type || 'application/octet-stream',
             size: BigInt(options.file.size),
-            sha256: fullHash
+            sha256: fullHash,
+            voiceMessage: options.voiceMessage
+              ? {
+                  durationMs: options.voiceMessage.durationMs,
+                  waveformPeaks: [...options.voiceMessage.waveformPeaks]
+                }
+              : undefined
           },
           { headers: headers() }
         );

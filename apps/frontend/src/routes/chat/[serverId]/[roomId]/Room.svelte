@@ -238,6 +238,7 @@
   // Room permissions — derived reactively, no $effect needed
   let permissions = $derived(room.roomData ?? DEFAULT_ROOM_PERMISSIONS);
   let composerCanAttach = $derived(room.roomData === undefined ? true : permissions.canAttach);
+  let composerCanVoice = $derived(room.roomData === undefined ? false : permissions.canVoice);
 
   createRoomPermissions(() => permissions);
 
@@ -607,6 +608,7 @@
           {roomId}
           canPost={permissions.canPostMessage}
           canAttach={composerCanAttach}
+          canVoice={composerCanVoice}
           inReplyTo={replyState.messageEventId ?? undefined}
           replyDisplayName={replyState.actorDisplayName || undefined}
           replyExcerpt={replyState.excerpt || undefined}
@@ -633,6 +635,7 @@
           onClose={closeThread}
           canPostInThread={room.roomData.canPostInThread}
           canAttach={room.roomData.canAttach}
+          canVoice={room.roomData.canVoice}
           canEchoMessage={room.roomData.canEchoMessage && room.roomData.canPostMessage}
           highlightEventId={pendingThreadHighlight}
           pendingQuote={pendingThreadQuote}

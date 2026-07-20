@@ -34,6 +34,21 @@ func TestSetupPushNotificationsDoesNotRegisterSilentDismissPushes(t *testing.T) 
 	}
 }
 
+func TestContainsVoiceMessage(t *testing.T) {
+	if containsVoiceMessage(nil) {
+		t.Fatal("empty attachments unexpectedly contain a voice message")
+	}
+	if containsVoiceMessage([]*corev1.Attachment{{Id: "file"}, nil}) {
+		t.Fatal("ordinary attachments unexpectedly contain a voice message")
+	}
+	if !containsVoiceMessage([]*corev1.Attachment{{
+		Id:           "voice",
+		VoiceMessage: &corev1.VoiceMessageMetadata{DurationMs: 1_000},
+	}}) {
+		t.Fatal("voice attachment was not detected")
+	}
+}
+
 func TestLocalizedPushBatches(t *testing.T) {
 	notification := &corev1.Notification{
 		Id:          "notification-1",

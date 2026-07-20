@@ -13,6 +13,7 @@ import { MessageVideoProcessingStatus } from '@towk/api-types/api/v1/message_typ
 import type {
   Message,
   MessageAssetUrl,
+  MessageVoiceMetadata,
   MessageVideoProcessing
 } from '@towk/api-types/api/v1/message_types_pb';
 import type { RoomTimelineEvent } from '@towk/api-types/api/v1/room_timeline_pb';
@@ -386,6 +387,7 @@ function attachmentView(attachment: {
   assetUrl?: MessageAssetUrl;
   thumbnailAssetUrl?: MessageAssetUrl;
   videoProcessing?: MessageVideoProcessing;
+  voiceMessage?: MessageVoiceMetadata;
 }) {
   return {
     id: attachment.id,
@@ -395,7 +397,16 @@ function attachmentView(attachment: {
     height: attachment.height,
     assetUrl: assetUrlView(attachment.assetUrl),
     thumbnailAssetUrl: assetUrlView(attachment.thumbnailAssetUrl),
-    videoProcessing: videoProcessingView(attachment.videoProcessing)
+    videoProcessing: videoProcessingView(attachment.videoProcessing),
+    voiceMessage: voiceMessageView(attachment.voiceMessage)
+  };
+}
+
+function voiceMessageView(metadata?: MessageVoiceMetadata) {
+  if (!metadata) return null;
+  return {
+    durationMs: Number(metadata.durationMs),
+    waveformPeaks: [...metadata.waveformPeaks]
   };
 }
 

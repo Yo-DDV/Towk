@@ -7,6 +7,7 @@ import { createRoomDirectoryAPI } from '$lib/api-client/roomDirectory';
 
 const Permission = {
   Attach: 'message.attach',
+  Voice: 'message.voice',
   BanMember: 'room.ban-member',
   CreateRoom: 'room.create',
   EchoMessage: 'message.echo',
@@ -161,6 +162,7 @@ describe('createRoomDirectoryAPI', () => {
           [Permission.PostMessage]: true,
           [Permission.PostInThread]: true,
           [Permission.Attach]: false,
+          [Permission.Voice]: true,
           [Permission.React]: true,
           [Permission.EchoMessage]: true,
           [Permission.ManageMessage]: false,
@@ -194,6 +196,7 @@ describe('createRoomDirectoryAPI', () => {
       canPostMessage: true,
       canPostInThread: true,
       canAttach: false,
+      canVoice: true,
       canReact: true,
       canEchoMessage: true,
       canManageOthersMessage: false,

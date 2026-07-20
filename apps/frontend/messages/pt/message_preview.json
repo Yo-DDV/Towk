@@ -6,6 +6,7 @@
     "attachment_image": "Imagem",
     "attachment_video": "Vídeo",
     "attachment_audio": "Áudio",
+    "voice_message": "Mensagem de voz",
     "attachment_file": "Arquivo"
   }
 }

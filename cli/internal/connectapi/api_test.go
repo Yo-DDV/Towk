@@ -6107,14 +6107,18 @@ func TestAssetUploadServiceVoiceMessageContract(t *testing.T) {
 		t.Fatalf("DenyRoomPermission attach: %v", err)
 	}
 
-	content := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("voice payload")...)
+	// This API contract test exercises permissions, metadata persistence and
+	// attachment delivery. Container transcoding is covered independently by
+	// the core voice-message tests, so keep this fixture self-contained and
+	// independent from the host ffmpeg installation.
+	content := append([]byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'M', '4', 'A', ' ', 0x00, 0x00, 0x00, 0x00}, []byte("voice payload")...)
 	sum := sha256.Sum256(content)
 	peaks := make([]float32, 32)
 	for i := range peaks {
 		peaks[i] = float32((i%8)+1) / 8
 	}
 	created, err := env.assetUploads.CreateUpload(ctx, connect.NewRequest(&apiv1.CreateUploadRequest{
-		RoomId: room.Id, Filename: "voice-message.webm", ContentType: "audio/webm; codecs=opus",
+		RoomId: room.Id, Filename: "voice-message.m4a", ContentType: "audio/mp4",
 		Size: int64(len(content)), Sha256: hex.EncodeToString(sum[:]),
 		VoiceMessage: &apiv1.MessageVoiceMetadata{DurationMs: 1_234, WaveformPeaks: peaks},
 	}))

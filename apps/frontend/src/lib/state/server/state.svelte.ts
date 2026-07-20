@@ -32,6 +32,7 @@ export class ServerInfoState {
   videoProcessingEnabled = $state(false);
   maxUploadSize = $state(25 * 1024 * 1024); // default 25 MB
   maxVideoUploadSize = $state(25 * 1024 * 1024); // default 25 MB (overridden when video enabled)
+  maxVoiceMessageUploadSize = $state(32 * 1024 * 1024);
   messageEditWindowSeconds = $state(3 * 60 * 60); // default 3 hours; overwritten after auth
 
   loading = $state(true);
@@ -122,6 +123,7 @@ export class ServerInfoState {
     this.videoProcessingEnabled = info.videoProcessingEnabled;
     this.maxUploadSize = info.maxUploadSize;
     this.maxVideoUploadSize = info.maxVideoUploadSize;
+    this.maxVoiceMessageUploadSize = info.maxVoiceMessageUploadSize;
     this.messageEditWindowSeconds = info.messageEditWindowSeconds;
   }
 }

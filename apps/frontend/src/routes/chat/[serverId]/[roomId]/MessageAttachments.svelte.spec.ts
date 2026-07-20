@@ -207,6 +207,35 @@ describe('MessageAttachments', () => {
     expect(container.querySelector('[aria-label="Delete attachment"]')).not.toBeNull();
   });
 
+  it('renders first-class voice metadata with the custom player while keeping generic audio native', () => {
+    const { container } = renderAttachments([
+      fileAttachment({
+        id: 'voice_1',
+        filename: 'voice-message.webm',
+        contentType: 'audio/webm',
+        assetUrl: {
+          url: 'data:audio/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvKB',
+          expiresAt: '2027-05-29T15:00:00Z'
+        },
+        voiceMessage: { durationMs: 4_200, waveformPeaks: [0.1, 0.8, 0.3] }
+      }),
+      fileAttachment({
+        id: 'audio_1',
+        filename: 'song.ogg',
+        contentType: 'audio/ogg',
+        assetUrl: {
+          url: 'data:audio/ogg;base64,T2dnUwACAAAAAAAAAAD',
+          expiresAt: '2027-05-29T15:00:00Z'
+        },
+        voiceMessage: null
+      })
+    ]);
+
+    expect(container.querySelectorAll('[data-testid="voice-message-player"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-testid="audio-player"]')).toHaveLength(1);
+    expect(container.textContent).toContain('song.ogg');
+  });
+
   it('does not render empty media URLs for attachments that are missing asset URLs', () => {
     const { container } = renderAttachment(
       imageAttachment({
