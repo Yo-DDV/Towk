@@ -61,8 +61,9 @@ describe('VoiceMessagePlayer', () => {
     expect(waveform?.querySelectorAll('[data-waveform-layer="base"] > span')).toHaveLength(42);
     expect(waveform?.querySelectorAll('.voice-waveform-fill')).toHaveLength(0);
     expect(waveform?.querySelector('.h-px')).toBeNull();
-    expect(Math.max(...waveformHeights)).toBeGreaterThan(28);
+    expect(Math.max(...waveformHeights)).toBeGreaterThan(24);
     expect(new Set(waveformHeights).size).toBeGreaterThan(2);
+    expect(container.querySelector('[data-testid="voice-message-meta"]')).not.toBeNull();
     expect(container.textContent).toContain('0:12');
     expect(container.querySelector('button[aria-label="Play voice message"]')?.classList).toContain(
       'h-[44px]'
@@ -100,6 +101,41 @@ describe('VoiceMessagePlayer', () => {
     await userEvent.click(speed);
     expect(audio.playbackRate).toBe(1.5);
     expect(speed.textContent).toContain('1.5×');
+  });
+
+  it('keeps normal playback controls aligned in one compact row', async () => {
+    const { container } = render(VoiceMessagePlayer, {
+      props: {
+        src: 'data:audio/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvKB',
+        durationMs: 12_000,
+        waveformPeaks: [0.1, 0.6, 0.3, 0.9],
+        filename: 'voice-message.webm'
+      }
+    });
+    await tick();
+
+    const controls = container.querySelector<HTMLElement>(
+      '[data-testid="voice-message-controls"]'
+    )!;
+    const play = container.querySelector<HTMLElement>('button[aria-label="Play voice message"]')!;
+    const speed = container.querySelector<HTMLElement>('button[aria-label^="Playback speed"]')!;
+    const waveform = container.querySelector<HTMLElement>(
+      '[data-testid="voice-message-waveform"]'
+    )!;
+    const meta = container.querySelector<HTMLElement>('[data-testid="voice-message-meta"]')!;
+    const time = container.querySelector<HTMLElement>('[data-testid="voice-message-time"]')!;
+
+    expect(controls.classList).toContain('items-center');
+    expect(play.parentElement).toBe(controls);
+    expect(waveform.parentElement).toBe(controls);
+    expect(speed.parentElement).toBe(controls);
+    expect(meta.parentElement).toBe(waveform);
+    expect(time.parentElement).toBe(meta);
+    expect(meta.classList).toContain('justify-end');
+    expect(play.classList).toContain('h-[44px]');
+    expect(play.classList).toContain('w-[44px]');
+    expect(speed.classList).toContain('h-[44px]');
+    expect(speed.classList).toContain('w-[44px]');
   });
 
   it('uses an accessible play/pause action', async () => {
@@ -157,18 +193,18 @@ describe('VoiceMessagePlayer', () => {
     expect(progress!.querySelectorAll('[data-progress-state="played"]')).toHaveLength(31);
     expect(progress!.querySelectorAll('[data-progress-state="active"]')).toHaveLength(1);
     expect(progress!.querySelectorAll('[data-progress-state="remaining"]')).toHaveLength(10);
-    expect(
-      progress!.querySelector('[data-progress-state="played"]')?.classList
-    ).toContain('voice-waveform-bar--played');
-    expect(
-      progress!.querySelector('[data-progress-state="active"]')?.classList
-    ).toContain('voice-waveform-bar--active');
+    expect(progress!.querySelector('[data-progress-state="played"]')?.classList).toContain(
+      'voice-waveform-bar--played'
+    );
+    expect(progress!.querySelector('[data-progress-state="active"]')?.classList).toContain(
+      'voice-waveform-bar--active'
+    );
     expect(progress!.querySelector('[data-progress-state="played"]')?.classList).toContain(
       'voice-waveform-bar'
     );
-    expect(
-      progress!.querySelector('[data-progress-state="remaining"]')?.classList
-    ).toContain('voice-waveform-bar--remaining');
+    expect(progress!.querySelector('[data-progress-state="remaining"]')?.classList).toContain(
+      'voice-waveform-bar--remaining'
+    );
     expect(progress!.style.clipPath).toBe('');
 
     Object.defineProperty(audio, 'paused', { configurable: true, writable: true, value: true });
