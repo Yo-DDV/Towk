@@ -98,6 +98,11 @@
     },
     "cached_timeline": "A mostrar o histórico encriptado deste dispositivo enquanto o Towk restabelece a ligação.",
     "corresponding_source": "Ver fonte correspondente para Towk {version}",
+    "version_info": {
+      "open": "Informações da versão",
+      "title": "Versão do servidor",
+      "source": "Ver o código-fonte correspondente"
+    },
     "sign_out": "sair",
     "close": "Fechar",
     "auth_status": {

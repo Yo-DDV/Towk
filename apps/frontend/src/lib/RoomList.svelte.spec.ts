@@ -90,6 +90,7 @@ const { mocks } = vi.hoisted(() => ({
 }));
 
 vi.mock('$app/state', () => ({
+  navigating: { complete: null },
   page: {
     params: {
       serverId: '-',

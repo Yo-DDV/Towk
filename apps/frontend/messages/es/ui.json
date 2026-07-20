@@ -98,6 +98,11 @@
     },
     "cached_timeline": "Se muestra el historial cifrado de este dispositivo mientras Towk se reconecta.",
     "corresponding_source": "Ver fuente correspondiente para Towk {version}",
+    "version_info": {
+      "open": "Información de la versión",
+      "title": "Versión del servidor",
+      "source": "Ver el código fuente correspondiente"
+    },
     "sign_out": "desconectar",
     "close": "Cerca",
     "auth_status": {

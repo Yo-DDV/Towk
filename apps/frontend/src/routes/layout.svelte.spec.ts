@@ -8,8 +8,11 @@ import { sidebarNav } from '$lib/state/globals.svelte';
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     goto: vi.fn(),
+    pushState: vi.fn(),
     afterNavigate: vi.fn(),
     onNavigate: vi.fn(),
+    pendingNavigation: null as Promise<void> | null,
+    registeredServers: [] as Array<{ id: string }>,
     appUi: {
       setActiveRoomScope: vi.fn(),
       setActiveServer: vi.fn()
@@ -26,7 +29,7 @@ vi.mock('$app/navigation', () => ({
   afterNavigate: mocks.afterNavigate,
   goto: mocks.goto,
   onNavigate: mocks.onNavigate,
-  pushState: vi.fn()
+  pushState: mocks.pushState
 }));
 
 vi.mock('$app/paths', () => ({
@@ -34,6 +37,11 @@ vi.mock('$app/paths', () => ({
 }));
 
 vi.mock('$app/state', () => ({
+  navigating: {
+    get complete() {
+      return mocks.pendingNavigation;
+    }
+  },
   page: {
     params: {},
     route: { id: '/' },
@@ -75,9 +83,9 @@ vi.mock('$lib/state/server/useServerRegistry.svelte', () => ({
 
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
-    servers: [],
+    servers: mocks.registeredServers,
     originServer: { id: 'origin' },
-    getStore: vi.fn(),
+    getStore: vi.fn(() => ({ notifications: { count: 0 } })),
     tryGetStore: vi.fn(() => null)
   }
 }));
@@ -152,22 +160,106 @@ function pointer(type: string, x: number, y = 120) {
 describe('root layout mobile sidebar animation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.pendingNavigation = null;
+    mocks.registeredServers.length = 0;
     installMobileMatchMedia();
     resetSidebar();
   });
 
-  it('renders a public corresponding-source link in the app header', async () => {
+  it('keeps the runtime version in an accessible header popover', async () => {
     const { container } = renderLayout();
     await tick();
 
-    const sourceLink = q(
+    expect(q(container, '[data-testid="corresponding-source-link"]')).toBeNull();
+    const trigger = q(
       container,
+      '[data-testid="version-info-trigger"]'
+    ) as HTMLButtonElement | null;
+    expect(trigger).not.toBeNull();
+    expect(trigger).toHaveClass('app-header-icon');
+    expect(trigger?.getAttribute('aria-haspopup')).toBe('dialog');
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    const header = container.querySelector('header');
+    expect(header).not.toBeNull();
+    header!.style.width = '320px';
+    expect(header!.scrollWidth).toBeLessThanOrEqual(header!.clientWidth);
+    const sidebarToggle = q(container, 'button[aria-label="Toggle sidebar"]');
+    expect(trigger?.getBoundingClientRect().width).toBe(
+      sidebarToggle?.getBoundingClientRect().width
+    );
+    expect(trigger?.getBoundingClientRect().height).toBe(
+      sidebarToggle?.getBoundingClientRect().height
+    );
+
+    trigger?.click();
+    await tick();
+
+    expect(trigger?.getAttribute('aria-expanded')).toBe('true');
+    const popover = q(container, '[data-testid="version-info-popover"]');
+    expect(popover).not.toBeNull();
+    expect(q(popover!, '[data-testid="deployed-version"]')?.textContent?.trim()).toMatch(/^v\S+$/);
+
+    const sourceLink = q(
+      popover!,
       '[data-testid="corresponding-source-link"]'
     ) as HTMLAnchorElement | null;
     expect(sourceLink).not.toBeNull();
     expect(sourceLink?.href).toBe('https://github.com/Yo-DDV/towk');
     expect(sourceLink?.target).toBe('_blank');
     expect(sourceLink?.rel).toContain('noopener');
+
+    const versionText = q(popover!, '[data-testid="deployed-version"]')?.textContent?.trim();
+    expect(versionText).toBeTruthy();
+    expect(header?.textContent).not.toContain(versionText!);
+
+    sourceLink?.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await tick();
+    expect(trigger?.getAttribute('aria-expanded')).toBe('false');
+    expect(q(container, '[data-testid="version-info-popover"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('uses the standard header icon geometry for sign out', async () => {
+    mocks.registeredServers.push({ id: 'origin' });
+    const { container } = renderLayout();
+    await tick();
+
+    const signOut = q(container, '[data-testid="sign-out-trigger"]') as HTMLButtonElement | null;
+    expect(signOut).not.toBeNull();
+    expect(signOut).toHaveClass('app-header-icon');
+    expect(signOut?.querySelector('.iconify.uil--signout')).not.toBeNull();
+    const sidebarToggle = q(container, 'button[aria-label="Toggle sidebar"]');
+    expect(signOut?.getBoundingClientRect().width).toBe(
+      sidebarToggle?.getBoundingClientRect().width
+    );
+    expect(signOut?.getBoundingClientRect().height).toBe(
+      sidebarToggle?.getBoundingClientRect().height
+    );
+
+    signOut?.click();
+    await tick();
+    expect(mocks.pushState).toHaveBeenCalledWith('', { modal: { type: 'logout' } });
+  });
+
+  it('does not let a finishing navigation discard the sign-out modal', async () => {
+    mocks.registeredServers.push({ id: 'origin' });
+    let finishNavigation!: () => void;
+    mocks.pendingNavigation = new Promise<void>((resolve) => {
+      finishNavigation = resolve;
+    });
+    const { container } = renderLayout();
+    await tick();
+
+    const signOut = q(container, '[data-testid="sign-out-trigger"]') as HTMLButtonElement;
+    signOut.click();
+    await tick();
+    expect(mocks.pushState).not.toHaveBeenCalled();
+
+    finishNavigation();
+    await mocks.pendingNavigation;
+    await tick();
+    expect(mocks.pushState).toHaveBeenCalledWith('', { modal: { type: 'logout' } });
   });
 
   it('keeps edge target presses from bubbling to app-level outside-click handlers', async () => {

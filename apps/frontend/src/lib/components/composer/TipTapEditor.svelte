@@ -607,6 +607,62 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
     return transformMarkdownOutsideCode(markdown, decodeSerializedTextEntities);
   }
 
+  function restoreUnmatchedLiteralEscapes(markdown: string): string {
+    return transformMarkdownOutsideCode(
+      markdown,
+      (text) => {
+        const escapedBacktickRunCounts: Record<number, number> = {};
+        for (const match of text.matchAll(/\\(`+)/g)) {
+          const runLength = match[1]?.length ?? 0;
+          escapedBacktickRunCounts[runLength] = (escapedBacktickRunCounts[runLength] ?? 0) + 1;
+        }
+        const escapedBacktickRunsRemaining = { ...escapedBacktickRunCounts };
+
+        let bracketDepth = 0;
+        let result = '';
+        for (let index = 0; index < text.length; index += 1) {
+          const char = text[index];
+          const next = text[index + 1];
+
+          if (char === '\\' && next === '`') {
+            let runEnd = index + 1;
+            while (text[runEnd] === '`') runEnd += 1;
+            const run = text.slice(index + 1, runEnd);
+            const totalRuns = escapedBacktickRunCounts[run.length] ?? 0;
+            const remainingRuns = escapedBacktickRunsRemaining[run.length] ?? 0;
+            escapedBacktickRunsRemaining[run.length] = Math.max(0, remainingRuns - 1);
+            if (totalRuns % 2 === 1 && remainingRuns === 1) {
+              result += run;
+            } else {
+              result += `\\${run}`;
+            }
+            index = runEnd - 1;
+            continue;
+          }
+
+          if (char === '\\' && next === ']') {
+            result += bracketDepth === 0 ? ']' : '\\]';
+            index += 1;
+            continue;
+          }
+
+          if (char === '\\' && next !== undefined) {
+            result += `${char}${next}`;
+            index += 1;
+            continue;
+          }
+
+          if (char === '[') bracketDepth += 1;
+          if (char === ']' && bracketDepth > 0) bracketDepth -= 1;
+          result += char;
+        }
+
+        return result;
+      },
+      { preserveInlineCode: false }
+    );
+  }
+
   function hasTrailingEmptyParagraph(e: Editor): boolean {
     if (e.state.doc.childCount <= 1) return false;
     const lastChild = e.state.doc.lastChild;
@@ -638,7 +694,10 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
   function getSerializedMarkdown(e: Editor): string {
     return normalizeSerializedHardBreaksBeforeLists(
       encodeSerializedHeadingClosingHashes(
-        trimSerializedTrailingEmptyParagraph(decodeSerializedMarkdownText(e.getMarkdown()), e)
+        trimSerializedTrailingEmptyParagraph(
+          restoreUnmatchedLiteralEscapes(decodeSerializedMarkdownText(e.getMarkdown())),
+          e
+        )
       )
     );
   }
@@ -1497,11 +1556,20 @@ and exposes a typed API for text manipulation (mentions, emoji, drafts).
   }
 
   /* Placeholder styling via the Placeholder extension */
+  :global(.tiptap-editor .ProseMirror p.is-editor-empty:first-child) {
+    position: relative;
+  }
+
   :global(.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before) {
     content: attr(data-placeholder);
-    float: left;
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     pointer-events: none;
-    height: 0;
     color: var(--color-muted);
   }
 </style>

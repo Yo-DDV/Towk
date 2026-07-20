@@ -104,6 +104,7 @@ class MockIntersectionObserver implements IntersectionObserver {
 }
 
 vi.mock('$app/state', () => ({
+  navigating: { complete: null },
   page: {
     get url() {
       return mocks.currentUrl;

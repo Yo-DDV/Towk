@@ -939,6 +939,9 @@ const msg_ui_cached_timeline = (): LocalizedString => messages().ui_cached_timel
 const msg_ui_corresponding_source = (
   inputs: Parameters<LocaleMessages['ui_corresponding_source']>[0]
 ): LocalizedString => messages().ui_corresponding_source(inputs);
+const msg_ui_version_info_open = (): LocalizedString => messages().ui_version_info_open(empty());
+const msg_ui_version_info_title = (): LocalizedString => messages().ui_version_info_title(empty());
+const msg_ui_version_info_source = (): LocalizedString => messages().ui_version_info_source(empty());
 const msg_ui_sign_out = (): LocalizedString => messages().ui_sign_out(empty());
 const msg_ui_close = (): LocalizedString => messages().ui_close(empty());
 const msg_ui_auth_status_origin_title = (): LocalizedString => messages().ui_auth_status_origin_title(empty());
@@ -2706,6 +2709,9 @@ export { msg_ui_outbox_unsupported_server as 'ui.outbox.unsupported_server' };
 export { msg_ui_outbox_discard as 'ui.outbox.discard' };
 export { msg_ui_cached_timeline as 'ui.cached_timeline' };
 export { msg_ui_corresponding_source as 'ui.corresponding_source' };
+export { msg_ui_version_info_open as 'ui.version_info.open' };
+export { msg_ui_version_info_title as 'ui.version_info.title' };
+export { msg_ui_version_info_source as 'ui.version_info.source' };
 export { msg_ui_sign_out as 'ui.sign_out' };
 export { msg_ui_close as 'ui.close' };
 export { msg_ui_auth_status_origin_title as 'ui.auth_status.origin_title' };

@@ -6,6 +6,9 @@ describe('sourceUrlForVersion', () => {
     expect(sourceUrlForVersion('0.5.0-dev-cbe8f0ee')).toBe(
       `${SOURCE_REPOSITORY_URL}/commit/cbe8f0ee`
     );
+    expect(sourceUrlForVersion('0.6.1-dev-03849a1b-pilot')).toBe(
+      `${SOURCE_REPOSITORY_URL}/commit/03849a1b`
+    );
   });
 
   it('links stable and prerelease builds to their exact tag', () => {

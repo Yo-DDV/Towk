@@ -551,6 +551,45 @@ describe('MessageComposer', () => {
         .toBeInTheDocument();
     });
 
+    it('keeps a long empty placeholder out of the caret flow on narrow layouts', async () => {
+      sidebarNav.setMobile(true);
+      const { container } = renderMessageComposer({
+        roomId: 'room_fold',
+        roomName: 'dev-notifications-pr110-with-a-long-suffix',
+        canVoice: true
+      });
+
+      const editor = await findEditor(container);
+      const shell = q(container, '[data-testid="message-composer-shell"]');
+      const placeholder = q(container, 'p.is-editor-empty[data-placeholder]');
+      expect(shell).not.toBeNull();
+      expect(placeholder).not.toBeNull();
+
+      for (const width of [280, 304, 552]) {
+        shell!.style.width = `${width}px`;
+        await tick();
+
+        const placeholderStyle = getComputedStyle(placeholder!, '::before');
+        expect(placeholderStyle.position).toBe('absolute');
+        expect(placeholderStyle.overflow).toBe('hidden');
+        expect(placeholderStyle.textOverflow).toBe('ellipsis');
+        expect(placeholderStyle.whiteSpace).toBe('nowrap');
+
+        editor.focus();
+        await tick();
+        expect(editor.scrollWidth).toBeLessThanOrEqual(editor.clientWidth);
+        expect(editor.scrollLeft).toBe(0);
+      }
+
+      await typeInEditor(
+        editor,
+        'A real message remains editable and wraps normally after the placeholder disappears.'
+      );
+      expect(q(container, 'p.is-editor-empty[data-placeholder]')).toBeNull();
+      expect(editor.textContent).toContain('A real message remains editable');
+      expect(editor.scrollWidth).toBeLessThanOrEqual(editor.clientWidth);
+    });
+
     it('keeps an explicit placeholder ahead of the channel placeholder', async () => {
       const { container } = renderMessageComposer({
         roomId: 'room_custom',
