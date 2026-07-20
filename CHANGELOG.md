@@ -4,6 +4,32 @@ All notable changes to Towk. Subsequent entries are maintained from conventional
 commits on `main`; this first standalone release entry is curated to separate
 Towk work from the inherited Chatto history.
 
+## [0.7.0](https://github.com/Yo-DDV/Towk/compare/v0.6.1...v0.7.0) (2026-07-20)
+
+
+### Features
+
+* add a first-class voice message media contract ([#93](https://github.com/Yo-DDV/Towk/issues/93)) ([041372e](https://github.com/Yo-DDV/Towk/commit/041372ec1e5be5b70ce4c18b0d30b18d07597afe))
+* **messages:** add voice recording and playback ([#94](https://github.com/Yo-DDV/Towk/issues/94)) ([195ecfe](https://github.com/Yo-DDV/Towk/commit/195ecfe0d41591626b04d2ad4345b710c20bdfad))
+* **performance:** add bounded runtime profiles ([#122](https://github.com/Yo-DDV/Towk/issues/122)) ([9b335de](https://github.com/Yo-DDV/Towk/commit/9b335debef8cacfc66747aa4ba68df4b7b126483))
+
+
+### Bug Fixes
+
+* **frontend:** anchor chat above iOS keyboard ([#98](https://github.com/Yo-DDV/Towk/issues/98)) ([13eb18f](https://github.com/Yo-DDV/Towk/commit/13eb18fe1f8e5d42fb958d27c3d62e7df44886de))
+* **frontend:** polish composer, media and app header ([#113](https://github.com/Yo-DDV/Towk/issues/113)) ([7bfcd41](https://github.com/Yo-DDV/Towk/commit/7bfcd413a43632347bf73d393e25509c26eec52a))
+* **messages:** compact voice playback controls ([#108](https://github.com/Yo-DDV/Towk/issues/108)) ([9dfc211](https://github.com/Yo-DDV/Towk/commit/9dfc2114f6380f2ddc4ae9326303178c90401416))
+* **messages:** refine portable media and voice playback ([#97](https://github.com/Yo-DDV/Towk/issues/97)) ([35b4b1f](https://github.com/Yo-DDV/Towk/commit/35b4b1f83f41ae2faa96710ccfd0220e9729ece0))
+* **push:** scope foreground delivery per installation ([#110](https://github.com/Yo-DDV/Towk/issues/110)) ([24fe1df](https://github.com/Yo-DDV/Towk/commit/24fe1df003bb7ac9236e07c76ec8545627a87938))
+* **pwa:** resync notifications and avoid standalone prompt ([#87](https://github.com/Yo-DDV/Towk/issues/87)) ([6ad463b](https://github.com/Yo-DDV/Towk/commit/6ad463bba129f8c8ae01ac24518202df7943a1aa))
+* **pwa:** tailor installation by platform ([#116](https://github.com/Yo-DDV/Towk/issues/116)) ([a31e2e0](https://github.com/Yo-DDV/Towk/commit/a31e2e0a936c789d8f380389ec0039d1debaa880))
+
+
+### Performance Improvements
+
+* establish reproducible media baselines ([#100](https://github.com/Yo-DDV/Towk/issues/100)) ([8b30785](https://github.com/Yo-DDV/Towk/commit/8b307856c47b95033fe6789f6d51ba7af7ae0b30))
+* **media:** harden backend delivery ([#102](https://github.com/Yo-DDV/Towk/issues/102)) ([c67c730](https://github.com/Yo-DDV/Towk/commit/c67c730f4acf627071af51628d9855fc5ff0f2ee))
+
 ## [0.6.1](https://github.com/Yo-DDV/Towk/compare/v0.6.0...v0.6.1) (2026-07-15)
 
 
