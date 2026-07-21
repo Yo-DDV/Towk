@@ -90,6 +90,22 @@ async function posterImage(container: HTMLElement): Promise<HTMLImageElement> {
 }
 
 describe('VideoPlayer', () => {
+  it('keeps a stable poster frame while the custom player registers', () => {
+    const { container } = renderPostedVideo({
+      width: 1080,
+      height: 1920,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    const customPlayer = container.querySelector('media-player');
+    if (!customPlayer) {
+      const posterShell = container.querySelector('[data-testid="video-player-poster-shell"]');
+      expect(posterShell).not.toBeNull();
+      expect(posterShell?.querySelector('img')?.getAttribute('src')).toBe(TRANSPARENT_THUMBNAIL);
+      expect(posterShell?.textContent).not.toContain('clip.mp4');
+    }
+  });
+
   it('frames 16:9 videos as 16:9 embeds', () => {
     const { container } = renderAutoLoopVideo({ width: 1600, height: 900 });
 

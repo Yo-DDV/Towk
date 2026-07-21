@@ -11,7 +11,7 @@
   import type { ImageItem } from '$lib/ui/ImageModal.svelte';
 
   type RawAttachment = MessageAttachmentView;
-  import VideoPlayer from '$lib/components/chat/VideoPlayer.svelte';
+  import VideoPlayer, { preloadVideoPlayerElements } from '$lib/components/chat/VideoPlayer.svelte';
   import VoiceMessagePlayer from '$lib/components/chat/VoiceMessagePlayer.svelte';
   import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -281,6 +281,14 @@
 
   const imageAttachments = $derived(attachments.filter(isGalleryImageAttachment));
   const hasImageGallery = $derived(imageAttachments.length > 1);
+  const hasProcessedVideoAttachments = $derived(
+    attachments.some(
+      (attachment) =>
+        attachment.contentType.startsWith('video/') &&
+        attachment.videoProcessing?.status === VideoProcessingStatus.Completed &&
+        attachment.videoProcessing.variants.length > 0
+    )
+  );
   const remainingAttachments = $derived(
     hasImageGallery ? attachments.filter((a) => !isGalleryImageAttachment(a)) : attachments
   );
@@ -300,6 +308,12 @@
     return earliestAssetUrlRefreshAt(
       attachments.flatMap((attachment) => attachmentAssetUrls(attachment))
     );
+  });
+
+  $effect(() => {
+    if (hasProcessedVideoAttachments) {
+      void preloadVideoPlayerElements();
+    }
   });
 
   $effect(() => {

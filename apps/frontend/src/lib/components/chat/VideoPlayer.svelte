@@ -1,3 +1,20 @@
+<script lang="ts" module>
+  let vidstackElementsRegistered = false;
+  let vidstackElementsPromise: Promise<void> | null = null;
+
+  export async function preloadVideoPlayerElements(): Promise<void> {
+    if (vidstackElementsRegistered) return;
+    vidstackElementsPromise ??= Promise.all([
+      import('vidstack/player'),
+      import('vidstack/player/layouts'),
+      import('vidstack/player/ui')
+    ]).then(() => {
+      vidstackElementsRegistered = true;
+    });
+    await vidstackElementsPromise;
+  }
+</script>
+
 <script lang="ts">
   import { tick, onMount } from 'svelte';
   import type { VideoProcessingStatus } from '$lib/render/types';
@@ -11,14 +28,12 @@
   // static imports in SvelteKit resolve those stubs during SSR and never
   // re-run on the client. We must dynamically import on mount and wait for
   // registration to complete before rendering the custom elements.
-  let elementsReady = $state(false);
+  let elementsReady = $state(vidstackElementsRegistered);
+  let playerVisualReady = $state(false);
+  let playerVisualReadyKey = '';
 
   onMount(async () => {
-    await Promise.all([
-      import('vidstack/player'),
-      import('vidstack/player/layouts'),
-      import('vidstack/player/ui')
-    ]);
+    await preloadVideoPlayerElements();
     elementsReady = true;
   });
 
@@ -146,6 +161,9 @@
   // an explicit type and dimensions so the player can keep quality selection
   // automatic instead of forcing the heaviest file for every inline playback.
   const videoSources = $derived.by(() => videoSourcesForVariants(sortedVariants));
+  const hasPosterBridge = $derived(
+    status === 'COMPLETED' && highestVariant && !autoLoop && Boolean(thumbnailUrl)
+  );
   const showAutoLoopFallback = $derived(
     Boolean(
       autoLoop &&
@@ -164,6 +182,19 @@
       default:
         return null;
     }
+  });
+
+  $effect(() => {
+    const nextKey = [
+      status,
+      highestVariant?.url ?? '',
+      thumbnailUrl ?? '',
+      String(autoLoop),
+      String(elementsReady)
+    ].join('|');
+    if (nextKey === playerVisualReadyKey) return;
+    playerVisualReadyKey = nextKey;
+    playerVisualReady = false;
   });
 
   function positiveDimension(value: number | null | undefined): number | null {
@@ -306,8 +337,18 @@
     const cleanupFullscreen = interceptFullscreenRequest(node);
     const cleanupVideoObserver = observePlayerVideo(node);
     const cleanupQualitySelection = enableAutoQualitySelection(node);
+    const markReady = () => {
+      playerVisualReady = true;
+    };
+    const fallbackReadyTimer = window.setTimeout(markReady, 900);
+
+    node.addEventListener('can-play', markReady, { once: true });
+    node.addEventListener('loaded-metadata', markReady, { once: true });
 
     return () => {
+      window.clearTimeout(fallbackReadyTimer);
+      node.removeEventListener('can-play', markReady);
+      node.removeEventListener('loaded-metadata', markReady);
       cleanupFullscreen();
       cleanupVideoObserver();
       cleanupQualitySelection();
@@ -342,7 +383,19 @@
     {/if}
   </div>
 {:else if status === 'COMPLETED' && highestVariant && elementsReady}
-  <div class="embed-frame" style={frameStyle}>
+  <div class="embed-frame video-player-frame" style={frameStyle}>
+    {#if hasPosterBridge}
+      <img
+        src={thumbnailUrl!}
+        alt=""
+        aria-hidden="true"
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        onerror={onMediaError}
+        class={['video-poster-bridge pointer-events-none', playerVisualReady && 'opacity-0']}
+      />
+    {/if}
     <media-player
       {@attach attachMediaPlayer}
       src={videoSources}
@@ -353,12 +406,38 @@
     >
       <media-provider>
         {#if thumbnailUrl}
-          <media-poster class="vds-poster" src={thumbnailUrl} alt={filename} onerror={onMediaError}
+          <media-poster
+            class="vds-poster"
+            src={thumbnailUrl}
+            alt={filename}
+            onerror={onMediaError}
           ></media-poster>
         {/if}
       </media-provider>
       <media-video-layout></media-video-layout>
     </media-player>
+  </div>
+{:else if status === 'COMPLETED' && highestVariant}
+  <div
+    class="embed-frame video-player-poster-shell"
+    style={frameStyle}
+    aria-label={filename}
+    data-testid="video-player-poster-shell"
+  >
+    {#if thumbnailUrl}
+      <img
+        src={thumbnailUrl}
+        alt={filename}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        onerror={onMediaError}
+        class="h-full w-full object-contain"
+      />
+    {:else}
+      <span class="iconify text-lg text-muted uil--video"></span>
+      <span class="max-w-full truncate text-sm text-muted">{filename}</span>
+    {/if}
   </div>
 {:else if status === 'PENDING' || status === 'PROCESSING'}
   <div class="embed-frame flex items-center gap-3 px-4 py-3" style={frameStyle}>
@@ -405,5 +484,31 @@
   :global(media-player[data-fit='cover'] .vds-poster img) {
     object-fit: cover;
     object-position: top center;
+  }
+
+  .video-player-frame {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .video-poster-bridge {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: block;
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+    background: var(--color-background, #111);
+    transition: opacity 120ms ease;
+  }
+
+  .video-player-poster-shell {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    overflow: hidden;
   }
 </style>
