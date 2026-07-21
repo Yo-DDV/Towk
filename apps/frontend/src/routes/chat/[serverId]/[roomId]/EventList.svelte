@@ -90,7 +90,7 @@
     isLoadingMore?: boolean;
     hasReachedStart?: boolean;
     showStartMarker?: boolean;
-    onLoadMore?: () => Promise<void>;
+    onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     // Event updates
     updateCounter?: number;
     // Threading
@@ -878,7 +878,7 @@
       // Virtualizer in that state, but pagination still needs to walk backward
       // until it finds visible history or reaches the beginning.
       if (timelineEvents.length > 0 && filteredEvents.length === 0) {
-        await onLoadMore();
+        await onLoadMore({ silent: true });
         return;
       }
 
@@ -902,7 +902,7 @@
         timelineEvents.length > 0 &&
         messageEventCount < INITIAL_ROOM_MESSAGE_BACKFILL_TARGET;
       if (scrollSize <= viewportSize + 50 || lacksInitialRoomMessages) {
-        await onLoadMore();
+        await onLoadMore({ silent: true });
       }
     } finally {
       underfilledBackfillInFlight = false;

@@ -128,7 +128,7 @@
   enablePagination={true}
   isLoadingMore={store.isLoadingMore}
   hasReachedStart={store.hasReachedStart}
-  onLoadMore={() => store.loadMore()}
+  onLoadMore={(options) => store.loadMore(options)}
   {updateCounter}
   {onOpenThread}
   enableLastEditableFinder={true}

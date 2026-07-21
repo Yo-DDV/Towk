@@ -62,7 +62,7 @@
     isLoadingMore?: boolean;
     hasReachedStart?: boolean;
     showStartMarker?: boolean;
-    onLoadMore?: () => Promise<void>;
+    onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     onOpenThread?: OpenThreadHandler;
     filterThreadReplies?: boolean;
     enableLastEditableFinder?: boolean;

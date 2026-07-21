@@ -354,7 +354,7 @@
     isLoadingMore={store.isLoadingMore}
     hasReachedStart={store.hasReachedStart}
     showStartMarker={false}
-    onLoadMore={() => store.loadMore()}
+    onLoadMore={(options) => store.loadMore(options)}
     filterThreadReplies={false}
     {updateCounter}
     enableLastEditableFinder={true}

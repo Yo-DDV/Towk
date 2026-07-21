@@ -238,6 +238,7 @@ export class MessagesStore {
   #pendingJumpId: number | null = null;
   #cachedEventIds = new SvelteSet<string>();
   #transitionCarryOverEventIds = new SvelteSet<string>();
+  #silentLoadMoreInFlight = false;
   #cacheSaveTimer: ReturnType<typeof setTimeout> | null = null;
   readonly #transientTimelineSnapshotOwnerKey = `transient:${++transientTimelineSnapshotScopeSequence}`;
 
@@ -586,11 +587,20 @@ export class MessagesStore {
     }
   }
 
-  async loadMore(): Promise<void> {
-    if (this.isLoadingMore || this.hasReachedStart || !this.oldestCursor) return;
+  async loadMore(options: { silent?: boolean } = {}): Promise<void> {
+    const silent = options.silent === true;
+    if (
+      this.isLoadingMore ||
+      this.#silentLoadMoreInFlight ||
+      this.hasReachedStart ||
+      !this.oldestCursor
+    ) {
+      return;
+    }
 
     const before = this.oldestCursor;
-    this.isLoadingMore = true;
+    if (silent) this.#silentLoadMoreInFlight = true;
+    else this.isLoadingMore = true;
 
     try {
       const page = await this.fetchOlderPage(before);
@@ -622,7 +632,8 @@ export class MessagesStore {
       // Yield a frame so the virtualizer can settle before another loadMore.
       await tick();
       await new Promise((r) => requestAnimationFrame(r));
-      this.isLoadingMore = false;
+      if (silent) this.#silentLoadMoreInFlight = false;
+      else this.isLoadingMore = false;
     }
   }
 
