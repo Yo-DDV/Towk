@@ -508,4 +508,50 @@ describe('VoiceMessagePlayer', () => {
     expect(load).toHaveBeenCalledTimes(2);
     expect(play).toHaveBeenCalledOnce();
   });
+
+  it('keeps the active media source stable when a refreshed URL arrives during playback', async () => {
+    const oldSource = 'https://cdn.example.test/voice-message.webm?rev=old';
+    const refreshedSource = 'https://cdn.example.test/voice-message.webm?rev=fresh';
+    const rendered = render(VoiceMessagePlayer, {
+      props: {
+        src: oldSource,
+        durationMs: 10_000,
+        waveformPeaks: [0.2, 0.4],
+        filename: 'voice-message.webm'
+      }
+    });
+    const audio = rendered.container.querySelector('audio')!;
+    Object.defineProperty(audio, 'currentTime', { configurable: true, writable: true, value: 3 });
+    Object.defineProperty(audio, 'paused', { configurable: true, writable: true, value: false });
+    Object.defineProperty(audio, 'ended', { configurable: true, writable: true, value: false });
+    const load = vi.spyOn(audio, 'load').mockImplementation(() => {});
+    vi.spyOn(audio, 'play').mockResolvedValue();
+
+    audio.dispatchEvent(new Event('play'));
+    await rendered.rerender({
+      src: refreshedSource,
+      durationMs: 10_000,
+      waveformPeaks: [0.2, 0.4],
+      filename: 'voice-message.webm'
+    });
+    await tick();
+
+    expect(audio.getAttribute('src')).toBe(oldSource);
+    expect(load).not.toHaveBeenCalled();
+
+    Object.defineProperty(audio, 'paused', { configurable: true, writable: true, value: true });
+    Object.defineProperty(audio, 'ended', { configurable: true, writable: true, value: true });
+    audio.dispatchEvent(new Event('ended'));
+    await tick();
+
+    expect(audio.getAttribute('src')).toBeNull();
+    expect(load).toHaveBeenCalledOnce();
+
+    await userEvent.click(
+      rendered.container.querySelector('button[aria-label="Play voice message"]')!
+    );
+
+    expect(audio.getAttribute('src')).toBe(refreshedSource);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
 });
