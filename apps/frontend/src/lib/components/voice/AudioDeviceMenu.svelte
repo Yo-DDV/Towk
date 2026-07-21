@@ -302,6 +302,7 @@ Reads available devices and current selection from `voiceCallState`.
   <div
     bind:this={menuElement}
     id="call-audio-device-menu"
+    class="max-h-[72vh] w-full overflow-y-auto pb-1 sm:max-h-[42rem]"
     role="menu"
     tabindex="-1"
     aria-label={m['voice.devices']()}
@@ -310,7 +311,7 @@ Reads available devices and current selection from `voiceCallState`.
     <div class="menu-section" role="group" aria-labelledby="call-microphone-processing-title">
       <div
         id="call-microphone-processing-title"
-        class="flex items-center gap-2 px-3 pt-1.5 pb-1.5 text-xs font-semibold text-text"
+        class="flex items-center gap-2 px-3 pt-1.5 pb-2 text-sm font-semibold text-text"
       >
         <span class="iconify text-base text-muted uil--shield-check" aria-hidden="true"></span>
         {m['voice.microphone_processing_title']()}
@@ -325,7 +326,7 @@ Reads available devices and current selection from `voiceCallState`.
         </div>
         {#each microphoneProcessingControls as control (control.key)}
           <button
-            class="sidebar-item min-h-[52px] gap-2 rounded-md px-3"
+            class="sidebar-item min-h-[64px] gap-3 rounded-lg px-3"
             role="menuitemcheckbox"
             aria-checked={control.enabled}
             tabindex="-1"
@@ -340,11 +341,18 @@ Reads available devices and current selection from `voiceCallState`.
             </span>
             <span
               class={[
-                'iconify shrink-0 text-base',
-                control.enabled ? 'text-accent uil--toggle-on' : 'text-muted uil--toggle-off'
+                'relative inline-flex h-8 w-14 shrink-0 items-center rounded-full border transition-colors',
+                control.enabled ? 'border-accent/50 bg-accent/25' : 'border-text/10 bg-surface-300'
               ]}
               aria-hidden="true"
-            ></span>
+            >
+              <span
+                class={[
+                  'h-6 w-6 rounded-full shadow-sm transition-transform',
+                  control.enabled ? 'translate-x-7 bg-accent' : 'translate-x-1 bg-muted'
+                ]}
+              ></span>
+            </span>
           </button>
         {/each}
       </div>
@@ -357,7 +365,7 @@ Reads available devices and current selection from `voiceCallState`.
       >
         <div
           id={`call-device-section-${sectionIndex}`}
-          class="flex items-center gap-2 px-3 pt-3 pb-1.5 text-xs font-semibold text-text first:pt-1.5"
+          class="flex items-center gap-2 px-3 pt-4 pb-2 text-sm font-semibold text-text first:pt-2"
         >
           <span class={['iconify text-base text-muted', section.icon]} aria-hidden="true"></span>
           {section.label}
@@ -365,7 +373,7 @@ Reads available devices and current selection from `voiceCallState`.
         <div class="sidebar-nav">
           {#each section.devices as device (device.deviceId)}
             <button
-              class="sidebar-item min-h-[44px] gap-2 rounded-md px-3"
+              class="sidebar-item min-h-[52px] gap-3 rounded-lg px-3"
               role="menuitemradio"
               aria-checked={device.deviceId === section.selectedId}
               tabindex="-1"
@@ -386,7 +394,7 @@ Reads available devices and current selection from `voiceCallState`.
 
           {#if section.kind === 'audiooutput' && voiceCallState.canRequestAudioOutputDevice}
             <button
-              class="sidebar-item min-h-[44px] gap-2 rounded-md px-3"
+              class="sidebar-item min-h-[52px] gap-3 rounded-lg px-3"
               role="menuitem"
               tabindex="-1"
               onclick={async () => {

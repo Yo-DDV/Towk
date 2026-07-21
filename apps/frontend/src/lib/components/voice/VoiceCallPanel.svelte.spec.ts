@@ -319,7 +319,7 @@ describe('VoiceCallPanel screen-share audio', () => {
     enumerateDevices.mockRestore();
   });
 
-  it('disables unavailable web screen sharing and explains the supported desktop alternative', async () => {
+  it('keeps unavailable web screen sharing compact and explains it only on tap', async () => {
     const original = Object.getOwnPropertyDescriptor(navigator.mediaDevices, 'getDisplayMedia');
     Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', {
       configurable: true,
@@ -338,14 +338,10 @@ describe('VoiceCallPanel screen-share audio', () => {
         expect(value).not.toBeNull();
         return value!;
       });
-      expect(control.disabled).toBe(true);
+      expect(control.disabled).toBe(false);
+      expect(control.getAttribute('aria-disabled')).toBe('true');
       expect(control.querySelector('.uil--desktop-slash')).not.toBeNull();
-      expect(
-        container.querySelector('[data-testid="call-screen-share-unsupported"]')
-      ).not.toBeNull();
-      expect(container.textContent).toContain(
-        'Use Towk in a supported desktop browser to share your screen.'
-      );
+      expect(container.querySelector('[data-testid="call-screen-share-unsupported"]')).toBeNull();
     } finally {
       if (original) {
         Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', original);

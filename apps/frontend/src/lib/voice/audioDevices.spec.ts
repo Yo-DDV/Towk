@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { friendlyAudioDeviceNames } from './audioDevices';
+import {
+  audioDeviceRouteKind,
+  friendlyAudioDeviceNames,
+  preferredAudioDeviceId
+} from './audioDevices';
 
 const labels = {
   microphone: 'Microphone',
   speaker: 'Speaker',
-  phoneMicrophone: 'Phone microphone',
-  headsetMicrophone: 'Headset microphone',
+  phoneMicrophone: 'Speakerphone microphone',
+  headsetMicrophone: 'Earpiece microphone',
   bluetoothMicrophone: 'Bluetooth microphone',
-  phoneSpeaker: 'Phone speaker',
-  headsetSpeaker: 'Headset speaker',
+  phoneSpeaker: 'Speakerphone',
+  headsetSpeaker: 'Phone earpiece',
   bluetoothSpeaker: 'Bluetooth audio',
   systemDefault: 'System default',
   communicationsDefault: 'Default communication device'
@@ -71,7 +75,8 @@ describe('friendlyAudioDeviceNames', () => {
         device('speakerphone', 'Speakerphone'),
         device('earpiece', 'Headset earpiece'),
         device('bluetooth', 'Bluetooth headset'),
-        device('named', 'WF-1000XM5 Hands-Free')
+        device('named', 'WF-1000XM5 Hands-Free'),
+        device('named-bluetooth', 'Jabra Bluetooth Hands-Free')
       ],
       labels
     );
@@ -84,12 +89,49 @@ describe('friendlyAudioDeviceNames', () => {
       labels
     );
 
-    expect(inputNames.get('speakerphone')).toBe('Phone microphone');
-    expect(inputNames.get('earpiece')).toBe('Headset microphone');
+    expect(inputNames.get('speakerphone')).toBe('Speakerphone microphone');
+    expect(inputNames.get('earpiece')).toBe('Earpiece microphone');
     expect(inputNames.get('bluetooth')).toBe('Bluetooth microphone');
     expect(inputNames.get('named')).toBe('WF-1000XM5 Hands-Free');
-    expect(outputNames.get('speakerphone-output')).toBe('Phone speaker');
-    expect(outputNames.get('earpiece-output')).toBe('Headset speaker');
+    expect(inputNames.get('named-bluetooth')).toBe('Jabra Bluetooth Hands-Free');
+    expect(outputNames.get('speakerphone-output')).toBe('Speakerphone');
+    expect(outputNames.get('earpiece-output')).toBe('Phone earpiece');
     expect(outputNames.get('bluetooth-output')).toBe('Bluetooth audio');
+  });
+
+  it('classifies mobile routes and Bluetooth hardware without rewriting named labels', () => {
+    expect(audioDeviceRouteKind(device('speakerphone', 'Speakerphone'))).toBe('speakerphone');
+    expect(audioDeviceRouteKind(device('earpiece', 'Headset earpiece'))).toBe('earpiece');
+    expect(audioDeviceRouteKind(device('bluetooth', 'Bluetooth headset'))).toBe('bluetooth');
+    expect(audioDeviceRouteKind(device('sony', 'WF-1000XM5 Hands-Free'))).toBe('unknown');
+    expect(audioDeviceRouteKind(device('jabra', 'Jabra Bluetooth Hands-Free'))).toBe('bluetooth');
+  });
+
+  it('prefers Bluetooth automatically unless the user explicitly selected another route', () => {
+    const devices = [
+      device('speakerphone', 'Speakerphone'),
+      device('earpiece', 'Headset earpiece'),
+      device('bluetooth', 'Bluetooth headset')
+    ];
+
+    expect(
+      preferredAudioDeviceId(devices, {
+        activeDeviceId: 'speakerphone',
+        selectedDeviceId: 'speakerphone'
+      })
+    ).toBe('bluetooth');
+    expect(
+      preferredAudioDeviceId(devices, {
+        activeDeviceId: 'bluetooth',
+        explicitDeviceId: 'speakerphone',
+        selectedDeviceId: 'bluetooth'
+      })
+    ).toBe('speakerphone');
+    expect(
+      preferredAudioDeviceId(devices.slice(0, 2), {
+        activeDeviceId: 'earpiece',
+        selectedDeviceId: 'speakerphone'
+      })
+    ).toBe('earpiece');
   });
 });

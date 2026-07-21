@@ -11,6 +11,15 @@ export type FriendlyAudioDeviceLabels = {
   communicationsDefault: string;
 };
 
+export type AudioDeviceRouteKind =
+  'bluetooth' | 'communications' | 'default' | 'earpiece' | 'speakerphone' | 'unknown';
+
+export type PreferredAudioDeviceSelection = {
+  activeDeviceId?: string | null;
+  explicitDeviceId?: string | null;
+  selectedDeviceId?: string | null;
+};
+
 /**
  * Keep useful desktop hardware names while replacing opaque or browser-generic
  * mobile labels with stable, localized names.
@@ -45,6 +54,39 @@ export function friendlyAudioDeviceNames(
   return names;
 }
 
+export function audioDeviceRouteKind(device: MediaDeviceInfo): AudioDeviceRouteKind {
+  if (device.deviceId === 'default') return 'default';
+  if (device.deviceId === 'communications') return 'communications';
+
+  const normalized = normalizeAudioDeviceLabel(device.label);
+  if (isBluetoothDeviceLabel(normalized)) return 'bluetooth';
+  if (isEarpieceRouteLabel(normalized)) return 'earpiece';
+  if (isSpeakerphoneRouteLabel(normalized)) return 'speakerphone';
+  return 'unknown';
+}
+
+export function preferredAudioDeviceId(
+  devices: MediaDeviceInfo[],
+  selection: PreferredAudioDeviceSelection = {}
+): string | null {
+  if (selection.explicitDeviceId && hasDevice(devices, selection.explicitDeviceId)) {
+    return selection.explicitDeviceId;
+  }
+
+  const bluetoothDevice = devices.find((device) => audioDeviceRouteKind(device) === 'bluetooth');
+  if (bluetoothDevice) return bluetoothDevice.deviceId;
+
+  if (selection.activeDeviceId && hasDevice(devices, selection.activeDeviceId)) {
+    return selection.activeDeviceId;
+  }
+
+  if (selection.selectedDeviceId && hasDevice(devices, selection.selectedDeviceId)) {
+    return selection.selectedDeviceId;
+  }
+
+  return devices[0]?.deviceId ?? null;
+}
+
 function systemRouteName(base: string, rawLabel: string, deviceId: string): string {
   if (!rawLabel || rawLabel === deviceId || rawLabel.toLocaleLowerCase() === deviceId) return base;
   const separator = rawLabel.indexOf(' - ');
@@ -59,33 +101,61 @@ function localizedGenericRouteName(
   rawLabel: string,
   labels: FriendlyAudioDeviceLabels
 ): string | null {
-  const normalized = rawLabel.trim().toLocaleLowerCase();
+  const normalized = normalizeAudioDeviceLabel(rawLabel);
   const isOutput = kind === 'audiooutput';
 
-  if (
-    normalized === 'speakerphone' ||
-    normalized === 'phone speaker' ||
-    normalized === 'built-in speaker'
-  ) {
+  if (isSpeakerphoneRouteLabel(normalized)) {
     return isOutput ? labels.phoneSpeaker : labels.phoneMicrophone;
   }
 
-  if (
-    normalized === 'headset earpiece' ||
-    normalized === 'wired headset' ||
-    normalized === 'headset microphone' ||
-    normalized === 'headset'
-  ) {
+  if (isEarpieceRouteLabel(normalized)) {
     return isOutput ? labels.headsetSpeaker : labels.headsetMicrophone;
   }
 
-  if (
-    normalized === 'bluetooth headset' ||
-    normalized === 'bluetooth microphone' ||
-    normalized === 'bluetooth'
-  ) {
+  if (isGenericBluetoothRouteLabel(normalized)) {
     return isOutput ? labels.bluetoothSpeaker : labels.bluetoothMicrophone;
   }
 
   return null;
+}
+
+function hasDevice(devices: MediaDeviceInfo[], deviceId: string): boolean {
+  return devices.some((device) => device.deviceId === deviceId);
+}
+
+function normalizeAudioDeviceLabel(label: string): string {
+  return label.trim().toLocaleLowerCase();
+}
+
+function isBluetoothDeviceLabel(normalized: string): boolean {
+  return isGenericBluetoothRouteLabel(normalized) || /\bbluetooth\b/.test(normalized);
+}
+
+function isGenericBluetoothRouteLabel(normalized: string): boolean {
+  return (
+    normalized === 'bluetooth' ||
+    normalized === 'bluetooth headset' ||
+    normalized === 'bluetooth microphone' ||
+    normalized === 'bluetooth audio'
+  );
+}
+
+function isEarpieceRouteLabel(normalized: string): boolean {
+  return (
+    normalized === 'earpiece' ||
+    normalized === 'headset' ||
+    normalized === 'headset earpiece' ||
+    normalized === 'headset microphone' ||
+    normalized === 'phone earpiece' ||
+    normalized === 'receiver' ||
+    normalized === 'wired headset'
+  );
+}
+
+function isSpeakerphoneRouteLabel(normalized: string): boolean {
+  return (
+    normalized === 'speakerphone' ||
+    normalized === 'phone speaker' ||
+    normalized === 'built-in speaker'
+  );
 }

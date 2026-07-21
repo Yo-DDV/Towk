@@ -74,6 +74,8 @@ to the user settings page for the active server.
   });
   const compactCallButtonClass = 'btn-secondary h-10 w-10 shrink-0 !px-0 !py-0 text-xs';
   const compactCallActiveButtonClass = 'btn-success h-10 w-10 shrink-0 !px-0 !py-0 text-xs';
+  const compactCallUnavailableButtonClass =
+    'btn-secondary h-10 w-10 shrink-0 cursor-not-allowed !px-0 !py-0 text-xs opacity-60 saturate-50';
   const compactCallDangerButtonClass = 'btn-danger h-10 w-10 shrink-0 !px-0 !py-0 text-xs';
   const useSheetDialog = prefersTouchActions() && !supportsHoverActions();
   const presenceModes: PresenceMode[] = ['auto', 'away', 'doNotDisturb', 'invisible'];
@@ -285,24 +287,29 @@ to the user settings page for the active server.
           type="button"
           class={voiceCallState.isScreenShareEnabled
             ? compactCallActiveButtonClass
-            : compactCallButtonClass}
+            : voiceCallState.canShareScreen
+              ? compactCallButtonClass
+              : compactCallUnavailableButtonClass}
           title={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
             : voiceCallState.canShareScreen
               ? m['voice.share_screen_with_audio']()
-              : m['voice.screen_share_unsupported']()}
+              : m['voice.screen_share_capability_unavailable']()}
           aria-label={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
             : voiceCallState.canShareScreen
               ? m['voice.share_screen_with_audio']()
-              : m['voice.screen_share_unsupported']()}
+              : m['voice.screen_share_capability_unavailable']()}
           data-testid="current-user-call-screen-share"
           onclick={() => voiceCallState.toggleScreenShare()}
           disabled={voiceCallState.isScreenSharePending || voiceCallState.reconnecting}
+          aria-disabled={!voiceCallState.isScreenShareEnabled && !voiceCallState.canShareScreen}
           aria-busy={voiceCallState.isScreenSharePending || undefined}
         >
           {#if voiceCallState.isScreenSharePending}
             <span class="iconify animate-spin uil--spinner" aria-hidden="true"></span>
+          {:else if !voiceCallState.isScreenShareEnabled && !voiceCallState.canShareScreen}
+            <span class="iconify uil--desktop-slash" aria-hidden="true"></span>
           {:else}
             <span class="iconify uil--desktop" aria-hidden="true"></span>
           {/if}
@@ -332,11 +339,7 @@ to the user settings page for the active server.
         data-testid="current-user-presence-menu"
         onclick={openStatusMenu}
       >
-        <UserAvatar
-          user={activeServerUser}
-          size="sm"
-          showPresence
-        />
+        <UserAvatar user={activeServerUser} size="sm" showPresence />
       </button>
       <div
         class="flex min-w-0 flex-1 flex-col overflow-hidden leading-tight"

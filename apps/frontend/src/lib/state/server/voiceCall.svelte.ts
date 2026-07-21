@@ -58,6 +58,7 @@ import type {
 } from '$lib/api-client/voiceCalls';
 import type { CoordinateVoiceCallJoin, LeaveOtherVoiceCalls } from './voiceCallCoordinator';
 import { nextCameraDeviceId } from '$lib/voice/cameraDevices';
+import { audioDeviceRouteKind, preferredAudioDeviceId } from '$lib/voice/audioDevices';
 
 export type CallParticipantInfo = {
   identity: string;
@@ -110,6 +111,7 @@ type ParticipantMetadata = {
 
 const RECENTLY_DISCONNECTED_CALL_SOUND_MS = 5_000;
 const MEDIA_DEVICE_TOAST_DEDUPLICATION_MS = 1_500;
+const SCREEN_SHARE_UNAVAILABLE_TOAST_MS = 6_000;
 const MICROPHONE_ROUTE_RECONCILE_INTERVAL_MS = 1_000;
 const MICROPHONE_ROUTE_AUTO_RECOVERY_DELAYS_MS = [1_000, 2_000, 4_000] as const;
 const DEVICE_AUDIO_CONTROL_RPC_METHOD = 'towk.device-audio-control.v1';
@@ -356,6 +358,8 @@ export class VoiceCallState {
   private activeParticipantId: string | null = null;
   private activeDeviceIndex: number | null = null;
   private clientInstanceId = createVoiceCallClientInstanceId();
+  private explicitAudioInputDeviceId: string | null = null;
+  private explicitAudioOutputDeviceId: string | null = null;
   private pendingOwnJoinSound: {
     roomId: string;
     callId: string;
@@ -399,6 +403,7 @@ export class VoiceCallState {
     message: string;
     shownAt: number;
   } | null = null;
+  private lastScreenShareUnavailableToastAt = -SCREEN_SHARE_UNAVAILABLE_TOAST_MS;
   private microphoneProcessingWarningShown = false;
   private localAudioStateRevision = 0;
   private siblingAudioStates = $state<Record<string, SiblingAudioState>>({});
@@ -1422,7 +1427,14 @@ export class VoiceCallState {
     if (!room) return;
 
     if (!this.isScreenShareEnabled && !this.canShareScreen) {
-      toast.warning(m['voice.screen_share_unsupported']());
+      const now = Date.now();
+      if (now - this.lastScreenShareUnavailableToastAt >= SCREEN_SHARE_UNAVAILABLE_TOAST_MS) {
+        this.lastScreenShareUnavailableToastAt = now;
+        toast.warning(
+          m['voice.screen_share_capability_unavailable'](),
+          SCREEN_SHARE_UNAVAILABLE_TOAST_MS
+        );
+      }
       return;
     }
 
@@ -1490,27 +1502,41 @@ export class VoiceCallState {
     // camera enumeration from the same refresh.
     if (inputResult.status === 'fulfilled') {
       const inputDevices = inputResult.value;
+      if (
+        this.explicitAudioInputDeviceId &&
+        !inputDevices.some((device) => device.deviceId === this.explicitAudioInputDeviceId)
+      ) {
+        this.explicitAudioInputDeviceId = null;
+      }
       this.audioDevices = inputDevices;
-      this.selectedDeviceId = availableDeviceId(
-        inputDevices,
-        this.selectedDeviceId,
-        this.room?.getActiveDevice('audioinput')
-      );
+      this.selectedDeviceId = preferredAudioDeviceId(inputDevices, {
+        activeDeviceId: this.room?.getActiveDevice('audioinput'),
+        explicitDeviceId: this.explicitAudioInputDeviceId,
+        selectedDeviceId: this.selectedDeviceId
+      });
+      await this.applyAutomaticPreferredAudioInput(inputDevices, this.selectedDeviceId);
     }
 
     if (outputResult.status === 'fulfilled') {
       const outputDevices = outputResult.value;
+      if (
+        this.explicitAudioOutputDeviceId &&
+        !outputDevices.some((device) => device.deviceId === this.explicitAudioOutputDeviceId)
+      ) {
+        this.explicitAudioOutputDeviceId = null;
+      }
       this.isAudioOutputSelectionSupported =
         supportsAudioOutputSelection() && outputDevices.length > 0;
       this.audioOutputDevices = this.isAudioOutputSelectionSupported ? outputDevices : [];
       if (!this.isAudioOutputSelectionSupported) {
         this.selectedOutputDeviceId = null;
       } else {
-        this.selectedOutputDeviceId = availableDeviceId(
-          outputDevices,
-          this.selectedOutputDeviceId,
-          this.room?.getActiveDevice('audiooutput')
-        );
+        this.selectedOutputDeviceId = preferredAudioDeviceId(outputDevices, {
+          activeDeviceId: this.room?.getActiveDevice('audiooutput'),
+          explicitDeviceId: this.explicitAudioOutputDeviceId,
+          selectedDeviceId: this.selectedOutputDeviceId
+        });
+        await this.applyAutomaticPreferredAudioOutput(outputDevices, this.selectedOutputDeviceId);
       }
     } else if (classifyMediaDeviceFailure(outputResult.reason) === 'unsupported') {
       // Mobile browsers commonly expose capture devices while keeping speaker
@@ -1518,6 +1544,7 @@ export class VoiceCallState {
       // presenting an unusable or misleading device after that transition.
       this.audioOutputDevices = [];
       this.selectedOutputDeviceId = null;
+      this.explicitAudioOutputDeviceId = null;
       this.isAudioOutputSelectionSupported = false;
     }
 
@@ -1533,6 +1560,105 @@ export class VoiceCallState {
     }
   }
 
+  private async applyAutomaticPreferredAudioInput(
+    devices: MediaDeviceInfo[],
+    deviceId: string | null
+  ): Promise<void> {
+    const room = this.room;
+    if (
+      !room ||
+      this.isMuted ||
+      this.explicitAudioInputDeviceId ||
+      this.explicitMediaDeviceOperationDepth > 0 ||
+      !deviceId ||
+      room.getActiveDevice('audioinput') === deviceId
+    ) {
+      return;
+    }
+
+    const device = devices.find((candidate) => candidate.deviceId === deviceId);
+    if (!device || audioDeviceRouteKind(device) !== 'bluetooth') return;
+
+    try {
+      await this.serializeAudioInputOperation(async () => {
+        if (
+          this.room !== room ||
+          this.isMuted ||
+          this.explicitAudioInputDeviceId ||
+          this.explicitMediaDeviceOperationDepth > 0
+        ) {
+          return;
+        }
+        await this.runExplicitMediaDeviceOperation(() =>
+          this.enableMicrophoneWithRouteFallback(room, deviceId)
+        );
+        if (this.room !== room) return;
+        if (
+          !this.selectedDeviceId ||
+          !devices.some((device) => device.deviceId === this.selectedDeviceId)
+        ) {
+          this.selectedDeviceId = room.getActiveDevice('audioinput') ?? deviceId;
+        }
+        this.clearMicrophoneRouteRecovery();
+        this.updateParticipants();
+        this.localAudioStateRevision += 1;
+        this.broadcastLocalAudioState();
+      });
+    } catch {
+      if (this.room === room) {
+        this.selectedDeviceId = availableDeviceId(
+          devices,
+          this.selectedDeviceId,
+          room.getActiveDevice('audioinput')
+        );
+      }
+    }
+  }
+
+  private async applyAutomaticPreferredAudioOutput(
+    devices: MediaDeviceInfo[],
+    deviceId: string | null
+  ): Promise<void> {
+    const room = this.room;
+    if (
+      !room ||
+      this.explicitAudioOutputDeviceId ||
+      this.explicitMediaDeviceOperationDepth > 0 ||
+      !deviceId ||
+      room.getActiveDevice('audiooutput') === deviceId
+    ) {
+      return;
+    }
+
+    const device = devices.find((candidate) => candidate.deviceId === deviceId);
+    if (!device || audioDeviceRouteKind(device) !== 'bluetooth') return;
+
+    try {
+      await this.serializeAudioOutputOperation(async () => {
+        if (
+          this.room !== room ||
+          this.explicitAudioOutputDeviceId ||
+          this.explicitMediaDeviceOperationDepth > 0
+        ) {
+          return;
+        }
+        await this.runExplicitMediaDeviceOperation(() =>
+          room.switchActiveDevice('audiooutput', deviceId)
+        );
+        if (this.room !== room) return;
+        this.selectedOutputDeviceId = room.getActiveDevice('audiooutput') ?? deviceId;
+      });
+    } catch {
+      if (this.room === room) {
+        this.selectedOutputDeviceId = availableDeviceId(
+          devices,
+          this.selectedOutputDeviceId,
+          room.getActiveDevice('audiooutput')
+        );
+      }
+    }
+  }
+
   /** @deprecated Use refreshDevices() instead */
   async refreshAudioDevices(): Promise<void> {
     return this.refreshDevices();
@@ -1544,6 +1670,8 @@ export class VoiceCallState {
   async setAudioDevice(deviceId: string): Promise<void> {
     const room = this.room;
     if (!room) return;
+    const previousExplicitDeviceId = this.explicitAudioInputDeviceId;
+    this.explicitAudioInputDeviceId = deviceId;
     if (
       !this.microphoneRouteRecovering &&
       deviceId === this.selectedDeviceId &&
@@ -1577,6 +1705,7 @@ export class VoiceCallState {
       });
     } catch (err) {
       if (this.room !== room) return;
+      this.explicitAudioInputDeviceId = previousExplicitDeviceId;
       this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('microphone', err, 'switch'));
       return;
     }
@@ -1588,6 +1717,8 @@ export class VoiceCallState {
   async setAudioOutputDevice(deviceId: string): Promise<void> {
     const room = this.room;
     if (!room) return;
+    const previousExplicitDeviceId = this.explicitAudioOutputDeviceId;
+    this.explicitAudioOutputDeviceId = deviceId;
     if (
       deviceId === this.selectedOutputDeviceId &&
       room.getActiveDevice('audiooutput') === deviceId
@@ -1606,6 +1737,7 @@ export class VoiceCallState {
       });
     } catch (err) {
       if (this.room !== room) return;
+      this.explicitAudioOutputDeviceId = previousExplicitDeviceId;
       this.notifyMediaDeviceError(getVoiceCallMediaDeviceErrorMessage('speaker', err, 'switch'));
     }
   }
@@ -2283,8 +2415,11 @@ export class VoiceCallState {
     this.siblingAudioControlPending = {};
     this.siblingAudioControlInFlight.clear();
     this.siblingAudioStateRefreshInFlight.clear();
+    this.explicitAudioInputDeviceId = null;
+    this.explicitAudioOutputDeviceId = null;
     this.audioDevices = [];
     this.selectedDeviceId = null;
+    this.lastScreenShareUnavailableToastAt = -SCREEN_SHARE_UNAVAILABLE_TOAST_MS;
     this.audioOutputDevices = [];
     this.selectedOutputDeviceId = null;
     this.isAudioOutputSelectionSupported = supportsAudioOutputSelection();

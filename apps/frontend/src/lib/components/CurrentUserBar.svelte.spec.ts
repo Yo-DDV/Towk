@@ -569,8 +569,9 @@ describe('CurrentUserBar', () => {
     ) as HTMLButtonElement;
 
     expect(screenShareButton.title).toBe(
-      'This browser or device does not expose screen sharing to web apps.'
+      'This browser or web app cannot share the screen. Screen sharing remains available on supported desktop browsers.'
     );
+    expect(screenShareButton.getAttribute('aria-disabled')).toBe('true');
     expect(screenShareButton.disabled).toBe(false);
     screenShareButton.click();
     expect(voiceCallState.toggleScreenShare).toHaveBeenCalledOnce();

@@ -2285,11 +2285,14 @@ describe('VoiceCallState', () => {
 
     expect(state.canShareScreen).toBe(false);
     await state.toggleScreenShare();
+    await state.toggleScreenShare();
 
     expect(lastRoom?.localParticipant.setScreenShareEnabled).not.toHaveBeenCalled();
     expect(state.isScreenShareEnabled).toBe(false);
+    expect(toastMocks.warning).toHaveBeenCalledTimes(1);
     expect(toastMocks.warning).toHaveBeenCalledWith(
-      'This browser or device does not expose screen sharing to web apps.'
+      'This browser or web app cannot share the screen. Screen sharing remains available on supported desktop browsers.',
+      6_000
     );
   });
 
@@ -2545,7 +2548,7 @@ describe('VoiceCallState', () => {
       sampleRate: 16_000
     };
     roomEventHandlers.get('MediaDevicesChanged')?.();
-    await flushPromises();
+    await flushPromises(20);
 
     expect(microphoneStopProcessor).toHaveBeenCalledOnce();
     expect(state.microphoneProcessing).toEqual({
@@ -2653,6 +2656,77 @@ describe('VoiceCallState', () => {
     expect(state.selectedDeviceId).toBe('mobile-microphone');
     expect(state.selectedVideoDeviceId).toBe('mobile-camera');
     expect(state.selectedOutputDeviceId).toBeNull();
+  });
+
+  it('prefers a newly available Bluetooth microphone when the user has not chosen another route', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    lastRoom?.localParticipant.setMicrophoneEnabled.mockClear();
+    microphoneTrackSettings = {
+      ...microphoneTrackSettings,
+      deviceId: 'bluetooth-microphone',
+      sampleRate: 16_000
+    };
+    activeDeviceIds.set('audioinput', 'speakerphone');
+    vi.mocked(Room.getLocalDevices)
+      .mockResolvedValueOnce([
+        {
+          deviceId: 'speakerphone',
+          groupId: 'mobile-audio',
+          kind: 'audioinput',
+          label: 'Speakerphone',
+          toJSON: () => ({})
+        },
+        {
+          deviceId: 'bluetooth-microphone',
+          groupId: 'mobile-audio',
+          kind: 'audioinput',
+          label: 'Bluetooth headset',
+          toJSON: () => ({})
+        }
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await state.refreshDevices();
+
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({ deviceId: { exact: 'bluetooth-microphone' } })
+    );
+    expect(state.selectedDeviceId).toBe('bluetooth-microphone');
+  });
+
+  it('does not override an explicit speakerphone choice when Bluetooth is present', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.setAudioDevice('speakerphone');
+    lastRoom?.localParticipant.setMicrophoneEnabled.mockClear();
+    activeDeviceIds.set('audioinput', 'bluetooth-microphone');
+    vi.mocked(Room.getLocalDevices)
+      .mockResolvedValueOnce([
+        {
+          deviceId: 'speakerphone',
+          groupId: 'mobile-audio',
+          kind: 'audioinput',
+          label: 'Speakerphone',
+          toJSON: () => ({})
+        },
+        {
+          deviceId: 'bluetooth-microphone',
+          groupId: 'mobile-audio',
+          kind: 'audioinput',
+          label: 'Bluetooth headset',
+          toJSON: () => ({})
+        }
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await state.refreshDevices();
+
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+    expect(state.selectedDeviceId).toBe('speakerphone');
   });
 
   it('replaces stale audio selections with the active or first available route', async () => {
@@ -3227,14 +3301,18 @@ describe('VoiceCallState', () => {
         new DOMException('Unavailable', 'NotSupportedError'),
         'enable'
       )
-    ).toBe('This browser or device does not expose screen sharing to web apps.');
+    ).toBe(
+      'This browser or web app cannot share the screen. Screen sharing remains available on supported desktop browsers.'
+    );
     expect(
       getVoiceCallMediaDeviceErrorMessage(
         'screen',
         new Error('getDisplayMedia not supported'),
         'enable'
       )
-    ).toBe('This browser or device does not expose screen sharing to web apps.');
+    ).toBe(
+      'This browser or web app cannot share the screen. Screen sharing remains available on supported desktop browsers.'
+    );
     expect(
       getVoiceCallMediaDeviceErrorMessage(
         'screen',

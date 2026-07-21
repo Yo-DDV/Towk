@@ -376,6 +376,8 @@ Room sidebar panel for voice/video calls.
   });
   const controlButtonClass = 'btn-secondary btn-sm h-12 w-full !px-0';
   const activeControlButtonClass = 'btn-success btn-sm h-12 w-full !px-0';
+  const unavailableControlButtonClass =
+    'btn-secondary btn-sm h-12 w-full !px-0 cursor-not-allowed opacity-60 saturate-50';
   const dangerControlButtonClass = 'btn-danger btn-sm h-12 w-full !px-0';
   const callTileCardClass =
     'call-speaking-card participant-card group/media relative flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-text/10 bg-surface-100 p-1.5 text-left text-text shadow-sm transition-colors hover:bg-surface-200/70';
@@ -1169,22 +1171,23 @@ Room sidebar panel for voice/video calls.
           type="button"
           class={voiceCallState.isScreenShareEnabled
             ? activeControlButtonClass
-            : controlButtonClass}
+            : voiceCallState.canShareScreen
+              ? controlButtonClass
+              : unavailableControlButtonClass}
           title={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
             : voiceCallState.canShareScreen
               ? m['voice.share_screen_with_audio']()
-              : m['voice.screen_share_unsupported']()}
+              : m['voice.screen_share_capability_unavailable']()}
           aria-label={voiceCallState.isScreenShareEnabled
             ? m['voice.stop_share_screen']()
             : voiceCallState.canShareScreen
               ? m['voice.share_screen_with_audio']()
-              : m['voice.screen_share_unsupported']()}
+              : m['voice.screen_share_capability_unavailable']()}
           data-testid="call-screen-share-toggle"
           onclick={() => voiceCallState.toggleScreenShare()}
-          disabled={voiceCallState.isScreenSharePending ||
-            isRecovering ||
-            (!voiceCallState.isScreenShareEnabled && !voiceCallState.canShareScreen)}
+          disabled={voiceCallState.isScreenSharePending || isRecovering}
+          aria-disabled={!voiceCallState.isScreenShareEnabled && !voiceCallState.canShareScreen}
           aria-busy={voiceCallState.isScreenSharePending || undefined}
         >
           {#if voiceCallState.isScreenSharePending}
@@ -1207,19 +1210,6 @@ Room sidebar panel for voice/video calls.
           <span class="iconify text-lg uil--phone-slash" aria-hidden="true"></span>
         </button>
       </div>
-      {#if !voiceCallState.canShareScreen && !voiceCallState.isScreenShareEnabled}
-        <p
-          class="mt-2 flex items-start gap-2 rounded-md border border-warning/25 bg-warning/10 px-3 py-2 text-xs leading-5 text-muted"
-          role="note"
-          data-testid="call-screen-share-unsupported"
-        >
-          <span
-            class="mt-0.5 iconify shrink-0 text-base text-warning uil--exclamation-triangle"
-            aria-hidden="true"
-          ></span>
-          <span>{m['voice.screen_share_capability_unavailable']()}</span>
-        </p>
-      {/if}
     </div>
   {:else}
     <div class={isStageLayout ? 'mx-auto max-w-sm' : ''}>

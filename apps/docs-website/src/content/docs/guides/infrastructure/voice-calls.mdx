@@ -250,15 +250,19 @@ period is removed by reconciliation.
   change retries immediately, while the bounded timer covers mobile browsers
   without `devicechange`. An explicit mute cancels recovery. Permission-denied
   and device-in-use failures remain visible and are not silently rerouted. The
-  already active route is not restarted when selected again. Selecting a
+  already active route is not restarted when selected again. When a generic
+  Bluetooth route appears and the user has not explicitly selected another
+  route during the call, Towk prefers Bluetooth for call audio; explicit
+  speakerphone, earpiece, system-default, or named-device choices take
+  precedence until that route disappears or the call ends. Selecting a
   different microphone while recovery is visible immediately retries capture
   on that route, even after the bounded background schedule has ended. Changing
   a processing preference while the microphone is live reacquires capture
   through the same serialized queue. The menu re-enumerates devices when opened,
   uses the standards speaker picker where available, explains system-managed
   output on mobile, and replaces generic platform labels such as speakerphone,
-  earpiece, or Bluetooth headset with localized route names while preserving
-  useful desktop hardware names. Mobile lenses are presented as
+  earpiece, or Bluetooth headset with localized call-usage route names while
+  preserving useful desktop hardware names. Mobile lenses are presented as
   front/rear/ultra-wide/telephoto where labels permit, with a one-touch lens
   switch when several are exposed.
 - **Camera and screen sharing** — Toggle either source independently, expand
@@ -286,8 +290,9 @@ fails. Bluetooth transport and communication-profile selection remain native
 operating-system responsibilities; Towk follows the resulting WebRTC route and
 does not infer profiles from localized labels. On current Android and iOS web
 engines, installed PWAs do not receive the
-native screen-capture API, so Towk disables that control and explains the
-desktop alternative instead of promising a picker that cannot open. Screen
+native screen-capture API, so Towk keeps that control compact, visibly
+unavailable, and shows the desktop alternative only after the user taps it
+instead of promising a picker that cannot open. Screen
 capture on supported desktop browsers always requires a user gesture and the
 native picker may offer different sources on each platform.
 
