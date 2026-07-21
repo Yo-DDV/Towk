@@ -285,13 +285,27 @@
 
       {#if pushSupported}
         {#if pushPermission === 'denied'}
-          <div class="rounded-lg border border-warning/60 bg-warning/10 px-4 py-3">
-            <p class="font-medium text-warning">
-              {m['settings.notifications.push.blocked_title']()}
-            </p>
-            <p class="mt-1 text-sm text-muted">
-              {m['settings.notifications.push.blocked_description']()}
-            </p>
+          <div
+            class="flex flex-col gap-3 rounded-lg border border-warning/60 bg-warning/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <p class="font-medium text-warning">
+                {m['settings.notifications.push.blocked_title']()}
+              </p>
+              <p class="mt-1 text-sm text-muted">
+                {m['settings.notifications.push.blocked_description']()}
+              </p>
+            </div>
+            <Button
+              variant="accent"
+              size="sm"
+              onclick={handleEnablePush}
+              disabled={pushLoading}
+              loading={pushLoading}
+              loadingText={m['settings.notifications.push.blocked_retrying']()}
+            >
+              {m['settings.notifications.push.blocked_retry_button']()}
+            </Button>
           </div>
         {:else if pushSubscribed}
           <Hint tone="success">

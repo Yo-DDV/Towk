@@ -179,10 +179,8 @@ export async function ensureRegistered(
   }
 
   let permission = Notification.permission;
-  if (permission === 'default') {
-    if (!options.prompt) {
-      return false;
-    }
+  if (permission !== 'granted') {
+    if (!options.prompt) return false;
     permission = await Notification.requestPermission();
   }
 

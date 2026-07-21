@@ -170,6 +170,8 @@
         "ios_home_screen_description": "En versiones compatibles de iOS/iPadOS, agrega Towk a la pantalla de inicio y ábrela desde el icono de la aplicación para activar las notificaciones push.",
         "blocked_title": "Notificaciones push bloqueadas",
         "blocked_description": "Activa las notificaciones en tu navegador o en la configuración del sistema operativo y luego abre Towk de nuevo.",
+        "blocked_retry_button": "Reintentar",
+        "blocked_retrying": "Comprobando...",
         "enabled_title": "Notificaciones push habilitadas",
         "enabled_description": "Towk usa el permiso de notificaciones del navegador o del sistema operativo como interruptor. Para desactivar las notificaciones, desactívalas para este sitio en la configuración del navegador o del sistema operativo.",
         "enable_title": "Habilitar notificaciones push",

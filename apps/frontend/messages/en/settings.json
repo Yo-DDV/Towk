@@ -170,6 +170,8 @@
         "ios_home_screen_description": "On supported iOS/iPadOS versions, add Towk to the Home Screen and open it from the app icon to enable push notifications.",
         "blocked_title": "Push notifications blocked",
         "blocked_description": "Enable notifications in your browser or OS settings, then open Towk again.",
+        "blocked_retry_button": "Try again",
+        "blocked_retrying": "Checking...",
         "enabled_title": "Push notifications enabled",
         "enabled_description": "Towk uses your browser or OS notification permission as the switch. To turn notifications off, disable them for this site in your browser or OS settings.",
         "enable_title": "Enable push notifications",
