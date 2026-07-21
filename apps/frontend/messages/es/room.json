@@ -65,6 +65,10 @@
     },
     "message": {
       "empty": "Aún no hay mensajes",
+      "loading": "Cargando mensajes",
+      "load_failed": "No se pudieron cargar los mensajes",
+      "load_failed_hint": "Comprueba tu conexión e inténtalo de nuevo.",
+      "retry_load": "Intentarlo de nuevo",
       "delete_title": "Eliminar mensaje",
       "delete_prompt": "¿Estás seguro de que deseas eliminar este mensaje? Esto no se puede deshacer.",
       "delete_failed": "No se pudo eliminar el mensaje",

@@ -133,6 +133,8 @@
   {onOpenThread}
   enableLastEditableFinder={true}
   isLoading={store.isInitialLoading}
+  loadFailed={store.initialLoadFailed}
+  onRetryLoad={() => store.retryInitialLoad()}
   {unreadMarkerEventId}
   {unreadMarkerWindow}
   {onUnreadMarkerResolved}

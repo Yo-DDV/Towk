@@ -65,6 +65,10 @@
     },
     "message": {
       "empty": "Nenhuma mensagem ainda",
+      "loading": "A carregar mensagens",
+      "load_failed": "Não foi possível carregar as mensagens",
+      "load_failed_hint": "Verifica a ligação e tenta novamente.",
+      "retry_load": "Tentar novamente",
       "delete_title": "Excluir mensagem",
       "delete_prompt": "Tem certeza de que deseja excluir esta mensagem? Isto não pode ser desfeito.",
       "delete_failed": "Falha ao excluir mensagem",

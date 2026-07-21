@@ -65,6 +65,10 @@
     },
     "message": {
       "empty": "Noch keine Nachrichten",
+      "loading": "Nachrichten werden geladen",
+      "load_failed": "Nachrichten konnten nicht geladen werden",
+      "load_failed_hint": "Prüfe deine Verbindung und versuche es erneut.",
+      "retry_load": "Erneut versuchen",
       "delete_title": "Nachricht löschen",
       "delete_prompt": "Möchtest du diese Nachricht wirklich löschen? Dies kann nicht rückgängig gemacht werden.",
       "delete_failed": "Nachricht konnte nicht gelöscht werden",

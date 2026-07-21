@@ -59,6 +59,26 @@ vi.mock('$lib/hooks/useMayHaveMissedMessagesCallback.svelte', () => ({
 }));
 
 describe('EventList jump completion', () => {
+  it('shows a retryable load failure instead of the empty state', async () => {
+    const onRetryLoad = vi.fn();
+    render(EventListTestHarness, {
+      props: {
+        eventIds: [],
+        scrollToEventId: null,
+        loadFailed: true,
+        onRetryLoad
+      }
+    });
+
+    await expect.element(page.getByText('Messages could not be loaded')).toBeVisible();
+    await expect.element(page.getByText('Check your connection and try again.')).toBeVisible();
+    await expect.element(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+
+    (page.getByRole('button', { name: 'Try again' }).element() as HTMLButtonElement).click();
+
+    expect(onRetryLoad).toHaveBeenCalledOnce();
+  });
+
   it('signals completion after highlighting a rendered target', async () => {
     const onComplete = vi.fn();
     render(EventListTestHarness, {

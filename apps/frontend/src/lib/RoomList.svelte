@@ -8,6 +8,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
+  import { SvelteSet } from 'svelte/reactivity';
   import { serverIdToSegment } from '$lib/navigation';
   import * as m from '$lib/i18n/messages';
   import {
@@ -66,6 +67,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   const roomUnreadStore = $derived(stores.roomUnread);
 
   let activeRoomId = $derived(page.params.roomId);
+  const pendingNotificationRooms = new SvelteSet<string>();
 
   function eventRoomId(event: EventEnvelope['event']): string | null {
     if (!event || !('roomId' in event) || typeof event.roomId !== 'string') return null;
@@ -333,35 +335,42 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     event.preventDefault();
     event.stopPropagation();
 
-    const lookup = await notificationStore.resolveRoomNotification(roomId, { isDM });
-    const notification = lookup.notification;
+    if (pendingNotificationRooms.has(roomId)) return;
+    pendingNotificationRooms.add(roomId);
 
-    if (!notification) {
-      if (lookup.ok && lookup.totalCount === 0) {
-        roomsStore.clearUnreadNotifications(roomId);
-      } else {
-        await goto(resolve('/chat/notifications'));
-      }
-      return;
-    }
+    try {
+      const lookup = await notificationStore.resolveRoomNotification(roomId, { isDM });
+      const notification = lookup.notification;
 
-    const target = notificationTarget(notification);
-    prepareUiForNotificationTarget(appUi, activeServerId, target);
-    if (target.eventId && target.roomId) {
-      stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
-    }
-    roomsStore.decrementUnreadNotification(roomId);
-    void notificationStore.dismissById(notification.id).then((dismissed) => {
-      if (!dismissed) {
-        roomsStore.incrementUnreadNotification(roomId);
+      if (!notification) {
+        if (lookup.ok && lookup.totalCount === 0) {
+          roomsStore.clearUnreadNotifications(roomId);
+        } else {
+          await goto(resolve('/chat/notifications'));
+        }
         return;
       }
-      void roomsStore.refreshNotificationCounts();
-    });
 
-    const path = notificationStore.getCleanPath(getActiveServer(), notification);
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
-    await goto(path);
+      const target = notificationTarget(notification);
+      prepareUiForNotificationTarget(appUi, activeServerId, target);
+      if (target.eventId && target.roomId) {
+        stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
+      }
+      roomsStore.decrementUnreadNotification(roomId);
+      void notificationStore.dismissById(notification.id).then((dismissed) => {
+        if (!dismissed) {
+          roomsStore.incrementUnreadNotification(roomId);
+          return;
+        }
+        void roomsStore.refreshNotificationCounts();
+      });
+
+      const path = notificationStore.getCleanPath(getActiveServer(), notification);
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
+      await goto(path);
+    } finally {
+      pendingNotificationRooms.delete(roomId);
+    }
   }
 </script>
 
@@ -452,10 +461,16 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
 
     <!-- Notification Indicator (warning color for mentions and thread replies) -->
     {#if isJoined && room.viewerNotificationCount > 0}
+      {@const notificationPending = pendingNotificationRooms.has(room.id)}
       <button
         type="button"
         onclick={(e) => handleNotificationBadgeClick(e, room.id, false)}
-        class="flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot"
+        disabled={notificationPending}
+        aria-busy={notificationPending || undefined}
+        class={[
+          'flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot transition-[opacity,scale]',
+          notificationPending ? 'scale-95 opacity-70' : ''
+        ]}
         aria-label={m['room_list.go_to_notifications']({
           count: room.viewerNotificationCount
         })}
@@ -501,10 +516,16 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     {/if}
 
     {#if room.viewerNotificationCount > 0}
+      {@const notificationPending = pendingNotificationRooms.has(room.id)}
       <button
         type="button"
         onclick={(e) => handleNotificationBadgeClick(e, room.id, true)}
-        class="flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot"
+        disabled={notificationPending}
+        aria-busy={notificationPending || undefined}
+        class={[
+          'flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot transition-[opacity,scale]',
+          notificationPending ? 'scale-95 opacity-70' : ''
+        ]}
         aria-label={m['room_list.go_to_dm_notifications']({
           count: room.viewerNotificationCount
         })}

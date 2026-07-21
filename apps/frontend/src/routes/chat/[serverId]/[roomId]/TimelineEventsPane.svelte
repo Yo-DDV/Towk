@@ -31,6 +31,8 @@
     filterThreadReplies = true,
     enableLastEditableFinder = false,
     isLoading = false,
+    loadFailed = false,
+    onRetryLoad,
     emptyMessage = m['room.message.empty'](),
     typingUserIds = [],
     typingMembers = [],
@@ -65,6 +67,8 @@
     filterThreadReplies?: boolean;
     enableLastEditableFinder?: boolean;
     isLoading?: boolean;
+    loadFailed?: boolean;
+    onRetryLoad?: () => Promise<unknown> | unknown;
     emptyMessage?: string;
     typingUserIds?: string[];
     typingMembers?: RoomMember[];
@@ -124,6 +128,8 @@
   {updateCounter}
   {enableLastEditableFinder}
   {isLoading}
+  {loadFailed}
+  {onRetryLoad}
   {emptyMessage}
   unreadAfterEventId={unreadMarkerEventId}
   {typingUserIds}

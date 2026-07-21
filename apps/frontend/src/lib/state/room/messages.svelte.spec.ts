@@ -325,6 +325,38 @@ function timelineFromFixtures(fake: FakeQueryClient): RoomTimelineAPI {
 }
 
 describe('MessagesStore — room lifecycle ownership', () => {
+  it('exposes initial load failures and clears them after a successful retry', async () => {
+    const fake = new FakeQueryClient();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({
+          events: [threadMessageEvent('m1') as never],
+          startCursor: 'tl:cursor-1',
+          endCursor: 'tl:cursor-1',
+          hasOlder: false,
+          hasNewer: false
+        })
+    });
+    const store = new MessagesStore(fake as unknown as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+
+    expect(store.initialLoadFailed).toBe(true);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.rootEvents).toEqual([]);
+
+    await store.retryInitialLoad();
+    await settle();
+
+    expect(store.initialLoadFailed).toBe(false);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['m1']);
+    store.dispose();
+  });
+
   it('reports a successful jump when the target is already loaded', async () => {
     const fake = new FakeQueryClient();
     const timeline = fakeTimelineAPI();

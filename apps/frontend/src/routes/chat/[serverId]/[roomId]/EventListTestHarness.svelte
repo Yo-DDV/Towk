@@ -16,6 +16,8 @@
     isLoading = false,
     isJumpedMode = false,
     onJumpToPresent,
+    loadFailed = false,
+    onRetryLoad,
     updateCounter = 0,
     pendingHighlightId = null
   }: {
@@ -25,6 +27,8 @@
     isLoading?: boolean;
     isJumpedMode?: boolean;
     onJumpToPresent?: () => Promise<boolean>;
+    loadFailed?: boolean;
+    onRetryLoad?: () => Promise<unknown> | unknown;
     updateCounter?: number;
     pendingHighlightId?: string | null;
   } = $props();
@@ -34,32 +38,30 @@
   setUserSettings(new UserSettingsState());
 
   const events = $derived(
-    eventIds.map(
-      (id): RoomEventView => ({
-        id,
-        createdAt: '2026-06-17T10:47:00Z',
-        actorId: 'test-user',
-        actor: null,
-        event: {
-          kind: RoomEventKind.MessagePosted,
-          roomId: 'room-1',
-          body: id,
-          attachments: [],
-          linkPreview: null,
-          reactions: [],
-          updatedAt: null,
-          inReplyTo: null,
-          threadRootEventId: null,
-          echoOfEventId: null,
-          echoFromThreadRootEventId: null,
-          channelEchoEventId: null,
-          replyCount: 0,
-          lastReplyAt: null,
-          threadParticipants: [],
-          viewerIsFollowingThread: true
-        }
-      })
-    )
+    eventIds.map((id): RoomEventView => ({
+      id,
+      createdAt: '2026-06-17T10:47:00Z',
+      actorId: 'test-user',
+      actor: null,
+      event: {
+        kind: RoomEventKind.MessagePosted,
+        roomId: 'room-1',
+        body: id,
+        attachments: [],
+        linkPreview: null,
+        reactions: [],
+        updatedAt: null,
+        inReplyTo: null,
+        threadRootEventId: null,
+        echoOfEventId: null,
+        echoFromThreadRootEventId: null,
+        channelEchoEventId: null,
+        replyCount: 0,
+        lastReplyAt: null,
+        threadParticipants: [],
+        viewerIsFollowingThread: true
+      }
+    }))
   );
 
   const messageStore = {
@@ -77,6 +79,8 @@
   messageStore={messageStore as never}
   {events}
   {isLoading}
+  {loadFailed}
+  {onRetryLoad}
   {isJumpedMode}
   {onJumpToPresent}
   {updateCounter}

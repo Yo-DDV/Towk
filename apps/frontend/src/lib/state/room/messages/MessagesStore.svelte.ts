@@ -175,6 +175,7 @@ export class MessagesStore {
   events = $state<RoomEventView[]>([]);
   isInitialLoading = $state(true);
   isShowingCachedData = $state(false);
+  initialLoadFailed = $state(false);
   isLoadingMore = $state(false);
   hasReachedStart = $state(false);
 
@@ -398,6 +399,17 @@ export class MessagesStore {
     this.roomId = roomId;
     this.threadRootEventId = '';
     void this.resetAndFetchLatest();
+  }
+
+  retryInitialLoad(): Promise<boolean> {
+    if (this.scope === 'thread') {
+      const thisLoad = this.startLoad();
+      this.initialLoadFailed = false;
+      this.isInitialLoading = this.events.length === 0;
+      this.fetchThread(thisLoad);
+      return Promise.resolve(true);
+    }
+    return this.resetAndFetchLatest({ preserveCurrentEvents: this.events.length > 0 });
   }
 
   setThread(roomId: string, threadRootEventId: string): void {
@@ -1115,6 +1127,7 @@ export class MessagesStore {
     this.hasReachedStart = false;
     this.isLoadingMore = false;
     this.isShowingCachedData = false;
+    this.initialLoadFailed = false;
     this.#cachedEventIds.clear();
   }
 
@@ -1281,12 +1294,17 @@ export class MessagesStore {
     return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true, changed };
   }
 
-  private resetAndFetchLatest(): Promise<boolean> {
+  private resetAndFetchLatest(options: { preserveCurrentEvents?: boolean } = {}): Promise<boolean> {
     const thisLoad = this.startLoad();
     this.#pendingAuthoritativeLoadId = thisLoad;
-    this.resetState();
-    this.isInitialLoading = true;
-    void this.hydrateCache(thisLoad, this.roomId, null);
+    this.initialLoadFailed = false;
+    if (!options.preserveCurrentEvents) {
+      this.resetState();
+      this.isInitialLoading = true;
+      void this.hydrateCache(thisLoad, this.roomId, null);
+    } else {
+      this.isInitialLoading = this.events.length === 0;
+    }
     return this.fetchLatest(thisLoad);
   }
 
@@ -1308,6 +1326,7 @@ export class MessagesStore {
         this.#pendingAuthoritativeLoadId = null;
         this.isShowingCachedData = false;
         this.isInitialLoading = false;
+        this.initialLoadFailed = false;
         this.scheduleCacheSave();
         return true;
       })
@@ -1315,6 +1334,7 @@ export class MessagesStore {
         if (this.isStale(thisLoad)) return false;
         console.error('MessagesStore: fetchLatest failed:', error);
         this.#pendingAuthoritativeLoadId = null;
+        this.initialLoadFailed = true;
         this.isInitialLoading = false;
         return false;
       });
@@ -1340,11 +1360,13 @@ export class MessagesStore {
         this.hasReachedStart = !page.hasOlder;
         this.isShowingCachedData = false;
         this.isInitialLoading = false;
+        this.initialLoadFailed = false;
         this.scheduleCacheSave();
       })
       .catch((error: unknown) => {
         if (this.isStale(thisLoad)) return;
         console.error('MessagesStore: fetchThread failed:', error);
+        this.initialLoadFailed = true;
         this.isInitialLoading = false;
       });
   }

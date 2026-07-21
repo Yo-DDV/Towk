@@ -517,7 +517,7 @@
 >
   {#if quickSwitcher.visible}
     <div
-      class="flex w-140 max-w-[90vw] flex-col gap-1 rounded-lg border border-text/10 bg-surface-100 p-1 text-sm shadow-xl"
+      class="flex w-140 max-w-[90vw] surface-pop flex-col gap-1 rounded-lg border border-text/10 bg-surface-100 p-1 text-sm shadow-xl"
     >
       <!-- Search section -->
       <div class="menu-section">

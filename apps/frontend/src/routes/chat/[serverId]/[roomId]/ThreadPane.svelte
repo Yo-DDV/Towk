@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { fly } from 'svelte/transition';
+  import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
   import { createReadStateAPI, type MarkThreadAsReadResult } from '$lib/api-client/readState';
   import { createThreadAPI } from '$lib/api-client/threads';
   import { useEvent, createTypingIndicator, useUnreadMarker } from '$lib/hooks';
@@ -318,7 +319,7 @@
 <div
   class="absolute inset-y-0 right-0 z-10 flex min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] sm:w-[90%]"
   data-testid="thread-pane"
-  transition:fly={{ x: 300, duration: 200 }}
+  transition:fly={{ x: 300, duration: motionDuration(MOTION_DURATION.expressive) }}
   {@attach threadDropZone}
 >
   <DropZoneOverlay visible={isDraggingFiles} />
@@ -358,6 +359,8 @@
     {updateCounter}
     enableLastEditableFinder={true}
     isLoading={store.isInitialLoading}
+    loadFailed={store.initialLoadFailed}
+    onRetryLoad={() => store.retryInitialLoad()}
     emptyMessage={m['room.thread.not_found']()}
     unreadMarkerEventId={unread.unreadMarkerEventId}
     unreadMarkerWindow={unread.unreadMarkerWindow}

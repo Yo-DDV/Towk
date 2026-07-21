@@ -3,7 +3,7 @@
 </script>
 
 <div
-  class="flex items-center justify-center gap-2 border-b border-border bg-surface-200 px-3 py-1.5 text-center text-xs text-muted"
+  class="flex surface-pop items-center justify-center gap-2 border-b border-border bg-surface-200 px-3 py-1.5 text-center text-xs text-muted"
   role="status"
   data-testid="cached-timeline-notice"
 >

@@ -23,6 +23,7 @@
   import { INITIAL_ROOM_MESSAGE_BACKFILL_TARGET } from '$lib/state/room/messages/queries';
   import { formatDayLabel } from '$lib/utils/formatTime';
   import { useTabResumeCallback } from '$lib/hooks/useTabResumeCallback.svelte';
+  import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
   import { useMayHaveMissedMessagesCallback } from '$lib/hooks/useMayHaveMissedMessagesCallback.svelte';
   import type { ResumeSignal } from '$lib/hooks/resumeCoordinator.svelte';
   import type { OpenThreadHandler, ThreadOpenOptions } from './threadOpenOptions';
@@ -57,6 +58,8 @@
     enableLastEditableFinder = false,
     // Loading states
     isLoading = false,
+    loadFailed = false,
+    onRetryLoad,
     emptyMessage = m['room.message.empty'](),
     // Event ID of the first unread message (for showing the unread separator)
     unreadAfterEventId = null,
@@ -98,6 +101,8 @@
     enableLastEditableFinder?: boolean;
     // Loading states
     isLoading?: boolean;
+    loadFailed?: boolean;
+    onRetryLoad?: () => Promise<unknown> | unknown;
     emptyMessage?: string;
     // Event ID of the first unread message (for showing the unread separator)
     unreadAfterEventId?: string | null;
@@ -125,6 +130,7 @@
   };
 
   let initialScrollDone = $state(false);
+  const showDelayedLoading = delayedLoadingVisible(() => isLoading && virtualItems.length === 0);
   let bottomScrollOperation = 0;
   let userScrollIntentAt = 0;
   const USER_SCROLL_INTENT_MS = 250;
@@ -372,11 +378,10 @@
         const target = scope.querySelector(eventSelector(targetEventId));
         if (target instanceof HTMLElement) {
           target.classList.add('highlight-flash');
-          target.addEventListener(
-            'animationend',
-            () => target.classList.remove('highlight-flash'),
-            { once: true }
-          );
+          const cleanupHighlight = () => target.classList.remove('highlight-flash');
+          target.addEventListener('animationend', cleanupHighlight, { once: true });
+          target.addEventListener('animationcancel', cleanupHighlight, { once: true });
+          setTimeout(cleanupHighlight, motionDuration(1500) + 80);
           complete(true);
           return;
         }
@@ -1053,7 +1058,39 @@
     onpointerdown={markUserScrollIntent}
   >
     <div class="mt-auto">
-      {#if !isLoading && virtualItems.length === 0}
+      {#if loadFailed && !isLoading && virtualItems.length === 0}
+        <div class="flex flex-1 items-center justify-center px-4">
+          <div
+            class="max-w-sm surface-pop rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-center text-sm text-text"
+            role="alert"
+          >
+            <div class="mb-1 font-medium">{m['room.message.load_failed']()}</div>
+            <p class="mb-3 text-muted">{m['room.message.load_failed_hint']()}</p>
+            {#if onRetryLoad}
+              <button
+                type="button"
+                class="rounded-sm border border-warning/40 px-3 py-1.5 text-warning transition-[background-color,scale] hover:bg-warning/10 active:scale-[0.98]"
+                onclick={() => onRetryLoad?.()}
+              >
+                {m['room.message.retry_load']()}
+              </button>
+            {/if}
+          </div>
+        </div>
+      {:else if showDelayedLoading.current}
+        <div class="flex flex-1 items-end px-4 pb-6">
+          <div
+            class="flex w-full flex-col gap-3"
+            aria-busy="true"
+            aria-label={m['room.message.loading']()}
+          >
+            <div class="skeleton h-4 w-1/3 rounded"></div>
+            <div class="skeleton h-12 w-3/4 rounded-md"></div>
+            <div class="skeleton ml-10 h-4 w-1/2 rounded"></div>
+            <div class="skeleton ml-10 h-14 w-2/3 rounded-md"></div>
+          </div>
+        </div>
+      {:else if !isLoading && virtualItems.length === 0}
         <div class="flex flex-1 items-center justify-center">
           <div class="py-4 text-sm text-muted/40">{emptyMessage}</div>
         </div>
@@ -1115,7 +1152,7 @@
 
   {#if isJumpedMode && !shouldScrollToBottom && onJumpToPresent}
     <button
-      transition:fade={{ duration: 150 }}
+      transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}
       onclick={handleJumpToPresentClick}
       data-testid="jump-to-present"
       class="absolute bottom-4 left-1/2 -translate-x-1/2 cursor-pointer menu whitespace-nowrap"
@@ -1131,7 +1168,7 @@
     </button>
   {:else if !alwaysScrollToBottom && !shouldScrollToBottom}
     <button
-      transition:fade={{ duration: 150 }}
+      transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}
       onclick={scrollToBottom}
       data-testid="jump-to-present"
       class="absolute bottom-4 left-1/2 -translate-x-1/2 cursor-pointer menu whitespace-nowrap"
