@@ -96,6 +96,16 @@ async function playerVideo(container: HTMLElement): Promise<HTMLVideoElement> {
   return container.querySelector<HTMLVideoElement>('media-player video')!;
 }
 
+function expectChildFillsFrame(child: HTMLElement, parent: HTMLElement) {
+  const childBox = child.getBoundingClientRect();
+  const parentBox = parent.getBoundingClientRect();
+
+  expect(parentBox.width).toBeGreaterThan(0);
+  expect(parentBox.height).toBeGreaterThan(0);
+  expect(Math.abs(childBox.width - parentBox.width)).toBeLessThanOrEqual(4);
+  expect(Math.abs(childBox.height - parentBox.height)).toBeLessThanOrEqual(4);
+}
+
 describe('VideoPlayer', () => {
   it('frames 16:9 videos as 16:9 embeds', () => {
     const { container } = renderAutoLoopVideo({ width: 1600, height: 900 });
@@ -135,11 +145,20 @@ describe('VideoPlayer', () => {
 
     const player = await mediaPlayer(container);
     const media = await playerVideo(container);
-    const style = frame(container).getAttribute('style');
+    const embedFrame = frame(container);
+    const provider = player.querySelector<HTMLElement>('[data-media-provider]');
+    const style = embedFrame.getAttribute('style');
 
     expect(style).toContain('aspect-ratio: 360 / 640');
     expect(style).toContain('width: min(100%, 360px, 40.5svh)');
     expect(player.dataset.fit).toBe('contain');
+    expect(provider).not.toBeNull();
+    expectChildFillsFrame(player, embedFrame);
+    expectChildFillsFrame(provider!, embedFrame);
+    expectChildFillsFrame(media, embedFrame);
+    expect(getComputedStyle(player).display).toBe('block');
+    expect(getComputedStyle(provider!).display).toBe('flex');
+    expect(getComputedStyle(media).display).toBe('block');
     expect(getComputedStyle(media).objectFit).toBe('contain');
   });
 
