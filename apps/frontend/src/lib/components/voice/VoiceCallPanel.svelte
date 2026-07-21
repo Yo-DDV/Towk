@@ -504,7 +504,12 @@ Room sidebar panel for voice/video calls.
     popoverAnchorRect = null;
   }
 
-  function openDeviceMenu(e: MouseEvent) {
+  function toggleDeviceMenu(e: MouseEvent) {
+    if (deviceMenuAnchor) {
+      closeDeviceMenu();
+      return;
+    }
+
     const button = e.currentTarget as HTMLButtonElement;
     const rect = button.getBoundingClientRect();
     // Chrome Android does not emit devicechange. Refresh once per explicit
@@ -512,6 +517,10 @@ Room sidebar panel for voice/video calls.
     voiceCallState.refreshDevices();
     deviceMenuTrigger = button;
     deviceMenuAnchor = { top: rect.top, bottom: rect.bottom, left: rect.left };
+  }
+
+  function keepDeviceMenuTriggerPointerDown(e: PointerEvent): void {
+    if (deviceMenuAnchor) e.stopPropagation();
   }
 
   function closeDeviceMenu(): void {
@@ -1090,7 +1099,8 @@ Room sidebar panel for voice/video calls.
           aria-expanded={deviceMenuAnchor !== null}
           aria-controls={deviceMenuAnchor ? 'call-audio-device-menu' : undefined}
           data-testid="call-device-menu-button"
-          onclick={openDeviceMenu}
+          onpointerdown={keepDeviceMenuTriggerPointerDown}
+          onclick={toggleDeviceMenu}
           disabled={isRecovering}
         >
           <span class="iconify text-lg uil--setting" aria-hidden="true"></span>

@@ -137,6 +137,59 @@ describe('VoiceCallPanel screen-share audio', () => {
     enumerateDevices.mockRestore();
   });
 
+  it('closes the device menu when pressing its trigger again', async () => {
+    const devices = [
+      mediaDevice('audioinput', 'mic-1', 'Microphone 1'),
+      mediaDevice('audiooutput', 'speaker-1', 'Speaker 1'),
+      mediaDevice('videoinput', 'camera-1', 'Camera 1')
+    ];
+    const enumerateDevices = vi
+      .spyOn(navigator.mediaDevices, 'enumerateDevices')
+      .mockResolvedValue(devices);
+    const originalSetSinkId = Object.getOwnPropertyDescriptor(
+      HTMLMediaElement.prototype,
+      'setSinkId'
+    );
+    Object.defineProperty(HTMLMediaElement.prototype, 'setSinkId', {
+      configurable: true,
+      value: vi.fn(async () => undefined)
+    });
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'sidebar', scenario: 'voice' }
+    });
+
+    const trigger = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-device-menu-button"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    trigger.focus();
+    trigger.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('#call-audio-device-menu[role="menu"]')).not.toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    });
+
+    trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    trigger.click();
+
+    await vi.waitFor(() => {
+      expect(document.querySelector('#call-audio-device-menu[role="menu"]')).toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    if (originalSetSinkId) {
+      Object.defineProperty(HTMLMediaElement.prototype, 'setSinkId', originalSetSinkId);
+    } else {
+      delete (HTMLMediaElement.prototype as Partial<HTMLMediaElement>).setSinkId;
+    }
+    enumerateDevices.mockRestore();
+  });
+
   it('exposes the standards speaker picker as a direct menu action', async () => {
     const devices = [mediaDevice('audioinput', 'mic-1', 'Microphone 1')];
     const enumerateDevices = vi
