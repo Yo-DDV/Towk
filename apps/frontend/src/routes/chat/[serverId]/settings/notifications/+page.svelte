@@ -286,9 +286,9 @@
       {#if pushSupported}
         {#if pushPermission === 'denied'}
           <div
-            class="flex flex-col gap-3 rounded-lg border border-warning/60 bg-warning/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            class="push-permission-blocked-card rounded-lg border border-warning/60 bg-warning/10 px-4 py-3"
           >
-            <div>
+            <div class="min-w-0">
               <p class="font-medium text-warning">
                 {m['settings.notifications.push.blocked_title']()}
               </p>
@@ -296,16 +296,18 @@
                 {m['settings.notifications.push.blocked_description']()}
               </p>
             </div>
-            <Button
-              variant="accent"
-              size="sm"
-              onclick={handleEnablePush}
-              disabled={pushLoading}
-              loading={pushLoading}
-              loadingText={m['settings.notifications.push.blocked_retrying']()}
-            >
-              {m['settings.notifications.push.blocked_retry_button']()}
-            </Button>
+            <div class="push-permission-blocked-action mt-3 flex justify-start sm:justify-end">
+              <Button
+                variant="accent"
+                size="sm"
+                onclick={handleEnablePush}
+                disabled={pushLoading}
+                loading={pushLoading}
+                loadingText={m['settings.notifications.push.blocked_retrying']()}
+              >
+                {m['settings.notifications.push.blocked_retry_button']()}
+              </Button>
+            </div>
           </div>
         {:else if pushSubscribed}
           <Hint tone="success">
@@ -538,3 +540,17 @@
     </div>
   </FormSection>
 </div>
+
+<style>
+  .push-permission-blocked-action :global(button) {
+    min-width: 8.5rem;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .push-permission-blocked-action :global(button) {
+      width: 100%;
+    }
+  }
+</style>
