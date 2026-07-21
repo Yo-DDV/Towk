@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { flushSync } from 'svelte';
+import { Code, ConnectError } from '@connectrpc/connect';
 import type { ServerConnection } from '$lib/state/server/serverConnection.svelte';
 import type { RoomTimelineAPI } from '$lib/api-client/roomTimeline';
 import { RoomEventKind } from '$lib/render/eventKinds';
@@ -425,6 +426,73 @@ describe('MessagesStore — room lifecycle ownership', () => {
 
     expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
     expect(store.isShowingCachedData).toBe(true);
+    expect(store.isInitialLoading).toBe(false);
+    store.dispose();
+  });
+
+  it('keeps the previous room window visible while an unvisited room loads', async () => {
+    const room2Load = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-2') return room2Load.promise;
+        return Promise.resolve({
+          events: [roomMessageEvent('room-1-initial', 'room-1') as never],
+          startCursor: 'room-1:start',
+          endCursor: 'room-1:end',
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    store.setRoom('room-2');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+    expect(store.isInitialLoading).toBe(true);
+
+    room2Load.resolve({
+      events: [roomMessageEvent('room-2-authoritative', 'room-2') as never],
+      startCursor: 'room-2:start',
+      endCursor: 'room-2:end',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-2-authoritative']);
+    expect(store.isInitialLoading).toBe(false);
+    store.dispose();
+  });
+
+  it('drops previous-room carry-over events when an unvisited room fails to load', async () => {
+    const room2Load = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-2') return room2Load.promise;
+        return Promise.resolve({
+          events: [roomMessageEvent('room-1-initial', 'room-1') as never],
+          startCursor: 'room-1:start',
+          endCursor: 'room-1:end',
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    store.setRoom('room-2');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    room2Load.reject(new TypeError('offline'));
+    await vi.waitFor(() => expect(store.initialLoadFailed).toBe(true));
+
+    expect(store.rootEvents).toEqual([]);
     expect(store.isInitialLoading).toBe(false);
     store.dispose();
   });
@@ -2356,6 +2424,23 @@ describe('MessagesStore — encrypted offline timeline', () => {
 });
 
 describe('MessagesStore — thread lifecycle ownership', () => {
+  it('treats a missing thread as an empty thread state instead of a retryable load failure', async () => {
+    const fake = new FakeQueryClient();
+    const timeline = fakeTimelineAPI({
+      getThreadEvents: vi.fn().mockRejectedValue(new ConnectError('not found', Code.NotFound))
+    });
+    const store = new MessagesStore(fake as unknown as ServerConnection, () => null, timeline);
+
+    store.setThread('room-1', 'missing-thread');
+    await settle();
+
+    expect(store.threadEvents).toEqual([]);
+    expect(store.initialLoadFailed).toBe(false);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.hasReachedStart).toBe(true);
+    store.dispose();
+  });
+
   it('loads thread history through the injected timeline API', async () => {
     const fake = new FakeQueryClient();
     const timeline = fakeTimelineAPI({

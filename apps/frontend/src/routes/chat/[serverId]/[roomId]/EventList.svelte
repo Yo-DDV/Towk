@@ -1094,7 +1094,7 @@
         <div class="flex flex-1 items-center justify-center">
           <div class="py-4 text-sm text-muted/40">{emptyMessage}</div>
         </div>
-      {:else if !isLoading}
+      {:else if !isLoading || virtualItems.length > 0}
         <Virtualizer
           bind:this={virtualizerHandle}
           data={virtualItems}
