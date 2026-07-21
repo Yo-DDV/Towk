@@ -5083,7 +5083,7 @@ func TestVoiceCallServiceSupportsCompanionAndTransferDevices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("join first device: %v", err)
 	}
-	if !first.Msg.GetJoined() || first.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_JOINED || first.Msg.GetDeviceIndex() != 1 || first.Msg.GetParticipantId() == "" {
+	if !first.Msg.GetJoined() || first.Msg.GetStatus() != apiv1.JoinCallStatus_JOIN_CALL_STATUS_JOINED || first.Msg.GetCallId() == "" || first.Msg.GetDeviceIndex() != 1 || first.Msg.GetParticipantId() == "" {
 		t.Fatalf("first join = %+v, want joined device 1", first.Msg)
 	}
 
@@ -5184,6 +5184,59 @@ func TestVoiceCallServiceSupportsCompanionAndTransferDevices(t *testing.T) {
 	}
 	if got := participants.Msg.GetParticipants(); len(got) != 1 || got[0].GetParticipantId() != transferred.Msg.GetParticipantId() {
 		t.Fatalf("participants after transfer = %+v, want transferred device only", got)
+	}
+}
+
+func TestVoiceCallServiceDelayedLeaveCannotRemoveReplacementCallParticipant(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("voice-delayed-leave")
+	env.api.config.LiveKit = config.LiveKitConfig{
+		Enabled:   true,
+		URL:       "ws://livekit.test",
+		APIKey:    "test-key",
+		APISecret: "test-secret",
+		ServerID:  "test-server",
+	}
+	const clientInstanceID = "browser-session-1"
+
+	first, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: clientInstanceID,
+	}))
+	if err != nil || first.Msg.GetCallId() == "" {
+		t.Fatalf("join first call = %+v, %v", first, err)
+	}
+	if _, err := env.voice.LeaveCall(ctx, connect.NewRequest(&apiv1.LeaveCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: clientInstanceID,
+		ExpectedCallId:   first.Msg.GetCallId(),
+	})); err != nil {
+		t.Fatalf("leave first call: %v", err)
+	}
+
+	second, err := env.voice.JoinCall(ctx, connect.NewRequest(&apiv1.JoinCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: clientInstanceID,
+	}))
+	if err != nil || second.Msg.GetCallId() == "" || second.Msg.GetCallId() == first.Msg.GetCallId() {
+		t.Fatalf("join replacement call = %+v, %v", second, err)
+	}
+	if _, err := env.voice.LeaveCall(ctx, connect.NewRequest(&apiv1.LeaveCallRequest{
+		RoomId:           room.Id,
+		ClientInstanceId: clientInstanceID,
+		ExpectedCallId:   first.Msg.GetCallId(),
+	})); err != nil {
+		t.Fatalf("apply delayed first-call leave: %v", err)
+	}
+
+	participants, err := env.voice.ListCallParticipants(ctx, connect.NewRequest(&apiv1.ListCallParticipantsRequest{RoomId: room.Id}))
+	if err != nil {
+		t.Fatalf("list replacement participants: %v", err)
+	}
+	got := participants.Msg.GetParticipants()
+	if len(got) != 1 || got[0].GetParticipantId() != second.Msg.GetParticipantId() || got[0].GetCallId() != second.Msg.GetCallId() {
+		t.Fatalf("participants after delayed leave = %+v, want replacement participant in call %q", got, second.Msg.GetCallId())
 	}
 }
 

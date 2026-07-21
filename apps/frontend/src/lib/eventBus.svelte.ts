@@ -54,6 +54,15 @@ type EventEnvelopeEvent =
       processingMessageEventId?: string | null;
     }
   | { kind: typeof RoomEventKind.CallEnded; roomId: string; callId: string }
+  | {
+      kind: typeof RoomEventKind.CallParticipantConnectionChanged;
+      roomId: string;
+      callId: string;
+      participantId: string;
+      deviceIndex: number;
+      connectionState: 'connected' | 'interrupted';
+      interruptionDeadline: string | null;
+    }
   | { kind: typeof RoomEventKind.CallParticipantJoined; roomId: string; callId: string }
   | { kind: typeof RoomEventKind.CallParticipantLeft; roomId: string; callId: string }
   | { kind: typeof RoomEventKind.CallStarted; roomId: string; callId: string }

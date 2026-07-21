@@ -11,8 +11,7 @@
     parameters: {
       docs: {
         description: {
-          component:
-            'LiveKit video track thumbnail used by camera and screen-share call tiles.'
+          component: 'LiveKit video track thumbnail used by camera and screen-share call tiles.'
         }
       }
     }
@@ -65,7 +64,7 @@
   `);
 </script>
 
-<Story name="Camera cover" asChild>
+<Story name="Camera contain" asChild>
   <div class="w-96 rounded-md border border-border bg-surface-100 p-1.5">
     <VideoThumbnail track={cameraTrack} name="Alice" {user} showIdentityOverlay={false} />
   </div>
@@ -73,12 +72,6 @@
 
 <Story name="Screen share contain" asChild>
   <div class="w-[720px] rounded-md border border-border bg-surface-100 p-1.5">
-    <VideoThumbnail
-      track={screenTrack}
-      name="Alice's screen"
-      {user}
-      showIdentityOverlay={false}
-      fit="contain"
-    />
+    <VideoThumbnail track={screenTrack} name="Alice's screen" {user} showIdentityOverlay={false} />
   </div>
 </Story>

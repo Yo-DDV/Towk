@@ -8,7 +8,13 @@ describe('CallDeviceJoinDialog', () => {
     const oncompanion = vi.fn();
     const ontransfer = vi.fn();
     const { container } = render(CallDeviceJoinDialog, {
-      props: { visible: true, companionAllowed: true, oncompanion, ontransfer }
+      props: {
+        visible: true,
+        companionAllowed: true,
+        canShareScreen: true,
+        oncompanion,
+        ontransfer
+      }
     });
 
     const companion = container.querySelector(
@@ -26,11 +32,27 @@ describe('CallDeviceJoinDialog', () => {
     expect(ontransfer).toHaveBeenCalledOnce();
   });
 
+  it('does not promise screen sharing when mobile web capture is unavailable', () => {
+    const { container } = render(CallDeviceJoinDialog, {
+      props: {
+        visible: true,
+        companionAllowed: true,
+        canShareScreen: false,
+        oncompanion: vi.fn(),
+        ontransfer: vi.fn()
+      }
+    });
+
+    expect(container.textContent).toContain('You can still use your camera.');
+    expect(container.textContent).not.toContain('share your screen');
+  });
+
   it('blocks a third companion but still offers transfer', () => {
     const { container } = render(CallDeviceJoinDialog, {
       props: {
         visible: true,
         companionAllowed: false,
+        canShareScreen: false,
         oncompanion: vi.fn(),
         ontransfer: vi.fn()
       }

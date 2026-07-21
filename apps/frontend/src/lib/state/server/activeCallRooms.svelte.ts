@@ -26,6 +26,8 @@ export type CallRoomParticipant = {
   displayName: string;
   login: string;
   avatarUrl: string | null;
+  connectionState: 'connected' | 'interrupted';
+  interruptionDeadline: string | null;
 };
 
 export type CallPresenceKind = 'voice' | 'video';
@@ -217,7 +219,9 @@ export class ActiveCallRoomsState {
             deviceIndex: deviceIndex > 0 ? deviceIndex : 1,
             displayName: actor.displayName,
             login: actor.login,
-            avatarUrl: actor.avatarUrl ?? null
+            avatarUrl: actor.avatarUrl ?? null,
+            connectionState: 'connected',
+            interruptionDeadline: null
           }
         ]
       });
@@ -262,6 +266,27 @@ export class ActiveCallRoomsState {
     }
   }
 
+  handleConnectionState(
+    roomId: string,
+    callId: string,
+    participantId: string,
+    connectionState: 'connected' | 'interrupted',
+    interruptionDeadline: string | null
+  ): void {
+    const snapshot = this.serverRooms.get(roomId);
+    if (!snapshot || snapshot.callId !== callId) return;
+    const index = snapshot.participants.findIndex((p) => p.participantId === participantId);
+    if (index < 0) return;
+    const participants = [...snapshot.participants];
+    participants[index] = {
+      ...participants[index],
+      connectionState,
+      interruptionDeadline: connectionState === 'interrupted' ? interruptionDeadline : null
+    };
+    this.bumpRoomVersion(roomId);
+    this.serverRooms.set(roomId, { callId: snapshot.callId, participants });
+  }
+
   /**
    * Handle a CallEndedEvent — clear the room's server-side call snapshot.
    */
@@ -297,6 +322,8 @@ function toCallRoomParticipant(participant: VoiceCallParticipant): CallRoomParti
     deviceIndex: participant.deviceIndex,
     displayName: participant.user.displayName,
     login: participant.user.login,
-    avatarUrl: participant.user.avatarUrl ?? null
+    avatarUrl: participant.user.avatarUrl ?? null,
+    connectionState: participant.connectionState,
+    interruptionDeadline: participant.interruptionDeadline
   };
 }

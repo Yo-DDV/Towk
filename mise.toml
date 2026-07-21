@@ -379,8 +379,10 @@ run = "pnpm vitest --run"
 [tasks.public-surface-check]
 description = "Check Towk-owned documentation and distribution surfaces"
 run = [
+    "node --check tools/check-call-deployment-config.mjs",
     "node --check tools/check-public-surface.mjs",
-    "node --test tools/check-public-surface.test.mjs tools/extract-release-notes.test.mjs",
+    "node --test tools/check-call-deployment-config.test.mjs tools/check-public-surface.test.mjs tools/extract-release-notes.test.mjs",
+    "node tools/check-call-deployment-config.mjs",
     "node tools/check-public-surface.mjs",
     "bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh",
     "bash tools/verify-compose-project-name.sh",

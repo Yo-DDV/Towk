@@ -12,6 +12,7 @@ import { RoomUnreadStore } from './roomUnread.svelte';
 import { NotificationLevelStore } from './notificationLevel.svelte';
 import { PendingHighlightStore } from './pendingHighlight.svelte';
 import { VoiceCallState } from './voiceCall.svelte';
+import type { CoordinateVoiceCallJoin } from './voiceCallCoordinator';
 import { CallParticipantsState } from './callParticipants.svelte';
 import { ActiveCallRoomsState } from './activeCallRooms.svelte';
 import { RoomsStore } from './rooms.svelte';
@@ -40,6 +41,8 @@ type CallTransitionEventPayload = {
   callId: string | null;
   participantId: string | null;
   deviceIndex: number;
+  connectionState: 'connected' | 'interrupted';
+  interruptionDeadline: string | null;
 };
 
 function callTransitionEventPayload(event: RoomEventKindSource): CallTransitionEventPayload | null {
@@ -48,12 +51,16 @@ function callTransitionEventPayload(event: RoomEventKindSource): CallTransitionE
   const callId = 'callId' in event ? event.callId : null;
   const participantId = 'participantId' in event ? event.participantId : null;
   const deviceIndex = 'deviceIndex' in event ? event.deviceIndex : null;
+  const connectionState = 'connectionState' in event ? event.connectionState : null;
+  const interruptionDeadline = 'interruptionDeadline' in event ? event.interruptionDeadline : null;
   if (typeof roomId !== 'string') return null;
   return {
     roomId,
     callId: typeof callId === 'string' ? callId : null,
     participantId: typeof participantId === 'string' && participantId ? participantId : null,
-    deviceIndex: typeof deviceIndex === 'number' ? deviceIndex : 0
+    deviceIndex: typeof deviceIndex === 'number' ? deviceIndex : 0,
+    connectionState: connectionState === 'interrupted' ? 'interrupted' : 'connected',
+    interruptionDeadline: typeof interruptionDeadline === 'string' ? interruptionDeadline : null
   };
 }
 
@@ -119,7 +126,8 @@ export class ServerStateStore {
     serverConnection: ServerConnection,
     publicServerInfoLoader?: (baseUrl: string) => Promise<PublicServerInfo>,
     onAuthenticationRequired?: () => void,
-    onCapabilitiesChanged?: (capabilities: string[]) => void
+    onCapabilitiesChanged?: (capabilities: string[]) => void,
+    coordinateVoiceCallJoin?: CoordinateVoiceCallJoin
   ) {
     this.serverId = registered.id;
     this.#registered = registered;
@@ -158,7 +166,7 @@ export class ServerStateStore {
       bearerToken: serverConnection.bearerToken
     });
     this.pendingHighlights = new PendingHighlightStore();
-    this.voiceCall = new VoiceCallState(voiceCallAPI);
+    this.voiceCall = new VoiceCallState(voiceCallAPI, coordinateVoiceCallJoin);
     this.callParticipants = new CallParticipantsState(voiceCallAPI);
     this.activeCallRooms = new ActiveCallRoomsState(voiceCallAPI, this.voiceCall);
     this.rooms = new RoomsStore(
@@ -265,6 +273,30 @@ export class ServerStateStore {
               callEvent.participantId,
               event.actorId ?? null,
               this.currentUserId()
+            );
+          } else if (eventKind === RoomEventKind.CallParticipantConnectionChanged) {
+            const callEvent = callTransitionEventPayload(event.event);
+            if (!callEvent?.callId || !callEvent.participantId) return;
+            this.activeCallRooms.handleConnectionState(
+              callEvent.roomId,
+              callEvent.callId,
+              callEvent.participantId,
+              callEvent.connectionState,
+              callEvent.interruptionDeadline
+            );
+            this.callParticipants.handleConnectionState(
+              callEvent.roomId,
+              callEvent.callId,
+              callEvent.participantId,
+              callEvent.connectionState,
+              callEvent.interruptionDeadline
+            );
+            this.voiceCall.handleParticipantConnectionChangedEvent(
+              callEvent.roomId,
+              callEvent.callId,
+              callEvent.participantId,
+              callEvent.connectionState,
+              callEvent.interruptionDeadline
             );
           } else if (eventKind === RoomEventKind.CallEnded) {
             const callEvent = callTransitionEventPayload(event.event);
@@ -493,6 +525,7 @@ export class ServerStateStore {
   /** Clean up resources. */
   dispose(): void {
     this.#disposeEffects();
+    this.voiceCall.dispose();
     this.roomUnread.clear();
     this.notificationLevels.clear();
     this.pendingHighlights.clear();

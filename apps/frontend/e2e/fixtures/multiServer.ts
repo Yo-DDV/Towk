@@ -546,10 +546,9 @@ export async function connectRemoteInstance(
   await page.getByRole('button', { name: 'Connect' }).click();
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
-  // Callback page redirects into the newly-added remote instance's chat
-  // tree on success — `/chat/<hostname>/...` (post-PR(a) there is no
-  // `/chat/spaces` landing). The hostname is whatever segment was passed
-  // in (typically "127.0.0.1").
-  const hostnameOnly = hostname.split(':')[0]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  await page.waitForURL(new RegExp(`/chat/${hostnameOnly}(/|$)`));
+  // Callback page redirects into the newly-added remote instance's chat tree
+  // on success. Route segments use URL.host so independent servers sharing a
+  // hostname remain distinguishable by their non-default port.
+  const escapedHost = hostname.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  await page.waitForURL(new RegExp(`/chat/${escapedHost}(/|$)`));
 }

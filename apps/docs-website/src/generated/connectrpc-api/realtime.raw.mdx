@@ -70,6 +70,8 @@ transitions from a previous call in the same room.
 | `source` | [`RealtimeCallEventSource`](#chatto-realtime-v1-RealtimeCallEventSource) | Source that produced the call transition. |
 | `participant_id` | `string` | Exact media-session connection for participant transitions, when known. |
 | `device_index` | `uint32` | Stable display slot for concurrent connections from the same account. |
+| `connection_state` | [`RealtimeCallParticipantConnectionState`](#chatto-realtime-v1-RealtimeCallParticipantConnectionState) | Current media-server connection state, when this is a connection signal. |
+| `interruption_deadline` | `google.protobuf.Timestamp` | Recovery deadline while the participant connection is interrupted. |
 
 
 
@@ -204,6 +206,7 @@ intended hydration path when a referenced resource may need refreshing.
 | `event.mention_notification` | [`RealtimeMentionNotificationEvent`](#chatto-realtime-v1-RealtimeMentionNotificationEvent) | The current user was mentioned in a room. |
 | `event.new_direct_message_notification` | [`RealtimeNewDirectMessageNotificationEvent`](#chatto-realtime-v1-RealtimeNewDirectMessageNotificationEvent) | The current user received a new direct message. |
 | `event.session_terminated` | [`RealtimeSessionTerminatedEvent`](#chatto-realtime-v1-RealtimeSessionTerminatedEvent) | The current user's session was terminated. |
+| `event.call_participant_connection_changed` | [`RealtimeCallEvent`](#chatto-realtime-v1-RealtimeCallEvent) | An admitted participant connection became interrupted or recovered. |
 
 
 
@@ -723,3 +726,16 @@ Source that produced a realtime voice-call transition.
 | `REALTIME_CALL_EVENT_SOURCE_USER` | `1` | The user explicitly requested the transition through Towk. |
 | `REALTIME_CALL_EVENT_SOURCE_LIVEKIT` | `2` | LiveKit reported the transition through a webhook. |
 | `REALTIME_CALL_EVENT_SOURCE_RECONCILIATION` | `3` | Towk reconciled its local state against LiveKit's current room state. |
+
+
+<a id="chatto-realtime-v1-RealtimeCallParticipantConnectionState"></a>
+
+### RealtimeCallParticipantConnectionState
+
+No enum description provided.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED` | `0` | No value description provided. |
+| `REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED` | `1` | No value description provided. |
+| `REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED` | `2` | No value description provided. |

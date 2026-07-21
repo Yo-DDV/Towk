@@ -3,6 +3,7 @@
   import type { Component } from 'svelte';
   import type { Track } from 'livekit-client';
   import type { CallParticipantInfo } from '$lib/state/server/voiceCall.svelte';
+  import type { MicrophoneProcessingStatus } from '$lib/audio/backgroundNoiseSuppression';
   import type { ServerPermissions } from '$lib/state/server/permissions.svelte';
   import { createPresenceCache } from '$lib/state/presenceCache.svelte';
   import { createUserProfileCache } from '$lib/state/userProfiles.svelte';
@@ -17,11 +18,22 @@
   let {
     layout = 'stage',
     scenario = 'screen',
-    reconnecting = false
+    reconnecting = false,
+    microphoneRouteRecovering = false,
+    interrupted = false,
+    jitterWarning = false,
+    simulateMobileCapabilities = false,
+    microphoneProcessing = null
   }: {
     layout?: 'sidebar' | 'stage';
-    scenario?: 'screen' | 'screen-single-secondary' | 'camera' | 'voice' | 'devices';
+    scenario?:
+      'screen' | 'screen-single-secondary' | 'camera' | 'mobile-camera' | 'voice' | 'devices';
     reconnecting?: boolean;
+    microphoneRouteRecovering?: boolean;
+    interrupted?: boolean;
+    jitterWarning?: boolean;
+    simulateMobileCapabilities?: boolean;
+    microphoneProcessing?: MicrophoneProcessingStatus | null;
   } = $props();
 
   const roomId = 'storybook-call-room';
@@ -145,6 +157,12 @@
       isMuted: false,
       isLocal: false,
       connectionQuality: 'excellent',
+      networkHealth: 'unknown',
+      packetLossPercent: null,
+      jitterMs: null,
+      networkWarningMetric: null,
+      connectionState: 'connected',
+      interruptionDeadline: null,
       isCameraEnabled: false,
       videoTrack: null,
       isScreenShareEnabled: false,
@@ -160,6 +178,16 @@
     };
   }
 
+  function mediaDevice(deviceId: string, kind: MediaDeviceKind, label: string): MediaDeviceInfo {
+    return {
+      deviceId,
+      groupId: 'storybook-mobile-devices',
+      kind,
+      label,
+      toJSON: () => ({})
+    } as MediaDeviceInfo;
+  }
+
   function participantsForScenario(): CallParticipantInfo[] {
     const viewer = participant('viewer', 'Alice', {
       isLocal: true,
@@ -169,11 +197,18 @@
     const bob = participant('bob', 'Bob', {
       isCameraEnabled: scenario === 'screen',
       videoTrack: scenario === 'screen' ? cameraTrack : null,
-      isLocallyMuted: true
+      isLocallyMuted: true,
+      connectionState: interrupted ? 'interrupted' : 'connected',
+      interruptionDeadline: interrupted ? new Date(Date.now() + 60_000).toISOString() : null,
+      connectionQuality: interrupted ? 'lost' : 'excellent'
     });
     const chloe = participant('chloe', 'Chloe', {
       isMuted: true,
-      connectionQuality: 'poor'
+      connectionQuality: 'poor',
+      networkHealth: 'poor',
+      packetLossPercent: jitterWarning ? 0 : 12.4,
+      jitterMs: 82,
+      networkWarningMetric: jitterWarning ? 'jitter' : 'packetLoss'
     });
 
     if (scenario === 'devices') {
@@ -222,7 +257,7 @@
       ];
     }
 
-    if (scenario === 'camera') {
+    if (scenario === 'camera' || scenario === 'mobile-camera') {
       return [viewer, bob, chloe];
     }
 
@@ -231,8 +266,13 @@
 
   function ensureStorybookServer(): RegisteredServer {
     const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+    const existingStorybookServer = serverRegistry.getServer(storybookServerId);
+    if (existingStorybookServer) {
+      serverRegistry.init();
+      return existingStorybookServer;
+    }
     const existingOrigin = serverRegistry.originServer;
-    if (existingOrigin) return existingOrigin;
+    if (existingOrigin && import.meta.env.MODE !== 'test') return existingOrigin;
 
     const server: RegisteredServer = {
       id: storybookServerId,
@@ -262,13 +302,57 @@
     store.voiceCall.connecting = false;
     store.voiceCall.reconnecting = reconnecting;
     store.voiceCall.isMuted = false;
+    store.voiceCall.microphoneRouteRecovering = microphoneRouteRecovering;
+    store.voiceCall.microphoneProcessing = microphoneProcessing ?? {
+      automaticGainControl: 'unavailable',
+      echoCancellation: null,
+      noiseSuppression: 'unavailable'
+    };
     store.voiceCall.isCameraEnabled = scenario !== 'voice';
     store.voiceCall.isScreenShareEnabled = scenario === 'screen';
+    if (scenario === 'mobile-camera') {
+      store.voiceCall.videoDevices = [
+        mediaDevice('front', 'videoinput', 'camera2 1, facing front'),
+        mediaDevice('rear', 'videoinput', 'camera2 0, facing back'),
+        mediaDevice('ultra', 'videoinput', 'camera2 2, facing back, ultra wide')
+      ];
+      store.voiceCall.selectedVideoDeviceId = 'front';
+    }
     store.voiceCall.participants = participantsForScenario();
   }
-  onMount(async () => {
+
+  function suppressScreenShareForStory(): () => void {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices) return () => undefined;
+    const ownDescriptor = Object.getOwnPropertyDescriptor(
+      navigator.mediaDevices,
+      'getDisplayMedia'
+    );
+    Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', {
+      configurable: true,
+      value: undefined
+    });
+    return () => {
+      if (ownDescriptor) {
+        Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', ownDescriptor);
+      } else {
+        delete (
+          navigator.mediaDevices as Omit<MediaDevices, 'getDisplayMedia'> & {
+            getDisplayMedia?: MediaDevices['getDisplayMedia'];
+          }
+        ).getDisplayMedia;
+      }
+    };
+  }
+
+  onMount(() => {
+    const restoreScreenShare = simulateMobileCapabilities
+      ? suppressScreenShareForStory()
+      : () => undefined;
     seedStore();
-    Panel = (await import('./VoiceCallPanel.svelte')).default as Component<VoiceCallPanelProps>;
+    void import('./VoiceCallPanel.svelte').then((module) => {
+      Panel = module.default as Component<VoiceCallPanelProps>;
+    });
+    return restoreScreenShare;
   });
 </script>
 

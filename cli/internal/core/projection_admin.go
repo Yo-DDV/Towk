@@ -47,10 +47,11 @@ type ProjectionAdminMetric struct {
 // server-admin UI. It is intentionally on-demand; the byte counts walk
 // in-memory projection state and are meant for operator pages, not hot paths.
 func (c *ChattoCore) ProjectionAdminStates(ctx context.Context) ([]ProjectionAdminState, error) {
-	info, err := c.storage.serverEvtStream.Info(ctx)
+	stream, err := c.eventStream(ctx)
 	if err != nil {
 		return nil, err
 	}
+	info := stream.CachedInfo()
 	streamLastSeq := info.State.LastSeq
 
 	states := make([]ProjectionAdminState, 0, len(c.projections))

@@ -35,7 +35,7 @@ States:
 
   let isInThisCall = $derived(voiceCallState.isInCall(roomId));
   let isInAnotherCall = $derived(voiceCallState.isInAnyCall && !isInThisCall);
-  let isConnecting = $derived(voiceCallState.connecting && voiceCallState.roomId === roomId);
+  let isConnecting = $derived(voiceCallState.isJoiningRoom(roomId));
   let deviceChoiceVisible = $state(false);
   let companionAllowed = $state(false);
   let deviceChoiceBusy = $state(false);
@@ -85,6 +85,7 @@ States:
 <CallDeviceJoinDialog
   bind:visible={deviceChoiceVisible}
   {companionAllowed}
+  canShareScreen={voiceCallState.canShareScreen}
   busy={deviceChoiceBusy}
   oncompanion={() => void joinWithMode('companion')}
   ontransfer={() => void joinWithMode('transfer')}

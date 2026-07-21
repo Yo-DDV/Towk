@@ -1,7 +1,9 @@
 package http_server
 
 import (
+	"errors"
 	"net/http"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/gin-gonic/gin"
@@ -75,16 +77,21 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			logger.Warn("Ignoring LiveKit participant joined without call ID", "room", event.Room.Name)
 			break
 		}
-		if err := s.core.HandleCallParticipantConnectionJoined(
+		if err := s.core.HandleObservedCallParticipantConnectionJoined(
 			ctx, spaceID, roomID,
 			userID,
 			participantID,
 			deviceIndex,
 			event.Participant.Name,
 			md.Login, md.AvatarURL,
+			liveKitConnectionObservation(event),
 			eventCallID,
 		); err != nil {
 			logger.Warn("Failed to handle participant joined", "error", err)
+			if !errors.Is(err, core.ErrCallParticipantNotAdmitted) || errors.Is(err, core.ErrCallParticipantEvictionFailed) {
+				c.Status(http.StatusServiceUnavailable)
+				return
+			}
 		}
 
 	case webhook.EventParticipantLeft:
@@ -108,13 +115,22 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			logger.Warn("Ignoring LiveKit participant left without call ID", "room", event.Room.Name)
 			break
 		}
-		if err := s.core.HandleCallParticipantConnectionLeft(
-			ctx, spaceID, roomID,
-			userID,
-			participantID,
-			eventCallID,
-		); err != nil {
+		var err error
+		if liveKitParticipantLeftIsTerminal(event.Participant) {
+			err = s.core.HandleCallParticipantConnectionTerminated(ctx, roomID, userID, participantID, eventCallID)
+		} else {
+			err = s.core.HandleObservedCallParticipantConnectionLeft(
+				ctx, spaceID, roomID,
+				userID,
+				participantID,
+				liveKitConnectionObservation(event),
+				eventCallID,
+			)
+		}
+		if err != nil {
 			logger.Warn("Failed to handle participant left", "error", err)
+			c.Status(http.StatusServiceUnavailable)
+			return
 		}
 
 	case webhook.EventRoomFinished:
@@ -122,12 +138,26 @@ func (s *HTTPServer) handleLiveKitWebhook(c *gin.Context) {
 			logger.Warn("Ignoring LiveKit room finished without call ID", "room", event.Room.Name)
 			break
 		}
-		if err := s.core.HandleCallRoomFinished(ctx, spaceID, roomID, callID); err != nil {
+		if err := s.core.HandleObservedCallRoomFinished(ctx, spaceID, roomID, liveKitConnectionObservation(event), callID); err != nil {
 			logger.Warn("Failed to handle room finished", "error", err)
+			c.Status(http.StatusServiceUnavailable)
+			return
 		}
 	}
 
 	c.Status(http.StatusOK)
+}
+
+func liveKitConnectionObservation(event *livekit.WebhookEvent) core.CallParticipantConnectionObservation {
+	observation := core.CallParticipantConnectionObservation{}
+	if event == nil {
+		return observation
+	}
+	observation.ID = event.GetId()
+	if event.GetCreatedAt() > 0 {
+		observation.ObservedAt = time.Unix(event.GetCreatedAt(), 0).UTC()
+	}
+	return observation
 }
 
 func liveKitParticipantLeftIsConnectionHandoff(participant *livekit.ParticipantInfo) bool {
@@ -137,6 +167,21 @@ func liveKitParticipantLeftIsConnectionHandoff(participant *livekit.ParticipantI
 	// A duplicate-identity replacement is a reconnect/handoff of the same
 	// connection-scoped participant, not a durable departure of that device.
 	return participant.GetDisconnectReason() == livekit.DisconnectReason_DUPLICATE_IDENTITY
+}
+
+func liveKitParticipantLeftIsTerminal(participant *livekit.ParticipantInfo) bool {
+	if participant == nil {
+		return false
+	}
+	switch participant.GetDisconnectReason() {
+	case livekit.DisconnectReason_CLIENT_INITIATED,
+		livekit.DisconnectReason_PARTICIPANT_REMOVED,
+		livekit.DisconnectReason_ROOM_DELETED,
+		livekit.DisconnectReason_ROOM_CLOSED:
+		return true
+	default:
+		return false
+	}
 }
 
 func liveKitWebhookRoomBelongsToInstance(roomName, instanceID string) bool {

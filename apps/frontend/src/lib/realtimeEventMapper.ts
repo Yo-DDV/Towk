@@ -5,9 +5,10 @@ import {
 } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import { NotificationLevel as ApiNotificationLevel } from '@towk/api-types/api/v1/notification_preferences_pb';
-import type {
-  RealtimeEventEnvelope,
-  RealtimeHeartbeat
+import {
+  RealtimeCallParticipantConnectionState,
+  type RealtimeEventEnvelope,
+  type RealtimeHeartbeat
 } from '@towk/api-types/realtime/v1/realtime_pb';
 import { PresenceStatus as ApiPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { TimeFormat as ApiTimeFormat } from '@towk/api-types/api/v1/viewer_pb';
@@ -387,6 +388,7 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
     case 'callStarted':
     case 'callParticipantJoined':
     case 'callParticipantLeft':
+    case 'callParticipantConnectionChanged':
     case 'callEnded': {
       const value = frame.event.value;
       const kind =
@@ -396,7 +398,9 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
             ? RoomEventKind.CallParticipantJoined
             : frame.event.case === 'callParticipantLeft'
               ? RoomEventKind.CallParticipantLeft
-              : RoomEventKind.CallEnded;
+              : frame.event.case === 'callParticipantConnectionChanged'
+                ? RoomEventKind.CallParticipantConnectionChanged
+                : RoomEventKind.CallEnded;
       return {
         ...base,
         event: {
@@ -404,7 +408,16 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
           roomId: value.roomId,
           callId: value.callId,
           participantId: value.participantId,
-          deviceIndex: value.deviceIndex
+          deviceIndex: value.deviceIndex,
+          ...(frame.event.case === 'callParticipantConnectionChanged'
+            ? {
+                connectionState:
+                  value.connectionState === RealtimeCallParticipantConnectionState.INTERRUPTED
+                    ? 'interrupted'
+                    : 'connected',
+                interruptionDeadline: optionalTimestampToISO(value.interruptionDeadline)
+              }
+            : {})
         }
       } as unknown as EventEnvelope;
     }

@@ -1,9 +1,55 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CallMediaSessionController, CallWakeLockController } from './callIntegrations';
+import {
+  CallMediaSessionController,
+  CallWakeLockController,
+  selectCallIntegrationCandidate
+} from './callIntegrations';
 
 function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+describe('call integration ownership', () => {
+  const candidate = (
+    id: string,
+    state: { connected?: boolean; reconnecting?: boolean; isInAnyCall?: boolean }
+  ) => ({
+    id,
+    call: {
+      connected: state.connected ?? false,
+      reconnecting: state.reconnecting ?? false,
+      isInAnyCall: state.isInAnyCall ?? false
+    }
+  });
+
+  it('prefers a connected call over an earlier reconnecting server', () => {
+    const selected = selectCallIntegrationCandidate([
+      candidate('recovering', { reconnecting: true, isInAnyCall: true }),
+      candidate('connected', { connected: true, isInAnyCall: true })
+    ]);
+
+    expect(selected?.id).toBe('connected');
+  });
+
+  it('keeps a reconnecting call selected when no server is connected', () => {
+    const selected = selectCallIntegrationCandidate([
+      candidate('joining', { isInAnyCall: true }),
+      candidate('recovering', { reconnecting: true, isInAnyCall: true })
+    ]);
+
+    expect(selected?.id).toBe('recovering');
+  });
+
+  it('keeps an active join intent selected and ignores inactive servers', () => {
+    expect(
+      selectCallIntegrationCandidate([
+        candidate('inactive', {}),
+        candidate('joining', { isInAnyCall: true })
+      ])?.id
+    ).toBe('joining');
+    expect(selectCallIntegrationCandidate([candidate('inactive', {})])).toBeNull();
+  });
+});
 
 describe('call screen wake lock', () => {
   it('holds a visible active call and releases it when the call ends', async () => {
@@ -114,7 +160,9 @@ describe('call Media Session integration', () => {
     const mediaSession = {
       metadata: {} as MediaMetadata | null,
       playbackState: 'playing' as MediaSessionPlaybackState,
-      setActionHandler: vi.fn()
+      setActionHandler: vi.fn(),
+      setCameraActive: vi.fn(),
+      setMicrophoneActive: vi.fn()
     };
     const controller = new CallMediaSessionController(mediaSession);
 
@@ -123,6 +171,8 @@ describe('call Media Session integration', () => {
     expect(mediaSession.metadata).toBeNull();
     expect(mediaSession.playbackState).toBe('none');
     expect(mediaSession.setActionHandler).toHaveBeenCalledTimes(3);
+    expect(mediaSession.setCameraActive).toHaveBeenCalledWith(false);
+    expect(mediaSession.setMicrophoneActive).toHaveBeenCalledWith(false);
   });
 
   it('keeps call actions usable when metadata support throws', () => {

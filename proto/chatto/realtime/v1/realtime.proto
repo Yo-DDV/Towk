@@ -233,6 +233,8 @@ message RealtimeEventEnvelope {
     RealtimeNewDirectMessageNotificationEvent new_direct_message_notification = 89;
     // The current user's session was terminated.
     RealtimeSessionTerminatedEvent session_terminated = 90;
+    // An admitted participant connection became interrupted or recovered.
+    RealtimeCallEvent call_participant_connection_changed = 91;
   }
 }
 
@@ -547,6 +549,16 @@ message RealtimeCallEvent {
   string participant_id = 4;
   // Stable display slot for concurrent connections from the same account.
   uint32 device_index = 5;
+  // Current media-server connection state, when this is a connection signal.
+  RealtimeCallParticipantConnectionState connection_state = 6;
+  // Recovery deadline while the participant connection is interrupted.
+  google.protobuf.Timestamp interruption_deadline = 7;
+}
+
+enum RealtimeCallParticipantConnectionState {
+  REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED = 0;
+  REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED = 1;
+  REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED = 2;
 }
 
 // Source that produced a realtime voice-call transition.

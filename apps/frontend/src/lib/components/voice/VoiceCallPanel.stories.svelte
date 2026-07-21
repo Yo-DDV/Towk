@@ -7,6 +7,7 @@
 		component: VoiceCallPanelStoryHarness,
 		tags: ['autodocs'],
 		parameters: {
+			layout: 'fullscreen',
 			docs: {
 				description: {
 					component:
@@ -32,6 +33,16 @@
 <Story name="Stage camera fallback" asChild>
 	<div class="flex h-[720px] w-[1080px] overflow-hidden rounded-md border border-border bg-background">
 		<VoiceCallPanelStoryHarness layout="stage" scenario="camera" />
+	</div>
+</Story>
+
+<Story name="Mobile camera controls" asChild>
+	<div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+		<VoiceCallPanelStoryHarness
+			layout="stage"
+			scenario="mobile-camera"
+			simulateMobileCapabilities
+		/>
 	</div>
 </Story>
 

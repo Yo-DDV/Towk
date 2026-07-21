@@ -1,3 +1,20 @@
+export type CallIntegrationState = {
+  connected: boolean;
+  reconnecting: boolean;
+  isInAnyCall: boolean;
+};
+
+export function selectCallIntegrationCandidate<T extends { call: CallIntegrationState }>(
+  candidates: readonly T[]
+): T | null {
+  return (
+    candidates.find((candidate) => candidate.call.connected) ??
+    candidates.find((candidate) => candidate.call.reconnecting) ??
+    candidates.find((candidate) => candidate.call.isInAnyCall) ??
+    null
+  );
+}
+
 export type WakeLockSentinelLike = {
   released: boolean;
   release: () => Promise<void>;
@@ -122,6 +139,8 @@ export class CallMediaSessionController {
       this.#setHandler('hangup', null);
       this.#setHandler('togglecamera', null);
       this.#setHandler('togglemicrophone', null);
+      this.#setCameraActive(false);
+      this.#setMicrophoneActive(false);
       return;
     }
 

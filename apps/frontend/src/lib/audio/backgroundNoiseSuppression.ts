@@ -10,11 +10,35 @@ import rnnoiseWasmSimdUrl from '@sapphi-red/web-noise-suppressor/rnnoise_simd.wa
 import rnnoiseWorkletUrl from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url';
 import speexWasmUrl from '@sapphi-red/web-noise-suppressor/speex.wasm?url';
 import speexWorkletUrl from '@sapphi-red/web-noise-suppressor/speexWorklet.js?url';
+// Keep this worklet on the app origin. Firefox enforces script-src for
+// AudioWorklet modules and correctly rejects Vite's small-asset data: inlining.
+import automaticGainControlWorkletUrl from './automaticGainControlWorklet.js?url&no-inline';
 
 type SuppressionMode = 'rnnoise' | 'speex' | 'passthrough';
-type NoiseSuppressorNode = AudioWorkletNode & { destroy(): void };
+export type NoiseSuppressorNode = AudioWorkletNode & { destroy(): void };
+
+export type MicrophoneProcessingStatus = {
+  automaticGainControl: 'native' | 'towk' | 'unknown' | 'unavailable';
+  echoCancellation: boolean | null;
+  noiseSuppression: 'rnnoise' | 'speex' | 'native' | 'unknown' | 'unavailable';
+};
+
+export type MicrophoneProcessingPreferences = {
+  automaticGainControl: boolean;
+  echoCancellation: boolean;
+  noiseSuppression: boolean;
+  enhancedNoiseSuppression: boolean;
+};
+
+export const DEFAULT_MICROPHONE_PROCESSING_PREFERENCES: MicrophoneProcessingPreferences = {
+  automaticGainControl: true,
+  echoCancellation: true,
+  noiseSuppression: true,
+  enhancedNoiseSuppression: true
+};
 
 const RNNOISE_SAMPLE_RATE = 48_000;
+const AUTOMATIC_GAIN_CONTROL_WORKLET_NAME = 'towk-automatic-gain-control';
 const workletRegistrations = new WeakMap<AudioContext, Map<string, Promise<void>>>();
 let rnnoiseBinaryPromise: Promise<ArrayBuffer> | undefined;
 let speexBinaryPromise: Promise<ArrayBuffer> | undefined;
@@ -28,12 +52,20 @@ let speexBinaryPromise: Promise<ArrayBuffer> | undefined;
  * browser's echo and noise processing.
  */
 export function createVoiceAudioCaptureOptions(): AudioCaptureOptions {
+  return createVoiceAudioCaptureOptionsFor(DEFAULT_MICROPHONE_PROCESSING_PREFERENCES);
+}
+
+export function createVoiceAudioCaptureOptionsFor(
+  preferences: MicrophoneProcessingPreferences
+): AudioCaptureOptions {
   return {
-    autoGainControl: false,
+    autoGainControl: preferences.automaticGainControl,
     channelCount: 1,
-    echoCancellation: true,
-    noiseSuppression: true,
-    sampleRate: RNNOISE_SAMPLE_RATE
+    echoCancellation: preferences.echoCancellation,
+    noiseSuppression: preferences.noiseSuppression,
+    // Prefer the browser/OS voice pipeline when it can offer stronger native
+    // isolation. Unsupported ideal constraints are ignored by getUserMedia.
+    voiceIsolation: preferences.noiseSuppression
   };
 }
 
@@ -47,21 +79,129 @@ export function createVoiceAudioCaptureOptions(): AudioCaptureOptions {
  * processor. Device restarts remain managed by LiveKit through restart().
  */
 export async function ensureBackgroundNoiseSuppression(
-  track: Pick<LocalAudioTrack, 'getProcessor' | 'setProcessor'>
-): Promise<void> {
-  if (track.getProcessor()?.name === 'towk-background-noise-suppression') return;
-  if (!BackgroundNoiseSuppressionProcessor.isSupported) return;
+  track: Pick<
+    LocalAudioTrack,
+    | 'getProcessor'
+    | 'getSourceTrackSettings'
+    | 'mediaStreamTrack'
+    | 'restartTrack'
+    | 'setProcessor'
+    | 'stopProcessor'
+  >,
+  preferences: MicrophoneProcessingPreferences = DEFAULT_MICROPHONE_PROCESSING_PREFERENCES
+): Promise<MicrophoneProcessingStatus> {
+  const settings = track.getSourceTrackSettings();
+  const currentProcessor = track.getProcessor();
+  if (currentProcessor instanceof BackgroundNoiseSuppressionProcessor) {
+    if (!currentProcessor.isCompatibleWith(settings)) {
+      try {
+        await track.stopProcessor();
+        return createNativeProcessingStatus(settings);
+      } catch {
+        // LiveKit stops the processed output before it reapplies the source
+        // constraints while detaching. If that reapply fails during a route
+        // transition, the RTP sender can otherwise remain on a stopped track.
+        // Reacquire native capture to restore an audible sender.
+        await restartNativeMicrophoneCapture(track, settings, preferences);
+        return createNativeProcessingStatus(track.getSourceTrackSettings());
+      }
+    }
+    return currentProcessor.processingStatus;
+  }
+  // Browser-native WebRTC processing shares the hardware route and clock. Do
+  // not add a second Web Audio clock when it is already active, or when the
+  // browser does not expose enough settings to prove the custom path safe.
+  if (!preferences.enhancedNoiseSuppression || !preferences.noiseSuppression) {
+    return createNativeProcessingStatus(settings);
+  }
+  if (!shouldAttachEnhancedProcessing(settings)) {
+    return createNativeProcessingStatus(settings);
+  }
+  if (!BackgroundNoiseSuppressionProcessor.isSupported) {
+    return createNativeProcessingStatus(settings);
+  }
 
-  await track.setProcessor(new BackgroundNoiseSuppressionProcessor());
+  const processor = new BackgroundNoiseSuppressionProcessor();
+  await track.setProcessor(processor);
+  return processor.processingStatus;
+}
+
+async function restartNativeMicrophoneCapture(
+  track: Pick<LocalAudioTrack, 'restartTrack'>,
+  settings: MediaTrackSettings,
+  preferences: MicrophoneProcessingPreferences
+): Promise<void> {
+  const options = createVoiceAudioCaptureOptionsFor(preferences);
+  if (!settings.deviceId) {
+    await track.restartTrack(options);
+    return;
+  }
+
+  try {
+    await track.restartTrack({
+      ...options,
+      deviceId: { exact: settings.deviceId }
+    });
+  } catch {
+    // The previous device may have disappeared entirely. A second attempt on
+    // the system route is safer than leaving the sender attached to silence.
+    await track.restartTrack(options);
+  }
+}
+
+export function createNativeProcessingStatus(
+  settings: MediaTrackSettings
+): MicrophoneProcessingStatus {
+  return {
+    automaticGainControl:
+      settings.autoGainControl === true
+        ? 'native'
+        : settings.autoGainControl === false
+          ? 'unavailable'
+          : 'unknown',
+    echoCancellation:
+      typeof settings.echoCancellation === 'boolean' ? settings.echoCancellation : null,
+    noiseSuppression:
+      settings.noiseSuppression === true
+        ? 'native'
+        : settings.noiseSuppression === false
+          ? 'unavailable'
+          : 'unknown'
+  };
+}
+
+export async function createAutomaticGainControlNode(
+  audioContext: AudioContext
+): Promise<AudioWorkletNode> {
+  await registerWorklet(audioContext, automaticGainControlWorkletUrl);
+  return new AudioWorkletNode(audioContext, AUTOMATIC_GAIN_CONTROL_WORKLET_NAME, {
+    channelCount: 1,
+    channelCountMode: 'explicit',
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [1]
+  });
+}
+
+export async function createNoiseSuppressionNode(audioContext: AudioContext): Promise<{
+  mode: Exclude<SuppressionMode, 'passthrough'>;
+  node: NoiseSuppressorNode;
+}> {
+  const mode: Exclude<SuppressionMode, 'passthrough'> =
+    audioContext.sampleRate === RNNOISE_SAMPLE_RATE ? 'rnnoise' : 'speex';
+  const { node, workletUrl } = await createSuppressorNode(mode, audioContext);
+  await registerWorklet(audioContext, workletUrl);
+  return { mode, node: node() };
 }
 
 /**
- * Self-hosted, client-side background noise suppression for LiveKit audio.
+ * Native-first, self-hosted background noise suppression for LiveKit audio.
  *
- * RNNoise is preferred at its native 48 kHz rate. SpeexDSP is used when the
- * browser provides a different AudioContext rate. If either worklet cannot be
- * loaded, a transparent Web Audio path keeps the microphone usable while the
- * browser-native suppression requested above remains active.
+ * RNNoise is preferred at its native 48 kHz rate and SpeexDSP at other rates,
+ * but only when the captured source and AudioContext share a proven clock and
+ * the browser explicitly reports native suppression unavailable. Native voice
+ * DSP or a clock mismatch bypasses the graph through a direct track clone. If
+ * a worklet cannot load, the browser-processed microphone remains usable.
  */
 export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
   Track.Kind.Audio,
@@ -73,8 +213,12 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
   private audioContext?: AudioContext;
   private sourceNode?: MediaStreamAudioSourceNode;
   private suppressorNode?: NoiseSuppressorNode;
+  private automaticGainControlNode?: AudioWorkletNode;
   private destinationNode?: MediaStreamAudioDestinationNode;
   private suppressionMode: SuppressionMode = 'passthrough';
+  private automaticGainControlMode: 'native' | 'towk' | 'unavailable' = 'unavailable';
+  private echoCancellation: boolean | null = null;
+  private nativeNoiseSuppression = false;
 
   static get isSupported(): boolean {
     return (
@@ -87,6 +231,23 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
 
   get mode(): SuppressionMode {
     return this.suppressionMode;
+  }
+
+  get processingStatus(): MicrophoneProcessingStatus {
+    return {
+      automaticGainControl: this.automaticGainControlMode,
+      echoCancellation: this.echoCancellation,
+      noiseSuppression:
+        this.suppressionMode === 'rnnoise' || this.suppressionMode === 'speex'
+          ? this.suppressionMode
+          : this.nativeNoiseSuppression
+            ? 'native'
+            : 'unavailable'
+    };
+  }
+
+  isCompatibleWith(settings: MediaTrackSettings): boolean {
+    return canProcessAtContextRate(settings, this.audioContext?.sampleRate ?? Number.NaN);
   }
 
   async init(options: AudioProcessorOptions): Promise<void> {
@@ -113,28 +274,66 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
   }
 
   private async buildGraph(track: MediaStreamTrack, audioContext: AudioContext): Promise<void> {
+    const settings = track.getSettings();
+    this.echoCancellation =
+      typeof settings.echoCancellation === 'boolean' ? settings.echoCancellation : null;
+    this.nativeNoiseSuppression = settings.noiseSuppression === true;
+    this.automaticGainControlMode = settings.autoGainControl === true ? 'native' : 'unavailable';
+
+    // Communication routes such as Bluetooth HFP/BLE can expose a source
+    // clock different from the Room AudioContext. Passing that route through a
+    // MediaStreamAudioSource/Destination pair adds resampling and an unrelated
+    // clock, which can turn drift into audible gaps. A clone keeps LiveKit's
+    // processor lifecycle safe without altering the original capture clock.
+    if (!canProcessAtContextRate(settings, audioContext.sampleRate)) {
+      this.processedTrack = track.clone();
+      return;
+    }
+
     this.sourceNode = audioContext.createMediaStreamSource(new MediaStream([track]));
     this.destinationNode = audioContext.createMediaStreamDestination();
 
     try {
-      const mode: Exclude<SuppressionMode, 'passthrough'> =
-        audioContext.sampleRate === RNNOISE_SAMPLE_RATE ? 'rnnoise' : 'speex';
-      const { node, workletUrl } = await createSuppressorNode(mode, audioContext);
-
-      await registerWorklet(audioContext, workletUrl);
-      const suppressorNode = node();
+      const { mode, node: suppressorNode } = await createNoiseSuppressionNode(audioContext);
       this.suppressorNode = suppressorNode;
       suppressorNode.onprocessorerror = () => {
         if (this.suppressorNode === suppressorNode) this.enablePassthrough();
       };
-      this.sourceNode.connect(suppressorNode);
-      suppressorNode.connect(this.destinationNode);
       this.suppressionMode = mode;
     } catch {
-      this.enablePassthrough();
+      this.suppressionMode = 'passthrough';
     }
 
+    if (this.automaticGainControlMode !== 'native') {
+      try {
+        const automaticGainControlNode = await createAutomaticGainControlNode(audioContext);
+        this.automaticGainControlNode = automaticGainControlNode;
+        automaticGainControlNode.onprocessorerror = () => {
+          if (this.automaticGainControlNode === automaticGainControlNode) {
+            this.disableTowkAutomaticGainControl();
+          }
+        };
+        this.automaticGainControlMode = 'towk';
+      } catch {
+        this.automaticGainControlMode = 'unavailable';
+      }
+    }
+
+    this.connectProcessingGraph();
     this.processedTrack = this.destinationNode.stream.getAudioTracks()[0];
+  }
+
+  private connectProcessingGraph(): void {
+    if (!this.sourceNode || !this.destinationNode) return;
+    this.sourceNode.connect(
+      this.suppressorNode ?? this.automaticGainControlNode ?? this.destinationNode
+    );
+    if (this.suppressorNode) {
+      this.suppressorNode.connect(this.automaticGainControlNode ?? this.destinationNode);
+    }
+    if (this.automaticGainControlNode) {
+      this.automaticGainControlNode.connect(this.destinationNode);
+    }
   }
 
   private enablePassthrough(): void {
@@ -146,8 +345,20 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
     this.suppressorNode?.port.close();
     this.suppressorNode?.disconnect();
     this.suppressorNode = undefined;
-    this.sourceNode.connect(this.destinationNode);
+    this.sourceNode.connect(this.automaticGainControlNode ?? this.destinationNode);
     this.suppressionMode = 'passthrough';
+  }
+
+  private disableTowkAutomaticGainControl(): void {
+    if (!this.destinationNode || !this.automaticGainControlNode) return;
+    const processedInput: AudioNode | undefined = this.suppressorNode ?? this.sourceNode;
+    processedInput?.disconnect();
+    this.automaticGainControlNode.onprocessorerror = null;
+    this.automaticGainControlNode.port.close();
+    this.automaticGainControlNode.disconnect();
+    this.automaticGainControlNode = undefined;
+    processedInput?.connect(this.destinationNode);
+    this.automaticGainControlMode = 'unavailable';
   }
 
   private async teardown(clearContext: boolean): Promise<void> {
@@ -156,16 +367,57 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
     this.suppressorNode?.destroy();
     this.suppressorNode?.port.close();
     this.suppressorNode?.disconnect();
+    if (this.automaticGainControlNode) this.automaticGainControlNode.onprocessorerror = null;
+    this.automaticGainControlNode?.port.close();
+    this.automaticGainControlNode?.disconnect();
     this.destinationNode?.disconnect();
     this.processedTrack?.stop();
 
     this.sourceNode = undefined;
     this.suppressorNode = undefined;
+    this.automaticGainControlNode = undefined;
     this.destinationNode = undefined;
     this.processedTrack = undefined;
     this.suppressionMode = 'passthrough';
+    this.automaticGainControlMode = 'unavailable';
+    this.echoCancellation = null;
+    this.nativeNoiseSuppression = false;
     if (clearContext) this.audioContext = undefined;
   }
+}
+
+function shouldAttachEnhancedProcessing(settings: MediaTrackSettings): boolean {
+  return (
+    !isMobileBrowserAudioRoute() &&
+    settings.noiseSuppression === false &&
+    settings.channelCount === 1 &&
+    typeof settings.sampleRate === 'number' &&
+    Number.isFinite(settings.sampleRate) &&
+    settings.sampleRate > 0
+  );
+}
+
+function canProcessAtContextRate(settings: MediaTrackSettings, contextSampleRate: number): boolean {
+  return shouldAttachEnhancedProcessing(settings) && settings.sampleRate === contextSampleRate;
+}
+
+function isMobileBrowserAudioRoute(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const navigatorLike = navigator as Navigator & {
+    platform?: string;
+    userAgentData?: { mobile?: boolean };
+  };
+
+  if (navigatorLike.userAgentData?.mobile === true) return true;
+
+  const userAgent = navigatorLike.userAgent;
+  if (/\b(Android|iPhone|iPad|iPod|IEMobile|Windows Phone|Mobile)\b/i.test(userAgent)) {
+    return true;
+  }
+
+  // iPadOS can expose a desktop Safari user agent. A touch-capable MacIntel
+  // platform in a browser capture context is the safest public signal.
+  return navigatorLike.platform === 'MacIntel' && navigatorLike.maxTouchPoints > 1;
 }
 
 async function createSuppressorNode(

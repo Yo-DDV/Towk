@@ -39,7 +39,7 @@ hostname.
 
    Create DNS records for `chat.example.com` and
    `livekit.chat.example.com`. Allow inbound TCP 80, 443, and 7881 plus UDP
-   3478 and 50000-50200 in your host and cloud firewalls.
+   3478 and 50000-50400 in your host and cloud firewalls.
 
 3. **Generate the configuration**
 
@@ -220,10 +220,30 @@ to the host:
 | TCP 7881 | LiveKit 7881 | WebRTC media fallback when UDP is unavailable |
 | UDP 3478 | LiveKit 3478 | Embedded TURN/STUN relay |
 | UDP 50000-50200 | Same LiveKit ports | Direct WebRTC media |
+| UDP 50201-50400 | Same LiveKit ports | Embedded TURN relay allocations |
 
 The standard Caddy image does not include the optional Caddy L4 plugin, and this
 single-host setup does not need it. Open the matching host and cloud firewall
 rules, and do not expose NATS port 4222 publicly.
+
+The generated configuration uses `rtc.use_external_ip: true`; keep that default
+when the single LiveKit host has a public address. If a custom topology instead
+sets `use_external_ip: false` with a private `rtc.node_ip`, allow embedded TURN
+to reach only that media-node address:
+
+```yaml
+rtc:
+  use_external_ip: false
+  node_ip: 10.0.0.10
+turn:
+  enabled: true
+  allow_restricted_peer_cidrs:
+    - 10.0.0.10/32
+```
+
+Use an exact `/32` host CIDR for IPv4 or `/128` for IPv6. This is a permission
+for the LiveKit media peer, not an allowlist of client networks, so do not add
+broad private, mobile, or office ranges.
 
 ## Optional Features
 
@@ -390,6 +410,7 @@ The default setup exposes LiveKit's direct UDP media range and its embedded TURN
 ```yaml
 ports:
   - "50000-50200:50000-50200/udp"
+  - "50201-50400:50201-50400/udp"
   - "7881:7881/tcp"
   - "3478:3478/udp"
 ```
@@ -404,7 +425,14 @@ rtc:
 turn:
   enabled: true
   udp_port: 3478
+  relay_range_start: 50201
+  relay_range_end: 50400
 ```
+
+The TURN listener and relay allocation sockets are separate: publishing only
+UDP 3478 is insufficient for the bridge-networked Compose deployment. Keep the
+configured UDP 50201-50400 relay range published one-to-one and open in both
+host and cloud firewalls.
 
 Direct UDP provides the best media path. TCP 7881 gives LiveKit an ICE/TCP
 fallback when UDP is unavailable, while TURN/UDP helps with symmetric NATs and
@@ -433,7 +461,7 @@ See [Voice & Video Calls](/guides/infrastructure/voice-calls/#turn-for-restricti
 
 **Container startup order** — `depends_on` with `condition: service_healthy` ensures NATS and LiveKit are ready before Towk starts. If health checks fail, check the individual service logs.
 
-**Calls don't connect** — Verify the LiveKit API key/secret in `.env` matches the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`). Ensure `CHATTO_LIVEKIT_URL` uses the public `wss://livekit.*` subdomain (browsers connect to it directly). Check that TCP 7881 and UDP 3478 and 50000-50200 are open in your firewall.
+**Calls don't connect** — Verify the LiveKit API key/secret in `.env` matches the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`). Ensure `CHATTO_LIVEKIT_URL` uses the public `wss://livekit.*` subdomain (browsers connect to it directly). Check that TCP 7881, UDP 3478, direct media UDP 50000-50200, and TURN relay UDP 50201-50400 are open in your firewall.
 
 **Calls fail for some users** — Confirm the built-in TURN/UDP relay is reachable on UDP 3478. Users behind firewalls that block UDP entirely need TURN/TLS. See [TURN server for restrictive networks](#turn-server-for-restrictive-networks).
 

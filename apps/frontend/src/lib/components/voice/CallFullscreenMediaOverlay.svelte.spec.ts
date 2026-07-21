@@ -7,7 +7,7 @@ import '../../../app.css';
 import { callFullscreenMedia } from '$lib/state/callFullscreenMedia.svelte';
 import CallFullscreenMediaOverlayHarness from './CallFullscreenMediaOverlayHarness.svelte';
 
-function openScreenShare() {
+function openScreenShare(onClose?: () => void) {
   const track = {
     attach: vi.fn((element: HTMLVideoElement) => element),
     detach: vi.fn((element: HTMLVideoElement) => element)
@@ -25,7 +25,8 @@ function openScreenShare() {
       displayName: 'Bob',
       avatarUrl: null,
       presenceStatus: PresenceStatus.Online
-    }
+    },
+    onClose
   });
 
   return track;
@@ -99,5 +100,19 @@ describe('CallFullscreenMediaOverlay', () => {
     await tick();
 
     expect(callFullscreenMedia.isOpen).toBe(false);
+  });
+
+  it('restores adaptive media quality when the fallback overlay closes', async () => {
+    const onClose = vi.fn();
+    openScreenShare(onClose);
+    const { container } = render(CallFullscreenMediaOverlayHarness);
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="call-fullscreen-media-close"]')).not.toBeNull();
+    });
+    (container.querySelector('[data-testid="call-fullscreen-media-close"]') as HTMLButtonElement).click();
+    await tick();
+
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

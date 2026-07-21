@@ -109,7 +109,7 @@ test.describe('Cross-instance dots', () => {
     // remote share the bootstrap server name "E2E Test Server", so
     // disambiguate the remote icon by the host segment in its href —
     // home links use "/chat/-" while remote links use "/chat/<host>".
-    const remoteHostSegment = new URL(baseURL).hostname;
+    const remoteHostSegment = new URL(baseURL).host;
     const remoteSpaceWrapper = page.locator('.server-gutter .server-icon-wrapper').filter({
       has: page.locator(`a[data-testid="server-icon"][href*="/chat/${remoteHostSegment}"]`)
     });
@@ -174,7 +174,7 @@ test.describe('Cross-instance dots', () => {
     await waitForRoomReady(page, 'general');
     await expect(page.getByText(homeBody)).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
-    const remoteHostSegment = new URL(baseURL).hostname;
+    const remoteHostSegment = new URL(baseURL).host;
     const remoteSpaceWrapper = page.locator('.server-gutter .server-icon-wrapper').filter({
       has: page.locator(`a[data-testid="server-icon"][href*="/chat/${remoteHostSegment}"]`)
     });
@@ -244,7 +244,7 @@ test.describe('Cross-instance dots', () => {
     await waitForRoomReady(page, 'general');
     await expect(page.getByText(homeBody)).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
-    const remoteHostSegment = new URL(baseURL).hostname;
+    const remoteHostSegment = new URL(baseURL).host;
     const dialog = await openSwitcher(page);
     const input = switcherInput(dialog);
     await expect(switcherResults(dialog).first()).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });

@@ -4,6 +4,7 @@
   import {
     CallMediaSessionController,
     CallWakeLockController,
+    selectCallIntegrationCandidate,
     type CallMediaSessionLike,
     type VisibilityDocumentLike,
     type WakeLockNavigatorLike
@@ -25,18 +26,19 @@
         );
 
   const activeCall = $derived.by(() => {
+    const candidates = [];
     for (const server of serverRegistry.servers) {
       const store = serverRegistry.getStore(server.id);
       const call = store.voiceCall;
-      if (!call.connected) continue;
+      if (!call.isInAnyCall) continue;
       const room = store.rooms.rooms.find((candidate) => candidate.id === call.roomId);
-      return {
+      candidates.push({
         call,
         roomName: room?.name || call.roomId || m['voice.active_call'](),
         serverName: store.serverInfo.name || server.name
-      };
+      });
     }
-    return null;
+    return selectCallIntegrationCandidate(candidates);
   });
 
   $effect(() => {

@@ -469,6 +469,15 @@ afterEach(() => {
 });
 
 describe('ServerStateStore authentication state', () => {
+  it('disposes the server-scoped voice call state', () => {
+    const store = makeStore(new FakeServerConnection([]));
+    const disposeVoiceCall = vi.spyOn(store.voiceCall, 'dispose');
+
+    store.dispose();
+
+    expect(disposeVoiceCall).toHaveBeenCalledOnce();
+  });
+
   it('treats reauth-required servers as unauthenticated without clearing user data', () => {
     const fake = new FakeServerConnection([]);
     const store = makeStore(fake, {
@@ -756,6 +765,49 @@ describe('ServerStateStore live server updates', () => {
     expect(soundMocks.playCallSound).toHaveBeenCalledTimes(2);
     expect(soundMocks.playCallSound).toHaveBeenNthCalledWith(1, 'join');
     expect(soundMocks.playCallSound).toHaveBeenNthCalledWith(2, 'leave');
+  });
+
+  it('forwards connection interruptions without emitting a false leave sound', () => {
+    const fake = new FakeServerConnection([]);
+    const store = makeStore(fake);
+    const deadline = '2026-01-01T00:01:00.000Z';
+    const activeConnection = vi
+      .spyOn(store.activeCallRooms, 'handleConnectionState')
+      .mockImplementation(() => {});
+    const observerConnection = vi
+      .spyOn(store.callParticipants, 'handleConnectionState')
+      .mockImplementation(() => {});
+    const liveConnection = vi
+      .spyOn(store.voiceCall, 'handleParticipantConnectionChangedEvent')
+      .mockImplementation(() => {});
+
+    eventBusManager.startBus(registered.id, fake as unknown as ServerConnection);
+    flushSync();
+    const bus = eventBusManager.getBus(registered.id);
+    if (!bus) throw new Error('event bus did not start');
+
+    for (const handler of bus.handlers) {
+      handler({
+        id: 'E-call-interrupted',
+        createdAt: new Date().toISOString(),
+        actorId: 'U2',
+        actor: null,
+        event: roomEvent(RoomEventKind.CallParticipantConnectionChanged, {
+          roomId: 'R1',
+          callId: 'call-1',
+          participantId: 'device-2',
+          deviceIndex: 2,
+          connectionState: 'interrupted',
+          interruptionDeadline: deadline
+        })
+      });
+    }
+
+    const expected = ['R1', 'call-1', 'device-2', 'interrupted', deadline] as const;
+    expect(activeConnection).toHaveBeenCalledWith(...expected);
+    expect(observerConnection).toHaveBeenCalledWith(...expected);
+    expect(liveConnection).toHaveBeenCalledWith(...expected);
+    expect(soundMocks.playCallSound).not.toHaveBeenCalled();
   });
 
   it('clears active call snapshots when a call end event arrives through the server bus', async () => {

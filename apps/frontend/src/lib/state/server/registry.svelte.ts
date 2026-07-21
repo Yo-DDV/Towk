@@ -7,6 +7,7 @@ import { getPublicServerInfo } from '$lib/api-client/server';
 import { PRODUCT_NAME } from '$lib/product';
 import { activateOfflineAccount, purgeOfflineAccount } from '$lib/pwa/offlineData';
 import { privateDataScopeForServer } from '$lib/pwa/scope';
+import { VoiceCallJoinCoordinator } from './voiceCallCoordinator';
 
 function activatePrivateDataForServer(server: RegisteredServer): void {
 	const scope = privateDataScopeForServer(server);
@@ -126,6 +127,7 @@ const serversSlot = globalSlot(
 class ServerRegistry {
 	servers = $state<RegisteredServer[]>(serversSlot.get().map(normalizeRegisteredServer));
 	#stores = new SvelteMap<string, ServerStateStore>();
+	#voiceCallJoinCoordinator = new VoiceCallJoinCoordinator();
 
 	/**
 	 * Whether the async origin probe has completed (resolved or rejected).
@@ -503,7 +505,25 @@ class ServerRegistry {
 				}
 				server.capabilities = [...capabilities];
 				serversSlot.set(this.servers);
-			}
+			},
+			(join) =>
+				this.#voiceCallJoinCoordinator.run(
+					server.id,
+					() =>
+						this.servers.flatMap((candidate) => {
+							const voiceCall = this.tryGetStore(candidate.id)?.voiceCall;
+							return voiceCall
+								? [
+										{
+											serverId: candidate.id,
+											isInAnyCall: () => voiceCall.isInAnyCall,
+											leave: () => voiceCall.leave()
+										}
+									]
+								: [];
+						}),
+					join
+				)
 		);
 		this.#stores.set(server.id, store);
 

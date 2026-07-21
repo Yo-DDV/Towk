@@ -6,6 +6,7 @@ export const RoomEventKind = {
   AssetProcessingStarted: 'assetProcessingStarted',
   AssetProcessingSucceeded: 'assetProcessingSucceeded',
   CallEnded: 'callEnded',
+  CallParticipantConnectionChanged: 'callParticipantConnectionChanged',
   CallParticipantJoined: 'callParticipantJoined',
   CallParticipantLeft: 'callParticipantLeft',
   CallStarted: 'callStarted',
