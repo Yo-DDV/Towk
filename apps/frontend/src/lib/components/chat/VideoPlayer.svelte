@@ -391,11 +391,11 @@
     display: none !important;
   }
 
-  :global(media-player[data-fit='cover'] media-provider),
-  :global(media-player[data-fit='cover'] [data-media-provider]),
-  :global(media-player[data-fit='cover'] video),
-  :global(media-player[data-fit='cover'] .vds-poster),
-  :global(media-player[data-fit='cover'] .vds-poster img) {
+  :global(media-player media-provider),
+  :global(media-player [data-media-provider]),
+  :global(media-player video),
+  :global(media-player .vds-poster),
+  :global(media-player .vds-poster img) {
     height: 100%;
     width: 100%;
   }
@@ -405,5 +405,12 @@
   :global(media-player[data-fit='cover'] .vds-poster img) {
     object-fit: cover;
     object-position: top center;
+  }
+
+  :global(media-player[data-fit='contain'] video),
+  :global(media-player[data-fit='contain'] .vds-poster),
+  :global(media-player[data-fit='contain'] .vds-poster img) {
+    object-fit: contain;
+    object-position: center;
   }
 </style>
