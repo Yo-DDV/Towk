@@ -429,6 +429,63 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.dispose();
   });
 
+  it('restores a visited room across remounted stores for the same private scope', async () => {
+    const scope: PrivateDataScope = {
+      serverId: 'room-memory-server',
+      serverUrl: 'https://room-memory.example.test/some-path',
+      userId: 'room-memory-user'
+    };
+    const firstTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(async ({ roomId }: { roomId: string }) => ({
+        events: [roomMessageEvent(`${roomId}-remembered`, roomId) as never],
+        startCursor: `${roomId}:start`,
+        endCursor: `${roomId}:end`,
+        hasOlder: false,
+        hasNewer: false
+      }))
+    });
+    const firstStore = new MessagesStore(
+      {} as ServerConnection,
+      () => scope.userId,
+      firstTimeline,
+      () => scope
+    );
+
+    firstStore.setRoom('room-1');
+    await settle();
+    expect(firstStore.rootEvents.map((event) => event.id)).toEqual(['room-1-remembered']);
+    firstStore.dispose();
+
+    const pendingReload = deferred<EventConnectionPage>();
+    const secondTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(() => pendingReload.promise)
+    });
+    const secondStore = new MessagesStore(
+      {} as ServerConnection,
+      () => scope.userId,
+      secondTimeline,
+      () => scope
+    );
+
+    secondStore.setRoom('room-1');
+    expect(secondStore.rootEvents.map((event) => event.id)).toEqual(['room-1-remembered']);
+    expect(secondStore.isInitialLoading).toBe(false);
+
+    pendingReload.resolve({
+      events: [roomMessageEvent('room-1-authoritative-after-remount', 'room-1') as never],
+      startCursor: 'room-1:start:new',
+      endCursor: 'room-1:end:new',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(secondStore.rootEvents.map((event) => event.id)).toEqual([
+      'room-1-authoritative-after-remount'
+    ]);
+    secondStore.dispose();
+  });
+
   it('exposes initial load failures and clears them after a successful retry', async () => {
     const fake = new FakeQueryClient();
     const timeline = fakeTimelineAPI({
@@ -2260,9 +2317,13 @@ describe('MessagesStore — encrypted offline timeline', () => {
   });
 
   it('replaces hydrated cache with the authoritative network window', async () => {
-    await purgeOfflineAccount(scope).catch(() => undefined);
-    await activateOfflineAccount(scope);
-    await saveCachedTimeline(scope, {
+    const replaceScope: PrivateDataScope = {
+      ...scope,
+      userId: 'timeline-cache-user-replace'
+    };
+    await purgeOfflineAccount(replaceScope).catch(() => undefined);
+    await activateOfflineAccount(replaceScope);
+    await saveCachedTimeline(replaceScope, {
       roomId: 'room-1',
       threadRootEventId: null,
       events: [threadMessageEvent('cached-stale') as never],
@@ -2272,9 +2333,9 @@ describe('MessagesStore — encrypted offline timeline', () => {
     const timeline = fakeTimelineAPI({ getRoomEvents: vi.fn(() => page.promise) });
     const store = new MessagesStore(
       {} as ServerConnection,
-      () => scope.userId,
+      () => replaceScope.userId,
       timeline,
-      () => scope
+      () => replaceScope
     );
 
     store.setRoom('room-1');
@@ -2290,7 +2351,7 @@ describe('MessagesStore — encrypted offline timeline', () => {
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(false));
     expect(store.events.map((event) => event.id)).toEqual(['network-1']);
     store.dispose();
-    await purgeOfflineAccount(scope);
+    await purgeOfflineAccount(replaceScope);
   });
 });
 
@@ -2558,4 +2619,5 @@ describe('MessagesStore — thread lifecycle ownership', () => {
 
     store.dispose();
   });
+
 });

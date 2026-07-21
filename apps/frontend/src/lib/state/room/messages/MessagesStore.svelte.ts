@@ -70,13 +70,29 @@ function eventCacheKey(roomId: string, eventId: string): string {
 
 const TIMELINE_MEMORY_SNAPSHOT_LIMIT = 120;
 const TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS = 32;
+const timelineMemorySnapshots = new SvelteMap<string, TimelineSnapshot>();
+let transientTimelineSnapshotScopeSequence = 0;
 
 function timelineSnapshotKey(
+  ownerKey: string,
   scope: MessageScope,
   roomId: string,
   threadRootEventId: string | null
 ): string {
-  return `${scope}\u0000${roomId}\u0000${threadRootEventId ?? ''}`;
+  return `${ownerKey}\u0000${scope}\u0000${roomId}\u0000${threadRootEventId ?? ''}`;
+}
+
+function canonicalSnapshotServerOrigin(serverUrl: string): string {
+  try {
+    return new URL(serverUrl).origin;
+  } catch {
+    return serverUrl;
+  }
+}
+
+function privateTimelineSnapshotOwnerKey(scope: PrivateDataScope | null | undefined): string | null {
+  if (!scope) return null;
+  return `${scope.serverId}\u0000${canonicalSnapshotServerOrigin(scope.serverUrl)}\u0000${scope.userId}`;
 }
 
 function compareEventCreatedAt(a: RoomEventView, b: RoomEventView): number {
@@ -217,7 +233,7 @@ export class MessagesStore {
   #pendingJumpId: number | null = null;
   #cachedEventIds = new SvelteSet<string>();
   #cacheSaveTimer: ReturnType<typeof setTimeout> | null = null;
-  #memorySnapshots = new SvelteMap<string, TimelineSnapshot>();
+  readonly #transientTimelineSnapshotOwnerKey = `transient:${++transientTimelineSnapshotScopeSequence}`;
 
   constructor(
     serverConnection: ServerConnection,
@@ -1160,7 +1176,11 @@ export class MessagesStore {
 
   private currentSnapshotKey(): string | null {
     if (!this.scope || !this.roomId) return null;
+    const ownerKey =
+      privateTimelineSnapshotOwnerKey(this.getPrivateDataScope?.()) ??
+      this.#transientTimelineSnapshotOwnerKey;
     return timelineSnapshotKey(
+      ownerKey,
       this.scope,
       this.roomId,
       this.scope === 'thread' ? this.threadRootEventId : null
@@ -1170,17 +1190,17 @@ export class MessagesStore {
   private rememberCurrentSnapshot(): void {
     const key = this.currentSnapshotKey();
     if (!key || this.events.length === 0) return;
-    if (this.#memorySnapshots.has(key)) this.#memorySnapshots.delete(key);
-    this.#memorySnapshots.set(key, {
+    if (timelineMemorySnapshots.has(key)) timelineMemorySnapshots.delete(key);
+    timelineMemorySnapshots.set(key, {
       events: this.events.slice(-TIMELINE_MEMORY_SNAPSHOT_LIMIT),
       oldestCursor: this.oldestCursor,
       newestCursor: this.newestCursor,
       hasReachedStart: this.hasReachedStart
     });
-    while (this.#memorySnapshots.size > TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS) {
-      const oldestKey = this.#memorySnapshots.keys().next().value;
+    while (timelineMemorySnapshots.size > TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS) {
+      const oldestKey = timelineMemorySnapshots.keys().next().value;
       if (!oldestKey) break;
-      this.#memorySnapshots.delete(oldestKey);
+      timelineMemorySnapshots.delete(oldestKey);
     }
   }
 
@@ -1189,8 +1209,11 @@ export class MessagesStore {
     roomId: string,
     threadRootEventId: string | null
   ): boolean {
-    const snapshot = this.#memorySnapshots.get(
-      timelineSnapshotKey(scope, roomId, threadRootEventId)
+    const ownerKey =
+      privateTimelineSnapshotOwnerKey(this.getPrivateDataScope?.()) ??
+      this.#transientTimelineSnapshotOwnerKey;
+    const snapshot = timelineMemorySnapshots.get(
+      timelineSnapshotKey(ownerKey, scope, roomId, threadRootEventId)
     );
     if (!snapshot || snapshot.events.length === 0) return false;
 
