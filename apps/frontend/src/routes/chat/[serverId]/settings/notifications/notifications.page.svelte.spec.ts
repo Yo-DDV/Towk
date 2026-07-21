@@ -303,7 +303,7 @@ describe('Notification settings page', () => {
     await settle();
 
     expect(container.textContent).toContain('Push notifications blocked');
-    buttonWithText(container, 'Try again').click();
+    buttonWithText(container, 'Enable notifications').click();
     await settle();
 
     expect(mocks.pushNotifications.ensureRegistered).toHaveBeenCalledWith('vapid-key', {
@@ -321,7 +321,7 @@ describe('Notification settings page', () => {
     const { container } = render(NotificationsPage);
     await settle();
 
-    buttonWithText(container, 'Try again').click();
+    buttonWithText(container, 'Enable notifications').click();
     await settle();
 
     expect(mocks.pushNotifications.ensureRegistered).toHaveBeenCalledWith('vapid-key', {

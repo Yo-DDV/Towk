@@ -296,7 +296,7 @@
                 {m['settings.notifications.push.blocked_description']()}
               </p>
             </div>
-            <div class="push-permission-blocked-action mt-3 flex justify-start sm:justify-end">
+            <div class="push-permission-blocked-action mt-3 flex justify-center">
               <Button
                 variant="accent"
                 size="sm"
@@ -543,9 +543,11 @@
 
 <style>
   .push-permission-blocked-action :global(button) {
-    min-width: 8.5rem;
+    width: min(100%, 15rem);
+    min-width: min(100%, 13rem);
     justify-content: center;
-    white-space: nowrap;
+    text-align: center;
+    white-space: normal;
   }
 
   @media (max-width: 640px) {
