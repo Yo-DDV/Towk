@@ -79,6 +79,23 @@ describe('EventList jump completion', () => {
     expect(onRetryLoad).toHaveBeenCalledOnce();
   });
 
+  it('delays the loading skeleton to avoid flashing on fast room transitions', async () => {
+    render(EventListTestHarness, {
+      props: {
+        eventIds: [],
+        scrollToEventId: null,
+        isLoading: true
+      }
+    });
+
+    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+
+    await vi.waitFor(
+      () => expect(document.querySelector('[aria-label="Loading messages"]')).not.toBeNull(),
+      { timeout: 1_000 }
+    );
+  });
+
   it('signals completion after highlighting a rendered target', async () => {
     const onComplete = vi.fn();
     render(EventListTestHarness, {
