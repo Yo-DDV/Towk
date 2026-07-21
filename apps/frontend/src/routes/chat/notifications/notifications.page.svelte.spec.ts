@@ -112,6 +112,28 @@ describe('notifications page', () => {
     });
   });
 
+  it('ignores duplicate notification row clicks while the dismiss mutation is pending', async () => {
+    let resolveDismiss: ((value: boolean) => void) | undefined;
+    mocks.store.notifications.dismiss.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveDismiss = resolve;
+      })
+    );
+    const { container } = render(NotificationsPage);
+
+    const item = q(container, '[data-testid="notification-item"]') as HTMLElement;
+    item.click();
+    item.click();
+
+    expect(mocks.store.notifications.dismiss).toHaveBeenCalledOnce();
+    expect(mocks.goto).toHaveBeenCalledOnce();
+
+    resolveDismiss?.(true);
+    await vi.waitFor(() => {
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
+    });
+  });
+
   it('closes the matching native notification when dismissing from the list', async () => {
     const { container } = render(NotificationsPage);
 
@@ -123,6 +145,27 @@ describe('notifications page', () => {
       expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
       expect(mocks.store.rooms.decrementUnreadNotification).toHaveBeenCalledWith('room-1');
       expect(mocks.store.rooms.refreshNotificationCounts).toHaveBeenCalled();
+    });
+  });
+
+  it('ignores duplicate dismiss clicks while the notification mutation is pending', async () => {
+    let resolveDismiss: ((value: boolean) => void) | undefined;
+    mocks.store.notifications.dismiss.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        resolveDismiss = resolve;
+      })
+    );
+    const { container } = render(NotificationsPage);
+
+    const dismiss = q(container, 'button[title="Dismiss"]') as HTMLButtonElement;
+    dismiss.click();
+    dismiss.click();
+
+    expect(mocks.store.notifications.dismiss).toHaveBeenCalledOnce();
+
+    resolveDismiss?.(true);
+    await vi.waitFor(() => {
+      expect(mocks.dismissNativeNotification).toHaveBeenCalledWith('mention-1');
     });
   });
 

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { fade } from 'svelte/transition';
+  import { SvelteSet } from 'svelte/reactivity';
   import { PaneHeader, EmptyState } from '$lib/ui';
   import { Button } from '$lib/ui/form';
   import * as m from '$lib/i18n/messages';
@@ -17,6 +19,7 @@
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import { formatDate } from '$lib/utils/formatTime';
   import { getLocale } from '$lib/i18n/runtime';
+  import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
 
   const userSettings = getUserSettings();
   const activeLocale = $derived(getLocale());
@@ -65,6 +68,10 @@
   });
 
   let loading = $state(true);
+  let clearing = $state(false);
+  const pendingNotificationIds = new SvelteSet<string>();
+  const showDelayedLoading = delayedLoadingVisible(() => loading && allNotifications.length === 0);
+
   // Fetch notifications from all authenticated instances on mount
   $effect(() => {
     fetchAll();
@@ -101,6 +108,8 @@
   }
 
   async function handleClick(item: ServerNotification) {
+    if (pendingNotificationIds.has(item.notification.id)) return;
+    pendingNotificationIds.add(item.notification.id);
     const stores = serverRegistry.getStore(item.serverId);
     const store = stores.notifications;
 
@@ -109,15 +118,23 @@
     if (target.eventId && target.roomId) {
       stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
     }
-    void store.dismiss(item.notification.id).then((dismissed) => {
-      if (dismissed) {
-        dismissNativeNotification(item.notification.id);
-      }
-      if (dismissed && target.roomId) {
-        stores.rooms.decrementUnreadNotification(target.roomId);
-        void stores.rooms.refreshNotificationCounts();
-      }
-    });
+    void store
+      .dismiss(item.notification.id)
+      .then((dismissed) => {
+        if (dismissed) {
+          dismissNativeNotification(item.notification.id);
+        }
+        if (dismissed && target.roomId) {
+          stores.rooms.decrementUnreadNotification(target.roomId);
+          void stores.rooms.refreshNotificationCounts();
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to dismiss notification after click:', error);
+      })
+      .finally(() => {
+        pendingNotificationIds.delete(item.notification.id);
+      });
 
     const path = store.getCleanPath(item.serverId, item.notification);
     // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
@@ -126,19 +143,27 @@
 
   async function handleDismiss(e: Event, item: ServerNotification) {
     e.stopPropagation();
+    if (pendingNotificationIds.has(item.notification.id)) return;
+    pendingNotificationIds.add(item.notification.id);
     const stores = serverRegistry.getStore(item.serverId);
     const target = notificationTarget(item.notification);
-    const dismissed = await stores.notifications.dismiss(item.notification.id);
-    if (dismissed) {
-      dismissNativeNotification(item.notification.id);
-    }
-    if (dismissed && target.roomId) {
-      stores.rooms.decrementUnreadNotification(target.roomId);
-      void stores.rooms.refreshNotificationCounts();
+    try {
+      const dismissed = await stores.notifications.dismiss(item.notification.id);
+      if (dismissed) {
+        dismissNativeNotification(item.notification.id);
+      }
+      if (dismissed && target.roomId) {
+        stores.rooms.decrementUnreadNotification(target.roomId);
+        void stores.rooms.refreshNotificationCounts();
+      }
+    } finally {
+      pendingNotificationIds.delete(item.notification.id);
     }
   }
 
   async function handleClearAll() {
+    if (clearing) return;
+    clearing = true;
     const clears: Promise<void>[] = [];
     for (const instance of serverRegistry.servers) {
       const stores = serverRegistry.getStore(instance.id);
@@ -154,7 +179,11 @@
         })
       );
     }
-    await Promise.allSettled(clears);
+    try {
+      await Promise.allSettled(clears);
+    } finally {
+      clearing = false;
+    }
   }
 </script>
 
@@ -166,7 +195,7 @@
   >
     {#snippet actions()}
       {#if allNotifications.length > 0}
-        <Button variant="ghost" size="sm" onclick={handleClearAll}>
+        <Button variant="ghost" size="sm" onclick={handleClearAll} loading={clearing}>
           {m['chat.notifications.clear_all']()}
         </Button>
       {/if}
@@ -174,24 +203,46 @@
   </PaneHeader>
 
   <div class="flex flex-1 flex-col overflow-y-auto">
-    {#if loading && allNotifications.length === 0}
-      <div class="p-6 text-muted">{m['common.loading']()}</div>
+    {#if showDelayedLoading.current}
+      <div
+        class="space-y-3 p-4"
+        aria-busy="true"
+        aria-label={m['common.loading']()}
+        transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}
+      >
+        {#each Array.from({ length: 4 }) as _, index (index)}
+          <div class="flex items-center gap-3 rounded-lg px-1 py-2">
+            <div class="skeleton h-10 w-10 shrink-0 rounded-full"></div>
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="skeleton h-4 w-2/3 rounded"></div>
+              <div class="skeleton h-3 w-5/6 rounded"></div>
+            </div>
+          </div>
+        {/each}
+      </div>
     {:else if allNotifications.length === 0}
-      <EmptyState icon="uil--bell-slash" title={m['chat.notifications.empty_title']()}>
-        {m['chat.notifications.empty_body']()}
-      </EmptyState>
+      <div transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}>
+        <EmptyState icon="uil--bell-slash" title={m['chat.notifications.empty_title']()}>
+          {m['chat.notifications.empty_body']()}
+        </EmptyState>
+      </div>
     {:else}
-      <div class="flex flex-col">
+      <div class="flex flex-col surface-pop">
         {#each allNotifications as item (item.notification.id)}
           {@const actor = item.notification.actor ?? null}
+          {@const pending = pendingNotificationIds.has(item.notification.id)}
           {@const location = serverRegistry
             .getStore(item.serverId)
             .notifications.getLocationString(item.notification, item.serverName)}
           <div
-            class="flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-surface-100"
+            class={[
+              'flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-3 soft-list-item hover:bg-surface-100',
+              pending ? 'opacity-60' : ''
+            ]}
             role="button"
             tabindex="0"
             data-testid="notification-item"
+            aria-busy={pending || undefined}
             onclick={() => handleClick(item)}
             onkeydown={(e) => e.key === 'Enter' && handleClick(item)}
           >
@@ -214,8 +265,13 @@
 
             <button
               type="button"
-              class="icon-action iconify uil--times"
+              class={[
+                'icon-action iconify soft-press',
+                pending ? 'uil--spinner-alt animate-spin' : 'uil--times'
+              ]}
               title={m['common.dismiss']()}
+              disabled={pending}
+              aria-busy={pending || undefined}
               onclick={(e) => handleDismiss(e, item)}
             ></button>
           </div>

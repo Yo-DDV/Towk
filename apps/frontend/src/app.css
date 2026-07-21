@@ -417,6 +417,14 @@
   animation: surface-pop 150ms ease-out;
 }
 
+@utility soft-list-item {
+  @apply transition-[background-color,box-shadow,opacity,transform] duration-150 ease-out motion-reduce:transition-none;
+}
+
+@utility soft-press {
+  @apply transition-[background-color,box-shadow,opacity,scale] duration-150 ease-out active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100;
+}
+
 @keyframes surface-pop {
   from {
     opacity: 0;

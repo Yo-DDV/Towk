@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { untrack } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { scoreItem } from './quickSwitcherSearch';
   import { serverIdToSegment } from '$lib/navigation';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
@@ -16,6 +17,7 @@
   import { toast } from '$lib/ui/toast';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
   import { createMemberDirectoryAPI, type DirectoryMember } from '$lib/api-client/memberDirectory';
+  import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
 
   type ServerLogo = { name: string; logoUrl?: string | null };
   type AvatarUser = Pick<DirectoryMember, 'id' | 'login' | 'displayName' | 'deleted'> & {
@@ -286,6 +288,9 @@
 
     return scored;
   });
+  const showDelayedLoading = delayedLoadingVisible(
+    () => (loading || userSearchLoading) && filtered.length === 0
+  );
 
   // --- Visibility ---
 
@@ -544,14 +549,36 @@
       <!-- Results section -->
       <div class="max-h-80 overflow-y-auto menu-section">
         <nav class="sidebar-nav">
-          {#if filtered.length === 0 && !loading && !userSearchLoading}
-            <p class="px-3 py-6 text-center text-muted">{m['quick_switcher.no_results']()}</p>
+          {#if showDelayedLoading.current}
+            <div
+              class="space-y-2 px-2 py-2"
+              aria-busy="true"
+              aria-label={m['common.loading']()}
+              transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}
+            >
+              {#each Array.from({ length: 4 }) as _, index (index)}
+                <div class="flex items-center gap-2 rounded px-1 py-1.5">
+                  <div class="skeleton h-5 w-5 rounded"></div>
+                  <div class="min-w-0 flex-1 space-y-1.5">
+                    <div class="skeleton h-3.5 w-2/3 rounded"></div>
+                    <div class="skeleton h-2.5 w-1/2 rounded"></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else if filtered.length === 0 && !loading && !userSearchLoading}
+            <p class="px-3 py-6 text-center text-muted surface-pop">
+              {m['quick_switcher.no_results']()}
+            </p>
           {:else}
             {#each filtered as item, i (`${item.serverId}:${item.kind}:${item.id}`)}
               {@const header = showGroupHeader(i)}
 
               {#if header}
-                <div class="px-3 pt-2 pb-0.5 text-xs font-medium text-muted uppercase">
+                <div
+                  class="px-3 pt-2 pb-0.5 text-xs font-medium text-muted uppercase"
+                  transition:fade={{ duration: motionDuration(MOTION_DURATION.fast) }}
+                >
                   {header}
                 </div>
               {/if}
@@ -559,7 +586,10 @@
               <button
                 data-index={i}
                 type="button"
-                class={['sidebar-item text-left', i === selectedIndex ? 'bg-surface-100' : '']}
+                class={[
+                  'sidebar-item text-left soft-list-item',
+                  i === selectedIndex ? 'bg-surface-100' : ''
+                ]}
                 onclick={() => select(item)}
                 onpointerenter={() => (selectedIndex = i)}
               >
