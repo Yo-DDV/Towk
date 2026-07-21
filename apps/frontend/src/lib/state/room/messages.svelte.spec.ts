@@ -468,6 +468,68 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.dispose();
   });
 
+  it('publishes the initial room window only after required backfill pages are collected', async () => {
+    const olderPage = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ before }: { before?: string }) => {
+        if (before === 'room-1:start:latest') return olderPage.promise;
+        return Promise.resolve({
+          events: [
+            roomMessageEvent('m6', 'room-1') as never,
+            roomMessageEvent('m7', 'room-1') as never,
+            roomMessageEvent('m8', 'room-1') as never,
+            roomMessageEvent('m9', 'room-1') as never,
+            roomMessageEvent('m10', 'room-1') as never
+          ],
+          startCursor: 'room-1:start:latest',
+          endCursor: 'room-1:end:latest',
+          hasOlder: true,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+
+    expect(store.rootEvents).toEqual([]);
+    expect(store.isInitialLoading).toBe(true);
+    expect(store.isLoadingMore).toBe(false);
+
+    olderPage.resolve({
+      events: [
+        roomMessageEvent('m1', 'room-1') as never,
+        roomMessageEvent('m2', 'room-1') as never,
+        roomMessageEvent('m3', 'room-1') as never,
+        roomMessageEvent('m4', 'room-1') as never,
+        roomMessageEvent('m5', 'room-1') as never
+      ],
+      startCursor: 'room-1:start:older',
+      endCursor: 'room-1:end:older',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual([
+      'm1',
+      'm2',
+      'm3',
+      'm4',
+      'm5',
+      'm6',
+      'm7',
+      'm8',
+      'm9',
+      'm10'
+    ]);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.isLoadingMore).toBe(false);
+    expect(store.hasReachedStart).toBe(true);
+    store.dispose();
+  });
+
   it('drops previous-room carry-over events when an unvisited room fails to load', async () => {
     const room2Load = deferred<EventConnectionPage>();
     const timeline = fakeTimelineAPI({

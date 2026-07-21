@@ -656,20 +656,60 @@ export class MessagesStore {
     }
   }
 
-  private roomWindowMessageCount(): number {
-    return this.rootEvents.filter((event) => isMessagePostedPayload(event.event)).length;
+  private roomWindowMessageCountForRaw(rawEvents: readonly RawEvent[]): number {
+    return unmask(rawEvents).filter(
+      (event) =>
+        isMessagePostedPayload(event.event) &&
+        event.event.roomId === this.roomId &&
+        event.event.threadRootEventId === null
+    ).length;
   }
 
-  private async backfillInitialRoomWindow(thisLoad: number): Promise<void> {
+  private async completeInitialRoomWindowBeforePublish(
+    thisLoad: number,
+    latestPage: EventConnectionPage
+  ): Promise<EventConnectionPage | null> {
+    let combinedEvents = [...latestPage.events];
+    let startCursor = latestPage.startCursor ?? undefined;
+    let hasOlder = latestPage.hasOlder;
+    let rootMessageCount = this.roomWindowMessageCountForRaw(combinedEvents);
+
     while (
       !this.isStale(thisLoad) &&
       this.scope === 'room' &&
-      !this.hasReachedStart &&
-      this.oldestCursor &&
-      this.roomWindowMessageCount() < INITIAL_ROOM_MESSAGE_BACKFILL_TARGET
+      hasOlder &&
+      startCursor &&
+      rootMessageCount < INITIAL_ROOM_MESSAGE_BACKFILL_TARGET
     ) {
-      await this.loadMore();
+      const before = startCursor;
+      const olderPage = await this.roomTimeline.getRoomEvents({
+        roomId: this.roomId,
+        limit: PAGE_SIZE,
+        before
+      });
+
+      if (this.isStale(thisLoad) || this.scope !== 'room') return null;
+
+      const olderEvents = [...olderPage.events];
+      if (olderEvents.length > 0) {
+        combinedEvents = [...olderEvents, ...combinedEvents];
+        rootMessageCount = this.roomWindowMessageCountForRaw(combinedEvents);
+      }
+
+      startCursor = olderPage.startCursor ?? undefined;
+      hasOlder = olderPage.hasOlder;
+
+      if (!olderPage.hasOlder || !olderPage.startCursor || olderPage.startCursor === before) {
+        break;
+      }
     }
+
+    return {
+      ...latestPage,
+      events: combinedEvents,
+      startCursor: startCursor ?? null,
+      hasOlder
+    };
   }
 
   async loadNewer(jumpState: JumpToMessageState): Promise<void> {
@@ -1472,9 +1512,10 @@ export class MessagesStore {
       .then(async (page) => {
         if (this.isStale(thisLoad)) return false;
         if (page) {
-          this.replaceWithFetchedAndUpdateCursors(page);
-          this.hasReachedStart = !page.hasOlder;
-          await this.backfillInitialRoomWindow(thisLoad);
+          const completePage = await this.completeInitialRoomWindowBeforePublish(thisLoad, page);
+          if (!completePage) return false;
+          this.replaceWithFetchedAndUpdateCursors(completePage);
+          this.hasReachedStart = !completePage.hasOlder;
         }
         if (this.isStale(thisLoad)) return false;
         this.#pendingAuthoritativeLoadId = null;
