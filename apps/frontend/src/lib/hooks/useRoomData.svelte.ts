@@ -7,6 +7,7 @@ import { ROOM_MEMBERS_PAGE_SIZE } from '$lib/state/room/members.svelte';
 import { useConnection } from '$lib/state/server/connection.svelte';
 import { serverRegistry } from '$lib/state/server/registry.svelte';
 import { untrack } from 'svelte';
+import { SvelteMap } from 'svelte/reactivity';
 
 export type RoomData = {
   room: {
@@ -40,6 +41,26 @@ export type DMData = {
   currentUserId: string | null;
 };
 
+const ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS = 64;
+
+function roomDataSnapshotKey(serverId: string | null | undefined, roomId: string): string {
+  return `${serverId ?? ''}\u0000${roomId}`;
+}
+
+function rememberRoomDataSnapshot(
+  snapshots: SvelteMap<string, RoomData>,
+  key: string,
+  roomData: RoomData
+): void {
+  if (snapshots.has(key)) snapshots.delete(key);
+  snapshots.set(key, roomData);
+  while (snapshots.size > ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS) {
+    const oldestKey = snapshots.keys().next().value;
+    if (!oldestKey) break;
+    snapshots.delete(oldestKey);
+  }
+}
+
 /**
  * Loads room metadata and DM participant data.
  *
@@ -71,6 +92,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
   let dmData = $state<DMData | null>(null);
   const roomLoadId = { current: 0 };
   const dmLoadId = { current: 0 };
+  const roomDataMemorySnapshots = new SvelteMap<string, RoomData>();
 
   const isDM = $derived(roomData?.room.type === RoomKind.DM);
   const isRoomLoading = $derived(roomData === undefined);
@@ -83,6 +105,8 @@ export function useRoomData(getProps: () => { roomId: string }) {
     const { roomId } = getProps();
     const thisLoadId = ++roomLoadId.current;
     const currentRoomId = roomId;
+    const currentConnection = connection();
+    const snapshotKey = roomDataSnapshotKey(currentConnection.serverId, currentRoomId);
 
     // Don't reset roomData to undefined when staying in the same room (reconnect case).
     untrack(() => {
@@ -90,11 +114,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
       if (currentRoom && currentRoom.room.id === currentRoomId) {
         // Same room, just reconnecting — keep existing data visible while refetching
       } else {
-        roomData = undefined;
+        roomData = roomDataMemorySnapshots.get(snapshotKey) ?? undefined;
       }
     });
 
-    const currentConnection = connection();
     const api = createRoomDirectoryAPI({
       serverId: currentConnection.serverId,
       baseUrl: currentConnection.connectBaseUrl,
@@ -111,7 +134,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
           return;
         }
 
-        roomData = {
+        const nextRoomData = {
           room: {
             id: loadedRoom.id,
             name: loadedRoom.name,
@@ -130,6 +153,8 @@ export function useRoomData(getProps: () => { roomId: string }) {
           canManageRoom: loadedRoom.canManageRoom,
           canBanRoomMembers: loadedRoom.canBanRoomMembers
         };
+        roomData = nextRoomData;
+        rememberRoomDataSnapshot(roomDataMemorySnapshots, snapshotKey, nextRoomData);
       })
       .catch((err) => {
         if (roomLoadId.current !== thisLoadId) return;

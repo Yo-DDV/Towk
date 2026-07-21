@@ -1,7 +1,7 @@
 # FDR-027: PWA Shell & Service Worker
 
 **Status:** Active
-**Last reviewed:** 2026-07-20
+**Last reviewed:** 2026-07-22
 
 ## Overview
 
@@ -10,6 +10,8 @@ Towk ships a service worker so the installed web app can launch reliably, update
 Offline support means the app can open and show its normal disconnected state instead of the browser's generic offline page. Authenticated accounts also keep bounded encrypted drafts and their pending attachments, pending text messages, and recent room timelines on the device. Cached timelines are visibly identified as cached state; they never masquerade as a live server response. Offline search and offline attachment upload are not supported.
 
 Reconnect catch-up and outbox delivery are owned by the authenticated foreground web app, not the service worker. When a controlled PWA tab wakes or reconnects, server-scoped stores refetch projected ConnectRPC state, the room UI refetches the currently viewed room/thread window, and the foreground outbox retries pending sends. A Background Sync event can wake controlled clients, but the worker never receives credentials and never sends a message itself. The worker must not cache messages, API responses, or live-event traffic.
+
+Room switches use foreground-owned memory snapshots for short-lived visual continuity. The currently mounted room metadata, member directory first page, and recent timeline window are retained in bounded per-instance memory so revisiting a room can render immediately while the authoritative ConnectRPC fetch revalidates in the background. These snapshots are never stored in Cache Storage, never shared between store instances, and are treated like cached timeline data: useful for continuity, replaceable by the next server response, and never an authorization source.
 
 ## Behavior
 
@@ -28,6 +30,7 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 - Push dismiss payloads still close matching visible notifications on the device, and native notification-center closes are replayed through the next authenticated foreground app window so the server-side notification state can synchronize across devices.
 - Text messages that fail for a retryable network reason can enter a bounded encrypted outbox. Each logical send keeps one stable client request ID, so a lost response and a retry cannot create duplicate messages. Users can inspect, retry, or discard pending items. Unuploaded attachments remain in the encrypted draft rather than entering the outbox and are uploaded after connectivity returns.
 - Drafts and recent timeline windows are encrypted per server account with non-extractable device keys. Account removal writes a durable revocation tombstone and crypto-shreds that account namespace before an explicit sign-out redirect. Other open tabs stop new writes through an origin-scoped lifecycle signal, while IndexedDB key-generation checks reject stale writes even if a tab is suspended or receives the signal late. Records have age, count, and byte quotas and remain eviction-tolerant.
+- Room metadata, member lists, and timeline windows may also keep bounded in-memory snapshots in the active foreground store. These snapshots exist only to prevent empty panes and incorrect transient counts during same-session room switches. They are restored synchronously, then revalidated with the normal authenticated API path. Timeline snapshot events are marked as transient cached events so the authoritative network window replaces them instead of merging stale rows as if they were live subscription events.
 - The installed app can receive text, links, supported media, PDFs, and text files from an operating-system share sheet or file handler. Incoming payloads are validated, encrypted in a short-lived device inbox, and require an explicit destination conversation; Towk never auto-sends shared content.
 - The header exposes an install control only when Towk has a relevant installation path for the detected browser and operating system. The control disappears completely in every installed display mode. On supported Chromium variants, Towk also checks the manifest's self-related web app through `getInstalledRelatedApps()` when the browser exposes that API. The document shell captures Chromium's one-shot `beforeinstallprompt` event before manifest discovery so it survives public-shell loading and authentication, but the native install dialog still opens only from the user's later click. Chromium promotions remain hidden until that event exists; the absence of an event is never presented as proof that the app is installable. When the native action is available it remains the sole primary path and manual steps stay collapsed as recovery help. Without a native action, Towk shows only the guide for the detected iOS/iPadOS Safari or Chrome, Android Firefox, Windows Firefox, macOS Safari, or other supported route. Firefox on Linux and macOS receives a separate warning whose alternatives are restricted to browsers available on that operating system.
 - Persistent top notices start below the global header on every viewport, so notification-permission prompts cannot cover or intercept the install status control.
@@ -84,19 +87,25 @@ Reconnect catch-up and outbox delivery are owned by the authenticated foreground
 **Why:** Browser background execution is opportunistic and not portable, while Towk credentials deliberately stay in foreground connection stores. Server-side request claims make retries safe even if the original response is lost after commit.
 **Tradeoff:** A completely closed PWA may wait until the next foreground launch before sending. Unsupported browsers use the same online/visibility/reconnect foreground retry path. Attachments require a live authenticated upload flow and are therefore rejected from the offline queue.
 
-### 9. OS shares remain encrypted and user-confirmed
+### 9. Room switch continuity is foreground memory, not HTTP caching
+
+**Decision:** The foreground room stores keep small per-instance memory snapshots for room metadata, member panes, room timelines, and thread timelines. On same-session room switches, Towk restores the snapshot synchronously, avoids empty/skeleton flashes when data is already known, and immediately revalidates through the normal authenticated ConnectRPC APIs. Snapshot timeline rows are tagged as cached rows so the next authoritative page replaces them cleanly.
+**Why:** Service-worker stale-while-revalidate is appropriate for immutable shell assets, but not for private chat data, permissions, notification state, or uploaded assets. A foreground snapshot gives native-feeling continuity without moving credentials or private API responses into Cache Storage.
+**Tradeoff:** A restored snapshot can be momentarily stale. The UI must keep it bounded, device-local, and visually subordinate to server revalidation. Server authorization remains authoritative for every action, and the snapshot must never be used as proof of current permissions.
+
+### 10. OS shares remain encrypted and user-confirmed
 
 **Decision:** The manifest declares a POST share target and safe file handlers. The service worker validates and encrypts incoming payloads into a separate short-lived inbox using chunked AES-GCM. The destination chooser decrypts metadata only; file bytes are decrypted when the selected room composer imports them. The user reviews the resulting draft before sending.
 **Why:** Share targets can receive private content before Towk knows which server account or room owns it. A temporary device namespace avoids plaintext Cache Storage and prevents premature account association. Reusing the normal attachment validation blocks executable metadata, signatures, unsafe filenames, and oversized payloads.
 **Tradeoff:** The temporary inbox keeps at most three entries, expires them after one hour, and accepts at most eight files, 50 MiB per file, and 100 MiB in total. Unsupported platforms ignore the manifest handlers and users can still attach or paste files normally.
 
-### 10. Installed-app APIs are progressive enhancements
+### 11. Installed-app APIs are progressive enhancements
 
 **Decision:** Towk uses one stable manifest identity with `display: standalone`, declares that same manifest as a related `webapp`, captures the native install event in the document shell before the authenticated UI mounts, and otherwise renders a guide selected from the current platform and browser. Installed state is detected from installed display modes first, then from `getInstalledRelatedApps()` where supported. On Chromium, custom installation promotions require the actual native install event instead of guessing from the user agent. The captured event is consumed once and never prompts without an explicit user click. Native sharing, launch/file handling, persistent storage, Wake Lock, Media Session call actions, and standards or WebKit Picture-in-Picture remain capability-detected. Every rejection or missing API falls back to normal in-app navigation and controls.
 **Why:** PWA APIs differ materially across iOS/iPadOS, Android, Chromium desktop, Safari, and Firefox. Detecting behavior at runtime keeps one web codebase usable without falsely advertising unavailable OS integration.
 **Tradeoff:** No portable browser API can prove from every ordinary browser tab that the same PWA is already installed. iOS/iPadOS and browsers without `getInstalledRelatedApps()` can only prove installed state from the launched app's display mode; Chromium without a current native install event is handled conservatively by hiding the custom promotion. The exact install surface and system controls vary by browser. The earlier Android browser-mode identity cannot be upgraded into the canonical app identity in place; those shortcuts may need removal and reinstall. Other manifest changes can require a browser metadata refresh before an existing installation exposes them.
 
-### 11. Opening an installed app remains an operating-system decision
+### 12. Opening an installed app remains an operating-system decision
 
 **Decision:** Towk does not force an ordinary browser tab to redirect into an installed PWA. The manifest keeps `launch_handler` and the stable app scope so browser- and operating-system link-capturing surfaces can offer or reuse the installed app when supported. Towk preserves native actions such as Chrome's Open in app control instead of replacing them with a redirect loop.
 **Why:** A page cannot portably launch its installed PWA window. Chromium link capturing is explicitly mediated by browser UI and user choice, while `launch_handler` controls an app launch that has already occurred; it does not create that launch from an arbitrary tab. Forced navigation would be unreliable, could loop between contexts, and would override the user's choice to stay in the browser.

@@ -116,6 +116,38 @@ describe('RoomMembersStore', () => {
     expect(store.isBackgroundLoading).toBe(false);
   });
 
+  it('restores visited room members from memory while revalidating the room directory', async () => {
+    const room1Reload = deferred<MemberDirectoryPage>();
+    const fakeAPI = new FakeMemberDirectoryAPI([
+      pageResult([user('u1', 'alice')], false, 1),
+      pageResult([user('u2', 'boris')], false, 1),
+      room1Reload.promise
+    ]);
+    const store = new RoomMembersStore(fakeAPI);
+
+    store.setRoom('room-1');
+    await store.loadInitial();
+    expect(store.members.map((member) => member.login)).toEqual(['alice']);
+
+    store.setRoom('room-2');
+    await store.loadInitial();
+    expect(store.members.map((member) => member.login)).toEqual(['boris']);
+
+    store.setRoom('room-1');
+    expect(store.members.map((member) => member.login)).toEqual(['alice']);
+    expect(store.totalCount).toBe(1);
+    expect(store.hasFirstPage).toBe(true);
+    expect(store.hasLoadedAll).toBe(false);
+
+    const loading = store.loadInitial();
+    expect(store.members.map((member) => member.login)).toEqual(['alice']);
+
+    room1Reload.resolve(pageResult([user('u3', 'cora')], false, 1));
+    await loading;
+
+    expect(store.members.map((member) => member.login)).toEqual(['cora']);
+  });
+
   it('filters loaded members locally without changing the canonical count', async () => {
     const store = createStore([
       pageResult([user('u1', 'alice'), user('u2', 'boris'), user('u3', 'cora')], false, 3)

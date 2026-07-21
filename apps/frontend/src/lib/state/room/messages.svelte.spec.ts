@@ -46,6 +46,16 @@ async function settle() {
   flushSync();
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function threadMessageEvent(id: string, threadRootEventId: string | null = null) {
   const offsetSeconds = Number(id.replace(/\D/g, '')) || 0;
   return {
@@ -70,6 +80,18 @@ function threadMessageEvent(id: string, threadRootEventId: string | null = null)
       threadParticipants: [],
       viewerIsFollowingThread: null,
       reactions: []
+    }
+  };
+}
+
+function roomMessageEvent(id: string, roomId: string) {
+  const event = threadMessageEvent(id);
+  return {
+    ...event,
+    event: {
+      ...event.event,
+      roomId,
+      body: id
     }
   };
 }
@@ -325,6 +347,88 @@ function timelineFromFixtures(fake: FakeQueryClient): RoomTimelineAPI {
 }
 
 describe('MessagesStore — room lifecycle ownership', () => {
+  it('restores a visited room from memory while the authoritative reload is in flight', async () => {
+    const room1Reload = deferred<EventConnectionPage>();
+    let room1Calls = 0;
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-1') room1Calls++;
+        if (roomId === 'room-1' && room1Calls > 1) {
+          return room1Reload.promise;
+        }
+        return Promise.resolve({
+          events: [roomMessageEvent(`${roomId}-initial`, roomId) as never],
+          startCursor: `${roomId}:start`,
+          endCursor: `${roomId}:end`,
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    store.setRoom('room-2');
+    await settle();
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-2-initial']);
+
+    store.setRoom('room-1');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+    expect(store.isInitialLoading).toBe(false);
+
+    room1Reload.resolve({
+      events: [roomMessageEvent('room-1-authoritative', 'room-1') as never],
+      startCursor: 'room-1:start:new',
+      endCursor: 'room-1:end:new',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-authoritative']);
+    store.dispose();
+  });
+
+  it('keeps the restored room snapshot visible when revalidation fails', async () => {
+    const room1Reload = deferred<EventConnectionPage>();
+    let room1Calls = 0;
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-1') room1Calls++;
+        if (roomId === 'room-1' && room1Calls > 1) {
+          return room1Reload.promise;
+        }
+        return Promise.resolve({
+          events: [roomMessageEvent(`${roomId}-initial`, roomId) as never],
+          startCursor: `${roomId}:start`,
+          endCursor: `${roomId}:end`,
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    store.setRoom('room-2');
+    await settle();
+
+    store.setRoom('room-1');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    room1Reload.reject(new TypeError('offline'));
+    await vi.waitFor(() => expect(store.initialLoadFailed).toBe(true));
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+    expect(store.isShowingCachedData).toBe(true);
+    expect(store.isInitialLoading).toBe(false);
+    store.dispose();
+  });
+
   it('exposes initial load failures and clears them after a successful retry', async () => {
     const fake = new FakeQueryClient();
     const timeline = fakeTimelineAPI({
