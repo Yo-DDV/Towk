@@ -19,6 +19,8 @@ export type ObserverParticipant = {
   displayName: string;
   login: string;
   avatarUrl: string | null;
+  connectionState: 'connected' | 'interrupted';
+  interruptionDeadline: string | null;
 };
 
 type QueryCallParticipant = NonNullable<
@@ -114,7 +116,9 @@ export class CallParticipantsState {
         deviceIndex: deviceIndex > 0 ? deviceIndex : 1,
         displayName: actor.displayName,
         login: actor.login,
-        avatarUrl: actor.avatarUrl ?? null
+        avatarUrl: actor.avatarUrl ?? null,
+        connectionState: 'connected',
+        interruptionDeadline: null
       }
     ];
   }
@@ -136,6 +140,26 @@ export class CallParticipantsState {
     this.participants = this.participants.filter((p) =>
       participantId ? p.participantId !== participantId : p.userId !== actorId
     );
+  }
+
+  handleConnectionState(
+    roomId: string,
+    callId: string,
+    participantId: string,
+    connectionState: 'connected' | 'interrupted',
+    interruptionDeadline: string | null
+  ): void {
+    if (roomId !== this.currentRoomId || this.currentCallId !== callId) return;
+    const index = this.participants.findIndex((p) => p.participantId === participantId);
+    if (index < 0) return;
+    const participants = [...this.participants];
+    participants[index] = {
+      ...participants[index],
+      connectionState,
+      interruptionDeadline: connectionState === 'interrupted' ? interruptionDeadline : null
+    };
+    this.bumpVersion();
+    this.participants = participants;
   }
 
   /** Clear observer participants when the room's call ends. */
@@ -162,6 +186,8 @@ function toObserverParticipant(p: QueryCallParticipant): ObserverParticipant {
     deviceIndex: p.deviceIndex,
     displayName: user?.displayName ?? '',
     login: user?.login ?? '',
-    avatarUrl: user?.avatarUrl ?? null
+    avatarUrl: user?.avatarUrl ?? null,
+    connectionState: p.connectionState,
+    interruptionDeadline: p.interruptionDeadline
   };
 }

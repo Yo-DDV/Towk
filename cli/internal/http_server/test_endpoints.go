@@ -478,10 +478,12 @@ func registerTestWebhookEndpoints(webhooks *gin.RouterGroup, s *HTTPServer) {
 			return
 		}
 
-		if err := s.core.HandleCallParticipantLeft(
+		// This endpoint models an explicit, terminal departure. Recoverable
+		// LiveKit disconnects use HandleCallParticipantConnectionLeft instead
+		// and intentionally remain INTERRUPTED during the reconnection grace.
+		if err := s.core.HandleCallParticipantConnectionTerminated(
 			c.Request.Context(),
-			req.SpaceID, req.RoomID,
-			req.UserID,
+			req.RoomID, req.UserID, req.UserID,
 		); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

@@ -150,6 +150,7 @@ func (s *voiceCallService) JoinCall(ctx context.Context, req *connect.Request[ap
 	return connect.NewResponse(&apiv1.JoinCallResponse{
 		Joined:            result.Status == core.CallJoinStatusJoined,
 		Status:            status,
+		CallId:            result.CallID,
 		ParticipantId:     result.ParticipantID,
 		DeviceIndex:       result.DeviceIndex,
 		ActiveDeviceCount: uint32(result.ActiveDeviceCount),
@@ -259,7 +260,7 @@ func (s *voiceCallService) LeaveCall(ctx context.Context, req *connect.Request[a
 	if !s.api.config.LiveKit.IsConfigured() {
 		return connect.NewResponse(&apiv1.LeaveCallResponse{}), nil
 	}
-	if err := s.api.core.LeaveCallParticipant(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetClientInstanceId(), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+	if err := s.api.core.LeaveCallParticipant(ctx, kind, req.Msg.GetRoomId(), caller.UserID, req.Msg.GetClientInstanceId(), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER, req.Msg.GetExpectedCallId()); err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.LeaveCallResponse{Left: true}), nil
@@ -318,10 +319,30 @@ func (s *voiceCallService) callParticipant(ctx context.Context, participant core
 	}
 
 	return &apiv1.CallParticipant{
-		User:          apiUser,
-		JoinedAt:      timestamppb.New(time.Unix(participant.JoinedAt, 0)),
-		CallId:        participant.CallID,
-		ParticipantId: participant.ParticipantID,
-		DeviceIndex:   participant.DeviceIndex,
+		User:                 apiUser,
+		JoinedAt:             timestamppb.New(time.Unix(participant.JoinedAt, 0)),
+		CallId:               participant.CallID,
+		ParticipantId:        participant.ParticipantID,
+		DeviceIndex:          participant.DeviceIndex,
+		ConnectionState:      apiCallParticipantConnectionState(participant.ConnectionState),
+		InterruptionDeadline: callParticipantInterruptionDeadline(participant.InterruptionDeadlineMillis),
 	}, nil
+}
+
+func apiCallParticipantConnectionState(state corev1.CallParticipantConnectionState) apiv1.CallParticipantConnectionState {
+	switch state {
+	case corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED:
+		return apiv1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED
+	case corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED:
+		return apiv1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED
+	default:
+		return apiv1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED
+	}
+}
+
+func callParticipantInterruptionDeadline(deadlineMillis int64) *timestamppb.Timestamp {
+	if deadlineMillis <= 0 {
+		return nil
+	}
+	return timestamppb.New(time.UnixMilli(deadlineMillis))
 }

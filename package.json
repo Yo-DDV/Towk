@@ -18,10 +18,11 @@
   },
   "pnpm": {
     "overrides": {
+      "@storybook/addon-svelte-csf>esrap": "1.4.9",
       "cookie": "0.7.2",
       "esbuild": "0.28.1",
       "svelte>esrap": "2.2.12",
-      "js-yaml": "4.2.0",
+      "js-yaml": "4.3.0",
       "ws": "8.21.0"
     },
     "onlyBuiltDependencies": [

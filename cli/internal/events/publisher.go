@@ -79,23 +79,37 @@ func (p StreamPosition) IsZero() bool {
 // itself doesn't enforce that — it operates on whatever stream is passed in,
 // so the same primitive is reusable in tests against ad-hoc streams.
 type Publisher struct {
-	js     jetstream.JetStream
-	stream jetstream.Stream
-	logger Logger
+	js         jetstream.JetStream
+	stream     jetstream.Stream
+	streamName string
+	logger     Logger
 }
 
 // NewPublisher constructs a Publisher bound to a specific stream.
 func NewPublisher(js jetstream.JetStream, stream jetstream.Stream, logger Logger) *Publisher {
-	return &Publisher{js: js, stream: stream, logger: logger}
+	streamName := ""
+	if stream != nil {
+		if info := stream.CachedInfo(); info != nil {
+			streamName = info.Config.Name
+		}
+	}
+	return &Publisher{js: js, stream: stream, streamName: streamName, logger: logger}
 }
 
 // StreamUsage returns the current message and byte totals for the bound
 // stream.
 func (p *Publisher) StreamUsage(ctx context.Context) (messages, bytes uint64, err error) {
-	info, err := p.stream.Info(ctx)
+	if p.js == nil || p.streamName == "" {
+		return 0, 0, errors.New("publisher stream is unavailable")
+	}
+	// nats.go mutates a Stream handle's cached info from Info without locking,
+	// while GetMsg/GetLastMsgForSubject read that cache. Fetching a fresh handle
+	// keeps diagnostics from racing with concurrent event publication.
+	stream, err := p.js.Stream(ctx, p.streamName)
 	if err != nil {
 		return 0, 0, err
 	}
+	info := stream.CachedInfo()
 	return info.State.Msgs, info.State.Bytes, nil
 }
 

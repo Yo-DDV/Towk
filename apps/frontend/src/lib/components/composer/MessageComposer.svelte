@@ -1113,7 +1113,7 @@
   <div
     data-testid="message-composer-shell"
     class={[
-      'composer-focus-shell relative flex items-center gap-3 rounded-xl bg-surface py-2 pr-2',
+      'composer-focus-shell relative flex min-h-15 items-center gap-3 rounded-xl bg-surface py-2 pr-2',
       isEditing ? 'pl-3' : 'pl-2'
     ]}
     class:opacity-50={inputDisabled}

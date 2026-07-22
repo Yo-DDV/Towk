@@ -302,7 +302,7 @@ test.describe('Add Server - Remote Auth Flow', () => {
 
     const baseURL = remoteBaseURL(remoteServer);
     const hostname = new URL(baseURL).host;
-    const remoteHostname = new URL(baseURL).hostname;
+    const remoteHost = new URL(baseURL).host;
     await createUserOnRemote(baseURL, 'remoteuser', 'password123');
 
     await driveAddServerToOAuth(page, hostname);
@@ -321,14 +321,14 @@ test.describe('Add Server - Remote Auth Flow', () => {
 
     // Post-PR(a) the OAuth callback drops the user directly into the
     // newly-added remote instance's chat tree (`/chat/<hostname>/...`).
-    const remoteHostnameEsc = escapeRegExp(remoteHostname);
-    await page.waitForURL(new RegExp(`/chat/${remoteHostnameEsc}(/|$)`), {
+    const remoteHostEsc = escapeRegExp(remoteHost);
+    await page.waitForURL(new RegExp(`/chat/${remoteHostEsc}(/|$)`), {
       timeout: TIMEOUTS.COMPLEX_OPERATION
     });
 
     // The remote instance should now appear in the sidebar.
     await expect(
-      page.locator(`[data-testid="server-icon"][href*="${remoteHostname}"]`).first()
+      page.locator(`[data-testid="server-icon"][href*="${remoteHost}"]`).first()
     ).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
   });
 

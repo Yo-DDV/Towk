@@ -63,7 +63,6 @@ describe('VoiceMessagePlayer', () => {
     expect(waveform?.querySelector('.h-px')).toBeNull();
     expect(Math.max(...waveformHeights)).toBeGreaterThan(24);
     expect(new Set(waveformHeights).size).toBeGreaterThan(2);
-    expect(container.querySelector('[data-testid="voice-message-meta"]')).not.toBeNull();
     expect(container.textContent).toContain('0:12');
     expect(container.querySelector('button[aria-label="Play voice message"]')?.classList).toContain(
       'h-[44px]'
@@ -112,6 +111,7 @@ describe('VoiceMessagePlayer', () => {
         filename: 'voice-message.webm'
       }
     });
+    container.style.width = '280px';
     await tick();
 
     const controls = container.querySelector<HTMLElement>(
@@ -122,16 +122,23 @@ describe('VoiceMessagePlayer', () => {
     const waveform = container.querySelector<HTMLElement>(
       '[data-testid="voice-message-waveform"]'
     )!;
-    const meta = container.querySelector<HTMLElement>('[data-testid="voice-message-meta"]')!;
     const time = container.querySelector<HTMLElement>('[data-testid="voice-message-time"]')!;
 
     expect(controls.classList).toContain('items-center');
     expect(play.parentElement).toBe(controls);
     expect(waveform.parentElement).toBe(controls);
+    expect(time.parentElement).toBe(controls);
     expect(speed.parentElement).toBe(controls);
-    expect(meta.parentElement).toBe(waveform);
-    expect(time.parentElement).toBe(meta);
-    expect(meta.classList).toContain('justify-end');
+    expect(time.nextElementSibling).toBe(speed);
+    expect(controls.scrollWidth).toBeLessThanOrEqual(controls.clientWidth);
+    const timeBounds = time.getBoundingClientRect();
+    const speedBounds = speed.getBoundingClientRect();
+    expect(
+      Math.abs(
+        (timeBounds.top + timeBounds.bottom) / 2 - (speedBounds.top + speedBounds.bottom) / 2
+      )
+    ).toBeLessThanOrEqual(1);
+    expect(timeBounds.right).toBeLessThanOrEqual(speedBounds.left);
     expect(play.classList).toContain('h-[44px]');
     expect(play.classList).toContain('w-[44px]');
     expect(speed.classList).toContain('h-[44px]');
@@ -422,6 +429,32 @@ describe('VoiceMessagePlayer', () => {
     ).toBe(true);
   });
 
+  it('keeps the draft preview waveform visible inside the compact recorder panel', async () => {
+    const { container } = render(VoiceMessagePlayer, {
+      props: {
+        src: 'data:audio/webm;base64,GkXfo0AgQoaBAULygQFC8oEEQvKB',
+        durationMs: 11_000,
+        waveformPeaks: Array.from({ length: 64 }, (_, index) =>
+          index % 4 === 0 ? 0.9 : 0.24
+        ),
+        filename: 'voice-message.webm',
+        localPreview: true
+      }
+    });
+    const waveform = container.querySelector<HTMLElement>(
+      '[data-testid="voice-message-waveform"]'
+    )!;
+    waveform.style.width = '98px';
+    await tick();
+    const waveformLayer = waveform.querySelector<HTMLElement>('[data-waveform-layer="base"]')!;
+    const visibleBars = [
+      ...waveform.querySelectorAll<HTMLElement>('[data-progress-state]')
+    ].filter((bar) => getComputedStyle(bar).display !== 'none');
+
+    expect(visibleBars).toHaveLength(24);
+    expect(getComputedStyle(waveformLayer).columnGap).toBe('1px');
+  });
+
   it('shows a localized error when playback cannot start', async () => {
     const { container } = render(VoiceMessagePlayer, {
       props: {
@@ -507,5 +540,51 @@ describe('VoiceMessagePlayer', () => {
     expect(audio.getAttribute('src')).toBe(source);
     expect(load).toHaveBeenCalledTimes(2);
     expect(play).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the active media source stable when a refreshed URL arrives during playback', async () => {
+    const oldSource = 'https://cdn.example.test/voice-message.webm?rev=old';
+    const refreshedSource = 'https://cdn.example.test/voice-message.webm?rev=fresh';
+    const rendered = render(VoiceMessagePlayer, {
+      props: {
+        src: oldSource,
+        durationMs: 10_000,
+        waveformPeaks: [0.2, 0.4],
+        filename: 'voice-message.webm'
+      }
+    });
+    const audio = rendered.container.querySelector('audio')!;
+    Object.defineProperty(audio, 'currentTime', { configurable: true, writable: true, value: 3 });
+    Object.defineProperty(audio, 'paused', { configurable: true, writable: true, value: false });
+    Object.defineProperty(audio, 'ended', { configurable: true, writable: true, value: false });
+    const load = vi.spyOn(audio, 'load').mockImplementation(() => {});
+    vi.spyOn(audio, 'play').mockResolvedValue();
+
+    audio.dispatchEvent(new Event('play'));
+    await rendered.rerender({
+      src: refreshedSource,
+      durationMs: 10_000,
+      waveformPeaks: [0.2, 0.4],
+      filename: 'voice-message.webm'
+    });
+    await tick();
+
+    expect(audio.getAttribute('src')).toBe(oldSource);
+    expect(load).not.toHaveBeenCalled();
+
+    Object.defineProperty(audio, 'paused', { configurable: true, writable: true, value: true });
+    Object.defineProperty(audio, 'ended', { configurable: true, writable: true, value: true });
+    audio.dispatchEvent(new Event('ended'));
+    await tick();
+
+    expect(audio.getAttribute('src')).toBeNull();
+    expect(load).toHaveBeenCalledOnce();
+
+    await userEvent.click(
+      rendered.container.querySelector('button[aria-label="Play voice message"]')!
+    );
+
+    expect(audio.getAttribute('src')).toBe(refreshedSource);
+    expect(load).toHaveBeenCalledTimes(2);
   });
 });

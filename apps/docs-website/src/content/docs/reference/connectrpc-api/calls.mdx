@@ -201,6 +201,7 @@ Response from recording a join intent.
 | `device_index` | `uint32` | Stable display slot when joined. |
 | `active_device_count` | `uint32` | Number of other active connections for this account at decision time. |
 | `companion_allowed` | `bool` | Whether another companion connection can be admitted without a transfer. |
+| `call_id` | `string` | Exact call session that admitted this connection. |
 
 
 <a id="chatto-api-v1-VoiceCallService-GetCallToken"></a>
@@ -268,6 +269,7 @@ Request to record leaving a room call.
 | --- | --- | --- |
 | `room_id` | `string` | Required. Room whose call is being left. |
 | `client_instance_id` | `string` | Browser-session identifier for the exact connection leaving the call. Empty targets the legacy single-device participant only. |
+| `expected_call_id` | `string` | Optional. Exact call being left. A mismatch is an idempotent no-op so a delayed request cannot remove the same browser from a replacement call. |
 
 
 <a id="chatto-api-v1-LeaveCallResponse"></a>

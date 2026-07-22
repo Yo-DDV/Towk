@@ -18,7 +18,6 @@
     waveformPeaks,
     filename,
     localPreview = false,
-    reserveTrailingControl = false,
     onMediaError
   }: {
     src: string;
@@ -26,7 +25,6 @@
     waveformPeaks: readonly number[];
     filename: string;
     localPreview?: boolean;
-    reserveTrailingControl?: boolean;
     onMediaError?: () => void;
   } = $props();
 
@@ -38,6 +36,13 @@
   let browserDurationSeconds = $state(0);
   let playbackRate = $state(1);
   let status = $state<PlaybackStatus>('idle');
+  function initialPlaybackSrc() {
+    return src;
+  }
+
+  let playbackSrc = $state<string | null>(initialPlaybackSrc());
+  let pendingSrc = $state<string | null>(null);
+  let sourceReleased = $state(false);
   let animationFrame: number | null = null;
   let prefersReducedMotion = false;
 
@@ -108,6 +113,38 @@
     });
   }
 
+  function sourceIsLockedForPlayback() {
+    return Boolean(
+      status === 'loading' ||
+        status === 'playing' ||
+        status === 'buffering' ||
+        (audio && !audio.ended && (!audio.paused || currentTimeSeconds > 0))
+    );
+  }
+
+  function setPendingOrActiveSource(nextSrc: string) {
+    if (nextSrc === playbackSrc || nextSrc === pendingSrc) return;
+
+    if (sourceReleased || sourceIsLockedForPlayback()) {
+      pendingSrc = nextSrc;
+      return;
+    }
+
+    pendingSrc = null;
+    playbackSrc = nextSrc;
+  }
+
+  function syncAudioSource(nextSrc: string): boolean {
+    sourceReleased = false;
+    pendingSrc = null;
+    playbackSrc = nextSrc;
+
+    if (!audio || audio.getAttribute('src') === nextSrc) return false;
+    audio.setAttribute('src', nextSrc);
+    audio.load();
+    return true;
+  }
+
   async function startPlayback(forceReload = false) {
     if (!audio) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -115,8 +152,8 @@
       return;
     }
 
-    restoreAudioSource();
-    if (forceReload) audio.load();
+    const sourceWasReloaded = restoreAudioSource();
+    if (forceReload && !sourceWasReloaded) audio.load();
     claimVoiceMessagePlayback(audio);
     status = 'loading';
     try {
@@ -191,15 +228,15 @@
   }
 
   function restoreAudioSource() {
-    if (!audio || audio.getAttribute('src') === src) return;
-    audio.setAttribute('src', src);
-    audio.load();
+    return syncAudioSource(pendingSrc ?? src);
   }
 
   function releaseAudioSource() {
     if (!audio) return;
     stopProgressLoop();
     releaseVoiceMessagePlayback(audio);
+    sourceReleased = true;
+    playbackSrc = null;
     audio.removeAttribute('src');
     audio.load();
     currentTimeSeconds = 0;
@@ -261,6 +298,10 @@
     };
   });
 
+  $effect(() => {
+    setPendingOrActiveSource(src);
+  });
+
   onDestroy(() => {
     stopProgressLoop();
     releaseAudioSource();
@@ -269,8 +310,7 @@
 
 <div
   class={[
-    'voice-message-player min-w-0 rounded-2xl border py-2 shadow-sm',
-    reserveTrailingControl ? 'pr-12 pl-2.5' : 'px-2.5',
+    'voice-message-player min-w-0 rounded-2xl border px-2.5 py-2 shadow-sm',
     localPreview
       ? 'w-full border-primary/30 bg-primary/8'
       : 'w-full max-w-full border-border bg-surface-200/80'
@@ -279,7 +319,7 @@
 >
   <audio
     bind:this={audio}
-    {src}
+    src={playbackSrc ?? undefined}
     preload="metadata"
     onloadedmetadata={handleMetadata}
     ondurationchange={handleMetadata}
@@ -294,7 +334,10 @@
     {filename}
   </audio>
 
-  <div class="flex min-w-0 items-center gap-2.5" data-testid="voice-message-controls">
+  <div
+    class="flex min-w-0 items-center gap-1.5 sm:gap-2.5"
+    data-testid="voice-message-controls"
+  >
     <button
       type="button"
       onclick={togglePlayback}
@@ -308,11 +351,11 @@
     </button>
 
     <div
-      class="relative flex h-[44px] min-w-0 flex-1 flex-col overflow-hidden rounded-full bg-background/35 px-2 pt-1.5 pb-1"
+      class="voice-waveform-viewport relative flex h-[44px] min-w-0 flex-1 items-center overflow-hidden rounded-full bg-background/35 px-2"
       data-testid="voice-message-waveform"
     >
       <div
-        class="pointer-events-none flex min-h-0 flex-1 items-center gap-px overflow-hidden sm:gap-[2px]"
+        class="voice-waveform-bars pointer-events-none flex min-h-0 flex-1 items-center gap-px overflow-hidden"
         data-waveform-layer="base"
         data-testid="voice-message-progress"
         data-played-bars={playedBarCount}
@@ -344,20 +387,16 @@
         class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         aria-label={m['composer.voice.seek']()}
       />
-      <div
-        class="pointer-events-none flex h-3 shrink-0 items-center justify-end px-0.5"
-        data-testid="voice-message-meta"
-      >
-        <span
-          class="rounded-full bg-background/50 px-1.5 font-mono text-[10px] leading-none text-muted tabular-nums"
-          data-testid="voice-message-time"
-        >
-          {paused && currentTimeSeconds === 0
-            ? formatVoiceMessageTime(durationMs)
-            : `−${formatVoiceMessageTime(remainingMs)}`}
-        </span>
-      </div>
     </div>
+
+    <span
+      class="flex h-11 min-w-[2.25rem] shrink-0 items-center justify-end text-right font-mono text-[11px] leading-none text-muted tabular-nums"
+      data-testid="voice-message-time"
+    >
+      {paused && currentTimeSeconds === 0
+        ? formatVoiceMessageTime(durationMs)
+        : `−${formatVoiceMessageTime(remainingMs)}`}
+    </span>
 
     <button
       type="button"
@@ -401,6 +440,36 @@
 </div>
 
 <style>
+  .voice-waveform-viewport {
+    container-type: inline-size;
+  }
+
+  .voice-waveform-bars {
+    gap: 1px;
+  }
+
+  @container (min-width: 12rem) {
+    .voice-waveform-bars {
+      gap: 2px;
+    }
+  }
+
+  @container (max-width: 10rem) {
+    .voice-waveform-bar:nth-child(even) {
+      display: none;
+    }
+  }
+
+  @container (max-width: 4.5rem) {
+    .voice-waveform-bars {
+      gap: 0.5px;
+    }
+
+    .voice-waveform-bar:not(:nth-child(4n + 1)) {
+      display: none;
+    }
+  }
+
   .voice-waveform-bar {
     background-color: var(--color-muted);
     background-color: color-mix(in srgb, var(--color-muted) 34%, transparent);

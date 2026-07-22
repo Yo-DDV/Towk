@@ -513,12 +513,42 @@
     display: none !important;
   }
 
-  :global(media-player[data-fit='cover'] media-provider),
-  :global(media-player[data-fit='cover'] [data-media-provider]),
-  :global(media-player[data-fit='cover'] video),
-  :global(media-player[data-fit='cover'] .vds-poster),
-  :global(media-player[data-fit='cover'] .vds-poster img) {
+  :global(media-player[data-media-player]) {
+    aspect-ratio: inherit;
+    box-sizing: border-box;
+    display: block;
+    max-height: 100%;
+    max-width: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  :global(media-player media-provider),
+  :global(media-player [data-media-provider]) {
+    align-items: stretch;
+    aspect-ratio: inherit;
+    box-sizing: border-box;
+    display: flex;
     height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  :global(media-player video),
+  :global(media-player .vds-poster),
+  :global(media-player .vds-poster img) {
+    box-sizing: border-box;
+    display: block;
+    height: 100%;
+    max-height: 100%;
+    max-width: 100%;
+    min-height: 0;
+    min-width: 0;
     width: 100%;
   }
 
@@ -554,6 +584,13 @@
     justify-content: center;
     gap: 0.5rem;
     overflow: hidden;
+  }
+
+  :global(media-player[data-fit='contain'] video),
+  :global(media-player[data-fit='contain'] .vds-poster),
+  :global(media-player[data-fit='contain'] .vds-poster img) {
+    object-fit: contain;
+    object-position: center;
   }
 
   .video-preview-button {

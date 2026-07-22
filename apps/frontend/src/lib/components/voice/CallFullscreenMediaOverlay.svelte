@@ -71,7 +71,6 @@
         name={media.name}
         user={media.user}
         showIdentityOverlay={false}
-        fit={media.kind === 'screen' ? 'contain' : 'cover'}
         fill
       />
     </main>

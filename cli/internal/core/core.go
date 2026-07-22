@@ -442,8 +442,17 @@ func (c *ChattoCore) waitForProjectorsStarted(ctx context.Context, timeout time.
 // `chatto evt list` command and similar low-level operator tooling that
 // reads raw stream messages. Domain code goes through EventPublisher /
 // Projector instead.
-func (c *ChattoCore) EventStreamForDebug(_ context.Context) (jetstream.Stream, error) {
-	return c.storage.serverEvtStream, nil
+func (c *ChattoCore) EventStreamForDebug(ctx context.Context) (jetstream.Stream, error) {
+	return c.eventStream(ctx)
+}
+
+// eventStream returns a fresh EVT handle. nats.go Stream handles cache their
+// latest StreamInfo without internal locking, so calling Info concurrently
+// with GetMsg/GetLastMsgForSubject on a shared handle is a data race. Runtime
+// readers use independent handles while the long-lived publisher/projectors
+// keep the immutable handle created during boot.
+func (c *ChattoCore) eventStream(ctx context.Context) (jetstream.Stream, error) {
+	return c.js.Stream(ctx, eventStreamName)
 }
 
 // assetURL prepends AssetBaseURL to an asset path.
@@ -927,7 +936,7 @@ func (c *ChattoCore) Ready(ctx context.Context) error {
 	if _, err := c.storage.runtimeStateKV.Status(ctx); err != nil {
 		return fmt.Errorf("RUNTIME_STATE not ready: %w", err)
 	}
-	if _, err := c.storage.serverEvtStream.Info(ctx); err != nil {
+	if _, err := c.eventStream(ctx); err != nil {
 		return fmt.Errorf("EVT not ready: %w", err)
 	}
 	if _, err := c.storage.linkPreviewAssets.Status(ctx); err != nil {
@@ -1240,6 +1249,8 @@ type storage struct {
 	imageCacheStore jetstream.ObjectStore // Optional: cached resized images (nil if disabled)
 }
 
+const eventStreamName = "EVT"
+
 // newStorage initializes current JetStream resources.
 func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConfig) (*storage, error) {
 	// Initialize KMS KEK bucket (excluded from backups for security). App-owned
@@ -1341,7 +1352,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	// from a single NATS Core path.
 	serverEvtStream, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.Stream, error) {
 		return js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-			Name:        "EVT",
+			Name:        eventStreamName,
 			Description: "Event-sourcing log (ADR-033)",
 			Subjects:    []string{"evt.>"},
 			Storage:     jetstream.FileStorage,

@@ -384,7 +384,7 @@ describe('MessageAttachments', () => {
     expect(container.textContent).toContain('song.ogg');
   });
 
-  it('keeps the voice delete control inside the player at narrow widths', async () => {
+  it('does not reserve a dedicated delete control inside voice messages', async () => {
     const { container } = renderAttachment(
       fileAttachment({
         id: 'voice_delete',
@@ -410,18 +410,9 @@ describe('MessageAttachments', () => {
     expect(attachment).not.toBeNull();
     expect(attachment!.classList).not.toContain('pr-7');
     expect(attachment!.classList).toContain('overflow-hidden');
-    expect(player?.classList).toContain('pr-12');
-    expect(deleteControl?.classList).toContain('voice-message-remove-button');
-    expect(deleteControl?.classList).toContain('top-1/2');
-    expect(deleteControl?.classList).toContain('right-1');
-    expect(deleteControl?.classList).toContain('-translate-y-1/2');
-    expect(deleteControl?.classList).not.toContain('top-2');
-    expect(deleteControl?.classList).not.toContain('right-2');
-    expect(deleteControl?.classList).toContain('h-11');
-    expect(deleteControl?.classList).toContain('w-11');
-    expect(deleteControl!.getBoundingClientRect().right).toBeLessThanOrEqual(
-      attachment!.getBoundingClientRect().right
-    );
+    expect(player?.classList).toContain('px-2.5');
+    expect(player?.classList).not.toContain('pr-12');
+    expect(deleteControl).toBeNull();
   });
 
   it('does not render empty media URLs for attachments that are missing asset URLs', () => {

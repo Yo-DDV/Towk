@@ -137,7 +137,9 @@ describe('createVoiceCallAPI', () => {
         joinedAt: '2026-06-01T12:00:00.000Z',
         callId: 'call-1',
         participantId: 'device-1',
-        deviceIndex: 1
+        deviceIndex: 1,
+        connectionState: 'connected',
+        interruptionDeadline: null
       }
     ]);
     await expect(api.getCallToken('room-1')).resolves.toEqual({
@@ -199,6 +201,7 @@ describe('createVoiceCallAPI', () => {
     mocks.joinCall.mockResolvedValue({
       joined: true,
       status: JoinCallStatus.JOINED,
+      callId: 'C-current',
       participantId: 'device-2',
       deviceIndex: 2
     });
@@ -208,15 +211,17 @@ describe('createVoiceCallAPI', () => {
 
     await expect(api.joinCall('room-1', 'browser-2', 'companion')).resolves.toEqual({
       status: 'joined',
+      callId: 'C-current',
       participantId: 'device-2',
       deviceIndex: 2
     });
     await expect(api.joinCall('room-1', 'browser-2', 'companion', 'C-current')).resolves.toEqual({
       status: 'joined',
+      callId: 'C-current',
       participantId: 'device-2',
       deviceIndex: 2
     });
-    await expect(api.leaveCall('room-1', 'browser-2')).resolves.toBe(true);
+    await expect(api.leaveCall('room-1', 'browser-2', 'C-current')).resolves.toBe(true);
 
     expect(mocks.joinCall).toHaveBeenNthCalledWith(
       1,
@@ -239,7 +244,7 @@ describe('createVoiceCallAPI', () => {
       { headers: undefined }
     );
     expect(mocks.leaveCall).toHaveBeenCalledWith(
-      { roomId: 'room-1', clientInstanceId: 'browser-2' },
+      { roomId: 'room-1', clientInstanceId: 'browser-2', expectedCallId: 'C-current' },
       { headers: undefined }
     );
   });

@@ -3,18 +3,22 @@ package core
 import (
 	"sort"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 // CallParticipant represents a user currently in a voice call.
 type CallParticipant struct {
-	UserID        string
-	ParticipantID string
-	DeviceIndex   uint32
-	CallID        string
-	JoinedAt      int64
-	Source        corev1.CallParticipantEventSource
+	UserID                     string
+	ParticipantID              string
+	DeviceIndex                uint32
+	CallID                     string
+	JoinedAt                   int64
+	Source                     corev1.CallParticipantEventSource
+	ConnectionState            corev1.CallParticipantConnectionState
+	ConnectionObservedAtMillis int64
+	InterruptionDeadlineMillis int64
 }
 
 type CallSession struct {
@@ -32,6 +36,9 @@ type CallStateProjection struct {
 	rooms       map[string]map[string]CallParticipant
 	activeCalls map[string]CallSession
 	roomSeq     map[string]uint64
+	// Observation IDs are retained only for the lifetime of one room call and
+	// rebuilt by replay, so exact webhook retries remain idempotent.
+	connectionObservations map[string]map[string]map[string]struct{}
 }
 
 type CallRoomSnapshot struct {
@@ -42,9 +49,10 @@ type CallRoomSnapshot struct {
 
 func NewCallStateProjection() *CallStateProjection {
 	return &CallStateProjection{
-		rooms:       make(map[string]map[string]CallParticipant),
-		activeCalls: make(map[string]CallSession),
-		roomSeq:     make(map[string]uint64),
+		rooms:                  make(map[string]map[string]CallParticipant),
+		activeCalls:            make(map[string]CallSession),
+		roomSeq:                make(map[string]uint64),
+		connectionObservations: make(map[string]map[string]map[string]struct{}),
 	}
 }
 
@@ -83,6 +91,7 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 		}
 		p.activeCalls[roomID] = session
 		delete(p.rooms, roomID)
+		delete(p.connectionObservations, roomID)
 	case *corev1.Event_VoiceCallParticipantJoined:
 		if event.GetActorId() == "" {
 			return nil
@@ -114,14 +123,59 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 		if exists && joinedAt == existing.JoinedAt && callParticipantSourcePriority(existing.Source) > callParticipantSourcePriority(source) {
 			source = existing.Source
 		}
-		p.rooms[roomID][participantID] = CallParticipant{
-			UserID:        event.GetActorId(),
-			ParticipantID: participantID,
-			DeviceIndex:   deviceIndex,
-			CallID:        callID,
-			JoinedAt:      joinedAt,
-			Source:        source,
+		participant := CallParticipant{
+			UserID:          event.GetActorId(),
+			ParticipantID:   participantID,
+			DeviceIndex:     deviceIndex,
+			CallID:          callID,
+			JoinedAt:        joinedAt,
+			Source:          source,
+			ConnectionState: corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED,
 		}
+		if exists {
+			participant.ConnectionState = existing.ConnectionState
+			participant.ConnectionObservedAtMillis = existing.ConnectionObservedAtMillis
+			participant.InterruptionDeadlineMillis = existing.InterruptionDeadlineMillis
+		}
+		p.rooms[roomID][participantID] = participant
+	case *corev1.Event_VoiceCallParticipantConnectionChanged:
+		changed := e.VoiceCallParticipantConnectionChanged
+		participantID := changed.GetParticipantId()
+		participants := p.rooms[roomID]
+		existing, exists := participants[participantID]
+		if !exists || event.GetActorId() == "" || existing.UserID != event.GetActorId() ||
+			(changed.GetCallId() != "" && existing.CallID != "" && existing.CallID != changed.GetCallId()) {
+			return nil
+		}
+		observationID := changed.GetObservationId()
+		if observationID != "" {
+			if p.connectionObservations[roomID] == nil {
+				p.connectionObservations[roomID] = make(map[string]map[string]struct{})
+			}
+			if p.connectionObservations[roomID][participantID] == nil {
+				p.connectionObservations[roomID][participantID] = make(map[string]struct{})
+			}
+			if _, seen := p.connectionObservations[roomID][participantID][observationID]; seen {
+				return nil
+			}
+			p.connectionObservations[roomID][participantID][observationID] = struct{}{}
+		}
+		observedAtMillis := eventTimestampMillis(changed.GetObservedAt())
+		if observedAtMillis == 0 {
+			observedAtMillis = eventTimestampMillis(event.GetCreatedAt())
+		}
+		state := changed.GetState()
+		if state == corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED ||
+			(observedAtMillis != 0 && observedAtMillis < existing.ConnectionObservedAtMillis) {
+			return nil
+		}
+		existing.ConnectionState = state
+		existing.ConnectionObservedAtMillis = observedAtMillis
+		existing.InterruptionDeadlineMillis = 0
+		if state == corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED {
+			existing.InterruptionDeadlineMillis = eventTimestampMillis(changed.GetInterruptionDeadline())
+		}
+		p.rooms[roomID][participantID] = existing
 	case *corev1.Event_VoiceCallParticipantLeft:
 		if event.GetActorId() == "" {
 			return nil
@@ -132,11 +186,17 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 			if participantID != "" {
 				if existing, ok := participants[participantID]; ok && existing.UserID == event.GetActorId() && (callID == "" || existing.CallID == "" || existing.CallID == callID) {
 					delete(participants, participantID)
+					if observations := p.connectionObservations[roomID]; observations != nil {
+						delete(observations, participantID)
+					}
 				}
 			} else {
 				for key, existing := range participants {
 					if existing.UserID == event.GetActorId() && (callID == "" || existing.CallID == "" || existing.CallID == callID) {
 						delete(participants, key)
+						if observations := p.connectionObservations[roomID]; observations != nil {
+							delete(observations, key)
+						}
 					}
 				}
 			}
@@ -148,6 +208,7 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 		if active := p.activeCalls[roomID]; e.VoiceCallEnded.GetCallId() == "" || active.CallID == "" || active.CallID == e.VoiceCallEnded.GetCallId() {
 			delete(p.rooms, roomID)
 			delete(p.activeCalls, roomID)
+			delete(p.connectionObservations, roomID)
 		}
 	case *corev1.Event_UserLeftRoom:
 		if event.GetActorId() == "" {
@@ -157,6 +218,9 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 			for key, participant := range participants {
 				if participant.UserID == event.GetActorId() {
 					delete(participants, key)
+					if observations := p.connectionObservations[roomID]; observations != nil {
+						delete(observations, key)
+					}
 				}
 			}
 			if len(participants) == 0 {
@@ -167,8 +231,16 @@ func (p *CallStateProjection) Apply(event *corev1.Event, seq uint64) error {
 	case *corev1.Event_RoomDeleted:
 		delete(p.rooms, roomID)
 		delete(p.activeCalls, roomID)
+		delete(p.connectionObservations, roomID)
 	}
 	return nil
+}
+
+func eventTimestampMillis(ts *timestamppb.Timestamp) int64 {
+	if ts == nil {
+		return 0
+	}
+	return ts.AsTime().UnixMilli()
 }
 
 func normalizeCallParticipantSource(source corev1.CallParticipantEventSource) corev1.CallParticipantEventSource {
@@ -211,6 +283,28 @@ func (p *CallStateProjection) ActiveCall(roomID string) (CallSession, bool) {
 	defer p.RUnlock()
 	call, ok := p.activeCalls[roomID]
 	return call, ok
+}
+
+func (p *CallStateProjection) ConnectionObservationAlreadyApplied(
+	roomID, participantID, observationID string,
+	observedAtMillis int64,
+	state corev1.CallParticipantConnectionState,
+) bool {
+	p.RLock()
+	defer p.RUnlock()
+	participant, exists := p.rooms[roomID][participantID]
+	if !exists {
+		return true
+	}
+	if observationID != "" {
+		if _, seen := p.connectionObservations[roomID][participantID][observationID]; seen {
+			return true
+		}
+	}
+	if observedAtMillis != 0 && observedAtMillis < participant.ConnectionObservedAtMillis {
+		return true
+	}
+	return false
 }
 
 func (p *CallStateProjection) participantsLocked(roomID string) []CallParticipant {

@@ -16,6 +16,7 @@ export type CallFullscreenMedia = {
     avatarUrl: string | null;
     presenceStatus: PresenceStatus;
   };
+  onClose?: () => void;
 };
 
 let current = $state.raw<CallFullscreenMedia | null>(null);
@@ -30,14 +31,16 @@ export const callFullscreenMedia = {
   },
 
   open(media: CallFullscreenMedia): void {
+    current?.onClose?.();
     current = media;
   },
 
   close(): void {
+    current?.onClose?.();
     current = null;
   },
 
   closeForRoom(roomId: string): void {
-    if (current?.roomId === roomId) current = null;
+    if (current?.roomId === roomId) this.close();
   }
 };

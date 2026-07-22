@@ -90,6 +90,23 @@ async function posterImage(container: HTMLElement): Promise<HTMLImageElement> {
   return container.querySelector<HTMLImageElement>('.vds-poster img')!;
 }
 
+async function playerVideo(container: HTMLElement): Promise<HTMLVideoElement> {
+  await expect
+    .poll(() => container.querySelector('media-player video'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
+    .toBeTruthy();
+  return container.querySelector<HTMLVideoElement>('media-player video')!;
+}
+
+function expectChildFillsFrame(child: HTMLElement, parent: HTMLElement) {
+  const childBox = child.getBoundingClientRect();
+  const parentBox = parent.getBoundingClientRect();
+
+  expect(parentBox.width).toBeGreaterThan(0);
+  expect(parentBox.height).toBeGreaterThan(0);
+  expect(Math.abs(childBox.width - parentBox.width)).toBeLessThanOrEqual(4);
+  expect(Math.abs(childBox.height - parentBox.height)).toBeLessThanOrEqual(4);
+}
+
 describe('VideoPlayer', () => {
   it('keeps iPhone and iPad PWA playback in the safe CSS overlay', () => {
     const fullscreenDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'fullscreenEnabled');
@@ -201,11 +218,22 @@ describe('VideoPlayer', () => {
     });
 
     const player = await mediaPlayer(container);
-    const style = frame(container).getAttribute('style');
+    const media = await playerVideo(container);
+    const embedFrame = frame(container);
+    const provider = player.querySelector<HTMLElement>('[data-media-provider]');
+    const style = embedFrame.getAttribute('style');
 
     expect(style).toContain('aspect-ratio: 360 / 640');
     expect(style).toContain('width: min(100%, 360px, 40.5svh)');
     expect(player.dataset.fit).toBe('contain');
+    expect(provider).not.toBeNull();
+    expectChildFillsFrame(player, embedFrame);
+    expectChildFillsFrame(provider!, embedFrame);
+    expectChildFillsFrame(media, embedFrame);
+    expect(getComputedStyle(player).display).toBe('block');
+    expect(getComputedStyle(provider!).display).toBe('flex');
+    expect(getComputedStyle(media).display).toBe('block');
+    expect(getComputedStyle(media).objectFit).toBe('contain');
   });
 
   it('lets landscape posted videos use the available message width', async () => {

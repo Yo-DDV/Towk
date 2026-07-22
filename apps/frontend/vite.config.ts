@@ -16,6 +16,12 @@ const backendTarget =
 const tiptapDeps = ['@tiptap/pm/state'];
 const testBrowser = (process.env.VITEST_BROWSER ?? 'chromium') as 'chromium' | 'firefox' | 'webkit';
 const browserRuntimeDeps = [
+  '@bufbuild/protobuf',
+  '@bufbuild/protobuf/wkt',
+  '@connectrpc/connect',
+  '@connectrpc/connect-web',
+  '@sapphi-red/web-noise-suppressor',
+  'livekit-client',
   'svelte-dnd-action',
   'vidstack/player',
   'vidstack/player/layouts',
@@ -222,6 +228,10 @@ export default defineConfig({
         extends: './vite.config.ts',
         test: {
           name: 'client',
+          // Browser files share one page-level runner. Serializing them avoids
+          // a navigation or teardown in one fixture invalidating sibling
+          // iframes while still allowing each file's tests to run normally.
+          fileParallelism: false,
           browser: {
             enabled: true,
             provider: playwright(),
@@ -234,6 +244,10 @@ export default defineConfig({
           deps: {
             optimizer: {
               client: {
+                // Prebundle every browser-only runtime up front. Combined
+                // with a single browser worker in the local gate, this avoids
+                // mid-run dependency rescans without making the full suite
+                // serve every dependency unoptimized.
                 enabled: true,
                 include: [...tiptapDeps, ...browserRuntimeDeps]
               }

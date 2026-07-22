@@ -121,6 +121,23 @@ func eventStreamMsgCount(t *testing.T, core *ChattoCore) uint64 {
 	return info.State.Msgs
 }
 
+func TestEventStreamForDebugReturnsFreshHandles(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	first, err := core.EventStreamForDebug(ctx)
+	if err != nil {
+		t.Fatalf("first event stream: %v", err)
+	}
+	second, err := core.EventStreamForDebug(ctx)
+	if err != nil {
+		t.Fatalf("second event stream: %v", err)
+	}
+	if first == second {
+		t.Fatal("EventStreamForDebug reused a mutable nats.go Stream handle")
+	}
+}
+
 func TestCreateJetStreamResourceWithRetryRetriesStoreCreateFailure(t *testing.T) {
 	ctx := testContext(t)
 	attempts := 0

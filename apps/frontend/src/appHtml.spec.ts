@@ -176,6 +176,11 @@ describe('app.html metadata', () => {
     expect(attributeValue(tag, 'sizes')).toBe('180x180');
   });
 
+  it('declares standard and Apple standalone web-app capability', () => {
+    expect(appHtml).toContain('<meta name="mobile-web-app-capable" content="yes" />');
+    expect(appHtml).toContain('<meta name="apple-mobile-web-app-capable" content="yes" />');
+  });
+
   it('keeps manifest icon paths pointed at the generated PWA assets', () => {
     expect(manifest.icons).toEqual([
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },

@@ -97,10 +97,11 @@ const (
 	EventReactionRemoved = "reaction_removed"
 
 	// Voice call participant state (also under the room aggregate).
-	EventCallStarted           = "call_started"
-	EventCallParticipantJoined = "call_joined"
-	EventCallParticipantLeft   = "call_left"
-	EventCallEnded             = "call_ended"
+	EventCallStarted                      = "call_started"
+	EventCallParticipantJoined            = "call_joined"
+	EventCallParticipantLeft              = "call_left"
+	EventCallParticipantConnectionChanged = "call_connection_changed"
+	EventCallEnded                        = "call_ended"
 
 	// Group aggregate
 	EventRoomGroupCreated        = "group_created"
@@ -227,6 +228,8 @@ func EventTypeOf(e *corev1.Event) string {
 		return EventCallParticipantJoined
 	case *corev1.Event_VoiceCallParticipantLeft:
 		return EventCallParticipantLeft
+	case *corev1.Event_VoiceCallParticipantConnectionChanged:
+		return EventCallParticipantConnectionChanged
 	case *corev1.Event_VoiceCallStarted:
 		return EventCallStarted
 	case *corev1.Event_VoiceCallEnded:

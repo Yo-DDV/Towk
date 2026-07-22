@@ -669,20 +669,8 @@
           durationMs={attachment.voiceMessage.durationMs}
           waveformPeaks={attachment.voiceMessage.waveformPeaks}
           filename={attachment.filename}
-          reserveTrailingControl={canDeleteAttachment}
           onMediaError={() => refreshAfterAssetError(attachment, 'asset')}
         />
-        {#if canDeleteAttachment}
-          <button
-            type="button"
-            onclick={(e) => openDeleteConfirmation(attachment, e)}
-            class="voice-message-remove-button attachment-remove-button top-1/2 right-1 h-11 w-11 -translate-y-1/2 md:group-hover/attachment:opacity-100"
-            aria-label={m['room.attachment.delete_label']()}
-            title={m['room.attachment.delete_label']()}
-          >
-            <span class="iconify text-sm uil--times"></span>
-          </button>
-        {/if}
       </div>
     {:else if attachment.contentType.startsWith('audio/') && attachment.url}
       <div class="group/attachment relative min-w-0">

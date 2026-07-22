@@ -1,4 +1,4 @@
-import { timestampNow } from '@bufbuild/protobuf/wkt';
+import { timestampFromDate, timestampNow } from '@bufbuild/protobuf/wkt';
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +7,7 @@ import { RoomEventKind } from '$lib/render/eventKinds';
 
 import {
   RealtimeCallEventSchema,
+  RealtimeCallParticipantConnectionState,
   RealtimeEventEnvelopeSchema,
   RealtimeMentionNotificationEventSchema,
   RealtimeNewDirectMessageNotificationEventSchema,
@@ -46,6 +47,48 @@ describe('realtimeEventToEventEnvelope', () => {
       callId: 'call-1',
       participantId: 'device-2',
       deviceIndex: 2
+    });
+  });
+
+  it('maps an interrupted call connection with its recovery deadline', () => {
+    const deadline = timestampFromDate(new Date('2026-01-01T00:01:00.000Z'));
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-call-interrupted',
+        createdAt: timestampNow(),
+        actorId: 'user-1',
+        event: {
+          case: 'callParticipantConnectionChanged',
+          value: create(RealtimeCallEventSchema, {
+            roomId: 'room-1',
+            callId: 'call-1',
+            participantId: 'device-2',
+            deviceIndex: 2,
+            connectionState: RealtimeCallParticipantConnectionState.INTERRUPTED,
+            interruptionDeadline: deadline
+          })
+        }
+      })
+    ) as unknown as {
+      event: {
+        kind: string;
+        roomId: string;
+        callId: string;
+        participantId: string;
+        deviceIndex: number;
+        connectionState: string;
+        interruptionDeadline: string | null;
+      };
+    };
+
+    expect(event.event).toEqual({
+      kind: RoomEventKind.CallParticipantConnectionChanged,
+      roomId: 'room-1',
+      callId: 'call-1',
+      participantId: 'device-2',
+      deviceIndex: 2,
+      connectionState: 'interrupted',
+      interruptionDeadline: '2026-01-01T00:01:00.000Z'
     });
   });
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -143,6 +144,54 @@ func TestLegacyJoinCannotImplicitlyTransferAnActiveDevice(t *testing.T) {
 	}
 }
 
+func TestLegacyTokenReplayCannotReadmitAnExplicitlyLeftParticipant(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	const roomID = "room-legacy-token-replay"
+
+	legacy, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "", CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join legacy participant: %v", err)
+	}
+	if _, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-b", "browser-b", CallJoinModeAsk); err != nil {
+		t.Fatalf("join call keeper: %v", err)
+	}
+	active, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing")
+	}
+	if err := chatto.LeaveCallParticipant(ctx, KindChannel, roomID, "user-a", "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("leave legacy participant: %v", err)
+	}
+	remover := &recordingLiveKitParticipantClient{}
+	chatto.callModel.livekit = remover
+
+	err = chatto.HandleObservedCallParticipantConnectionJoined(
+		ctx,
+		LegacySpaceIDForRoomKind(KindChannel),
+		roomID,
+		"user-a",
+		legacy.ParticipantID,
+		legacy.DeviceIndex,
+		"Alice",
+		"alice",
+		"",
+		CallParticipantConnectionObservation{ID: "stale-legacy-join"},
+		active.CallID,
+	)
+	if !errors.Is(err, ErrCallParticipantNotAdmitted) {
+		t.Fatalf("stale legacy join error = %v, want ErrCallParticipantNotAdmitted", err)
+	}
+	for _, participant := range chatto.CallState.Participants(roomID) {
+		if participant.UserID == "user-a" {
+			t.Fatalf("stale legacy token readmitted explicit leaver: %+v", participant)
+		}
+	}
+	if len(remover.removed) != 1 || remover.removed[0].userID != legacy.ParticipantID {
+		t.Fatalf("evicted participants = %+v, want legacy participant %q", remover.removed, legacy.ParticipantID)
+	}
+}
+
 func TestTransferCallParticipantReplacesOnlySameAccountDevices(t *testing.T) {
 	chatto, _ := setupTestCore(t)
 	ctx := testContext(t)
@@ -267,6 +316,48 @@ func TestLeaveCallParticipantPreservesSiblingDevice(t *testing.T) {
 	}
 }
 
+func TestDelayedLeaveForOldCallCannotRemoveReplacementCallParticipant(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	const (
+		roomID           = "room-delayed-leave"
+		userID           = "user-a"
+		clientInstanceID = "browser-session-1"
+	)
+
+	first, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, userID, clientInstanceID, CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join first call: %v", err)
+	}
+	firstCall, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("first call missing")
+	}
+	if err := chatto.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, first.ParticipantID, firstCall.CallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION); err != nil {
+		t.Fatalf("end first call: %v", err)
+	}
+
+	second, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, userID, clientInstanceID, CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join replacement call: %v", err)
+	}
+	secondCall, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok || secondCall.CallID == firstCall.CallID {
+		t.Fatalf("replacement call = %+v ok=%v, want call after %q", secondCall, ok, firstCall.CallID)
+	}
+
+	// This represents an HTTP LeaveCall request for the first call that was
+	// delayed until after the same browser session had joined its replacement.
+	if err := chatto.LeaveCallParticipant(ctx, KindChannel, roomID, userID, clientInstanceID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER, firstCall.CallID); err != nil {
+		t.Fatalf("apply delayed leave: %v", err)
+	}
+
+	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != second.ParticipantID || participants[0].CallID != secondCall.CallID {
+		t.Fatalf("participants after delayed leave = %+v, want replacement participant in call %q", participants, secondCall.CallID)
+	}
+}
+
 func TestConcurrentCompanionAdmissionNeverExceedsTwoDevices(t *testing.T) {
 	chatto, _ := setupTestCore(t)
 	ctx := testContext(t)
@@ -316,6 +407,8 @@ func TestConnectionReconciliationRemovesOnlyMissingDevice(t *testing.T) {
 	roomID := "room-device-reconciliation"
 	first, _ := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-1", CallJoinModeAsk)
 	second, _ := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "browser-session-2", CallJoinModeCompanion)
+	now := time.Unix(1_700_300_000, 0)
+	chatto.callModel.now = func() time.Time { return now }
 
 	err := chatto.callModel.ReconcileRoomConnections(ctx, roomID, []liveKitObservedParticipant{{
 		UserID:        "user-a",
@@ -327,6 +420,20 @@ func TestConnectionReconciliationRemovesOnlyMissingDevice(t *testing.T) {
 	}
 
 	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 2 || participants[0].ParticipantID != first.ParticipantID || participants[0].ConnectionState != corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED {
+		t.Fatalf("participants during reconciliation grace = %+v, want interrupted first device retained", participants)
+	}
+
+	now = now.Add(CallParticipantRecoveryGrace + time.Millisecond)
+	err = chatto.callModel.ReconcileRoomConnections(ctx, roomID, []liveKitObservedParticipant{{
+		UserID:        "user-a",
+		ParticipantID: second.ParticipantID,
+		DeviceIndex:   second.DeviceIndex,
+	}})
+	if err != nil {
+		t.Fatalf("ReconcileRoomConnections after grace: %v", err)
+	}
+	participants = chatto.CallState.Participants(roomID)
 	if len(participants) != 1 || participants[0].ParticipantID != second.ParticipantID {
 		t.Fatalf("participants after reconciliation = %+v, want second device only", participants)
 	}
@@ -335,6 +442,75 @@ func TestConnectionReconciliationRemovesOnlyMissingDevice(t *testing.T) {
 	}
 	if _, ok := chatto.CallState.ActiveCall(roomID); !ok {
 		t.Fatal("removing one missing device must not end the call")
+	}
+}
+
+func TestConnectionReconciliationAllowsSameClientToStartFreshCallAfterGrace(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	roomID := "room-long-network-outage"
+	clientInstanceID := "browser-session-1"
+	first, err := chatto.JoinCallParticipant(
+		ctx,
+		KindChannel,
+		roomID,
+		"user-a",
+		clientInstanceID,
+		CallJoinModeAsk,
+	)
+	if err != nil {
+		t.Fatalf("join initial call: %v", err)
+	}
+	now := time.Unix(1_700_400_000, 0)
+	chatto.callModel.now = func() time.Time { return now }
+
+	if err := chatto.callModel.ReconcileRoomConnections(ctx, roomID, nil); err != nil {
+		t.Fatalf("mark initial connection interrupted: %v", err)
+	}
+	now = now.Add(CallParticipantRecoveryGrace + time.Millisecond)
+	if err := chatto.callModel.ReconcileRoomConnections(ctx, roomID, nil); err != nil {
+		t.Fatalf("expire initial connection after grace: %v", err)
+	}
+	if _, ok := chatto.CallState.ActiveCall(roomID); ok {
+		t.Fatal("initial call should be ended after its only connection expires")
+	}
+
+	if _, err := chatto.JoinCallParticipant(
+		ctx,
+		KindChannel,
+		roomID,
+		"user-a",
+		clientInstanceID,
+		CallJoinModeCompanion,
+		first.CallID,
+	); !errors.Is(err, ErrCallNoLongerActive) {
+		t.Fatalf("stale-generation recovery error = %v, want ErrCallNoLongerActive", err)
+	}
+
+	second, err := chatto.JoinCallParticipant(
+		ctx,
+		KindChannel,
+		roomID,
+		"user-a",
+		clientInstanceID,
+		CallJoinModeCompanion,
+	)
+	if err != nil {
+		t.Fatalf("join fresh call generation: %v", err)
+	}
+	if second.CallID == "" || second.CallID == first.CallID {
+		t.Fatalf("fresh call ID = %q, want value distinct from %q", second.CallID, first.CallID)
+	}
+	if second.ParticipantID != first.ParticipantID {
+		t.Fatalf(
+			"fresh participant ID = %q, want stable connection identity %q",
+			second.ParticipantID,
+			first.ParticipantID,
+		)
+	}
+	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].CallID != second.CallID {
+		t.Fatalf("participants after fresh recovery = %+v, want one participant in new call", participants)
 	}
 }
 
@@ -378,6 +554,49 @@ func TestConnectionReconciliationEvictsTransferredIdentityWithoutResurrectingIt(
 	participants := chatto.CallState.Participants(roomID)
 	if len(participants) != 1 || participants[0].ParticipantID != transferred.ParticipantID {
 		t.Fatalf("participants after reconciliation = %+v, want transferred device only", participants)
+	}
+}
+
+func TestConnectionReconciliationEvictsUnadmittedLegacyIdentity(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+	const roomID = "room-legacy-reconciliation"
+
+	legacy, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-a", "", CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join legacy participant: %v", err)
+	}
+	keeper, err := chatto.JoinCallParticipant(ctx, KindChannel, roomID, "user-b", "browser-b", CallJoinModeAsk)
+	if err != nil {
+		t.Fatalf("join call keeper: %v", err)
+	}
+	activeCall, ok := chatto.CallState.ActiveCall(roomID)
+	if !ok {
+		t.Fatal("active call missing")
+	}
+	if err := chatto.LeaveCallParticipant(ctx, KindChannel, roomID, "user-a", "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_USER); err != nil {
+		t.Fatalf("leave legacy participant: %v", err)
+	}
+	recorder := &recordingLiveKitParticipantClient{snapshots: []liveKitParticipantSnapshot{{
+		SpaceID: LegacySpaceIDForRoomKind(KindChannel),
+		RoomID:  roomID,
+		CallID:  activeCall.CallID,
+		Participants: []liveKitObservedParticipant{
+			{UserID: "user-a", ParticipantID: legacy.ParticipantID, DeviceIndex: legacy.DeviceIndex},
+			{UserID: "user-b", ParticipantID: keeper.ParticipantID, DeviceIndex: keeper.DeviceIndex},
+		},
+	}}}
+	chatto.callModel.livekit = recorder
+
+	if err := chatto.callModel.ReconcileWithLiveKit(ctx); err != nil {
+		t.Fatalf("ReconcileWithLiveKit: %v", err)
+	}
+	if len(recorder.removed) != 1 || recorder.removed[0].userID != legacy.ParticipantID {
+		t.Fatalf("LiveKit removals = %+v, want stale legacy identity", recorder.removed)
+	}
+	participants := chatto.CallState.Participants(roomID)
+	if len(participants) != 1 || participants[0].ParticipantID != keeper.ParticipantID {
+		t.Fatalf("participants after reconciliation = %+v, want call keeper only", participants)
 	}
 }
 
