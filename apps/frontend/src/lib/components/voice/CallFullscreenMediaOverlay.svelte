@@ -26,6 +26,10 @@
   function handleKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
+      if (diagnosticsOpen) {
+        diagnosticsOpen = false;
+        return;
+      }
       close();
       return;
     }
@@ -102,7 +106,7 @@
       </button>
     </header>
 
-    <main class="h-full min-h-0 w-full min-w-0">
+    <main class="relative h-full min-h-0 w-full min-w-0 overflow-hidden">
       <VideoThumbnail
         track={media.track}
         name={media.name}
@@ -110,16 +114,15 @@
         showIdentityOverlay={false}
         fill
       />
+      {#if media.kind === 'screen' && media.diagnosticsDirection && diagnosticsOpen}
+        <ScreenShareDiagnostics
+          track={media.track}
+          direction={media.diagnosticsDirection}
+          panelId={diagnosticsPanelId}
+          onclose={() => (diagnosticsOpen = false)}
+        />
+      {/if}
     </main>
-
-    {#if media.kind === 'screen' && media.diagnosticsDirection && diagnosticsOpen}
-      <ScreenShareDiagnostics
-        track={media.track}
-        direction={media.diagnosticsDirection}
-        panelId={diagnosticsPanelId}
-        onclose={() => (diagnosticsOpen = false)}
-      />
-    {/if}
   </div>
 {/if}
 

@@ -103,22 +103,21 @@ describe('CallFullscreenMediaOverlay', () => {
     statsButton.click();
 
     const panel = await vi.waitFor(() => {
-      const value = document.body.querySelector<HTMLElement>(
+      const value = document.querySelector<HTMLElement>(
         '[data-testid="screen-share-diagnostics-panel"]'
       );
       expect(value).not.toBeNull();
       return value!;
     });
     expect(statsButton.getAttribute('aria-expanded')).toBe('true');
-    expect(panel.parentElement).toBe(document.body);
+    expect(panel.closest('[data-testid="call-fullscreen-media-overlay"]')).not.toBeNull();
+    expect(panel.parentElement?.tagName).toBe('MAIN');
 
     document
       .querySelector<HTMLButtonElement>('[data-testid="screen-share-diagnostics-close"]')!
       .click();
     await vi.waitFor(() =>
-      expect(
-        document.body.querySelector('[data-testid="screen-share-diagnostics-panel"]')
-      ).toBeNull()
+      expect(document.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull()
     );
   });
 

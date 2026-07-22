@@ -648,36 +648,35 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     expect(button.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).toBe(true);
     expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
     expect(button.getAttribute('aria-expanded')).toBe('false');
-    expect(document.body.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
 
     button.click();
 
     await vi.waitFor(() => {
       expect(
-        document.body.querySelector('[data-testid="screen-share-diagnostics-panel"]')
+        container.querySelector('[data-testid="screen-share-diagnostics-panel"]')
       ).not.toBeNull();
     });
-    const panel = document.body.querySelector<HTMLElement>(
+    const panel = container.querySelector<HTMLElement>(
       '[data-testid="screen-share-diagnostics-panel"]'
     )!;
     expect(button.getAttribute('aria-expanded')).toBe('true');
     expect(button.getAttribute('aria-controls')).toBe(panel.id);
-    expect(panel.getAttribute('role')).toBe('dialog');
-    expect(panel.getAttribute('aria-modal')).toBe('true');
-    expect(panel.getAttribute('aria-describedby')).toBe(`${panel.id}-privacy`);
-    expect(panel.parentElement).toBe(document.body);
+    expect(panel.getAttribute('role')).toBe('region');
+    expect(panel.getAttribute('aria-modal')).toBeNull();
+    expect(panel.className).toContain('absolute');
+    expect(panel.closest('[data-call-media-card]')).toBe(mediaCard);
     expect(panel.textContent).toContain('Receiving');
     expect(panel.textContent).toContain('1920 × 1080');
-    expect(panel.textContent).toContain('Technical details');
+    expect(panel.textContent).not.toContain('Technical details');
     expect(panel.textContent).toContain('AV1');
 
-    document.body
+    container
       .querySelector<HTMLButtonElement>('[data-testid="screen-share-diagnostics-close"]')!
       .click();
     await vi.waitFor(() => {
-      expect(document.body.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
+      expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
     });
-    await vi.waitFor(() => expect(document.activeElement).toBe(button));
   });
 
   it('identifies presenter diagnostics and dismisses the panel with Escape', async () => {
@@ -696,12 +695,12 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
 
     await vi.waitFor(() =>
       expect(
-        document.body.querySelector('[data-testid="screen-share-diagnostics-panel"]')?.textContent
+        container.querySelector('[data-testid="screen-share-diagnostics-panel"]')?.textContent
       ).toContain('Sending')
     );
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await vi.waitFor(() => {
-      expect(document.body.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
+      expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
     });
   });
 });

@@ -85,11 +85,13 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(1);
     const panel = document.getElementById('diagnostics-test')!;
-    expect(panel.parentElement).toBe(document.body);
-    expect(panel.getAttribute('aria-modal')).toBe('true');
+    expect(panel.getAttribute('role')).toBe('region');
+    expect(panel.getAttribute('aria-modal')).toBeNull();
+    expect(panel.className).toContain('absolute');
     expect(panel.querySelector('details')).toBeNull();
-    expect(panel.textContent).toContain('Technical details');
-    expect(panel.textContent).toContain('Transport');
+    expect(panel.textContent).not.toContain('Technical details');
+    expect(panel.textContent).not.toContain('Transport');
+    expect(panel.textContent).toContain('RTP packets');
     expect(panel.textContent).toContain('AV1');
 
     await vi.advanceTimersByTimeAsync(4_000);

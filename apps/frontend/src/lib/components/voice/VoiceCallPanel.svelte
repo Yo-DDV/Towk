@@ -1024,26 +1024,28 @@ Room sidebar panel for voice/video calls.
       true,
       true
     )}
-    <button
-      type="button"
-      class={callTileMediaButtonClass}
-      onclick={(e) => showUserMenu(participant, e)}
-    >
-      <VideoThumbnail
-        track={participant.screenShareTrack!}
-        name={m['voice.screen_title']({ name: participant.displayName })}
-        user={participant.avatarUser}
-        showIdentityOverlay={false}
-      />
-    </button>
-    {#if diagnosticsParticipantKey === participant.key}
-      <ScreenShareDiagnostics
-        track={participant.screenShareTrack!}
-        direction={participant.isLocal ? 'outbound' : 'inbound'}
-        panelId={diagnosticsPanelId(participant)}
-        onclose={() => closeScreenShareDiagnostics(participant)}
-      />
-    {/if}
+    <div class="relative flex min-h-0 w-full flex-1 overflow-hidden rounded-sm">
+      <button
+        type="button"
+        class={callTileMediaButtonClass}
+        onclick={(e) => showUserMenu(participant, e)}
+      >
+        <VideoThumbnail
+          track={participant.screenShareTrack!}
+          name={m['voice.screen_title']({ name: participant.displayName })}
+          user={participant.avatarUser}
+          showIdentityOverlay={false}
+        />
+      </button>
+      {#if diagnosticsParticipantKey === participant.key}
+        <ScreenShareDiagnostics
+          track={participant.screenShareTrack!}
+          direction={participant.isLocal ? 'outbound' : 'inbound'}
+          panelId={diagnosticsPanelId(participant)}
+          onclose={() => closeScreenShareDiagnostics(participant)}
+        />
+      {/if}
+    </div>
   </div>
 {/snippet}
 
@@ -1072,46 +1074,48 @@ Room sidebar panel for voice/video calls.
       isScreen,
       isScreen
     )}
-    <button
-      type="button"
-      class={[
-        callTileMediaButtonClass,
-        'min-h-0 items-center justify-center',
-        !isScreen && !isVideo && 'p-6'
-      ]}
-      onclick={(e) => showUserMenu(participant, e)}
-    >
-      {#if isScreen}
-        <VideoThumbnail
+    <div class="relative flex min-h-0 w-full flex-1 overflow-hidden rounded-sm">
+      <button
+        type="button"
+        class={[
+          callTileMediaButtonClass,
+          'min-h-0 items-center justify-center',
+          !isScreen && !isVideo && 'p-6'
+        ]}
+        onclick={(e) => showUserMenu(participant, e)}
+      >
+        {#if isScreen}
+          <VideoThumbnail
+            track={participant.screenShareTrack!}
+            name={m['voice.screen_title']({ name: participant.displayName })}
+            user={participant.avatarUser}
+            showIdentityOverlay={false}
+            fill
+          />
+        {:else if isVideo}
+          <VideoThumbnail
+            track={participant.videoTrack!}
+            name={participant.displayName}
+            user={participant.avatarUser}
+            showIdentityOverlay={false}
+            fill
+          />
+        {:else}
+          <div class="flex min-w-0 flex-col items-center gap-4">
+            <UserAvatar user={participant.avatarUser} size="xl" showPresence={false} />
+            <span class="max-w-full truncate text-lg font-semibold">{participant.displayName}</span>
+          </div>
+        {/if}
+      </button>
+      {#if isScreen && diagnosticsParticipantKey === participant.key}
+        <ScreenShareDiagnostics
           track={participant.screenShareTrack!}
-          name={m['voice.screen_title']({ name: participant.displayName })}
-          user={participant.avatarUser}
-          showIdentityOverlay={false}
-          fill
+          direction={participant.isLocal ? 'outbound' : 'inbound'}
+          panelId={diagnosticsPanelId(participant)}
+          onclose={() => closeScreenShareDiagnostics(participant)}
         />
-      {:else if isVideo}
-        <VideoThumbnail
-          track={participant.videoTrack!}
-          name={participant.displayName}
-          user={participant.avatarUser}
-          showIdentityOverlay={false}
-          fill
-        />
-      {:else}
-        <div class="flex min-w-0 flex-col items-center gap-4">
-          <UserAvatar user={participant.avatarUser} size="xl" showPresence={false} />
-          <span class="max-w-full truncate text-lg font-semibold">{participant.displayName}</span>
-        </div>
       {/if}
-    </button>
-    {#if isScreen && diagnosticsParticipantKey === participant.key}
-      <ScreenShareDiagnostics
-        track={participant.screenShareTrack!}
-        direction={participant.isLocal ? 'outbound' : 'inbound'}
-        panelId={diagnosticsPanelId(participant)}
-        onclose={() => closeScreenShareDiagnostics(participant)}
-      />
-    {/if}
+    </div>
   </div>
 {/snippet}
 
