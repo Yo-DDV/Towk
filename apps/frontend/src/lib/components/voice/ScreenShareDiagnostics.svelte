@@ -231,6 +231,24 @@ strictly local, starts only while this component is mounted, and stops on close.
     onclose();
   }
 
+  const mountPanelInDocumentBody: Attachment<HTMLDivElement> = (node) => {
+    if (typeof document === 'undefined') return;
+
+    const placeholder = document.createComment('screen-share-diagnostics');
+    const parent = node.parentNode;
+    const previousBodyOverflow = document.body.style.overflow;
+
+    parent?.insertBefore(placeholder, node);
+    document.body.appendChild(node);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      node.remove();
+      placeholder.remove();
+    };
+  };
+
   const focusOnMount: Attachment<HTMLButtonElement> = (node) => {
     node.focus();
   };
@@ -241,14 +259,15 @@ strictly local, starts only while this component is mounted, and stops on close.
 <div
   id={panelId}
   role="dialog"
-  aria-modal="false"
+  aria-modal="true"
   aria-label={m['voice.screen_stats_title']()}
   aria-describedby={`${panelId}-privacy`}
-  class="fixed inset-x-3 top-3 bottom-3 z-[100] flex min-h-0 flex-col overflow-hidden rounded-lg border border-text/15 bg-background/95 text-text shadow-2xl backdrop-blur-xl min-[560px]:absolute min-[560px]:inset-x-1.5 min-[560px]:top-[3.55rem] min-[560px]:bottom-1.5 min-[560px]:z-30 min-[560px]:rounded-md"
+  class="screen-share-diagnostics-panel @container fixed z-[9999] flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-text/15 bg-background/95 text-text shadow-2xl backdrop-blur-xl"
   data-testid="screen-share-diagnostics-panel"
+  {@attach mountPanelInDocumentBody}
 >
   <header
-    class="flex shrink-0 items-center gap-2 border-b border-border/80 bg-surface-100/75 px-3 py-2"
+    class="flex shrink-0 items-center gap-2 border-b border-border/80 bg-surface-100/90 px-3 py-2"
   >
     <span class="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
       <span class="absolute inline-flex h-full w-full rounded-full bg-success opacity-25"></span>
@@ -282,7 +301,7 @@ strictly local, starts only while this component is mounted, and stops on close.
     </button>
   </header>
 
-  <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+  <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 @min-[560px]:p-3">
     {#if loading && !sample}
       <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted">
         <span class="iconify animate-spin text-lg uil--spinner" aria-hidden="true"></span>
@@ -386,17 +405,11 @@ strictly local, starts only while this component is mounted, and stops on close.
           </div>
         </section>
 
-        <details class="group rounded-md border border-text/10 bg-surface-100/35">
-          <summary
-            class="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold marker:content-none"
-          >
+        <section class="rounded-md border border-text/10 bg-surface-100/35">
+          <div class="flex min-h-11 items-center gap-2 px-3 py-2 text-sm font-semibold">
             <span class="iconify text-muted uil--wrench" aria-hidden="true"></span>
             <span>{m['voice.screen_stats_technical_details']()}</span>
-            <span
-              class="ml-auto iconify text-muted transition-transform uil--angle-down group-open:rotate-180"
-              aria-hidden="true"
-            ></span>
-          </summary>
+          </div>
           <div class="space-y-2 border-t border-border/70 p-2">
             <div class="grid grid-cols-1 gap-2 @min-[700px]:grid-cols-3">
               <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
@@ -604,7 +617,7 @@ strictly local, starts only while this component is mounted, and stops on close.
               </section>
             {/if}
           </div>
-        </details>
+        </section>
 
         {#if unavailable}
           <p
@@ -618,3 +631,37 @@ strictly local, starts only while this component is mounted, and stops on close.
     {/if}
   </div>
 </div>
+
+<style>
+  .screen-share-diagnostics-panel {
+    --diagnostics-safe-top: env(safe-area-inset-top, 0px);
+    --diagnostics-safe-right: env(safe-area-inset-right, 0px);
+    --diagnostics-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --diagnostics-safe-left: env(safe-area-inset-left, 0px);
+    top: calc(var(--diagnostics-safe-top) + 0.5rem);
+    right: calc(var(--diagnostics-safe-right) + 0.5rem);
+    bottom: calc(var(--diagnostics-safe-bottom) + 0.5rem);
+    left: calc(var(--diagnostics-safe-left) + 0.5rem);
+    height: calc(
+      100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem
+    );
+    height: calc(
+      100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem
+    );
+  }
+
+  @media (min-width: 720px) {
+    .screen-share-diagnostics-panel {
+      top: calc(var(--diagnostics-safe-top) + 1rem);
+      right: calc(var(--diagnostics-safe-right) + 1rem);
+      bottom: calc(var(--diagnostics-safe-bottom) + 1rem);
+      left: calc(var(--diagnostics-safe-left) + 1rem);
+      height: calc(
+        100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 2rem
+      );
+      height: calc(
+        100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 2rem
+      );
+    }
+  }
+</style>

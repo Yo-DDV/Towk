@@ -178,6 +178,6 @@
     "screen_share_frame_rate_standard": "Stable · up to 30 FPS",
     "screen_share_frame_rate_high": "High motion · up to 60 FPS",
     "screen_share_frame_rate_unavailable": "High frame rate is unavailable in this browser",
-    "screen_stats_local_only": "Updates every 2 seconds while open · 60-second local history · nothing is uploaded"
+    "screen_stats_local_only": "Live local metrics · 60-second history · nothing is uploaded"
   }
 }

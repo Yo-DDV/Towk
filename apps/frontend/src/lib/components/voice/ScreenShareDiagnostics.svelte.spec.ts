@@ -57,10 +57,13 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(1);
-    const technicalDetails = rendered.container.querySelector('details');
-    expect(technicalDetails?.open).toBe(false);
-    expect(technicalDetails?.querySelector('summary')?.textContent).toContain('Technical details');
-    expect(rendered.container.textContent).toContain('AV1');
+    const panel = document.getElementById('diagnostics-test')!;
+    expect(panel.parentElement).toBe(document.body);
+    expect(panel.getAttribute('aria-modal')).toBe('true');
+    expect(panel.querySelector('details')).toBeNull();
+    expect(panel.textContent).toContain('Technical details');
+    expect(panel.textContent).toContain('Transport');
+    expect(panel.textContent).toContain('AV1');
 
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
@@ -68,6 +71,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     rendered.unmount();
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
+    expect(document.getElementById('diagnostics-test')).toBeNull();
   });
 
   it('shows an explicit unavailable state, keeps retrying, and recovers while open', async () => {
@@ -86,14 +90,16 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     });
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(rendered.container.textContent).toContain(
+    let panel = document.getElementById('diagnostics-unavailable-test')!;
+    expect(panel.textContent).toContain(
       'Statistics are temporarily unavailable for this track.'
     );
 
     await vi.advanceTimersByTimeAsync(2_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
-    expect(rendered.container.textContent).toContain('1920 × 1080');
-    expect(rendered.container.textContent).not.toContain(
+    panel = document.getElementById('diagnostics-unavailable-test')!;
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).not.toContain(
       'Statistics are temporarily unavailable for this track.'
     );
     rendered.unmount();
@@ -145,11 +151,12 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     });
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(rendered.container.textContent).toContain('Updated now');
+    const panel = document.getElementById('diagnostics-age-test')!;
+    expect(panel.textContent).toContain('Updated now');
 
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
-    expect(rendered.container.textContent).toContain('Updated 5 s ago');
+    expect(panel.textContent).toContain('Updated 5 s ago');
     rendered.unmount();
   });
 });
