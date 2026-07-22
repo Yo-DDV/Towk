@@ -239,6 +239,8 @@ const msg_settings_notifications_push_ios_home_screen_title = (): LocalizedStrin
 const msg_settings_notifications_push_ios_home_screen_description = (): LocalizedString => messages().settings_notifications_push_ios_home_screen_description(empty());
 const msg_settings_notifications_push_blocked_title = (): LocalizedString => messages().settings_notifications_push_blocked_title(empty());
 const msg_settings_notifications_push_blocked_description = (): LocalizedString => messages().settings_notifications_push_blocked_description(empty());
+const msg_settings_notifications_push_blocked_retry_button = (): LocalizedString => messages().settings_notifications_push_blocked_retry_button(empty());
+const msg_settings_notifications_push_blocked_retrying = (): LocalizedString => messages().settings_notifications_push_blocked_retrying(empty());
 const msg_settings_notifications_push_enabled_title = (): LocalizedString => messages().settings_notifications_push_enabled_title(empty());
 const msg_settings_notifications_push_enabled_description = (): LocalizedString => messages().settings_notifications_push_enabled_description(empty());
 const msg_settings_notifications_push_enable_title = (): LocalizedString => messages().settings_notifications_push_enable_title(empty());
@@ -2119,6 +2121,8 @@ export { msg_settings_notifications_push_ios_home_screen_title as 'settings.noti
 export { msg_settings_notifications_push_ios_home_screen_description as 'settings.notifications.push.ios_home_screen_description' };
 export { msg_settings_notifications_push_blocked_title as 'settings.notifications.push.blocked_title' };
 export { msg_settings_notifications_push_blocked_description as 'settings.notifications.push.blocked_description' };
+export { msg_settings_notifications_push_blocked_retry_button as 'settings.notifications.push.blocked_retry_button' };
+export { msg_settings_notifications_push_blocked_retrying as 'settings.notifications.push.blocked_retrying' };
 export { msg_settings_notifications_push_enabled_title as 'settings.notifications.push.enabled_title' };
 export { msg_settings_notifications_push_enabled_description as 'settings.notifications.push.enabled_description' };
 export { msg_settings_notifications_push_enable_title as 'settings.notifications.push.enable_title' };

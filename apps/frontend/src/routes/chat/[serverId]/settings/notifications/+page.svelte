@@ -285,13 +285,29 @@
 
       {#if pushSupported}
         {#if pushPermission === 'denied'}
-          <div class="rounded-lg border border-warning/60 bg-warning/10 px-4 py-3">
-            <p class="font-medium text-warning">
-              {m['settings.notifications.push.blocked_title']()}
-            </p>
-            <p class="mt-1 text-sm text-muted">
-              {m['settings.notifications.push.blocked_description']()}
-            </p>
+          <div
+            class="push-permission-blocked-card rounded-lg border border-warning/60 bg-warning/10 px-4 py-3"
+          >
+            <div class="min-w-0">
+              <p class="font-medium text-warning">
+                {m['settings.notifications.push.blocked_title']()}
+              </p>
+              <p class="mt-1 text-sm text-muted">
+                {m['settings.notifications.push.blocked_description']()}
+              </p>
+            </div>
+            <div class="push-permission-blocked-action mt-3 flex justify-center">
+              <Button
+                variant="accent"
+                size="sm"
+                onclick={handleEnablePush}
+                disabled={pushLoading}
+                loading={pushLoading}
+                loadingText={m['settings.notifications.push.blocked_retrying']()}
+              >
+                {m['settings.notifications.push.blocked_retry_button']()}
+              </Button>
+            </div>
           </div>
         {:else if pushSubscribed}
           <Hint tone="success">
@@ -524,3 +540,19 @@
     </div>
   </FormSection>
 </div>
+
+<style>
+  .push-permission-blocked-action :global(button) {
+    width: min(100%, 15rem);
+    min-width: min(100%, 13rem);
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+
+  @media (max-width: 640px) {
+    .push-permission-blocked-action :global(button) {
+      width: 100%;
+    }
+  }
+</style>

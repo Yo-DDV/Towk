@@ -483,7 +483,7 @@ func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
 	assert.Equal(t, "image/png", icons[4].(map[string]any)["type"])
 }
 
-func TestServePWAWebManifestKeepsStableInstallIdentityAcrossUserAgents(t *testing.T) {
+func TestServePWAWebManifestSelectsDisplayModeByUserAgent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockFS := fstest.MapFS{
@@ -491,8 +491,14 @@ func TestServePWAWebManifestKeepsStableInstallIdentityAcrossUserAgents(t *testin
 			Data: []byte(`{
   "id": "/",
   "name": "Towk",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "display_override": ["standalone"],
+  "shortcuts": [{ "name": "Notifications", "url": "/chat/notifications" }],
+  "share_target": { "action": "/chat/share-target", "method": "POST" },
+  "file_handlers": [{ "action": "/chat/share-target", "accept": { "text/plain": [".txt"] } }],
+  "launch_handler": { "client_mode": ["focus-existing", "auto"] },
   "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
 }`),
 		},
@@ -502,24 +508,83 @@ func TestServePWAWebManifestKeepsStableInstallIdentityAcrossUserAgents(t *testin
 		server.servePWAWebManifest(c, mockFS)
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/manifest.webmanifest", nil)
-	req.Header.Set(
-		"User-Agent",
-		"Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36",
-	)
-	w := httptest.NewRecorder()
-	server.router.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Empty(t, w.Header().Get("Vary"))
-
-	var manifest map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &manifest); err != nil {
-		t.Fatalf("unmarshal manifest: %v", err)
+	tests := []struct {
+		name            string
+		userAgent       string
+		wantDisplay     string
+		wantDisplayMode []any
+	}{
+		{
+			name:            "Android Chrome",
+			userAgent:       "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36",
+			wantDisplay:     "minimal-ui",
+			wantDisplayMode: []any{"minimal-ui", "standalone"},
+		},
+		{
+			name:            "Android Edge",
+			userAgent:       "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36 EdgA/141.0",
+			wantDisplay:     "minimal-ui",
+			wantDisplayMode: []any{"minimal-ui", "standalone"},
+		},
+		{
+			name:            "Android Samsung Internet",
+			userAgent:       "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 SamsungBrowser/27.0 Chrome/125.0 Mobile Safari/537.36",
+			wantDisplay:     "minimal-ui",
+			wantDisplayMode: []any{"minimal-ui", "standalone"},
+		},
+		{
+			name:            "Android Firefox",
+			userAgent:       "Mozilla/5.0 (Android 15; Mobile; rv:143.0) Gecko/143.0 Firefox/143.0",
+			wantDisplay:     "standalone",
+			wantDisplayMode: []any{"standalone"},
+		},
+		{
+			name:            "iPhone Chrome",
+			userAgent:       "Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) AppleWebKit/605.1.15 CriOS/141.0 Mobile/15E148 Safari/604.1",
+			wantDisplay:     "standalone",
+			wantDisplayMode: []any{"standalone"},
+		},
+		{
+			name:            "desktop Chrome",
+			userAgent:       "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36",
+			wantDisplay:     "standalone",
+			wantDisplayMode: []any{"standalone"},
+		},
 	}
-	assert.Equal(t, "/", manifest["id"])
-	assert.Equal(t, "standalone", manifest["display"])
-	assert.Equal(t, []any{"standalone"}, manifest["display_override"])
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/manifest.webmanifest", nil)
+			req.Header.Set("User-Agent", tt.userAgent)
+			w := httptest.NewRecorder()
+			server.router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "User-Agent", w.Header().Get("Vary"))
+
+			var manifest map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &manifest); err != nil {
+				t.Fatalf("unmarshal manifest: %v", err)
+			}
+			assert.Equal(t, "/", manifest["id"])
+			assert.Equal(t, "/", manifest["start_url"])
+			assert.Equal(t, "/", manifest["scope"])
+			assert.Equal(t, tt.wantDisplay, manifest["display"])
+			assert.Equal(t, tt.wantDisplayMode, manifest["display_override"])
+			assert.Equal(t, "/chat/share-target", manifest["share_target"].(map[string]any)["action"])
+			assert.Equal(t, "/chat/share-target", manifest["file_handlers"].([]any)[0].(map[string]any)["action"])
+
+			var originalManifest map[string]any
+			if err := json.Unmarshal(mockFS["manifest.webmanifest"].Data, &originalManifest); err != nil {
+				t.Fatalf("unmarshal original manifest: %v", err)
+			}
+			delete(originalManifest, "display")
+			delete(originalManifest, "display_override")
+			delete(manifest, "display")
+			delete(manifest, "display_override")
+			assert.Equal(t, originalManifest, manifest, "only display modes may change")
+		})
+	}
 }
 
 func TestFrontendFallbackDoesNotServeReservedBackendPrefixes(t *testing.T) {
