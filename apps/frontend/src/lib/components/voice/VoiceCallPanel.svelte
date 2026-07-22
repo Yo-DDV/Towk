@@ -654,6 +654,8 @@ Room sidebar panel for voice/video calls.
               ? m['voice.screen_title']({ name: participant.displayName })
               : participant.displayName,
           user: participant.avatarUser,
+          diagnosticsDirection:
+            kind === 'screen' ? (participant.isLocal ? 'outbound' : 'inbound') : undefined,
           onClose: () => setExpanded(false)
         });
       },

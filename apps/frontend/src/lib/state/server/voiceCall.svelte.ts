@@ -13,7 +13,6 @@ import {
   AudioPresets,
   type AudioCaptureOptions,
   ConnectionState,
-  ScreenSharePresets,
   VideoPreset,
   VideoQuality,
   DisconnectReason,
@@ -3287,7 +3286,7 @@ const CAMERA_ENCODING = {
 
 const CAMERA_LOW_LAYER = new VideoPreset(480, 360, 500_000, 30, 'medium');
 const CAMERA_MID_LAYER = new VideoPreset(960, 720, 1_800_000, 30, 'medium');
-const SCREEN_SHARE_LOW_LAYER = new VideoPreset(640, 360, 600_000, 30, 'medium');
+const SCREEN_SHARE_STANDARD_LAYER = new VideoPreset(1280, 720, 2_000_000, 30, 'high');
 
 const SCREEN_SHARE_ENCODING = {
   maxBitrate: 8_000_000,
@@ -3342,6 +3341,22 @@ function preferredCallVideoCodec(): VideoCodec {
   }
 }
 
+function senderSupportsVideoCodec(codecName: string): boolean {
+  try {
+    const capabilities = globalThis.RTCRtpSender?.getCapabilities?.('video');
+    if (!capabilities?.codecs.length) return false;
+    const expectedMimeType = `video/${codecName}`.toLowerCase();
+    return capabilities.codecs.some((codec) => codec.mimeType.toLowerCase() === expectedMimeType);
+  } catch {
+    return false;
+  }
+}
+
+function preferredScreenShareVideoCodec(): VideoCodec {
+  if (!isWebKitBasedClient() && senderSupportsVideoCodec('vp8')) return 'vp8';
+  return preferredCallVideoCodec();
+}
+
 function cameraSimulcastLayers() {
   if (isWebKitBasedClient()) return [];
   // Mobile hardware commonly has fewer concurrent encoder sessions. Two
@@ -3380,9 +3395,9 @@ function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOpt
     screenShareEncoding: highFrameRate
       ? HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING
       : SCREEN_SHARE_ENCODING,
-    screenShareSimulcastLayers: [SCREEN_SHARE_LOW_LAYER, ScreenSharePresets.h720fps30],
+    screenShareSimulcastLayers: [SCREEN_SHARE_STANDARD_LAYER],
     simulcast: !isWebKitBasedClient(),
-    videoCodec: preferredCallVideoCodec()
+    videoCodec: preferredScreenShareVideoCodec()
   };
 }
 

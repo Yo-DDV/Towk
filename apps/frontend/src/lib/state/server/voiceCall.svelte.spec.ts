@@ -2482,7 +2482,7 @@ describe('VoiceCallState', () => {
     expect(state.matchesActiveCall('R1', null)).toBe(false);
   });
 
-  it('publishes adaptive H.264 screen sharing at 30 FPS and requests browser-tab audio', async () => {
+  it('publishes adaptive high-resolution screen sharing at 30 FPS and requests browser-tab audio', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
@@ -2509,15 +2509,14 @@ describe('VoiceCallState', () => {
         red: true,
         screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 30, priority: 'high' },
         screenShareSimulcastLayers: [
-          {
-            encoding: { maxBitrate: 600_000, maxFramerate: 30, priority: 'medium' },
-            width: 640,
-            height: 360
-          },
-          ScreenSharePresets.h720fps30
+          expect.objectContaining({
+            encoding: { maxBitrate: 2_000_000, maxFramerate: 30, priority: 'high' },
+            width: 1280,
+            height: 720
+          })
         ],
         simulcast: true,
-        videoCodec: 'h264'
+        videoCodec: 'vp8'
       }
     );
     expect(state.isScreenShareEnabled).toBe(true);
@@ -2577,6 +2576,46 @@ describe('VoiceCallState', () => {
     await state.join('wss://livekit.example.test', 'R1');
 
     expect(lastRoomOptions?.publishDefaults?.videoCodec).toBe('vp8');
+  });
+
+  it('prefers VP8 for desktop screen sharing while keeping H.264 for camera publication', async () => {
+    vi.stubGlobal(
+      'RTCRtpSender',
+      class MockRTCRtpSender {
+        static getCapabilities(): RTCRtpCapabilities {
+          return {
+            codecs: [
+              {
+                mimeType: 'video/H264',
+                clockRate: 90_000,
+                sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1'
+              },
+              { mimeType: 'video/VP8', clockRate: 90_000 }
+            ],
+            headerExtensions: []
+          };
+        }
+      }
+    );
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleScreenShare();
+
+    expect(lastRoomOptions?.publishDefaults?.videoCodec).toBe('h264');
+    expect(
+      vi.mocked(lastRoom!.localParticipant.setScreenShareEnabled).mock.calls[0]?.[2]
+    ).toMatchObject({
+      videoCodec: 'vp8',
+      screenShareSimulcastLayers: [
+        {
+          encoding: { maxBitrate: 2_000_000, maxFramerate: 30, priority: 'high' },
+          width: 1280,
+          height: 720
+        }
+      ]
+    });
   });
 
   it('limits mobile camera publication to two 30 FPS spatial layers', async () => {

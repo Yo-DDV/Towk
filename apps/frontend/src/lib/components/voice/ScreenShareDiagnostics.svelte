@@ -47,6 +47,7 @@ strictly local, starts only while this component is mounted, and stops on close.
     let counters: ScreenShareDiagnosticsCounters | null = null;
     let cancelled = false;
     let inFlight = false;
+    let consecutiveFailures = 0;
     sample = null;
     history = [];
     loading = true;
@@ -63,13 +64,18 @@ strictly local, starts only while this component is mounted, and stops on close.
           previous: counters
         });
         if (cancelled) return;
+        consecutiveFailures = 0;
         counters = result.counters;
-        partialSample = screenShareDiagnosticsSampleIsPartial(result.sample);
-        sample = mergeScreenShareDiagnosticsSample(sample, result.sample);
-        history = appendScreenShareDiagnosticsSample(history, sample);
+        const nextSample = mergeScreenShareDiagnosticsSample(sample, result.sample);
+        partialSample = screenShareDiagnosticsSampleIsPartial(nextSample);
+        sample = nextSample;
+        history = appendScreenShareDiagnosticsSample(history, nextSample);
         unavailable = false;
       } catch {
-        if (!cancelled) unavailable = true;
+        if (!cancelled) {
+          consecutiveFailures += 1;
+          unavailable = !sample || consecutiveFailures >= 2;
+        }
       } finally {
         if (!cancelled) loading = false;
         inFlight = false;
@@ -283,6 +289,10 @@ strictly local, starts only while this component is mounted, and stops on close.
     onclose();
   }
 
+  function stopPanelInteraction(event: Event): void {
+    event.stopPropagation();
+  }
+
   const mountPanelInDocumentBody: Attachment<HTMLDivElement> = (node) => {
     if (typeof document === 'undefined') return;
 
@@ -314,8 +324,14 @@ strictly local, starts only while this component is mounted, and stops on close.
   aria-modal="true"
   aria-label={m['voice.screen_stats_title']()}
   aria-describedby={`${panelId}-privacy`}
-  class="screen-share-diagnostics-panel @container fixed z-[9999] flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-text/15 bg-background/95 text-text shadow-2xl backdrop-blur-xl"
+  tabindex="-1"
+  class="screen-share-diagnostics-panel @container fixed z-[10000] flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-text/15 bg-background/95 text-text shadow-2xl backdrop-blur-xl"
   data-testid="screen-share-diagnostics-panel"
+  onpointerdown={stopPanelInteraction}
+  onclick={stopPanelInteraction}
+  onkeydown={stopPanelInteraction}
+  ontouchstart={stopPanelInteraction}
+  onwheel={stopPanelInteraction}
   {@attach mountPanelInDocumentBody}
 >
   <header
@@ -731,6 +747,12 @@ strictly local, starts only while this component is mounted, and stops on close.
     left: calc(var(--diagnostics-safe-left) + 0.5rem);
     height: calc(100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem);
     height: calc(100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem);
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .screen-share-diagnostics-panel :global([class*='overflow-y-auto']) {
+    -webkit-overflow-scrolling: touch;
   }
 
   @media (min-width: 720px) {

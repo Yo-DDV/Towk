@@ -188,7 +188,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     rendered.unmount();
   });
 
-  it('keeps visible cards stable when the next browser sample is partial', async () => {
+  it('keeps visible cards stable without a transient warning when the next browser sample is partial', async () => {
     vi.useFakeTimers({ now: 1_000 });
     const getRTCStatsReport = vi
       .fn<() => Promise<RTCStatsReport>>()
@@ -212,7 +212,38 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
     expect(panel.textContent).toContain('1920 × 1080');
     expect(panel.textContent).toContain('30 FPS');
-    expect(panel.textContent).toContain('Partial sample');
+    expect(panel.textContent).not.toContain('Partial sample');
+    rendered.unmount();
+  });
+
+  it('keeps the last successful sample visible through one transient stats failure', async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const getRTCStatsReport = vi
+      .fn<() => Promise<RTCStatsReport | undefined>>()
+      .mockResolvedValueOnce(statsReport(0))
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValue(statsReport(2));
+    const rendered = render(ScreenShareDiagnostics, {
+      props: {
+        track: { getRTCStatsReport } as unknown as Track,
+        direction: 'inbound',
+        panelId: 'diagnostics-transient-failure-test',
+        onclose: vi.fn()
+      }
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    const panel = document.getElementById('diagnostics-transient-failure-test')!;
+    expect(panel.textContent).toContain('1920 × 1080');
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).not.toContain('Towk will retry on the next sample.');
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(3);
+    expect(panel.textContent).toContain('1920 × 1080');
     rendered.unmount();
   });
 });

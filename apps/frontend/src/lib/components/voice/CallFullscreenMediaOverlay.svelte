@@ -3,11 +3,24 @@
   import * as m from '$lib/i18n/messages';
   import { callFullscreenMedia } from '$lib/state/callFullscreenMedia.svelte';
   import VideoThumbnail from './VideoThumbnail.svelte';
+  import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
 
   let closeButton = $state<HTMLButtonElement | null>(null);
+  let diagnosticsOpen = $state(false);
+  let currentMediaKey = $state<string | null>(null);
+  let diagnosticsPanelId = $derived(
+    callFullscreenMedia.current
+      ? `fullscreen-screen-share-diagnostics-${encodeURIComponent(callFullscreenMedia.current.participantKey)}`
+      : 'fullscreen-screen-share-diagnostics'
+  );
 
   function close(): void {
     callFullscreenMedia.close();
+  }
+
+  function toggleDiagnostics(event: MouseEvent): void {
+    event.stopPropagation();
+    diagnosticsOpen = !diagnosticsOpen;
   }
 
   function handleKeydown(event: KeyboardEvent): void {
@@ -34,6 +47,14 @@
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   });
+
+  $effect(() => {
+    const media = callFullscreenMedia.current;
+    const nextKey = media ? `${media.roomId}:${media.participantKey}:${media.kind}` : null;
+    if (currentMediaKey === nextKey) return;
+    currentMediaKey = nextKey;
+    diagnosticsOpen = false;
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -53,6 +74,22 @@
       <h2 id="call-fullscreen-media-title" class="min-w-0 flex-1 truncate text-sm font-medium">
         {media.name}
       </h2>
+      {#if media.kind === 'screen' && media.diagnosticsDirection}
+        <button
+          type="button"
+          class={[
+            'flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-white transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white active:bg-white/25',
+            diagnosticsOpen ? 'bg-white/25' : 'bg-white/10 hover:bg-white/20'
+          ]}
+          aria-label={m['voice.screen_stats_open']()}
+          aria-controls={diagnosticsOpen ? diagnosticsPanelId : undefined}
+          aria-expanded={diagnosticsOpen}
+          data-testid="call-fullscreen-screen-share-stats-button"
+          onclick={toggleDiagnostics}
+        >
+          <span class="iconify text-xl uil--chart-line" aria-hidden="true"></span>
+        </button>
+      {/if}
       <button
         bind:this={closeButton}
         type="button"
@@ -74,6 +111,15 @@
         fill
       />
     </main>
+
+    {#if media.kind === 'screen' && media.diagnosticsDirection && diagnosticsOpen}
+      <ScreenShareDiagnostics
+        track={media.track}
+        direction={media.diagnosticsDirection}
+        panelId={diagnosticsPanelId}
+        onclose={() => (diagnosticsOpen = false)}
+      />
+    {/if}
   </div>
 {/if}
 
