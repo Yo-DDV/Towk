@@ -42,23 +42,42 @@ export type DMData = {
 };
 
 const ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS = 64;
+const roomDataMemorySnapshots = new SvelteMap<string, RoomData>();
 
-function roomDataSnapshotKey(serverId: string | null | undefined, roomId: string): string {
-  return `${serverId ?? ''}\u0000${roomId}`;
+function canonicalRoomDataServerOrigin(serverUrl: string | null | undefined): string {
+  if (!serverUrl) return '';
+  try {
+    return new URL(serverUrl).origin;
+  } catch {
+    return serverUrl;
+  }
+}
+
+function roomDataSnapshotKey(
+  serverId: string | null | undefined,
+  serverUrl: string | null | undefined,
+  userId: string | null | undefined,
+  roomId: string
+): string {
+  return `${serverId ?? ''}\u0000${canonicalRoomDataServerOrigin(serverUrl)}\u0000${userId ?? ''}\u0000${roomId}`;
 }
 
 function rememberRoomDataSnapshot(
-  snapshots: SvelteMap<string, RoomData>,
   key: string,
   roomData: RoomData
 ): void {
-  if (snapshots.has(key)) snapshots.delete(key);
-  snapshots.set(key, roomData);
-  while (snapshots.size > ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS) {
-    const oldestKey = snapshots.keys().next().value;
+  if (roomDataMemorySnapshots.has(key)) roomDataMemorySnapshots.delete(key);
+  roomDataMemorySnapshots.set(key, roomData);
+  while (roomDataMemorySnapshots.size > ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS) {
+    const oldestKey = roomDataMemorySnapshots.keys().next().value;
     if (!oldestKey) break;
-    snapshots.delete(oldestKey);
+    roomDataMemorySnapshots.delete(oldestKey);
   }
+}
+
+/** Test-only: clear the module-level room metadata snapshot cache. */
+export function __resetRoomDataMemorySnapshotsForTests(): void {
+  roomDataMemorySnapshots.clear();
 }
 
 /**
@@ -92,7 +111,6 @@ export function useRoomData(getProps: () => { roomId: string }) {
   let dmData = $state<DMData | null>(null);
   const roomLoadId = { current: 0 };
   const dmLoadId = { current: 0 };
-  const roomDataMemorySnapshots = new SvelteMap<string, RoomData>();
 
   const isDM = $derived(roomData?.room.type === RoomKind.DM);
   const isRoomLoading = $derived(roomData === undefined);
@@ -106,7 +124,15 @@ export function useRoomData(getProps: () => { roomId: string }) {
     const thisLoadId = ++roomLoadId.current;
     const currentRoomId = roomId;
     const currentConnection = connection();
-    const snapshotKey = roomDataSnapshotKey(currentConnection.serverId, currentRoomId);
+    const currentUserId = currentConnection.serverId
+      ? (serverRegistry.tryGetStore(currentConnection.serverId)?.currentUser.user?.id ?? null)
+      : null;
+    const snapshotKey = roomDataSnapshotKey(
+      currentConnection.serverId,
+      currentConnection.connectBaseUrl,
+      currentUserId,
+      currentRoomId
+    );
 
     // Don't reset roomData to undefined when staying in the same room (reconnect case).
     untrack(() => {
@@ -154,7 +180,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
           canBanRoomMembers: loadedRoom.canBanRoomMembers
         };
         roomData = nextRoomData;
-        rememberRoomDataSnapshot(roomDataMemorySnapshots, snapshotKey, nextRoomData);
+        rememberRoomDataSnapshot(snapshotKey, nextRoomData);
       })
       .catch((err) => {
         if (roomLoadId.current !== thisLoadId) return;
