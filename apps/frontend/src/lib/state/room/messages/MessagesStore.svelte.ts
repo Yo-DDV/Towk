@@ -71,6 +71,8 @@ function eventCacheKey(roomId: string, eventId: string): string {
 
 const TIMELINE_MEMORY_SNAPSHOT_LIMIT = 120;
 const TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS = 32;
+const INITIAL_MEDIA_PREVIEW_PREWARM_LIMIT = 12;
+const INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS = 320;
 const timelineMemorySnapshots = new SvelteMap<string, TimelineSnapshot>();
 let transientTimelineSnapshotScopeSequence = 0;
 
@@ -137,6 +139,78 @@ function sameEventList(a: readonly RoomEventView[], b: readonly RoomEventView[])
     if (eventFingerprint(a[i]) !== eventFingerprint(b[i])) return false;
   }
   return true;
+}
+
+function mediaPreviewUrlForAttachment(
+  attachment: MessagePostedPayload['attachments'][number]
+): string | null {
+  if (typeof attachment.contentType !== 'string') return null;
+
+  if (attachment.contentType.startsWith('image/')) {
+    if (attachment.contentType === 'image/gif' && attachment.videoProcessing?.thumbnailAssetUrl) {
+      return attachment.videoProcessing.thumbnailAssetUrl.url;
+    }
+    return attachment.thumbnailAssetUrl?.url ?? attachment.assetUrl?.url ?? null;
+  }
+
+  if (attachment.contentType.startsWith('video/')) {
+    return (
+      attachment.videoProcessing?.thumbnailAssetUrl?.url ?? attachment.thumbnailAssetUrl?.url ?? null
+    );
+  }
+
+  return null;
+}
+
+function initialMediaPreviewUrls(rawEvents: readonly RawEvent[]): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  const events = unmask(rawEvents);
+
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (!isMessagePostedPayload(event.event)) continue;
+    for (const attachment of event.event.attachments ?? []) {
+      const url = mediaPreviewUrlForAttachment(attachment);
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+      if (urls.length >= INITIAL_MEDIA_PREVIEW_PREWARM_LIMIT) return urls;
+    }
+  }
+
+  return urls;
+}
+
+function prewarmImagePreview(url: string): Promise<void> {
+  if (typeof Image === 'undefined') return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.loading = 'eager';
+
+    const finish = () => resolve();
+    image.onload = finish;
+    image.onerror = finish;
+    image.src = url;
+
+    if (image.complete && image.naturalWidth > 0) {
+      void image.decode?.().then(finish, finish);
+    }
+  });
+}
+
+function prewarmInitialMediaPreviewUrls(rawEvents: readonly RawEvent[]): Promise<void> | null {
+  const urls = initialMediaPreviewUrls(rawEvents);
+  if (urls.length === 0) return null;
+
+  return Promise.race([
+    Promise.allSettled(urls.map((url) => prewarmImagePreview(url))).then(() => undefined),
+    new Promise<void>((resolve) =>
+      setTimeout(resolve, INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS)
+    )
+  ]);
 }
 
 function isContinuityEvent(
@@ -1283,19 +1357,21 @@ export class MessagesStore {
     }
   }
 
-  private restoreSnapshot(
+  private memorySnapshot(
     scope: MessageScope,
     roomId: string,
     threadRootEventId: string | null
-  ): boolean {
+  ): TimelineSnapshot | null {
     const ownerKey =
       privateTimelineSnapshotOwnerKey(this.getPrivateDataScope?.()) ??
       this.#transientTimelineSnapshotOwnerKey;
-    const snapshot = timelineMemorySnapshots.get(
-      timelineSnapshotKey(ownerKey, scope, roomId, threadRootEventId)
-    );
-    if (!snapshot || snapshot.events.length === 0) return false;
+    const snapshot =
+      timelineMemorySnapshots.get(timelineSnapshotKey(ownerKey, scope, roomId, threadRootEventId)) ??
+      null;
+    return snapshot && snapshot.events.length > 0 ? snapshot : null;
+  }
 
+  private applySnapshot(snapshot: TimelineSnapshot, scope: MessageScope): void {
     this.events = [...snapshot.events];
     this.seenIds = new SvelteSet(snapshot.events.map((event) => event.id));
     this.#cachedEventIds = new SvelteSet(snapshot.events.map((event) => event.id));
@@ -1311,6 +1387,17 @@ export class MessagesStore {
     this.initialLoadFailed = false;
     if (scope === 'thread') this.sortThreadEvents();
     else this.sortRoomEvents();
+  }
+
+  private restoreSnapshot(
+    scope: MessageScope,
+    roomId: string,
+    threadRootEventId: string | null
+  ): boolean {
+    const snapshot = this.memorySnapshot(scope, roomId, threadRootEventId);
+    if (!snapshot) return false;
+
+    this.applySnapshot(snapshot, scope);
     return true;
   }
 
@@ -1479,16 +1566,43 @@ export class MessagesStore {
     return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true, changed };
   }
 
-  private resetAndFetchLatest(
+  private async resetAndFetchLatest(
     options: { preserveCurrentEvents?: boolean; transitionCarryOver?: boolean } = {}
   ): Promise<boolean> {
     const thisLoad = this.startLoad();
     this.#pendingAuthoritativeLoadId = thisLoad;
     this.initialLoadFailed = false;
-    const restored = this.restoreSnapshot('room', this.roomId, null);
-    if (restored) {
-      this.#transitionCarryOverEventIds.clear();
-      this.isInitialLoading = false;
+    const snapshot = this.memorySnapshot('room', this.roomId, null);
+    if (snapshot) {
+      const authoritativeFetch = this.fetchLatest(thisLoad);
+      if (options.preserveCurrentEvents && this.events.length > 0) {
+        this.#transitionCarryOverEventIds = options.transitionCarryOver
+          ? new SvelteSet(this.events.map((event) => event.id))
+          : new SvelteSet();
+        this.previewEvents.clear();
+        this.pendingPreviewFetches.clear();
+        this.optimisticReactions.clearAll();
+        this.optimisticThreadFollows.clearAll();
+        this.oldestCursor = undefined;
+        this.newestCursor = undefined;
+        this.hasReachedStart = false;
+        this.isLoadingMore = false;
+        this.isShowingCachedData = false;
+        this.#cachedEventIds.clear();
+        this.isInitialLoading = true;
+      } else {
+        this.resetState();
+        this.isInitialLoading = true;
+      }
+      const snapshotMediaPrewarm = prewarmInitialMediaPreviewUrls(snapshot.events);
+      if (snapshotMediaPrewarm) await snapshotMediaPrewarm;
+      if (this.isStale(thisLoad) || this.scope !== 'room') return false;
+      if (this.#pendingAuthoritativeLoadId === thisLoad) {
+        this.applySnapshot(snapshot, 'room');
+        this.#transitionCarryOverEventIds.clear();
+        this.isInitialLoading = false;
+      }
+      return authoritativeFetch;
     } else if (options.preserveCurrentEvents && this.events.length > 0) {
       this.#transitionCarryOverEventIds = options.transitionCarryOver
         ? new SvelteSet(this.events.map((event) => event.id))
@@ -1525,6 +1639,9 @@ export class MessagesStore {
         if (page) {
           const completePage = await this.completeInitialRoomWindowBeforePublish(thisLoad, page);
           if (!completePage) return false;
+          const mediaPrewarm = prewarmInitialMediaPreviewUrls(completePage.events);
+          if (mediaPrewarm) await mediaPrewarm;
+          if (this.isStale(thisLoad)) return false;
           this.replaceWithFetchedAndUpdateCursors(completePage);
           this.hasReachedStart = !completePage.hasOlder;
         }
