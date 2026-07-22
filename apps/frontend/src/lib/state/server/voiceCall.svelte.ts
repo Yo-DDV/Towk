@@ -2011,7 +2011,7 @@ export class VoiceCallState {
         videoEncoding: CAMERA_ENCODING,
         videoSimulcastLayers: cameraSimulcastLayers()
       },
-      adaptiveStream: true,
+      adaptiveStream: { pixelDensity: 'screen' },
       dynacast: true,
       disconnectOnPageLeave: true,
       reconnectPolicy: new PersistentReconnectPolicy()
@@ -3290,13 +3290,13 @@ const CAMERA_MID_LAYER = new VideoPreset(960, 720, 1_800_000, 30, 'medium');
 const SCREEN_SHARE_LOW_LAYER = new VideoPreset(640, 360, 600_000, 30, 'medium');
 
 const SCREEN_SHARE_ENCODING = {
-  maxBitrate: 5_000_000,
+  maxBitrate: 8_000_000,
   maxFramerate: 30,
   priority: 'high' as const
 };
 
 const HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING = {
-  maxBitrate: 8_000_000,
+  maxBitrate: 12_000_000,
   maxFramerate: 60,
   priority: 'high' as const
 };
@@ -3373,7 +3373,7 @@ function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOpt
   return {
     audioPreset: AudioPresets.musicHighQualityStereo,
     backupCodec: false,
-    degradationPreference: 'maintain-framerate',
+    degradationPreference: 'maintain-resolution',
     dtx: true,
     forceStereo: true,
     red: true,

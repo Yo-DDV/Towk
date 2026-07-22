@@ -8,6 +8,7 @@
   import { createPresenceCache } from '$lib/state/presenceCache.svelte';
   import { createUserProfileCache } from '$lib/state/userProfiles.svelte';
   import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
+  import type { ServerStateStore } from '$lib/state/server/store.svelte';
 
   type VoiceCallPanelProps = {
     roomId: string;
@@ -23,7 +24,8 @@
     interrupted = false,
     jitterWarning = false,
     simulateMobileCapabilities = false,
-    microphoneProcessing = null
+    microphoneProcessing = null,
+    onStoreSeeded = null
   }: {
     layout?: 'sidebar' | 'stage';
     scenario?:
@@ -34,6 +36,7 @@
     jitterWarning?: boolean;
     simulateMobileCapabilities?: boolean;
     microphoneProcessing?: MicrophoneProcessingStatus | null;
+    onStoreSeeded?: ((store: ServerStateStore) => void) | null;
   } = $props();
 
   const roomId = 'storybook-call-room';
@@ -319,6 +322,7 @@
       store.voiceCall.selectedVideoDeviceId = 'front';
     }
     store.voiceCall.participants = participantsForScenario();
+    onStoreSeeded?.(store);
   }
 
   function suppressScreenShareForStory(): () => void {

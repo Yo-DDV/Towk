@@ -39,16 +39,7 @@ strictly local, starts only while this component is mounted, and stops on close.
   let loading = $state(true);
   let unavailable = $state(false);
   let partialSample = $state(false);
-  let clock = $state(Date.now());
   let formattingLocale = $derived(getFormattingLocale());
-
-  $effect(() => {
-    clock = Date.now();
-    const interval = setInterval(() => {
-      clock = Date.now();
-    }, 1_000);
-    return () => clearInterval(interval);
-  });
 
   $effect(() => {
     const activeTrack = track;
@@ -127,13 +118,6 @@ strictly local, starts only while this component is mounted, and stops on close.
   function formatDuration(value: number | null): string {
     if (value === null) return '—';
     return value >= 1_000 ? `${formatNumber(value / 1_000, 1)} s` : `${formatNumber(value)} ms`;
-  }
-
-  function sampleAgeLabel(current: ScreenShareDiagnosticsSample): string {
-    const seconds = Math.max(0, Math.floor((clock - current.collectedAt) / 1_000));
-    return seconds < 1
-      ? m['voice.screen_stats_updated_now']()
-      : m['voice.screen_stats_updated_seconds']({ seconds: formatNumber(seconds) });
   }
 
   function healthLabel(health: ScreenShareDiagnosticsHealth): string {
@@ -235,6 +219,17 @@ strictly local, starts only while this component is mounted, and stops on close.
     read: (item: ScreenShareDiagnosticsSample) => number | null
   ): Array<{ collectedAt: number; value: number | null }> {
     return items.map((item) => ({ collectedAt: item.collectedAt, value: read(item) }));
+  }
+
+  function chartTarget(...values: Array<number | null>): number | null {
+    const finiteValues = values.filter(
+      (item): item is number => item !== null && Number.isFinite(item)
+    );
+    return finiteValues.length ? Math.max(...finiteValues) : null;
+  }
+
+  function fpsChartTarget(current: ScreenShareDiagnosticsSample): number {
+    return Math.max(current.sourceFramesPerSecond ?? 0, current.framesPerSecond ?? 0, 30);
   }
 
   function diagnosticHighlights(current: ScreenShareDiagnosticsSample): string[] {
@@ -374,7 +369,7 @@ strictly local, starts only while this component is mounted, and stops on close.
       </div>
     {:else if sample}
       <div class="space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <span
             class={[
               'rounded-full border px-2.5 py-1 text-xs font-semibold',
@@ -382,10 +377,6 @@ strictly local, starts only while this component is mounted, and stops on close.
             ]}
           >
             {healthLabel(sample.health)}
-          </span>
-          <span class="flex items-center gap-1.5 text-[10px] font-medium text-muted uppercase">
-            <span class="h-1.5 w-1.5 rounded-full bg-success" aria-hidden="true"></span>
-            {m['voice.screen_stats_live']()} · {sampleAgeLabel(sample)}
           </span>
         </div>
 
@@ -478,18 +469,25 @@ strictly local, starts only while this component is mounted, and stops on close.
               label={m['voice.screen_stats_bitrate']()}
               value={formatBitrate(sample.bitrateBps)}
               points={trendPoints(history, (item) => item.bitrateBps)}
+              targetValue={chartTarget(
+                sample.bitrateBps,
+                sample.targetBitrateBps,
+                sample.availableBitrateBps
+              )}
             />
             <ScreenShareSparkline
               label={m['voice.screen_stats_fps']()}
               value={`${formatNumber(sample.framesPerSecond, 1)} FPS`}
               points={trendPoints(history, (item) => item.framesPerSecond)}
               color="warning"
+              targetValue={fpsChartTarget(sample)}
             />
             <ScreenShareSparkline
               label={m['voice.screen_stats_packet_loss']()}
               value={formatPercent(sample.packetLossPercent)}
               points={trendPoints(history, (item) => item.packetLossPercent)}
               color="danger"
+              targetValue={5}
             />
           </div>
         </section>

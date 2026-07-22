@@ -1258,6 +1258,7 @@ describe('VoiceCallState', () => {
         }
       ]
     });
+    expect(lastRoomOptions?.adaptiveStream).toEqual({ pixelDensity: 'screen' });
     expect(lastRoomOptions?.publishDefaults?.audioPreset?.maxBitrate).toBe(24_000);
     expect(microphoneSetProcessor).toHaveBeenCalledOnce();
     expect(state.microphoneProcessing).toEqual({
@@ -2502,11 +2503,11 @@ describe('VoiceCallState', () => {
       {
         audioPreset: AudioPresets.musicHighQualityStereo,
         backupCodec: false,
-        degradationPreference: 'maintain-framerate',
+        degradationPreference: 'maintain-resolution',
         dtx: true,
         forceStereo: true,
         red: true,
-        screenShareEncoding: { maxBitrate: 5_000_000, maxFramerate: 30, priority: 'high' },
+        screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 30, priority: 'high' },
         screenShareSimulcastLayers: [
           {
             encoding: { maxBitrate: 600_000, maxFramerate: 30, priority: 'medium' },
@@ -2553,7 +2554,7 @@ describe('VoiceCallState', () => {
         resolution: { width: 1920, height: 1080, frameRate: 60 }
       }),
       expect.objectContaining({
-        screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 60, priority: 'high' }
+        screenShareEncoding: { maxBitrate: 12_000_000, maxFramerate: 60, priority: 'high' }
       })
     );
   });

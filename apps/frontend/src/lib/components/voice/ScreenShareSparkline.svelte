@@ -15,12 +15,16 @@ against a moving array index.
     label,
     value,
     points,
-    color = 'accent'
+    color = 'accent',
+    targetValue = null,
+    zeroBaseline = true
   }: {
     label: string;
     value: string;
     points: ScreenShareSparklinePoint[];
     color?: 'accent' | 'warning' | 'danger';
+    targetValue?: number | null;
+    zeroBaseline?: boolean;
   } = $props();
 
   const width = 240;
@@ -35,9 +39,16 @@ against a moving array index.
   let finiteValues = $derived(
     visiblePoints.map((item) => item.value).filter((item): item is number => item !== null)
   );
-  let minimum = $derived(finiteValues.length ? Math.min(...finiteValues) : 0);
-  let maximum = $derived(finiteValues.length ? Math.max(...finiteValues) : 1);
-  let spread = $derived(Math.max(maximum - minimum, Math.abs(maximum) * 0.08, 1));
+  let domain = $derived.by(() => {
+    const values = [...finiteValues];
+    if (targetValue !== null && Number.isFinite(targetValue)) values.push(targetValue);
+    const minimum = zeroBaseline ? 0 : values.length ? Math.min(...values) : 0;
+    let maximum = values.length ? Math.max(...values) : 1;
+    if (maximum <= minimum) {
+      maximum = minimum + Math.max(Math.abs(minimum) * 0.15, 1);
+    }
+    return { minimum, maximum, spread: maximum - minimum };
+  });
   let colorClass = $derived(
     color === 'danger' ? 'text-danger' : color === 'warning' ? 'text-warning' : 'text-accent'
   );
@@ -48,11 +59,21 @@ against a moving array index.
       Math.min(Math.max((collectedAt - windowStart) / windowMs, 0), 1) *
         (width - horizontalPadding * 2);
     const y =
-      height - verticalPadding - ((value - minimum) / spread) * (height - verticalPadding * 2);
+      height -
+      verticalPadding -
+      ((value - domain.minimum) / domain.spread) * (height - verticalPadding * 2);
     return { x, y };
   }
 
   let linePath = $derived.by(() => {
+    const drawablePoints = visiblePoints.filter(
+      (item): item is ScreenShareSparklinePoint & { value: number } => item.value !== null
+    );
+    if (drawablePoints.length === 1) {
+      const { y } = point(drawablePoints[0].collectedAt, drawablePoints[0].value);
+      return `M ${horizontalPadding} ${y.toFixed(2)} H ${width - horizontalPadding}`;
+    }
+
     let path = '';
     let drawing = false;
     visiblePoints.forEach((item) => {

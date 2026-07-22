@@ -357,6 +357,45 @@ Room sidebar panel for voice/video calls.
   let secondaryStageTiles = $derived(
     featuredStageTile ? stageTiles.filter((tile) => tile.key !== featuredStageTile.key) : []
   );
+  let lastFeaturedStageQualityRequest = $state<{ key: string; track: Track } | null>(null);
+
+  function featuredStageMedia(
+    tile: StageTile
+  ): { kind: 'screen' | 'camera'; track: Track | null } | null {
+    switch (tile.kind) {
+      case 'screen':
+        return { kind: 'screen', track: tile.participant.screenShareTrack };
+      case 'video':
+        return { kind: 'camera', track: tile.participant.videoTrack };
+      default:
+        return null;
+    }
+  }
+
+  $effect(() => {
+    if (!isInThisCall || !isStageLayout || !featuredStageTile) {
+      lastFeaturedStageQualityRequest = null;
+      return;
+    }
+
+    const { participant } = featuredStageTile;
+    const media = featuredStageMedia(featuredStageTile);
+    if (participant.isLocal || !media?.track) {
+      lastFeaturedStageQualityRequest = null;
+      return;
+    }
+
+    const requestKey = `${participant.key}:${media.kind}`;
+    if (
+      lastFeaturedStageQualityRequest?.key === requestKey &&
+      lastFeaturedStageQualityRequest.track === media.track
+    ) {
+      return;
+    }
+
+    lastFeaturedStageQualityRequest = { key: requestKey, track: media.track };
+    voiceCallState.setParticipantMediaExpanded(participant.key, media.kind, true);
+  });
 
   $effect(() => {
     if (

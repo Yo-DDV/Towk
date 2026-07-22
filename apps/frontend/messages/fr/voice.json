@@ -180,6 +180,6 @@
     "screen_share_frame_rate_standard": "Stable · jusqu’à 30 FPS",
     "screen_share_frame_rate_high": "Mouvement fluide · jusqu’à 60 FPS",
     "screen_share_frame_rate_unavailable": "La haute fréquence d’images n’est pas disponible dans ce navigateur",
-    "screen_stats_local_only": "Métriques locales en direct · historique de 60 secondes · aucun envoi de données"
+    "screen_stats_local_only": "Métriques locales · historique de 60 secondes · aucun envoi de données"
   }
 }

@@ -159,7 +159,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     rendered.unmount();
   });
 
-  it('ages the last successful sample while a later collection is stalled', async () => {
+  it('keeps the last successful sample visible while a later collection is stalled', async () => {
     vi.useFakeTimers({ now: 1_000 });
     const stalledReport = new Promise<RTCStatsReport>(() => {});
     const getRTCStatsReport = vi
@@ -177,11 +177,14 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     const panel = document.getElementById('diagnostics-age-test')!;
-    expect(panel.textContent).toContain('Updated now');
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).not.toContain('Live');
+    expect(panel.textContent).not.toContain('Updated');
 
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
-    expect(panel.textContent).toContain('Updated 5 s ago');
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).not.toContain('Updated');
     rendered.unmount();
   });
 

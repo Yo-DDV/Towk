@@ -452,6 +452,26 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(screenShareControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
   });
 
+  it('requests the high receiver layer for a featured remote screen share', async () => {
+    const setParticipantMediaExpanded = vi.fn();
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'screen',
+        onStoreSeeded: (store) => {
+          vi.spyOn(store.voiceCall, 'setParticipantMediaExpanded').mockImplementation(
+            setParticipantMediaExpanded
+          );
+        }
+      }
+    });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="call-featured-stage-card"]')).not.toBeNull();
+      expect(setParticipantMediaExpanded).toHaveBeenCalledWith('dana', 'screen', true);
+    });
+  });
+
   it('distinguishes two connections from the same account and exposes call audio control', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'devices' }
