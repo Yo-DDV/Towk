@@ -140,7 +140,7 @@ describe('EventList jump completion', () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
     expect(
@@ -154,14 +154,14 @@ describe('EventList jump completion', () => {
       scrollToEventId: null
     });
 
-    await vi.waitFor(() => {
-      expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
-      expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
-    });
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+    );
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
     await expect.element(page.getByText('msg-new', { exact: true })).toBeInTheDocument();
   });
 
-  it('does not bottom-align the carried-over timeline during a room switch', async () => {
+  it('keeps the carried-over timeline masked during a room switch', async () => {
     render(EventListTestHarness, {
       props: {
         roomId: 'room-new',
@@ -175,9 +175,44 @@ describe('EventList jump completion', () => {
 
     expect(carryover).toBeInstanceOf(HTMLElement);
     expect(carryover?.classList.contains('mt-auto')).toBe(false);
+    expect(carryover?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
   });
 
-  it('keeps the previous rendered window mounted during a room switch when carry-over exists', async () => {
+  it('keeps the previous rendered window mounted but hidden during a room switch', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    await rendered.rerender({
+      roomId: 'room-new',
+      renderedRoomId: 'room-old',
+      eventIds: ['msg-old'],
+      scrollToEventId: null
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+    );
+
+    expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')?.getAttribute('aria-hidden')).toBe(
+      'true'
+    );
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
+  });
+
+  it('shows a room switch mask when rendering starts already in carry-over mode', async () => {
     render(EventListTestHarness, {
       props: {
         roomId: 'room-new',
@@ -187,7 +222,7 @@ describe('EventList jump completion', () => {
       }
     });
 
-    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
   });

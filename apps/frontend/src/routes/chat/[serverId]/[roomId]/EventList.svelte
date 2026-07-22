@@ -143,6 +143,8 @@
   let settledRoomId = $state<string | null>(null);
   let roomRevealActive = $state(false);
   let roomRevealTimer: ReturnType<typeof setTimeout> | null = null;
+  let roomTransitionMaskActive = $state(false);
+  let roomTransitionMaskOperation = 0;
 
   // State for smart scroll behavior (when not alwaysScrollToBottom)
   let shouldScrollToBottom = $state(true);
@@ -197,6 +199,7 @@
   const renderedTimelineRoomId = $derived(renderedRoomId ?? roomId);
   const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
   const isRoomSwitching = $derived(!isCurrentRoomWindowRendered);
+  const showTimelineTransitionMask = $derived(isRoomSwitching || roomTransitionMaskActive);
 
   function startRoomReveal() {
     if (roomRevealTimer) {
@@ -213,6 +216,31 @@
         roomRevealTimer = null;
       }, motionDuration(MOTION_DURATION.expressive) + 40);
     });
+  }
+
+  async function waitForAnimationFrame() {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+
+  async function settleRoomTransitionMask(operation: number) {
+    await tick();
+    await waitForAnimationFrame();
+
+    if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return;
+
+    if (!isJumpedMode && !pendingHighlightId && virtualItems.length > 0) {
+      await requestBottomScroll()?.catch(() => undefined);
+    }
+
+    // Keep the mask up for the frames where Virtua publishes measurements and
+    // media previews swap from placeholder to decoded content. Those changes
+    // are correct, but showing them creates the perceived channel-switch flicker.
+    await waitForAnimationFrame();
+    await waitForAnimationFrame();
+
+    if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return;
+    roomTransitionMaskActive = false;
+    startRoomReveal();
   }
 
   // Apply message grouping and day separators
@@ -294,7 +322,11 @@
   // resetting the virtualizer against that carry-over creates the visible
   // empty/black flicker on media-heavy rooms.
   $effect(() => {
-    if (!isCurrentRoomWindowRendered) return;
+    if (!isCurrentRoomWindowRendered) {
+      roomTransitionMaskOperation += 1;
+      roomTransitionMaskActive = true;
+      return;
+    }
     if (settledRoomId === roomId) return;
 
     cancelBottomScroll();
@@ -305,7 +337,14 @@
     previousOffset = null;
     const isFirstRoom = settledRoomId === null;
     settledRoomId = roomId;
-    if (!isFirstRoom) startRoomReveal();
+    if (isFirstRoom) {
+      roomTransitionMaskActive = false;
+      return;
+    }
+
+    const operation = ++roomTransitionMaskOperation;
+    roomTransitionMaskActive = true;
+    void settleRoomTransitionMask(operation);
   });
 
   // When exiting jumped mode (returning to present), re-enable auto-scroll
@@ -1107,39 +1146,10 @@
           ? 'timeline-room-carryover'
           : 'mt-auto'}
       aria-busy={isRoomSwitching ? 'true' : undefined}
+      aria-hidden={showTimelineTransitionMask ? 'true' : undefined}
       data-testid={isRoomSwitching ? 'timeline-room-carryover' : undefined}
     >
-      {#if isRoomSwitching && !hasRoomSwitchCarryOver}
-        <div
-          class="timeline-room-switch-placeholder flex min-h-[min(70vh,720px)] flex-col gap-4 px-4 pt-7 pb-6"
-          aria-busy="true"
-          aria-label={m['room.message.loading']()}
-        >
-          <div class="flex gap-3">
-            <div class="skeleton mt-1 size-9 shrink-0 rounded-full"></div>
-            <div class="min-w-0 flex-1 space-y-3">
-              <div class="flex items-center gap-2">
-                <div class="skeleton h-4 w-28 rounded"></div>
-                <div class="skeleton h-3 w-10 rounded"></div>
-              </div>
-              <div class="skeleton timeline-room-switch-media rounded-xl"></div>
-              <div class="skeleton h-3.5 w-4/5 rounded"></div>
-              <div class="skeleton h-3.5 w-2/5 rounded"></div>
-            </div>
-          </div>
-          <div class="ml-12 space-y-3">
-            <div class="skeleton h-4 w-1/3 rounded"></div>
-            <div class="skeleton h-12 w-3/4 rounded-lg"></div>
-          </div>
-          <div class="ml-8 flex gap-3">
-            <div class="skeleton mt-1 size-8 shrink-0 rounded-full"></div>
-            <div class="min-w-0 flex-1 space-y-3">
-              <div class="skeleton h-4 w-32 rounded"></div>
-              <div class="skeleton h-10 w-2/3 rounded-lg"></div>
-            </div>
-          </div>
-        </div>
-      {:else if loadFailed && !isLoading && virtualItems.length === 0}
+      {#if loadFailed && !isLoading && virtualItems.length === 0 && !hasRoomSwitchCarryOver}
         <div class="flex flex-1 items-center justify-center px-4">
           <div
             class="max-w-sm surface-pop rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-center text-sm text-text"
@@ -1158,7 +1168,7 @@
             {/if}
           </div>
         </div>
-      {:else if showDelayedLoading.current}
+      {:else if showDelayedLoading.current && !hasRoomSwitchCarryOver}
         <div class="flex flex-1 items-end px-4 pb-6">
           <div
             class="flex w-full flex-col gap-3"
@@ -1171,7 +1181,7 @@
             <div class="skeleton ml-10 h-14 w-2/3 rounded-md"></div>
           </div>
         </div>
-      {:else if !isLoading && virtualItems.length === 0}
+      {:else if !isLoading && virtualItems.length === 0 && !hasRoomSwitchCarryOver}
         <div class="timeline-room-empty-state flex flex-1 items-center justify-center px-4">
           <div
             class="surface-pop rounded-xl border border-surface-200/55 bg-surface/42 px-4 py-3 text-center text-sm text-muted/60 shadow-sm"
@@ -1232,6 +1242,43 @@
       {/if}
     </div>
   </ScrollFader>
+
+  {#if showTimelineTransitionMask}
+    <div
+      class="timeline-room-switch-mask pointer-events-none absolute inset-x-0 top-0 bottom-2 z-20 overflow-hidden bg-background"
+      aria-busy="true"
+      aria-label={m['room.message.loading']()}
+      data-testid="timeline-room-switch-mask"
+    >
+      <div
+        class="timeline-room-switch-placeholder flex min-h-full flex-col gap-4 px-4 pt-7 pb-6"
+      >
+        <div class="flex gap-3">
+          <div class="skeleton mt-1 size-9 shrink-0 rounded-full"></div>
+          <div class="min-w-0 flex-1 space-y-3">
+            <div class="flex items-center gap-2">
+              <div class="skeleton h-4 w-28 rounded"></div>
+              <div class="skeleton h-3 w-10 rounded"></div>
+            </div>
+            <div class="skeleton timeline-room-switch-media rounded-xl"></div>
+            <div class="skeleton h-3.5 w-4/5 rounded"></div>
+            <div class="skeleton h-3.5 w-2/5 rounded"></div>
+          </div>
+        </div>
+        <div class="ml-12 space-y-3">
+          <div class="skeleton h-4 w-1/3 rounded"></div>
+          <div class="skeleton h-12 w-3/4 rounded-lg"></div>
+        </div>
+        <div class="ml-8 flex gap-3">
+          <div class="skeleton mt-1 size-8 shrink-0 rounded-full"></div>
+          <div class="min-w-0 flex-1 space-y-3">
+            <div class="skeleton h-4 w-32 rounded"></div>
+            <div class="skeleton h-10 w-2/3 rounded-lg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <TypingIndicator {typingUserIds} members={typingMembers} />
 
