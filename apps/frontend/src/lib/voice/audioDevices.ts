@@ -55,11 +55,10 @@ export function friendlyAudioDeviceNames(
 }
 
 export function audioDeviceRouteKind(device: MediaDeviceInfo): AudioDeviceRouteKind {
-  if (device.deviceId === 'default') return 'default';
-  if (device.deviceId === 'communications') return 'communications';
-
   const normalized = normalizeAudioDeviceLabel(device.label);
   if (isBluetoothDeviceLabel(normalized)) return 'bluetooth';
+  if (device.deviceId === 'default') return 'default';
+  if (device.deviceId === 'communications') return 'communications';
   if (isEarpieceRouteLabel(normalized)) return 'earpiece';
   if (isSpeakerphoneRouteLabel(normalized)) return 'speakerphone';
   return 'unknown';

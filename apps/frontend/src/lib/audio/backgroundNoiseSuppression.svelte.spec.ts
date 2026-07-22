@@ -86,33 +86,22 @@ describe('background noise suppression', () => {
     expect(setProcessor).not.toHaveBeenCalled();
   });
 
-  it('stays native-first when a browser does not expose final voice settings', async () => {
-    const { track } = createAudioTrack(48_000);
-    vi.spyOn(track, 'getSettings').mockReturnValue({});
-    const setProcessor = vi.fn();
-    const localTrack = {
-      getProcessor: () => undefined,
-      getSourceTrackSettings: () => track.getSettings(),
-      mediaStreamTrack: track,
-      restartTrack: vi.fn(),
-      setProcessor,
-      stopProcessor: vi.fn()
-    } as unknown as Pick<
-      LocalAudioTrack,
-      | 'getProcessor'
-      | 'getSourceTrackSettings'
-      | 'mediaStreamTrack'
-      | 'restartTrack'
-      | 'setProcessor'
-      | 'stopProcessor'
-    >;
-
-    await expect(ensureBackgroundNoiseSuppression(localTrack)).resolves.toEqual({
-      automaticGainControl: 'unknown',
-      echoCancellation: null,
-      noiseSuppression: 'unknown'
+  it('attaches enhanced suppression when WebKit omits optional source settings', async () => {
+    const { context, track } = createAudioTrack(48_000);
+    vi.mocked(track.getSettings).mockReturnValue({
+      autoGainControl: false,
+      echoCancellation: true,
+      noiseSuppression: false
     });
-    expect(setProcessor).not.toHaveBeenCalled();
+    const localTrack = new LocalAudioTrack(track, track.getConstraints(), true, context);
+
+    await ensureBackgroundNoiseSuppression(localTrack, undefined, {
+      bluetoothRoute: false,
+      documentVisible: true
+    });
+
+    expect(localTrack.getProcessor()).toBeInstanceOf(BackgroundNoiseSuppressionProcessor);
+    expect(localTrack.getProcessor()).toMatchObject({ mode: 'rnnoise' });
   });
 
   it('does not attach enhanced processing when the user disables noise reduction', async () => {

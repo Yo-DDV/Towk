@@ -1417,11 +1417,28 @@ export class VoiceCallState {
   }
 
   private microphoneProcessingEnvironment(track: LocalAudioTrack): MicrophoneProcessingEnvironment {
-    const sourceDeviceId = track.getSourceTrackSettings().deviceId ?? this.selectedDeviceId;
-    const device = this.audioDevices.find((candidate) => candidate.deviceId === sourceDeviceId);
+    const routeDeviceIds = [
+      track.getSourceTrackSettings().deviceId,
+      this.room?.getActiveDevice('audioinput'),
+      this.selectedDeviceId
+    ].filter((deviceId): deviceId is string => Boolean(deviceId));
+    const routeDevices = this.audioDevices.filter((device) =>
+      routeDeviceIds.includes(device.deviceId)
+    );
+    const routeKinds = routeDevices.map((device) => audioDeviceRouteKind(device));
     return {
-      bluetoothRoute: device ? audioDeviceRouteKind(device) === 'bluetooth' : false,
-      documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden'
+      // Android can expose a fresh or opaque source-track id after switching
+      // to Bluetooth while LiveKit and the device inventory still retain the
+      // logical route id. Any confirmed Bluetooth identity must keep the
+      // microphone on the OS communication clock.
+      bluetoothRoute: routeKinds.includes('bluetooth'),
+      documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
+      // `default` and `communications` are logical routes whose physical
+      // device can change without the id changing. Keep them native-first
+      // unless another matched id identifies the current physical route.
+      routeIdentityKnown: routeKinds.some(
+        (kind) => kind !== 'default' && kind !== 'communications'
+      )
     };
   }
 

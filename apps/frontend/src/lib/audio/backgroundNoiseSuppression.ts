@@ -33,6 +33,7 @@ export type MicrophoneProcessingPreferences = {
 export type MicrophoneProcessingEnvironment = {
   bluetoothRoute: boolean;
   documentVisible: boolean;
+  routeIdentityKnown?: boolean;
 };
 
 export const DEFAULT_MICROPHONE_PROCESSING_PREFERENCES: MicrophoneProcessingPreferences = {
@@ -421,32 +422,43 @@ function shouldAttachEnhancedProcessing(
   preferences: MicrophoneProcessingPreferences,
   environment: MicrophoneProcessingEnvironment
 ): boolean {
+  const channelLayoutCompatible =
+    settings.channelCount === undefined || settings.channelCount === 1;
+  const sourceClockCompatible =
+    settings.sampleRate === undefined ||
+    (Number.isFinite(settings.sampleRate) && settings.sampleRate >= 32_000);
   return (
     preferences.enhancedNoiseSuppression &&
     preferences.noiseSuppression &&
     environment.documentVisible &&
     !environment.bluetoothRoute &&
-    settings.channelCount === 1 &&
-    typeof settings.sampleRate === 'number' &&
-    Number.isFinite(settings.sampleRate) &&
-    settings.sampleRate >= 32_000
+    environment.routeIdentityKnown !== false &&
+    channelLayoutCompatible &&
+    sourceClockCompatible
   );
 }
 
 function canProcessAtContextRate(settings: MediaTrackSettings, contextSampleRate: number): boolean {
+  const channelLayoutCompatible =
+    settings.channelCount === undefined || settings.channelCount === 1;
+  const sourceClockCompatible =
+    settings.sampleRate === undefined ||
+    (Number.isFinite(settings.sampleRate) &&
+      settings.sampleRate >= 32_000 &&
+      settings.sampleRate === contextSampleRate);
   return (
-    settings.channelCount === 1 &&
-    typeof settings.sampleRate === 'number' &&
-    Number.isFinite(settings.sampleRate) &&
-    settings.sampleRate >= 32_000 &&
-    settings.sampleRate === contextSampleRate
+    channelLayoutCompatible &&
+    Number.isFinite(contextSampleRate) &&
+    contextSampleRate >= 32_000 &&
+    sourceClockCompatible
   );
 }
 
 function currentMicrophoneProcessingEnvironment(): MicrophoneProcessingEnvironment {
   return {
     bluetoothRoute: false,
-    documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden'
+    documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
+    routeIdentityKnown: true
   };
 }
 

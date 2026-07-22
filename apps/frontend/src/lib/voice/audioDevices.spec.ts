@@ -135,3 +135,14 @@ describe('friendlyAudioDeviceNames', () => {
     ).toBe('earpiece');
   });
 });
+
+describe('audioDeviceRouteKind', () => {
+  it('recognizes Bluetooth hardware behind a stable system route id', () => {
+    expect(audioDeviceRouteKind(device('default', 'Default - Pixel Bluetooth headset'))).toBe(
+      'bluetooth'
+    );
+    expect(
+      audioDeviceRouteKind(device('communications', 'Communications - Pixel Bluetooth headset'))
+    ).toBe('bluetooth');
+  });
+});

@@ -1268,6 +1268,94 @@ describe('VoiceCallState', () => {
     });
   });
 
+  it('keeps a selected Bluetooth route native when Android reports an opaque source id', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+    microphoneTrackSettings = {
+      ...microphoneTrackSettings,
+      deviceId: 'opaque-source-id'
+    };
+    state.audioDevices = [
+      {
+        deviceId: 'bluetooth-input',
+        kind: 'audioinput',
+        label: 'Bluetooth headset'
+      } as MediaDeviceInfo
+    ];
+    state.selectedDeviceId = 'bluetooth-input';
+    activeDeviceIds.set('audioinput', 'bluetooth-input');
+
+    await state.handleDocumentVisibilityChange('visible');
+
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing).toEqual({
+      automaticGainControl: 'native',
+      echoCancellation: true,
+      noiseSuppression: 'native'
+    });
+  });
+
+  it('preserves the enumerated Bluetooth selection after Android starts capture', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      deviceId: 'opaque-source-id',
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind !== 'audioinput') return [];
+      return [
+        {
+          deviceId: 'bluetooth-input',
+          kind: 'audioinput',
+          label: 'Bluetooth headset'
+        } as MediaDeviceInfo
+      ];
+    });
+    activeDeviceIds.set('audioinput', 'bluetooth-input');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(state.selectedDeviceId).toBe('bluetooth-input');
+    expect(microphoneSetProcessor).not.toHaveBeenCalled();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
+  it('keeps an Android system-default Bluetooth route on the native clock', async () => {
+    microphoneTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
+      deviceId: 'opaque-source-id',
+      echoCancellation: true,
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind !== 'audioinput') return [];
+      return [
+        {
+          deviceId: 'default',
+          kind: 'audioinput',
+          label: 'Default - Pixel Bluetooth headset'
+        } as MediaDeviceInfo
+      ];
+    });
+    activeDeviceIds.set('audioinput', 'default');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(state.selectedDeviceId).toBe('default');
+    expect(microphoneSetProcessor).not.toHaveBeenCalled();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
   it('restarts the active microphone with updated processing preferences', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
@@ -1338,13 +1426,21 @@ describe('VoiceCallState', () => {
     expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledTimes(1);
     expect(state.isMuted).toBe(false);
     expect(state.microphoneProcessing).toEqual({
-      automaticGainControl: 'towk',
+      automaticGainControl: 'unavailable',
       echoCancellation: true,
-      noiseSuppression: 'rnnoise'
+      noiseSuppression: 'unavailable'
     });
     expect(toastMocks.warning).toHaveBeenCalledWith(
       'Enhanced microphone processing is unavailable. The call continues with browser audio processing.'
     );
+
+    await state.handleDocumentVisibilityChange('visible');
+
+    expect(state.microphoneProcessing).toEqual({
+      automaticGainControl: 'native',
+      echoCancellation: true,
+      noiseSuppression: 'rnnoise'
+    });
   });
 
   it('joins muted when microphone enable fails without enabling the camera', async () => {
