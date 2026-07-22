@@ -225,6 +225,50 @@
     await new Promise((resolve) => requestAnimationFrame(resolve));
   }
 
+  function roundedRectValue(value: number): number {
+    return Math.round(value);
+  }
+
+  function visibleMediaLayoutSignature(containerRect: DOMRect): string {
+    if (!scrollContainer) return '';
+
+    const parts: string[] = [];
+    for (const node of scrollContainer.querySelectorAll<HTMLElement>(
+      'img, video, media-player, media-poster, .embed-frame, [data-media-provider]'
+    )) {
+      const rect = node.getBoundingClientRect();
+      if (
+        rect.width <= 0 ||
+        rect.height <= 0 ||
+        rect.bottom <= containerRect.top ||
+        rect.top >= containerRect.bottom
+      ) {
+        continue;
+      }
+
+      const mediaState =
+        node instanceof HTMLImageElement
+          ? `${node.complete ? '1' : '0'}:${node.naturalWidth > 0 ? '1' : '0'}`
+          : node instanceof HTMLVideoElement
+            ? `${node.readyState}:${node.videoWidth || 0}x${node.videoHeight || 0}`
+            : '';
+
+      parts.push(
+        [
+          node.tagName.toLowerCase(),
+          node.classList.contains('skeleton') ? 's' : '',
+          roundedRectValue(rect.top - containerRect.top),
+          roundedRectValue(rect.left - containerRect.left),
+          roundedRectValue(rect.width),
+          roundedRectValue(rect.height),
+          mediaState
+        ].join(',')
+      );
+    }
+
+    return parts.join('|');
+  }
+
   function timelineVisualSignature() {
     if (!scrollContainer || !virtualizerHandle) return null;
 
@@ -232,10 +276,12 @@
       scrollContainer.querySelectorAll<HTMLElement>('[data-event-id]')
     ).map((node) => node.dataset.eventId ?? '');
     const skeletonCount = scrollContainer.querySelectorAll('.skeleton').length;
+    const containerRect = scrollContainer.getBoundingClientRect();
 
     return [
       renderedEventIds.join('|'),
       skeletonCount,
+      visibleMediaLayoutSignature(containerRect),
       virtualizerHandle.getScrollSize(),
       virtualizerHandle.getViewportSize(),
       virtualizerHandle.getScrollOffset()
