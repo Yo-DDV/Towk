@@ -222,6 +222,45 @@
     await new Promise((resolve) => requestAnimationFrame(resolve));
   }
 
+  function timelineVisualSignature() {
+    if (!scrollContainer || !virtualizerHandle) return null;
+
+    const renderedEventIds = Array.from(
+      scrollContainer.querySelectorAll<HTMLElement>('[data-event-id]')
+    ).map((node) => node.dataset.eventId ?? '');
+    const skeletonCount = scrollContainer.querySelectorAll('.skeleton').length;
+
+    return [
+      renderedEventIds.join('|'),
+      skeletonCount,
+      virtualizerHandle.getScrollSize(),
+      virtualizerHandle.getViewportSize(),
+      virtualizerHandle.getScrollOffset()
+    ].join(':');
+  }
+
+  async function waitForStableTimelineWindow(operation: number) {
+    let previousSignature: string | null = null;
+    let stableFrames = 0;
+
+    for (let frame = 0; frame < 24 && stableFrames < 6; frame++) {
+      await tick();
+      await waitForAnimationFrame();
+
+      if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return false;
+
+      const signature = timelineVisualSignature();
+      if (signature === previousSignature && signature !== null) {
+        stableFrames += 1;
+      } else {
+        stableFrames = 0;
+        previousSignature = signature;
+      }
+    }
+
+    return stableFrames >= 6;
+  }
+
   async function settleRoomTransitionMask(operation: number) {
     await tick();
     await waitForAnimationFrame();
@@ -232,11 +271,11 @@
       await requestBottomScroll()?.catch(() => undefined);
     }
 
-    // Keep the mask up for the frames where Virtua publishes measurements and
-    // media previews swap from placeholder to decoded content. Those changes
-    // are correct, but showing them creates the perceived channel-switch flicker.
-    await waitForAnimationFrame();
-    await waitForAnimationFrame();
+    // Keep the mask up while Virtua publishes measurements and media previews
+    // swap from placeholder to decoded content. Those changes are correct, but
+    // exposing an intermediate visible window creates the perceived room-switch
+    // flicker on media-heavy channels.
+    await waitForStableTimelineWindow(operation);
 
     if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return;
     roomTransitionMaskActive = false;
