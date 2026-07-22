@@ -76,6 +76,7 @@ function video(container: HTMLElement): HTMLVideoElement {
 }
 
 async function mediaPlayer(container: HTMLElement): Promise<HTMLElement> {
+  container.querySelector<HTMLButtonElement>('[data-testid="video-player-poster-shell"]')?.click();
   await expect
     .poll(() => container.querySelector('media-player'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
     .toBeTruthy();
@@ -97,13 +98,24 @@ describe('VideoPlayer', () => {
       thumbnailUrl: TRANSPARENT_THUMBNAIL
     });
 
-    const customPlayer = container.querySelector('media-player');
-    if (!customPlayer) {
-      const posterShell = container.querySelector('[data-testid="video-player-poster-shell"]');
-      expect(posterShell).not.toBeNull();
-      expect(posterShell?.querySelector('img')?.getAttribute('src')).toBe(TRANSPARENT_THUMBNAIL);
-      expect(posterShell?.textContent).not.toContain('clip.mp4');
-    }
+    const posterShell = container.querySelector('[data-testid="video-player-poster-shell"]');
+    expect(container.querySelector('media-player')).toBeNull();
+    expect(posterShell).not.toBeNull();
+    expect(posterShell?.querySelector('img')?.getAttribute('src')).toBe(TRANSPARENT_THUMBNAIL);
+    expect(posterShell?.textContent).not.toContain('clip.mp4');
+  });
+
+  it('mounts the custom player only after the user opens the video', async () => {
+    const { container } = renderPostedVideo({
+      width: 1920,
+      height: 1080,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    expect(container.querySelector('media-player')).toBeNull();
+    container.querySelector<HTMLButtonElement>('[data-testid="video-player-poster-shell"]')?.click();
+
+    expect(await mediaPlayer(container)).not.toBeNull();
   });
 
   it('frames 16:9 videos as 16:9 embeds', () => {

@@ -29,6 +29,7 @@
   // re-run on the client. We must dynamically import on mount and wait for
   // registration to complete before rendering the custom elements.
   let elementsReady = $state(vidstackElementsRegistered);
+  let playerRequested = $state(false);
   let playerVisualReady = $state(false);
   let playerVisualReadyKey = '';
 
@@ -189,13 +190,29 @@
       status,
       highestVariant?.url ?? '',
       thumbnailUrl ?? '',
-      String(autoLoop),
-      String(elementsReady)
+      String(autoLoop)
     ].join('|');
     if (nextKey === playerVisualReadyKey) return;
     playerVisualReadyKey = nextKey;
+    playerRequested = false;
     playerVisualReady = false;
   });
+
+  function primePlayerElements() {
+    void preloadVideoPlayerElements()
+      .then(() => {
+        elementsReady = true;
+      })
+      .catch(() => {
+        // The poster card remains usable even if the enhancement fails.
+      });
+  }
+
+  function activatePlayer() {
+    playerRequested = true;
+    playerVisualReady = false;
+    primePlayerElements();
+  }
 
   function positiveDimension(value: number | null | undefined): number | null {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
@@ -382,7 +399,7 @@
       </video>
     {/if}
   </div>
-{:else if status === 'COMPLETED' && highestVariant && elementsReady}
+{:else if status === 'COMPLETED' && highestVariant && playerRequested && elementsReady}
   <div class="embed-frame video-player-frame" style={frameStyle}>
     {#if hasPosterBridge}
       <img
@@ -400,6 +417,7 @@
       {@attach attachMediaPlayer}
       src={videoSources}
       playsinline
+      autoplay
       onerror={onMediaError}
       data-fit={fitMode}
       class="block h-full w-full"
@@ -418,11 +436,17 @@
     </media-player>
   </div>
 {:else if status === 'COMPLETED' && highestVariant}
-  <div
-    class="embed-frame video-player-poster-shell"
+  <button
+    type="button"
+    class="embed-frame video-player-poster-shell video-preview-button"
     style={frameStyle}
-    aria-label={filename}
+    aria-label={m['media.video_alt']()}
+    title={filename}
     data-testid="video-player-poster-shell"
+    aria-busy={playerRequested && !elementsReady}
+    onpointerenter={primePlayerElements}
+    onfocus={primePlayerElements}
+    onclick={activatePlayer}
   >
     {#if thumbnailUrl}
       <img
@@ -434,11 +458,18 @@
         onerror={onMediaError}
         class="h-full w-full object-contain"
       />
+      <span class="video-preview-play" aria-hidden="true">
+        {#if playerRequested && !elementsReady}
+          <span class="h-5 w-5 animate-spin rounded-full border-2 border-white/70 border-t-transparent"></span>
+        {:else}
+          <span class="iconify text-3xl uil--play"></span>
+        {/if}
+      </span>
     {:else}
       <span class="iconify text-lg text-muted uil--video"></span>
       <span class="max-w-full truncate text-sm text-muted">{filename}</span>
     {/if}
-  </div>
+  </button>
 {:else if status === 'PENDING' || status === 'PROCESSING'}
   <div class="embed-frame flex items-center gap-3 px-4 py-3" style={frameStyle}>
     <div class="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-transparent"></div>
@@ -505,10 +536,53 @@
 
   .video-player-poster-shell {
     display: flex;
+    position: relative;
     min-width: 0;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
     overflow: hidden;
+  }
+
+  .video-preview-button {
+    appearance: none;
+    cursor: pointer;
+    padding: 0;
+    color: white;
+    transition:
+      border-color 140ms ease,
+      filter 140ms ease,
+      transform 140ms ease;
+  }
+
+  .video-preview-button:hover,
+  .video-preview-button:focus-visible {
+    border-color: color-mix(in srgb, var(--color-primary, #f97316) 72%, white 18%);
+    filter: brightness(1.04);
+  }
+
+  .video-preview-button:active {
+    transform: scale(0.995);
+  }
+
+  .video-preview-play {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    display: flex;
+    height: 3.5rem;
+    width: 3.5rem;
+    transform: translate(-50%, -50%);
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: rgb(0 0 0 / 0.52);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.16);
+    backdrop-filter: blur(6px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .video-preview-button {
+      transition: none;
+    }
   }
 </style>
