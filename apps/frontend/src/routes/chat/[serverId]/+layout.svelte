@@ -61,6 +61,23 @@
   const reauthRequired = $derived(
     !!serverStore && serverRegistry.getServer(serverId)?.reauthRequiredAt != null
   );
+  let hadAuthenticatedUser = $state(false);
+
+  $effect(() => {
+    if (currentUserState?.user) {
+      hadAuthenticatedUser = true;
+      return;
+    }
+
+    if (currentUserState && !currentUserState.loading && !reauthRequired) {
+      hadAuthenticatedUser = false;
+    }
+  });
+
+  const shouldRenderChrome = $derived(
+    !!currentUserState?.user || reauthRequired || (!!currentUserState?.loading && hadAuthenticatedUser)
+  );
+
   $effect(() => {
     if (!browser) return;
     if (!currentUserState) return; // No store — already redirecting above
@@ -81,7 +98,7 @@
   });
 </script>
 
-{#if currentUserState?.user || reauthRequired}
+{#if shouldRenderChrome}
   <Chrome>
     {@render children?.()}
   </Chrome>
