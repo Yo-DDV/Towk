@@ -29,8 +29,17 @@
       roomId
     });
   });
+  let hadRenderableRoom = $state(false);
+
+  $effect(() => {
+    if (!ready || !roomId) return;
+    hadRenderableRoom = roomAccess.kind === 'member' || roomAccess.kind === 'unknown';
+  });
+
   const canRenderRoom = $derived(
-    ready && roomId && (roomAccess.kind === 'member' || roomAccess.kind === 'unknown')
+    !!roomId &&
+      ((ready && (roomAccess.kind === 'member' || roomAccess.kind === 'unknown')) ||
+        (!ready && hadRenderableRoom))
   );
 </script>
 
