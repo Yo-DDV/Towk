@@ -41,6 +41,7 @@ const (
 	voiceMessageTranscodeTimeout      = 5 * time.Minute
 	voiceMessageProbeTimeout          = 15 * time.Second
 	voiceMessageDurationToleranceMS   = 1500
+	voiceMessageDurationUnknown       = "voice message audio duration could not be determined"
 )
 
 // AssetUploadMaxChunkSize is the largest resumable upload chunk accepted by
@@ -720,11 +721,14 @@ func prepareCompletedUploadPayload(
 		return nil, err
 	}
 	defer transcodeLimiter.Release()
-	if err := verifyVoiceMessageDuration(ctx, session, ffprobePath, input.Name()); err != nil {
-		return nil, err
-	}
 	if session.ContentType == normalizedVoiceMessageContentType {
+		if err := verifyVoiceMessageDuration(ctx, session, ffprobePath, input.Name()); err != nil {
+			return nil, err
+		}
 		return payload, nil
+	}
+	if err := verifyVoiceMessageDuration(ctx, session, ffprobePath, input.Name()); err != nil && !isVoiceMessageDurationUnknown(err) {
+		return nil, err
 	}
 
 	output, err := os.CreateTemp("", "towk-voice-message-*.m4a")
@@ -824,6 +828,11 @@ func verifyVoiceMessageDuration(ctx context.Context, session *AssetUploadSession
 	return nil
 }
 
+func isVoiceMessageDurationUnknown(err error) bool {
+	var invalid *InvalidArgumentError
+	return errors.As(err, &invalid) && invalid.Message == voiceMessageDurationUnknown
+}
+
 func runVoiceMessageProbeDuration(ctx context.Context, ffprobePath, inputPath string) (int64, error) {
 	if ffprobePath == "" {
 		var err error
@@ -874,7 +883,7 @@ func runVoiceMessageProbeDuration(ctx context.Context, ffprobePath, inputPath st
 		return 0, invalidArgument("voice messages must contain an audio track")
 	}
 	if !ok {
-		return 0, invalidArgument("voice message audio duration could not be determined")
+		return 0, invalidArgument(voiceMessageDurationUnknown)
 	}
 	return durationMS, nil
 }
