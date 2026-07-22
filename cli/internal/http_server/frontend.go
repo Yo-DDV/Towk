@@ -226,6 +226,32 @@ func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte
 	return json.MarshalIndent(manifest, "", "  ")
 }
 
+func isAndroidChromiumUserAgent(userAgent string) bool {
+	userAgent = strings.ToLower(userAgent)
+	return strings.Contains(userAgent, "android") &&
+		(strings.Contains(userAgent, "chrome/") || strings.Contains(userAgent, "chromium/"))
+}
+
+func pwaManifestForUserAgent(content []byte, userAgent string) ([]byte, error) {
+	if !isAndroidChromiumUserAgent(userAgent) {
+		return content, nil
+	}
+
+	var manifest map[string]any
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		return nil, err
+	}
+
+	// Chromium owns an ongoing “copy URL / share / open in browser” notification
+	// for standalone Android web apps. Minimal UI exposes those same controls in
+	// the app window, so Chromium deliberately skips that system notification.
+	// Keep standalone as the fallback and leave every other manifest capability
+	// and the stable application identity untouched.
+	manifest["display"] = "minimal-ui"
+	manifest["display_override"] = []string{"minimal-ui", "standalone"}
+	return json.MarshalIndent(manifest, "", "  ")
+}
+
 func injectAppleTouchIcon(content []byte, iconURL string) []byte {
 	if iconURL == "" {
 		return content
@@ -281,6 +307,7 @@ func (s *HTTPServer) serveSPAFallback(c *gin.Context, clientFS fs.FS) bool {
 }
 
 func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
+	c.Header("Vary", "User-Agent")
 	content, err := fs.ReadFile(clientFS, "manifest.webmanifest")
 	if err != nil {
 		c.Status(http.StatusInternalServerError)
@@ -292,6 +319,12 @@ func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
 	)
 	if err != nil {
 		s.logger.Warn("failed to generate dynamic PWA manifest", "error", err)
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	content, err = pwaManifestForUserAgent(content, c.GetHeader("User-Agent"))
+	if err != nil {
+		s.logger.Warn("failed to select PWA display mode", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}
