@@ -35,7 +35,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { appState } from '$lib/state/globals.svelte';
-  import { useConnection } from '$lib/state/server/connection.svelte';
+  import { createRoomTimelineAPI } from '$lib/api-client/roomTimeline';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { warmRoomTimelineSnapshot } from '$lib/state/room/messages.svelte';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
@@ -65,7 +65,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   const voiceCallState = $derived(stores.voiceCall);
   const serverInfo = $derived(stores.serverInfo);
   const appUi = getAppUiState();
-  const connection = useConnection();
+  const ROOM_NAVIGATION_WARMUP_TIMEOUT_MS = 320;
 
   const roomsStore = $derived(stores.rooms);
   const roomUnreadStore = $derived(stores.roomUnread);
@@ -306,6 +306,10 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     return target instanceof Element && target.closest('[data-testid="room-call-icon"]') !== null;
   }
 
+  function roomHref(roomId: string): string {
+    return resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId });
+  }
+
   async function openRoomCallPanel(roomId: string): Promise<void> {
     setRoomSidebarPanel(activeServerId, roomId, 'call');
     setPendingRoomSidebarPanel(activeServerId, roomId, 'call');
@@ -315,35 +319,70 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
         newValue: 'call'
       })
     );
-    await goto(resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId }));
+    await goto(roomHref(roomId));
   }
 
   function handleRoomLinkClick(event: MouseEvent, room: RoomsListItem): void {
     if (room.viewerIsMember && activeCallRooms.has(room.id) && wasCallIconClick(event)) {
       event.preventDefault();
       void openRoomCallPanel(room.id);
+      return;
     }
+    if (event.defaultPrevented) return;
+    if (!room.viewerIsMember) return;
+    if (room.id === activeRoomId) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    event.preventDefault();
+    void navigateToRoom(room);
   }
 
   function handleRoomLinkKeydown(event: KeyboardEvent, room: RoomsListItem): void {
     if (event.target !== event.currentTarget) return;
     if (!room.viewerIsMember) return;
-    if (!activeCallRooms.has(room.id)) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
 
     event.preventDefault();
-    void openRoomCallPanel(room.id);
+    if (activeCallRooms.has(room.id)) {
+      void openRoomCallPanel(room.id);
+      return;
+    }
+    if (room.id === activeRoomId) return;
+    void navigateToRoom(room);
   }
 
-  function warmRoomTimeline(room: RoomsListItem): void {
-    if (!room.viewerIsMember) return;
-    if (room.id === activeRoomId) return;
+  function warmRoomTimeline(room: RoomsListItem): Promise<boolean> {
+    if (!room.viewerIsMember) return Promise.resolve(false);
+    if (room.id === activeRoomId) return Promise.resolve(true);
     const server = serverRegistry.getServer(activeServerId);
-    void warmRoomTimelineSnapshot({
+    if (!server) return Promise.resolve(false);
+    return warmRoomTimelineSnapshot({
       roomId: room.id,
-      serverConnection: connection(),
+      roomTimeline: createRoomTimelineAPI({
+        serverId: server.id,
+        baseUrl: server.url,
+        bearerToken: server.token
+      }),
       privateDataScope: privateDataScopeForServer(server)
     });
+  }
+
+  function warmupTimeout(): Promise<false> {
+    return new Promise((resolveTimeout) => {
+      window.setTimeout(() => resolveTimeout(false), ROOM_NAVIGATION_WARMUP_TIMEOUT_MS);
+    });
+  }
+
+  async function waitForRoomNavigationWarmup(room: RoomsListItem): Promise<void> {
+    await Promise.race([warmRoomTimeline(room), warmupTimeout()]);
+  }
+
+  async function navigateToRoom(room: RoomsListItem): Promise<void> {
+    const href = roomHref(room.id);
+    await waitForRoomNavigationWarmup(room);
+    await goto(href);
   }
 
   async function handleNotificationBadgeClick(event: MouseEvent, roomId: string, isDM: boolean) {
@@ -455,14 +494,14 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     !isJoined ? 'opacity-60 hover:opacity-85' : ''
   ]}
   <a
-    href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
+    href={roomHref(room.id)}
     class={rowClass}
     aria-current={room.id === activeRoomId ? 'page' : undefined}
     data-sveltekit-preload-code="hover"
     data-sveltekit-preload-data="tap"
-    onpointerenter={() => warmRoomTimeline(room)}
-    onfocus={() => warmRoomTimeline(room)}
-    ontouchstart={() => warmRoomTimeline(room)}
+    onpointerenter={() => void warmRoomTimeline(room)}
+    onfocus={() => void warmRoomTimeline(room)}
+    ontouchstart={() => void warmRoomTimeline(room)}
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
@@ -514,7 +553,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   {@const hasUnreadAttention =
     hasUnread && room.id !== activeRoomId && !notificationLevelStore.isRoomMuted(room.id)}
   <a
-    href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
+    href={roomHref(room.id)}
     class={[
       'group/badges @container sidebar-item',
       room.id === activeRoomId ? 'bg-surface-100' : '',
@@ -523,9 +562,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     aria-current={room.id === activeRoomId ? 'page' : undefined}
     data-sveltekit-preload-code="hover"
     data-sveltekit-preload-data="tap"
-    onpointerenter={() => warmRoomTimeline(room)}
-    onfocus={() => warmRoomTimeline(room)}
-    ontouchstart={() => warmRoomTimeline(room)}
+    onpointerenter={() => void warmRoomTimeline(room)}
+    onfocus={() => void warmRoomTimeline(room)}
+    ontouchstart={() => void warmRoomTimeline(room)}
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
