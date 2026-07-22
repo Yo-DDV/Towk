@@ -13,6 +13,7 @@
   let {
     roomId,
     renderedRoomId = roomId,
+    isReconcilingCachedData = false,
     messageStore,
     events,
     updateCounter = events.length,
@@ -50,6 +51,7 @@
   }: {
     roomId: string;
     renderedRoomId?: string | null;
+    isReconcilingCachedData?: boolean;
     messageStore: MessagesStore;
     events: RoomEventView[];
     updateCounter?: number;
@@ -117,6 +119,7 @@
 <EventList
   {roomId}
   {renderedRoomId}
+  {isReconcilingCachedData}
   {messageStore}
   {events}
   {alwaysScrollToBottom}

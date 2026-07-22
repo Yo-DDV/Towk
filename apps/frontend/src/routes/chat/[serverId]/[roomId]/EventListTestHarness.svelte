@@ -24,7 +24,8 @@
     hasReachedStart = true,
     onLoadMore,
     updateCounter = 0,
-    pendingHighlightId = null
+    pendingHighlightId = null,
+    isReconcilingCachedData = false
   }: {
     eventIds: string[];
     roomId?: string;
@@ -41,6 +42,7 @@
     onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     updateCounter?: number;
     pendingHighlightId?: string | null;
+    isReconcilingCachedData?: boolean;
   } = $props();
 
   createComposerContext({ scroll: true });
@@ -87,6 +89,7 @@
 <EventList
   {roomId}
   {renderedRoomId}
+  {isReconcilingCachedData}
   messageStore={messageStore as never}
   {events}
   {isLoading}

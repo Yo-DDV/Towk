@@ -38,6 +38,7 @@
   let {
     roomId,
     renderedRoomId = roomId,
+    isReconcilingCachedData = false,
     messageStore,
     events,
     // Scroll behavior
@@ -82,6 +83,7 @@
   }: {
     roomId: string;
     renderedRoomId?: string | null;
+    isReconcilingCachedData?: boolean;
     messageStore: MessagesStore;
     events: RoomEventView[];
     // Scroll behavior
@@ -141,6 +143,7 @@
   let userScrollIntentAt = 0;
   const USER_SCROLL_INTENT_MS = 250;
   let settledRoomId = $state<string | null>(null);
+  let hasSeenRoomSwitch = $state(false);
   let roomRevealActive = $state(false);
   let roomRevealTimer: ReturnType<typeof setTimeout> | null = null;
   let roomTransitionMaskActive = $state(false);
@@ -203,8 +206,6 @@
   const renderedTimelineRoomId = $derived(renderedRoomId ?? roomId);
   const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
   const isRoomSwitching = $derived(!isCurrentRoomWindowRendered);
-  const isRoomTransitionSettling = $derived(roomTransitionMaskActive && isCurrentRoomWindowRendered);
-  const showTimelineTransitionMask = $derived(isRoomSwitching || roomTransitionMaskActive);
 
   function startRoomReveal() {
     if (roomRevealTimer) {
@@ -423,6 +424,19 @@
     buildVirtualItems(eventsWithMeta, effectiveUnreadAfterEventId, hasReachedStart, showStartMarker)
   );
   const hasRoomSwitchCarryOver = $derived(isRoomSwitching && virtualItems.length > 0);
+  const isReconcilingCachedRoomWindow = $derived(
+    hasSeenRoomSwitch &&
+      isCurrentRoomWindowRendered &&
+      !loadFailed &&
+      isReconcilingCachedData &&
+      virtualItems.length > 0
+  );
+  const isRoomTransitionSettling = $derived(
+    (roomTransitionMaskActive && isCurrentRoomWindowRendered) || isReconcilingCachedRoomWindow
+  );
+  const showTimelineTransitionMask = $derived(
+    isRoomSwitching || roomTransitionMaskActive || isReconcilingCachedRoomWindow
+  );
   const roomTransitionMaskVariantClass = $derived(
     hasRoomSwitchCarryOver
       ? 'timeline-room-switch-mask--carryover bg-background/18 backdrop-blur-[1px]'
@@ -496,6 +510,7 @@
   // empty/black flicker on media-heavy rooms.
   $effect(() => {
     if (!isCurrentRoomWindowRendered) {
+      hasSeenRoomSwitch = true;
       roomTransitionMaskOperation += 1;
       roomTransitionMaskActive = true;
       return;
@@ -515,9 +530,18 @@
       return;
     }
 
+    hasSeenRoomSwitch = true;
     const operation = ++roomTransitionMaskOperation;
     roomTransitionMaskActive = true;
     void settleRoomTransitionMask(operation);
+  });
+
+  let wasReconcilingCachedRoomWindow = false;
+  $effect(() => {
+    if (wasReconcilingCachedRoomWindow && !isReconcilingCachedRoomWindow) {
+      startRoomReveal();
+    }
+    wasReconcilingCachedRoomWindow = isReconcilingCachedRoomWindow;
   });
 
   // When exiting jumped mode (returning to present), re-enable auto-scroll

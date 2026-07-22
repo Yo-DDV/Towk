@@ -123,6 +123,7 @@
   {roomId}
   messageStore={store}
   renderedRoomId={store.renderedRoomId}
+  isReconcilingCachedData={store.isReconcilingCachedData}
   events={roomEvents}
   alwaysScrollToBottom={false}
   showNewMessagesIndicator={true}

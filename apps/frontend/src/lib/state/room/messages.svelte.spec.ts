@@ -2594,10 +2594,12 @@ describe('MessagesStore — encrypted offline timeline', () => {
 
     store.setRoom('room-1');
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(true));
+    expect(store.isReconcilingCachedData).toBe(true);
     expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
 
     page.reject(new TypeError('offline'));
     await vi.waitFor(() => expect(store.isInitialLoading).toBe(false));
+    expect(store.isReconcilingCachedData).toBe(false);
     expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
     store.dispose();
     await purgeOfflineAccount(scope);
@@ -2627,6 +2629,7 @@ describe('MessagesStore — encrypted offline timeline', () => {
 
     store.setRoom('room-1');
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(true));
+    expect(store.isReconcilingCachedData).toBe(true);
     page.resolve({
       events: [threadMessageEvent('network-1') as never],
       startCursor: null,
@@ -2636,6 +2639,7 @@ describe('MessagesStore — encrypted offline timeline', () => {
     });
 
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(false));
+    expect(store.isReconcilingCachedData).toBe(false);
     expect(store.events.map((event) => event.id)).toEqual(['network-1']);
     store.dispose();
     await purgeOfflineAccount(replaceScope);

@@ -383,6 +383,7 @@ export class MessagesStore {
   events = $state<RoomEventView[]>([]);
   isInitialLoading = $state(true);
   isShowingCachedData = $state(false);
+  isReconcilingCachedData = $state(false);
   initialLoadFailed = $state(false);
   isLoadingMore = $state(false);
   hasReachedStart = $state(false);
@@ -582,6 +583,7 @@ export class MessagesStore {
   private startLoad(): number {
     if (this.#pendingAuthoritativeLoadId !== null) {
       this.#pendingAuthoritativeLoadId = null;
+      this.isReconcilingCachedData = false;
       this.isInitialLoading = false;
     }
     return ++this.#loadId;
@@ -1419,6 +1421,7 @@ export class MessagesStore {
     this.hasReachedStart = false;
     this.isLoadingMore = false;
     this.isShowingCachedData = false;
+    this.isReconcilingCachedData = false;
     this.initialLoadFailed = false;
     this.#cachedEventIds.clear();
     this.#transitionCarryOverEventIds.clear();
@@ -1764,6 +1767,7 @@ export class MessagesStore {
         }
         if (this.isStale(thisLoad)) return false;
         this.#pendingAuthoritativeLoadId = null;
+        this.isReconcilingCachedData = false;
         this.isShowingCachedData = false;
         this.isInitialLoading = false;
         this.initialLoadFailed = false;
@@ -1774,6 +1778,7 @@ export class MessagesStore {
         if (this.isStale(thisLoad)) return false;
         console.error('MessagesStore: fetchLatest failed:', error);
         this.#pendingAuthoritativeLoadId = null;
+        this.isReconcilingCachedData = false;
         this.removeTransitionCarryOverEvents();
         this.initialLoadFailed = true;
         this.isShowingCachedData = this.#cachedEventIds.size > 0;
@@ -1801,6 +1806,7 @@ export class MessagesStore {
         this.oldestCursor = page.startCursor ?? undefined;
         this.newestCursor = page.endCursor ?? undefined;
         this.hasReachedStart = !page.hasOlder;
+        this.isReconcilingCachedData = false;
         this.isShowingCachedData = false;
         this.isInitialLoading = false;
         this.initialLoadFailed = false;
@@ -1815,6 +1821,7 @@ export class MessagesStore {
           return;
         }
         console.error('MessagesStore: fetchThread failed:', error);
+        this.isReconcilingCachedData = false;
         this.initialLoadFailed = true;
         this.isShowingCachedData = this.#cachedEventIds.size > 0;
         this.isInitialLoading = false;
@@ -1848,6 +1855,7 @@ export class MessagesStore {
       if (this.scope === 'thread') this.sortThreadEvents();
       else this.sortRoomEvents();
       this.isShowingCachedData = true;
+      this.isReconcilingCachedData = this.#pendingAuthoritativeLoadId === thisLoad;
       this.isInitialLoading = false;
       this.rememberCurrentSnapshot();
     } catch (error) {

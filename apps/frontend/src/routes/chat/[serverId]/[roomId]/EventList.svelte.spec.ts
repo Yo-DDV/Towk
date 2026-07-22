@@ -429,6 +429,69 @@ describe('EventList jump completion', () => {
     }
   });
 
+  it('keeps the room switch mask while cached data is reconciling with the server window', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-cached'],
+        isReconcilingCachedData: true,
+        scrollToEventId: null
+      });
+
+      const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      expect(mask).not.toBeNull();
+      expect(mask?.classList.contains('timeline-room-switch-mask--settling')).toBe(true);
+      expect(document.querySelector('[data-event-id="msg-cached"]')).not.toBeNull();
+    } finally {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-network'],
+        isReconcilingCachedData: false,
+        scrollToEventId: null
+      });
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+      );
+      rendered.unmount();
+    }
+  });
+
+  it('does not hide an initial cached room before a room switch has happened', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-cached'],
+        isReconcilingCachedData: true,
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-event-id="msg-cached"]')).not.toBeNull()
+      );
+    } finally {
+      rendered.unmount();
+    }
+  });
+
   it('keeps the room switch mask while silent backfill settles the new room window', async () => {
     const rendered = render(EventListTestHarness, {
       props: {
