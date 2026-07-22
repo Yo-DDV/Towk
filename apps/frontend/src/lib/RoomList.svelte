@@ -65,7 +65,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   const voiceCallState = $derived(stores.voiceCall);
   const serverInfo = $derived(stores.serverInfo);
   const appUi = getAppUiState();
-  const ROOM_NAVIGATION_WARMUP_TIMEOUT_MS = 320;
+  const ROOM_NAVIGATION_WARMUP_TIMEOUT_MS = 650;
 
   const roomsStore = $derived(stores.rooms);
   const roomUnreadStore = $derived(stores.roomUnread);
