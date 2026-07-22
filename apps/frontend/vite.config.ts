@@ -16,6 +16,12 @@ const backendTarget =
 const tiptapDeps = ['@tiptap/pm/state'];
 const testBrowser = (process.env.VITEST_BROWSER ?? 'chromium') as 'chromium' | 'firefox' | 'webkit';
 const browserRuntimeDeps = [
+  '@bufbuild/protobuf',
+  '@bufbuild/protobuf/wkt',
+  '@connectrpc/connect',
+  '@connectrpc/connect-web',
+  '@sapphi-red/web-noise-suppressor',
+  'livekit-client',
   'svelte-dnd-action',
   'vidstack/player',
   'vidstack/player/layouts',
@@ -238,12 +244,12 @@ export default defineConfig({
           deps: {
             optimizer: {
               client: {
-                // The browser runner owns several concurrent iframes. A
-                // mid-run dependency rescan replaces Vite's optimized cache
-                // and makes those iframes lose dynamic imports. Serving the
-                // ESM dependencies directly keeps the full browser suite
-                // deterministic; production and dev optimization stay on.
-                enabled: false
+                // Prebundle every browser-only runtime up front. Combined
+                // with a single browser worker in the local gate, this avoids
+                // mid-run dependency rescans without making the full suite
+                // serve every dependency unoptimized.
+                enabled: true,
+                include: [...tiptapDeps, ...browserRuntimeDeps]
               }
             }
           }
