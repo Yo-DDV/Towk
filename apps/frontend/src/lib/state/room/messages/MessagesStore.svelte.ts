@@ -74,7 +74,9 @@ const TIMELINE_MEMORY_SNAPSHOT_LIMIT = 120;
 const TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS = 32;
 const INITIAL_MEDIA_PREVIEW_PREWARM_LIMIT = 12;
 const INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS = 320;
+const TIMELINE_WARMUP_MAX_IN_FLIGHT = 4;
 const timelineMemorySnapshots = new SvelteMap<string, TimelineSnapshot>();
+const timelineWarmupInFlight = new Map<string, Promise<boolean>>();
 let transientTimelineSnapshotScopeSequence = 0;
 
 function timelineSnapshotKey(
@@ -224,6 +226,87 @@ function prewarmInitialMediaPreviewUrls(rawEvents: readonly RawEvent[]): Promise
       setTimeout(resolve, INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS)
     )
   ]);
+}
+
+function rememberTimelineSnapshot(key: string, snapshot: TimelineSnapshot): void {
+  if (timelineMemorySnapshots.has(key)) timelineMemorySnapshots.delete(key);
+  timelineMemorySnapshots.set(key, {
+    ...snapshot,
+    events: snapshot.events.slice(-TIMELINE_MEMORY_SNAPSHOT_LIMIT)
+  });
+  while (timelineMemorySnapshots.size > TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS) {
+    const oldestKey = timelineMemorySnapshots.keys().next().value;
+    if (!oldestKey) break;
+    timelineMemorySnapshots.delete(oldestKey);
+  }
+}
+
+export async function warmRoomTimelineSnapshot({
+  roomId,
+  roomTimeline,
+  serverConnection,
+  privateDataScope
+}: {
+  roomId: string;
+  roomTimeline?: RoomTimelineAPI;
+  serverConnection?: ServerConnection;
+  privateDataScope: PrivateDataScope | null | undefined;
+}): Promise<boolean> {
+  const scope = privateDataScope;
+  const ownerKey = privateTimelineSnapshotOwnerKey(scope);
+  if (!ownerKey) return false;
+
+  const key = timelineSnapshotKey(ownerKey, 'room', roomId, null);
+  if (timelineMemorySnapshots.has(key)) return true;
+
+  const existing = timelineWarmupInFlight.get(key);
+  if (existing) return existing;
+  if (timelineWarmupInFlight.size >= TIMELINE_WARMUP_MAX_IN_FLIGHT) return false;
+  if (!roomTimeline && !serverConnection) return false;
+
+  const warmup = (async () => {
+    const api = roomTimeline ?? roomTimelineFromServerConnection(serverConnection!);
+    const page = await api.getRoomEvents({ roomId, limit: PAGE_SIZE });
+    const mediaPrewarm = prewarmInitialMediaPreviewUrls(page.events);
+    if (mediaPrewarm) await mediaPrewarm;
+
+    const events = sortRoomEventList(unmask(page.events));
+    if (events.length === 0) return false;
+
+    rememberTimelineSnapshot(key, {
+      events,
+      oldestCursor: page.startCursor ?? undefined,
+      newestCursor: page.endCursor ?? undefined,
+      hasReachedStart: !page.hasOlder
+    });
+
+    if (!scope) return true;
+    void saveCachedTimeline(scope, {
+      roomId,
+      threadRootEventId: null,
+      events,
+      cachedAt: Date.now()
+    }).catch((error) => {
+      console.error('MessagesStore: encrypted warmup cache persistence failed:', error);
+    });
+
+    return true;
+  })();
+
+  timelineWarmupInFlight.set(key, warmup);
+  try {
+    return await warmup;
+  } catch (error) {
+    console.debug('MessagesStore: timeline warmup skipped:', error);
+    return false;
+  } finally {
+    timelineWarmupInFlight.delete(key);
+  }
+}
+
+export function __resetTimelineWarmupStateForTests(): void {
+  timelineMemorySnapshots.clear();
+  timelineWarmupInFlight.clear();
 }
 
 function isContinuityEvent(
@@ -1373,18 +1456,12 @@ export class MessagesStore {
   private rememberCurrentSnapshot(): void {
     const key = this.currentSnapshotKey();
     if (!key || this.events.length === 0) return;
-    if (timelineMemorySnapshots.has(key)) timelineMemorySnapshots.delete(key);
-    timelineMemorySnapshots.set(key, {
+    rememberTimelineSnapshot(key, {
       events: this.events.slice(-TIMELINE_MEMORY_SNAPSHOT_LIMIT),
       oldestCursor: this.oldestCursor,
       newestCursor: this.newestCursor,
       hasReachedStart: this.hasReachedStart
     });
-    while (timelineMemorySnapshots.size > TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS) {
-      const oldestKey = timelineMemorySnapshots.keys().next().value;
-      if (!oldestKey) break;
-      timelineMemorySnapshots.delete(oldestKey);
-    }
   }
 
   private memorySnapshot(

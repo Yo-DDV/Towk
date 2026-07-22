@@ -5,7 +5,11 @@ import type { ServerConnection } from '$lib/state/server/serverConnection.svelte
 import type { RoomTimelineAPI } from '$lib/api-client/roomTimeline';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import type { EventConnectionPage } from './messages/helpers';
-import { MessagesStore } from './messages.svelte';
+import {
+  __resetTimelineWarmupStateForTests,
+  MessagesStore,
+  warmRoomTimelineSnapshot
+} from './messages.svelte';
 import { JumpToMessageState } from './composerContext.svelte';
 import {
   activateOfflineAccount,
@@ -2635,6 +2639,65 @@ describe('MessagesStore — encrypted offline timeline', () => {
     expect(store.events.map((event) => event.id)).toEqual(['network-1']);
     store.dispose();
     await purgeOfflineAccount(replaceScope);
+  });
+
+  it('uses a warmed room timeline snapshot immediately while the authoritative fetch is pending', async () => {
+    __resetTimelineWarmupStateForTests();
+    const warmScope: PrivateDataScope = {
+      ...scope,
+      userId: 'timeline-cache-user-warmup'
+    };
+    await purgeOfflineAccount(warmScope).catch(() => undefined);
+    await activateOfflineAccount(warmScope);
+
+    const warmTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(async () => ({
+        events: [roomMessageEvent('warm-1', 'room-warm') as never],
+        startCursor: 'cursor-warm-start',
+        endCursor: 'cursor-warm-end',
+        hasOlder: true,
+        hasNewer: false
+      }))
+    });
+
+    await expect(
+      warmRoomTimelineSnapshot({
+        roomId: 'room-warm',
+        roomTimeline: warmTimeline,
+        privateDataScope: warmScope
+      })
+    ).resolves.toBe(true);
+
+    const pending = pendingPage();
+    const authoritativeTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(() => pending.promise)
+    });
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => warmScope.userId,
+      authoritativeTimeline,
+      () => warmScope
+    );
+
+    store.setRoom('room-warm');
+    await vi.waitFor(() => expect(store.events.map((event) => event.id)).toEqual(['warm-1']));
+    expect(store.isInitialLoading).toBe(false);
+    expect(authoritativeTimeline.getRoomEvents).toHaveBeenCalledWith({
+      roomId: 'room-warm',
+      limit: 50
+    });
+
+    pending.resolve({
+      events: [roomMessageEvent('network-1', 'room-warm') as never],
+      startCursor: null,
+      endCursor: null,
+      hasOlder: false,
+      hasNewer: false
+    });
+    await vi.waitFor(() => expect(store.events.map((event) => event.id)).toEqual(['network-1']));
+    store.dispose();
+    __resetTimelineWarmupStateForTests();
+    await purgeOfflineAccount(warmScope);
   });
 });
 

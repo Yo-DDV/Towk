@@ -35,6 +35,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { appState } from '$lib/state/globals.svelte';
+  import { useConnection } from '$lib/state/server/connection.svelte';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import { warmRoomTimelineSnapshot } from '$lib/state/room/messages.svelte';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
   import type { EventEnvelope } from '$lib/eventBus.svelte';
   import { isMessagePostedEvent, RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
@@ -62,6 +65,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   const voiceCallState = $derived(stores.voiceCall);
   const serverInfo = $derived(stores.serverInfo);
   const appUi = getAppUiState();
+  const connection = useConnection();
 
   const roomsStore = $derived(stores.rooms);
   const roomUnreadStore = $derived(stores.roomUnread);
@@ -331,6 +335,17 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     void openRoomCallPanel(room.id);
   }
 
+  function warmRoomTimeline(room: RoomsListItem): void {
+    if (!room.viewerIsMember) return;
+    if (room.id === activeRoomId) return;
+    const server = serverRegistry.getServer(activeServerId);
+    void warmRoomTimelineSnapshot({
+      roomId: room.id,
+      serverConnection: connection(),
+      privateDataScope: privateDataScopeForServer(server)
+    });
+  }
+
   async function handleNotificationBadgeClick(event: MouseEvent, roomId: string, isDM: boolean) {
     event.preventDefault();
     event.stopPropagation();
@@ -445,6 +460,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     aria-current={room.id === activeRoomId ? 'page' : undefined}
     data-sveltekit-preload-code="hover"
     data-sveltekit-preload-data="tap"
+    onpointerenter={() => warmRoomTimeline(room)}
+    onfocus={() => warmRoomTimeline(room)}
+    ontouchstart={() => warmRoomTimeline(room)}
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
@@ -505,6 +523,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     aria-current={room.id === activeRoomId ? 'page' : undefined}
     data-sveltekit-preload-code="hover"
     data-sveltekit-preload-data="tap"
+    onpointerenter={() => warmRoomTimeline(room)}
+    onfocus={() => warmRoomTimeline(room)}
+    ontouchstart={() => warmRoomTimeline(room)}
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
