@@ -1168,8 +1168,12 @@
           </div>
         </div>
       {:else if !isLoading && virtualItems.length === 0}
-        <div class="flex flex-1 items-center justify-center">
-          <div class="py-4 text-sm text-muted/40">{emptyMessage}</div>
+        <div class="timeline-room-empty-state flex flex-1 items-center justify-center px-4">
+          <div
+            class="surface-pop rounded-xl border border-surface-200/55 bg-surface/42 px-4 py-3 text-center text-sm text-muted/60 shadow-sm"
+          >
+            {emptyMessage}
+          </div>
         </div>
       {:else if !isLoading || virtualItems.length > 0}
         <Virtualizer
@@ -1308,6 +1312,11 @@
     box-shadow: 0 0 18px color-mix(in srgb, var(--color-primary) 7%, transparent);
   }
 
+  .timeline-room-empty-state {
+    animation: timeline-room-empty-state 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: opacity, transform;
+  }
+
   @keyframes timeline-room-reveal {
     from {
       opacity: 0.78;
@@ -1344,10 +1353,22 @@
     }
   }
 
+  @keyframes timeline-room-empty-state {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 4px, 0) scale(0.992);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .timeline-room-carryover,
     .timeline-room-reveal,
-    .timeline-room-switch-placeholder {
+    .timeline-room-switch-placeholder,
+    .timeline-room-empty-state {
       animation: none;
       opacity: 1;
       transform: none;

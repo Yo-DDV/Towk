@@ -96,6 +96,22 @@ describe('EventList jump completion', () => {
     );
   });
 
+  it('renders an empty room as a stable polished state instead of raw blank text', async () => {
+    render(EventListTestHarness, {
+      props: {
+        eventIds: [],
+        scrollToEventId: null,
+        isLoading: false
+      }
+    });
+
+    await expect.element(page.getByText('No messages yet')).toBeVisible();
+    const emptyState = document.querySelector('.timeline-room-empty-state');
+
+    expect(emptyState).toBeInstanceOf(HTMLElement);
+    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+  });
+
   it('delays room switch scroll reset until the rendered timeline catches up', async () => {
     const rendered = render(EventListTestHarness, {
       props: {
