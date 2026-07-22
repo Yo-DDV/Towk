@@ -1107,16 +1107,33 @@
     >
       {#if renderedTimelineRoomId !== roomId}
         <div
-          class="timeline-room-switch-placeholder flex min-h-[min(70vh,720px)] flex-col justify-end gap-3 px-4 pb-6"
+          class="timeline-room-switch-placeholder flex min-h-[min(70vh,720px)] flex-col gap-4 px-4 pt-7 pb-6"
           aria-busy="true"
           aria-label={m['room.message.loading']()}
         >
-          <div class="skeleton h-4 w-1/4 rounded"></div>
-          <div class="skeleton h-14 w-3/4 rounded-md"></div>
-          <div class="skeleton ml-10 h-4 w-1/3 rounded"></div>
-          <div class="skeleton ml-10 h-14 w-2/3 rounded-md"></div>
-          <div class="skeleton ml-20 h-4 w-1/4 rounded"></div>
-          <div class="skeleton ml-20 h-14 w-3/5 rounded-md"></div>
+          <div class="flex gap-3">
+            <div class="skeleton mt-1 size-9 shrink-0 rounded-full"></div>
+            <div class="min-w-0 flex-1 space-y-3">
+              <div class="flex items-center gap-2">
+                <div class="skeleton h-4 w-28 rounded"></div>
+                <div class="skeleton h-3 w-10 rounded"></div>
+              </div>
+              <div class="skeleton timeline-room-switch-media rounded-xl"></div>
+              <div class="skeleton h-3.5 w-4/5 rounded"></div>
+              <div class="skeleton h-3.5 w-2/5 rounded"></div>
+            </div>
+          </div>
+          <div class="ml-12 space-y-3">
+            <div class="skeleton h-4 w-1/3 rounded"></div>
+            <div class="skeleton h-12 w-3/4 rounded-lg"></div>
+          </div>
+          <div class="ml-8 flex gap-3">
+            <div class="skeleton mt-1 size-8 shrink-0 rounded-full"></div>
+            <div class="min-w-0 flex-1 space-y-3">
+              <div class="skeleton h-4 w-32 rounded"></div>
+              <div class="skeleton h-10 w-2/3 rounded-lg"></div>
+            </div>
+          </div>
         </div>
       {:else if loadFailed && !isLoading && virtualItems.length === 0}
         <div class="flex flex-1 items-center justify-center px-4">
