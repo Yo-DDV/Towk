@@ -97,6 +97,73 @@ function roomMessageEvent(id: string, roomId: string) {
   };
 }
 
+function roomImageMessageEvent(id: string, roomId: string, thumbnailUrl: string) {
+  const event = roomMessageEvent(id, roomId);
+  return {
+    ...event,
+    event: {
+      ...event.event,
+      attachments: [
+        {
+          id: `${id}-image`,
+          filename: `${id}.jpg`,
+          contentType: 'image/jpeg',
+          width: 800,
+          height: 600,
+          assetUrl: {
+            url: `${thumbnailUrl}?asset=1`,
+            expiresAt: '2027-05-29T15:00:00Z'
+          },
+          thumbnailAssetUrl: {
+            url: thumbnailUrl,
+            expiresAt: '2027-05-29T15:00:00Z'
+          },
+          videoProcessing: null
+        }
+      ]
+    }
+  };
+}
+
+function stubPendingImagePrewarm() {
+  const urls: string[] = [];
+  const pendingLoads: Array<() => void> = [];
+
+  class PendingImage {
+    decoding = '';
+    loading = '';
+    complete = false;
+    naturalWidth = 0;
+    onload: ((event: Event) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+
+    set src(value: string) {
+      urls.push(value);
+      pendingLoads.push(() => {
+        this.complete = true;
+        this.naturalWidth = 1;
+        this.onload?.(new Event('load'));
+      });
+    }
+
+    decode(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+
+  vi.stubGlobal('Image', PendingImage);
+
+  return {
+    urls,
+    resolveAll() {
+      while (pendingLoads.length > 0) pendingLoads.shift()?.();
+    },
+    restore() {
+      vi.unstubAllGlobals();
+    }
+  };
+}
+
 function messageWithReaction(id: string, emoji: string) {
   const event = threadMessageEvent(id);
   return {
@@ -428,6 +495,89 @@ describe('MessagesStore — room lifecycle ownership', () => {
     expect(store.isShowingCachedData).toBe(true);
     expect(store.isInitialLoading).toBe(false);
     store.dispose();
+  });
+
+  it('prewarms media previews before publishing an initial media-heavy room window', async () => {
+    const mediaPrewarm = stubPendingImagePrewarm();
+    const roomLoad = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(() => roomLoad.promise)
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    try {
+      store.setRoom('room-1');
+      roomLoad.resolve({
+        events: [
+          roomImageMessageEvent('media-1', 'room-1', 'https://cdn.example.test/media-1.webp') as never
+        ],
+        startCursor: 'room-1:start',
+        endCursor: 'room-1:end',
+        hasOlder: false,
+        hasNewer: false
+      });
+      await settle();
+
+      expect(mediaPrewarm.urls).toEqual(['https://cdn.example.test/media-1.webp']);
+      expect(store.rootEvents).toEqual([]);
+      expect(store.isInitialLoading).toBe(true);
+
+      mediaPrewarm.resolveAll();
+      await settle();
+
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['media-1']);
+      expect(store.isInitialLoading).toBe(false);
+    } finally {
+      store.dispose();
+      mediaPrewarm.restore();
+    }
+  });
+
+  it('keeps the current room window visible while refreshed media previews prewarm', async () => {
+    const mediaPrewarm = stubPendingImagePrewarm();
+    const refreshPage = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi
+        .fn()
+        .mockResolvedValueOnce({
+          events: [roomMessageEvent('initial-text', 'room-1') as never],
+          startCursor: 'room-1:start',
+          endCursor: 'room-1:end',
+          hasOlder: false,
+          hasNewer: false
+        })
+        .mockImplementationOnce(() => refreshPage.promise)
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    try {
+      store.setRoom('room-1');
+      await settle();
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['initial-text']);
+
+      const refreshing = store.refreshCurrentWindow();
+      refreshPage.resolve({
+        events: [
+          roomImageMessageEvent('media-refresh', 'room-1', 'https://cdn.example.test/refresh.webp') as never
+        ],
+        startCursor: 'room-1:start:new',
+        endCursor: 'room-1:end:new',
+        hasOlder: false,
+        hasNewer: false
+      });
+      await settle();
+
+      expect(mediaPrewarm.urls).toEqual(['https://cdn.example.test/refresh.webp']);
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['initial-text']);
+
+      mediaPrewarm.resolveAll();
+      await expect(refreshing).resolves.toMatchObject({ refreshed: true, changed: true });
+
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['media-refresh', 'initial-text']);
+    } finally {
+      store.dispose();
+      mediaPrewarm.restore();
+    }
   });
 
   it('keeps the previous room window visible while an unvisited room loads', async () => {

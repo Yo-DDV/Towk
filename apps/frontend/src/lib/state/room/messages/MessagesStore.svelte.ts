@@ -798,6 +798,15 @@ export class MessagesStore {
     };
   }
 
+  private async prewarmTimelineMediaBeforePublish(
+    thisLoad: number,
+    rawEvents: readonly RawEvent[]
+  ): Promise<boolean> {
+    const mediaPrewarm = prewarmInitialMediaPreviewUrls(rawEvents);
+    if (mediaPrewarm) await mediaPrewarm;
+    return !this.isStale(thisLoad);
+  }
+
   async loadNewer(jumpState: JumpToMessageState): Promise<void> {
     if (this.scope !== 'room') return;
     if (jumpState.isLoadingNewer || jumpState.hasReachedEnd) return;
@@ -878,6 +887,10 @@ export class MessagesStore {
         jumpState.hasOlderMessages = false;
         return false;
       }
+
+      const mediaPrewarm = prewarmInitialMediaPreviewUrls(rawEvents);
+      if (mediaPrewarm) await mediaPrewarm;
+      if (this.#jumpId !== jumpId || this.scope !== 'room' || this.roomId !== roomId) return false;
 
       // This replacement becomes the authoritative room window. Cancel any
       // older latest-page load before installing it.
@@ -1521,6 +1534,9 @@ export class MessagesStore {
     });
 
     if (this.isStale(thisLoad)) return skippedRefreshResult();
+    if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) {
+      return skippedRefreshResult();
+    }
     const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: true,
       latestSnapshot: true
@@ -1540,6 +1556,9 @@ export class MessagesStore {
     });
 
     if (this.isStale(thisLoad)) return skippedRefreshResult();
+    if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) {
+      return skippedRefreshResult();
+    }
     const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: true
     });
@@ -1564,6 +1583,9 @@ export class MessagesStore {
           limit: PAGE_SIZE
         });
     if (this.isStale(thisLoad)) return skippedRefreshResult();
+    if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) {
+      return skippedRefreshResult();
+    }
     const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: anchorEventId === null || anchorEventId !== this.threadRootEventId,
       latestSnapshot: anchorEventId === null
@@ -1678,8 +1700,9 @@ export class MessagesStore {
     });
 
     promise
-      .then((page) => {
+      .then(async (page) => {
         if (this.isStale(thisLoad)) return;
+        if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) return;
         // Merge with any subscription events that arrived during the
         // in-flight query (e.g. the user's own reply or a fast cross-user
         // reply). Overwriting would drop them.
