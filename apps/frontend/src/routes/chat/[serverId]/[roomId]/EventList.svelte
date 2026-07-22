@@ -1279,6 +1279,18 @@
     will-change: opacity, transform;
   }
 
+  .timeline-room-switch-placeholder :global(.skeleton) {
+    opacity: 0.9;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--color-surface-200) 78%, transparent),
+        color-mix(in srgb, var(--color-primary) 16%, var(--color-surface-200)),
+        color-mix(in srgb, var(--color-surface-200) 78%, transparent)
+      );
+    box-shadow: 0 0 18px color-mix(in srgb, var(--color-primary) 7%, transparent);
+  }
+
   @keyframes timeline-room-reveal {
     from {
       opacity: 0.78;
