@@ -105,6 +105,21 @@ describe('VideoPlayer', () => {
     expect(posterShell?.textContent).not.toContain('clip.mp4');
   });
 
+  it('renders video poster thumbnails with a skeleton until the image has loaded', () => {
+    const { container } = renderPostedVideo({
+      width: 1080,
+      height: 1920,
+      thumbnailUrl: 'https://chat.example.test/poster.webp'
+    });
+
+    const poster = container.querySelector<HTMLImageElement>(
+      '[data-testid="video-player-poster-shell"] img'
+    );
+
+    expect(poster).not.toBeNull();
+    expect(poster?.className).toContain('skeleton');
+  });
+
   it('mounts the custom player only after the user opens the video', async () => {
     const { container } = renderPostedVideo({
       width: 1920,

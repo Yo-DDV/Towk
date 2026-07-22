@@ -19,6 +19,7 @@
   import { tick } from 'svelte';
   import type { VideoProcessingStatus } from '$lib/render/types';
   import { fullscreenVideo } from '$lib/state/globals.svelte';
+  import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import * as m from '$lib/i18n/messages';
 
   import 'vidstack/player/styles/default/theme.css';
@@ -372,7 +373,7 @@
   <!-- Converted GIFs use a native <video> for reliable autoplay + loop behavior. -->
   <div class="embed-frame" style={frameStyle}>
     {#if showAutoLoopFallback}
-      <img
+      <SkeletonImg
         src={fallbackImageUrl!}
         alt={filename}
         loading="lazy"
@@ -397,7 +398,7 @@
 {:else if status === 'COMPLETED' && highestVariant && playerRequested && elementsReady}
   <div class="embed-frame video-player-frame" style={frameStyle}>
     {#if hasPosterBridge}
-      <img
+      <SkeletonImg
         src={thumbnailUrl!}
         alt=""
         aria-hidden="true"
@@ -444,7 +445,7 @@
     onclick={activatePlayer}
   >
     {#if thumbnailUrl}
-      <img
+      <SkeletonImg
         src={thumbnailUrl}
         alt={filename}
         loading="eager"
@@ -517,7 +518,7 @@
     overflow: hidden;
   }
 
-  .video-poster-bridge {
+  :global(.video-poster-bridge) {
     position: absolute;
     inset: 0;
     z-index: 2;
