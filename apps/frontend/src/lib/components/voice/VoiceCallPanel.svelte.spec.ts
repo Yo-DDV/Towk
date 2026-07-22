@@ -588,6 +588,42 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     const button = container.querySelector<HTMLButtonElement>(
       '[data-testid="call-screen-share-stats-button"]'
     )!;
+    const mediaActions = container.querySelector<HTMLElement>('[data-testid="call-media-actions"]');
+    expect(mediaActions).not.toBeNull();
+    expect(button.closest('[data-testid="call-media-actions"]')).toBe(mediaActions);
+    const mediaCard = button.closest<HTMLElement>('[data-call-media-card]');
+    expect(mediaCard).not.toBeNull();
+    const actionButtons = Array.from(mediaActions!.querySelectorAll<HTMLButtonElement>('button'));
+    expect(actionButtons.length).toBeGreaterThanOrEqual(3);
+
+    for (const width of [180, 320]) {
+      Object.assign(mediaCard!.style, {
+        width: `${width}px`,
+        maxWidth: `${width}px`,
+        justifySelf: 'start'
+      });
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+      const cardRect = mediaCard!.getBoundingClientRect();
+      const toolbarRect = mediaActions!.getBoundingClientRect();
+      expect(toolbarRect.left).toBeGreaterThanOrEqual(cardRect.left);
+      expect(toolbarRect.right).toBeLessThanOrEqual(cardRect.right);
+
+      const buttonRects = actionButtons.map((actionButton) => actionButton.getBoundingClientRect());
+      for (let leftIndex = 0; leftIndex < buttonRects.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < buttonRects.length; rightIndex += 1) {
+          const leftRect = buttonRects[leftIndex];
+          const rightRect = buttonRects[rightIndex];
+          const overlaps =
+            leftRect.left < rightRect.right &&
+            leftRect.right > rightRect.left &&
+            leftRect.top < rightRect.bottom &&
+            leftRect.bottom > rightRect.top;
+          expect(overlaps).toBe(false);
+        }
+      }
+    }
+
     expect(button.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })).toBe(true);
     expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
     expect(button.getAttribute('aria-expanded')).toBe('false');

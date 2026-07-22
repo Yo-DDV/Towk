@@ -747,10 +747,8 @@ Room sidebar panel for voice/video calls.
 {/snippet}
 
 {#snippet mediaTileActions(participant: DisplayParticipant, isScreenShare = false)}
-  {#if isScreenShare}
-    <div
-      class="pointer-events-auto flex shrink-0 rounded-md border border-text/10 bg-surface-100 p-0.5 shadow-sm"
-    >
+  <CallTileActionToolbar testId="call-media-actions" forceVisible={isScreenShare}>
+    {#if isScreenShare}
       <CallTileActionButton
         icon="uil--chart-line"
         label={m['voice.screen_stats_open']()}
@@ -761,9 +759,7 @@ Room sidebar panel for voice/video calls.
         ariaControls={diagnosticsPanelId(participant)}
         onclick={(event) => toggleScreenShareDiagnostics(participant, event)}
       />
-    </div>
-  {/if}
-  <CallTileActionToolbar testId="call-media-actions">
+    {/if}
     {#if participant.isLocal && !isScreenShare && voiceCallState.isCameraEnabled && voiceCallState.videoDevices.length > 1}
       <CallTileActionButton
         icon="uil--exchange"
