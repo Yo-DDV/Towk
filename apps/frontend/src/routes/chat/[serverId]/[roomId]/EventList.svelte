@@ -147,6 +147,7 @@
   let roomRevealActive = $state(false);
   let roomRevealTimer: ReturnType<typeof setTimeout> | null = null;
   let roomTransitionMaskActive = $state(false);
+  let roomScrollbarSuspended = $state(false);
   let roomTransitionMaskOperation = 0;
   const ROOM_SWITCH_STABLE_FRAMES = 6;
   const ROOM_SWITCH_MAX_SETTLE_FRAMES = 48;
@@ -207,18 +208,31 @@
   const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
   const isRoomSwitching = $derived(!isCurrentRoomWindowRendered);
 
+  function suspendRoomScrollbar() {
+    if (roomRevealTimer) {
+      clearTimeout(roomRevealTimer);
+      roomRevealTimer = null;
+    }
+    roomRevealActive = false;
+    roomScrollbarSuspended = true;
+  }
+
   function startRoomReveal() {
     if (roomRevealTimer) {
       clearTimeout(roomRevealTimer);
       roomRevealTimer = null;
     }
     roomRevealActive = false;
-    if (motionDuration(MOTION_DURATION.expressive) === 0) return;
+    if (motionDuration(MOTION_DURATION.expressive) === 0) {
+      roomScrollbarSuspended = false;
+      return;
+    }
 
     requestAnimationFrame(() => {
       roomRevealActive = true;
       roomRevealTimer = setTimeout(() => {
         roomRevealActive = false;
+        roomScrollbarSuspended = false;
         roomRevealTimer = null;
       }, motionDuration(MOTION_DURATION.expressive) + 40);
     });
@@ -523,6 +537,7 @@
       hasSeenRoomSwitch = true;
       roomTransitionMaskOperation += 1;
       roomTransitionMaskActive = true;
+      suspendRoomScrollbar();
       return;
     }
     if (settledRoomId === roomId) return;
@@ -543,6 +558,7 @@
     hasSeenRoomSwitch = true;
     const operation = ++roomTransitionMaskOperation;
     roomTransitionMaskActive = true;
+    suspendRoomScrollbar();
     void settleRoomTransitionMask(operation);
   });
 
@@ -1345,7 +1361,9 @@
     bottom
     bind:this={scrollFader}
     bind:scrollEl={scrollContainer}
-    scrollClass="overscroll-y-contain"
+    scrollClass={roomScrollbarSuspended
+      ? 'overscroll-y-contain timeline-scrollbar-suspended'
+      : 'overscroll-y-contain'}
     data-testid="messages-container"
     onwheel={markUserScrollIntent}
     ontouchmove={markUserScrollIntent}
@@ -1559,6 +1577,17 @@
 
   .timeline-room-switch-mask {
     background: var(--color-background);
+  }
+
+  :global(.timeline-scrollbar-suspended) {
+    scrollbar-color: transparent transparent;
+  }
+
+  :global(.timeline-scrollbar-suspended::-webkit-scrollbar-thumb),
+  :global(.timeline-scrollbar-suspended::-webkit-scrollbar-track),
+  :global(.timeline-scrollbar-suspended::-webkit-scrollbar-corner),
+  :global(.timeline-scrollbar-suspended::-webkit-scrollbar-button) {
+    background: transparent;
   }
 
   .timeline-room-reveal {

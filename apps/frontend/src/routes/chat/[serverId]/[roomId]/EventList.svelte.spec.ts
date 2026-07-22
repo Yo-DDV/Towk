@@ -135,8 +135,10 @@ describe('EventList jump completion', () => {
       });
 
       const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      const scrollContainer = page.getByTestId('messages-container').element();
       expect(mask).not.toBeNull();
       expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+      expect(scrollContainer.classList.contains('timeline-scrollbar-suspended')).toBe(true);
       expect(document.querySelector('.timeline-room-empty-state')).toBeNull();
 
       await rendered.rerender({
@@ -147,6 +149,9 @@ describe('EventList jump completion', () => {
       });
       await vi.waitFor(() =>
         expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+      );
+      await vi.waitFor(() =>
+        expect(scrollContainer.classList.contains('timeline-scrollbar-suspended')).toBe(false)
       );
     } finally {
       rendered.unmount();
