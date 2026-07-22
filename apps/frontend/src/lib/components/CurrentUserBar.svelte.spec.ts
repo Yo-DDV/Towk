@@ -372,7 +372,7 @@ describe('CurrentUserBar', () => {
     );
   });
 
-  it('keeps the identity card at the same control height with long profile content', () => {
+  it('keeps the identity card at the compact composer height with long profile content', () => {
     currentUserState.user = {
       ...currentUserState.user!,
       login: 'alice-with-a-very-long-login-name-that-must-truncate',
@@ -391,7 +391,7 @@ describe('CurrentUserBar', () => {
     const card = q(container, '[data-testid="current-user-identity-card"]')!;
     const cardRect = card.getBoundingClientRect();
     const controlReference = document.createElement('div');
-    controlReference.className = 'h-12';
+    controlReference.className = 'h-15';
     document.body.append(controlReference);
     const expectedHeight = controlReference.getBoundingClientRect().height;
     controlReference.remove();

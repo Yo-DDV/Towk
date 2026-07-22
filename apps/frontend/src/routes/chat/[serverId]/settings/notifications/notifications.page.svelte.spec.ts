@@ -290,6 +290,47 @@ describe('Notification settings page', () => {
     expect(container.textContent).not.toContain('Push notifications blocked');
   });
 
+  it('lets the user retry push permission from the blocked state', async () => {
+    mocks.serverInfo.pushNotificationsEnabled = true;
+    mocks.serverInfo.vapidPublicKey = 'vapid-key';
+    mocks.pushNotifications.getPermission.mockReturnValue('denied');
+    mocks.pushNotifications.ensureRegistered.mockImplementation(async () => {
+      mocks.pushNotifications.getPermission.mockReturnValue('granted');
+      return true;
+    });
+
+    const { container } = render(NotificationsPage);
+    await settle();
+
+    expect(container.textContent).toContain('Push notifications blocked');
+    buttonWithText(container, 'Enable notifications').click();
+    await settle();
+
+    expect(mocks.pushNotifications.ensureRegistered).toHaveBeenCalledWith('vapid-key', {
+      prompt: true
+    });
+    expect(container.textContent).toContain('Push notifications enabled');
+  });
+
+  it('keeps recovery guidance visible when retrying push permission is still blocked', async () => {
+    mocks.serverInfo.pushNotificationsEnabled = true;
+    mocks.serverInfo.vapidPublicKey = 'vapid-key';
+    mocks.pushNotifications.getPermission.mockReturnValue('denied');
+    mocks.pushNotifications.ensureRegistered.mockResolvedValue(false);
+
+    const { container } = render(NotificationsPage);
+    await settle();
+
+    buttonWithText(container, 'Enable notifications').click();
+    await settle();
+
+    expect(mocks.pushNotifications.ensureRegistered).toHaveBeenCalledWith('vapid-key', {
+      prompt: true
+    });
+    expect(container.textContent).toContain('Push notifications blocked');
+    expect(container.textContent).toContain('Push notifications are blocked in your browser');
+  });
+
   it('does not show push as enabled when permission is revoked during reconciliation', async () => {
     const registration = deferred<boolean>();
     mocks.serverInfo.pushNotificationsEnabled = true;

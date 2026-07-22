@@ -328,7 +328,7 @@ to the user settings page for the active server.
     {/if}
 
     <div
-      class="flex h-12 max-h-12 min-h-12 items-center gap-2 overflow-hidden rounded-xl bg-surface px-2"
+      class="flex h-15 max-h-15 min-h-15 items-center gap-2 overflow-hidden rounded-xl bg-surface px-2"
       data-testid="current-user-identity-card"
     >
       <button
