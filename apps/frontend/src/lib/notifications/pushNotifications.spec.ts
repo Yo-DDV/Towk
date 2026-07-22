@@ -417,6 +417,18 @@ describe('pushNotifications.ensureRegistered', () => {
     expect(mocks.subscribePush).toHaveBeenCalledOnce();
   });
 
+  it('retries permission during explicit enable when permission was denied', async () => {
+    permission = 'denied';
+    const subscription = makeSubscription('https://push.example/recovered');
+    getSubscription.mockResolvedValue(null);
+    subscribe.mockResolvedValue(subscription);
+
+    await expect(ensureRegistered('dmFwaWQ', { prompt: true })).resolves.toBe(true);
+    expect(requestPermission).toHaveBeenCalledOnce();
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(mocks.subscribePush).toHaveBeenCalledOnce();
+  });
+
   it('cleans up only a newly created subscription when server save fails', async () => {
     permission = 'granted';
     const existingSubscription = makeSubscription('https://push.example/existing');
