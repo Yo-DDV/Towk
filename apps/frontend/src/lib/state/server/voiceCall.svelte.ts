@@ -60,7 +60,11 @@ import type {
 } from '$lib/api-client/voiceCalls';
 import type { CoordinateVoiceCallJoin, LeaveOtherVoiceCalls } from './voiceCallCoordinator';
 import { nextCameraDeviceId } from '$lib/voice/cameraDevices';
-import { audioDeviceRouteKind, preferredAudioDeviceId } from '$lib/voice/audioDevices';
+import {
+  audioDeviceMayUseBluetooth,
+  audioDeviceRouteKind,
+  preferredAudioDeviceId
+} from '$lib/voice/audioDevices';
 
 export type CallParticipantInfo = {
   identity: string;
@@ -1247,16 +1251,28 @@ export class VoiceCallState {
     room: Room,
     deviceId: string | null = this.selectedDeviceId
   ): Promise<void> {
-    const options = createVoiceAudioCaptureOptionsFor(this.microphoneProcessingPreferences);
-    const publication = await room.localParticipant.setMicrophoneEnabled(
-      true,
+    const previousProcessingEnvironment = await this.prepareBluetoothMicrophoneTransition(
+      room,
       deviceId
-        ? {
-            ...options,
-            deviceId: { exact: deviceId }
-          }
-        : options
     );
+    const options = createVoiceAudioCaptureOptionsFor(this.microphoneProcessingPreferences);
+    const publication = await room.localParticipant
+      .setMicrophoneEnabled(
+        true,
+        deviceId
+          ? {
+              ...options,
+              deviceId: { exact: deviceId }
+            }
+          : options
+      )
+      .catch(async (error: unknown) => {
+        await this.restoreMicrophoneProcessingAfterFailedTransition(
+          room,
+          previousProcessingEnvironment
+        );
+        throw error;
+      });
     const track = publication?.track as LocalAudioTrack | undefined;
     if (!track) return;
 
@@ -1289,7 +1305,7 @@ export class VoiceCallState {
       if (fallbackDeviceId && fallbackDeviceId !== unavailableDeviceId) {
         // A named Bluetooth route disappeared. Move the muted publication to a
         // route that is present in the refreshed inventory before unmuting it.
-        await room.switchActiveDevice('audioinput', fallbackDeviceId);
+        await this.switchAudioInputDevice(room, fallbackDeviceId);
         if (!shouldContinue()) throw initialError;
         await this.enableMicrophone(room, fallbackDeviceId);
         return;
@@ -1395,6 +1411,58 @@ export class VoiceCallState {
     await this.updateMicrophoneProcessing(track);
   }
 
+  private async prepareBluetoothMicrophoneTransition(
+    room: Room,
+    deviceId: string | null
+  ): Promise<MicrophoneProcessingEnvironment | null> {
+    if (!deviceId) return null;
+    const device = this.audioDevices.find((candidate) => candidate.deviceId === deviceId);
+    if (!device || !audioDeviceMayUseBluetooth(device, this.audioDevices)) return null;
+
+    const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    const track = publication?.track as LocalAudioTrack | undefined;
+    if (!track?.getProcessor()) return null;
+
+    const previousEnvironment = this.microphoneProcessingEnvironment(track, deviceId);
+
+    // Detach Web Audio while the source still uses its current stable clock.
+    // If LiveKit switches first, an HFP/BLE route can briefly feed the old
+    // AudioContext and turn clock drift into audible gaps before reconciliation.
+    await this.updateMicrophoneProcessing(track, {
+      bluetoothRoute: true,
+      documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
+      routeIdentityKnown: true
+    });
+    return previousEnvironment;
+  }
+
+  private async restoreMicrophoneProcessingAfterFailedTransition(
+    room: Room,
+    environment: MicrophoneProcessingEnvironment | null
+  ): Promise<void> {
+    if (!environment || this.room !== room) return;
+    const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    const track = publication?.track as LocalAudioTrack | undefined;
+    if (!track) return;
+    await this.updateMicrophoneProcessing(track, environment).catch(() => undefined);
+  }
+
+  private async switchAudioInputDevice(room: Room, deviceId: string): Promise<void> {
+    const previousProcessingEnvironment = await this.prepareBluetoothMicrophoneTransition(
+      room,
+      deviceId
+    );
+    try {
+      await room.switchActiveDevice('audioinput', deviceId);
+    } catch (error) {
+      await this.restoreMicrophoneProcessingAfterFailedTransition(
+        room,
+        previousProcessingEnvironment
+      );
+      throw error;
+    }
+  }
+
   /** Keep enhanced Web Audio off while the document is suspended, then restore it on return. */
   async handleDocumentVisibilityChange(visibilityState: DocumentVisibilityState): Promise<void> {
     const room = this.room;
@@ -1416,11 +1484,14 @@ export class VoiceCallState {
     });
   }
 
-  private microphoneProcessingEnvironment(track: LocalAudioTrack): MicrophoneProcessingEnvironment {
+  private microphoneProcessingEnvironment(
+    track: LocalAudioTrack,
+    pendingDeviceId: string | null = null
+  ): MicrophoneProcessingEnvironment {
     const routeDeviceIds = [
       track.getSourceTrackSettings().deviceId,
       this.room?.getActiveDevice('audioinput'),
-      this.selectedDeviceId
+      this.selectedDeviceId === pendingDeviceId ? null : this.selectedDeviceId
     ].filter((deviceId): deviceId is string => Boolean(deviceId));
     const routeDevices = this.audioDevices.filter((device) =>
       routeDeviceIds.includes(device.deviceId)
@@ -1437,7 +1508,7 @@ export class VoiceCallState {
       // logical route id. A logical route is also treated as Bluetooth while
       // any enumerated Bluetooth input could be hidden behind it.
       bluetoothRoute:
-        routeKinds.includes('bluetooth') || (usesLogicalRoute && hasAvailableBluetoothInput),
+        routeDevices.some((device) => audioDeviceMayUseBluetooth(device, this.audioDevices)),
       documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
       // A logical route is safe for enhanced processing only when the current
       // inventory contains no Bluetooth input that could replace its clock.
@@ -1761,7 +1832,7 @@ export class VoiceCallState {
         if (this.room !== room) return;
         const shouldRecoverMicrophone = this.microphoneRouteRecovering && this.isMuted;
         await this.runExplicitMediaDeviceOperation(() =>
-          room.switchActiveDevice('audioinput', deviceId)
+          this.switchAudioInputDevice(room, deviceId)
         );
         if (this.room !== room) return;
         this.selectedDeviceId = room.getActiveDevice('audioinput') ?? deviceId;

@@ -2964,6 +2964,7 @@ describe('VoiceCallState', () => {
     const state = new VoiceCallState(createVoiceCallClient());
     await state.join('wss://livekit.example.test', 'R1');
     lastRoom?.localParticipant.setMicrophoneEnabled.mockClear();
+    microphoneStopProcessor.mockClear();
     microphoneTrackSettings = {
       ...microphoneTrackSettings,
       deviceId: 'bluetooth-microphone',
@@ -2995,6 +2996,10 @@ describe('VoiceCallState', () => {
     expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(
       true,
       expect.objectContaining({ deviceId: { exact: 'bluetooth-microphone' } })
+    );
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneStopProcessor.mock.invocationCallOrder[0]).toBeLessThan(
+      lastRoom!.localParticipant.setMicrophoneEnabled.mock.invocationCallOrder[0]
     );
     expect(state.selectedDeviceId).toBe('bluetooth-microphone');
   });
@@ -3198,6 +3203,104 @@ describe('VoiceCallState', () => {
       'bluetooth-microphone'
     );
     expect(state.selectedDeviceId).toBe('bluetooth-microphone');
+  });
+
+  it('detaches enhanced processing before switching to a Bluetooth microphone', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    state.audioDevices = [
+      {
+        deviceId: 'audio-input-1',
+        groupId: 'built-in-audio',
+        kind: 'audioinput',
+        label: 'Built-in microphone',
+        toJSON: () => ({})
+      } as MediaDeviceInfo,
+      {
+        deviceId: 'bluetooth-microphone',
+        groupId: 'wireless-audio',
+        kind: 'audioinput',
+        label: 'Bluetooth headset',
+        toJSON: () => ({})
+      } as MediaDeviceInfo
+    ];
+    lastRoom?.switchActiveDevice.mockClear();
+    microphoneStopProcessor.mockClear();
+
+    await state.setAudioDevice('bluetooth-microphone');
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith(
+      'audioinput',
+      'bluetooth-microphone'
+    );
+    expect(microphoneStopProcessor.mock.invocationCallOrder[0]).toBeLessThan(
+      lastRoom!.switchActiveDevice.mock.invocationCallOrder[0]
+    );
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
+  it('detaches enhanced processing before a logical route can select Bluetooth', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    state.audioDevices = [
+      {
+        deviceId: 'default',
+        groupId: 'system-audio',
+        kind: 'audioinput',
+        label: 'System default microphone',
+        toJSON: () => ({})
+      } as MediaDeviceInfo,
+      {
+        deviceId: 'bluetooth-microphone',
+        groupId: 'wireless-audio',
+        kind: 'audioinput',
+        label: 'Bluetooth headset',
+        toJSON: () => ({})
+      } as MediaDeviceInfo
+    ];
+    lastRoom?.switchActiveDevice.mockClear();
+    microphoneStopProcessor.mockClear();
+
+    await state.setAudioDevice('default');
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneStopProcessor.mock.invocationCallOrder[0]).toBeLessThan(
+      lastRoom!.switchActiveDevice.mock.invocationCallOrder[0]
+    );
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+  });
+
+  it('restores enhanced processing when a Bluetooth microphone switch fails', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    state.audioDevices = [
+      {
+        deviceId: 'audio-input-1',
+        groupId: 'built-in-audio',
+        kind: 'audioinput',
+        label: 'Built-in microphone',
+        toJSON: () => ({})
+      } as MediaDeviceInfo,
+      {
+        deviceId: 'bluetooth-microphone',
+        groupId: 'wireless-audio',
+        kind: 'audioinput',
+        label: 'Bluetooth headset',
+        toJSON: () => ({})
+      } as MediaDeviceInfo
+    ];
+    switchActiveDeviceFailure = Object.assign(new Error('Bluetooth route disappeared'), {
+      name: 'NotFoundError'
+    });
+
+    await state.setAudioDevice('bluetooth-microphone');
+
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneSetProcessor).toHaveBeenCalledTimes(2);
+    expect(state.selectedDeviceId).toBe('audio-input-1');
+    expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
   });
 
   it('does not restart the already active microphone when its selected row is pressed again', async () => {

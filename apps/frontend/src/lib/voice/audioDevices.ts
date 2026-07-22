@@ -64,6 +64,18 @@ export function audioDeviceRouteKind(device: MediaDeviceInfo): AudioDeviceRouteK
   return 'unknown';
 }
 
+export function audioDeviceMayUseBluetooth(
+  device: MediaDeviceInfo,
+  availableDevices: MediaDeviceInfo[]
+): boolean {
+  const routeKind = audioDeviceRouteKind(device);
+  return (
+    routeKind === 'bluetooth' ||
+    ((routeKind === 'default' || routeKind === 'communications') &&
+      availableDevices.some((candidate) => audioDeviceRouteKind(candidate) === 'bluetooth'))
+  );
+}
+
 export function preferredAudioDeviceId(
   devices: MediaDeviceInfo[],
   selection: PreferredAudioDeviceSelection = {}

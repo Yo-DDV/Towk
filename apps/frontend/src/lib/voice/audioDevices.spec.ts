@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  audioDeviceMayUseBluetooth,
   audioDeviceRouteKind,
   friendlyAudioDeviceNames,
   preferredAudioDeviceId
@@ -153,5 +154,23 @@ describe('audioDeviceRouteKind', () => {
     expect(audioDeviceRouteKind(device('samsung', 'Galaxy Buds2 Pro'))).toBe('bluetooth');
     expect(audioDeviceRouteKind(device('google', 'Pixel Buds Pro'))).toBe('bluetooth');
     expect(audioDeviceRouteKind(device('wireless', 'Wireless Headset'))).toBe('bluetooth');
+  });
+
+  it('treats a logical system route as Bluetooth-capable when a Bluetooth input exists', () => {
+    const bluetooth = device('bluetooth', 'Bluetooth headset');
+    const availableDevices = [
+      device('default', 'System default microphone'),
+      device('communications', 'Communications microphone'),
+      bluetooth
+    ];
+
+    expect(audioDeviceMayUseBluetooth(availableDevices[0], availableDevices)).toBe(true);
+    expect(audioDeviceMayUseBluetooth(availableDevices[1], availableDevices)).toBe(true);
+    expect(audioDeviceMayUseBluetooth(bluetooth, availableDevices)).toBe(true);
+    expect(
+      audioDeviceMayUseBluetooth(device('default', 'System default microphone'), [
+        device('built-in', 'Built-in microphone')
+      ])
+    ).toBe(false);
   });
 });
