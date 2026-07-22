@@ -36,6 +36,13 @@
   let browserDurationSeconds = $state(0);
   let playbackRate = $state(1);
   let status = $state<PlaybackStatus>('idle');
+  function initialPlaybackSrc() {
+    return src;
+  }
+
+  let playbackSrc = $state<string | null>(initialPlaybackSrc());
+  let pendingSrc = $state<string | null>(null);
+  let sourceReleased = $state(false);
   let animationFrame: number | null = null;
   let prefersReducedMotion = false;
 
@@ -106,6 +113,38 @@
     });
   }
 
+  function sourceIsLockedForPlayback() {
+    return Boolean(
+      status === 'loading' ||
+        status === 'playing' ||
+        status === 'buffering' ||
+        (audio && !audio.ended && (!audio.paused || currentTimeSeconds > 0))
+    );
+  }
+
+  function setPendingOrActiveSource(nextSrc: string) {
+    if (nextSrc === playbackSrc || nextSrc === pendingSrc) return;
+
+    if (sourceReleased || sourceIsLockedForPlayback()) {
+      pendingSrc = nextSrc;
+      return;
+    }
+
+    pendingSrc = null;
+    playbackSrc = nextSrc;
+  }
+
+  function syncAudioSource(nextSrc: string): boolean {
+    sourceReleased = false;
+    pendingSrc = null;
+    playbackSrc = nextSrc;
+
+    if (!audio || audio.getAttribute('src') === nextSrc) return false;
+    audio.setAttribute('src', nextSrc);
+    audio.load();
+    return true;
+  }
+
   async function startPlayback(forceReload = false) {
     if (!audio) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -113,8 +152,8 @@
       return;
     }
 
-    restoreAudioSource();
-    if (forceReload) audio.load();
+    const sourceWasReloaded = restoreAudioSource();
+    if (forceReload && !sourceWasReloaded) audio.load();
     claimVoiceMessagePlayback(audio);
     status = 'loading';
     try {
@@ -189,15 +228,15 @@
   }
 
   function restoreAudioSource() {
-    if (!audio || audio.getAttribute('src') === src) return;
-    audio.setAttribute('src', src);
-    audio.load();
+    return syncAudioSource(pendingSrc ?? src);
   }
 
   function releaseAudioSource() {
     if (!audio) return;
     stopProgressLoop();
     releaseVoiceMessagePlayback(audio);
+    sourceReleased = true;
+    playbackSrc = null;
     audio.removeAttribute('src');
     audio.load();
     currentTimeSeconds = 0;
@@ -259,6 +298,10 @@
     };
   });
 
+  $effect(() => {
+    setPendingOrActiveSource(src);
+  });
+
   onDestroy(() => {
     stopProgressLoop();
     releaseAudioSource();
@@ -276,7 +319,7 @@
 >
   <audio
     bind:this={audio}
-    {src}
+    src={playbackSrc ?? undefined}
     preload="metadata"
     onloadedmetadata={handleMetadata}
     ondurationchange={handleMetadata}
