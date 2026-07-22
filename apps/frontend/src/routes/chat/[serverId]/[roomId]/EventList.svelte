@@ -451,7 +451,7 @@
     hasRoomSwitchCarryOver
       ? 'timeline-room-switch-mask--carryover bg-background/18 backdrop-blur-[1px]'
       : isRoomTransitionSettling
-        ? 'timeline-room-switch-mask--settling bg-background/88 backdrop-blur-[2px]'
+        ? 'timeline-room-switch-mask--settling bg-background'
         : 'bg-background'
   );
 
@@ -1557,6 +1557,10 @@
     will-change: opacity, transform;
   }
 
+  .timeline-room-switch-mask {
+    background: var(--color-background);
+  }
+
   .timeline-room-reveal {
     animation: timeline-room-reveal 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
     will-change: opacity, transform;
@@ -1593,7 +1597,7 @@
         color-mix(in srgb, var(--color-primary) 5%, transparent),
         transparent 34%
       ),
-      color-mix(in srgb, var(--color-background) 88%, transparent);
+      var(--color-background);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 3%, transparent);
   }
 
