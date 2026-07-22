@@ -1105,7 +1105,20 @@
           ? 'timeline-room-carryover'
           : 'mt-auto'}
     >
-      {#if loadFailed && !isLoading && virtualItems.length === 0}
+      {#if renderedTimelineRoomId !== roomId}
+        <div
+          class="timeline-room-switch-placeholder flex min-h-[min(70vh,720px)] flex-col justify-end gap-3 px-4 pb-6"
+          aria-busy="true"
+          aria-label={m['room.message.loading']()}
+        >
+          <div class="skeleton h-4 w-1/4 rounded"></div>
+          <div class="skeleton h-14 w-3/4 rounded-md"></div>
+          <div class="skeleton ml-10 h-4 w-1/3 rounded"></div>
+          <div class="skeleton ml-10 h-14 w-2/3 rounded-md"></div>
+          <div class="skeleton ml-20 h-4 w-1/4 rounded"></div>
+          <div class="skeleton ml-20 h-14 w-3/5 rounded-md"></div>
+        </div>
+      {:else if loadFailed && !isLoading && virtualItems.length === 0}
         <div class="flex flex-1 items-center justify-center px-4">
           <div
             class="max-w-sm surface-pop rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-center text-sm text-text"
@@ -1261,6 +1274,11 @@
     box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 35%, transparent);
   }
 
+  .timeline-room-switch-placeholder {
+    animation: timeline-room-switch-placeholder 180ms ease-out both;
+    will-change: opacity, transform;
+  }
+
   @keyframes timeline-room-reveal {
     from {
       opacity: 0.78;
@@ -1286,9 +1304,21 @@
     }
   }
 
+  @keyframes timeline-room-switch-placeholder {
+    from {
+      opacity: 0.72;
+      transform: translate3d(0, 3px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .timeline-room-carryover,
-    .timeline-room-reveal {
+    .timeline-room-reveal,
+    .timeline-room-switch-placeholder {
       animation: none;
       opacity: 1;
       transform: none;
