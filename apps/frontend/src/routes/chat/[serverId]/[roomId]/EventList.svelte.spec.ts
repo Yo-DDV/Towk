@@ -355,6 +355,80 @@ describe('EventList jump completion', () => {
     }
   });
 
+  it('keeps the settling mask for a short minimum reveal window on media-heavy rooms', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-with-pending-image'],
+        scrollToEventId: null
+      });
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+      );
+
+      const container = page.getByTestId('messages-container').element();
+      const image = document.querySelector('[data-testid="mock-timeline-image"]');
+      expect(image).toBeInstanceOf(HTMLImageElement);
+
+      Object.defineProperty(container, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => DOMRect.fromRect({ x: 0, y: 0, width: 360, height: 600 })
+      });
+      Object.defineProperty(image, 'complete', { configurable: true, value: true });
+      Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 320 });
+      Object.defineProperty(image, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => DOMRect.fromRect({ x: 16, y: 24, width: 320, height: 180 })
+      });
+      image?.classList.remove('skeleton');
+
+      for (let frame = 0; frame < 10; frame++) {
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      expect(mask).not.toBeNull();
+      expect(mask?.classList.contains('timeline-room-switch-mask--settling')).toBe(true);
+
+      for (let frame = 10; frame < 80; frame++) {
+        if (document.querySelector('[data-testid="timeline-room-switch-mask"]') === null) break;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps the room switch mask while silent backfill settles the new room window', async () => {
     const rendered = render(EventListTestHarness, {
       props: {

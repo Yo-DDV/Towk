@@ -148,6 +148,7 @@
   const ROOM_SWITCH_STABLE_FRAMES = 6;
   const ROOM_SWITCH_MAX_SETTLE_FRAMES = 48;
   const ROOM_SWITCH_BACKFILL_PASSES = 4;
+  const ROOM_SWITCH_MEDIA_MIN_REVEAL_FRAMES = 14;
 
   // State for smart scroll behavior (when not alwaysScrollToBottom)
   let shouldScrollToBottom = $state(true);
@@ -202,6 +203,7 @@
   const renderedTimelineRoomId = $derived(renderedRoomId ?? roomId);
   const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
   const isRoomSwitching = $derived(!isCurrentRoomWindowRendered);
+  const isRoomTransitionSettling = $derived(roomTransitionMaskActive && isCurrentRoomWindowRendered);
   const showTimelineTransitionMask = $derived(isRoomSwitching || roomTransitionMaskActive);
 
   function startRoomReveal() {
@@ -318,14 +320,38 @@
     return false;
   }
 
+  function hasVisibleTimelineMedia(): boolean {
+    if (!scrollContainer) return false;
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    for (const node of scrollContainer.querySelectorAll<HTMLElement>(
+      'img, video, media-player, media-poster, .embed-frame, [data-media-provider]'
+    )) {
+      const rect = node.getBoundingClientRect();
+      if (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > containerRect.top &&
+        rect.top < containerRect.bottom
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   async function waitForStableTimelineWindow(operation: number) {
     let previousSignature: string | null = null;
     let stableFrames = 0;
+    let sawVisibleMedia = false;
 
     for (
       let frame = 0;
       frame < ROOM_SWITCH_MAX_SETTLE_FRAMES &&
-      (stableFrames < ROOM_SWITCH_STABLE_FRAMES || visibleTimelineMediaIsPending());
+      (stableFrames < ROOM_SWITCH_STABLE_FRAMES ||
+        visibleTimelineMediaIsPending() ||
+        (sawVisibleMedia && frame < ROOM_SWITCH_MEDIA_MIN_REVEAL_FRAMES));
       frame++
     ) {
       await tick();
@@ -333,6 +359,7 @@
 
       if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return false;
 
+      sawVisibleMedia = sawVisibleMedia || hasVisibleTimelineMedia();
       const signature = timelineVisualSignature();
       if (signature === previousSignature && signature !== null) {
         stableFrames += 1;
@@ -396,6 +423,13 @@
     buildVirtualItems(eventsWithMeta, effectiveUnreadAfterEventId, hasReachedStart, showStartMarker)
   );
   const hasRoomSwitchCarryOver = $derived(isRoomSwitching && virtualItems.length > 0);
+  const roomTransitionMaskVariantClass = $derived(
+    hasRoomSwitchCarryOver
+      ? 'timeline-room-switch-mask--carryover bg-background/18 backdrop-blur-[1px]'
+      : isRoomTransitionSettling
+        ? 'timeline-room-switch-mask--settling bg-background/88 backdrop-blur-[2px]'
+        : 'bg-background'
+  );
 
   async function expireTombstones(atMs: number) {
     const bottomDistance = distanceFromBottom();
@@ -1391,9 +1425,7 @@
     <div
       class={[
         'timeline-room-switch-mask pointer-events-none absolute inset-x-0 top-0 bottom-2 z-20 overflow-hidden',
-        hasRoomSwitchCarryOver
-          ? 'timeline-room-switch-mask--carryover bg-background/18 backdrop-blur-[1px]'
-          : 'bg-background'
+        roomTransitionMaskVariantClass
       ]}
       aria-busy="true"
       aria-label={m['room.message.loading']()}
@@ -1518,6 +1550,17 @@
 
   .timeline-room-switch-mask--carryover {
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 2%, transparent);
+  }
+
+  .timeline-room-switch-mask--settling {
+    background:
+      radial-gradient(
+        circle at 50% 20%,
+        color-mix(in srgb, var(--color-primary) 5%, transparent),
+        transparent 34%
+      ),
+      color-mix(in srgb, var(--color-background) 88%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text) 3%, transparent);
   }
 
   .timeline-room-switch-avatar {
