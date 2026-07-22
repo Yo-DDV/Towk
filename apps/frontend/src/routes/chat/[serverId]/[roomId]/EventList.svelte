@@ -147,6 +147,7 @@
   let roomTransitionMaskOperation = 0;
   const ROOM_SWITCH_STABLE_FRAMES = 6;
   const ROOM_SWITCH_MAX_SETTLE_FRAMES = 48;
+  const ROOM_SWITCH_BACKFILL_PASSES = 4;
 
   // State for smart scroll behavior (when not alwaysScrollToBottom)
   let shouldScrollToBottom = $state(true);
@@ -298,6 +299,22 @@
     return stableFrames >= ROOM_SWITCH_STABLE_FRAMES;
   }
 
+  async function waitForRoomSwitchBackfillAndStableWindow(operation: number) {
+    for (let pass = 0; pass < ROOM_SWITCH_BACKFILL_PASSES; pass++) {
+      await waitForStableTimelineWindow(operation);
+      if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return false;
+
+      const loadedOlder = await loadOlderIfTimelineNeedsBackfill();
+      if (!loadedOlder) return true;
+
+      await tick();
+      await waitForAnimationFrame();
+      if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return false;
+    }
+
+    return waitForStableTimelineWindow(operation);
+  }
+
   async function settleRoomTransitionMask(operation: number) {
     await tick();
     await waitForAnimationFrame();
@@ -312,7 +329,7 @@
     // swap from placeholder to decoded content. Those changes are correct, but
     // exposing an intermediate visible window creates the perceived room-switch
     // flicker on media-heavy channels.
-    await waitForStableTimelineWindow(operation);
+    await waitForRoomSwitchBackfillAndStableWindow(operation);
 
     if (operation !== roomTransitionMaskOperation || !isCurrentRoomWindowRendered) return;
     roomTransitionMaskActive = false;
@@ -1016,7 +1033,7 @@
     }
   }
 
-  async function loadOlderIfTimelineNeedsBackfill(): Promise<void> {
+  async function loadOlderIfTimelineNeedsBackfill(): Promise<boolean> {
     if (
       !enablePagination ||
       !onLoadMore ||
@@ -1027,7 +1044,7 @@
       !isCurrentRoomWindowRendered ||
       underfilledBackfillInFlight
     ) {
-      return;
+      return false;
     }
 
     underfilledBackfillInFlight = true;
@@ -1037,7 +1054,7 @@
       // until it finds visible history or reaches the beginning.
       if (timelineEvents.length > 0 && filteredEvents.length === 0) {
         await onLoadMore({ silent: true });
-        return;
+        return true;
       }
 
       await tick();
@@ -1050,7 +1067,7 @@
         isJumpedMode ||
         virtualItems.length === 0
       ) {
-        return;
+        return false;
       }
 
       const scrollSize = virtualizerHandle.getScrollSize();
@@ -1061,7 +1078,10 @@
         messageEventCount < INITIAL_ROOM_MESSAGE_BACKFILL_TARGET;
       if (scrollSize <= viewportSize + 50 || lacksInitialRoomMessages) {
         await onLoadMore({ silent: true });
+        return true;
       }
+
+      return false;
     } finally {
       underfilledBackfillInFlight = false;
     }
@@ -1078,7 +1098,9 @@
     void hasReachedStart;
     void isJumpedMode;
     void virtualizerHandle;
+    void roomTransitionMaskActive;
 
+    if (roomTransitionMaskActive) return;
     void loadOlderIfTimelineNeedsBackfill();
   });
 

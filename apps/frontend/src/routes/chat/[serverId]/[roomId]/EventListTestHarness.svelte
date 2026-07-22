@@ -20,6 +20,9 @@
     onJumpToPresent,
     loadFailed = false,
     onRetryLoad,
+    enablePagination = false,
+    hasReachedStart = true,
+    onLoadMore,
     updateCounter = 0,
     pendingHighlightId = null
   }: {
@@ -33,6 +36,9 @@
     onJumpToPresent?: () => Promise<boolean>;
     loadFailed?: boolean;
     onRetryLoad?: () => Promise<unknown> | unknown;
+    enablePagination?: boolean;
+    hasReachedStart?: boolean;
+    onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     updateCounter?: number;
     pendingHighlightId?: string | null;
   } = $props();
@@ -86,6 +92,9 @@
   {isLoading}
   {loadFailed}
   {onRetryLoad}
+  {enablePagination}
+  {hasReachedStart}
+  {onLoadMore}
   {isJumpedMode}
   {onJumpToPresent}
   {updateCounter}
