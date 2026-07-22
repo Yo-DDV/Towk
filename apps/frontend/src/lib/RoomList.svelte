@@ -35,7 +35,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { appState } from '$lib/state/globals.svelte';
-  import { createRoomTimelineAPI } from '$lib/api-client/roomTimeline';
+  import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { warmRoomTimelineSnapshot } from '$lib/state/room/messages.svelte';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
@@ -360,11 +360,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     if (!server) return Promise.resolve(false);
     return warmRoomTimelineSnapshot({
       roomId: room.id,
-      roomTimeline: createRoomTimelineAPI({
-        serverId: server.id,
-        baseUrl: server.url,
-        bearerToken: server.token
-      }),
+      serverConnection: serverConnectionManager.getClient(activeServerId),
       privateDataScope: privateDataScopeForServer(server)
     });
   }
@@ -376,12 +372,12 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   }
 
   async function waitForRoomNavigationWarmup(room: RoomsListItem): Promise<void> {
-    await Promise.race([warmRoomTimeline(room), warmupTimeout()]);
+    await Promise.race([warmRoomTimeline(room).catch(() => false), warmupTimeout()]);
   }
 
   async function navigateToRoom(room: RoomsListItem): Promise<void> {
     const href = roomHref(room.id);
-    await waitForRoomNavigationWarmup(room);
+    await waitForRoomNavigationWarmup(room).catch(() => undefined);
     await goto(href);
   }
 
