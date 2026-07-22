@@ -201,10 +201,15 @@ Towk configures call media for graceful degradation rather than a fixed quality:
   route is not Bluetooth. Bluetooth identity is reconciled across the source,
   LiveKit active route, and selected device so an opaque Android source ID cannot
   enable a second Web Audio clock. Logical `default` and `communications` routes
-  also stay native-first until a physical non-Bluetooth input is identified. Confirmed Bluetooth, narrowband,
+  may use enhanced suppression when no Bluetooth input is enumerated; they stay
+  native-first while any Bluetooth input could be hidden behind the stable logical ID. Confirmed Bluetooth, narrowband,
   hidden-document, and explicit clock-mismatch routes remain browser-native. If the enhancement cannot start, the
   microphone remains live with browser audio processing. Opus DTX and RED remain
   enabled to reduce silence bandwidth and protect speech on lossy links.
+- **Incoming call audio** keeps LiveKit volume and each attached media element's
+  hard mute state synchronized. The speaker button therefore mutes microphone
+  and screen-share audio on iOS as well as browsers that support script-driven
+  media volume.
 - **Camera video** requests a 4:3 1280 × 960 stream at no more than 30 FPS and
   asks compatible browsers not to crop the source frame. This keeps the field of
   view of 4:3 phone cameras instead of selecting a tighter 16:9 sensor mode,

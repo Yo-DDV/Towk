@@ -1426,19 +1426,24 @@ export class VoiceCallState {
       routeDeviceIds.includes(device.deviceId)
     );
     const routeKinds = routeDevices.map((device) => audioDeviceRouteKind(device));
+    const availableRouteKinds = this.audioDevices.map((device) => audioDeviceRouteKind(device));
+    const usesLogicalRoute = routeKinds.some(
+      (kind) => kind === 'default' || kind === 'communications'
+    );
+    const hasAvailableBluetoothInput = availableRouteKinds.includes('bluetooth');
     return {
       // Android can expose a fresh or opaque source-track id after switching
       // to Bluetooth while LiveKit and the device inventory still retain the
-      // logical route id. Any confirmed Bluetooth identity must keep the
-      // microphone on the OS communication clock.
-      bluetoothRoute: routeKinds.includes('bluetooth'),
+      // logical route id. A logical route is also treated as Bluetooth while
+      // any enumerated Bluetooth input could be hidden behind it.
+      bluetoothRoute:
+        routeKinds.includes('bluetooth') || (usesLogicalRoute && hasAvailableBluetoothInput),
       documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
-      // `default` and `communications` are logical routes whose physical
-      // device can change without the id changing. Keep them native-first
-      // unless another matched id identifies the current physical route.
-      routeIdentityKnown: routeKinds.some(
-        (kind) => kind !== 'default' && kind !== 'communications'
-      )
+      // A logical route is safe for enhanced processing only when the current
+      // inventory contains no Bluetooth input that could replace its clock.
+      routeIdentityKnown:
+        routeKinds.some((kind) => kind !== 'default' && kind !== 'communications') ||
+        (usesLogicalRoute && !hasAvailableBluetoothInput)
     };
   }
 
@@ -1902,6 +1907,10 @@ export class VoiceCallState {
         keyProvider,
         worker
       },
+      // Incoming audio is attached directly to media elements below. Keeping
+      // the SDK Web Audio mixer disabled lets the element `muted` flag provide
+      // a portable hard mute on iOS as well as volume control elsewhere.
+      webAudioMix: false,
       audioCaptureDefaults: createVoiceAudioCaptureOptionsFor(this.microphoneProcessingPreferences),
       videoCaptureDefaults: createUncroppedCameraCaptureOptions(),
       publishDefaults: {
@@ -2058,9 +2067,18 @@ export class VoiceCallState {
     // Video tracks are NOT attached here — VideoThumbnail manages its own lifecycle.
     room.on(
       RoomEvent.TrackSubscribed,
-      (track: RemoteTrack, _publication: RemoteTrackPublication) => {
+      (
+        track: RemoteTrack,
+        _publication: RemoteTrackPublication,
+        participant: RemoteParticipant
+      ) => {
         if (track.kind === Track.Kind.Audio) {
-          track.attach();
+          // Apply the hard mute before play() so a late subscription cannot
+          // leak its first frames while global or per-participant output is muted.
+          const element = document.createElement('audio');
+          element.muted =
+            this.isOutputMuted || this.isParticipantLocallyMuted(participant.identity);
+          track.attach(element);
           this.applyAllParticipantAudioVolumes();
         }
         this.updateParticipants();
@@ -2405,10 +2423,17 @@ export class VoiceCallState {
   }
 
   private applyRemoteParticipantAudioVolume(participant: RemoteParticipant): void {
-    const volume =
-      this.isOutputMuted || this.isParticipantLocallyMuted(participant.identity) ? 0 : 1;
-    participant.setVolume(volume, Track.Source.Microphone);
-    participant.setVolume(volume, Track.Source.ScreenShareAudio);
+    const muted = this.isOutputMuted || this.isParticipantLocallyMuted(participant.identity);
+    const volume = muted ? 0 : 1;
+    const publications = participant.getTrackPublications();
+    for (const source of [Track.Source.Microphone, Track.Source.ScreenShareAudio] as const) {
+      // Safari on iOS does not provide reliable script-driven element volume.
+      // Synchronize the actual media-element mute state before using the SDK's
+      // volume control so the call output button is a hard mute on every OS.
+      const track = publications.find((publication) => publication.track?.source === source)?.track;
+      for (const element of track?.attachedElements ?? []) element.muted = muted;
+      participant.setVolume(volume, source);
+    }
   }
 
   /**

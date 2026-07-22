@@ -1240,6 +1240,59 @@ describe('VoiceCallState', () => {
     });
   });
 
+  it('attaches enhanced suppression to a logical default route when no Bluetooth input exists', async () => {
+    microphoneTrackSettings = {
+      ...microphoneTrackSettings,
+      deviceId: 'default'
+    };
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind !== 'audioinput') return [];
+      return [
+        {
+          deviceId: 'default',
+          kind: 'audioinput',
+          label: 'System default microphone'
+        } as MediaDeviceInfo
+      ];
+    });
+    activeDeviceIds.set('audioinput', 'default');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('rnnoise');
+  });
+
+  it('keeps a logical default route native when a Bluetooth input is available', async () => {
+    microphoneTrackSettings = {
+      ...microphoneTrackSettings,
+      deviceId: 'default'
+    };
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind !== 'audioinput') return [];
+      return [
+        {
+          deviceId: 'default',
+          kind: 'audioinput',
+          label: 'System default microphone'
+        } as MediaDeviceInfo,
+        {
+          deviceId: 'bluetooth-input',
+          kind: 'audioinput',
+          label: 'Bluetooth headset'
+        } as MediaDeviceInfo
+      ];
+    });
+    activeDeviceIds.set('audioinput', 'default');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(microphoneSetProcessor).not.toHaveBeenCalled();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
   it('removes enhanced Web Audio when the active route becomes Bluetooth', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
@@ -2449,11 +2502,31 @@ describe('VoiceCallState', () => {
       detach: vi.fn()
     };
 
-    roomEventHandlers.get('TrackSubscribed')?.(screenAudioTrack, {});
+    roomEventHandlers.get('TrackSubscribed')?.(screenAudioTrack, {}, { identity: 'remote-device' });
     expect(screenAudioTrack.attach).toHaveBeenCalledOnce();
+    expect(screenAudioTrack.attach.mock.calls[0]?.[0]).toBeInstanceOf(HTMLAudioElement);
+    expect(screenAudioTrack.attach.mock.calls[0]?.[0].muted).toBe(false);
 
     roomEventHandlers.get('TrackUnsubscribed')?.(screenAudioTrack, {});
     expect(screenAudioTrack.detach).toHaveBeenCalledOnce();
+  });
+
+  it('pre-mutes newly subscribed audio while call output is muted', async () => {
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleOutputMute();
+    const remoteAudioTrack = {
+      kind: 'audio',
+      source: 'microphone',
+      attach: vi.fn(),
+      detach: vi.fn()
+    };
+
+    roomEventHandlers.get('TrackSubscribed')?.(remoteAudioTrack, {}, { identity: 'remote-device' });
+
+    const attachedElement = remoteAudioTrack.attach.mock.calls[0]?.[0];
+    expect(attachedElement).toBeInstanceOf(HTMLAudioElement);
+    expect(attachedElement.muted).toBe(true);
   });
 
   it('explains unsupported mobile or browser capture without calling LiveKit', async () => {
@@ -3129,6 +3202,55 @@ describe('VoiceCallState', () => {
     expect(lastRoom?.startAudio).toHaveBeenCalledOnce();
     expect(state.isOutputMuted).toBe(false);
     expect(state.selectedOutputDeviceId).toBe('bluetooth-speaker');
+  });
+
+  it('mutes attached remote audio elements as well as SDK volume controls', async () => {
+    const microphoneElement = document.createElement('audio');
+    const screenShareElement = document.createElement('audio');
+    const setVolume = vi.fn();
+    mockRemoteParticipants.set('remote-device', {
+      identity: 'remote-device',
+      name: 'Remote User',
+      metadata:
+        '{"userId":"remote-user","participantId":"remote-device","deviceIndex":1,"login":"remote"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume,
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [
+        {
+          isMuted: false,
+          track: {
+            source: 'microphone',
+            attachedElements: [microphoneElement]
+          }
+        },
+        {
+          isMuted: false,
+          track: {
+            source: 'screen_share_audio',
+            attachedElements: [screenShareElement]
+          }
+        }
+      ])
+    });
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    await state.toggleOutputMute();
+
+    expect(state.isOutputMuted).toBe(true);
+    expect(microphoneElement.muted).toBe(true);
+    expect(screenShareElement.muted).toBe(true);
+    expect(setVolume).toHaveBeenCalledWith(0, 'microphone');
+    expect(setVolume).toHaveBeenCalledWith(0, 'screen_share_audio');
+
+    await state.toggleOutputMute();
+
+    expect(state.isOutputMuted).toBe(false);
+    expect(microphoneElement.muted).toBe(false);
+    expect(screenShareElement.muted).toBe(false);
   });
 
   it('does not report a stale microphone switch failure after the call has left', async () => {
