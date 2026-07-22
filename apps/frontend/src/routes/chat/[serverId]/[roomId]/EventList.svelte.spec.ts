@@ -220,7 +220,7 @@ describe('EventList jump completion', () => {
     expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
   });
 
-  it('keeps carry-over room switches free of skeleton placeholders', () => {
+  it('uses a static placeholder over carried-over room switches', () => {
     render(EventListTestHarness, {
       props: {
         roomId: 'room-new',
@@ -234,8 +234,8 @@ describe('EventList jump completion', () => {
 
     expect(mask).not.toBeNull();
     expect(mask?.querySelector('.skeleton')).toBeNull();
-    expect(mask?.querySelector('.timeline-room-switch-block')).toBeNull();
-    expect(mask?.classList.contains('timeline-room-switch-mask--carryover')).toBe(true);
+    expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+    expect(mask?.classList.contains('timeline-room-switch-mask--carryover')).toBe(false);
   });
 
   it('uses static room switch placeholders when no carry-over timeline exists', () => {

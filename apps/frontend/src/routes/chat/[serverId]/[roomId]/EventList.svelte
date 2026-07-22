@@ -430,7 +430,7 @@
       virtualItems.length === 0 &&
       !loadFailed
   );
-  const hasRoomSwitchCarryOver = $derived(isRoomSwitching && virtualItems.length > 0);
+  const hasRoomSwitchCarryOver = $derived(false);
   const isReconcilingCachedRoomWindow = $derived(
     hasSeenRoomSwitch &&
       isCurrentRoomWindowRendered &&
