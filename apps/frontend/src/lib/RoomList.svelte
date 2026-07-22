@@ -306,10 +306,6 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     return target instanceof Element && target.closest('[data-testid="room-call-icon"]') !== null;
   }
 
-  function roomHref(roomId: string): string {
-    return resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId });
-  }
-
   async function openRoomCallPanel(roomId: string): Promise<void> {
     setRoomSidebarPanel(activeServerId, roomId, 'call');
     setPendingRoomSidebarPanel(activeServerId, roomId, 'call');
@@ -319,7 +315,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
         newValue: 'call'
       })
     );
-    await goto(roomHref(roomId));
+    await goto(resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId }));
   }
 
   function handleRoomLinkClick(event: MouseEvent, room: RoomsListItem): void {
@@ -376,9 +372,10 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   }
 
   async function navigateToRoom(room: RoomsListItem): Promise<void> {
-    const href = roomHref(room.id);
     await waitForRoomNavigationWarmup(room).catch(() => undefined);
-    await goto(href);
+    await goto(
+      resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })
+    );
   }
 
   async function handleNotificationBadgeClick(event: MouseEvent, roomId: string, isDM: boolean) {
@@ -490,7 +487,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     !isJoined ? 'opacity-60 hover:opacity-85' : ''
   ]}
   <a
-    href={roomHref(room.id)}
+    href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
     class={rowClass}
     aria-current={room.id === activeRoomId ? 'page' : undefined}
     data-sveltekit-preload-code="hover"
@@ -549,7 +546,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   {@const hasUnreadAttention =
     hasUnread && room.id !== activeRoomId && !notificationLevelStore.isRoomMuted(room.id)}
   <a
-    href={roomHref(room.id)}
+    href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
     class={[
       'group/badges @container sidebar-item',
       room.id === activeRoomId ? 'bg-surface-100' : '',

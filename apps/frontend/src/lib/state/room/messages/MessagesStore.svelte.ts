@@ -76,7 +76,7 @@ const INITIAL_MEDIA_PREVIEW_PREWARM_LIMIT = 12;
 const INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS = 320;
 const TIMELINE_WARMUP_MAX_IN_FLIGHT = 4;
 const timelineMemorySnapshots = new SvelteMap<string, TimelineSnapshot>();
-const timelineWarmupInFlight = new Map<string, Promise<boolean>>();
+const timelineWarmupInFlight = new SvelteMap<string, Promise<boolean>>();
 let transientTimelineSnapshotScopeSequence = 0;
 
 function timelineSnapshotKey(
@@ -167,7 +167,7 @@ function mediaPreviewUrlForAttachment(
 
 function initialMediaPreviewUrls(rawEvents: readonly RawEvent[]): string[] {
   const urls: string[] = [];
-  const seen = new Set<string>();
+  const seen = new SvelteSet<string>();
   const events = unmask(rawEvents);
 
   for (let i = events.length - 1; i >= 0; i--) {
