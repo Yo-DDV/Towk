@@ -894,6 +894,8 @@ User currently participating in a room call.
 | `call_id` | `string` | Active call session ID. |
 | `participant_id` | `string` | Stable media-session participant ID for this browser/device connection. |
 | `device_index` | `uint32` | Stable display slot for concurrent connections from the same account. |
+| `connection_state` | [`CallParticipantConnectionState`](#chatto-api-v1-CallParticipantConnectionState) | Last authoritative media-server connection state. |
+| `interruption_deadline` | `google.protobuf.Timestamp` | Recovery deadline while the connection is interrupted. |
 
 <a id="chatto-admin-v1-AdminAccountInfo"></a>
 
@@ -1498,6 +1500,18 @@ Room kinds to include in directory responses.
 | `ROOM_DIRECTORY_SCOPE_ALL` | `1` | Include both visible channel rooms and the caller's active DM rooms. |
 | `ROOM_DIRECTORY_SCOPE_CHANNELS` | `2` | Include visible channel rooms only. |
 | `ROOM_DIRECTORY_SCOPE_DMS` | `3` | Include the caller's active DM rooms only. |
+
+<a id="chatto-api-v1-CallParticipantConnectionState"></a>
+
+### CallParticipantConnectionState
+
+No enum description provided.
+
+| Name | Number | Description |
+| --- | --- | --- |
+| `CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED` | `0` | No value description provided. |
+| `CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED` | `1` | No value description provided. |
+| `CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED` | `2` | No value description provided. |
 
 <a id="chatto-api-v1-JoinCallMode"></a>
 

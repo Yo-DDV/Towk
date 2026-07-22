@@ -25,7 +25,7 @@ body {
 }
 
 /* Default story padding. Override per-story with parameters.layout: 'fullscreen'. */
-#storybook-root {
+body.sb-main-padded #storybook-root {
   padding: 1.5rem;
 }
 

@@ -21,6 +21,8 @@ function participant(
     participantId: userId,
     deviceIndex: 1,
     joinedAt: '2026-01-01T00:00:00Z',
+    connectionState: 'connected',
+    interruptionDeadline: null,
     user: {
       id: userId,
       displayName,
@@ -74,7 +76,9 @@ describe('ActiveCallRoomsState', () => {
         deviceIndex: 1,
         displayName: 'Bob',
         login: 'bob',
-        avatarUrl: null
+        avatarUrl: null,
+        connectionState: 'connected',
+        interruptionDeadline: null
       }
     ]);
   });
@@ -135,7 +139,9 @@ describe('ActiveCallRoomsState', () => {
         deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
-        avatarUrl: null
+        avatarUrl: null,
+        connectionState: 'connected',
+        interruptionDeadline: null
       }
     ]);
   });
@@ -297,7 +303,9 @@ describe('ActiveCallRoomsState', () => {
         deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
-        avatarUrl: null
+        avatarUrl: null,
+        connectionState: 'connected',
+        interruptionDeadline: null
       }
     ]);
   });
@@ -326,8 +334,45 @@ describe('ActiveCallRoomsState', () => {
         deviceIndex: 1,
         displayName: 'Alice',
         login: 'alice',
-        avatarUrl: null
+        avatarUrl: null,
+        connectionState: 'connected',
+        interruptionDeadline: null
       }
+    ]);
+  });
+
+  it('keeps an interrupted connection visible in the active room until it recovers', async () => {
+    const state = new ActiveCallRoomsState(makeVoiceCallAPI(), {
+      connected: false,
+      roomId: null,
+      participants: []
+    } as never);
+    const deadline = '2026-01-01T00:01:00.000Z';
+
+    await state.handleJoin('R1', 'call-1', {
+      id: 'U1',
+      displayName: 'Alice',
+      login: 'alice',
+      avatarUrl: null
+    });
+    state.handleConnectionState('R1', 'call-1', 'U1', 'interrupted', deadline);
+
+    expect(state.has('R1')).toBe(true);
+    expect(state.getParticipants('R1')).toEqual([
+      expect.objectContaining({
+        participantId: 'U1',
+        connectionState: 'interrupted',
+        interruptionDeadline: deadline
+      })
+    ]);
+
+    state.handleConnectionState('R1', 'call-1', 'U1', 'connected', null);
+    expect(state.getParticipants('R1')).toEqual([
+      expect.objectContaining({
+        participantId: 'U1',
+        connectionState: 'connected',
+        interruptionDeadline: null
+      })
     ]);
   });
 

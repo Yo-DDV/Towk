@@ -133,6 +133,16 @@ message CallParticipant {
   string participant_id = 4;
   // Stable display slot for concurrent connections from the same account.
   uint32 device_index = 5;
+  // Last authoritative media-server connection state.
+  CallParticipantConnectionState connection_state = 6;
+  // Recovery deadline while the connection is interrupted.
+  google.protobuf.Timestamp interruption_deadline = 7;
+}
+
+enum CallParticipantConnectionState {
+  CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED = 0;
+  CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED = 1;
+  CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED = 2;
 }
 
 // How a client wants to join when the same account is already connected.
@@ -188,6 +198,8 @@ message JoinCallResponse {
   uint32 active_device_count = 5;
   // Whether another companion connection can be admitted without a transfer.
   bool companion_allowed = 6;
+  // Exact call session that admitted this connection.
+  string call_id = 7;
 }
 
 // Request for a LiveKit token for a room call.
@@ -231,6 +243,12 @@ message LeaveCallRequest {
   string client_instance_id = 2 [(buf.validate.field).string = {
     max_len: 128
     pattern: "^[A-Za-z0-9_-]*$"
+  }];
+  // Optional. Exact call being left. A mismatch is an idempotent no-op so a
+  // delayed request cannot remove the same browser from a replacement call.
+  string expected_call_id = 3 [(buf.validate.field).string = {
+    max_len: 128
+    pattern: "^$|^[A-Za-z0-9_-]+$"
   }];
 }
 

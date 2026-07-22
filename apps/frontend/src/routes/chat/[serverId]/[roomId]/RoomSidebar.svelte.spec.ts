@@ -29,6 +29,7 @@ const callStore = vi.hoisted(() => ({
     isMuted: false,
     isCameraEnabled: false,
     isScreenShareEnabled: false,
+    canShareScreen: true,
     participants: [] as Array<{
       identity: string;
       name: string;
@@ -52,11 +53,15 @@ const callStore = vi.hoisted(() => ({
     isInCall: vi.fn(
       (roomId: string) => callStore.voiceCall.connected && callStore.voiceCall.roomId === roomId
     ),
+    isJoiningRoom: vi.fn(
+      (roomId: string) => callStore.voiceCall.connecting && roomId === 'room-1'
+    ),
     join: vi.fn().mockResolvedValue(undefined),
     leave: vi.fn().mockResolvedValue(undefined),
     toggleMute: vi.fn().mockResolvedValue(undefined),
     toggleCamera: vi.fn().mockResolvedValue(undefined),
     toggleScreenShare: vi.fn().mockResolvedValue(undefined),
+    setParticipantMediaExpanded: vi.fn(),
     toggleParticipantLocalMute: vi.fn(),
     refreshDevices: vi.fn().mockResolvedValue(undefined),
     getAudioLevel: vi.fn((_identity?: string) => ({ isSpeaking: false, audioLevel: 0 })),
@@ -393,8 +398,10 @@ describe('RoomSidebar', () => {
     callStore.voiceCall.isMuted = false;
     callStore.voiceCall.isCameraEnabled = false;
     callStore.voiceCall.isScreenShareEnabled = false;
+    callStore.voiceCall.canShareScreen = true;
     callStore.voiceCall.participants = [];
     callStore.voiceCall.isInCall.mockClear();
+    callStore.voiceCall.isJoiningRoom.mockClear();
     callStore.voiceCall.join.mockClear();
     callStore.voiceCall.leave.mockClear();
     callStore.voiceCall.toggleMute.mockClear();
@@ -504,6 +511,22 @@ describe('RoomSidebar', () => {
       'room-1',
       'ask'
     );
+  });
+
+  it('shows and disables the target-room join action during admission', async () => {
+    callStore.voiceCall.connecting = true;
+
+    const { container } = render(RoomSidebarTestHarness, {
+      props: {
+        roomData: roomData([], 0, false),
+        activePanel: 'call',
+        livekitUrl: 'wss://livekit.example.test'
+      }
+    });
+
+    const joinButton = q(container, '[data-testid="call-join-button"]') as HTMLButtonElement;
+    await expect.element(joinButton).toHaveTextContent('Starting...');
+    expect(joinButton.disabled).toBe(true);
   });
 
   it('renders projected call participants before joining', async () => {
@@ -833,7 +856,7 @@ describe('RoomSidebar', () => {
     expect(cards[0].querySelector('video')?.className).toContain('object-contain');
     expect(cards[1].getAttribute('data-testid')).toBe('call-participant-card');
     expect(cards[1].textContent).toContain('Bob');
-    expect(cards[1].querySelector('video')?.className).toContain('object-cover');
+    expect(cards[1].querySelector('video')?.className).toContain('object-contain');
     expect(cards[2].getAttribute('data-testid')).toBe('call-participant-card');
     expect(cards[2].textContent).toContain('Alice');
     expect(cards[3].getAttribute('data-testid')).toBe('call-participant-card');
@@ -928,7 +951,7 @@ describe('RoomSidebar', () => {
     const secondaryCards = Array.from(secondaryList!.children);
     expect(secondaryCards).toHaveLength(3);
     expect(secondaryCards[0].textContent).toContain('Bob');
-    expect(secondaryCards[0].querySelector('video')?.className).toContain('object-cover');
+    expect(secondaryCards[0].querySelector('video')?.className).toContain('object-contain');
     expect(secondaryCards[1].textContent).toContain('Alice');
     expect(secondaryCards[2].textContent).toContain('Carol');
   });
@@ -1204,7 +1227,7 @@ describe('RoomSidebar', () => {
     const featured = q(container, '[data-testid="call-featured-stage-card"]');
     expect(featured).toBeTruthy();
     expect(featured!.textContent).toContain('Bob');
-    expect(featured!.querySelector('video')?.className).toContain('object-cover');
+    expect(featured!.querySelector('video')?.className).toContain('object-contain');
     const secondaryList = q(container, '[data-testid="call-secondary-stage-list"]');
     expect(secondaryList).toBeTruthy();
     expect(secondaryList!.children[0].textContent).toContain('Alice');

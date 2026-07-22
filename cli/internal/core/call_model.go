@@ -15,6 +15,7 @@ import (
 	"github.com/livekit/protocol/livekit"
 	"github.com/nats-io/nats.go/jetstream"
 	"github.com/twitchtv/twirp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"hmans.de/chatto/internal/config"
 	"hmans.de/chatto/internal/events"
@@ -34,11 +35,13 @@ const (
 	callReconcileLeaseRetryEvery      = 5 * time.Second
 	liveKitReconcileFailureKey        = "livekit.reconciliation.list_failures"
 	maxCallDevicesPerUser             = 2
+	CallParticipantRecoveryGrace      = 60 * time.Second
 )
 
 var (
-	ErrCallDeviceLimit            = errors.New("maximum concurrent call devices reached")
-	ErrCallParticipantNotAdmitted = errors.New("call participant is not admitted")
+	ErrCallDeviceLimit               = errors.New("maximum concurrent call devices reached")
+	ErrCallParticipantNotAdmitted    = errors.New("call participant is not admitted")
+	ErrCallParticipantEvictionFailed = errors.New("call participant eviction failed")
 )
 
 type CallJoinMode int
@@ -58,6 +61,7 @@ const (
 
 type CallJoinResult struct {
 	Status              CallJoinStatus
+	CallID              string
 	ParticipantID       string
 	DeviceIndex         uint32
 	ActiveDeviceCount   int
@@ -98,21 +102,13 @@ type CallModel struct {
 	logger                events.Logger
 	keyCleanup            *events.IncrementalEffectConsumer
 	onTransitionCommitted func()
-}
-
-type liveKitFailureCleanupSummary struct {
-	activeRooms   int
-	endedRooms    int
-	cleanupErrors int
-	err           error
+	now                   func() time.Time
 }
 
 type liveKitListFailureError struct {
 	err                 error
-	cleanup             liveKitFailureCleanupSummary
 	consecutiveFailures int
 	threshold           int
-	cleanupAttempted    bool
 }
 
 type liveKitListFailureState struct {
@@ -124,21 +120,12 @@ func (e *liveKitListFailureError) Error() string {
 	if e == nil {
 		return ""
 	}
-	if !e.cleanupAttempted {
-		return fmt.Sprintf("list LiveKit call participants: %v; end active calls deferred after %d/%d failures", e.err, e.consecutiveFailures, e.threshold)
-	}
-	if e.cleanup.err != nil {
-		return fmt.Sprintf("list LiveKit call participants: %v; end active calls after LiveKit reconciliation failure: %v", e.err, e.cleanup.err)
-	}
-	return fmt.Sprintf("list LiveKit call participants: %v; ended active calls after %d/%d failures", e.err, e.consecutiveFailures, e.threshold)
+	return fmt.Sprintf("list LiveKit call participants: %v; active calls preserved after %d consecutive failures (warning threshold %d)", e.err, e.consecutiveFailures, e.threshold)
 }
 
 func (e *liveKitListFailureError) Unwrap() error {
 	if e == nil {
 		return nil
-	}
-	if e.cleanup.err != nil {
-		return errors.Join(e.err, e.cleanup.err)
 	}
 	return e.err
 }
@@ -162,6 +149,7 @@ func NewCallModel(
 		reconcileLease: reconcileLease,
 		memoryCacheKV:  memoryCacheKV,
 		logger:         logger,
+		now:            time.Now,
 	}
 	model.keyCleanup = events.NewIncrementalEffectConsumer(
 		publisher,
@@ -371,6 +359,15 @@ func (s *CallModel) RemoveLiveKitParticipant(ctx context.Context, spaceID, roomI
 	return remover.RemoveCallParticipant(ctx, spaceID, roomID, callID, userID)
 }
 
+// RemoveLiveKitParticipantAfterCommit detaches a best-effort media eviction
+// from the HTTP request that already committed the durable access transition.
+// The regular reconciliation loop remains the retry path if LiveKit is down.
+func (s *CallModel) RemoveLiveKitParticipantAfterCommit(ctx context.Context, spaceID, roomID, callID, userID string) error {
+	evictionCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), callReconcileAPITimeout)
+	defer cancel()
+	return s.RemoveLiveKitParticipant(evictionCtx, spaceID, roomID, callID, userID)
+}
+
 func (s *CallModel) cleanupQueuedCallKey(ctx context.Context, keyRef string) error {
 	if keyRef == "" {
 		return nil
@@ -425,6 +422,7 @@ func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, par
 		if alreadyJoined && mode != CallJoinModeTransfer {
 			return CallJoinResult{
 				Status:            CallJoinStatusJoined,
+				CallID:            existing.CallID,
 				ParticipantID:     existing.ParticipantID,
 				DeviceIndex:       existing.DeviceIndex,
 				ActiveDeviceCount: activeDeviceCount,
@@ -501,6 +499,7 @@ func (s *CallModel) JoinUserParticipant(ctx context.Context, roomID, userID, par
 
 		result := CallJoinResult{
 			Status:              CallJoinStatusJoined,
+			CallID:              callID,
 			ParticipantID:       participantID,
 			DeviceIndex:         deviceIndex,
 			ActiveDeviceCount:   activeDeviceCount,
@@ -597,6 +596,83 @@ func (s *CallModel) AppendParticipantLeftForCall(ctx context.Context, roomID, us
 
 func (s *CallModel) AppendParticipantLeft(ctx context.Context, roomID, userID, participantID string, source corev1.CallParticipantEventSource) error {
 	return s.appendParticipantTransition(ctx, roomID, userID, participantID, 0, false, "", source)
+}
+
+func (s *CallModel) AppendParticipantConnectionStateForCall(
+	ctx context.Context,
+	roomID, userID, participantID, expectedCallID string,
+	state corev1.CallParticipantConnectionState,
+	observationID string,
+	observedAt time.Time,
+	source corev1.CallParticipantEventSource,
+) error {
+	if state == corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED {
+		return fmt.Errorf("call participant connection state is required")
+	}
+	if observedAt.IsZero() {
+		observedAt = s.nowUTC()
+	}
+	observedAt = observedAt.UTC()
+	deadline := time.Time{}
+	if state == corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED {
+		deadline = observedAt.Add(CallParticipantRecoveryGrace)
+	}
+
+	aggregate := events.RoomAggregate(roomID)
+	filter := aggregate.AllEventsFilter()
+	for attempt := 0; attempt < callReconcileMaxRetries; attempt++ {
+		snapshot := s.projection.RoomSnapshot(roomID)
+		if expectedCallID != "" && snapshot.Call.CallID != expectedCallID {
+			return nil
+		}
+		participant, found := callParticipantByID(snapshot.Participants, userID, participantID)
+		if !found || (expectedCallID != "" && participant.CallID != "" && participant.CallID != expectedCallID) {
+			return nil
+		}
+		if s.projection.ConnectionObservationAlreadyApplied(roomID, participantID, observationID, observedAt.UnixMilli(), state) {
+			return nil
+		}
+
+		changed := newEvent(userID, &corev1.Event{
+			Event: &corev1.Event_VoiceCallParticipantConnectionChanged{
+				VoiceCallParticipantConnectionChanged: &corev1.CallParticipantConnectionChangedEvent{
+					RoomId:        roomID,
+					Source:        source,
+					CallId:        participant.CallID,
+					ParticipantId: participant.ParticipantID,
+					DeviceIndex:   participant.DeviceIndex,
+					State:         state,
+					ObservationId: observationID,
+					ObservedAt:    timestamppb.New(observedAt),
+				},
+			},
+		})
+		if !deadline.IsZero() {
+			changed.GetVoiceCallParticipantConnectionChanged().InterruptionDeadline = timestamppb.New(deadline)
+		}
+		seq, err := s.publisher.AppendAtFilter(ctx, aggregate.SubjectFor(changed), changed, filter, snapshot.Seq)
+		if err == nil {
+			if err := s.projector.WaitFor(ctx, events.SubjectPosition(filter, seq)); err != nil {
+				return err
+			}
+			if s.onTransitionCommitted != nil {
+				s.onTransitionCommitted()
+			}
+			return nil
+		}
+		if !errors.Is(err, events.ErrConflict) {
+			return err
+		}
+		if err := s.waitForLatestRoomTransition(ctx, filter); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(1<<attempt) * time.Millisecond):
+		}
+	}
+	return fmt.Errorf("append call participant connection state after %d attempts: %w", callReconcileMaxRetries, events.ErrConflict)
 }
 
 func (s *CallModel) appendParticipantTransition(ctx context.Context, roomID, userID, participantID string, deviceIndex uint32, joined bool, expectedCallID string, source corev1.CallParticipantEventSource) error {
@@ -810,29 +886,56 @@ func (s *CallModel) ReconcileRoomConnections(ctx context.Context, roomID string,
 
 	active := s.projection.Participants(roomID)
 	activeByParticipant := make(map[string]CallParticipant, len(active))
+	now := s.nowUTC()
 	for _, participant := range active {
 		activeByParticipant[participant.ParticipantID] = participant
 		if _, ok := observed[participant.ParticipantID]; !ok {
-			if err := s.appendParticipantTransition(ctx, roomID, participant.UserID, participant.ParticipantID, participant.DeviceIndex, false, "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION); err != nil && !s.connectionReconciliationConflictResolved(roomID, participant.UserID, participant.ParticipantID, false, err) {
+			if participant.ConnectionState == corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED {
+				if participant.InterruptionDeadlineMillis == 0 || now.UnixMilli() < participant.InterruptionDeadlineMillis {
+					continue
+				}
+				if err := s.appendParticipantTransition(ctx, roomID, participant.UserID, participant.ParticipantID, participant.DeviceIndex, false, participant.CallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION); err != nil && !s.connectionReconciliationConflictResolved(roomID, participant.UserID, participant.ParticipantID, false, err) {
+					return err
+				}
+				continue
+			}
+			if err := s.AppendParticipantConnectionStateForCall(
+				ctx, roomID, participant.UserID, participant.ParticipantID, participant.CallID,
+				corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED,
+				"", now,
+				corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION,
+			); err != nil {
 				return err
 			}
 		}
 	}
-	for participantID, participant := range observed {
-		if _, ok := activeByParticipant[participantID]; !ok {
-			// Connection-scoped identities are admitted durably by JoinCall before
-			// LiveKit can issue a token. Never let reconciliation resurrect a
-			// transferred or explicitly-left connection. Legacy user-ID identities
-			// keep their historical webhook/reconciliation behavior.
-			if participant.ParticipantID != participant.UserID {
-				continue
-			}
-			if err := s.appendParticipantTransition(ctx, roomID, participant.UserID, participant.ParticipantID, participant.DeviceIndex, true, "", corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION); err != nil && !s.connectionReconciliationConflictResolved(roomID, participant.UserID, participant.ParticipantID, true, err) {
+	for participantID := range observed {
+		projected, ok := activeByParticipant[participantID]
+		if !ok {
+			// JoinCall is the sole admission authority for every call-scoped
+			// identity. Reconciliation must never revive an explicitly-left or
+			// transferred connection, including historical user-ID identities.
+			continue
+		}
+		if projected.ConnectionState == corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED {
+			if err := s.AppendParticipantConnectionStateForCall(
+				ctx, roomID, projected.UserID, projected.ParticipantID, projected.CallID,
+				corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED,
+				"", now,
+				corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION,
+			); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (s *CallModel) nowUTC() time.Time {
+	if s != nil && s.now != nil {
+		return s.now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 func (s *CallModel) connectionReconciliationConflictResolved(roomID, userID, participantID string, joined bool, err error) bool {
@@ -915,13 +1018,13 @@ func (s *CallModel) ReconcileWithLiveKit(ctx context.Context) error {
 	})
 }
 
-func (s *CallModel) reconcileWithLiveKit(ctx context.Context, cleanupContext func() (context.Context, context.CancelFunc)) error {
+func (s *CallModel) reconcileWithLiveKit(ctx context.Context, maintenanceContext func() (context.Context, context.CancelFunc)) error {
 	if s.livekit == nil {
 		return nil
 	}
 	snapshots, err := s.livekit.ListCallParticipants(ctx)
 	if err != nil {
-		counterCtx, counterCancel := cleanupContext()
+		counterCtx, counterCancel := maintenanceContext()
 		failures, recordErr := s.recordLiveKitListFailure(counterCtx)
 		counterCancel()
 		if recordErr != nil {
@@ -932,13 +1035,6 @@ func (s *CallModel) reconcileWithLiveKit(ctx context.Context, cleanupContext fun
 			consecutiveFailures: failures,
 			threshold:           callReconcileListFailureThreshold,
 		}
-		if failures < callReconcileListFailureThreshold {
-			return listErr
-		}
-		cleanupCtx, cancel := cleanupContext()
-		defer cancel()
-		listErr.cleanup = s.endActiveCallsAfterLiveKitFailure(cleanupCtx)
-		listErr.cleanupAttempted = true
 		return listErr
 	}
 	if err := s.resetLiveKitListFailures(ctx); err != nil {
@@ -1015,8 +1111,7 @@ func (s *CallModel) evictUnadmittedLiveKitConnections(ctx context.Context, snaps
 	evicted := 0
 	for _, participant := range observed {
 		projected, found := activeByParticipant[participant.ParticipantID]
-		if participant.ParticipantID == participant.UserID ||
-			(found && projected.UserID == participant.UserID && projected.CallID == snapshot.CallID) {
+		if found && projected.UserID == participant.UserID && projected.CallID == snapshot.CallID {
 			admitted = append(admitted, participant)
 			continue
 		}
@@ -1180,23 +1275,6 @@ func (s *CallModel) resetLiveKitListFailures(ctx context.Context) error {
 	return nil
 }
 
-func (s *CallModel) endActiveCallsAfterLiveKitFailure(ctx context.Context) liveKitFailureCleanupSummary {
-	summary := liveKitFailureCleanupSummary{}
-	var cleanupErr error
-	roomIDs := s.projection.ActiveRoomIDs()
-	summary.activeRooms = len(roomIDs)
-	for _, roomID := range roomIDs {
-		if err := s.ReconcileRoomConnections(ctx, roomID, nil); err != nil {
-			summary.cleanupErrors++
-			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("room %s: %w", roomID, err))
-			continue
-		}
-		summary.endedRooms++
-	}
-	summary.err = cleanupErr
-	return summary
-}
-
 func (s *CallModel) Run(ctx context.Context) error {
 	if s.livekit == nil {
 		if s.reconcileLease != nil {
@@ -1257,26 +1335,12 @@ func (s *CallModel) reconcileBestEffort(ctx context.Context) error {
 	}); err != nil && !strings.Contains(err.Error(), context.Canceled.Error()) {
 		var listErr *liveKitListFailureError
 		if errors.As(err, &listErr) {
-			if !listErr.cleanupAttempted {
-				if s.logger != nil {
-					s.logger.Warn(
-						"LiveKit listing failed; active-call cleanup deferred",
-						"error", listErr.err,
-						"consecutive_failures", listErr.consecutiveFailures,
-						"threshold", listErr.threshold,
-					)
-				}
-				return nil
-			}
 			if s.logger != nil {
 				s.logger.Warn(
-					"LiveKit listing failed; threshold reached and ended projected active calls",
+					"LiveKit listing failed; active calls preserved",
 					"error", listErr.err,
 					"consecutive_failures", listErr.consecutiveFailures,
 					"threshold", listErr.threshold,
-					"active_rooms", listErr.cleanup.activeRooms,
-					"ended_rooms", listErr.cleanup.endedRooms,
-					"cleanup_errors", listErr.cleanup.cleanupErrors,
 				)
 			}
 			return nil

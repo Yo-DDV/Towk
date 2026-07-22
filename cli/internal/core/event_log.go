@@ -82,11 +82,11 @@ func (c *ChattoCore) ListEventLog(ctx context.Context, userID string, query Even
 		return nil, err
 	}
 
-	stream := c.storage.serverEvtStream
-	info, err := stream.Info(ctx)
+	stream, err := c.eventStream(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("stream info: %w", err)
 	}
+	info := stream.CachedInfo()
 	totalCount, err := eventLogTotalCount(info.State.Msgs)
 	if err != nil {
 		return nil, err
@@ -160,7 +160,11 @@ func (c *ChattoCore) GetEventLogEntry(ctx context.Context, userID, sequence stri
 		return nil, fmt.Errorf("%w: invalid sequence %q", ErrInvalidArgument, sequence)
 	}
 
-	msg, err := c.storage.serverEvtStream.GetMsg(ctx, seq)
+	stream, err := c.eventStream(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("event stream: %w", err)
+	}
+	msg, err := stream.GetMsg(ctx, seq)
 	if err != nil {
 		if errors.Is(err, jetstream.ErrMsgNotFound) {
 			return nil, nil

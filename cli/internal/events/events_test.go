@@ -95,6 +95,27 @@ func makeMessagePostedEvent(roomID, userID string) *corev1.Event {
 	}
 }
 
+func TestPublisherStreamUsageDoesNotRefreshSharedHandle(t *testing.T) {
+	js, stream := setupTestStream(t)
+	pub := NewPublisher(js, stream, testLogger())
+	ctx := testContext(t)
+	subject := RoomAggregate("R-usage").Subject(EventUserJoinedRoom)
+
+	if _, err := pub.Append(ctx, subject, makeEvent("R-usage", "U1")); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	messages, _, err := pub.StreamUsage(ctx)
+	if err != nil {
+		t.Fatalf("stream usage: %v", err)
+	}
+	if messages != 1 {
+		t.Fatalf("stream usage messages = %d, want 1", messages)
+	}
+	if cached := stream.CachedInfo().State.Msgs; cached != 0 {
+		t.Fatalf("shared stream cache was refreshed to %d messages", cached)
+	}
+}
+
 func TestIncrementalEffectConsumer_RetriesOnlyFailedEffectsAndAdvances(t *testing.T) {
 	js, stream := setupTestStream(t)
 	pub := NewPublisher(js, stream, testLogger())

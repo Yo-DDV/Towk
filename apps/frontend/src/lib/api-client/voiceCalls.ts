@@ -1,6 +1,10 @@
 import { authHeaders, Code, ConnectError, createTowkClient } from './connect.js';
-import { VoiceCallService } from '@towk/api-types/api/v1/voice_calls_pb';
-import { JoinCallMode, JoinCallStatus } from '@towk/api-types/api/v1/voice_calls_pb';
+import {
+  CallParticipantConnectionState as APICallParticipantConnectionState,
+  JoinCallMode,
+  JoinCallStatus,
+  VoiceCallService
+} from '@towk/api-types/api/v1/voice_calls_pb';
 import type { Timestamp } from '@bufbuild/protobuf/wkt';
 import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
@@ -24,6 +28,8 @@ export type VoiceCallParticipant = {
   callId: string;
   participantId: string;
   deviceIndex: number;
+  connectionState: 'connected' | 'interrupted';
+  interruptionDeadline: string | null;
 };
 
 export type ActiveVoiceCall = {
@@ -45,6 +51,7 @@ export type VoiceCallJoinMode = 'ask' | 'companion' | 'transfer';
 export type VoiceCallJoinResult =
   | {
       status: 'joined';
+      callId: string;
       participantId: string;
       deviceIndex: number;
     }
@@ -66,6 +73,8 @@ type APICallParticipant = {
   callId: string;
   participantId: string;
   deviceIndex: number;
+  connectionState: APICallParticipantConnectionState;
+  interruptionDeadline?: Timestamp;
 };
 
 export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
@@ -117,11 +126,17 @@ export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
           companionAllowed: response.companionAllowed
         };
       }
-      if (!response.joined || !response.participantId || response.deviceIndex < 1) {
+      if (
+        !response.joined ||
+        !response.callId ||
+        !response.participantId ||
+        response.deviceIndex < 1
+      ) {
         throw new Error('call join was not admitted');
       }
       return {
         status: 'joined',
+        callId: response.callId,
         participantId: response.participantId,
         deviceIndex: response.deviceIndex
       };
@@ -154,8 +169,14 @@ export function createVoiceCallAPI(config: VoiceCallAPIConfig) {
       };
     },
 
-    async leaveCall(roomId: string, clientInstanceId = ''): Promise<boolean> {
-      return (await client.leaveCall({ roomId, clientInstanceId }, { headers: headers() })).left;
+    async leaveCall(
+      roomId: string,
+      clientInstanceId = '',
+      expectedCallId?: string
+    ): Promise<boolean> {
+      return (
+        await client.leaveCall({ roomId, clientInstanceId, expectedCallId }, { headers: headers() })
+      ).left;
     }
   };
 }
@@ -189,7 +210,12 @@ function callParticipant(participant: APICallParticipant): VoiceCallParticipant[
       joinedAt: protobufTimestampToISOString(participant.joinedAt) ?? new Date(0).toISOString(),
       callId: participant.callId,
       participantId: participant.participantId || summary.id,
-      deviceIndex: participant.deviceIndex || 1
+      deviceIndex: participant.deviceIndex || 1,
+      connectionState:
+        participant.connectionState === APICallParticipantConnectionState.INTERRUPTED
+          ? 'interrupted'
+          : 'connected',
+      interruptionDeadline: protobufTimestampToISOString(participant.interruptionDeadline) ?? null
     }
   ];
 }

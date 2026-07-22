@@ -3,7 +3,12 @@ package core
 import "context"
 
 func (c *ChattoCore) secureDeleteMessageBodyEvents(ctx context.Context, seqs []uint64) {
-	if c == nil || c.storage == nil || c.storage.serverEvtStream == nil {
+	if c == nil || c.storage == nil || c.js == nil {
+		return
+	}
+	stream, err := c.eventStream(ctx)
+	if err != nil {
+		c.logger.Warn("Failed to open event stream for message-body cleanup", "error", err)
 		return
 	}
 	seen := make(map[uint64]struct{}, len(seqs))
@@ -15,7 +20,7 @@ func (c *ChattoCore) secureDeleteMessageBodyEvents(ctx context.Context, seqs []u
 			continue
 		}
 		seen[seq] = struct{}{}
-		if err := c.storage.serverEvtStream.SecureDeleteMsg(ctx, seq); err != nil {
+		if err := stream.SecureDeleteMsg(ctx, seq); err != nil {
 			c.logger.Warn("Failed to secure-delete message body event", "seq", seq, "error", err)
 		}
 	}

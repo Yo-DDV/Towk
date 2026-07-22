@@ -26,7 +26,10 @@ func (c *ChattoCore) StreamRoomEventsLive(ctx context.Context, kind RoomKind, ro
 	// evt.room.{R}.>. We consume from there with DeliverNewPolicy so
 	// only events arriving after subscription are surfaced; the
 	// initial-load path is GetRoomEvents (projection-backed).
-	stream := c.storage.serverEvtStream
+	stream, err := c.eventStream(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open event stream: %w", err)
+	}
 	filterSubject := events.RoomAggregate(room_id).AllEventsFilter()
 	cons, err := stream.OrderedConsumer(ctx, jetstream.OrderedConsumerConfig{
 		FilterSubjects:    []string{filterSubject},

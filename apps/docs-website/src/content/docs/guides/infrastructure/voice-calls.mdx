@@ -3,7 +3,7 @@ title: Voice & Video Calls
 description: How to set up and configure voice and video call capabilities in Towk using LiveKit.
 ---
 
-import { Aside, Steps, Tabs, TabItem } from "@astrojs/starlight/components";
+import { Aside, Steps } from "@astrojs/starlight/components";
 
 Towk supports real-time voice and video calls inside rooms using [LiveKit](https://livekit.io/), an open-source WebRTC media server. When enabled, any room member can start or join a call directly from the room header.
 
@@ -18,7 +18,7 @@ LiveKit runs as a **separate service** alongside Towk. Towk handles authenticati
 
 Calls are **implicit** — there's no "start call" action. The first person to join creates the call and a fresh E2EE key; when the last person leaves, the call ends and Towk shreds that key.
 
-Towk records call start/join/leave/end facts durably and reconciles active participants against LiveKit webhooks, so call indicators recover after server restarts. These call facts update the active call UI without appearing as room timeline messages. LiveKit media is end-to-end encrypted by current Towk clients; older clients that do not support this call encryption cannot decode encrypted media.
+Towk records call start/join/leave/end facts durably and reconciles active participants against LiveKit webhooks, so call indicators recover after server restarts. A recoverable media disconnect marks the affected connection as interrupted for a bounded grace period instead of immediately removing it; explicit leaves and moderation removals remain terminal. These call facts update the active call UI without appearing as room timeline messages. LiveKit media is end-to-end encrypted by current Towk clients; older clients that do not support this call encryption cannot decode encrypted media.
 
 ## Requirements
 
@@ -49,8 +49,8 @@ Towk records call start/join/leave/end facts durably and reconciles active parti
 
    Add a `[livekit]` section to your `towk.toml`:
 
-   <Tabs>
-   <TabItem label="Development">
+   Development:
+
    ```toml
    [livekit]
    enabled = true
@@ -58,18 +58,18 @@ Towk records call start/join/leave/end facts durably and reconciles active parti
    api_key = 'devkey'
    api_secret = 'secret'
    ```
-   </TabItem>
-   <TabItem label="Production">
+
+   Production:
+
    ```toml
    [livekit]
    enabled = true
    url = 'wss://livekit.example.com'
    api_key = 'your-api-key'
    api_secret = 'your-api-secret'
-   # webhook_url = 'https://towk.example.com/webhooks/livekit'  # defaults to {webserver.url}/webhooks/livekit
+   # webhook_url = 'https://towk.example.com/webhooks/livekit'
+   # defaults to {webserver.url}/webhooks/livekit
    ```
-   </TabItem>
-   </Tabs>
 
    Or use environment variables:
 
@@ -119,12 +119,13 @@ a publicly trusted certificate. Route `wss://livekit.example.com` on TCP 443 to
 LiveKit port 7880. Media travels directly to LiveKit instead of through the HTTP
 reverse proxy:
 
-| Public port | Purpose |
-| ----------- | ------- |
-| TCP 443 | Secure LiveKit API and WebSocket signaling, proxied to TCP 7880 |
-| TCP 7881 | ICE/TCP media fallback when UDP is unavailable |
-| UDP 3478 | Optional embedded TURN/STUN relay |
-| UDP media range | Direct WebRTC media; the Compose example uses 50000-50200 |
+| Public port          | Purpose                                                         |
+| -------------------- | --------------------------------------------------------------- |
+| TCP 443              | Secure LiveKit API and WebSocket signaling, proxied to TCP 7880 |
+| TCP 7881             | ICE/TCP media fallback when UDP is unavailable                  |
+| UDP 3478             | Optional embedded TURN/STUN relay                               |
+| UDP media range      | Direct WebRTC media; the Compose example uses 50000-50200       |
+| UDP TURN relay range | TURN allocation sockets; the Compose example uses 50201-50400   |
 
 The port range must match `rtc.port_range_start` and `rtc.port_range_end` in
 your LiveKit configuration. Do not route the TCP or UDP media ports through a
@@ -146,25 +147,191 @@ For most self-hosted deployments, enable LiveKit's built-in TURN/UDP server firs
 turn:
   enabled: true
   udp_port: 3478
+  relay_range_start: 50201
+  relay_range_end: 50400
 ```
 
-Expose UDP 3478 on the LiveKit host, keep the UDP media range open, and enable
+Expose UDP 3478 on the LiveKit host, keep the UDP media range open, and publish
+the configured TURN relay allocation range one-to-one when LiveKit runs behind
+a container bridge. The listener alone is not the relay data path. Then enable
 ICE/TCP on port 7881 as a fallback when UDP is unavailable. Networks that also
 block this TCP fallback need TURN/TLS. If your users can only reach outbound TCP
 443, LiveKit or TURN needs a dedicated IP address or host so it can listen on
 443 without conflicting with your HTTPS reverse proxy, and the TURN TLS
 certificate must match the advertised TURN domain.
 
+For a public LiveKit node, prefer `rtc.use_external_ip: true`. When a custom
+topology sets `use_external_ip: false` and `rtc.node_ip` is private, LiveKit's
+embedded TURN permission handler otherwise rejects that private media peer.
+Allow only the exact node address:
+
+```yaml
+rtc:
+  use_external_ip: false
+  node_ip: 10.0.0.10
+turn:
+  enabled: true
+  udp_port: 3478
+  allow_restricted_peer_cidrs:
+    - 10.0.0.10/32
+```
+
+Use `/32` for one IPv4 node or `/128` for one IPv6 node. In a cluster, list the
+individual restricted SFU addresses that embedded TURN must reach. These are
+media-peer addresses, not caller networks: never add broad private ranges just
+because callers use mobile, office, or home NATs.
+
 Use a dedicated TURN server such as [coturn](https://github.com/coturn/coturn) when you need tighter network separation, a shared TURN service for multiple LiveKit deployments, or TURN/TLS on port 443 without moving LiveKit itself. Configure static credentials on the TURN server and list it under LiveKit's `rtc.turn_servers` configuration.
 
-## Features
+## Media and Resilience Behavior
 
-- **Mute/unmute** — Toggle your microphone during a call
-- **Audio device selection** — Switch between microphones without leaving the call
-- **Camera toggle** — Turn your camera on and off during a call
-- **Video device selection** — Switch between cameras without leaving the call
-- **Active call indicators** — Rooms with active calls show a call indicator in the room list
-- **Audio level visualization** — Participant avatars pulse with accent-colored rings based on speaking volume
+Towk configures call media for graceful degradation rather than a fixed quality:
+
+- **Microphone audio** requests mono capture with browser echo cancellation,
+  noise suppression, voice isolation, and automatic gain control, without
+  forcing a sample rate. The browser and operating system therefore retain the
+  clock required by the active built-in, wired, Bluetooth HFP, or BLE route.
+  The call menu lets users disable or re-enable noise reduction, automatic gain,
+  and echo cancellation per call. A live change is applied to the published
+  source track, then the displayed effective status is recalculated. On a
+  visible, mono, non-Bluetooth route whose exposed source and processing clocks match,
+  Towk supplements the browser pipeline with local RNNoise at 48 kHz or SpeexDSP
+  at another rate of at least 32 kHz. WebKit may omit optional source clock and
+  channel settings; Towk can still use the AudioContext clock when the selected
+  route is not Bluetooth. Bluetooth identity is reconciled across the source,
+  LiveKit active route, and selected device so an opaque Android source ID cannot
+  enable a second Web Audio clock. Logical `default` and `communications` routes
+  may use enhanced suppression when no Bluetooth input is enumerated; they stay
+  native-first while any Bluetooth input could be hidden behind the stable logical ID. Explicit Bluetooth and hands-free labels plus common wireless-earbud product families are recognized conservatively because browsers expose no portable transport/profile identifier. Confirmed Bluetooth, narrowband,
+  hidden-document, and explicit clock-mismatch routes remain browser-native. If the enhancement cannot start, the
+  microphone remains live with browser audio processing. Opus DTX and RED remain
+  enabled to reduce silence bandwidth and protect speech on lossy links.
+- **Incoming call audio** keeps LiveKit volume and each attached media element's
+  hard mute state synchronized. The speaker button therefore mutes microphone
+  and screen-share audio on iOS as well as browsers that support script-driven
+  media volume.
+- **Camera video** requests a 4:3 1280 × 960 stream at no more than 30 FPS and
+  asks compatible browsers not to crop the source frame. This keeps the field of
+  view of 4:3 phone cameras instead of selecting a tighter 16:9 sensor mode,
+  while still publishing adaptive layers for smaller viewers and weaker links.
+  LiveKit simulcast, dynacast, and adaptive receive selection let each viewer
+  use the layer that fits their element and bandwidth; camera publication
+  preserves frame rate first when congestion requires lower detail. Camera and
+  screen content also use aspect-ratio-preserving rendering.
+- **Screen sharing** publishes a 1080p/30 ceiling with 360p and 720p simulcast
+  layers. The receiver can move between layers without stretching or cropping
+  the shared desktop, while congestion adaptation preserves resolution first
+  so shared text remains readable. Screen audio is included only when the
+  browser and selected capture source provide it.
+- **Codec negotiation** is left to WebRTC and LiveKit so participants receive a
+  mutually supported codec. Do not force H.264 as the only codec: VP8 is the
+  common interoperable baseline for the currently supported browser engines.
+
+When signaling or media is interrupted, the local client shows a reconnecting
+notice and preserves its device choices while LiveKit attempts recovery. If a
+fresh connection is required, Towk revalidates the same call generation before
+issuing another token, preventing a delayed request from joining or leaving a
+replacement call. Microphone restoration first retries the selected route,
+then an available input, then the operating-system route without a fixed device
+ID if a mobile browser briefly exposes no stable input during a Bluetooth or
+network transition. Other participants retain an interrupted participant card
+during the recovery window and can see packet-loss or jitter degradation for
+individual connections. A connection that does not return before the grace
+period is removed by reconciliation.
+
+## Call Controls and Devices
+
+- **Microphone and incoming-audio controls** — Mute the microphone or all remote
+  microphone and screen-share audio independently. The device menu also exposes
+  per-call noise reduction, automatic gain, and echo-cancellation preferences
+  with the current route status.
+- **Audio and video device selection** — Switch microphones, speakers, and
+  cameras without leaving. Towk restores the selected devices after call
+  recovery when the browser still exposes them, serializes route changes,
+  follows LiveKit's active device after automatic fallback, and replaces
+  disappeared selections. If a microphone disappears while muted, Towk selects
+  an available input before retrying unmute. If the browser keeps the logical
+  `default` ID unchanged or returns an empty inventory during the route change,
+  Towk drops the stale exact constraint and reacquires the route selected by the
+  operating system. If native recovery has to mute a failed route, Towk shows a
+  dedicated notice and retries after 1, 2, and 4 seconds; a detected device
+  change retries immediately, while the bounded timer covers mobile browsers
+  without `devicechange`. An explicit mute cancels recovery. Permission-denied
+  and device-in-use failures remain visible and are not silently rerouted. The
+  already active route is not restarted when selected again. When a generic
+  Bluetooth route appears and the user has not explicitly selected another
+  route during the call, Towk prefers Bluetooth for call audio; explicit
+  speakerphone, earpiece, system-default, or named-device choices take
+  precedence until that route disappears or the call ends. Selecting a
+  different microphone while recovery is visible immediately retries capture
+  on that route, even after the bounded background schedule has ended. Changing
+  a processing preference while the microphone is live applies constraints to
+  the published source through the same serialized queue. The menu re-enumerates devices when opened,
+  uses the standards speaker picker where available, explains system-managed
+  output on mobile, and replaces generic platform labels such as speakerphone,
+  earpiece, or Bluetooth headset with localized call-usage route names while
+  preserving useful desktop hardware names. Mobile lenses are presented as
+  front/rear/ultra-wide/telephoto where labels permit, with a one-touch lens
+  switch when several are exposed.
+- **Camera and screen sharing** — Toggle either source independently, expand
+  remote media without cropping, and inspect screen-share receive diagnostics.
+- **Per-participant status** — Speaking level, connection quality, packet loss,
+  jitter, interrupted state, camera, and screen-share state are shown on the
+  relevant participant card.
+- **Multiple devices** — One account can keep up to two call connections. The
+  second can join as a muted companion or transfer the call; sibling devices can
+  control each other's microphone and incoming-audio mute state.
+- **Installed PWA integration** — Active and recovering calls retain the wake
+  lock and Media Session controls. Supporting WebKit engines also receive the
+  duplex `play-and-record` Audio Session category. Towk detaches its optional Web
+  Audio processing graph before the document is hidden and restores it after
+  visibility returns, leaving the browser-native microphone track published in
+  between. A validated cross-room or cross-server switch releases old local
+  capture before the replacement connection starts.
+- **Active call indicators** — Rooms with active calls show the current call and
+  projected participants even before the viewer joins.
+
+## Browser and Device Compatibility
+
+Call entry fails closed when the browser cannot provide the required LiveKit
+E2EE support. Camera and microphone permissions, audio-output switching, screen
+capture, and system-audio capture remain browser and operating-system
+capabilities: Towk detects unavailable screen sharing, reports media permission
+or device failures, and keeps a call joined muted when microphone startup alone
+fails. Bluetooth transport and communication-profile selection remain native
+operating-system responsibilities; Towk follows the resulting WebRTC route and
+does not infer profiles from localized labels. On current Android and iOS web
+engines, installed PWAs do not receive the
+native screen-capture API, so Towk keeps that control compact, visibly
+unavailable, and shows the desktop alternative only after the user taps it
+instead of promising a picker that cannot open. Screen
+capture on supported desktop browsers always requires a user gesture and the
+native picker may offer different sources on each platform.
+
+Background microphone continuity is also platform-owned. The experimental
+[Audio Session API](https://w3c.github.io/audio-session/) lets supporting WebKit
+engines classify a call as `play-and-record`, but Chromium Android does not
+currently expose that API. [Page lifecycle freezing](https://developer.chrome.com/docs/web-platform/page-lifecycle-api)
+can suspend a hidden page's task queues, and a service worker cannot own the
+page's live `MediaStream`. Towk therefore preserves native capture where the
+browser allows it and restores processing on resume; a web PWA cannot guarantee
+the native Android foreground-service or iOS background-audio behavior of a
+packaged application.
+
+:::caution
+On an installed Android or iOS PWA, minimizing Towk or locking the screen may
+stop the outgoing microphone even if incoming call audio continues. Keep Towk
+in the foreground when uninterrupted outgoing audio is required. Returning to
+the app triggers microphone and processing recovery, but a web PWA cannot
+guarantee native-app background capture.
+:::
+
+For production acceptance, test the installed PWA on the browser, operating
+system, and physical audio/video devices used by your organization. Include a
+direct UDP path, ICE/TCP fallback, TURN/UDP, a real network handoff, device
+permission denial, camera/microphone removal, and the platform's native screen
+and system-audio picker. Browser simulation cannot replace those device-level
+checks.
 
 ## Disabling Voice & Video Calls
 

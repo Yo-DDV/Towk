@@ -5,12 +5,14 @@
   let {
     visible = $bindable(false),
     companionAllowed,
+    canShareScreen,
     busy = false,
     oncompanion,
     ontransfer
   }: {
     visible?: boolean;
     companionAllowed: boolean;
+    canShareScreen: boolean;
     busy?: boolean;
     oncompanion: () => void;
     ontransfer: () => void;
@@ -42,7 +44,11 @@
       data-testid="call-join-companion"
     >
       <span class="font-semibold text-text">{m['voice.join_as_companion']()}</span>
-      <span class="text-sm text-muted">{m['voice.companion_description']()}</span>
+      <span class="text-sm text-muted">
+        {canShareScreen
+          ? m['voice.companion_description']()
+          : m['voice.companion_description_camera_only']()}
+      </span>
     </button>
 
     <button

@@ -84,6 +84,7 @@ message Event {
     CallParticipantLeftEvent voice_call_participant_left = 331;
     CallStartedEvent voice_call_started = 332;
     CallEndedEvent voice_call_ended = 333;
+    CallParticipantConnectionChangedEvent voice_call_participant_connection_changed = 334;
 
     // ----- Messages (400-424) -----
     MessagePostedEvent message_posted = 400;

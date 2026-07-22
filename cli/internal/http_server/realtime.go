@@ -468,6 +468,17 @@ func (s *HTTPServer) mapRealtimeEVT(envelope *realtimev1.RealtimeEventEnvelope, 
 	case *corev1.Event_VoiceCallParticipantLeft:
 		call := payload.VoiceCallParticipantLeft
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallParticipantLeft{CallParticipantLeft: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource(), call.GetParticipantId(), call.GetDeviceIndex())}
+	case *corev1.Event_VoiceCallParticipantConnectionChanged:
+		call := payload.VoiceCallParticipantConnectionChanged
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallParticipantConnectionChanged{CallParticipantConnectionChanged: &realtimev1.RealtimeCallEvent{
+			RoomId:               call.GetRoomId(),
+			CallId:               call.GetCallId(),
+			Source:               apiRealtimeCallEventSource(call.GetSource()),
+			ParticipantId:        call.GetParticipantId(),
+			DeviceIndex:          call.GetDeviceIndex(),
+			ConnectionState:      apiRealtimeCallParticipantConnectionState(call.GetState()),
+			InterruptionDeadline: call.GetInterruptionDeadline(),
+		}}
 	case *corev1.Event_VoiceCallEnded:
 		call := payload.VoiceCallEnded
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_CallEnded{CallEnded: realtimeCallEvent(call.GetRoomId(), call.GetCallId(), call.GetSource(), "", 0)}
@@ -687,6 +698,17 @@ func apiRealtimeCallEventSource(source corev1.CallParticipantEventSource) realti
 		return realtimev1.RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_RECONCILIATION
 	default:
 		return realtimev1.RealtimeCallEventSource_REALTIME_CALL_EVENT_SOURCE_UNSPECIFIED
+	}
+}
+
+func apiRealtimeCallParticipantConnectionState(state corev1.CallParticipantConnectionState) realtimev1.RealtimeCallParticipantConnectionState {
+	switch state {
+	case corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED:
+		return realtimev1.RealtimeCallParticipantConnectionState_REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED
+	case corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED:
+		return realtimev1.RealtimeCallParticipantConnectionState_REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED
+	default:
+		return realtimev1.RealtimeCallParticipantConnectionState_REALTIME_CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED
 	}
 }
 

@@ -222,6 +222,10 @@ export default defineConfig({
         extends: './vite.config.ts',
         test: {
           name: 'client',
+          // Browser files share one page-level runner. Serializing them avoids
+          // a navigation or teardown in one fixture invalidating sibling
+          // iframes while still allowing each file's tests to run normally.
+          fileParallelism: false,
           browser: {
             enabled: true,
             provider: playwright(),
@@ -234,8 +238,12 @@ export default defineConfig({
           deps: {
             optimizer: {
               client: {
-                enabled: true,
-                include: [...tiptapDeps, ...browserRuntimeDeps]
+                // The browser runner owns several concurrent iframes. A
+                // mid-run dependency rescan replaces Vite's optimized cache
+                // and makes those iframes lose dynamic imports. Serving the
+                // ESM dependencies directly keeps the full browser suite
+                // deterministic; production and dev optimization stay on.
+                enabled: false
               }
             }
           }

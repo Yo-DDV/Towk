@@ -3,6 +3,7 @@ syntax = "proto3";
 package chatto.core.v1;
 
 import "chatto/core/v1/models.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 
@@ -14,7 +15,7 @@ option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 //   - 300-304: room lifecycle on evt.room.{roomId}.*
 //   - 310-311: room membership on evt.room.{roomId}.*
 //   - 320: server-wide account deletion fan-out
-//   - 330-333: voice call lifecycle and participant lifecycle on evt.room.{roomId}.*
+//   - 330-334: voice call lifecycle and participant lifecycle on evt.room.{roomId}.*
 //
 // Keep these tags coordinated with event.proto. Message-internal field numbers
 // are local to each message and do not consume top-level Event tag space.
@@ -119,6 +120,16 @@ enum CallParticipantEventSource {
   CALL_PARTICIPANT_EVENT_SOURCE_RECONCILIATION = 3;
 }
 
+// Media-server connection state for one admitted call participant.
+enum CallParticipantConnectionState {
+  CALL_PARTICIPANT_CONNECTION_STATE_UNSPECIFIED = 0;
+  // LiveKit currently observes this participant connection.
+  CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED = 1;
+  // The connection disappeared without explicit user intent and is inside the
+  // server-owned recovery grace period.
+  CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED = 2;
+}
+
 // Event: a user joined or attempted to join a voice call in a room.
 //
 // The participant is identified by the parent Event.actor_id. USER-sourced
@@ -147,6 +158,24 @@ message CallParticipantLeftEvent {
   string participant_id = 4;
   // Stable display slot for concurrent connections from the same account.
   uint32 device_index = 5;
+}
+
+// Event: LiveKit or the authoritative reconciler observed a connection-state
+// transition for an admitted participant. This does not change durable call
+// membership; only an explicit leave or a post-grace reconciliation may do so.
+message CallParticipantConnectionChangedEvent {
+  string room_id = 1;
+  CallParticipantEventSource source = 2;
+  string call_id = 3;
+  string participant_id = 4;
+  uint32 device_index = 5;
+  CallParticipantConnectionState state = 6;
+  // Stable LiveKit webhook ID when the observation came from a webhook.
+  string observation_id = 7;
+  // Source timestamp used to reject delayed or reordered observations.
+  google.protobuf.Timestamp observed_at = 8;
+  // Present only while interrupted. Membership cannot be finalized before it.
+  google.protobuf.Timestamp interruption_deadline = 9;
 }
 
 // Event: a voice call session started in a room.

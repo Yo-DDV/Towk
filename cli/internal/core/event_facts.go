@@ -64,6 +64,8 @@ func roomIDOfEvent(event *corev1.Event) string {
 		return e.VoiceCallParticipantJoined.GetRoomId()
 	case *corev1.Event_VoiceCallParticipantLeft:
 		return e.VoiceCallParticipantLeft.GetRoomId()
+	case *corev1.Event_VoiceCallParticipantConnectionChanged:
+		return e.VoiceCallParticipantConnectionChanged.GetRoomId()
 	case *corev1.Event_VoiceCallStarted:
 		return e.VoiceCallStarted.GetRoomId()
 	case *corev1.Event_VoiceCallEnded:
@@ -164,7 +166,8 @@ func isVisibleRoomTimelineEntry(event *corev1.Event) bool {
 		*corev1.Event_AssetProcessingSucceeded, *corev1.Event_AssetProcessingFailed,
 		*corev1.Event_ReactionAdded, *corev1.Event_ReactionRemoved,
 		*corev1.Event_VoiceCallStarted, *corev1.Event_VoiceCallParticipantJoined,
-		*corev1.Event_VoiceCallParticipantLeft, *corev1.Event_VoiceCallEnded:
+		*corev1.Event_VoiceCallParticipantLeft, *corev1.Event_VoiceCallParticipantConnectionChanged,
+		*corev1.Event_VoiceCallEnded:
 		return false
 	}
 	return false
@@ -199,6 +202,7 @@ func isDeliverableLiveEVTRoomEvent(event *corev1.Event) bool {
 		*corev1.Event_VoiceCallStarted,
 		*corev1.Event_VoiceCallParticipantJoined,
 		*corev1.Event_VoiceCallParticipantLeft,
+		*corev1.Event_VoiceCallParticipantConnectionChanged,
 		*corev1.Event_VoiceCallEnded:
 		return true
 	default:
@@ -276,6 +280,7 @@ func eventNeedsCallStateProjection(event *corev1.Event) bool {
 		*corev1.Event_VoiceCallStarted,
 		*corev1.Event_VoiceCallParticipantJoined,
 		*corev1.Event_VoiceCallParticipantLeft,
+		*corev1.Event_VoiceCallParticipantConnectionChanged,
 		*corev1.Event_VoiceCallEnded:
 		return true
 	default:

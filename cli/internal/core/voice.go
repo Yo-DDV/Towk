@@ -47,6 +47,11 @@ type VoiceCallParticipantIdentity struct {
 	DeviceIndex   uint32
 }
 
+type CallParticipantConnectionObservation struct {
+	ID         string
+	ObservedAt time.Time
+}
+
 // VoiceCallParticipantID deterministically namespaces a browser-session ID by
 // account. Retries from one browser session remain idempotent while identical
 // client IDs from different accounts cannot replace one another in LiveKit.
@@ -199,24 +204,42 @@ func (c *ChattoCore) HandleCallParticipantJoined(ctx context.Context, spaceID, r
 // HandleCallParticipantConnectionJoined appends a durable LiveKit-observed
 // join fact for one exact account connection.
 func (c *ChattoCore) HandleCallParticipantConnectionJoined(ctx context.Context, spaceID, roomID, userID, participantID string, deviceIndex uint32, displayName, login, avatarURL string, callID ...string) error {
+	return c.HandleObservedCallParticipantConnectionJoined(
+		ctx, spaceID, roomID, userID, participantID, deviceIndex,
+		displayName, login, avatarURL, CallParticipantConnectionObservation{}, callID...,
+	)
+}
+
+func (c *ChattoCore) HandleObservedCallParticipantConnectionJoined(ctx context.Context, spaceID, roomID, userID, participantID string, deviceIndex uint32, displayName, login, avatarURL string, observation CallParticipantConnectionObservation, callID ...string) error {
 	expectedCallID := optionalCallID(callID)
 	if c.callModel == nil {
 		return fmt.Errorf("call model is not initialized")
 	}
-	// New clients receive a connection-scoped identity only after JoinCall has
-	// durably admitted it. A stale transferred token or forged late join must be
-	// evicted instead of being allowed to recreate call membership. Legacy
-	// user-ID identities retain their historical webhook admission behavior.
-	if participantID != userID {
+	// Every call-scoped token is usable only while JoinCall still admits that
+	// exact participant. This includes legacy user-ID identities: otherwise a
+	// still-valid token replay could undo an explicit leave while the call stays
+	// active. Only the old call-ID-less core path retains its bootstrap behavior.
+	if participantID != userID || expectedCallID != "" {
 		participant, admitted := callParticipantByID(c.CallState.Participants(roomID), userID, participantID)
 		if !admitted || expectedCallID == "" || participant.CallID != expectedCallID {
 			if err := c.callModel.RemoveLiveKitParticipant(ctx, spaceID, roomID, expectedCallID, participantID); err != nil {
-				return fmt.Errorf("%w: evict connection: %v", ErrCallParticipantNotAdmitted, err)
+				return fmt.Errorf("%w: %w: %v", ErrCallParticipantNotAdmitted, ErrCallParticipantEvictionFailed, err)
 			}
 			return ErrCallParticipantNotAdmitted
 		}
 	}
-	return c.callModel.AppendParticipantJoinedForCall(ctx, roomID, userID, participantID, deviceIndex, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
+	if err := c.callModel.AppendParticipantJoinedForCall(ctx, roomID, userID, participantID, deviceIndex, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT); err != nil {
+		return err
+	}
+	if observation.ID == "" && observation.ObservedAt.IsZero() {
+		return nil
+	}
+	return c.callModel.AppendParticipantConnectionStateForCall(
+		ctx, roomID, userID, participantID, expectedCallID,
+		corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_CONNECTED,
+		observation.ID, observation.ObservedAt,
+		corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT,
+	)
 }
 
 // HandleCallParticipantLeft appends a durable LiveKit-observed leave fact.
@@ -228,16 +251,45 @@ func (c *ChattoCore) HandleCallParticipantLeft(ctx context.Context, spaceID, roo
 // HandleCallParticipantConnectionLeft appends a durable LiveKit-observed leave
 // fact for one exact account connection.
 func (c *ChattoCore) HandleCallParticipantConnectionLeft(ctx context.Context, spaceID, roomID, userID, participantID string, callID ...string) error {
+	return c.HandleObservedCallParticipantConnectionLeft(
+		ctx, spaceID, roomID, userID, participantID, CallParticipantConnectionObservation{}, callID...,
+	)
+}
+
+func (c *ChattoCore) HandleObservedCallParticipantConnectionLeft(ctx context.Context, spaceID, roomID, userID, participantID string, observation CallParticipantConnectionObservation, callID ...string) error {
 	if c.callModel == nil {
 		return fmt.Errorf("call model is not initialized")
 	}
-	return c.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, participantID, optionalCallID(callID), corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
+	return c.callModel.AppendParticipantConnectionStateForCall(
+		ctx, roomID, userID, participantID, optionalCallID(callID),
+		corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED,
+		observation.ID, observation.ObservedAt,
+		corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT,
+	)
+}
+
+// HandleCallParticipantConnectionTerminated records a LiveKit departure that
+// cannot recover in place, such as an explicit client leave or server-side
+// participant removal. Network and server failures use the interrupted path.
+func (c *ChattoCore) HandleCallParticipantConnectionTerminated(ctx context.Context, roomID, userID, participantID string, callID ...string) error {
+	if c.callModel == nil {
+		return fmt.Errorf("call model is not initialized")
+	}
+	expectedCallID := optionalCallID(callID)
+	if expectedCallID != "" {
+		return c.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, participantID, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
+	}
+	return c.callModel.AppendParticipantLeft(ctx, roomID, userID, participantID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT)
 }
 
 // HandleCallRoomFinished appends LiveKit-observed leave facts for any remaining
 // projected participants in the room.
 // Called by the webhook handler when LiveKit reports a room has finished (closed).
 func (c *ChattoCore) HandleCallRoomFinished(ctx context.Context, spaceID, roomID string, callID ...string) error {
+	return c.HandleObservedCallRoomFinished(ctx, spaceID, roomID, CallParticipantConnectionObservation{}, callID...)
+}
+
+func (c *ChattoCore) HandleObservedCallRoomFinished(ctx context.Context, spaceID, roomID string, observation CallParticipantConnectionObservation, callID ...string) error {
 	expectedCallID := optionalCallID(callID)
 	if expectedCallID != "" {
 		active, ok := c.CallState.ActiveCall(roomID)
@@ -249,7 +301,12 @@ func (c *ChattoCore) HandleCallRoomFinished(ctx context.Context, spaceID, roomID
 		if c.callModel == nil {
 			return fmt.Errorf("call model is not initialized")
 		}
-		if err := c.callModel.AppendParticipantLeftForCall(ctx, roomID, p.UserID, p.ParticipantID, expectedCallID, corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT); err != nil {
+		if err := c.callModel.AppendParticipantConnectionStateForCall(
+			ctx, roomID, p.UserID, p.ParticipantID, expectedCallID,
+			corev1.CallParticipantConnectionState_CALL_PARTICIPANT_CONNECTION_STATE_INTERRUPTED,
+			observation.ID, observation.ObservedAt,
+			corev1.CallParticipantEventSource_CALL_PARTICIPANT_EVENT_SOURCE_LIVEKIT,
+		); err != nil {
 			return err
 		}
 	}
@@ -303,7 +360,7 @@ func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roo
 		return CallJoinResult{}, err
 	}
 	for _, removed := range result.RemovedParticipants {
-		if err := c.callModel.RemoveLiveKitParticipant(ctx, LegacySpaceIDForRoomKind(kind), roomID, removed.CallID, removed.ParticipantID); err != nil && c.logger != nil {
+		if err := c.callModel.RemoveLiveKitParticipantAfterCommit(ctx, LegacySpaceIDForRoomKind(kind), roomID, removed.CallID, removed.ParticipantID); err != nil && c.logger != nil {
 			c.logger.Warn("Failed to remove transferred LiveKit participant", "room_id", roomID, "call_id", removed.CallID, "error", err)
 		}
 	}
@@ -311,10 +368,14 @@ func (c *ChattoCore) JoinCallParticipant(ctx context.Context, kind RoomKind, roo
 }
 
 // LeaveCallParticipant records a leave for the exact browser session. An empty
-// client instance targets only the legacy user-ID participant.
-func (c *ChattoCore) LeaveCallParticipant(ctx context.Context, kind RoomKind, roomID, userID, clientInstanceID string, source corev1.CallParticipantEventSource) error {
+// client instance targets only the legacy user-ID participant. When supplied,
+// expectedCallID makes a delayed leave for an earlier call an idempotent no-op.
+func (c *ChattoCore) LeaveCallParticipant(ctx context.Context, kind RoomKind, roomID, userID, clientInstanceID string, source corev1.CallParticipantEventSource, expectedCallID ...string) error {
 	if c.callModel == nil {
 		return fmt.Errorf("call model is not initialized")
+	}
+	if callID := optionalCallID(expectedCallID); callID != "" {
+		return c.callModel.AppendParticipantLeftForCall(ctx, roomID, userID, VoiceCallParticipantID(userID, clientInstanceID), callID, source)
 	}
 	return c.callModel.AppendParticipantLeft(ctx, roomID, userID, VoiceCallParticipantID(userID, clientInstanceID), source)
 }
