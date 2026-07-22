@@ -11,22 +11,38 @@
 
   let {
     eventIds,
+    roomId = 'room-1',
+    renderedRoomId = roomId,
     scrollToEventId,
     onComplete,
     isLoading = false,
     isJumpedMode = false,
     onJumpToPresent,
+    loadFailed = false,
+    onRetryLoad,
+    enablePagination = false,
+    hasReachedStart = true,
+    onLoadMore,
     updateCounter = 0,
-    pendingHighlightId = null
+    pendingHighlightId = null,
+    isReconcilingCachedData = false
   }: {
     eventIds: string[];
+    roomId?: string;
+    renderedRoomId?: string | null;
     scrollToEventId: string | null;
     onComplete?: () => void;
     isLoading?: boolean;
     isJumpedMode?: boolean;
     onJumpToPresent?: () => Promise<boolean>;
+    loadFailed?: boolean;
+    onRetryLoad?: () => Promise<unknown> | unknown;
+    enablePagination?: boolean;
+    hasReachedStart?: boolean;
+    onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     updateCounter?: number;
     pendingHighlightId?: string | null;
+    isReconcilingCachedData?: boolean;
   } = $props();
 
   createComposerContext({ scroll: true });
@@ -34,32 +50,30 @@
   setUserSettings(new UserSettingsState());
 
   const events = $derived(
-    eventIds.map(
-      (id): RoomEventView => ({
-        id,
-        createdAt: '2026-06-17T10:47:00Z',
-        actorId: 'test-user',
-        actor: null,
-        event: {
-          kind: RoomEventKind.MessagePosted,
-          roomId: 'room-1',
-          body: id,
-          attachments: [],
-          linkPreview: null,
-          reactions: [],
-          updatedAt: null,
-          inReplyTo: null,
-          threadRootEventId: null,
-          echoOfEventId: null,
-          echoFromThreadRootEventId: null,
-          channelEchoEventId: null,
-          replyCount: 0,
-          lastReplyAt: null,
-          threadParticipants: [],
-          viewerIsFollowingThread: true
-        }
-      })
-    )
+    eventIds.map((id): RoomEventView => ({
+      id,
+      createdAt: '2026-06-17T10:47:00Z',
+      actorId: 'test-user',
+      actor: null,
+      event: {
+        kind: RoomEventKind.MessagePosted,
+        roomId: renderedRoomId ?? roomId,
+        body: id,
+        attachments: [],
+        linkPreview: null,
+        reactions: [],
+        updatedAt: null,
+        inReplyTo: null,
+        threadRootEventId: null,
+        echoOfEventId: null,
+        echoFromThreadRootEventId: null,
+        channelEchoEventId: null,
+        replyCount: 0,
+        lastReplyAt: null,
+        threadParticipants: [],
+        viewerIsFollowingThread: true
+      }
+    }))
   );
 
   const messageStore = {
@@ -73,10 +87,17 @@
 </script>
 
 <EventList
-  roomId="room-1"
+  {roomId}
+  {renderedRoomId}
+  {isReconcilingCachedData}
   messageStore={messageStore as never}
   {events}
   {isLoading}
+  {loadFailed}
+  {onRetryLoad}
+  {enablePagination}
+  {hasReachedStart}
+  {onLoadMore}
   {isJumpedMode}
   {onJumpToPresent}
   {updateCounter}

@@ -7,6 +7,7 @@ import { ROOM_MEMBERS_PAGE_SIZE } from '$lib/state/room/members.svelte';
 import { useConnection } from '$lib/state/server/connection.svelte';
 import { serverRegistry } from '$lib/state/server/registry.svelte';
 import { untrack } from 'svelte';
+import { SvelteMap } from 'svelte/reactivity';
 
 export type RoomData = {
   room: {
@@ -39,6 +40,45 @@ export type DMData = {
   }>;
   currentUserId: string | null;
 };
+
+const ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS = 64;
+const roomDataMemorySnapshots = new SvelteMap<string, RoomData>();
+
+function canonicalRoomDataServerOrigin(serverUrl: string | null | undefined): string {
+  if (!serverUrl) return '';
+  try {
+    return new URL(serverUrl).origin;
+  } catch {
+    return serverUrl;
+  }
+}
+
+function roomDataSnapshotKey(
+  serverId: string | null | undefined,
+  serverUrl: string | null | undefined,
+  userId: string | null | undefined,
+  roomId: string
+): string {
+  return `${serverId ?? ''}\u0000${canonicalRoomDataServerOrigin(serverUrl)}\u0000${userId ?? ''}\u0000${roomId}`;
+}
+
+function rememberRoomDataSnapshot(
+  key: string,
+  roomData: RoomData
+): void {
+  if (roomDataMemorySnapshots.has(key)) roomDataMemorySnapshots.delete(key);
+  roomDataMemorySnapshots.set(key, roomData);
+  while (roomDataMemorySnapshots.size > ROOM_DATA_MEMORY_SNAPSHOT_MAX_ROOMS) {
+    const oldestKey = roomDataMemorySnapshots.keys().next().value;
+    if (!oldestKey) break;
+    roomDataMemorySnapshots.delete(oldestKey);
+  }
+}
+
+/** Test-only: clear the module-level room metadata snapshot cache. */
+export function __resetRoomDataMemorySnapshotsForTests(): void {
+  roomDataMemorySnapshots.clear();
+}
 
 /**
  * Loads room metadata and DM participant data.
@@ -83,6 +123,16 @@ export function useRoomData(getProps: () => { roomId: string }) {
     const { roomId } = getProps();
     const thisLoadId = ++roomLoadId.current;
     const currentRoomId = roomId;
+    const currentConnection = connection();
+    const currentUserId = currentConnection.serverId
+      ? (serverRegistry.tryGetStore(currentConnection.serverId)?.currentUser.user?.id ?? null)
+      : null;
+    const snapshotKey = roomDataSnapshotKey(
+      currentConnection.serverId,
+      currentConnection.connectBaseUrl,
+      currentUserId,
+      currentRoomId
+    );
 
     // Don't reset roomData to undefined when staying in the same room (reconnect case).
     untrack(() => {
@@ -90,11 +140,10 @@ export function useRoomData(getProps: () => { roomId: string }) {
       if (currentRoom && currentRoom.room.id === currentRoomId) {
         // Same room, just reconnecting — keep existing data visible while refetching
       } else {
-        roomData = undefined;
+        roomData = roomDataMemorySnapshots.get(snapshotKey) ?? undefined;
       }
     });
 
-    const currentConnection = connection();
     const api = createRoomDirectoryAPI({
       serverId: currentConnection.serverId,
       baseUrl: currentConnection.connectBaseUrl,
@@ -111,7 +160,7 @@ export function useRoomData(getProps: () => { roomId: string }) {
           return;
         }
 
-        roomData = {
+        const nextRoomData = {
           room: {
             id: loadedRoom.id,
             name: loadedRoom.name,
@@ -130,6 +179,8 @@ export function useRoomData(getProps: () => { roomId: string }) {
           canManageRoom: loadedRoom.canManageRoom,
           canBanRoomMembers: loadedRoom.canBanRoomMembers
         };
+        roomData = nextRoomData;
+        rememberRoomDataSnapshot(snapshotKey, nextRoomData);
       })
       .catch((err) => {
         if (roomLoadId.current !== thisLoadId) return;

@@ -307,6 +307,19 @@ beforeEach(() => {
 });
 
 describe('RoomList', () => {
+  it('preloads only route code ahead of room navigation and leaves private data until tap', async () => {
+    const { container } = render(RoomList);
+
+    await expect.element(q(container, '[href="/chat/-/channel-1"]')).toBeInTheDocument();
+    const channelRow = q(container, '[href="/chat/-/channel-1"]') as HTMLAnchorElement;
+    const dmRow = q(container, '[href="/chat/-/dm-with-participants"]') as HTMLAnchorElement;
+
+    expect(channelRow.getAttribute('data-sveltekit-preload-code')).toBe('hover');
+    expect(channelRow.getAttribute('data-sveltekit-preload-data')).toBe('tap');
+    expect(dmRow.getAttribute('data-sveltekit-preload-code')).toBe('hover');
+    expect(dmRow.getAttribute('data-sveltekit-preload-data')).toBe('tap');
+  });
+
   it('hides plain unread attention for a muted direct-message room', async () => {
     setRoomUnread('dm-with-participants', true);
     mocks.store.notificationLevels.isRoomMuted.mockImplementation(

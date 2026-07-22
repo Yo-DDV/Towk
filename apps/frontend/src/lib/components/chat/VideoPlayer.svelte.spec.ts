@@ -2,7 +2,7 @@ import { tick } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { VideoProcessingStatus } from '$lib/render/types';
-import VideoPlayer from './VideoPlayer.svelte';
+import VideoPlayer, { shouldRequestNativeOverlayFullscreen } from './VideoPlayer.svelte';
 
 const TRANSPARENT_THUMBNAIL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
 const LAZY_PLAYER_TIMEOUT_MS = 10_000;
@@ -76,6 +76,7 @@ function video(container: HTMLElement): HTMLVideoElement {
 }
 
 async function mediaPlayer(container: HTMLElement): Promise<HTMLElement> {
+  container.querySelector<HTMLButtonElement>('[data-testid="video-player-poster-shell"]')?.click();
   await expect
     .poll(() => container.querySelector('media-player'), { timeout: LAZY_PLAYER_TIMEOUT_MS })
     .toBeTruthy();
@@ -107,6 +108,79 @@ function expectChildFillsFrame(child: HTMLElement, parent: HTMLElement) {
 }
 
 describe('VideoPlayer', () => {
+  it('keeps iPhone and iPad PWA playback in the safe CSS overlay', () => {
+    const fullscreenDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'fullscreenEnabled');
+    const userAgentDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent');
+    const platformDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform');
+    const maxTouchPointsDescriptor = Object.getOwnPropertyDescriptor(
+      Navigator.prototype,
+      'maxTouchPoints'
+    );
+
+    try {
+      Object.defineProperty(document, 'fullscreenEnabled', { configurable: true, value: true });
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15'
+      });
+      Object.defineProperty(navigator, 'platform', { configurable: true, value: 'iPhone' });
+      Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 });
+
+      expect(shouldRequestNativeOverlayFullscreen()).toBe(false);
+    } finally {
+      if (fullscreenDescriptor) {
+        Object.defineProperty(Document.prototype, 'fullscreenEnabled', fullscreenDescriptor);
+      }
+      if (userAgentDescriptor) Object.defineProperty(Navigator.prototype, 'userAgent', userAgentDescriptor);
+      if (platformDescriptor) Object.defineProperty(Navigator.prototype, 'platform', platformDescriptor);
+      if (maxTouchPointsDescriptor) {
+        Object.defineProperty(Navigator.prototype, 'maxTouchPoints', maxTouchPointsDescriptor);
+      }
+    }
+  });
+
+  it('keeps a stable poster frame while the custom player registers', () => {
+    const { container } = renderPostedVideo({
+      width: 1080,
+      height: 1920,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    const posterShell = container.querySelector('[data-testid="video-player-poster-shell"]');
+    expect(container.querySelector('media-player')).toBeNull();
+    expect(posterShell).not.toBeNull();
+    expect(posterShell?.querySelector('img')?.getAttribute('src')).toBe(TRANSPARENT_THUMBNAIL);
+    expect(posterShell?.textContent).not.toContain('clip.mp4');
+  });
+
+  it('renders video poster thumbnails with a skeleton until the image has loaded', () => {
+    const { container } = renderPostedVideo({
+      width: 1080,
+      height: 1920,
+      thumbnailUrl: 'https://chat.example.test/poster.webp'
+    });
+
+    const poster = container.querySelector<HTMLImageElement>(
+      '[data-testid="video-player-poster-shell"] img'
+    );
+
+    expect(poster).not.toBeNull();
+    expect(poster?.className).toContain('skeleton');
+  });
+
+  it('mounts the custom player only after the user opens the video', async () => {
+    const { container } = renderPostedVideo({
+      width: 1920,
+      height: 1080,
+      thumbnailUrl: TRANSPARENT_THUMBNAIL
+    });
+
+    expect(container.querySelector('media-player')).toBeNull();
+    container.querySelector<HTMLButtonElement>('[data-testid="video-player-poster-shell"]')?.click();
+
+    expect(await mediaPlayer(container)).not.toBeNull();
+  });
+
   it('frames 16:9 videos as 16:9 embeds', () => {
     const { container } = renderAutoLoopVideo({ width: 1600, height: 900 });
 

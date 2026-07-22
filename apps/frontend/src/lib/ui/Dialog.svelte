@@ -2,6 +2,7 @@
   import type { Snippet } from 'svelte';
   import * as m from '$lib/i18n/messages';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
+  import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
 
   let {
     children,
@@ -27,6 +28,7 @@
 
   let dialogEl: HTMLDialogElement | undefined;
   let closing = $state(false);
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
   // True when the current press started inside the content. Prevents a drag
   // that began inside (e.g. text selection) from closing on release outside.
   // Defaults to `true` so a click that reaches the dialog without an observed
@@ -81,6 +83,10 @@
   }
 
   function handleNativeClose() {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
     visible = false;
     closing = false;
     onclose?.();
@@ -89,10 +95,15 @@
   function close() {
     if (!dialogEl?.open || closing) return;
     closing = true;
-    // Wait for exit animation, then close
-    setTimeout(() => {
+    const duration = motionDuration(MOTION_DURATION.fast);
+    if (duration === 0) {
       dialogEl?.close();
-    }, 100);
+      return;
+    }
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      dialogEl?.close();
+    }, duration);
   }
 </script>
 

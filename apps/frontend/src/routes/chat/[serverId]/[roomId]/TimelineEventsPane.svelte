@@ -12,6 +12,8 @@
 
   let {
     roomId,
+    renderedRoomId = roomId,
+    isReconcilingCachedData = false,
     messageStore,
     events,
     updateCounter = events.length,
@@ -31,6 +33,8 @@
     filterThreadReplies = true,
     enableLastEditableFinder = false,
     isLoading = false,
+    loadFailed = false,
+    onRetryLoad,
     emptyMessage = m['room.message.empty'](),
     typingUserIds = [],
     typingMembers = [],
@@ -46,6 +50,8 @@
     pendingHighlightId = null
   }: {
     roomId: string;
+    renderedRoomId?: string | null;
+    isReconcilingCachedData?: boolean;
     messageStore: MessagesStore;
     events: RoomEventView[];
     updateCounter?: number;
@@ -60,11 +66,13 @@
     isLoadingMore?: boolean;
     hasReachedStart?: boolean;
     showStartMarker?: boolean;
-    onLoadMore?: () => Promise<void>;
+    onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     onOpenThread?: OpenThreadHandler;
     filterThreadReplies?: boolean;
     enableLastEditableFinder?: boolean;
     isLoading?: boolean;
+    loadFailed?: boolean;
+    onRetryLoad?: () => Promise<unknown> | unknown;
     emptyMessage?: string;
     typingUserIds?: string[];
     typingMembers?: RoomMember[];
@@ -110,6 +118,8 @@
 
 <EventList
   {roomId}
+  {renderedRoomId}
+  {isReconcilingCachedData}
   {messageStore}
   {events}
   {alwaysScrollToBottom}
@@ -124,6 +134,8 @@
   {updateCounter}
   {enableLastEditableFinder}
   {isLoading}
+  {loadFailed}
+  {onRetryLoad}
   {emptyMessage}
   unreadAfterEventId={unreadMarkerEventId}
   {typingUserIds}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
+  import { fade } from 'svelte/transition';
   import { page } from '$app/state';
   import { getIncomingShareSummary, type IncomingShareSummary } from '$lib/pwa/shareInbox';
   import { serverIdToSegment } from '$lib/navigation';
@@ -10,12 +11,14 @@
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import * as m from '$lib/i18n/messages';
+  import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
 
   let incomingShare = $state<IncomingShareSummary | null>(null);
   let loading = $state(true);
   let invalid = $state(false);
   let shareLoadVersion = 0;
   const shareId = $derived(page.url.searchParams.get('shareId') ?? '');
+  const showDelayedShareLoading = delayedLoadingVisible(() => loading);
   const destinationLoading = $derived(
     serverRegistry.servers.some((server) => {
       const store = serverRegistry.getStore(server.id);
@@ -75,13 +78,33 @@
   <div class="flex-1 overflow-auto p-4 md:p-6">
     <div class="mx-auto flex max-w-2xl flex-col gap-5">
       {#if loading}
-        <p class="text-muted">{m['common.loading']()}</p>
+        {#if showDelayedShareLoading.current}
+          <div
+            class="space-y-4"
+            aria-busy="true"
+            aria-label={m['common.loading']()}
+            transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}
+          >
+            <div class="rounded-lg border border-text/10 bg-surface-100 p-4">
+              <div class="skeleton h-4 w-40 rounded"></div>
+              <div class="mt-4 space-y-2">
+                <div class="skeleton h-4 w-3/4 rounded"></div>
+                <div class="skeleton h-3 w-5/6 rounded"></div>
+                <div class="skeleton h-3 w-2/3 rounded"></div>
+              </div>
+            </div>
+          </div>
+        {/if}
       {:else if invalid}
-        <EmptyState icon="uil--exclamation-triangle" title={m['ui.share_target.invalid_title']()}>
-          {m['ui.share_target.invalid_description']()}
-        </EmptyState>
+        <div transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}>
+          <EmptyState icon="uil--exclamation-triangle" title={m['ui.share_target.invalid_title']()}>
+            {m['ui.share_target.invalid_description']()}
+          </EmptyState>
+        </div>
       {:else if incomingShare}
-        <section class="rounded-lg border border-text/10 bg-surface-100 p-4">
+        <section
+          class="rounded-lg border border-text/10 bg-surface-100 p-4 surface-pop"
+        >
           <h2 class="font-semibold">{m['ui.share_target.preview']()}</h2>
           {#if incomingShare.title}
             <p class="mt-3 font-medium break-words">{incomingShare.title}</p>
@@ -106,13 +129,23 @@
           {/if}
         </section>
 
-        <section>
+        <section transition:fade={{ duration: motionDuration(MOTION_DURATION.base) }}>
           <h2 class="mb-3 font-semibold">{m['ui.share_target.choose_destination']()}</h2>
           {#if destinationLoading}
-            <p class="text-sm text-muted">{m['common.loading']()}</p>
+            <div class="grid gap-2 sm:grid-cols-2" aria-busy="true" aria-label={m['common.loading']()}>
+              {#each Array.from({ length: 4 }) as _, index (index)}
+                <div class="flex min-h-12 items-center gap-3 rounded-lg border border-text/10 bg-background px-4 py-3">
+                  <div class="skeleton h-5 w-5 rounded"></div>
+                  <div class="min-w-0 flex-1 space-y-2">
+                    <div class="skeleton h-3.5 w-2/3 rounded"></div>
+                    <div class="skeleton h-2.5 w-1/2 rounded"></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
           {:else if destinations.length === 0}
             <div
-              class="flex flex-col gap-3 rounded-lg border border-text/10 p-4 text-sm text-muted"
+              class="flex flex-col gap-3 rounded-lg border border-text/10 p-4 text-sm text-muted surface-pop"
             >
               <p>{m['ui.share_target.no_destination']()}</p>
               <Button href={resolve('/login')} variant="secondary" size="sm">
@@ -124,7 +157,7 @@
               {#each destinations as destination (`${destination.serverId}:${destination.roomId}`)}
                 <button
                   type="button"
-                  class="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-text/10 bg-background px-4 py-3 text-left transition-colors hover:bg-surface-100"
+                  class="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-text/10 bg-background px-4 py-3 text-left soft-list-item soft-press hover:bg-surface-100"
                   onclick={() => chooseDestination(destination.serverId, destination.roomId)}
                 >
                   <span class="iconify text-muted uil--comment-alt-lines" aria-hidden="true"></span>

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { tick } from 'svelte';
 import { q } from '$lib/test-utils';
@@ -64,6 +64,7 @@ const { mocks } = vi.hoisted(() => {
       },
       joinVoiceCall: vi.fn().mockResolvedValue(undefined),
       handleVoiceCallJoinFailed: vi.fn(),
+      preloadVideoPlayerElements: vi.fn().mockResolvedValue(undefined),
       pendingHighlightConsume: vi.fn(
         (_roomId: string, _threadRootId: string | null): string | null => null
       ),
@@ -265,6 +266,10 @@ vi.mock('$lib/components/voice/VoiceCallPanel.svelte', async () => {
   return { default: EmptyMock };
 });
 
+vi.mock('$lib/components/chat/VideoPlayer.svelte', () => ({
+  preloadVideoPlayerElements: mocks.preloadVideoPlayerElements
+}));
+
 vi.mock('$lib/ui/PageTitle.svelte', async () => {
   const { default: EmptyMock } = await import('./RoomLocalEchoEmptyMock.svelte');
   return { default: EmptyMock };
@@ -279,6 +284,10 @@ import Room from './Room.svelte';
 import { AppUiState } from '$lib/state/appUi.svelte';
 
 let appUi: AppUiState;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function emptyTimelinePage() {
   return {
@@ -331,6 +340,8 @@ beforeEach(() => {
   mocks.joinVoiceCall.mockReset();
   mocks.joinVoiceCall.mockResolvedValue(undefined);
   mocks.handleVoiceCallJoinFailed.mockReset();
+  mocks.preloadVideoPlayerElements.mockReset();
+  mocks.preloadVideoPlayerElements.mockResolvedValue(undefined);
   mocks.roomKind = RoomKind.CHANNEL;
   mocks.sidebarNav.isMobile = false;
   mocks.pendingHighlightConsume.mockReset();
@@ -353,6 +364,24 @@ beforeEach(() => {
 });
 
 describe('Room local message echo', () => {
+  it('preloads the inline video player while the room is idle', async () => {
+    const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
+      callback({
+        didTimeout: false,
+        timeRemaining: () => 10
+      });
+      return 42;
+    });
+    vi.stubGlobal('requestIdleCallback', requestIdleCallback);
+    vi.stubGlobal('cancelIdleCallback', vi.fn());
+
+    render(Room, { props: { roomId: 'room-1' } });
+    await tick();
+
+    expect(requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), { timeout: 1_500 });
+    await vi.waitFor(() => expect(mocks.preloadVideoPlayerElements).toHaveBeenCalledOnce());
+  });
+
   it('opens a call notification without joining on the ordinary click path', async () => {
     mocks.livekitUrl = 'wss://livekit.example.test';
 

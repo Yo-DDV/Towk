@@ -90,7 +90,7 @@
 
 {#if summary.queued > 0 || summary.needsAttention > 0}
   <section
-    class="pointer-events-auto fixed right-3 bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] z-[55] flex max-w-[min(26rem,calc(100vw-1.5rem))] items-center gap-3 rounded-xl border border-border bg-surface-200/95 px-3 py-2 shadow-xl backdrop-blur"
+    class="pointer-events-auto fixed right-3 bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] z-[55] flex max-w-[min(26rem,calc(100vw-1.5rem))] items-center gap-3 rounded-xl border border-border bg-surface-200/95 px-3 py-2 shadow-xl backdrop-blur surface-pop"
     role="status"
     aria-live="polite"
     data-testid="pwa-outbox-status"
@@ -118,14 +118,14 @@
     </div>
     <button
       type="button"
-      class="btn-secondary shrink-0 btn-sm"
+      class="btn-secondary shrink-0 btn-sm soft-press"
       onclick={() => (showManager = true)}
     >
       {m['ui.outbox.manage']()}
     </button>
     <button
       type="button"
-      class="btn-secondary shrink-0 btn-sm"
+      class="btn-secondary shrink-0 btn-sm soft-press"
       disabled={forcing || summary.syncing}
       onclick={retryNow}
     >

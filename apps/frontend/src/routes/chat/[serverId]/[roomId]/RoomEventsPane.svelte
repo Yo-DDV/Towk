@@ -122,17 +122,21 @@
 <TimelineEventsPane
   {roomId}
   messageStore={store}
+  renderedRoomId={store.renderedRoomId}
+  isReconcilingCachedData={store.isReconcilingCachedData}
   events={roomEvents}
   alwaysScrollToBottom={false}
   showNewMessagesIndicator={true}
   enablePagination={true}
   isLoadingMore={store.isLoadingMore}
   hasReachedStart={store.hasReachedStart}
-  onLoadMore={() => store.loadMore()}
+  onLoadMore={(options) => store.loadMore(options)}
   {updateCounter}
   {onOpenThread}
   enableLastEditableFinder={true}
   isLoading={store.isInitialLoading}
+  loadFailed={store.initialLoadFailed}
+  onRetryLoad={() => store.retryInitialLoad()}
   {unreadMarkerEventId}
   {unreadMarkerWindow}
   {onUnreadMarkerResolved}

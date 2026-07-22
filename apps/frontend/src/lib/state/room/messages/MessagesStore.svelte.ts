@@ -1,5 +1,6 @@
 import { tick } from 'svelte';
 import { SvelteDate, SvelteMap, SvelteSet } from 'svelte/reactivity';
+import { Code, ConnectError } from '@connectrpc/connect';
 import type { RoomEventView } from '$lib/render/types';
 import type { EventEnvelope } from '$lib/eventBus.svelte';
 import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
@@ -26,6 +27,7 @@ import {
   saveCachedTimeline,
   type PrivateDataScope
 } from '$lib/pwa/offlineData';
+import { rememberLoadedImageSource } from '$lib/ui/imageLoadMemory';
 
 export type {
   OptimisticReactionAction,
@@ -50,6 +52,12 @@ type AssetProcessingPayload =
   | Extract<RoomEventPayload, { kind: typeof RoomEventKind.AssetProcessingSucceeded }>
   | Extract<RoomEventPayload, { kind: typeof RoomEventKind.AssetProcessingFailed }>;
 type RoomDeletedPayload = Extract<RoomEventPayload, { kind: typeof RoomEventKind.RoomDeleted }>;
+type TimelineSnapshot = {
+  events: RoomEventView[];
+  oldestCursor: string | undefined;
+  newestCursor: string | undefined;
+  hasReachedStart: boolean;
+};
 
 export type RefreshCurrentWindowResult = {
   hasOlder: boolean;
@@ -60,6 +68,41 @@ export type RefreshCurrentWindowResult = {
 
 function eventCacheKey(roomId: string, eventId: string): string {
   return `${roomId}\u0000${eventId}`;
+}
+
+const TIMELINE_MEMORY_SNAPSHOT_LIMIT = 120;
+const TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS = 32;
+const INITIAL_MEDIA_PREVIEW_PREWARM_LIMIT = 12;
+const INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS = 320;
+const TIMELINE_WARMUP_MAX_IN_FLIGHT = 4;
+const timelineMemorySnapshots = new SvelteMap<string, TimelineSnapshot>();
+const timelineWarmupInFlight = new SvelteMap<string, Promise<boolean>>();
+let transientTimelineSnapshotScopeSequence = 0;
+
+function timelineSnapshotKey(
+  ownerKey: string,
+  scope: MessageScope,
+  roomId: string,
+  threadRootEventId: string | null
+): string {
+  return `${ownerKey}\u0000${scope}\u0000${roomId}\u0000${threadRootEventId ?? ''}`;
+}
+
+function canonicalSnapshotServerOrigin(serverUrl: string): string {
+  try {
+    return new URL(serverUrl).origin;
+  } catch {
+    return serverUrl;
+  }
+}
+
+function privateTimelineSnapshotOwnerKey(scope: PrivateDataScope | null | undefined): string | null {
+  if (!scope) return null;
+  return `${scope.serverId}\u0000${canonicalSnapshotServerOrigin(scope.serverUrl)}\u0000${scope.userId}`;
+}
+
+function isConnectNotFound(error: unknown): boolean {
+  return error instanceof ConnectError && error.code === Code.NotFound;
 }
 
 function compareEventCreatedAt(a: RoomEventView, b: RoomEventView): number {
@@ -99,6 +142,171 @@ function sameEventList(a: readonly RoomEventView[], b: readonly RoomEventView[])
     if (eventFingerprint(a[i]) !== eventFingerprint(b[i])) return false;
   }
   return true;
+}
+
+function mediaPreviewUrlForAttachment(
+  attachment: MessagePostedPayload['attachments'][number]
+): string | null {
+  if (typeof attachment.contentType !== 'string') return null;
+
+  if (attachment.contentType.startsWith('image/')) {
+    if (attachment.contentType === 'image/gif' && attachment.videoProcessing?.thumbnailAssetUrl) {
+      return attachment.videoProcessing.thumbnailAssetUrl.url;
+    }
+    return attachment.thumbnailAssetUrl?.url ?? attachment.assetUrl?.url ?? null;
+  }
+
+  if (attachment.contentType.startsWith('video/')) {
+    return (
+      attachment.videoProcessing?.thumbnailAssetUrl?.url ?? attachment.thumbnailAssetUrl?.url ?? null
+    );
+  }
+
+  return null;
+}
+
+function initialMediaPreviewUrls(rawEvents: readonly RawEvent[]): string[] {
+  const urls: string[] = [];
+  const seen = new SvelteSet<string>();
+  const events = unmask(rawEvents);
+
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i];
+    if (!isMessagePostedPayload(event.event)) continue;
+    for (const attachment of event.event.attachments ?? []) {
+      const url = mediaPreviewUrlForAttachment(attachment);
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+      if (urls.length >= INITIAL_MEDIA_PREVIEW_PREWARM_LIMIT) return urls;
+    }
+  }
+
+  return urls;
+}
+
+function prewarmImagePreview(url: string): Promise<void> {
+  if (typeof Image === 'undefined') return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.loading = 'eager';
+    let settled = false;
+
+    const finish = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (loaded) rememberLoadedImageSource(url);
+      resolve();
+    };
+    image.onload = () => {
+      const decode = image.decode?.();
+      if (decode) void decode.then(() => finish(true), () => finish(true));
+      else finish(true);
+    };
+    image.onerror = () => finish(false);
+    image.src = url;
+
+    if (image.complete && image.naturalWidth > 0) {
+      const decode = image.decode?.();
+      if (decode) void decode.then(() => finish(true), () => finish(true));
+      else finish(true);
+    }
+  });
+}
+
+function prewarmInitialMediaPreviewUrls(rawEvents: readonly RawEvent[]): Promise<void> | null {
+  const urls = initialMediaPreviewUrls(rawEvents);
+  if (urls.length === 0) return null;
+
+  return Promise.race([
+    Promise.allSettled(urls.map((url) => prewarmImagePreview(url))).then(() => undefined),
+    new Promise<void>((resolve) =>
+      setTimeout(resolve, INITIAL_MEDIA_PREVIEW_PREWARM_TIMEOUT_MS)
+    )
+  ]);
+}
+
+function rememberTimelineSnapshot(key: string, snapshot: TimelineSnapshot): void {
+  if (timelineMemorySnapshots.has(key)) timelineMemorySnapshots.delete(key);
+  timelineMemorySnapshots.set(key, {
+    ...snapshot,
+    events: snapshot.events.slice(-TIMELINE_MEMORY_SNAPSHOT_LIMIT)
+  });
+  while (timelineMemorySnapshots.size > TIMELINE_MEMORY_SNAPSHOT_MAX_ROOMS) {
+    const oldestKey = timelineMemorySnapshots.keys().next().value;
+    if (!oldestKey) break;
+    timelineMemorySnapshots.delete(oldestKey);
+  }
+}
+
+export async function warmRoomTimelineSnapshot({
+  roomId,
+  roomTimeline,
+  serverConnection,
+  privateDataScope
+}: {
+  roomId: string;
+  roomTimeline?: RoomTimelineAPI;
+  serverConnection?: ServerConnection;
+  privateDataScope: PrivateDataScope | null | undefined;
+}): Promise<boolean> {
+  const scope = privateDataScope;
+  const ownerKey = privateTimelineSnapshotOwnerKey(scope);
+  if (!ownerKey) return false;
+
+  const key = timelineSnapshotKey(ownerKey, 'room', roomId, null);
+  if (timelineMemorySnapshots.has(key)) return true;
+
+  const existing = timelineWarmupInFlight.get(key);
+  if (existing) return existing;
+  if (timelineWarmupInFlight.size >= TIMELINE_WARMUP_MAX_IN_FLIGHT) return false;
+  if (!roomTimeline && !serverConnection) return false;
+
+  const warmup = (async () => {
+    const api = roomTimeline ?? roomTimelineFromServerConnection(serverConnection!);
+    const page = await api.getRoomEvents({ roomId, limit: PAGE_SIZE });
+    const mediaPrewarm = prewarmInitialMediaPreviewUrls(page.events);
+    if (mediaPrewarm) await mediaPrewarm;
+
+    const events = sortRoomEventList(unmask(page.events));
+    if (events.length === 0) return false;
+
+    rememberTimelineSnapshot(key, {
+      events,
+      oldestCursor: page.startCursor ?? undefined,
+      newestCursor: page.endCursor ?? undefined,
+      hasReachedStart: !page.hasOlder
+    });
+
+    if (!scope) return true;
+    void saveCachedTimeline(scope, {
+      roomId,
+      threadRootEventId: null,
+      events,
+      cachedAt: Date.now()
+    }).catch((error) => {
+      console.error('MessagesStore: encrypted warmup cache persistence failed:', error);
+    });
+
+    return true;
+  })();
+
+  timelineWarmupInFlight.set(key, warmup);
+  try {
+    return await warmup;
+  } catch (error) {
+    console.debug('MessagesStore: timeline warmup skipped:', error);
+    return false;
+  } finally {
+    timelineWarmupInFlight.delete(key);
+  }
+}
+
+export function __resetTimelineWarmupStateForTests(): void {
+  timelineMemorySnapshots.clear();
+  timelineWarmupInFlight.clear();
 }
 
 function isContinuityEvent(
@@ -175,8 +383,11 @@ export class MessagesStore {
   events = $state<RoomEventView[]>([]);
   isInitialLoading = $state(true);
   isShowingCachedData = $state(false);
+  isReconcilingCachedData = $state(false);
+  initialLoadFailed = $state(false);
   isLoadingMore = $state(false);
   hasReachedStart = $state(false);
+  renderedRoomId = $state<string | null>(null);
 
   private readonly roomTimeline: RoomTimelineAPI;
   private scope: MessageScope | null = null;
@@ -198,7 +409,10 @@ export class MessagesStore {
   #pendingAuthoritativeLoadId: number | null = null;
   #pendingJumpId: number | null = null;
   #cachedEventIds = new SvelteSet<string>();
+  #transitionCarryOverEventIds = new SvelteSet<string>();
+  #silentLoadMoreInFlight = false;
   #cacheSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  readonly #transientTimelineSnapshotOwnerKey = `transient:${++transientTimelineSnapshotScopeSequence}`;
 
   constructor(
     serverConnection: ServerConnection,
@@ -369,6 +583,7 @@ export class MessagesStore {
   private startLoad(): number {
     if (this.#pendingAuthoritativeLoadId !== null) {
       this.#pendingAuthoritativeLoadId = null;
+      this.isReconcilingCachedData = false;
       this.isInitialLoading = false;
     }
     return ++this.#loadId;
@@ -391,13 +606,30 @@ export class MessagesStore {
   setRoom(roomId: string): void {
     if (this.scope === 'room' && this.roomId === roomId) return;
 
+    const canCarryOverPreviousRoomWindow = this.scope === 'room' && this.rootEvents.length > 0;
+    this.rememberCurrentSnapshot();
+    void this.persistCache().catch(() => undefined);
     this.scope = 'room';
     this.#jumpId++;
     this.#windowId++;
     this.#pendingJumpId = null;
     this.roomId = roomId;
     this.threadRootEventId = '';
-    void this.resetAndFetchLatest();
+    void this.resetAndFetchLatest({
+      preserveCurrentEvents: canCarryOverPreviousRoomWindow,
+      transitionCarryOver: canCarryOverPreviousRoomWindow
+    });
+  }
+
+  retryInitialLoad(): Promise<boolean> {
+    if (this.scope === 'thread') {
+      const thisLoad = this.startLoad();
+      this.initialLoadFailed = false;
+      this.isInitialLoading = this.events.length === 0;
+      this.fetchThread(thisLoad);
+      return Promise.resolve(true);
+    }
+    return this.resetAndFetchLatest({ preserveCurrentEvents: this.events.length > 0 });
   }
 
   setThread(roomId: string, threadRootEventId: string): void {
@@ -409,6 +641,8 @@ export class MessagesStore {
       return;
     }
 
+    this.rememberCurrentSnapshot();
+    void this.persistCache().catch(() => undefined);
     this.scope = 'thread';
     this.#jumpId++;
     this.#windowId++;
@@ -417,9 +651,14 @@ export class MessagesStore {
     this.threadRootEventId = threadRootEventId;
 
     const thisLoad = this.startLoad();
-    this.resetState();
-    this.isInitialLoading = true;
-    void this.hydrateCache(thisLoad, roomId, threadRootEventId);
+    const restored = this.restoreSnapshot('thread', roomId, threadRootEventId);
+    if (!restored) {
+      this.resetState();
+      this.isInitialLoading = true;
+      void this.hydrateCache(thisLoad, roomId, threadRootEventId);
+    } else {
+      this.isInitialLoading = false;
+    }
     this.fetchThread(thisLoad);
   }
 
@@ -521,11 +760,20 @@ export class MessagesStore {
     }
   }
 
-  async loadMore(): Promise<void> {
-    if (this.isLoadingMore || this.hasReachedStart || !this.oldestCursor) return;
+  async loadMore(options: { silent?: boolean } = {}): Promise<void> {
+    const silent = options.silent === true;
+    if (
+      this.isLoadingMore ||
+      this.#silentLoadMoreInFlight ||
+      this.hasReachedStart ||
+      !this.oldestCursor
+    ) {
+      return;
+    }
 
     const before = this.oldestCursor;
-    this.isLoadingMore = true;
+    if (silent) this.#silentLoadMoreInFlight = true;
+    else this.isLoadingMore = true;
 
     try {
       const page = await this.fetchOlderPage(before);
@@ -557,7 +805,8 @@ export class MessagesStore {
       // Yield a frame so the virtualizer can settle before another loadMore.
       await tick();
       await new Promise((r) => requestAnimationFrame(r));
-      this.isLoadingMore = false;
+      if (silent) this.#silentLoadMoreInFlight = false;
+      else this.isLoadingMore = false;
     }
   }
 
@@ -591,20 +840,69 @@ export class MessagesStore {
     }
   }
 
-  private roomWindowMessageCount(): number {
-    return this.rootEvents.filter((event) => isMessagePostedPayload(event.event)).length;
+  private roomWindowMessageCountForRaw(rawEvents: readonly RawEvent[]): number {
+    return unmask(rawEvents).filter(
+      (event) =>
+        isMessagePostedPayload(event.event) &&
+        event.event.roomId === this.roomId &&
+        event.event.threadRootEventId === null
+    ).length;
   }
 
-  private async backfillInitialRoomWindow(thisLoad: number): Promise<void> {
+  private async completeInitialRoomWindowBeforePublish(
+    thisLoad: number,
+    latestPage: EventConnectionPage
+  ): Promise<EventConnectionPage | null> {
+    let combinedEvents = [...latestPage.events];
+    let startCursor = latestPage.startCursor ?? undefined;
+    let hasOlder = latestPage.hasOlder;
+    let rootMessageCount = this.roomWindowMessageCountForRaw(combinedEvents);
+
     while (
       !this.isStale(thisLoad) &&
       this.scope === 'room' &&
-      !this.hasReachedStart &&
-      this.oldestCursor &&
-      this.roomWindowMessageCount() < INITIAL_ROOM_MESSAGE_BACKFILL_TARGET
+      hasOlder &&
+      startCursor &&
+      rootMessageCount < INITIAL_ROOM_MESSAGE_BACKFILL_TARGET
     ) {
-      await this.loadMore();
+      const before = startCursor;
+      const olderPage = await this.roomTimeline.getRoomEvents({
+        roomId: this.roomId,
+        limit: PAGE_SIZE,
+        before
+      });
+
+      if (this.isStale(thisLoad) || this.scope !== 'room') return null;
+
+      const olderEvents = [...olderPage.events];
+      if (olderEvents.length > 0) {
+        combinedEvents = [...olderEvents, ...combinedEvents];
+        rootMessageCount = this.roomWindowMessageCountForRaw(combinedEvents);
+      }
+
+      startCursor = olderPage.startCursor ?? undefined;
+      hasOlder = olderPage.hasOlder;
+
+      if (!olderPage.hasOlder || !olderPage.startCursor || olderPage.startCursor === before) {
+        break;
+      }
     }
+
+    return {
+      ...latestPage,
+      events: combinedEvents,
+      startCursor: startCursor ?? null,
+      hasOlder
+    };
+  }
+
+  private async prewarmTimelineMediaBeforePublish(
+    thisLoad: number,
+    rawEvents: readonly RawEvent[]
+  ): Promise<boolean> {
+    const mediaPrewarm = prewarmInitialMediaPreviewUrls(rawEvents);
+    if (mediaPrewarm) await mediaPrewarm;
+    return !this.isStale(thisLoad);
   }
 
   async loadNewer(jumpState: JumpToMessageState): Promise<void> {
@@ -687,6 +985,10 @@ export class MessagesStore {
         jumpState.hasOlderMessages = false;
         return false;
       }
+
+      const mediaPrewarm = prewarmInitialMediaPreviewUrls(rawEvents);
+      if (mediaPrewarm) await mediaPrewarm;
+      if (this.#jumpId !== jumpId || this.scope !== 'room' || this.roomId !== roomId) return false;
 
       // This replacement becomes the authoritative room window. Cancel any
       // older latest-page load before installing it.
@@ -1093,6 +1395,7 @@ export class MessagesStore {
       merged.push(e);
     }
     for (const e of this.events) {
+      if (this.#transitionCarryOverEventIds.has(e.id)) continue;
       if (newSeen.has(e.id)) continue;
       newSeen.add(e.id);
       merged.push(e);
@@ -1100,11 +1403,14 @@ export class MessagesStore {
     this.events = merged;
     if (this.scope === 'room') this.sortRoomEvents();
     this.seenIds = newSeen;
+    this.#transitionCarryOverEventIds.clear();
+    this.renderedRoomId = this.roomId;
     this.scheduleCacheSave();
   }
 
   private resetState(): void {
     this.events = [];
+    this.renderedRoomId = null;
     this.seenIds = new SvelteSet();
     this.previewEvents.clear();
     this.pendingPreviewFetches.clear();
@@ -1115,7 +1421,95 @@ export class MessagesStore {
     this.hasReachedStart = false;
     this.isLoadingMore = false;
     this.isShowingCachedData = false;
+    this.isReconcilingCachedData = false;
+    this.initialLoadFailed = false;
     this.#cachedEventIds.clear();
+    this.#transitionCarryOverEventIds.clear();
+  }
+
+  private removeTransitionCarryOverEvents(): void {
+    if (this.#transitionCarryOverEventIds.size === 0) return;
+    this.events = this.events.filter((event) => !this.#transitionCarryOverEventIds.has(event.id));
+    this.seenIds = new SvelteSet(this.events.map((event) => event.id));
+    this.#transitionCarryOverEventIds.clear();
+    this.renderedRoomId = this.roomId;
+  }
+
+  private hasOnlyTransitionCarryOverEvents(): boolean {
+    return (
+      this.events.length > 0 &&
+      this.#transitionCarryOverEventIds.size > 0 &&
+      this.events.every((event) => this.#transitionCarryOverEventIds.has(event.id))
+    );
+  }
+
+  private currentSnapshotKey(): string | null {
+    if (!this.scope || !this.roomId) return null;
+    const ownerKey =
+      privateTimelineSnapshotOwnerKey(this.getPrivateDataScope?.()) ??
+      this.#transientTimelineSnapshotOwnerKey;
+    return timelineSnapshotKey(
+      ownerKey,
+      this.scope,
+      this.roomId,
+      this.scope === 'thread' ? this.threadRootEventId : null
+    );
+  }
+
+  private rememberCurrentSnapshot(): void {
+    const key = this.currentSnapshotKey();
+    if (!key || this.events.length === 0) return;
+    rememberTimelineSnapshot(key, {
+      events: this.events.slice(-TIMELINE_MEMORY_SNAPSHOT_LIMIT),
+      oldestCursor: this.oldestCursor,
+      newestCursor: this.newestCursor,
+      hasReachedStart: this.hasReachedStart
+    });
+  }
+
+  private memorySnapshot(
+    scope: MessageScope,
+    roomId: string,
+    threadRootEventId: string | null
+  ): TimelineSnapshot | null {
+    const ownerKey =
+      privateTimelineSnapshotOwnerKey(this.getPrivateDataScope?.()) ??
+      this.#transientTimelineSnapshotOwnerKey;
+    const snapshot =
+      timelineMemorySnapshots.get(timelineSnapshotKey(ownerKey, scope, roomId, threadRootEventId)) ??
+      null;
+    return snapshot && snapshot.events.length > 0 ? snapshot : null;
+  }
+
+  private applySnapshot(snapshot: TimelineSnapshot, scope: MessageScope): void {
+    this.events = [...snapshot.events];
+    this.renderedRoomId = this.roomId;
+    this.seenIds = new SvelteSet(snapshot.events.map((event) => event.id));
+    this.#cachedEventIds = new SvelteSet(snapshot.events.map((event) => event.id));
+    this.previewEvents.clear();
+    this.pendingPreviewFetches.clear();
+    this.optimisticReactions.clearAll();
+    this.optimisticThreadFollows.clearAll();
+    this.oldestCursor = snapshot.oldestCursor;
+    this.newestCursor = snapshot.newestCursor;
+    this.hasReachedStart = snapshot.hasReachedStart;
+    this.isLoadingMore = false;
+    this.isShowingCachedData = false;
+    this.initialLoadFailed = false;
+    if (scope === 'thread') this.sortThreadEvents();
+    else this.sortRoomEvents();
+  }
+
+  private restoreSnapshot(
+    scope: MessageScope,
+    roomId: string,
+    threadRootEventId: string | null
+  ): boolean {
+    const snapshot = this.memorySnapshot(scope, roomId, threadRootEventId);
+    if (!snapshot) return false;
+
+    this.applySnapshot(snapshot, scope);
+    return true;
   }
 
   private replaceWithFetchedAndUpdateCursors(connection: {
@@ -1127,6 +1521,7 @@ export class MessagesStore {
     this.oldestCursor = connection.startCursor ?? undefined;
     this.newestCursor = connection.endCursor ?? undefined;
     this.hasReachedStart = false;
+    this.rememberCurrentSnapshot();
   }
 
   private replaceWithSnapshotAndUpdateCursors(
@@ -1218,6 +1613,7 @@ export class MessagesStore {
       hasOlder: connection.hasOlder ?? false,
       hasReachedStart: this.hasReachedStart
     });
+    this.rememberCurrentSnapshot();
     return changed;
   }
 
@@ -1231,6 +1627,9 @@ export class MessagesStore {
     });
 
     if (this.isStale(thisLoad)) return skippedRefreshResult();
+    if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) {
+      return skippedRefreshResult();
+    }
     const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: true,
       latestSnapshot: true
@@ -1250,6 +1649,9 @@ export class MessagesStore {
     });
 
     if (this.isStale(thisLoad)) return skippedRefreshResult();
+    if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) {
+      return skippedRefreshResult();
+    }
     const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: true
     });
@@ -1274,6 +1676,9 @@ export class MessagesStore {
           limit: PAGE_SIZE
         });
     if (this.isStale(thisLoad)) return skippedRefreshResult();
+    if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) {
+      return skippedRefreshResult();
+    }
     const changed = this.replaceWithSnapshotAndUpdateCursors(page, existingBeforeFetch, {
       preserveExistingWindow: anchorEventId === null || anchorEventId !== this.threadRootEventId,
       latestSnapshot: anchorEventId === null
@@ -1281,12 +1686,64 @@ export class MessagesStore {
     return { hasOlder: page.hasOlder, hasNewer: page.hasNewer, refreshed: true, changed };
   }
 
-  private resetAndFetchLatest(): Promise<boolean> {
+  private async resetAndFetchLatest(
+    options: { preserveCurrentEvents?: boolean; transitionCarryOver?: boolean } = {}
+  ): Promise<boolean> {
     const thisLoad = this.startLoad();
     this.#pendingAuthoritativeLoadId = thisLoad;
-    this.resetState();
-    this.isInitialLoading = true;
-    void this.hydrateCache(thisLoad, this.roomId, null);
+    this.initialLoadFailed = false;
+    const snapshot = this.memorySnapshot('room', this.roomId, null);
+    if (snapshot) {
+      const authoritativeFetch = this.fetchLatest(thisLoad);
+      if (options.preserveCurrentEvents && this.events.length > 0) {
+        this.#transitionCarryOverEventIds = options.transitionCarryOver
+          ? new SvelteSet(this.events.map((event) => event.id))
+          : new SvelteSet();
+        this.previewEvents.clear();
+        this.pendingPreviewFetches.clear();
+        this.optimisticReactions.clearAll();
+        this.optimisticThreadFollows.clearAll();
+        this.oldestCursor = undefined;
+        this.newestCursor = undefined;
+        this.hasReachedStart = false;
+        this.isLoadingMore = false;
+        this.isShowingCachedData = false;
+        this.#cachedEventIds.clear();
+        this.isInitialLoading = true;
+      } else {
+        this.resetState();
+        this.isInitialLoading = true;
+      }
+      const snapshotMediaPrewarm = prewarmInitialMediaPreviewUrls(snapshot.events);
+      if (snapshotMediaPrewarm) await snapshotMediaPrewarm;
+      if (this.isStale(thisLoad) || this.scope !== 'room') return false;
+      if (this.#pendingAuthoritativeLoadId === thisLoad) {
+        this.applySnapshot(snapshot, 'room');
+        this.#transitionCarryOverEventIds.clear();
+        this.isInitialLoading = false;
+      }
+      return authoritativeFetch;
+    } else if (options.preserveCurrentEvents && this.events.length > 0) {
+      this.#transitionCarryOverEventIds = options.transitionCarryOver
+        ? new SvelteSet(this.events.map((event) => event.id))
+        : new SvelteSet();
+      this.previewEvents.clear();
+      this.pendingPreviewFetches.clear();
+      this.optimisticReactions.clearAll();
+      this.optimisticThreadFollows.clearAll();
+      this.oldestCursor = undefined;
+      this.newestCursor = undefined;
+      this.hasReachedStart = false;
+      this.isLoadingMore = false;
+      this.isShowingCachedData = false;
+      this.#cachedEventIds.clear();
+      this.isInitialLoading = true;
+      void this.hydrateCache(thisLoad, this.roomId, null);
+    } else {
+      this.resetState();
+      this.isInitialLoading = true;
+      void this.hydrateCache(thisLoad, this.roomId, null);
+    }
     return this.fetchLatest(thisLoad);
   }
 
@@ -1300,14 +1757,20 @@ export class MessagesStore {
       .then(async (page) => {
         if (this.isStale(thisLoad)) return false;
         if (page) {
-          this.replaceWithFetchedAndUpdateCursors(page);
-          this.hasReachedStart = !page.hasOlder;
-          await this.backfillInitialRoomWindow(thisLoad);
+          const completePage = await this.completeInitialRoomWindowBeforePublish(thisLoad, page);
+          if (!completePage) return false;
+          const mediaPrewarm = prewarmInitialMediaPreviewUrls(completePage.events);
+          if (mediaPrewarm) await mediaPrewarm;
+          if (this.isStale(thisLoad)) return false;
+          this.replaceWithFetchedAndUpdateCursors(completePage);
+          this.hasReachedStart = !completePage.hasOlder;
         }
         if (this.isStale(thisLoad)) return false;
         this.#pendingAuthoritativeLoadId = null;
+        this.isReconcilingCachedData = false;
         this.isShowingCachedData = false;
         this.isInitialLoading = false;
+        this.initialLoadFailed = false;
         this.scheduleCacheSave();
         return true;
       })
@@ -1315,6 +1778,10 @@ export class MessagesStore {
         if (this.isStale(thisLoad)) return false;
         console.error('MessagesStore: fetchLatest failed:', error);
         this.#pendingAuthoritativeLoadId = null;
+        this.isReconcilingCachedData = false;
+        this.removeTransitionCarryOverEvents();
+        this.initialLoadFailed = true;
+        this.isShowingCachedData = this.#cachedEventIds.size > 0;
         this.isInitialLoading = false;
         return false;
       });
@@ -1328,8 +1795,9 @@ export class MessagesStore {
     });
 
     promise
-      .then((page) => {
+      .then(async (page) => {
         if (this.isStale(thisLoad)) return;
+        if (!(await this.prewarmTimelineMediaBeforePublish(thisLoad, page.events))) return;
         // Merge with any subscription events that arrived during the
         // in-flight query (e.g. the user's own reply or a fast cross-user
         // reply). Overwriting would drop them.
@@ -1338,13 +1806,24 @@ export class MessagesStore {
         this.oldestCursor = page.startCursor ?? undefined;
         this.newestCursor = page.endCursor ?? undefined;
         this.hasReachedStart = !page.hasOlder;
+        this.isReconcilingCachedData = false;
         this.isShowingCachedData = false;
         this.isInitialLoading = false;
+        this.initialLoadFailed = false;
         this.scheduleCacheSave();
       })
       .catch((error: unknown) => {
         if (this.isStale(thisLoad)) return;
+        if (isConnectNotFound(error)) {
+          this.resetState();
+          this.hasReachedStart = true;
+          this.isInitialLoading = false;
+          return;
+        }
         console.error('MessagesStore: fetchThread failed:', error);
+        this.isReconcilingCachedData = false;
+        this.initialLoadFailed = true;
+        this.isShowingCachedData = this.#cachedEventIds.size > 0;
         this.isInitialLoading = false;
       });
   }
@@ -1364,17 +1843,21 @@ export class MessagesStore {
         this.roomId !== roomId ||
         (threadRootEventId ?? '') !== this.threadRootEventId ||
         !this.isInitialLoading ||
-        this.events.length > 0
+        (this.events.length > 0 && !this.hasOnlyTransitionCarryOverEvents())
       ) {
         return;
       }
+      this.removeTransitionCarryOverEvents();
       this.events = [...cached.events];
+      this.renderedRoomId = roomId;
       this.seenIds = new SvelteSet(cached.events.map((event) => event.id));
       this.#cachedEventIds = new SvelteSet(cached.events.map((event) => event.id));
       if (this.scope === 'thread') this.sortThreadEvents();
       else this.sortRoomEvents();
       this.isShowingCachedData = true;
+      this.isReconcilingCachedData = this.#pendingAuthoritativeLoadId === thisLoad;
       this.isInitialLoading = false;
+      this.rememberCurrentSnapshot();
     } catch (error) {
       console.error('MessagesStore: encrypted cache hydration failed:', error);
     }
@@ -1389,6 +1872,7 @@ export class MessagesStore {
 
   private scheduleCacheSave(): void {
     if (!this.getPrivateDataScope?.() || !this.scope || !this.roomId) return;
+    this.rememberCurrentSnapshot();
     if (this.#cacheSaveTimer) clearTimeout(this.#cacheSaveTimer);
     this.#cacheSaveTimer = setTimeout(() => {
       this.#cacheSaveTimer = null;

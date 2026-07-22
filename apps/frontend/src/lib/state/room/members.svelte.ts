@@ -43,6 +43,15 @@ type MemberSearchCacheEntry = {
   complete: boolean;
 };
 
+type RoomMembersSnapshot = {
+  members: RoomMember[];
+  totalCount: number;
+  hasFirstPage: boolean;
+  hasLoadedAll: boolean;
+};
+
+const ROOM_MEMBERS_MEMORY_SNAPSHOT_MAX_ROOMS = 32;
+
 function memberMatchesSearch(member: RoomMember, search: string): boolean {
   const query = search.trim().toLowerCase();
   if (!query) return true;
@@ -89,6 +98,7 @@ export class RoomMembersStore {
   private roomId = '';
   #loadId = 0;
   #searchCache = new SvelteMap<string, MemberSearchCacheEntry>();
+  #memorySnapshots = new SvelteMap<string, RoomMembersSnapshot>();
 
   constructor(source?: ServerConnection | MemberDirectoryAPI | null) {
     if (!source) {
@@ -105,8 +115,10 @@ export class RoomMembersStore {
 
   setRoom(roomId: string): void {
     if (this.roomId === roomId) return;
+    this.rememberCurrentSnapshot();
     this.roomId = roomId;
     this.reset();
+    this.restoreSnapshot(roomId);
   }
 
   get filteredMembers(): RoomMember[] {
@@ -294,6 +306,7 @@ export class RoomMembersStore {
     if (loadId === this.#loadId) {
       this.hasLoadedAll = true;
       this.isBackgroundLoading = false;
+      this.rememberCurrentSnapshot();
     }
   }
 
@@ -325,6 +338,37 @@ export class RoomMembersStore {
     this.#searchCache.clear();
     this.livePresence.clear();
     this.presenceVersion = 0;
+  }
+
+  private rememberCurrentSnapshot(): void {
+    if (!this.roomId || this.members.length === 0) return;
+    if (this.#memorySnapshots.has(this.roomId)) this.#memorySnapshots.delete(this.roomId);
+    this.#memorySnapshots.set(this.roomId, {
+      members: [...this.members],
+      totalCount: this.totalCount,
+      hasFirstPage: this.hasFirstPage,
+      hasLoadedAll: this.hasLoadedAll
+    });
+    while (this.#memorySnapshots.size > ROOM_MEMBERS_MEMORY_SNAPSHOT_MAX_ROOMS) {
+      const oldestKey = this.#memorySnapshots.keys().next().value;
+      if (!oldestKey) break;
+      this.#memorySnapshots.delete(oldestKey);
+    }
+  }
+
+  private restoreSnapshot(roomId: string): void {
+    const snapshot = this.#memorySnapshots.get(roomId);
+    if (!snapshot || snapshot.members.length === 0) return;
+    this.members = [...snapshot.members];
+    this.totalCount = snapshot.totalCount;
+    this.hasFirstPage = snapshot.hasFirstPage;
+    // Memory snapshots are only a visual continuity layer. Keep them visible,
+    // but force the ordinary ensureLoaded() path to revalidate against the
+    // authoritative member directory instead of treating the snapshot as fresh.
+    this.hasLoadedAll = false;
+    this.isInitialLoading = false;
+    this.isBackgroundLoading = false;
+    this.loadError = null;
   }
 }
 

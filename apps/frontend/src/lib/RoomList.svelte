@@ -8,6 +8,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { page } from '$app/state';
+  import { SvelteSet } from 'svelte/reactivity';
   import { serverIdToSegment } from '$lib/navigation';
   import * as m from '$lib/i18n/messages';
   import {
@@ -34,6 +35,9 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { appState } from '$lib/state/globals.svelte';
+  import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
+  import { warmRoomTimelineSnapshot } from '$lib/state/room/messages.svelte';
   import { getLiveDisplayName } from '$lib/state/userProfiles.svelte';
   import type { EventEnvelope } from '$lib/eventBus.svelte';
   import { isMessagePostedEvent, RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
@@ -61,11 +65,13 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   const voiceCallState = $derived(stores.voiceCall);
   const serverInfo = $derived(stores.serverInfo);
   const appUi = getAppUiState();
+  const ROOM_NAVIGATION_WARMUP_TIMEOUT_MS = 650;
 
   const roomsStore = $derived(stores.rooms);
   const roomUnreadStore = $derived(stores.roomUnread);
 
   let activeRoomId = $derived(page.params.roomId);
+  const pendingNotificationRooms = new SvelteSet<string>();
 
   function eventRoomId(event: EventEnvelope['event']): string | null {
     if (!event || !('roomId' in event) || typeof event.roomId !== 'string') return null;
@@ -316,52 +322,102 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     if (room.viewerIsMember && activeCallRooms.has(room.id) && wasCallIconClick(event)) {
       event.preventDefault();
       void openRoomCallPanel(room.id);
+      return;
     }
+    if (event.defaultPrevented) return;
+    if (!room.viewerIsMember) return;
+    if (room.id === activeRoomId) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
+
+    event.preventDefault();
+    void navigateToRoom(room);
   }
 
   function handleRoomLinkKeydown(event: KeyboardEvent, room: RoomsListItem): void {
     if (event.target !== event.currentTarget) return;
     if (!room.viewerIsMember) return;
-    if (!activeCallRooms.has(room.id)) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
 
     event.preventDefault();
-    void openRoomCallPanel(room.id);
+    if (activeCallRooms.has(room.id)) {
+      void openRoomCallPanel(room.id);
+      return;
+    }
+    if (room.id === activeRoomId) return;
+    void navigateToRoom(room);
+  }
+
+  function warmRoomTimeline(room: RoomsListItem): Promise<boolean> {
+    if (!room.viewerIsMember) return Promise.resolve(false);
+    if (room.id === activeRoomId) return Promise.resolve(true);
+    const server = serverRegistry.getServer(activeServerId);
+    if (!server) return Promise.resolve(false);
+    return warmRoomTimelineSnapshot({
+      roomId: room.id,
+      serverConnection: serverConnectionManager.getClient(activeServerId),
+      privateDataScope: privateDataScopeForServer(server)
+    });
+  }
+
+  function warmupTimeout(): Promise<false> {
+    return new Promise((resolveTimeout) => {
+      window.setTimeout(() => resolveTimeout(false), ROOM_NAVIGATION_WARMUP_TIMEOUT_MS);
+    });
+  }
+
+  async function waitForRoomNavigationWarmup(room: RoomsListItem): Promise<void> {
+    await Promise.race([warmRoomTimeline(room).catch(() => false), warmupTimeout()]);
+  }
+
+  async function navigateToRoom(room: RoomsListItem): Promise<void> {
+    await waitForRoomNavigationWarmup(room).catch(() => undefined);
+    await goto(
+      resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })
+    );
   }
 
   async function handleNotificationBadgeClick(event: MouseEvent, roomId: string, isDM: boolean) {
     event.preventDefault();
     event.stopPropagation();
 
-    const lookup = await notificationStore.resolveRoomNotification(roomId, { isDM });
-    const notification = lookup.notification;
+    if (pendingNotificationRooms.has(roomId)) return;
+    pendingNotificationRooms.add(roomId);
 
-    if (!notification) {
-      if (lookup.ok && lookup.totalCount === 0) {
-        roomsStore.clearUnreadNotifications(roomId);
-      } else {
-        await goto(resolve('/chat/notifications'));
-      }
-      return;
-    }
+    try {
+      const lookup = await notificationStore.resolveRoomNotification(roomId, { isDM });
+      const notification = lookup.notification;
 
-    const target = notificationTarget(notification);
-    prepareUiForNotificationTarget(appUi, activeServerId, target);
-    if (target.eventId && target.roomId) {
-      stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
-    }
-    roomsStore.decrementUnreadNotification(roomId);
-    void notificationStore.dismissById(notification.id).then((dismissed) => {
-      if (!dismissed) {
-        roomsStore.incrementUnreadNotification(roomId);
+      if (!notification) {
+        if (lookup.ok && lookup.totalCount === 0) {
+          roomsStore.clearUnreadNotifications(roomId);
+        } else {
+          await goto(resolve('/chat/notifications'));
+        }
         return;
       }
-      void roomsStore.refreshNotificationCounts();
-    });
 
-    const path = notificationStore.getCleanPath(getActiveServer(), notification);
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
-    await goto(path);
+      const target = notificationTarget(notification);
+      prepareUiForNotificationTarget(appUi, activeServerId, target);
+      if (target.eventId && target.roomId) {
+        stores.pendingHighlights.set(target.roomId, target.threadRootId, target.eventId);
+      }
+      roomsStore.decrementUnreadNotification(roomId);
+      void notificationStore.dismissById(notification.id).then((dismissed) => {
+        if (!dismissed) {
+          roomsStore.incrementUnreadNotification(roomId);
+          return;
+        }
+        void roomsStore.refreshNotificationCounts();
+      });
+
+      const path = notificationStore.getCleanPath(getActiveServer(), notification);
+      // eslint-disable-next-line svelte/no-navigation-without-resolve -- path from getCleanPath() is already resolved
+      await goto(path);
+    } finally {
+      pendingNotificationRooms.delete(roomId);
+    }
   }
 </script>
 
@@ -434,6 +490,11 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
     class={rowClass}
     aria-current={room.id === activeRoomId ? 'page' : undefined}
+    data-sveltekit-preload-code="hover"
+    data-sveltekit-preload-data="tap"
+    onpointerenter={() => void warmRoomTimeline(room)}
+    onfocus={() => void warmRoomTimeline(room)}
+    ontouchstart={() => void warmRoomTimeline(room)}
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
@@ -452,10 +513,16 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
 
     <!-- Notification Indicator (warning color for mentions and thread replies) -->
     {#if isJoined && room.viewerNotificationCount > 0}
+      {@const notificationPending = pendingNotificationRooms.has(room.id)}
       <button
         type="button"
         onclick={(e) => handleNotificationBadgeClick(e, room.id, false)}
-        class="flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot"
+        disabled={notificationPending}
+        aria-busy={notificationPending || undefined}
+        class={[
+          'flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot transition-[opacity,scale]',
+          notificationPending ? 'scale-95 opacity-70' : ''
+        ]}
         aria-label={m['room_list.go_to_notifications']({
           count: room.viewerNotificationCount
         })}
@@ -486,6 +553,11 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       hasUnreadAttention ? 'font-semibold text-text-top hover:!text-text-top' : ''
     ]}
     aria-current={room.id === activeRoomId ? 'page' : undefined}
+    data-sveltekit-preload-code="hover"
+    data-sveltekit-preload-data="tap"
+    onpointerenter={() => void warmRoomTimeline(room)}
+    onfocus={() => void warmRoomTimeline(room)}
+    ontouchstart={() => void warmRoomTimeline(room)}
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
@@ -501,10 +573,16 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     {/if}
 
     {#if room.viewerNotificationCount > 0}
+      {@const notificationPending = pendingNotificationRooms.has(room.id)}
       <button
         type="button"
         onclick={(e) => handleNotificationBadgeClick(e, room.id, true)}
-        class="flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot"
+        disabled={notificationPending}
+        aria-busy={notificationPending || undefined}
+        class={[
+          'flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot transition-[opacity,scale]',
+          notificationPending ? 'scale-95 opacity-70' : ''
+        ]}
         aria-label={m['room_list.go_to_dm_notifications']({
           count: room.viewerNotificationCount
         })}

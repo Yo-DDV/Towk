@@ -49,11 +49,13 @@
   import { toast } from '$lib/ui/toast';
   import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
   import { callJoinActionFromURL } from '$lib/pwa/callJoinAction';
+  import { preloadVideoPlayerElements } from '$lib/components/chat/VideoPlayer.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import { isMessagePostedEvent } from '$lib/render/eventKinds';
-  import { onDestroy, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { fly } from 'svelte/transition';
+  import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
   import RoomEventsPane from './RoomEventsPane.svelte';
   import RoomSidebar from './RoomSidebar.svelte';
   import RoomSidebarToggle from './RoomSidebarToggle.svelte';
@@ -118,6 +120,27 @@
     undefined,
     () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer()))
   );
+
+  onMount(() => {
+    const preload = () => {
+      void preloadVideoPlayerElements().catch(() => {
+        // Progressive enhancement: if the idle import fails, the inline
+        // player retries from its own mount path when a video is displayed.
+      });
+    };
+    const win = window as Window & {
+      requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (win.requestIdleCallback && win.cancelIdleCallback) {
+      const handle = win.requestIdleCallback(preload, { timeout: 1_500 });
+      return () => win.cancelIdleCallback?.(handle);
+    }
+
+    const handle = window.setTimeout(preload, 900);
+    return () => window.clearTimeout(handle);
+  });
 
   onDestroy(() => {
     roomMessageStore.dispose();
@@ -663,7 +686,7 @@
         <div
           class="absolute inset-y-0 right-0 z-20 flex min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] sm:w-[90%] lg:hidden"
           data-testid="room-sidebar-mobile-pane"
-          transition:fly={{ x: 300, duration: 200 }}
+          transition:fly={{ x: 300, duration: motionDuration(MOTION_DURATION.expressive) }}
         >
           <RoomSidebar
             {roomId}
@@ -689,7 +712,11 @@
 
     {#if activeRoomSidebarPanel}
       <div
-        class={['hidden min-h-0 min-w-0 lg:flex', isDesktopCallMaximized ? 'flex-1' : 'shrink-0']}
+        class={[
+          'hidden min-h-0 min-w-0 lg:flex',
+          isDesktopCallMaximized ? 'flex-1' : 'shrink-0',
+          'surface-pop'
+        ]}
         data-testid="room-sidebar-desktop-pane"
       >
         <RoomSidebar

@@ -2,6 +2,7 @@
   import * as m from '$lib/i18n/messages';
   import type { Snippet } from 'svelte';
   import { panGesture } from '$lib/hooks/panGesture.svelte';
+  import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
 
   let {
     children,
@@ -16,6 +17,7 @@
   let dialogEl: HTMLDialogElement | undefined;
   let contentEl: HTMLElement | undefined;
   let closing = $state(false);
+  let closeTimer: ReturnType<typeof setTimeout> | null = null;
   let dragging = $state(false);
   let dragOffsetY = $state(0);
   // Tracks whether the most recent pointerdown landed inside the sheet content.
@@ -46,6 +48,10 @@
   }
 
   function handleNativeClose() {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
     visible = false;
     closing = false;
     dragging = false;
@@ -56,10 +62,15 @@
   function close() {
     if (!dialogEl?.open || closing) return;
     closing = true;
-    // Wait for exit animation, then close
-    setTimeout(() => {
+    const duration = motionDuration(MOTION_DURATION.expressive);
+    if (duration === 0) {
       dialogEl?.close();
-    }, 200);
+      return;
+    }
+    closeTimer = setTimeout(() => {
+      closeTimer = null;
+      dialogEl?.close();
+    }, duration);
   }
 </script>
 

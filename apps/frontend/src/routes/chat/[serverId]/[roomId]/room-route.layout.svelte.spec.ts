@@ -129,6 +129,30 @@ describe('room route layout access handling', () => {
     expect(q(container, '[data-testid="room-layout-room"]')?.dataset.roomId).toBe('room-1');
   });
 
+  it('keeps the room mounted during a transient room-list reload after access was known', async () => {
+    const rendered = renderLayout();
+
+    await tick();
+    expect(q(rendered.container, '[data-testid="room-layout-room"]')?.dataset.roomId).toBe('room-1');
+
+    mocks.roomsStore.rooms = [];
+    mocks.roomsStore.isInitialLoading = true;
+    await rendered.rerender({
+      data: {
+        user: null,
+        serverInfo: null,
+        serverInfoLoaded: true,
+        serverSegment: '-',
+        roomId: 'room-1'
+      },
+      children: testSnippet('<div data-testid="message-resolver"></div>')
+    });
+    await tick();
+
+    expect(q(rendered.container, '[data-testid="room-layout-room"]')?.dataset.roomId).toBe('room-1');
+    expect(q(rendered.container, '[data-testid="message-resolver"]')).toBeNull();
+  });
+
   it('renders an inline join screen for a room deep link when the viewer is not a member', async () => {
     mocks.roomsStore.rooms = [room({ viewerIsMember: false })];
 

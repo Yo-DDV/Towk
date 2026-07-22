@@ -1,10 +1,15 @@
 import { describe, it, expect, vi } from 'vitest';
 import { flushSync } from 'svelte';
+import { Code, ConnectError } from '@connectrpc/connect';
 import type { ServerConnection } from '$lib/state/server/serverConnection.svelte';
 import type { RoomTimelineAPI } from '$lib/api-client/roomTimeline';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import type { EventConnectionPage } from './messages/helpers';
-import { MessagesStore } from './messages.svelte';
+import {
+  __resetTimelineWarmupStateForTests,
+  MessagesStore,
+  warmRoomTimelineSnapshot
+} from './messages.svelte';
 import { JumpToMessageState } from './composerContext.svelte';
 import {
   activateOfflineAccount,
@@ -12,6 +17,7 @@ import {
   saveCachedTimeline,
   type PrivateDataScope
 } from '$lib/pwa/offlineData';
+import { clearLoadedImageSourcesForTest, hasLoadedImageSource } from '$lib/ui/imageLoadMemory';
 
 class FakeQueryClient {
   reconnectCount = 0;
@@ -46,6 +52,16 @@ async function settle() {
   flushSync();
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 function threadMessageEvent(id: string, threadRootEventId: string | null = null) {
   const offsetSeconds = Number(id.replace(/\D/g, '')) || 0;
   return {
@@ -70,6 +86,86 @@ function threadMessageEvent(id: string, threadRootEventId: string | null = null)
       threadParticipants: [],
       viewerIsFollowingThread: null,
       reactions: []
+    }
+  };
+}
+
+function roomMessageEvent(id: string, roomId: string) {
+  const event = threadMessageEvent(id);
+  return {
+    ...event,
+    event: {
+      ...event.event,
+      roomId,
+      body: id
+    }
+  };
+}
+
+function roomImageMessageEvent(id: string, roomId: string, thumbnailUrl: string) {
+  const event = roomMessageEvent(id, roomId);
+  return {
+    ...event,
+    event: {
+      ...event.event,
+      attachments: [
+        {
+          id: `${id}-image`,
+          filename: `${id}.jpg`,
+          contentType: 'image/jpeg',
+          width: 800,
+          height: 600,
+          assetUrl: {
+            url: `${thumbnailUrl}?asset=1`,
+            expiresAt: '2027-05-29T15:00:00Z'
+          },
+          thumbnailAssetUrl: {
+            url: thumbnailUrl,
+            expiresAt: '2027-05-29T15:00:00Z'
+          },
+          videoProcessing: null
+        }
+      ]
+    }
+  };
+}
+
+function stubPendingImagePrewarm() {
+  const urls: string[] = [];
+  const pendingLoads: Array<() => void> = [];
+
+  class PendingImage {
+    decoding = '';
+    loading = '';
+    complete = false;
+    naturalWidth = 0;
+    onload: ((event: Event) => void) | null = null;
+    onerror: ((event: Event) => void) | null = null;
+
+    set src(value: string) {
+      urls.push(value);
+      pendingLoads.push(() => {
+        this.complete = true;
+        this.naturalWidth = 1;
+        this.onload?.(new Event('load'));
+      });
+    }
+
+    decode(): Promise<void> {
+      return Promise.resolve();
+    }
+  }
+
+  vi.stubGlobal('Image', PendingImage);
+
+  return {
+    urls,
+    resolveAll() {
+      while (pendingLoads.length > 0) pendingLoads.shift()?.();
+    },
+    restore() {
+      clearLoadedImageSourcesForTest();
+      vi.unstubAllGlobals();
     }
   };
 }
@@ -325,6 +421,390 @@ function timelineFromFixtures(fake: FakeQueryClient): RoomTimelineAPI {
 }
 
 describe('MessagesStore — room lifecycle ownership', () => {
+  it('restores a visited room from memory while the authoritative reload is in flight', async () => {
+    const room1Reload = deferred<EventConnectionPage>();
+    let room1Calls = 0;
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-1') room1Calls++;
+        if (roomId === 'room-1' && room1Calls > 1) {
+          return room1Reload.promise;
+        }
+        return Promise.resolve({
+          events: [roomMessageEvent(`${roomId}-initial`, roomId) as never],
+          startCursor: `${roomId}:start`,
+          endCursor: `${roomId}:end`,
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    store.setRoom('room-2');
+    await settle();
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-2-initial']);
+
+    store.setRoom('room-1');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+    expect(store.isInitialLoading).toBe(false);
+
+    room1Reload.resolve({
+      events: [roomMessageEvent('room-1-authoritative', 'room-1') as never],
+      startCursor: 'room-1:start:new',
+      endCursor: 'room-1:end:new',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-authoritative']);
+    store.dispose();
+  });
+
+  it('keeps the restored room snapshot visible when revalidation fails', async () => {
+    const room1Reload = deferred<EventConnectionPage>();
+    let room1Calls = 0;
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-1') room1Calls++;
+        if (roomId === 'room-1' && room1Calls > 1) {
+          return room1Reload.promise;
+        }
+        return Promise.resolve({
+          events: [roomMessageEvent(`${roomId}-initial`, roomId) as never],
+          startCursor: `${roomId}:start`,
+          endCursor: `${roomId}:end`,
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    store.setRoom('room-2');
+    await settle();
+
+    store.setRoom('room-1');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    room1Reload.reject(new TypeError('offline'));
+    await vi.waitFor(() => expect(store.initialLoadFailed).toBe(true));
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+    expect(store.isShowingCachedData).toBe(true);
+    expect(store.isInitialLoading).toBe(false);
+    store.dispose();
+  });
+
+  it('prewarms media previews before publishing an initial media-heavy room window', async () => {
+    const mediaPrewarm = stubPendingImagePrewarm();
+    const roomLoad = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(() => roomLoad.promise)
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    try {
+      store.setRoom('room-1');
+      roomLoad.resolve({
+        events: [
+          roomImageMessageEvent('media-1', 'room-1', 'https://cdn.example.test/media-1.webp') as never
+        ],
+        startCursor: 'room-1:start',
+        endCursor: 'room-1:end',
+        hasOlder: false,
+        hasNewer: false
+      });
+      await settle();
+
+      expect(mediaPrewarm.urls).toEqual(['https://cdn.example.test/media-1.webp']);
+      expect(store.rootEvents).toEqual([]);
+      expect(store.isInitialLoading).toBe(true);
+
+      mediaPrewarm.resolveAll();
+      await settle();
+
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['media-1']);
+      expect(store.isInitialLoading).toBe(false);
+      expect(hasLoadedImageSource('https://cdn.example.test/media-1.webp')).toBe(true);
+    } finally {
+      store.dispose();
+      mediaPrewarm.restore();
+    }
+  });
+
+  it('keeps the current room window visible while refreshed media previews prewarm', async () => {
+    const mediaPrewarm = stubPendingImagePrewarm();
+    const refreshPage = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi
+        .fn()
+        .mockResolvedValueOnce({
+          events: [roomMessageEvent('initial-text', 'room-1') as never],
+          startCursor: 'room-1:start',
+          endCursor: 'room-1:end',
+          hasOlder: false,
+          hasNewer: false
+        })
+        .mockImplementationOnce(() => refreshPage.promise)
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    try {
+      store.setRoom('room-1');
+      await settle();
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['initial-text']);
+
+      const refreshing = store.refreshCurrentWindow();
+      refreshPage.resolve({
+        events: [
+          roomImageMessageEvent('media-refresh', 'room-1', 'https://cdn.example.test/refresh.webp') as never
+        ],
+        startCursor: 'room-1:start:new',
+        endCursor: 'room-1:end:new',
+        hasOlder: false,
+        hasNewer: false
+      });
+      await settle();
+
+      expect(mediaPrewarm.urls).toEqual(['https://cdn.example.test/refresh.webp']);
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['initial-text']);
+
+      mediaPrewarm.resolveAll();
+      await expect(refreshing).resolves.toMatchObject({ refreshed: true, changed: true });
+
+      expect(store.rootEvents.map((event) => event.id)).toEqual(['media-refresh', 'initial-text']);
+    } finally {
+      store.dispose();
+      mediaPrewarm.restore();
+    }
+  });
+
+  it('keeps the previous room window visible while an unvisited room loads', async () => {
+    const room2Load = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-2') return room2Load.promise;
+        return Promise.resolve({
+          events: [roomMessageEvent('room-1-initial', 'room-1') as never],
+          startCursor: 'room-1:start',
+          endCursor: 'room-1:end',
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    store.setRoom('room-2');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+    expect(store.isInitialLoading).toBe(true);
+
+    room2Load.resolve({
+      events: [roomMessageEvent('room-2-authoritative', 'room-2') as never],
+      startCursor: 'room-2:start',
+      endCursor: 'room-2:end',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-2-authoritative']);
+    expect(store.isInitialLoading).toBe(false);
+    store.dispose();
+  });
+
+  it('publishes the initial room window only after required backfill pages are collected', async () => {
+    const olderPage = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ before }: { before?: string }) => {
+        if (before === 'room-1:start:latest') return olderPage.promise;
+        return Promise.resolve({
+          events: [
+            roomMessageEvent('m6', 'room-1') as never,
+            roomMessageEvent('m7', 'room-1') as never,
+            roomMessageEvent('m8', 'room-1') as never,
+            roomMessageEvent('m9', 'room-1') as never,
+            roomMessageEvent('m10', 'room-1') as never
+          ],
+          startCursor: 'room-1:start:latest',
+          endCursor: 'room-1:end:latest',
+          hasOlder: true,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+
+    expect(store.rootEvents).toEqual([]);
+    expect(store.isInitialLoading).toBe(true);
+    expect(store.isLoadingMore).toBe(false);
+
+    olderPage.resolve({
+      events: [
+        roomMessageEvent('m1', 'room-1') as never,
+        roomMessageEvent('m2', 'room-1') as never,
+        roomMessageEvent('m3', 'room-1') as never,
+        roomMessageEvent('m4', 'room-1') as never,
+        roomMessageEvent('m5', 'room-1') as never
+      ],
+      startCursor: 'room-1:start:older',
+      endCursor: 'room-1:end:older',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual([
+      'm1',
+      'm2',
+      'm3',
+      'm4',
+      'm5',
+      'm6',
+      'm7',
+      'm8',
+      'm9',
+      'm10'
+    ]);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.isLoadingMore).toBe(false);
+    expect(store.hasReachedStart).toBe(true);
+    store.dispose();
+  });
+
+  it('drops previous-room carry-over events when an unvisited room fails to load', async () => {
+    const room2Load = deferred<EventConnectionPage>();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(({ roomId }: { roomId: string }) => {
+        if (roomId === 'room-2') return room2Load.promise;
+        return Promise.resolve({
+          events: [roomMessageEvent('room-1-initial', 'room-1') as never],
+          startCursor: 'room-1:start',
+          endCursor: 'room-1:end',
+          hasOlder: false,
+          hasNewer: false
+        });
+      })
+    });
+    const store = new MessagesStore({} as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+    store.setRoom('room-2');
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['room-1-initial']);
+
+    room2Load.reject(new TypeError('offline'));
+    await vi.waitFor(() => expect(store.initialLoadFailed).toBe(true));
+
+    expect(store.rootEvents).toEqual([]);
+    expect(store.isInitialLoading).toBe(false);
+    store.dispose();
+  });
+
+  it('restores a visited room across remounted stores for the same private scope', async () => {
+    const scope: PrivateDataScope = {
+      serverId: 'room-memory-server',
+      serverUrl: 'https://room-memory.example.test/some-path',
+      userId: 'room-memory-user'
+    };
+    const firstTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(async ({ roomId }: { roomId: string }) => ({
+        events: [roomMessageEvent(`${roomId}-remembered`, roomId) as never],
+        startCursor: `${roomId}:start`,
+        endCursor: `${roomId}:end`,
+        hasOlder: false,
+        hasNewer: false
+      }))
+    });
+    const firstStore = new MessagesStore(
+      {} as ServerConnection,
+      () => scope.userId,
+      firstTimeline,
+      () => scope
+    );
+
+    firstStore.setRoom('room-1');
+    await settle();
+    expect(firstStore.rootEvents.map((event) => event.id)).toEqual(['room-1-remembered']);
+    firstStore.dispose();
+
+    const pendingReload = deferred<EventConnectionPage>();
+    const secondTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(() => pendingReload.promise)
+    });
+    const secondStore = new MessagesStore(
+      {} as ServerConnection,
+      () => scope.userId,
+      secondTimeline,
+      () => scope
+    );
+
+    secondStore.setRoom('room-1');
+    expect(secondStore.rootEvents.map((event) => event.id)).toEqual(['room-1-remembered']);
+    expect(secondStore.isInitialLoading).toBe(false);
+
+    pendingReload.resolve({
+      events: [roomMessageEvent('room-1-authoritative-after-remount', 'room-1') as never],
+      startCursor: 'room-1:start:new',
+      endCursor: 'room-1:end:new',
+      hasOlder: false,
+      hasNewer: false
+    });
+    await settle();
+
+    expect(secondStore.rootEvents.map((event) => event.id)).toEqual([
+      'room-1-authoritative-after-remount'
+    ]);
+    secondStore.dispose();
+  });
+
+  it('exposes initial load failures and clears them after a successful retry', async () => {
+    const fake = new FakeQueryClient();
+    const timeline = fakeTimelineAPI({
+      getRoomEvents: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({
+          events: [threadMessageEvent('m1') as never],
+          startCursor: 'tl:cursor-1',
+          endCursor: 'tl:cursor-1',
+          hasOlder: false,
+          hasNewer: false
+        })
+    });
+    const store = new MessagesStore(fake as unknown as ServerConnection, () => null, timeline);
+
+    store.setRoom('room-1');
+    await settle();
+
+    expect(store.initialLoadFailed).toBe(true);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.rootEvents).toEqual([]);
+
+    await store.retryInitialLoad();
+    await settle();
+
+    expect(store.initialLoadFailed).toBe(false);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['m1']);
+    store.dispose();
+  });
+
   it('reports a successful jump when the target is already loaded', async () => {
     const fake = new FakeQueryClient();
     const timeline = fakeTimelineAPI();
@@ -2114,19 +2594,25 @@ describe('MessagesStore — encrypted offline timeline', () => {
 
     store.setRoom('room-1');
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(true));
+    expect(store.isReconcilingCachedData).toBe(true);
     expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
 
     page.reject(new TypeError('offline'));
     await vi.waitFor(() => expect(store.isInitialLoading).toBe(false));
+    expect(store.isReconcilingCachedData).toBe(false);
     expect(store.events.map((event) => event.id)).toEqual(['cached-1']);
     store.dispose();
     await purgeOfflineAccount(scope);
   });
 
   it('replaces hydrated cache with the authoritative network window', async () => {
-    await purgeOfflineAccount(scope).catch(() => undefined);
-    await activateOfflineAccount(scope);
-    await saveCachedTimeline(scope, {
+    const replaceScope: PrivateDataScope = {
+      ...scope,
+      userId: 'timeline-cache-user-replace'
+    };
+    await purgeOfflineAccount(replaceScope).catch(() => undefined);
+    await activateOfflineAccount(replaceScope);
+    await saveCachedTimeline(replaceScope, {
       roomId: 'room-1',
       threadRootEventId: null,
       events: [threadMessageEvent('cached-stale') as never],
@@ -2136,13 +2622,14 @@ describe('MessagesStore — encrypted offline timeline', () => {
     const timeline = fakeTimelineAPI({ getRoomEvents: vi.fn(() => page.promise) });
     const store = new MessagesStore(
       {} as ServerConnection,
-      () => scope.userId,
+      () => replaceScope.userId,
       timeline,
-      () => scope
+      () => replaceScope
     );
 
     store.setRoom('room-1');
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(true));
+    expect(store.isReconcilingCachedData).toBe(true);
     page.resolve({
       events: [threadMessageEvent('network-1') as never],
       startCursor: null,
@@ -2152,13 +2639,90 @@ describe('MessagesStore — encrypted offline timeline', () => {
     });
 
     await vi.waitFor(() => expect(store.isShowingCachedData).toBe(false));
+    expect(store.isReconcilingCachedData).toBe(false);
     expect(store.events.map((event) => event.id)).toEqual(['network-1']);
     store.dispose();
-    await purgeOfflineAccount(scope);
+    await purgeOfflineAccount(replaceScope);
+  });
+
+  it('uses a warmed room timeline snapshot immediately while the authoritative fetch is pending', async () => {
+    __resetTimelineWarmupStateForTests();
+    const warmScope: PrivateDataScope = {
+      ...scope,
+      userId: 'timeline-cache-user-warmup'
+    };
+    await purgeOfflineAccount(warmScope).catch(() => undefined);
+    await activateOfflineAccount(warmScope);
+
+    const warmTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(async () => ({
+        events: [roomMessageEvent('warm-1', 'room-warm') as never],
+        startCursor: 'cursor-warm-start',
+        endCursor: 'cursor-warm-end',
+        hasOlder: true,
+        hasNewer: false
+      }))
+    });
+
+    await expect(
+      warmRoomTimelineSnapshot({
+        roomId: 'room-warm',
+        roomTimeline: warmTimeline,
+        privateDataScope: warmScope
+      })
+    ).resolves.toBe(true);
+
+    const pending = pendingPage();
+    const authoritativeTimeline = fakeTimelineAPI({
+      getRoomEvents: vi.fn(() => pending.promise)
+    });
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => warmScope.userId,
+      authoritativeTimeline,
+      () => warmScope
+    );
+
+    store.setRoom('room-warm');
+    await vi.waitFor(() => expect(store.events.map((event) => event.id)).toEqual(['warm-1']));
+    expect(store.isInitialLoading).toBe(false);
+    expect(authoritativeTimeline.getRoomEvents).toHaveBeenCalledWith({
+      roomId: 'room-warm',
+      limit: 50
+    });
+
+    pending.resolve({
+      events: [roomMessageEvent('network-1', 'room-warm') as never],
+      startCursor: null,
+      endCursor: null,
+      hasOlder: false,
+      hasNewer: false
+    });
+    await vi.waitFor(() => expect(store.events.map((event) => event.id)).toEqual(['network-1']));
+    store.dispose();
+    __resetTimelineWarmupStateForTests();
+    await purgeOfflineAccount(warmScope);
   });
 });
 
 describe('MessagesStore — thread lifecycle ownership', () => {
+  it('treats a missing thread as an empty thread state instead of a retryable load failure', async () => {
+    const fake = new FakeQueryClient();
+    const timeline = fakeTimelineAPI({
+      getThreadEvents: vi.fn().mockRejectedValue(new ConnectError('not found', Code.NotFound))
+    });
+    const store = new MessagesStore(fake as unknown as ServerConnection, () => null, timeline);
+
+    store.setThread('room-1', 'missing-thread');
+    await settle();
+
+    expect(store.threadEvents).toEqual([]);
+    expect(store.initialLoadFailed).toBe(false);
+    expect(store.isInitialLoading).toBe(false);
+    expect(store.hasReachedStart).toBe(true);
+    store.dispose();
+  });
+
   it('loads thread history through the injected timeline API', async () => {
     const fake = new FakeQueryClient();
     const timeline = fakeTimelineAPI({
@@ -2422,4 +2986,5 @@ describe('MessagesStore — thread lifecycle ownership', () => {
 
     store.dispose();
   });
+
 });

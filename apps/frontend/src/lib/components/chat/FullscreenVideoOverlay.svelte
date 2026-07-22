@@ -65,7 +65,7 @@
 
 {#if fullscreenVideo.isOpen && fullscreenVideo.src && elementsReady}
   <div
-    class="fullscreen-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-black"
+    class="fullscreen-overlay fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black"
     role="dialog"
     aria-modal="true"
     aria-label={m['media.fullscreen_video']()}
@@ -73,7 +73,7 @@
     onfullscreenchange={handleFullscreenChange}
   >
     <button
-      class="absolute top-4 right-4 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+      class="fullscreen-overlay-close absolute z-20 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white shadow-lg ring-1 ring-white/18 backdrop-blur-md transition-colors hover:bg-white/18"
       onclick={close}
       aria-label={m['media.close_fullscreen_video']()}
     >
@@ -85,7 +85,7 @@
       src={{ src: fullscreenVideo.src, type: 'video/mp4' }}
       autoplay
       playsinline
-      class="h-full w-full"
+      class="fullscreen-overlay-player h-full w-full"
     >
       <media-provider>
         {#if fullscreenVideo.poster}
@@ -99,6 +99,52 @@
 {/if}
 
 <style>
+  .fullscreen-overlay {
+    color-scheme: dark;
+    width: 100dvw;
+    height: 100dvh;
+    max-width: 100dvw;
+    max-height: 100dvh;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  @supports (height: 100svh) {
+    .fullscreen-overlay {
+      height: 100svh;
+      max-height: 100svh;
+    }
+  }
+
+  .fullscreen-overlay-close {
+    top: max(0.75rem, env(safe-area-inset-top, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+  }
+
+  .fullscreen-overlay-player {
+    background: #000;
+    max-width: calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+
+  @supports (height: 100svh) {
+    .fullscreen-overlay-player {
+      max-height: calc(
+        100svh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)
+      );
+    }
+  }
+
+  :global(.fullscreen-overlay video),
+  :global(.fullscreen-overlay media-player),
+  :global(.fullscreen-overlay media-provider),
+  :global(.fullscreen-overlay .vds-video-layout),
+  :global(.fullscreen-overlay .vds-video-layout video) {
+    background: #000 !important;
+  }
+
   :global(.fullscreen-overlay media-player .vds-settings-menu),
   :global(.fullscreen-overlay media-player .vds-chapters-menu),
   :global(.fullscreen-overlay media-player .vds-fullscreen-button) {

@@ -59,6 +59,605 @@ vi.mock('$lib/hooks/useMayHaveMissedMessagesCallback.svelte', () => ({
 }));
 
 describe('EventList jump completion', () => {
+  it('shows a retryable load failure instead of the empty state', async () => {
+    const onRetryLoad = vi.fn();
+    render(EventListTestHarness, {
+      props: {
+        eventIds: [],
+        scrollToEventId: null,
+        loadFailed: true,
+        onRetryLoad
+      }
+    });
+
+    await expect.element(page.getByText('Messages could not be loaded')).toBeVisible();
+    await expect.element(page.getByText('Check your connection and try again.')).toBeVisible();
+    await expect.element(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+
+    (page.getByRole('button', { name: 'Try again' }).element() as HTMLButtonElement).click();
+
+    expect(onRetryLoad).toHaveBeenCalledOnce();
+  });
+
+  it('delays the loading skeleton to avoid flashing on fast room transitions', async () => {
+    render(EventListTestHarness, {
+      props: {
+        eventIds: [],
+        scrollToEventId: null,
+        isLoading: true
+      }
+    });
+
+    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+
+    await vi.waitFor(
+      () => expect(document.querySelector('[aria-label="Loading messages"]')).not.toBeNull(),
+      { timeout: 1_000 }
+    );
+  });
+
+  it('renders an empty room as a stable polished state instead of raw blank text', async () => {
+    render(EventListTestHarness, {
+      props: {
+        eventIds: [],
+        scrollToEventId: null,
+        isLoading: false
+      }
+    });
+
+    await expect.element(page.getByText('No messages yet')).toBeVisible();
+    const emptyState = document.querySelector('.timeline-room-empty-state');
+
+    expect(emptyState).toBeInstanceOf(HTMLElement);
+    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+  });
+
+  it('covers the first route-change frame with a static room switch placeholder', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+      );
+
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: [],
+        scrollToEventId: null
+      });
+
+      const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      const scrollContainer = page.getByTestId('messages-container').element();
+      expect(mask).not.toBeNull();
+      expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+      expect(scrollContainer.classList.contains('timeline-scrollbar-suspended')).toBe(true);
+      expect(document.querySelector('.timeline-room-empty-state')).toBeNull();
+
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-new'],
+        scrollToEventId: null
+      });
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+      );
+      await vi.waitFor(() =>
+        expect(scrollContainer.classList.contains('timeline-scrollbar-suspended')).toBe(false)
+      );
+    } finally {
+      rendered.unmount();
+    }
+  });
+
+  it('delays room switch scroll reset until the rendered timeline catches up', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+      ).toBeGreaterThanOrEqual(7)
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const callsBeforeRouteChange = Number(
+      page.getByTestId('virtualizer-scroll-calls').element().textContent
+    );
+
+    await rendered.rerender({
+      roomId: 'room-new',
+      renderedRoomId: 'room-old',
+      eventIds: ['msg-old'],
+      scrollToEventId: null
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
+    expect(
+      Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+    ).toBe(callsBeforeRouteChange);
+
+    await rendered.rerender({
+      roomId: 'room-new',
+      renderedRoomId: 'room-new',
+      eventIds: ['msg-new'],
+      scrollToEventId: null
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+    );
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
+    await expect.element(page.getByText('msg-new', { exact: true })).toBeInTheDocument();
+  });
+
+  it('keeps the carried-over timeline masked during a room switch', async () => {
+    render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    const carryover = document.querySelector('.timeline-room-carryover');
+
+    expect(carryover).toBeInstanceOf(HTMLElement);
+    expect(carryover?.classList.contains('mt-auto')).toBe(false);
+    expect(carryover?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+  });
+
+  it('uses a static placeholder over carried-over room switches', () => {
+    render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+
+    expect(mask).not.toBeNull();
+    expect(mask?.querySelector('.skeleton')).toBeNull();
+    expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+    expect(mask?.classList.contains('timeline-room-switch-mask--carryover')).toBe(false);
+  });
+
+  it('uses static room switch placeholders when no carry-over timeline exists', () => {
+    render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-old',
+        eventIds: [],
+        scrollToEventId: null
+      }
+    });
+
+    const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+
+    expect(mask).not.toBeNull();
+    expect(mask?.querySelector('.skeleton')).toBeNull();
+    expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+    expect(mask?.classList.contains('timeline-room-switch-mask--carryover')).toBe(false);
+  });
+
+  it('keeps the room switch mask until visible timeline media has decoded', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-with-pending-image'],
+        scrollToEventId: null
+      });
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+      );
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="mock-timeline-image"]')).not.toBeNull()
+      );
+
+      for (let frame = 0; frame < 12; frame++) {
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+
+      const image = document.querySelector('[data-testid="mock-timeline-image"]');
+      expect(image).toBeInstanceOf(HTMLImageElement);
+      Object.defineProperty(image, 'complete', { configurable: true, value: true });
+      Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 320 });
+      image?.classList.remove('skeleton');
+
+      for (let frame = 12; frame < 80; frame++) {
+        if (document.querySelector('[data-testid="timeline-room-switch-mask"]') === null) break;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the room switch mask while visible media geometry is still settling', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-with-pending-image'],
+        scrollToEventId: null
+      });
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+      );
+
+      const container = page.getByTestId('messages-container').element();
+      const image = document.querySelector('[data-testid="mock-timeline-image"]');
+      expect(image).toBeInstanceOf(HTMLImageElement);
+
+      Object.defineProperty(container, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => DOMRect.fromRect({ x: 0, y: 0, width: 360, height: 600 })
+      });
+      Object.defineProperty(image, 'complete', { configurable: true, value: true });
+      Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 320 });
+      image?.classList.remove('skeleton');
+
+      let mediaHeight = 96;
+      Object.defineProperty(image, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => DOMRect.fromRect({ x: 16, y: 24, width: 320, height: mediaHeight })
+      });
+
+      for (let frame = 0; frame < 12; frame++) {
+        mediaHeight += 6;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+
+      for (let frame = 12; frame < 80; frame++) {
+        if (document.querySelector('[data-testid="timeline-room-switch-mask"]') === null) break;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the settling mask for a short minimum reveal window on media-heavy rooms', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-with-pending-image'],
+        scrollToEventId: null
+      });
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+      );
+
+      const container = page.getByTestId('messages-container').element();
+      const image = document.querySelector('[data-testid="mock-timeline-image"]');
+      expect(image).toBeInstanceOf(HTMLImageElement);
+
+      Object.defineProperty(container, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => DOMRect.fromRect({ x: 0, y: 0, width: 360, height: 600 })
+      });
+      Object.defineProperty(image, 'complete', { configurable: true, value: true });
+      Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 320 });
+      Object.defineProperty(image, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => DOMRect.fromRect({ x: 16, y: 24, width: 320, height: 180 })
+      });
+      image?.classList.remove('skeleton');
+
+      for (let frame = 0; frame < 10; frame++) {
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      expect(mask).not.toBeNull();
+      expect(mask?.classList.contains('timeline-room-switch-mask--settling')).toBe(true);
+
+      for (let frame = 10; frame < 80; frame++) {
+        if (document.querySelector('[data-testid="timeline-room-switch-mask"]') === null) break;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the room switch mask while cached data is reconciling with the server window', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-cached'],
+        isReconcilingCachedData: true,
+        scrollToEventId: null
+      });
+
+      const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      expect(mask).not.toBeNull();
+      expect(mask?.classList.contains('timeline-room-switch-mask--settling')).toBe(true);
+      expect(document.querySelector('[data-event-id="msg-cached"]')).not.toBeNull();
+    } finally {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-network'],
+        isReconcilingCachedData: false,
+        scrollToEventId: null
+      });
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+      );
+      rendered.unmount();
+    }
+  });
+
+  it('does not hide an initial cached room before a room switch has happened', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-cached'],
+        isReconcilingCachedData: true,
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-event-id="msg-cached"]')).not.toBeNull()
+      );
+    } finally {
+      rendered.unmount();
+    }
+  });
+
+  it('keeps the room switch mask while silent backfill settles the new room window', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null,
+        enablePagination: true,
+        hasReachedStart: false
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+
+    let resolveBackfill!: () => void;
+    const backfill = new Promise<void>((resolve) => {
+      resolveBackfill = resolve;
+    });
+    const onLoadMore = vi.fn(() => backfill);
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-new'],
+        scrollToEventId: null,
+        enablePagination: true,
+        hasReachedStart: false,
+        onLoadMore
+      });
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+      );
+
+      for (let frame = 0; frame < 80; frame++) {
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+        if (onLoadMore.mock.calls.length > 0) break;
+      }
+
+      expect(onLoadMore).toHaveBeenCalledWith({ silent: true });
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+
+      resolveBackfill();
+      await Promise.resolve();
+
+      for (let frame = 80; frame < 160; frame++) {
+        if (document.querySelector('[data-testid="timeline-room-switch-mask"]') === null) break;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps the previous rendered window mounted but hidden during a room switch', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    await rendered.rerender({
+      roomId: 'room-new',
+      renderedRoomId: 'room-old',
+      eventIds: ['msg-old'],
+      scrollToEventId: null
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+    );
+
+    expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')?.getAttribute('aria-hidden')).toBe(
+      'true'
+    );
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
+  });
+
+  it('shows a room switch mask when rendering starts already in carry-over mode', async () => {
+    render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
+  });
+
   it('signals completion after highlighting a rendered target', async () => {
     const onComplete = vi.fn();
     render(EventListTestHarness, {

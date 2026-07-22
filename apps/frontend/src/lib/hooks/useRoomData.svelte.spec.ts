@@ -2,7 +2,7 @@ import { flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PresenceStatus } from '$lib/render/types';
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
-import { useRoomData } from './useRoomData.svelte';
+import { __resetRoomDataMemorySnapshotsForTests, useRoomData } from './useRoomData.svelte';
 import { createMemberDirectoryAPI } from '$lib/api-client/memberDirectory';
 import { createRoomDirectoryAPI } from '$lib/api-client/roomDirectory';
 
@@ -119,6 +119,7 @@ describe('useRoomData', () => {
   let pendingDmQueries: Map<string, Deferred<DmMembersResult>>;
 
   beforeEach(() => {
+    __resetRoomDataMemorySnapshotsForTests();
     mocks.reconnect = { count: 0 };
     mocks.getRoom.mockReset();
     mocks.listRoomMembers.mockReset();
@@ -179,6 +180,48 @@ describe('useRoomData', () => {
       expect(harness.room.dmData?.participants[0]?.id).toBe('user-b');
     } finally {
       destroy();
+    }
+  });
+
+  it('reuses cached room metadata across hook remounts while refetching in the background', async () => {
+    const firstRoom = roomDetails('room-a');
+    const refreshedRoom = { ...firstRoom, name: 'Room A refreshed' };
+    const pendingRefresh = deferred<ReturnType<typeof roomDetails>>();
+    mocks.getRoom
+      .mockResolvedValueOnce(firstRoom)
+      .mockImplementationOnce(() => pendingRefresh.promise);
+
+    let firstHarness!: { room: ReturnType<typeof useRoomData> };
+    const destroyFirst = $effect.root(() => {
+      const room = useRoomData(() => ({ roomId: 'room-a' }));
+      flushSync();
+      firstHarness = { room };
+    });
+
+    try {
+      await vi.waitFor(() => expect(firstHarness.room.roomData?.room.name).toBe('room-a'));
+    } finally {
+      destroyFirst();
+    }
+
+    let secondHarness!: { room: ReturnType<typeof useRoomData> };
+    const destroySecond = $effect.root(() => {
+      const room = useRoomData(() => ({ roomId: 'room-a' }));
+      flushSync();
+      secondHarness = { room };
+    });
+
+    try {
+      expect(secondHarness.room.isRoomLoading).toBe(false);
+      expect(secondHarness.room.roomData?.room.name).toBe('room-a');
+      expect(mocks.getRoom).toHaveBeenCalledTimes(2);
+
+      pendingRefresh.resolve(refreshedRoom);
+      await vi.waitFor(() =>
+        expect(secondHarness.room.roomData?.room.name).toBe('Room A refreshed')
+      );
+    } finally {
+      destroySecond();
     }
   });
 });

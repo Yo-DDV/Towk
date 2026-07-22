@@ -171,6 +171,26 @@ describe('MessageAttachments', () => {
     expect(image.className).toContain('w-full');
   });
 
+  it('reserves a stable frame for images without intrinsic dimensions', () => {
+    const { container } = renderAttachment(
+      imageAttachment({
+        filename: 'legacy-without-dimensions.jpg',
+        width: 0,
+        height: 0
+      })
+    );
+
+    const { image, button } = imageFrame(container, 'legacy-without-dimensions.jpg');
+
+    expect(button.getAttribute('style')).toContain('width: 192px');
+    expect(button.getAttribute('style')).toContain('aspect-ratio: 192 / 128');
+    expect(image.getAttribute('loading')).toBe('eager');
+    expect(image.getAttribute('decoding')).toBe('async');
+    expect(image.className).toContain('object-contain');
+    expect(image.className).toContain('h-full');
+    expect(image.className).toContain('w-full');
+  });
+
   it('uses the original GIF instead of an animated thumbnail derivative', () => {
     const { container } = renderAttachment(
       imageAttachment({

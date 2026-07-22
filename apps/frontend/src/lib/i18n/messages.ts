@@ -650,6 +650,10 @@ const msg_room_server_leave_prompt = (
   inputs: Parameters<LocaleMessages['room_server_leave_prompt']>[0]
 ): LocalizedString => messages().room_server_leave_prompt(inputs);
 const msg_room_message_empty = (): LocalizedString => messages().room_message_empty(empty());
+const msg_room_message_loading = (): LocalizedString => messages().room_message_loading(empty());
+const msg_room_message_load_failed = (): LocalizedString => messages().room_message_load_failed(empty());
+const msg_room_message_load_failed_hint = (): LocalizedString => messages().room_message_load_failed_hint(empty());
+const msg_room_message_retry_load = (): LocalizedString => messages().room_message_retry_load(empty());
 const msg_room_message_delete_title = (): LocalizedString => messages().room_message_delete_title(empty());
 const msg_room_message_delete_prompt = (): LocalizedString => messages().room_message_delete_prompt(empty());
 const msg_room_message_delete_failed = (): LocalizedString => messages().room_message_delete_failed(empty());
@@ -2510,6 +2514,10 @@ export { msg_room_server_leave_title as 'room.server.leave_title' };
 export { msg_room_server_leave_action as 'room.server.leave_action' };
 export { msg_room_server_leave_prompt as 'room.server.leave_prompt' };
 export { msg_room_message_empty as 'room.message.empty' };
+export { msg_room_message_loading as 'room.message.loading' };
+export { msg_room_message_load_failed as 'room.message.load_failed' };
+export { msg_room_message_load_failed_hint as 'room.message.load_failed_hint' };
+export { msg_room_message_retry_load as 'room.message.retry_load' };
 export { msg_room_message_delete_title as 'room.message.delete_title' };
 export { msg_room_message_delete_prompt as 'room.message.delete_prompt' };
 export { msg_room_message_delete_failed as 'room.message.delete_failed' };

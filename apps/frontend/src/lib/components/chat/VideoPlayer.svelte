@@ -1,7 +1,38 @@
+<script lang="ts" module>
+  let vidstackElementsRegistered = false;
+  let vidstackElementsPromise: Promise<void> | null = null;
+
+  export async function preloadVideoPlayerElements(): Promise<void> {
+    if (vidstackElementsRegistered) return;
+    vidstackElementsPromise ??= Promise.all([
+      import('vidstack/player'),
+      import('vidstack/player/layouts'),
+      import('vidstack/player/ui')
+    ]).then(() => {
+      vidstackElementsRegistered = true;
+    });
+    await vidstackElementsPromise;
+  }
+
+  export function shouldRequestNativeOverlayFullscreen(): boolean {
+    if (typeof document === 'undefined' || !document.fullscreenEnabled) return false;
+    if (typeof navigator === 'undefined') return true;
+
+    const userAgent = navigator.userAgent ?? '';
+    const platform = navigator.platform ?? '';
+    const maxTouchPoints = navigator.maxTouchPoints ?? 0;
+    const isAppleTouchDevice =
+      /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
+
+    return !isAppleTouchDevice;
+  }
+</script>
+
 <script lang="ts">
-  import { tick, onMount } from 'svelte';
+  import { tick } from 'svelte';
   import type { VideoProcessingStatus } from '$lib/render/types';
   import { fullscreenVideo } from '$lib/state/globals.svelte';
+  import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import * as m from '$lib/i18n/messages';
 
   import 'vidstack/player/styles/default/theme.css';
@@ -11,16 +42,10 @@
   // static imports in SvelteKit resolve those stubs during SSR and never
   // re-run on the client. We must dynamically import on mount and wait for
   // registration to complete before rendering the custom elements.
-  let elementsReady = $state(false);
-
-  onMount(async () => {
-    await Promise.all([
-      import('vidstack/player'),
-      import('vidstack/player/layouts'),
-      import('vidstack/player/ui')
-    ]);
-    elementsReady = true;
-  });
+  let elementsReady = $state(vidstackElementsRegistered);
+  let playerRequested = $state(false);
+  let playerVisualReady = $state(false);
+  let playerVisualReadyKey = '';
 
   type Variant = {
     url: string;
@@ -146,6 +171,9 @@
   // an explicit type and dimensions so the player can keep quality selection
   // automatic instead of forcing the heaviest file for every inline playback.
   const videoSources = $derived.by(() => videoSourcesForVariants(sortedVariants));
+  const hasPosterBridge = $derived(
+    status === 'COMPLETED' && highestVariant && !autoLoop && Boolean(thumbnailUrl)
+  );
   const showAutoLoopFallback = $derived(
     Boolean(
       autoLoop &&
@@ -165,6 +193,35 @@
         return null;
     }
   });
+
+  $effect(() => {
+    const nextKey = [
+      status,
+      highestVariant?.url ?? '',
+      thumbnailUrl ?? '',
+      String(autoLoop)
+    ].join('|');
+    if (nextKey === playerVisualReadyKey) return;
+    playerVisualReadyKey = nextKey;
+    playerRequested = false;
+    playerVisualReady = false;
+  });
+
+  function primePlayerElements() {
+    void preloadVideoPlayerElements()
+      .then(() => {
+        elementsReady = true;
+      })
+      .catch(() => {
+        // The poster card remains usable even if the enhancement fails.
+      });
+  }
+
+  function activatePlayer() {
+    playerRequested = true;
+    playerVisualReady = false;
+    primePlayerElements();
+  }
 
   function positiveDimension(value: number | null | undefined): number | null {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
@@ -258,8 +315,11 @@
       fullscreenVideo.open(highestVariant.url, thumbnailUrl ?? null, video?.currentTime ?? 0);
 
       // Request native fullscreen on the overlay after Svelte renders it.
-      // tick() preserves the user activation from this click event.
+      // tick() preserves the user activation from this click event. iOS/iPadOS
+      // PWA stays in CSS fullscreen: native fullscreen can place controls below
+      // unsafe notches/status bars and make the close affordance unreachable.
       tick().then(() => {
+        if (!shouldRequestNativeOverlayFullscreen()) return;
         document
           .querySelector('.fullscreen-overlay')
           ?.requestFullscreen()
@@ -306,8 +366,18 @@
     const cleanupFullscreen = interceptFullscreenRequest(node);
     const cleanupVideoObserver = observePlayerVideo(node);
     const cleanupQualitySelection = enableAutoQualitySelection(node);
+    const markReady = () => {
+      playerVisualReady = true;
+    };
+    const fallbackReadyTimer = window.setTimeout(markReady, 900);
+
+    node.addEventListener('can-play', markReady, { once: true });
+    node.addEventListener('loaded-metadata', markReady, { once: true });
 
     return () => {
+      window.clearTimeout(fallbackReadyTimer);
+      node.removeEventListener('can-play', markReady);
+      node.removeEventListener('loaded-metadata', markReady);
       cleanupFullscreen();
       cleanupVideoObserver();
       cleanupQualitySelection();
@@ -319,7 +389,7 @@
   <!-- Converted GIFs use a native <video> for reliable autoplay + loop behavior. -->
   <div class="embed-frame" style={frameStyle}>
     {#if showAutoLoopFallback}
-      <img
+      <SkeletonImg
         src={fallbackImageUrl!}
         alt={filename}
         loading="lazy"
@@ -341,25 +411,77 @@
       </video>
     {/if}
   </div>
-{:else if status === 'COMPLETED' && highestVariant && elementsReady}
-  <div class="embed-frame" style={frameStyle}>
+{:else if status === 'COMPLETED' && highestVariant && playerRequested && elementsReady}
+  <div class="embed-frame video-player-frame" style={frameStyle}>
+    {#if hasPosterBridge}
+      <SkeletonImg
+        src={thumbnailUrl!}
+        alt=""
+        aria-hidden="true"
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        onerror={onMediaError}
+        class={['video-poster-bridge pointer-events-none', playerVisualReady && 'opacity-0']}
+      />
+    {/if}
     <media-player
       {@attach attachMediaPlayer}
       src={videoSources}
       playsinline
+      autoplay
       onerror={onMediaError}
       data-fit={fitMode}
       class="block h-full w-full"
     >
       <media-provider>
         {#if thumbnailUrl}
-          <media-poster class="vds-poster" src={thumbnailUrl} alt={filename} onerror={onMediaError}
+          <media-poster
+            class="vds-poster"
+            src={thumbnailUrl}
+            alt={filename}
+            onerror={onMediaError}
           ></media-poster>
         {/if}
       </media-provider>
       <media-video-layout></media-video-layout>
     </media-player>
   </div>
+{:else if status === 'COMPLETED' && highestVariant}
+  <button
+    type="button"
+    class="embed-frame video-player-poster-shell video-preview-button"
+    style={frameStyle}
+    aria-label={m['media.video_alt']()}
+    title={filename}
+    data-testid="video-player-poster-shell"
+    aria-busy={playerRequested && !elementsReady}
+    onpointerenter={primePlayerElements}
+    onfocus={primePlayerElements}
+    onclick={activatePlayer}
+  >
+    {#if thumbnailUrl}
+      <SkeletonImg
+        src={thumbnailUrl}
+        alt={filename}
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+        onerror={onMediaError}
+        class="h-full w-full object-contain"
+      />
+      <span class="video-preview-play" aria-hidden="true">
+        {#if playerRequested && !elementsReady}
+          <span class="h-5 w-5 animate-spin rounded-full border-2 border-white/70 border-t-transparent"></span>
+        {:else}
+          <span class="iconify text-3xl uil--play"></span>
+        {/if}
+      </span>
+    {:else}
+      <span class="iconify text-lg text-muted uil--video"></span>
+      <span class="max-w-full truncate text-sm text-muted">{filename}</span>
+    {/if}
+  </button>
 {:else if status === 'PENDING' || status === 'PROCESSING'}
   <div class="embed-frame flex items-center gap-3 px-4 py-3" style={frameStyle}>
     <div class="h-5 w-5 animate-spin rounded-full border-2 border-muted border-t-transparent"></div>
@@ -437,10 +559,79 @@
     object-position: top center;
   }
 
+  .video-player-frame {
+    position: relative;
+    overflow: hidden;
+  }
+
+  :global(.video-poster-bridge) {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: block;
+    height: 100%;
+    width: 100%;
+    object-fit: contain;
+    background: var(--color-background, #111);
+    transition: opacity 120ms ease;
+  }
+
+  .video-player-poster-shell {
+    display: flex;
+    position: relative;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    overflow: hidden;
+  }
+
   :global(media-player[data-fit='contain'] video),
   :global(media-player[data-fit='contain'] .vds-poster),
   :global(media-player[data-fit='contain'] .vds-poster img) {
     object-fit: contain;
     object-position: center;
+  }
+
+  .video-preview-button {
+    appearance: none;
+    cursor: pointer;
+    padding: 0;
+    color: white;
+    transition:
+      border-color 140ms ease,
+      filter 140ms ease,
+      transform 140ms ease;
+  }
+
+  .video-preview-button:hover,
+  .video-preview-button:focus-visible {
+    border-color: color-mix(in srgb, var(--color-primary, #f97316) 72%, white 18%);
+    filter: brightness(1.04);
+  }
+
+  .video-preview-button:active {
+    transform: scale(0.995);
+  }
+
+  .video-preview-play {
+    position: absolute;
+    inset: 50% auto auto 50%;
+    display: flex;
+    height: 3.5rem;
+    width: 3.5rem;
+    transform: translate(-50%, -50%);
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: rgb(0 0 0 / 0.52);
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.16);
+    backdrop-filter: blur(6px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .video-preview-button {
+      transition: none;
+    }
   }
 </style>

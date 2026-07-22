@@ -69,7 +69,7 @@ transient toasts, callers control when this appears and disappears.
   class="pointer-events-none fixed top-[calc(env(safe-area-inset-top,0px)+3.5rem)] right-3 left-3 z-[60] flex justify-center md:top-16"
 >
   <section
-    class="pointer-events-auto w-full max-w-4xl menu"
+    class="pointer-events-auto w-full max-w-4xl menu surface-pop"
     role="status"
     aria-live="polite"
   >
