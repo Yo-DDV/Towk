@@ -196,6 +196,7 @@
   );
   const renderedTimelineRoomId = $derived(renderedRoomId ?? roomId);
   const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
+  const isRoomSwitching = $derived(!isCurrentRoomWindowRendered);
 
   function startRoomReveal() {
     if (roomRevealTimer) {
@@ -227,6 +228,7 @@
   let virtualItems = $derived(
     buildVirtualItems(eventsWithMeta, effectiveUnreadAfterEventId, hasReachedStart, showStartMarker)
   );
+  const hasRoomSwitchCarryOver = $derived(isRoomSwitching && virtualItems.length > 0);
 
   async function expireTombstones(atMs: number) {
     const bottomDistance = distanceFromBottom();
@@ -1101,11 +1103,13 @@
     <div
       class={roomRevealActive
         ? 'mt-auto timeline-room-reveal'
-        : renderedTimelineRoomId !== roomId
+        : isRoomSwitching
           ? 'timeline-room-carryover'
           : 'mt-auto'}
+      aria-busy={isRoomSwitching ? 'true' : undefined}
+      data-testid={isRoomSwitching ? 'timeline-room-carryover' : undefined}
     >
-      {#if renderedTimelineRoomId !== roomId}
+      {#if isRoomSwitching && !hasRoomSwitchCarryOver}
         <div
           class="timeline-room-switch-placeholder flex min-h-[min(70vh,720px)] flex-col gap-4 px-4 pt-7 pb-6"
           aria-busy="true"
@@ -1175,7 +1179,7 @@
             {emptyMessage}
           </div>
         </div>
-      {:else if !isLoading || virtualItems.length > 0}
+      {:else if !isLoading || virtualItems.length > 0 || hasRoomSwitchCarryOver}
         <Virtualizer
           bind:this={virtualizerHandle}
           data={virtualItems}

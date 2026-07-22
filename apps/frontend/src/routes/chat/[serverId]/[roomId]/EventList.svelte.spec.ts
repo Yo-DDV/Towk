@@ -140,8 +140,12 @@ describe('EventList jump completion', () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    expect(document.querySelector('[aria-label="Loading messages"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).toBeNull();
+    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
+    expect(
+      Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+    ).toBe(callsBeforeRouteChange);
 
     await rendered.rerender({
       roomId: 'room-new',
@@ -173,7 +177,7 @@ describe('EventList jump completion', () => {
     expect(carryover?.classList.contains('mt-auto')).toBe(false);
   });
 
-  it('masks partial carry-over rows behind a stable room-switch placeholder', async () => {
+  it('keeps the previous rendered window mounted during a room switch when carry-over exists', async () => {
     render(EventListTestHarness, {
       props: {
         roomId: 'room-new',
@@ -183,8 +187,9 @@ describe('EventList jump completion', () => {
       }
     });
 
-    expect(document.querySelector('[aria-label="Loading messages"]')).not.toBeNull();
-    await expect.element(page.getByText('msg-old', { exact: true })).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
+    expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
   });
 
   it('signals completion after highlighting a rendered target', async () => {
