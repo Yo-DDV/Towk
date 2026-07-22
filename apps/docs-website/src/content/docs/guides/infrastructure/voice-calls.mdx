@@ -191,17 +191,16 @@ Towk configures call media for graceful degradation rather than a fixed quality:
   noise suppression, voice isolation, and automatic gain control, without
   forcing a sample rate. The browser and operating system therefore retain the
   clock required by the active built-in, wired, Bluetooth HFP, or BLE route.
-  Browser-native processing is preferred. The call menu lets users disable or
-  re-enable noise reduction, automatic gain, and echo cancellation per call, and
-  shows whether the active route reports native/system processing or a reduced
-  capability. Towk adds the local RNNoise or SpeexDSP fallback only when the
-  final track explicitly reports native noise suppression disabled and its
-  source clock matches the processing context. Mobile browsers remain
-  native-only for local processing so Android and iOS Bluetooth or built-in
-  routes are not put behind a second Web Audio clock. If that fallback cannot
-  start, the microphone remains live with browser audio processing. Opus DTX and
-  RED remain enabled to reduce silence bandwidth and protect speech on lossy
-  links.
+  The call menu lets users disable or re-enable noise reduction, automatic gain,
+  and echo cancellation per call. A live change is applied to the published
+  source track, then the displayed effective status is recalculated. On a
+  visible, mono, non-Bluetooth route whose source and processing clocks match,
+  Towk supplements the browser pipeline with local RNNoise at 48 kHz or SpeexDSP
+  at another rate of at least 32 kHz. Bluetooth, narrowband, hidden-document,
+  and clock-mismatch routes remain browser-native so a second Web Audio clock
+  cannot chop communication-profile audio. If the enhancement cannot start, the
+  microphone remains live with browser audio processing. Opus DTX and RED remain
+  enabled to reduce silence bandwidth and protect speech on lossy links.
 - **Camera video** requests a 4:3 1280 × 960 stream at no more than 30 FPS and
   asks compatible browsers not to crop the source frame. This keeps the field of
   view of 4:3 phone cameras instead of selecting a tighter 16:9 sensor mode,
@@ -257,8 +256,8 @@ period is removed by reconciliation.
   precedence until that route disappears or the call ends. Selecting a
   different microphone while recovery is visible immediately retries capture
   on that route, even after the bounded background schedule has ended. Changing
-  a processing preference while the microphone is live reacquires capture
-  through the same serialized queue. The menu re-enumerates devices when opened,
+  a processing preference while the microphone is live applies constraints to
+  the published source through the same serialized queue. The menu re-enumerates devices when opened,
   uses the standards speaker picker where available, explains system-managed
   output on mobile, and replaces generic platform labels such as speakerphone,
   earpiece, or Bluetooth headset with localized call-usage route names while
@@ -274,8 +273,12 @@ period is removed by reconciliation.
   second can join as a muted companion or transfer the call; sibling devices can
   control each other's microphone and incoming-audio mute state.
 - **Installed PWA integration** — Active and recovering calls retain the wake
-  lock and Media Session controls. A validated cross-room or cross-server switch
-  releases old local capture before the replacement connection starts.
+  lock and Media Session controls. Supporting WebKit engines also receive the
+  duplex `play-and-record` Audio Session category. Towk detaches its optional Web
+  Audio processing graph before the document is hidden and restores it after
+  visibility returns, leaving the browser-native microphone track published in
+  between. A validated cross-room or cross-server switch releases old local
+  capture before the replacement connection starts.
 - **Active call indicators** — Rooms with active calls show the current call and
   projected participants even before the viewer joins.
 
@@ -295,6 +298,16 @@ unavailable, and shows the desktop alternative only after the user taps it
 instead of promising a picker that cannot open. Screen
 capture on supported desktop browsers always requires a user gesture and the
 native picker may offer different sources on each platform.
+
+Background microphone continuity is also platform-owned. The experimental
+[Audio Session API](https://w3c.github.io/audio-session/) lets supporting WebKit
+engines classify a call as `play-and-record`, but Chromium Android does not
+currently expose that API. [Page lifecycle freezing](https://developer.chrome.com/docs/web-platform/page-lifecycle-api)
+can suspend a hidden page's task queues, and a service worker cannot own the
+page's live `MediaStream`. Towk therefore preserves native capture where the
+browser allows it and restores processing on resume; a web PWA cannot guarantee
+the native Android foreground-service or iOS background-audio behavior of a
+packaged application.
 
 For production acceptance, test the installed PWA on the browser, operating
 system, and physical audio/video devices used by your organization. Include a

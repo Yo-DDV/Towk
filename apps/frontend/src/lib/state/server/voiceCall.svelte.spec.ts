@@ -69,11 +69,26 @@ let microphoneProcessor: { name: string } | null = null;
 let microphoneTrackSettings: MediaTrackSettings;
 let microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
   microphoneProcessor = processor;
+  Object.assign(processor, {
+    audioContext: { sampleRate: 48_000 },
+    automaticGainControlMode: 'native',
+    echoCancellation: true,
+    nativeNoiseSuppression: true,
+    suppressionMode: 'rnnoise'
+  });
 });
 let microphoneStopProcessor = vi.fn(async () => {
   microphoneProcessor = null;
 });
 let microphoneRestartTrack = vi.fn(async () => undefined);
+let microphoneApplyConstraints = vi.fn(async (constraints: MediaTrackConstraints) => {
+  microphoneTrackSettings = {
+    ...microphoneTrackSettings,
+    autoGainControl: constraints.autoGainControl as boolean | undefined,
+    echoCancellation: constraints.echoCancellation as boolean | undefined,
+    noiseSuppression: constraints.noiseSuppression as boolean | undefined
+  };
+});
 let microphonePublication: {
   isMuted: boolean;
   track: {
@@ -84,6 +99,7 @@ let microphonePublication: {
     setProcessor: typeof microphoneSetProcessor;
     stopProcessor: typeof microphoneStopProcessor;
     restartTrack: typeof microphoneRestartTrack;
+    applyConstraints: typeof microphoneApplyConstraints;
   };
 } | null = null;
 let cameraGate: { promise: Promise<void>; resolve: () => void } | null = null;
@@ -94,6 +110,7 @@ let screenShareAudioAvailable = false;
 let switchActiveDeviceGate: { promise: Promise<void>; resolve: () => void } | null = null;
 let switchActiveDeviceFailure: Error | null = null;
 let activeDeviceIds = new Map<MediaDeviceKind, string>();
+let mockAudioInputDevices: MediaDeviceInfo[] = [];
 let roomEventHandlers = new Map<string, (...args: unknown[]) => void>();
 let roomRpcHandlers = new Map<
   string,
@@ -140,7 +157,7 @@ vi.mock('livekit-client', () => {
   class MockRoom {
     static getLocalDevices = vi.fn(async (kind?: MediaDeviceKind) => {
       if (kind === 'audioinput') {
-        return [{ deviceId: 'audio-input-1', kind, label: 'Microphone' }];
+        return mockAudioInputDevices;
       }
       if (kind === 'audiooutput') {
         return [{ deviceId: 'audio-output-1', kind, label: 'Speaker' }];
@@ -176,7 +193,8 @@ vi.mock('livekit-client', () => {
               },
               setProcessor: microphoneSetProcessor,
               stopProcessor: microphoneStopProcessor,
-              restartTrack: microphoneRestartTrack
+              restartTrack: microphoneRestartTrack,
+              applyConstraints: microphoneApplyConstraints
             }
           };
         } else if (microphonePublication) {
@@ -465,11 +483,27 @@ describe('VoiceCallState', () => {
     };
     microphoneSetProcessor = vi.fn(async (processor: { name: string }) => {
       microphoneProcessor = processor;
+      Object.assign(processor, {
+        audioContext: { sampleRate: 48_000 },
+        automaticGainControlMode:
+          microphoneTrackSettings.autoGainControl === true ? 'native' : 'towk',
+        echoCancellation: microphoneTrackSettings.echoCancellation,
+        nativeNoiseSuppression: microphoneTrackSettings.noiseSuppression === true,
+        suppressionMode: 'rnnoise'
+      });
     });
     microphoneStopProcessor = vi.fn(async () => {
       microphoneProcessor = null;
     });
     microphoneRestartTrack = vi.fn(async () => undefined);
+    microphoneApplyConstraints = vi.fn(async (constraints: MediaTrackConstraints) => {
+      microphoneTrackSettings = {
+        ...microphoneTrackSettings,
+        autoGainControl: constraints.autoGainControl as boolean | undefined,
+        echoCancellation: constraints.echoCancellation as boolean | undefined,
+        noiseSuppression: constraints.noiseSuppression as boolean | undefined
+      };
+    });
     microphonePublication = null;
     cameraGate = null;
     cameraFailure = null;
@@ -483,6 +517,9 @@ describe('VoiceCallState', () => {
       ['audiooutput', 'audio-output-1'],
       ['videoinput', 'video-input-1']
     ]);
+    mockAudioInputDevices = [
+      { deviceId: 'audio-input-1', kind: 'audioinput', label: 'Microphone' } as MediaDeviceInfo
+    ];
     roomEventHandlers = new Map();
     roomRpcHandlers = new Map();
     performRpcFailure = null;
@@ -1170,7 +1207,7 @@ describe('VoiceCallState', () => {
     });
   });
 
-  it('prefers native voice processing and a bandwidth-bounded coherent DTX profile', async () => {
+  it('combines native voice processing, enhanced suppression and a coherent DTX profile', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
 
@@ -1195,7 +1232,35 @@ describe('VoiceCallState', () => {
       videoCodec: 'vp8'
     });
     expect(lastRoomOptions?.publishDefaults?.audioPreset?.maxBitrate).toBe(24_000);
-    expect(microphoneSetProcessor).not.toHaveBeenCalled();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing).toEqual({
+      automaticGainControl: 'native',
+      echoCancellation: true,
+      noiseSuppression: 'rnnoise'
+    });
+  });
+
+  it('removes enhanced Web Audio when the active route becomes Bluetooth', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+    microphoneTrackSettings = {
+      ...microphoneTrackSettings,
+      deviceId: 'bluetooth-input'
+    };
+    state.audioDevices = [
+      {
+        deviceId: 'bluetooth-input',
+        kind: 'audioinput',
+        label: 'Bluetooth headset'
+      } as MediaDeviceInfo
+    ];
+    state.selectedDeviceId = 'bluetooth-input';
+    await state.handleDocumentVisibilityChange('visible');
+
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
     expect(state.microphoneProcessing).toEqual({
       automaticGainControl: 'native',
       echoCancellation: true,
@@ -1213,18 +1278,36 @@ describe('VoiceCallState', () => {
     await state.setMicrophoneProcessingPreference('noiseSuppression', false);
 
     expect(state.microphoneProcessingPreferences.noiseSuppression).toBe(false);
-    expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(
-      true,
-      expect.objectContaining({
-        autoGainControl: true,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: false,
-        voiceIsolation: false
-      })
-    );
+    expect(microphoneApplyConstraints).toHaveBeenCalledWith({
+      autoGainControl: true,
+      echoCancellation: true,
+      noiseSuppression: false,
+      voiceIsolation: false
+    });
+    expect(lastRoom?.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
     expect(lastRoom?.localParticipant.setCameraEnabled).not.toHaveBeenCalledWith(true);
     expect(lastRoom?.localParticipant.setScreenShareEnabled).not.toHaveBeenCalledWith(true);
+  });
+
+  it('rebuilds enhanced processing when echo cancellation changes on the live source', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+    microphoneSetProcessor.mockClear();
+    microphoneStopProcessor.mockClear();
+
+    await state.setMicrophoneProcessingPreference('echoCancellation', false);
+
+    expect(microphoneApplyConstraints).toHaveBeenCalledWith({
+      autoGainControl: true,
+      echoCancellation: false,
+      noiseSuppression: true,
+      voiceIsolation: true
+    });
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+    expect(state.microphoneProcessing.echoCancellation).toBe(false);
   });
 
   it('keeps the microphone live if enhanced fallback processing cannot attach', async () => {
@@ -1255,9 +1338,9 @@ describe('VoiceCallState', () => {
     expect(lastRoom?.localParticipant.setMicrophoneEnabled).toHaveBeenCalledTimes(1);
     expect(state.isMuted).toBe(false);
     expect(state.microphoneProcessing).toEqual({
-      automaticGainControl: 'unavailable',
+      automaticGainControl: 'towk',
       echoCancellation: true,
-      noiseSuppression: 'unavailable'
+      noiseSuppression: 'rnnoise'
     });
     expect(toastMocks.warning).toHaveBeenCalledWith(
       'Enhanced microphone processing is unavailable. The call continues with browser audio processing.'
@@ -2331,7 +2414,7 @@ describe('VoiceCallState', () => {
     expect(state.isMuted).toBe(true);
   });
 
-  it('keeps a native-processed microphone out of Web Audio across mute and unmute', async () => {
+  it('keeps the same enhanced processor across mute and unmute', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
@@ -2340,7 +2423,28 @@ describe('VoiceCallState', () => {
     await state.toggleMute();
 
     expect(state.isMuted).toBe(false);
-    expect(microphoneSetProcessor).not.toHaveBeenCalled();
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+  });
+
+  it('falls back to native capture while hidden and restores enhanced processing on return', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+    expect(microphoneSetProcessor).toHaveBeenCalledOnce();
+
+    await state.handleDocumentVisibilityChange('hidden');
+    expect(microphoneStopProcessor).toHaveBeenCalledOnce();
+    expect(microphoneProcessor).toBeNull();
+
+    await state.handleDocumentVisibilityChange('visible');
+    expect(microphoneApplyConstraints).toHaveBeenCalledWith({
+      autoGainControl: true,
+      echoCancellation: true,
+      noiseSuppression: true,
+      voiceIsolation: true
+    });
+    expect(microphoneSetProcessor).toHaveBeenCalledTimes(2);
   });
 
   it('serializes mute with a simultaneous microphone switch', async () => {

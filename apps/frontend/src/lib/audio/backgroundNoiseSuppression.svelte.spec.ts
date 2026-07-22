@@ -53,7 +53,7 @@ describe('background noise suppression', () => {
     expect(options).not.toHaveProperty('processor');
   });
 
-  it('keeps a browser-native narrowband voice track out of the extra Web Audio clock', async () => {
+  it('keeps a narrowband voice track out of the extra Web Audio clock', async () => {
     const { track } = createAudioTrack(48_000, {
       autoGainControl: true,
       echoCancellation: true,
@@ -156,10 +156,7 @@ describe('background noise suppression', () => {
     expect(setProcessor).not.toHaveBeenCalled();
   });
 
-  it('keeps mobile browser microphones native-only even when final settings report no native suppression', async () => {
-    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
-      'Mozilla/5.0 (Linux; Android 15; Honor Fold V3) AppleWebKit/537.36 Chrome/126 Mobile Safari/537.36'
-    );
+  it('attaches enhanced suppression on a compatible mobile built-in microphone', async () => {
     const settings: MediaTrackSettings = {
       autoGainControl: false,
       channelCount: 1,
@@ -185,12 +182,72 @@ describe('background noise suppression', () => {
       | 'stopProcessor'
     >;
 
-    await expect(ensureBackgroundNoiseSuppression(localTrack)).resolves.toEqual({
-      automaticGainControl: 'unavailable',
+    await ensureBackgroundNoiseSuppression(localTrack, undefined, {
+      bluetoothRoute: false,
+      documentVisible: true
+    });
+    expect(setProcessor).toHaveBeenCalledWith(expect.any(BackgroundNoiseSuppressionProcessor));
+  });
+
+  it('keeps Bluetooth communication routes on the native capture clock', async () => {
+    const settings: MediaTrackSettings = {
+      autoGainControl: true,
+      channelCount: 1,
       echoCancellation: true,
-      noiseSuppression: 'unavailable'
+      noiseSuppression: true,
+      sampleRate: 48_000
+    };
+    const setProcessor = vi.fn();
+    const localTrack = {
+      getProcessor: () => undefined,
+      getSourceTrackSettings: () => settings,
+      mediaStreamTrack: { getSettings: () => settings },
+      restartTrack: vi.fn(),
+      setProcessor,
+      stopProcessor: vi.fn()
+    } as unknown as Pick<
+      LocalAudioTrack,
+      | 'getProcessor'
+      | 'getSourceTrackSettings'
+      | 'mediaStreamTrack'
+      | 'restartTrack'
+      | 'setProcessor'
+      | 'stopProcessor'
+    >;
+
+    await expect(
+      ensureBackgroundNoiseSuppression(localTrack, undefined, {
+        bluetoothRoute: true,
+        documentVisible: true
+      })
+    ).resolves.toEqual({
+      automaticGainControl: 'native',
+      echoCancellation: true,
+      noiseSuppression: 'native'
     });
     expect(setProcessor).not.toHaveBeenCalled();
+  });
+
+  it('detaches an existing enhanced processor when noise reduction is disabled', async () => {
+    const { context, track } = createAudioTrack(48_000, {
+      autoGainControl: false,
+      echoCancellation: true,
+      noiseSuppression: false
+    });
+    const localTrack = new LocalAudioTrack(track, track.getConstraints(), true, context);
+
+    await ensureBackgroundNoiseSuppression(localTrack);
+    expect(localTrack.getProcessor()).toBeInstanceOf(BackgroundNoiseSuppressionProcessor);
+
+    await ensureBackgroundNoiseSuppression(localTrack, {
+      automaticGainControl: false,
+      echoCancellation: true,
+      enhancedNoiseSuppression: true,
+      noiseSuppression: false
+    });
+
+    expect(localTrack.getProcessor()).toBeUndefined();
+    expect(localTrack.mediaStreamTrack).toBe(track);
   });
 
   it('loads the local RNNoise worklet at 48 kHz', async () => {

@@ -104,6 +104,40 @@ export class CallWakeLockController {
   }
 }
 
+export type CallAudioSessionType =
+  'auto' | 'playback' | 'transient' | 'transient-solo' | 'ambient' | 'play-and-record';
+
+export type CallAudioSessionLike = {
+  type: CallAudioSessionType;
+};
+
+/**
+ * Ask supporting engines to classify WebRTC as duplex communication instead
+ * of ordinary media playback. Safari/iOS exposes this from 16.4; other engines
+ * safely use their own automatic audio-focus policy.
+ */
+export class CallAudioSessionController {
+  #active = false;
+  #previousType: CallAudioSessionType = 'auto';
+
+  constructor(private readonly audioSession: CallAudioSessionLike | undefined) {}
+
+  sync(active: boolean): void {
+    if (!this.audioSession || active === this.#active) return;
+    try {
+      if (active) {
+        this.#previousType = this.audioSession.type;
+        this.audioSession.type = 'play-and-record';
+      } else {
+        this.audioSession.type = this.#previousType;
+      }
+      this.#active = active;
+    } catch {
+      // Audio Session is a progressive enhancement and has partial implementations.
+    }
+  }
+}
+
 type CallMediaAction = 'hangup' | 'togglecamera' | 'togglemicrophone';
 
 export type CallMediaSessionLike = {

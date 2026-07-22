@@ -11,6 +11,7 @@ import {
   RoomEvent,
   Track,
   AudioPresets,
+  type AudioCaptureOptions,
   ConnectionState,
   ScreenSharePresets,
   VideoQuality,
@@ -39,6 +40,7 @@ import {
   createNativeProcessingStatus,
   createVoiceAudioCaptureOptionsFor,
   ensureBackgroundNoiseSuppression,
+  type MicrophoneProcessingEnvironment,
   type MicrophoneProcessingPreferences,
   type MicrophoneProcessingStatus
 } from '$lib/audio/backgroundNoiseSuppression';
@@ -839,6 +841,7 @@ export class VoiceCallState {
       this.updateParticipants();
       void this.refreshSiblingAudioStates();
       await this.refreshDevices();
+      await this.reconcileMicrophoneProcessing(room);
       if (this.consumePendingOwnJoinSound()) {
         void playCallSound('join');
       }
@@ -1257,6 +1260,8 @@ export class VoiceCallState {
     const track = publication?.track as LocalAudioTrack | undefined;
     if (!track) return;
 
+    setMicrophoneContentHint(track);
+
     const activeDeviceId = track.getSourceTrackSettings().deviceId;
     if (activeDeviceId) this.selectedDeviceId = activeDeviceId;
     await this.updateMicrophoneProcessing(track);
@@ -1308,14 +1313,18 @@ export class VoiceCallState {
     }
   }
 
-  private async updateMicrophoneProcessing(track: LocalAudioTrack): Promise<void> {
+  private async updateMicrophoneProcessing(
+    track: LocalAudioTrack,
+    environment: MicrophoneProcessingEnvironment = this.microphoneProcessingEnvironment(track)
+  ): Promise<void> {
     this.microphoneRouteFingerprint = microphoneTrackSettingsFingerprint(
       track.getSourceTrackSettings()
     );
     try {
       this.microphoneProcessing = await ensureBackgroundNoiseSuppression(
         track,
-        this.microphoneProcessingPreferences
+        this.microphoneProcessingPreferences,
+        environment
       );
     } catch {
       // Browser-native processing is still useful when the portable processor
@@ -1347,9 +1356,13 @@ export class VoiceCallState {
     try {
       await this.serializeAudioInputOperation(async () => {
         if (this.room !== room || this.isMuted) return;
-        await this.runExplicitMediaDeviceOperation(() =>
-          this.enableMicrophoneWithRouteFallback(room, this.selectedDeviceId)
+        const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+        const track = publication?.track as LocalAudioTrack | undefined;
+        if (!track) throw new Error('Active microphone track is unavailable');
+        await track.applyConstraints(
+          microphoneProcessingConstraints(this.microphoneProcessingPreferences)
         );
+        await this.updateMicrophoneProcessing(track);
         if (this.room !== room) return;
         this.clearMicrophoneRouteRecovery();
         this.updateParticipants();
@@ -1359,6 +1372,17 @@ export class VoiceCallState {
     } catch {
       if (this.room !== room) return;
       this.microphoneProcessingPreferences = previousPreferences;
+      const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      const track = publication?.track as LocalAudioTrack | undefined;
+      if (track && !this.isMuted) {
+        await this.serializeAudioInputOperation(async () => {
+          if (this.room !== room || this.isMuted) return;
+          await track
+            .applyConstraints(microphoneProcessingConstraints(previousPreferences))
+            .catch(() => undefined);
+          await this.updateMicrophoneProcessing(track).catch(() => undefined);
+        });
+      }
       this.notifyMediaDeviceError(m['voice.microphone_processing_update_failed']());
     }
   }
@@ -1369,6 +1393,36 @@ export class VoiceCallState {
     const track = publication?.track as LocalAudioTrack | undefined;
     if (!track) return;
     await this.updateMicrophoneProcessing(track);
+  }
+
+  /** Keep enhanced Web Audio off while the document is suspended, then restore it on return. */
+  async handleDocumentVisibilityChange(visibilityState: DocumentVisibilityState): Promise<void> {
+    const room = this.room;
+    if (!room || this.isMuted) return;
+    await this.serializeAudioInputOperation(async () => {
+      if (this.room !== room || this.isMuted) return;
+      const publication = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      const track = publication?.track as LocalAudioTrack | undefined;
+      if (!track) return;
+      if (visibilityState !== 'hidden') {
+        await track.applyConstraints(
+          microphoneProcessingConstraints(this.microphoneProcessingPreferences)
+        );
+      }
+      await this.updateMicrophoneProcessing(track, {
+        ...this.microphoneProcessingEnvironment(track),
+        documentVisible: visibilityState !== 'hidden'
+      });
+    });
+  }
+
+  private microphoneProcessingEnvironment(track: LocalAudioTrack): MicrophoneProcessingEnvironment {
+    const sourceDeviceId = track.getSourceTrackSettings().deviceId ?? this.selectedDeviceId;
+    const device = this.audioDevices.find((candidate) => candidate.deviceId === sourceDeviceId);
+    return {
+      bluetoothRoute: device ? audioDeviceRouteKind(device) === 'bluetooth' : false,
+      documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden'
+    };
   }
 
   /**
@@ -3185,6 +3239,28 @@ function availableDeviceId(
     return activeDeviceId;
   }
   return devices[0]?.deviceId ?? null;
+}
+
+function microphoneProcessingConstraints(
+  preferences: MicrophoneProcessingPreferences
+): Pick<
+  AudioCaptureOptions,
+  'autoGainControl' | 'echoCancellation' | 'noiseSuppression' | 'voiceIsolation'
+> {
+  return {
+    autoGainControl: preferences.automaticGainControl,
+    echoCancellation: preferences.echoCancellation,
+    noiseSuppression: preferences.noiseSuppression,
+    voiceIsolation: preferences.noiseSuppression
+  };
+}
+
+function setMicrophoneContentHint(track: LocalAudioTrack): void {
+  try {
+    track.mediaStreamTrack.contentHint = 'speech';
+  } catch {
+    // Some older engines expose contentHint as a read-only compatibility stub.
+  }
 }
 
 function microphoneTrackSettingsFingerprint(settings: MediaTrackSettings): string {

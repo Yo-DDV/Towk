@@ -30,6 +30,11 @@ export type MicrophoneProcessingPreferences = {
   enhancedNoiseSuppression: boolean;
 };
 
+export type MicrophoneProcessingEnvironment = {
+  bluetoothRoute: boolean;
+  documentVisible: boolean;
+};
+
 export const DEFAULT_MICROPHONE_PROCESSING_PREFERENCES: MicrophoneProcessingPreferences = {
   automaticGainControl: true,
   echoCancellation: true,
@@ -88,40 +93,45 @@ export async function ensureBackgroundNoiseSuppression(
     | 'setProcessor'
     | 'stopProcessor'
   >,
-  preferences: MicrophoneProcessingPreferences = DEFAULT_MICROPHONE_PROCESSING_PREFERENCES
+  preferences: MicrophoneProcessingPreferences = DEFAULT_MICROPHONE_PROCESSING_PREFERENCES,
+  environment: MicrophoneProcessingEnvironment = currentMicrophoneProcessingEnvironment()
 ): Promise<MicrophoneProcessingStatus> {
-  const settings = track.getSourceTrackSettings();
+  let settings = track.getSourceTrackSettings();
   const currentProcessor = track.getProcessor();
   if (currentProcessor instanceof BackgroundNoiseSuppressionProcessor) {
-    if (!currentProcessor.isCompatibleWith(settings)) {
+    if (
+      !shouldAttachEnhancedProcessing(settings, preferences, environment) ||
+      !currentProcessor.isCompatibleWith(settings, preferences)
+    ) {
       try {
         await track.stopProcessor();
-        return createNativeProcessingStatus(settings);
+        settings = track.getSourceTrackSettings();
+        if (!shouldAttachEnhancedProcessing(settings, preferences, environment)) {
+          return createNativeProcessingStatus(settings);
+        }
       } catch {
         // LiveKit stops the processed output before it reapplies the source
         // constraints while detaching. If that reapply fails during a route
         // transition, the RTP sender can otherwise remain on a stopped track.
         // Reacquire native capture to restore an audible sender.
         await restartNativeMicrophoneCapture(track, settings, preferences);
-        return createNativeProcessingStatus(track.getSourceTrackSettings());
+        settings = track.getSourceTrackSettings();
+        if (!shouldAttachEnhancedProcessing(settings, preferences, environment)) {
+          return createNativeProcessingStatus(settings);
+        }
       }
+    } else {
+      return currentProcessor.processingStatus;
     }
-    return currentProcessor.processingStatus;
   }
-  // Browser-native WebRTC processing shares the hardware route and clock. Do
-  // not add a second Web Audio clock when it is already active, or when the
-  // browser does not expose enough settings to prove the custom path safe.
-  if (!preferences.enhancedNoiseSuppression || !preferences.noiseSuppression) {
-    return createNativeProcessingStatus(settings);
-  }
-  if (!shouldAttachEnhancedProcessing(settings)) {
+  if (!shouldAttachEnhancedProcessing(settings, preferences, environment)) {
     return createNativeProcessingStatus(settings);
   }
   if (!BackgroundNoiseSuppressionProcessor.isSupported) {
     return createNativeProcessingStatus(settings);
   }
 
-  const processor = new BackgroundNoiseSuppressionProcessor();
+  const processor = new BackgroundNoiseSuppressionProcessor(preferences);
   await track.setProcessor(processor);
   return processor.processingStatus;
 }
@@ -220,6 +230,10 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
   private echoCancellation: boolean | null = null;
   private nativeNoiseSuppression = false;
 
+  constructor(
+    private readonly preferences: MicrophoneProcessingPreferences = DEFAULT_MICROPHONE_PROCESSING_PREFERENCES
+  ) {}
+
   static get isSupported(): boolean {
     return (
       typeof AudioContext !== 'undefined' &&
@@ -246,8 +260,24 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
     };
   }
 
-  isCompatibleWith(settings: MediaTrackSettings): boolean {
-    return canProcessAtContextRate(settings, this.audioContext?.sampleRate ?? Number.NaN);
+  isCompatibleWith(
+    settings: MediaTrackSettings,
+    preferences: MicrophoneProcessingPreferences = this.preferences
+  ): boolean {
+    const expectedAutomaticGainControlMode =
+      settings.autoGainControl === true
+        ? 'native'
+        : preferences.automaticGainControl
+          ? 'towk'
+          : 'unavailable';
+    return (
+      preferences.automaticGainControl === this.preferences.automaticGainControl &&
+      preferences.echoCancellation === this.preferences.echoCancellation &&
+      settings.echoCancellation === this.echoCancellation &&
+      (settings.noiseSuppression === true) === this.nativeNoiseSuppression &&
+      expectedAutomaticGainControlMode === this.automaticGainControlMode &&
+      canProcessAtContextRate(settings, this.audioContext?.sampleRate ?? Number.NaN)
+    );
   }
 
   async init(options: AudioProcessorOptions): Promise<void> {
@@ -304,7 +334,7 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
       this.suppressionMode = 'passthrough';
     }
 
-    if (this.automaticGainControlMode !== 'native') {
+    if (this.preferences.automaticGainControl && this.automaticGainControlMode !== 'native') {
       try {
         const automaticGainControlNode = await createAutomaticGainControlNode(audioContext);
         this.automaticGainControlNode = automaticGainControlNode;
@@ -386,38 +416,38 @@ export class BackgroundNoiseSuppressionProcessor implements TrackProcessor<
   }
 }
 
-function shouldAttachEnhancedProcessing(settings: MediaTrackSettings): boolean {
+function shouldAttachEnhancedProcessing(
+  settings: MediaTrackSettings,
+  preferences: MicrophoneProcessingPreferences,
+  environment: MicrophoneProcessingEnvironment
+): boolean {
   return (
-    !isMobileBrowserAudioRoute() &&
-    settings.noiseSuppression === false &&
+    preferences.enhancedNoiseSuppression &&
+    preferences.noiseSuppression &&
+    environment.documentVisible &&
+    !environment.bluetoothRoute &&
     settings.channelCount === 1 &&
     typeof settings.sampleRate === 'number' &&
     Number.isFinite(settings.sampleRate) &&
-    settings.sampleRate > 0
+    settings.sampleRate >= 32_000
   );
 }
 
 function canProcessAtContextRate(settings: MediaTrackSettings, contextSampleRate: number): boolean {
-  return shouldAttachEnhancedProcessing(settings) && settings.sampleRate === contextSampleRate;
+  return (
+    settings.channelCount === 1 &&
+    typeof settings.sampleRate === 'number' &&
+    Number.isFinite(settings.sampleRate) &&
+    settings.sampleRate >= 32_000 &&
+    settings.sampleRate === contextSampleRate
+  );
 }
 
-function isMobileBrowserAudioRoute(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const navigatorLike = navigator as Navigator & {
-    platform?: string;
-    userAgentData?: { mobile?: boolean };
+function currentMicrophoneProcessingEnvironment(): MicrophoneProcessingEnvironment {
+  return {
+    bluetoothRoute: false,
+    documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden'
   };
-
-  if (navigatorLike.userAgentData?.mobile === true) return true;
-
-  const userAgent = navigatorLike.userAgent;
-  if (/\b(Android|iPhone|iPad|iPod|IEMobile|Windows Phone|Mobile)\b/i.test(userAgent)) {
-    return true;
-  }
-
-  // iPadOS can expose a desktop Safari user agent. A touch-capable MacIntel
-  // platform in a browser capture context is the safest public signal.
-  return navigatorLike.platform === 'MacIntel' && navigatorLike.maxTouchPoints > 1;
 }
 
 async function createSuppressorNode(

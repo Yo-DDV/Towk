@@ -1,9 +1,29 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  CallAudioSessionController,
   CallMediaSessionController,
   CallWakeLockController,
   selectCallIntegrationCandidate
 } from './callIntegrations';
+
+describe('call Audio Session integration', () => {
+  it('classifies an active call as play-and-record and restores the previous type', () => {
+    const audioSession: { type: 'auto' | 'play-and-record' } = { type: 'auto' };
+    const controller = new CallAudioSessionController(audioSession);
+
+    controller.sync(true);
+    expect(audioSession.type).toBe('play-and-record');
+
+    controller.sync(false);
+    expect(audioSession.type).toBe('auto');
+  });
+
+  it('is a no-op when the browser does not expose Audio Session', () => {
+    const controller = new CallAudioSessionController(undefined);
+    expect(() => controller.sync(true)).not.toThrow();
+    expect(() => controller.sync(false)).not.toThrow();
+  });
+});
 
 function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));

@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import {
+    CallAudioSessionController,
     CallMediaSessionController,
     CallWakeLockController,
     selectCallIntegrationCandidate,
+    type CallAudioSessionLike,
     type CallMediaSessionLike,
     type VisibilityDocumentLike,
     type WakeLockNavigatorLike
@@ -23,6 +25,12 @@
       ? null
       : new CallMediaSessionController(
           navigator.mediaSession as unknown as CallMediaSessionLike | undefined
+        );
+  const audioSessionController =
+    typeof navigator === 'undefined'
+      ? null
+      : new CallAudioSessionController(
+          (navigator as Navigator & { audioSession?: CallAudioSessionLike }).audioSession
         );
 
   const activeCall = $derived.by(() => {
@@ -44,6 +52,7 @@
   $effect(() => {
     const active = activeCall;
     wakeLockController?.sync(active !== null);
+    audioSessionController?.sync(active !== null);
     mediaSessionController?.sync(
       active
         ? {
@@ -59,8 +68,19 @@
     );
   });
 
+  onMount(() => {
+    const handleVisibilityChange = () => {
+      void activeCall?.call
+        .handleDocumentVisibilityChange(document.visibilityState)
+        .catch(() => undefined);
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  });
+
   onDestroy(() => {
     void wakeLockController?.dispose();
+    audioSessionController?.sync(false);
     mediaSessionController?.sync(null);
   });
 </script>
