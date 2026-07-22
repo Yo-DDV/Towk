@@ -1100,8 +1100,8 @@
           data={virtualItems}
           getKey={(item, index) => item?.key ?? `__ix_${index}`}
           scrollRef={scrollContainer}
+          bufferSize={640}
           shift={isLoadingMore}
-          itemSize={60}
           onscroll={handleVirtuaScroll}
         >
           {#snippet children(item: VirtualItem)}

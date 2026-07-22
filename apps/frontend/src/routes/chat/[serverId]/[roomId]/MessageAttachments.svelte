@@ -11,7 +11,7 @@
   import type { ImageItem } from '$lib/ui/ImageModal.svelte';
 
   type RawAttachment = MessageAttachmentView;
-  import VideoPlayer, { preloadVideoPlayerElements } from '$lib/components/chat/VideoPlayer.svelte';
+  import VideoPlayer from '$lib/components/chat/VideoPlayer.svelte';
   import VoiceMessagePlayer from '$lib/components/chat/VoiceMessagePlayer.svelte';
   import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -146,6 +146,8 @@
   const GALLERY_THUMB_HEIGHT = 180;
   const GALLERY_THUMB_MIN_WIDTH = 72;
   const GALLERY_THUMB_MAX_WIDTH = 320;
+  const FALLBACK_SINGLE_THUMB_WIDTH = 192;
+  const FALLBACK_SINGLE_THUMB_HEIGHT = 128;
 
   type ThumbDisplay = {
     width: number;
@@ -199,6 +201,14 @@
     return {
       width: GALLERY_THUMB_HEIGHT,
       height: GALLERY_THUMB_HEIGHT,
+      fit: 'contain'
+    };
+  }
+
+  function fallbackSingleThumbDisplay(): ThumbDisplay {
+    return {
+      width: FALLBACK_SINGLE_THUMB_WIDTH,
+      height: FALLBACK_SINGLE_THUMB_HEIGHT,
       fit: 'contain'
     };
   }
@@ -281,14 +291,6 @@
 
   const imageAttachments = $derived(attachments.filter(isGalleryImageAttachment));
   const hasImageGallery = $derived(imageAttachments.length > 1);
-  const hasProcessedVideoAttachments = $derived(
-    attachments.some(
-      (attachment) =>
-        attachment.contentType.startsWith('video/') &&
-        attachment.videoProcessing?.status === VideoProcessingStatus.Completed &&
-        attachment.videoProcessing.variants.length > 0
-    )
-  );
   const remainingAttachments = $derived(
     hasImageGallery ? attachments.filter((a) => !isGalleryImageAttachment(a)) : attachments
   );
@@ -308,12 +310,6 @@
     return earliestAssetUrlRefreshAt(
       attachments.flatMap((attachment) => attachmentAssetUrls(attachment))
     );
-  });
-
-  $effect(() => {
-    if (hasProcessedVideoAttachments) {
-      void preloadVideoPlayerElements();
-    }
   });
 
   $effect(() => {
@@ -509,7 +505,7 @@
           : thumbDisplay(attachment.width, attachment.height)
         : variant === 'gallery'
           ? fallbackGalleryThumbDisplay()
-          : null}
+          : fallbackSingleThumbDisplay()}
     <button
       type="button"
       onclick={() => openImageModal(attachment)}
@@ -517,19 +513,19 @@
       data-testid={variant === 'gallery' ? 'message-gallery-image' : undefined}
       class={[
         'group/attachment relative embed-frame block min-w-0 cursor-pointer',
-        variant === 'gallery' && 'shrink-0',
-        !display && 'max-h-32'
+        variant === 'gallery' && 'shrink-0'
       ]}
-      style={display ? imageButtonStyle(display, variant) : undefined}
+      style={imageButtonStyle(display, variant)}
     >
       {#if imageAttachmentUrl(attachment)}
         <SkeletonImg
-          loading="lazy"
+          loading={variant === 'gallery' ? 'lazy' : 'eager'}
+          decoding="async"
           src={imageAttachmentUrl(attachment)}
           alt={attachment.filename}
           class={[
-            display?.fit === 'contain' ? 'object-contain' : 'object-cover',
-            display ? 'h-full w-full' : 'max-h-32 w-auto'
+            display.fit === 'contain' ? 'object-contain' : 'object-cover',
+            'h-full w-full'
           ]}
           onerror={() => refreshAfterAssetError(attachment, imageAttachmentRole(attachment))}
         />
