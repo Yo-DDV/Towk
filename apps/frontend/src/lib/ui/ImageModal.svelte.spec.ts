@@ -3,6 +3,25 @@ import { render } from 'vitest-browser-svelte';
 import ImageModal from './ImageModal.svelte';
 
 describe('ImageModal', () => {
+  it('exposes a safe overlay close button for touch media viewers', async () => {
+    let closed = false;
+    const { container } = render(ImageModal, {
+      props: {
+        items: [{ src: 'https://cdn.example.com/display.jpg', filename: 'image.jpg' }],
+        onclose: () => {
+          closed = true;
+        }
+      }
+    });
+
+    const closeButton = container.querySelector<HTMLButtonElement>('.image-modal-close');
+
+    expect(closeButton).not.toBeNull();
+    expect(closeButton?.getAttribute('aria-label')).toBe('Close');
+    closeButton?.click();
+    expect(closed).toBe(true);
+  });
+
   it('keeps the original image action as a native link', async () => {
     const { container } = render(ImageModal, {
       props: {

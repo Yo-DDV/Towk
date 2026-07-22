@@ -13,6 +13,19 @@
     });
     await vidstackElementsPromise;
   }
+
+  export function shouldRequestNativeOverlayFullscreen(): boolean {
+    if (typeof document === 'undefined' || !document.fullscreenEnabled) return false;
+    if (typeof navigator === 'undefined') return true;
+
+    const userAgent = navigator.userAgent ?? '';
+    const platform = navigator.platform ?? '';
+    const maxTouchPoints = navigator.maxTouchPoints ?? 0;
+    const isAppleTouchDevice =
+      /iPad|iPhone|iPod/.test(userAgent) || (platform === 'MacIntel' && maxTouchPoints > 1);
+
+    return !isAppleTouchDevice;
+  }
 </script>
 
 <script lang="ts">
@@ -302,8 +315,11 @@
       fullscreenVideo.open(highestVariant.url, thumbnailUrl ?? null, video?.currentTime ?? 0);
 
       // Request native fullscreen on the overlay after Svelte renders it.
-      // tick() preserves the user activation from this click event.
+      // tick() preserves the user activation from this click event. iOS/iPadOS
+      // PWA stays in CSS fullscreen: native fullscreen can place controls below
+      // unsafe notches/status bars and make the close affordance unreachable.
       tick().then(() => {
+        if (!shouldRequestNativeOverlayFullscreen()) return;
         document
           .querySelector('.fullscreen-overlay')
           ?.requestFullscreen()

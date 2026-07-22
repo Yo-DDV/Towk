@@ -2,7 +2,7 @@ import { tick } from 'svelte';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { VideoProcessingStatus } from '$lib/render/types';
-import VideoPlayer from './VideoPlayer.svelte';
+import VideoPlayer, { shouldRequestNativeOverlayFullscreen } from './VideoPlayer.svelte';
 
 const TRANSPARENT_THUMBNAIL = 'data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=';
 const LAZY_PLAYER_TIMEOUT_MS = 10_000;
@@ -91,6 +91,37 @@ async function posterImage(container: HTMLElement): Promise<HTMLImageElement> {
 }
 
 describe('VideoPlayer', () => {
+  it('keeps iPhone and iPad PWA playback in the safe CSS overlay', () => {
+    const fullscreenDescriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'fullscreenEnabled');
+    const userAgentDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'userAgent');
+    const platformDescriptor = Object.getOwnPropertyDescriptor(Navigator.prototype, 'platform');
+    const maxTouchPointsDescriptor = Object.getOwnPropertyDescriptor(
+      Navigator.prototype,
+      'maxTouchPoints'
+    );
+
+    try {
+      Object.defineProperty(document, 'fullscreenEnabled', { configurable: true, value: true });
+      Object.defineProperty(navigator, 'userAgent', {
+        configurable: true,
+        value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15'
+      });
+      Object.defineProperty(navigator, 'platform', { configurable: true, value: 'iPhone' });
+      Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 });
+
+      expect(shouldRequestNativeOverlayFullscreen()).toBe(false);
+    } finally {
+      if (fullscreenDescriptor) {
+        Object.defineProperty(Document.prototype, 'fullscreenEnabled', fullscreenDescriptor);
+      }
+      if (userAgentDescriptor) Object.defineProperty(Navigator.prototype, 'userAgent', userAgentDescriptor);
+      if (platformDescriptor) Object.defineProperty(Navigator.prototype, 'platform', platformDescriptor);
+      if (maxTouchPointsDescriptor) {
+        Object.defineProperty(Navigator.prototype, 'maxTouchPoints', maxTouchPointsDescriptor);
+      }
+    }
+  });
+
   it('keeps a stable poster frame while the custom player registers', () => {
     const { container } = renderPostedVideo({
       width: 1080,
