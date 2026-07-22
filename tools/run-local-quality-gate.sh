@@ -119,11 +119,11 @@ echo "Starting frontend browser tests"
       local batch_status=$?
     fi
 
-    if ((batch_status != 124)); then
-      return "$batch_status"
+    if ((batch_status == 124)); then
+      echo "Browser batch exceeded ${browser_batch_timeout_seconds}s; retrying each file in isolation"
+    else
+      echo "Browser batch failed with status ${batch_status}; retrying each file in isolation"
     fi
-
-    echo "Browser batch exceeded ${browser_batch_timeout_seconds}s; retrying each file in isolation"
     local test_file
     for test_file in "${browser_test_batch[@]}"; do
       timeout --kill-after=10s 90s \
