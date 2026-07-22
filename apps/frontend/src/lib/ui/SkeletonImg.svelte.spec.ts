@@ -37,6 +37,21 @@ describe('SkeletonImg', () => {
     expect(img!.classList.contains('skeleton')).toBe(false);
   });
 
+  it('keeps signed asset refreshes warm when only the URL query changes', () => {
+    rememberLoadedImageSource('https://chat.example.test/assets/files/preview.webp?access=old');
+
+    const { container } = render(SkeletonImg, {
+      props: {
+        src: 'https://chat.example.test/assets/files/preview.webp?access=new',
+        alt: 'Refreshed signed room media'
+      }
+    });
+
+    const img = container.querySelector('img') as HTMLImageElement | null;
+    expect(img).toBeTruthy();
+    expect(img!.classList.contains('skeleton')).toBe(false);
+  });
+
   it('does not flash the loading skeleton when the browser already has the image cached', async () => {
     mockBrowserCachedImages();
 
