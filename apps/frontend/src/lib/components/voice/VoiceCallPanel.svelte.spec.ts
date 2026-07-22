@@ -107,7 +107,8 @@ describe('VoiceCallPanel screen-share audio', () => {
       expect(processingValues.map((item) => item.textContent?.trim())).toEqual([
         'Noise reduction Requested, unavailable on this route',
         'Automatic gain Requested, unavailable on this route',
-        'Echo cancellation Requested, status not exposed by this browser'
+        'Echo cancellation Requested, status not exposed by this browser',
+        'Screen-share frame rate Stable · up to 30 FPS'
       ]);
       expect(deviceValues).toHaveLength(3);
       expect(document.activeElement).toBe(processingValues[0]);

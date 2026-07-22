@@ -202,6 +202,10 @@ Reads available devices and current selection from `voiceCallState`.
     await voiceCallState.setMicrophoneProcessingPreference(control.key, !control.enabled);
   }
 
+  function toggleHighFrameRateScreenShare(): void {
+    voiceCallState.setScreenShareHighFrameRate(!voiceCallState.screenShareHighFrameRate);
+  }
+
   function deviceName(section: DeviceSection, device: MediaDeviceInfo): string {
     if (section.kind === 'videoinput') {
       return cameraDeviceNames.get(device.deviceId) ?? m['voice.camera']();
@@ -282,6 +286,7 @@ Reads available devices and current selection from `voiceCallState`.
   $effect(() => {
     const deviceCount =
       microphoneProcessingControls.length +
+      (voiceCallState.canShareScreen ? 1 : 0) +
       sections.reduce((total, section) => total + section.devices.length, 0) +
       (voiceCallState.canRequestAudioOutputDevice ? 1 : 0);
     if (initialFocusApplied || deviceCount === 0) return;
@@ -357,6 +362,59 @@ Reads available devices and current selection from `voiceCallState`.
         {/each}
       </div>
     </div>
+    {#if voiceCallState.canShareScreen}
+      <div class="menu-section" role="group" aria-labelledby="call-video-quality-title">
+        <div
+          id="call-video-quality-title"
+          class="flex items-center gap-2 px-3 pt-4 pb-2 text-sm font-semibold text-text"
+        >
+          <span class="iconify text-base text-muted uil--film" aria-hidden="true"></span>
+          {m['voice.video_quality_title']()}
+        </div>
+        <div class="sidebar-nav">
+          <button
+            class="sidebar-item min-h-[64px] gap-3 rounded-lg px-3"
+            role="menuitemcheckbox"
+            aria-checked={voiceCallState.screenShareHighFrameRate}
+            tabindex="-1"
+            disabled={!voiceCallState.canUseHighFrameRateScreenShare ||
+              voiceCallState.isScreenSharePending ||
+              voiceCallState.isScreenShareEnabled}
+            onclick={toggleHighFrameRateScreenShare}
+          >
+            <span class="sidebar-icon iconify text-muted uil--monitor" aria-hidden="true"></span>
+            <span class="min-w-0 flex-1 text-left">
+              <span class="block truncate">{m['voice.screen_share_frame_rate']()}</span>
+              <span class="block text-xs text-muted">
+                {voiceCallState.canUseHighFrameRateScreenShare
+                  ? voiceCallState.screenShareHighFrameRate
+                    ? m['voice.screen_share_frame_rate_high']()
+                    : m['voice.screen_share_frame_rate_standard']()
+                  : m['voice.screen_share_frame_rate_unavailable']()}
+              </span>
+            </span>
+            <span
+              class={[
+                'relative inline-flex h-8 w-14 shrink-0 items-center rounded-full border transition-colors',
+                voiceCallState.screenShareHighFrameRate
+                  ? 'border-accent/50 bg-accent/25'
+                  : 'border-text/10 bg-surface-300'
+              ]}
+              aria-hidden="true"
+            >
+              <span
+                class={[
+                  'h-6 w-6 rounded-full shadow-sm transition-transform',
+                  voiceCallState.screenShareHighFrameRate
+                    ? 'translate-x-7 bg-accent'
+                    : 'translate-x-1 bg-muted'
+                ]}
+              ></span>
+            </span>
+          </button>
+        </div>
+      </div>
+    {/if}
     {#each sections as section, sectionIndex (section.label)}
       <div
         class="menu-section"

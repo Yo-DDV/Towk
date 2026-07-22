@@ -172,6 +172,12 @@
     "screen_stats_content_hint": "Content hint",
     "screen_stats_yes": "Yes",
     "screen_stats_no": "No",
+    "screen_stats_technical_details": "Technical details",
+    "video_quality_title": "Video quality",
+    "screen_share_frame_rate": "Screen-share frame rate",
+    "screen_share_frame_rate_standard": "Stable · up to 30 FPS",
+    "screen_share_frame_rate_high": "High motion · up to 60 FPS",
+    "screen_share_frame_rate_unavailable": "High frame rate is unavailable in this browser",
     "screen_stats_local_only": "Updates every 2 seconds while open · 60-second local history · nothing is uploaded"
   }
 }

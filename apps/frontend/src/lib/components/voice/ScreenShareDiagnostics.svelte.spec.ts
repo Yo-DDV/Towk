@@ -57,6 +57,10 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(1);
+    const technicalDetails = rendered.container.querySelector('details');
+    expect(technicalDetails?.open).toBe(false);
+    expect(technicalDetails?.querySelector('summary')?.textContent).toContain('Technical details');
+    expect(rendered.container.textContent).toContain('AV1');
 
     await vi.advanceTimersByTimeAsync(4_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(3);

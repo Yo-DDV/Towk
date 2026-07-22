@@ -311,7 +311,7 @@ strictly local, starts only while this component is mounted, and stops on close.
           </span>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 @min-[560px]:grid-cols-4">
+        <div class="grid grid-cols-2 gap-2 @min-[560px]:grid-cols-3 @min-[900px]:grid-cols-6">
           <div class="rounded-md border border-text/10 bg-surface-100/80 p-2.5">
             <div class="text-[10px] font-medium text-muted">
               {m['voice.screen_stats_resolution']()}
@@ -340,6 +340,18 @@ strictly local, starts only while this component is mounted, and stops on close.
             </div>
             <div class="mt-1 text-base font-semibold tabular-nums">
               {formatPercent(sample.packetLossPercent)}
+            </div>
+          </div>
+          <div class="rounded-md border border-text/10 bg-surface-100/80 p-2.5">
+            <div class="text-[10px] font-medium text-muted">{m['voice.screen_stats_rtt']()}</div>
+            <div class="mt-1 text-base font-semibold tabular-nums">
+              {formatMilliseconds(sample.roundTripTimeMs)}
+            </div>
+          </div>
+          <div class="rounded-md border border-text/10 bg-surface-100/80 p-2.5">
+            <div class="text-[10px] font-medium text-muted">{m['voice.screen_stats_codec']()}</div>
+            <div class="mt-1 truncate font-mono text-base font-semibold">
+              {sample.codec ?? '—'}
             </div>
           </div>
         </div>
@@ -374,207 +386,225 @@ strictly local, starts only while this component is mounted, and stops on close.
           </div>
         </section>
 
-        <div class="grid grid-cols-1 gap-2 @min-[700px]:grid-cols-3">
-          <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
-            <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold">
-              <span class="iconify text-muted uil--exchange" aria-hidden="true"></span>
-              {m['voice.screen_stats_transport']()}
-            </h3>
-            <dl class="space-y-2 text-xs">
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_available_bandwidth']()}</dt>
-                <dd class="font-medium tabular-nums">
-                  {formatBitrate(sample.availableBitrateBps)}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_rtt']()}</dt>
-                <dd class="font-medium tabular-nums">
-                  {formatMilliseconds(sample.roundTripTimeMs)}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_jitter']()}</dt>
-                <dd class="font-medium tabular-nums">{formatMilliseconds(sample.jitterMs)}</dd>
-              </div>
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_packets']()}</dt>
-                <dd class="font-medium break-words tabular-nums">{packetsValue(sample)}</dd>
-              </div>
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_candidate_path']()}</dt>
-                <dd class="font-mono text-[11px] font-medium break-words">
-                  {candidatePath(sample)}
-                </dd>
-              </div>
-            </dl>
-          </section>
+        <details class="group rounded-md border border-text/10 bg-surface-100/35">
+          <summary
+            class="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-semibold marker:content-none"
+          >
+            <span class="iconify text-muted uil--wrench" aria-hidden="true"></span>
+            <span>{m['voice.screen_stats_technical_details']()}</span>
+            <span
+              class="ml-auto iconify text-muted transition-transform uil--angle-down group-open:rotate-180"
+              aria-hidden="true"
+            ></span>
+          </summary>
+          <div class="space-y-2 border-t border-border/70 p-2">
+            <div class="grid grid-cols-1 gap-2 @min-[700px]:grid-cols-3">
+              <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
+                <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+                  <span class="iconify text-muted uil--exchange" aria-hidden="true"></span>
+                  {m['voice.screen_stats_transport']()}
+                </h3>
+                <dl class="space-y-2 text-xs">
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_available_bandwidth']()}</dt>
+                    <dd class="font-medium tabular-nums">
+                      {formatBitrate(sample.availableBitrateBps)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_rtt']()}</dt>
+                    <dd class="font-medium tabular-nums">
+                      {formatMilliseconds(sample.roundTripTimeMs)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_jitter']()}</dt>
+                    <dd class="font-medium tabular-nums">{formatMilliseconds(sample.jitterMs)}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_packets']()}</dt>
+                    <dd class="font-medium break-words tabular-nums">{packetsValue(sample)}</dd>
+                  </div>
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_candidate_path']()}</dt>
+                    <dd class="font-mono text-[11px] font-medium break-words">
+                      {candidatePath(sample)}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
 
-          <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
-            <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold">
-              <span class="iconify text-muted uil--processor" aria-hidden="true"></span>
-              {m['voice.screen_stats_video_pipeline']()}
-            </h3>
-            <dl class="space-y-2 text-xs">
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_codec']()}</dt>
-                <dd class="font-mono text-[11px] font-medium">{sample.codec ?? '—'}</dd>
-              </div>
-              {#if direction === 'outbound'}
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_source_resolution']()}</dt>
-                  <dd class="font-medium tabular-nums">
-                    {formatResolution(sample.sourceWidth, sample.sourceHeight)}
-                  </dd>
-                </div>
-              {/if}
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_frames']()}</dt>
-                <dd class="font-medium break-words tabular-nums">{framesValue(sample)}</dd>
-              </div>
-              {#if direction === 'inbound'}
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_frame_drop']()}</dt>
-                  <dd class="font-medium tabular-nums">{formatPercent(sample.frameDropPercent)}</dd>
-                </div>
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_freezes']()}</dt>
-                  <dd class="font-medium tabular-nums">
-                    {formatNumber(sample.freezeCount)} · {formatDuration(
-                      sample.totalFreezeDurationMs
-                    )}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_jitter_buffer']()}</dt>
-                  <dd class="font-medium tabular-nums">
-                    {formatMilliseconds(sample.jitterBufferDelayMs)}
-                  </dd>
-                </div>
-              {/if}
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_implementation']()}</dt>
-                <dd class="font-mono text-[11px] font-medium break-words">
-                  {codecImplementation(sample)}
-                </dd>
-              </div>
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_power_efficient']()}</dt>
-                <dd class="font-medium">
-                  {sample.powerEfficientCodec === null
-                    ? '—'
-                    : sample.powerEfficientCodec
-                      ? m['voice.screen_stats_yes']()
-                      : m['voice.screen_stats_no']()}
-                </dd>
-              </div>
-              {#if sample.contentHint}
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_content_hint']()}</dt>
-                  <dd class="font-mono text-[11px] font-medium">{sample.contentHint}</dd>
-                </div>
-              {/if}
-            </dl>
-          </section>
+              <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
+                <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+                  <span class="iconify text-muted uil--processor" aria-hidden="true"></span>
+                  {m['voice.screen_stats_video_pipeline']()}
+                </h3>
+                <dl class="space-y-2 text-xs">
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_codec']()}</dt>
+                    <dd class="font-mono text-[11px] font-medium">{sample.codec ?? '—'}</dd>
+                  </div>
+                  {#if direction === 'outbound'}
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_source_resolution']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatResolution(sample.sourceWidth, sample.sourceHeight)}
+                      </dd>
+                    </div>
+                  {/if}
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_frames']()}</dt>
+                    <dd class="font-medium break-words tabular-nums">{framesValue(sample)}</dd>
+                  </div>
+                  {#if direction === 'inbound'}
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_frame_drop']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatPercent(sample.frameDropPercent)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_freezes']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatNumber(sample.freezeCount)} · {formatDuration(
+                          sample.totalFreezeDurationMs
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_jitter_buffer']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatMilliseconds(sample.jitterBufferDelayMs)}
+                      </dd>
+                    </div>
+                  {/if}
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_implementation']()}</dt>
+                    <dd class="font-mono text-[11px] font-medium break-words">
+                      {codecImplementation(sample)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_power_efficient']()}</dt>
+                    <dd class="font-medium">
+                      {sample.powerEfficientCodec === null
+                        ? '—'
+                        : sample.powerEfficientCodec
+                          ? m['voice.screen_stats_yes']()
+                          : m['voice.screen_stats_no']()}
+                    </dd>
+                  </div>
+                  {#if sample.contentHint}
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_content_hint']()}</dt>
+                      <dd class="font-mono text-[11px] font-medium">{sample.contentHint}</dd>
+                    </div>
+                  {/if}
+                </dl>
+              </section>
 
-          <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
-            <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold">
-              <span class="iconify text-muted uil--signal-alt-3" aria-hidden="true"></span>
-              {direction === 'outbound'
-                ? m['voice.screen_stats_congestion_control']()
-                : m['voice.screen_stats_reception_details']()}
-            </h3>
-            <dl class="space-y-2 text-xs">
-              {#if direction === 'outbound'}
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_target_bitrate']()}</dt>
-                  <dd class="font-medium tabular-nums">
-                    {formatBitrate(sample.targetBitrateBps)}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_quality_limit']()}</dt>
-                  <dd class="font-mono text-[11px] font-medium break-words">
-                    {qualityLimitValue(sample)}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_resolution_changes']()}</dt>
-                  <dd class="font-medium tabular-nums">
-                    {formatNumber(sample.qualityLimitationResolutionChanges)}
-                  </dd>
-                </div>
-              {:else}
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_key_frames']()}</dt>
-                  <dd class="font-medium tabular-nums">{formatNumber(sample.keyFrames)}</dd>
-                </div>
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_pauses']()}</dt>
-                  <dd class="font-medium tabular-nums">
-                    {formatNumber(sample.pauseCount)} · {formatDuration(
-                      sample.totalPauseDurationMs
-                    )}
-                  </dd>
-                </div>
-              {/if}
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_layers']()}</dt>
-                <dd class="font-medium tabular-nums">{formatNumber(sample.activeLayerCount)}</dd>
-              </div>
-              <div>
-                <dt class="text-muted">{m['voice.screen_stats_feedback']()}</dt>
-                <dd class="font-mono text-[11px] font-medium break-words">
-                  {feedbackValue(sample)}
-                </dd>
-              </div>
-              {#if direction === 'outbound'}
-                <div>
-                  <dt class="text-muted">{m['voice.screen_stats_retransmissions']()}</dt>
-                  <dd class="font-medium break-words tabular-nums">
-                    {retransmissionValue(sample)}
-                  </dd>
-                </div>
-              {/if}
-            </dl>
-          </section>
-        </div>
-
-        {#if direction === 'outbound' && sample.layers.length > 1}
-          <section class="overflow-hidden rounded-md border border-text/10 bg-surface-100/55">
-            <h3 class="border-b border-border/70 px-3 py-2 text-xs font-semibold">
-              {m['voice.screen_stats_layers']()}
-            </h3>
-            <div class="overflow-x-auto">
-              <table class="w-full min-w-[520px] text-left text-xs tabular-nums">
-                <thead class="text-[10px] text-muted uppercase">
-                  <tr
-                    ><th class="px-3 py-2">RID</th><th class="px-3 py-2"
-                      >{m['voice.screen_stats_resolution']()}</th
-                    ><th class="px-3 py-2">FPS</th><th class="px-3 py-2"
-                      >{m['voice.screen_stats_bitrate']()}</th
-                    ><th class="px-3 py-2">{m['voice.screen_stats_target_bitrate']()}</th><th
-                      class="px-3 py-2">Mode</th
-                    ></tr
-                  >
-                </thead>
-                <tbody class="divide-y divide-border/60">
-                  {#each sample.layers as layer (layer.id)}
-                    <tr
-                      ><td class="px-3 py-2 font-mono">{layer.rid ?? '—'}</td><td class="px-3 py-2"
-                        >{formatResolution(layer.width, layer.height)}</td
-                      ><td class="px-3 py-2">{formatNumber(layer.framesPerSecond, 1)}</td><td
-                        class="px-3 py-2">{formatBitrate(layer.bitrateBps)}</td
-                      ><td class="px-3 py-2">{formatBitrate(layer.targetBitrateBps)}</td><td
-                        class="px-3 py-2 font-mono">{layer.scalabilityMode ?? '—'}</td
-                      ></tr
-                    >
-                  {/each}
-                </tbody>
-              </table>
+              <section class="rounded-md border border-text/10 bg-surface-100/55 p-3">
+                <h3 class="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+                  <span class="iconify text-muted uil--signal-alt-3" aria-hidden="true"></span>
+                  {direction === 'outbound'
+                    ? m['voice.screen_stats_congestion_control']()
+                    : m['voice.screen_stats_reception_details']()}
+                </h3>
+                <dl class="space-y-2 text-xs">
+                  {#if direction === 'outbound'}
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_target_bitrate']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatBitrate(sample.targetBitrateBps)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_quality_limit']()}</dt>
+                      <dd class="font-mono text-[11px] font-medium break-words">
+                        {qualityLimitValue(sample)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_resolution_changes']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatNumber(sample.qualityLimitationResolutionChanges)}
+                      </dd>
+                    </div>
+                  {:else}
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_key_frames']()}</dt>
+                      <dd class="font-medium tabular-nums">{formatNumber(sample.keyFrames)}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_pauses']()}</dt>
+                      <dd class="font-medium tabular-nums">
+                        {formatNumber(sample.pauseCount)} · {formatDuration(
+                          sample.totalPauseDurationMs
+                        )}
+                      </dd>
+                    </div>
+                  {/if}
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_layers']()}</dt>
+                    <dd class="font-medium tabular-nums">
+                      {formatNumber(sample.activeLayerCount)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="text-muted">{m['voice.screen_stats_feedback']()}</dt>
+                    <dd class="font-mono text-[11px] font-medium break-words">
+                      {feedbackValue(sample)}
+                    </dd>
+                  </div>
+                  {#if direction === 'outbound'}
+                    <div>
+                      <dt class="text-muted">{m['voice.screen_stats_retransmissions']()}</dt>
+                      <dd class="font-medium break-words tabular-nums">
+                        {retransmissionValue(sample)}
+                      </dd>
+                    </div>
+                  {/if}
+                </dl>
+              </section>
             </div>
-          </section>
-        {/if}
+
+            {#if direction === 'outbound' && sample.layers.length > 1}
+              <section class="overflow-hidden rounded-md border border-text/10 bg-surface-100/55">
+                <h3 class="border-b border-border/70 px-3 py-2 text-xs font-semibold">
+                  {m['voice.screen_stats_layers']()}
+                </h3>
+                <div class="overflow-x-auto">
+                  <table class="w-full min-w-[520px] text-left text-xs tabular-nums">
+                    <thead class="text-[10px] text-muted uppercase">
+                      <tr
+                        ><th class="px-3 py-2">RID</th><th class="px-3 py-2"
+                          >{m['voice.screen_stats_resolution']()}</th
+                        ><th class="px-3 py-2">FPS</th><th class="px-3 py-2"
+                          >{m['voice.screen_stats_bitrate']()}</th
+                        ><th class="px-3 py-2">{m['voice.screen_stats_target_bitrate']()}</th><th
+                          class="px-3 py-2">Mode</th
+                        ></tr
+                      >
+                    </thead>
+                    <tbody class="divide-y divide-border/60">
+                      {#each sample.layers as layer (layer.id)}
+                        <tr
+                          ><td class="px-3 py-2 font-mono">{layer.rid ?? '—'}</td><td
+                            class="px-3 py-2">{formatResolution(layer.width, layer.height)}</td
+                          ><td class="px-3 py-2">{formatNumber(layer.framesPerSecond, 1)}</td><td
+                            class="px-3 py-2">{formatBitrate(layer.bitrateBps)}</td
+                          ><td class="px-3 py-2">{formatBitrate(layer.targetBitrateBps)}</td><td
+                            class="px-3 py-2 font-mono">{layer.scalabilityMode ?? '—'}</td
+                          ></tr
+                        >
+                      {/each}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            {/if}
+          </div>
+        </details>
 
         {#if unavailable}
           <p

@@ -1257,6 +1257,12 @@ const msg_voice_screen_stats_candidate_path = (): LocalizedString => messages().
 const msg_voice_screen_stats_content_hint = (): LocalizedString => messages().voice_screen_stats_content_hint(empty());
 const msg_voice_screen_stats_yes = (): LocalizedString => messages().voice_screen_stats_yes(empty());
 const msg_voice_screen_stats_no = (): LocalizedString => messages().voice_screen_stats_no(empty());
+const msg_voice_screen_stats_technical_details = (): LocalizedString => messages().voice_screen_stats_technical_details(empty());
+const msg_voice_video_quality_title = (): LocalizedString => messages().voice_video_quality_title(empty());
+const msg_voice_screen_share_frame_rate = (): LocalizedString => messages().voice_screen_share_frame_rate(empty());
+const msg_voice_screen_share_frame_rate_standard = (): LocalizedString => messages().voice_screen_share_frame_rate_standard(empty());
+const msg_voice_screen_share_frame_rate_high = (): LocalizedString => messages().voice_screen_share_frame_rate_high(empty());
+const msg_voice_screen_share_frame_rate_unavailable = (): LocalizedString => messages().voice_screen_share_frame_rate_unavailable(empty());
 const msg_voice_screen_stats_local_only = (): LocalizedString => messages().voice_screen_stats_local_only(empty());
 const msg_composer_attach_file = (): LocalizedString => messages().composer_attach_file(empty());
 const msg_composer_send = (): LocalizedString => messages().composer_send(empty());
@@ -3025,6 +3031,12 @@ export { msg_voice_screen_stats_candidate_path as 'voice.screen_stats_candidate_
 export { msg_voice_screen_stats_content_hint as 'voice.screen_stats_content_hint' };
 export { msg_voice_screen_stats_yes as 'voice.screen_stats_yes' };
 export { msg_voice_screen_stats_no as 'voice.screen_stats_no' };
+export { msg_voice_screen_stats_technical_details as 'voice.screen_stats_technical_details' };
+export { msg_voice_video_quality_title as 'voice.video_quality_title' };
+export { msg_voice_screen_share_frame_rate as 'voice.screen_share_frame_rate' };
+export { msg_voice_screen_share_frame_rate_standard as 'voice.screen_share_frame_rate_standard' };
+export { msg_voice_screen_share_frame_rate_high as 'voice.screen_share_frame_rate_high' };
+export { msg_voice_screen_share_frame_rate_unavailable as 'voice.screen_share_frame_rate_unavailable' };
 export { msg_voice_screen_stats_local_only as 'voice.screen_stats_local_only' };
 export { msg_composer_attach_file as 'composer.attach_file' };
 export { msg_composer_send as 'composer.send' };

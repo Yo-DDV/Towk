@@ -172,6 +172,12 @@
     "screen_stats_content_hint": "Indicação de conteúdo",
     "screen_stats_yes": "Sim",
     "screen_stats_no": "Não",
+    "screen_stats_technical_details": "Detalhes técnicos",
+    "video_quality_title": "Qualidade de vídeo",
+    "screen_share_frame_rate": "Taxa de quadros do compartilhamento de tela",
+    "screen_share_frame_rate_standard": "Estável · até 30 FPS",
+    "screen_share_frame_rate_high": "Movimento fluido · até 60 FPS",
+    "screen_share_frame_rate_unavailable": "A alta taxa de quadros não está disponível neste navegador",
     "screen_stats_local_only": "Atualização a cada 2 segundos enquanto aberto · histórico local de 60 segundos · nenhum dado é enviado"
   }
 }

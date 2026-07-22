@@ -285,6 +285,47 @@ describe('screen-share diagnostics collection', () => {
     expect(update.sample.layers[1]).toMatchObject({ rid: 'l', bitrateBps: 1_000_000 });
   });
 
+  it('uses media-source only for capture data and derives encoded FPS from RTP deltas', async () => {
+    const report = (timestamp: number, framesEncoded: number) =>
+      statsReport(
+        {
+          id: 'outbound',
+          type: 'outbound-rtp',
+          kind: 'video',
+          timestamp,
+          mediaSourceId: 'source',
+          bytesSent: 500_000,
+          packetsSent: 500,
+          framesEncoded
+        },
+        {
+          id: 'source',
+          type: 'media-source',
+          kind: 'video',
+          width: 1920,
+          height: 1080,
+          framesPerSecond: 60
+        }
+      );
+    const track = localTrack([report(1_000, 60), report(3_000, 120)]);
+
+    const initial = await collectScreenShareDiagnostics({ track, direction: 'outbound' });
+    const result = await collectScreenShareDiagnostics({
+      track,
+      direction: 'outbound',
+      previous: initial.counters
+    });
+
+    expect(result.sample).toMatchObject({
+      width: null,
+      height: null,
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      sourceFramesPerSecond: 60,
+      framesPerSecond: 30
+    });
+  });
+
   it('reports the highest active simulcast layer instead of an inactive larger layer', async () => {
     const track = localTrack([
       statsReport(

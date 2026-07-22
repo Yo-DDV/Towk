@@ -210,22 +210,31 @@ Towk configures call media for graceful degradation rather than a fixed quality:
   hard mute state synchronized. The speaker button therefore mutes microphone
   and screen-share audio on iOS as well as browsers that support script-driven
   media volume.
-- **Camera video** requests a 4:3 1280 × 960 stream at no more than 30 FPS and
+- **Camera video** requests a 4:3 1280 × 960 stream targeting 30 FPS and
   asks compatible browsers not to crop the source frame. This keeps the field of
   view of 4:3 phone cameras instead of selecting a tighter 16:9 sensor mode,
-  while still publishing adaptive layers for smaller viewers and weaker links.
-  LiveKit simulcast, dynacast, and adaptive receive selection let each viewer
-  use the layer that fits their element and bandwidth; camera publication
-  preserves frame rate first when congestion requires lower detail. Camera and
-  screen content also use aspect-ratio-preserving rendering.
-- **Screen sharing** publishes a 1080p/30 ceiling with 360p and 720p simulcast
-  layers. The receiver can move between layers without stretching or cropping
-  the shared desktop, while congestion adaptation preserves resolution first
-  so shared text remains readable. Screen audio is included only when the
+  while publishing explicit 30 FPS adaptive layers for smaller viewers and
+  weaker links. Mobile publishers use one lower spatial layer in addition to
+  the source layer to avoid requesting a third concurrent hardware encoding
+  session. LiveKit simulcast, dynacast, and adaptive receive selection let each
+  viewer use the layer that fits their element and bandwidth; camera publication
+  reduces resolution before cadence when congestion requires less data. Camera
+  and screen content also use aspect-ratio-preserving rendering.
+- **Screen sharing** requests up to 1080p/30 on compatible desktop browsers and
+  publishes 360p/30 and 720p/30 adaptive layers. A user can opt into a bounded
+  1080p/60 motion profile on supported desktop engines; the stable 30 FPS profile
+  remains the default. Browsers that cannot sustain the requested cadence
+  naturally provide a lower capture rate. WebKit capture is intentionally left
+  unconstrained and uses a single encrypted stream to avoid affected Safari and
+  iOS simulcast or low-resolution paths. Screen audio is included only when the
   browser and selected capture source provide it.
-- **Codec negotiation** is left to WebRTC and LiveKit so participants receive a
-  mutually supported codec. Do not force H.264 as the only codec: VP8 is the
-  common interoperable baseline for the currently supported browser engines.
+- **Video codecs** prefer a compatible H.264 encoder for camera and screen-share
+  tracks, including WebKit implementations that negotiate H.264 without exposing
+  format parameters in the capability probe. A client whose sender explicitly
+  exposes no compatible H.264 codec selects VP8 before publication instead of
+  failing the encrypted call. Codec backup publication is disabled because
+  simultaneous backup tracks are not supported by the current end-to-end
+  encrypted LiveKit publication path.
 
 When signaling or media is interrupted, the local client shows a reconnecting
 notice and preserves its device choices while LiveKit attempts recovery. If a
