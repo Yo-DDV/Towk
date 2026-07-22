@@ -179,6 +179,71 @@ describe('EventList jump completion', () => {
     expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
   });
 
+  it('keeps the room switch mask until visible timeline media has decoded', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+    );
+
+    const animationFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        animationFrames.push(callback);
+        return animationFrames.length;
+      })
+    );
+
+    try {
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-with-pending-image'],
+        scrollToEventId: null
+      });
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull()
+      );
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="mock-timeline-image"]')).not.toBeNull()
+      );
+
+      for (let frame = 0; frame < 12; frame++) {
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
+
+      const image = document.querySelector('[data-testid="mock-timeline-image"]');
+      expect(image).toBeInstanceOf(HTMLImageElement);
+      Object.defineProperty(image, 'complete', { configurable: true, value: true });
+      Object.defineProperty(image, 'naturalWidth', { configurable: true, value: 320 });
+      image?.classList.remove('skeleton');
+
+      for (let frame = 12; frame < 80; frame++) {
+        if (document.querySelector('[data-testid="timeline-room-switch-mask"]') === null) break;
+        await vi.waitFor(() => expect(animationFrames.length).toBeGreaterThan(0));
+        animationFrames.shift()?.(frame * 16);
+        await Promise.resolve();
+      }
+
+      expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('keeps the previous rendered window mounted but hidden during a room switch', async () => {
     const rendered = render(EventListTestHarness, {
       props: {

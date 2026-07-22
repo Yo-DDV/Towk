@@ -145,6 +145,8 @@
   let roomRevealTimer: ReturnType<typeof setTimeout> | null = null;
   let roomTransitionMaskActive = $state(false);
   let roomTransitionMaskOperation = 0;
+  const ROOM_SWITCH_STABLE_FRAMES = 6;
+  const ROOM_SWITCH_MAX_SETTLE_FRAMES = 48;
 
   // State for smart scroll behavior (when not alwaysScrollToBottom)
   let shouldScrollToBottom = $state(true);
@@ -239,11 +241,46 @@
     ].join(':');
   }
 
+  function visibleTimelineMediaIsPending(): boolean {
+    if (!scrollContainer) return false;
+
+    const containerRect = scrollContainer.getBoundingClientRect();
+    const isVisibleInsideTimeline = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > containerRect.top &&
+        rect.top < containerRect.bottom
+      );
+    };
+
+    for (const image of scrollContainer.querySelectorAll<HTMLImageElement>('img')) {
+      if (!isVisibleInsideTimeline(image)) continue;
+      if (!image.complete || image.naturalWidth <= 0 || image.classList.contains('skeleton')) {
+        return true;
+      }
+    }
+
+    for (const video of scrollContainer.querySelectorAll<HTMLVideoElement>('video')) {
+      if (!isVisibleInsideTimeline(video)) continue;
+      if (video.poster) continue;
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return true;
+    }
+
+    return false;
+  }
+
   async function waitForStableTimelineWindow(operation: number) {
     let previousSignature: string | null = null;
     let stableFrames = 0;
 
-    for (let frame = 0; frame < 24 && stableFrames < 6; frame++) {
+    for (
+      let frame = 0;
+      frame < ROOM_SWITCH_MAX_SETTLE_FRAMES &&
+      (stableFrames < ROOM_SWITCH_STABLE_FRAMES || visibleTimelineMediaIsPending());
+      frame++
+    ) {
       await tick();
       await waitForAnimationFrame();
 
@@ -258,7 +295,7 @@
       }
     }
 
-    return stableFrames >= 6;
+    return stableFrames >= ROOM_SWITCH_STABLE_FRAMES;
   }
 
   async function settleRoomTransitionMask(operation: number) {
