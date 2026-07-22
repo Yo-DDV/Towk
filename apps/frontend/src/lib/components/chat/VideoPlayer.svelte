@@ -16,7 +16,7 @@
 </script>
 
 <script lang="ts">
-  import { tick, onMount } from 'svelte';
+  import { tick } from 'svelte';
   import type { VideoProcessingStatus } from '$lib/render/types';
   import { fullscreenVideo } from '$lib/state/globals.svelte';
   import * as m from '$lib/i18n/messages';
@@ -32,11 +32,6 @@
   let playerRequested = $state(false);
   let playerVisualReady = $state(false);
   let playerVisualReadyKey = '';
-
-  onMount(async () => {
-    await preloadVideoPlayerElements();
-    elementsReady = true;
-  });
 
   type Variant = {
     url: string;
