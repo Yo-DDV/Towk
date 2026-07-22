@@ -142,6 +142,22 @@ describe('EventList jump completion', () => {
     );
   });
 
+  it('does not bottom-align the carried-over timeline during a room switch', async () => {
+    render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    const carryover = document.querySelector('.timeline-room-carryover');
+
+    expect(carryover).toBeInstanceOf(HTMLElement);
+    expect(carryover?.classList.contains('mt-auto')).toBe(false);
+  });
+
   it('signals completion after highlighting a rendered target', async () => {
     const onComplete = vi.fn();
     render(EventListTestHarness, {

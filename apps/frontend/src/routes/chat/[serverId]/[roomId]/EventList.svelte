@@ -1102,7 +1102,7 @@
       class={roomRevealActive
         ? 'mt-auto timeline-room-reveal'
         : renderedTimelineRoomId !== roomId
-          ? 'mt-auto timeline-room-carryover'
+          ? 'timeline-room-carryover'
           : 'mt-auto'}
     >
       {#if loadFailed && !isLoading && virtualItems.length === 0}
