@@ -1330,26 +1330,30 @@
         class="timeline-room-switch-placeholder flex min-h-full flex-col gap-4 px-4 pt-7 pb-6"
       >
         <div class="flex gap-3">
-          <div class="skeleton mt-1 size-9 shrink-0 rounded-full"></div>
+          <div
+            class="timeline-room-switch-block timeline-room-switch-avatar mt-1 size-9 shrink-0 rounded-full"
+          ></div>
           <div class="min-w-0 flex-1 space-y-3">
             <div class="flex items-center gap-2">
-              <div class="skeleton h-4 w-28 rounded"></div>
-              <div class="skeleton h-3 w-10 rounded"></div>
+              <div class="timeline-room-switch-block h-4 w-28 rounded"></div>
+              <div class="timeline-room-switch-block h-3 w-10 rounded"></div>
             </div>
-            <div class="skeleton timeline-room-switch-media rounded-xl"></div>
-            <div class="skeleton h-3.5 w-4/5 rounded"></div>
-            <div class="skeleton h-3.5 w-2/5 rounded"></div>
+            <div class="timeline-room-switch-block timeline-room-switch-media rounded-xl"></div>
+            <div class="timeline-room-switch-block h-3.5 w-4/5 rounded"></div>
+            <div class="timeline-room-switch-block h-3.5 w-2/5 rounded"></div>
           </div>
         </div>
         <div class="ml-12 space-y-3">
-          <div class="skeleton h-4 w-1/3 rounded"></div>
-          <div class="skeleton h-12 w-3/4 rounded-lg"></div>
+          <div class="timeline-room-switch-block h-4 w-1/3 rounded"></div>
+          <div class="timeline-room-switch-block h-12 w-3/4 rounded-lg"></div>
         </div>
         <div class="ml-8 flex gap-3">
-          <div class="skeleton mt-1 size-8 shrink-0 rounded-full"></div>
+          <div
+            class="timeline-room-switch-block timeline-room-switch-avatar mt-1 size-8 shrink-0 rounded-full"
+          ></div>
           <div class="min-w-0 flex-1 space-y-3">
-            <div class="skeleton h-4 w-32 rounded"></div>
-            <div class="skeleton h-10 w-2/3 rounded-lg"></div>
+            <div class="timeline-room-switch-block h-4 w-32 rounded"></div>
+            <div class="timeline-room-switch-block h-10 w-2/3 rounded-lg"></div>
           </div>
         </div>
       </div>
@@ -1427,16 +1431,30 @@
     will-change: opacity, transform;
   }
 
-  .timeline-room-switch-placeholder :global(.skeleton) {
-    opacity: 0.9;
+  .timeline-room-switch-block {
+    opacity: 0.58;
     background:
-      linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--color-surface-200) 78%, transparent),
-        color-mix(in srgb, var(--color-primary) 16%, var(--color-surface-200)),
-        color-mix(in srgb, var(--color-surface-200) 78%, transparent)
-      );
-    box-shadow: 0 0 18px color-mix(in srgb, var(--color-primary) 7%, transparent);
+      linear-gradient(135deg, color-mix(in srgb, var(--color-surface-200) 74%, transparent), transparent 120%),
+      color-mix(in srgb, var(--color-surface-100) 82%, var(--color-primary) 6%);
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--color-text) 4%, transparent),
+      0 0 18px color-mix(in srgb, var(--color-primary) 4%, transparent);
+  }
+
+  .timeline-room-switch-avatar {
+    opacity: 0.48;
+  }
+
+  .timeline-room-switch-media {
+    height: clamp(7rem, 28vh, 18rem);
+    max-width: min(34rem, 86%);
+  }
+
+  @media (max-width: 767px) {
+    .timeline-room-switch-media {
+      height: clamp(6rem, 24vh, 14rem);
+      max-width: 92%;
+    }
   }
 
   .timeline-room-empty-state {
@@ -1495,6 +1513,7 @@
     .timeline-room-carryover,
     .timeline-room-reveal,
     .timeline-room-switch-placeholder,
+    .timeline-room-switch-block,
     .timeline-room-empty-state {
       animation: none;
       opacity: 1;

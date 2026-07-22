@@ -179,6 +179,23 @@ describe('EventList jump completion', () => {
     expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
   });
 
+  it('uses static room switch placeholders instead of animated skeleton shimmer', () => {
+    render(EventListTestHarness, {
+      props: {
+        roomId: 'room-new',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+
+    expect(mask).not.toBeNull();
+    expect(mask?.querySelector('.skeleton')).toBeNull();
+    expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+  });
+
   it('keeps the room switch mask until visible timeline media has decoded', async () => {
     const rendered = render(EventListTestHarness, {
       props: {
