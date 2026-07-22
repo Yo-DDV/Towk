@@ -122,6 +122,7 @@
 <TimelineEventsPane
   {roomId}
   messageStore={store}
+  renderedRoomId={store.renderedRoomId}
   events={roomEvents}
   alwaysScrollToBottom={false}
   showNewMessagesIndicator={true}

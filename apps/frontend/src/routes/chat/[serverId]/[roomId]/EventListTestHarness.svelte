@@ -11,6 +11,8 @@
 
   let {
     eventIds,
+    roomId = 'room-1',
+    renderedRoomId = roomId,
     scrollToEventId,
     onComplete,
     isLoading = false,
@@ -22,6 +24,8 @@
     pendingHighlightId = null
   }: {
     eventIds: string[];
+    roomId?: string;
+    renderedRoomId?: string | null;
     scrollToEventId: string | null;
     onComplete?: () => void;
     isLoading?: boolean;
@@ -45,7 +49,7 @@
       actor: null,
       event: {
         kind: RoomEventKind.MessagePosted,
-        roomId: 'room-1',
+        roomId: renderedRoomId ?? roomId,
         body: id,
         attachments: [],
         linkPreview: null,
@@ -75,7 +79,8 @@
 </script>
 
 <EventList
-  roomId="room-1"
+  {roomId}
+  {renderedRoomId}
   messageStore={messageStore as never}
   {events}
   {isLoading}

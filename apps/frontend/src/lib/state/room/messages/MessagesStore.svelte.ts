@@ -290,6 +290,7 @@ export class MessagesStore {
   initialLoadFailed = $state(false);
   isLoadingMore = $state(false);
   hasReachedStart = $state(false);
+  renderedRoomId = $state<string | null>(null);
 
   private readonly roomTimeline: RoomTimelineAPI;
   private scope: MessageScope | null = null;
@@ -1292,11 +1293,13 @@ export class MessagesStore {
     if (this.scope === 'room') this.sortRoomEvents();
     this.seenIds = newSeen;
     this.#transitionCarryOverEventIds.clear();
+    this.renderedRoomId = this.roomId;
     this.scheduleCacheSave();
   }
 
   private resetState(): void {
     this.events = [];
+    this.renderedRoomId = null;
     this.seenIds = new SvelteSet();
     this.previewEvents.clear();
     this.pendingPreviewFetches.clear();
@@ -1317,6 +1320,7 @@ export class MessagesStore {
     this.events = this.events.filter((event) => !this.#transitionCarryOverEventIds.has(event.id));
     this.seenIds = new SvelteSet(this.events.map((event) => event.id));
     this.#transitionCarryOverEventIds.clear();
+    this.renderedRoomId = this.roomId;
   }
 
   private hasOnlyTransitionCarryOverEvents(): boolean {
@@ -1373,6 +1377,7 @@ export class MessagesStore {
 
   private applySnapshot(snapshot: TimelineSnapshot, scope: MessageScope): void {
     this.events = [...snapshot.events];
+    this.renderedRoomId = this.roomId;
     this.seenIds = new SvelteSet(snapshot.events.map((event) => event.id));
     this.#cachedEventIds = new SvelteSet(snapshot.events.map((event) => event.id));
     this.previewEvents.clear();
@@ -1724,6 +1729,7 @@ export class MessagesStore {
       }
       this.removeTransitionCarryOverEvents();
       this.events = [...cached.events];
+      this.renderedRoomId = roomId;
       this.seenIds = new SvelteSet(cached.events.map((event) => event.id));
       this.#cachedEventIds = new SvelteSet(cached.events.map((event) => event.id));
       if (this.scope === 'thread') this.sortThreadEvents();

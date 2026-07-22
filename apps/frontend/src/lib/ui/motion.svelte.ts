@@ -18,7 +18,7 @@ export function motionEnabled(): boolean {
 
 export function delayedLoadingVisible(
   loading: () => boolean,
-  delay = MOTION_DURATION.delayedLoading
+  delay: number = MOTION_DURATION.delayedLoading
 ) {
   let visible = $state(false);
   let timer: ReturnType<typeof setTimeout> | null = null;

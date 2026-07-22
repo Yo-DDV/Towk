@@ -12,6 +12,7 @@
 
   let {
     roomId,
+    renderedRoomId = roomId,
     messageStore,
     events,
     updateCounter = events.length,
@@ -48,6 +49,7 @@
     pendingHighlightId = null
   }: {
     roomId: string;
+    renderedRoomId?: string | null;
     messageStore: MessagesStore;
     events: RoomEventView[];
     updateCounter?: number;
@@ -114,6 +116,7 @@
 
 <EventList
   {roomId}
+  {renderedRoomId}
   {messageStore}
   {events}
   {alwaysScrollToBottom}

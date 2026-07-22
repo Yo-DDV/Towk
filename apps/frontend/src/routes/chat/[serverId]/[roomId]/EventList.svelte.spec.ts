@@ -96,6 +96,52 @@ describe('EventList jump completion', () => {
     );
   });
 
+  it('delays room switch scroll reset until the rendered timeline catches up', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(
+        Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
+      ).toBeGreaterThanOrEqual(7)
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const callsBeforeRouteChange = Number(
+      page.getByTestId('virtualizer-scroll-calls').element().textContent
+    );
+
+    await rendered.rerender({
+      roomId: 'room-new',
+      renderedRoomId: 'room-old',
+      eventIds: ['msg-old'],
+      scrollToEventId: null
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)).toBe(
+      callsBeforeRouteChange
+    );
+
+    await rendered.rerender({
+      roomId: 'room-new',
+      renderedRoomId: 'room-new',
+      eventIds: ['msg-new'],
+      scrollToEventId: null
+    });
+
+    await vi.waitFor(() =>
+      expect(Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)).toBeGreaterThan(
+        callsBeforeRouteChange
+      )
+    );
+  });
+
   it('signals completion after highlighting a rendered target', async () => {
     const onComplete = vi.fn();
     render(EventListTestHarness, {

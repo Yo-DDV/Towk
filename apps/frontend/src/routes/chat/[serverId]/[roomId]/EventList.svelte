@@ -37,6 +37,7 @@
 
   let {
     roomId,
+    renderedRoomId = roomId,
     messageStore,
     events,
     // Scroll behavior
@@ -80,6 +81,7 @@
     pendingHighlightId = null
   }: {
     roomId: string;
+    renderedRoomId?: string | null;
     messageStore: MessagesStore;
     events: RoomEventView[];
     // Scroll behavior
@@ -131,9 +133,16 @@
 
   let initialScrollDone = $state(false);
   const showDelayedLoading = delayedLoadingVisible(() => isLoading && virtualItems.length === 0);
+  const showRoomSwitchLoading = delayedLoadingVisible(
+    () => renderedTimelineRoomId !== roomId,
+    MOTION_DURATION.fast
+  );
   let bottomScrollOperation = 0;
   let userScrollIntentAt = 0;
   const USER_SCROLL_INTENT_MS = 250;
+  let settledRoomId = $state<string | null>(null);
+  let roomRevealActive = $state(false);
+  let roomRevealTimer: ReturnType<typeof setTimeout> | null = null;
 
   // State for smart scroll behavior (when not alwaysScrollToBottom)
   let shouldScrollToBottom = $state(true);
@@ -185,6 +194,25 @@
   let messageEventCount = $derived(
     filteredEvents.filter((event) => isMessagePostedEvent(event.event)).length
   );
+  const renderedTimelineRoomId = $derived(renderedRoomId ?? roomId);
+  const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
+
+  function startRoomReveal() {
+    if (roomRevealTimer) {
+      clearTimeout(roomRevealTimer);
+      roomRevealTimer = null;
+    }
+    roomRevealActive = false;
+    if (motionDuration(MOTION_DURATION.expressive) === 0) return;
+
+    requestAnimationFrame(() => {
+      roomRevealActive = true;
+      roomRevealTimer = setTimeout(() => {
+        roomRevealActive = false;
+        roomRevealTimer = null;
+      }, motionDuration(MOTION_DURATION.expressive) + 40);
+    });
+  }
 
   // Apply message grouping and day separators
   let eventsWithMeta = $derived(computeEventMetadata(filteredEvents, userSettings, activeLocale));
@@ -258,9 +286,14 @@
     });
   });
 
-  // Reset scroll state when room changes
+  // Reset scroll state only when the rendered timeline window has actually
+  // caught up to the route room. During fast room switches the store may keep
+  // the previous room's window as carry-over until the target room is ready;
+  // resetting the virtualizer against that carry-over creates the visible
+  // empty/black flicker on media-heavy rooms.
   $effect(() => {
-    void roomId;
+    if (!isCurrentRoomWindowRendered) return;
+    if (settledRoomId === roomId) return;
 
     cancelBottomScroll();
     initialScrollDone = false;
@@ -268,6 +301,9 @@
     lastSeenNewestId = null;
     firstVisibleAt = null;
     previousOffset = null;
+    const isFirstRoom = settledRoomId === null;
+    settledRoomId = roomId;
+    if (!isFirstRoom) startRoomReveal();
   });
 
   // When exiting jumped mode (returning to present), re-enable auto-scroll
@@ -425,6 +461,7 @@
   }
 
   function requestBottomScroll(): Promise<boolean> | undefined {
+    if (!isCurrentRoomWindowRendered) return undefined;
     if (!scrollContainer || !virtualizerHandle || virtualItems.length === 0) return undefined;
 
     const operation = ++bottomScrollOperation;
@@ -434,6 +471,7 @@
       continueWhile: () =>
         operation === bottomScrollOperation &&
         roomId === requestedRoomId &&
+        isCurrentRoomWindowRendered &&
         userScrollIntentAt === intentAtStart &&
         !isJumpedMode &&
         (alwaysScrollToBottom || shouldScrollToBottom) &&
@@ -484,6 +522,7 @@
     if (!container) return;
 
     function keepBottomAnchored() {
+      if (!isCurrentRoomWindowRendered) return;
       if (!isJumpedMode && !pendingHighlightId && (alwaysScrollToBottom || shouldScrollToBottom)) {
         void requestBottomScroll();
       }
@@ -562,6 +601,7 @@
 
     if (isJumpedMode) return;
     if (pendingHighlightId) return;
+    if (!isCurrentRoomWindowRendered) return;
 
     if (virtualItems.length > 0 && virtualizerHandle) {
       const shouldScroll = untrack(() => alwaysScrollToBottom || shouldScrollToBottom);
@@ -867,6 +907,7 @@
       isLoadingMore ||
       hasReachedStart ||
       isJumpedMode ||
+      !isCurrentRoomWindowRendered ||
       underfilledBackfillInFlight
     ) {
       return;
@@ -1057,7 +1098,13 @@
     ontouchmove={markUserScrollIntent}
     onpointerdown={markUserScrollIntent}
   >
-    <div class="mt-auto">
+    <div
+      class={roomRevealActive
+        ? 'mt-auto timeline-room-reveal'
+        : renderedTimelineRoomId !== roomId
+          ? 'mt-auto timeline-room-carryover'
+          : 'mt-auto'}
+    >
       {#if loadFailed && !isLoading && virtualItems.length === 0}
         <div class="flex flex-1 items-center justify-center px-4">
           <div
@@ -1136,7 +1183,7 @@
                 <RoomEvent
                   event={eventData}
                   compact={!item.isFirstInGroup}
-                  {roomId}
+                  roomId={renderedTimelineRoomId}
                   {messageStore}
                   onOpenThread={getOpenThreadHandler(eventData)}
                 />
@@ -1149,6 +1196,15 @@
   </ScrollFader>
 
   <TypingIndicator {typingUserIds} members={typingMembers} />
+
+  {#if showRoomSwitchLoading.current}
+    <div
+      class="pointer-events-none absolute inset-x-4 top-4 z-20 h-px overflow-hidden rounded-full bg-surface-200/40"
+      aria-hidden="true"
+    >
+      <span class="timeline-room-switch-progress block h-full w-1/3 rounded-full bg-primary/80"></span>
+    </div>
+  {/if}
 
   {#if isJumpedMode && !shouldScrollToBottom && onJumpToPresent}
     <button
@@ -1184,3 +1240,66 @@
     </button>
   {/if}
 </div>
+
+<style>
+  .timeline-room-carryover {
+    opacity: 0.72;
+    transform: translate3d(0, 2px, 0);
+    transition:
+      opacity 100ms ease-out,
+      transform 100ms ease-out;
+    will-change: opacity, transform;
+  }
+
+  .timeline-room-reveal {
+    animation: timeline-room-reveal 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: opacity, transform;
+  }
+
+  .timeline-room-switch-progress {
+    animation: timeline-room-switch-progress 850ms ease-in-out infinite;
+    box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 35%, transparent);
+  }
+
+  @keyframes timeline-room-reveal {
+    from {
+      opacity: 0.78;
+      transform: translate3d(0, 4px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes timeline-room-switch-progress {
+    0% {
+      transform: translateX(-110%);
+      opacity: 0.3;
+    }
+    45% {
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateX(330%);
+      opacity: 0.3;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .timeline-room-carryover,
+    .timeline-room-reveal {
+      animation: none;
+      opacity: 1;
+      transform: none;
+      transition: none;
+      will-change: auto;
+    }
+
+    .timeline-room-switch-progress {
+      animation: none;
+      transform: none;
+      opacity: 0.8;
+    }
+  }
+</style>
