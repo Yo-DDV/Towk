@@ -112,6 +112,47 @@ describe('EventList jump completion', () => {
     expect(document.querySelector('[aria-label="Loading messages"]')).toBeNull();
   });
 
+  it('covers the first route-change frame with a static room switch placeholder', async () => {
+    const rendered = render(EventListTestHarness, {
+      props: {
+        roomId: 'room-old',
+        renderedRoomId: 'room-old',
+        eventIds: ['msg-old'],
+        scrollToEventId: null
+      }
+    });
+
+    try {
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull()
+      );
+
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: [],
+        scrollToEventId: null
+      });
+
+      const mask = document.querySelector('[data-testid="timeline-room-switch-mask"]');
+      expect(mask).not.toBeNull();
+      expect(mask?.querySelector('.timeline-room-switch-block')).not.toBeNull();
+      expect(document.querySelector('.timeline-room-empty-state')).toBeNull();
+
+      await rendered.rerender({
+        roomId: 'room-new',
+        renderedRoomId: 'room-new',
+        eventIds: ['msg-new'],
+        scrollToEventId: null
+      });
+      await vi.waitFor(() =>
+        expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).toBeNull()
+      );
+    } finally {
+      rendered.unmount();
+    }
+  });
+
   it('delays room switch scroll reset until the rendered timeline catches up', async () => {
     const rendered = render(EventListTestHarness, {
       props: {

@@ -423,6 +423,13 @@
   let virtualItems = $derived(
     buildVirtualItems(eventsWithMeta, effectiveUnreadAfterEventId, hasReachedStart, showStartMarker)
   );
+  const isRouteEmptyWindowPending = $derived(
+    settledRoomId !== null &&
+      settledRoomId !== roomId &&
+      isCurrentRoomWindowRendered &&
+      virtualItems.length === 0 &&
+      !loadFailed
+  );
   const hasRoomSwitchCarryOver = $derived(isRoomSwitching && virtualItems.length > 0);
   const isReconcilingCachedRoomWindow = $derived(
     hasSeenRoomSwitch &&
@@ -435,7 +442,10 @@
     (roomTransitionMaskActive && isCurrentRoomWindowRendered) || isReconcilingCachedRoomWindow
   );
   const showTimelineTransitionMask = $derived(
-    isRoomSwitching || roomTransitionMaskActive || isReconcilingCachedRoomWindow
+    isRoomSwitching ||
+      isRouteEmptyWindowPending ||
+      roomTransitionMaskActive ||
+      isReconcilingCachedRoomWindow
   );
   const roomTransitionMaskVariantClass = $derived(
     hasRoomSwitchCarryOver
@@ -1383,7 +1393,7 @@
             <div class="skeleton ml-10 h-14 w-2/3 rounded-md"></div>
           </div>
         </div>
-      {:else if !isLoading && virtualItems.length === 0 && !hasRoomSwitchCarryOver}
+      {:else if !isLoading && virtualItems.length === 0 && !hasRoomSwitchCarryOver && !showTimelineTransitionMask}
         <div class="timeline-room-empty-state flex flex-1 items-center justify-center px-4">
           <div
             class="surface-pop rounded-xl border border-surface-200/55 bg-surface/42 px-4 py-3 text-center text-sm text-muted/60 shadow-sm"
