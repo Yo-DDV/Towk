@@ -27,6 +27,7 @@ import {
   saveCachedTimeline,
   type PrivateDataScope
 } from '$lib/pwa/offlineData';
+import { rememberLoadedImageSource } from '$lib/ui/imageLoadMemory';
 
 export type {
   OptimisticReactionAction,
@@ -189,14 +190,26 @@ function prewarmImagePreview(url: string): Promise<void> {
     const image = new Image();
     image.decoding = 'async';
     image.loading = 'eager';
+    let settled = false;
 
-    const finish = () => resolve();
-    image.onload = finish;
-    image.onerror = finish;
+    const finish = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (loaded) rememberLoadedImageSource(url);
+      resolve();
+    };
+    image.onload = () => {
+      const decode = image.decode?.();
+      if (decode) void decode.then(() => finish(true), () => finish(true));
+      else finish(true);
+    };
+    image.onerror = () => finish(false);
     image.src = url;
 
     if (image.complete && image.naturalWidth > 0) {
-      void image.decode?.().then(finish, finish);
+      const decode = image.decode?.();
+      if (decode) void decode.then(() => finish(true), () => finish(true));
+      else finish(true);
     }
   });
 }

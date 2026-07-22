@@ -13,6 +13,7 @@ import {
   saveCachedTimeline,
   type PrivateDataScope
 } from '$lib/pwa/offlineData';
+import { clearLoadedImageSourcesForTest, hasLoadedImageSource } from '$lib/ui/imageLoadMemory';
 
 class FakeQueryClient {
   reconnectCount = 0;
@@ -159,6 +160,7 @@ function stubPendingImagePrewarm() {
       while (pendingLoads.length > 0) pendingLoads.shift()?.();
     },
     restore() {
+      clearLoadedImageSourcesForTest();
       vi.unstubAllGlobals();
     }
   };
@@ -527,6 +529,7 @@ describe('MessagesStore — room lifecycle ownership', () => {
 
       expect(store.rootEvents.map((event) => event.id)).toEqual(['media-1']);
       expect(store.isInitialLoading).toBe(false);
+      expect(hasLoadedImageSource('https://cdn.example.test/media-1.webp')).toBe(true);
     } finally {
       store.dispose();
       mediaPrewarm.restore();

@@ -443,6 +443,8 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
     href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
     class={rowClass}
     aria-current={room.id === activeRoomId ? 'page' : undefined}
+    data-sveltekit-preload-code="hover"
+    data-sveltekit-preload-data="tap"
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
@@ -501,6 +503,8 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
       hasUnreadAttention ? 'font-semibold text-text-top hover:!text-text-top' : ''
     ]}
     aria-current={room.id === activeRoomId ? 'page' : undefined}
+    data-sveltekit-preload-code="hover"
+    data-sveltekit-preload-data="tap"
     onclick={(e) => handleRoomLinkClick(e, room)}
     onkeydown={(e) => handleRoomLinkKeydown(e, room)}
   >
