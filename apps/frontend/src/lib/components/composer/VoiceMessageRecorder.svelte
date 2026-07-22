@@ -360,7 +360,10 @@
 
   {#if mode !== 'idle'}
     <div
-      class="voice-capture-panel fixed inset-x-2 bottom-[5.25rem] z-40 flex min-h-16 min-w-0 items-center gap-2 rounded-[1.65rem] border border-primary/25 bg-surface-200/95 px-2.5 py-2 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur sm:absolute sm:inset-x-auto sm:right-0 sm:bottom-[calc(100%+0.625rem)] sm:w-[min(28rem,calc(100vw-1rem))]"
+      class={[
+        'voice-capture-panel fixed inset-x-2 bottom-[5.25rem] z-40 min-h-16 min-w-0 items-center gap-2 rounded-[1.65rem] border border-primary/25 bg-surface-200/95 px-2.5 py-2 shadow-[0_18px_55px_rgba(0,0,0,0.28)] backdrop-blur sm:absolute sm:inset-x-auto sm:right-0 sm:bottom-[calc(100%+0.625rem)] sm:w-[min(28rem,calc(100vw-1rem))]',
+        draft ? 'grid grid-cols-[44px_minmax(0,1fr)_44px] sm:flex' : 'flex'
+      ]}
       data-testid="voice-message-recorder"
       aria-live="polite"
     >
@@ -439,20 +442,25 @@
         type="button"
         onclick={cancelRecording}
         disabled={mode === 'sending'}
-        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400 disabled:opacity-50"
+        class="col-start-1 row-start-2 flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-highlighted hover:text-red-400 disabled:opacity-50 sm:col-auto sm:row-auto"
         aria-label={m['composer.voice.delete_draft']()}
         title={m['composer.voice.delete_draft']()}
       >
         <span class="iconify text-xl uil--trash-alt" aria-hidden="true"></span>
       </button>
 
-      <VoiceMessagePlayer
-        src={draft.objectUrl}
-        durationMs={draft.durationMs}
-        waveformPeaks={draft.waveformPeaks}
-        filename={draft.file.name}
-        localPreview
-      />
+      <div
+        class="col-span-3 row-start-1 min-w-0 sm:col-auto sm:row-auto sm:flex-1"
+        data-testid="voice-message-preview-slot"
+      >
+        <VoiceMessagePlayer
+          src={draft.objectUrl}
+          durationMs={draft.durationMs}
+          waveformPeaks={draft.waveformPeaks}
+          filename={draft.file.name}
+          localPreview
+        />
+      </div>
 
       <button
         type="button"
@@ -469,7 +477,7 @@
         type="button"
         onclick={sendDraft}
         disabled={mode === 'sending'}
-        class="flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110 disabled:cursor-wait disabled:opacity-60"
+        class="col-start-3 row-start-2 flex h-[44px] w-[44px] shrink-0 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm transition-[transform,filter] active:scale-95 enabled:hover:brightness-110 disabled:cursor-wait disabled:opacity-60 sm:col-auto sm:row-auto"
         aria-label={m['composer.voice.send']()}
         title={m['composer.voice.send']()}
       >

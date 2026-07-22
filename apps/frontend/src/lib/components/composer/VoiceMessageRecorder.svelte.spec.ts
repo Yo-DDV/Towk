@@ -130,6 +130,18 @@ describe('VoiceMessageRecorder', () => {
     await vi.waitFor(() =>
       expect(container.querySelector('[data-testid="voice-message-preview"]')).not.toBeNull()
     );
+    const recorderPanel = container.querySelector('[data-testid="voice-message-recorder"]');
+    const previewSlot = container.querySelector('[data-testid="voice-message-preview-slot"]');
+    expect(recorderPanel?.classList).toContain('grid');
+    expect(recorderPanel?.classList).toContain('grid-cols-[44px_minmax(0,1fr)_44px]');
+    expect(previewSlot?.classList).toContain('col-span-3');
+    expect(previewSlot?.classList).toContain('sm:flex-1');
+    expect(container.querySelector('button[aria-label="Delete voice draft"]')?.classList).toContain(
+      'col-start-1'
+    );
+    expect(container.querySelector('button[aria-label="Send voice message"]')?.classList).toContain(
+      'col-start-3'
+    );
 
     await userEvent.click(container.querySelector('button[aria-label="Send voice message"]')!);
     expect(onSend).toHaveBeenCalledWith(
