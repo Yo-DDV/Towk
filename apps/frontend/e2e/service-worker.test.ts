@@ -28,35 +28,71 @@ type BadgeStateSnapshot = {
 const BADGE_STATE_CACHE_NAME = 'towk-badge-state-v1';
 const BADGE_STATE_REQUEST = '/__chatto/foreground-badge-intent';
 
-test('serves one standalone manifest without guessing Chromium installability', async ({
+test('serves Android Chromium minimal UI without changing PWA capabilities', async ({
   page,
   request
 }) => {
-  const response = await request.get('/manifest.webmanifest', {
+  const androidResponse = await request.get('/manifest.webmanifest', {
     headers: {
       'User-Agent':
         'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0.0.0 Mobile Safari/537.36'
     }
   });
-  expect(response.ok()).toBe(true);
-  expect(response.headers()['vary'] ?? '').not.toContain('User-Agent');
-  const manifest = (await response.json()) as {
+  const desktopResponse = await request.get('/manifest.webmanifest', {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0.0.0 Safari/537.36'
+    }
+  });
+  expect(androidResponse.ok()).toBe(true);
+  expect(desktopResponse.ok()).toBe(true);
+  expect(androidResponse.headers()['vary'] ?? '').toContain('User-Agent');
+  expect(desktopResponse.headers()['vary'] ?? '').toContain('User-Agent');
+  const androidManifest = (await androidResponse.json()) as {
     id?: string;
     display?: string;
     display_override?: string[];
     icons?: Array<{ sizes?: string }>;
     related_applications?: Array<{ platform?: string; url?: string }>;
     prefer_related_applications?: boolean;
+    share_target?: unknown;
+    file_handlers?: unknown;
+    shortcuts?: unknown;
+    launch_handler?: unknown;
   };
-  expect(manifest.id).toBe('/');
-  expect(manifest.display).toBe('standalone');
-  expect(manifest.display_override).toEqual(['standalone']);
-  expect(manifest.icons?.some((icon) => icon.sizes === '192x192')).toBe(true);
-  expect(manifest.icons?.some((icon) => icon.sizes === '512x512')).toBe(true);
-  expect(manifest.related_applications).toEqual([
+  const desktopManifest = (await desktopResponse.json()) as typeof androidManifest;
+  expect(androidManifest.id).toBe('/');
+  expect(androidManifest.display).toBe('minimal-ui');
+  expect(androidManifest.display_override).toEqual(['minimal-ui', 'standalone']);
+  expect(desktopManifest.id).toBe('/');
+  expect(desktopManifest.display).toBe('standalone');
+  expect(desktopManifest.display_override).toEqual(['standalone']);
+
+  const {
+    display: androidDisplay,
+    display_override: androidDisplayOverride,
+    ...androidCapabilities
+  } = androidManifest;
+  const {
+    display: desktopDisplay,
+    display_override: desktopDisplayOverride,
+    ...desktopCapabilities
+  } = desktopManifest;
+  expect(androidDisplay).toBeDefined();
+  expect(androidDisplayOverride).toBeDefined();
+  expect(desktopDisplay).toBeDefined();
+  expect(desktopDisplayOverride).toBeDefined();
+  expect(androidCapabilities).toEqual(desktopCapabilities);
+  expect(androidManifest.icons?.some((icon) => icon.sizes === '192x192')).toBe(true);
+  expect(androidManifest.icons?.some((icon) => icon.sizes === '512x512')).toBe(true);
+  expect(androidManifest.share_target).toBeDefined();
+  expect(androidManifest.file_handlers).toBeDefined();
+  expect(androidManifest.shortcuts).toBeDefined();
+  expect(androidManifest.launch_handler).toBeDefined();
+  expect(androidManifest.related_applications).toEqual([
     { platform: 'webapp', url: '/manifest.webmanifest' }
   ]);
-  expect(manifest.prefer_related_applications).toBe(false);
+  expect(androidManifest.prefer_related_applications).toBe(false);
 
   await page.goto('/');
   await expect(page.locator('[data-pwa-status]')).toHaveCount(0);

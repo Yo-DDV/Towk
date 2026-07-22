@@ -429,7 +429,9 @@ describe('MessageComposer', () => {
       container.before(outsideFocusTarget);
 
       await expect.element(shell).toBeInTheDocument();
-      await expect.element(shell).toHaveClass('composer-focus-shell', 'items-center');
+      await expect
+        .element(shell)
+        .toHaveClass('composer-focus-shell', 'items-center', 'min-h-15');
 
       outsideFocusTarget.focus();
       await tick();
