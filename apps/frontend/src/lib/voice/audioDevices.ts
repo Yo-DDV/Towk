@@ -127,7 +127,20 @@ function normalizeAudioDeviceLabel(label: string): string {
 }
 
 function isBluetoothDeviceLabel(normalized: string): boolean {
-  return isGenericBluetoothRouteLabel(normalized) || /\bbluetooth\b/.test(normalized);
+  return (
+    isGenericBluetoothRouteLabel(normalized) ||
+    /\bbluetooth\b/.test(normalized) ||
+    isKnownWirelessCallRouteLabel(normalized)
+  );
+}
+
+function isKnownWirelessCallRouteLabel(normalized: string): boolean {
+  return (
+    /\bhands[- ]?free\b/.test(normalized) ||
+    /\b(?:airpods?|freebuds)\b/.test(normalized) ||
+    /\b(?:galaxy|pixel|oneplus) buds/.test(normalized) ||
+    /\bwireless (?:earbuds?|earphones?|headphones?|headset)\b/.test(normalized)
+  );
 }
 
 function isGenericBluetoothRouteLabel(normalized: string): boolean {

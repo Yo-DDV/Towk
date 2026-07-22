@@ -103,7 +103,10 @@ describe('friendlyAudioDeviceNames', () => {
     expect(audioDeviceRouteKind(device('speakerphone', 'Speakerphone'))).toBe('speakerphone');
     expect(audioDeviceRouteKind(device('earpiece', 'Headset earpiece'))).toBe('earpiece');
     expect(audioDeviceRouteKind(device('bluetooth', 'Bluetooth headset'))).toBe('bluetooth');
-    expect(audioDeviceRouteKind(device('sony', 'WF-1000XM5 Hands-Free'))).toBe('unknown');
+    expect(audioDeviceRouteKind(device('sony', 'WF-1000XM5 Hands-Free'))).toBe('bluetooth');
+    expect(audioDeviceRouteKind(device('huawei', 'HUAWEI FreeBuds 5'))).toBe('bluetooth');
+    expect(audioDeviceRouteKind(device('apple', 'AirPods Pro'))).toBe('bluetooth');
+    expect(audioDeviceRouteKind(device('wired', 'USB Headset'))).toBe('unknown');
     expect(audioDeviceRouteKind(device('jabra', 'Jabra Bluetooth Hands-Free'))).toBe('bluetooth');
   });
 
@@ -144,5 +147,11 @@ describe('audioDeviceRouteKind', () => {
     expect(
       audioDeviceRouteKind(device('communications', 'Communications - Pixel Bluetooth headset'))
     ).toBe('bluetooth');
+  });
+
+  it('recognizes common wireless call-route labels that omit the Bluetooth word', () => {
+    expect(audioDeviceRouteKind(device('samsung', 'Galaxy Buds2 Pro'))).toBe('bluetooth');
+    expect(audioDeviceRouteKind(device('google', 'Pixel Buds Pro'))).toBe('bluetooth');
+    expect(audioDeviceRouteKind(device('wireless', 'Wireless Headset'))).toBe('bluetooth');
   });
 });

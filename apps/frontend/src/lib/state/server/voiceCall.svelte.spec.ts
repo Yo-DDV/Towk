@@ -1293,6 +1293,35 @@ describe('VoiceCallState', () => {
     expect(state.microphoneProcessing.noiseSuppression).toBe('native');
   });
 
+  it('keeps a logical default route native when wireless earbuds omit the Bluetooth label', async () => {
+    microphoneTrackSettings = {
+      ...microphoneTrackSettings,
+      deviceId: 'default'
+    };
+    vi.mocked(Room.getLocalDevices).mockImplementation(async (kind?: MediaDeviceKind) => {
+      if (kind !== 'audioinput') return [];
+      return [
+        {
+          deviceId: 'default',
+          kind: 'audioinput',
+          label: 'Default'
+        } as MediaDeviceInfo,
+        {
+          deviceId: 'freebuds-input',
+          kind: 'audioinput',
+          label: 'HUAWEI FreeBuds 5'
+        } as MediaDeviceInfo
+      ];
+    });
+    activeDeviceIds.set('audioinput', 'default');
+    const state = new VoiceCallState(createVoiceCallClient());
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(microphoneSetProcessor).not.toHaveBeenCalled();
+    expect(state.microphoneProcessing.noiseSuppression).toBe('native');
+  });
+
   it('removes enhanced Web Audio when the active route becomes Bluetooth', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);

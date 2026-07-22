@@ -202,7 +202,7 @@ Towk configures call media for graceful degradation rather than a fixed quality:
   LiveKit active route, and selected device so an opaque Android source ID cannot
   enable a second Web Audio clock. Logical `default` and `communications` routes
   may use enhanced suppression when no Bluetooth input is enumerated; they stay
-  native-first while any Bluetooth input could be hidden behind the stable logical ID. Confirmed Bluetooth, narrowband,
+  native-first while any Bluetooth input could be hidden behind the stable logical ID. Explicit Bluetooth and hands-free labels plus common wireless-earbud product families are recognized conservatively because browsers expose no portable transport/profile identifier. Confirmed Bluetooth, narrowband,
   hidden-document, and explicit clock-mismatch routes remain browser-native. If the enhancement cannot start, the
   microphone remains live with browser audio processing. Opus DTX and RED remain
   enabled to reduce silence bandwidth and protect speech on lossy links.
