@@ -204,14 +204,50 @@ func TestPrepareCompletedVoicePayloadKeepsMP4WithoutTranscoder(t *testing.T) {
 	}
 }
 
-func TestPrepareCompletedVoicePayloadRejectsUnverifiableVoiceDuration(t *testing.T) {
+func TestPrepareCompletedVoicePayloadAcceptsMissingSourceDurationWhenNormalizedDurationVerifies(t *testing.T) {
+	ctx := testContext(t)
+	normalizedContent := testVoiceMP4Content("normalized webm voice")
+	stubVoiceMessageTranscoder(t, normalizedContent)
+	stubVoiceMessageDurationProbeSequence(t,
+		voiceMessageProbeResult{err: invalidArgument(voiceMessageDurationUnknown)},
+		voiceMessageProbeResult{durationMS: 1_000},
+	)
+
+	content := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("webm input")...)
+	input := testTempVoiceFile(t, content)
+	defer os.Remove(input.Name())
+	defer input.Close()
+	session := &AssetUploadSession{
+		Filename:     "voice-message.webm",
+		ContentType:  "audio/webm",
+		Size:         int64(len(content)),
+		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
+	}
+
+	payload, err := prepareCompletedUploadPayload(ctx, session, input, testVoiceTranscodeLimiter(2), "", "")
+	if err != nil {
+		t.Fatalf("prepareCompletedUploadPayload: %v", err)
+	}
+	defer payload.cleanup()
+	if payload.contentType != "audio/mp4" {
+		t.Fatalf("normalized content type = %q, want audio/mp4", payload.contentType)
+	}
+	got, err := io.ReadAll(payload.reader)
+	if err != nil {
+		t.Fatalf("read normalized payload: %v", err)
+	}
+	if !bytes.Equal(got, normalizedContent) {
+		t.Fatal("normalized payload bytes do not match transcoder output")
+	}
+}
+
+func TestPrepareCompletedVoicePayloadRejectsUnverifiableNormalizedDuration(t *testing.T) {
 	ctx := testContext(t)
 	stubVoiceMessageTranscoder(t, testVoiceMP4Content("normalized webm voice"))
-	previousProbe := voiceMessageProbeDuration
-	voiceMessageProbeDuration = func(context.Context, string, string) (int64, error) {
-		return 0, invalidArgument("voice message audio duration could not be determined")
-	}
-	t.Cleanup(func() { voiceMessageProbeDuration = previousProbe })
+	stubVoiceMessageDurationProbeSequence(t,
+		voiceMessageProbeResult{err: invalidArgument(voiceMessageDurationUnknown)},
+		voiceMessageProbeResult{err: invalidArgument(voiceMessageDurationUnknown)},
+	)
 
 	content := append([]byte{0x1a, 0x45, 0xdf, 0xa3}, []byte("webm input")...)
 	input := testTempVoiceFile(t, content)
@@ -229,7 +265,39 @@ func TestPrepareCompletedVoicePayloadRejectsUnverifiableVoiceDuration(t *testing
 		payload.cleanup()
 	}
 	if !errors.Is(err, ErrInvalidArgument) {
-		t.Fatalf("prepareCompletedUploadPayload unverifiable duration = %v, want ErrInvalidArgument", err)
+		t.Fatalf("prepareCompletedUploadPayload normalized unverifiable duration = %v, want ErrInvalidArgument", err)
+	}
+}
+
+func TestPrepareCompletedNativeVoicePayloadRejectsUnverifiableDuration(t *testing.T) {
+	ctx := testContext(t)
+	previousTranscoder := voiceMessageTranscodeToMP4
+	voiceMessageTranscodeToMP4 = func(context.Context, string, string, string) error {
+		t.Fatal("native MP4 voice messages must not require transcoding")
+		return nil
+	}
+	t.Cleanup(func() { voiceMessageTranscodeToMP4 = previousTranscoder })
+	stubVoiceMessageDurationProbeSequence(t,
+		voiceMessageProbeResult{err: invalidArgument(voiceMessageDurationUnknown)},
+	)
+
+	content := testVoiceMP4Content("native ios voice")
+	input := testTempVoiceFile(t, content)
+	defer os.Remove(input.Name())
+	defer input.Close()
+	session := &AssetUploadSession{
+		Filename:     "voice-message.m4a",
+		ContentType:  normalizedVoiceMessageContentType,
+		Size:         int64(len(content)),
+		VoiceMessage: &VoiceMessageUploadMetadata{DurationMS: 1_000, WaveformPeaks: testVoicePeaks(32)},
+	}
+
+	payload, err := prepareCompletedUploadPayload(ctx, session, input, testVoiceTranscodeLimiter(2), "", "")
+	if payload != nil {
+		payload.cleanup()
+	}
+	if !errors.Is(err, ErrInvalidArgument) {
+		t.Fatalf("prepareCompletedUploadPayload native unverifiable duration = %v, want ErrInvalidArgument", err)
 	}
 }
 
@@ -881,6 +949,26 @@ func stubVoiceMessageDurationProbe(t *testing.T, durationMS int64) {
 	previousProbe := voiceMessageProbeDuration
 	voiceMessageProbeDuration = func(context.Context, string, string) (int64, error) {
 		return durationMS, nil
+	}
+	t.Cleanup(func() { voiceMessageProbeDuration = previousProbe })
+}
+
+type voiceMessageProbeResult struct {
+	durationMS int64
+	err        error
+}
+
+func stubVoiceMessageDurationProbeSequence(t *testing.T, results ...voiceMessageProbeResult) {
+	t.Helper()
+	previousProbe := voiceMessageProbeDuration
+	call := 0
+	voiceMessageProbeDuration = func(context.Context, string, string) (int64, error) {
+		if call >= len(results) {
+			t.Fatalf("unexpected voice message duration probe call %d", call+1)
+		}
+		result := results[call]
+		call++
+		return result.durationMS, result.err
 	}
 	t.Cleanup(func() { voiceMessageProbeDuration = previousProbe })
 }
