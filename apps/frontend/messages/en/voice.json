@@ -130,6 +130,8 @@
     "screen_stats_loading": "Reading WebRTC statistics…",
     "screen_stats_unavailable": "Statistics are temporarily unavailable for this track.",
     "screen_stats_retrying": "Towk will retry on the next sample.",
+    "screen_stats_partial_sample": "Partial sample · keeping the last stable values visible.",
+    "screen_stats_observed_causes": "Observed causes",
     "screen_stats_resolution": "Delivered resolution",
     "screen_stats_source_resolution": "Capture resolution",
     "screen_stats_fps": "Frames per second",

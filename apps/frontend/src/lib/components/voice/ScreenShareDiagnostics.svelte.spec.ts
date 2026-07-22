@@ -36,6 +36,33 @@ function statsReport(sample: number): RTCStatsReport {
   } as RTCStatsReport;
 }
 
+function partialStatsReport(sample: number): RTCStatsReport {
+  const stat = {
+    id: 'video',
+    type: 'inbound-rtp',
+    kind: 'video',
+    timestamp: 1_000 + sample * 2_000,
+    packetsReceived: 1_000 + sample * 900,
+    packetsLost: 2 + sample,
+    framesReceived: 900 + sample * 60,
+    framesDecoded: 895 + sample * 60,
+    codecId: 'codec'
+  };
+  const codec = { id: 'codec', type: 'codec', timestamp: stat.timestamp, mimeType: 'video/AV1' };
+  const items = new Map<string, Record<string, unknown>>([
+    [stat.id, stat],
+    [codec.id, codec]
+  ]);
+  return {
+    get: (id: string) => items.get(id),
+    forEach: (callback: (value: RTCStats, key: string, parent: RTCStatsReport) => void) => {
+      for (const [id, item] of items) {
+        callback(item as unknown as RTCStats, id, items as unknown as RTCStatsReport);
+      }
+    }
+  } as RTCStatsReport;
+}
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -91,9 +118,7 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     let panel = document.getElementById('diagnostics-unavailable-test')!;
-    expect(panel.textContent).toContain(
-      'Statistics are temporarily unavailable for this track.'
-    );
+    expect(panel.textContent).toContain('Statistics are temporarily unavailable for this track.');
 
     await vi.advanceTimersByTimeAsync(2_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
@@ -157,6 +182,34 @@ describe('ScreenShareDiagnostics polling lifecycle', () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
     expect(panel.textContent).toContain('Updated 5 s ago');
+    rendered.unmount();
+  });
+
+  it('keeps visible cards stable when the next browser sample is partial', async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const getRTCStatsReport = vi
+      .fn<() => Promise<RTCStatsReport>>()
+      .mockResolvedValueOnce(statsReport(0))
+      .mockResolvedValue(partialStatsReport(1));
+    const rendered = render(ScreenShareDiagnostics, {
+      props: {
+        track: { getRTCStatsReport } as unknown as Track,
+        direction: 'inbound',
+        panelId: 'diagnostics-partial-test',
+        onclose: vi.fn()
+      }
+    });
+
+    await vi.advanceTimersByTimeAsync(0);
+    const panel = document.getElementById('diagnostics-partial-test')!;
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).toContain('30 FPS');
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(getRTCStatsReport).toHaveBeenCalledTimes(2);
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).toContain('30 FPS');
+    expect(panel.textContent).toContain('Partial sample');
     rendered.unmount();
   });
 });

@@ -130,6 +130,8 @@
     "screen_stats_loading": "Lecture des statistiques WebRTC…",
     "screen_stats_unavailable": "Les statistiques sont temporairement indisponibles pour ce flux.",
     "screen_stats_retrying": "Towk réessaiera au prochain relevé.",
+    "screen_stats_partial_sample": "Relevé partiel · les dernières valeurs stables restent affichées.",
+    "screen_stats_observed_causes": "Causes observées",
     "screen_stats_resolution": "Résolution reçue",
     "screen_stats_source_resolution": "Résolution capturée",
     "screen_stats_fps": "Images par seconde",

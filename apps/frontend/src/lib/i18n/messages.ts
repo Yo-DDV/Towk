@@ -1207,6 +1207,8 @@ const msg_voice_screen_stats_updated_seconds = (
 const msg_voice_screen_stats_loading = (): LocalizedString => messages().voice_screen_stats_loading(empty());
 const msg_voice_screen_stats_unavailable = (): LocalizedString => messages().voice_screen_stats_unavailable(empty());
 const msg_voice_screen_stats_retrying = (): LocalizedString => messages().voice_screen_stats_retrying(empty());
+const msg_voice_screen_stats_partial_sample = (): LocalizedString => messages().voice_screen_stats_partial_sample(empty());
+const msg_voice_screen_stats_observed_causes = (): LocalizedString => messages().voice_screen_stats_observed_causes(empty());
 const msg_voice_screen_stats_resolution = (): LocalizedString => messages().voice_screen_stats_resolution(empty());
 const msg_voice_screen_stats_source_resolution = (): LocalizedString => messages().voice_screen_stats_source_resolution(empty());
 const msg_voice_screen_stats_fps = (): LocalizedString => messages().voice_screen_stats_fps(empty());
@@ -2989,6 +2991,8 @@ export { msg_voice_screen_stats_updated_seconds as 'voice.screen_stats_updated_s
 export { msg_voice_screen_stats_loading as 'voice.screen_stats_loading' };
 export { msg_voice_screen_stats_unavailable as 'voice.screen_stats_unavailable' };
 export { msg_voice_screen_stats_retrying as 'voice.screen_stats_retrying' };
+export { msg_voice_screen_stats_partial_sample as 'voice.screen_stats_partial_sample' };
+export { msg_voice_screen_stats_observed_causes as 'voice.screen_stats_observed_causes' };
 export { msg_voice_screen_stats_resolution as 'voice.screen_stats_resolution' };
 export { msg_voice_screen_stats_source_resolution as 'voice.screen_stats_source_resolution' };
 export { msg_voice_screen_stats_fps as 'voice.screen_stats_fps' };

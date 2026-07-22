@@ -12,7 +12,9 @@ strictly local, starts only while this component is mounted, and stops on close.
   import {
     appendScreenShareDiagnosticsSample,
     collectScreenShareDiagnostics,
+    mergeScreenShareDiagnosticsSample,
     SCREEN_SHARE_DIAGNOSTICS_INTERVAL_MS,
+    screenShareDiagnosticsSampleIsPartial,
     type ScreenShareDiagnosticsCounters,
     type ScreenShareDiagnosticsDirection,
     type ScreenShareDiagnosticsHealth,
@@ -36,6 +38,7 @@ strictly local, starts only while this component is mounted, and stops on close.
   let history = $state<ScreenShareDiagnosticsSample[]>([]);
   let loading = $state(true);
   let unavailable = $state(false);
+  let partialSample = $state(false);
   let clock = $state(Date.now());
   let formattingLocale = $derived(getFormattingLocale());
 
@@ -57,6 +60,7 @@ strictly local, starts only while this component is mounted, and stops on close.
     history = [];
     loading = true;
     unavailable = false;
+    partialSample = false;
 
     const collect = async () => {
       if (cancelled || inFlight) return;
@@ -69,8 +73,9 @@ strictly local, starts only while this component is mounted, and stops on close.
         });
         if (cancelled) return;
         counters = result.counters;
-        sample = result.sample;
-        history = appendScreenShareDiagnosticsSample(history, result.sample);
+        partialSample = screenShareDiagnosticsSampleIsPartial(result.sample);
+        sample = mergeScreenShareDiagnosticsSample(sample, result.sample);
+        history = appendScreenShareDiagnosticsSample(history, sample);
         unavailable = false;
       } catch {
         if (!cancelled) unavailable = true;
@@ -225,6 +230,58 @@ strictly local, starts only while this component is mounted, and stops on close.
       : (current.decoderImplementation ?? '—');
   }
 
+  function trendPoints(
+    items: ScreenShareDiagnosticsSample[],
+    read: (item: ScreenShareDiagnosticsSample) => number | null
+  ): Array<{ collectedAt: number; value: number | null }> {
+    return items.map((item) => ({ collectedAt: item.collectedAt, value: read(item) }));
+  }
+
+  function diagnosticHighlights(current: ScreenShareDiagnosticsSample): string[] {
+    const highlights: string[] = [];
+
+    if (
+      current.qualityLimitationReason !== null &&
+      !['none', 'other'].includes(current.qualityLimitationReason)
+    ) {
+      highlights.push(
+        `${m['voice.screen_stats_quality_limit']()}: ${current.qualityLimitationReason}`
+      );
+    }
+
+    if (current.roundTripTimeMs !== null && current.roundTripTimeMs >= 300) {
+      highlights.push(
+        `${m['voice.screen_stats_rtt']()}: ${formatMilliseconds(current.roundTripTimeMs)}`
+      );
+    }
+
+    if (current.jitterMs !== null && current.jitterMs >= 50) {
+      highlights.push(
+        `${m['voice.screen_stats_jitter']()}: ${formatMilliseconds(current.jitterMs)}`
+      );
+    }
+
+    if (current.framesPerSecond !== null && current.framesPerSecond < 24) {
+      highlights.push(
+        `${m['voice.screen_stats_fps']()}: ${formatNumber(current.framesPerSecond, 1)} FPS`
+      );
+    }
+
+    if (current.packetLossPercent !== null && current.packetLossPercent >= 2) {
+      highlights.push(
+        `${m['voice.screen_stats_packet_loss']()}: ${formatPercent(current.packetLossPercent)}`
+      );
+    }
+
+    if (current.frameDropPercent !== null && current.frameDropPercent >= 3) {
+      highlights.push(
+        `${m['voice.screen_stats_frame_drop']()}: ${formatPercent(current.frameDropPercent)}`
+      );
+    }
+
+    return highlights.slice(0, 4);
+  }
+
   function handleKeydown(event: KeyboardEvent) {
     if (event.key !== 'Escape') return;
     event.stopPropagation();
@@ -301,7 +358,9 @@ strictly local, starts only while this component is mounted, and stops on close.
     </button>
   </header>
 
-  <div class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 @min-[560px]:p-3">
+  <div
+    class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-2 @min-[560px]:p-3"
+  >
     {#if loading && !sample}
       <div class="flex min-h-40 items-center justify-center gap-2 text-sm text-muted">
         <span class="iconify animate-spin text-lg uil--spinner" aria-hidden="true"></span>
@@ -329,6 +388,36 @@ strictly local, starts only while this component is mounted, and stops on close.
             {m['voice.screen_stats_live']()} · {sampleAgeLabel(sample)}
           </span>
         </div>
+
+        {#if partialSample || unavailable || diagnosticHighlights(sample).length}
+          <div
+            class="flex flex-col gap-2 rounded-md border border-text/10 bg-surface-100/65 p-2 text-xs @min-[560px]:flex-row @min-[560px]:items-center @min-[560px]:justify-between"
+          >
+            <div class="flex items-center gap-2 text-muted">
+              <span class="iconify shrink-0 uil--info-circle" aria-hidden="true"></span>
+              <span>
+                {#if unavailable}
+                  {m['voice.screen_stats_retrying']()}
+                {:else if partialSample}
+                  {m['voice.screen_stats_partial_sample']()}
+                {:else}
+                  {m['voice.screen_stats_observed_causes']()}
+                {/if}
+              </span>
+            </div>
+            {#if diagnosticHighlights(sample).length}
+              <ul class="flex flex-wrap gap-1.5">
+                {#each diagnosticHighlights(sample) as highlight}
+                  <li
+                    class="rounded-full border border-warning/25 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning"
+                  >
+                    {highlight}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
+          </div>
+        {/if}
 
         <div class="grid grid-cols-2 gap-2 @min-[560px]:grid-cols-3 @min-[900px]:grid-cols-6">
           <div class="rounded-md border border-text/10 bg-surface-100/80 p-2.5">
@@ -388,18 +477,18 @@ strictly local, starts only while this component is mounted, and stops on close.
             <ScreenShareSparkline
               label={m['voice.screen_stats_bitrate']()}
               value={formatBitrate(sample.bitrateBps)}
-              values={history.map((item) => item.bitrateBps)}
+              points={trendPoints(history, (item) => item.bitrateBps)}
             />
             <ScreenShareSparkline
               label={m['voice.screen_stats_fps']()}
               value={`${formatNumber(sample.framesPerSecond, 1)} FPS`}
-              values={history.map((item) => item.framesPerSecond)}
+              points={trendPoints(history, (item) => item.framesPerSecond)}
               color="warning"
             />
             <ScreenShareSparkline
               label={m['voice.screen_stats_packet_loss']()}
               value={formatPercent(sample.packetLossPercent)}
-              values={history.map((item) => item.packetLossPercent)}
+              points={trendPoints(history, (item) => item.packetLossPercent)}
               color="danger"
             />
           </div>
@@ -642,12 +731,8 @@ strictly local, starts only while this component is mounted, and stops on close.
     right: calc(var(--diagnostics-safe-right) + 0.5rem);
     bottom: calc(var(--diagnostics-safe-bottom) + 0.5rem);
     left: calc(var(--diagnostics-safe-left) + 0.5rem);
-    height: calc(
-      100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem
-    );
-    height: calc(
-      100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem
-    );
+    height: calc(100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem);
+    height: calc(100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 1rem);
   }
 
   @media (min-width: 720px) {
@@ -656,12 +741,8 @@ strictly local, starts only while this component is mounted, and stops on close.
       right: calc(var(--diagnostics-safe-right) + 1rem);
       bottom: calc(var(--diagnostics-safe-bottom) + 1rem);
       left: calc(var(--diagnostics-safe-left) + 1rem);
-      height: calc(
-        100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 2rem
-      );
-      height: calc(
-        100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 2rem
-      );
+      height: calc(100vh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 2rem);
+      height: calc(100dvh - var(--diagnostics-safe-top) - var(--diagnostics-safe-bottom) - 2rem);
     }
   }
 </style>

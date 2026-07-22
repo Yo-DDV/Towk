@@ -3,6 +3,7 @@ import type { Track } from 'livekit-client';
 import {
   appendScreenShareDiagnosticsSample,
   collectScreenShareDiagnostics,
+  mergeScreenShareDiagnosticsSample,
   SCREEN_SHARE_DIAGNOSTICS_HISTORY_LIMIT,
   type ScreenShareDiagnosticsSample
 } from './screenShareDiagnostics';
@@ -453,5 +454,84 @@ describe('screen-share diagnostics collection', () => {
 
     expect(history).toHaveLength(SCREEN_SHARE_DIAGNOSTICS_HISTORY_LIMIT);
     expect(history[0].collectedAt).toBe(4);
+  });
+
+  it('keeps the last stable display fields when a later WebRTC sample is partial', async () => {
+    const track = remoteTrack([
+      statsReport(
+        {
+          id: 'inbound',
+          type: 'inbound-rtp',
+          kind: 'video',
+          timestamp: 1_000,
+          bytesReceived: 1_000,
+          packetsReceived: 100,
+          packetsLost: 0,
+          frameWidth: 1920,
+          frameHeight: 1080,
+          framesPerSecond: 30,
+          framesReceived: 30,
+          framesDecoded: 30,
+          framesDropped: 0,
+          codecId: 'codec'
+        },
+        { id: 'codec', type: 'codec', mimeType: 'video/H264' }
+      ),
+      statsReport(
+        {
+          id: 'inbound',
+          type: 'inbound-rtp',
+          kind: 'video',
+          timestamp: 3_000,
+          bytesReceived: 401_000,
+          packetsReceived: 300,
+          packetsLost: 0,
+          frameWidth: 1920,
+          frameHeight: 1080,
+          framesPerSecond: 30,
+          framesReceived: 90,
+          framesDecoded: 90,
+          framesDropped: 0,
+          codecId: 'codec'
+        },
+        { id: 'codec', type: 'codec', mimeType: 'video/H264' }
+      ),
+      statsReport(
+        {
+          id: 'inbound',
+          type: 'inbound-rtp',
+          kind: 'video',
+          timestamp: 5_000,
+          packetsReceived: 500,
+          packetsLost: 0,
+          framesReceived: 150,
+          framesDecoded: 150,
+          codecId: 'codec'
+        },
+        { id: 'codec', type: 'codec', mimeType: 'video/H264' }
+      )
+    ]);
+
+    const first = await collectScreenShareDiagnostics({ track, direction: 'inbound' });
+    const stable = await collectScreenShareDiagnostics({
+      track,
+      direction: 'inbound',
+      previous: first.counters
+    });
+    const partial = await collectScreenShareDiagnostics({
+      track,
+      direction: 'inbound',
+      previous: stable.counters
+    });
+
+    const merged = mergeScreenShareDiagnosticsSample(stable.sample, partial.sample);
+
+    expect(partial.sample.width).toBeNull();
+    expect(partial.sample.bitrateBps).toBeNull();
+    expect(merged.width).toBe(1920);
+    expect(merged.height).toBe(1080);
+    expect(merged.framesPerSecond).toBe(30);
+    expect(merged.bitrateBps).toBe(stable.sample.bitrateBps);
+    expect(merged.codec).toBe('H264');
   });
 });

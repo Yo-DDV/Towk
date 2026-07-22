@@ -94,6 +94,35 @@ export type ScreenShareDiagnosticsCollection = {
   counters: ScreenShareDiagnosticsCounters;
 };
 
+type StickyDiagnosticsField = keyof Pick<
+  ScreenShareDiagnosticsSample,
+  | 'width'
+  | 'height'
+  | 'sourceWidth'
+  | 'sourceHeight'
+  | 'sourceFramesPerSecond'
+  | 'framesPerSecond'
+  | 'bitrateBps'
+  | 'targetBitrateBps'
+  | 'availableBitrateBps'
+  | 'packetLossPercent'
+  | 'jitterMs'
+  | 'roundTripTimeMs'
+  | 'frameDropPercent'
+  | 'codec'
+  | 'encoderImplementation'
+  | 'decoderImplementation'
+  | 'powerEfficientCodec'
+  | 'qualityLimitationReason'
+  | 'qualityLimitationDurations'
+  | 'qualityLimitationResolutionChanges'
+  | 'networkType'
+  | 'protocol'
+  | 'localCandidateType'
+  | 'remoteCandidateType'
+  | 'contentHint'
+>;
+
 type RtcStat = {
   id: string;
   type: string;
@@ -528,4 +557,77 @@ export function appendScreenShareDiagnosticsSample(
   sample: ScreenShareDiagnosticsSample
 ): ScreenShareDiagnosticsSample[] {
   return [...history, sample].slice(-SCREEN_SHARE_DIAGNOSTICS_HISTORY_LIMIT);
+}
+
+export function screenShareDiagnosticsHasVideoSignal(
+  sample: ScreenShareDiagnosticsSample
+): boolean {
+  return (
+    sample.width !== null ||
+    sample.height !== null ||
+    sample.framesPerSecond !== null ||
+    sample.bitrateBps !== null ||
+    sample.codec !== null
+  );
+}
+
+export function screenShareDiagnosticsSampleIsPartial(
+  sample: ScreenShareDiagnosticsSample
+): boolean {
+  if (!screenShareDiagnosticsHasVideoSignal(sample)) return true;
+  return sample.width === null || sample.height === null || sample.framesPerSecond === null;
+}
+
+export function mergeScreenShareDiagnosticsSample(
+  previous: ScreenShareDiagnosticsSample | null,
+  next: ScreenShareDiagnosticsSample
+): ScreenShareDiagnosticsSample {
+  if (!previous) return next;
+
+  const shouldKeepStableVideoFields = screenShareDiagnosticsSampleIsPartial(next);
+  if (!shouldKeepStableVideoFields) return next;
+
+  const stickyFields: StickyDiagnosticsField[] = [
+    'width',
+    'height',
+    'sourceWidth',
+    'sourceHeight',
+    'sourceFramesPerSecond',
+    'framesPerSecond',
+    'bitrateBps',
+    'targetBitrateBps',
+    'availableBitrateBps',
+    'packetLossPercent',
+    'jitterMs',
+    'roundTripTimeMs',
+    'frameDropPercent',
+    'codec',
+    'encoderImplementation',
+    'decoderImplementation',
+    'powerEfficientCodec',
+    'qualityLimitationReason',
+    'qualityLimitationDurations',
+    'qualityLimitationResolutionChanges',
+    'networkType',
+    'protocol',
+    'localCandidateType',
+    'remoteCandidateType',
+    'contentHint'
+  ];
+
+  const merged: ScreenShareDiagnosticsSample = {
+    ...next,
+    health:
+      next.health === 'unknown' && previous.health !== 'unknown' ? previous.health : next.health,
+    activeLayerCount: next.activeLayerCount > 0 ? next.activeLayerCount : previous.activeLayerCount,
+    layers: next.layers.length ? next.layers : previous.layers
+  };
+
+  for (const field of stickyFields) {
+    if (merged[field] === null) {
+      Object.assign(merged, { [field]: previous[field] });
+    }
+  }
+
+  return merged;
 }
