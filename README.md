@@ -5,81 +5,129 @@
     <img src="branding/towk-horizontal-on-light.webp" alt="Towk" width="520" />
   </picture>
 
-  <p><strong>Your conversations. Your infrastructure.</strong></p>
+  <h3>Open-source communication that stays yours.</h3>
 
   <p>
-    A self-hosted communication workspace for teams and communities.<br />
-    Messaging, files, notifications, voice and video under your control.
+    A focused, self-hosted workspace for teams and communities.<br />
+    Rooms, direct messages, files, notifications, voice and video — on infrastructure you control.
   </p>
 
   <p>
-    <a href="https://github.com/Yo-DDV/Towk/actions/workflows/ci.yml"><img src="https://github.com/Yo-DDV/Towk/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
-    <a href="https://github.com/Yo-DDV/Towk/security"><img src="https://img.shields.io/badge/security-policy-43d8b0" alt="Security policy" /></a>
-    <a href="LICENSING.md"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later%20%2B%20Apache--2.0-7867f2" alt="AGPL-3.0-or-later with Apache-2.0 surfaces" /></a>
-    <a href="https://github.com/Yo-DDV/Towk/issues/new/choose"><img src="https://img.shields.io/badge/issue%20intake-open-4aa8ff" alt="Issue intake open" /></a>
+    <strong>English</strong> ·
+    <a href="README.fr.md">Français</a> ·
+    <a href="README.de.md">Deutsch</a> ·
+    <a href="README.es.md">Español</a> ·
+    <a href="README.pt.md">Português</a>
   </p>
 
   <p>
-    <a href="#why-towk">Why Towk</a> ·
-    <a href="#what-ships-today">Features</a> ·
-    <a href="#run-a-development-workspace">Quick start</a> ·
-    <a href="#public-issue-intake">Issues</a> ·
-    <a href="#security">Security</a>
+    <a href="https://github.com/Yo-DDV/Towk/releases/latest"><img src="https://img.shields.io/github/v/release/Yo-DDV/Towk?style=flat-square&amp;sort=semver&amp;display_name=tag&amp;label=release" alt="Latest release" /></a>
+    <a href="https://github.com/Yo-DDV/Towk/actions/workflows/quick-gate.yml"><img src="https://github.com/Yo-DDV/Towk/actions/workflows/quick-gate.yml/badge.svg?branch=main" alt="Quick gate" /></a>
+    <a href="SECURITY.md"><img src="https://img.shields.io/badge/security-policy-43d8b0?style=flat-square" alt="Security policy" /></a>
+    <a href="LICENSING.md"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later%20%2B%20Apache--2.0-7867f2?style=flat-square" alt="License" /></a>
+    <img src="https://img.shields.io/badge/status-pre--1.0-f59e0b?style=flat-square" alt="Pre-1.0 status" />
+  </p>
+
+  <p>
+    <a href="#why-towk"><strong>Why Towk</strong></a> ·
+    <a href="#what-towk-delivers"><strong>Features</strong></a> ·
+    <a href="#sovereignty-in-practice"><strong>Sovereignty</strong></a> ·
+    <a href="#security-with-explicit-boundaries"><strong>Security</strong></a> ·
+    <a href="#run-it-your-way"><strong>Deployment</strong></a> ·
+    <a href="#try-it-locally"><strong>Quick start</strong></a>
   </p>
 </div>
 
 > [!IMPORTANT]
-> Towk is under active development and has not reached 1.0. Pin deployments to
-> immutable tags or digests, keep tested backups, and read the release notes
-> before upgrading.
+> Towk is actively developed **pre-1.0 software**. Pin important deployments to an immutable release, image digest, or source commit; keep tested backups; and review release notes before upgrading.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/docs-website/src/assets/towk_dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="apps/docs-website/src/assets/towk_light.png" />
-  <img src="apps/docs-website/src/assets/towk_light.png" alt="Towk room overview showing the workspace navigation and room directory" width="1440" />
+  <img src="apps/docs-website/src/assets/towk_light.png" alt="Towk workspace showing room navigation, conversations and the member directory" width="1440" />
 </picture>
 
 ## Why Towk
 
-| Your workspace | Complete communication | Built to operate |
+| 🧭 **Sovereignty by default** | 💬 **Focused communication** | 🔎 **Transparent engineering** |
 |---|---|---|
-| Run one independent server for your organization or community. | Keep rooms, direct messages, files, notifications, voice and video together. | Deploy as a single binary or container, with external NATS and S3-compatible storage when needed. |
+| Operate the server, domain, identity, storage, backups and upgrade cadence. There is no central Towk account, mandatory hosted service or built-in product analytics. | Towk concentrates on the communication surfaces people use every day instead of growing into an all-purpose suite. | Source, API contracts, architecture decisions, security boundaries and release provenance are visible and auditable. |
 
-Towk is designed for self-hosting, responsive browser use and installable PWA
-workflows. It is not a federated protocol or a shared hosted service: each
-deployment remains operationally and legally independent.
+Towk is built for organizations and communities that want modern collaboration **without handing the operational and data boundary to a third party**. Each server is independent; its accounts and community data stay within the infrastructure and policies chosen by its operator.
 
-## What ships today
+The installable PWA can connect directly to multiple independent Towk servers. That gives users one client without creating a central identity provider, shared data plane or federation layer.
 
-| Area | Capabilities |
+## What Towk delivers
+
+| | |
 |---|---|
-| Conversations | Rooms, direct messages, replies, threads, reactions, mentions and presence |
-| Content | File attachments, voice messages, image handling, link previews and optional video processing |
-| Administration | Granular roles, permissions, room groups and server administration |
-| Notifications | Realtime delivery, Web Push, badges and configurable notification levels |
-| Calls | LiveKit voice and video rooms, screen sharing and media E2EE |
-| Installed PWA | Offline shell, encrypted drafts/history/outbox, OS sharing, install guidance and call integrations |
-| Identity | OAuth/OIDC, password and email authentication flows |
-| Data control | Per-user encryption keys for selected durable data and crypto-shredding support |
-| Integration | Multi-server client foundations and a protobuf-first public API |
+| **💬 Structured conversations**<br />Rooms, direct messages, replies, threads, reactions, mentions, search, presence and fast room switching. | **📎 Rich everyday content**<br />File attachments, voice messages, image and optional video handling, link previews and protected asset delivery. |
+| **🔔 Attention without noise**<br />Realtime notifications, Web Push, badges, per-room notification levels and direct routing back to the relevant conversation. | **🎙 Voice, video and screen sharing**<br />Room-scoped LiveKit calls with camera, screen sharing, device controls, reconnection handling and media E2EE. |
+| **🧭 One responsive PWA**<br />Desktop and mobile layouts, install guidance, an offline shell, encrypted local drafts and outbox state, OS sharing and progressive device integrations. | **🛡 Administration that remains understandable**<br />Built-in and custom roles, granular permissions, room overrides, member management, server branding, diagnostics and an administrative event log. |
+| **🌍 Multilingual interface**<br />English, French, German, Spanish and Portuguese are maintained in the current client. | **🔌 Open integration surface**<br />ConnectRPC and Protocol Buffers for public APIs, plus a protobuf realtime WebSocket for live updates. |
 
-## Architecture at a glance
+## Focused by design
 
-| Layer | Technology | Responsibility |
+Towk is not trying to become a marketplace, a social network or a sprawling business suite. Its product direction is deliberately narrower:
+
+- make conversations fast to enter, read and revisit;
+- make notifications useful rather than overwhelming;
+- keep files, calls and administration close to the room where work happens;
+- improve the basics across desktop, tablet and mobile without splitting the product into divergent clients;
+- expose limitations and security boundaries instead of hiding them behind marketing language.
+
+That focus is part of the product, not a temporary lack of ambition.
+
+## Sovereignty in practice
+
+| You choose | Towk provides |
+|---|---|
+| **Identity** | Built-in email/password flows or external OAuth/OIDC providers. Accounts remain server-local. |
+| **Data layer** | Embedded NATS for compact installs, or external NATS/JetStream for a more explicit topology. |
+| **File storage** | NATS Object Store by default, with S3-compatible storage available for larger asset workloads. |
+| **Calls** | Optional LiveKit integration. Call UI disappears when LiveKit is not configured. |
+| **Client access** | A browser-delivered PWA that connects directly to the servers a user adds. |
+| **Operations** | CLI tooling, backup and key-export paths, Prometheus-compatible metrics, immutable release artifacts and documented rollback expectations. |
+
+Towk is **not federated**: servers do not exchange community data. Each deployment remains its own administrative and data-protection boundary.
+
+Self-hosting does not create compliance by itself, but it gives operators the control needed to align hosting location, identity, storage, backups and access policy with their own requirements.
+
+## Security with explicit boundaries
+
+Towk aims to make security decisions inspectable rather than absolute.
+
+| Boundary | Current approach |
+|---|---|
+| **Authorization** | API-first enforcement with built-in and custom RBAC roles, explicit grants and denies, room-specific overrides and owner recovery. |
+| **Sessions** | Opaque server-side credentials, signed browser cookies, revocation through runtime-state deletion and authentication rate limits. |
+| **Protected durable fields** | Message text and selected account fields are encrypted before durable storage with per-user key material. |
+| **Transport and browser surface** | HTTPS support, restrictive response headers, origin checks, bounded request sizes and protected asset delivery. |
+| **Backups and operations** | Optional age-encrypted archives, separate key handling, private operator automation over a Unix socket and Prometheus-compatible monitoring. |
+
+> [!NOTE]
+> Towk is not blanket end-to-end encryption for normal messaging. The running server must decrypt protected fields for authorized clients. Attachments, avatars and substantial metadata remain outside Towk's field-level encryption envelope and require infrastructure-level protection. Voice and video media can use LiveKit E2EE.
+
+Read the exact model before evaluating Towk for sensitive workloads:
+
+- [Security policy](SECURITY.md)
+- [Security and privacy guide](apps/docs-website/src/content/docs/guides/operations/security.mdx)
+- [Encryption at rest and data erasure](apps/docs-website/src/content/docs/guides/operations/privacy-erasure.mdx)
+- [Backup and restore](apps/docs-website/src/content/docs/guides/operations/backup-restore.mdx)
+
+## Run it your way
+
+| Path | Best fit | Shape |
 |---|---|---|
-| Client | Svelte 5, SvelteKit, Tailwind CSS 4 | Responsive web app and installable PWA |
-| API | ConnectRPC and Protocol Buffers | Public, admin, auth and discovery contracts |
-| Realtime | Protobuf over WebSocket | Live messages, state and configuration updates |
-| Domain | Go services and projections | Authorization, event-sourced behavior and APIs |
-| Data | NATS JetStream and KV | Events, projections, runtime state and object storage |
-| Calls | LiveKit | Voice, video, screen sharing and media transport |
+| **Single binary** | Evaluation, small teams and simple VMs | Embedded web client, APIs and NATS in one compact process. |
+| **Docker Compose** | Most self-hosted servers | Towk with explicit NATS, Caddy and optional LiveKit on one host. |
+| **Kubernetes / external services** | Operators with an existing platform | External NATS, S3-compatible storage, LiveKit and multiple Towk replicas where the surrounding infrastructure is qualified. |
 
-See [the architecture reference](docs/ARCHITECTURE.md) for services, streams,
-subjects, projections and public APIs.
+Towk does not require MySQL or PostgreSQL. Durable application state is built on NATS JetStream and projections, while the web client is compiled into the Go server distribution.
 
-## Run a development workspace
+## Try it locally
 
-Towk uses [mise](https://mise.jdx.dev/) to provision the project toolchain.
+Towk uses [mise](https://mise.jdx.dev/) to provision its pinned development toolchain.
 
 ```sh
 git clone https://github.com/Yo-DDV/Towk.git
@@ -89,81 +137,46 @@ mise run setup
 mise dev
 ```
 
-The default development entry point is <http://localhost:4000>. Development
-bootstrap accounts are documented in [CONTRIBUTING.md](CONTRIBUTING.md) and must
-never be reused in a public deployment.
+Open <http://localhost:4000>.
 
-Useful checks:
+This development path uses local bootstrap fixtures. Do not reuse development credentials or defaults in a public deployment.
 
-```sh
-mise license-check
-mise test
-mise build
-```
+For durable deployments, start with:
 
-Media and capacity changes use the reproducible gates in the
-[performance qualification protocol](docs/PERFORMANCE.md).
+- [Introduction](apps/docs-website/src/content/docs/getting-started/introduction.mdx)
+- [Quick start](apps/docs-website/src/content/docs/getting-started/quick-start.mdx)
+- [Read this first](apps/docs-website/src/content/docs/guides/deployment/read-this-first.mdx)
+- [Architecture](docs/ARCHITECTURE.md)
 
-## Releases and deployment
+## Project status and expectations
 
-Towk images are built from this repository, scanned before publication, and tied
-to an exact commit through OCI metadata, SBOM and provenance attestations. See
-[Corresponding source](SOURCE.md) for the source lookup contract.
+Towk is maintained as an independent, public, pre-1.0 project.
 
-Do not deploy floating images as a durable Towk release. Pin an immutable Towk
-tag or digest, keep tested backups and review release notes before upgrading.
+- Public APIs and deployment contracts may still evolve during the `0.x` series.
+- Important deployments should use immutable versions and tested restore procedures.
+- The PWA is the current desktop and mobile client; app-store packages are not currently published.
+- Towk does not currently offer a hosted edition or a commercial support plan.
+- Bugs, focused feature proposals and self-hosting questions are handled through [GitHub Issues](https://github.com/Yo-DDV/Towk/issues/new/choose).
+- Vulnerabilities must be reported privately through [SECURITY.md](SECURITY.md).
 
-## Public issue intake
+The roadmap is evidence-oriented: completed work must exist in the repository, while planned work remains subject to design and validation. See [ROADMAP.md](ROADMAP.md).
 
-Public participation happens through GitHub Issues. Choose the form that matches
-your request so it arrives with the evidence needed for triage:
+## Documentation and project records
 
-- [Report a reproducible bug](https://github.com/Yo-DDV/Towk/issues/new?template=bug_report.yml)
-- [Propose a scoped feature](https://github.com/Yo-DDV/Towk/issues/new?template=feature_request.yml)
-- [Ask a usage or self-hosting question](https://github.com/Yo-DDV/Towk/issues/new?template=question.yml)
+| Need | Reference |
+|---|---|
+| Product introduction and deployment | [Documentation source](apps/docs-website/src/content/docs/) |
+| Architecture and APIs | [Architecture inventory](docs/ARCHITECTURE.md) · [ADRs](docs/adr/INDEX.md) · [FDRs](docs/fdr/INDEX.md) |
+| Operating and security | [Security](SECURITY.md) · [Support](SUPPORT.md) · [Performance qualification](docs/PERFORMANCE.md) |
+| Project process | [Governance](GOVERNANCE.md) · [Contribution guide](CONTRIBUTING.md) · [Roadmap](ROADMAP.md) |
+| Origin and compatibility | [Provenance](PROVENANCE.md) · [Upstream policy](UPSTREAM.md) · [Corresponding source](SOURCE.md) |
 
-Search existing issues first and remove secrets, personal data, private messages,
-raw production logs and unredacted screenshots. Towk does not accept unsolicited
-external pull requests; maintainers implement accepted work through protected,
-fully checked branches. See [CONTRIBUTING.md](CONTRIBUTING.md) and
-[SUPPORT.md](SUPPORT.md).
+## License and origin
 
-## Security
+Towk preserves the repository's per-file licensing model:
 
-Do not disclose suspected vulnerabilities in a public issue. Follow
-[SECURITY.md](SECURITY.md) and use GitHub private vulnerability reporting. Never
-include tokens, private messages, personal data, raw production logs or
-unredacted screenshots in reports.
+- the server, CLI and bundled server distribution are generally **AGPL-3.0-or-later**;
+- explicitly identified frontend, public API, documentation and example surfaces are **Apache-2.0**;
+- the exact machine-readable boundary is defined by [REUSE.toml](REUSE.toml), with third-party notices in [NOTICE](NOTICE).
 
-## Governance and roadmap
-
-`main` is protected by required checks, current-branch enforcement and resolved
-review conversations. Releases are produced by Towk-owned workflows from
-reviewed commits. Durable product and architecture choices are recorded in FDRs
-and ADRs.
-
-See [GOVERNANCE.md](GOVERNANCE.md), [ROADMAP.md](ROADMAP.md),
-[PROVENANCE.md](PROVENANCE.md) and [UPSTREAM.md](UPSTREAM.md).
-
-## License, origin and compatibility
-
-Towk uses the repository's existing per-file licensing model:
-
-- the server, CLI and bundled server artifacts are AGPL-3.0-or-later by default;
-- explicitly listed frontend, public API, documentation and example surfaces are
-  Apache-2.0;
-- third-party notices remain in [NOTICE](NOTICE).
-
-The exact machine-readable boundary is defined by [REUSE.toml](REUSE.toml).
-When a modified AGPL server is available over a network, its users must receive a
-prominent way to obtain the corresponding source for that deployed version.
-
-The inherited `chatto.*` protocol namespaces, `CHATTO_*` environment variables
-and several persisted identifiers remain compatibility contracts. They are not
-Towk branding and will change only through versioned, rollback-safe migrations;
-see [ADR-049](docs/adr/ADR-049-towk-product-identity-and-compatibility-boundary.md).
-
-Towk is an independent project based on
-[Chatto](https://github.com/chattocorp/chatto). Chatto and its logos are names and
-marks of ChattoCorp GmbH. Towk is not endorsed, sponsored, operated or supported
-by ChattoCorp GmbH.
+Towk is an independent project based on [Chatto](https://github.com/chattocorp/chatto). It preserves upstream authorship, notices and compatibility contracts while making its own product, release and support decisions. Towk is not endorsed, sponsored, operated or supported by ChattoCorp GmbH.
