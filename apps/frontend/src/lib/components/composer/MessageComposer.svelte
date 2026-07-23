@@ -1476,13 +1476,15 @@
     transition:
       color 150ms ease,
       background-color 150ms ease,
-      opacity 150ms ease,
-      transform 180ms ease;
+      opacity 150ms ease;
   }
 
   .composer-send-button--ready {
     color: #e8783b;
     color: var(--composer-focus-orange);
+  }
+
+  .composer-send-button--ready > span {
     animation: composer-send-float 2.2s ease-in-out infinite;
     will-change: transform;
   }
@@ -1580,12 +1582,12 @@
       opacity: 0;
     }
 
-    .composer-send-button--ready,
+    .composer-send-button--ready > span,
     .sending {
       animation: none;
     }
 
-    .composer-send-button--ready {
+    .composer-send-button--ready > span {
       transform: none;
       will-change: auto;
     }
