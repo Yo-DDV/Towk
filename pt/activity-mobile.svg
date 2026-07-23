@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="420" height="1110" viewBox="0 0 420 1110" role="img" aria-labelledby="title desc">
   <title id="title">Ritmo de desenvolvimento</title>
-  <desc id="desc">Atividade do ramo main nos últimos doze meses</desc>
+  <desc id="desc">Atividade Towk desde o repositório independente</desc>
   <defs>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#43d8b0"/>
@@ -49,43 +49,26 @@
   <rect class="bg" x="1" y="1" width="418" height="1108" rx="22"/>
   <rect x="0" y="0" width="420" height="8" rx="4" fill="url(#accent)"/>
   <text class="title ink" x="22" y="43" style="font-size:23px">Ritmo de desenvolvimento</text>
-  <text class="subtitle muted" x="22" y="65" style="font-size:12px">Atividade do ramo main nos últimos doze meses</text>
-<g><rect class="panel" x="22" y="82" width="184" height="82" rx="16"/><rect x="22" y="82" width="5" height="82" rx="2.5" fill="#43d8b0"/><text class="kpi ink" x="40" y="121" style="font-size:28px">1144</text><text class="small muted" x="40" y="144">commits</text></g>
-<g><rect class="panel" x="216" y="82" width="184" height="82" rx="16"/><rect x="216" y="82" width="5" height="82" rx="2.5" fill="#4aa8ff"/><text class="kpi ink" x="234" y="121" style="font-size:28px">81</text><text class="small muted" x="234" y="144">pull requests integradas</text></g>
-<g><rect class="panel" x="22" y="178" width="184" height="82" rx="16"/><rect x="22" y="178" width="5" height="82" rx="2.5" fill="#7867f2"/><text class="kpi ink" x="40" y="217" style="font-size:28px">85</text><text class="small muted" x="40" y="240">dias ativos</text></g>
+  <text class="subtitle muted" x="22" y="65" style="font-size:12px">Atividade Towk desde o repositório independente</text>
+<g><rect class="panel" x="22" y="82" width="184" height="82" rx="16"/><rect x="22" y="82" width="5" height="82" rx="2.5" fill="#43d8b0"/><text class="kpi ink" x="40" y="121" style="font-size:28px">100</text><text class="small muted" x="40" y="144">commits</text></g>
+<g><rect class="panel" x="216" y="82" width="184" height="82" rx="16"/><rect x="216" y="82" width="5" height="82" rx="2.5" fill="#4aa8ff"/><text class="kpi ink" x="234" y="121" style="font-size:28px">82</text><text class="small muted" x="234" y="144">pull requests integradas</text></g>
+<g><rect class="panel" x="22" y="178" width="184" height="82" rx="16"/><rect x="22" y="178" width="5" height="82" rx="2.5" fill="#7867f2"/><text class="kpi ink" x="40" y="217" style="font-size:28px">8</text><text class="small muted" x="40" y="240">dias ativos</text></g>
 <g><rect class="panel" x="216" y="178" width="184" height="82" rx="16"/><rect x="216" y="178" width="5" height="82" rx="2.5" fill="#f4a261"/><text class="kpi ink" x="234" y="217" style="font-size:28px">2</text><text class="small muted" x="234" y="240">autores humanos de commits</text></g>
   <g><rect class="panel" x="22" y="286" width="376" height="244" rx="18"/><text class="label ink" x="40" y="319">Commits por dia</text><text class="small muted" x="40" y="338">Últimos 30 dias</text><line class="grid" x1="40" y1="365.0" x2="380" y2="365.0" stroke-width="1"/>
 <line class="grid" x1="40" y1="396.3" x2="380" y2="396.3" stroke-width="1"/>
 <line class="grid" x1="40" y1="427.5" x2="380" y2="427.5" stroke-width="1"/>
 <line class="grid" x1="40" y1="458.8" x2="380" y2="458.8" stroke-width="1"/>
 <line class="grid" x1="40" y1="490.0" x2="380" y2="490.0" stroke-width="1"/>
-<polygon points="40,490 40.0,449.2 51.7,418.6 63.4,454.3 75.2,474.7 86.9,472.1 98.6,461.9 110.3,439.0 122.1,456.8 133.8,428.8 145.5,456.8 157.2,472.1 169.0,469.6 180.7,446.6 192.4,446.6 204.1,482.3 215.9,467.0 227.6,431.3 239.3,365.0 251.0,377.8 262.8,456.8 274.5,474.7 286.2,474.7 297.9,490.0 309.7,490.0 321.4,490.0 333.1,490.0 344.8,433.9 356.6,490.0 368.3,464.5 380.0,484.9 380,490" fill="#43d8b0" opacity="0.13"/>
-<polyline points="40.0,449.2 51.7,418.6 63.4,454.3 75.2,474.7 86.9,472.1 98.6,461.9 110.3,439.0 122.1,456.8 133.8,428.8 145.5,456.8 157.2,472.1 169.0,469.6 180.7,446.6 192.4,446.6 204.1,482.3 215.9,467.0 227.6,431.3 239.3,365.0 251.0,377.8 262.8,456.8 274.5,474.7 286.2,474.7 297.9,490.0 309.7,490.0 321.4,490.0 333.1,490.0 344.8,433.9 356.6,490.0 368.3,464.5 380.0,484.9" fill="none" stroke="#43d8b0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-<circle cx="40.0" cy="449.2" r="3.2" fill="#43d8b0"/>
-<circle cx="51.7" cy="418.6" r="3.2" fill="#43d8b0"/>
-<circle cx="63.4" cy="454.3" r="3.2" fill="#43d8b0"/>
-<circle cx="75.2" cy="474.7" r="3.2" fill="#43d8b0"/>
-<circle cx="86.9" cy="472.1" r="3.2" fill="#43d8b0"/>
-<circle cx="98.6" cy="461.9" r="3.2" fill="#43d8b0"/>
-<circle cx="110.3" cy="439.0" r="3.2" fill="#43d8b0"/>
-<circle cx="122.1" cy="456.8" r="3.2" fill="#43d8b0"/>
-<circle cx="133.8" cy="428.8" r="3.2" fill="#43d8b0"/>
-<circle cx="145.5" cy="456.8" r="3.2" fill="#43d8b0"/>
-<circle cx="157.2" cy="472.1" r="3.2" fill="#43d8b0"/>
-<circle cx="169.0" cy="469.6" r="3.2" fill="#43d8b0"/>
-<circle cx="180.7" cy="446.6" r="3.2" fill="#43d8b0"/>
-<circle cx="192.4" cy="446.6" r="3.2" fill="#43d8b0"/>
-<circle cx="204.1" cy="482.3" r="3.2" fill="#43d8b0"/>
-<circle cx="215.9" cy="467.0" r="3.2" fill="#43d8b0"/>
-<circle cx="227.6" cy="431.3" r="3.2" fill="#43d8b0"/>
-<circle cx="239.3" cy="365.0" r="3.2" fill="#43d8b0"/>
-<circle cx="251.0" cy="377.8" r="3.2" fill="#43d8b0"/>
-<circle cx="262.8" cy="456.8" r="3.2" fill="#43d8b0"/>
-<circle cx="274.5" cy="474.7" r="3.2" fill="#43d8b0"/>
-<circle cx="286.2" cy="474.7" r="3.2" fill="#43d8b0"/>
-<circle cx="344.8" cy="433.9" r="3.2" fill="#43d8b0"/>
-<circle cx="368.3" cy="464.5" r="3.2" fill="#43d8b0"/>
-<circle cx="380.0" cy="484.9" r="3.2" fill="#43d8b0"/>
+<polygon points="40,490 40.0,490.0 51.7,490.0 63.4,490.0 75.2,490.0 86.9,490.0 98.6,490.0 110.3,490.0 122.1,490.0 133.8,490.0 145.5,490.0 157.2,490.0 169.0,490.0 180.7,490.0 192.4,490.0 204.1,490.0 215.9,490.0 227.6,490.0 239.3,483.4 251.0,365.0 262.8,447.2 274.5,470.3 286.2,470.3 297.9,490.0 309.7,490.0 321.4,490.0 333.1,490.0 344.8,417.6 356.6,490.0 368.3,457.1 380.0,480.1 380,490" fill="#43d8b0" opacity="0.13"/>
+<polyline points="40.0,490.0 51.7,490.0 63.4,490.0 75.2,490.0 86.9,490.0 98.6,490.0 110.3,490.0 122.1,490.0 133.8,490.0 145.5,490.0 157.2,490.0 169.0,490.0 180.7,490.0 192.4,490.0 204.1,490.0 215.9,490.0 227.6,490.0 239.3,483.4 251.0,365.0 262.8,447.2 274.5,470.3 286.2,470.3 297.9,490.0 309.7,490.0 321.4,490.0 333.1,490.0 344.8,417.6 356.6,490.0 368.3,457.1 380.0,480.1" fill="none" stroke="#43d8b0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="239.3" cy="483.4" r="3.2" fill="#43d8b0"/>
+<circle cx="251.0" cy="365.0" r="3.2" fill="#43d8b0"/>
+<circle cx="262.8" cy="447.2" r="3.2" fill="#43d8b0"/>
+<circle cx="274.5" cy="470.3" r="3.2" fill="#43d8b0"/>
+<circle cx="286.2" cy="470.3" r="3.2" fill="#43d8b0"/>
+<circle cx="344.8" cy="417.6" r="3.2" fill="#43d8b0"/>
+<circle cx="368.3" cy="457.1" r="3.2" fill="#43d8b0"/>
+<circle cx="380.0" cy="480.1" r="3.2" fill="#43d8b0"/>
 <text class="small faint" x="40.0" y="510" text-anchor="middle">24</text>
 
 
@@ -116,18 +99,18 @@
 
 
 <text class="small faint" x="380.0" y="510" text-anchor="middle">23</text></g>
-  <g><rect class="panel" x="22" y="548" width="376" height="214" rx="18"/><text class="label ink" x="40" y="581">Commits por semana</text><text class="small muted" x="40" y="600">Últimas 12 semanas</text><g><rect class="track" x="44.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="44.5" y="674.0" width="19.3" height="45.0" rx="7.0" fill="#4aa8ff"/><title>2026-05-04 – 2026-05-10: 86</title><text class="small faint" x="54.2" y="738" text-anchor="middle">04/05</text></g>
-<g><rect class="track" x="72.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="72.8" y="689.7" width="19.3" height="29.3" rx="7.0" fill="#4aa8ff"/><title>2026-05-11 – 2026-05-17: 56</title></g>
-<g><rect class="track" x="101.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="101.2" y="667.8" width="19.3" height="51.2" rx="7.0" fill="#4aa8ff"/><title>2026-05-18 – 2026-05-24: 98</title><text class="small faint" x="110.8" y="738" text-anchor="middle">18/05</text></g>
-<g><rect class="track" x="129.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="129.5" y="681.9" width="19.3" height="37.1" rx="7.0" fill="#4aa8ff"/><title>2026-05-25 – 2026-05-31: 71</title></g>
-<g><rect class="track" x="157.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="157.8" y="683.5" width="19.3" height="35.5" rx="7.0" fill="#4aa8ff"/><title>2026-06-01 – 2026-06-07: 68</title><text class="small faint" x="167.5" y="738" text-anchor="middle">01/06</text></g>
-<g><rect class="track" x="186.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="186.2" y="672.5" width="19.3" height="46.5" rx="7.0" fill="#4aa8ff"/><title>2026-06-08 – 2026-06-14: 89</title></g>
-<g><rect class="track" x="214.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="214.5" y="627.0" width="19.3" height="92.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-15 – 2026-06-21: 176</title><text class="small faint" x="224.2" y="738" text-anchor="middle">15/06</text></g>
-<g><rect class="track" x="242.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="242.8" y="673.0" width="19.3" height="46.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-22 – 2026-06-28: 88</title></g>
-<g><rect class="track" x="271.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="271.2" y="668.8" width="19.3" height="50.2" rx="7.0" fill="#4aa8ff"/><title>2026-06-29 – 2026-07-05: 96</title><text class="small faint" x="280.8" y="738" text-anchor="middle">29/06</text></g>
-<g><rect class="track" x="299.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="299.5" y="634.3" width="19.3" height="84.7" rx="7.0" fill="#4aa8ff"/><title>2026-07-06 – 2026-07-12: 162</title></g>
-<g><rect class="track" x="327.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="327.8" y="705.9" width="19.3" height="13.1" rx="7.0" fill="#4aa8ff"/><title>2026-07-13 – 2026-07-19: 25</title><text class="small faint" x="337.5" y="738" text-anchor="middle">13/07</text></g>
-<g><rect class="track" x="356.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="356.2" y="701.2" width="19.3" height="17.8" rx="7.0" fill="#4aa8ff"/><title>2026-07-20 – 2026-07-26: 34</title></g></g>
+  <g><rect class="panel" x="22" y="548" width="376" height="214" rx="18"/><text class="label ink" x="40" y="581">Commits por semana</text><text class="small muted" x="40" y="600">Últimas 12 semanas</text><g><rect class="track" x="44.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="44.5" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-05-04 – 2026-05-10: 0</title><text class="small faint" x="54.2" y="738" text-anchor="middle">04/05</text></g>
+<g><rect class="track" x="72.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="72.8" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-05-11 – 2026-05-17: 0</title></g>
+<g><rect class="track" x="101.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="101.2" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-05-18 – 2026-05-24: 0</title><text class="small faint" x="110.8" y="738" text-anchor="middle">18/05</text></g>
+<g><rect class="track" x="129.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="129.5" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-05-25 – 2026-05-31: 0</title></g>
+<g><rect class="track" x="157.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="157.8" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-01 – 2026-06-07: 0</title><text class="small faint" x="167.5" y="738" text-anchor="middle">01/06</text></g>
+<g><rect class="track" x="186.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="186.2" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-08 – 2026-06-14: 0</title></g>
+<g><rect class="track" x="214.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="214.5" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-15 – 2026-06-21: 0</title><text class="small faint" x="224.2" y="738" text-anchor="middle">15/06</text></g>
+<g><rect class="track" x="242.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="242.8" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-22 – 2026-06-28: 0</title></g>
+<g><rect class="track" x="271.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="271.2" y="717.0" width="19.3" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-29 – 2026-07-05: 0</title><text class="small faint" x="280.8" y="738" text-anchor="middle">29/06</text></g>
+<g><rect class="track" x="299.5" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="299.5" y="627.0" width="19.3" height="92.0" rx="7.0" fill="#4aa8ff"/><title>2026-07-06 – 2026-07-12: 40</title></g>
+<g><rect class="track" x="327.8" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="327.8" y="661.5" width="19.3" height="57.5" rx="7.0" fill="#4aa8ff"/><title>2026-07-13 – 2026-07-19: 25</title><text class="small faint" x="337.5" y="738" text-anchor="middle">13/07</text></g>
+<g><rect class="track" x="356.2" y="627" width="19.3" height="92" rx="7.0" opacity="0.44"/><rect x="356.2" y="638.5" width="19.3" height="80.5" rx="7.0" fill="#4aa8ff"/><title>2026-07-20 – 2026-07-26: 35</title></g></g>
   <g><rect class="panel" x="22" y="780" width="376" height="142" rx="18"/><text class="label ink" x="40" y="813">Commits por mês</text><g><rect class="track" x="44.0" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="44.0" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Ago 2025: 0</title><text class="small faint" x="54.2" y="907" text-anchor="middle">Ago</text></g>
 <g><rect class="track" x="72.3" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="72.3" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Set 2025: 0</title></g>
 <g><rect class="track" x="100.7" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="100.7" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Out 2025: 0</title><text class="small faint" x="110.8" y="907" text-anchor="middle">Out</text></g>
@@ -136,10 +119,10 @@
 <g><rect class="track" x="185.7" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="185.7" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Jan 2026: 0</title></g>
 <g><rect class="track" x="214.0" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="214.0" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Fev 2026: 0</title><text class="small faint" x="224.2" y="907" text-anchor="middle">Fev</text></g>
 <g><rect class="track" x="242.3" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="242.3" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Mar 2026: 0</title></g>
-<g><rect class="track" x="270.7" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="270.7" y="878.1" width="20.3" height="9.9" rx="7.0" fill="#43d8b0"/><title>Abr 2026: 86</title><text class="small faint" x="280.8" y="907" text-anchor="middle">Abr</text></g>
-<g><rect class="track" x="299.0" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="299.0" y="851.2" width="20.3" height="36.8" rx="7.0" fill="#43d8b0"/><title>Mai 2026: 320</title></g>
-<g><rect class="track" x="327.3" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="327.3" y="836.0" width="20.3" height="52.0" rx="7.0" fill="#43d8b0"/><title>Jun 2026: 452</title><text class="small faint" x="337.5" y="907" text-anchor="middle">Jun</text></g>
-<g><rect class="track" x="355.7" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="355.7" y="855.1" width="20.3" height="32.9" rx="7.0" fill="#43d8b0"/><title>Jul 2026: 286</title></g></g>
+<g><rect class="track" x="270.7" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="270.7" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Abr 2026: 0</title><text class="small faint" x="280.8" y="907" text-anchor="middle">Abr</text></g>
+<g><rect class="track" x="299.0" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="299.0" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Mai 2026: 0</title></g>
+<g><rect class="track" x="327.3" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="327.3" y="886.0" width="20.3" height="2.0" rx="7.0" fill="#43d8b0"/><title>Jun 2026: 0</title><text class="small faint" x="337.5" y="907" text-anchor="middle">Jun</text></g>
+<g><rect class="track" x="355.7" y="836" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="355.7" y="836.0" width="20.3" height="52.0" rx="7.0" fill="#43d8b0"/><title>Jul 2026: 100</title></g></g>
   <g><rect class="panel" x="22" y="940" width="376" height="142" rx="18"/><text class="label ink" x="40" y="973">PR integradas por mês</text><g><rect class="track" x="44.0" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="44.0" y="1046.0" width="20.3" height="2.0" rx="7.0" fill="#7867f2"/><title>Ago 2025: 0</title><text class="small faint" x="54.2" y="1067" text-anchor="middle">Ago</text></g>
 <g><rect class="track" x="72.3" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="72.3" y="1046.0" width="20.3" height="2.0" rx="7.0" fill="#7867f2"/><title>Set 2025: 0</title></g>
 <g><rect class="track" x="100.7" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="100.7" y="1046.0" width="20.3" height="2.0" rx="7.0" fill="#7867f2"/><title>Out 2025: 0</title><text class="small faint" x="110.8" y="1067" text-anchor="middle">Out</text></g>
@@ -151,6 +134,6 @@
 <g><rect class="track" x="270.7" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="270.7" y="1046.0" width="20.3" height="2.0" rx="7.0" fill="#7867f2"/><title>Abr 2026: 0</title><text class="small faint" x="280.8" y="1067" text-anchor="middle">Abr</text></g>
 <g><rect class="track" x="299.0" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="299.0" y="1046.0" width="20.3" height="2.0" rx="7.0" fill="#7867f2"/><title>Mai 2026: 0</title></g>
 <g><rect class="track" x="327.3" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="327.3" y="1046.0" width="20.3" height="2.0" rx="7.0" fill="#7867f2"/><title>Jun 2026: 0</title><text class="small faint" x="337.5" y="1067" text-anchor="middle">Jun</text></g>
-<g><rect class="track" x="355.7" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="355.7" y="996.0" width="20.3" height="52.0" rx="7.0" fill="#7867f2"/><title>Jul 2026: 81</title></g></g>
-  <text class="small faint" x="22" y="1098">Atualizado 23/07/2026, 19:52</text>
+<g><rect class="track" x="355.7" y="996" width="20.3" height="52" rx="7.0" opacity="0.44"/><rect x="355.7" y="996.0" width="20.3" height="52.0" rx="7.0" fill="#7867f2"/><title>Jul 2026: 82</title></g></g>
+  <text class="small faint" x="22" y="1098">Atualizado 23/07/2026, 20:18</text>
 </svg>

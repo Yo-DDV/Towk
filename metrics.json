@@ -1,127 +1,129 @@
 {
-  "version": 1,
+  "version": 2,
   "repository": "Yo-DDV/Towk",
   "branch": "main",
-  "sourceCommit": "3befb8778a7dddafa55764a98a7f657b0cb2b2f4",
-  "generatedAt": "2026-07-23T17:52:37.773Z",
-  "window": "trailing-365-days",
-  "commits": 1144,
-  "mergedPullRequests": 81,
-  "activeDays": 85,
+  "sourceCommit": "8388edafe3527f2464762d5237cd80b27719dd47",
+  "generatedAt": "2026-07-23T18:18:29.215Z",
+  "window": "since-independent-baseline",
+  "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
+  "baselineAt": "2026-07-12T10:20:05.000Z",
+  "commits": 100,
+  "mergedPullRequests": 82,
+  "activeDays": 8,
   "humanCommitAuthors": 2,
-  "automationCommits": 14,
+  "automationCommits": 13,
   "automationPullRequests": 13,
   "commitAuthors": [
     {
-      "label": "hmans",
-      "count": 1017
+      "label": "Yo-DDV",
+      "count": 84
     },
     {
-      "label": "Yo-DDV",
-      "count": 113
+      "label": "hmans",
+      "count": 3
     }
   ],
   "pullRequestAuthors": [
     {
       "label": "Yo-DDV",
-      "count": 68
+      "count": 69
     }
   ],
   "daily": [
     {
       "key": "2026-06-24",
       "label": "24",
-      "value": 16
+      "value": 0
     },
     {
       "key": "2026-06-25",
       "label": "25",
-      "value": 28
+      "value": 0
     },
     {
       "key": "2026-06-26",
       "label": "26",
-      "value": 14
+      "value": 0
     },
     {
       "key": "2026-06-27",
       "label": "27",
-      "value": 6
+      "value": 0
     },
     {
       "key": "2026-06-28",
       "label": "28",
-      "value": 7
+      "value": 0
     },
     {
       "key": "2026-06-29",
       "label": "29",
-      "value": 11
+      "value": 0
     },
     {
       "key": "2026-06-30",
       "label": "30",
-      "value": 20
+      "value": 0
     },
     {
       "key": "2026-07-01",
       "label": "1",
-      "value": 13
+      "value": 0
     },
     {
       "key": "2026-07-02",
       "label": "2",
-      "value": 24
+      "value": 0
     },
     {
       "key": "2026-07-03",
       "label": "3",
-      "value": 13
+      "value": 0
     },
     {
       "key": "2026-07-04",
       "label": "4",
-      "value": 7
+      "value": 0
     },
     {
       "key": "2026-07-05",
       "label": "5",
-      "value": 8
+      "value": 0
     },
     {
       "key": "2026-07-06",
       "label": "6",
-      "value": 17
+      "value": 0
     },
     {
       "key": "2026-07-07",
       "label": "7",
-      "value": 17
+      "value": 0
     },
     {
       "key": "2026-07-08",
       "label": "8",
-      "value": 3
+      "value": 0
     },
     {
       "key": "2026-07-09",
       "label": "9",
-      "value": 9
+      "value": 0
     },
     {
       "key": "2026-07-10",
       "label": "10",
-      "value": 23
+      "value": 0
     },
     {
       "key": "2026-07-11",
       "label": "11",
-      "value": 49
+      "value": 2
     },
     {
       "key": "2026-07-12",
       "label": "12",
-      "value": 44
+      "value": 38
     },
     {
       "key": "2026-07-13",
@@ -176,7 +178,7 @@
     {
       "key": "2026-07-23",
       "label": "23",
-      "value": 2
+      "value": 3
     }
   ],
   "weekly": [
@@ -184,61 +186,61 @@
       "key": "2026-05-04",
       "label": "04/05",
       "accessibleLabel": "2026-05-04 – 2026-05-10",
-      "value": 86
+      "value": 0
     },
     {
       "key": "2026-05-11",
       "label": "11/05",
       "accessibleLabel": "2026-05-11 – 2026-05-17",
-      "value": 56
+      "value": 0
     },
     {
       "key": "2026-05-18",
       "label": "18/05",
       "accessibleLabel": "2026-05-18 – 2026-05-24",
-      "value": 98
+      "value": 0
     },
     {
       "key": "2026-05-25",
       "label": "25/05",
       "accessibleLabel": "2026-05-25 – 2026-05-31",
-      "value": 71
+      "value": 0
     },
     {
       "key": "2026-06-01",
       "label": "01/06",
       "accessibleLabel": "2026-06-01 – 2026-06-07",
-      "value": 68
+      "value": 0
     },
     {
       "key": "2026-06-08",
       "label": "08/06",
       "accessibleLabel": "2026-06-08 – 2026-06-14",
-      "value": 89
+      "value": 0
     },
     {
       "key": "2026-06-15",
       "label": "15/06",
       "accessibleLabel": "2026-06-15 – 2026-06-21",
-      "value": 176
+      "value": 0
     },
     {
       "key": "2026-06-22",
       "label": "22/06",
       "accessibleLabel": "2026-06-22 – 2026-06-28",
-      "value": 88
+      "value": 0
     },
     {
       "key": "2026-06-29",
       "label": "29/06",
       "accessibleLabel": "2026-06-29 – 2026-07-05",
-      "value": 96
+      "value": 0
     },
     {
       "key": "2026-07-06",
       "label": "06/07",
       "accessibleLabel": "2026-07-06 – 2026-07-12",
-      "value": 162
+      "value": 40
     },
     {
       "key": "2026-07-13",
@@ -250,7 +252,7 @@
       "key": "2026-07-20",
       "label": "20/07",
       "accessibleLabel": "2026-07-20 – 2026-07-26",
-      "value": 34
+      "value": 35
     }
   ],
   "monthlyCommits": [
@@ -306,25 +308,25 @@
       "key": "2026-04",
       "label": "Apr",
       "accessibleLabel": "Apr 2026",
-      "value": 86
+      "value": 0
     },
     {
       "key": "2026-05",
       "label": "May",
       "accessibleLabel": "May 2026",
-      "value": 320
+      "value": 0
     },
     {
       "key": "2026-06",
       "label": "Jun",
       "accessibleLabel": "Jun 2026",
-      "value": 452
+      "value": 0
     },
     {
       "key": "2026-07",
       "label": "Jul",
       "accessibleLabel": "Jul 2026",
-      "value": 286
+      "value": 100
     }
   ],
   "monthlyPullRequests": [
@@ -398,7 +400,7 @@
       "key": "2026-07",
       "label": "Jul",
       "accessibleLabel": "Jul 2026",
-      "value": 81
+      "value": 82
     }
   ]
 }

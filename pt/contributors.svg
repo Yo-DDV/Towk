@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="450" viewBox="0 0 1200 450" role="img" aria-labelledby="title desc">
   <title id="title">Quem faz o Towk avançar</title>
-  <desc id="desc">Autores humanos no main e pull requests integradas · últimos doze meses</desc>
+  <desc id="desc">Autores humanos desde o repositório independente</desc>
   <defs>
     <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#43d8b0"/>
@@ -49,11 +49,11 @@
   <rect class="bg" x="1" y="1" width="1198" height="448" rx="22"/>
   <rect x="0" y="0" width="1200" height="10" rx="5" fill="url(#accent)"/>
   <text class="title ink" x="32" y="48">Quem faz o Towk avançar</text>
-  <text class="subtitle muted" x="32" y="70">Autores humanos no main e pull requests integradas · últimos doze meses</text>
-  <g><rect class="panel" x="32" y="96" width="558" height="282" rx="20"/><text class="label ink" x="54" y="132">Autores de commits</text><g><text class="body ink" x="54" y="171">hmans</text><text class="label muted" x="568" y="171" text-anchor="end">1017</text><rect class="track" x="54" y="181" width="514" height="10" rx="5"/><rect x="54" y="181" width="514.0" height="10" rx="5" fill="#43d8b0"/></g>
-<g><text class="body ink" x="54" y="213">Yo-DDV</text><text class="label muted" x="568" y="213" text-anchor="end">113</text><rect class="track" x="54" y="223" width="514" height="10" rx="5"/><rect x="54" y="223" width="57.1" height="10" rx="5" fill="#43d8b0"/></g></g>
-  <g><rect class="panel" x="610" y="96" width="558" height="282" rx="20"/><text class="label ink" x="632" y="132">Autores de PR integradas</text><g><text class="body ink" x="632" y="171">Yo-DDV</text><text class="label muted" x="1146" y="171" text-anchor="end">68</text><rect class="track" x="632" y="181" width="514" height="10" rx="5"/><rect x="632" y="181" width="514.0" height="10" rx="5" fill="#7867f2"/></g></g>
-  <g><rect class="panel-strong" x="32" y="396" width="1136" height="34" rx="14"/><text class="small ink" x="50" y="418">Automatização: 14 commits · 13 PR — Os bots são excluídos dos rankings e apresentados separadamente.</text></g>
-  <text class="small faint" x="32" y="443">Atualizado 23/07/2026, 19:52</text>
-  <text class="small faint" x="1168" y="443" text-anchor="end">ramo main · últimos 12 meses</text>
+  <text class="subtitle muted" x="32" y="70">Autores humanos desde o repositório independente</text>
+  <g><rect class="panel" x="32" y="96" width="558" height="282" rx="20"/><text class="label ink" x="54" y="132">Autores de commits</text><g><text class="body ink" x="54" y="171">Yo-DDV</text><text class="label muted" x="568" y="171" text-anchor="end">84</text><rect class="track" x="54" y="181" width="514" height="10" rx="5"/><rect x="54" y="181" width="514.0" height="10" rx="5" fill="#43d8b0"/></g>
+<g><text class="body ink" x="54" y="213">hmans</text><text class="label muted" x="568" y="213" text-anchor="end">3</text><rect class="track" x="54" y="223" width="514" height="10" rx="5"/><rect x="54" y="223" width="18.4" height="10" rx="5" fill="#43d8b0"/></g></g>
+  <g><rect class="panel" x="610" y="96" width="558" height="282" rx="20"/><text class="label ink" x="632" y="132">Autores de PR integradas</text><g><text class="body ink" x="632" y="171">Yo-DDV</text><text class="label muted" x="1146" y="171" text-anchor="end">69</text><rect class="track" x="632" y="181" width="514" height="10" rx="5"/><rect x="632" y="181" width="514.0" height="10" rx="5" fill="#7867f2"/></g></g>
+  <g><rect class="panel-strong" x="32" y="396" width="1136" height="34" rx="14"/><text class="small ink" x="50" y="418">Automatização: 13 commits · 13 PR — Os bots são apresentados separadamente.</text></g>
+  <text class="small faint" x="32" y="443">Atualizado 23/07/2026, 20:18</text>
+  <text class="small faint" x="1168" y="443" text-anchor="end">Towk independente · desde 12 jul. 2026</text>
 </svg>
