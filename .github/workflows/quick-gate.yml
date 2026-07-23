@@ -33,6 +33,8 @@ jobs:
           git diff --check "${empty_tree}" HEAD
           node --check tools/check-public-surface.mjs
           node tools/check-public-surface.mjs
+          node --check tools/check-readme-presentation.mjs
+          node tools/check-readme-presentation.mjs
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh

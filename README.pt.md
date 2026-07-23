@@ -2,14 +2,14 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="branding/towk-horizontal-on-dark.webp" />
     <source media="(prefers-color-scheme: light)" srcset="branding/towk-horizontal-on-light.webp" />
-    <img src="branding/towk-horizontal-on-light.webp" alt="Towk" width="520" />
+    <img src="branding/towk-horizontal-on-light.webp" alt="Towk" width="500" />
   </picture>
 
   <p><strong>As tuas conversas. A tua infraestrutura.</strong></p>
 
   <p>
     Um espaço de comunicação autoalojado e focado no essencial para equipas e comunidades.<br />
-    Salas, mensagens diretas, ficheiros, notificações, voz e vídeo — sem depender de um serviço alojado obrigatório.
+    Conversas, ficheiros, notificações e chamadas do dia a dia — sem um serviço alojado obrigatório.
   </p>
 
   <p>
@@ -21,32 +21,48 @@
   </p>
 
   <p>
-    <a href="https://github.com/Yo-DDV/Towk/actions/workflows/ci.yml"><img src="https://github.com/Yo-DDV/Towk/actions/workflows/ci.yml/badge.svg?branch=main" alt="Estado da integração contínua" /></a>
-    <a href="ROADMAP.md"><img src="https://img.shields.io/badge/status-pre--1.0-f4a261" alt="Estado do projeto: anterior à versão 1.0" /></a>
-    <a href="LICENSING.md"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later%20%2B%20Apache--2.0-7867f2" alt="AGPL-3.0-or-later com áreas Apache-2.0" /></a>
-    <a href="SECURITY.md"><img src="https://img.shields.io/badge/security-policy-43d8b0" alt="Política de segurança" /></a>
+    <a href="ROADMAP.md"><img src="https://img.shields.io/badge/estado-pr%C3%A9--1.0-f4a261?style=flat-square" alt="Estado do projeto: pré-1.0" /></a>
+    <img src="https://img.shields.io/badge/implanta%C3%A7%C3%A3o-autoalojada-43d8b0?style=flat-square" alt="Autoalojado" />
+    <img src="https://img.shields.io/badge/cliente-PWA%20instal%C3%A1vel-4aa8ff?style=flat-square" alt="Aplicação Web Progressiva instalável" />
+    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/atividade-atualizada%202%C3%97%20por%20dia-7867f2?style=flat-square" alt="Atividade do repositório atualizada duas vezes por dia" /></a>
+    <a href="LICENSING.md"><img src="https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0--or--later%20%2B%20Apache--2.0-8250df?style=flat-square" alt="AGPL-3.0-or-later com superfícies Apache-2.0" /></a>
   </p>
 
   <p>
     <a href="#why-towk">Porquê Towk</a> ·
+    <a href="#development-pulse">Ritmo</a> ·
     <a href="#capabilities">Funcionalidades</a> ·
-    <a href="#data-control">Controlo dos dados</a> ·
     <a href="#architecture">Arquitetura</a> ·
     <a href="#run-towk">Executar Towk</a> ·
     <a href="#project">Projeto</a>
   </p>
 </div>
 
+<picture>
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/hero-mobile.svg" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/hero.svg" width="100%" alt="Towk: controla o teu espaço de comunicação com um ambiente autoalojado e focado no essencial" />
+</picture>
+
+<p align="center">
+  <a href="apps/docs-website/src/content/docs/getting-started/quick-start.mdx"><strong>🚀 Executar o Towk</strong></a>
+  &nbsp;·&nbsp;
+  <a href="apps/docs-website/src/content/docs/guides/deployment/docker-compose.mdx"><strong>📦 Implementar</strong></a>
+  &nbsp;·&nbsp;
+  <a href="apps/docs-website/src/content/docs/guides/operations/security.mdx"><strong>🛡️ Modelo de segurança</strong></a>
+  &nbsp;·&nbsp;
+  <a href="ROADMAP.md"><strong>🗺️ Roteiro</strong></a>
+</p>
+
 > [!IMPORTANT]
-> O Towk está em desenvolvimento ativo e ainda não chegou à versão 1.0. Em
-> instalações importantes, fixa uma versão imutável ou um digest de imagem,
-> mantém cópias de segurança cuja reposição tenha sido testada e consulta as
-> notas da versão antes de atualizar.
+> O Towk está em desenvolvimento ativo e ainda não chegou à versão 1.0. Para
+> instalações importantes, fixa uma versão ou um digest de imagem imutável,
+> mantém cópias de segurança com restauros testados e consulta as notas de versão
+> antes de atualizar.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/docs-website/src/assets/towk_dark.png" />
   <source media="(prefers-color-scheme: light)" srcset="apps/docs-website/src/assets/towk_light.png" />
-  <img src="apps/docs-website/src/assets/towk_light.png" alt="Vista geral de uma sala Towk com navegação do espaço e diretório de salas" width="1440" />
+  <img src="apps/docs-website/src/assets/towk_light.png" alt="Vista de uma sala do Towk com navegação do espaço, salas e linha temporal da conversa" width="1440" />
 </picture>
 
 <a id="why-towk"></a>
@@ -55,98 +71,151 @@
 <table>
   <tr>
     <td width="33%" valign="top">
-      <h3>Independente por conceção</h3>
-      <p>Cada instalação constitui a sua própria fronteira operacional e de proteção de dados. Não existe uma conta Towk central nem uma cloud Towk obrigatória.</p>
+      <h3>🛡️ Independente por conceção</h3>
+      <p><strong>A tua instalação define o perímetro.</strong> Não existe uma conta Towk central, uma nuvem Towk obrigatória nem um plano de controlo partilhado entre organizações.</p>
     </td>
     <td width="33%" valign="top">
-      <h3>Focado no essencial</h3>
-      <p>O Towk concentra-se nas interações do dia a dia: conversas, ficheiros, notificações e chamadas — em vez de tentar tornar-se uma plataforma para tudo.</p>
+      <h3>🎯 Focado na comunicação diária</h3>
+      <p><strong>Os fundamentos merecem atenção de primeira classe.</strong> O Towk dá prioridade a conversas, ficheiros, notificações e chamadas em vez de se tornar uma plataforma para tudo.</p>
     </td>
     <td width="33%" valign="top">
-      <h3>Compacto primeiro, escalável depois</h3>
-      <p>Começa com um único binário e NATS incorporado. Passa para NATS externo, armazenamento compatível com S3, várias réplicas e LiveKit quando a operação o exigir.</p>
+      <h3>⚙️ Primeiro compacto, depois escalável</h3>
+      <p><strong>Começa com um único processo.</strong> Passa para NATS externo, armazenamento compatível com S3, várias réplicas e LiveKit apenas quando a operação o exigir.</p>
     </td>
   </tr>
 </table>
 
 > **O autoalojamento não é uma caixa para assinalar.** Significa escolher onde o
 > serviço é executado, como é salvaguardado, em que fornecedores de identidade
-> confia e qual a revisão exata do código-fonte que produziu o artefacto
-> instalado.
+> confia, onde ficam os ficheiros e que revisão exata do código-fonte produziu o
+> artefacto implantado.
 
-O Towk não pretende ser **nem** um protocolo federado **nem** um SaaS alojado.
-Cada servidor pertence a uma organização ou comunidade, enquanto o cliente web
-instalável pode ligar-se aos servidores Towk que o utilizador decidir adicionar.
+O Towk não pretende ser **nem** um protocolo federado **nem** um SaaS alojado. É
+uma alternativa de código aberto e focada para equipas e comunidades que querem
+operar o seu próprio espaço de comunicação — sem alegar que substitui todas as
+funcionalidades de todas as plataformas colaborativas.
+
+<a id="development-pulse"></a>
+## Ritmo de desenvolvimento
+
+<picture>
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/activity-mobile.svg" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/activity.svg" width="100%" alt="Atividade de desenvolvimento do Towk com gráficos diários, semanais e mensais de commits e pull requests" />
+</picture>
+
+<picture>
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors-mobile.svg" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors.svg" width="100%" alt="Autores dos commits e pull requests integradas do Towk nos últimos doze meses" />
+</picture>
+
+<details>
+  <summary><strong>Como estas métricas são produzidas</strong></summary>
+
+  O próprio repositório gera estes SVG a partir da API do GitHub com o seu
+  `GITHUB_TOKEN` limitado ao repositório; não usa um token pessoal nem um serviço
+  externo de estatísticas. O workflow é executado depois de cada push para `main`
+  e aproximadamente às **06:17 e 21:17 no fuso horário Europe/Paris**, todos os
+  dias.
+
+  A janela abrange os últimos 365 dias. Os commits são lidos do histórico
+  alcançável a partir de `main` e agrupados pelo respetivo carimbo temporal de
+  commit em UTC. As pull requests são contadas por `merged_at`. As classificações
+  usam a identidade GitHub atribuída a cada commit de `main` ou pull request
+  integrada; os bots detetados são excluídos das classificações humanas e
+  apresentados separadamente. As mensagens de commit e os endereços de correio
+  eletrónico não são escritos no ramo gerado.
+
+  Os SVG e o instantâneo legível por máquina são publicados no ramo
+  [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
+</details>
 
 <a id="capabilities"></a>
 ## O que está disponível hoje
 
-| Área | Funcionalidades |
-|---|---|
-| **Conversas** | Salas, mensagens diretas, respostas, tópicos, edição e eliminação, reações, menções, indicadores de escrita e presença |
-| **Ficheiros e conteúdos multimédia** | Anexos, tratamento de imagens, mensagens de voz, pré-visualizações de ligações, navegação nos ficheiros da sala e processamento de vídeo opcional |
-| **Chamadas** | Salas opcionais de voz e vídeo com LiveKit, partilha de ecrã, controlos de dispositivos e encriptação ponto a ponto dos conteúdos multimédia de cada chamada |
-| **Notificações** | Entrega em tempo real, Web Push, indicadores da aplicação, menções e níveis de notificação configuráveis por servidor ou sala |
-| **Administração** | Funções integradas e personalizadas, permissões granulares, grupos de salas, identidade visual do servidor, administração de utilizadores e diagnóstico |
-| **Identidade** | Fluxos por palavra-passe e email, além de fornecedores configuráveis OIDC, GitHub, GitLab, Google e Discord |
-| **PWA instalada** | Interface responsiva para computador e dispositivos móveis, interface offline, rascunhos, caixa de saída e históricos recentes encriptados, partilha pelo sistema operativo e tratamento de ficheiros |
-| **Idiomas** | Interface disponível em inglês, alemão, francês, espanhol e português |
-| **Integração** | API ConnectRPC baseada em Protobuf, protocolo WebSocket em tempo real, CLI/API de operador e suporte de vários servidores no cliente |
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>💬 Conversas</h3>
+      <p>Salas, mensagens diretas, respostas, tópicos, edição e eliminação, reações, menções, indicadores de escrita e presença.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>📎 Ficheiros e multimédia</h3>
+      <p>Anexos, tratamento de imagens, mensagens de voz, pré-visualizações de ligações, consulta de ficheiros por sala e processamento de vídeo opcional.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>📞 Chamadas e aplicação instalada</h3>
+      <p>Salas de voz/vídeo opcionais com LiveKit, partilha de ecrã, E2EE dos conteúdos das chamadas e uma PWA responsiva e instalável.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🔐 Identidade e continuidade local</h3>
+      <p>Fluxos por palavra-passe/correio, OIDC e fornecedores OAuth selecionados, além de rascunhos, caixa de saída e históricos recentes cifrados em browsers compatíveis.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🧭 Administração</h3>
+      <p>Funções integradas e personalizadas, permissões granulares, grupos de salas, identidade visual, administração de utilizadores, diagnósticos e registo de eventos.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>🔌 API e operação</h3>
+      <p>API ConnectRPC baseadas em Protobuf, frames WebSocket em tempo real, CLI/API de operador, endpoints de saúde, métricas e cliente multisservidor.</p>
+    </td>
+  </tr>
+</table>
 
-Os contratos funcionais são documentados publicamente nos
-[Feature Decision Records](docs/fdr/INDEX.md), incluindo o comportamento, os
-compromissos de conceção e as limitações atuais. A documentação técnica
-associada é atualmente mantida em inglês.
+A interface está disponível em **inglês, alemão, francês, espanhol e português**.
+O comportamento detalhado, os compromissos e as limitações atuais estão registados
+nos [Feature Decision Records](docs/fdr/INDEX.md).
 
-<a id="data-control"></a>
 ## Soberania, de forma concreta
 
-| Controlo | O que o Towk disponibiliza |
-|---|---|
-| **Fronteira de instalação** | Um servidor operado de forma independente por organização ou comunidade, sem identidade Towk central nem plano de controlo alojado obrigatório |
-| **Localização dos dados** | Persistência NATS incorporada ou externa, ficheiros em NATS Object Store ou armazenamento compatível com S3, e processos documentados de cópia e reposição |
-| **Política de identidade** | Contas locais com palavra-passe/email ou fornecedores de identidade externos selecionados, incluindo um fornecedor OIDC autoalojado |
-| **Ciclo de vida das chaves** | Encriptação por utilizador do texto das mensagens e de determinados campos de identidade persistentes, com eliminação criptográfica ao apagar a conta |
-| **Rastreabilidade dos artefactos** | Código-fonte público, coordenadas de versão imutáveis, metadados OCI associados ao commit exato, SBOM, análises de vulnerabilidades e atestados de proveniência |
-| **Visibilidade operacional** | Endpoints de estado e prontidão, métricas compatíveis com Prometheus, diagnóstico, registo administrativo de eventos e protocolo de desempenho reproduzível |
+<table>
+  <tr>
+    <td width="33%" valign="top"><h3>🏠 Implantação</h3><p>Opera um servidor independente por organização ou comunidade, desde um binário compacto até uma instalação com réplicas.</p></td>
+    <td width="33%" valign="top"><h3>🗄️ Localização dos dados</h3><p>Escolhe persistência NATS integrada ou externa e NATS Object Store ou armazenamento compatível com S3 para os ficheiros.</p></td>
+    <td width="33%" valign="top"><h3>🪪 Política de identidade</h3><p>Usa contas locais com palavra-passe/correio ou fornecedores externos escolhidos explicitamente, incluindo um fornecedor OIDC autoalojado.</p></td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top"><h3>🔑 Ciclo de vida das chaves</h3><p>O texto das mensagens e certos campos de identidade duradouros usam cifragem por utilizador, com eliminação criptográfica ao apagar a conta.</p></td>
+    <td width="33%" valign="top"><h3>📦 Rastreabilidade das compilações</h3><p>Código público, coordenadas imutáveis, metadados OCI do commit exato, SBOM, análises de vulnerabilidades e atestados de proveniência.</p></td>
+    <td width="33%" valign="top"><h3>📈 Visibilidade operacional</h3><p>Endpoints de saúde e prontidão, métricas compatíveis com Prometheus, diagnósticos, registo administrativo e controlos de desempenho reproduzíveis.</p></td>
+  </tr>
+</table>
 
 > [!NOTE]
-> O autoalojamento, por si só, não torna uma instalação segura nem conforme. O
-> Towk encripta **em repouso** o texto das mensagens e determinados dados
-> persistentes do utilizador; atualmente não disponibiliza encriptação ponto a
-> ponto para conversas de texto. Um operador que controle o servidor, o
-> armazenamento e as chaves continua dentro da fronteira de confiança. Os anexos
-> e muitos metadados ficam fora desta camada. Os conteúdos multimédia das
-> chamadas LiveKit suportam encriptação ponto a ponto quando as chamadas estão
-> ativas.
+> O autoalojamento não torna uma instalação automaticamente segura ou conforme.
+> O Towk cifra **em repouso** o texto das mensagens e certos dados duradouros do
+> utilizador; atualmente não oferece cifragem ponta a ponta para conversas de
+> texto. Um operador que controla o servidor, o armazenamento e as chaves continua
+> dentro do perímetro de confiança. Os anexos e grande parte dos metadados ficam
+> fora dessa envolvente. Os conteúdos das chamadas LiveKit suportam E2EE quando
+> as chamadas estão ativadas.
 
-As cópias de segurança separam, por predefinição, os dados normais da aplicação
-do armazenamento integrado das chaves de encriptação, exceto quando o operador
-inclui ou exporta explicitamente essas chaves. Consulta o
+As cópias de segurança separam deliberadamente os dados normais da aplicação do
+armazenamento integrado de chaves de cifragem, salvo se o operador incluir ou
+exportar essas chaves explicitamente. Consulta o
 [guia de segurança e privacidade](apps/docs-website/src/content/docs/guides/operations/security.mdx)
-e o
-[guia de encriptação e eliminação](apps/docs-website/src/content/docs/guides/operations/privacy-erasure.mdx)
-antes de definir processos de retenção, cópia ou eliminação.
+e o [guia de cifragem e eliminação](apps/docs-website/src/content/docs/guides/operations/privacy-erasure.mdx)
+antes de definires políticas de retenção, cópia de segurança ou eliminação.
 
 <a id="architecture"></a>
-## Arquitetura num relance
+## Arquitetura em resumo
 
 ```mermaid
 flowchart LR
-    U["Navegador ou PWA instalada"] <--> T["Towk<br/>web · API · tempo real"]
-    T <--> N["NATS JetStream<br/>incorporado ou externo"]
+    U["Browser ou PWA instalada"] <--> T["Towk<br/>web · API · tempo real"]
+    T <--> N["NATS JetStream<br/>integrado ou externo"]
     T --> O["Ficheiros e multimédia<br/>NATS Object Store ou S3"]
     T -. opcional .-> L["LiveKit<br/>voz · vídeo · ecrã"]
     T -. opcional .-> I["SMTP · OIDC · OAuth"]
 ```
 
-O cliente responsivo SvelteKit é compilado no servidor Go. As API públicas de
-pedido/resposta utilizam ConnectRPC e Protocol Buffers; as atualizações em
-direto utilizam um WebSocket Protobuf. O estado de domínio duradouro é registado
-como eventos em NATS JetStream e disponibilizado através de projeções.
+O cliente SvelteKit responsivo é compilado no servidor Go. As API públicas de
+pedido/resposta usam ConnectRPC e Protocol Buffers; as atualizações em tempo real
+usam um WebSocket Protobuf. O estado duradouro do domínio é guardado como eventos
+no NATS JetStream e disponibilizado através de projeções.
 
-Para consultar o inventário detalhado, vê a
-[arquitetura do Towk](docs/ARCHITECTURE.md), os
+Consulta o [inventário da arquitetura](docs/ARCHITECTURE.md), os
 [Architecture Decision Records](docs/adr/INDEX.md) e a
 [referência da API pública](apps/docs-website/src/content/docs/reference/connectrpc-api/index.mdx).
 
@@ -155,8 +224,7 @@ Para consultar o inventário detalhado, vê a
 
 ### Ambiente de desenvolvimento
 
-O Towk utiliza o [mise](https://mise.jdx.dev/) para disponibilizar as versões
-fixadas das ferramentas do projeto:
+O Towk usa [mise](https://mise.jdx.dev/) para instalar a cadeia de ferramentas fixada:
 
 ```sh
 git clone https://github.com/Yo-DDV/Towk.git
@@ -166,65 +234,71 @@ mise run setup
 mise dev
 ```
 
-A aplicação de desenvolvimento fica disponível, por predefinição, em
-<http://localhost:4000>. As contas iniciais estão documentadas em
+A interface de desenvolvimento está disponível por predefinição em
+<http://localhost:4000>. As contas de arranque estão documentadas em
 [CONTRIBUTING.md](CONTRIBUTING.md) e nunca devem ser reutilizadas numa instalação
 pública.
 
-### Escolher uma via de instalação
-
-| Via | Adequada para | Guia |
-|---|---|---|
-| **Docker Compose** | O exemplo mais completo de autoalojamento num único servidor, com NATS externo, Caddy e LiveKit opcional | [Instalar com Docker Compose](apps/docs-website/src/content/docs/guides/deployment/docker-compose.mdx) |
-| **Binário autónomo** | Avaliação, máquinas virtuais compactas e operadores que escolhem deliberadamente NATS incorporado | [Executar o binário autónomo](apps/docs-website/src/content/docs/guides/deployment/binary.mdx) |
-| **Kubernetes** | Operadores que fornecem o seu próprio NATS partilhado, ingress, segredos e ferramentas de ciclo de vida | [Consultar a orientação para Kubernetes](apps/docs-website/src/content/docs/guides/deployment/kubernetes.mdx) |
-
-Começa por [Ler antes de instalar](apps/docs-website/src/content/docs/guides/deployment/read-this-first.mdx).
-Para instalações duradouras, utiliza uma etiqueta de imagem e um digest
-imutáveis, em vez de uma etiqueta flutuante.
-
-### Conhecer a fronteira atual
-
-| O Towk pode ser adequado quando… | Avalia cuidadosamente quando precisares de… |
-|---|---|
-| queres operar diretamente a fronteira de comunicação, a política de identidade e a localização dos dados | um SaaS gerido, suporte contratual ou um SLA de tempo de resposta |
-| preferes um único cliente web responsivo e instalável no computador e em dispositivos móveis | aplicações nativas oficiais distribuídas através das lojas móveis ou de computador |
-| valorizas um espaço focado em salas, ficheiros, notificações e chamadas | federação entre comunidades administradas de forma independente |
-| consegues testar atualizações, cópias e reposições enquanto o projeto é anterior à versão 1.0 | APIs 1.0 estáveis ou conversas de texto com encriptação ponto a ponto já hoje |
-
-<a id="project"></a>
-## Um projeto aberto com regras explícitas
-
-O Towk é desenvolvido publicamente, mas não aceita pull requests externos não
-solicitados. A participação pública começa com uma Issue focada, para que as
-restrições de produto, segurança, compatibilidade e manutenção sejam avaliadas
-antes da implementação.
-
-- [Comunicar um erro reproduzível](https://github.com/Yo-DDV/Towk/issues/new?template=bug_report.yml)
-- [Propor uma funcionalidade delimitada](https://github.com/Yo-DDV/Towk/issues/new?template=feature_request.yml)
-- [Colocar uma questão sobre utilização ou autoalojamento](https://github.com/Yo-DDV/Towk/issues/new?template=question.yml)
-
-Não divulgues vulnerabilidades publicamente. Segue [SECURITY.md](SECURITY.md) e
-utiliza o envio privado de vulnerabilidades do GitHub.
+### Escolher uma forma de implantação
 
 <table>
   <tr>
-    <td width="25%" valign="top"><strong><a href="ROADMAP.md">Roteiro</a></strong><br />Direção sem promessas de entrega inventadas.</td>
-    <td width="25%" valign="top"><strong><a href="GOVERNANCE.md">Governação</a></strong><br />Regras de responsabilidade, revisão e publicação.</td>
-    <td width="25%" valign="top"><strong><a href="docs/PERFORMANCE.md">Desempenho</a></strong><br />Provas reproduzíveis e limiares de rejeição.</td>
-    <td width="25%" valign="top"><strong><a href="PROVENANCE.md">Proveniência</a></strong><br />Origem, atribuição e revisão seletiva do projeto a montante.</td>
+    <td width="33%" valign="top"><h3>📦 Docker Compose</h3><p>O exemplo mais completo para um único servidor, com NATS externo, Caddy e LiveKit opcional.</p><p><a href="apps/docs-website/src/content/docs/guides/deployment/docker-compose.mdx"><strong>Abrir o guia →</strong></a></p></td>
+    <td width="33%" valign="top"><h3>⚡ Binário autónomo</h3><p>Para avaliação, máquinas virtuais compactas e operadores que escolhem conscientemente NATS integrado.</p><p><a href="apps/docs-website/src/content/docs/guides/deployment/binary.mdx"><strong>Abrir o guia →</strong></a></p></td>
+    <td width="33%" valign="top"><h3>☸️ Kubernetes</h3><p>Para operadores que fornecem o seu próprio NATS partilhado, ingress, segredos e ferramentas de ciclo de vida.</p><p><a href="apps/docs-website/src/content/docs/guides/deployment/kubernetes.mdx"><strong>Abrir o guia →</strong></a></p></td>
+  </tr>
+</table>
+
+Começa por [Read This First](apps/docs-website/src/content/docs/guides/deployment/read-this-first.mdx).
+Para instalações duradouras, usa uma etiqueta de imagem imutável acompanhada do
+respetivo digest, não uma etiqueta flutuante.
+
+### Conhecer o limite atual
+
+| O Towk pode ser adequado se… | Avalia com especial cuidado se precisas de… |
+|---|---|
+| queres gerir o perímetro de comunicação, a política de identidade e a localização dos dados | um SaaS gerido, suporte contratual ou um SLA de tempo de resposta |
+| preferes um único cliente web responsivo e instalável para computador e dispositivos móveis | aplicações nativas oficiais distribuídas em lojas móveis ou de computador |
+| valorizas um espaço focado com salas, ficheiros, notificações e chamadas | federação entre comunidades administradas de forma independente |
+| consegues testar atualizações, cópias de segurança e restauros enquanto o projeto está em fase pré-1.0 | API 1.0 estáveis ou conversas de texto cifradas ponta a ponta já hoje |
+
+<a id="project"></a>
+## Projeto aberto, regras explícitas
+
+O Towk é desenvolvido publicamente, mas não aceita pull requests externas não
+solicitadas. A participação pública começa com uma Issue GitHub bem delimitada,
+para avaliar os limites de produto, segurança, compatibilidade e manutenção antes
+da implementação.
+
+<p align="center">
+  <a href="https://github.com/Yo-DDV/Towk/issues/new?template=bug_report.yml"><strong>🐛 Comunicar um erro</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/Yo-DDV/Towk/issues/new?template=feature_request.yml"><strong>✨ Propor uma funcionalidade</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/Yo-DDV/Towk/issues/new?template=question.yml"><strong>💬 Fazer uma pergunta</strong></a>
+</p>
+
+Não publiques vulnerabilidades. Segue [SECURITY.md](SECURITY.md) e usa o sistema
+privado de comunicação de vulnerabilidades do GitHub.
+
+<table>
+  <tr>
+    <td width="25%" valign="top"><strong><a href="ROADMAP.md">🗺️ Roteiro</a></strong><br />Direção sem promessas de entrega inventadas.</td>
+    <td width="25%" valign="top"><strong><a href="GOVERNANCE.md">⚖️ Governação</a></strong><br />Regras de responsabilidade, revisão e publicação.</td>
+    <td width="25%" valign="top"><strong><a href="docs/PERFORMANCE.md">📊 Desempenho</a></strong><br />Evidência reproduzível e limites de rejeição.</td>
+    <td width="25%" valign="top"><strong><a href="PROVENANCE.md">🔎 Proveniência</a></strong><br />Origem, atribuição e revisão seletiva do upstream.</td>
   </tr>
 </table>
 
 ## Licença e origem
 
-O Towk utiliza metadados SPDX e REUSE por ficheiro. O servidor, a CLI e os
-artefactos de servidor incluídos usam AGPL-3.0-or-later por predefinição; as
-áreas explicitamente listadas do frontend, da API pública, da documentação e
-dos exemplos usam Apache-2.0. Consulta [LICENSING.md](LICENSING.md) e
-[REUSE.toml](REUSE.toml) para conhecer a fronteira exata.
+O Towk usa metadados SPDX e REUSE por ficheiro. O servidor, a CLI e os artefactos
+de servidor incluídos usam AGPL-3.0-or-later por predefinição; as superfícies do
+frontend, da API pública, da documentação e dos exemplos explicitamente listadas
+usam Apache-2.0. Consulta [LICENSING.md](LICENSING.md) e [REUSE.toml](REUSE.toml)
+para veres a fronteira exata.
 
 O Towk é um projeto independente baseado no
-[Chatto](https://github.com/chattocorp/chatto). Chatto e os respetivos logótipos
-são nomes e marcas da ChattoCorp GmbH. O Towk não é aprovado, patrocinado,
-operado nem suportado pela ChattoCorp GmbH.
+[Chatto](https://github.com/chattocorp/chatto). Chatto e os seus logótipos são
+nomes e marcas da ChattoCorp GmbH. O Towk não é recomendado, patrocinado, operado
+nem suportado pela ChattoCorp GmbH.
