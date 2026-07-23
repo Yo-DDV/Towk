@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="450" viewBox="0 0 1200 450" role="img" aria-labelledby="title desc">
+  <title id="title">Quién impulsa Towk</title>
+  <desc id="desc">Autores humanos en main y pull requests fusionadas · últimos doce meses</desc>
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#43d8b0"/>
+      <stop offset="50%" stop-color="#4aa8ff"/>
+      <stop offset="100%" stop-color="#7867f2"/>
+    </linearGradient>
+    <linearGradient id="accent-soft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#43d8b0" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#7867f2" stop-opacity="0.18"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    
+  </defs>
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .panel { fill: #f6f8fa; stroke: #d8dee4; }
+    .panel-strong { fill: #eef7ff; stroke: #b6d8ff; }
+    .ink { fill: #18212f; }
+    .muted { fill: #667085; }
+    .faint { fill: #98a2b3; }
+    .grid { stroke: #dfe5ec; }
+    .track { fill: #e7edf3; }
+    .title { font: 800 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .subtitle { font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .kpi { font: 800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .label { font: 650 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .small { font: 500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .body { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .hero-eyebrow { font: 800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 2px; }
+    .hero-title { font: 850 48px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .hero-subtitle { font: 550 19px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .chip { font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .panel { fill: #161b22; stroke: #30363d; }
+      .panel-strong { fill: #10263a; stroke: #244d70; }
+      .ink { fill: #f0f6fc; }
+      .muted { fill: #a7b0bc; }
+      .faint { fill: #7d8590; }
+      .grid { stroke: #30363d; }
+      .track { fill: #27313d; }
+    }
+  </style>
+  <rect class="bg" x="1" y="1" width="1198" height="448" rx="22"/>
+  <rect x="0" y="0" width="1200" height="10" rx="5" fill="url(#accent)"/>
+  <text class="title ink" x="32" y="48">Quién impulsa Towk</text>
+  <text class="subtitle muted" x="32" y="70">Autores humanos en main y pull requests fusionadas · últimos doce meses</text>
+  <g><rect class="panel" x="32" y="96" width="558" height="282" rx="20"/><text class="label ink" x="54" y="132">Autores de commits</text><g><text class="body ink" x="54" y="171">hmans</text><text class="label muted" x="568" y="171" text-anchor="end">1017</text><rect class="track" x="54" y="181" width="514" height="10" rx="5"/><rect x="54" y="181" width="514.0" height="10" rx="5" fill="#43d8b0"/></g>
+<g><text class="body ink" x="54" y="213">Yo-DDV</text><text class="label muted" x="568" y="213" text-anchor="end">113</text><rect class="track" x="54" y="223" width="514" height="10" rx="5"/><rect x="54" y="223" width="57.1" height="10" rx="5" fill="#43d8b0"/></g></g>
+  <g><rect class="panel" x="610" y="96" width="558" height="282" rx="20"/><text class="label ink" x="632" y="132">Autores de PR fusionadas</text><g><text class="body ink" x="632" y="171">Yo-DDV</text><text class="label muted" x="1146" y="171" text-anchor="end">68</text><rect class="track" x="632" y="181" width="514" height="10" rx="5"/><rect x="632" y="181" width="514.0" height="10" rx="5" fill="#7867f2"/></g></g>
+  <g><rect class="panel-strong" x="32" y="396" width="1136" height="34" rx="14"/><text class="small ink" x="50" y="418">Automatización: 14 commits · 13 PR — Los bots no aparecen en los rankings y se muestran por separado.</text></g>
+  <text class="small faint" x="32" y="443">Actualizado 23 jul 2026, 19:52</text>
+  <text class="small faint" x="1168" y="443" text-anchor="end">rama main · últimos 12 meses</text>
+</svg>

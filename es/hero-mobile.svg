@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="560" viewBox="0 0 420 560" role="img" aria-labelledby="title desc">
+  <title id="title">Controla tu espacio de comunicación.</title>
+  <desc id="desc">Mensajes, archivos, notificaciones y llamadas — en la infraestructura que tú elijas.</desc>
+  <defs>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#43d8b0"/>
+      <stop offset="50%" stop-color="#4aa8ff"/>
+      <stop offset="100%" stop-color="#7867f2"/>
+    </linearGradient>
+    <linearGradient id="accent-soft" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#43d8b0" stop-opacity="0.24"/>
+      <stop offset="100%" stop-color="#7867f2" stop-opacity="0.18"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    
+  </defs>
+  <style>
+    .bg { fill: #ffffff; stroke: #d0d7de; }
+    .panel { fill: #f6f8fa; stroke: #d8dee4; }
+    .panel-strong { fill: #eef7ff; stroke: #b6d8ff; }
+    .ink { fill: #18212f; }
+    .muted { fill: #667085; }
+    .faint { fill: #98a2b3; }
+    .grid { stroke: #dfe5ec; }
+    .track { fill: #e7edf3; }
+    .title { font: 800 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .subtitle { font: 500 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .kpi { font: 800 32px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .label { font: 650 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .small { font: 500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .body { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .hero-eyebrow { font: 800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: 2px; }
+    .hero-title { font: 850 48px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .hero-subtitle { font: 550 19px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .chip { font: 700 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #0d1117; stroke: #30363d; }
+      .panel { fill: #161b22; stroke: #30363d; }
+      .panel-strong { fill: #10263a; stroke: #244d70; }
+      .ink { fill: #f0f6fc; }
+      .muted { fill: #a7b0bc; }
+      .faint { fill: #7d8590; }
+      .grid { stroke: #30363d; }
+      .track { fill: #27313d; }
+    }
+  </style>
+  <rect class="bg" x="1" y="1" width="418" height="558" rx="22"/>
+  <circle cx="365" cy="52" r="80" fill="#7867f2" opacity="0.18" filter="url(#glow)"/>
+  <circle cx="58" cy="430" r="74" fill="#43d8b0" opacity="0.14" filter="url(#glow)"/>
+  <rect x="0" y="0" width="420" height="9" rx="4" fill="url(#accent)"/>
+  <text class="hero-eyebrow" x="28" y="43" fill="#4aa8ff" style="font-size:11px;letter-spacing:1.4px">CENTRADO · AUTOALOJADO · CÓDIGO ABIERTO</text>
+<text class="hero-title ink" x="28" y="88" style="font-size:34px">Controla tu espacio</text>
+<text class="hero-title ink" x="28" y="131" style="font-size:34px">de comunicación.</text>
+<text class="hero-subtitle muted" x="28" y="196" style="font-size:15.5px">Mensajes, archivos, notificaciones y</text>
+<text class="hero-subtitle muted" x="28" y="219" style="font-size:15.5px">llamadas — en la infraestructura que</text>
+<text class="hero-subtitle muted" x="28" y="242" style="font-size:15.5px">tú elijas.</text>
+  <g transform="translate(28 300)">
+    <rect class="panel" x="0" y="0" width="364" height="142" rx="18"/>
+    <rect x="18" y="18" width="88" height="106" rx="14" fill="#7867f2" opacity="0.14"/>
+    <circle cx="42" cy="46" r="8" fill="#43d8b0"/>
+    <rect x="58" y="39" width="34" height="8" rx="4" fill="#4aa8ff" opacity="0.78"/>
+    <circle cx="42" cy="76" r="8" fill="#4aa8ff"/>
+    <rect x="58" y="69" width="28" height="8" rx="4" fill="#7867f2" opacity="0.82"/>
+    <circle cx="42" cy="106" r="8" fill="#7867f2"/>
+    <rect x="58" y="99" width="38" height="8" rx="4" fill="#43d8b0" opacity="0.76"/>
+    <rect x="126" y="18" width="218" height="48" rx="14" fill="#4aa8ff" opacity="0.13"/>
+    <circle cx="148" cy="42" r="9" fill="#4aa8ff"/>
+    <rect x="166" y="33" width="122" height="8" rx="4" fill="#4aa8ff" opacity="0.58"/>
+    <rect x="166" y="47" width="78" height="7" rx="3.5" fill="#98a2b3" opacity="0.52"/>
+    <rect x="126" y="78" width="162" height="46" rx="14" fill="#43d8b0" opacity="0.14"/>
+    <circle cx="148" cy="101" r="9" fill="#43d8b0"/>
+    <rect x="166" y="92" width="96" height="8" rx="4" fill="#43d8b0" opacity="0.62"/>
+    <rect x="166" y="106" width="62" height="7" rx="3.5" fill="#98a2b3" opacity="0.52"/>
+    <rect x="300" y="78" width="44" height="46" rx="14" fill="#7867f2" opacity="0.18"/>
+    <path d="M315 98h14M322 91v14" stroke="#7867f2" stroke-width="3" stroke-linecap="round"/>
+  </g>
+<g><rect x="28" y="472" width="172" height="30" rx="15" fill="url(#accent-soft)"/><text class="chip ink" x="114" y="492" text-anchor="middle">Autoalojado</text></g>
+<g><rect x="212" y="472" width="172" height="30" rx="15" fill="url(#accent-soft)"/><text class="chip ink" x="298" y="492" text-anchor="middle">PWA instalable</text></g>
+<g><rect x="28" y="510" width="172" height="30" rx="15" fill="url(#accent-soft)"/><text class="chip ink" x="114" y="530" text-anchor="middle">Voz y vídeo</text></g>
+<g><rect x="212" y="510" width="172" height="30" rx="15" fill="url(#accent-soft)"/><text class="chip ink" x="298" y="530" text-anchor="middle">Código abierto</text></g>
+</svg>
