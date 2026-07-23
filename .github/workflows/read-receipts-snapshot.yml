@@ -23,12 +23,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git --exclude=towk-source.tar.gz -czf towk-source.tar.gz .
+          tar --exclude=.git -czf "${RUNNER_TEMP}/towk-source.tar.gz" .
 
       - name: Upload source snapshot
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: towk-read-receipts-source
-          path: towk-source.tar.gz
+          path: ${{ runner.temp }}/towk-source.tar.gz
           retention-days: 1
           if-no-files-found: error
