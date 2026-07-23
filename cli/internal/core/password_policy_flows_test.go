@@ -4,6 +4,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 func TestPasswordCreationAndMutationFlowsShareBcryptBoundary(t *testing.T) {
@@ -75,6 +78,44 @@ func TestPasswordVerificationDoesNotApplyNewPasswordPolicy(t *testing.T) {
 				t.Fatalf("VerifyPassword applied the new-password policy: %v", err)
 			}
 		})
+	}
+}
+
+func TestPasswordVerificationPreservesLegacyLongBcryptHashes(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	user, err := core.CreateUser(ctx, SystemActorID, "password-legacy-long", "Password Legacy Long", "")
+	if err != nil {
+		t.Fatalf("CreateUser legacy target: %v", err)
+	}
+
+	legacyPrefix := strings.Repeat("x", MaxPasswordLength)
+	legacyPassword := legacyPrefix + "-historical-suffix"
+	legacyHash, err := bcrypt.GenerateFromPassword([]byte(legacyPrefix), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("GenerateFromPassword legacy prefix: %v", err)
+	}
+
+	passwordChanged := newEvent(SystemActorID, &corev1.Event{
+		Event: &corev1.Event_UserPasswordHashChanged{
+			UserPasswordHashChanged: &corev1.UserPasswordHashChangedEvent{
+				UserId:       user.Id,
+				PasswordHash: legacyHash,
+			},
+		},
+	})
+	if _, err := core.appendUserEvent(ctx, user.Id, passwordChanged, "", nil); err != nil {
+		t.Fatalf("append legacy password hash: %v", err)
+	}
+	if err := ValidatePassword(legacyPassword); !errors.Is(err, ErrPasswordTooLong) {
+		t.Fatalf("ValidatePassword legacy candidate error = %v, want ErrPasswordTooLong", err)
+	}
+	verified, err := core.VerifyPassword(ctx, user.Login, legacyPassword)
+	if err != nil {
+		t.Fatalf("VerifyPassword legacy candidate: %v", err)
+	}
+	if verified.Id != user.Id {
+		t.Fatalf("verified user ID = %q, want %q", verified.Id, user.Id)
 	}
 }
 
