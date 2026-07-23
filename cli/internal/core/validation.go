@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // StringLengthError is returned when a persisted user-controlled string exceeds
@@ -133,11 +134,11 @@ func ValidateLogin(login string) error {
 	return nil
 }
 
-// ValidatePassword validates that a password meets length requirements.
-// Length is measured in bytes (len), not Unicode characters, so the upper bound
-// also bounds the work done by bcrypt and storage cost.
+// ValidatePassword validates the password policy used before hashing.
+// The minimum is measured in Unicode code points; the bcrypt-compatible maximum
+// is measured in UTF-8 bytes.
 func ValidatePassword(password string) error {
-	if len(password) < MinPasswordLength {
+	if utf8.RuneCountInString(password) < MinPasswordLength {
 		return ErrPasswordTooShort
 	}
 	if len(password) > MaxPasswordLength {
