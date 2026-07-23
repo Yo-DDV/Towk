@@ -70,7 +70,7 @@ floating tag.`
     "not** a federated protocol",
     "end-to-end encryption for text conversations",
     "operator able to access those keys remains",
-    "public standalone-foundation merge commit",
+    "standalone-foundation merge commit",
     "GitHub login when available",
     "repository activity and Git attribution, not"
   ]
