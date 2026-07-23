@@ -5,6 +5,7 @@ import {
   MIN_PASSWORD_CODE_POINTS,
   PASSWORD_TOO_LONG,
   PASSWORD_TOO_SHORT,
+  assertPasswordPolicy,
   normalizePasswordValidationCode,
   passwordCodePointLength,
   passwordUtf8ByteLength,
@@ -47,6 +48,12 @@ describe('passwordPolicy', () => {
     expect(passwordValidationMessage('a'.repeat(73), messages)).toBe(messages.tooLong);
     expect(passwordValidationMessage('a'.repeat(8), messages)).toBeUndefined();
     expect(passwordValidationMessageForCode(PASSWORD_TOO_LONG, messages)).toBe(messages.tooLong);
+  });
+
+  it('rejects invalid values before API calls', () => {
+    expect(() => assertPasswordPolicy('a'.repeat(7), messages)).toThrow(messages.tooShort);
+    expect(() => assertPasswordPolicy('a'.repeat(73), messages)).toThrow(messages.tooLong);
+    expect(() => assertPasswordPolicy('a'.repeat(8), messages)).not.toThrow();
   });
 
   it('ignores unknown transport codes', () => {
