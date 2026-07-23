@@ -369,6 +369,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			Body:    fmt.Sprintf("Welcome to %s!\n\nUse this verification code to finish creating your account on %s:\n\n%s\n\nThis code will expire in %s.\n\nIf you didn't request this, you can ignore this email.", serverName, serverName, code, expirationText),
 		})
 		if err != nil {
+			log.Error("Failed to send registration email", "error", err)
 			if cancelErr := s.core.CancelRegistrationCode(ctx, req.Email, code); cancelErr != nil {
 				log.Warn("Failed to cancel undelivered registration code", "error", cancelErr)
 			}
