@@ -9,9 +9,9 @@ import (
 
 func TestValidatePasswordPolicyBoundaries(t *testing.T) {
 	tests := []struct {
-		name          string
-		password      string
-		wantErr       error
+		name           string
+		password       string
+		wantErr        error
 		wantCodePoints int
 		wantBytes      int
 	}{
@@ -75,6 +75,12 @@ func TestValidatePasswordPolicyBoundaries(t *testing.T) {
 			wantBytes:      16,
 		},
 		{
+			name:           "seventy one multibyte bytes is valid",
+			password:       strings.Repeat("田", 23) + "é",
+			wantCodePoints: 24,
+			wantBytes:      71,
+		},
+		{
 			name:           "seventy two multibyte bytes is valid",
 			password:       strings.Repeat("田", 24),
 			wantCodePoints: 24,
@@ -86,6 +92,20 @@ func TestValidatePasswordPolicyBoundaries(t *testing.T) {
 			wantErr:        ErrPasswordTooLong,
 			wantCodePoints: 25,
 			wantBytes:      73,
+		},
+		{
+			name:           "one hundred twenty eight multibyte bytes is too long",
+			password:       strings.Repeat("田", 42) + "é",
+			wantErr:        ErrPasswordTooLong,
+			wantCodePoints: 43,
+			wantBytes:      128,
+		},
+		{
+			name:           "one hundred twenty nine multibyte bytes is too long",
+			password:       strings.Repeat("田", 43),
+			wantErr:        ErrPasswordTooLong,
+			wantCodePoints: 43,
+			wantBytes:      129,
 		},
 	}
 
