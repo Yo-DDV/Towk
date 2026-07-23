@@ -17,6 +17,10 @@ function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function normalizeWhitespace(value) {
+  return String(value).replace(/\s+/g, " ").trim();
+}
+
 export function updateEdition(content, locale, edition) {
   const contributorPattern = new RegExp(
     `(<img src="https://raw\\.githubusercontent\\.com/Yo-DDV/Towk/readme-metrics/${locale}/contributors\\.svg" width="100%" alt=")[^"]+(" />)`
@@ -41,8 +45,9 @@ export function updateEdition(content, locale, edition) {
   for (const [index, [from, to]] of edition.replacements.entries()) {
     updated = replaceExactOrCurrent(updated, from, to, `${edition.file} replacement ${index + 1}`);
   }
+  const normalizedUpdated = normalizeWhitespace(updated);
   for (const marker of edition.required) {
-    if (!updated.includes(marker)) {
+    if (!normalizedUpdated.includes(normalizeWhitespace(marker))) {
       throw new Error(`${edition.file}: required fact marker is missing: ${marker}`);
     }
   }
