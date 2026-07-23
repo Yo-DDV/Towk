@@ -332,6 +332,23 @@ describe('createAdminUserManagementAPI', () => {
     );
   });
 
+  it.each([
+    ['fewer than eight Unicode code points', 'é'.repeat(7), 'Must contain at least 8 Unicode characters'],
+    [
+      'more than seventy-two UTF-8 bytes',
+      '田'.repeat(24) + 'a',
+      '8+ Unicode characters, up to 72 UTF-8 bytes'
+    ]
+  ])('rejects %s before the admin RPC', async (_name, password, expectedMessage) => {
+    const api = createAdminUserManagementAPI({
+      baseUrl: '/api/connect',
+      bearerToken: 'token'
+    });
+
+    await expect(api.updateUserPassword('user-1', password)).rejects.toThrow(expectedMessage);
+    expect(mocks.updateUserPassword).not.toHaveBeenCalled();
+  });
+
   it('deletes a user with auth headers and fresh credential', async () => {
     mocks.deleteUser.mockResolvedValue({ deleted: true });
     const api = createAdminUserManagementAPI({
