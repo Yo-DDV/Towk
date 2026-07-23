@@ -1,6 +1,8 @@
 <script lang="ts">
   import FormField from './FormField.svelte';
   import type { HTMLInputAttributes } from 'svelte/elements';
+  import { passwordValidationMessage } from '$lib/auth/passwordPolicy';
+  import * as m from '$lib/i18n/messages';
 
   let {
     label,
@@ -43,9 +45,24 @@
     onkeydown?: (e: KeyboardEvent) => void;
     oninput?: (e: Event) => void;
   } = $props();
+
+  let inputElement: HTMLInputElement;
+  const newPasswordError = $derived(
+    type === 'password' && autocomplete === 'new-password' && value
+      ? passwordValidationMessage(value, {
+          tooShort: m['common.validation.password_min'](),
+          tooLong: m['common.validation.password_max']()
+        })
+      : undefined
+  );
+  const displayedError = $derived(error ?? newPasswordError);
+
+  $effect(() => {
+    inputElement?.setCustomValidity(newPasswordError ?? '');
+  });
 </script>
 
-<FormField {label} {id} {error} {description} {required}>
+<FormField {label} {id} error={displayedError} {description} {required}>
   <div class="relative">
     {#if leadingIcon}
       <span
@@ -58,6 +75,7 @@
     {/if}
     <!-- svelte-ignore a11y_autofocus -->
     <input
+      bind:this={inputElement}
       {id}
       data-testid={testid}
       {type}
@@ -72,8 +90,12 @@
       {onkeydown}
       {oninput}
       class={['input', leadingIcon && 'pl-7', trailingText && 'pr-10']}
-      aria-invalid={error ? 'true' : undefined}
-      aria-describedby={error ? `${id}-error` : description ? `${id}-description` : undefined}
+      aria-invalid={displayedError ? 'true' : undefined}
+      aria-describedby={displayedError
+        ? `${id}-error`
+        : description
+          ? `${id}-description`
+          : undefined}
     />
     {#if trailingText}
       <span
