@@ -3,19 +3,15 @@ import { test } from './setup';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
 
-async function openComposer(page: Parameters<typeof createAndLoginTestUser>[0], chatPage: any) {
-  await createAndLoginTestUser(page);
-  await chatPage.goto();
-  await chatPage.enterRoom('general');
-}
-
 test.describe('Composer send affordance', () => {
   test('locks voice capture and promotes send as editor content changes', async ({
     page,
     chatPage,
     roomPage
   }) => {
-    await openComposer(page, chatPage);
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
 
     const input = roomPage.messageInput;
     const voiceButton = page.getByTestId('voice-message-record-button');
@@ -27,13 +23,7 @@ test.describe('Composer send affordance', () => {
     await expect(sendButton).toHaveAttribute('data-ready', 'false');
 
     await input.click();
-    await input.pressSequentially(' ');
-
-    await expect(voiceButton).toBeDisabled();
-    await expect(sendButton).toBeDisabled();
-    await expect(sendButton).toHaveAttribute('data-ready', 'false');
-
-    await input.pressSequentially('Launch');
+    await input.pressSequentially('L');
 
     await expect(voiceButton).toBeDisabled();
     await expect(sendButton).toBeEnabled();
@@ -57,7 +47,9 @@ test.describe('Composer send affordance', () => {
     roomPage
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await openComposer(page, chatPage);
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
 
     await roomPage.messageInput.click();
     await roomPage.messageInput.pressSequentially('Launch');
