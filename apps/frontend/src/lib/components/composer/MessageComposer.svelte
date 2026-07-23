@@ -14,6 +14,7 @@
   import LinkPreviewSkeleton from '$lib/components/LinkPreviewSkeleton.svelte';
   import MessagePreviewCard from '$lib/components/MessagePreviewCard.svelte';
   import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+  import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import { toast } from '$lib/ui/toast';
   import {
     getRoomMembers,
@@ -23,7 +24,7 @@
     type RoomMember
   } from '$lib/state/room';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
-  import { prefersTouchActions } from '$lib/utils/inputCapabilities';
+  import { prefersTouchActions, supportsHoverActions } from '$lib/utils/inputCapabilities';
   import { readClipboardFiles } from '$lib/attachments/clipboardFiles';
   import { isVideoAttachmentFileCandidate } from '$lib/attachments/filePolicy';
   import { hasVisibleContent } from '$lib/validation';
@@ -31,6 +32,7 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import EmojiAutocomplete from '$lib/components/composer/EmojiAutocomplete.svelte';
+  import ComposerEmojiPicker from '$lib/components/composer/ComposerEmojiPicker.svelte';
   import MentionAutocomplete from '$lib/components/composer/MentionAutocomplete.svelte';
   import type { TipTapEditorApi } from './TipTapEditor.svelte';
   import { DraftState, draftKey } from './draft.svelte';
@@ -45,6 +47,8 @@
   import type { VoiceMessageDraft } from '$lib/voiceMessages/policy';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
+  const DESKTOP_EMOJI_PICKER_WIDTH_REM = 22;
+  const FLOATING_VIEWPORT_PADDING_PX = 8;
 
   type ShortcutHints = {
     submit: string;
@@ -161,6 +165,10 @@
 
   // TipTap editor API (received via onReady callback)
   let editorApi = $state<TipTapEditorApi | null>(null);
+  const canUseDesktopEmojiPicker = supportsHoverActions();
+  let emojiPickerTriggerElement = $state<HTMLButtonElement>();
+  let emojiPickerAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
+  let emojiPickerOpen = $state(false);
   const draftState = new DraftState();
   const attachments = new AttachmentsState(() => serverInfo);
   const linkPreviews = new LinkPreviewState(() => {
@@ -299,6 +307,7 @@
     if (autocompleteResetRoomId !== roomId) {
       autocompleteResetRoomId = roomId;
       autocomplete.resetForRoom();
+      closeDesktopEmojiPicker();
     }
 
     const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
@@ -461,6 +470,29 @@
     }
   });
 
+  $effect(() => {
+    if ((inputDisabled || voiceRecorderActive) && emojiPickerOpen) {
+      closeDesktopEmojiPicker();
+    }
+  });
+
+  $effect(() => {
+    const trigger = emojiPickerTriggerElement;
+    if (!emojiPickerOpen || !trigger) return;
+
+    const syncAnchor = () => {
+      emojiPickerAnchor = getDesktopEmojiPickerAnchor(trigger);
+    };
+    const observer = new ResizeObserver(syncAnchor);
+    observer.observe(trigger);
+    window.addEventListener('resize', syncAnchor);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncAnchor);
+    };
+  });
+
   // Auto-focus the input when the component mounts, room changes, a reply
   // starts, or the editor becomes editable (canPost loads async after a
   // navigation, so on sidebar/quick-switcher room changes the editor is
@@ -485,6 +517,53 @@
 
   function closeEmojiAutocomplete() {
     autocomplete.closeEmoji();
+  }
+
+  function getDesktopEmojiPickerAnchor(node: HTMLElement) {
+    const rect = node.getBoundingClientRect();
+    const rootFontSize =
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const availableWidth = Math.max(
+      0,
+      window.innerWidth - FLOATING_VIEWPORT_PADDING_PX * 2
+    );
+    const pickerWidth = Math.min(
+      DESKTOP_EMOJI_PICKER_WIDTH_REM * rootFontSize,
+      availableWidth
+    );
+
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: Math.max(FLOATING_VIEWPORT_PADDING_PX, rect.right - pickerWidth)
+    };
+  }
+
+  function closeDesktopEmojiPicker() {
+    emojiPickerOpen = false;
+    emojiPickerAnchor = null;
+  }
+
+  function closeDesktopEmojiPickerAndFocus() {
+    closeDesktopEmojiPicker();
+    tick().then(() => editorApi?.focus());
+  }
+
+  function toggleDesktopEmojiPicker() {
+    if (emojiPickerOpen) {
+      closeDesktopEmojiPickerAndFocus();
+      return;
+    }
+    if (!emojiPickerTriggerElement || inputDisabled || !editorApi) return;
+
+    autocomplete.reset();
+    emojiPickerAnchor = getDesktopEmojiPickerAnchor(emojiPickerTriggerElement);
+    emojiPickerOpen = true;
+  }
+
+  function handleDesktopEmojiSelect(emoji: string) {
+    closeDesktopEmojiPicker();
+    editorApi?.replaceTextBeforeCursor(0, emoji);
   }
 
   // Handle mention selection from autocomplete
@@ -1140,6 +1219,24 @@
         onClose={closeMentionAutocomplete}
       />
     {/if}
+
+    {#if emojiPickerOpen && emojiPickerAnchor}
+      <ContextMenu
+        anchor={emojiPickerAnchor}
+        presentation="floating"
+        role="dialog"
+        ariaLabel={m['emoji.open_picker']()}
+        class="w-[min(22rem,calc(100vw-1rem))] overflow-hidden"
+        onclose={closeDesktopEmojiPicker}
+      >
+        <ComposerEmojiPicker
+          serverId={getActiveServer()}
+          onSelect={handleDesktopEmojiSelect}
+          onClose={closeDesktopEmojiPickerAndFocus}
+        />
+      </ContextMenu>
+    {/if}
+
     <!-- Attachment button - hidden in edit mode (editMessage only supports text) -->
     {#if !isEditing && canAttach && !voiceRecorderActive}
       <button
@@ -1183,6 +1280,30 @@
             {submitHint}
           </span>
         {/if}
+      {/if}
+
+      {#if canUseDesktopEmojiPicker && !voiceRecorderActive}
+        <button
+          bind:this={emojiPickerTriggerElement}
+          data-testid="composer-emoji-button"
+          type="button"
+          onpointerdown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onclick={toggleDesktopEmojiPicker}
+          disabled={inputDisabled || !editorApi}
+          class={[
+            'flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50',
+            emojiPickerOpen && 'bg-surface-highlighted text-text'
+          ]}
+          aria-label={m['emoji.open_picker']()}
+          aria-haspopup="dialog"
+          aria-expanded={emojiPickerOpen}
+          title={m['emoji.open_picker']()}
+        >
+          <span class="iconify text-xl uil--smile" aria-hidden="true"></span>
+        </button>
       {/if}
 
       {#if !isEditing && canVoice}
