@@ -26,7 +26,6 @@
     "validation": {
       "email": "Introduce una dirección de correo electrónico válida",
       "password_min": "Debe contener al menos 8 caracteres Unicode",
-      "password_max": "No debe superar los 72 bytes UTF-8",
       "username_min": "Debe tener al menos 2 caracteres",
       "username_max": "Debe tener como máximo 32 caracteres.",
       "username_charset": "Sólo letras, números, puntos, guiones y guiones bajos.",
