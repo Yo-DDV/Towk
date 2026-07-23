@@ -50,6 +50,34 @@ func TestPasswordCreationAndMutationFlowsShareBcryptBoundary(t *testing.T) {
 	}
 }
 
+func TestPasswordVerificationDoesNotApplyNewPasswordPolicy(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	user, err := core.CreateUser(ctx, SystemActorID, "password-login-policy", "Password Login Policy", "valid-password")
+	if err != nil {
+		t.Fatalf("CreateUser login target: %v", err)
+	}
+
+	candidates := []struct {
+		name     string
+		password string
+	}{
+		{name: "candidate below creation minimum", password: "x"},
+		{name: "candidate above creation maximum", password: strings.Repeat("x", MaxPasswordLength+1)},
+	}
+	for _, candidate := range candidates {
+		t.Run(candidate.name, func(t *testing.T) {
+			_, err := core.VerifyPassword(ctx, user.Login, candidate.password)
+			if err == nil {
+				t.Fatal("VerifyPassword returned nil for an incorrect candidate")
+			}
+			if errors.Is(err, ErrPasswordTooShort) || errors.Is(err, ErrPasswordTooLong) {
+				t.Fatalf("VerifyPassword applied the new-password policy: %v", err)
+			}
+		})
+	}
+}
+
 func TestResetPasswordValidatesBeforeTokenLookup(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
