@@ -1,9 +1,9 @@
 name: read-receipts workspace snapshot
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/read-receipts
+      - main
     paths:
       - .github/workflows/read-receipts-snapshot.yml
 
