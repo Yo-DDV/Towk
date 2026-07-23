@@ -177,6 +177,23 @@ describe('createAccountAPI', () => {
     );
   });
 
+  it.each([
+    ['fewer than eight Unicode code points', 'a'.repeat(7), 'Must contain at least 8 Unicode characters'],
+    [
+      'more than seventy-two UTF-8 bytes',
+      'a'.repeat(73),
+      '8+ Unicode characters, up to 72 UTF-8 bytes'
+    ]
+  ])('rejects %s before the account RPC', async (_name, password, expectedMessage) => {
+    const api = createAccountAPI({
+      baseUrl: '/api/connect',
+      bearerToken: 'token'
+    });
+
+    await expect(api.updatePassword({ password })).rejects.toThrow(expectedMessage);
+    expect(mocks.updatePassword).not.toHaveBeenCalled();
+  });
+
   it('sends empty timezone when clearing settings', async () => {
     mocks.updateSettings.mockResolvedValue({
       settings: {
