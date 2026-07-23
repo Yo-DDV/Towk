@@ -131,6 +131,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          target_branch="automation/readme-independent-pulse-copy"
+          remote_ref="refs/remotes/origin/${target_branch}"
+          expected_remote=""
+
+          if git fetch --no-tags origin \
+            "${target_branch}:${remote_ref}"; then
+            expected_remote="$(git rev-parse "${remote_ref}")"
+          fi
+
           node tools/update-readme-project-pulse-copy.mjs
           node tools/fact-check-readmes.mjs
 
@@ -142,7 +151,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C automation/readme-independent-pulse-copy
+          git switch -C "${target_branch}"
           git commit -m "docs: fact-check multilingual README copy"
-          git push --force-with-lease origin \
-            HEAD:automation/readme-independent-pulse-copy
+
+          if [[ -n "${expected_remote}" ]]; then
+            git push \
+              --force-with-lease="refs/heads/${target_branch}:${expected_remote}" \
+              origin "HEAD:${target_branch}"
+          else
+            git push origin "HEAD:${target_branch}"
+          fi
