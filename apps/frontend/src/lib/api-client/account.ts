@@ -76,7 +76,7 @@ export function createAccountAPI(config: AccountAPIConfig) {
     async updatePassword(input: UpdatePasswordInput): Promise<void> {
       assertPasswordPolicy(input.password, {
         tooShort: m['common.validation.password_min'](),
-        tooLong: m['common.validation.password_max']()
+        tooLong: m['common.password_min_placeholder']()
       });
       await client.updatePassword(
         { password: input.password, currentPassword: input.currentPassword },
