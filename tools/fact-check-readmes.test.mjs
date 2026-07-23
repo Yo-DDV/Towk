@@ -20,10 +20,14 @@ for (const [locale, edition] of Object.entries(EDITIONS)) {
     const current = await readFile(path.join(ROOT, edition.file), "utf8");
     const updated = updateEdition(current, locale, edition);
 
-    assert.ok(updated.includes(BASELINE_SHA));
-    assert.ok(updated.includes(edition.contributorAlt));
-    assert.ok(updated.includes("readme-metrics"));
-    for (const stale of STALE) assert.ok(!updated.includes(stale));
-    assert.equal(updateEdition(updated, locale, edition), updated);
+    assert.ok(updated.includes(BASELINE_SHA), `${edition.file}: baseline SHA is missing`);
+    assert.ok(updated.includes(edition.contributorAlt), `${edition.file}: contributor alt text is stale`);
+    assert.ok(updated.includes("readme-metrics"), `${edition.file}: metrics branch link is missing`);
+    for (const stale of STALE) {
+      assert.ok(!updated.includes(stale), `${edition.file}: stale metrics methodology remains`);
+    }
+    if (updateEdition(updated, locale, edition) !== updated) {
+      throw new Error(`${edition.file}: fact-check transformation is not idempotent`);
+    }
   });
 }
