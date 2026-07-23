@@ -25,11 +25,33 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify multilingual README facts
-        run: |
-          set -euo pipefail
-          node --check tools/fact-check-readmes.mjs
-          node --test tools/fact-check-readmes.test.mjs
+      - name: Check README fact-checker syntax
+        run: node --check tools/fact-check-readmes.mjs
+
+      - name: Verify English README facts
+        env:
+          TOWK_README_LOCALE: en
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify French README facts
+        env:
+          TOWK_README_LOCALE: fr
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify German README facts
+        env:
+          TOWK_README_LOCALE: de
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify Spanish README facts
+        env:
+          TOWK_README_LOCALE: es
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify Portuguese README facts
+        env:
+          TOWK_README_LOCALE: pt
+        run: node --test tools/fact-check-readmes.test.mjs
 
       - name: Check repository and README presentation
         run: |
