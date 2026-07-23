@@ -30,8 +30,17 @@ describe('passwordPolicy', () => {
     ['one hundred twenty nine ASCII bytes', 'a'.repeat(129), PASSWORD_TOO_LONG, 129, 129],
     ['seven multibyte code points', 'é'.repeat(7), PASSWORD_TOO_SHORT, 7, 14],
     ['eight multibyte code points', 'é'.repeat(8), undefined, 8, 16],
+    ['seventy one multibyte bytes', '田'.repeat(23) + 'é', undefined, 24, 71],
     ['seventy two multibyte bytes', '田'.repeat(24), undefined, 24, 72],
-    ['seventy three multibyte bytes', '田'.repeat(23) + 'éé', PASSWORD_TOO_LONG, 25, 73]
+    ['seventy three multibyte bytes', '田'.repeat(23) + 'éé', PASSWORD_TOO_LONG, 25, 73],
+    [
+      'one hundred twenty eight multibyte bytes',
+      '田'.repeat(42) + 'é',
+      PASSWORD_TOO_LONG,
+      43,
+      128
+    ],
+    ['one hundred twenty nine multibyte bytes', '田'.repeat(43), PASSWORD_TOO_LONG, 43, 129]
   ])('%s', (_name, password, expectedCode, expectedCodePoints, expectedBytes) => {
     expect(passwordCodePointLength(password)).toBe(expectedCodePoints);
     expect(passwordUtf8ByteLength(password)).toBe(expectedBytes);
