@@ -102,6 +102,32 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icons/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+    <style data-ios-standalone-viewport-fix>
+      /*
+       * WebKit can resolve an installed app's layout viewport shorter than the
+       * display even with viewport-fit=cover. Use the standalone vh behavior
+       * for the shell, then reserve only the home-indicator inset for content.
+       */
+      @supports (-webkit-touch-callout: none) {
+        @media (display-mode: standalone) and (hover: none) and (pointer: coarse) {
+          html,
+          body {
+            min-height: 100vh;
+          }
+
+          body {
+            box-sizing: border-box;
+            height: 100vh;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+          }
+
+          body[data-visual-keyboard-open] {
+            min-height: 0;
+            padding-bottom: 0;
+          }
+        }
+      }
+    </style>
     %sveltekit.head%
   </head>
   <body>
