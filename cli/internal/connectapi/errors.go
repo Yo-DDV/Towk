@@ -12,6 +12,8 @@ import (
 	"hmans.de/chatto/internal/core"
 )
 
+const passwordErrorCodeMetadataKey = "Towk-Error-Code"
+
 var (
 	errorLogEmailRE       = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
 	errorLogTokenRE       = regexp.MustCompile(`cht_[A-Za-z0-9]{2}[A-Za-z0-9_-]+`)
@@ -74,7 +76,7 @@ func connectError(err error) error {
 		errors.Is(err, core.ErrSidebarLinkURLInvalid) ||
 		errors.Is(err, core.ErrInvalidRoleName) ||
 		errors.Is(err, core.ErrInvalidArgument) {
-		return connect.NewError(connect.CodeInvalidArgument, err)
+		return connectInvalidArgumentError(err)
 	}
 	if errors.Is(err, core.ErrNotFound) ||
 		errors.Is(err, core.ErrExternalIdentityNotFound) ||
@@ -117,6 +119,14 @@ func connectError(err error) error {
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	return connectInternalError(err)
+}
+
+func connectInvalidArgumentError(err error) error {
+	connectErr := connect.NewError(connect.CodeInvalidArgument, err)
+	if code := core.PasswordValidationCode(err); code != "" {
+		connectErr.Meta().Set(passwordErrorCodeMetadataKey, code)
+	}
+	return connectErr
 }
 
 func invalidArgument(message string) error {
