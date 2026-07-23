@@ -6,10 +6,22 @@ function countOccurrences(content, needle) {
 
 export function replaceExactOrCurrent(content, from, to, label) {
   if (from === to) return content;
+  const targetCount = countOccurrences(content, to);
   const sourceCount = countOccurrences(content, from);
-  if (sourceCount === 1) return content.replace(from, to);
-  if (sourceCount > 1) throw new Error(`${label}: source text appears ${sourceCount} times`);
-  if (content.includes(to)) return content;
+  const sourceOccurrencesInsideTarget = countOccurrences(to, from);
+  const staleSourceCount = sourceCount - targetCount * sourceOccurrencesInsideTarget;
+
+  if (targetCount > 1) {
+    throw new Error(`${label}: corrected text appears ${targetCount} times`);
+  }
+  if (targetCount === 1) {
+    if (staleSourceCount === 0) return content;
+    throw new Error(`${label}: corrected and stale text are both present`);
+  }
+  if (staleSourceCount === 1) return content.replace(from, to);
+  if (staleSourceCount > 1) {
+    throw new Error(`${label}: source text appears ${staleSourceCount} times`);
+  }
   throw new Error(`${label}: neither source nor corrected text was found`);
 }
 
