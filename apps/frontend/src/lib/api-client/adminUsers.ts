@@ -151,7 +151,7 @@ export function createAdminUserManagementAPI(config: AdminUserManagementAPIConfi
     async updateUserPassword(userId: string, password: string): Promise<AdminMember> {
       assertPasswordPolicy(password, {
         tooShort: m['common.validation.password_min'](),
-        tooLong: m['common.validation.password_max']()
+        tooLong: m['common.password_min_placeholder']()
       });
       const response = await client.updateUserPassword(
         { userId, password },
