@@ -38,6 +38,8 @@ jobs:
           node --check tools/generate-readme-project-pulse.mjs
           node --test tools/generate-readme-project-pulse.test.mjs
           node --check tools/update-readme-project-pulse-copy.mjs
+          node --check tools/fact-check-readmes.mjs
+          node --test tools/fact-check-readmes.test.mjs
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
