@@ -51,7 +51,7 @@
     type === 'password' && autocomplete === 'new-password' && value
       ? passwordValidationMessage(value, {
           tooShort: m['common.validation.password_min'](),
-          tooLong: m['common.validation.password_max']()
+          tooLong: m['common.password_min_placeholder']()
         })
       : undefined
   );
