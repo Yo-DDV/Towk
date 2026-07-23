@@ -57,3 +57,13 @@ export function passwordValidationMessage(
 ): string | undefined {
   return passwordValidationMessageForCode(passwordValidationCode(password), messages);
 }
+
+export function assertPasswordPolicy(
+  password: string,
+  messages: PasswordValidationMessages
+): void {
+  const message = passwordValidationMessage(password, messages);
+  if (message) {
+    throw new Error(message);
+  }
+}
