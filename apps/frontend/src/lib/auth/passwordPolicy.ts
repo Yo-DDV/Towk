@@ -2,7 +2,6 @@ export const MIN_PASSWORD_CODE_POINTS = 8;
 export const MAX_PASSWORD_UTF8_BYTES = 72;
 export const PASSWORD_TOO_SHORT = 'PASSWORD_TOO_SHORT';
 export const PASSWORD_TOO_LONG = 'PASSWORD_TOO_LONG';
-export const PASSWORD_ERROR_METADATA_KEY = 'Towk-Error-Code';
 
 export type PasswordValidationCode = typeof PASSWORD_TOO_SHORT | typeof PASSWORD_TOO_LONG;
 
