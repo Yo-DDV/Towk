@@ -15,7 +15,9 @@ This page describes the security and privacy features built into Towk today.
 
 ### Password storage
 
-Passwords are hashed with **bcrypt** at the library default cost. Towk enforces a minimum length of 8 characters and a maximum length of 128 bytes so bcrypt never silently truncates user input.
+New passwords must contain at least **8 Unicode code points** and must not exceed **72 UTF-8 bytes**. Towk hashes them with **bcrypt** at the library default cost, and Go's bcrypt implementation rejects inputs above 72 bytes.
+
+The new-password policy applies when a password is created or replaced. Sign-in does not reapply these length checks, so existing or imported bcrypt hashes continue to be verified according to bcrypt's compatibility behavior.
 
 Password hash changes are durable user events in the `EVT` stream and are read through the user projection. Raw passwords are never written to storage, audit events, logs, or live subscriptions. Password changes and resets also advance the user's auth generation, so older first-party session credentials, bearer tokens, and OAuth authorization codes are rejected.
 
