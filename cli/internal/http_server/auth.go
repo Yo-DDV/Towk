@@ -28,6 +28,18 @@ func isStaleLoginCredentialError(err error) bool {
 	return errors.Is(err, core.ErrCookieSessionNotFound) || errors.Is(err, core.ErrAuthTokenNotFound)
 }
 
+func writePasswordValidationError(c *gin.Context, err error) bool {
+	code := core.PasswordValidationCode(err)
+	if code == "" {
+		return false
+	}
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": err.Error(),
+		"code":  code,
+	})
+	return true
+}
+
 func (s *HTTPServer) authEmailServerName(ctx context.Context) string {
 	if s.core != nil && s.core.ConfigManager() != nil {
 		if name, err := s.core.ConfigManager().GetEffectiveServerName(ctx); err == nil && strings.TrimSpace(name) != "" {
@@ -357,7 +369,6 @@ func (s *HTTPServer) setupAuthRoutes() {
 			Body:    fmt.Sprintf("Welcome to %s!\n\nUse this verification code to finish creating your account on %s:\n\n%s\n\nThis code will expire in %s.\n\nIf you didn't request this, you can ignore this email.", serverName, serverName, code, expirationText),
 		})
 		if err != nil {
-			log.Error("Failed to send registration email", "error", err)
 			if cancelErr := s.core.CancelRegistrationCode(ctx, req.Email, code); cancelErr != nil {
 				log.Warn("Failed to cancel undelivered registration code", "error", cancelErr)
 			}
@@ -420,12 +431,16 @@ func (s *HTTPServer) setupAuthRoutes() {
 		var req struct {
 			Token                string `json:"token" binding:"required"`
 			Login                string `json:"login" binding:"required"`
-			Password             string `json:"password" binding:"required,min=8,max=128"`
+			Password             string `json:"password" binding:"required"`
 			PasswordConfirmation string `json:"passwordConfirmation" binding:"required"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token, login, and a password between 8 and 128 characters are required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Token, login, password, and password confirmation are required"})
+			return
+		}
+		if err := core.ValidatePassword(req.Password); err != nil {
+			writePasswordValidationError(c, err)
 			return
 		}
 
@@ -498,8 +513,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 				c.JSON(http.StatusForbidden, gin.H{"error": "This instance is not accepting new users"})
 				return
 			}
-			if errors.Is(err, core.ErrPasswordTooShort) || errors.Is(err, core.ErrPasswordTooLong) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if writePasswordValidationError(c, err) {
 				return
 			}
 			log.Error("Registration failed", "error", err)
@@ -715,18 +729,16 @@ func (s *HTTPServer) setupAuthRoutes() {
 	auth.POST("reset-password", func(c *gin.Context) {
 		var req struct {
 			Token    string `json:"token" binding:"required"`
-			Password string `json:"password" binding:"required,min=8,max=128"`
+			Password string `json:"password" binding:"required"`
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token and a password between 8 and 128 characters are required"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Token and password are required"})
 			return
 		}
 
-		// Defence in depth: validator's max=128 counts runes; core's check counts bytes.
-		// Enforce the byte cap here so a multi-byte payload can't slip past binding.
 		if err := core.ValidatePassword(req.Password); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			writePasswordValidationError(c, err)
 			return
 		}
 
@@ -749,6 +761,9 @@ func (s *HTTPServer) setupAuthRoutes() {
 		if err != nil {
 			if errors.Is(err, core.ErrPasswordResetTokenNotFound) || errors.Is(err, core.ErrPasswordResetTokenExpired) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset link"})
+				return
+			}
+			if writePasswordValidationError(c, err) {
 				return
 			}
 			log.Error("Failed to reset password", "error", err)
