@@ -57,9 +57,11 @@ jobs:
           install-frontend-deps: "false"
           mise-install-args: node
 
-      - name: Test the metrics generator
+      - name: Test the metrics generators
         if: steps.window.outputs.run == 'true'
-        run: node --test tools/generate-readme-metrics.test.mjs
+        run: |
+          node --test tools/generate-readme-metrics.test.mjs
+          node --test tools/generate-readme-project-pulse.test.mjs
 
       - name: Generate localized repository visuals
         if: steps.window.outputs.run == 'true'
@@ -67,7 +69,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TOWK_METRICS_OUTPUT_DIR: ${{ runner.temp }}/towk-readme-metrics
           TOWK_METRICS_SOURCE_BRANCH: main
-        run: node tools/generate-readme-metrics.mjs
+          TOWK_METRICS_BASELINE_SHA: 205e91fe1ae5e5c23420974f7e04cf82456eeab3
+        run: node tools/generate-readme-project-pulse.mjs
 
       - name: Validate the generated bundle
         if: steps.window.outputs.run == 'true'
@@ -121,3 +124,23 @@ jobs:
           git -C "$publish_dir" commit -m \
             "chore(metrics): refresh README visuals"
           git -C "$publish_dir" push origin HEAD:readme-metrics
+
+      - name: Publish the README methodology update branch
+        if: steps.window.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/update-readme-project-pulse-copy.mjs
+
+          git add README.md README.de.md README.es.md README.fr.md README.pt.md
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C automation/readme-independent-pulse-copy
+          git commit -m "docs: explain independent Towk metrics"
+          git push --force-with-lease origin \
+            HEAD:automation/readme-independent-pulse-copy
