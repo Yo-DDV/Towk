@@ -138,11 +138,11 @@ func ValidateLogin(login string) error {
 // The minimum is measured in Unicode code points; the bcrypt-compatible maximum
 // is measured in UTF-8 bytes.
 func ValidatePassword(password string) error {
-	if utf8.RuneCountInString(password) < MinPasswordLength {
-		return ErrPasswordTooShort
-	}
 	if len(password) > MaxPasswordLength {
 		return ErrPasswordTooLong
+	}
+	if utf8.RuneCountInString(password) < MinPasswordLength {
+		return ErrPasswordTooShort
 	}
 	return nil
 }
