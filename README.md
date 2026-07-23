@@ -55,8 +55,8 @@
 
 > [!IMPORTANT]
 > Towk is under active development and has not reached 1.0. For important
-> deployments, pin an immutable release or image digest, keep tested backups,
-> and review release notes before upgrading.
+> deployments, pin the exact image digest or source commit, keep tested backups,
+> and review release notes and configuration changes before upgrading.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/docs-website/src/assets/towk_dark.png" />
@@ -103,7 +103,7 @@ of every collaboration platform.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/contributors-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/contributors.svg" width="100%" alt="Towk commit and merged pull request authors over the trailing twelve months" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/contributors.svg" width="100%" alt="Towk commit and merged pull request authors since the public standalone foundation" />
 </picture>
 
 <details>
@@ -111,15 +111,21 @@ of every collaboration platform.
 
   The repository generates these SVGs from GitHub's API with its scoped
   `GITHUB_TOKEN`; it does not use a personal token or an external statistics
-  service. The workflow refreshes after every push to `main` and at approximately
-  **06:17 and 21:17 Europe/Paris** each day.
+  service. The workflow refreshes after every push to `main` and is scheduled at
+  approximately **06:17 and 21:17 Europe/Paris** each day.
 
-  The reporting window is the trailing 365 days. Commits are counted from the
-  history reachable from `main` and bucketed by their committed timestamp in UTC.
-  Pull requests are counted by `merged_at`. Contributor rankings use the GitHub
-  identity attributed to each main-branch commit or merged pull request; detected
-  bots are excluded from human rankings and reported separately. Raw commit
-  messages and email addresses are not written to the generated branch.
+  The headline counters and contributor rankings begin after the public
+  standalone-foundation merge commit `205e91fe1ae5e5c23420974f7e04cf82456eeab3` from 12 July 2026. This
+  prevents inherited Chatto history from being presented as current Towk progress.
+  The charts retain rolling views of 30 days, 12 weeks and 12 months; periods before
+  that foundation point appear as zero. Commits are selected topologically from
+  `main` after the foundation commit and bucketed by their committed timestamp in
+  UTC. Pull requests are counted by `merged_at` after the foundation timestamp.
+  Rankings use the GitHub login when available and otherwise the public commit
+  author name. Detected bots are excluded from human rankings and reported
+  separately. These figures describe repository activity and Git attribution, not
+  individual effort. Raw commit messages and email addresses are not written to the
+  generated branch.
 
   The generated SVGs and machine-readable snapshot live on the
   [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics) branch.
@@ -140,13 +146,13 @@ of every collaboration platform.
     </td>
     <td width="33%" valign="top">
       <h3>📞 Calls &amp; installed app</h3>
-      <p>Optional LiveKit voice/video rooms, screen sharing and call-media E2EE, plus an installable responsive PWA.</p>
+      <p>Optional LiveKit-powered voice and video calls, screen sharing and call-media E2EE, plus an installable responsive PWA.</p>
     </td>
   </tr>
   <tr>
     <td width="33%" valign="top">
       <h3>🔐 Identity &amp; local continuity</h3>
-      <p>Password/email flows, OIDC and selected OAuth providers, encrypted drafts, outbox and recent timelines on supported browsers.</p>
+      <p>Password/email flows, OIDC and selected OAuth providers, encrypted drafts, outbox and recent room timelines on supported browsers.</p>
     </td>
     <td width="33%" valign="top">
       <h3>🧭 Administration</h3>
@@ -167,14 +173,14 @@ Detailed behavior, trade-offs and current limitations are recorded in the
 
 <table>
   <tr>
-    <td width="33%" valign="top"><h3>🏠 Deployment</h3><p>Run one independently operated server per organization or community, from a compact binary to a replicated deployment.</p></td>
+    <td width="33%" valign="top"><h3>🏠 Deployment</h3><p>Each deployment serves one organization or community, from a compact binary to a replicated topology.</p></td>
     <td width="33%" valign="top"><h3>🗄️ Data placement</h3><p>Choose embedded or external NATS persistence and NATS Object Store or S3-compatible storage for files.</p></td>
     <td width="33%" valign="top"><h3>🪪 Identity policy</h3><p>Use local password/email accounts or explicitly selected external providers, including a self-hosted OIDC provider.</p></td>
   </tr>
   <tr>
     <td width="33%" valign="top"><h3>🔑 Key lifecycle</h3><p>Message text and selected durable identity fields use per-user encryption, with crypto-shredding during account deletion.</p></td>
-    <td width="33%" valign="top"><h3>📦 Build traceability</h3><p>Public source, immutable coordinates, exact-commit OCI metadata, SBOMs, vulnerability scans and provenance attestations.</p></td>
-    <td width="33%" valign="top"><h3>📈 Operational visibility</h3><p>Health/readiness endpoints, Prometheus-compatible metrics, diagnostics, an administrative event log and reproducible performance gates.</p></td>
+    <td width="33%" valign="top"><h3>📦 Build traceability</h3><p>Public source, exact-commit OCI metadata, image digests, SBOMs, vulnerability scans and provenance attestations.</p></td>
+    <td width="33%" valign="top"><h3>📈 Operational visibility</h3><p>Health/readiness endpoints, Prometheus-compatible metrics, diagnostics, an administrative event log and a reproducible media-performance qualification protocol.</p></td>
   </tr>
 </table>
 
@@ -184,7 +190,9 @@ Detailed behavior, trade-offs and current limitations are recorded in the
 > currently provide end-to-end encryption for text conversations. An operator
 > controlling the server, storage and keys remains inside the trust boundary.
 > Attachments and much of the surrounding metadata are outside that field-level
-> envelope. LiveKit call media supports E2EE when calls are enabled.
+> envelope. LiveKit call media uses E2EE when calls are enabled, but Towk
+> provisions the shared call key; a Towk operator able to access those keys remains
+> inside the call trust boundary.
 
 Backups deliberately separate normal application data from the built-in
 key-encryption-key store unless an operator explicitly includes or exports those
@@ -243,7 +251,7 @@ never be reused in a public deployment.
 </table>
 
 Start with [Read This First](apps/docs-website/src/content/docs/guides/deployment/read-this-first.mdx).
-For durable deployments, use an immutable image tag and digest rather than a
+For durable deployments, pin an exact image digest rather than relying on a
 floating tag.
 
 ### Know the current boundary
