@@ -165,7 +165,10 @@
 
   // TipTap editor API (received via onReady callback)
   let editorApi = $state<TipTapEditorApi | null>(null);
-  const canUseDesktopEmojiPicker = supportsHoverActions();
+  // Touch-primary devices already expose their native emoji keyboard. Even on
+  // hybrid phones/tablets advertising an auxiliary fine pointer, keep the
+  // desktop picker hidden and reserve it for a true desktop input context.
+  const canUseDesktopEmojiPicker = !prefersTouchActions() && supportsHoverActions();
   let emojiPickerTriggerElement = $state<HTMLButtonElement>();
   let emojiPickerAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
   let emojiPickerOpen = $state(false);
