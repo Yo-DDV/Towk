@@ -119,6 +119,43 @@ func TestPasswordVerificationPreservesLegacyLongBcryptHashes(t *testing.T) {
 	}
 }
 
+func TestPasswordVerificationPreservesLegacyShortBcryptHashes(t *testing.T) {
+	core, _ := setupTestCore(t)
+	ctx := testContext(t)
+	user, err := core.CreateUser(ctx, SystemActorID, "password-legacy-short", "Password Legacy Short", "")
+	if err != nil {
+		t.Fatalf("CreateUser legacy target: %v", err)
+	}
+
+	legacyPassword := "x"
+	legacyHash, err := bcrypt.GenerateFromPassword([]byte(legacyPassword), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("GenerateFromPassword legacy password: %v", err)
+	}
+
+	passwordChanged := newEvent(SystemActorID, &corev1.Event{
+		Event: &corev1.Event_UserPasswordHashChanged{
+			UserPasswordHashChanged: &corev1.UserPasswordHashChangedEvent{
+				UserId:       user.Id,
+				PasswordHash: legacyHash,
+			},
+		},
+	})
+	if _, err := core.appendUserEvent(ctx, user.Id, passwordChanged, "", nil); err != nil {
+		t.Fatalf("append legacy password hash: %v", err)
+	}
+	if err := ValidatePassword(legacyPassword); !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("ValidatePassword legacy candidate error = %v, want ErrPasswordTooShort", err)
+	}
+	verified, err := core.VerifyPassword(ctx, user.Login, legacyPassword)
+	if err != nil {
+		t.Fatalf("VerifyPassword legacy candidate: %v", err)
+	}
+	if verified.Id != user.Id {
+		t.Fatalf("verified user ID = %q, want %q", verified.Id, user.Id)
+	}
+}
+
 func TestResetPasswordValidatesBeforeTokenLookup(t *testing.T) {
 	core, _ := setupTestCore(t)
 	ctx := testContext(t)
