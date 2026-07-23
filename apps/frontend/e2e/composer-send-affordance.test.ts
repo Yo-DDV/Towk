@@ -16,6 +16,7 @@ test.describe('Composer send affordance', () => {
     const input = roomPage.messageInput;
     const voiceButton = page.getByTestId('voice-message-record-button');
     const sendButton = page.getByTestId('message-send-button');
+    const sendIcon = sendButton.locator(':scope > span');
 
     await expect(voiceButton).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(voiceButton).toBeEnabled();
@@ -30,7 +31,7 @@ test.describe('Composer send affordance', () => {
     await expect(sendButton).toHaveAttribute('data-ready', 'true');
     await expect(sendButton).toHaveCSS('color', 'rgb(232, 120, 59)');
     await expect
-      .poll(() => sendButton.evaluate((element) => getComputedStyle(element).animationName))
+      .poll(() => sendIcon.evaluate((element) => getComputedStyle(element).animationName))
       .toContain('composer-send-float');
 
     await input.press('Control+A');
@@ -55,9 +56,10 @@ test.describe('Composer send affordance', () => {
     await roomPage.messageInput.pressSequentially('Launch');
 
     const sendButton = page.getByTestId('message-send-button');
+    const sendIcon = sendButton.locator(':scope > span');
     await expect(sendButton).toBeEnabled();
     await expect(sendButton).toHaveAttribute('data-ready', 'true');
     await expect(sendButton).toHaveCSS('color', 'rgb(232, 120, 59)');
-    await expect(sendButton).toHaveCSS('animation-name', 'none');
+    await expect(sendIcon).toHaveCSS('animation-name', 'none');
   });
 });
