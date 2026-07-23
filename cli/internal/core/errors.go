@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	PasswordTooShortCode = "PASSWORD_TOO_SHORT"
+	PasswordTooLongCode  = "PASSWORD_TOO_LONG"
+)
+
 // Sentinel errors for common error conditions in ChattoCore.
 var (
 	// ErrNotFound is returned when a requested resource does not exist.
@@ -184,14 +189,27 @@ var (
 	// reactions, or joining.
 	ErrRoomArchived = errors.New("room is archived")
 
-	// ErrPasswordTooShort is returned when a password is shorter than MinPasswordLength.
-	ErrPasswordTooShort = fmt.Errorf("password must be at least %d characters long", MinPasswordLength)
+	// ErrPasswordTooShort is returned when a password contains fewer than
+	// MinPasswordLength Unicode code points.
+	ErrPasswordTooShort = fmt.Errorf("password must contain at least %d Unicode characters", MinPasswordLength)
 
-	// ErrPasswordTooLong is returned when a password exceeds MaxPasswordLength.
-	// bcrypt silently truncates input at 72 bytes, so we cap above that to ensure
-	// the entire user-provided password contributes to the hash and to bound work.
-	ErrPasswordTooLong = fmt.Errorf("password cannot exceed %d bytes", MaxPasswordLength)
+	// ErrPasswordTooLong is returned when a password exceeds MaxPasswordLength
+	// UTF-8 bytes. Go's bcrypt implementation rejects inputs above 72 bytes.
+	ErrPasswordTooLong = fmt.Errorf("password cannot exceed %d UTF-8 bytes", MaxPasswordLength)
 )
+
+// PasswordValidationCode returns the stable public code for a password-policy
+// validation error, or an empty string when the error is unrelated.
+func PasswordValidationCode(err error) string {
+	switch {
+	case errors.Is(err, ErrPasswordTooShort):
+		return PasswordTooShortCode
+	case errors.Is(err, ErrPasswordTooLong):
+		return PasswordTooLongCode
+	default:
+		return ""
+	}
+}
 
 // InvalidArgumentError carries a caller-safe validation message while still
 // matching ErrInvalidArgument through errors.Is.
@@ -212,9 +230,8 @@ func invalidArgument(message string) error {
 }
 
 // Input validation limits.
-// Note: These limits are enforced using len() which counts bytes, not Unicode characters.
-// This is intentional for consistent storage cost control - a 10KB message costs the same
-// regardless of whether it contains ASCII or multi-byte UTF-8 characters.
+// Unless a field comment says otherwise, persisted string-size limits use
+// len() and therefore count UTF-8 bytes for predictable storage costs.
 const (
 	// MessageEditWindow is the duration after posting during which a user can edit
 	// their own message. Moderators with message.manage can edit at any time.
@@ -241,14 +258,12 @@ const (
 	// LoginChangeCooldown is the minimum duration between login changes.
 	LoginChangeCooldown = 30 * 24 * time.Hour
 
-	// MinPasswordLength is the minimum length of a password in bytes.
+	// MinPasswordLength is the minimum password length in Unicode code points.
 	MinPasswordLength = 8
 
-	// MaxPasswordLength is the maximum length of a password in bytes.
-	// bcrypt silently truncates input at 72 bytes; capping above that prevents
-	// surprising hash collisions on long passwords sharing the same prefix while
-	// still leaving room for passphrases.
-	MaxPasswordLength = 128
+	// MaxPasswordLength is the maximum password length in UTF-8 bytes accepted
+	// for hashing with Go's bcrypt implementation.
+	MaxPasswordLength = 72
 
 	// MaxServerNameLength is the maximum length of a runtime-editable server name in bytes.
 	MaxServerNameLength = 80
