@@ -1,5 +1,6 @@
 import { authHeaders, createTowkClient } from './connect.js';
 import * as m from '$lib/i18n/messages';
+import { assertPasswordPolicy } from '$lib/auth/passwordPolicy';
 import { MyAccountService } from '@towk/api-types/api/v1/account_pb';
 import type { User as APIUser } from '@towk/api-types/api/v1/users_pb';
 import {
@@ -73,6 +74,10 @@ export function createAccountAPI(config: AccountAPIConfig) {
     },
 
     async updatePassword(input: UpdatePasswordInput): Promise<void> {
+      assertPasswordPolicy(input.password, {
+        tooShort: m['common.validation.password_min'](),
+        tooLong: m['common.validation.password_max']()
+      });
       await client.updatePassword(
         { password: input.password, currentPassword: input.currentPassword },
         { headers: headers() }
