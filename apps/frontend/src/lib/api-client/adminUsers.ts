@@ -1,5 +1,6 @@
 import { authHeaders, createTowkClient } from './connect.js';
 import * as m from '$lib/i18n/messages';
+import { assertPasswordPolicy } from '$lib/auth/passwordPolicy';
 import { AdminUserService } from '@towk/api-types/admin/v1/members_pb';
 import type { AdminMember as APIAdminMember } from '@towk/api-types/admin/v1/members_pb';
 import type { AdminRole as APIAdminRole } from '@towk/api-types/admin/v1/roles_pb';
@@ -148,6 +149,10 @@ export function createAdminUserManagementAPI(config: AdminUserManagementAPIConfi
     },
 
     async updateUserPassword(userId: string, password: string): Promise<AdminMember> {
+      assertPasswordPolicy(password, {
+        tooShort: m['common.validation.password_min'](),
+        tooLong: m['common.validation.password_max']()
+      });
       const response = await client.updateUserPassword(
         { userId, password },
         { headers: headers() }
