@@ -1,17 +1,19 @@
-name: read-receipts workspace snapshot
+name: read-receipts development gate
 
 on:
   pull_request:
     branches:
       - main
-    paths:
-      - .github/workflows/read-receipts-snapshot.yml
 
 permissions:
   contents: read
 
+concurrency:
+  group: read-receipts-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
-  snapshot:
+  generate-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Check out branch
@@ -19,16 +21,66 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Create source snapshot
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Generate protobuf bindings
+        id: codegen
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mise codegen-proto 2>&1 | tee "${RUNNER_TEMP}/read-receipts-codegen.log"
+
+      - name: Run targeted backend tests
+        id: backend
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cd cli
+          go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
+            | tee "${RUNNER_TEMP}/read-receipts-backend.log"
+
+      - name: Record development gate status
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
+          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+        run: |
+          {
+            printf 'codegen=%s\n' "${CODEGEN_OUTCOME}"
+            printf 'backend=%s\n' "${BACKEND_OUTCOME}"
+            printf 'sha=%s\n' "${GITHUB_SHA}"
+          } > "${RUNNER_TEMP}/read-receipts-status.txt"
+
+      - name: Create generated workspace snapshot
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git -czf "${RUNNER_TEMP}/towk-source.tar.gz" .
+          tar --exclude=.git -czf "${RUNNER_TEMP}/towk-read-receipts-workspace.tar.gz" .
 
-      - name: Upload source snapshot
+      - name: Upload generated workspace and logs
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: towk-read-receipts-source
-          path: ${{ runner.temp }}/towk-source.tar.gz
+          name: towk-read-receipts-workspace
+          path: |
+            ${{ runner.temp }}/towk-read-receipts-workspace.tar.gz
+            ${{ runner.temp }}/read-receipts-codegen.log
+            ${{ runner.temp }}/read-receipts-backend.log
+            ${{ runner.temp }}/read-receipts-status.txt
           retention-days: 1
           if-no-files-found: error
+
+      - name: Enforce development gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
+          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+        run: |
+          test "${CODEGEN_OUTCOME}" = success
+          test "${BACKEND_OUTCOME}" = success
