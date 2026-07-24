@@ -1,0 +1,12 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "direct_message_delete": {
+      "title": "Supprimer la conversation",
+      "action": "Supprimer la conversation",
+      "prompt": "Supprimer la conversation avec {room} ? Son historique sera retiré de votre compte. L’autre participant conservera sa copie.",
+      "failed": "Impossible de supprimer la conversation",
+      "local_cleanup_failed": "La conversation a été supprimée, mais cet appareil n’a pas pu effacer toutes les données en cache."
+    }
+  }
+}
