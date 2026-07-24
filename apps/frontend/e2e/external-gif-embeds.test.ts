@@ -3,14 +3,9 @@ import { test } from './setup';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
 
-const giphyUrl =
-  'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
-const giphyMediaUrl =
-  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
-const onePixelGif = Buffer.from(
-  'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',
-  'base64'
-);
+const giphyUrl = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
+const giphyMediaUrl = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
+const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
 
 test.describe('External GIF embeds', () => {
   test('renders the reported GIPHY URL behind the default privacy gate', async ({
@@ -64,7 +59,9 @@ test.describe('External GIF embeds', () => {
     await chatPage.enterRoom('general');
     await roomPage.sendMessage(giphyMediaUrl);
 
-    const message = page.locator('[role="article"]', { hasText: giphyMediaUrl });
+    const message = page.locator('[role="article"]', {
+      hasText: giphyMediaUrl
+    });
     const embed = message.getByTestId('external-gif-embed');
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(embed.locator('img')).toHaveCount(0);
