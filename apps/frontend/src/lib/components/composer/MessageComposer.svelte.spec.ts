@@ -324,6 +324,25 @@ function mockTouchPrimaryPointer() {
   );
 }
 
+function mockHybridTouchPointer() {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query): MediaQueryList =>
+      ({
+        matches:
+          query === '(pointer: coarse)' ||
+          query === '(any-hover: hover)' ||
+          query === '(any-pointer: fine)',
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(() => false)
+      }) as MediaQueryList
+  );
+}
+
 async function changeSelectValue(select: HTMLSelectElement, value: string) {
   select.value = value;
   select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -418,6 +437,14 @@ describe('MessageComposer', () => {
       const { container } = renderMessageComposer({ roomId: 'room_456' });
 
       await expect.element(await findEditor(container)).toBeInTheDocument();
+    });
+
+    it('hides the desktop emoji picker on touch-primary hybrid devices', async () => {
+      mockHybridTouchPointer();
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+
+      await findEditor(container);
+      expect(container.querySelector('[data-testid="composer-emoji-button"]')).toBeNull();
     });
 
     it('centers the editor within the composer focus shell', async () => {
