@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto, pushState } from '$app/navigation';
   import { page } from '$app/state';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { SvelteSet } from 'svelte/reactivity';
   import { PaneHeader, EmptyState } from '$lib/ui';
@@ -75,8 +75,26 @@
   let loading = $state(true);
   let clearing = $state(false);
   let sidebarHistoryWasOpen = false;
+  let sidebarOpenSequence = 0;
   const pendingNotificationIds = new SvelteSet<string>();
   const showDelayedLoading = delayedLoadingVisible(() => loading && allNotifications.length === 0);
+
+  async function openSidebarAfterMount(sequence: number): Promise<void> {
+    // The normal room route keeps both columns mounted while closed. Reproduce
+    // that lifecycle here: first mount the notification channel pane at the
+    // shared closed transform, flush that style, then open the shared nav state.
+    await tick();
+    if (sequence !== sidebarOpenSequence || page.state.notificationSidebarOpen !== true) return;
+
+    if (sidebarNav.isMobile) {
+      const channelPane = document.querySelector<HTMLElement>('[data-testid="server-sidebar"]');
+      void channelPane?.offsetWidth;
+    }
+
+    if (sequence === sidebarOpenSequence && page.state.notificationSidebarOpen === true) {
+      sidebarNav.open();
+    }
+  }
 
   function handleSidebarToggle(): boolean {
     if (page.state.notificationSidebarOpen) {
@@ -92,7 +110,6 @@
       notificationServerId: serverId,
       notificationSidebarOpen: true
     });
-    sidebarNav.open();
     return true;
   }
 
@@ -100,15 +117,18 @@
 
   // The shallow history entry is the source of truth for this transient pane.
   // Android/iOS/browser Back removes it first, keeping the notification route
-  // mounted; Forward restores it. The local nav state follows that entry.
+  // mounted; Forward restores it. Opening waits until the route-specific pane
+  // is mounted closed, so it and the existing server gutter share one transform.
   $effect(() => {
     const historyOpen = page.state.notificationSidebarOpen === true;
     if (historyOpen) {
       sidebarHistoryWasOpen = true;
-      if (!sidebarNav.isOpen) sidebarNav.open();
+      const sequence = ++sidebarOpenSequence;
+      void openSidebarAfterMount(sequence);
       return;
     }
 
+    sidebarOpenSequence++;
     if (!sidebarHistoryWasOpen) return;
     sidebarHistoryWasOpen = false;
     if (sidebarNav.isOpen) sidebarNav.close();
