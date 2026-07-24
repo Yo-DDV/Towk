@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
 
 concurrency:
   group: dm-responsive-ui-validation
@@ -26,16 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Report validation start
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api \
-            --method POST \
-            "repos/${GITHUB_REPOSITORY}/issues/187/comments" \
-            -f body="Responsive DM deletion UI validation started. Workflow run: ${GITHUB_RUN_ID}."
-
       - name: Check out validation commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -169,17 +158,3 @@ jobs:
           test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "$(git rev-parse HEAD^)"
           git merge-base --is-ancestor "${PREVIOUS_PRODUCT_SHA}" HEAD
           git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
-
-      - name: Report validation result
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          JOB_STATUS: ${{ job.status }}
-        run: |
-          set -euo pipefail
-          candidate_sha="$(git rev-parse HEAD 2>/dev/null || printf '%s' "${PREVIOUS_PRODUCT_SHA}")"
-          gh api \
-            --method POST \
-            "repos/${GITHUB_REPOSITORY}/issues/187/comments" \
-            -f body="Responsive DM deletion UI validation: ${JOB_STATUS}. Candidate: ${candidate_sha}. Workflow run: ${GITHUB_RUN_ID}."
