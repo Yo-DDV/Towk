@@ -11,10 +11,11 @@ describe('iOS standalone viewport shell', () => {
     );
   });
 
-  it('fills the shell and removes stale safe-area padding for the keyboard', () => {
+  it('combines the normal shell spacing with the safe area without stacking both', () => {
     expect(appTemplate).toMatch(
-      /body\s*\{[^}]*box-sizing:\s*border-box;[^}]*height:\s*100vh;[^}]*padding-bottom:\s*env\(safe-area-inset-bottom,\s*0px\);[^}]*\}/s
+      /body\s*\{[^}]*box-sizing:\s*border-box;[^}]*height:\s*100vh;[^}]*padding-bottom:\s*max\(\s*0px,\s*calc\(env\(safe-area-inset-bottom,\s*0px\)\s*-\s*0\.5rem\)\s*\);[^}]*\}/s
     );
+    expect(appTemplate).not.toContain('padding-bottom: env(safe-area-inset-bottom, 0px);');
     expect(appTemplate).toMatch(
       /body\[data-visual-keyboard-open\]\s*\{[^}]*min-height:\s*0;[^}]*padding-bottom:\s*0;[^}]*\}/s
     );

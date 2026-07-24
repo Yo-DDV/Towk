@@ -106,7 +106,8 @@
       /*
        * WebKit can resolve an installed app's layout viewport shorter than the
        * display even with viewport-fit=cover. Use the standalone vh behavior
-       * for the shell, then reserve only the home-indicator inset for content.
+       * for the shell, then reserve the home-indicator inset without stacking
+       * it on top of the shell's existing 0.5rem edge spacing.
        */
       @supports (-webkit-touch-callout: none) {
         @media (display-mode: standalone) and (hover: none) and (pointer: coarse) {
@@ -118,7 +119,10 @@
           body {
             box-sizing: border-box;
             height: 100vh;
-            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-bottom: max(
+              0px,
+              calc(env(safe-area-inset-bottom, 0px) - 0.5rem)
+            );
           }
 
           body[data-visual-keyboard-open] {
