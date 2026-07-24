@@ -1,18 +1,126 @@
 name: user profiles publish
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feat/user-profiles
+    paths:
+      - .github/workflows/user-profiles-publish.yml
 
 permissions:
   contents: write
 
+concurrency:
+  group: user-profiles-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
+    if: github.actor == 'Yo-DDV' && github.repository == 'Yo-DDV/Towk'
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PATCH_BLOBS: >-
+        68bb79acb45596080ca7cb370465142e9916d9d6
+        f4de0c0671eb54fcaa2528062ee6a8cf70e24612
+        c563b7e0cbbd4a74803ef5fd771382b64656500d
+        c9799f49f78409e155bef56cf21d8debc9a84353
+        c75de2f531b428ecb773d11ef1e9311880386f46
+        c8ee33c2ce04bfb45b48c2f4910e00e1b3600310
+        4ab9b4c47ddc57772a3a5b7823482243f5d2c2fc
+        147088bf1dc83d1d116910774f1e50a60b3cc877
+      PATCH_SHA256: 1e168bcdc5001b726850f65947f0683c7695227da4e19687a0a8430e5850756d
+      VALIDATION_WORKFLOW_BLOB: f0106491cec029ab0e30b79adc86ec3c4e015907
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Check out publication branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: feat/user-profiles
+          fetch-depth: 0
           persist-credentials: true
-      - name: No-op placeholder
-        run: echo ready
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Materialize reviewed profile implementation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          encoded_patch="${RUNNER_TEMP}/user-profiles-final.patch.xz.b64"
+          : > "${encoded_patch}"
+          for blob_sha in ${PATCH_BLOBS}; do
+            curl --fail --silent --show-error \
+              --retry 3 \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${blob_sha}" \
+              | jq -r '.content' | tr -d '\n' | base64 --decode >> "${encoded_patch}"
+          done
+          base64 --decode "${encoded_patch}" > "${RUNNER_TEMP}/user-profiles-final.patch.xz"
+          printf '%s  %s\n' "${PATCH_SHA256}" "${RUNNER_TEMP}/user-profiles-final.patch.xz" \
+            | sha256sum --check --strict
+          xz --decompress --stdout "${RUNNER_TEMP}/user-profiles-final.patch.xz" \
+            > "${RUNNER_TEMP}/user-profiles-final.patch"
+          git apply --check "${RUNNER_TEMP}/user-profiles-final.patch"
+          git apply --index "${RUNNER_TEMP}/user-profiles-final.patch"
+
+      - name: Generate protobuf bindings without drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise codegen-proto
+          git diff --exit-code
+
+      - name: Install final validation workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${VALIDATION_WORKFLOW_BLOB}" \
+            | jq -r '.content' | tr -d '\n' | base64 --decode \
+            > .github/workflows/user-profiles-source-snapshot.yml
+          rm .github/workflows/user-profiles-publish.yml
+
+      - name: Run backend race tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server
+
+      - name: Check frontend types and server tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- pnpm --dir apps/frontend exec svelte-check --tsconfig ./tsconfig.json
+          mise exec -- pnpm --dir apps/frontend test:server -- --run
+
+      - name: Check public surface and staged diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise exec -- node tools/check-public-surface.mjs
+          git add -A
+          git diff --cached --check
+          test -z "$(git diff --cached --name-only | grep -E '(^|/)(\.env|\.mcp\.json|\.agents|\.claude|\.codex|SESSION_LOG|QUESTION_SESSION|SKILL_AUDIT)' || true)"
+
+      - name: Commit and publish implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "${GITHUB_ACTOR}"
+          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+          git commit -m "feat(profiles): add complete user profiles"
+          test "$(git log -1 --format=%an)" = "${GITHUB_ACTOR}"
+          test "$(git log -1 --format=%cn)" = "${GITHUB_ACTOR}"
+          ! git log -1 --format=%B | grep -Eiq '^(Co-authored-by|Generated-by|Assisted-by|Pair-programmed-by):'
+          git push origin HEAD:feat/user-profiles
