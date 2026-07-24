@@ -124,10 +124,12 @@
     // A persisted OpenGraph card is historical server-issued state. The
     // message row renders that card after MessageContent, so detect it only
     // after hydration and keep this enhancement hidden. No provider element
-    // is mounted before this check completes.
+    // is mounted before this check completes. A standalone component has no
+    // message article and must remain visible.
     const article = root?.closest('[role="article"]');
-    suppressedByPersistedPreview =
-      article?.querySelector('[data-testid="link-preview-card"]') !== null;
+    suppressedByPersistedPreview = Boolean(
+      article?.querySelector('[data-testid="link-preview-card"]')
+    );
     hydrationReady = true;
   });
 
@@ -144,12 +146,13 @@
     resetMedia();
   });
 
-  $effect(() => {
+  onMount(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
     const sync = () => {
-      reducedMotion = mediaQuery.matches;
-      if (reducedMotion) stopAutomaticLoad();
+      const nextReducedMotion = mediaQuery.matches;
+      reducedMotion = nextReducedMotion;
+      if (nextReducedMotion) stopAutomaticLoad();
     };
     sync();
 
