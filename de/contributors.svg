@@ -50,10 +50,10 @@
   <rect x="0" y="0" width="1200" height="10" rx="5" fill="url(#accent)"/>
   <text class="title ink" x="32" y="48">Wer Towk voranbringt</text>
   <text class="subtitle muted" x="32" y="70">Menschliche Autoren seit dem Standalone-Start</text>
-  <g><rect class="panel" x="32" y="96" width="558" height="282" rx="20"/><text class="label ink" x="54" y="132">Commit-Autoren</text><g><text class="body ink" x="54" y="171">Yo-DDV</text><text class="label muted" x="568" y="171" text-anchor="end">95</text><rect class="track" x="54" y="181" width="514" height="10" rx="5"/><rect x="54" y="181" width="514.0" height="10" rx="5" fill="#43d8b0"/></g>
-<g><text class="body ink" x="54" y="213">hmans</text><text class="label muted" x="568" y="213" text-anchor="end">3</text><rect class="track" x="54" y="223" width="514" height="10" rx="5"/><rect x="54" y="223" width="16.2" height="10" rx="5" fill="#43d8b0"/></g></g>
-  <g><rect class="panel" x="610" y="96" width="558" height="282" rx="20"/><text class="label ink" x="632" y="132">Autoren zusammengeführter PRs</text><g><text class="body ink" x="632" y="171">Yo-DDV</text><text class="label muted" x="1146" y="171" text-anchor="end">80</text><rect class="track" x="632" y="181" width="514" height="10" rx="5"/><rect x="632" y="181" width="514.0" height="10" rx="5" fill="#7867f2"/></g></g>
+  <g><rect class="panel" x="32" y="96" width="558" height="282" rx="20"/><text class="label ink" x="54" y="132">Commit-Autoren</text><g><text class="body ink" x="54" y="171">Yo-DDV</text><text class="label muted" x="568" y="171" text-anchor="end">96</text><rect class="track" x="54" y="181" width="514" height="10" rx="5"/><rect x="54" y="181" width="514.0" height="10" rx="5" fill="#43d8b0"/></g>
+<g><text class="body ink" x="54" y="213">hmans</text><text class="label muted" x="568" y="213" text-anchor="end">3</text><rect class="track" x="54" y="223" width="514" height="10" rx="5"/><rect x="54" y="223" width="16.1" height="10" rx="5" fill="#43d8b0"/></g></g>
+  <g><rect class="panel" x="610" y="96" width="558" height="282" rx="20"/><text class="label ink" x="632" y="132">Autoren zusammengeführter PRs</text><g><text class="body ink" x="632" y="171">Yo-DDV</text><text class="label muted" x="1146" y="171" text-anchor="end">81</text><rect class="track" x="632" y="181" width="514" height="10" rx="5"/><rect x="632" y="181" width="514.0" height="10" rx="5" fill="#7867f2"/></g></g>
   <g><rect class="panel-strong" x="32" y="396" width="1136" height="34" rx="14"/><text class="small ink" x="50" y="418">Automatisierung: 15 Commits · 15 PRs — Bots werden separat ausgewiesen.</text></g>
-  <text class="small faint" x="32" y="443">Aktualisiert 24.07.2026, 23:46</text>
+  <text class="small faint" x="32" y="443">Aktualisiert 24.07.2026, 23:55</text>
   <text class="small faint" x="1168" y="443" text-anchor="end">eigenständiges Towk · seit 12. Jul. 2026</text>
 </svg>
