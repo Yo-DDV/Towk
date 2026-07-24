@@ -180,6 +180,9 @@ func (s *RoomCommandModel) LeaveRoom(ctx context.Context, input RoomIDInput) err
 	if err != nil {
 		return err
 	}
+	if kind == KindDM {
+		return s.core.ForgetOneToOneDM(ctx, input.ActorID, input.RoomID)
+	}
 	return s.core.LeaveRoom(ctx, input.ActorID, kind, input.ActorID, input.RoomID)
 }
 
@@ -213,7 +216,16 @@ func (s *RoomCommandModel) StartDM(ctx context.Context, input RoomStartDMInput) 
 	if !can {
 		return nil, false, ErrPermissionDenied
 	}
-	return s.core.FindOrCreateDM(ctx, input.ActorID, input.ParticipantIDs)
+	room, created, err := s.core.FindOrCreateDM(ctx, input.ActorID, input.ParticipantIDs)
+	if err != nil {
+		return nil, false, err
+	}
+	if !created && len(s.core.RoomMembership.Members(room.GetId())) == 2 {
+		if err := s.core.RestoreOneToOneDMVisibility(ctx, input.ActorID, room.GetId()); err != nil {
+			return nil, false, err
+		}
+	}
+	return room, created, nil
 }
 
 func (s *RoomCommandModel) BanMember(ctx context.Context, input RoomBanInput) (*RoomBan, error) {
