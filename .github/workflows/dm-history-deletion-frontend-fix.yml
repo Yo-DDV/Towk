@@ -120,10 +120,10 @@ jobs:
           text = text[:closing] + tests + text[closing:]
           spec.write_text(text)
           PY
-          pnpm exec prettier --write \
-            'apps/frontend/src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte' \
-            'apps/frontend/src/routes/chat/[serverId]/[roomId]/Room.svelte' \
-            'apps/frontend/src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
+          pnpm --dir apps/frontend exec prettier --write \
+            'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/Room.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
           git rm .github/workflows/dm-history-deletion-frontend-fix.yml
           git diff --check
       - name: Validate frontend changes
