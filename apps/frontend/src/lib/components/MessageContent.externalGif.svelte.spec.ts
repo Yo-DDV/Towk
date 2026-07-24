@@ -87,6 +87,14 @@ describe('MessageContent external GIF capability wiring', () => {
     }
   });
 
+  it('honors a live disabled capability over stale registered support', async () => {
+    mocks.registered.capabilities = [CAPABILITY];
+    const screen = render(MessageContent, { props: { body: GIPHY_URL } });
+
+    await expect.element(screen.getByTestId('external-gif-embed')).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('link', { name: GIPHY_URL })).toBeVisible();
+  });
+
   it('keeps the URL as a normal link when neither capability source enables the feature', async () => {
     const screen = render(MessageContent, { props: { body: GIPHY_URL } });
 
