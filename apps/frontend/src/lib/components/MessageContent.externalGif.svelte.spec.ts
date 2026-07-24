@@ -4,8 +4,7 @@ import '../../app.css';
 import { loadLocaleMessages } from '$lib/i18n/messages';
 import { setReactiveLocale } from '$lib/i18n/state.svelte';
 
-const GIPHY_URL =
-  'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
+const GIPHY_URL = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
 const CAPABILITY = 'external-gif-embeds-v1';
 
 const mocks = vi.hoisted(() => {
@@ -31,7 +30,9 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
-vi.mock('$lib/state/activeServer.svelte', () => ({ getActiveServer: () => 'origin' }));
+vi.mock('$lib/state/activeServer.svelte', () => ({
+  getActiveServer: () => 'origin'
+}));
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
     tryGetStore: () => mocks.store,
@@ -61,13 +62,10 @@ describe('MessageContent external GIF capability wiring', () => {
     const screen = render(MessageContent, { props: { body: GIPHY_URL } });
 
     await expect.element(screen.getByTestId('external-gif-embed')).toBeVisible();
+    await expect.element(screen.getByRole('button', { name: 'Load external GIF' })).toBeVisible();
     await expect
-      .element(screen.getByRole('button', { name: 'Load external GIF' }))
-      .toBeVisible();
-    await expect.element(screen.getByRole('link', { name: 'Open source' })).toHaveAttribute(
-      'href',
-      GIPHY_URL
-    );
+      .element(screen.getByRole('link', { name: 'Open source' }))
+      .toHaveAttribute('href', GIPHY_URL);
   });
 
   it('uses the registered capability while the live store is temporarily partial', async () => {
