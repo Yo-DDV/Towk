@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { pushState } from '$app/navigation';
+  import { goto, pushState } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { navigating } from '$app/state';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
@@ -80,6 +80,23 @@
     quickSwitcher.open();
   }
 
+  function shouldUseNativeLinkNavigation(event: MouseEvent): boolean {
+    return (
+      event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    );
+  }
+
+  async function handleNotifications(event: MouseEvent) {
+    if (shouldUseNativeLinkNavigation(event)) return;
+
+    event.preventDefault();
+    await waitForPendingNavigation();
+    const notificationServerId = getActiveServer();
+    await goto(resolve('/chat/notifications'), {
+      state: notificationServerId ? { notificationServerId } : {}
+    });
+  }
+
   async function handleSignOut() {
     await waitForPendingNavigation();
     pushState('', { modal: { type: 'logout' } });
@@ -110,6 +127,7 @@
     <!-- Notification bell - 44px tap target for mobile accessibility -->
     <a
       href={resolve('/chat/notifications')}
+      onclick={handleNotifications}
       aria-label={m['ui.notifications']()}
       title={m['ui.notifications']()}
       class="relative app-header-icon"
