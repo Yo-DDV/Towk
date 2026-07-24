@@ -15,6 +15,7 @@ declare global {
           | 'createRoom'
           | 'logout'
           | 'leaveRoom'
+          | 'deleteDirectMessage'
           | 'deleteMessage'
           | 'leaveServer'
           | 'deleteAttachment'
