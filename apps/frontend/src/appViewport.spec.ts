@@ -11,13 +11,17 @@ describe('iOS standalone viewport shell', () => {
     );
   });
 
-  it('combines the normal shell spacing with the safe area without stacking both', () => {
+  it('keeps the shell edge to edge and protects only composer controls', () => {
     expect(appTemplate).toMatch(
-      /body\s*\{[^}]*box-sizing:\s*border-box;[^}]*height:\s*100vh;[^}]*padding-bottom:\s*max\(\s*0px,\s*calc\(env\(safe-area-inset-bottom,\s*0px\)\s*-\s*0\.5rem\)\s*\);[^}]*\}/s
+      /body\s*\{[^}]*box-sizing:\s*border-box;[^}]*height:\s*100vh;[^}]*\}/s
     );
-    expect(appTemplate).not.toContain('padding-bottom: env(safe-area-inset-bottom, 0px);');
+    expect(appTemplate).not.toMatch(/body\s*\{[^}]*padding-bottom:/s);
+    expect(appTemplate).toContain('@supports selector(div:has(> .composer-focus-shell))');
     expect(appTemplate).toMatch(
-      /body\[data-visual-keyboard-open\]\s*\{[^}]*min-height:\s*0;[^}]*padding-bottom:\s*0;[^}]*\}/s
+      /body:not\(\[data-visual-keyboard-open\]\)\s*div:has\(>\s*\.composer-focus-shell\)\s*\{[^}]*padding-bottom:\s*max\(\s*0\.5rem,\s*calc\(env\(safe-area-inset-bottom,\s*0px\)\s*-\s*0\.5rem\)\s*\);[^}]*\}/s
+    );
+    expect(appTemplate).toMatch(
+      /body\[data-visual-keyboard-open\]\s*\{[^}]*min-height:\s*0;[^}]*\}/s
     );
   });
 });
