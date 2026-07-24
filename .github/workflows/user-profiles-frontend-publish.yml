@@ -59,6 +59,28 @@ jobs:
           git apply --check "${RUNNER_TEMP}/user-profiles-frontend.patch"
           git apply --index "${RUNNER_TEMP}/user-profiles-frontend.patch"
 
+      - name: Complete browser module mock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/frontend/src/lib/components/menus/UserContextMenu.svelte.spec.ts')
+          source = path.read_text(encoding='utf-8')
+          before = """vi.mock('$lib/api-client/memberDirectory', () => ({
+            createMemberDirectoryAPI: () => ({ getUserProfile: mocks.getUserProfile })
+          }));"""
+          after = """vi.mock('$lib/api-client/memberDirectory', () => ({
+            createMemberDirectoryAPI: () => ({ getUserProfile: mocks.getUserProfile }),
+            mapDirectoryMember: (member: unknown) => member
+          }));"""
+          if before not in source:
+              raise SystemExit('expected member directory mock not found')
+          path.write_text(source.replace(before, after), encoding='utf-8')
+          PY
+          git add apps/frontend/src/lib/components/menus/UserContextMenu.svelte.spec.ts
+
       - name: Build generated frontend contracts
         shell: bash
         run: |
