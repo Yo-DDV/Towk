@@ -129,7 +129,7 @@
         aria-label={m['ui.open_quick_switcher']()}
         title={m['ui.quick_switcher_shortcut']()}
       >
-        <span class="iconify text-lg uil--apps"></span>
+        <span class="iconify text-lg uil--search"></span>
       </button>
     {/if}
 
