@@ -40,6 +40,9 @@ message ServerUserPreferences {
   // Preferred time display format.
   // TIME_FORMAT_UNSPECIFIED means the frontend uses the browser's locale default.
   TimeFormat time_format = 2;
+  // Whether this user publishes and may inspect public read receipts. Absence
+  // means enabled for mixed-version compatibility.
+  optional bool read_receipts_enabled = 3;
 }
 
 // UserPreferences stores per-user preferences scoped to the server.
