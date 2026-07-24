@@ -20,7 +20,7 @@ env:
   PATCH_SHA256: 889f9a3d5a8438365d2b2539d2c246a5c82795e55a21b008f96e87a0d07e16f5
 
 jobs:
-  diagnose:
+  diagnose-modal:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -77,11 +77,27 @@ jobs:
       - name: Install Chromium
         run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
 
-      - name: Test Dialog
-        run: pnpm --filter towk-frontend exec vitest --run src/lib/ui/Dialog.svelte.spec.ts
+      - name: Run ModalContainer test and capture JSON
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter towk-frontend exec vitest --run \
+            --reporter=json \
+            --outputFile="${RUNNER_TEMP}/modal-test.json" \
+            src/routes/chat/ModalContainer.svelte.spec.ts
+          printf '%s\n' "$?" > "${RUNNER_TEMP}/modal-test.rc"
+          exit 0
 
-      - name: Test ModalContainer
-        run: pnpm --filter towk-frontend exec vitest --run src/routes/chat/ModalContainer.svelte.spec.ts
+      - name: Upload modal test diagnostics
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dm-modal-test-diagnostics
+          path: |
+            ${{ runner.temp }}/modal-test.json
+            ${{ runner.temp }}/modal-test.rc
+          retention-days: 1
+          if-no-files-found: error
 
-      - name: Test RoomSidebarToggle
-        run: pnpm --filter towk-frontend exec vitest --run 'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
+      - name: Enforce modal test result
+        shell: bash
+        run: test "$(cat "${RUNNER_TEMP}/modal-test.rc")" = 0
