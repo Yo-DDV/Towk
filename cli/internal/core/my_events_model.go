@@ -357,6 +357,12 @@ func (s *MyEventsModel) filterLiveSyncEvent(ctx context.Context, userID string, 
 		if !isMember {
 			return nil, false
 		}
+		if event.GetPublicReadReceiptAdvanced() != nil {
+			enabled, _ := s.core.ReadReceipts().Policy(userID)
+			if !enabled {
+				return nil, false
+			}
+		}
 		return NewLiveEventEnvelope(event), true
 	}
 

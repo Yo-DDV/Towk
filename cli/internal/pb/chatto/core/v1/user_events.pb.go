@@ -257,9 +257,11 @@ type ServerUserPreferencesUpdatedEvent struct {
 	// IANA timezone name (empty = cleared/browser default).
 	Timezone string `protobuf:"bytes,1,opt,name=timezone,proto3" json:"timezone,omitempty"`
 	// Time display format preference.
-	TimeFormat    TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.core.v1.TimeFormat" json:"time_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeFormat TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.core.v1.TimeFormat" json:"time_format,omitempty"`
+	// Whether reciprocal public read receipts are enabled for this user.
+	ReadReceiptsEnabled bool `protobuf:"varint,3,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ServerUserPreferencesUpdatedEvent) Reset() {
@@ -304,6 +306,13 @@ func (x *ServerUserPreferencesUpdatedEvent) GetTimeFormat() TimeFormat {
 		return x.TimeFormat
 	}
 	return TimeFormat_TIME_FORMAT_UNSPECIFIED
+}
+
+func (x *ServerUserPreferencesUpdatedEvent) GetReadReceiptsEnabled() bool {
+	if x != nil {
+		return x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 type EncryptedUserString struct {
@@ -1401,11 +1410,12 @@ const file_chatto_core_v1_user_events_proto_rawDesc = "" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1d\n" +
 	"\n" +
 	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x12\x14\n" +
-	"\x05login\x18\x04 \x01(\tR\x05login\"|\n" +
+	"\x05login\x18\x04 \x01(\tR\x05login\"\xb0\x01\n" +
 	"!ServerUserPreferencesUpdatedEvent\x12\x1a\n" +
 	"\btimezone\x18\x01 \x01(\tR\btimezone\x12;\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x1a.chatto.core.v1.TimeFormatR\n" +
-	"timeFormat\"\x80\x01\n" +
+	"timeFormat\x122\n" +
+	"\x15read_receipts_enabled\x18\x03 \x01(\bR\x13readReceiptsEnabled\"\x80\x01\n" +
 	"\x13EncryptedUserString\x12'\n" +
 	"\x0fencrypted_value\x18\x01 \x01(\fR\x0eencryptedValue\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\fR\x05nonce\x12*\n" +

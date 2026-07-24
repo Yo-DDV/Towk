@@ -249,11 +249,477 @@ func (x *MarkThreadAsReadResponse) GetPreviousReadAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Request to advance the current user's public read-receipt cursor.
+type AdvanceReadReceiptRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RoomId            string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	ThreadRootEventId string                 `protobuf:"bytes,2,opt,name=thread_root_event_id,json=threadRootEventId,proto3" json:"thread_root_event_id,omitempty"`
+	UpToEventId       string                 `protobuf:"bytes,3,opt,name=up_to_event_id,json=upToEventId,proto3" json:"up_to_event_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AdvanceReadReceiptRequest) Reset() {
+	*x = AdvanceReadReceiptRequest{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdvanceReadReceiptRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdvanceReadReceiptRequest) ProtoMessage() {}
+
+func (x *AdvanceReadReceiptRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdvanceReadReceiptRequest.ProtoReflect.Descriptor instead.
+func (*AdvanceReadReceiptRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AdvanceReadReceiptRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *AdvanceReadReceiptRequest) GetThreadRootEventId() string {
+	if x != nil {
+		return x.ThreadRootEventId
+	}
+	return ""
+}
+
+func (x *AdvanceReadReceiptRequest) GetUpToEventId() string {
+	if x != nil {
+		return x.UpToEventId
+	}
+	return ""
+}
+
+type AdvanceReadReceiptResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Updated       bool                   `protobuf:"varint,1,opt,name=updated,proto3" json:"updated,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdvanceReadReceiptResponse) Reset() {
+	*x = AdvanceReadReceiptResponse{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdvanceReadReceiptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdvanceReadReceiptResponse) ProtoMessage() {}
+
+func (x *AdvanceReadReceiptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdvanceReadReceiptResponse.ProtoReflect.Descriptor instead.
+func (*AdvanceReadReceiptResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *AdvanceReadReceiptResponse) GetUpdated() bool {
+	if x != nil {
+		return x.Updated
+	}
+	return false
+}
+
+// Compact reader summary for one message.
+type ReadReceiptSummary struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	MessageEventId string                 `protobuf:"bytes,1,opt,name=message_event_id,json=messageEventId,proto3" json:"message_event_id,omitempty"`
+	ReaderCount    int32                  `protobuf:"varint,2,opt,name=reader_count,json=readerCount,proto3" json:"reader_count,omitempty"`
+	PreviewUserIds []string               `protobuf:"bytes,3,rep,name=preview_user_ids,json=previewUserIds,proto3" json:"preview_user_ids,omitempty"`
+	LatestReadAt   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=latest_read_at,json=latestReadAt,proto3" json:"latest_read_at,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ReadReceiptSummary) Reset() {
+	*x = ReadReceiptSummary{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadReceiptSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadReceiptSummary) ProtoMessage() {}
+
+func (x *ReadReceiptSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadReceiptSummary.ProtoReflect.Descriptor instead.
+func (*ReadReceiptSummary) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ReadReceiptSummary) GetMessageEventId() string {
+	if x != nil {
+		return x.MessageEventId
+	}
+	return ""
+}
+
+func (x *ReadReceiptSummary) GetReaderCount() int32 {
+	if x != nil {
+		return x.ReaderCount
+	}
+	return 0
+}
+
+func (x *ReadReceiptSummary) GetPreviewUserIds() []string {
+	if x != nil {
+		return x.PreviewUserIds
+	}
+	return nil
+}
+
+func (x *ReadReceiptSummary) GetLatestReadAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LatestReadAt
+	}
+	return nil
+}
+
+type GetReadReceiptSummariesRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RoomId            string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	ThreadRootEventId string                 `protobuf:"bytes,2,opt,name=thread_root_event_id,json=threadRootEventId,proto3" json:"thread_root_event_id,omitempty"`
+	MessageEventIds   []string               `protobuf:"bytes,3,rep,name=message_event_ids,json=messageEventIds,proto3" json:"message_event_ids,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetReadReceiptSummariesRequest) Reset() {
+	*x = GetReadReceiptSummariesRequest{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReadReceiptSummariesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReadReceiptSummariesRequest) ProtoMessage() {}
+
+func (x *GetReadReceiptSummariesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReadReceiptSummariesRequest.ProtoReflect.Descriptor instead.
+func (*GetReadReceiptSummariesRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetReadReceiptSummariesRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *GetReadReceiptSummariesRequest) GetThreadRootEventId() string {
+	if x != nil {
+		return x.ThreadRootEventId
+	}
+	return ""
+}
+
+func (x *GetReadReceiptSummariesRequest) GetMessageEventIds() []string {
+	if x != nil {
+		return x.MessageEventIds
+	}
+	return nil
+}
+
+type GetReadReceiptSummariesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Summaries     []*ReadReceiptSummary  `protobuf:"bytes,2,rep,name=summaries,proto3" json:"summaries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReadReceiptSummariesResponse) Reset() {
+	*x = GetReadReceiptSummariesResponse{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReadReceiptSummariesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReadReceiptSummariesResponse) ProtoMessage() {}
+
+func (x *GetReadReceiptSummariesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReadReceiptSummariesResponse.ProtoReflect.Descriptor instead.
+func (*GetReadReceiptSummariesResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetReadReceiptSummariesResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *GetReadReceiptSummariesResponse) GetSummaries() []*ReadReceiptSummary {
+	if x != nil {
+		return x.Summaries
+	}
+	return nil
+}
+
+type ListReadReceiptReadersRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	RoomId            string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	ThreadRootEventId string                 `protobuf:"bytes,2,opt,name=thread_root_event_id,json=threadRootEventId,proto3" json:"thread_root_event_id,omitempty"`
+	MessageEventId    string                 `protobuf:"bytes,3,opt,name=message_event_id,json=messageEventId,proto3" json:"message_event_id,omitempty"`
+	Page              *PageRequest           `protobuf:"bytes,4,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *ListReadReceiptReadersRequest) Reset() {
+	*x = ListReadReceiptReadersRequest{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListReadReceiptReadersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListReadReceiptReadersRequest) ProtoMessage() {}
+
+func (x *ListReadReceiptReadersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListReadReceiptReadersRequest.ProtoReflect.Descriptor instead.
+func (*ListReadReceiptReadersRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ListReadReceiptReadersRequest) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *ListReadReceiptReadersRequest) GetThreadRootEventId() string {
+	if x != nil {
+		return x.ThreadRootEventId
+	}
+	return ""
+}
+
+func (x *ListReadReceiptReadersRequest) GetMessageEventId() string {
+	if x != nil {
+		return x.MessageEventId
+	}
+	return ""
+}
+
+func (x *ListReadReceiptReadersRequest) GetPage() *PageRequest {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
+type ReadReceiptReader struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	ReadAt        *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadReceiptReader) Reset() {
+	*x = ReadReceiptReader{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadReceiptReader) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadReceiptReader) ProtoMessage() {}
+
+func (x *ReadReceiptReader) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadReceiptReader.ProtoReflect.Descriptor instead.
+func (*ReadReceiptReader) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ReadReceiptReader) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *ReadReceiptReader) GetReadAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReadAt
+	}
+	return nil
+}
+
+type ListReadReceiptReadersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Readers       []*ReadReceiptReader   `protobuf:"bytes,2,rep,name=readers,proto3" json:"readers,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,3,opt,name=page,proto3" json:"page,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListReadReceiptReadersResponse) Reset() {
+	*x = ListReadReceiptReadersResponse{}
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListReadReceiptReadersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListReadReceiptReadersResponse) ProtoMessage() {}
+
+func (x *ListReadReceiptReadersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_read_state_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListReadReceiptReadersResponse.ProtoReflect.Descriptor instead.
+func (*ListReadReceiptReadersResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_read_state_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListReadReceiptReadersResponse) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *ListReadReceiptReadersResponse) GetReaders() []*ReadReceiptReader {
+	if x != nil {
+		return x.Readers
+	}
+	return nil
+}
+
+func (x *ListReadReceiptReadersResponse) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_chatto_api_v1_read_state_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_read_state_proto_rawDesc = "" +
 	"\n" +
-	"\x1echatto/api/v1/read_state.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"^\n" +
+	"\x1echatto/api/v1/read_state.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1echatto/api/v1/pagination.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"^\n" +
 	"\x15MarkRoomAsReadRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12#\n" +
 	"\x0eup_to_event_id\x18\x02 \x01(\tR\vupToEventId\"\xa5\x01\n" +
@@ -266,7 +732,37 @@ const file_chatto_api_v1_read_state_proto_rawDesc = "" +
 	"\x14thread_root_event_id\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x11threadRootEventId\x12#\n" +
 	"\x0eup_to_event_id\x18\x03 \x01(\tR\vupToEventId\"`\n" +
 	"\x18MarkThreadAsReadResponse\x12D\n" +
-	"\x10previous_read_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0epreviousReadAtB\xaa\x01\n" +
+	"\x10previous_read_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0epreviousReadAt\"\x9c\x01\n" +
+	"\x19AdvanceReadReceiptRequest\x12 \n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12/\n" +
+	"\x14thread_root_event_id\x18\x02 \x01(\tR\x11threadRootEventId\x12,\n" +
+	"\x0eup_to_event_id\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\vupToEventId\"6\n" +
+	"\x1aAdvanceReadReceiptResponse\x12\x18\n" +
+	"\aupdated\x18\x01 \x01(\bR\aupdated\"\xcd\x01\n" +
+	"\x12ReadReceiptSummary\x12(\n" +
+	"\x10message_event_id\x18\x01 \x01(\tR\x0emessageEventId\x12!\n" +
+	"\freader_count\x18\x02 \x01(\x05R\vreaderCount\x12(\n" +
+	"\x10preview_user_ids\x18\x03 \x03(\tR\x0epreviewUserIds\x12@\n" +
+	"\x0elatest_read_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flatestReadAt\"\xa9\x01\n" +
+	"\x1eGetReadReceiptSummariesRequest\x12 \n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12/\n" +
+	"\x14thread_root_event_id\x18\x02 \x01(\tR\x11threadRootEventId\x124\n" +
+	"\x11message_event_ids\x18\x03 \x03(\tB\b\xbaH\x05\x92\x01\x02\x10dR\x0fmessageEventIds\"|\n" +
+	"\x1fGetReadReceiptSummariesResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12?\n" +
+	"\tsummaries\x18\x02 \x03(\v2!.chatto.api.v1.ReadReceiptSummaryR\tsummaries\"\xd5\x01\n" +
+	"\x1dListReadReceiptReadersRequest\x12 \n" +
+	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12/\n" +
+	"\x14thread_root_event_id\x18\x02 \x01(\tR\x11threadRootEventId\x121\n" +
+	"\x10message_event_id\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0emessageEventId\x12.\n" +
+	"\x04page\x18\x04 \x01(\v2\x1a.chatto.api.v1.PageRequestR\x04page\"q\n" +
+	"\x11ReadReceiptReader\x12'\n" +
+	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\x123\n" +
+	"\aread_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x06readAt\"\xa3\x01\n" +
+	"\x1eListReadReceiptReadersResponse\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12:\n" +
+	"\areaders\x18\x02 \x03(\v2 .chatto.api.v1.ReadReceiptReaderR\areaders\x12+\n" +
+	"\x04page\x18\x03 \x01(\v2\x17.chatto.api.v1.PageInfoR\x04pageB\xaa\x01\n" +
 	"\x11com.chatto.api.v1B\x0eReadStateProtoP\x01Z/hmans.de/chatto/internal/pb/chatto/api/v1;apiv1\xa2\x02\x03CAX\xaa\x02\rChatto.Api.V1\xca\x02\rChatto\\Api\\V1\xe2\x02\x19Chatto\\Api\\V1\\GPBMetadata\xea\x02\x0fChatto::Api::V1b\x06proto3"
 
 var (
@@ -281,23 +777,41 @@ func file_chatto_api_v1_read_state_proto_rawDescGZIP() []byte {
 	return file_chatto_api_v1_read_state_proto_rawDescData
 }
 
-var file_chatto_api_v1_read_state_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_chatto_api_v1_read_state_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_chatto_api_v1_read_state_proto_goTypes = []any{
-	(*MarkRoomAsReadRequest)(nil),    // 0: chatto.api.v1.MarkRoomAsReadRequest
-	(*MarkRoomAsReadResponse)(nil),   // 1: chatto.api.v1.MarkRoomAsReadResponse
-	(*MarkThreadAsReadRequest)(nil),  // 2: chatto.api.v1.MarkThreadAsReadRequest
-	(*MarkThreadAsReadResponse)(nil), // 3: chatto.api.v1.MarkThreadAsReadResponse
-	(*timestamppb.Timestamp)(nil),    // 4: google.protobuf.Timestamp
+	(*MarkRoomAsReadRequest)(nil),           // 0: chatto.api.v1.MarkRoomAsReadRequest
+	(*MarkRoomAsReadResponse)(nil),          // 1: chatto.api.v1.MarkRoomAsReadResponse
+	(*MarkThreadAsReadRequest)(nil),         // 2: chatto.api.v1.MarkThreadAsReadRequest
+	(*MarkThreadAsReadResponse)(nil),        // 3: chatto.api.v1.MarkThreadAsReadResponse
+	(*AdvanceReadReceiptRequest)(nil),       // 4: chatto.api.v1.AdvanceReadReceiptRequest
+	(*AdvanceReadReceiptResponse)(nil),      // 5: chatto.api.v1.AdvanceReadReceiptResponse
+	(*ReadReceiptSummary)(nil),              // 6: chatto.api.v1.ReadReceiptSummary
+	(*GetReadReceiptSummariesRequest)(nil),  // 7: chatto.api.v1.GetReadReceiptSummariesRequest
+	(*GetReadReceiptSummariesResponse)(nil), // 8: chatto.api.v1.GetReadReceiptSummariesResponse
+	(*ListReadReceiptReadersRequest)(nil),   // 9: chatto.api.v1.ListReadReceiptReadersRequest
+	(*ReadReceiptReader)(nil),               // 10: chatto.api.v1.ReadReceiptReader
+	(*ListReadReceiptReadersResponse)(nil),  // 11: chatto.api.v1.ListReadReceiptReadersResponse
+	(*timestamppb.Timestamp)(nil),           // 12: google.protobuf.Timestamp
+	(*PageRequest)(nil),                     // 13: chatto.api.v1.PageRequest
+	(*User)(nil),                            // 14: chatto.api.v1.User
+	(*PageInfo)(nil),                        // 15: chatto.api.v1.PageInfo
 }
 var file_chatto_api_v1_read_state_proto_depIdxs = []int32{
-	4, // 0: chatto.api.v1.MarkRoomAsReadResponse.last_read_at:type_name -> google.protobuf.Timestamp
-	4, // 1: chatto.api.v1.MarkRoomAsReadResponse.previous_last_read_at:type_name -> google.protobuf.Timestamp
-	4, // 2: chatto.api.v1.MarkThreadAsReadResponse.previous_read_at:type_name -> google.protobuf.Timestamp
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	12, // 0: chatto.api.v1.MarkRoomAsReadResponse.last_read_at:type_name -> google.protobuf.Timestamp
+	12, // 1: chatto.api.v1.MarkRoomAsReadResponse.previous_last_read_at:type_name -> google.protobuf.Timestamp
+	12, // 2: chatto.api.v1.MarkThreadAsReadResponse.previous_read_at:type_name -> google.protobuf.Timestamp
+	12, // 3: chatto.api.v1.ReadReceiptSummary.latest_read_at:type_name -> google.protobuf.Timestamp
+	6,  // 4: chatto.api.v1.GetReadReceiptSummariesResponse.summaries:type_name -> chatto.api.v1.ReadReceiptSummary
+	13, // 5: chatto.api.v1.ListReadReceiptReadersRequest.page:type_name -> chatto.api.v1.PageRequest
+	14, // 6: chatto.api.v1.ReadReceiptReader.user:type_name -> chatto.api.v1.User
+	12, // 7: chatto.api.v1.ReadReceiptReader.read_at:type_name -> google.protobuf.Timestamp
+	10, // 8: chatto.api.v1.ListReadReceiptReadersResponse.readers:type_name -> chatto.api.v1.ReadReceiptReader
+	15, // 9: chatto.api.v1.ListReadReceiptReadersResponse.page:type_name -> chatto.api.v1.PageInfo
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_chatto_api_v1_read_state_proto_init() }
@@ -305,13 +819,15 @@ func file_chatto_api_v1_read_state_proto_init() {
 	if File_chatto_api_v1_read_state_proto != nil {
 		return
 	}
+	file_chatto_api_v1_pagination_proto_init()
+	file_chatto_api_v1_users_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_api_v1_read_state_proto_rawDesc), len(file_chatto_api_v1_read_state_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

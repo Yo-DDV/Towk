@@ -92,10 +92,11 @@ func (s *serverService) UpdateServerConfig(ctx context.Context, req *connect.Req
 	}
 
 	cfg, err := s.api.core.UpdateServerConfig(ctx, caller.UserID, core.ServerConfigUpdateInput{
-		ServerName:     req.Msg.ServerName,
-		Description:    req.Msg.Description,
-		MOTD:           req.Msg.Motd,
-		WelcomeMessage: req.Msg.WelcomeMessage,
+		ServerName:          req.Msg.ServerName,
+		Description:         req.Msg.Description,
+		MOTD:                req.Msg.Motd,
+		WelcomeMessage:      req.Msg.WelcomeMessage,
+		ReadReceiptsEnabled: req.Msg.ReadReceiptsEnabled,
 	})
 	if err != nil {
 		return nil, connectError(err)
@@ -218,11 +219,19 @@ func adminServerConfig(cfg *configv1.ServerConfig) *adminv1.ServerConfig {
 		return &adminv1.ServerConfig{}
 	}
 	return &adminv1.ServerConfig{
-		ServerName:     cfg.GetServerName(),
-		Description:    cfg.GetDescription(),
-		Motd:           cfg.GetMotd(),
-		WelcomeMessage: cfg.GetWelcomeMessage(),
+		ServerName:          cfg.GetServerName(),
+		Description:         cfg.GetDescription(),
+		Motd:                cfg.GetMotd(),
+		WelcomeMessage:      cfg.GetWelcomeMessage(),
+		ReadReceiptsEnabled: adminReadReceiptsEnabled(cfg),
 	}
+}
+
+func adminReadReceiptsEnabled(cfg *configv1.ServerConfig) bool {
+	if cfg == nil || cfg.ReadReceiptsEnabled == nil {
+		return true
+	}
+	return cfg.GetReadReceiptsEnabled()
 }
 
 func (s *serverService) serverMotd(ctx context.Context) (string, error) {

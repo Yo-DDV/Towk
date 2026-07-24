@@ -141,6 +141,10 @@ func (s *accountService) UpdateSettings(ctx context.Context, req *connect.Reques
 		timeFormat := apiTimeFormatToCore(req.Msg.GetTimeFormat())
 		input.TimeFormat = &timeFormat
 	}
+	if req.Msg.ReadReceiptsEnabled != nil {
+		enabled := req.Msg.GetReadReceiptsEnabled()
+		input.ReadReceiptsEnabled = &enabled
+	}
 	settings, err := s.api.core.UpdateUserSettings(ctx, caller.UserID, input)
 	if err != nil {
 		return nil, connectError(err)

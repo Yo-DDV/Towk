@@ -19,7 +19,10 @@ type serverProfileOptions struct {
 	tolerateErrors bool
 }
 
-const serverCapabilityMessageCreateIdempotency = "message.create-idempotency-v1"
+const (
+	serverCapabilityMessageCreateIdempotency = "message.create-idempotency-v1"
+	serverCapabilityReadReceipts             = "read-receipts-v1"
+)
 
 func (s *serverDiscoveryService) GetServer(ctx context.Context, _ *connect.Request[discoveryv1.GetServerRequest]) (*connect.Response[discoveryv1.GetServerResponse], error) {
 	profile, err := s.api.serverProfile(ctx, serverProfileOptions{tolerateErrors: true})
@@ -50,7 +53,7 @@ func (a *API) serverProfile(ctx context.Context, options serverProfileOptions) (
 	profile := &apiv1.ServerPublicProfile{
 		Name:         a.effectiveServerName(ctx),
 		Version:      a.version,
-		Capabilities: []string{serverCapabilityMessageCreateIdempotency},
+		Capabilities: []string{serverCapabilityMessageCreateIdempotency, serverCapabilityReadReceipts},
 	}
 
 	if a.core != nil && a.core.ConfigManager() != nil {

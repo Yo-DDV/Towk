@@ -1323,6 +1323,35 @@ func TestSubjectHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Read receipt config subjects", func(t *testing.T) {
+		cases := []struct {
+			event *corev1.Event
+			want  string
+		}{
+			{
+				event: &corev1.Event{Event: &corev1.Event_ServerReadReceiptsEnabledChanged{ServerReadReceiptsEnabledChanged: &corev1.ServerReadReceiptsEnabledChangedEvent{Enabled: true}}},
+				want:  "evt.config.server.server_read_receipts_enabled_changed",
+			},
+			{
+				event: &corev1.Event{Event: &corev1.Event_UserReadReceiptsEnabledChanged{UserReadReceiptsEnabledChanged: &corev1.UserReadReceiptsEnabledChangedEvent{UserId: "U1", Enabled: true}}},
+				want:  "evt.config.U1.user_read_receipts_enabled_changed",
+			},
+			{
+				event: &corev1.Event{Event: &corev1.Event_UserReadReceiptsEnabledCleared{UserReadReceiptsEnabledCleared: &corev1.UserReadReceiptsEnabledClearedEvent{UserId: "U1"}}},
+				want:  "evt.config.U1.user_read_receipts_enabled_cleared",
+			},
+		}
+		for _, tc := range cases {
+			aggregate := ConfigSubjectAggregate("U1")
+			if tc.event.GetServerReadReceiptsEnabledChanged() != nil {
+				aggregate = ConfigAggregate()
+			}
+			if got := aggregate.SubjectFor(tc.event); got != tc.want {
+				t.Errorf("SubjectFor(%T) = %q, want %q", tc.event.GetEvent(), got, tc.want)
+			}
+		}
+	})
+
 	t.Run("UserEventTypeFilter", func(t *testing.T) {
 		got := UserEventTypeFilter(EventUserKeyShredded)
 		want := "evt.user.*.user_key_shredded"

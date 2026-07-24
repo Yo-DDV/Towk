@@ -212,6 +212,7 @@ Server-level display settings for the authenticated user.
 | --- | --- | --- |
 | `timezone` | `optional string` | Optional IANA timezone override. Absent means the client should use the browser's local timezone. |
 | `time_format` | [`TimeFormat`](#chatto-api-v1-TimeFormat) | Preferred time format. |
+| `read_receipts_enabled` | `bool` | Whether the viewer publishes and may inspect reciprocal read receipts. |
 
 <a id="chatto-api-v1-ViewerCapabilities"></a>
 
@@ -499,6 +500,30 @@ surfaces.
 | `user` | [`User`](#chatto-api-v1-User) | Public user fields. |
 | `roles` | `repeated string` | Explicit roles assigned to the user. Member listings include the virtual `everyone` role for parity with Towk's permission model. |
 | `created_at` | `google.protobuf.Timestamp` | Account creation time when known. |
+
+<a id="chatto-api-v1-ReadReceiptReader"></a>
+
+### ReadReceiptReader
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user` | [`User`](#chatto-api-v1-User) | No field description provided. |
+| `read_at` | `google.protobuf.Timestamp` | No field description provided. |
+
+<a id="chatto-api-v1-ReadReceiptSummary"></a>
+
+### ReadReceiptSummary
+
+Compact reader summary for one message.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `message_event_id` | `string` | No field description provided. |
+| `reader_count` | `int32` | No field description provided. |
+| `preview_user_ids` | `repeated string` | No field description provided. |
+| `latest_read_at` | `google.protobuf.Timestamp` | No field description provided. |
 
 <a id="chatto-api-v1-RoomMessagePosted"></a>
 
@@ -1374,6 +1399,7 @@ Runtime-editable server profile settings.
 | `description` | `string` | Short server description for OG link-preview metadata. |
 | `motd` | `string` | Message of the day for the authenticated header. |
 | `welcome_message` | `string` | Welcome message shown on the login page. |
+| `read_receipts_enabled` | `bool` | Whether members may publish and inspect reciprocal read receipts. |
 
 
 

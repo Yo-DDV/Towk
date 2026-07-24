@@ -75,8 +75,8 @@ message RealtimeServerHello {
   // Approximate heartbeat interval clients should expect.
   uint32 heartbeat_interval_seconds = 4;
   // Stable protocol capability keys supported by this server. Current keys:
-  // `chatto.realtime.events.live.v1`, `chatto.realtime.heartbeat.v1`, and
-  // `chatto.realtime.ping.v1`.
+  // `chatto.realtime.events.live.v1`, `chatto.realtime.heartbeat.v1`,
+  // `chatto.realtime.ping.v1`, and `chatto.realtime.read-receipts.v1`.
   repeated string capabilities = 5;
 }
 
@@ -211,6 +211,8 @@ message RealtimeEventEnvelope {
     RealtimeRoomGroupsUpdatedEvent room_groups_updated = 75;
     // A server member was deleted.
     RealtimeServerMemberDeletedEvent server_member_deleted = 76;
+    // A participant advanced a public read-receipt cursor.
+    RealtimeReadReceiptAdvancedEvent read_receipt_advanced = 77;
     // Asset processing started for a message attachment.
     RealtimeAssetProcessingEvent asset_processing_started = 80;
     // Asset processing completed successfully for a message attachment.
@@ -483,6 +485,27 @@ message RealtimeServerUserPreferencesUpdatedEvent {
   optional string timezone = 1;
   // Preferred time display format.
   chatto.api.v1.TimeFormat time_format = 2;
+  // Whether the connected user publishes and may inspect read receipts.
+  bool read_receipts_enabled = 3;
+}
+
+// Compact public read-receipt cursor delta.
+//
+// Clients use this as an invalidation signal and refetch bounded summaries for
+// rendered messages through `RoomService.GetReadReceiptSummaries`.
+message RealtimeReadReceiptAdvancedEvent {
+  // Room containing the affected timeline.
+  string room_id = 1;
+  // Thread root when the cursor belongs to a thread timeline.
+  optional string thread_root_event_id = 2;
+  // User whose public cursor advanced.
+  string user_id = 3;
+  // Highest message event covered by the advance.
+  string event_id = 4;
+  // Monotonic room-stream sequence for event_id.
+  uint64 event_sequence = 5;
+  // Server-recorded time of the advance.
+  google.protobuf.Timestamp read_at = 6;
 }
 
 // Room-group layout signal.

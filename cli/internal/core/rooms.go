@@ -464,6 +464,9 @@ func (c *ChattoCore) DeleteRoom(ctx context.Context, actorID string, kind RoomKi
 		}
 	}
 	c.DismissRoomNotificationsForAllUsers(ctx, room_id)
+	if err := c.ReadReceipts().DeleteRoomCursors(ctx, room_id); err != nil {
+		c.logger.Warn("Failed to delete public read receipt cursors for deleted room", "error", err)
+	}
 	return nil
 }
 

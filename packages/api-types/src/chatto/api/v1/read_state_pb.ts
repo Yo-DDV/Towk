@@ -5,6 +5,10 @@
 import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import { file_buf_validate_validate } from "../../../buf/validate/validate_pb.js";
+import type { PageInfo, PageRequest } from "./pagination_pb.js";
+import { file_chatto_api_v1_pagination } from "./pagination_pb.js";
+import type { User } from "./users_pb.js";
+import { file_chatto_api_v1_users } from "./users_pb.js";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { file_google_protobuf_timestamp } from "@bufbuild/protobuf/wkt";
 import type { Message } from "@bufbuild/protobuf";
@@ -13,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/read_state.proto.
  */
 export const file_chatto_api_v1_read_state: GenFile = /*@__PURE__*/
-  fileDesc("Ch5jaGF0dG8vYXBpL3YxL3JlYWRfc3RhdGUucHJvdG8SDWNoYXR0by5hcGkudjEiSQoVTWFya1Jvb21Bc1JlYWRSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESFgoOdXBfdG9fZXZlbnRfaWQYAiABKAkihQEKFk1hcmtSb29tQXNSZWFkUmVzcG9uc2USMAoMbGFzdF9yZWFkX2F0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI5ChVwcmV2aW91c19sYXN0X3JlYWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInIKF01hcmtUaHJlYWRBc1JlYWRSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESJQoUdGhyZWFkX3Jvb3RfZXZlbnRfaWQYAiABKAlCB7pIBHICEAESFgoOdXBfdG9fZXZlbnRfaWQYAyABKAkiUAoYTWFya1RocmVhZEFzUmVhZFJlc3BvbnNlEjQKEHByZXZpb3VzX3JlYWRfYXQYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wQqoBChFjb20uY2hhdHRvLmFwaS52MUIOUmVhZFN0YXRlUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_google_protobuf_timestamp]);
+  fileDesc("Ch5jaGF0dG8vYXBpL3YxL3JlYWRfc3RhdGUucHJvdG8SDWNoYXR0by5hcGkudjEiSQoVTWFya1Jvb21Bc1JlYWRSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESFgoOdXBfdG9fZXZlbnRfaWQYAiABKAkihQEKFk1hcmtSb29tQXNSZWFkUmVzcG9uc2USMAoMbGFzdF9yZWFkX2F0GAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBI5ChVwcmV2aW91c19sYXN0X3JlYWRfYXQYAiABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInIKF01hcmtUaHJlYWRBc1JlYWRSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESJQoUdGhyZWFkX3Jvb3RfZXZlbnRfaWQYAiABKAlCB7pIBHICEAESFgoOdXBfdG9fZXZlbnRfaWQYAyABKAkiUAoYTWFya1RocmVhZEFzUmVhZFJlc3BvbnNlEjQKEHByZXZpb3VzX3JlYWRfYXQYASABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wInQKGUFkdmFuY2VSZWFkUmVjZWlwdFJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIcChR0aHJlYWRfcm9vdF9ldmVudF9pZBgCIAEoCRIfCg51cF90b19ldmVudF9pZBgDIAEoCUIHukgEcgIQASItChpBZHZhbmNlUmVhZFJlY2VpcHRSZXNwb25zZRIPCgd1cGRhdGVkGAEgASgIIpIBChJSZWFkUmVjZWlwdFN1bW1hcnkSGAoQbWVzc2FnZV9ldmVudF9pZBgBIAEoCRIUCgxyZWFkZXJfY291bnQYAiABKAUSGAoQcHJldmlld191c2VyX2lkcxgDIAMoCRIyCg5sYXRlc3RfcmVhZF9hdBgEIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAifQoeR2V0UmVhZFJlY2VpcHRTdW1tYXJpZXNSZXF1ZXN0EhgKB3Jvb21faWQYASABKAlCB7pIBHICEAESHAoUdGhyZWFkX3Jvb3RfZXZlbnRfaWQYAiABKAkSIwoRbWVzc2FnZV9ldmVudF9pZHMYAyADKAlCCLpIBZIBAhBkImgKH0dldFJlYWRSZWNlaXB0U3VtbWFyaWVzUmVzcG9uc2USDwoHZW5hYmxlZBgBIAEoCBI0CglzdW1tYXJpZXMYAiADKAsyIS5jaGF0dG8uYXBpLnYxLlJlYWRSZWNlaXB0U3VtbWFyeSKkAQodTGlzdFJlYWRSZWNlaXB0UmVhZGVyc1JlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIcChR0aHJlYWRfcm9vdF9ldmVudF9pZBgCIAEoCRIhChBtZXNzYWdlX2V2ZW50X2lkGAMgASgJQge6SARyAhABEigKBHBhZ2UYBCABKAsyGi5jaGF0dG8uYXBpLnYxLlBhZ2VSZXF1ZXN0ImMKEVJlYWRSZWNlaXB0UmVhZGVyEiEKBHVzZXIYASABKAsyEy5jaGF0dG8uYXBpLnYxLlVzZXISKwoHcmVhZF9hdBgCIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAiiwEKHkxpc3RSZWFkUmVjZWlwdFJlYWRlcnNSZXNwb25zZRIPCgdlbmFibGVkGAEgASgIEjEKB3JlYWRlcnMYAiADKAsyIC5jaGF0dG8uYXBpLnYxLlJlYWRSZWNlaXB0UmVhZGVyEiUKBHBhZ2UYAyABKAsyFy5jaGF0dG8uYXBpLnYxLlBhZ2VJbmZvQqoBChFjb20uY2hhdHRvLmFwaS52MUIOUmVhZFN0YXRlUHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_chatto_api_v1_pagination, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
 
 /**
  * Request to mark a room timeline as read.
@@ -132,3 +136,213 @@ export type MarkThreadAsReadResponse = Message<"chatto.api.v1.MarkThreadAsReadRe
  */
 export const MarkThreadAsReadResponseSchema: GenMessage<MarkThreadAsReadResponse> = /*@__PURE__*/
   messageDesc(file_chatto_api_v1_read_state, 3);
+
+/**
+ * Request to advance the current user's public read-receipt cursor.
+ *
+ * @generated from message chatto.api.v1.AdvanceReadReceiptRequest
+ */
+export type AdvanceReadReceiptRequest = Message<"chatto.api.v1.AdvanceReadReceiptRequest"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: string thread_root_event_id = 2;
+   */
+  threadRootEventId: string;
+
+  /**
+   * @generated from field: string up_to_event_id = 3;
+   */
+  upToEventId: string;
+};
+
+/**
+ * Describes the message chatto.api.v1.AdvanceReadReceiptRequest.
+ * Use `create(AdvanceReadReceiptRequestSchema)` to create a new message.
+ */
+export const AdvanceReadReceiptRequestSchema: GenMessage<AdvanceReadReceiptRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 4);
+
+/**
+ * @generated from message chatto.api.v1.AdvanceReadReceiptResponse
+ */
+export type AdvanceReadReceiptResponse = Message<"chatto.api.v1.AdvanceReadReceiptResponse"> & {
+  /**
+   * @generated from field: bool updated = 1;
+   */
+  updated: boolean;
+};
+
+/**
+ * Describes the message chatto.api.v1.AdvanceReadReceiptResponse.
+ * Use `create(AdvanceReadReceiptResponseSchema)` to create a new message.
+ */
+export const AdvanceReadReceiptResponseSchema: GenMessage<AdvanceReadReceiptResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 5);
+
+/**
+ * Compact reader summary for one message.
+ *
+ * @generated from message chatto.api.v1.ReadReceiptSummary
+ */
+export type ReadReceiptSummary = Message<"chatto.api.v1.ReadReceiptSummary"> & {
+  /**
+   * @generated from field: string message_event_id = 1;
+   */
+  messageEventId: string;
+
+  /**
+   * @generated from field: int32 reader_count = 2;
+   */
+  readerCount: number;
+
+  /**
+   * @generated from field: repeated string preview_user_ids = 3;
+   */
+  previewUserIds: string[];
+
+  /**
+   * @generated from field: google.protobuf.Timestamp latest_read_at = 4;
+   */
+  latestReadAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.ReadReceiptSummary.
+ * Use `create(ReadReceiptSummarySchema)` to create a new message.
+ */
+export const ReadReceiptSummarySchema: GenMessage<ReadReceiptSummary> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 6);
+
+/**
+ * @generated from message chatto.api.v1.GetReadReceiptSummariesRequest
+ */
+export type GetReadReceiptSummariesRequest = Message<"chatto.api.v1.GetReadReceiptSummariesRequest"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: string thread_root_event_id = 2;
+   */
+  threadRootEventId: string;
+
+  /**
+   * @generated from field: repeated string message_event_ids = 3;
+   */
+  messageEventIds: string[];
+};
+
+/**
+ * Describes the message chatto.api.v1.GetReadReceiptSummariesRequest.
+ * Use `create(GetReadReceiptSummariesRequestSchema)` to create a new message.
+ */
+export const GetReadReceiptSummariesRequestSchema: GenMessage<GetReadReceiptSummariesRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 7);
+
+/**
+ * @generated from message chatto.api.v1.GetReadReceiptSummariesResponse
+ */
+export type GetReadReceiptSummariesResponse = Message<"chatto.api.v1.GetReadReceiptSummariesResponse"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: repeated chatto.api.v1.ReadReceiptSummary summaries = 2;
+   */
+  summaries: ReadReceiptSummary[];
+};
+
+/**
+ * Describes the message chatto.api.v1.GetReadReceiptSummariesResponse.
+ * Use `create(GetReadReceiptSummariesResponseSchema)` to create a new message.
+ */
+export const GetReadReceiptSummariesResponseSchema: GenMessage<GetReadReceiptSummariesResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 8);
+
+/**
+ * @generated from message chatto.api.v1.ListReadReceiptReadersRequest
+ */
+export type ListReadReceiptReadersRequest = Message<"chatto.api.v1.ListReadReceiptReadersRequest"> & {
+  /**
+   * @generated from field: string room_id = 1;
+   */
+  roomId: string;
+
+  /**
+   * @generated from field: string thread_root_event_id = 2;
+   */
+  threadRootEventId: string;
+
+  /**
+   * @generated from field: string message_event_id = 3;
+   */
+  messageEventId: string;
+
+  /**
+   * @generated from field: chatto.api.v1.PageRequest page = 4;
+   */
+  page?: PageRequest | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.ListReadReceiptReadersRequest.
+ * Use `create(ListReadReceiptReadersRequestSchema)` to create a new message.
+ */
+export const ListReadReceiptReadersRequestSchema: GenMessage<ListReadReceiptReadersRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 9);
+
+/**
+ * @generated from message chatto.api.v1.ReadReceiptReader
+ */
+export type ReadReceiptReader = Message<"chatto.api.v1.ReadReceiptReader"> & {
+  /**
+   * @generated from field: chatto.api.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp read_at = 2;
+   */
+  readAt?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.ReadReceiptReader.
+ * Use `create(ReadReceiptReaderSchema)` to create a new message.
+ */
+export const ReadReceiptReaderSchema: GenMessage<ReadReceiptReader> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 10);
+
+/**
+ * @generated from message chatto.api.v1.ListReadReceiptReadersResponse
+ */
+export type ListReadReceiptReadersResponse = Message<"chatto.api.v1.ListReadReceiptReadersResponse"> & {
+  /**
+   * @generated from field: bool enabled = 1;
+   */
+  enabled: boolean;
+
+  /**
+   * @generated from field: repeated chatto.api.v1.ReadReceiptReader readers = 2;
+   */
+  readers: ReadReceiptReader[];
+
+  /**
+   * @generated from field: chatto.api.v1.PageInfo page = 3;
+   */
+  page?: PageInfo | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.ListReadReceiptReadersResponse.
+ * Use `create(ListReadReceiptReadersResponseSchema)` to create a new message.
+ */
+export const ListReadReceiptReadersResponseSchema: GenMessage<ListReadReceiptReadersResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_read_state, 11);

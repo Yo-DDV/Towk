@@ -184,6 +184,10 @@ var (
 	// reactions, or joining.
 	ErrRoomArchived = errors.New("room is archived")
 
+	// ErrReadReceiptsDisabled is returned when the server-wide or personal
+	// reciprocal read-receipt setting currently blocks emission and inspection.
+	ErrReadReceiptsDisabled = errors.New("read receipts are disabled")
+
 	// ErrPasswordTooShort is returned when a password is shorter than MinPasswordLength.
 	ErrPasswordTooShort = fmt.Errorf("password must be at least %d characters long", MinPasswordLength)
 

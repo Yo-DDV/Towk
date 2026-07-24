@@ -86,9 +86,11 @@ type UserSettings struct {
 	// browser's local timezone.
 	Timezone *string `protobuf:"bytes,1,opt,name=timezone,proto3,oneof" json:"timezone,omitempty"`
 	// Preferred time format.
-	TimeFormat    TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat" json:"time_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeFormat TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat" json:"time_format,omitempty"`
+	// Whether the viewer publishes and may inspect reciprocal read receipts.
+	ReadReceiptsEnabled bool `protobuf:"varint,3,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UserSettings) Reset() {
@@ -133,6 +135,13 @@ func (x *UserSettings) GetTimeFormat() TimeFormat {
 		return x.TimeFormat
 	}
 	return TimeFormat_TIME_FORMAT_UNSPECIFIED
+}
+
+func (x *UserSettings) GetReadReceiptsEnabled() bool {
+	if x != nil {
+		return x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 // Current authenticated user's public profile plus self-only settings.
@@ -560,11 +569,12 @@ var File_chatto_api_v1_viewer_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_viewer_proto_rawDesc = "" +
 	"\n" +
-	"\x1achatto/api/v1/viewer.proto\x12\rchatto.api.v1\x1a,chatto/api/v1/notification_preferences.proto\x1a\x1fchatto/api/v1/permissions.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"x\n" +
+	"\x1achatto/api/v1/viewer.proto\x12\rchatto.api.v1\x1a,chatto/api/v1/notification_preferences.proto\x1a\x1fchatto/api/v1/permissions.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xac\x01\n" +
 	"\fUserSettings\x12\x1f\n" +
 	"\btimezone\x18\x01 \x01(\tH\x00R\btimezone\x88\x01\x01\x12:\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x19.chatto.api.v1.TimeFormatR\n" +
-	"timeFormatB\v\n" +
+	"timeFormat\x122\n" +
+	"\x15read_receipts_enabled\x18\x03 \x01(\bR\x13readReceiptsEnabledB\v\n" +
 	"\t_timezone\"\x93\x03\n" +
 	"\n" +
 	"ViewerUser\x12,\n" +

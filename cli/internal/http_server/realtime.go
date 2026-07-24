@@ -32,6 +32,7 @@ const (
 	realtimeWriteTimeout             = 10 * time.Second
 	realtimeHeartbeatIntervalSeconds = uint32(core.MyEventsHeartbeatInterval / time.Second)
 	realtimePushForegroundCapability = "chatto.realtime.push-foreground.v1"
+	realtimeReadReceiptsCapability   = "chatto.realtime.read-receipts.v1"
 )
 
 var realtimeServerCapabilities = []string{
@@ -39,6 +40,7 @@ var realtimeServerCapabilities = []string{
 	"chatto.realtime.heartbeat.v1",
 	"chatto.realtime.ping.v1",
 	realtimePushForegroundCapability,
+	realtimeReadReceiptsCapability,
 }
 
 func (s *HTTPServer) setupRealtimeAPI(allowedOrigins []string) {
@@ -547,7 +549,19 @@ func (s *HTTPServer) mapRealtimeLive(ctx context.Context, viewerID string, envel
 	case *corev1.LiveEvent_ServerUserPreferencesUpdated:
 		prefs := payload.ServerUserPreferencesUpdated
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_ServerUserPreferencesUpdated{ServerUserPreferencesUpdated: &realtimev1.RealtimeServerUserPreferencesUpdatedEvent{
-			Timezone: optionalRealtimeString(prefs.GetTimezone()), TimeFormat: apiRealtimeTimeFormat(prefs.GetTimeFormat()),
+			Timezone:            optionalRealtimeString(prefs.GetTimezone()),
+			TimeFormat:          apiRealtimeTimeFormat(prefs.GetTimeFormat()),
+			ReadReceiptsEnabled: prefs.GetReadReceiptsEnabled(),
+		}}
+	case *corev1.LiveEvent_PublicReadReceiptAdvanced:
+		receipt := payload.PublicReadReceiptAdvanced
+		envelope.Event = &realtimev1.RealtimeEventEnvelope_ReadReceiptAdvanced{ReadReceiptAdvanced: &realtimev1.RealtimeReadReceiptAdvancedEvent{
+			RoomId:            receipt.GetRoomId(),
+			ThreadRootEventId: receipt.ThreadRootEventId,
+			UserId:            receipt.GetUserId(),
+			EventId:           receipt.GetEventId(),
+			EventSequence:     receipt.GetEventSequence(),
+			ReadAt:            receipt.GetReadAt(),
 		}}
 	case *corev1.LiveEvent_ThreadFollowChanged:
 		follow := payload.ThreadFollowChanged

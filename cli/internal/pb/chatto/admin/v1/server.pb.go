@@ -34,8 +34,10 @@ type ServerConfig struct {
 	Motd string `protobuf:"bytes,3,opt,name=motd,proto3" json:"motd,omitempty"`
 	// Welcome message shown on the login page.
 	WelcomeMessage string `protobuf:"bytes,4,opt,name=welcome_message,json=welcomeMessage,proto3" json:"welcome_message,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Whether members may publish and inspect reciprocal read receipts.
+	ReadReceiptsEnabled bool `protobuf:"varint,5,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ServerConfig) Reset() {
@@ -94,6 +96,13 @@ func (x *ServerConfig) GetWelcomeMessage() string {
 		return x.WelcomeMessage
 	}
 	return ""
+}
+
+func (x *ServerConfig) GetReadReceiptsEnabled() bool {
+	if x != nil {
+		return x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 // Request server profile settings.
@@ -201,8 +210,10 @@ type UpdateServerConfigRequest struct {
 	// Optional welcome message shown on the login page. Set to empty string to
 	// clear.
 	WelcomeMessage *string `protobuf:"bytes,4,opt,name=welcome_message,json=welcomeMessage,proto3,oneof" json:"welcome_message,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Enables or disables reciprocal public read receipts server-wide.
+	ReadReceiptsEnabled *bool `protobuf:"varint,5,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3,oneof" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdateServerConfigRequest) Reset() {
@@ -261,6 +272,13 @@ func (x *UpdateServerConfigRequest) GetWelcomeMessage() string {
 		return *x.WelcomeMessage
 	}
 	return ""
+}
+
+func (x *UpdateServerConfigRequest) GetReadReceiptsEnabled() bool {
+	if x != nil && x.ReadReceiptsEnabled != nil {
+		return *x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 // Result of updating runtime-editable server profile settings.
@@ -849,27 +867,30 @@ var File_chatto_admin_v1_server_proto protoreflect.FileDescriptor
 
 const file_chatto_admin_v1_server_proto_rawDesc = "" +
 	"\n" +
-	"\x1cchatto/admin/v1/server.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a\x1achatto/api/v1/server.proto\"\x8e\x01\n" +
+	"\x1cchatto/admin/v1/server.proto\x12\x0fchatto.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a\x1achatto/api/v1/server.proto\"\xc2\x01\n" +
 	"\fServerConfig\x12\x1f\n" +
 	"\vserver_name\x18\x01 \x01(\tR\n" +
 	"serverName\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x12\n" +
 	"\x04motd\x18\x03 \x01(\tR\x04motd\x12'\n" +
-	"\x0fwelcome_message\x18\x04 \x01(\tR\x0ewelcomeMessage\"\x18\n" +
+	"\x0fwelcome_message\x18\x04 \x01(\tR\x0ewelcomeMessage\x122\n" +
+	"\x15read_receipts_enabled\x18\x05 \x01(\bR\x13readReceiptsEnabled\"\x18\n" +
 	"\x16GetServerConfigRequest\"\xaa\x01\n" +
 	"\x17GetServerConfigResponse\x125\n" +
 	"\x06config\x18\x01 \x01(\v2\x1d.chatto.admin.v1.ServerConfigR\x06config\x12I\n" +
-	"\x0epublic_profile\x18\x03 \x01(\v2\".chatto.api.v1.ServerPublicProfileR\rpublicProfileJ\x04\b\x02\x10\x03R\aprofile\"\x93\x02\n" +
+	"\x0epublic_profile\x18\x03 \x01(\v2\".chatto.api.v1.ServerPublicProfileR\rpublicProfileJ\x04\b\x02\x10\x03R\aprofile\"\xe6\x02\n" +
 	"\x19UpdateServerConfigRequest\x12-\n" +
 	"\vserver_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x18PH\x00R\n" +
 	"serverName\x88\x01\x01\x12/\n" +
 	"\vdescription\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\xf4\x03H\x01R\vdescription\x88\x01\x01\x12!\n" +
 	"\x04motd\x18\x03 \x01(\tB\b\xbaH\x05r\x03\x18\xe8\aH\x02R\x04motd\x88\x01\x01\x126\n" +
-	"\x0fwelcome_message\x18\x04 \x01(\tB\b\xbaH\x05r\x03\x18\x90NH\x03R\x0ewelcomeMessage\x88\x01\x01B\x0e\n" +
+	"\x0fwelcome_message\x18\x04 \x01(\tB\b\xbaH\x05r\x03\x18\x90NH\x03R\x0ewelcomeMessage\x88\x01\x01\x127\n" +
+	"\x15read_receipts_enabled\x18\x05 \x01(\bH\x04R\x13readReceiptsEnabled\x88\x01\x01B\x0e\n" +
 	"\f_server_nameB\x0e\n" +
 	"\f_descriptionB\a\n" +
 	"\x05_motdB\x12\n" +
-	"\x10_welcome_message\"\xad\x01\n" +
+	"\x10_welcome_messageB\x18\n" +
+	"\x16_read_receipts_enabled\"\xad\x01\n" +
 	"\x1aUpdateServerConfigResponse\x12I\n" +
 	"\x0epublic_profile\x18\x03 \x01(\v2\".chatto.api.v1.ServerPublicProfileR\rpublicProfile\x125\n" +
 	"\x06config\x18\x02 \x01(\v2\x1d.chatto.admin.v1.ServerConfigR\x06configJ\x04\b\x01\x10\x02R\aprofile\"i\n" +

@@ -285,6 +285,7 @@ message SessionTerminatedEvent {
   string reason = 1;
 }
 
+
 // PublicReadReceiptAdvancedEvent carries a compact room-scoped cursor delta.
 // Reader lists are fetched separately through the authenticated API.
 message PublicReadReceiptAdvancedEvent {
