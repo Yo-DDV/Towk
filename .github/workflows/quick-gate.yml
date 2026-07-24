@@ -25,14 +25,55 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run dependency-free repository guards
-        shell: bash
+      - name: Check README fact-checker syntax
+        run: node --check tools/fact-check-readmes.mjs
+
+      - name: Verify English README facts
+        env:
+          TOWK_README_LOCALE: en
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify French README facts
+        env:
+          TOWK_README_LOCALE: fr
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify German README facts
+        env:
+          TOWK_README_LOCALE: de
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify Spanish README facts
+        env:
+          TOWK_README_LOCALE: es
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Verify Portuguese README facts
+        env:
+          TOWK_README_LOCALE: pt
+        run: node --test tools/fact-check-readmes.test.mjs
+
+      - name: Check repository and README presentation
         run: |
           set -euo pipefail
           empty_tree="$(git hash-object -t tree /dev/null)"
           git diff --check "${empty_tree}" HEAD
           node --check tools/check-public-surface.mjs
           node tools/check-public-surface.mjs
+          node --check tools/check-readme-presentation.mjs
+          node tools/check-readme-presentation.mjs
+
+      - name: Test README metrics generators
+        run: |
+          set -euo pipefail
+          node --check tools/generate-readme-project-pulse.mjs
+          node --test tools/generate-readme-project-pulse.test.mjs
+          node --check tools/update-readme-project-pulse-copy.mjs
+
+      - name: Run shell and image guards
+        shell: bash
+        run: |
+          set -euo pipefail
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh

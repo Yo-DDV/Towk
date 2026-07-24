@@ -103,7 +103,8 @@ vi.mock('$app/state', () => ({
     params: {
       serverId: 'other-server',
       roomId: undefined
-    }
+    },
+    state: {}
   }
 }));
 
@@ -144,9 +145,12 @@ vi.mock('$lib/state/server/serverConnection.svelte', () => ({
 
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
+    servers: [mocks.server],
+    originServer: { id: 'origin' },
     isOriginServer: vi.fn(() => false),
     getServer: vi.fn(() => mocks.server),
-    getStore: vi.fn(() => mocks.store)
+    getStore: vi.fn(() => mocks.store),
+    tryGetStore: vi.fn(() => null)
   }
 }));
 

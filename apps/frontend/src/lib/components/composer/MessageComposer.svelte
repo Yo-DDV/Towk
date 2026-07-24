@@ -14,6 +14,7 @@
   import LinkPreviewSkeleton from '$lib/components/LinkPreviewSkeleton.svelte';
   import MessagePreviewCard from '$lib/components/MessagePreviewCard.svelte';
   import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+  import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import { toast } from '$lib/ui/toast';
   import {
     getRoomMembers,
@@ -23,7 +24,7 @@
     type RoomMember
   } from '$lib/state/room';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
-  import { prefersTouchActions } from '$lib/utils/inputCapabilities';
+  import { prefersTouchActions, supportsHoverActions } from '$lib/utils/inputCapabilities';
   import { readClipboardFiles } from '$lib/attachments/clipboardFiles';
   import { isVideoAttachmentFileCandidate } from '$lib/attachments/filePolicy';
   import { hasVisibleContent } from '$lib/validation';
@@ -31,6 +32,7 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import EmojiAutocomplete from '$lib/components/composer/EmojiAutocomplete.svelte';
+  import ComposerEmojiPicker from '$lib/components/composer/ComposerEmojiPicker.svelte';
   import MentionAutocomplete from '$lib/components/composer/MentionAutocomplete.svelte';
   import type { TipTapEditorApi } from './TipTapEditor.svelte';
   import { DraftState, draftKey } from './draft.svelte';
@@ -45,6 +47,8 @@
   import type { VoiceMessageDraft } from '$lib/voiceMessages/policy';
 
   const tipTapEditorModule = import('./TipTapEditor.svelte');
+  const DESKTOP_EMOJI_PICKER_WIDTH_REM = 22;
+  const FLOATING_VIEWPORT_PADDING_PX = 8;
 
   type ShortcutHints = {
     submit: string;
@@ -161,6 +165,13 @@
 
   // TipTap editor API (received via onReady callback)
   let editorApi = $state<TipTapEditorApi | null>(null);
+  // Touch-primary devices already expose their native emoji keyboard. Even on
+  // hybrid phones/tablets advertising an auxiliary fine pointer, keep the
+  // desktop picker hidden and reserve it for a true desktop input context.
+  const canUseDesktopEmojiPicker = !prefersTouchActions() && supportsHoverActions();
+  let emojiPickerTriggerElement = $state<HTMLButtonElement>();
+  let emojiPickerAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
+  let emojiPickerOpen = $state(false);
   const draftState = new DraftState();
   const attachments = new AttachmentsState(() => serverInfo);
   const linkPreviews = new LinkPreviewState(() => {
@@ -299,6 +310,7 @@
     if (autocompleteResetRoomId !== roomId) {
       autocompleteResetRoomId = roomId;
       autocomplete.resetForRoom();
+      closeDesktopEmojiPicker();
     }
 
     const scope = privateDataScopeForServer(serverRegistry.getServer(getActiveServer()));
@@ -426,6 +438,12 @@
   let fileInputElement = $state<HTMLInputElement>();
   let voiceRecorderActive = $state(false);
 
+  // Keep voice capture mutually exclusive with any editor content, including
+  // whitespace or draft text that is not yet sendable. The send affordance is
+  // promoted only for text that passes the existing visible-content policy.
+  let hasComposerText = $derived(message.length > 0);
+  let hasSendableText = $derived(hasVisibleContent(message));
+
   // A realtime disconnect does not prevent composing or queueing a message.
   // Note: loading is intentionally excluded — the editor stays editable during sends
   // so users can type the next message while the current one is in flight.
@@ -440,7 +458,7 @@
       !roleMentionCheckLoading &&
       !inputDisabled &&
       attachments.pendingCount === 0 &&
-      (hasVisibleContent(message) || hasSendableAttachments || isEditing)
+      (hasSendableText || hasSendableAttachments || isEditing)
   );
   let editorNextEnterWillSend = $state(false);
   let manualRichMode = $state(false);
@@ -459,6 +477,29 @@
     if (!canAttach && attachments.filesWithUrls.length > 0) {
       attachments.clear();
     }
+  });
+
+  $effect(() => {
+    if ((inputDisabled || voiceRecorderActive) && emojiPickerOpen) {
+      closeDesktopEmojiPicker();
+    }
+  });
+
+  $effect(() => {
+    const trigger = emojiPickerTriggerElement;
+    if (!emojiPickerOpen || !trigger) return;
+
+    const syncAnchor = () => {
+      emojiPickerAnchor = getDesktopEmojiPickerAnchor(trigger);
+    };
+    const observer = new ResizeObserver(syncAnchor);
+    observer.observe(trigger);
+    window.addEventListener('resize', syncAnchor);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncAnchor);
+    };
   });
 
   // Auto-focus the input when the component mounts, room changes, a reply
@@ -485,6 +526,53 @@
 
   function closeEmojiAutocomplete() {
     autocomplete.closeEmoji();
+  }
+
+  function getDesktopEmojiPickerAnchor(node: HTMLElement) {
+    const rect = node.getBoundingClientRect();
+    const rootFontSize =
+      Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const availableWidth = Math.max(
+      0,
+      window.innerWidth - FLOATING_VIEWPORT_PADDING_PX * 2
+    );
+    const pickerWidth = Math.min(
+      DESKTOP_EMOJI_PICKER_WIDTH_REM * rootFontSize,
+      availableWidth
+    );
+
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: Math.max(FLOATING_VIEWPORT_PADDING_PX, rect.right - pickerWidth)
+    };
+  }
+
+  function closeDesktopEmojiPicker() {
+    emojiPickerOpen = false;
+    emojiPickerAnchor = null;
+  }
+
+  function closeDesktopEmojiPickerAndFocus() {
+    closeDesktopEmojiPicker();
+    tick().then(() => editorApi?.focus());
+  }
+
+  function toggleDesktopEmojiPicker() {
+    if (emojiPickerOpen) {
+      closeDesktopEmojiPickerAndFocus();
+      return;
+    }
+    if (!emojiPickerTriggerElement || inputDisabled || !editorApi) return;
+
+    autocomplete.reset();
+    emojiPickerAnchor = getDesktopEmojiPickerAnchor(emojiPickerTriggerElement);
+    emojiPickerOpen = true;
+  }
+
+  function handleDesktopEmojiSelect(emoji: string) {
+    closeDesktopEmojiPicker();
+    editorApi?.replaceTextBeforeCursor(0, emoji);
   }
 
   // Handle mention selection from autocomplete
@@ -1140,6 +1228,24 @@
         onClose={closeMentionAutocomplete}
       />
     {/if}
+
+    {#if emojiPickerOpen && emojiPickerAnchor}
+      <ContextMenu
+        anchor={emojiPickerAnchor}
+        presentation="floating"
+        role="dialog"
+        ariaLabel={m['emoji.open_picker']()}
+        class="w-[min(22rem,calc(100vw-1rem))] overflow-hidden"
+        onclose={closeDesktopEmojiPicker}
+      >
+        <ComposerEmojiPicker
+          serverId={getActiveServer()}
+          onSelect={handleDesktopEmojiSelect}
+          onClose={closeDesktopEmojiPickerAndFocus}
+        />
+      </ContextMenu>
+    {/if}
+
     <!-- Attachment button - hidden in edit mode (editMessage only supports text) -->
     {#if !isEditing && canAttach && !voiceRecorderActive}
       <button
@@ -1185,9 +1291,33 @@
         {/if}
       {/if}
 
+      {#if canUseDesktopEmojiPicker && !voiceRecorderActive}
+        <button
+          bind:this={emojiPickerTriggerElement}
+          data-testid="composer-emoji-button"
+          type="button"
+          onpointerdown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onclick={toggleDesktopEmojiPicker}
+          disabled={inputDisabled || !editorApi}
+          class={[
+            'flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50',
+            emojiPickerOpen && 'bg-surface-highlighted text-text'
+          ]}
+          aria-label={m['emoji.open_picker']()}
+          aria-haspopup="dialog"
+          aria-expanded={emojiPickerOpen}
+          title={m['emoji.open_picker']()}
+        >
+          <span class="iconify text-xl uil--smile" aria-hidden="true"></span>
+        </button>
+      {/if}
+
       {#if !isEditing && canVoice}
         <VoiceMessageRecorder
-          disabled={inputDisabled || loading || roleMentionCheckLoading}
+          disabled={inputDisabled || loading || roleMentionCheckLoading || hasComposerText}
           maxUploadSize={serverInfo.maxVoiceMessageUploadSize}
           onSend={sendVoiceMessage}
           onActiveChange={(active) => (voiceRecorderActive = active)}
@@ -1198,10 +1328,15 @@
         <!-- Send button -->
         <button
           type="button"
+          data-testid="message-send-button"
+          data-ready={hasSendableText && canSubmit ? 'true' : 'false'}
           onpointerdown={(e) => e.preventDefault()}
           onclick={handleSubmit}
           disabled={!canSubmit}
-          class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+          class={[
+            'composer-send-button flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted active:scale-[0.96] enabled:hover:bg-surface-highlighted disabled:cursor-not-allowed disabled:opacity-50',
+            hasSendableText && canSubmit && 'composer-send-button--ready'
+          ]}
           aria-label={m['composer.send']()}
           title={isRichComposer ? m['composer.send_ctrl_enter']() : m['composer.send_enter']()}
         >
@@ -1324,6 +1459,43 @@
       0 0 1.15rem color-mix(in srgb, var(--composer-focus-orange) 24%, transparent);
   }
 
+  .composer-focus-shell :global([data-testid='voice-message-record-button']) {
+    transition:
+      color 140ms ease,
+      background-color 140ms ease,
+      opacity 140ms ease,
+      transform 100ms ease;
+  }
+
+  .composer-focus-shell :global([data-testid='voice-message-record-button']:disabled) {
+    color: var(--color-muted);
+    opacity: 0.38;
+  }
+
+  .composer-send-button {
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      opacity 150ms ease;
+  }
+
+  .composer-send-button--ready {
+    color: #e8783b;
+    color: var(--composer-focus-orange);
+  }
+
+  .composer-send-button--ready > span {
+    animation: composer-send-float 2.2s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .composer-send-button--ready:hover {
+    color: #f9a763;
+    color: var(--composer-focus-highlight);
+    background-color: rgba(232, 120, 59, 0.1);
+    background-color: color-mix(in srgb, var(--composer-focus-orange) 10%, transparent);
+  }
+
   @supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
     .composer-focus-shell::before {
       position: absolute;
@@ -1387,9 +1559,21 @@
     }
   }
 
+  @keyframes composer-send-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-0.75px);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .composer-focus-shell,
-    .composer-focus-shell::before {
+    .composer-focus-shell::before,
+    .composer-send-button,
+    .composer-focus-shell :global([data-testid='voice-message-record-button']) {
       transition: none;
     }
 
@@ -1398,8 +1582,14 @@
       opacity: 0;
     }
 
+    .composer-send-button--ready > span,
     .sending {
       animation: none;
+    }
+
+    .composer-send-button--ready > span {
+      transform: none;
+      will-change: auto;
     }
   }
 </style>

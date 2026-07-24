@@ -205,7 +205,8 @@ vi.mock('$lib/state/globals.svelte', () => ({
     isFocused: true,
     isPresent: true
   },
-  sidebarNav: mocks.sidebarNav
+  sidebarNav: mocks.sidebarNav,
+  SIDEBAR_PANEL_WIDTH_PX: 68 + 256
 }));
 
 vi.mock('$lib/state/appUi.svelte', async (importActual) => {

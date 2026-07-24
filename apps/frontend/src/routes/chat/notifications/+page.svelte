@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { goto, pushState } from '$app/navigation';
+  import { page } from '$app/state';
+  import { onMount, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { SvelteSet } from 'svelte/reactivity';
   import { PaneHeader, EmptyState } from '$lib/ui';
@@ -9,6 +11,8 @@
   import { notificationTarget } from '$lib/state/server/notifications.svelte';
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
+  import { getActiveServer } from '$lib/state/activeServer.svelte';
+  import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import {
     dismissNativeNotification,
@@ -20,6 +24,7 @@
   import { formatDate } from '$lib/utils/formatTime';
   import { getLocale } from '$lib/i18n/runtime';
   import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
+  import NotificationsServerSidebar from './NotificationsServerSidebar.svelte';
 
   const userSettings = getUserSettings();
   const activeLocale = $derived(getLocale());
@@ -69,8 +74,65 @@
 
   let loading = $state(true);
   let clearing = $state(false);
+  let sidebarHistoryWasOpen = false;
+  let sidebarOpenSequence = 0;
   const pendingNotificationIds = new SvelteSet<string>();
   const showDelayedLoading = delayedLoadingVisible(() => loading && allNotifications.length === 0);
+
+  async function openSidebarAfterMount(sequence: number): Promise<void> {
+    // The normal room route keeps both columns mounted while closed. Reproduce
+    // that lifecycle here: first mount the notification channel pane at the
+    // shared closed transform, flush that style, then open the shared nav state.
+    await tick();
+    if (sequence !== sidebarOpenSequence || page.state.notificationSidebarOpen !== true) return;
+
+    if (sidebarNav.isMobile) {
+      const channelPane = document.querySelector<HTMLElement>('[data-testid="server-sidebar"]');
+      void channelPane?.offsetWidth;
+    }
+
+    if (sequence === sidebarOpenSequence && page.state.notificationSidebarOpen === true) {
+      sidebarNav.open();
+    }
+  }
+
+  function handleSidebarToggle(): boolean {
+    if (page.state.notificationSidebarOpen) {
+      history.back();
+      return true;
+    }
+
+    const serverId = getActiveServer();
+    if (!serverId || !serverRegistry.tryGetStore(serverId)?.isAuthenticated) return false;
+
+    pushState('', {
+      ...page.state,
+      notificationServerId: serverId,
+      notificationSidebarOpen: true
+    });
+    return true;
+  }
+
+  onMount(() => sidebarNav.registerToggleHandler(handleSidebarToggle));
+
+  // The shallow history entry is the source of truth for this transient pane.
+  // Android/iOS/browser Back removes it first, keeping the notification route
+  // mounted; Forward restores it. Opening waits until the route-specific pane
+  // is mounted closed, so it and the existing server gutter share one transform.
+  $effect(() => {
+    const historyOpen = page.state.notificationSidebarOpen === true;
+    if (historyOpen) {
+      sidebarHistoryWasOpen = true;
+      const sequence = ++sidebarOpenSequence;
+      void openSidebarAfterMount(sequence);
+      return;
+    }
+
+    sidebarOpenSequence++;
+    if (!sidebarHistoryWasOpen) return;
+    sidebarHistoryWasOpen = false;
+    if (sidebarNav.isOpen) sidebarNav.close();
+  });
 
   // Fetch notifications from all authenticated instances on mount
   $effect(() => {
@@ -187,7 +249,11 @@
   }
 </script>
 
-<div class="flex h-full w-full flex-col">
+{#if page.state.notificationSidebarOpen}
+  <NotificationsServerSidebar />
+{/if}
+
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
     title={m['chat.notifications.title']()}
     subtitle={m['chat.notifications.subtitle']()}

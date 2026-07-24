@@ -26,3 +26,13 @@ export function roomSidebarPanelsForRoom(isDM: boolean, livekitEnabled: boolean)
   const panels = isDM ? DM_ROOM_SIDEBAR_PANELS : CHANNEL_ROOM_SIDEBAR_PANELS;
   return livekitEnabled ? panels : panels.filter((panel) => panel !== 'call');
 }
+
+export function roomSidebarShellClass(
+  presentation: 'desktop' | 'overlay',
+  maximized: boolean
+): string {
+  if (presentation === 'overlay') return 'w-full min-w-0 flex-1 overflow-hidden';
+  return maximized
+    ? 'border-l border-border min-w-0 flex-1'
+    : 'border-l border-border w-64 shrink-0';
+}
