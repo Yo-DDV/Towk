@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
 )
@@ -143,6 +144,10 @@ func (c *ChattoCore) CanAccessDMAsset(ctx context.Context, actorID, roomID, asse
 	if room, err := c.GetRoom(ctx, KindDM, roomID); err != nil || room == nil {
 		return false, err
 	}
+	isMember, err := c.RoomMembershipExists(ctx, KindDM, actorID, roomID)
+	if err != nil || !isMember {
+		return false, err
+	}
 	cutoffSeq, hasCutoff, err := c.DMHistoryCutoffSequence(ctx, actorID, roomID)
 	if err != nil || !hasCutoff {
 		return !hasCutoff, err
@@ -164,6 +169,11 @@ func (c *ChattoCore) CanAccessDMAsset(ctx context.Context, actorID, roomID, asse
 	parentID := declared.GetParentAssetId()
 	if parentID != "" && parentID != assetID {
 		return c.CanAccessDMAsset(ctx, actorID, roomID, parentID)
+	}
+	pendingExpiresAt := declared.GetPendingExpiresAt()
+	if declared.GetRoomId() == roomID && declared.GetUserId() == actorID &&
+		pendingExpiresAt != nil && pendingExpiresAt.AsTime().After(time.Now()) {
+		return true, nil
 	}
 	return false, nil
 }

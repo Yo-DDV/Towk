@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
+
+	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
 func TestForgetOneToOneDMIsPrivateAndKeepsMembership(t *testing.T) {
@@ -231,5 +234,70 @@ func TestRepeatedDMDeletionAdvancesCutoff(t *testing.T) {
 		if accessible {
 			t.Fatalf("event %s remains accessible after repeated deletion", eventID)
 		}
+	}
+}
+
+func TestDMAssetAccessRequiresMembershipAndKeepsPendingUploaderAsset(t *testing.T) {
+	chatto, _ := setupTestCore(t)
+	ctx := testContext(t)
+
+	alice, err := chatto.CreateUser(ctx, SystemActorID, "dm-asset-alice", "Alice", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(alice): %v", err)
+	}
+	bob, err := chatto.CreateUser(ctx, SystemActorID, "dm-asset-bob", "Bob", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(bob): %v", err)
+	}
+	carol, err := chatto.CreateUser(ctx, SystemActorID, "dm-asset-carol", "Carol", "password123")
+	if err != nil {
+		t.Fatalf("CreateUser(carol): %v", err)
+	}
+	room, _, err := chatto.FindOrCreateDM(ctx, alice.Id, []string{bob.Id})
+	if err != nil {
+		t.Fatalf("FindOrCreateDM: %v", err)
+	}
+	if _, err := chatto.PostMessage(ctx, KindDM, room.Id, bob.Id, "history", nil, "", "", nil, false); err != nil {
+		t.Fatalf("PostMessage: %v", err)
+	}
+	if err := chatto.ForgetOneToOneDM(ctx, alice.Id, room.Id); err != nil {
+		t.Fatalf("ForgetOneToOneDM: %v", err)
+	}
+	if err := chatto.RestoreOneToOneDMVisibility(ctx, alice.Id, room.Id); err != nil {
+		t.Fatalf("RestoreOneToOneDMVisibility: %v", err)
+	}
+
+	pending := &corev1.Attachment{
+		Id:          NewAssetID(),
+		RoomId:      room.Id,
+		Filename:    "pending.txt",
+		ContentType: "text/plain",
+		Size:        7,
+	}
+	if err := chatto.assetLifecycle().RecordUploadedPendingAttachmentAsset(
+		ctx,
+		alice.Id,
+		room.Id,
+		pending,
+		"",
+		time.Now().Add(time.Hour),
+		false,
+	); err != nil {
+		t.Fatalf("RecordUploadedPendingAttachmentAsset: %v", err)
+	}
+
+	accessible, err := chatto.CanAccessDMAsset(ctx, alice.Id, room.Id, pending.Id)
+	if err != nil {
+		t.Fatalf("CanAccessDMAsset(uploader): %v", err)
+	}
+	if !accessible {
+		t.Fatal("pending attachment is not accessible to its uploader")
+	}
+	accessible, err = chatto.CanAccessDMAsset(ctx, carol.Id, room.Id, pending.Id)
+	if err != nil {
+		t.Fatalf("CanAccessDMAsset(non-member): %v", err)
+	}
+	if accessible {
+		t.Fatal("non-member can access a DM attachment")
 	}
 }
