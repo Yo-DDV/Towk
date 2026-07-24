@@ -1,0 +1,12 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "direct_message_delete": {
+      "title": "Unterhaltung löschen",
+      "action": "Unterhaltung löschen",
+      "prompt": "Unterhaltung mit {room} löschen? Der Verlauf wird aus deinem Konto entfernt. Die andere Person behält ihre Kopie.",
+      "failed": "Unterhaltung konnte nicht gelöscht werden",
+      "local_cleanup_failed": "Die Unterhaltung wurde gelöscht, aber dieses Gerät konnte nicht alle zwischengespeicherten Daten entfernen."
+    }
+  }
+}
