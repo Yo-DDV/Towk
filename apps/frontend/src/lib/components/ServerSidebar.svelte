@@ -50,19 +50,16 @@ See the "UI" section of `docs/GLOSSARY.md`.
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && sidebarNav.progress === 0 && !dragging);
   const resizable = $derived(!width);
-  const introDuration = $derived(
-    synchronizedMobileIntro && sidebarNav.isMobile && sidebarNav.isOpen ? 200 : 0
+  const synchronizedIntroEnabled = $derived(
+    synchronizedMobileIntro && sidebarNav.isMobile && sidebarNav.isOpen
   );
+  const introOffset = $derived(synchronizedIntroEnabled ? -SIDEBAR_PANEL_WIDTH_PX : 0);
+  const introDuration = $derived(synchronizedIntroEnabled ? 200 : 0);
 </script>
 
 <div
   use:sidebarSwipe
-  in:fly={{
-    x: -SIDEBAR_PANEL_WIDTH_PX,
-    opacity: 1,
-    duration: introDuration,
-    easing: cubicOut
-  }}
+  in:fly={{ x: introOffset, opacity: 1, duration: introDuration, easing: cubicOut }}
   data-app-sidebar="true"
   data-testid="server-sidebar"
   class={[
