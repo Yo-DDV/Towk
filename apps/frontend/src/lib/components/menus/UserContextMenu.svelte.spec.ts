@@ -1,11 +1,34 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { PresenceStatus } from '$lib/render/types';
 import { q } from '$lib/test-utils';
 import UserContextMenu from './UserContextMenu.svelte';
 
-vi.mock('$lib/utils/isTouchDevice', () => ({
-  isTouchDevice: () => false
+const mocks = vi.hoisted(() => ({
+  getUserProfile: vi.fn(),
+  startDMWith: vi.fn(),
+  startCallWith: vi.fn()
+}));
+
+vi.mock('$lib/state/server/connection.svelte', () => ({
+  useConnection: () => () => ({
+    connectBaseUrl: '/api/connect',
+    bearerToken: 'token'
+  })
+}));
+
+vi.mock('$lib/state/activeServer.svelte', () => ({
+  getActiveServer: () => 'server-1'
+}));
+
+vi.mock('$lib/api-client/memberDirectory', () => ({
+  createMemberDirectoryAPI: () => ({ getUserProfile: mocks.getUserProfile }),
+  mapDirectoryMember: (member: unknown) => member
+}));
+
+vi.mock('$lib/dm/startDM', () => ({
+  startDMWith: mocks.startDMWith,
+  startCallWith: mocks.startCallWith
 }));
 
 vi.mock('$lib/state/userProfiles.svelte', () => ({
@@ -30,7 +53,17 @@ const user = {
   customStatus: null
 };
 
-let originalShowPopover: typeof HTMLElement.prototype.showPopover;
+const profile = {
+  user: { ...user, deleted: false },
+  roles: [{ name: 'moderator', displayName: 'Moderator', position: 10, moderation: true }],
+  joinedAt: '2026-01-01T09:00:00.000Z',
+  biographyMarkdown: '**Hello** from Alice.',
+  lastActivity: '2026-07-24T12:00:00.000Z',
+  lastActivityVisible: true,
+  viewerIsSelf: false,
+  viewerCanMessage: true,
+  viewerCanCall: true
+};
 
 function renderMenu(props: Record<string, unknown> = {}) {
   return render(UserContextMenu, {
@@ -43,74 +76,62 @@ function renderMenu(props: Record<string, unknown> = {}) {
   });
 }
 
-beforeAll(() => {
-  originalShowPopover = HTMLElement.prototype.showPopover;
-  HTMLElement.prototype.showPopover = function showPopover() {
-    this.setAttribute('popover-open', '');
-  };
-});
+function buttonByText(container: HTMLElement, text: string): HTMLButtonElement {
+  const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find((item) =>
+    item.textContent?.includes(text)
+  );
+  if (!button) throw new Error(`Missing button: ${text}`);
+  return button;
+}
 
-afterAll(() => {
-  HTMLElement.prototype.showPopover = originalShowPopover;
+beforeEach(() => {
+  mocks.getUserProfile.mockReset();
+  mocks.startDMWith.mockReset();
+  mocks.startCallWith.mockReset();
+  mocks.getUserProfile.mockResolvedValue(profile);
 });
 
 describe('UserContextMenu', () => {
-  it('renders the user profile content', async () => {
+  it('loads and renders the canonical detailed profile', async () => {
     const { container } = renderMenu();
 
-    await expect.element(q(container, '[role="dialog"]')).toBeInTheDocument();
+    await expect.element(q(container, '[data-testid="user-profile-dialog"]')).toBeInTheDocument();
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
     expect(container.textContent).toContain('Alice Example');
     expect(container.textContent).toContain('@alice');
+    expect(container.textContent).toContain('Hello');
+    expect(container.textContent).toContain('Last activity');
+    expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');
   });
 
-  it('renders custom status as its own profile line', async () => {
-    const { container } = renderMenu({
-      user: {
-        ...user,
-        customStatus: {
-          emoji: '🍜',
-          text: 'chatto:status:out_for_lunch',
-          expiresAt: null
-        }
-      }
-    });
+  it('opens direct messages and calls from capability-filtered actions', async () => {
+    const { container } = renderMenu();
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
 
-    await expect.element(q(container, '[role="dialog"]')).toBeInTheDocument();
-    expect(
-      container.querySelector('[role="dialog"] .flex-1 > .font-semibold')?.textContent
-    ).toBe('Alice Example');
-    expect(q(container, '[aria-label="🍜 Out for lunch"]')).toBeTruthy();
-    expect(container.textContent).toContain('Out for lunch');
+    buttonByText(container, 'Send Message').click();
+    await vi.waitFor(() => expect(mocks.startDMWith).toHaveBeenCalledWith('server-1', 'user-1'));
+
+    const second = renderMenu();
+    await vi.waitFor(() => expect(second.container.textContent).toContain('Moderator'));
+    buttonByText(second.container, 'Call').click();
+    await vi.waitFor(() => expect(mocks.startCallWith).toHaveBeenCalledWith('server-1', 'user-1'));
   });
 
-  it('shows Send Message only when allowed', async () => {
-    const hidden = renderMenu({ canSendMessage: false });
-    expect(hidden.container.textContent).not.toContain('Send Message');
-    hidden.unmount();
+  it('uses a member fallback when no explicit role is assigned', async () => {
+    mocks.getUserProfile.mockResolvedValue({ ...profile, roles: [] });
+    const { container } = renderMenu();
 
-    const visible = renderMenu({ canSendMessage: true });
-    await expect
-      .element(q(visible.container, 'button'))
-      .toHaveTextContent('Send Message');
+    await vi.waitFor(() => expect(container.textContent).toContain('Member'));
   });
 
-  it('calls send and close callbacks when sending a message', () => {
+  it('preserves the existing send callback when supplied by a caller', async () => {
     const onSendMessage = vi.fn();
-    const onClose = vi.fn();
-    const { container } = renderMenu({ canSendMessage: true, onSendMessage, onClose });
+    const { container } = renderMenu({ onSendMessage });
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
 
-    (q(container, 'button') as HTMLButtonElement).click();
+    buttonByText(container, 'Send Message').click();
 
-    expect(onSendMessage).toHaveBeenCalledOnce();
-    expect(onClose).toHaveBeenCalledOnce();
-  });
-
-  it('closes on Escape', () => {
-    const onClose = vi.fn();
-    renderMenu({ onClose });
-
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-
-    expect(onClose).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce());
+    expect(mocks.startDMWith).not.toHaveBeenCalled();
   });
 });

@@ -54,5 +54,21 @@
       "in_room": "in",
       "in_room_capitalized": "In"
     }
+  },
+  "profile": {
+    "loading": "Loading profile…",
+    "load_failed": "Could not load this profile.",
+    "load_not_found": "This profile is no longer available.",
+    "roles": "Roles",
+    "member_role": "Member",
+    "joined": "Joined",
+    "last_activity": "Last activity",
+    "last_activity_hidden": "Hidden by user",
+    "last_activity_unavailable": "No recent activity",
+    "biography": "About",
+    "biography_empty": "No biography yet.",
+    "actions": "Profile actions",
+    "call": "Call",
+    "not_available": "Not available"
   }
 }

@@ -54,5 +54,21 @@
       "in_room": "em",
       "in_room_capitalized": "Em"
     }
+  },
+  "profile": {
+    "loading": "Carregando perfil…",
+    "load_failed": "Não foi possível carregar este perfil.",
+    "load_not_found": "Este perfil não está mais disponível.",
+    "roles": "Cargos",
+    "member_role": "Membro",
+    "joined": "Entrou em",
+    "last_activity": "Última atividade",
+    "last_activity_hidden": "Oculta pelo usuário",
+    "last_activity_unavailable": "Sem atividade recente",
+    "biography": "Sobre",
+    "biography_empty": "Ainda não há biografia.",
+    "actions": "Ações do perfil",
+    "call": "Ligar",
+    "not_available": "Indisponível"
   }
 }

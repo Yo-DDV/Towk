@@ -102,7 +102,29 @@
       },
       "saved": "Perfil atualizado com sucesso",
       "save_failed": "Falha ao salvar o perfil",
-      "save_button": "Salvar alterações"
+      "save_button": "Salvar alterações",
+      "details": {
+        "load_failed": "Não foi possível carregar os detalhes do perfil.",
+        "biography_title": "Biografia",
+        "biography_description": "Escreva uma breve biografia em Markdown para o seu perfil do servidor. HTML bruto e imagens remotas não são renderizados.",
+        "formatting_toolbar": "Formatação da biografia",
+        "link_text": "texto do link",
+        "add_link": "Adicionar link",
+        "inline_code": "Código em linha",
+        "biography_label": "Biografia em Markdown",
+        "biography_placeholder": "Conte aos outros membros um pouco sobre você…",
+        "byte_count": "{used} de {limit} bytes",
+        "preview": "Pré-visualização",
+        "biography_too_large": "A biografia excede o limite UTF-8 de 16 KiB.",
+        "biography_saved": "Biografia salva.",
+        "save_failed": "Não foi possível salvar os detalhes do perfil.",
+        "save_biography": "Salvar biografia",
+        "privacy_title": "Privacidade de atividade",
+        "show_last_activity": "Mostrar minha última atividade",
+        "show_last_activity_description": "Permite que membros autenticados deste servidor vejam o horário da sua última atividade consolidada. Desativar remove o valor armazenado.",
+        "privacy_saved": "Privacidade de atividade salva.",
+        "save_privacy": "Salvar privacidade"
+      }
     },
     "preferences": {
       "title": "Tela",

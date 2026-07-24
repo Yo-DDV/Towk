@@ -102,7 +102,29 @@
       },
       "saved": "Perfil actualizado exitosamente",
       "save_failed": "No se pudo guardar el perfil",
-      "save_button": "Guardar cambios"
+      "save_button": "Guardar cambios",
+      "details": {
+        "load_failed": "No se pudieron cargar los detalles del perfil.",
+        "biography_title": "Biografía",
+        "biography_description": "Escribe una breve biografía en Markdown para tu perfil del servidor. No se muestran HTML sin procesar ni imágenes remotas.",
+        "formatting_toolbar": "Formato de la biografía",
+        "link_text": "texto del enlace",
+        "add_link": "Añadir enlace",
+        "inline_code": "Código en línea",
+        "biography_label": "Biografía en Markdown",
+        "biography_placeholder": "Cuéntales a los demás miembros algo sobre ti…",
+        "byte_count": "{used} de {limit} bytes",
+        "preview": "Vista previa",
+        "biography_too_large": "La biografía supera el límite UTF-8 de 16 KiB.",
+        "biography_saved": "Biografía guardada.",
+        "save_failed": "No se pudieron guardar los detalles del perfil.",
+        "save_biography": "Guardar biografía",
+        "privacy_title": "Privacidad de actividad",
+        "show_last_activity": "Mostrar mi última actividad",
+        "show_last_activity_description": "Permite que los miembros autenticados de este servidor vean tu última hora de actividad consolidada. Al desactivarlo se elimina el valor guardado.",
+        "privacy_saved": "Privacidad de actividad guardada.",
+        "save_privacy": "Guardar privacidad"
+      }
     },
     "preferences": {
       "title": "Pantalla",
