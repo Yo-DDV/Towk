@@ -14,7 +14,12 @@
   import PwaLaunchHandler from '$lib/components/PwaLaunchHandler.svelte';
   import ServiceWorkerRegistrar from '$lib/components/ServiceWorkerRegistrar.svelte';
   import UpdateNotifier from '$lib/components/UpdateNotifier.svelte';
-  import { usePageTitle, usePinchZoomPrevention, useVisualViewport } from '$lib/hooks';
+  import {
+    useAutoHideScrollbars,
+    usePageTitle,
+    usePinchZoomPrevention,
+    useVisualViewport
+  } from '$lib/hooks';
   import { chatRoomIdFromRoute } from '$lib/navigation/chatRoomRoute';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
@@ -23,6 +28,7 @@
   import { ToastContainer } from '$lib/ui/toast';
   import { AppHeader, Frame } from '$lib/ui';
   import '../app.css';
+  import '$lib/styles/auto-hide-scrollbars.css';
 
   let { data, children } = $props();
   let modalContainerModule: Promise<typeof import('./chat/ModalContainer.svelte')> | null = null;
@@ -37,6 +43,7 @@
   useServerRegistry(() => data.user);
   useVisualViewport();
   usePinchZoomPrevention();
+  useAutoHideScrollbars();
 
   const activeServerId = $derived(getActiveServer());
   const activeRoomId = $derived(chatRoomIdFromRoute(page.route.id, page.params.roomId));

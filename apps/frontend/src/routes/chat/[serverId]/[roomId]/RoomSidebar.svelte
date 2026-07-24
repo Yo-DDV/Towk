@@ -30,10 +30,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import CollapsibleGroup from '$lib/ui/CollapsibleGroup.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
-  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
-  import { roomSidebarWidth } from '$lib/state/roomSidebarWidth.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
-  import { ROOM_SIDEBAR_MAX_WIDTH, ROOM_SIDEBAR_MIN_WIDTH } from '$lib/storage/roomSidebarWidth';
   import { serverStorageKey } from '$lib/storage/serverStorage';
   import { toast } from '$lib/ui/toast';
   import HeaderIconButton from '$lib/ui/HeaderIconButton.svelte';
@@ -41,6 +38,7 @@ calls, and similar room-specific panels can plug into the same shell. See the
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
   import VoiceCallPanel from '$lib/components/voice/VoiceCallPanel.svelte';
   import RoomFilesPanel from './RoomFilesPanel.svelte';
+  import { roomSidebarShellClass } from './roomSidebarBehavior';
 
   let {
     loading = false,
@@ -253,24 +251,10 @@ calls, and similar room-specific panels can plug into the same shell. See the
   bind:this={sidebarElement}
   class={[
     'relative flex min-h-0 flex-col bg-background',
-    presentation === 'desktop'
-      ? ['border-l border-border', maximized ? 'min-w-0 flex-1' : '']
-      : 'w-full min-w-0 flex-1 overflow-hidden'
+    roomSidebarShellClass(presentation, maximized)
   ]}
-  style:width={presentation === 'desktop' && !maximized ? `${roomSidebarWidth.value}px` : undefined}
   aria-label={m['room.sidebar.extras']()}
 >
-  {#if presentation === 'desktop' && !maximized}
-    <ResizeHandle
-      width={roomSidebarWidth.value}
-      min={ROOM_SIDEBAR_MIN_WIDTH}
-      max={ROOM_SIDEBAR_MAX_WIDTH}
-      onResize={(w) => roomSidebarWidth.set(w)}
-      onReset={() => roomSidebarWidth.reset()}
-      edge="left"
-      label={m['room.sidebar.resize']()}
-    />
-  {/if}
   <PaneHeader {title} {loading} skeletonButtons={0}>
     {#snippet actions()}
       {#if showMaximizeButton}

@@ -1360,6 +1360,7 @@ const msg_add_server_url_placeholder = (): LocalizedString => messages().add_ser
 const msg_emoji_search_placeholder = (): LocalizedString => messages().emoji_search_placeholder(empty());
 const msg_emoji_no_results = (): LocalizedString => messages().emoji_no_results(empty());
 const msg_emoji_recently_used = (): LocalizedString => messages().emoji_recently_used(empty());
+const msg_emoji_open_picker = (): LocalizedString => messages().emoji_open_picker(empty());
 const msg_emoji_categories_smileys_emotion = (): LocalizedString => messages().emoji_categories_smileys_emotion(empty());
 const msg_emoji_categories_people_body = (): LocalizedString => messages().emoji_categories_people_body(empty());
 const msg_emoji_categories_animals_nature = (): LocalizedString => messages().emoji_categories_animals_nature(empty());
@@ -3134,6 +3135,7 @@ export { msg_add_server_url_placeholder as 'add_server.url_placeholder' };
 export { msg_emoji_search_placeholder as 'emoji.search_placeholder' };
 export { msg_emoji_no_results as 'emoji.no_results' };
 export { msg_emoji_recently_used as 'emoji.recently_used' };
+export { msg_emoji_open_picker as 'emoji.open_picker' };
 export { msg_emoji_categories_smileys_emotion as 'emoji.categories.smileys_emotion' };
 export { msg_emoji_categories_people_body as 'emoji.categories.people_body' };
 export { msg_emoji_categories_animals_nature as 'emoji.categories.animals_nature' };
