@@ -5,7 +5,7 @@
       "load": "Carregar GIF externo",
       "loading": "A carregar GIF externo…",
       "load_failed": "Não foi possível carregar o GIF externo.",
-      "offline": "Este GIF externo não está disponível offline.",
+      "offline": "Este GIF externo pode não estar disponível offline.",
       "retry": "Tentar novamente",
       "hide": "Ocultar",
       "open_source": "Abrir fonte",
