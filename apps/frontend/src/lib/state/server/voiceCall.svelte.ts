@@ -13,7 +13,7 @@ import {
   AudioPresets,
   type AudioCaptureOptions,
   ConnectionState,
-  ScreenSharePresets,
+  VideoPreset,
   VideoQuality,
   DisconnectReason,
   ExternalE2EEKeyProvider,
@@ -29,6 +29,7 @@ import {
   type ReconnectPolicy,
   type ScreenShareCaptureOptions,
   type TrackPublishOptions,
+  type VideoCodec,
   type VideoCaptureOptions
 } from 'livekit-client';
 import { Code, ConnectError } from '@connectrpc/connect';
@@ -326,12 +327,21 @@ export class VoiceCallState {
   // True while LiveKit is applying local camera enable/disable changes.
   isCameraPending = $state(false);
   isScreenShareEnabled = $state(false);
+  screenShareHighFrameRate = $state(false);
   // True while LiveKit is applying local screen-share enable/disable changes.
   isScreenSharePending = $state(false);
 
   /** Live capability probe; unsupported mobile PWAs get an explicit explanation. */
   get canShareScreen(): boolean {
     return isScreenShareSupported();
+  }
+
+  get canUseHighFrameRateScreenShare(): boolean {
+    return this.canShareScreen && !isWebKitBasedClient();
+  }
+
+  setScreenShareHighFrameRate(enabled: boolean): void {
+    this.screenShareHighFrameRate = enabled && this.canUseHighFrameRateScreenShare;
   }
 
   /** Firefox exposes an explicit, user-activation-gated speaker picker. */
@@ -1507,8 +1517,9 @@ export class VoiceCallState {
       // to Bluetooth while LiveKit and the device inventory still retain the
       // logical route id. A logical route is also treated as Bluetooth while
       // any enumerated Bluetooth input could be hidden behind it.
-      bluetoothRoute:
-        routeDevices.some((device) => audioDeviceMayUseBluetooth(device, this.audioDevices)),
+      bluetoothRoute: routeDevices.some((device) =>
+        audioDeviceMayUseBluetooth(device, this.audioDevices)
+      ),
       documentVisible: typeof document === 'undefined' || document.visibilityState !== 'hidden',
       // A logical route is safe for enhanced processing only when the current
       // inventory contains no Bluetooth input that could replace its clock.
@@ -1605,8 +1616,8 @@ export class VoiceCallState {
         if (!newEnabled) return room.localParticipant.setScreenShareEnabled(false);
         return room.localParticipant.setScreenShareEnabled(
           true,
-          createScreenShareCaptureOptions(),
-          createScreenSharePublishOptions()
+          createScreenShareCaptureOptions(this.screenShareHighFrameRate),
+          createScreenSharePublishOptions(this.screenShareHighFrameRate)
         );
       });
       if (this.room !== room) return;
@@ -1986,6 +1997,7 @@ export class VoiceCallState {
       videoCaptureDefaults: createUncroppedCameraCaptureOptions(),
       publishDefaults: {
         audioPreset: AudioPresets.speech,
+        backupCodec: false,
         degradationPreference: 'maintain-framerate',
         dtx: true,
         // Voice capture is deliberately mono. Forcing a stereo Opus stream
@@ -1993,10 +2005,12 @@ export class VoiceCallState {
         // wastes bandwidth precisely when DTX/RED resilience matters most.
         forceStereo: false,
         red: true,
-        simulcast: true,
-        videoCodec: 'vp8'
+        simulcast: !isWebKitBasedClient(),
+        videoCodec: preferredCallVideoCodec(),
+        videoEncoding: CAMERA_ENCODING,
+        videoSimulcastLayers: cameraSimulcastLayers()
       },
-      adaptiveStream: true,
+      adaptiveStream: { pixelDensity: 'screen' },
       dynacast: true,
       disconnectOnPageLeave: true,
       reconnectPolicy: new PersistentReconnectPolicy()
@@ -2855,8 +2869,8 @@ export class VoiceCallState {
         await this.runExplicitMediaDeviceOperation(() =>
           room.localParticipant.setScreenShareEnabled(
             true,
-            createScreenShareCaptureOptions(),
-            createScreenSharePublishOptions()
+            createScreenShareCaptureOptions(this.screenShareHighFrameRate),
+            createScreenSharePublishOptions(this.screenShareHighFrameRate)
           )
         );
         if (!shouldContinue()) return;
@@ -3264,8 +3278,95 @@ function isScreenShareSupported(): boolean {
   );
 }
 
-function createScreenShareCaptureOptions(): ScreenShareCaptureOptions {
-  return {
+const CAMERA_ENCODING = {
+  maxBitrate: 3_500_000,
+  maxFramerate: 30,
+  priority: 'high' as const
+};
+
+const CAMERA_LOW_LAYER = new VideoPreset(480, 360, 500_000, 30, 'medium');
+const CAMERA_MID_LAYER = new VideoPreset(960, 720, 1_800_000, 30, 'medium');
+const SCREEN_SHARE_STANDARD_LAYER = new VideoPreset(1280, 720, 2_000_000, 30, 'high');
+
+const SCREEN_SHARE_ENCODING = {
+  maxBitrate: 8_000_000,
+  maxFramerate: 30,
+  priority: 'high' as const
+};
+
+const HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING = {
+  maxBitrate: 12_000_000,
+  maxFramerate: 60,
+  priority: 'high' as const
+};
+
+function isMobileWebClient(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const navigatorWithHints = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (navigatorWithHints.userAgentData?.mobile === true) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent ?? '');
+}
+
+function isWebKitBasedClient(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const userAgent = navigator.userAgent ?? '';
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return true;
+  // iPadOS can request the desktop site while retaining the Mobile token.
+  if (/Macintosh/i.test(userAgent) && /Mobile/i.test(userAgent)) return true;
+  return (
+    /Safari/i.test(userAgent) &&
+    !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|OPiOS|Android/i.test(userAgent)
+  );
+}
+
+/**
+ * WebRTC browsers are required to implement H.264 Constrained Baseline, but
+ * embedded or policy-restricted engines can still expose a reduced sender.
+ * Prefer packetization-mode 1 when capabilities expose format parameters.
+ * WebKit can omit them and negotiate H.264 mode 0, so a missing fmtp remains
+ * eligible. Retain a pre-publication VP8 fallback rather than failing the call.
+ */
+function preferredCallVideoCodec(): VideoCodec {
+  try {
+    const capabilities = globalThis.RTCRtpSender?.getCapabilities?.('video');
+    if (!capabilities?.codecs.length) return 'h264';
+    const supportsCompatibleH264 = capabilities.codecs.some((codec) => {
+      if (codec.mimeType.toLowerCase() !== 'video/h264') return false;
+      const parameters = codec.sdpFmtpLine?.toLowerCase();
+      return !parameters || /(?:^|;)\s*packetization-mode=1(?:;|$)/.test(parameters);
+    });
+    return supportsCompatibleH264 ? 'h264' : 'vp8';
+  } catch {
+    return 'h264';
+  }
+}
+
+function senderSupportsVideoCodec(codecName: string): boolean {
+  try {
+    const capabilities = globalThis.RTCRtpSender?.getCapabilities?.('video');
+    if (!capabilities?.codecs.length) return false;
+    const expectedMimeType = `video/${codecName}`.toLowerCase();
+    return capabilities.codecs.some((codec) => codec.mimeType.toLowerCase() === expectedMimeType);
+  } catch {
+    return false;
+  }
+}
+
+function preferredScreenShareVideoCodec(): VideoCodec {
+  if (!isWebKitBasedClient() && senderSupportsVideoCodec('vp8')) return 'vp8';
+  return preferredCallVideoCodec();
+}
+
+function cameraSimulcastLayers() {
+  if (isWebKitBasedClient()) return [];
+  // Mobile hardware commonly has fewer concurrent encoder sessions. Two
+  // spatial layers preserve an SFU downgrade path without asking for three
+  // simultaneous H.264 encodes on a thermally constrained handset.
+  return isMobileWebClient() ? [CAMERA_LOW_LAYER] : [CAMERA_LOW_LAYER, CAMERA_MID_LAYER];
+}
+
+function createScreenShareCaptureOptions(highFrameRate = false): ScreenShareCaptureOptions {
+  const options: ScreenShareCaptureOptions = {
     audio: true,
     video: { displaySurface: 'browser' },
     contentHint: 'motion',
@@ -3273,18 +3374,30 @@ function createScreenShareCaptureOptions(): ScreenShareCaptureOptions {
     surfaceSwitching: 'include',
     systemAudio: 'exclude'
   };
+  // LiveKit intentionally leaves Safari capture unconstrained because Safari
+  // 17 can collapse the captured resolution when explicit dimensions are set.
+  // Chromium and Firefox can request a 60 FPS source and naturally return a
+  // lower supported cadence when the display or encoder cannot sustain it.
+  if (!isWebKitBasedClient()) {
+    options.resolution = { width: 1920, height: 1080, frameRate: highFrameRate ? 60 : 30 };
+  }
+  return options;
 }
 
-function createScreenSharePublishOptions(): TrackPublishOptions {
+function createScreenSharePublishOptions(highFrameRate = false): TrackPublishOptions {
   return {
     audioPreset: AudioPresets.musicHighQualityStereo,
+    backupCodec: false,
     degradationPreference: 'maintain-resolution',
     dtx: true,
     forceStereo: true,
     red: true,
-    screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
-    screenShareSimulcastLayers: [ScreenSharePresets.h360fps15, ScreenSharePresets.h720fps30],
-    simulcast: true
+    screenShareEncoding: highFrameRate
+      ? HIGH_FRAME_RATE_SCREEN_SHARE_ENCODING
+      : SCREEN_SHARE_ENCODING,
+    screenShareSimulcastLayers: [SCREEN_SHARE_STANDARD_LAYER],
+    simulcast: !isWebKitBasedClient(),
+    videoCodec: preferredScreenShareVideoCodec()
   };
 }
 

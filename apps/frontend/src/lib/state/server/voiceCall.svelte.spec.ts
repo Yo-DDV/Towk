@@ -391,6 +391,19 @@ vi.mock('livekit-client', () => {
     },
     VideoQuality: { HIGH: 2 },
     VideoPresets: { h720: { resolution: { width: 1280, height: 720 } } },
+    VideoPreset: class MockVideoPreset {
+      encoding: { maxBitrate: number; maxFramerate: number; priority?: RTCPriorityType };
+
+      constructor(
+        public width: number,
+        public height: number,
+        maxBitrate: number,
+        maxFramerate: number,
+        priority?: RTCPriorityType
+      ) {
+        this.encoding = { maxBitrate, maxFramerate, priority };
+      }
+    },
     DisconnectReason: {
       UNKNOWN_REASON: 0,
       CLIENT_INITIATED: 1,
@@ -1225,12 +1238,27 @@ describe('VoiceCallState', () => {
     expect(lastRoomOptions?.audioCaptureDefaults).not.toHaveProperty('processor');
     expect(lastRoomOptions?.publishDefaults).toMatchObject({
       audioPreset: AudioPresets.speech,
+      backupCodec: false,
       degradationPreference: 'maintain-framerate',
       dtx: true,
       forceStereo: false,
       red: true,
-      videoCodec: 'vp8'
+      videoCodec: 'h264',
+      videoEncoding: { maxBitrate: 3_500_000, maxFramerate: 30, priority: 'high' },
+      videoSimulcastLayers: [
+        {
+          encoding: { maxBitrate: 500_000, maxFramerate: 30, priority: 'medium' },
+          width: 480,
+          height: 360
+        },
+        {
+          encoding: { maxBitrate: 1_800_000, maxFramerate: 30, priority: 'medium' },
+          width: 960,
+          height: 720
+        }
+      ]
     });
+    expect(lastRoomOptions?.adaptiveStream).toEqual({ pixelDensity: 'screen' });
     expect(lastRoomOptions?.publishDefaults?.audioPreset?.maxBitrate).toBe(24_000);
     expect(microphoneSetProcessor).toHaveBeenCalledOnce();
     expect(state.microphoneProcessing).toEqual({
@@ -2454,7 +2482,7 @@ describe('VoiceCallState', () => {
     expect(state.matchesActiveCall('R1', null)).toBe(false);
   });
 
-  it('publishes adaptive 30 FPS screen sharing and requests browser-tab audio', async () => {
+  it('publishes adaptive high-resolution screen sharing at 30 FPS and requests browser-tab audio', async () => {
     const client = createVoiceCallClient();
     const state = new VoiceCallState(client);
     await state.join('wss://livekit.example.test', 'R1');
@@ -2467,19 +2495,28 @@ describe('VoiceCallState', () => {
         audio: true,
         video: { displaySurface: 'browser' },
         contentHint: 'motion',
+        resolution: { width: 1920, height: 1080, frameRate: 30 },
         selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include',
         systemAudio: 'exclude'
       },
       {
         audioPreset: AudioPresets.musicHighQualityStereo,
+        backupCodec: false,
         degradationPreference: 'maintain-resolution',
         dtx: true,
         forceStereo: true,
         red: true,
-        screenShareEncoding: ScreenSharePresets.h1080fps30.encoding,
-        screenShareSimulcastLayers: [ScreenSharePresets.h360fps15, ScreenSharePresets.h720fps30],
-        simulcast: true
+        screenShareEncoding: { maxBitrate: 8_000_000, maxFramerate: 30, priority: 'high' },
+        screenShareSimulcastLayers: [
+          expect.objectContaining({
+            encoding: { maxBitrate: 2_000_000, maxFramerate: 30, priority: 'high' },
+            width: 1280,
+            height: 720
+          })
+        ],
+        simulcast: true,
+        videoCodec: 'vp8'
       }
     );
     expect(state.isScreenShareEnabled).toBe(true);
@@ -2500,6 +2537,147 @@ describe('VoiceCallState', () => {
     expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(false);
     expect(state.isScreenShareEnabled).toBe(false);
     expect(state.participants[0].screenShareTrack).toBeNull();
+  });
+
+  it('uses the opt-in 60 FPS screen-share profile without changing the stable default', async () => {
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+    state.setScreenShareHighFrameRate(true);
+
+    await state.toggleScreenShare();
+
+    expect(lastRoom?.localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        resolution: { width: 1920, height: 1080, frameRate: 60 }
+      }),
+      expect.objectContaining({
+        screenShareEncoding: { maxBitrate: 12_000_000, maxFramerate: 60, priority: 'high' }
+      })
+    );
+  });
+
+  it('falls back to VP8 only when the sender explicitly reports no H.264 encoder', async () => {
+    vi.stubGlobal(
+      'RTCRtpSender',
+      class MockRTCRtpSender {
+        static getCapabilities(): RTCRtpCapabilities {
+          return {
+            codecs: [{ mimeType: 'video/VP8', clockRate: 90_000 }],
+            headerExtensions: []
+          };
+        }
+      }
+    );
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(lastRoomOptions?.publishDefaults?.videoCodec).toBe('vp8');
+  });
+
+  it('prefers VP8 for desktop screen sharing while keeping H.264 for camera publication', async () => {
+    vi.stubGlobal(
+      'RTCRtpSender',
+      class MockRTCRtpSender {
+        static getCapabilities(): RTCRtpCapabilities {
+          return {
+            codecs: [
+              {
+                mimeType: 'video/H264',
+                clockRate: 90_000,
+                sdpFmtpLine: 'level-asymmetry-allowed=1;packetization-mode=1'
+              },
+              { mimeType: 'video/VP8', clockRate: 90_000 }
+            ],
+            headerExtensions: []
+          };
+        }
+      }
+    );
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+    await state.toggleScreenShare();
+
+    expect(lastRoomOptions?.publishDefaults?.videoCodec).toBe('h264');
+    expect(
+      vi.mocked(lastRoom!.localParticipant.setScreenShareEnabled).mock.calls[0]?.[2]
+    ).toMatchObject({
+      videoCodec: 'vp8',
+      screenShareSimulcastLayers: [
+        {
+          encoding: { maxBitrate: 2_000_000, maxFramerate: 30, priority: 'high' },
+          width: 1280,
+          height: 720
+        }
+      ]
+    });
+  });
+
+  it('limits mobile camera publication to two 30 FPS spatial layers', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: navigator.mediaDevices,
+      userAgent: 'Mozilla/5.0 (Linux; Android 15; Mobile)',
+      userAgentData: { mobile: true }
+    });
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+
+    await state.join('wss://livekit.example.test', 'R1');
+
+    expect(lastRoomOptions?.publishDefaults?.videoSimulcastLayers).toEqual([
+      {
+        encoding: { maxBitrate: 500_000, maxFramerate: 30, priority: 'medium' },
+        width: 480,
+        height: 360
+      }
+    ]);
+    expect(lastRoomOptions?.publishDefaults?.videoEncoding?.maxFramerate).toBe(30);
+  });
+
+  it('does not constrain Safari screen capture while keeping the H.264 publish profile', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: navigator.mediaDevices,
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.1 Safari/605.1.15'
+    });
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    await state.toggleScreenShare();
+
+    const call = vi.mocked(lastRoom!.localParticipant.setScreenShareEnabled).mock.calls[0];
+    expect(call?.[1]).not.toHaveProperty('resolution');
+    expect(call?.[2]).toMatchObject({ videoCodec: 'h264', backupCodec: false, simulcast: false });
+    state.setScreenShareHighFrameRate(true);
+    expect(state.screenShareHighFrameRate).toBe(false);
+    expect(lastRoomOptions?.publishDefaults).toMatchObject({
+      simulcast: false,
+      videoSimulcastLayers: []
+    });
+  });
+
+  it('applies the WebKit capture and simulcast safeguards to Chrome on iOS', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: navigator.mediaDevices,
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 CriOS/120.0 Mobile/15E148 Safari/604.1'
+    });
+    const client = createVoiceCallClient();
+    const state = new VoiceCallState(client);
+    await state.join('wss://livekit.example.test', 'R1');
+
+    await state.toggleScreenShare();
+
+    const call = vi.mocked(lastRoom!.localParticipant.setScreenShareEnabled).mock.calls[0];
+    expect(call?.[1]).not.toHaveProperty('resolution');
+    expect(call?.[2]).toMatchObject({ simulcast: false });
+    expect(lastRoomOptions?.publishDefaults?.simulcast).toBe(false);
   });
 
   it('marks and confirms shared browser-tab audio when the browser supplies it', async () => {
@@ -3230,10 +3408,7 @@ describe('VoiceCallState', () => {
     await state.setAudioDevice('bluetooth-microphone');
 
     expect(microphoneStopProcessor).toHaveBeenCalledOnce();
-    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith(
-      'audioinput',
-      'bluetooth-microphone'
-    );
+    expect(lastRoom?.switchActiveDevice).toHaveBeenCalledWith('audioinput', 'bluetooth-microphone');
     expect(microphoneStopProcessor.mock.invocationCallOrder[0]).toBeLessThan(
       lastRoom!.switchActiveDevice.mock.invocationCallOrder[0]
     );

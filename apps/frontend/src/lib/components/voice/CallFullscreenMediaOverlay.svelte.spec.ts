@@ -26,6 +26,7 @@ function openScreenShare(onClose?: () => void) {
       avatarUrl: null,
       presenceStatus: PresenceStatus.Online
     },
+    diagnosticsDirection: 'inbound',
     onClose
   });
 
@@ -40,7 +41,9 @@ describe('CallFullscreenMediaOverlay', () => {
     const { container } = render(CallFullscreenMediaOverlayHarness);
 
     await vi.waitFor(() => {
-      expect(container.querySelector('[data-testid="call-fullscreen-media-overlay"]')).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="call-fullscreen-media-overlay"]')
+      ).not.toBeNull();
     });
 
     const dialog = container.querySelector(
@@ -69,8 +72,11 @@ describe('CallFullscreenMediaOverlay', () => {
     expect(parseFloat(getComputedStyle(header).paddingLeft)).toBeCloseTo(9 + toolbarPadding);
     expect(dialog.querySelector('main')?.className).toContain('h-full');
     expect(video.className).toContain('object-contain');
-    expect((track.attach as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(video);
+    expect(track.attach as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(video);
     expect(closeButton.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    expect(
+      dialog.querySelector('[data-testid="call-fullscreen-screen-share-stats-button"]')
+    ).not.toBeNull();
     expect(document.body.style.overflow).toBe('hidden');
 
     closeButton.click();
@@ -78,8 +84,41 @@ describe('CallFullscreenMediaOverlay', () => {
 
     expect(callFullscreenMedia.isOpen).toBe(false);
     expect(container.querySelector('[data-testid="call-fullscreen-media-overlay"]')).toBeNull();
-    expect((track.detach as ReturnType<typeof vi.fn>)).toHaveBeenCalledWith(video);
+    expect(track.detach as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(video);
     expect(document.body.style.overflow).toBe('');
+  });
+
+  it('opens screen-share diagnostics from the fullscreen fallback overlay', async () => {
+    openScreenShare();
+    render(CallFullscreenMediaOverlayHarness);
+
+    const statsButton = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLButtonElement>(
+        '[data-testid="call-fullscreen-screen-share-stats-button"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+
+    statsButton.click();
+
+    const panel = await vi.waitFor(() => {
+      const value = document.querySelector<HTMLElement>(
+        '[data-testid="screen-share-diagnostics-panel"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(statsButton.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.closest('[data-testid="call-fullscreen-media-overlay"]')).not.toBeNull();
+    expect(panel.parentElement?.tagName).toBe('MAIN');
+
+    document
+      .querySelector<HTMLButtonElement>('[data-testid="screen-share-diagnostics-close"]')!
+      .click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull()
+    );
   });
 
   it('closes with Escape and keeps Tab focus inside the dialog', async () => {
@@ -110,7 +149,9 @@ describe('CallFullscreenMediaOverlay', () => {
     await vi.waitFor(() => {
       expect(container.querySelector('[data-testid="call-fullscreen-media-close"]')).not.toBeNull();
     });
-    (container.querySelector('[data-testid="call-fullscreen-media-close"]') as HTMLButtonElement).click();
+    (
+      container.querySelector('[data-testid="call-fullscreen-media-close"]') as HTMLButtonElement
+    ).click();
     await tick();
 
     expect(onClose).toHaveBeenCalledOnce();

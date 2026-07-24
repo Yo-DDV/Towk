@@ -9,8 +9,9 @@ Manages the attach/detach lifecycle imperatively — only detaches/reattaches
 when the track reference actually changes, not on every parent re-render.
 This prevents flicker from the 60ms audio level polling in VoiceCallPanel.
 
-The explicit width/height attributes tell LiveKit's `adaptiveStream` what
-resolution to request for sidebar-width tiles.
+LiveKit's `adaptiveStream` observes the rendered `clientWidth/clientHeight` of
+the attached `<video>` element, so this component must keep the video sized to
+the actual tile rather than a hidden or detached placeholder.
 
 **Props:**
 - `track` - The LiveKit video Track to display
