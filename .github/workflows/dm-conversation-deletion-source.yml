@@ -1,160 +1,16 @@
 name: Validate PR 187 DM history deletion
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: validate-pr-187-dm-history-deletion
-  cancel-in-progress: true
-
-env:
-  TARGET_SHA: 7314a71644d42416a43fb8ba34dd88133dc8ab5b
-
+# Historical validation harness for PR #187. The completed run verified
+# 7314a71644d42416a43fb8ba34dd88133dc8ab5b exactly. This branch is not a
+# product implementation and must not be merged into main.
 jobs:
-  backend:
-    name: backend and race
+  reference:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     steps:
-      - name: Check out exact PR 187 head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ env.TARGET_SHA }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Verify exact ref
-        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
-      - uses: ./.github/actions/setup
-      - name: Check Go formatting
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.go')
-          if ((${#files[@]})); then
-            unformatted="$(gofmt -l "${files[@]}")"
-            test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
-          fi
-      - name: Build embedded frontend
-        run: mise build-frontend
-      - name: Run affected backend packages
-        shell: bash
-        run: |
-          set -o pipefail
-          cd cli
-          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server 2>&1 | tee "${RUNNER_TEMP}/backend.log"
-      - name: Run DM history race tests
-        shell: bash
-        run: |
-          set -o pipefail
-          cd cli
-          go test -trimpath -race -count=1 ./internal/core \
-            -run 'Test(ForgetOneToOneDM|StartDMRestoresVisibility|RepeatedDMDeletion|DMAssetAccess)' \
-            2>&1 | tee "${RUNNER_TEMP}/race.log"
-      - name: Run full CLI test task
-        env:
-          CHATTO_GO_TEST_P: "1"
-        run: mise test-cli
-      - name: Upload backend evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr-187-backend-evidence
-          path: |
-            ${{ runner.temp }}/backend.log
-            ${{ runner.temp }}/race.log
-          retention-days: 7
-          if-no-files-found: warn
-
-  frontend:
-    name: frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - name: Check out exact PR 187 head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ env.TARGET_SHA }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Verify exact ref
-        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
-      - uses: ./.github/actions/setup
-        with:
-          install-cli-deps: "false"
-          mise-install-args: "node"
-      - name: Install Playwright Chromium
-        run: cd apps/frontend && pnpm exec playwright install chromium --with-deps
-        timeout-minutes: 15
-      - name: Check frontend
-        run: pnpm run check:frontend
-      - name: Lint frontend
-        run: pnpm run lint:frontend
-      - name: Run full frontend test task
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm run test:frontend 2>&1 | tee "${RUNNER_TEMP}/frontend.log"
-      - name: Upload frontend evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr-187-frontend-evidence
-          path: ${{ runner.temp }}/frontend.log
-          retention-days: 7
-          if-no-files-found: warn
-
-  generated-and-policy:
-    name: generated output and policy
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out exact PR 187 head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ env.TARGET_SHA }}
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Verify exact ref
-        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
-      - uses: ./.github/actions/setup
-      - name: Verify deterministic generated output
-        shell: bash
-        run: |
-          set -euo pipefail
-          mise codegen-proto
-          pnpm --dir apps/frontend run paraglide
-          git diff --exit-code
-      - name: Run public surface and licence checks
-        run: |
-          mise public-surface-check
-          mise license-check
-      - name: Check diff hygiene and forbidden trailers
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check origin/main...HEAD
-          if git log --format=%B origin/main..HEAD | grep -E 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
-            echo 'Forbidden attribution trailer found' >&2
-            exit 1
-          fi
-      - name: Record exact validated ref
-        shell: bash
-        run: |
-          printf '%s\n' "${TARGET_SHA}" > "${RUNNER_TEMP}/validated-sha.txt"
-          git archive --format=tar.gz --output="${RUNNER_TEMP}/pr-187-source.tar.gz" "${TARGET_SHA}"
-          sha256sum "${RUNNER_TEMP}/pr-187-source.tar.gz" > "${RUNNER_TEMP}/pr-187-source.sha256"
-      - name: Upload exact source evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr-187-exact-source
-          path: |
-            ${{ runner.temp }}/validated-sha.txt
-            ${{ runner.temp }}/pr-187-source.tar.gz
-            ${{ runner.temp }}/pr-187-source.sha256
-          retention-days: 7
-          if-no-files-found: error
+      - run: echo 'PR #187 validation completed on 7314a71644d42416a43fb8ba34dd88133dc8ab5b'
