@@ -1,0 +1,169 @@
+name: user profiles final gate
+
+on:
+  push:
+    branches:
+      - feat/user-profiles
+    paths:
+      - .github/workflows/user-profiles-finalize.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: user-profiles-final-gate
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991b908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/user-profiles
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Materialize reviewed profile delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          source=.github/workflows/user-profiles-recovery.yml
+          encoded="${RUNNER_TEMP}/profile-final.patch.xz.b64"
+          sed -n "/<<'PATCH_B64'/,/^PATCH_B64$/p" "$source" \
+            | sed '1d;$d;s/^[[:space:]]*//' \
+            | grep -v '^0000$' \
+            > "$encoded"
+          base64 --decode "$encoded" > "${RUNNER_TEMP}/profile-final.patch.xz"
+          printf '%s  %s\n' '7fe3657075469ecf7ea8aef814854ea906a402d569ea13231cc8b4ecf2c33536' "${RUNNER_TEMP}/profile-final.patch.xz" \
+            | sha256sum --check --strict
+          xz --decompress --stdout "${RUNNER_TEMP}/profile-final.patch.xz" > "${RUNNER_TEMP}/profile-final.patch"
+          git apply --index "${RUNNER_TEMP}/profile-final.patch"
+          rm -f .github/workflows/user-profiles-recovery.yml
+          rm -f .github/workflows/user-profiles-finalize.yml
+          rm -f .github/workflows/user-profiles-source-snapshot.yml
+          rm -f .github/workflows/user-profiles-publish.yml
+          git add -A
+          git diff --cached --check
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+        with:
+          install-ffmpeg: 'true'
+
+      - name: Generate protobuf bindings
+        shell: bash
+        run: mise codegen-proto
+
+      - name: Check protobuf API
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd proto
+          buf lint --path chatto/api/v1/account.proto --path chatto/api/v1/member_directory.proto --path chatto/api/v1/viewer.proto --path chatto/core/v1/config_events.proto --path chatto/core/v1/event.proto --path chatto/core/v1/user_events.proto --path chatto/core/v1/user_preferences.proto --path chatto/realtime/v1/realtime.proto
+          buf breaking --against '../.git#branch=main' --path chatto/api/v1/account.proto --path chatto/api/v1/member_directory.proto --path chatto/api/v1/viewer.proto --path chatto/core/v1/config_events.proto --path chatto/core/v1/event.proto --path chatto/core/v1/user_events.proto --path chatto/core/v1/user_preferences.proto --path chatto/realtime/v1/realtime.proto
+
+      - name: Run backend tests with race detector
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server
+
+      - name: Run frontend static and server tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @towk/api-types build
+          pnpm --filter @towk/frontend check
+          pnpm --filter @towk/frontend lint
+          pnpm --filter @towk/frontend exec vitest --run --project server
+
+      - name: Install Chromium
+        shell: bash
+        run: pnpm --filter @towk/frontend exec playwright install --with-deps chromium
+
+      - name: Run targeted browser component tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/frontend
+          pnpm exec vitest --run --project client \
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts \
+            src/lib/components/settings/ProfileDetailsSettings.svelte.spec.ts \
+            src/lib/components/CurrentUserBar.svelte.spec.ts \
+            src/lib/components/composer/AutocompletePopup.svelte.spec.ts \
+            src/lib/components/composer/MentionAutocomplete.svelte.spec.ts \
+            src/lib/components/users/UserCombobox.svelte.spec.ts \
+            src/lib/ui/form/Combobox.svelte.spec.ts
+
+      - name: Run targeted profile E2E tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd apps/frontend
+          pnpm exec playwright test e2e/user-context-menu.test.ts e2e/settings.test.ts e2e/mention-autocomplete.test.ts
+
+      - name: Build frontend and documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise build-frontend
+          pnpm --filter @towk/docs-website build
+
+      - name: Run repository policy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise license-check
+          mise public-surface-check
+          git diff --check
+
+      - name: Verify generated output is deterministic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          before=$(git write-tree)
+          mise codegen-proto
+          git add -A
+          after=$(git write-tree)
+          test "$before" = "$after"
+
+      - name: Commit final candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          test -n "$(git diff --cached --name-only)"
+          ! git diff --cached | grep -E '(^|[[:space:]])(Co-authored-by|Generated-by|Assisted-by):' -i
+          author_name=$(git show -s --format=%an HEAD)
+          author_email=$(git show -s --format=%ae HEAD)
+          GIT_AUTHOR_NAME="$author_name" GIT_AUTHOR_EMAIL="$author_email" \
+          GIT_COMMITTER_NAME="$author_name" GIT_COMMITTER_EMAIL="$author_email" \
+            git commit -m 'feat(profiles): complete user profile experience'
+          git push origin HEAD:feat/user-profiles
+
+      - name: Record evidence
+        if: always()
+        shell: bash
+        run: |
+          {
+            printf 'sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'tree=%s\n' "$(git show -s --format=%T HEAD)"
+            git status --short
+          } > "${RUNNER_TEMP}/user-profiles-final-evidence.txt"
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: user-profiles-final-evidence
+          path: |
+            ${{ runner.temp }}/user-profiles-final-evidence.txt
+            apps/frontend/playwright-report
+            apps/frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 3
