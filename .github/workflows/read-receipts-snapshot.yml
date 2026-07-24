@@ -15,6 +15,9 @@ concurrency:
 jobs:
   generate-and-test:
     runs-on: ubuntu-latest
+    env:
+      SOURCE_BLOB_SHA: b9cf3d22e7866220aaf58becab02a7914ef617f7
+      SOURCE_ARCHIVE_SHA256: 8295b46b85cd927f02eb384d987994c638a59c47834f42b4f2d4dcc6bee66737
     steps:
       - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -24,6 +27,39 @@ jobs:
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
+      - name: Materialize reviewed source bundle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${SOURCE_BLOB_SHA}" \
+            | jq -r '.content' | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/read-receipts-source.tar.gz"
+          printf '%s  %s\n' "${SOURCE_ARCHIVE_SHA256}" "${RUNNER_TEMP}/read-receipts-source.tar.gz" \
+            | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/read-receipts-source.tar.gz" -C "${GITHUB_WORKSPACE}"
+          gofmt -w \
+            cli/internal/connectapi/account.go \
+            cli/internal/connectapi/errors.go \
+            cli/internal/connectapi/read_state.go \
+            cli/internal/connectapi/server_state.go \
+            cli/internal/connectapi/viewer.go \
+            cli/internal/core/config_manager.go \
+            cli/internal/core/config_projection.go \
+            cli/internal/core/errors.go \
+            cli/internal/core/my_events_model.go \
+            cli/internal/core/read_receipts.go \
+            cli/internal/core/rooms.go \
+            cli/internal/core/server_state_management.go \
+            cli/internal/core/user_preferences.go \
+            cli/internal/core/users.go \
+            cli/internal/http_server/realtime.go
+
       - name: Generate protobuf bindings
         id: codegen
         continue-on-error: true
@@ -31,6 +67,15 @@ jobs:
         run: |
           set -o pipefail
           mise codegen-proto 2>&1 | tee "${RUNNER_TEMP}/read-receipts-codegen.log"
+
+      - name: Lint protobuf API
+        id: proto_lint
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cd proto
+          buf lint 2>&1 | tee "${RUNNER_TEMP}/read-receipts-buf-lint.log"
 
       - name: Run targeted backend tests
         id: backend
@@ -42,16 +87,28 @@ jobs:
           go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
             | tee "${RUNNER_TEMP}/read-receipts-backend.log"
 
+      - name: Check generated and formatted diff
+        id: diff
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          git diff --check 2>&1 | tee "${RUNNER_TEMP}/read-receipts-diff.log"
+
       - name: Record development gate status
         if: ${{ always() }}
         shell: bash
         env:
           CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
+          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
           BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
         run: |
           {
             printf 'codegen=%s\n' "${CODEGEN_OUTCOME}"
+            printf 'proto_lint=%s\n' "${PROTO_LINT_OUTCOME}"
             printf 'backend=%s\n' "${BACKEND_OUTCOME}"
+            printf 'diff=%s\n' "${DIFF_OUTCOME}"
             printf 'sha=%s\n' "${GITHUB_SHA}"
             printf 'tree=%s\n' "$(git show -s --format=%T HEAD)"
           } > "${RUNNER_TEMP}/read-receipts-status.txt"
@@ -71,7 +128,9 @@ jobs:
           path: |
             ${{ runner.temp }}/towk-read-receipts-workspace.tar.gz
             ${{ runner.temp }}/read-receipts-codegen.log
+            ${{ runner.temp }}/read-receipts-buf-lint.log
             ${{ runner.temp }}/read-receipts-backend.log
+            ${{ runner.temp }}/read-receipts-diff.log
             ${{ runner.temp }}/read-receipts-status.txt
           retention-days: 1
           if-no-files-found: error
@@ -81,7 +140,11 @@ jobs:
         shell: bash
         env:
           CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
+          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
           BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
         run: |
           test "${CODEGEN_OUTCOME}" = success
+          test "${PROTO_LINT_OUTCOME}" = success
           test "${BACKEND_OUTCOME}" = success
+          test "${DIFF_OUTCOME}" = success
