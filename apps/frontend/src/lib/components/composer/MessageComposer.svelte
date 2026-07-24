@@ -438,6 +438,12 @@
   let fileInputElement = $state<HTMLInputElement>();
   let voiceRecorderActive = $state(false);
 
+  // Keep voice capture mutually exclusive with any editor content, including
+  // whitespace or draft text that is not yet sendable. The send affordance is
+  // promoted only for text that passes the existing visible-content policy.
+  let hasComposerText = $derived(message.length > 0);
+  let hasSendableText = $derived(hasVisibleContent(message));
+
   // A realtime disconnect does not prevent composing or queueing a message.
   // Note: loading is intentionally excluded — the editor stays editable during sends
   // so users can type the next message while the current one is in flight.
@@ -452,7 +458,7 @@
       !roleMentionCheckLoading &&
       !inputDisabled &&
       attachments.pendingCount === 0 &&
-      (hasVisibleContent(message) || hasSendableAttachments || isEditing)
+      (hasSendableText || hasSendableAttachments || isEditing)
   );
   let editorNextEnterWillSend = $state(false);
   let manualRichMode = $state(false);
@@ -1311,7 +1317,7 @@
 
       {#if !isEditing && canVoice}
         <VoiceMessageRecorder
-          disabled={inputDisabled || loading || roleMentionCheckLoading}
+          disabled={inputDisabled || loading || roleMentionCheckLoading || hasComposerText}
           maxUploadSize={serverInfo.maxVoiceMessageUploadSize}
           onSend={sendVoiceMessage}
           onActiveChange={(active) => (voiceRecorderActive = active)}
@@ -1322,10 +1328,15 @@
         <!-- Send button -->
         <button
           type="button"
+          data-testid="message-send-button"
+          data-ready={hasSendableText && canSubmit ? 'true' : 'false'}
           onpointerdown={(e) => e.preventDefault()}
           onclick={handleSubmit}
           disabled={!canSubmit}
-          class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted transition-[color,background-color,scale] duration-100 active:scale-[0.96] enabled:hover:bg-surface-highlighted enabled:hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+          class={[
+            'composer-send-button flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-muted active:scale-[0.96] enabled:hover:bg-surface-highlighted disabled:cursor-not-allowed disabled:opacity-50',
+            hasSendableText && canSubmit && 'composer-send-button--ready'
+          ]}
           aria-label={m['composer.send']()}
           title={isRichComposer ? m['composer.send_ctrl_enter']() : m['composer.send_enter']()}
         >
@@ -1448,6 +1459,43 @@
       0 0 1.15rem color-mix(in srgb, var(--composer-focus-orange) 24%, transparent);
   }
 
+  .composer-focus-shell :global([data-testid='voice-message-record-button']) {
+    transition:
+      color 140ms ease,
+      background-color 140ms ease,
+      opacity 140ms ease,
+      transform 100ms ease;
+  }
+
+  .composer-focus-shell :global([data-testid='voice-message-record-button']:disabled) {
+    color: var(--color-muted);
+    opacity: 0.38;
+  }
+
+  .composer-send-button {
+    transition:
+      color 150ms ease,
+      background-color 150ms ease,
+      opacity 150ms ease;
+  }
+
+  .composer-send-button--ready {
+    color: #e8783b;
+    color: var(--composer-focus-orange);
+  }
+
+  .composer-send-button--ready > span {
+    animation: composer-send-float 2.2s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  .composer-send-button--ready:hover {
+    color: #f9a763;
+    color: var(--composer-focus-highlight);
+    background-color: rgba(232, 120, 59, 0.1);
+    background-color: color-mix(in srgb, var(--composer-focus-orange) 10%, transparent);
+  }
+
   @supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
     .composer-focus-shell::before {
       position: absolute;
@@ -1511,9 +1559,21 @@
     }
   }
 
+  @keyframes composer-send-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-0.75px);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .composer-focus-shell,
-    .composer-focus-shell::before {
+    .composer-focus-shell::before,
+    .composer-send-button,
+    .composer-focus-shell :global([data-testid='voice-message-record-button']) {
       transition: none;
     }
 
@@ -1522,8 +1582,14 @@
       opacity: 0;
     }
 
+    .composer-send-button--ready > span,
     .sending {
       animation: none;
+    }
+
+    .composer-send-button--ready > span {
+      transform: none;
+      will-change: auto;
     }
   }
 </style>
