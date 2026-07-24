@@ -91,6 +91,7 @@
 
     returningToDefaultServer = true;
     sidebarNav.open();
+    // eslint-disable-next-line svelte/no-navigation-without-resolve -- target comes from resolveLastPosition() or resolve()
     void goto(target)
       .then(() => sidebarNav.open())
       .catch((error) => {
