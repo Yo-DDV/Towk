@@ -1,0 +1,45 @@
+name: user profiles recovery snapshot
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/user-profiles-recovery.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: user-profiles-recovery-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out profile branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/user-profiles
+          persist-credentials: false
+
+      - name: Archive tracked source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files -z | tar --null -T - -czf "${RUNNER_TEMP}/towk-user-profiles-current.tar.gz"
+          {
+            printf 'sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'tree=%s\n' "$(git show -s --format=%T HEAD)"
+          } > "${RUNNER_TEMP}/towk-user-profiles-current-status.txt"
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: towk-user-profiles-current
+          path: |
+            ${{ runner.temp }}/towk-user-profiles-current.tar.gz
+            ${{ runner.temp }}/towk-user-profiles-current-status.txt
+          retention-days: 1
+          if-no-files-found: error
