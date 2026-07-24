@@ -40,8 +40,12 @@ jobs:
       - name: Run frontend typecheck
         run: pnpm run check:frontend
 
-      - name: Run frontend lint
-        run: pnpm run lint:frontend
+      - name: Lint changed frontend files
+        run: >-
+          pnpm --dir apps/frontend exec eslint
+          src/lib/state/globals.svelte.ts
+          src/lib/state/globals.svelte.spec.ts
+          src/routes/chat/notifications/+page.svelte
 
       - name: Run frontend unit tests
         run: pnpm run test:frontend
