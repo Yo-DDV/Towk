@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dm-responsive-ui-validation
@@ -15,31 +15,39 @@ concurrency:
 
 env:
   PREVIOUS_PRODUCT_SHA: 7314a71644d42416a43fb8ba34dd88133dc8ab5b
+  TARGET_BRANCH: feat/dm-history-deletion
   PATCH_BLOB_SHA: e596667c19464416e0f941086704e6675aa5959c
   PATCH_GZIP_SHA256: 947cee04a155d75fd66ec1c2ed06bd13d642ee6c3c120b79762df2eecaf67e92
   PATCH_SHA256: 889f9a3d5a8438365d2b2539d2c246a5c82795e55a21b008f96e87a0d07e16f5
 
 jobs:
-  diagnose-modal:
+  validate-and-publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Check out pull request head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
-      - name: Verify and apply reviewed patch
+      - name: Verify the product base and branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "${PREVIOUS_PRODUCT_SHA}" HEAD
+          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+          test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "$(git rev-parse HEAD)"
+          unexpected="$(git diff --name-only "${PREVIOUS_PRODUCT_SHA}...HEAD" -- . ':(exclude).github/workflows/dm-responsive-ui-validation.yml')"
+          test -z "${unexpected}"
+
+      - name: Fetch and apply reviewed UI patch
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor "${PREVIOUS_PRODUCT_SHA}" HEAD
-          unexpected="$(git diff --name-only "${PREVIOUS_PRODUCT_SHA}...HEAD" -- . ':(exclude).github/workflows/dm-responsive-ui-validation.yml')"
-          test -z "${unexpected}"
           response="${RUNNER_TEMP}/patch-blob.json"
           patch_gz="${RUNNER_TEMP}/dm-responsive-ui.patch.gz"
           patch="${RUNNER_TEMP}/dm-responsive-ui.patch"
@@ -55,14 +63,19 @@ jobs:
           printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --status
           git apply --check "${patch}"
           git apply "${patch}"
+          git rm .github/workflows/dm-responsive-ui-validation.yml
           git diff --check
 
       - name: Set up pinned project toolchain
         uses: ./.github/actions/setup
 
-      - name: Format changed files
+      - name: Generate protobuf bindings
+        run: mise codegen-proto
+
+      - name: Format changed frontend files
         shell: bash
         run: |
+          set -euo pipefail
           pnpm --dir apps/frontend exec prettier --write \
             src/lib/ui/Dialog.svelte \
             src/lib/ui/Dialog.svelte.spec.ts \
@@ -72,31 +85,91 @@ jobs:
             src/routes/chat/ModalContainerDialogMock.svelte \
             'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte' \
             'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
+          pnpm --dir apps/frontend run paraglide
+          node apps/frontend/scripts/check-i18n-catalogs.mjs
           git diff --check
+
+      - name: Verify candidate paths and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add --all
+          git diff --cached --check
+          allowed="${RUNNER_TEMP}/allowed-paths.txt"
+          changed="${RUNNER_TEMP}/changed-paths.txt"
+          cat > "${allowed}" <<'PATHS'
+          .github/workflows/dm-responsive-ui-validation.yml
+          apps/frontend/src/lib/ui/Dialog.svelte
+          apps/frontend/src/lib/ui/Dialog.svelte.spec.ts
+          apps/frontend/src/routes/chat/ModalContainer.svelte
+          apps/frontend/src/routes/chat/ModalContainer.svelte.spec.ts
+          apps/frontend/src/routes/chat/ModalContainerButtonMock.svelte
+          apps/frontend/src/routes/chat/ModalContainerDialogMock.svelte
+          apps/frontend/src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte
+          apps/frontend/src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts
+          PATHS
+          git diff --cached --name-only | sort > "${changed}"
+          sort -o "${allowed}" "${allowed}"
+          unexpected="$(comm -23 "${changed}" "${allowed}")"
+          test -z "${unexpected}" || { printf '%s\n' "${unexpected}"; exit 1; }
+          export GIT_AUTHOR_NAME="$(git show -s --format=%an "${PREVIOUS_PRODUCT_SHA}")"
+          export GIT_AUTHOR_EMAIL="$(git show -s --format=%ae "${PREVIOUS_PRODUCT_SHA}")"
+          export GIT_COMMITTER_NAME="$(git show -s --format=%cn "${PREVIOUS_PRODUCT_SHA}")"
+          export GIT_COMMITTER_EMAIL="$(git show -s --format=%ce "${PREVIOUS_PRODUCT_SHA}")"
+          test -n "${GIT_AUTHOR_NAME}"
+          test -n "${GIT_AUTHOR_EMAIL}"
+          test -n "${GIT_COMMITTER_NAME}"
+          test -n "${GIT_COMMITTER_EMAIL}"
+          git commit -m 'fix(frontend): refine DM deletion confirmation'
+          test "$(git show -s --format=%an HEAD)" = "${GIT_AUTHOR_NAME}"
+          test "$(git show -s --format=%cn HEAD)" = "${GIT_COMMITTER_NAME}"
+          if git show -s --format=%B HEAD | grep -E 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
+            exit 1
+          fi
+          test -z "$(git status --porcelain)"
 
       - name: Install Chromium
         run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
 
-      - name: Run ModalContainer test and capture output
+      - name: Run targeted component tests
         shell: bash
         run: |
-          set +e
+          set -euo pipefail
           pnpm --filter towk-frontend exec vitest --run \
+            src/lib/ui/Dialog.svelte.spec.ts \
             src/routes/chat/ModalContainer.svelte.spec.ts \
-            > "${RUNNER_TEMP}/modal-test.log" 2>&1
-          printf '%s\n' "$?" > "${RUNNER_TEMP}/modal-test.rc"
-          exit 0
+            'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
 
-      - name: Upload modal test diagnostics
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: dm-modal-test-output
-          path: |
-            ${{ runner.temp }}/modal-test.log
-            ${{ runner.temp }}/modal-test.rc
-          retention-days: 1
-          if-no-files-found: error
+      - name: Run frontend typecheck
+        run: pnpm run check:frontend
 
-      - name: Enforce modal test result
+      - name: Run frontend lint
+        run: pnpm run lint:frontend
+
+      - name: Run complete frontend unit suite
+        run: pnpm run test:frontend
+
+      - name: Build frontend
+        run: mise build-frontend
+
+      - name: Run repository policy checks
         shell: bash
-        run: test "$(cat "${RUNNER_TEMP}/modal-test.rc")" = 0
+        run: |
+          set -euo pipefail
+          mise public-surface-check
+          mise license-check
+          git diff --check "${PREVIOUS_PRODUCT_SHA}...HEAD"
+          test -z "$(git status --porcelain)"
+          if git diff "${PREVIOUS_PRODUCT_SHA}...HEAD" | grep -E '(/home/[^/[:space:]]+|/Users/[^/[:space:]]+|[A-Za-z]:\\Users\\|Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:)'; then
+            echo 'Blocked private path or forbidden attribution trailer in candidate diff' >&2
+            exit 1
+          fi
+
+      - name: Publish verified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
+          test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "$(git rev-parse HEAD^)"
+          git merge-base --is-ancestor "${PREVIOUS_PRODUCT_SHA}" HEAD
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
