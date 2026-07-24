@@ -12,6 +12,9 @@
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && progress === 0 && !dragging);
   const tx = $derived((progress - 1) * SIDEBAR_PANEL_WIDTH_PX);
+  const mobileTransform = $derived(
+    sidebarNav.isMobile ? `translate3d(${tx}px, 0, 0)` : undefined
+  );
 </script>
 
 {#if sidebarNav.isMobile}
@@ -22,7 +25,7 @@
     data-testid="mobile-sidebar-backdrop"
     class={[
       'fixed inset-0 top-11 z-40 touch-none bg-black/50 md:hidden',
-      !dragging && 'transition-opacity duration-200',
+      !dragging && 'sidebar-mobile-backdrop-anim',
       mobileClosed && 'pointer-events-none'
     ]}
     style:opacity={progress}
@@ -55,7 +58,7 @@
       mobileClosed && 'sidebar-mobile-closed',
       !dragging && 'sidebar-mobile-anim'
     ]}
-    style:transform={sidebarNav.isMobile ? `translateX(${tx}px)` : undefined}
+    style:transform={mobileTransform}
   >
     <ServerGutter />
   </div>
@@ -76,25 +79,31 @@
 		visually hidden by transform) once the close animation finishes. This
 		matters for accessibility tooling and Playwright's `toBeVisible()`.
 
-		Open  → transform animates 200ms, visibility flips to `visible` immediately.
-		Close → transform animates 200ms, visibility flips to `hidden` AFTER 200ms.
+		Open  → transform animates 280ms, visibility flips to `visible` immediately.
+		Close → transform animates 280ms, visibility flips to `hidden` AFTER 280ms.
 	*/
   @media (max-width: 767px) {
+    :global(.sidebar-mobile-backdrop-anim) {
+      transition: opacity 240ms ease-out;
+    }
     :global(.sidebar-mobile-anim) {
       visibility: visible;
+      backface-visibility: hidden;
       transition:
-        transform 200ms ease-out,
+        transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
         visibility 0s linear 0s;
+      will-change: transform;
     }
     :global(.sidebar-mobile-anim.sidebar-mobile-closed) {
       visibility: hidden;
       transition:
-        transform 200ms ease-out,
-        visibility 0s linear 200ms;
+        transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 280ms;
     }
   }
 
   @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    :global(.sidebar-mobile-backdrop-anim),
     :global(.sidebar-mobile-anim),
     :global(.sidebar-mobile-anim.sidebar-mobile-closed) {
       transition: none;

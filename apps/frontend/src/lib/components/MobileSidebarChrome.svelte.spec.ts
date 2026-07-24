@@ -52,7 +52,7 @@ describe('MobileSidebarChrome', () => {
     if (!panel || !backdrop) return;
 
     expect(panel.classList.contains('sidebar-mobile-closed')).toBe(true);
-    expect(panel.style.transform).toBe('translateX(-324px)');
+    expect(panel.style.transform).toBe('translate3d(-324px, 0px, 0px)');
     expect(backdrop.disabled).toBe(true);
     expect(backdrop.getAttribute('aria-hidden')).toBe('true');
     expect(backdrop.style.opacity).toBe('0');
@@ -74,7 +74,7 @@ describe('MobileSidebarChrome', () => {
     if (!panel || !backdrop) return;
 
     expect(panel.classList.contains('sidebar-mobile-closed')).toBe(false);
-    expect(panel.style.transform).toBe('translateX(0px)');
+    expect(panel.style.transform).toBe('translate3d(0px, 0px, 0px)');
     expect(backdrop.disabled).toBe(false);
     expect(backdrop.style.opacity).toBe('1');
 
@@ -83,7 +83,7 @@ describe('MobileSidebarChrome', () => {
 
     expect(q(container, '[data-testid="mobile-sidebar-backdrop"]')).toBe(backdrop);
     expect(panel.classList.contains('sidebar-mobile-closed')).toBe(true);
-    expect(panel.style.transform).toBe('translateX(-324px)');
+    expect(panel.style.transform).toBe('translate3d(-324px, 0px, 0px)');
     expect(backdrop.disabled).toBe(true);
     expect(backdrop.style.opacity).toBe('0');
   });
