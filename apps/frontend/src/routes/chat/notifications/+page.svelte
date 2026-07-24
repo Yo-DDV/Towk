@@ -1,10 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { resolve } from '$app/paths';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { SvelteSet } from 'svelte/reactivity';
-  import { serverIdToSegment } from '$lib/navigation';
   import { PaneHeader, EmptyState } from '$lib/ui';
   import { Button } from '$lib/ui/form';
   import * as m from '$lib/i18n/messages';
@@ -12,10 +10,8 @@
   import { notificationTarget } from '$lib/state/server/notifications.svelte';
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
-  import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { resolveLastPosition } from '$lib/storage/lastRoom';
   import {
     dismissNativeNotification,
     reconcileNativeNotifications
@@ -77,29 +73,9 @@
   let clearing = $state(false);
   const pendingNotificationIds = new SvelteSet<string>();
   const showDelayedLoading = delayedLoadingVisible(() => loading && allNotifications.length === 0);
-  let returningToDefaultServer = false;
 
   function handleSidebarToggle(): boolean {
-    if (returningToDefaultServer) return true;
-
-    const serverId = getActiveServer();
-    if (!serverId) return false;
-
-    const target =
-      resolveLastPosition(serverId) ??
-      resolve('/chat/[serverId]/overview', { serverId: serverIdToSegment(serverId) });
-
-    returningToDefaultServer = true;
     sidebarNav.open();
-    // eslint-disable-next-line svelte/no-navigation-without-resolve -- target comes from resolveLastPosition() or resolve()
-    void goto(target)
-      .then(() => sidebarNav.open())
-      .catch((error) => {
-        console.error('Failed to return to the default server from notifications:', error);
-      })
-      .finally(() => {
-        returningToDefaultServer = false;
-      });
     return true;
   }
 
