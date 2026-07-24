@@ -1,0 +1,80 @@
+name: DM history deletion validation
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dm-history-deletion-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          install-frontend-deps: "false"
+          mise-install-args: "go"
+      - name: Check formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git diff --name-only origin/${{ github.base_ref }}...HEAD -- '*.go')
+          if ((${#files[@]})); then
+            unformatted="$(gofmt -l "${files[@]}")"
+            test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
+          fi
+      - name: Run targeted backend tests
+        shell: bash
+        run: |
+          cd cli
+          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server
+      - name: Run DM history race tests
+        shell: bash
+        run: |
+          cd cli
+          go test -trimpath -race -count=1 ./internal/core -run 'Test(ForgetOneToOneDM|StartDMRestoresVisibility|RepeatedDMDeletion)'
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+          mise-install-args: "node"
+      - name: Typecheck frontend
+        run: pnpm run check:frontend
+      - name: Lint frontend
+        run: pnpm run lint:frontend
+      - name: Run frontend unit tests
+        run: pnpm run test:frontend
+
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+      - name: Run public surface and licence checks
+        run: |
+          mise public-surface-check
+          mise license-check
+      - name: Check diff hygiene
+        run: git diff --check origin/${{ github.base_ref }}...HEAD
