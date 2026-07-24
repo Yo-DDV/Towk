@@ -1,21 +1,19 @@
-# Triggered after creation so the PR synchronize event sees this workflow.
 name: DM history deletion core fix
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches: [main]
+  push:
+    branches: [feat/dm-history-deletion]
 
 permissions:
   contents: write
 
 concurrency:
-  group: dm-history-deletion-core-fix-${{ github.event.pull_request.number }}
+  group: dm-history-deletion-core-fix
   cancel-in-progress: true
 
 jobs:
   fix:
-    if: github.event.pull_request.head.ref == 'feat/dm-history-deletion'
+    if: github.ref == 'refs/heads/feat/dm-history-deletion'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
