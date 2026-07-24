@@ -1,4 +1,4 @@
-name: read-receipts blob transport probe
+name: read-receipts source publish probe
 
 on:
   pull_request:
@@ -15,43 +15,18 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    env:
-      SOURCE_BLOB_SHA: b9cf3d22e7866220aaf58becab02a7914ef617f7
-      SOURCE_ARCHIVE_SHA256: 8295b46b85cd927f02eb384d987994c638a59c47834f42b4f2d4dcc6bee66737
-      OVERLAY_BLOB_SHA: bd257147599c4ac6f026b90a90be2063794fa429
     steps:
-      - name: Probe raw blob transport
+      - name: Check out pull request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Report exact head and root tree
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
-          probe_blob() {
-            local sha="$1"
-            local output="$2"
-            local status
-            status="$(curl --silent --show-error --location \
-              --retry 3 \
-              --output "${output}" \
-              --write-out '%{http_code}' \
-              --header "Accept: application/vnd.github.raw+json" \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}")"
-            printf 'blob=%s status=%s bytes=%s sha256=%s\n' \
-              "${sha}" \
-              "${status}" \
-              "$(wc -c < "${output}")" \
-              "$(sha256sum "${output}" | cut -d' ' -f1)"
-            file "${output}"
-            if [[ "${status}" != 200 ]]; then
-              xxd -l 256 "${output}"
-              return 1
-            fi
-          }
-
-          probe_blob "${SOURCE_BLOB_SHA}" "${RUNNER_TEMP}/source.bin"
-          printf '%s  %s\n' "${SOURCE_ARCHIVE_SHA256}" "${RUNNER_TEMP}/source.bin" \
-            | sha256sum --check --strict
-          probe_blob "${OVERLAY_BLOB_SHA}" "${RUNNER_TEMP}/overlay-chunk.bin"
+          printf 'head=%s\n' "$(git rev-parse HEAD)"
+          printf 'tree=%s\n' "$(git show -s --format=%T HEAD)"
+          git status --short
