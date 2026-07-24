@@ -187,4 +187,37 @@ describe('RoomSidebarToggle', () => {
     expect(group!.classList.contains('lg:hidden')).toBe(true);
     expect(group!.classList.contains('hidden')).toBe(false);
   });
+
+  it('offers private DM deletion only when enabled', async () => {
+    const onDeleteDirectMessage = vi.fn();
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn(),
+        canDeleteDirectMessage: true,
+        onDeleteDirectMessage
+      }
+    });
+
+    const button = container.querySelector(
+      '[aria-label="Delete conversation"]'
+    ) as HTMLButtonElement | null;
+    expect(button).toBeTruthy();
+
+    button!.click();
+    await tick();
+
+    expect(onDeleteDirectMessage).toHaveBeenCalledOnce();
+  });
+
+  it('hides private DM deletion by default', async () => {
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn()
+      }
+    });
+
+    expect(container.querySelector('[data-testid="delete-direct-message-button"]')).toBeFalsy();
+  });
 });

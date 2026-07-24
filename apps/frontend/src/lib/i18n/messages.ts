@@ -804,6 +804,13 @@ const msg_room_system_event_joined_room = (): LocalizedString => messages().room
 const msg_room_system_event_left_room = (): LocalizedString => messages().room_system_event_left_room(empty());
 const msg_room_system_event_archived_room = (): LocalizedString => messages().room_system_event_archived_room(empty());
 const msg_room_system_event_unarchived_room = (): LocalizedString => messages().room_system_event_unarchived_room(empty());
+const msg_room_direct_message_delete_title = (): LocalizedString => messages().room_direct_message_delete_title(empty());
+const msg_room_direct_message_delete_action = (): LocalizedString => messages().room_direct_message_delete_action(empty());
+const msg_room_direct_message_delete_prompt = (
+  inputs: Parameters<LocaleMessages['room_direct_message_delete_prompt']>[0]
+): LocalizedString => messages().room_direct_message_delete_prompt(inputs);
+const msg_room_direct_message_delete_failed = (): LocalizedString => messages().room_direct_message_delete_failed(empty());
+const msg_room_direct_message_delete_local_cleanup_failed = (): LocalizedString => messages().room_direct_message_delete_local_cleanup_failed(empty());
 const msg_server_settings_loading = (): LocalizedString => messages().server_settings_loading(empty());
 const msg_server_settings_general = (): LocalizedString => messages().server_settings_general(empty());
 const msg_server_settings_logo = (): LocalizedString => messages().server_settings_logo(empty());
@@ -2628,6 +2635,11 @@ export { msg_room_system_event_joined_room as 'room.system_event.joined_room' };
 export { msg_room_system_event_left_room as 'room.system_event.left_room' };
 export { msg_room_system_event_archived_room as 'room.system_event.archived_room' };
 export { msg_room_system_event_unarchived_room as 'room.system_event.unarchived_room' };
+export { msg_room_direct_message_delete_title as 'room.direct_message_delete.title' };
+export { msg_room_direct_message_delete_action as 'room.direct_message_delete.action' };
+export { msg_room_direct_message_delete_prompt as 'room.direct_message_delete.prompt' };
+export { msg_room_direct_message_delete_failed as 'room.direct_message_delete.failed' };
+export { msg_room_direct_message_delete_local_cleanup_failed as 'room.direct_message_delete.local_cleanup_failed' };
 export { msg_server_settings_loading as 'server_settings.loading' };
 export { msg_server_settings_general as 'server_settings.general' };
 export { msg_server_settings_logo as 'server_settings.logo' };
