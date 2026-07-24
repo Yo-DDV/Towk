@@ -54,6 +54,7 @@ vi.mock('$app/state', () => ({
 }));
 
 vi.mock('$lib/hooks', () => ({
+  useAutoHideScrollbars: vi.fn(),
   usePageTitle: () => () => 'Towk',
   usePinchZoomPrevention: vi.fn(),
   useVisualViewport: vi.fn()
