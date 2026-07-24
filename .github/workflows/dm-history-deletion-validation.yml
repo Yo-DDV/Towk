@@ -1,3 +1,4 @@
+# Temporary feature verification; remove before review handoff.
 name: DM history deletion validation
 
 on:
