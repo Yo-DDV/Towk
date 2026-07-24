@@ -1,0 +1,45 @@
+name: notification center navigation validation
+
+on:
+  push:
+    branches:
+      - fix/notification-center-sidebar-return
+  workflow_dispatch:
+
+concurrency:
+  group: notification-center-navigation-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: frontend navigation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup frontend environment
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+
+      - name: Run targeted sidebar navigation tests
+        run: pnpm --dir apps/frontend exec vitest --run src/lib/state/globals.svelte.spec.ts
+
+      - name: Run frontend typecheck
+        run: pnpm run check:frontend
+
+      - name: Run frontend lint
+        run: pnpm run lint:frontend
+
+      - name: Run frontend unit tests
+        run: pnpm run test:frontend
+
+      - name: Build frontend
+        run: pnpm run build:frontend
