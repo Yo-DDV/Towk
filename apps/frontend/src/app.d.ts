@@ -6,6 +6,8 @@ declare global {
     // interface Locals {}
     // interface PageData {}
     interface PageState {
+      notificationServerId?: string;
+      notificationSidebarOpen?: boolean;
       threadFilter?: 'all' | 'unread';
       welcome?: boolean;
       modal?: {
