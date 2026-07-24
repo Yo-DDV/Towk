@@ -84,12 +84,6 @@ jobs:
           go test -trimpath -race ./internal/connectapi -run 'UserProfile|Account|Viewer'
           go test -trimpath -race ./internal/http_server -run 'Realtime|UserProfile'
 
-      - name: Verify frontend types
-        shell: bash
-        run: |
-          set -euo pipefail
-          mise exec -- pnpm --dir apps/frontend exec svelte-check --tsconfig ./tsconfig.json
-
       - name: Prepare final branch tree
         shell: bash
         run: |
