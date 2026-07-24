@@ -31,18 +31,37 @@ func (s *roomService) GetRoomEvents(ctx context.Context, req *connect.Request[ap
 		return nil, err
 	}
 
-	input := core.RoomTimelineEventsInput{
-		ActorID:   caller.UserID,
-		RoomID:    req.Msg.RoomId,
-		Limit:     int(req.Msg.Limit),
-		AfterSeq:  afterSeq,
-		BeforeSeq: beforeSeq,
-	}
-
-	result, err := s.api.core.RoomTimelineReads().GetRoomEvents(ctx, input)
+	kind, cutoffSeq, hasCutoff, err := s.dmTimelineBoundary(ctx, caller.UserID, req.Msg.RoomId)
 	if err != nil {
 		return nil, connectError(err)
 	}
+
+	var result *core.RoomTimelineEventsResult
+	if kind == core.KindDM {
+		var page *core.RoomEventsResult
+		switch {
+		case afterSeq != nil:
+			page, err = s.api.core.GetRoomEventsAfterCursorAndDMHistoryCutoff(ctx, kind, req.Msg.RoomId, *afterSeq, int(req.Msg.Limit), cutoffSeq)
+		default:
+			page, err = s.api.core.GetRoomEventsAfterDMHistoryCutoff(ctx, kind, req.Msg.RoomId, int(req.Msg.Limit), beforeSeq, cutoffSeq)
+		}
+		if err != nil {
+			return nil, connectError(err)
+		}
+		result = &core.RoomTimelineEventsResult{Kind: kind, Page: page}
+	} else {
+		result, err = s.api.core.RoomTimelineReads().GetRoomEvents(ctx, core.RoomTimelineEventsInput{
+			ActorID:   caller.UserID,
+			RoomID:    req.Msg.RoomId,
+			Limit:     int(req.Msg.Limit),
+			AfterSeq:  afterSeq,
+			BeforeSeq: beforeSeq,
+		})
+		if err != nil {
+			return nil, connectError(err)
+		}
+	}
+	_ = hasCutoff
 
 	page := result.Page
 	resp, err := newRoomTimelineAssembler(s.api).buildPage(ctx, caller.UserID, result.Kind, page.Events, page.HasOlder, page.HasNewer)
@@ -59,10 +78,25 @@ func (s *roomService) GetRoomEventsAround(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.api.core.RoomTimelineReads().GetRoomEventsAround(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId, int(req.Msg.Limit))
+	kind, cutoffSeq, _, err := s.dmTimelineBoundary(ctx, caller.UserID, req.Msg.RoomId)
 	if err != nil {
 		return nil, connectError(err)
 	}
+
+	var result *core.RoomTimelineAroundResult
+	if kind == core.KindDM {
+		around, err := s.api.core.GetRoomEventsAroundAfterDMHistoryCutoff(ctx, kind, req.Msg.RoomId, req.Msg.EventId, int(req.Msg.Limit), cutoffSeq)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		result = &core.RoomTimelineAroundResult{Kind: kind, Result: around}
+	} else {
+		result, err = s.api.core.RoomTimelineReads().GetRoomEventsAround(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId, int(req.Msg.Limit))
+		if err != nil {
+			return nil, connectError(err)
+		}
+	}
+
 	around := result.Result
 	page, err := newRoomTimelineAssembler(s.api).buildPage(ctx, caller.UserID, result.Kind, around.Events, around.HasOlder, around.HasNewer)
 	if err != nil {
@@ -88,18 +122,25 @@ func (s *messageService) GetMessage(ctx context.Context, req *connect.Request[ap
 	if err != nil {
 		return nil, connectError(err)
 	}
-	events, _, err := newRoomTimelineAssembler(s.api).hydrateEvents(ctx, caller.UserID, result.Kind, []*core.RoomEvent{{Event: result.Event}})
+	if result.Kind == core.KindDM {
+		accessible, err := s.api.core.CanAccessDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !accessible {
+			return nil, connectError(core.ErrMessageNotFound)
+		}
+	}
+	apiEvents, _, err := newRoomTimelineAssembler(s.api).hydrateEvents(ctx, caller.UserID, result.Kind, []*core.RoomEvent{{Event: result.Event}})
 	if err != nil {
 		return nil, connectError(err)
 	}
 	var message *apiv1.Message
-	if len(events) > 0 {
-		message = messageFromTimelineEvent(events[0])
+	if len(apiEvents) > 0 {
+		message = messageFromTimelineEvent(apiEvents[0])
 	}
 
-	return connect.NewResponse(&apiv1.GetMessageResponse{
-		Message: message,
-	}), nil
+	return connect.NewResponse(&apiv1.GetMessageResponse{Message: message}), nil
 }
 
 func (s *messageService) BatchGetMessages(ctx context.Context, req *connect.Request[apiv1.BatchGetMessagesRequest]) (*connect.Response[apiv1.BatchGetMessagesResponse], error) {
@@ -114,6 +155,15 @@ func (s *messageService) BatchGetMessages(ctx context.Context, req *connect.Requ
 
 	events := make([]*core.RoomEvent, 0, len(result.Events))
 	for _, event := range result.Events {
+		if result.Kind == core.KindDM {
+			accessible, err := s.api.core.CanAccessDMEvent(ctx, caller.UserID, req.Msg.RoomId, event.GetId())
+			if err != nil {
+				return nil, connectError(err)
+			}
+			if !accessible {
+				continue
+			}
+		}
 		events = append(events, &core.RoomEvent{Event: event})
 	}
 	apiEvents, _, err := newRoomTimelineAssembler(s.api).hydrateEvents(ctx, caller.UserID, result.Kind, events)
@@ -127,9 +177,7 @@ func (s *messageService) BatchGetMessages(ctx context.Context, req *connect.Requ
 		}
 	}
 
-	return connect.NewResponse(&apiv1.BatchGetMessagesResponse{
-		Messages: messages,
-	}), nil
+	return connect.NewResponse(&apiv1.BatchGetMessagesResponse{Messages: messages}), nil
 }
 
 func (s *threadService) GetThreadEvents(ctx context.Context, req *connect.Request[apiv1.GetThreadEventsRequest]) (*connect.Response[apiv1.GetThreadEventsResponse], error) {
@@ -155,6 +203,15 @@ func (s *threadService) GetThreadEvents(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, connectError(err)
 	}
+	if result.Kind == core.KindDM {
+		accessible, err := s.api.core.CanAccessDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.ThreadRootEventId)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !accessible {
+			return nil, connectError(core.ErrMessageNotFound)
+		}
+	}
 
 	page, err := newRoomTimelineAssembler(s.api).buildThreadPage(ctx, caller.UserID, result.Kind, result.Root, result.Replies, result.IncludeRoot)
 	if err != nil {
@@ -172,6 +229,15 @@ func (s *threadService) GetThreadEventsAround(ctx context.Context, req *connect.
 	if err != nil {
 		return nil, connectError(err)
 	}
+	if result.Kind == core.KindDM {
+		accessible, err := s.api.core.CanAccessDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.ThreadRootEventId)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !accessible {
+			return nil, connectError(core.ErrMessageNotFound)
+		}
+	}
 	page, err := newRoomTimelineAssembler(s.api).buildThreadPage(ctx, caller.UserID, result.Kind, result.Root, result.Replies, true)
 	if err != nil {
 		return nil, connectError(err)
@@ -181,6 +247,25 @@ func (s *threadService) GetThreadEventsAround(ctx context.Context, req *connect.
 		Page:        page,
 		TargetIndex: int32(result.TargetIndex),
 	}), nil
+}
+
+func (s *roomService) dmTimelineBoundary(ctx context.Context, actorID, roomID string) (core.RoomKind, uint64, bool, error) {
+	kind, err := s.api.core.FindRoomKind(ctx, roomID)
+	if err != nil {
+		return core.KindChannel, 0, false, err
+	}
+	if kind != core.KindDM {
+		return kind, 0, false, nil
+	}
+	visible, err := s.api.core.CanAccessDMConversation(ctx, actorID, roomID)
+	if err != nil {
+		return kind, 0, false, err
+	}
+	if !visible {
+		return kind, 0, false, core.ErrPermissionDenied
+	}
+	cutoffSeq, hasCutoff, err := s.api.core.DMHistoryCutoffSequence(ctx, actorID, roomID)
+	return kind, cutoffSeq, hasCutoff, err
 }
 
 func formatRoomTimelineCursor(seq uint64) string {

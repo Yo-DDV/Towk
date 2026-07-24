@@ -407,6 +407,20 @@
   let showVoiceCall = $derived(!!room.roomData && !!serverInfo.livekitUrl);
   // Channel rooms can be left unless membership is granted by Universal policy.
   let showLeaveRoom = $derived(!!room.roomData && !room.isDM && !room.roomData.room.isUniversal);
+  let canDeleteDirectMessage = $derived(
+    !!room.roomData && room.isDM && room.dmData?.participants.length === 2
+  );
+
+  function openDeleteDirectMessageConfirmation(): void {
+    if (!canDeleteDirectMessage) return;
+    pushState('', {
+      modal: {
+        type: 'deleteDirectMessage',
+        roomId,
+        roomName: title
+      }
+    });
+  }
   const activeRoomSidebarPanel = $derived(
     roomSidebarPanelForRoom(room.isDM, appUi.activeDesktopRoomSidebarPanel, showVoiceCall)
   );
@@ -575,6 +589,8 @@
           {#snippet actions()}
             <RoomSidebarToggle
               mode="mobile"
+              {canDeleteDirectMessage}
+              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
               activePanel={mobileRoomSidebarPanel}
               panels={roomSidebarTogglePanels}
               hasActiveCall={hasActiveRoomCall}
@@ -582,6 +598,8 @@
             />
             <RoomSidebarToggle
               mode="desktop"
+              {canDeleteDirectMessage}
+              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
               activePanel={activeRoomSidebarPanel}
               panels={roomSidebarTogglePanels}
               hasActiveCall={hasActiveRoomCall}

@@ -44,9 +44,9 @@
   const titleId = `${dialogId}-title`;
 
   const sizeClasses = {
-    sm: 'w-100 max-w-[60vw]',
-    md: 'w-150 max-w-[80vw]',
-    lg: 'w-200 max-w-[90vw]'
+    sm: 'w-[calc(100vw-1.5rem)] max-w-md sm:w-100',
+    md: 'w-[calc(100vw-1.5rem)] max-w-2xl sm:w-150',
+    lg: 'w-[calc(100vw-1rem)] max-w-4xl sm:w-[calc(100vw-3rem)] lg:w-200'
   };
 
   function syncDialogVisibility(node: HTMLDialogElement) {
