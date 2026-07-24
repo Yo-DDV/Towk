@@ -1,3 +1,4 @@
+# Triggered after creation so the PR synchronize event sees this workflow.
 name: DM history deletion core fix
 
 on:
