@@ -3,12 +3,17 @@ import { test } from './setup';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
 
-const giphyUrl = 'https://giphy.com/gifs/reaction-l0MYt5jPR6QX5pnqM';
-const giphyMediaUrl = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
-const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+const giphyUrl =
+  'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
+const giphyMediaUrl =
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
+const onePixelGif = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',
+  'base64'
+);
 
 test.describe('External GIF embeds', () => {
-  test('renders a supported standalone URL behind the default privacy gate', async ({
+  test('renders the reported GIPHY URL behind the default privacy gate', async ({
     page,
     chatPage,
     roomPage
@@ -35,7 +40,7 @@ test.describe('External GIF embeds', () => {
     await embed.getByRole('button', { name: 'Load external GIF' }).click();
     await expect(embed.locator('iframe')).toHaveAttribute(
       'src',
-      'https://giphy.com/embed/l0MYt5jPR6QX5pnqM'
+      'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt'
     );
     await expect(message.locator(`a[href="${giphyUrl}"]`)).toBeVisible();
   });
