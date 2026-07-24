@@ -35,7 +35,6 @@ jobs:
             test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
           fi
       - name: Run targeted backend tests
-        id: backend-tests
         shell: bash
         run: |
           set -o pipefail
@@ -67,6 +66,9 @@ jobs:
         with:
           install-cli-deps: "false"
           mise-install-args: "node"
+      - name: Install Playwright Chromium
+        run: cd apps/frontend && pnpm exec playwright install chromium --with-deps
+        timeout-minutes: 15
       - name: Typecheck frontend
         run: pnpm run check:frontend
       - name: Lint frontend
