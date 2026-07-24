@@ -16,7 +16,15 @@ jobs:
   generate-and-test:
     runs-on: ubuntu-latest
     env:
-      SOURCE_PATCH_BLOB_SHA: 7e9c612d4cb81f3b9fe00722d2d25fb91589562c
+      SOURCE_PATCH_CHUNKS: >-
+        2e24dae959c24d4ad97a8e1e4c253a834229445f
+        8653126472b87f61e0c82a5b19ccf4d33843031f
+        25b40ce9b782dae5a8b380d160a22405821e1589
+        bc8818f6ad2b00bfb31b8906215dcf28a54a4cc6
+        faca544204c5b57e1395c100ab7b70cfb07b4e00
+        f02ed5aaa214d4ce2b0732f5397879d93faa266f
+        30de0032685fcfa6c54a9365eb148d831dcbb626
+        438f2ad245bb2728dac00e0272514a5fecee4d55
       SOURCE_PATCH_ARCHIVE_SHA256: d18233a45a1f2cd2825102158340d206d0b011ac58dd658ed106da07a5d036f9
     steps:
       - name: Check out branch
@@ -33,13 +41,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
-            --retry 3 \
-            --header "Accept: application/vnd.github+json" \
-            --header "Authorization: Bearer ${GH_TOKEN}" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${SOURCE_PATCH_BLOB_SHA}" \
-            | jq -r '.content' | tr -d '\n' | base64 --decode > "${RUNNER_TEMP}/user-profiles-source.patch.xz"
+          encoded_patch="${RUNNER_TEMP}/user-profiles-source.patch.xz.b64"
+          : > "${encoded_patch}"
+          for source_sha in ${SOURCE_PATCH_CHUNKS}; do
+            curl --fail --silent --show-error \
+              --retry 3 \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${source_sha}" \
+              | jq -r '.content' | tr -d '\n' | base64 --decode >> "${encoded_patch}"
+          done
+          base64 --decode "${encoded_patch}" > "${RUNNER_TEMP}/user-profiles-source.patch.xz"
           printf '%s  %s\n' "${SOURCE_PATCH_ARCHIVE_SHA256}" "${RUNNER_TEMP}/user-profiles-source.patch.xz" \
             | sha256sum --check --strict
           xz --decompress --stdout "${RUNNER_TEMP}/user-profiles-source.patch.xz" \
