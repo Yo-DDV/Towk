@@ -686,7 +686,7 @@
         <div
           class="absolute inset-y-0 right-0 z-20 flex min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] sm:w-[90%] lg:hidden"
           data-testid="room-sidebar-mobile-pane"
-          transition:fly={{ x: 300, duration: motionDuration(MOTION_DURATION.expressive) }}
+          transition:fly={{ x: 300, duration: motionDuration(360) }}
         >
           <RoomSidebar
             {roomId}

@@ -79,26 +79,26 @@
 		visually hidden by transform) once the close animation finishes. This
 		matters for accessibility tooling and Playwright's `toBeVisible()`.
 
-		Open  → transform animates 280ms, visibility flips to `visible` immediately.
-		Close → transform animates 280ms, visibility flips to `hidden` AFTER 280ms.
+		Open  → transform animates 360ms, visibility flips to `visible` immediately.
+		Close → transform animates 360ms, visibility flips to `hidden` AFTER 360ms.
 	*/
   @media (max-width: 767px) {
     :global(.sidebar-mobile-backdrop-anim) {
-      transition: opacity 240ms ease-out;
+      transition: opacity 320ms ease-out;
     }
     :global(.sidebar-mobile-anim) {
       visibility: visible;
       backface-visibility: hidden;
       transition:
-        transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
         visibility 0s linear 0s;
       will-change: transform;
     }
     :global(.sidebar-mobile-anim.sidebar-mobile-closed) {
       visibility: hidden;
       transition:
-        transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
-        visibility 0s linear 280ms;
+        transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 360ms;
     }
   }
 
