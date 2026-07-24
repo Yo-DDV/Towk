@@ -1,9 +1,9 @@
 name: user profiles final gate
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/user-profiles
+      - main
     paths:
       - .github/workflows/user-profiles-finalize.yml
 
