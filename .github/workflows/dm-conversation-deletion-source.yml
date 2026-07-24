@@ -1,4 +1,4 @@
-name: DM history deletion source snapshot
+name: DM history deletion validation
 
 on:
   pull_request:
@@ -10,15 +10,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: dm-history-deletion-source-${{ github.event.pull_request.number }}
+  group: dm-history-deletion-validation-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
   TARGET_SHA: c7a6ac2517f9e4ae302cf67b9928925409768a95
 
 jobs:
-  archive-source:
+  backend:
+    name: backend
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out PR 187 head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -30,28 +32,100 @@ jobs:
         shell: bash
         run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
 
-      - name: Archive repository source
+      - name: Setup backend
+        uses: ./.github/actions/setup
+        with:
+          install-frontend-deps: "false"
+          mise-install-args: "go"
+
+      - name: Check Go formatting
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s\n' "${TARGET_SHA}" > "${RUNNER_TEMP}/towk-dm-history-deletion-source.sha"
-          tar \
-            --exclude=.git \
-            --exclude=node_modules \
-            --exclude=.pnpm-store \
-            --exclude='cli/bin' \
-            --exclude='apps/frontend/build' \
-            -czf "${RUNNER_TEMP}/towk-dm-history-deletion-source.tar.gz" .
-          sha256sum "${RUNNER_TEMP}/towk-dm-history-deletion-source.tar.gz" \
-            > "${RUNNER_TEMP}/towk-dm-history-deletion-source.sha256"
+          files=(
+            cli/internal/connectapi/attachments.go
+            cli/internal/connectapi/messages.go
+            cli/internal/connectapi/reactions.go
+            cli/internal/connectapi/room_directory.go
+            cli/internal/connectapi/room_timeline.go
+            cli/internal/core/dm.go
+            cli/internal/core/dm_history.go
+            cli/internal/core/dm_history_test.go
+            cli/internal/core/room_command_model.go
+            cli/internal/http_server/assets.go
+          )
+          unformatted="$(gofmt -l "${files[@]}")"
+          test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
 
-      - name: Upload source snapshot
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      - name: Run targeted backend tests
+        shell: bash
+        run: |
+          cd cli
+          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server
+
+      - name: Run DM history race tests
+        shell: bash
+        run: |
+          cd cli
+          go test -trimpath -race -count=1 ./internal/core -run 'Test(ForgetOneToOneDM|StartDMRestoresVisibility|RepeatedDMDeletion)'
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out PR 187 head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          name: towk-dm-history-deletion-source
-          path: |
-            ${{ runner.temp }}/towk-dm-history-deletion-source.tar.gz
-            ${{ runner.temp }}/towk-dm-history-deletion-source.sha256
-            ${{ runner.temp }}/towk-dm-history-deletion-source.sha
-          retention-days: 1
-          if-no-files-found: error
+          ref: ${{ env.TARGET_SHA }}
+          persist-credentials: false
+
+      - name: Verify exact source ref
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+
+      - name: Setup frontend
+        uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+          mise-install-args: "node"
+
+      - name: Run frontend typecheck
+        run: pnpm run check:frontend
+
+      - name: Run frontend lint
+        run: pnpm run lint:frontend
+
+      - name: Run targeted frontend tests
+        run: >-
+          pnpm --filter towk-frontend exec vitest --run
+          src/lib/pwa/offlineData.svelte.spec.ts
+          src/routes/chat/ModalContainer.svelte.spec.ts
+          'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
+
+  codegen:
+    name: codegen-drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out PR 187 head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          persist-credentials: false
+
+      - name: Verify exact source ref
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+
+      - name: Setup project
+        uses: ./.github/actions/setup
+
+      - name: Regenerate protobuf and localization outputs
+        shell: bash
+        run: |
+          mise codegen-proto
+          pnpm --dir apps/frontend run paraglide
+
+      - name: Check generated output drift
+        run: git diff --exit-code
