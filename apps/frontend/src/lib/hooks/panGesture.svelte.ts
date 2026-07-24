@@ -10,8 +10,8 @@
  * horizontal app gesture can keep running even on browsers that cancel pointer
  * events when native panning/back-navigation detection starts.
  *
- * Direction lock: we wait until movement reaches {@link DIRECTION_LOCK_PX} and
- * the primary axis dominates the perpendicular axis before claiming the
+ * Direction lock: we wait until movement reaches the configured lock distance
+ * and the primary axis dominates the perpendicular axis before claiming the
  * gesture. Perpendicular drags release the pointer without ever calling
  * `onStart`. The optional {@link PanGestureConfig.shouldClaim} predicate gives
  * call-sites a final say (e.g. reject "wrong direction" drags based on current
@@ -24,6 +24,7 @@
  */
 
 const DIRECTION_LOCK_PX = 8;
+const DIRECTION_LOCK_RATIO = 1;
 const VELOCITY_SAMPLE_MS = 100;
 /** Hold time before a stationary press is reported via `onLongPress`. */
 const LONG_PRESS_MS = 500;
@@ -33,9 +34,16 @@ const LONG_PRESS_CANCEL_PX = 4;
 export type PanGestureConfig = {
   /** The axis the gesture tracks. The other axis is treated as perpendicular. */
   axis: 'x' | 'y';
-  /** Optional gate evaluated on every `pointerdown`; if it returns false, the
-   *  press is ignored entirely. */
+  /** Optional gate evaluated before a press starts tracking. */
   enabled?: () => boolean;
+  /** Optional start predicate. Return false to leave the press entirely to the
+   *  target content or browser. */
+  shouldStart?: (event: PointerEvent | TouchEvent) => boolean;
+  /** Distance required before either axis can win the direction lock. */
+  directionLockPx?: number;
+  /** Primary/perpendicular dominance ratio required to win the direction lock.
+   *  Values below 1 are clamped to 1. */
+  directionLockRatio?: number;
   /** Final claim predicate, called once the direction lock has fired. Receives
    *  the primary-axis delta (signed). Return false to abandon the gesture. */
   shouldClaim?: (delta: number) => boolean;
@@ -130,10 +138,20 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
     }
 
     if (!claimed) {
-      if (Math.abs(dPrim) < DIRECTION_LOCK_PX && Math.abs(dSec) < DIRECTION_LOCK_PX) return;
-      if (Math.abs(dSec) > Math.abs(dPrim)) {
-        // Perpendicular movement won — release the pointer.
-        reset();
+      const lockPx = Math.max(0, cfg.directionLockPx ?? DIRECTION_LOCK_PX);
+      const lockRatio = Math.max(1, cfg.directionLockRatio ?? DIRECTION_LOCK_RATIO);
+      const primaryDistance = Math.abs(dPrim);
+      const secondaryDistance = Math.abs(dSec);
+
+      if (primaryDistance < lockPx && secondaryDistance < lockPx) return;
+
+      const primaryWon =
+        primaryDistance >= lockPx && primaryDistance >= secondaryDistance * lockRatio;
+      const secondaryWon =
+        secondaryDistance >= lockPx && secondaryDistance > primaryDistance * lockRatio;
+
+      if (!primaryWon) {
+        if (secondaryWon) reset();
         return;
       }
       if (cfg.shouldClaim && !cfg.shouldClaim(dPrim)) {
@@ -156,7 +174,7 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
     while (samples.length > 2 && samples[0].t < cutoff) samples.shift();
   }
 
-  function end(x: number, y: number) {
+  function end(x: number, y: number, timeStamp: number) {
     if (!claimed) {
       const movedFar =
         Math.abs(x - startX) >= LONG_PRESS_CANCEL_PX ||
@@ -166,6 +184,9 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
       return;
     }
     const dPrim = primary(x, y) - primary(startX, startY);
+    samples.push({ v: primary(x, y), t: timeStamp });
+    const cutoff = timeStamp - VELOCITY_SAMPLE_MS;
+    while (samples.length > 2 && samples[0].t < cutoff) samples.shift();
     const last = samples[samples.length - 1];
     const first = samples[0];
     const dt = last.t - first.t;
@@ -178,6 +199,7 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
     if (e.pointerType === 'touch') return;
     if (pointerId !== null || touchId !== null) return;
     if (cfg.enabled && !cfg.enabled()) return;
+    if (cfg.shouldStart && !cfg.shouldStart(e)) return;
     pointerId = e.pointerId;
     begin(e.clientX, e.clientY, e.timeStamp);
     window.addEventListener('pointermove', onMove, true);
@@ -193,7 +215,7 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
 
   function onUp(e: PointerEvent) {
     if (e.pointerId !== pointerId) return;
-    end(e.clientX, e.clientY);
+    end(e.clientX, e.clientY, e.timeStamp);
   }
 
   function onCancel(e: PointerEvent) {
@@ -212,7 +234,9 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
 
   function onTouchStart(e: TouchEvent) {
     if (pointerId !== null || touchId !== null) return;
+    if (e.touches.length !== 1) return;
     if (cfg.enabled && !cfg.enabled()) return;
+    if (cfg.shouldStart && !cfg.shouldStart(e)) return;
     const touch = e.changedTouches.item(0);
     if (!touch) return;
     touchId = touch.identifier;
@@ -225,6 +249,11 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
 
   function onTouchMove(e: TouchEvent) {
     if (touchId === null) return;
+    if (e.touches.length !== 1) {
+      if (claimed) cfg.onCancel?.();
+      reset();
+      return;
+    }
     const touch = touchById(e.touches, touchId);
     if (!touch) return;
     move(touch.clientX, touch.clientY, e.timeStamp, {
@@ -238,7 +267,7 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
     if (touchId === null) return;
     const touch = touchById(e.changedTouches, touchId);
     if (!touch) return;
-    end(touch.clientX, touch.clientY);
+    end(touch.clientX, touch.clientY, e.timeStamp);
   }
 
   function onTouchCancel(e: TouchEvent) {

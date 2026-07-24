@@ -19,27 +19,24 @@ function renderChrome() {
   });
 }
 
-function pointer(type: string, x: number, y = 120) {
-  return new PointerEvent(type, {
-    bubbles: true,
-    cancelable: true,
-    pointerId: 1,
-    clientX: x,
-    clientY: y
-  });
-}
-
 describe('MobileSidebarChrome', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSidebar();
   });
 
-  it('renders the gutter panel and children in the sidebar row', () => {
+  it('renders the gutter panel and children in the global swipe region', () => {
     const { container } = renderChrome();
 
     expect(q(container, '[data-testid="mobile-sidebar-panel"]')).not.toBeNull();
     expect(q(container, '[data-testid="sidebar-child"]')).not.toBeNull();
+    expect(q(container, '[data-testid="mobile-navigation-swipe-region"]')).not.toBeNull();
+  });
+
+  it('does not render an app-owned target over the system back-gesture edge', () => {
+    const { container } = renderChrome();
+
+    expect(q(container, '[data-testid="mobile-sidebar-edge"]')).toBeNull();
   });
 
   it('marks mobile sidebar chrome as closed when the sidebar is closed', () => {
@@ -89,23 +86,5 @@ describe('MobileSidebarChrome', () => {
     expect(panel.style.transform).toBe('translateX(-324px)');
     expect(backdrop.disabled).toBe(true);
     expect(backdrop.style.opacity).toBe('0');
-  });
-
-  it('keeps edge target pointer events from bubbling to window handlers', () => {
-    const { container } = renderChrome();
-    const onWindowPointerDown = vi.fn();
-    window.addEventListener('pointerdown', onWindowPointerDown);
-
-    try {
-      const edge = q(container, '[data-testid="mobile-sidebar-edge"]');
-      expect(edge).not.toBeNull();
-      if (!edge) return;
-
-      edge.dispatchEvent(pointer('pointerdown', 2));
-
-      expect(onWindowPointerDown).not.toHaveBeenCalled();
-    } finally {
-      window.removeEventListener('pointerdown', onWindowPointerDown);
-    }
   });
 });

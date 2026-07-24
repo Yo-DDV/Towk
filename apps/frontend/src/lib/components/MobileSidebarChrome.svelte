@@ -1,11 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import ServerGutter from '$lib/ServerGutter.svelte';
-  import {
-    SIDEBAR_PANEL_WIDTH_PX,
-    sidebarEdgeSwipe,
-    sidebarSwipe
-  } from '$lib/hooks/useSidebarSwipe.svelte';
+  import { mobileNavigationSwipe } from '$lib/hooks/useMobileNavigationSwipe.svelte';
+  import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import * as m from '$lib/i18n/messages';
   import { sidebarNav } from '$lib/state/globals.svelte';
 
@@ -18,27 +15,6 @@
 </script>
 
 {#if sidebarNav.isMobile}
-  <!--
-		Edge gesture zone (swipe-to-open). `touch-action: none` is essential:
-		without it, Chrome / iOS Safari fire pointercancel ~8px into a
-		horizontal drag (text-selection / back-navigation gesture detection).
-		Hidden when sidebar is open (the backdrop takes over). Plain taps are
-		intentionally swallowed here; this target exists only to start swipes.
-	-->
-  {#if !sidebarNav.isOpen || dragging}
-    <div
-      use:sidebarEdgeSwipe
-      data-app-sidebar="true"
-      data-testid="mobile-sidebar-edge"
-      class="fixed top-11 bottom-0 left-0 z-40 w-6 touch-none md:hidden"
-      aria-hidden="true"
-      onpointerdown={(event) => event.stopPropagation()}
-      onpointerup={(event) => event.stopPropagation()}
-      onclick={(event) => event.stopPropagation()}
-      oncontextmenu={(event) => event.stopPropagation()}
-    ></div>
-  {/if}
-
   <button
     type="button"
     use:sidebarSwipe
@@ -58,7 +34,11 @@
   ></button>
 {/if}
 
-<div class="flex min-h-0 flex-1 flex-row">
+<div
+  use:mobileNavigationSwipe
+  data-testid="mobile-navigation-swipe-region"
+  class="mobile-navigation-swipe-region flex min-h-0 flex-1 flex-row"
+>
   <div
     use:sidebarSwipe
     data-app-sidebar="true"
@@ -84,6 +64,12 @@
 </div>
 
 <style>
+  :global(.mobile-navigation-swipe-region) {
+    --mobile-navigation-safe-left: env(safe-area-inset-left, 0px);
+    --mobile-navigation-safe-right: env(safe-area-inset-right, 0px);
+    --mobile-navigation-safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   /*
 		Mobile sidebar animation — slide via transform, plus a delayed visibility
 		swap so the off-screen panel is reported as `visibility: hidden` (not just
@@ -105,6 +91,13 @@
       transition:
         transform 200ms ease-out,
         visibility 0s linear 200ms;
+    }
+  }
+
+  @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    :global(.sidebar-mobile-anim),
+    :global(.sidebar-mobile-anim.sidebar-mobile-closed) {
+      transition: none;
     }
   }
 </style>
