@@ -1,4 +1,4 @@
-name: read-receipts development gate
+name: read-receipts blob transport probe
 
 on:
   pull_request:
@@ -6,257 +6,52 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: read-receipts-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  generate-and-test:
+  probe:
     runs-on: ubuntu-latest
     env:
       SOURCE_BLOB_SHA: b9cf3d22e7866220aaf58becab02a7914ef617f7
       SOURCE_ARCHIVE_SHA256: 8295b46b85cd927f02eb384d987994c638a59c47834f42b4f2d4dcc6bee66737
-      OVERLAY_BLOB_SHAS: >-
-        bd257147599c4ac6f026b90a90be2063794fa429
-        3c9af669ab3f66d97d980076dcbcf665c0d19d50
-        84a8b2d18bff2c93454465ef5200fa04e7c36522
-        3cc05e0569bc6011cb11e2b8ce89d686a5ec683e
-      OVERLAY_ARCHIVE_SHA256: b9af788d28c1222da827607dab8e19b93f1e1b57a3a613a184ebd46f14ed5860
+      OVERLAY_BLOB_SHA: bd257147599c4ac6f026b90a90be2063794fa429
     steps:
-      - name: Check out pull request head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Set up repository toolchain
-        uses: ./.github/actions/setup
-
-      - name: Materialize reviewed source bundles
+      - name: Probe raw blob transport
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          fetch_blob_raw() {
+          probe_blob() {
             local sha="$1"
-            curl --fail --silent --show-error --location \
+            local output="$2"
+            local status
+            status="$(curl --silent --show-error --location \
               --retry 3 \
+              --output "${output}" \
+              --write-out '%{http_code}' \
               --header "Accept: application/vnd.github.raw+json" \
               --header "Authorization: Bearer ${GH_TOKEN}" \
               --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}"
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}")"
+            printf 'blob=%s status=%s bytes=%s sha256=%s\n' \
+              "${sha}" \
+              "${status}" \
+              "$(wc -c < "${output}")" \
+              "$(sha256sum "${output}" | cut -d' ' -f1)"
+            file "${output}"
+            if [[ "${status}" != 200 ]]; then
+              xxd -l 256 "${output}"
+              return 1
+            fi
           }
 
-          fetch_blob_raw "${SOURCE_BLOB_SHA}" > "${RUNNER_TEMP}/read-receipts-source.tar.gz"
-          printf '%s  %s\n' "${SOURCE_ARCHIVE_SHA256}" "${RUNNER_TEMP}/read-receipts-source.tar.gz" \
+          probe_blob "${SOURCE_BLOB_SHA}" "${RUNNER_TEMP}/source.bin"
+          printf '%s  %s\n' "${SOURCE_ARCHIVE_SHA256}" "${RUNNER_TEMP}/source.bin" \
             | sha256sum --check --strict
-          tar -xzf "${RUNNER_TEMP}/read-receipts-source.tar.gz" -C "${GITHUB_WORKSPACE}"
-
-          : > "${RUNNER_TEMP}/read-receipts-overlay.tar.gz"
-          for sha in ${OVERLAY_BLOB_SHAS}; do
-            fetch_blob_raw "${sha}" >> "${RUNNER_TEMP}/read-receipts-overlay.tar.gz"
-          done
-          printf '%s  %s\n' "${OVERLAY_ARCHIVE_SHA256}" "${RUNNER_TEMP}/read-receipts-overlay.tar.gz" \
-            | sha256sum --check --strict
-          tar -xzf "${RUNNER_TEMP}/read-receipts-overlay.tar.gz" -C "${GITHUB_WORKSPACE}"
-
-          gofmt -w \
-            cli/internal/connectapi/account.go \
-            cli/internal/connectapi/errors.go \
-            cli/internal/connectapi/read_state.go \
-            cli/internal/connectapi/server_state.go \
-            cli/internal/connectapi/viewer.go \
-            cli/internal/core/config_manager.go \
-            cli/internal/core/config_projection.go \
-            cli/internal/core/core_test.go \
-            cli/internal/core/errors.go \
-            cli/internal/core/my_events_model.go \
-            cli/internal/core/read_receipts.go \
-            cli/internal/core/read_receipts_test.go \
-            cli/internal/core/rooms.go \
-            cli/internal/core/server_state_management.go \
-            cli/internal/core/user_preferences.go \
-            cli/internal/core/users.go \
-            cli/internal/http_server/realtime.go
-
-      - name: Generate protobuf bindings
-        id: codegen
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          mise codegen-proto 2>&1 | tee "${RUNNER_TEMP}/read-receipts-codegen.log"
-
-      - name: Lint protobuf API
-        id: proto_lint
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          cd proto
-          buf lint 2>&1 | tee "${RUNNER_TEMP}/read-receipts-buf-lint.log"
-
-      - name: Run targeted backend tests under race
-        id: backend
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          cd cli
-          go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
-            | tee "${RUNNER_TEMP}/read-receipts-backend.log"
-
-      - name: Vet affected backend packages
-        id: vet
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          cd cli
-          go vet ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
-            | tee "${RUNNER_TEMP}/read-receipts-vet.log"
-
-      - name: Check generated and formatted diff
-        id: diff
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          git diff --check 2>&1 | tee "${RUNNER_TEMP}/read-receipts-diff.log"
-
-      - name: Build candidate Git tree
-        id: candidate
-        if: ${{ steps.codegen.outcome == 'success' && steps.proto_lint.outcome == 'success' && steps.backend.outcome == 'success' && steps.vet.outcome == 'success' && steps.diff.outcome == 'success' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          base_tree="$(git show -s --format=%T HEAD)"
-          candidate_files="${RUNNER_TEMP}/read-receipts-candidate-files.txt"
-          candidate_tree="${RUNNER_TEMP}/read-receipts-candidate-tree.json"
-          entries="${RUNNER_TEMP}/read-receipts-candidate-entries.json"
-
-          {
-            git diff --name-only --diff-filter=ACMRTUXB
-            git ls-files --others --exclude-standard
-          } | awk 'NF && !seen[$0]++' | sort > "${candidate_files}"
-
-          if [[ ! -s "${candidate_files}" ]]; then
-            echo "No candidate files were produced" >&2
-            exit 1
-          fi
-
-          printf '[]' > "${entries}"
-          while IFS= read -r path; do
-            if [[ ! -f "${path}" ]]; then
-              echo "Candidate path is not a regular file: ${path}" >&2
-              exit 1
-            fi
-            encoded="$(base64 -w0 "${path}")"
-            blob_sha="$(
-              jq -n --arg content "${encoded}" '{content: $content, encoding: "base64"}' \
-                | curl --fail --silent --show-error --location \
-                    --retry 3 \
-                    --request POST \
-                    --header "Accept: application/vnd.github+json" \
-                    --header "Authorization: Bearer ${GH_TOKEN}" \
-                    --header "X-GitHub-Api-Version: 2022-11-28" \
-                    --data-binary @- \
-                    "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs" \
-                | jq -er '.sha'
-            )"
-            jq --arg path "${path}" --arg sha "${blob_sha}" \
-              '. + [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \
-              "${entries}" > "${entries}.next"
-            mv "${entries}.next" "${entries}"
-          done < "${candidate_files}"
-
-          jq -n --arg base_tree "${base_tree}" --slurpfile tree "${entries}" \
-            '{base_tree: $base_tree, tree: $tree[0]}' \
-            | curl --fail --silent --show-error --location \
-                --retry 3 \
-                --request POST \
-                --header "Accept: application/vnd.github+json" \
-                --header "Authorization: Bearer ${GH_TOKEN}" \
-                --header "X-GitHub-Api-Version: 2022-11-28" \
-                --data-binary @- \
-                "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/trees" \
-            | tee "${candidate_tree}"
-
-          tree_sha="$(jq -er '.sha' "${candidate_tree}")"
-          printf 'tree_sha=%s\n' "${tree_sha}" >> "${GITHUB_OUTPUT}"
-          printf 'head_sha=%s\n' "$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
-
-      - name: Record development gate status
-        if: ${{ always() }}
-        shell: bash
-        env:
-          CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
-          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
-          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
-          VET_OUTCOME: ${{ steps.vet.outcome }}
-          DIFF_OUTCOME: ${{ steps.diff.outcome }}
-          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
-          CANDIDATE_TREE_SHA: ${{ steps.candidate.outputs.tree_sha }}
-          CANDIDATE_HEAD_SHA: ${{ steps.candidate.outputs.head_sha }}
-        run: |
-          {
-            printf 'codegen=%s\n' "${CODEGEN_OUTCOME}"
-            printf 'proto_lint=%s\n' "${PROTO_LINT_OUTCOME}"
-            printf 'backend=%s\n' "${BACKEND_OUTCOME}"
-            printf 'vet=%s\n' "${VET_OUTCOME}"
-            printf 'diff=%s\n' "${DIFF_OUTCOME}"
-            printf 'candidate=%s\n' "${CANDIDATE_OUTCOME}"
-            printf 'candidate_tree=%s\n' "${CANDIDATE_TREE_SHA}"
-            printf 'head_sha=%s\n' "${CANDIDATE_HEAD_SHA}"
-          } > "${RUNNER_TEMP}/read-receipts-status.txt"
-
-      - name: Create generated workspace snapshot
-        if: ${{ always() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tar --exclude=.git -czf "${RUNNER_TEMP}/towk-read-receipts-workspace.tar.gz" .
-
-      - name: Upload generated workspace, candidate tree, and logs
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: towk-read-receipts-workspace
-          path: |
-            ${{ runner.temp }}/towk-read-receipts-workspace.tar.gz
-            ${{ runner.temp }}/read-receipts-codegen.log
-            ${{ runner.temp }}/read-receipts-buf-lint.log
-            ${{ runner.temp }}/read-receipts-backend.log
-            ${{ runner.temp }}/read-receipts-vet.log
-            ${{ runner.temp }}/read-receipts-diff.log
-            ${{ runner.temp }}/read-receipts-candidate-files.txt
-            ${{ runner.temp }}/read-receipts-candidate-tree.json
-            ${{ runner.temp }}/read-receipts-status.txt
-          retention-days: 1
-          if-no-files-found: warn
-
-      - name: Enforce development gate
-        if: ${{ always() }}
-        shell: bash
-        env:
-          CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
-          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
-          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
-          VET_OUTCOME: ${{ steps.vet.outcome }}
-          DIFF_OUTCOME: ${{ steps.diff.outcome }}
-          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
-        run: |
-          test "${CODEGEN_OUTCOME}" = success
-          test "${PROTO_LINT_OUTCOME}" = success
-          test "${BACKEND_OUTCOME}" = success
-          test "${VET_OUTCOME}" = success
-          test "${DIFF_OUTCOME}" = success
-          test "${CANDIDATE_OUTCOME}" = success
+          probe_blob "${OVERLAY_BLOB_SHA}" "${RUNNER_TEMP}/overlay-chunk.bin"
