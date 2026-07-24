@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	dmHistoryStateVersion      = 1
-	maxDMHistoryUpdateRetries  = 5
+	dmHistoryStateVersion     = 1
+	maxDMHistoryUpdateRetries = 5
 )
 
 type dmHistoryState struct {
