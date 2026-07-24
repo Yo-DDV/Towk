@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      FRONTEND_PATCH_BLOB: __FRONTEND_BLOB_SHA__
+      FRONTEND_PATCH_BLOB: 7db4f827f20ebe7f8cc0429be4c73337d4fcf9f4
       FRONTEND_PATCH_SHA256: e23fa55fa49a4816b800210cb15a5feffed4c01d3856c74c67badfb628e93bd6
     steps:
       - name: Check out profile branch
@@ -117,6 +117,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -f .github/workflows/user-profiles-frontend-publish.yml
+          rm -f .profile-frontend-patch.b64
           git add -A
           git diff --cached --check
           test -n "$(git diff --cached --name-only)"
