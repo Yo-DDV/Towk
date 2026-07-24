@@ -11,8 +11,6 @@ See the "UI" section of `docs/GLOSSARY.md`.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { cubicOut } from 'svelte/easing';
-  import { fly } from 'svelte/transition';
   import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverSidebarWidth } from '$lib/state/serverSidebarWidth.svelte';
@@ -27,8 +25,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
   let {
     children,
     width,
-    mobileWidth = 'max-md:w-64',
-    synchronizedMobileIntro = false
+    mobileWidth = 'max-md:w-64'
   }: {
     children: Snippet;
     /** Optional Tailwind class to lock the desktop width (e.g. "md:w-56"). When
@@ -36,11 +33,6 @@ See the "UI" section of `docs/GLOSSARY.md`.
      *  a drag handle. */
     width?: string;
     mobileWidth?: string;
-    /** Animate a route-scoped sidebar that mounts only when navigation opens.
-     *  The 200 ms duration matches MobileSidebarChrome's gutter transform so both
-     *  columns begin and finish together. Normal route sidebars already stay
-     *  mounted and should leave this disabled. */
-    synchronizedMobileIntro?: boolean;
   } = $props();
 
   // On mobile the panel slides as a single unit with the Server Gutter — both
@@ -50,16 +42,10 @@ See the "UI" section of `docs/GLOSSARY.md`.
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && sidebarNav.progress === 0 && !dragging);
   const resizable = $derived(!width);
-  const synchronizedIntroEnabled = $derived(
-    synchronizedMobileIntro && sidebarNav.isMobile && sidebarNav.isOpen
-  );
-  const introOffset = $derived(synchronizedIntroEnabled ? -SIDEBAR_PANEL_WIDTH_PX : 0);
-  const introDuration = $derived(synchronizedIntroEnabled ? 200 : 0);
 </script>
 
 <div
   use:sidebarSwipe
-  in:fly={{ x: introOffset, opacity: 1, duration: introDuration, easing: cubicOut }}
   data-app-sidebar="true"
   data-testid="server-sidebar"
   class={[
