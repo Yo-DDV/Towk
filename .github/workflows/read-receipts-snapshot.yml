@@ -53,6 +53,7 @@ jobs:
             printf 'codegen=%s\n' "${CODEGEN_OUTCOME}"
             printf 'backend=%s\n' "${BACKEND_OUTCOME}"
             printf 'sha=%s\n' "${GITHUB_SHA}"
+            printf 'tree=%s\n' "$(git show -s --format=%T HEAD)"
           } > "${RUNNER_TEMP}/read-receipts-status.txt"
 
       - name: Create generated workspace snapshot
