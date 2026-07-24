@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package chatto.core.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
+
+// PublicReadReceiptCursor is the bounded runtime-state marker used for public
+// read receipts. It is separate from private unread markers.
+message PublicReadReceiptCursor {
+  // Highest visible message event acknowledged by this user.
+  string event_id = 1;
+  // Monotonic room-stream sequence for event_id.
+  uint64 event_sequence = 2;
+  // Server time when this marker most recently advanced.
+  google.protobuf.Timestamp read_at = 3;
+}
