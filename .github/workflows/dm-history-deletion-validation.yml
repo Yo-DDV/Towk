@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
         with:
@@ -34,10 +35,20 @@ jobs:
             test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
           fi
       - name: Run targeted backend tests
+        id: backend-tests
         shell: bash
         run: |
+          set -o pipefail
           cd cli
-          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server
+          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server 2>&1 | tee "${RUNNER_TEMP}/backend-tests.log"
+      - name: Upload backend test log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dm-history-backend-log
+          path: ${{ runner.temp }}/backend-tests.log
+          retention-days: 1
+          if-no-files-found: warn
       - name: Run DM history race tests
         shell: bash
         run: |
@@ -50,6 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
         with:
@@ -60,7 +72,18 @@ jobs:
       - name: Lint frontend
         run: pnpm run lint:frontend
       - name: Run frontend unit tests
-        run: pnpm run test:frontend
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm run test:frontend 2>&1 | tee "${RUNNER_TEMP}/frontend-tests.log"
+      - name: Upload frontend test log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dm-history-frontend-log
+          path: ${{ runner.temp }}/frontend-tests.log
+          retention-days: 1
+          if-no-files-found: warn
 
   policy:
     runs-on: ubuntu-latest
@@ -68,6 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
         with:
