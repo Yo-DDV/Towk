@@ -1,5 +1,5 @@
 <!--
-@component
+@Component
 
 The **Server Sidebar** — wider sidebar to the right of the Server Gutter,
 scoped to a single server. Owns the per-server pane's chrome: positioning,
@@ -11,6 +11,8 @@ See the "UI" section of `docs/GLOSSARY.md`.
 -->
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { cubicOut } from 'svelte/easing';
+  import { fly } from 'svelte/transition';
   import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverSidebarWidth } from '$lib/state/serverSidebarWidth.svelte';
@@ -25,7 +27,8 @@ See the "UI" section of `docs/GLOSSARY.md`.
   let {
     children,
     width,
-    mobileWidth = 'max-md:w-64'
+    mobileWidth = 'max-md:w-64',
+    synchronizedMobileLifecycle = false
   }: {
     children: Snippet;
     /** Optional Tailwind class to lock the desktop width (e.g. "md:w-56"). When
@@ -33,6 +36,11 @@ See the "UI" section of `docs/GLOSSARY.md`.
      *  a drag handle. */
     width?: string;
     mobileWidth?: string;
+    /** Animate a route-scoped sidebar that is mounted only when navigation opens.
+     *  The 200 ms duration matches MobileSidebarChrome's gutter transform so both
+     *  columns finish together. Normal route sidebars already stay mounted and
+     *  should leave this disabled. */
+    synchronizedMobileLifecycle?: boolean;
   } = $props();
 
   // On mobile the panel slides as a single unit with the Server Gutter — both
@@ -42,10 +50,19 @@ See the "UI" section of `docs/GLOSSARY.md`.
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && sidebarNav.progress === 0 && !dragging);
   const resizable = $derived(!width);
+  const lifecycleDuration = $derived(
+    synchronizedMobileLifecycle && sidebarNav.isMobile && sidebarNav.isOpen ? 200 : 0
+  );
 </script>
 
 <div
   use:sidebarSwipe
+  transition:fly={{
+    x: -SIDEBAR_PANEL_WIDTH_PX,
+    opacity: 1,
+    duration: lifecycleDuration,
+    easing: cubicOut
+  }}
   data-app-sidebar="true"
   data-testid="server-sidebar"
   class={[
