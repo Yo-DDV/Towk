@@ -262,24 +262,11 @@ describe('root layout mobile sidebar animation', () => {
     expect(mocks.pushState).toHaveBeenCalledWith('', { modal: { type: 'logout' } });
   });
 
-  it('keeps edge target presses from bubbling to app-level outside-click handlers', async () => {
+  it('does not render an app-owned target over the system back-gesture edge', async () => {
     const { container } = renderLayout();
-    const onWindowPointerDown = vi.fn();
-    window.addEventListener('pointerdown', onWindowPointerDown);
+    await tick();
 
-    try {
-      await tick();
-
-      const edge = q(container, '[data-testid="mobile-sidebar-edge"]');
-      expect(edge).not.toBeNull();
-      if (!edge) return;
-
-      edge.dispatchEvent(pointer('pointerdown', 2));
-
-      expect(onWindowPointerDown).not.toHaveBeenCalled();
-    } finally {
-      window.removeEventListener('pointerdown', onWindowPointerDown);
-    }
+    expect(q(container, '[data-testid="mobile-sidebar-edge"]')).toBeNull();
   });
 
   it('keeps the sidebar and backdrop mounted while the mobile close animation runs', async () => {
@@ -298,7 +285,7 @@ describe('root layout mobile sidebar animation', () => {
     expect(backdrop).not.toBeNull();
     if (!panel || !backdrop) return;
 
-    expect(panel.style.transform).toBe('translateX(0px)');
+    expect(panel.style.transform).toBe('translate3d(0px, 0px, 0px)');
     expect(getComputedStyle(panel).visibility).toBe('visible');
     expect(backdrop.disabled).toBe(false);
     expect(backdrop.style.opacity).toBe('1');
@@ -309,7 +296,7 @@ describe('root layout mobile sidebar animation', () => {
     expect(q(container, '[data-testid="mobile-sidebar-backdrop"]')).toBe(backdrop);
     expect(backdrop.disabled).toBe(true);
     expect(backdrop.style.opacity).toBe('0');
-    expect(panel.style.transform).toBe('translateX(-324px)');
+    expect(panel.style.transform).toBe('translate3d(-324px, 0px, 0px)');
     expect(panel.classList.contains('sidebar-mobile-closed')).toBe(true);
   });
 
@@ -330,6 +317,6 @@ describe('root layout mobile sidebar animation', () => {
     await tick();
 
     expect(sidebarNav.isOpen).toBe(false);
-    expect(panel.style.transform).toBe('translateX(-324px)');
+    expect(panel.style.transform).toBe('translate3d(-324px, 0px, 0px)');
   });
 });
