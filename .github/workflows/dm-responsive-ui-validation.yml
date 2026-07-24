@@ -77,23 +77,22 @@ jobs:
       - name: Install Chromium
         run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
 
-      - name: Run ModalContainer test and capture JSON
+      - name: Run ModalContainer test and capture output
         shell: bash
         run: |
           set +e
           pnpm --filter towk-frontend exec vitest --run \
-            --reporter=json \
-            --outputFile="${RUNNER_TEMP}/modal-test.json" \
-            src/routes/chat/ModalContainer.svelte.spec.ts
+            src/routes/chat/ModalContainer.svelte.spec.ts \
+            > "${RUNNER_TEMP}/modal-test.log" 2>&1
           printf '%s\n' "$?" > "${RUNNER_TEMP}/modal-test.rc"
           exit 0
 
       - name: Upload modal test diagnostics
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: dm-modal-test-diagnostics
+          name: dm-modal-test-output
           path: |
-            ${{ runner.temp }}/modal-test.json
+            ${{ runner.temp }}/modal-test.log
             ${{ runner.temp }}/modal-test.rc
           retention-days: 1
           if-no-files-found: error
