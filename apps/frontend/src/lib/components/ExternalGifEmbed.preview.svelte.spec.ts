@@ -83,8 +83,8 @@ describe('ExternalGifEmbed persisted preview boundary', () => {
 
     await expect.element(embed).not.toBeVisible();
     await expect.element(embed).toHaveAttribute('data-suppressed-by-preview', 'true');
-    await expect.element(embed.locator('iframe')).toHaveCount(0);
-    await expect.element(embed.locator('img')).toHaveCount(0);
-    await expect.element(embed.locator('video')).toHaveCount(0);
+    expect(article.querySelector('iframe')).toBeNull();
+    expect(article.querySelector('img')).toBeNull();
+    expect(article.querySelector('video')).toBeNull();
   });
 });
