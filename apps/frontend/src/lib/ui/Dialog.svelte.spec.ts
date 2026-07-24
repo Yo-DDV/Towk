@@ -68,7 +68,8 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog')).toHaveClass('w-150');
+      await expect.element(q(container, 'dialog')).toHaveClass('w-[calc(100vw-1.5rem)]');
+      await expect.element(q(container, 'dialog')).toHaveClass('sm:w-150');
     });
 
     it('applies small size class when size is sm', async () => {
@@ -78,7 +79,8 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog')).toHaveClass('w-100');
+      await expect.element(q(container, 'dialog')).toHaveClass('w-[calc(100vw-1.5rem)]');
+      await expect.element(q(container, 'dialog')).toHaveClass('sm:w-100');
     });
 
     it('applies large size class when size is lg', async () => {
@@ -88,7 +90,8 @@ describe('Dialog', () => {
         children: testSnippet('<span>Content</span>')
       });
 
-      await expect.element(q(container, 'dialog')).toHaveClass('w-200');
+      await expect.element(q(container, 'dialog')).toHaveClass('w-[calc(100vw-1rem)]');
+      await expect.element(q(container, 'dialog')).toHaveClass('lg:w-200');
     });
   });
 
@@ -184,9 +187,7 @@ describe('Dialog', () => {
       // for the bug that closed AddServerDialog after probe.
       const { container } = renderDialog({
         visible: true,
-        children: testSnippet(
-          '<button type="button" data-testid="inside">Inside</button>'
-        )
+        children: testSnippet('<button type="button" data-testid="inside">Inside</button>')
       });
 
       const dialog = q(container, 'dialog') as HTMLDialogElement;
