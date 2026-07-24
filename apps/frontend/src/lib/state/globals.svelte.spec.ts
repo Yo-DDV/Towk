@@ -39,6 +39,36 @@ describe('SidebarNavState', () => {
     expect(sidebar.isOpen).toBe(false);
   });
 
+  it('lets a route reveal a delayed secondary pane and then toggle it', () => {
+    const sidebar = new SidebarNavState();
+    let secondaryPaneRendered = false;
+
+    sidebar.registerToggleHandler(() => {
+      if (!secondaryPaneRendered) {
+        secondaryPaneRendered = true;
+        sidebar.open();
+        return true;
+      }
+
+      if (sidebar.isOpen) {
+        sidebar.close();
+      } else {
+        sidebar.open();
+      }
+      return true;
+    });
+
+    sidebar.toggle();
+    expect(secondaryPaneRendered).toBe(true);
+    expect(sidebar.isOpen).toBe(true);
+
+    sidebar.toggle();
+    expect(sidebar.isOpen).toBe(false);
+
+    sidebar.toggle();
+    expect(sidebar.isOpen).toBe(true);
+  });
+
   it('falls back to the normal toggle when a route does not consume the action', () => {
     const sidebar = new SidebarNavState();
     sidebar.registerToggleHandler(() => false);
