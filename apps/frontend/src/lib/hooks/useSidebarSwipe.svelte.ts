@@ -2,21 +2,19 @@ import { sidebarNav, SIDEBAR_PANEL_WIDTH_PX } from '$lib/state/globals.svelte';
 import { panGesture } from './panGesture.svelte';
 
 /**
- * Svelte action: drives the mobile sidebar's open/close state from a
- * horizontal pointer drag on the host element.
+ * Svelte action: drives the open mobile sidebar from a horizontal drag on the
+ * panel or its backdrop.
  *
  * Ignored on desktop (gated by `sidebarNav.isMobile`). When closed, only
  * rightward drags claim; when open, only leftward drags claim. Taps and
  * long-presses are forwarded to the element directly underneath the host so
- * dedicated overlay zones still let underlying content receive clicks and
- * context menus. Use {@link sidebarEdgeSwipe} for the screen-edge open target:
- * edge taps are too ambiguous and must not synthesize clicks into overlays.
+ * overlay surfaces still let underlying content receive clicks and context
+ * menus when they are not handling the interaction themselves.
  *
- * The host MUST have `touch-action: none` along the X axis — without it,
- * Chrome / iOS Safari fire `pointercancel` ~8px in when they decide a touch
- * is a back-navigation / text-selection drag.
+ * The host MUST have `touch-action: none` along the X axis so a claimed drag can
+ * continue after the browser has evaluated native panning behavior.
  */
-function createSidebarSwipe(node: HTMLElement, passthrough: boolean) {
+export function sidebarSwipe(node: HTMLElement) {
   function elementBelow(x: number, y: number) {
     return document.elementsFromPoint(x, y).find((el) => el !== node && !node.contains(el));
   }
@@ -68,17 +66,9 @@ function createSidebarSwipe(node: HTMLElement, passthrough: boolean) {
     onUpdate: (dx) => sidebarNav.updateDrag(dx),
     onEnd: (_dx, vx) => sidebarNav.endDrag(vx),
     onCancel: () => sidebarNav.endDrag(0),
-    onTap: passthrough ? forwardTap : undefined,
-    onLongPress: passthrough ? forwardLongPress : undefined
+    onTap: forwardTap,
+    onLongPress: forwardLongPress
   });
-}
-
-export function sidebarSwipe(node: HTMLElement) {
-  return createSidebarSwipe(node, true);
-}
-
-export function sidebarEdgeSwipe(node: HTMLElement) {
-  return createSidebarSwipe(node, false);
 }
 
 export { SIDEBAR_PANEL_WIDTH_PX };
