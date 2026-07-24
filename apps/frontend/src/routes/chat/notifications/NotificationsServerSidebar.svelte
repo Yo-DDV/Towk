@@ -27,7 +27,10 @@
       {/if}
 
       <nav class="sidebar-nav p-2">
-        <a href={resolve('/chat/[serverId]/overview', { serverId: serverSegment })} class="sidebar-item">
+        <a
+          href={resolve('/chat/[serverId]/overview', { serverId: serverSegment })}
+          class="sidebar-item"
+        >
           <span class="sidebar-icon iconify uil--estate"></span>
           {m['chat.overview.title']()}
         </a>
