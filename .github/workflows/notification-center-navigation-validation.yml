@@ -1,13 +1,14 @@
 name: notification center navigation validation
 
 on:
-  push:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
     branches:
-      - fix/notification-center-sidebar-return
+      - main
   workflow_dispatch:
 
 concurrency:
-  group: notification-center-navigation-${{ github.ref }}
+  group: notification-center-navigation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
