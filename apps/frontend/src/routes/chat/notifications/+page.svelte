@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { goto, pushState } from '$app/navigation';
+  import { page } from '$app/state';
   import { onMount } from 'svelte';
   import { fade } from 'svelte/transition';
   import { SvelteSet } from 'svelte/reactivity';
@@ -10,6 +11,7 @@
   import { notificationTarget } from '$lib/state/server/notifications.svelte';
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
+  import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import {
@@ -72,28 +74,45 @@
 
   let loading = $state(true);
   let clearing = $state(false);
-  let showServerSidebar = $state(false);
+  let sidebarHistoryWasOpen = false;
   const pendingNotificationIds = new SvelteSet<string>();
   const showDelayedLoading = delayedLoadingVisible(() => loading && allNotifications.length === 0);
 
   function handleSidebarToggle(): boolean {
-    if (!serverRegistry.originServer) return false;
-
-    if (!showServerSidebar) {
-      showServerSidebar = true;
-      sidebarNav.open();
+    if (page.state.notificationSidebarOpen) {
+      history.back();
       return true;
     }
 
-    if (sidebarNav.isOpen) {
-      sidebarNav.close();
-    } else {
-      sidebarNav.open();
-    }
+    const serverId = getActiveServer();
+    if (!serverId || !serverRegistry.tryGetStore(serverId)?.isAuthenticated) return false;
+
+    pushState('', {
+      ...page.state,
+      notificationServerId: serverId,
+      notificationSidebarOpen: true
+    });
+    sidebarNav.open();
     return true;
   }
 
   onMount(() => sidebarNav.registerToggleHandler(handleSidebarToggle));
+
+  // The shallow history entry is the source of truth for this transient pane.
+  // Android/iOS/browser Back removes it first, keeping the notification route
+  // mounted; Forward restores it. The local nav state follows that entry.
+  $effect(() => {
+    const historyOpen = page.state.notificationSidebarOpen === true;
+    if (historyOpen) {
+      sidebarHistoryWasOpen = true;
+      if (!sidebarNav.isOpen) sidebarNav.open();
+      return;
+    }
+
+    if (!sidebarHistoryWasOpen) return;
+    sidebarHistoryWasOpen = false;
+    if (sidebarNav.isOpen) sidebarNav.close();
+  });
 
   // Fetch notifications from all authenticated instances on mount
   $effect(() => {
@@ -210,7 +229,7 @@
   }
 </script>
 
-{#if showServerSidebar}
+{#if page.state.notificationSidebarOpen}
   <NotificationsServerSidebar />
 {/if}
 
