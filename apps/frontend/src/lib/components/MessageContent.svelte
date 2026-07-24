@@ -33,19 +33,30 @@
     onMentionClick?: (userId: string, anchorRect: DOMRect) => void;
   } = $props();
 
+  // Keep capability lookup tied to the same server ID for the entire derived
+  // pass. The live store is authoritative when available; the registered
+  // server carries the last successfully advertised capabilities and provides
+  // a safe fallback while a store is being recreated or hydrated.
+  const activeServerId = $derived(getActiveServer());
+  const activeServer = $derived(serverRegistry.getServer(activeServerId));
+  const activeStore = $derived(serverRegistry.tryGetStore(activeServerId));
+  const supportsExternalGif = $derived(
+    activeStore?.serverInfo?.supportsCapability?.(EXTERNAL_GIF_EMBEDS_CAPABILITY) === true ||
+      activeStore?.serverInfo?.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) === true ||
+      activeServer?.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) === true
+  );
+
   // The viewer's login on the active server, used by `wrapValidMentions` to
   // mark self-mentions. Same reactive registry-lookup pattern every other
   // chat-tree component uses — `tryGetStore` and the `?.` chain mean an
   // unregistered or pre-auth server leaves `viewerLogin` undefined, which
   // `wrapValidMentions` already treats as "no self-mention."
-  const activeStore = $derived(serverRegistry.tryGetStore(getActiveServer()));
-  const viewerLogin = $derived(activeStore?.currentUser.user?.login);
+  const viewerLogin = $derived(activeStore?.currentUser?.user?.login);
   const editedMarker = $derived(edited ? m['room.message.meta.edited']() : '');
   const externalGif = $derived.by(() =>
     allowExternalGif
       ? resolveExternalGifMessage(body, {
-          supportsCapability:
-            activeStore?.serverInfo.supportsCapability(EXTERNAL_GIF_EMBEDS_CAPABILITY) ?? false,
+          supportsCapability: supportsExternalGif,
           hasPersistedLinkPreview: false
         })
       : null
