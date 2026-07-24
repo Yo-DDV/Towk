@@ -80,6 +80,8 @@ message UpdateSettingsRequest {
   optional string timezone = 1;
   // Preferred time format.
   optional TimeFormat time_format = 2;
+  // Enables or disables reciprocal public read receipts for this account.
+  optional bool read_receipts_enabled = 3;
 }
 
 // Result of updating display preferences.
