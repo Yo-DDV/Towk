@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: dm-history-deletion-ui-candidate
@@ -159,3 +160,18 @@ jobs:
           test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "${TARGET_SHA}"
           git merge-base --is-ancestor "${TARGET_SHA}" HEAD
           git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+
+      - name: Report validation result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          current_sha="$(git rev-parse HEAD 2>/dev/null || printf '%s' "${TARGET_SHA}")"
+          body="Responsive DM UI validation ${JOB_STATUS}. Run: ${GITHUB_RUN_ID}. Product ref: ${current_sha}."
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/186/comments" \
+            -f body="${body}"
