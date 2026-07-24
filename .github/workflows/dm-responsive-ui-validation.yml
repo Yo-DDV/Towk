@@ -89,7 +89,6 @@ jobs:
             'src/routes/chat/[serverId]/[roomId]/RoomSidebarToggle.svelte.spec.ts'
           mise codegen-proto
           pnpm --dir apps/frontend run paraglide
-          pnpm --dir apps/frontend exec prettier --write src/lib/i18n/messages.ts
           node apps/frontend/scripts/check-i18n-catalogs.mjs
           git diff --check
 
