@@ -89,12 +89,25 @@ jobs:
             src/lib/api-client-tests/viewer.spec.ts
 
       - name: Check profile component in Chromium
+        id: browser
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          mise exec -- pnpm --dir apps/frontend exec playwright install chromium
+          set -o pipefail
+          mise exec -- pnpm --dir apps/frontend exec playwright install chromium 2>&1 \
+            | tee "${RUNNER_TEMP}/user-profiles-browser.log"
           mise exec -- pnpm --dir apps/frontend exec vitest --run --project client \
-            src/lib/components/menus/UserContextMenu.svelte.spec.ts
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts 2>&1 \
+            | tee -a "${RUNNER_TEMP}/user-profiles-browser.log"
+
+      - name: Upload browser diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: user-profiles-browser-diagnostic
+          path: ${{ runner.temp }}/user-profiles-browser.log
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Check changed frontend source
         shell: bash
@@ -111,6 +124,12 @@ jobs:
             src/lib/components/menus/UserContextMenu.svelte.spec.ts \
             src/lib/components/settings/ProfileDetailsSettings.svelte \
             src/routes/settings/+page.svelte
+
+      - name: Enforce browser verification
+        shell: bash
+        env:
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+        run: test "${BROWSER_OUTCOME}" = success
 
       - name: Prepare final branch tree
         shell: bash
