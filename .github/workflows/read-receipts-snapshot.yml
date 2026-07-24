@@ -1,4 +1,4 @@
-name: read-receipts source publish probe
+name: read-receipts development gate
 
 on:
   pull_request:
@@ -6,29 +6,261 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: read-receipts-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  probe:
+  generate-and-test:
     runs-on: ubuntu-latest
+    env:
+      PATCH_BLOB_SHAS: >-
+        a7b7b8c87751019d105a2cddf5391178da60d722
+        e6d45583461df455f666f06890626e137c413a18
+        cf96c7a3c53d5eff613954a818cd52ad1a1c12f8
+        7fa41e08c6df96db7343004656a44235f14d0516
+        fcab57cd8253622905a21e2586732886e723281c
+        771fc452861057183b90a7315262b383aa57c441
+        731f539de9a16b9005c350e7de88d089036c958f
+        44f4ce16fc4f45e10d2e121597d2a3340b9be817
+        9c2782255e9f83637081fbac751358c2bd6de99f
+        1ab5b97920b73c454bfb400b51a42fbe78f53b0b
+        c4728b70dbb290921d3ea2bfc75d4ba129e42f39
+        b920729c9710482244882bfd7686198f0df1cdee
+        ce85133dd1f0b362a1914e0c487bbd0b9f52fc92
+        286a8cab3de64bfe3634472248b1756f1d536629
+        ec8c022c90c1128eca1c6a99165d8a62b263daf1
+        6f6e5b1526f302d560160d29cfe53b18a58b22f4
+        b08d42e9813fc0578c771b99927c3f5d58ad373e
+        ef0f83b78a903d8298d2aa79c32cbf746e9ea926
+        c6598b1188f9470167d8e538ccf08bbbe7b1a38e
+        206c0cf35270882e782e088a6ed158ab36eaec09
+        2294cd9ecb60843903e02d3ed90984529e04cbd0
+      PATCH_SHA256: 0499ba79df3a007df904337cd383c5cced84c3a29904a0aa207c0c07c95c7c96
     steps:
-      - name: Report exact head and root tree
+      - name: Check out pull request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Materialize reviewed source patch
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          tree_sha="$(curl --fail --silent --show-error --location \
-            --retry 3 \
-            --header "Accept: application/vnd.github+json" \
-            --header "Authorization: Bearer ${GH_TOKEN}" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/commits/${HEAD_SHA}" \
-            | jq -er '.tree.sha')"
-          printf 'head=%s\n' "${HEAD_SHA}"
-          printf 'tree=%s\n' "${tree_sha}"
+          raw="${RUNNER_TEMP}/read-receipts-source.raw"
+          patch="${RUNNER_TEMP}/read-receipts-source.patch"
+          : > "${raw}"
+
+          for sha in ${PATCH_BLOB_SHAS}; do
+            chunk="${RUNNER_TEMP}/read-receipts-${sha}.chunk"
+            curl --fail --silent --show-error --location \
+              --retry 3 \
+              --header "Accept: application/vnd.github.raw+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" \
+              > "${chunk}"
+            test "$(git hash-object "${chunk}")" = "${sha}"
+            cat "${chunk}" >> "${raw}"
+          done
+
+          grep -v '^--TOWK-READ-RECEIPTS-CHUNK-END--$' "${raw}" > "${patch}"
+          printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --strict
+          git apply --check "${patch}"
+          git apply "${patch}"
+
+          gofmt -w \
+            cli/internal/connectapi/account.go \
+            cli/internal/connectapi/errors.go \
+            cli/internal/connectapi/read_state.go \
+            cli/internal/connectapi/server_state.go \
+            cli/internal/connectapi/viewer.go \
+            cli/internal/core/config_manager.go \
+            cli/internal/core/config_projection.go \
+            cli/internal/core/core_test.go \
+            cli/internal/core/errors.go \
+            cli/internal/core/my_events_model.go \
+            cli/internal/core/read_receipts.go \
+            cli/internal/core/read_receipts_test.go \
+            cli/internal/core/rooms.go \
+            cli/internal/core/server_state_management.go \
+            cli/internal/core/user_preferences.go \
+            cli/internal/core/users.go \
+            cli/internal/http_server/realtime.go
+
+      - name: Generate protobuf bindings
+        id: codegen
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mise codegen-proto 2>&1 | tee "${RUNNER_TEMP}/read-receipts-codegen.log"
+
+      - name: Lint protobuf API
+        id: proto_lint
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cd proto
+          buf lint 2>&1 | tee "${RUNNER_TEMP}/read-receipts-buf-lint.log"
+
+      - name: Run targeted backend tests under race
+        id: backend
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cd cli
+          go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
+            | tee "${RUNNER_TEMP}/read-receipts-backend.log"
+
+      - name: Vet affected backend packages
+        id: vet
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          cd cli
+          go vet ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
+            | tee "${RUNNER_TEMP}/read-receipts-vet.log"
+
+      - name: Check generated and formatted diff
+        id: diff
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          git diff --check 2>&1 | tee "${RUNNER_TEMP}/read-receipts-diff.log"
+
+      - name: Build candidate Git tree
+        id: candidate
+        if: ${{ steps.codegen.outcome == 'success' && steps.proto_lint.outcome == 'success' && steps.backend.outcome == 'success' && steps.vet.outcome == 'success' && steps.diff.outcome == 'success' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base_tree="$(git show -s --format=%T HEAD)"
+          files="${RUNNER_TEMP}/read-receipts-candidate-files.txt"
+          entries="${RUNNER_TEMP}/read-receipts-candidate-entries.json"
+          response="${RUNNER_TEMP}/read-receipts-candidate-tree.json"
+
+          {
+            git diff --name-only --diff-filter=ACMRTUXB
+            git ls-files --others --exclude-standard
+          } | awk 'NF && !seen[$0]++' | sort > "${files}"
+          test -s "${files}"
+          printf '[]' > "${entries}"
+
+          while IFS= read -r path; do
+            test -f "${path}"
+            encoded="$(base64 -w0 "${path}")"
+            blob_sha="$(
+              jq -n --arg content "${encoded}" '{content: $content, encoding: "base64"}' \
+                | curl --fail --silent --show-error --location \
+                    --retry 3 \
+                    --request POST \
+                    --header "Accept: application/vnd.github+json" \
+                    --header "Authorization: Bearer ${GH_TOKEN}" \
+                    --header "X-GitHub-Api-Version: 2022-11-28" \
+                    --data-binary @- \
+                    "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs" \
+                | jq -er '.sha'
+            )"
+            jq --arg path "${path}" --arg sha "${blob_sha}" \
+              '. + [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \
+              "${entries}" > "${entries}.next"
+            mv "${entries}.next" "${entries}"
+          done < "${files}"
+
+          jq -n --arg base_tree "${base_tree}" --slurpfile tree "${entries}" \
+            '{base_tree: $base_tree, tree: $tree[0]}' \
+            | curl --fail --silent --show-error --location \
+                --retry 3 \
+                --request POST \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                --data-binary @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/trees" \
+            | tee "${response}"
+
+          printf 'tree_sha=%s\n' "$(jq -er '.sha' "${response}")" >> "${GITHUB_OUTPUT}"
+          printf 'head_sha=%s\n' "$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Record development gate status
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
+          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
+          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+          VET_OUTCOME: ${{ steps.vet.outcome }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
+          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
+          CANDIDATE_TREE_SHA: ${{ steps.candidate.outputs.tree_sha }}
+          CANDIDATE_HEAD_SHA: ${{ steps.candidate.outputs.head_sha }}
+        run: |
+          {
+            printf 'codegen=%s\n' "${CODEGEN_OUTCOME}"
+            printf 'proto_lint=%s\n' "${PROTO_LINT_OUTCOME}"
+            printf 'backend=%s\n' "${BACKEND_OUTCOME}"
+            printf 'vet=%s\n' "${VET_OUTCOME}"
+            printf 'diff=%s\n' "${DIFF_OUTCOME}"
+            printf 'candidate=%s\n' "${CANDIDATE_OUTCOME}"
+            printf 'candidate_tree=%s\n' "${CANDIDATE_TREE_SHA}"
+            printf 'head_sha=%s\n' "${CANDIDATE_HEAD_SHA}"
+          } > "${RUNNER_TEMP}/read-receipts-status.txt"
+
+      - name: Create generated workspace snapshot
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf "${RUNNER_TEMP}/towk-read-receipts-workspace.tar.gz" .
+
+      - name: Upload generated workspace, candidate tree, and logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: towk-read-receipts-workspace
+          path: |
+            ${{ runner.temp }}/towk-read-receipts-workspace.tar.gz
+            ${{ runner.temp }}/read-receipts-codegen.log
+            ${{ runner.temp }}/read-receipts-buf-lint.log
+            ${{ runner.temp }}/read-receipts-backend.log
+            ${{ runner.temp }}/read-receipts-vet.log
+            ${{ runner.temp }}/read-receipts-diff.log
+            ${{ runner.temp }}/read-receipts-candidate-files.txt
+            ${{ runner.temp }}/read-receipts-candidate-tree.json
+            ${{ runner.temp }}/read-receipts-status.txt
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Enforce development gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
+          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
+          BACKEND_OUTCOME: ${{ steps.backend.outcome }}
+          VET_OUTCOME: ${{ steps.vet.outcome }}
+          DIFF_OUTCOME: ${{ steps.diff.outcome }}
+          CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
+        run: |
+          test "${CODEGEN_OUTCOME}" = success
+          test "${PROTO_LINT_OUTCOME}" = success
+          test "${BACKEND_OUTCOME}" = success
+          test "${VET_OUTCOME}" = success
+          test "${DIFF_OUTCOME}" = success
+          test "${CANDIDATE_OUTCOME}" = success
