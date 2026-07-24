@@ -690,9 +690,20 @@ func (c *ChattoCore) RecordUserAssetDeleted(ctx context.Context, actorID, userID
 	return nil
 }
 
-// publishUserProfileUpdate publishes a UserProfileUpdatedEvent to the server stream.
-// This allows other users to see profile changes (avatar, display name) in real-time.
+// publishUserProfileUpdate publishes a lightweight UserProfileUpdatedEvent to
+// the server stream. Directory rows can update without invalidating detailed
+// profile data that was not changed.
 func (c *ChattoCore) publishUserProfileUpdate(ctx context.Context, userID string) {
+	c.publishUserProfileUpdateWithDetails(ctx, userID, false)
+}
+
+// publishUserProfileDetailsUpdate invalidates both lightweight directory rows
+// and the on-demand detailed profile cache.
+func (c *ChattoCore) publishUserProfileDetailsUpdate(ctx context.Context, userID string) {
+	c.publishUserProfileUpdateWithDetails(ctx, userID, true)
+}
+
+func (c *ChattoCore) publishUserProfileUpdateWithDetails(ctx context.Context, userID string, detailsChanged bool) {
 	// Get current user data
 	user, err := c.GetUser(ctx, userID)
 	if err != nil {
@@ -710,10 +721,11 @@ func (c *ChattoCore) publishUserProfileUpdate(ctx context.Context, userID string
 	event := newLiveEvent(userID, &corev1.LiveEvent{
 		Event: &corev1.LiveEvent_UserProfileUpdated{
 			UserProfileUpdated: &corev1.UserProfileUpdatedEvent{
-				UserId:      userID,
-				DisplayName: user.DisplayName,
-				AvatarUrl:   avatarURL,
-				Login:       user.Login,
+				UserId:         userID,
+				DisplayName:    user.DisplayName,
+				AvatarUrl:      avatarURL,
+				Login:          user.Login,
+				DetailsChanged: detailsChanged,
 			},
 		},
 	})
@@ -1361,6 +1373,13 @@ func (c *ChattoCore) DeleteUser(ctx context.Context, actorID, userID string) err
 	// Post-ADR-030 there are two implicit scopes — channel and DM — and
 	// cleanup iterates each kind.
 	allKinds := []RoomKind{KindChannel, KindDM}
+
+	// Last activity is a runtime latest-value record rather than an event. Remove
+	// it before shredding the user key so account deletion leaves no durable
+	// profile-access metadata behind.
+	if err := c.deleteUserLastActivity(ctx, userID); err != nil {
+		return fmt.Errorf("delete user last activity: %w", err)
+	}
 
 	// Delete encryption key (crypto-shreds any remaining encrypted data) and
 	// record the durable shred signal projections use to tombstone messages

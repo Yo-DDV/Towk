@@ -26,7 +26,7 @@ authenticated user.
 
 ### UpdateProfile
 
-Updates the authenticated user's login and/or display name.
+Updates the authenticated user's login, display name, and/or biography.
 
 ```http
 POST /api/connect/chatto.api.v1.MyAccountService/UpdateProfile
@@ -43,6 +43,7 @@ be present.
 | --- | --- | --- |
 | `display_name` | `optional string` | New display name, when changing it. Empty clears the explicit display name. The server also rejects control and confusing invisible characters. |
 | `login` | `optional string` | New login identifier, when changing it. The server accepts ASCII letters, digits, period, underscore, and hyphen, starting with a letter or digit. |
+| `biography_markdown` | `optional string` | Markdown biography. Empty clears the biography. Raw HTML and remote images are not rendered by supported clients. |
 
 
 <a id="chatto-api-v1-UpdateProfileResponse"></a>
@@ -170,6 +171,7 @@ fields are left unchanged. An empty timezone clears the explicit timezone.
 | --- | --- | --- |
 | `timezone` | `optional string` | IANA timezone override. Empty clears the override. |
 | `time_format` | optional [`TimeFormat`](/reference/connectrpc-api/types/#chatto-api-v1-TimeFormat) | Preferred time format. |
+| `show_last_activity` | `optional bool` | Whether other authenticated server members may see last activity. Absent stored state is treated as enabled for upgrade compatibility. |
 
 
 <a id="chatto-api-v1-UpdateSettingsResponse"></a>

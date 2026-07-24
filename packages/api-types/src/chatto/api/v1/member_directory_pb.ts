@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file chatto/api/v1/member_directory.proto.
  */
 export const file_chatto_api_v1_member_directory: GenFile = /*@__PURE__*/
-  fileDesc("CiRjaGF0dG8vYXBpL3YxL21lbWJlcl9kaXJlY3RvcnkucHJvdG8SDWNoYXR0by5hcGkudjEicwoPRGlyZWN0b3J5TWVtYmVyEiEKBHVzZXIYASABKAsyEy5jaGF0dG8uYXBpLnYxLlVzZXISDQoFcm9sZXMYAiADKAkSLgoKY3JlYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAicAoQTGlzdFVzZXJzUmVxdWVzdBIXCgZzZWFyY2gYASABKAlCB7pIBHICGGQSKAoEcGFnZRgEIAEoCzIaLmNoYXR0by5hcGkudjEuUGFnZVJlcXVlc3RKBAgCEANKBAgDEARSBWxpbWl0UgZvZmZzZXQijAEKEUxpc3RVc2Vyc1Jlc3BvbnNlEi0KBXVzZXJzGAEgAygLMh4uY2hhdHRvLmFwaS52MS5EaXJlY3RvcnlNZW1iZXISJQoEcGFnZRgEIAEoCzIXLmNoYXR0by5hcGkudjEuUGFnZUluZm9KBAgCEANKBAgDEARSC3RvdGFsX2NvdW50UghoYXNfbW9yZSJQCg5HZXRVc2VyUmVxdWVzdBIaCgd1c2VyX2lkGAEgASgJQge6SARyAhABSAASGAoFbG9naW4YAiABKAlCB7pIBHICEAFIAEIICgZ0YXJnZXQiPwoPR2V0VXNlclJlc3BvbnNlEiwKBHVzZXIYASABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciI6ChRCYXRjaEdldFVzZXJzUmVxdWVzdBIiCgh1c2VyX2lkcxgBIAMoCUIQukgNkgEKCAEQZCIEcgIQASJGChVCYXRjaEdldFVzZXJzUmVzcG9uc2USLQoFdXNlcnMYASADKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciKQAQoWTGlzdFJvb21NZW1iZXJzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhcKBnNlYXJjaBgCIAEoCUIHukgEcgIYZBIoCgRwYWdlGAUgASgLMhouY2hhdHRvLmFwaS52MS5QYWdlUmVxdWVzdEoECAMQBEoECAQQBVIFbGltaXRSBm9mZnNldCKUAQoXTGlzdFJvb21NZW1iZXJzUmVzcG9uc2USLwoHbWVtYmVycxgBIAMoCzIeLmNoYXR0by5hcGkudjEuRGlyZWN0b3J5TWVtYmVyEiUKBHBhZ2UYBCABKAsyFy5jaGF0dG8uYXBpLnYxLlBhZ2VJbmZvSgQIAhADSgQIAxAEUgt0b3RhbF9jb3VudFIIaGFzX21vcmUiSgoUR2V0Um9vbU1lbWJlclJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIYCgd1c2VyX2lkGAIgASgJQge6SARyAhABIkcKFUdldFJvb21NZW1iZXJSZXNwb25zZRIuCgZtZW1iZXIYASABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciJaChpCYXRjaEdldFJvb21NZW1iZXJzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEiIKCHVzZXJfaWRzGAIgAygJQhC6SA2SAQoIARBkIgRyAhABIk4KG0JhdGNoR2V0Um9vbU1lbWJlcnNSZXNwb25zZRIvCgdtZW1iZXJzGAEgAygLMh4uY2hhdHRvLmFwaS52MS5EaXJlY3RvcnlNZW1iZXIygwIKC1VzZXJTZXJ2aWNlEk4KCUxpc3RVc2VycxIfLmNoYXR0by5hcGkudjEuTGlzdFVzZXJzUmVxdWVzdBogLmNoYXR0by5hcGkudjEuTGlzdFVzZXJzUmVzcG9uc2USSAoHR2V0VXNlchIdLmNoYXR0by5hcGkudjEuR2V0VXNlclJlcXVlc3QaHi5jaGF0dG8uYXBpLnYxLkdldFVzZXJSZXNwb25zZRJaCg1CYXRjaEdldFVzZXJzEiMuY2hhdHRvLmFwaS52MS5CYXRjaEdldFVzZXJzUmVxdWVzdBokLmNoYXR0by5hcGkudjEuQmF0Y2hHZXRVc2Vyc1Jlc3BvbnNlQrABChFjb20uY2hhdHRvLmFwaS52MUIUTWVtYmVyRGlyZWN0b3J5UHJvdG9QAVovaG1hbnMuZGUvY2hhdHRvL2ludGVybmFsL3BiL2NoYXR0by9hcGkvdjE7YXBpdjGiAgNDQViqAg1DaGF0dG8uQXBpLlYxygINQ2hhdHRvXEFwaVxWMeICGUNoYXR0b1xBcGlcVjFcR1BCTWV0YWRhdGHqAg9DaGF0dG86OkFwaTo6VjFiBnByb3RvMw", [file_buf_validate_validate, file_chatto_api_v1_pagination, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
+  fileDesc("CiRjaGF0dG8vYXBpL3YxL21lbWJlcl9kaXJlY3RvcnkucHJvdG8SDWNoYXR0by5hcGkudjEicwoPRGlyZWN0b3J5TWVtYmVyEiEKBHVzZXIYASABKAsyEy5jaGF0dG8uYXBpLnYxLlVzZXISDQoFcm9sZXMYAiADKAkSLgoKY3JlYXRlZF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXAicAoQTGlzdFVzZXJzUmVxdWVzdBIXCgZzZWFyY2gYASABKAlCB7pIBHICGGQSKAoEcGFnZRgEIAEoCzIaLmNoYXR0by5hcGkudjEuUGFnZVJlcXVlc3RKBAgCEANKBAgDEARSBWxpbWl0UgZvZmZzZXQijAEKEUxpc3RVc2Vyc1Jlc3BvbnNlEi0KBXVzZXJzGAEgAygLMh4uY2hhdHRvLmFwaS52MS5EaXJlY3RvcnlNZW1iZXISJQoEcGFnZRgEIAEoCzIXLmNoYXR0by5hcGkudjEuUGFnZUluZm9KBAgCEANKBAgDEARSC3RvdGFsX2NvdW50UghoYXNfbW9yZSJQCg5HZXRVc2VyUmVxdWVzdBIaCgd1c2VyX2lkGAEgASgJQge6SARyAhABSAASGAoFbG9naW4YAiABKAlCB7pIBHICEAFIAEIICgZ0YXJnZXQiPwoPR2V0VXNlclJlc3BvbnNlEiwKBHVzZXIYASABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciI6ChRCYXRjaEdldFVzZXJzUmVxdWVzdBIiCgh1c2VyX2lkcxgBIAMoCUIQukgNkgEKCAEQZCIEcgIQASJGChVCYXRjaEdldFVzZXJzUmVzcG9uc2USLQoFdXNlcnMYASADKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciKQAQoWTGlzdFJvb21NZW1iZXJzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEhcKBnNlYXJjaBgCIAEoCUIHukgEcgIYZBIoCgRwYWdlGAUgASgLMhouY2hhdHRvLmFwaS52MS5QYWdlUmVxdWVzdEoECAMQBEoECAQQBVIFbGltaXRSBm9mZnNldCKUAQoXTGlzdFJvb21NZW1iZXJzUmVzcG9uc2USLwoHbWVtYmVycxgBIAMoCzIeLmNoYXR0by5hcGkudjEuRGlyZWN0b3J5TWVtYmVyEiUKBHBhZ2UYBCABKAsyFy5jaGF0dG8uYXBpLnYxLlBhZ2VJbmZvSgQIAhADSgQIAxAEUgt0b3RhbF9jb3VudFIIaGFzX21vcmUiSgoUR2V0Um9vbU1lbWJlclJlcXVlc3QSGAoHcm9vbV9pZBgBIAEoCUIHukgEcgIQARIYCgd1c2VyX2lkGAIgASgJQge6SARyAhABIkcKFUdldFJvb21NZW1iZXJSZXNwb25zZRIuCgZtZW1iZXIYASABKAsyHi5jaGF0dG8uYXBpLnYxLkRpcmVjdG9yeU1lbWJlciJaChpCYXRjaEdldFJvb21NZW1iZXJzUmVxdWVzdBIYCgdyb29tX2lkGAEgASgJQge6SARyAhABEiIKCHVzZXJfaWRzGAIgAygJQhC6SA2SAQoIARBkIgRyAhABIk4KG0JhdGNoR2V0Um9vbU1lbWJlcnNSZXNwb25zZRIvCgdtZW1iZXJzGAEgAygLMh4uY2hhdHRvLmFwaS52MS5EaXJlY3RvcnlNZW1iZXIiWwoPVXNlclByb2ZpbGVSb2xlEgwKBG5hbWUYASABKAkSFAoMZGlzcGxheV9uYW1lGAIgASgJEhAKCHBvc2l0aW9uGAMgASgFEhIKCm1vZGVyYXRpb24YBCABKAgi4AIKC1VzZXJQcm9maWxlEiEKBHVzZXIYASABKAsyEy5jaGF0dG8uYXBpLnYxLlVzZXISLQoFcm9sZXMYAiADKAsyHi5jaGF0dG8uYXBpLnYxLlVzZXJQcm9maWxlUm9sZRItCglqb2luZWRfYXQYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhoKEmJpb2dyYXBoeV9tYXJrZG93bhgEIAEoCRI2Cg1sYXN0X2FjdGl2aXR5GAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAiAEBEh0KFWxhc3RfYWN0aXZpdHlfdmlzaWJsZRgGIAEoCBIWCg52aWV3ZXJfaXNfc2VsZhgHIAEoCBIaChJ2aWV3ZXJfY2FuX21lc3NhZ2UYCCABKAgSFwoPdmlld2VyX2Nhbl9jYWxsGAkgASgIQhAKDl9sYXN0X2FjdGl2aXR5IlcKFUdldFVzZXJQcm9maWxlUmVxdWVzdBIaCgd1c2VyX2lkGAEgASgJQge6SARyAhABSAASGAoFbG9naW4YAiABKAlCB7pIBHICEAFIAEIICgZ0YXJnZXQiRQoWR2V0VXNlclByb2ZpbGVSZXNwb25zZRIrCgdwcm9maWxlGAEgASgLMhouY2hhdHRvLmFwaS52MS5Vc2VyUHJvZmlsZTLiAgoLVXNlclNlcnZpY2USTgoJTGlzdFVzZXJzEh8uY2hhdHRvLmFwaS52MS5MaXN0VXNlcnNSZXF1ZXN0GiAuY2hhdHRvLmFwaS52MS5MaXN0VXNlcnNSZXNwb25zZRJICgdHZXRVc2VyEh0uY2hhdHRvLmFwaS52MS5HZXRVc2VyUmVxdWVzdBoeLmNoYXR0by5hcGkudjEuR2V0VXNlclJlc3BvbnNlEloKDUJhdGNoR2V0VXNlcnMSIy5jaGF0dG8uYXBpLnYxLkJhdGNoR2V0VXNlcnNSZXF1ZXN0GiQuY2hhdHRvLmFwaS52MS5CYXRjaEdldFVzZXJzUmVzcG9uc2USXQoOR2V0VXNlclByb2ZpbGUSJC5jaGF0dG8uYXBpLnYxLkdldFVzZXJQcm9maWxlUmVxdWVzdBolLmNoYXR0by5hcGkudjEuR2V0VXNlclByb2ZpbGVSZXNwb25zZUKwAQoRY29tLmNoYXR0by5hcGkudjFCFE1lbWJlckRpcmVjdG9yeVByb3RvUAFaL2htYW5zLmRlL2NoYXR0by9pbnRlcm5hbC9wYi9jaGF0dG8vYXBpL3YxO2FwaXYxogIDQ0FYqgINQ2hhdHRvLkFwaS5WMcoCDUNoYXR0b1xBcGlcVjHiAhlDaGF0dG9cQXBpXFYxXEdQQk1ldGFkYXRh6gIPQ2hhdHRvOjpBcGk6OlYxYgZwcm90bzM", [file_buf_validate_validate, file_chatto_api_v1_pagination, file_chatto_api_v1_users, file_google_protobuf_timestamp]);
 
 /**
  * Public user/member row used by user directory, room membership, and mention
@@ -375,6 +375,176 @@ export const BatchGetRoomMembersResponseSchema: GenMessage<BatchGetRoomMembersRe
   messageDesc(file_chatto_api_v1_member_directory, 12);
 
 /**
+ * One explicitly assigned role shown on a detailed user profile.
+ *
+ * @generated from message chatto.api.v1.UserProfileRole
+ */
+export type UserProfileRole = Message<"chatto.api.v1.UserProfileRole"> & {
+  /**
+   * Stable configured role name.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Administrator-configured display name.
+   *
+   * @generated from field: string display_name = 2;
+   */
+  displayName: string;
+
+  /**
+   * Display ordering hint. This is not an authorization rank.
+   *
+   * @generated from field: int32 position = 3;
+   */
+  position: number;
+
+  /**
+   * True when the role carries moderation or administration authority.
+   *
+   * @generated from field: bool moderation = 4;
+   */
+  moderation: boolean;
+};
+
+/**
+ * Describes the message chatto.api.v1.UserProfileRole.
+ * Use `create(UserProfileRoleSchema)` to create a new message.
+ */
+export const UserProfileRoleSchema: GenMessage<UserProfileRole> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_member_directory, 13);
+
+/**
+ * Detailed server-scoped profile loaded on demand. Directory rows deliberately
+ * remain lightweight and never include biography or last activity.
+ *
+ * @generated from message chatto.api.v1.UserProfile
+ */
+export type UserProfile = Message<"chatto.api.v1.UserProfile"> & {
+  /**
+   * Public identity, presence, and custom status.
+   *
+   * @generated from field: chatto.api.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * All explicitly assigned roles, ordered for presentation.
+   *
+   * @generated from field: repeated chatto.api.v1.UserProfileRole roles = 2;
+   */
+  roles: UserProfileRole[];
+
+  /**
+   * Account/server join time when known.
+   *
+   * @generated from field: google.protobuf.Timestamp joined_at = 3;
+   */
+  joinedAt?: Timestamp | undefined;
+
+  /**
+   * Sanitized Markdown source stored by the profile owner.
+   *
+   * @generated from field: string biography_markdown = 4;
+   */
+  biographyMarkdown: string;
+
+  /**
+   * Latest coalesced activity time when visible and available.
+   *
+   * @generated from field: optional google.protobuf.Timestamp last_activity = 5;
+   */
+  lastActivity?: Timestamp | undefined;
+
+  /**
+   * Whether the target currently allows last activity to be disclosed.
+   *
+   * @generated from field: bool last_activity_visible = 6;
+   */
+  lastActivityVisible: boolean;
+
+  /**
+   * Whether the profile belongs to the authenticated viewer.
+   *
+   * @generated from field: bool viewer_is_self = 7;
+   */
+  viewerIsSelf: boolean;
+
+  /**
+   * Whether the viewer may start a direct message with this user.
+   *
+   * @generated from field: bool viewer_can_message = 8;
+   */
+  viewerCanMessage: boolean;
+
+  /**
+   * Whether the viewer may start a direct call with this user.
+   *
+   * @generated from field: bool viewer_can_call = 9;
+   */
+  viewerCanCall: boolean;
+};
+
+/**
+ * Describes the message chatto.api.v1.UserProfile.
+ * Use `create(UserProfileSchema)` to create a new message.
+ */
+export const UserProfileSchema: GenMessage<UserProfile> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_member_directory, 14);
+
+/**
+ * Request one detailed profile by stable user ID or login.
+ *
+ * @generated from message chatto.api.v1.GetUserProfileRequest
+ */
+export type GetUserProfileRequest = Message<"chatto.api.v1.GetUserProfileRequest"> & {
+  /**
+   * @generated from oneof chatto.api.v1.GetUserProfileRequest.target
+   */
+  target: {
+    /**
+     * @generated from field: string user_id = 1;
+     */
+    value: string;
+    case: "userId";
+  } | {
+    /**
+     * @generated from field: string login = 2;
+     */
+    value: string;
+    case: "login";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * Describes the message chatto.api.v1.GetUserProfileRequest.
+ * Use `create(GetUserProfileRequestSchema)` to create a new message.
+ */
+export const GetUserProfileRequestSchema: GenMessage<GetUserProfileRequest> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_member_directory, 15);
+
+/**
+ * Detailed user profile response.
+ *
+ * @generated from message chatto.api.v1.GetUserProfileResponse
+ */
+export type GetUserProfileResponse = Message<"chatto.api.v1.GetUserProfileResponse"> & {
+  /**
+   * @generated from field: chatto.api.v1.UserProfile profile = 1;
+   */
+  profile?: UserProfile | undefined;
+};
+
+/**
+ * Describes the message chatto.api.v1.GetUserProfileResponse.
+ * Use `create(GetUserProfileResponseSchema)` to create a new message.
+ */
+export const GetUserProfileResponseSchema: GenMessage<GetUserProfileResponse> = /*@__PURE__*/
+  messageDesc(file_chatto_api_v1_member_directory, 16);
+
+/**
  * Reads the authenticated server-wide user directory.
  *
  * @generated from service chatto.api.v1.UserService
@@ -412,6 +582,16 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof BatchGetUsersRequestSchema;
     output: typeof BatchGetUsersResponseSchema;
+  },
+  /**
+   * Gets one complete profile without inflating directory rows.
+   *
+   * @generated from rpc chatto.api.v1.UserService.GetUserProfile
+   */
+  getUserProfile: {
+    methodKind: "unary";
+    input: typeof GetUserProfileRequestSchema;
+    output: typeof GetUserProfileResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_chatto_api_v1_member_directory, 0);

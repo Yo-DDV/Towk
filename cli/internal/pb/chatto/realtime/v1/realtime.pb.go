@@ -2709,9 +2709,11 @@ type RealtimeUserProfileUpdatedEvent struct {
 	// Display name.
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// Avatar URL, when the user has an avatar.
-	AvatarUrl     *string `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3,oneof" json:"avatar_url,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AvatarUrl *string `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3,oneof" json:"avatar_url,omitempty"`
+	// True when clients should invalidate the detailed profile cache.
+	DetailsChanged bool `protobuf:"varint,5,opt,name=details_changed,json=detailsChanged,proto3" json:"details_changed,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RealtimeUserProfileUpdatedEvent) Reset() {
@@ -2770,6 +2772,13 @@ func (x *RealtimeUserProfileUpdatedEvent) GetAvatarUrl() string {
 		return *x.AvatarUrl
 	}
 	return ""
+}
+
+func (x *RealtimeUserProfileUpdatedEvent) GetDetailsChanged() bool {
+	if x != nil {
+		return x.DetailsChanged
+	}
+	return false
 }
 
 // User-custom-status set signal.
@@ -2905,9 +2914,11 @@ type RealtimeServerUserPreferencesUpdatedEvent struct {
 	// IANA timezone name, when the user has selected a fixed timezone.
 	Timezone *string `protobuf:"bytes,1,opt,name=timezone,proto3,oneof" json:"timezone,omitempty"`
 	// Preferred time display format.
-	TimeFormat    v1.TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat" json:"time_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeFormat v1.TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat" json:"time_format,omitempty"`
+	// Effective last-activity visibility preference.
+	ShowLastActivity bool `protobuf:"varint,3,opt,name=show_last_activity,json=showLastActivity,proto3" json:"show_last_activity,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *RealtimeServerUserPreferencesUpdatedEvent) Reset() {
@@ -2952,6 +2963,13 @@ func (x *RealtimeServerUserPreferencesUpdatedEvent) GetTimeFormat() v1.TimeForma
 		return x.TimeFormat
 	}
 	return v1.TimeFormat(0)
+}
+
+func (x *RealtimeServerUserPreferencesUpdatedEvent) GetShowLastActivity() bool {
+	if x != nil {
+		return x.ShowLastActivity
+	}
+	return false
 }
 
 // Room-group layout signal.
@@ -3669,13 +3687,14 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\n" +
 	"banner_url\x18\x04 \x01(\tH\x01R\tbannerUrl\x88\x01\x01B\v\n" +
 	"\t_logo_urlB\r\n" +
-	"\v_banner_url\"\xa6\x01\n" +
+	"\v_banner_url\"\xcf\x01\n" +
 	"\x1fRealtimeUserProfileUpdatedEvent\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05login\x18\x02 \x01(\tR\x05login\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\"\n" +
 	"\n" +
-	"avatar_url\x18\x04 \x01(\tH\x00R\tavatarUrl\x88\x01\x01B\r\n" +
+	"avatar_url\x18\x04 \x01(\tH\x00R\tavatarUrl\x88\x01\x01\x12'\n" +
+	"\x0fdetails_changed\x18\x05 \x01(\bR\x0edetailsChangedB\r\n" +
 	"\v_avatar_url\"\xa0\x01\n" +
 	" RealtimeUserCustomStatusSetEvent\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
@@ -3684,11 +3703,12 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\n" +
 	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"?\n" +
 	"$RealtimeUserCustomStatusClearedEvent\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"\x95\x01\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xc3\x01\n" +
 	")RealtimeServerUserPreferencesUpdatedEvent\x12\x1f\n" +
 	"\btimezone\x18\x01 \x01(\tH\x00R\btimezone\x88\x01\x01\x12:\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x19.chatto.api.v1.TimeFormatR\n" +
-	"timeFormatB\v\n" +
+	"timeFormat\x12,\n" +
+	"\x12show_last_activity\x18\x03 \x01(\bR\x10showLastActivityB\v\n" +
 	"\t_timezone\":\n" +
 	"\x1eRealtimeRoomGroupsUpdatedEvent\x12\x18\n" +
 	"\achanged\x18\x01 \x01(\bR\achanged\";\n" +

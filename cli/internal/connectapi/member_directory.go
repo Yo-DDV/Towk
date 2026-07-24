@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/core"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -88,6 +89,108 @@ func (s *userService) GetUser(ctx context.Context, req *connect.Request[apiv1.Ge
 		return nil, err
 	}
 	return connect.NewResponse(&apiv1.GetUserResponse{User: member}), nil
+}
+
+func (s *userService) GetUserProfile(ctx context.Context, req *connect.Request[apiv1.GetUserProfileRequest]) (*connect.Response[apiv1.GetUserProfileResponse], error) {
+	caller, err := requireCaller(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var user *corev1.User
+	switch req.Msg.GetTarget().(type) {
+	case *apiv1.GetUserProfileRequest_UserId:
+		user, err = s.api.core.GetUser(ctx, req.Msg.GetUserId())
+	case *apiv1.GetUserProfileRequest_Login:
+		user, err = s.api.core.GetUserByLogin(ctx, req.Msg.GetLogin())
+	default:
+		return nil, invalidArgument("user_id or login is required")
+	}
+	if err != nil {
+		return nil, connectError(err)
+	}
+
+	apiUser, err := s.userSummary(ctx, user, &apiv1.ImageTransformOptions{
+		Width:  256,
+		Height: 256,
+		Fit:    apiv1.ImageFitMode_IMAGE_FIT_MODE_COVER,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	roleNames, err := s.api.core.GetUserRoles(ctx, user.GetId())
+	if err != nil {
+		return nil, connectError(err)
+	}
+	roles := make([]*apiv1.UserProfileRole, 0, len(roleNames))
+	for _, roleName := range roleNames {
+		role, err := s.api.core.GetServerRole(ctx, roleName)
+		if err != nil {
+			if errors.Is(err, core.ErrRoleNotFound) {
+				continue
+			}
+			return nil, connectError(err)
+		}
+		displayName := strings.TrimSpace(role.DisplayName)
+		if displayName == "" {
+			displayName = role.Name
+		}
+		roles = append(roles, &apiv1.UserProfileRole{
+			Name:        role.Name,
+			DisplayName: displayName,
+			Position:    role.Position,
+			Moderation:  core.IsModerationRole(*role),
+		})
+	}
+	sort.SliceStable(roles, func(i, j int) bool {
+		if roles[i].GetPosition() != roles[j].GetPosition() {
+			return roles[i].GetPosition() > roles[j].GetPosition()
+		}
+		left := strings.ToLower(roles[i].GetDisplayName())
+		right := strings.ToLower(roles[j].GetDisplayName())
+		if left != right {
+			return left < right
+		}
+		return roles[i].GetName() < roles[j].GetName()
+	})
+
+	biography, err := s.api.core.GetUserBiography(ctx, user.GetId())
+	if err != nil {
+		return nil, connectError(err)
+	}
+	settings, err := s.api.core.GetUserSettings(ctx, user.GetId())
+	if err != nil {
+		return nil, connectError(err)
+	}
+	lastActivityVisible := settings == nil || settings.ShowLastActivity == nil || settings.GetShowLastActivity()
+	viewerIsSelf := caller.UserID == user.GetId()
+
+	canStartDM, err := s.api.core.CanStartDM(ctx, caller.UserID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	profile := &apiv1.UserProfile{
+		User:                apiUser,
+		Roles:               roles,
+		JoinedAt:            user.GetCreatedAt(),
+		BiographyMarkdown:   biography,
+		LastActivityVisible: lastActivityVisible,
+		ViewerIsSelf:        viewerIsSelf,
+		ViewerCanMessage:    !viewerIsSelf && canStartDM,
+		ViewerCanCall:       !viewerIsSelf && canStartDM,
+	}
+	if viewerIsSelf || lastActivityVisible {
+		lastActivity, err := s.api.core.GetUserLastActivity(ctx, user.GetId())
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !lastActivity.IsZero() {
+			profile.LastActivity = timestamppb.New(lastActivity)
+		}
+	}
+
+	return connect.NewResponse(&apiv1.GetUserProfileResponse{Profile: profile}), nil
 }
 
 func (s *userService) BatchGetUsers(ctx context.Context, req *connect.Request[apiv1.BatchGetUsersRequest]) (*connect.Response[apiv1.BatchGetUsersResponse], error) {

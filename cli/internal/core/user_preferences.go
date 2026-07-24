@@ -26,6 +26,8 @@ type UserSettingsInput struct {
 	Timezone *string
 	// TimeFormat preference. nil = no change.
 	TimeFormat *corev1.TimeFormat
+	// ShowLastActivity controls disclosure to other authenticated users. nil = no change.
+	ShowLastActivity *bool
 }
 
 // GetUserSettings retrieves a user's settings from the config projection.
@@ -83,6 +85,17 @@ func (c *ChattoCore) UpdateUserSettings(ctx context.Context, userID string, inpu
 				UserTimeFormatChanged: &corev1.UserTimeFormatChangedEvent{UserId: userID, TimeFormat: *input.TimeFormat},
 			}}))
 		}
+		if input.ShowLastActivity != nil {
+			effectiveCurrent := true
+			if current != nil && current.ShowLastActivity != nil {
+				effectiveCurrent = current.GetShowLastActivity()
+			}
+			if effectiveCurrent != *input.ShowLastActivity {
+				evs = append(evs, newEvent(userID, &corev1.Event{Event: &corev1.Event_UserLastActivityVisibilityChanged{
+					UserLastActivityVisibilityChanged: &corev1.UserLastActivityVisibilityChangedEvent{UserId: userID, ShowLastActivity: *input.ShowLastActivity},
+				}}))
+			}
+		}
 		changed = len(evs) > 0
 		return evs, nil
 	}); err != nil {
@@ -102,6 +115,9 @@ func (c *ChattoCore) UpdateUserSettings(ctx context.Context, userID string, inpu
 
 	c.logger.Info("Updated user settings", "user_id", userID)
 	c.publishServerUserPreferencesUpdatedEvent(ctx, userID, settings)
+	if input.ShowLastActivity != nil {
+		c.publishUserProfileDetailsUpdate(ctx, userID)
+	}
 
 	return settings, nil
 }
@@ -117,8 +133,9 @@ func (c *ChattoCore) publishServerUserPreferencesUpdatedEvent(ctx context.Contex
 	event := newLiveEvent(userID, &corev1.LiveEvent{
 		Event: &corev1.LiveEvent_ServerUserPreferencesUpdated{
 			ServerUserPreferencesUpdated: &corev1.ServerUserPreferencesUpdatedEvent{
-				Timezone:   tz,
-				TimeFormat: settings.TimeFormat,
+				Timezone:         tz,
+				TimeFormat:       settings.TimeFormat,
+				ShowLastActivity: effectiveShowLastActivity(settings),
 			},
 		},
 	})
@@ -149,4 +166,10 @@ func (c *ChattoCore) deleteUserSettings(ctx context.Context, userID string) erro
 		}
 		return evs, nil
 	})
+}
+
+// effectiveShowLastActivity preserves the upgrade contract: an absent stored
+// preference means enabled.
+func effectiveShowLastActivity(settings *corev1.ServerUserPreferences) bool {
+	return settings == nil || settings.ShowLastActivity == nil || settings.GetShowLastActivity()
 }

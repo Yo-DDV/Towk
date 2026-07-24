@@ -135,6 +135,7 @@ message Event {
     UserRoomNotificationLevelSetEvent user_room_notification_level_set = 516;
     UserRoomNotificationLevelClearedEvent user_room_notification_level_cleared = 517;
     ServerPerformancePolicyChangedEvent server_performance_policy_changed = 518;
+    UserLastActivityVisibilityChangedEvent user_last_activity_visibility_changed = 519;
 
     // ----- Room groups (600-609, durable, evt.group.{groupId}) -----
     // The group aggregate owns its room-membership AND room-ordering.
@@ -179,6 +180,8 @@ message Event {
     UserCustomStatusSetEvent user_custom_status_set = 715;
     UserCustomStatusClearedEvent user_custom_status_cleared = 716;
     UserExternalIdentityUnlinkedEvent user_external_identity_unlinked = 717;
+    UserBiographyChangedEvent user_biography_changed = 718;
+    UserBiographyClearedEvent user_biography_cleared = 719;
 
     // ----- RBAC (800-839, durable, evt.rbac.>) -----
     RbacRoleCreatedEvent rbac_role_created = 800;

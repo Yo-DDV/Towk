@@ -242,13 +242,32 @@ func (c *ChattoCore) GetUserPresence(ctx context.Context, userID string) (string
 // SetPresence writes/refreshes a user's live presence in MEMORY_CACHE.
 // Authorization: Caller must verify the user is authenticated before calling.
 func (c *ChattoCore) SetPresence(ctx context.Context, userID string, status string) error {
-	return c.presenceModel.SetPresence(ctx, userID, status)
+	if err := c.presenceModel.SetPresence(ctx, userID, status); err != nil {
+		return err
+	}
+	c.touchUserLastActivityIfKnown(ctx, userID)
+	return nil
 }
 
 func (c *ChattoCore) SetPresenceWithOptions(ctx context.Context, userID string, status string, manuallySet bool) error {
-	return c.presenceModel.SetPresenceWithOptions(ctx, userID, status, manuallySet)
+	if err := c.presenceModel.SetPresenceWithOptions(ctx, userID, status, manuallySet); err != nil {
+		return err
+	}
+	c.touchUserLastActivityIfKnown(ctx, userID)
+	return nil
 }
 
 func (c *ChattoCore) refreshPresence(ctx context.Context, userID string) error {
-	return c.presenceModel.refreshPresence(ctx, userID)
+	if err := c.presenceModel.refreshPresence(ctx, userID); err != nil {
+		return err
+	}
+	c.touchUserLastActivityIfKnown(ctx, userID)
+	return nil
+}
+
+func (c *ChattoCore) touchUserLastActivityIfKnown(ctx context.Context, userID string) {
+	if _, err := c.GetUser(ctx, userID); err != nil {
+		return
+	}
+	c.touchUserLastActivity(ctx, userID)
 }

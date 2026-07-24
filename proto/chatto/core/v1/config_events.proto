@@ -73,6 +73,11 @@ message UserTimeFormatClearedEvent {
   string user_id = 1;
 }
 
+message UserLastActivityVisibilityChangedEvent {
+  string user_id = 1;
+  bool show_last_activity = 2;
+}
+
 message UserServerNotificationLevelSetEvent {
   string user_id = 1;
   NotificationLevel level = 2;

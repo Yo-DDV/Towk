@@ -22,6 +22,9 @@ message UpdateProfileRequest {
     min_len: 2
     max_len: 32
   }];
+  // Markdown biography. Empty clears the biography. Raw HTML and remote
+  // images are not rendered by supported clients.
+  optional string biography_markdown = 3 [(buf.validate.field).string.max_bytes = 16384];
 }
 
 // Result of a profile update.
@@ -80,6 +83,9 @@ message UpdateSettingsRequest {
   optional string timezone = 1;
   // Preferred time format.
   optional TimeFormat time_format = 2;
+  // Whether other authenticated server members may see last activity.
+  // Absent stored state is treated as enabled for upgrade compatibility.
+  optional bool show_last_activity = 3;
 }
 
 // Result of updating display preferences.
@@ -120,7 +126,7 @@ message DeleteMyAccountResponse {
 // custom-status, external identity, and account lifecycle commands for the
 // authenticated user.
 service MyAccountService {
-  // Updates the authenticated user's login and/or display name.
+  // Updates the authenticated user's login, display name, and/or biography.
   rpc UpdateProfile(UpdateProfileRequest) returns (UpdateProfileResponse);
   // Uploads and sets the authenticated user's avatar.
   rpc UploadAvatar(UploadAvatarRequest) returns (UploadAvatarResponse);
