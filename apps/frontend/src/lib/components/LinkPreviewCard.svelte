@@ -29,9 +29,6 @@ When `canDelete` is true, right-click / long-press opens a context menu with Ope
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import { toast } from '$lib/ui/toast';
   import YouTubeEmbed from './YouTubeEmbed.svelte';
-  import { getActiveServer } from '$lib/state/activeServer.svelte';
-  import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { EXTERNAL_GIF_EMBEDS_CAPABILITY, parseExternalGifUrl } from '$lib/externalGif';
 
   let {
     preview: rawPreview,
@@ -51,13 +48,6 @@ When `canDelete` is true, right-click / long-press opens a context menu with Ope
 
   const preview = $derived(
     useRenderData(LinkPreviewViewData, rawPreview as RenderType<typeof LinkPreviewViewData>)
-  );
-  const suppressExternalGifPreview = $derived(
-    (serverRegistry
-      .tryGetStore(getActiveServer())
-      ?.serverInfo.supportsCapability(EXTERNAL_GIF_EMBEDS_CAPABILITY) ??
-      false) &&
-      !!parseExternalGifUrl(preview.url)
   );
 
   // Context menu state
@@ -103,7 +93,7 @@ When `canDelete` is true, right-click / long-press opens a context menu with Ope
   }
 </script>
 
-{#if !suppressExternalGifPreview && preview.embedType === 'youtube' && preview.embedId}
+{#if preview.embedType === 'youtube' && preview.embedId}
   <YouTubeEmbed
     videoId={preview.embedId}
     url={preview.url}
@@ -113,7 +103,7 @@ When `canDelete` is true, right-click / long-press opens a context menu with Ope
     {roomId}
     {eventId}
   />
-{:else if !suppressExternalGifPreview && (preview.imageUrl || preview.title || preview.description || preview.siteName)}
+{:else if preview.imageUrl || preview.title || preview.description || preview.siteName}
   <!-- eslint-disable svelte/no-navigation-without-resolve -- preview.url is a third-party URL, not an internal SvelteKit route -->
   <a
     href={preview.url}

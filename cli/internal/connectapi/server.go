@@ -41,14 +41,6 @@ func (s *serverDiscoveryService) GetServer(ctx context.Context, _ *connect.Reque
 	return connect.NewResponse(response), nil
 }
 
-func serverCapabilities(coreReady, externalGIFEnabled bool) []string {
-	capabilities := []string{serverCapabilityMessageCreateIdempotency}
-	if coreReady && externalGIFEnabled {
-		capabilities = append(capabilities, serverCapabilityExternalGIFEmbeds)
-	}
-	return capabilities
-}
-
 func (a *API) effectiveServerName(ctx context.Context) string {
 	if a.core != nil && a.core.ConfigManager() != nil {
 		if n, err := a.core.ConfigManager().GetEffectiveServerName(ctx); err == nil {
@@ -56,6 +48,14 @@ func (a *API) effectiveServerName(ctx context.Context) string {
 		}
 	}
 	return "Towk"
+}
+
+func serverCapabilities(coreReady, externalGIFEnabled bool) []string {
+	capabilities := []string{serverCapabilityMessageCreateIdempotency}
+	if coreReady && externalGIFEnabled {
+		capabilities = append(capabilities, serverCapabilityExternalGIFEmbeds)
+	}
+	return capabilities
 }
 
 func (a *API) serverProfile(ctx context.Context, options serverProfileOptions) (*apiv1.ServerPublicProfile, error) {

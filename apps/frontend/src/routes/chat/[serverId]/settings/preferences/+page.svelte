@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as m from '$lib/i18n/messages';
+  import { externalGifMessages as gm } from '$lib/i18n/externalGifMessages';
   import { getLocale, setLocale, type Locale } from '$lib/i18n/runtime';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { createAccountAPI } from '$lib/api-client/account';
@@ -13,12 +14,14 @@
   import { toast } from '$lib/ui/toast';
   import { formatMessageTime } from '$lib/utils/formatTime';
   import { EXTERNAL_GIF_EMBEDS_CAPABILITY } from '$lib/externalGif';
-  import { externalGifMessages as gm } from '$lib/i18n/externalGifMessages';
 
   const userSettings = getUserSettings();
   const activeServerId = $derived(getActiveServer());
   const currentUser = $derived(serverRegistry.getStore(activeServerId).currentUser);
   const serverInfo = $derived(serverRegistry.getStore(activeServerId).serverInfo);
+  const supportsExternalGifEmbeds = $derived(
+    serverInfo?.supportsCapability?.(EXTERNAL_GIF_EMBEDS_CAPABILITY) ?? false
+  );
   const connection = useConnection();
   const activeLocale = $derived(getLocale());
 
@@ -325,7 +328,7 @@
   </FormSection>
 
   <!-- External GIFs -->
-  {#if serverInfo.supportsCapability(EXTERNAL_GIF_EMBEDS_CAPABILITY)}
+  {#if supportsExternalGifEmbeds}
     <FormSection title={gm.settingsTitle()} maxWidth="max-w-md" bordered>
       <p class="mb-3 text-sm text-muted">
         {gm.settingsDescription()}

@@ -8,6 +8,22 @@ import (
 	"strings"
 )
 
+const maxExternalGIFURLLength = 2048
+
+const EnabledEnvironmentVariable = "CHATTO_WEBSERVER_EXTERNAL_GIF_EMBEDS"
+
+// Enabled reports whether the operator allows external GIF embeds. The feature
+// is enabled by default. Invalid explicit values fail closed instead of silently
+// advertising a browser-to-provider privacy boundary the operator did not intend.
+func Enabled() bool {
+	raw, ok := os.LookupEnv(EnabledEnvironmentVariable)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return true
+	}
+	enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
+	return err == nil && enabled
+}
+
 var (
 	giphyPageHosts = map[string]bool{
 		"giphy.com":     true,
@@ -27,38 +43,28 @@ var (
 		"media1.tenor.com": true,
 		"c.tenor.com":      true,
 	}
-	safeID            = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
-	safeTenorVariant  = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
-	safePathSegment   = regexp.MustCompile(`^[A-Za-z0-9._-]{1,128}$`)
-	safeMediaBasename = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,178}[A-Za-z0-9])?$`)
-	safeGiphySlug     = regexp.MustCompile(`^[A-Za-z0-9_-]{6,256}$`)
-	giphyPageID       = regexp.MustCompile(`^[A-Za-z0-9]{6,128}$`)
-	mediaFile         = regexp.MustCompile(`(?i)\.(gif|webp|mp4|webm)$`)
+	safeID             = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
+	safeTenorVariant   = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
+	tenorLegacyImageID = regexp.MustCompile(`^[A-Fa-f0-9]{32}$`)
+	safeGiphyMetadata  = regexp.MustCompile(`^[A-Za-z0-9._-]{1,256}$`)
+	safeMediaBasename  = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,178}[A-Za-z0-9])?$`)
+	safeGiphySlug      = regexp.MustCompile(`^[A-Za-z0-9_-]{6,256}$`)
+	giphyPageID        = regexp.MustCompile(`^[A-Za-z0-9]{6,128}$`)
+	mediaFile          = regexp.MustCompile(`(?i)\.(gif|webp|mp4|webm)$`)
 )
-
-const EnabledEnvironmentVariable = "CHATTO_WEBSERVER_EXTERNAL_GIF_EMBEDS"
-
-// Enabled reports whether the operator allows external GIF embeds. The feature
-// is enabled by default. Invalid explicit values fail closed instead of silently
-// advertising a browser-to-provider privacy boundary the operator did not intend.
-func Enabled() bool {
-	raw, ok := os.LookupEnv(EnabledEnvironmentVariable)
-	if !ok || strings.TrimSpace(raw) == "" {
-		return true
-	}
-	enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
-	return err == nil && enabled
-}
 
 // IsTrustedURL reports whether rawURL matches one of the provider URL shapes
 // that Towk renders directly in the reader's browser. It performs no network
 // request and intentionally rejects generic GIF URLs.
 func IsTrustedURL(rawURL string) bool {
-	if rawURL == "" || !strings.HasPrefix(rawURL, "https://") || rawURL != strings.TrimSpace(rawURL) || strings.Contains(rawURL, `\`) || hasUnsafeURLByte(rawURL) {
+	if rawURL == "" || len(rawURL) > maxExternalGIFURLLength || rawURL != strings.TrimSpace(rawURL) || strings.Contains(rawURL, `\`) || hasUnsafeURLByte(rawURL) {
+		return false
+	}
+	if len(rawURL) < len("https://") || !strings.EqualFold(rawURL[:len("https://")], "https://") {
 		return false
 	}
 
-	authority := strings.SplitN(strings.TrimPrefix(rawURL, "https://"), "/", 2)[0]
+	authority := strings.SplitN(rawURL[len("https://"):], "/", 2)[0]
 	authority = strings.SplitN(authority, "?", 2)[0]
 	authority = strings.SplitN(authority, "#", 2)[0]
 	if authority == "" || strings.ContainsAny(authority, "@:") {
@@ -66,7 +72,7 @@ func IsTrustedURL(rawURL string) bool {
 	}
 
 	u, err := url.Parse(rawURL)
-	if err != nil || u.Scheme != "https" || u.User != nil || u.Port() != "" {
+	if err != nil || !strings.EqualFold(u.Scheme, "https") || u.User != nil || u.Port() != "" {
 		return false
 	}
 	// Provider path contracts are ASCII and exact. Reject every escaped path
@@ -76,13 +82,12 @@ func IsTrustedURL(rawURL string) bool {
 	}
 
 	host := strings.ToLower(u.Hostname())
-	segments := strictPathSegments(u.Path)
+	if giphyPageHosts[host] {
+		return isGiphyPagePath(strictPathSegments(u.Path, true))
+	}
+	segments := strictPathSegments(u.Path, false)
 	if segments == nil {
 		return false
-	}
-
-	if giphyPageHosts[host] {
-		return isGiphyPagePath(segments)
 	}
 	if giphyMediaHosts[host] {
 		return isGiphyMediaPath(host, segments)
@@ -115,8 +120,8 @@ func isGiphyPagePath(segments []string) bool {
 }
 
 func isGiphyMediaPath(host string, segments []string) bool {
-	if host == "i.giphy.com" {
-		if len(segments) != 1 || mediaRenderMode(segments[0]) == "" {
+	if host == "i.giphy.com" && len(segments) == 1 {
+		if mediaRenderMode(segments[0]) == "" {
 			return false
 		}
 		id := mediaFile.ReplaceAllString(segments[0], "")
@@ -127,7 +132,7 @@ func isGiphyMediaPath(host string, segments []string) bool {
 	switch {
 	case len(segments) == 3 && segments[0] == "media":
 		id, filename = segments[1], segments[2]
-	case len(segments) == 4 && segments[0] == "media" && isSafePathSegment(segments[1]):
+	case len(segments) == 4 && segments[0] == "media" && isSafeGiphyMetadata(segments[1]):
 		id, filename = segments[2], segments[3]
 	default:
 		return false
@@ -138,6 +143,13 @@ func isGiphyMediaPath(host string, segments []string) bool {
 func isTenorMediaPath(segments []string) bool {
 	if len(segments) == 1 && safeID.MatchString(segments[0]) {
 		return true
+	}
+
+	// Older Tenor shares use /images/<32-hex-id>/<rendition>. Keep this
+	// narrowly bounded because these URLs still appear in historical messages
+	// and keyboard clipboard fallbacks.
+	if len(segments) == 3 && segments[0] == "images" && tenorLegacyImageID.MatchString(segments[1]) {
+		return mediaRenderMode(segments[2]) != ""
 	}
 
 	var id, filename string
@@ -172,26 +184,29 @@ func mediaRenderMode(filename string) string {
 	return strings.ToLower(match[1])
 }
 
-func isSafePathSegment(segment string) bool {
-	return safePathSegment.MatchString(segment) && !strings.Contains(segment, "..")
+func isSafeGiphyMetadata(segment string) bool {
+	return safeGiphyMetadata.MatchString(segment) && !strings.Contains(segment, "..")
 }
 
 func hasUnsafeURLByte(rawURL string) bool {
 	for _, r := range rawURL {
-		if r <= 0x20 || r == 0x7f {
+		if r <= 0x20 || r >= 0x7f {
 			return true
 		}
 	}
 	return false
 }
 
-func strictPathSegments(path string) []string {
+func strictPathSegments(path string, allowSingleTrailingSlash bool) []string {
+	if allowSingleTrailingSlash && len(path) > 1 && strings.HasSuffix(path, "/") {
+		path = strings.TrimSuffix(path, "/")
+	}
 	if !strings.HasPrefix(path, "/") || path == "/" || strings.HasSuffix(path, "/") || strings.Contains(path, "//") {
 		return nil
 	}
 	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
 	for _, segment := range segments {
-		if segment == "" {
+		if segment == "" || segment == "." || segment == ".." {
 			return nil
 		}
 	}

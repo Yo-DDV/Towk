@@ -1,9 +1,14 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { externalGifMessages as gm } from '$lib/i18n/externalGifMessages';
-  import type { ExternalGifDescriptor } from '$lib/externalGif';
+  import {
+    shouldObserveExternalGif,
+    type ExternalGifDescriptor,
+    type ExternalGifLoadState
+  } from '$lib/externalGif';
 
   const LOAD_TIMEOUT_MS = 20_000;
+  const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
   let {
     gif,
@@ -13,15 +18,32 @@
     autoLoad?: boolean;
   } = $props();
 
+  function initialReducedMotion(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia(REDUCED_MOTION_QUERY).matches
+    );
+  }
+
   let root = $state<HTMLElement | null>(null);
-  let loadState = $state<'idle' | 'loading' | 'loaded' | 'failed'>('idle');
+  let loadState = $state<ExternalGifLoadState>('idle');
+  let loadOrigin = $state<'manual' | 'auto' | null>(null);
   let online = $state(typeof navigator === 'undefined' ? true : navigator.onLine);
-  let reducedMotion = $state(false);
+  let pageVisible = $state(
+    typeof document === 'undefined' ? true : document.visibilityState === 'visible'
+  );
+  let reducedMotion = $state(initialReducedMotion());
   let hiddenByUser = $state(false);
   let attempt = $state(0);
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let failureReason = $state<'network' | 'offline' | null>(null);
   let mediaIdentity = $state<string | null>(null);
+  let activeMediaElement = $state<HTMLIFrameElement | HTMLVideoElement | HTMLImageElement | null>(
+    null
+  );
+  let hydrationReady = $state(false);
+  let suppressedByPersistedPreview = $state(false);
 
   function clearLoadTimeout() {
     if (timeout) {
@@ -32,49 +54,82 @@
 
   function resetMedia() {
     clearLoadTimeout();
+    activeMediaElement = null;
     hiddenByUser = false;
     failureReason = null;
+    loadOrigin = null;
     loadState = 'idle';
     attempt += 1;
   }
 
-  function startLoad() {
+  function stopAutomaticLoad() {
+    if (loadOrigin !== 'auto') return;
     clearLoadTimeout();
+    activeMediaElement = null;
+    failureReason = null;
+    loadOrigin = null;
+    loadState = 'idle';
+    attempt += 1;
+  }
+
+  function startLoad(origin: 'manual' | 'auto' = 'manual') {
+    clearLoadTimeout();
+    activeMediaElement = null;
     hiddenByUser = false;
-    if (!online) {
-      failureReason = 'offline';
-      loadState = 'failed';
-      return;
-    }
+    // `navigator.onLine` is only a hint. Keep automatic loads conservative,
+    // but let an explicit user action reach the browser HTTP cache even when
+    // the platform currently reports an offline state.
+    if (!online && origin === 'auto') return;
 
     failureReason = null;
+    loadOrigin = origin;
     attempt += 1;
     loadState = 'loading';
     timeout = setTimeout(() => {
+      activeMediaElement = null;
       failureReason = online ? 'network' : 'offline';
+      loadOrigin = null;
       loadState = 'failed';
       timeout = null;
     }, LOAD_TIMEOUT_MS);
   }
 
-  function handleLoaded() {
+  function handleLoaded(event: Event) {
+    if (loadState !== 'loading' || event.currentTarget !== activeMediaElement) return;
     clearLoadTimeout();
     failureReason = null;
     loadState = 'loaded';
   }
 
-  function handleFailed() {
+  function handleFailed(event: Event) {
+    if (loadState !== 'loading' || event.currentTarget !== activeMediaElement) return;
     clearLoadTimeout();
+    activeMediaElement = null;
     failureReason = online ? 'network' : 'offline';
+    loadOrigin = null;
     loadState = 'failed';
   }
 
   function hideMedia() {
     clearLoadTimeout();
+    activeMediaElement = null;
     hiddenByUser = true;
     failureReason = null;
+    loadOrigin = null;
     loadState = 'idle';
+    attempt += 1;
   }
+
+  onMount(() => {
+    // A persisted OpenGraph card is historical server-issued state. The
+    // message row renders that card after MessageContent, so detect it only
+    // after hydration and keep this enhancement hidden. No provider element
+    // is mounted before this check completes.
+    const article = root?.closest('[role="article"]');
+    suppressedByPersistedPreview =
+      article?.querySelector('[data-testid="link-preview-card"]') !== null;
+    hydrationReady = true;
+  });
 
   // Virtualized message rows can be reused for a different event. Never keep
   // the previous provider resource mounted when the descriptor changes.
@@ -90,22 +145,42 @@
   });
 
   $effect(() => {
-    if (typeof window === 'undefined') return;
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const sync = () => (reducedMotion = mediaQuery.matches);
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+    const sync = () => {
+      reducedMotion = mediaQuery.matches;
+      if (reducedMotion) stopAutomaticLoad();
+    };
     sync();
-    mediaQuery.addEventListener('change', sync);
-    return () => mediaQuery.removeEventListener('change', sync);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', sync);
+      return () => mediaQuery.removeEventListener('change', sync);
+    }
+
+    if (typeof mediaQuery.addListener === 'function') {
+      mediaQuery.addListener(sync);
+      return () => mediaQuery.removeListener(sync);
+    }
+  });
+
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    const updateVisibility = () => {
+      pageVisible = document.visibilityState === 'visible';
+      if (!pageVisible && loadState === 'loading') stopAutomaticLoad();
+    };
+    updateVisibility();
+    document.addEventListener('visibilitychange', updateVisibility);
+    return () => document.removeEventListener('visibilitychange', updateVisibility);
   });
 
   $effect(() => {
     if (typeof window === 'undefined') return;
     const updateOnline = () => {
       online = navigator.onLine;
-      if (!online && loadState === 'loading') {
-        clearLoadTimeout();
-        failureReason = 'offline';
-        loadState = 'failed';
+      if (!online && loadState === 'loading' && loadOrigin === 'auto') {
+        stopAutomaticLoad();
       } else if (online && failureReason === 'offline') {
         failureReason = null;
         loadState = 'idle';
@@ -120,20 +195,40 @@
   });
 
   $effect(() => {
-    if (!root || !autoLoad || reducedMotion || hiddenByUser || !online || loadState !== 'idle') {
-      return;
-    }
-    if (typeof IntersectionObserver === 'undefined') {
-      startLoad();
+    const intersectionObserverAvailable =
+      typeof window !== 'undefined' && typeof window.IntersectionObserver === 'function';
+    if (
+      !root ||
+      !hydrationReady ||
+      suppressedByPersistedPreview ||
+      !shouldObserveExternalGif({
+        autoLoad,
+        reducedMotion,
+        hiddenByUser,
+        online,
+        pageVisible,
+        loadState,
+        intersectionObserverAvailable
+      })
+    ) {
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          observer.disconnect();
-          startLoad();
-        }
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        const canStillAutoLoad = shouldObserveExternalGif({
+          autoLoad,
+          reducedMotion,
+          hiddenByUser,
+          online,
+          pageVisible: pageVisible && document.visibilityState === 'visible',
+          loadState,
+          intersectionObserverAvailable: true
+        });
+        if (!canStillAutoLoad) return;
+        observer.disconnect();
+        startLoad('auto');
       },
       { rootMargin: '400px 0px' }
     );
@@ -150,17 +245,27 @@
   class="external-gif-embed mt-2 w-full max-w-md overflow-hidden rounded-lg border border-border bg-surface-200"
   data-testid="external-gif-embed"
   data-provider={gif.provider}
+  data-media-provider={gif.provider}
   data-state={loadState}
+  data-load-origin={loadOrigin ?? undefined}
   aria-busy={loadState === 'loading'}
+  hidden={!hydrationReady || suppressedByPersistedPreview}
+  data-suppressed-by-preview={suppressedByPersistedPreview || undefined}
 >
   {#if loadState === 'loading' || loadState === 'loaded'}
-    <div class="relative flex min-h-36 items-center justify-center bg-black/10">
+    <div
+      class={[
+        'relative flex items-center justify-center bg-black/10',
+        gif.renderMode === 'iframe' ? 'aspect-video min-h-36' : 'min-h-36'
+      ]}
+    >
       {#key attempt}
         {#if gif.renderMode === 'iframe'}
           <iframe
+            bind:this={activeMediaElement}
             src={gif.resourceUrl}
             title={gm.mediaTitle(gif.providerLabel)}
-            class="aspect-video w-full border-0"
+            class="h-full w-full border-0"
             loading="lazy"
             sandbox="allow-scripts allow-same-origin"
             allow="autoplay"
@@ -169,6 +274,7 @@
           ></iframe>
         {:else if gif.renderMode === 'video'}
           <video
+            bind:this={activeMediaElement}
             src={gif.resourceUrl}
             aria-label={gm.mediaTitle(gif.providerLabel)}
             class="max-h-[28rem] w-full bg-black object-contain"
@@ -178,11 +284,12 @@
             loop
             playsinline
             preload="metadata"
-            onloadeddata={handleLoaded}
+            onloadedmetadata={handleLoaded}
             onerror={handleFailed}
           ></video>
         {:else}
           <img
+            bind:this={activeMediaElement}
             src={gif.resourceUrl}
             alt={gm.mediaTitle(gif.providerLabel)}
             class="max-h-[28rem] w-full object-contain"
@@ -206,7 +313,12 @@
       {/if}
     </div>
   {:else}
-    <div class="flex min-h-36 flex-col items-center justify-center gap-3 px-5 py-6 text-center">
+    <div
+      class={[
+        'flex flex-col items-center justify-center gap-3 px-5 py-6 text-center',
+        gif.renderMode === 'iframe' ? 'aspect-video min-h-36' : 'min-h-36'
+      ]}
+    >
       <span class="iconify text-3xl text-muted uil--image" aria-hidden="true"></span>
       <div class="max-w-sm text-sm text-muted" role="status" aria-live="polite">
         {#if loadState === 'failed'}
@@ -218,11 +330,15 @@
         {/if}
       </div>
       <div class="flex flex-wrap items-center justify-center gap-2">
-        <button type="button" class="btn btn-primary btn-sm" onclick={startLoad} disabled={!online}>
+        <button
+          type="button"
+          class="btn btn-primary min-h-11 px-3 py-2 text-sm"
+          onclick={() => startLoad('manual')}
+        >
           {loadState === 'failed' ? gm.retry() : gm.load()}
         </button>
         <a
-          class="btn-ghost btn btn-sm"
+          class="btn-ghost btn min-h-11 px-3 py-2 text-sm"
           href={gif.canonicalUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -235,15 +351,19 @@
   {/if}
 
   {#if loadState === 'loaded'}
-    <div class="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs">
+    <div class="flex items-center justify-between gap-2 border-t border-border px-3 text-xs">
       <span class="truncate text-muted">{gif.providerLabel}</span>
-      <div class="flex shrink-0 gap-1">
-        <button type="button" class="text-muted hover:text-text" onclick={hideMedia}>
+      <div class="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          class="inline-flex min-h-11 items-center rounded px-2 text-muted hover:text-text"
+          onclick={hideMedia}
+        >
           {gm.hide()}
         </button>
         <span aria-hidden="true" class="text-muted/50">·</span>
         <a
-          class="text-muted hover:text-text"
+          class="inline-flex min-h-11 items-center rounded px-2 text-muted hover:text-text"
           href={gif.canonicalUrl}
           target="_blank"
           rel="noopener noreferrer"

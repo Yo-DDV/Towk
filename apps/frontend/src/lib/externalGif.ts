@@ -2,6 +2,7 @@ export const EXTERNAL_GIF_EMBEDS_CAPABILITY = 'external-gif-embeds-v1';
 
 export type ExternalGifProvider = 'giphy' | 'tenor';
 export type ExternalGifRenderMode = 'iframe' | 'image' | 'video';
+export type ExternalGifLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
 export type ExternalGifDescriptor = {
   provider: ExternalGifProvider;
@@ -12,6 +13,17 @@ export type ExternalGifDescriptor = {
   id: string;
 };
 
+export type ExternalGifAutoLoadContext = {
+  autoLoad: boolean;
+  reducedMotion: boolean;
+  hiddenByUser: boolean;
+  online: boolean;
+  pageVisible: boolean;
+  loadState: ExternalGifLoadState;
+  intersectionObserverAvailable: boolean;
+};
+
+const MAX_EXTERNAL_GIF_URL_LENGTH = 2_048;
 const GIPHY_PAGE_HOSTS = new Set(['giphy.com', 'www.giphy.com']);
 const GIPHY_MEDIA_HOSTS = new Set([
   'i.giphy.com',
@@ -25,7 +37,8 @@ const GIPHY_MEDIA_HOSTS = new Set([
 const TENOR_MEDIA_HOSTS = new Set(['media.tenor.com', 'media1.tenor.com', 'c.tenor.com']);
 const SAFE_ID = /^[A-Za-z0-9_-]{6,128}$/;
 const SAFE_TENOR_VARIANT = /^[A-Za-z0-9_-]{1,32}$/;
-const SAFE_PATH_SEGMENT = /^[A-Za-z0-9._-]{1,128}$/;
+const TENOR_LEGACY_IMAGE_ID = /^[A-Fa-f0-9]{32}$/;
+const SAFE_GIPHY_METADATA = /^[A-Za-z0-9._-]{1,256}$/;
 const SAFE_MEDIA_BASENAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,178}[A-Za-z0-9])?$/;
 const SAFE_GIPHY_SLUG = /^[A-Za-z0-9_-]{6,256}$/;
 const GIPHY_PAGE_ID = /^[A-Za-z0-9]{6,128}$/;
@@ -34,7 +47,7 @@ const MEDIA_FILENAME = /\.(gif|webp|mp4|webm)$/i;
 function hasUnsafeURLCodePoint(rawUrl: string): boolean {
   for (const character of rawUrl) {
     const codePoint = character.codePointAt(0) ?? 0;
-    if (codePoint <= 0x20 || codePoint === 0x7f) return true;
+    if (codePoint <= 0x20 || codePoint >= 0x7f) return true;
   }
   return false;
 }
@@ -42,15 +55,25 @@ function hasUnsafeURLCodePoint(rawUrl: string): boolean {
 function safeHTTPSURL(rawUrl: string): URL | null {
   if (
     !rawUrl ||
-    !rawUrl.startsWith('https://') ||
+    rawUrl.length > MAX_EXTERNAL_GIF_URL_LENGTH ||
+    rawUrl.slice(0, 'https://'.length).toLowerCase() !== 'https://' ||
     rawUrl !== rawUrl.trim() ||
     rawUrl.includes('\\') ||
     hasUnsafeURLCodePoint(rawUrl)
   ) {
     return null;
   }
-  const authority = rawUrl.slice('https://'.length).split(/[/?#]/u, 1)[0];
+  const remainder = rawUrl.slice('https://'.length);
+  const authority = remainder.split(/[/?#]/u, 1)[0];
   if (!authority || authority.includes('@') || authority.includes(':')) return null;
+
+  // WHATWG URL parsing normalizes literal dot segments before exposing
+  // pathname. Reject them from the raw path so frontend and backend
+  // classification stay identical and no allow-list shape is reached only
+  // after normalization.
+  const rawPath = remainder.slice(authority.length).split(/[?#]/u, 1)[0];
+  if (rawPath.includes('%')) return null;
+  if (rawPath.split('/').some((segment) => segment === '.' || segment === '..')) return null;
 
   let url: URL;
   try {
@@ -67,8 +90,11 @@ function safeHTTPSURL(rawUrl: string): URL | null {
   return url;
 }
 
-function strictPathSegments(url: URL): string[] | null {
-  const path = url.pathname;
+function strictPathSegments(url: URL, allowSingleTrailingSlash = false): string[] | null {
+  let path = url.pathname;
+  if (allowSingleTrailingSlash && path.length > 1 && path.endsWith('/')) {
+    path = path.slice(0, -1);
+  }
   if (!path.startsWith('/') || path === '/' || path.endsWith('/') || path.includes('//')) {
     return null;
   }
@@ -84,8 +110,8 @@ function mediaRenderMode(filename: string): ExternalGifRenderMode | null {
   return /^(?:mp4|webm)$/i.test(match[1]) ? 'video' : 'image';
 }
 
-function safePathSegment(value: string): boolean {
-  return SAFE_PATH_SEGMENT.test(value) && !value.includes('..');
+function safeGiphyMetadata(value: string): boolean {
+  return SAFE_GIPHY_METADATA.test(value) && !value.includes('..');
 }
 
 function giphyDescriptor(
@@ -106,7 +132,7 @@ function giphyDescriptor(
 
 function parseGiphyPage(url: URL): ExternalGifDescriptor | null {
   if (!GIPHY_PAGE_HOSTS.has(url.hostname.toLowerCase())) return null;
-  const segments = strictPathSegments(url);
+  const segments = strictPathSegments(url, true);
   if (!segments || segments.length !== 2) return null;
 
   let id = '';
@@ -127,8 +153,7 @@ function parseGiphyMedia(url: URL): ExternalGifDescriptor | null {
   const segments = strictPathSegments(url);
   if (!segments) return null;
 
-  if (host === 'i.giphy.com') {
-    if (segments.length !== 1) return null;
+  if (host === 'i.giphy.com' && segments.length === 1) {
     const renderMode = mediaRenderMode(segments[0]);
     if (!renderMode) return null;
     const id = segments[0].replace(MEDIA_FILENAME, '');
@@ -139,7 +164,7 @@ function parseGiphyMedia(url: URL): ExternalGifDescriptor | null {
   let filename = '';
   if (segments.length === 3 && segments[0] === 'media') {
     [, id, filename] = segments;
-  } else if (segments.length === 4 && segments[0] === 'media' && safePathSegment(segments[1])) {
+  } else if (segments.length === 4 && segments[0] === 'media' && safeGiphyMetadata(segments[1])) {
     [, , id, filename] = segments;
   } else {
     return null;
@@ -172,6 +197,18 @@ function parseTenorMedia(url: URL): ExternalGifDescriptor | null {
   // Tenor documents a bare media URL as well as named GIF/video renditions.
   if (segments.length === 1 && SAFE_ID.test(segments[0])) {
     return tenorDescriptor(url, segments[0], 'image');
+  }
+
+  // Older Tenor shares use /images/<32-hex-id>/<rendition>. Keep this
+  // narrowly bounded because these URLs still appear in historical messages
+  // and keyboard clipboard fallbacks.
+  if (
+    segments.length === 3 &&
+    segments[0] === 'images' &&
+    TENOR_LEGACY_IMAGE_ID.test(segments[1])
+  ) {
+    const renderMode = mediaRenderMode(segments[2]);
+    return renderMode ? tenorDescriptor(url, segments[1], renderMode) : null;
   }
 
   let id = '';
@@ -214,4 +251,16 @@ export function resolveExternalGifMessage(
 ): ExternalGifDescriptor | null {
   if (!options.supportsCapability || options.hasPersistedLinkPreview) return null;
   return parseExternalGifMessageBody(body);
+}
+
+export function shouldObserveExternalGif(context: ExternalGifAutoLoadContext): boolean {
+  return (
+    context.autoLoad &&
+    !context.reducedMotion &&
+    !context.hiddenByUser &&
+    context.online &&
+    context.pageVisible &&
+    context.loadState === 'idle' &&
+    context.intersectionObserverAvailable
+  );
 }
