@@ -36,15 +36,21 @@
   // Keep capability lookup tied to the same server ID for the entire derived
   // pass. The live store is authoritative when available; the registered
   // server carries the last successfully advertised capabilities and provides
-  // a safe fallback while a store is being recreated or hydrated.
+  // a safe fallback only while a store is being recreated or hydrated.
   const activeServerId = $derived(getActiveServer());
   const activeServer = $derived(serverRegistry.getServer(activeServerId));
   const activeStore = $derived(serverRegistry.tryGetStore(activeServerId));
-  const supportsExternalGif = $derived(
-    activeStore?.serverInfo?.supportsCapability?.(EXTERNAL_GIF_EMBEDS_CAPABILITY) === true ||
-      activeStore?.serverInfo?.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) === true ||
-      activeServer?.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) === true
-  );
+  const supportsExternalGif = $derived.by(() => {
+    const liveServerInfo = activeStore?.serverInfo;
+    if (liveServerInfo) {
+      return (
+        liveServerInfo.supportsCapability?.(EXTERNAL_GIF_EMBEDS_CAPABILITY) ??
+        liveServerInfo.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) ??
+        false
+      );
+    }
+    return activeServer?.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) ?? false;
+  });
 
   // The viewer's login on the active server, used by `wrapValidMentions` to
   // mark self-mentions. Same reactive registry-lookup pattern every other
