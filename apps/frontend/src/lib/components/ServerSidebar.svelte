@@ -1,5 +1,5 @@
 <!--
-@Component
+@component
 
 The **Server Sidebar** — wider sidebar to the right of the Server Gutter,
 scoped to a single server. Owns the per-server pane's chrome: positioning,
@@ -28,7 +28,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
     children,
     width,
     mobileWidth = 'max-md:w-64',
-    synchronizedMobileLifecycle = false
+    synchronizedMobileIntro = false
   }: {
     children: Snippet;
     /** Optional Tailwind class to lock the desktop width (e.g. "md:w-56"). When
@@ -36,11 +36,11 @@ See the "UI" section of `docs/GLOSSARY.md`.
      *  a drag handle. */
     width?: string;
     mobileWidth?: string;
-    /** Animate a route-scoped sidebar that is mounted only when navigation opens.
+    /** Animate a route-scoped sidebar that mounts only when navigation opens.
      *  The 200 ms duration matches MobileSidebarChrome's gutter transform so both
-     *  columns finish together. Normal route sidebars already stay mounted and
-     *  should leave this disabled. */
-    synchronizedMobileLifecycle?: boolean;
+     *  columns begin and finish together. Normal route sidebars already stay
+     *  mounted and should leave this disabled. */
+    synchronizedMobileIntro?: boolean;
   } = $props();
 
   // On mobile the panel slides as a single unit with the Server Gutter — both
@@ -50,17 +50,17 @@ See the "UI" section of `docs/GLOSSARY.md`.
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && sidebarNav.progress === 0 && !dragging);
   const resizable = $derived(!width);
-  const lifecycleDuration = $derived(
-    synchronizedMobileLifecycle && sidebarNav.isMobile && sidebarNav.isOpen ? 200 : 0
+  const introDuration = $derived(
+    synchronizedMobileIntro && sidebarNav.isMobile && sidebarNav.isOpen ? 200 : 0
   );
 </script>
 
 <div
   use:sidebarSwipe
-  transition:fly={{
+  in:fly={{
     x: -SIDEBAR_PANEL_WIDTH_PX,
     opacity: 1,
-    duration: lifecycleDuration,
+    duration: introDuration,
     easing: cubicOut
   }}
   data-app-sidebar="true"
