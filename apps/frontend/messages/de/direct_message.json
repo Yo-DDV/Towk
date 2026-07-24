@@ -6,7 +6,16 @@
       "action": "Unterhaltung löschen",
       "prompt": "Unterhaltung mit {room} löschen? Der Verlauf wird aus deinem Konto entfernt. Die andere Person behält ihre Kopie.",
       "failed": "Unterhaltung konnte nicht gelöscht werden",
-      "local_cleanup_failed": "Die Unterhaltung wurde gelöscht, aber dieses Gerät konnte nicht alle zwischengespeicherten Daten entfernen."
+      "local_cleanup_failed": "Die Unterhaltung wurde gelöscht, aber dieses Gerät konnte nicht alle zwischengespeicherten Daten entfernen.",
+      "more_actions": "Unterhaltungsaktionen",
+      "menu_description": "Aus deinem Konto entfernen",
+      "only_for_you": "Nur für dich",
+      "history_title": "Dein Verlauf wird entfernt",
+      "history_body": "Nachrichten, Threads, Dateien und zwischengespeicherte Entwürfe dieser Unterhaltung sind für dich nicht mehr verfügbar.",
+      "peer_title": "Die andere Person behält ihre Kopie",
+      "peer_body": "In ihrem Konto wird nichts gelöscht, und sie wird über diese Aktion nicht benachrichtigt.",
+      "reopen_title": "Neue Nachrichten können die Unterhaltung wieder öffnen",
+      "reopen_body": "Nur Nachrichten nach dem Löschen werden angezeigt. Der frühere Verlauf bleibt ausgeblendet."
     }
   }
 }

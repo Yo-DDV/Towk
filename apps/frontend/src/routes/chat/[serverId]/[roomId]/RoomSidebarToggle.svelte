@@ -13,6 +13,7 @@ Room header affordance for opening or hiding room extras panels.
 -->
 <script lang="ts">
   import * as m from '$lib/i18n/messages';
+  import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import type { RoomSidebarPanel } from './RoomSidebar.svelte';
 
   let {
@@ -62,6 +63,31 @@ Room header affordance for opening or hiding room extras panels.
   const visiblePanels = $derived(
     panels ? panelDefinitions.filter((panel) => panels.includes(panel.id)) : panelDefinitions
   );
+
+  let actionsMenuPosition = $state<{
+    x: number;
+    y: number;
+    alignRight: boolean;
+  } | null>(null);
+
+  function openActionsMenu(event: MouseEvent) {
+    if (actionsMenuPosition) {
+      actionsMenuPosition = null;
+      return;
+    }
+
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    actionsMenuPosition = {
+      x: rect.right,
+      y: rect.bottom + 4,
+      alignRight: true
+    };
+  }
+
+  function handleDeleteDirectMessage() {
+    actionsMenuPosition = null;
+    onDeleteDirectMessage?.();
+  }
 
   const visibilityClass = $derived.by(() => {
     switch (mode) {
@@ -116,15 +142,59 @@ Room header affordance for opening or hiding room extras panels.
     </button>
   {/each}
   {#if canDeleteDirectMessage && onDeleteDirectMessage}
-    <button
-      type="button"
-      class="group/pane-header-icon-button pane-header-icon-button"
-      onclick={onDeleteDirectMessage}
-      title={m['room.direct_message_delete.title']()}
-      aria-label={m['room.direct_message_delete.title']()}
-      data-testid="delete-direct-message-button"
-    >
-      <span class="pane-header-icon-glyph uil--trash-alt" aria-hidden="true"></span>
-    </button>
+    <span class="ml-1 border-l border-border pl-1">
+      <button
+        type="button"
+        class={[
+          'group/pane-header-icon-button pane-header-icon-button',
+          actionsMenuPosition && 'pane-header-icon-button-active'
+        ]}
+        onclick={openActionsMenu}
+        title={m['room.direct_message_delete.more_actions']()}
+        aria-label={m['room.direct_message_delete.more_actions']()}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(actionsMenuPosition)}
+        data-testid="direct-message-actions-button"
+      >
+        <span class="pane-header-icon-glyph uil--ellipsis-v" aria-hidden="true"></span>
+      </button>
+    </span>
   {/if}
 </span>
+
+{#if actionsMenuPosition}
+  <ContextMenu
+    position={actionsMenuPosition}
+    ariaLabel={m['room.direct_message_delete.more_actions']()}
+    class="w-72 max-w-[calc(100vw-1rem)]"
+    onclose={() => (actionsMenuPosition = null)}
+  >
+    <div class="menu-section p-1.5">
+      <div class="px-2.5 pt-1.5 pb-2 text-xs font-semibold tracking-wide text-muted uppercase">
+        {m['room.direct_message_delete.more_actions']()}
+      </div>
+      <nav class="sidebar-nav">
+        <button
+          type="button"
+          class="group/delete sidebar-item min-h-14 items-start gap-3 px-2.5 py-2.5 text-left text-danger hover:text-danger"
+          onclick={handleDeleteDirectMessage}
+          role="menuitem"
+          data-testid="delete-direct-message-button"
+        >
+          <span
+            class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-danger/10 transition-colors group-hover/delete:bg-danger/15"
+            aria-hidden="true"
+          >
+            <span class="iconify text-lg uil--trash-alt"></span>
+          </span>
+          <span class="min-w-0 flex-1">
+            <span class="block font-medium">{m['room.direct_message_delete.action']()}</span>
+            <span class="mt-0.5 block text-xs leading-4 text-muted">
+              {m['room.direct_message_delete.menu_description']()}
+            </span>
+          </span>
+        </button>
+      </nav>
+    </div>
+  </ContextMenu>
+{/if}

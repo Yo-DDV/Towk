@@ -199,12 +199,23 @@ describe('RoomSidebarToggle', () => {
       }
     });
 
-    const button = container.querySelector(
-      '[aria-label="Delete conversation"]'
+    const actionsButton = container.querySelector(
+      '[data-testid="direct-message-actions-button"]'
     ) as HTMLButtonElement | null;
-    expect(button).toBeTruthy();
+    expect(actionsButton).toBeTruthy();
 
-    button!.click();
+    actionsButton!.click();
+    await tick();
+
+    const deleteButton = container.querySelector(
+      '[data-testid="delete-direct-message-button"]'
+    ) as HTMLButtonElement | null;
+    expect(deleteButton).toBeTruthy();
+    expect(actionsButton!.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('Conversation actions');
+    expect(container.textContent).toContain('Remove it from your account');
+
+    deleteButton!.click();
     await tick();
 
     expect(onDeleteDirectMessage).toHaveBeenCalledOnce();
@@ -218,6 +229,7 @@ describe('RoomSidebarToggle', () => {
       }
     });
 
+    expect(container.querySelector('[data-testid="direct-message-actions-button"]')).toBeFalsy();
     expect(container.querySelector('[data-testid="delete-direct-message-button"]')).toBeFalsy();
   });
 });

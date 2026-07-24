@@ -6,7 +6,16 @@
       "action": "Eliminar conversa",
       "prompt": "Eliminar a conversa com {room}? O histórico será removido da sua conta. A outra pessoa manterá a respetiva cópia.",
       "failed": "Não foi possível eliminar a conversa",
-      "local_cleanup_failed": "A conversa foi eliminada, mas este dispositivo não conseguiu remover todos os dados em cache."
+      "local_cleanup_failed": "A conversa foi eliminada, mas este dispositivo não conseguiu remover todos os dados em cache.",
+      "more_actions": "Ações da conversa",
+      "menu_description": "Removê-la da sua conta",
+      "only_for_you": "Apenas para si",
+      "history_title": "O seu histórico será removido",
+      "history_body": "As mensagens, tópicos, ficheiros e rascunhos em cache desta conversa deixarão de estar disponíveis para si.",
+      "peer_title": "A outra pessoa mantém a respetiva cópia",
+      "peer_body": "Nada é eliminado da conta dessa pessoa e ela não recebe qualquer notificação sobre esta ação.",
+      "reopen_title": "Mensagens futuras podem reabrir a conversa",
+      "reopen_body": "Apenas as mensagens enviadas após a eliminação serão apresentadas. O histórico anterior continuará oculto."
     }
   }
 }
