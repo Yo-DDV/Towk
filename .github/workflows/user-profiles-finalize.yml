@@ -1,13 +1,45 @@
-name: user profiles final gate
+name: user profiles patch export
 
 on:
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/user-profiles-finalize.yml
 
 permissions:
   contents: read
 
 jobs:
-  hold:
+  export:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Final gate is temporarily paused while the reviewed patch chunks are reconstructed."
+      - name: Checkout branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/user-profiles
+          persist-credentials: false
+      - name: Assemble available chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/profile-patch"
+          cp .github/profile-patch/*.b64 "${RUNNER_TEMP}/profile-patch/"
+          cat .github/profile-patch/*.b64 > "${RUNNER_TEMP}/profile-final.patch.xz.b64"
+          base64 --decode "${RUNNER_TEMP}/profile-final.patch.xz.b64" > "${RUNNER_TEMP}/profile-final.patch.xz" || true
+          sha256sum "${RUNNER_TEMP}/profile-final.patch.xz" > "${RUNNER_TEMP}/profile-final.patch.xz.sha256"
+          xz --test "${RUNNER_TEMP}/profile-final.patch.xz" > "${RUNNER_TEMP}/xz-test.log" 2>&1 || true
+          wc -c .github/profile-patch/*.b64 "${RUNNER_TEMP}/profile-final.patch.xz.b64" > "${RUNNER_TEMP}/chunk-sizes.txt"
+      - name: Upload chunks
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: user-profiles-patch-chunks
+          path: |
+            ${{ runner.temp }}/profile-patch
+            ${{ runner.temp }}/profile-final.patch.xz.b64
+            ${{ runner.temp }}/profile-final.patch.xz
+            ${{ runner.temp }}/profile-final.patch.xz.sha256
+            ${{ runner.temp }}/xz-test.log
+            ${{ runner.temp }}/chunk-sizes.txt
+          retention-days: 1
+          if-no-files-found: error
