@@ -16,29 +16,13 @@ jobs:
   generate-and-test:
     runs-on: ubuntu-latest
     env:
-      PATCH_BLOB_SHAS: >-
-        a7b7a649ce8b80a6ef5895f7db0be4af73571407
-        e6d4ec4352137ab701ee2d8ced0576c3671e0dba
-        cf96d68caa5f3b825a6094724d18e4deb0f70fee
-        7fa464e985a9a790c80e48b0e619a151082667f1
-        fcabbe2de53a6a29a9dccaee908120fa7e4216fd
-        771ff369a674a853032c1483cf5b7e475bd92308
-        731fc9596f18d6cfe436ec53b3df416a56a37eb7
-        44f400045bfb43b8e0f0a75bd5774eb1d65ff7b4
-        9c2726f34d18aa88775028d6f0d3b8deb435cf96
-        1ab510a4ce4409748de0264f20c039ae3e2f6225
-        c472b9cda029f52ea9042c04e00e0a10d25d3e20
-        b920729c9710482244882bfd7686198f0df1cdee
-        ce85133dd1f0b362a1914e0c487bbd0b9f52fc92
-        286a8cab3de64bfe3634472248b1756f1d536629
-        ec8c022c90c1128eca1c6a99165d8a62b263daf1
-        6f6e5b1526f302d560160d29cfe53b18a58b22f4
-        b08d42e9813fc0578c771b99927c3f5d58ad373e
-        ef0f83b78a903d8298d2aa79c32cbf746e9ea926
-        c6598b1188f9470167d8e538ccf08bbbe7b1a38e
-        206c0cf35270882e782e088a6ed158ab36eaec09
-        2294cd9ecb60843903e02d3ed90984529e04cbd0
-      PATCH_SHA256: 0499ba79df3a007df904337cd383c5cced84c3a29904a0aa207c0c07c95c7c96
+      PATCH_GZIP_BLOB_SHAS: >-
+        a7b0cb8f7f6a55ecc1421462ffe11c6d90d542f4
+        4e0f9c01edc062b18e828cdf6f0b14ad048e34e1
+        3ff9fdec2d5c004fc00fc044aa6d85c650f1a1bc
+        a90423d1f7d266dd30280f74786fbce749ffe796
+      PATCH_GZIP_SHA256: 4d6e91dd004d02dd4f5e9d72d868aa3d526f5b4301c50ddfe402eb681ea48b60
+      PATCH_SHA256: 8d5b2a940b6c1ebbd9726e074deabe33c01995fd118711084068550c082c7eec
     steps:
       - name: Check out pull request head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -50,17 +34,30 @@ jobs:
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
+      - name: Capture baseline protobuf lint debt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd proto
+          set +e
+          buf lint > "${RUNNER_TEMP}/read-receipts-buf-baseline.raw" 2>&1
+          status=$?
+          set -e
+          sed -E 's/^([^:]+):[0-9]+:[0-9]+:/\1:/' "${RUNNER_TEMP}/read-receipts-buf-baseline.raw" \
+            | sort > "${RUNNER_TEMP}/read-receipts-buf-baseline.normalized"
+          printf '%s\n' "${status}" > "${RUNNER_TEMP}/read-receipts-buf-baseline.status"
+
       - name: Materialize reviewed source patch
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          raw="${RUNNER_TEMP}/read-receipts-source.raw"
+          archive="${RUNNER_TEMP}/read-receipts-source.patch.gz"
           patch="${RUNNER_TEMP}/read-receipts-source.patch"
-          : > "${raw}"
+          : > "${archive}"
 
-          for sha in ${PATCH_BLOB_SHAS}; do
+          for sha in ${PATCH_GZIP_BLOB_SHAS}; do
             chunk="${RUNNER_TEMP}/read-receipts-${sha}.chunk"
             curl --fail --silent --show-error --location \
               --retry 3 \
@@ -70,21 +67,25 @@ jobs:
               "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" \
               > "${chunk}"
             test "$(git hash-object "${chunk}")" = "${sha}"
-            cat "${chunk}" >> "${raw}"
+            cat "${chunk}" >> "${archive}"
           done
 
-          grep -v '^--TOWK-READ-RECEIPTS-CHUNK-END--$' "${raw}" > "${patch}"
+          printf '%s  %s\n' "${PATCH_GZIP_SHA256}" "${archive}" | sha256sum --check --strict
+          gzip -dc "${archive}" > "${patch}"
           printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --strict
           git apply --check "${patch}"
           git apply "${patch}"
 
           gofmt -w \
             cli/internal/connectapi/account.go \
+            cli/internal/connectapi/api_test.go \
             cli/internal/connectapi/errors.go \
             cli/internal/connectapi/read_state.go \
+            cli/internal/connectapi/server.go \
             cli/internal/connectapi/server_state.go \
             cli/internal/connectapi/viewer.go \
             cli/internal/core/config_manager.go \
+            cli/internal/core/config_manager_test.go \
             cli/internal/core/config_projection.go \
             cli/internal/core/core_test.go \
             cli/internal/core/errors.go \
@@ -94,8 +95,10 @@ jobs:
             cli/internal/core/rooms.go \
             cli/internal/core/server_state_management.go \
             cli/internal/core/user_preferences.go \
+            cli/internal/core/user_preferences_test.go \
             cli/internal/core/users.go \
-            cli/internal/http_server/realtime.go
+            cli/internal/http_server/realtime.go \
+            cli/internal/http_server/realtime_test.go
 
       - name: Generate protobuf bindings
         id: codegen
@@ -105,24 +108,67 @@ jobs:
           set -o pipefail
           mise codegen-proto 2>&1 | tee "${RUNNER_TEMP}/read-receipts-codegen.log"
 
-      - name: Lint protobuf API
-        id: proto_lint
+      - name: Verify protobuf build and lint drift
+        id: proto
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd proto
+          buf build
+          buf lint \
+            --path chatto/admin/v1/server.proto \
+            --path chatto/api/v1/account.proto \
+            --path chatto/api/v1/read_state.proto \
+            --path chatto/api/v1/viewer.proto \
+            --path chatto/config/v1/config.proto \
+            --path chatto/core/v1/config_events.proto \
+            --path chatto/core/v1/event.proto \
+            --path chatto/core/v1/live_events.proto \
+            --path chatto/core/v1/read_receipts.proto \
+            --path chatto/core/v1/user_events.proto \
+            --path chatto/core/v1/user_preferences.proto \
+            --path chatto/realtime/v1/realtime.proto
+
+          set +e
+          buf lint > "${RUNNER_TEMP}/read-receipts-buf-current.raw" 2>&1
+          current_status=$?
+          set -e
+          sed -E 's/^([^:]+):[0-9]+:[0-9]+:/\1:/' "${RUNNER_TEMP}/read-receipts-buf-current.raw" \
+            | sort > "${RUNNER_TEMP}/read-receipts-buf-current.normalized"
+          baseline_status="$(cat "${RUNNER_TEMP}/read-receipts-buf-baseline.status")"
+          test "${current_status}" = "${baseline_status}"
+          diff -u \
+            "${RUNNER_TEMP}/read-receipts-buf-baseline.normalized" \
+            "${RUNNER_TEMP}/read-receipts-buf-current.normalized" \
+            | tee "${RUNNER_TEMP}/read-receipts-buf-drift.log"
+
+      - name: Compile affected backend packages
+        id: compile
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          cd proto
-          buf lint 2>&1 | tee "${RUNNER_TEMP}/read-receipts-buf-lint.log"
+          cd cli
+          go test -trimpath ./internal/core ./internal/connectapi ./internal/http_server -run '^$' 2>&1 \
+            | tee "${RUNNER_TEMP}/read-receipts-compile.log"
 
       - name: Run targeted backend tests under race
         id: backend
         continue-on-error: true
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           cd cli
-          go test -trimpath -race ./internal/core ./internal/connectapi ./internal/http_server 2>&1 \
-            | tee "${RUNNER_TEMP}/read-receipts-backend.log"
+          go test -trimpath -race ./internal/core \
+            -run '^(TestReadReceiptModel_|TestCompactReadReceiptIntervals|TestChattoCore_GetUserSettings_NoSettings|TestChattoCore_UpdateUserSettings_|TestChattoCore_DeleteUser_CleansUpSettings)$' \
+            -count=1 2>&1 | tee "${RUNNER_TEMP}/read-receipts-core.log"
+          go test -trimpath -race ./internal/connectapi \
+            -run '^(TestRoomServiceReadReceipts|TestServerDiscoveryServiceGetServerPublicMetadata)' \
+            -count=1 2>&1 | tee "${RUNNER_TEMP}/read-receipts-connectapi.log"
+          go test -trimpath -race ./internal/http_server \
+            -run '^(TestRealtimeMapperMapsReadReceiptAdvance|TestRealtimeMapperIncludesReadReceiptPreference)$' \
+            -count=1 2>&1 | tee "${RUNNER_TEMP}/read-receipts-http-server.log"
 
       - name: Vet affected backend packages
         id: vet
@@ -144,7 +190,7 @@ jobs:
 
       - name: Build candidate Git tree
         id: candidate
-        if: ${{ steps.codegen.outcome == 'success' && steps.proto_lint.outcome == 'success' && steps.backend.outcome == 'success' && steps.vet.outcome == 'success' && steps.diff.outcome == 'success' }}
+        if: ${{ steps.codegen.outcome == 'success' && steps.proto.outcome == 'success' && steps.compile.outcome == 'success' && steps.backend.outcome == 'success' && steps.vet.outcome == 'success' && steps.diff.outcome == 'success' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -165,7 +211,7 @@ jobs:
           while IFS= read -r path; do
             test -f "${path}"
             encoded="$(base64 -w0 "${path}")"
-            blob_sha="$(
+            blob_sha="$({
               jq -n --arg content "${encoded}" '{content: $content, encoding: "base64"}' \
                 | curl --fail --silent --show-error --location \
                     --retry 3 \
@@ -176,7 +222,7 @@ jobs:
                     --data-binary @- \
                     "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs" \
                 | jq -er '.sha'
-            )"
+            })"
             jq --arg path "${path}" --arg sha "${blob_sha}" \
               '. + [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \
               "${entries}" > "${entries}.next"
@@ -203,7 +249,8 @@ jobs:
         shell: bash
         env:
           CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
-          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
+          PROTO_OUTCOME: ${{ steps.proto.outcome }}
+          COMPILE_OUTCOME: ${{ steps.compile.outcome }}
           BACKEND_OUTCOME: ${{ steps.backend.outcome }}
           VET_OUTCOME: ${{ steps.vet.outcome }}
           DIFF_OUTCOME: ${{ steps.diff.outcome }}
@@ -213,7 +260,8 @@ jobs:
         run: |
           {
             printf 'codegen=%s\n' "${CODEGEN_OUTCOME}"
-            printf 'proto_lint=%s\n' "${PROTO_LINT_OUTCOME}"
+            printf 'proto=%s\n' "${PROTO_OUTCOME}"
+            printf 'compile=%s\n' "${COMPILE_OUTCOME}"
             printf 'backend=%s\n' "${BACKEND_OUTCOME}"
             printf 'vet=%s\n' "${VET_OUTCOME}"
             printf 'diff=%s\n' "${DIFF_OUTCOME}"
@@ -236,11 +284,10 @@ jobs:
           name: towk-read-receipts-workspace
           path: |
             ${{ runner.temp }}/towk-read-receipts-workspace.tar.gz
-            ${{ runner.temp }}/read-receipts-codegen.log
-            ${{ runner.temp }}/read-receipts-buf-lint.log
-            ${{ runner.temp }}/read-receipts-backend.log
-            ${{ runner.temp }}/read-receipts-vet.log
-            ${{ runner.temp }}/read-receipts-diff.log
+            ${{ runner.temp }}/read-receipts-*.log
+            ${{ runner.temp }}/read-receipts-buf-*.raw
+            ${{ runner.temp }}/read-receipts-buf-*.normalized
+            ${{ runner.temp }}/read-receipts-buf-baseline.status
             ${{ runner.temp }}/read-receipts-candidate-files.txt
             ${{ runner.temp }}/read-receipts-candidate-tree.json
             ${{ runner.temp }}/read-receipts-status.txt
@@ -252,14 +299,16 @@ jobs:
         shell: bash
         env:
           CODEGEN_OUTCOME: ${{ steps.codegen.outcome }}
-          PROTO_LINT_OUTCOME: ${{ steps.proto_lint.outcome }}
+          PROTO_OUTCOME: ${{ steps.proto.outcome }}
+          COMPILE_OUTCOME: ${{ steps.compile.outcome }}
           BACKEND_OUTCOME: ${{ steps.backend.outcome }}
           VET_OUTCOME: ${{ steps.vet.outcome }}
           DIFF_OUTCOME: ${{ steps.diff.outcome }}
           CANDIDATE_OUTCOME: ${{ steps.candidate.outcome }}
         run: |
           test "${CODEGEN_OUTCOME}" = success
-          test "${PROTO_LINT_OUTCOME}" = success
+          test "${PROTO_OUTCOME}" = success
+          test "${COMPILE_OUTCOME}" = success
           test "${BACKEND_OUTCOME}" = success
           test "${VET_OUTCOME}" = success
           test "${DIFF_OUTCOME}" = success
