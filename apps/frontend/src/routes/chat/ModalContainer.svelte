@@ -25,6 +25,8 @@
     refreshAttachmentUrlsForAssets
   } from '$lib/attachments/attachmentUrls';
   import { assetUrlForServer } from '$lib/assets/assetUrls';
+  import { purgeOfflineRoom } from '$lib/pwa/offlineData';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { toast } from '$lib/ui/toast';
   import { clearLastRoom } from '$lib/storage/lastRoom';
   import { notifyRoomMessageMutated } from '$lib/state/room/messageMutationEvents';
@@ -56,6 +58,7 @@
   }
 
   let leavingRoom = $state(false);
+  let deletingDirectMessage = $state(false);
   let leavingServer = $state(false);
   let deletingMessage = $state(false);
   let deletingLinkPreview = $state(false);
@@ -64,16 +67,19 @@
   // Keep the lightbox ahead of the 24-hour access ticket expiry.
   const IMAGE_MODAL_URL_REFRESH_MS = 23 * 60 * 60 * 1000;
 
+  function getRoomCommandAPI() {
+    const conn = serverConnectionManager.getClient(activeInstanceId);
+    return createRoomCommandAPI({
+      serverId: conn.serverId ?? activeInstanceId,
+      baseUrl: conn.connectBaseUrl,
+      bearerToken: conn.bearerToken
+    });
+  }
+
   async function handleLeaveRoom(roomId: string) {
     leavingRoom = true;
     try {
-      const conn = serverConnectionManager.getClient(activeInstanceId);
-      const api = createRoomCommandAPI({
-        serverId: conn.serverId ?? activeInstanceId,
-        baseUrl: conn.connectBaseUrl,
-        bearerToken: conn.bearerToken
-      });
-      await api.leaveRoom(roomId);
+      await getRoomCommandAPI().leaveRoom(roomId);
     } catch (error) {
       leavingRoom = false;
       toast.error(m['room.leave.failed']());
@@ -85,6 +91,39 @@
 
     clearLastRoom(activeInstanceId);
     goto(resolve('/chat/[serverId]', { serverId: serverSegment }));
+  }
+
+  async function handleDeleteDirectMessage(roomId: string) {
+    deletingDirectMessage = true;
+    try {
+      await getRoomCommandAPI().leaveRoom(roomId);
+    } catch (error) {
+      deletingDirectMessage = false;
+      toast.error(m['room.direct_message_delete.failed']());
+      console.error('Error deleting direct-message history:', error);
+      closeModal();
+      return;
+    }
+
+    const scope = privateDataScopeForServer(serverRegistry.getServer(activeInstanceId));
+    if (scope) {
+      try {
+        await purgeOfflineRoom(scope, roomId);
+      } catch (error) {
+        toast.error(m['room.direct_message_delete.local_cleanup_failed']());
+        console.error('Error purging deleted direct-message data from this device:', error);
+      }
+    }
+
+    try {
+      await serverRegistry.getStore(activeInstanceId).rooms.refresh();
+    } catch (error) {
+      console.warn('Failed to refresh rooms after deleting direct-message history:', error);
+    }
+
+    deletingDirectMessage = false;
+    clearLastRoom(activeInstanceId);
+    goto(resolve('/chat/[serverId]', { serverId: serverSegment }), { replaceState: true });
   }
 
   async function handleLeaveServer() {
@@ -259,6 +298,17 @@
     onclose={closeModal}
   >
     {m['room.leave.prompt']({ room: roomName ?? '' })}
+  </ConfirmDialog>
+{:else if modalType === 'deleteDirectMessage' && roomId}
+  <ConfirmDialog
+    title={m['room.direct_message_delete.title']()}
+    actionLabel={m['room.direct_message_delete.action']()}
+    actionIcon="iconify uil--trash-alt"
+    loading={deletingDirectMessage}
+    onconfirm={() => handleDeleteDirectMessage(roomId)}
+    onclose={closeModal}
+  >
+    {m['room.direct_message_delete.prompt']({ room: roomName ?? '' })}
   </ConfirmDialog>
 {:else if modalType === 'leaveServer'}
   <ConfirmDialog
