@@ -29,6 +29,7 @@ jobs:
           base64 --decode "${RUNNER_TEMP}/profile-final.patch.xz.b64" > "${RUNNER_TEMP}/profile-final.patch.xz" || true
           sha256sum "${RUNNER_TEMP}/profile-final.patch.xz" > "${RUNNER_TEMP}/profile-final.patch.xz.sha256"
           xz --test "${RUNNER_TEMP}/profile-final.patch.xz" > "${RUNNER_TEMP}/xz-test.log" 2>&1 || true
+          wc -c .github/profile-patch/*.b64 "${RUNNER_TEMP}/profile-final.patch.xz.b64" > "${RUNNER_TEMP}/chunk-sizes.txt"
       - name: Upload chunks
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -39,5 +40,6 @@ jobs:
             ${{ runner.temp }}/profile-final.patch.xz
             ${{ runner.temp }}/profile-final.patch.xz.sha256
             ${{ runner.temp }}/xz-test.log
+            ${{ runner.temp }}/chunk-sizes.txt
           retention-days: 1
           if-no-files-found: error
