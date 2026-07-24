@@ -16,16 +16,13 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
-        with:
-          install-frontend-deps: "false"
-          mise-install-args: "go"
       - name: Check formatting
         shell: bash
         run: |
@@ -35,6 +32,8 @@ jobs:
             unformatted="$(gofmt -l "${files[@]}")"
             test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
           fi
+      - name: Build embedded frontend
+        run: mise build-frontend
       - name: Run targeted backend tests
         shell: bash
         run: |
