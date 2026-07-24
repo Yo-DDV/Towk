@@ -18,11 +18,34 @@ describe('LinkPreviewState', () => {
     const fetchLinkPreview = vi.fn<FetchLinkPreview>();
     const state = new LinkPreviewState(() => apiWithFetch(fetchLinkPreview));
 
-    const cleanup = state.scheduleDetection('See http://localhost/chat/-/room_456/m/evt_123', false);
+    const cleanup = state.scheduleDetection(
+      'See http://localhost/chat/-/room_456/m/evt_123',
+      false
+    );
     await vi.advanceTimersByTimeAsync(500);
     cleanup();
 
     expect(state.detectedURLs).toEqual(['http://localhost/chat/-/room_456/m/evt_123']);
+    expect(fetchLinkPreview).not.toHaveBeenCalled();
+  });
+
+  it('does not ask the server to fetch supported external GIF providers', async () => {
+    vi.useFakeTimers();
+    const fetchLinkPreview = vi.fn<FetchLinkPreview>();
+    const state = new LinkPreviewState(() => apiWithFetch(fetchLinkPreview));
+
+    for (const url of [
+      'https://giphy.com/gifs/reaction-happy-l0MYt5jPR6QX5pnqM',
+      'https://media4.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.webp',
+      'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif'
+    ]) {
+      const cleanup = state.scheduleDetection(url, false);
+      await vi.advanceTimersByTimeAsync(500);
+      cleanup();
+
+      expect(state.detectedURLs).toEqual([url]);
+    }
+
     expect(fetchLinkPreview).not.toHaveBeenCalled();
   });
 

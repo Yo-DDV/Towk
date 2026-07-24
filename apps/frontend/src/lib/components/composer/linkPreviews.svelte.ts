@@ -2,6 +2,7 @@ import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 import type { LinkPreviewInput } from '$lib/render/types';
 import { extractURLs } from '$lib/linkPreview';
 import { parseMessageLink } from '$lib/messageLinks';
+import { parseExternalGifUrl } from '$lib/externalGif';
 import type { ComposerLinkPreview } from '$lib/api-client/linkPreviews';
 
 type LinkPreviewAPI = {
@@ -34,7 +35,7 @@ export class LinkPreviewState {
       this.detectedURLs = urls;
 
       for (const url of urls) {
-        if (parseMessageLink(url)) continue;
+        if (parseMessageLink(url) || parseExternalGifUrl(url)) continue;
         if (!this.previews.has(url) && !this.fetchingURLs.has(url)) {
           void this.fetchPreview(url);
         }

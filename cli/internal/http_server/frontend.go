@@ -28,7 +28,7 @@ const (
 	cacheControlNoCache = "no-store, no-cache, must-revalidate, max-age=0"
 	// Hashed assets (in _app/) are immutable - cache for 1 year
 	cacheControlImmutable   = "public, max-age=31536000, immutable"
-	contentSecurityPolicy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com; worker-src 'self'"
+	contentSecurityPolicy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http: https:; media-src 'self' blob: http: https:; connect-src 'self' http: https: ws: wss:; frame-src https://www.youtube-nocookie.com https://giphy.com; worker-src 'self'"
 	strictTransportSecurity = "max-age=31536000"
 )
 

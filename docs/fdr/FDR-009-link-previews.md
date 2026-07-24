@@ -1,7 +1,7 @@
 # FDR-009: Link Previews
 
 **Status:** Active
-**Last reviewed:** 2026-07-12
+**Last reviewed:** 2026-07-24
 
 ## Overview
 
@@ -13,6 +13,7 @@ When a message contains a URL, Towk can attach a preview card with the page's ti
 - Only the first URL in a message gets a preview. There is no multi-preview layout.
 - URLs inside code spans, code blocks, pre-formatted text, and blockquotes do not trigger link previews.
 - YouTube URLs get a specialized embed-ready card without scraping the page.
+- Strictly recognized external GIF-provider URLs bypass server-side preview fetching and remain ordinary text messages; compatible clients may render them under FDR-030.
 - A preview shows up in the composer with a dismiss button. Dismissing the preview prevents it from being attached to the sent message, and the dismissal is remembered for that URL during the composition session.
 - When the server returns a preview to the composer, it also returns a short-lived opaque preview token.
 - When the message is sent, the client sends only the preview token. The server resolves the token to cached, server-fetched metadata and stores that metadata as part of the message body.

@@ -12,9 +12,13 @@
   import { Button, FormError } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
   import { formatMessageTime } from '$lib/utils/formatTime';
+  import { EXTERNAL_GIF_EMBEDS_CAPABILITY } from '$lib/externalGif';
+  import { externalGifMessages as gm } from '$lib/i18n/externalGifMessages';
 
   const userSettings = getUserSettings();
-  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
+  const activeServerId = $derived(getActiveServer());
+  const currentUser = $derived(serverRegistry.getStore(activeServerId).currentUser);
+  const serverInfo = $derived(serverRegistry.getStore(activeServerId).serverInfo);
   const connection = useConnection();
   const activeLocale = $derived(getLocale());
 
@@ -319,6 +323,34 @@
       {/each}
     </div>
   </FormSection>
+
+  <!-- External GIFs -->
+  {#if serverInfo.supportsCapability(EXTERNAL_GIF_EMBEDS_CAPABILITY)}
+    <FormSection title={gm.settingsTitle()} maxWidth="max-w-md" bordered>
+      <p class="mb-3 text-sm text-muted">
+        {gm.settingsDescription()}
+      </p>
+      <label class="choice-row cursor-pointer">
+        <input
+          type="checkbox"
+          checked={userPreferences.externalGifAutoLoad}
+          onchange={(event) =>
+            (userPreferences.externalGifAutoLoad = (
+              event.currentTarget as HTMLInputElement
+            ).checked)}
+          class="h-4 w-4 shrink-0 accent-primary"
+        />
+        <div>
+          <div class="font-medium">
+            {gm.settingsAutoLoadLabel()}
+          </div>
+          <div class="text-sm text-muted">
+            {gm.settingsAutoLoadDescription()}
+          </div>
+        </div>
+      </label>
+    </FormSection>
+  {/if}
 
   <!-- Timezone -->
   <FormSection title={m['settings.preferences.timezone.title']()} maxWidth="max-w-md" bordered>

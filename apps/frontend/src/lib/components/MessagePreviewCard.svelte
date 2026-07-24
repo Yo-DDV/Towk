@@ -418,7 +418,7 @@ unknown instance) the component renders nothing.
           <div
             class="max-h-52 overflow-y-auto overscroll-contain px-3 py-2.5 text-sm leading-relaxed pointer-fine:select-text"
           >
-            <MessageContent body={bodyMarkdown} />
+            <MessageContent body={bodyMarkdown} allowExternalGif={false} />
           </div>
         </div>
       {/if}

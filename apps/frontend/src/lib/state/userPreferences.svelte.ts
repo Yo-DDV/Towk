@@ -21,12 +21,14 @@ interface Preferences {
   displayTheme: DisplayTheme;
   notificationSound: NotificationSoundId;
   notificationSoundFilters: NotificationSoundFilters;
+  externalGifAutoLoad: boolean;
 }
 
 const defaultPreferences: Preferences = {
   displayTheme: 'system',
   notificationSound: defaultSoundId,
-  notificationSoundFilters: defaultNotificationSoundFilters
+  notificationSoundFilters: defaultNotificationSoundFilters,
+  externalGifAutoLoad: false
 };
 
 const slot = globalSlot('preferences', defaultPreferences, Codecs.json<Preferences>());
@@ -112,7 +114,11 @@ function loadPreferences(): Preferences {
     ...stored,
     displayTheme,
     notificationSound: isValidSound ? stored.notificationSound : defaultSoundId,
-    notificationSoundFilters: normalizeNotificationSoundFilters(stored.notificationSoundFilters)
+    notificationSoundFilters: normalizeNotificationSoundFilters(stored.notificationSoundFilters),
+    externalGifAutoLoad:
+      typeof stored.externalGifAutoLoad === 'boolean'
+        ? stored.externalGifAutoLoad
+        : defaultPreferences.externalGifAutoLoad
   };
 }
 
@@ -149,6 +155,15 @@ export class UserPreferencesState {
 
   set notificationSoundFilters(value: NotificationSoundFilters) {
     this.#prefs.notificationSoundFilters = normalizeNotificationSoundFilters(value);
+    slot.set(this.#prefs);
+  }
+
+  get externalGifAutoLoad(): boolean {
+    return this.#prefs.externalGifAutoLoad;
+  }
+
+  set externalGifAutoLoad(value: boolean) {
+    this.#prefs.externalGifAutoLoad = value === true;
     slot.set(this.#prefs);
   }
 
