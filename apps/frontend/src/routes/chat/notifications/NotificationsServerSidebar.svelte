@@ -18,7 +18,7 @@
 </script>
 
 <ServerEventProvider>
-  <ServerSidebar synchronizedMobileLifecycle>
+  <ServerSidebar synchronizedMobileIntro>
     <ServerHeader serverName={serverInfo.name} loading={serverInfo.loading} />
 
     <ScrollFader top bottom>
