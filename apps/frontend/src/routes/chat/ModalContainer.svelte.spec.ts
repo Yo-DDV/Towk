@@ -16,6 +16,9 @@ const { mocks } = vi.hoisted(() => ({
     deleteMessage: vi.fn(),
     deleteAttachment: vi.fn(),
     deleteLinkPreview: vi.fn(),
+    leaveRoom: vi.fn(),
+    purgeOfflineRoom: vi.fn(),
+    roomsRefresh: vi.fn(),
     mutation: vi.fn(() => ({
       toPromise: () => Promise.resolve({ data: {}, error: null })
     })),
@@ -23,8 +26,7 @@ const { mocks } = vi.hoisted(() => ({
     serverIdParam: '-' as string | undefined,
     servers: [] as Array<{ id: string; url: string; name: string; token: string | null }>,
     originServer: undefined as
-      | { id: string; url: string; name: string; token: string | null }
-      | undefined,
+      { id: string; url: string; name: string; token: string | null } | undefined,
     authenticated: {} as Record<string, boolean>,
     beginExplicitSignOutRedirect: vi.fn(),
     signOutServer: vi.fn(),
@@ -81,6 +83,11 @@ vi.mock('$lib/state/server/registry.svelte', () => ({
     clearServerAuthentication: mocks.clearServerAuthentication,
     removeServer: mocks.removeServer,
     removeAll: mocks.removeAll,
+    getStore: vi.fn(() => ({
+      rooms: {
+        refresh: mocks.roomsRefresh
+      }
+    })),
     get servers() {
       return mocks.servers;
     },
@@ -150,6 +157,20 @@ vi.mock('$lib/api-client/messages', () => ({
   })
 }));
 
+vi.mock('$lib/api-client/rooms', () => ({
+  createRoomCommandAPI: () => ({
+    leaveRoom: mocks.leaveRoom
+  })
+}));
+
+vi.mock('$lib/pwa/offlineData', () => ({
+  purgeOfflineRoom: mocks.purgeOfflineRoom
+}));
+
+vi.mock('$lib/pwa/scope', () => ({
+  privateDataScopeForServer: () => ({ serverId: 'origin', userId: 'user-1' })
+}));
+
 vi.mock('$lib/ui/ConfirmDialog.svelte', async () => {
   const { default: ConfirmDialogMock } = await import('./ModalContainerConfirmDialogMock.svelte');
   return { default: ConfirmDialogMock };
@@ -191,6 +212,9 @@ beforeEach(() => {
   mocks.deleteMessage.mockResolvedValue(true);
   mocks.deleteAttachment.mockResolvedValue(true);
   mocks.deleteLinkPreview.mockResolvedValue(true);
+  mocks.leaveRoom.mockResolvedValue(undefined);
+  mocks.purgeOfflineRoom.mockResolvedValue(undefined);
+  mocks.roomsRefresh.mockResolvedValue(undefined);
   mocks.refreshAttachmentUrlsForAssets.mockResolvedValue(new Map());
   mocks.mutation.mockReturnValue({
     toPromise: () => Promise.resolve({ data: {}, error: null })
@@ -432,6 +456,43 @@ describe('ModalContainer sign out modal', () => {
     expect(findButton(second.container, 'All Servers')).not.toBeDisabled();
 
     finishSignOut?.(new Response('{}', { status: 200 }));
+  });
+});
+
+describe('ModalContainer direct-message deletion modal', () => {
+  it('presents the consequences clearly and deletes only after confirmation', async () => {
+    mocks.modal = {
+      type: 'deleteDirectMessage',
+      roomId: 'room-1',
+      roomName: 'Taylor'
+    };
+
+    const { container } = render(ModalContainer);
+    const dialog = q(container, 'dialog');
+
+    await expect
+      .element(dialog)
+      .toHaveTextContent(
+        'Delete the conversation with Taylor? Its history will be removed from your account. The other participant will keep their copy.'
+      );
+    await expect.element(dialog).toHaveTextContent('Only for you');
+    await expect.element(dialog).toHaveTextContent('Your history will be removed');
+    await expect.element(dialog).toHaveTextContent('The other participant keeps their copy');
+    await expect.element(dialog).toHaveTextContent('Future messages can reopen the conversation');
+
+    expect(findButton(container, 'Cancel')).not.toBeDisabled();
+    clickButton(container, 'Delete conversation');
+
+    await vi.waitFor(() => {
+      expect(mocks.leaveRoom).toHaveBeenCalledWith('room-1');
+      expect(mocks.purgeOfflineRoom).toHaveBeenCalledWith(
+        { serverId: 'origin', userId: 'user-1' },
+        'room-1'
+      );
+      expect(mocks.roomsRefresh).toHaveBeenCalledOnce();
+      expect(mocks.clearLastRoom).toHaveBeenCalledWith('origin');
+      expect(mocks.goto).toHaveBeenCalledWith('/chat/-', { replaceState: true });
+    });
   });
 });
 

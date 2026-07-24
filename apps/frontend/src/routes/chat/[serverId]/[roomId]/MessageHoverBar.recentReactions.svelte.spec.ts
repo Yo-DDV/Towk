@@ -41,7 +41,9 @@ function quickReactionLabels(container: HTMLElement): string[] {
 }
 
 function searchInput(container: HTMLElement): HTMLInputElement {
-  const input = container.querySelector<HTMLInputElement>('input[placeholder="Search emojis..."]');
+  const input = container.querySelector<HTMLInputElement>(
+    '[data-testid="emoji-picker-search"], input[placeholder^="Search emojis"], input[type="text"], input[type="search"]'
+  );
   if (!input) throw new Error('emoji search input not found');
   return input;
 }

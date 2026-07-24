@@ -62,6 +62,7 @@ jobs:
         run: |
           node --test tools/generate-readme-metrics.test.mjs
           node --test tools/generate-readme-project-pulse.test.mjs
+          node --test tools/fact-check-readmes.test.mjs
 
       - name: Generate localized repository visuals
         if: steps.window.outputs.run == 'true'
@@ -125,12 +126,22 @@ jobs:
             "chore(metrics): refresh README visuals"
           git -C "$publish_dir" push origin HEAD:readme-metrics
 
-      - name: Publish the README methodology update branch
+      - name: Publish the fact-checked README update branch
         if: steps.window.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
+          target_branch="automation/readme-independent-pulse-copy"
+          remote_ref="refs/remotes/origin/${target_branch}"
+          expected_remote=""
+
+          if git fetch --no-tags origin \
+            "${target_branch}:${remote_ref}"; then
+            expected_remote="$(git rev-parse "${remote_ref}")"
+          fi
+
           node tools/update-readme-project-pulse-copy.mjs
+          node tools/fact-check-readmes.mjs
 
           git add README.md README.de.md README.es.md README.fr.md README.pt.md
           if git diff --cached --quiet; then
@@ -140,7 +151,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C automation/readme-independent-pulse-copy
-          git commit -m "docs: explain independent Towk metrics"
-          git push --force-with-lease origin \
-            HEAD:automation/readme-independent-pulse-copy
+          git switch -C "${target_branch}"
+          git commit -m "docs: fact-check multilingual README copy"
+
+          if [[ -n "${expected_remote}" ]]; then
+            git push \
+              --force-with-lease="refs/heads/${target_branch}:${expected_remote}" \
+              origin "HEAD:${target_branch}"
+          else
+            git push origin "HEAD:${target_branch}"
+          fi

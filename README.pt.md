@@ -55,9 +55,9 @@
 
 > [!IMPORTANT]
 > O Towk está em desenvolvimento ativo e ainda não chegou à versão 1.0. Para
-> instalações importantes, fixa uma versão ou um digest de imagem imutável,
+> instalações importantes, fixa o digest exato da imagem ou o commit de origem,
 > mantém cópias de segurança com restauros testados e consulta as notas de versão
-> antes de atualizar.
+> e as alterações de configuração antes de atualizar.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="apps/docs-website/src/assets/towk_dark.png" />
@@ -76,7 +76,7 @@
     </td>
     <td width="33%" valign="top">
       <h3>🎯 Focado na comunicação diária</h3>
-      <p><strong>Os fundamentos merecem atenção de primeira classe.</strong> O Towk dá prioridade a conversas, ficheiros, notificações e chamadas em vez de se tornar uma plataforma para tudo.</p>
+      <p><strong>As funções essenciais merecem atenção especial.</strong> O Towk dá prioridade a conversas, ficheiros, notificações e chamadas em vez de se tornar uma plataforma para tudo.</p>
     </td>
     <td width="33%" valign="top">
       <h3>⚙️ Primeiro compacto, depois escalável</h3>
@@ -85,7 +85,7 @@
   </tr>
 </table>
 
-> **O autoalojamento não é uma caixa para assinalar.** Significa escolher onde o
+> **O autoalojamento é mais do que uma opção numa lista de funcionalidades.** Significa escolher onde o
 > serviço é executado, como é salvaguardado, em que fornecedores de identidade
 > confia, onde ficam os ficheiros e que revisão exata do código-fonte produziu o
 > artefacto implantado.
@@ -105,7 +105,7 @@ funcionalidades de todas as plataformas colaborativas.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors.svg" width="100%" alt="Autores dos commits e pull requests integradas do Towk nos últimos doze meses" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors.svg" width="100%" alt="Autores dos commits e pull requests integradas do Towk desde a criação pública do repositório independente" />
 </picture>
 
 <details>
@@ -114,16 +114,23 @@ funcionalidades de todas as plataformas colaborativas.
   O próprio repositório gera estes SVG a partir da API do GitHub com o seu
   `GITHUB_TOKEN` limitado ao repositório; não usa um token pessoal nem um serviço
   externo de estatísticas. O workflow é executado depois de cada push para `main`
-  e aproximadamente às **06:17 e 21:17 no fuso horário Europe/Paris**, todos os
-  dias.
+  e está agendado aproximadamente para as **06:17 e 21:17 no fuso horário
+  Europe/Paris**, todos os dias.
 
-  A janela abrange os últimos 365 dias. Os commits são lidos do histórico
-  alcançável a partir de `main` e agrupados pelo respetivo carimbo temporal de
-  commit em UTC. As pull requests são contadas por `merged_at`. As classificações
-  usam a identidade GitHub atribuída a cada commit de `main` ou pull request
-  integrada; os bots detetados são excluídos das classificações humanas e
-  apresentados separadamente. As mensagens de commit e os endereços de correio
-  eletrónico não são escritos no ramo gerado.
+  Os contadores principais e as classificações começam depois do commit público
+  que criou o repositório independente `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, integrado em 12 de julho
+  de 2026. Assim, o histórico herdado do Chatto não é apresentado como progresso
+  atual do Towk. Os gráficos mantêm janelas móveis de 30 dias, 12 semanas e 12
+  meses; os períodos anteriores a essa criação aparecem com atividade zero. Os
+  commits são selecionados topologicamente a partir de `main` depois do commit de
+  criação e agrupados pelo respetivo carimbo temporal de commit em UTC. As pull
+  requests são contadas por `merged_at` depois do instante de criação. As
+  classificações usam o nome de utilizador do GitHub quando está disponível e, caso
+  contrário, o nome público do autor do commit. Os bots detetados são excluídos das
+  classificações humanas e apresentados separadamente. Estes números descrevem a
+  atividade do repositório e a atribuição Git, não o esforço individual. As
+  mensagens de commit e os endereços de correio eletrónico não são escritos no ramo
+  gerado.
 
   Os SVG e o instantâneo legível por máquina são publicados no ramo
   [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
@@ -144,13 +151,13 @@ funcionalidades de todas as plataformas colaborativas.
     </td>
     <td width="33%" valign="top">
       <h3>📞 Chamadas e aplicação instalada</h3>
-      <p>Salas de voz/vídeo opcionais com LiveKit, partilha de ecrã, E2EE dos conteúdos das chamadas e uma PWA responsiva e instalável.</p>
+      <p>Chamadas de voz e vídeo opcionais com LiveKit, partilha de ecrã, cifragem ponta a ponta dos fluxos multimédia das chamadas e uma PWA responsiva e instalável.</p>
     </td>
   </tr>
   <tr>
     <td width="33%" valign="top">
       <h3>🔐 Identidade e continuidade local</h3>
-      <p>Fluxos por palavra-passe/correio, OIDC e fornecedores OAuth selecionados, além de rascunhos, caixa de saída e históricos recentes cifrados em browsers compatíveis.</p>
+      <p>Fluxos por palavra-passe/correio, OIDC e fornecedores OAuth selecionados, além de rascunhos, caixa de saída e históricos recentes de salas cifrados em navegadores compatíveis.</p>
     </td>
     <td width="33%" valign="top">
       <h3>🧭 Administração</h3>
@@ -158,27 +165,28 @@ funcionalidades de todas as plataformas colaborativas.
     </td>
     <td width="33%" valign="top">
       <h3>🔌 API e operação</h3>
-      <p>API ConnectRPC baseadas em Protobuf, frames WebSocket em tempo real, CLI/API de operador, endpoints de saúde, métricas e cliente multisservidor.</p>
+      <p>API ConnectRPC baseadas em Protobuf, tramas WebSocket em tempo real, CLI/API de operador, endpoints de saúde, métricas e cliente multisservidor.</p>
     </td>
   </tr>
 </table>
 
 A interface está disponível em **inglês, alemão, francês, espanhol e português**.
 O comportamento detalhado, os compromissos e as limitações atuais estão registados
-nos [Feature Decision Records](docs/fdr/INDEX.md).
+nos [Feature Decision Records](docs/fdr/INDEX.md). A documentação técnica associada
+é atualmente mantida em inglês.
 
 ## Soberania, de forma concreta
 
 <table>
   <tr>
-    <td width="33%" valign="top"><h3>🏠 Implantação</h3><p>Opera um servidor independente por organização ou comunidade, desde um binário compacto até uma instalação com réplicas.</p></td>
+    <td width="33%" valign="top"><h3>🏠 Implantação</h3><p>Cada instalação serve uma organização ou comunidade, desde um binário compacto até uma topologia com réplicas.</p></td>
     <td width="33%" valign="top"><h3>🗄️ Localização dos dados</h3><p>Escolhe persistência NATS integrada ou externa e NATS Object Store ou armazenamento compatível com S3 para os ficheiros.</p></td>
     <td width="33%" valign="top"><h3>🪪 Política de identidade</h3><p>Usa contas locais com palavra-passe/correio ou fornecedores externos escolhidos explicitamente, incluindo um fornecedor OIDC autoalojado.</p></td>
   </tr>
   <tr>
     <td width="33%" valign="top"><h3>🔑 Ciclo de vida das chaves</h3><p>O texto das mensagens e certos campos de identidade duradouros usam cifragem por utilizador, com eliminação criptográfica ao apagar a conta.</p></td>
-    <td width="33%" valign="top"><h3>📦 Rastreabilidade das compilações</h3><p>Código público, coordenadas imutáveis, metadados OCI do commit exato, SBOM, análises de vulnerabilidades e atestados de proveniência.</p></td>
-    <td width="33%" valign="top"><h3>📈 Visibilidade operacional</h3><p>Endpoints de saúde e prontidão, métricas compatíveis com Prometheus, diagnósticos, registo administrativo e controlos de desempenho reproduzíveis.</p></td>
+    <td width="33%" valign="top"><h3>📦 Rastreabilidade das compilações</h3><p>Código público, metadados OCI do commit exato, digests de imagem, SBOM, análises de vulnerabilidades e atestados de proveniência.</p></td>
+    <td width="33%" valign="top"><h3>📈 Visibilidade operacional</h3><p>Endpoints de saúde e prontidão, métricas compatíveis com Prometheus, diagnósticos, registo administrativo e um protocolo reproduzível de qualificação do desempenho multimédia.</p></td>
   </tr>
 </table>
 
@@ -188,8 +196,10 @@ nos [Feature Decision Records](docs/fdr/INDEX.md).
 > utilizador; atualmente não oferece cifragem ponta a ponta para conversas de
 > texto. Um operador que controla o servidor, o armazenamento e as chaves continua
 > dentro do perímetro de confiança. Os anexos e grande parte dos metadados ficam
-> fora dessa envolvente. Os conteúdos das chamadas LiveKit suportam E2EE quando
-> as chamadas estão ativadas.
+> fora dessa envolvente. Os fluxos multimédia das chamadas LiveKit usam cifragem
+> ponta a ponta quando as chamadas estão ativadas, mas o Towk fornece a chave
+> partilhada da chamada; um operador do Towk com acesso a essas chaves continua
+> dentro do perímetro de confiança da chamada.
 
 As cópias de segurança separam deliberadamente os dados normais da aplicação do
 armazenamento integrado de chaves de cifragem, salvo se o operador incluir ou
@@ -250,8 +260,8 @@ pública.
 </table>
 
 Começa por [Read This First](apps/docs-website/src/content/docs/guides/deployment/read-this-first.mdx).
-Para instalações duradouras, usa uma etiqueta de imagem imutável acompanhada do
-respetivo digest, não uma etiqueta flutuante.
+Para instalações duradouras, fixa um digest de imagem exato em vez de confiares
+numa etiqueta flutuante.
 
 ### Conhecer o limite atual
 
