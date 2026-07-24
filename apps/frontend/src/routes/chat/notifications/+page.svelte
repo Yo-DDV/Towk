@@ -22,6 +22,7 @@
   import { formatDate } from '$lib/utils/formatTime';
   import { getLocale } from '$lib/i18n/runtime';
   import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
+  import NotificationsServerSidebar from './NotificationsServerSidebar.svelte';
 
   const userSettings = getUserSettings();
   const activeLocale = $derived(getLocale());
@@ -71,11 +72,24 @@
 
   let loading = $state(true);
   let clearing = $state(false);
+  let showServerSidebar = $state(false);
   const pendingNotificationIds = new SvelteSet<string>();
   const showDelayedLoading = delayedLoadingVisible(() => loading && allNotifications.length === 0);
 
   function handleSidebarToggle(): boolean {
-    sidebarNav.open();
+    if (!serverRegistry.originServer) return false;
+
+    if (!showServerSidebar) {
+      showServerSidebar = true;
+      sidebarNav.open();
+      return true;
+    }
+
+    if (sidebarNav.isOpen) {
+      sidebarNav.close();
+    } else {
+      sidebarNav.open();
+    }
     return true;
   }
 
@@ -196,7 +210,11 @@
   }
 </script>
 
-<div class="flex h-full w-full flex-col">
+{#if showServerSidebar}
+  <NotificationsServerSidebar />
+{/if}
+
+<div class="flex min-h-0 min-w-0 flex-1 flex-col">
   <PaneHeader
     title={m['chat.notifications.title']()}
     subtitle={m['chat.notifications.subtitle']()}
