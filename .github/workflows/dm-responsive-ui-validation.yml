@@ -123,17 +123,21 @@ jobs:
           unexpected="$(comm -23 "${changed}" "${allowed}")"
           test -z "${unexpected}" || { printf '%s\n' "${unexpected}"; exit 1; }
 
-          export GIT_AUTHOR_NAME="$(git show -s --format=%an "${PREVIOUS_PRODUCT_SHA}")"
-          export GIT_AUTHOR_EMAIL="$(git show -s --format=%ae "${PREVIOUS_PRODUCT_SHA}")"
-          export GIT_COMMITTER_NAME="$(git show -s --format=%cn "${PREVIOUS_PRODUCT_SHA}")"
-          export GIT_COMMITTER_EMAIL="$(git show -s --format=%ce "${PREVIOUS_PRODUCT_SHA}")"
-          test "${GIT_AUTHOR_NAME}" = 'Yo-DDV'
-          test "${GIT_COMMITTER_NAME}" = 'Yo-DDV'
-          test -n "${GIT_AUTHOR_EMAIL}"
-          test -n "${GIT_COMMITTER_EMAIL}"
+          expected_author_name="$(git show -s --format=%an "${PREVIOUS_PRODUCT_SHA}")"
+          expected_author_email="$(git show -s --format=%ae "${PREVIOUS_PRODUCT_SHA}")"
+          expected_committer_name="$(git show -s --format=%cn "${PREVIOUS_PRODUCT_SHA}")"
+          expected_committer_email="$(git show -s --format=%ce "${PREVIOUS_PRODUCT_SHA}")"
+          test -n "${expected_author_name}"
+          test -n "${expected_author_email}"
+          test -n "${expected_committer_name}"
+          test -n "${expected_committer_email}"
+          export GIT_AUTHOR_NAME="${expected_author_name}"
+          export GIT_AUTHOR_EMAIL="${expected_author_email}"
+          export GIT_COMMITTER_NAME="${expected_committer_name}"
+          export GIT_COMMITTER_EMAIL="${expected_committer_email}"
           git commit -m 'fix(frontend): refine DM deletion confirmation'
-          test "$(git show -s --format=%an HEAD)" = 'Yo-DDV'
-          test "$(git show -s --format=%cn HEAD)" = 'Yo-DDV'
+          test "$(git show -s --format=%an HEAD)" = "${expected_author_name}"
+          test "$(git show -s --format=%cn HEAD)" = "${expected_committer_name}"
           if git show -s --format=%B HEAD | grep -E 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
             exit 1
           fi
@@ -210,7 +214,10 @@ jobs:
             echo 'Blocked private path or forbidden attribution trailer in candidate diff' >&2
             exit 1
           fi
-          test -z "$(git log --format='%an%n%cn' "${PREVIOUS_PRODUCT_SHA}..HEAD" | grep -vx 'Yo-DDV')"
+          expected_author_name="$(git show -s --format=%an "${PREVIOUS_PRODUCT_SHA}")"
+          expected_committer_name="$(git show -s --format=%cn "${PREVIOUS_PRODUCT_SHA}")"
+          test "$(git show -s --format=%an HEAD)" = "${expected_author_name}"
+          test "$(git show -s --format=%cn HEAD)" = "${expected_committer_name}"
           if git log --format=%B "${PREVIOUS_PRODUCT_SHA}..HEAD" | grep -E 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
             exit 1
           fi
