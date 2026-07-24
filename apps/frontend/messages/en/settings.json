@@ -102,7 +102,29 @@
       },
       "saved": "Profile updated successfully",
       "save_failed": "Failed to save profile",
-      "save_button": "Save Changes"
+      "save_button": "Save Changes",
+      "details": {
+        "load_failed": "Could not load profile details.",
+        "biography_title": "Biography",
+        "biography_description": "Write a short Markdown biography shown on your server profile. Raw HTML and remote images are not rendered.",
+        "formatting_toolbar": "Biography formatting",
+        "link_text": "link text",
+        "add_link": "Add link",
+        "inline_code": "Inline code",
+        "biography_label": "Biography in Markdown",
+        "biography_placeholder": "Tell other members about yourself…",
+        "byte_count": "{used} of {limit} bytes",
+        "preview": "Preview",
+        "biography_too_large": "The biography exceeds the 16 KiB UTF-8 limit.",
+        "biography_saved": "Biography saved.",
+        "save_failed": "Could not save profile details.",
+        "save_biography": "Save biography",
+        "privacy_title": "Activity privacy",
+        "show_last_activity": "Show my last activity",
+        "show_last_activity_description": "Allow authenticated members of this server to see your latest coalesced activity time. Turning this off removes the stored value.",
+        "privacy_saved": "Activity privacy saved.",
+        "save_privacy": "Save privacy"
+      }
     },
     "preferences": {
       "title": "Display",

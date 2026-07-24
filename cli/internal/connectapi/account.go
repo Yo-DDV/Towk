@@ -19,8 +19,8 @@ func (s *accountService) UpdateProfile(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
-	if req.Msg.DisplayName == nil && req.Msg.Login == nil {
-		return nil, invalidArgument("at least one of display_name or login must be provided")
+	if req.Msg.DisplayName == nil && req.Msg.Login == nil && req.Msg.BiographyMarkdown == nil {
+		return nil, invalidArgument("at least one of display_name, login, or biography_markdown must be provided")
 	}
 
 	var updated *corev1.User
@@ -32,6 +32,17 @@ func (s *accountService) UpdateProfile(ctx context.Context, req *connect.Request
 	}
 	if req.Msg.Login != nil {
 		updated, err = s.api.core.UpdateUserLogin(ctx, caller.UserID, req.Msg.GetLogin())
+		if err != nil {
+			return nil, connectError(err)
+		}
+	}
+	if req.Msg.BiographyMarkdown != nil {
+		if err := s.api.core.UpdateUserBiography(ctx, caller.UserID, req.Msg.GetBiographyMarkdown()); err != nil {
+			return nil, connectError(err)
+		}
+	}
+	if updated == nil {
+		updated, err = s.api.core.GetUser(ctx, caller.UserID)
 		if err != nil {
 			return nil, connectError(err)
 		}
@@ -140,6 +151,10 @@ func (s *accountService) UpdateSettings(ctx context.Context, req *connect.Reques
 	if req.Msg.TimeFormat != nil {
 		timeFormat := apiTimeFormatToCore(req.Msg.GetTimeFormat())
 		input.TimeFormat = &timeFormat
+	}
+	if req.Msg.ShowLastActivity != nil {
+		showLastActivity := req.Msg.GetShowLastActivity()
+		input.ShowLastActivity = &showLastActivity
 	}
 	settings, err := s.api.core.UpdateUserSettings(ctx, caller.UserID, input)
 	if err != nil {

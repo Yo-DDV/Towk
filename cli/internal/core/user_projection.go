@@ -42,6 +42,7 @@ type projectedUser struct {
 	externalIdentities map[string]ExternalIdentity
 	oauthConsent       map[string]struct{}
 	preferences        *corev1.ServerUserPreferences
+	biography          string
 	loginChanged       time.Time
 }
 
@@ -115,6 +116,10 @@ func (p *UserProjection) Apply(event *corev1.Event, seq uint64) error {
 		p.applyCustomStatusSet(e.UserCustomStatusSet)
 	case *corev1.Event_UserCustomStatusCleared:
 		p.applyCustomStatusCleared(e.UserCustomStatusCleared)
+	case *corev1.Event_UserBiographyChanged:
+		p.applyBiographyChanged(event.GetId(), e.UserBiographyChanged)
+	case *corev1.Event_UserBiographyCleared:
+		p.applyBiographyCleared(e.UserBiographyCleared)
 	case *corev1.Event_UserAccountDeleted:
 		p.applyAccountDeleted(e.UserAccountDeleted, seq)
 	case *corev1.Event_UserKeyShredded:
@@ -420,6 +425,24 @@ func (p *UserProjection) applyCustomStatusCleared(e *corev1.UserCustomStatusClea
 	}
 }
 
+func (p *UserProjection) applyBiographyChanged(eventID string, e *corev1.UserBiographyChangedEvent) {
+	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	biography, ok := p.userPIIString(eventID, e.GetUserId(), events.EventUserBiographyChanged, "biography", e.GetEncryptedBiography())
+	if !ok {
+		return
+	}
+	p.ensureUserLocked(e.GetUserId()).biography = biography
+}
+
+func (p *UserProjection) applyBiographyCleared(e *corev1.UserBiographyClearedEvent) {
+	if e == nil || e.GetUserId() == "" {
+		return
+	}
+	p.ensureUserLocked(e.GetUserId()).biography = ""
+}
+
 func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent, seq uint64) {
 	if e == nil || e.GetUserId() == "" {
 		return
@@ -444,6 +467,7 @@ func (p *UserProjection) applyAccountDeleted(e *corev1.UserAccountDeletedEvent, 
 	u.passwordHash = nil
 	u.passwordSetAt = time.Time{}
 	u.preferences = nil
+	u.biography = ""
 	if u.user != nil {
 		u.user.CustomStatus = nil
 	}
@@ -478,6 +502,7 @@ func (p *UserProjection) applyKeyShredded(e *corev1.UserKeyShreddedEvent) {
 	u.passwordHash = nil
 	u.passwordSetAt = time.Time{}
 	u.preferences = nil
+	u.biography = ""
 	u.verifiedEmail = make(map[string]VerifiedEmail)
 	u.externalIdentities = make(map[string]ExternalIdentity)
 	u.oauthConsent = make(map[string]struct{})
@@ -686,6 +711,16 @@ func (p *UserProjection) Avatar(userID string) (*corev1.AssetRecord, bool) {
 		return nil, false
 	}
 	return proto.Clone(u.avatar).(*corev1.AssetRecord), true
+}
+
+func (p *UserProjection) Biography(userID string) (string, bool) {
+	p.RLock()
+	defer p.RUnlock()
+	u := p.users[userID]
+	if u == nil || u.deleted {
+		return "", false
+	}
+	return u.biography, true
 }
 
 func (p *UserProjection) Preferences(userID string) (*corev1.ServerUserPreferences, bool) {

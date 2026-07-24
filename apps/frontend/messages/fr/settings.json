@@ -102,7 +102,29 @@
       },
       "saved": "Profil mis à jour avec succès",
       "save_failed": "Échec de l'enregistrement du profil",
-      "save_button": "Enregistrer les modifications"
+      "save_button": "Enregistrer les modifications",
+      "details": {
+        "load_failed": "Impossible de charger les détails du profil.",
+        "biography_title": "Biographie",
+        "biography_description": "Rédigez une courte biographie Markdown affichée sur votre profil serveur. Le HTML brut et les images distantes ne sont pas rendus.",
+        "formatting_toolbar": "Mise en forme de la biographie",
+        "link_text": "texte du lien",
+        "add_link": "Ajouter un lien",
+        "inline_code": "Code en ligne",
+        "biography_label": "Biographie en Markdown",
+        "biography_placeholder": "Présentez-vous aux autres membres…",
+        "byte_count": "{used} octets sur {limit}",
+        "preview": "Aperçu",
+        "biography_too_large": "La biographie dépasse la limite UTF-8 de 16 Kio.",
+        "biography_saved": "Biographie enregistrée.",
+        "save_failed": "Impossible d’enregistrer les détails du profil.",
+        "save_biography": "Enregistrer la biographie",
+        "privacy_title": "Confidentialité de l’activité",
+        "show_last_activity": "Afficher ma dernière activité",
+        "show_last_activity_description": "Autoriser les membres authentifiés de ce serveur à voir votre dernière activité agrégée. La désactivation supprime la valeur enregistrée.",
+        "privacy_saved": "Confidentialité de l’activité enregistrée.",
+        "save_privacy": "Enregistrer la confidentialité"
+      }
     },
     "preferences": {
       "title": "Affichage",

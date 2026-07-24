@@ -212,6 +212,7 @@ Server-level display settings for the authenticated user.
 | --- | --- | --- |
 | `timezone` | `optional string` | Optional IANA timezone override. Absent means the client should use the browser's local timezone. |
 | `time_format` | [`TimeFormat`](#chatto-api-v1-TimeFormat) | Preferred time format. |
+| `show_last_activity` | `bool` | Whether other authenticated server members may see last activity. The API returns true when no explicit preference has been stored. |
 
 <a id="chatto-api-v1-ViewerCapabilities"></a>
 
@@ -499,6 +500,38 @@ surfaces.
 | `user` | [`User`](#chatto-api-v1-User) | Public user fields. |
 | `roles` | `repeated string` | Explicit roles assigned to the user. Member listings include the virtual `everyone` role for parity with Towk's permission model. |
 | `created_at` | `google.protobuf.Timestamp` | Account creation time when known. |
+
+<a id="chatto-api-v1-UserProfile"></a>
+
+### UserProfile
+
+Detailed server-scoped profile loaded on demand. Directory rows deliberately
+remain lightweight and never include biography or last activity.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user` | [`User`](#chatto-api-v1-User) | Public identity, presence, and custom status. |
+| `roles` | repeated [`UserProfileRole`](#chatto-api-v1-UserProfileRole) | All explicitly assigned roles, ordered for presentation. |
+| `joined_at` | `google.protobuf.Timestamp` | Account/server join time when known. |
+| `biography_markdown` | `string` | Sanitized Markdown source stored by the profile owner. |
+| `last_activity` | `optional google.protobuf.Timestamp` | Latest coalesced activity time when visible and available. |
+| `last_activity_visible` | `bool` | Whether the target currently allows last activity to be disclosed. |
+| `viewer_is_self` | `bool` | Whether the profile belongs to the authenticated viewer. |
+| `viewer_can_message` | `bool` | Whether the viewer may start a direct message with this user. |
+| `viewer_can_call` | `bool` | Whether the viewer may start a direct call with this user. |
+
+<a id="chatto-api-v1-UserProfileRole"></a>
+
+### UserProfileRole
+
+One explicitly assigned role shown on a detailed user profile.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Stable configured role name. |
+| `display_name` | `string` | Administrator-configured display name. |
+| `position` | `int32` | Display ordering hint. This is not an authorization rank. |
+| `moderation` | `bool` | True when the role carries moderation or administration authority. |
 
 <a id="chatto-api-v1-RoomMessagePosted"></a>
 

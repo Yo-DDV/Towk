@@ -54,7 +54,8 @@ describe('getCurrentUserViaConnect', () => {
         lastLoginChange: timestampFromDate(new Date('2026-05-20T09:30:00Z')),
         settings: {
           timezone: 'Europe/Berlin',
-          timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR
+          timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+          showLastActivity: false
         }
       },
       roomNotificationPreferences: []
@@ -90,7 +91,8 @@ describe('getCurrentUserViaConnect', () => {
       lastLoginChange: '2026-05-20T09:30:00.000Z',
       settings: {
         timezone: 'Europe/Berlin',
-        timeFormat: TimeFormat.TwentyFourHour
+        timeFormat: TimeFormat.TwentyFourHour,
+        showLastActivity: false
       }
     });
   });
@@ -105,7 +107,10 @@ describe('getCurrentUserViaConnect', () => {
           presenceStatus: APIPresenceStatus.UNSPECIFIED
         },
         hasVerifiedEmail: false,
-        settings: { timeFormat: APITimeFormat.TIME_FORMAT_UNSPECIFIED }
+        settings: {
+          timeFormat: APITimeFormat.TIME_FORMAT_UNSPECIFIED,
+          showLastActivity: true
+        }
       },
       roomNotificationPreferences: []
     });
@@ -117,7 +122,11 @@ describe('getCurrentUserViaConnect', () => {
 
     expect(mocks.getViewer).toHaveBeenCalledWith({}, { headers: undefined });
     expect(user.presenceStatus).toBe(PresenceStatus.Offline);
-    expect(user.settings?.timeFormat).toBe(TimeFormat.Auto);
+    expect(user.settings).toEqual({
+      timezone: null,
+      timeFormat: TimeFormat.Auto,
+      showLastActivity: true
+    });
     expect(user.customStatus).toBeNull();
     expect(user.hasPassword).toBe(false);
     expect(user.viewerCanDeleteAccount).toBe(false);

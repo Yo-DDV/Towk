@@ -7,7 +7,10 @@ import {
 } from './connect.js';
 import { UserService } from '@towk/api-types/api/v1/member_directory_pb';
 import { RoomService } from '@towk/api-types/api/v1/rooms_pb';
-import type { DirectoryMember as APIDirectoryMember } from '@towk/api-types/api/v1/member_directory_pb';
+import type {
+  DirectoryMember as APIDirectoryMember,
+  UserProfile as APIUserProfile
+} from '@towk/api-types/api/v1/member_directory_pb';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { PresenceStatus } from './renderTypes.js';
 import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
@@ -28,6 +31,35 @@ export type DirectoryMember = {
   } | null;
   roles: string[];
   createdAt: string | null;
+};
+
+export type DetailedUserProfile = {
+  user: {
+    id: string;
+    login: string;
+    displayName: string;
+    deleted: boolean;
+    avatarUrl: string | null;
+    presenceStatus: PresenceStatus;
+    customStatus: {
+      emoji: string;
+      text: string;
+      expiresAt: string | null;
+    } | null;
+  };
+  roles: Array<{
+    name: string;
+    displayName: string;
+    position: number;
+    moderation: boolean;
+  }>;
+  joinedAt: string | null;
+  biographyMarkdown: string;
+  lastActivity: string | null;
+  lastActivityVisible: boolean;
+  viewerIsSelf: boolean;
+  viewerCanMessage: boolean;
+  viewerCanCall: boolean;
 };
 
 export type MemberDirectoryPage = {
@@ -61,6 +93,21 @@ export function createMemberDirectoryAPI(config: MemberDirectoryAPIConfig) {
           { headers: headers() }
         );
         return response.user ? mapDirectoryMember(response.user) : null;
+      } catch (err) {
+        if (err instanceof ConnectError && err.code === Code.NotFound) {
+          return null;
+        }
+        throw err;
+      }
+    },
+
+    async getUserProfile(userId: string): Promise<DetailedUserProfile | null> {
+      try {
+        const response = await users.getUserProfile(
+          { target: { case: 'userId', value: userId } },
+          { headers: headers() }
+        );
+        return response.profile ? mapDetailedUserProfile(response.profile) : null;
       } catch (err) {
         if (err instanceof ConnectError && err.code === Code.NotFound) {
           return null;
@@ -125,7 +172,10 @@ export function createMemberDirectoryAPI(config: MemberDirectoryAPIConfig) {
   };
 }
 
-export type MemberDirectoryAPI = ReturnType<typeof createMemberDirectoryAPI>;
+export type MemberDirectoryAPI = Omit<
+  ReturnType<typeof createMemberDirectoryAPI>,
+  'getUserProfile'
+>;
 
 export function mapDirectoryMember(member: APIDirectoryMember): DirectoryMember {
   const user = member.user;
@@ -145,6 +195,44 @@ export function mapDirectoryMember(member: APIDirectoryMember): DirectoryMember 
       : null,
     roles: [...member.roles],
     createdAt: protobufTimestampToISOString(member.createdAt) ?? null
+  };
+}
+
+export function mapDetailedUserProfile(profile: APIUserProfile): DetailedUserProfile {
+  const user = profile.user;
+  if (!user) {
+    throw new Error('Detailed user profile is missing its user identity');
+  }
+
+  return {
+    user: {
+      id: user.id,
+      login: user.login,
+      displayName: user.displayName,
+      deleted: user.deleted,
+      avatarUrl: user.avatarUrl ?? null,
+      presenceStatus: apiPresenceStatus(user.presenceStatus),
+      customStatus: user.customStatus
+        ? {
+            emoji: user.customStatus.emoji,
+            text: user.customStatus.text,
+            expiresAt: protobufTimestampToISOString(user.customStatus.expiresAt) ?? null
+          }
+        : null
+    },
+    roles: profile.roles.map((role) => ({
+      name: role.name,
+      displayName: role.displayName,
+      position: role.position,
+      moderation: role.moderation
+    })),
+    joinedAt: protobufTimestampToISOString(profile.joinedAt) ?? null,
+    biographyMarkdown: profile.biographyMarkdown,
+    lastActivity: protobufTimestampToISOString(profile.lastActivity) ?? null,
+    lastActivityVisible: profile.lastActivityVisible,
+    viewerIsSelf: profile.viewerIsSelf,
+    viewerCanMessage: profile.viewerCanMessage,
+    viewerCanCall: profile.viewerCanCall
   };
 }
 

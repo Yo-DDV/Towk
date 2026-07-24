@@ -54,5 +54,21 @@
       "in_room": "dans",
       "in_room_capitalized": "Dans"
     }
+  },
+  "profile": {
+    "loading": "Chargement du profil…",
+    "load_failed": "Impossible de charger ce profil.",
+    "load_not_found": "Ce profil n’est plus disponible.",
+    "roles": "Rôles",
+    "member_role": "Membre",
+    "joined": "Inscription",
+    "last_activity": "Dernière activité",
+    "last_activity_hidden": "Masquée par l’utilisateur",
+    "last_activity_unavailable": "Aucune activité récente",
+    "biography": "À propos",
+    "biography_empty": "Aucune biographie pour le moment.",
+    "actions": "Actions du profil",
+    "call": "Appeler",
+    "not_available": "Non disponible"
   }
 }

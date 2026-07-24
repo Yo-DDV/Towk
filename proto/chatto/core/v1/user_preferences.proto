@@ -40,6 +40,10 @@ message ServerUserPreferences {
   // Preferred time display format.
   // TIME_FORMAT_UNSPECIFIED means the frontend uses the browser's locale default.
   TimeFormat time_format = 2;
+
+  // Whether last activity is visible to other authenticated members.
+  // Absence is interpreted as true for mixed-version upgrades.
+  optional bool show_last_activity = 3;
 }
 
 // UserPreferences stores per-user preferences scoped to the server.

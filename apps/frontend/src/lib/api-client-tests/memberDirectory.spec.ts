@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createConnectTransport: vi.fn(),
   listUsers: vi.fn(),
   getUser: vi.fn(),
+  getUserProfile: vi.fn(),
   batchGetUsers: vi.fn(),
   listRoomMembers: vi.fn(),
   getRoomMember: vi.fn(),
@@ -34,6 +35,7 @@ describe('createMemberDirectoryAPI', () => {
     mocks.createConnectTransport.mockReset();
     mocks.listUsers.mockReset();
     mocks.getUser.mockReset();
+    mocks.getUserProfile.mockReset();
     mocks.batchGetUsers.mockReset();
     mocks.listRoomMembers.mockReset();
     mocks.getRoomMember.mockReset();
@@ -43,6 +45,7 @@ describe('createMemberDirectoryAPI', () => {
       .mockReturnValueOnce({
         listUsers: mocks.listUsers,
         getUser: mocks.getUser,
+        getUserProfile: mocks.getUserProfile,
         batchGetUsers: mocks.batchGetUsers
       })
       .mockReturnValueOnce({
@@ -109,6 +112,58 @@ describe('createMemberDirectoryAPI', () => {
     });
     expect(mocks.listUsers).toHaveBeenCalledWith(
       { search: 'ali', page: { limit: 10, offset: 20 } },
+      { headers: { Authorization: 'Bearer token' } }
+    );
+  });
+
+  it('maps detailed profiles and capability flags', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      profile: {
+        user: {
+          id: 'U1',
+          login: 'alice',
+          displayName: 'Alice',
+          deleted: false,
+          presenceStatus: APIPresenceStatus.ONLINE
+        },
+        roles: [{ name: 'moderator', displayName: 'Moderator', position: 10, moderation: true }],
+        joinedAt: timestampFromDate(new Date('2026-01-01T09:00:00Z')),
+        biographyMarkdown: '**Hello**',
+        lastActivity: timestampFromDate(new Date('2026-07-24T12:00:00Z')),
+        lastActivityVisible: true,
+        viewerIsSelf: false,
+        viewerCanMessage: true,
+        viewerCanCall: true
+      }
+    });
+
+    const api = createMemberDirectoryAPI({
+      baseUrl: 'https://remote.test/api/connect',
+      bearerToken: 'token'
+    });
+
+    await expect(api.getUserProfile('U1')).resolves.toEqual({
+      user: {
+        id: 'U1',
+        login: 'alice',
+        displayName: 'Alice',
+        deleted: false,
+        avatarUrl: null,
+        presenceStatus: PresenceStatus.Online,
+        customStatus: null
+      },
+      roles: [{ name: 'moderator', displayName: 'Moderator', position: 10, moderation: true }],
+      joinedAt: '2026-01-01T09:00:00.000Z',
+      biographyMarkdown: '**Hello**',
+      lastActivity: '2026-07-24T12:00:00.000Z',
+      lastActivityVisible: true,
+      viewerIsSelf: false,
+      viewerCanMessage: true,
+      viewerCanCall: true
+    });
+
+    expect(mocks.getUserProfile).toHaveBeenCalledWith(
+      { target: { case: 'userId', value: 'U1' } },
       { headers: { Authorization: 'Bearer token' } }
     );
   });
