@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/core"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -382,6 +383,56 @@ func TestRealtimeMapperMapsOfflinePresence(t *testing.T) {
 	}
 	if presence.Status != apiv1.PresenceStatus_PRESENCE_STATUS_OFFLINE {
 		t.Fatalf("presence status = %v, want OFFLINE", presence.Status)
+	}
+}
+
+func TestRealtimeMapperMapsReadReceiptAdvance(t *testing.T) {
+	threadRoot := "ROOT1"
+	readAt := timestamppb.New(time.Unix(1_700_000_000, 123).UTC())
+	frame, err := (&HTTPServer{}).realtimeEventEnvelope(context.Background(), "", core.NewLiveEventEnvelope(&corev1.LiveEvent{
+		Id:      "receipt-live-1",
+		ActorId: "U1",
+		Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{PublicReadReceiptAdvanced: &corev1.PublicReadReceiptAdvancedEvent{
+			RoomId:            "R1",
+			ThreadRootEventId: &threadRoot,
+			UserId:            "U1",
+			EventId:           "M4",
+			EventSequence:     42,
+			ReadAt:            readAt,
+		}},
+	}))
+	if err != nil {
+		t.Fatalf("realtimeEventEnvelope: %v", err)
+	}
+	receipt := frame.GetReadReceiptAdvanced()
+	if receipt == nil {
+		t.Fatalf("event = %T, want read_receipt_advanced", frame.GetEvent())
+	}
+	if receipt.GetRoomId() != "R1" || receipt.GetThreadRootEventId() != threadRoot || receipt.GetUserId() != "U1" || receipt.GetEventId() != "M4" || receipt.GetEventSequence() != 42 {
+		t.Fatalf("read_receipt_advanced = %+v", receipt)
+	}
+	if receipt.GetReadAt() == nil || !receipt.GetReadAt().AsTime().Equal(readAt.AsTime()) {
+		t.Fatalf("read_at = %v, want %v", receipt.GetReadAt(), readAt)
+	}
+}
+
+func TestRealtimeMapperIncludesReadReceiptPreference(t *testing.T) {
+	frame, err := (&HTTPServer{}).realtimeEventEnvelope(context.Background(), "", core.NewLiveEventEnvelope(&corev1.LiveEvent{
+		Id:      "settings-live-1",
+		ActorId: "U1",
+		Event: &corev1.LiveEvent_ServerUserPreferencesUpdated{ServerUserPreferencesUpdated: &corev1.ServerUserPreferencesUpdatedEvent{
+			ReadReceiptsEnabled: false,
+		}},
+	}))
+	if err != nil {
+		t.Fatalf("realtimeEventEnvelope: %v", err)
+	}
+	settings := frame.GetServerUserPreferencesUpdated()
+	if settings == nil {
+		t.Fatalf("event = %T, want server_user_preferences_updated", frame.GetEvent())
+	}
+	if settings.GetReadReceiptsEnabled() {
+		t.Fatalf("read_receipts_enabled = true, want false")
 	}
 }
 

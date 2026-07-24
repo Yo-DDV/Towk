@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package chatto.core.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
+
+// PublicReadReceiptCursor stores bounded public receipt coverage for one user
+// and one room or thread timeline. It is separate from private unread markers.
+message PublicReadReceiptCursor {
+  // Disjoint monotonic intervals. A new interval begins after each policy
+  // re-enable so reads performed while receipts were disabled are never
+  // backfilled by a later cursor advance.
+  repeated PublicReadReceiptInterval intervals = 1;
+}
+
+// PublicReadReceiptInterval is one uninterrupted opt-in generation.
+message PublicReadReceiptInterval {
+  // Server-recorded time at which the effective receipt policy became enabled.
+  // Absent represents the original default-enabled generation.
+  google.protobuf.Timestamp generation_started_at = 1;
+  // First room-stream sequence covered by this generation.
+  uint64 start_event_sequence = 2;
+  // Highest message event covered by this generation.
+  string end_event_id = 3;
+  // Room-stream sequence for end_event_id.
+  uint64 end_event_sequence = 4;
+  // Server time when this interval most recently advanced.
+  google.protobuf.Timestamp read_at = 5;
+}

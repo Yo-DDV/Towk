@@ -30,6 +30,10 @@ message ServerConfig {
   // Owner-requested runtime performance policy. Absence preserves the
   // historical runtime limits for upgraded installations.
   ServerPerformancePolicy performance_policy = 8;
+
+  // Whether reciprocal public read receipts are enabled. Absence means enabled
+  // for mixed-version compatibility and existing installations.
+  optional bool read_receipts_enabled = 9;
 }
 
 // Bounded worker policy stored as a durable server configuration fact.

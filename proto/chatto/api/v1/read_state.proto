@@ -3,6 +3,8 @@ syntax = "proto3";
 package chatto.api.v1;
 
 import "buf/validate/validate.proto";
+import "chatto/api/v1/pagination.proto";
+import "chatto/api/v1/users.proto";
 import "google/protobuf/timestamp.proto";
 
 // Request to mark a room timeline as read.
@@ -41,4 +43,52 @@ message MarkThreadAsReadRequest {
 message MarkThreadAsReadResponse {
   // Previous thread read timestamp, when one existed.
   google.protobuf.Timestamp previous_read_at = 1;
+}
+
+// Request to advance the current user's public read-receipt cursor.
+message AdvanceReadReceiptRequest {
+  string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  string thread_root_event_id = 2;
+  string up_to_event_id = 3 [(buf.validate.field).string.min_len = 1];
+}
+
+message AdvanceReadReceiptResponse {
+  bool updated = 1;
+}
+
+// Compact reader summary for one message.
+message ReadReceiptSummary {
+  string message_event_id = 1;
+  int32 reader_count = 2;
+  repeated string preview_user_ids = 3;
+  google.protobuf.Timestamp latest_read_at = 4;
+}
+
+message GetReadReceiptSummariesRequest {
+  string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  string thread_root_event_id = 2;
+  repeated string message_event_ids = 3 [(buf.validate.field).repeated.max_items = 100];
+}
+
+message GetReadReceiptSummariesResponse {
+  bool enabled = 1;
+  repeated ReadReceiptSummary summaries = 2;
+}
+
+message ListReadReceiptReadersRequest {
+  string room_id = 1 [(buf.validate.field).string.min_len = 1];
+  string thread_root_event_id = 2;
+  string message_event_id = 3 [(buf.validate.field).string.min_len = 1];
+  PageRequest page = 4;
+}
+
+message ReadReceiptReader {
+  User user = 1;
+  google.protobuf.Timestamp read_at = 2;
+}
+
+message ListReadReceiptReadersResponse {
+  bool enabled = 1;
+  repeated ReadReceiptReader readers = 2;
+  PageInfo page = 3;
 }

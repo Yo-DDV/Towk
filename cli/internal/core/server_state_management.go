@@ -11,10 +11,11 @@ import (
 )
 
 type ServerConfigUpdateInput struct {
-	ServerName     *string
-	Description    *string
-	MOTD           *string
-	WelcomeMessage *string
+	ServerName          *string
+	Description         *string
+	MOTD                *string
+	WelcomeMessage      *string
+	ReadReceiptsEnabled *bool
 }
 
 func (c *ChattoCore) GetManagedServerConfig(ctx context.Context, actorID string) (*configv1.ServerConfig, error) {
@@ -53,6 +54,10 @@ func (c *ChattoCore) UpdateServerConfig(ctx context.Context, actorID string, inp
 		}
 		if input.WelcomeMessage != nil {
 			cfg.WelcomeMessage = *input.WelcomeMessage
+		}
+		if input.ReadReceiptsEnabled != nil {
+			enabled := *input.ReadReceiptsEnabled
+			cfg.ReadReceiptsEnabled = &enabled
 		}
 		return cfg, nil
 	})

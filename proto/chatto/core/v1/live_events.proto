@@ -82,6 +82,9 @@ message LiveEvent {
     // ----- Room layout -----
     RoomGroupsUpdatedEvent room_groups_updated = 90;
 
+    // ----- Public read receipts -----
+    PublicReadReceiptAdvancedEvent public_read_receipt_advanced = 92;
+
     // ----- Session termination -----
     SessionTerminatedEvent session_terminated = 100;
   }
@@ -280,4 +283,16 @@ message RoomGroupsUpdatedEvent {
 message SessionTerminatedEvent {
   // Reason for termination: "logout", "admin_boot", "account_deleted"
   string reason = 1;
+}
+
+
+// PublicReadReceiptAdvancedEvent carries a compact room-scoped cursor delta.
+// Reader lists are fetched separately through the authenticated API.
+message PublicReadReceiptAdvancedEvent {
+  string room_id = 1;
+  optional string thread_root_event_id = 2;
+  string user_id = 3;
+  string event_id = 4;
+  uint64 event_sequence = 5;
+  google.protobuf.Timestamp read_at = 6;
 }

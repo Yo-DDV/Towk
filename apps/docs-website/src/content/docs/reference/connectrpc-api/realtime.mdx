@@ -180,6 +180,7 @@ intended hydration path when a referenced resource may need refreshing.
 | `event.server_user_preferences_updated` | [`RealtimeServerUserPreferencesUpdatedEvent`](#chatto-realtime-v1-RealtimeServerUserPreferencesUpdatedEvent) | The current user's display preferences changed. |
 | `event.room_groups_updated` | [`RealtimeRoomGroupsUpdatedEvent`](#chatto-realtime-v1-RealtimeRoomGroupsUpdatedEvent) | Room-group layout changed. |
 | `event.server_member_deleted` | [`RealtimeServerMemberDeletedEvent`](#chatto-realtime-v1-RealtimeServerMemberDeletedEvent) | A server member was deleted. |
+| `event.read_receipt_advanced` | [`RealtimeReadReceiptAdvancedEvent`](#chatto-realtime-v1-RealtimeReadReceiptAdvancedEvent) | A participant advanced a public read-receipt cursor. |
 | `event.asset_processing_started` | [`RealtimeAssetProcessingEvent`](#chatto-realtime-v1-RealtimeAssetProcessingEvent) | Asset processing started for a message attachment. |
 | `event.asset_processing_succeeded` | [`RealtimeAssetProcessingEvent`](#chatto-realtime-v1-RealtimeAssetProcessingEvent) | Asset processing completed successfully for a message attachment. |
 | `event.asset_processing_failed` | [`RealtimeAssetProcessingEvent`](#chatto-realtime-v1-RealtimeAssetProcessingEvent) | Asset processing failed for a message attachment. |
@@ -392,6 +393,24 @@ channel echoes should also refresh or patch visible echo rows whose
 | `message_event_id` | `string` | Canonical event ID of the reacted-to message. |
 | `emoji` | `string` | Reaction emoji. |
 
+<a id="chatto-realtime-v1-RealtimeReadReceiptAdvancedEvent"></a>
+
+### RealtimeReadReceiptAdvancedEvent
+
+Compact public read-receipt cursor delta.
+
+Clients use this as an invalidation signal and refetch bounded summaries for
+rendered messages through `RoomService.GetReadReceiptSummaries`.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Room containing the affected timeline. |
+| `thread_root_event_id` | `optional string` | Thread root when the cursor belongs to a thread timeline. |
+| `user_id` | `string` | User whose public cursor advanced. |
+| `event_id` | `string` | Highest message event covered by the advance. |
+| `event_sequence` | `uint64` | Monotonic room-stream sequence for event_id. |
+| `read_at` | `google.protobuf.Timestamp` | Server-recorded time of the advance. |
+
 <a id="chatto-realtime-v1-RealtimeRoomEvent"></a>
 
 ### RealtimeRoomEvent
@@ -476,7 +495,7 @@ Initial server hello.
 | `protocol_version` | `uint32` | Protocol version accepted by the server. |
 | `server_version` | `string` | Towk server software version. |
 | `heartbeat_interval_seconds` | `uint32` | Approximate heartbeat interval clients should expect. |
-| `capabilities` | `repeated string` | Stable protocol capability keys supported by this server. Current keys: `chatto.realtime.events.live.v1`, `chatto.realtime.heartbeat.v1`, and `chatto.realtime.ping.v1`. |
+| `capabilities` | `repeated string` | Stable protocol capability keys supported by this server. Current keys: `chatto.realtime.events.live.v1`, `chatto.realtime.heartbeat.v1`, `chatto.realtime.ping.v1`, and `chatto.realtime.read-receipts.v1`. |
 
 <a id="chatto-realtime-v1-RealtimeServerMemberDeletedEvent"></a>
 
@@ -520,6 +539,7 @@ The updated display preferences are inline for the connected user.
 | --- | --- | --- |
 | `timezone` | `optional string` | IANA timezone name, when the user has selected a fixed timezone. |
 | `time_format` | `chatto.api.v1.TimeFormat` | Preferred time display format. |
+| `read_receipts_enabled` | `bool` | Whether the connected user publishes and may inspect read receipts. |
 
 <a id="chatto-realtime-v1-RealtimeSessionTerminatedEvent"></a>
 

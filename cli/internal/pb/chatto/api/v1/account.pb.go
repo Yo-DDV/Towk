@@ -411,9 +411,11 @@ type UpdateSettingsRequest struct {
 	// IANA timezone override. Empty clears the override.
 	Timezone *string `protobuf:"bytes,1,opt,name=timezone,proto3,oneof" json:"timezone,omitempty"`
 	// Preferred time format.
-	TimeFormat    *TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat,oneof" json:"time_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeFormat *TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat,oneof" json:"time_format,omitempty"`
+	// Enables or disables reciprocal public read receipts for this account.
+	ReadReceiptsEnabled *bool `protobuf:"varint,3,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3,oneof" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdateSettingsRequest) Reset() {
@@ -458,6 +460,13 @@ func (x *UpdateSettingsRequest) GetTimeFormat() TimeFormat {
 		return *x.TimeFormat
 	}
 	return TimeFormat_TIME_FORMAT_UNSPECIFIED
+}
+
+func (x *UpdateSettingsRequest) GetReadReceiptsEnabled() bool {
+	if x != nil && x.ReadReceiptsEnabled != nil {
+		return *x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 // Result of updating display preferences.
@@ -718,13 +727,15 @@ const file_chatto_api_v1_account_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x10\b\x18\x80\x01R\bpassword\x123\n" +
 	"\x10current_password\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\x0fcurrentPassword\"A\n" +
 	"\x16UpdatePasswordResponse\x12'\n" +
-	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\"\x96\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\"\xe9\x01\n" +
 	"\x15UpdateSettingsRequest\x12\x1f\n" +
 	"\btimezone\x18\x01 \x01(\tH\x00R\btimezone\x88\x01\x01\x12?\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x19.chatto.api.v1.TimeFormatH\x01R\n" +
-	"timeFormat\x88\x01\x01B\v\n" +
+	"timeFormat\x88\x01\x01\x127\n" +
+	"\x15read_receipts_enabled\x18\x03 \x01(\bH\x02R\x13readReceiptsEnabled\x88\x01\x01B\v\n" +
 	"\t_timezoneB\x0e\n" +
-	"\f_time_format\"Q\n" +
+	"\f_time_formatB\x18\n" +
+	"\x16_read_receipts_enabled\"Q\n" +
 	"\x16UpdateSettingsResponse\x127\n" +
 	"\bsettings\x18\x01 \x01(\v2\x1b.chatto.api.v1.UserSettingsR\bsettings\"T\n" +
 	"\x1dRequestAccountDeletionRequest\x123\n" +

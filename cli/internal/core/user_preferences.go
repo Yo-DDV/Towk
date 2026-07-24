@@ -26,6 +26,8 @@ type UserSettingsInput struct {
 	Timezone *string
 	// TimeFormat preference. nil = no change.
 	TimeFormat *corev1.TimeFormat
+	// ReadReceiptsEnabled controls reciprocal public read receipts. nil = no change.
+	ReadReceiptsEnabled *bool
 }
 
 // GetUserSettings retrieves a user's settings from the config projection.
@@ -83,6 +85,20 @@ func (c *ChattoCore) UpdateUserSettings(ctx context.Context, userID string, inpu
 				UserTimeFormatChanged: &corev1.UserTimeFormatChangedEvent{UserId: userID, TimeFormat: *input.TimeFormat},
 			}}))
 		}
+		if input.ReadReceiptsEnabled != nil {
+			currentEnabled := true
+			if current != nil && current.ReadReceiptsEnabled != nil {
+				currentEnabled = current.GetReadReceiptsEnabled()
+			}
+			if currentEnabled != *input.ReadReceiptsEnabled {
+				evs = append(evs, newEvent(userID, &corev1.Event{Event: &corev1.Event_UserReadReceiptsEnabledChanged{
+					UserReadReceiptsEnabledChanged: &corev1.UserReadReceiptsEnabledChangedEvent{
+						UserId:  userID,
+						Enabled: *input.ReadReceiptsEnabled,
+					},
+				}}))
+			}
+		}
 		changed = len(evs) > 0
 		return evs, nil
 	}); err != nil {
@@ -117,8 +133,9 @@ func (c *ChattoCore) publishServerUserPreferencesUpdatedEvent(ctx context.Contex
 	event := newLiveEvent(userID, &corev1.LiveEvent{
 		Event: &corev1.LiveEvent_ServerUserPreferencesUpdated{
 			ServerUserPreferencesUpdated: &corev1.ServerUserPreferencesUpdatedEvent{
-				Timezone:   tz,
-				TimeFormat: settings.TimeFormat,
+				Timezone:            tz,
+				TimeFormat:          settings.TimeFormat,
+				ReadReceiptsEnabled: settings.GetReadReceiptsEnabled(),
 			},
 		},
 	})
@@ -146,6 +163,11 @@ func (c *ChattoCore) deleteUserSettings(ctx context.Context, userID string) erro
 			newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_UserTimeFormatCleared{
 				UserTimeFormatCleared: &corev1.UserTimeFormatClearedEvent{UserId: userID},
 			}}),
+		}
+		if current.ReadReceiptsEnabled != nil {
+			evs = append(evs, newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_UserReadReceiptsEnabledCleared{
+				UserReadReceiptsEnabledCleared: &corev1.UserReadReceiptsEnabledClearedEvent{UserId: userID},
+			}}))
 		}
 		return evs, nil
 	})

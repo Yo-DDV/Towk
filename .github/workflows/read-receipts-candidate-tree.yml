@@ -1,0 +1,129 @@
+name: read-receipts candidate tree publisher
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: read-receipts-candidate-tree-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      SOURCE_HEAD_SHA: 783277d14566bf03f14b5cdb0b82d10de8a08106
+      ARTIFACT_ID: "8598392883"
+      ARTIFACT_SHA256: cdb656c00d87d29946ef502408a5dffef43d274c6f50282507fc46e69dfc4c51
+    steps:
+      - name: Check out exact pull request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify source ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = "${SOURCE_HEAD_SHA}"
+
+      - name: Download verified backend workspace
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/read-receipts-artifact.zip"
+          artifact_dir="${RUNNER_TEMP}/read-receipts-artifact"
+          workspace="${RUNNER_TEMP}/read-receipts-workspace"
+
+          curl --fail --silent --show-error --location \
+            --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" \
+            > "${archive}"
+          printf '%s  %s\n' "${ARTIFACT_SHA256}" "${archive}" | sha256sum --check --strict
+
+          mkdir -p "${artifact_dir}" "${workspace}"
+          unzip -q "${archive}" -d "${artifact_dir}"
+          grep -Fx 'codegen=success' "${artifact_dir}/read-receipts-status.txt"
+          grep -Fx 'proto=success' "${artifact_dir}/read-receipts-status.txt"
+          grep -Fx 'compile=success' "${artifact_dir}/read-receipts-status.txt"
+          grep -Fx 'backend=success' "${artifact_dir}/read-receipts-status.txt"
+          grep -Fx 'vet=success' "${artifact_dir}/read-receipts-status.txt"
+          grep -Fx 'diff=success' "${artifact_dir}/read-receipts-status.txt"
+          tar -xzf "${artifact_dir}/towk-read-receipts-workspace.tar.gz" -C "${workspace}"
+
+      - name: Create tested candidate tree
+        id: candidate
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifact_dir="${RUNNER_TEMP}/read-receipts-artifact"
+          workspace="${RUNNER_TEMP}/read-receipts-workspace"
+          entries="${RUNNER_TEMP}/read-receipts-candidate-entries.json"
+          response="${RUNNER_TEMP}/read-receipts-candidate-tree.json"
+          base_tree="$(git show -s --format=%T HEAD)"
+          printf '[]' > "${entries}"
+
+          while IFS= read -r path; do
+            test -f "${workspace}/${path}"
+            blob_sha="$({
+              base64 -w0 "${workspace}/${path}" \
+                | jq -Rs '{content: ., encoding: "base64"}' \
+                | curl --fail --silent --show-error --location \
+                    --retry 3 \
+                    --request POST \
+                    --header "Accept: application/vnd.github+json" \
+                    --header "Authorization: Bearer ${GH_TOKEN}" \
+                    --header "X-GitHub-Api-Version: 2022-11-28" \
+                    --data-binary @- \
+                    "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs" \
+                | jq -er '.sha'
+            })"
+            test "$(git hash-object "${workspace}/${path}")" = "${blob_sha}"
+            jq --arg path "${path}" --arg sha "${blob_sha}" \
+              '. + [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \
+              "${entries}" > "${entries}.next"
+            mv "${entries}.next" "${entries}"
+          done < "${artifact_dir}/read-receipts-candidate-files.txt"
+
+          jq -n --arg base_tree "${base_tree}" --slurpfile tree "${entries}" \
+            '{base_tree: $base_tree, tree: $tree[0]}' \
+            | curl --fail --silent --show-error --location \
+                --retry 3 \
+                --request POST \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                --data-binary @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/trees" \
+            | tee "${response}"
+
+          tree_sha="$(jq -er '.sha' "${response}")"
+          printf 'tree_sha=%s\n' "${tree_sha}" >> "${GITHUB_OUTPUT}"
+          {
+            printf 'source_head=%s\n' "${SOURCE_HEAD_SHA}"
+            printf 'publisher_head=%s\n' "$(git rev-parse HEAD)"
+            printf 'candidate_tree=%s\n' "${tree_sha}"
+          } > "${RUNNER_TEMP}/read-receipts-candidate-status.txt"
+
+      - name: Upload candidate tree proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: towk-read-receipts-candidate-tree
+          path: |
+            ${{ runner.temp }}/read-receipts-candidate-tree.json
+            ${{ runner.temp }}/read-receipts-candidate-status.txt
+          retention-days: 1
+          if-no-files-found: error

@@ -135,6 +135,9 @@ message Event {
     UserRoomNotificationLevelSetEvent user_room_notification_level_set = 516;
     UserRoomNotificationLevelClearedEvent user_room_notification_level_cleared = 517;
     ServerPerformancePolicyChangedEvent server_performance_policy_changed = 518;
+    ServerReadReceiptsEnabledChangedEvent server_read_receipts_enabled_changed = 519;
+    UserReadReceiptsEnabledChangedEvent user_read_receipts_enabled_changed = 520;
+    UserReadReceiptsEnabledClearedEvent user_read_receipts_enabled_cleared = 521;
 
     // ----- Room groups (600-609, durable, evt.group.{groupId}) -----
     // The group aggregate owns its room-membership AND room-ordering.

@@ -390,6 +390,12 @@ service RoomService {
   // usually call this after the user has viewed the latest visible event in the
   // room.
   rpc MarkRoomAsRead(MarkRoomAsReadRequest) returns (MarkRoomAsReadResponse);
+  // Advances the caller's public read-receipt cursor for a room or thread.
+  rpc AdvanceReadReceipt(AdvanceReadReceiptRequest) returns (AdvanceReadReceiptResponse);
+  // Returns bounded reader counts for rendered messages.
+  rpc GetReadReceiptSummaries(GetReadReceiptSummariesRequest) returns (GetReadReceiptSummariesResponse);
+  // Lists current authorized readers for one message with bounded pagination.
+  rpc ListReadReceiptReaders(ListReadReceiptReadersRequest) returns (ListReadReceiptReadersResponse);
   // Bans a member from a channel room. Direct-message rooms cannot be moderated
   // this way, and the target must currently be a room member.
   rpc BanMember(BanMemberRequest) returns (BanMemberResponse);

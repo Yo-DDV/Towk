@@ -215,8 +215,10 @@ func TestChattoCore_DeleteUser_CleansUpSettings(t *testing.T) {
 	}
 
 	tz := "Europe/London"
+	readReceiptsEnabled := false
 	_, err = core.UpdateUserSettings(ctx, user.Id, UserSettingsInput{
-		Timezone: &tz,
+		Timezone:            &tz,
+		ReadReceiptsEnabled: &readReceiptsEnabled,
 	})
 	if err != nil {
 		t.Fatalf("UpdateUserSettings failed: %v", err)

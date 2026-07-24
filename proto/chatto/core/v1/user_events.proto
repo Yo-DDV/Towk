@@ -54,6 +54,8 @@ message ServerUserPreferencesUpdatedEvent {
   string timezone = 1;
   // Time display format preference.
   TimeFormat time_format = 2;
+  // Whether reciprocal public read receipts are enabled for this user.
+  bool read_receipts_enabled = 3;
 }
 
 // ============================================================================
