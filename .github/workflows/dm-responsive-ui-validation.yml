@@ -25,19 +25,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Report validation start
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/187/comments" \
+            -f body="Responsive DM deletion UI validation started. Workflow run: ${GITHUB_RUN_ID}."
+
       - name: Check out validation commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Verify the exact parent and branch
+      - name: Verify the product base and branch
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^)" = "${PREVIOUS_PRODUCT_SHA}"
+          git merge-base --is-ancestor "${PREVIOUS_PRODUCT_SHA}" HEAD
           git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
           test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "$(git rev-parse HEAD)"
+          unexpected="$(git diff --name-only "${PREVIOUS_PRODUCT_SHA}...HEAD" -- . ':(exclude).github/workflows/dm-responsive-ui-validation.yml')"
+          test -z "${unexpected}"
 
       - name: Fetch and apply reviewed UI patch
         shell: bash
