@@ -39,3 +39,4 @@ New FDRs should follow the structure and tone of the existing records in this di
 | [FDR-027](FDR-027-pwa-shell-and-service-worker.md) | PWA Shell & Service Worker | Active | 2026-07-22 |
 | [FDR-028](FDR-028-operator-api-and-cli.md) | Operator API & CLI | Active | 2026-06-29 |
 | [FDR-029](FDR-029-voice-messages.md) | Voice Messages | Active | 2026-07-16 |
+| [FDR-030](FDR-030-external-gif-embeds.md) | External GIF Embeds | Active | 2026-07-24 |

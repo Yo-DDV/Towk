@@ -1,0 +1,28 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "external_gif": {
+      "load": "Charger le GIF externe",
+      "loading": "Chargement du GIF externe…",
+      "load_failed": "Impossible de charger ce GIF externe.",
+      "offline": "Ce GIF externe peut être indisponible hors ligne.",
+      "retry": "Réessayer",
+      "hide": "Masquer",
+      "open_source": "Ouvrir la source",
+      "privacy_notice": "Charger ce GIF depuis {provider}. Le fournisseur recevra la requête réseau de ce navigateur.",
+      "media_title": "GIF animé provenant de {provider}"
+    }
+  },
+  "settings": {
+    "preferences": {
+      "external_gifs": {
+        "title": "GIF externes",
+        "description": "Les GIF externes restent sur les serveurs du fournisseur. Leur chargement contacte directement ce fournisseur depuis ce navigateur.",
+        "auto_load": {
+          "label": "Charger automatiquement les GIF externes",
+          "description": "Charge les GIF compatibles lorsqu’ils approchent de la zone visible. La réduction des animations exige toujours un clic."
+        }
+      }
+    }
+  }
+}

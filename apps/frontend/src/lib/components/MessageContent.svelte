@@ -13,30 +13,60 @@
   import { classifyMessageBodyChatLink } from '$lib/messageLinks';
   import { wrapValidMentions, type RoomMember } from '$lib/mentions';
   import { parseTrustedMarkdownHtml } from '$lib/security/trustedHtml';
+  import ExternalGifEmbed from './ExternalGifEmbed.svelte';
+  import { EXTERNAL_GIF_EMBEDS_CAPABILITY, resolveExternalGifMessage } from '$lib/externalGif';
+  import { userPreferences } from '$lib/state/userPreferences.svelte';
 
   let {
     body,
     members = [],
     roleHandles = [],
     edited = false,
+    allowExternalGif = true,
     onMentionClick
   }: {
     body: string;
     members?: RoomMember[];
     roleHandles?: string[];
     edited?: boolean;
+    allowExternalGif?: boolean;
     onMentionClick?: (userId: string, anchorRect: DOMRect) => void;
   } = $props();
+
+  // Keep capability lookup tied to the same server ID for the entire derived
+  // pass. The live store is authoritative when available; the registered
+  // server carries the last successfully advertised capabilities and provides
+  // a safe fallback only while a store is being recreated or hydrated.
+  const activeServerId = $derived(getActiveServer());
+  const activeServer = $derived(serverRegistry.getServer(activeServerId));
+  const activeStore = $derived(serverRegistry.tryGetStore(activeServerId));
+  const supportsExternalGif = $derived.by(() => {
+    const liveServerInfo = activeStore?.serverInfo;
+    if (liveServerInfo) {
+      return (
+        liveServerInfo.supportsCapability?.(EXTERNAL_GIF_EMBEDS_CAPABILITY) ??
+        liveServerInfo.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) ??
+        false
+      );
+    }
+    return activeServer?.capabilities?.includes(EXTERNAL_GIF_EMBEDS_CAPABILITY) ?? false;
+  });
 
   // The viewer's login on the active server, used by `wrapValidMentions` to
   // mark self-mentions. Same reactive registry-lookup pattern every other
   // chat-tree component uses — `tryGetStore` and the `?.` chain mean an
   // unregistered or pre-auth server leaves `viewerLogin` undefined, which
   // `wrapValidMentions` already treats as "no self-mention."
-  const viewerLogin = $derived(
-    serverRegistry.tryGetStore(getActiveServer())?.currentUser.user?.login
-  );
+  const viewerLogin = $derived(activeStore?.currentUser?.user?.login);
   const editedMarker = $derived(edited ? m['room.message.meta.edited']() : '');
+  const externalGif = $derived.by(() =>
+    allowExternalGif
+      ? resolveExternalGifMessage(body, {
+          supportsCapability: supportsExternalGif,
+          hasPersistedLinkPreview: false
+        })
+      : null
+  );
 
   function injectEditedMarker(html: string, markerText: string): string {
     const doc = parseTrustedMarkdownHtml(`<div>${html}</div>`);
@@ -123,3 +153,7 @@
     })()}
   {/await}
 </div>
+
+{#if externalGif}
+  <ExternalGifEmbed gif={externalGif} autoLoad={userPreferences.externalGifAutoLoad} />
+{/if}

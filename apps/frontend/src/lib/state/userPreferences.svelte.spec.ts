@@ -65,6 +65,25 @@ describe('UserPreferencesState', () => {
       expect(state.displayTheme).toBe('dark');
     });
 
+    it('does not auto-load external GIFs when storage is empty', () => {
+      const state = new UserPreferencesState();
+      expect(state.externalGifAutoLoad).toBe(false);
+    });
+
+    it('hydrates and persists the external GIF auto-load preference', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ externalGifAutoLoad: true }));
+      const state = new UserPreferencesState();
+      expect(state.externalGifAutoLoad).toBe(true);
+
+      state.externalGifAutoLoad = false;
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}').externalGifAutoLoad).toBe(false);
+    });
+
+    it('rejects an invalid external GIF auto-load preference', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ externalGifAutoLoad: 'yes' }));
+      expect(new UserPreferencesState().externalGifAutoLoad).toBe(false);
+    });
+
     it('uses the default sound when storage is empty', () => {
       const state = new UserPreferencesState();
       expect(state.notificationSound).toBe(defaultSoundId);

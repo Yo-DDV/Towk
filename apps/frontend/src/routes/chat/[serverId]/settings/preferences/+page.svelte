@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as m from '$lib/i18n/messages';
+  import { externalGifMessages as gm } from '$lib/i18n/externalGifMessages';
   import { getLocale, setLocale, type Locale } from '$lib/i18n/runtime';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { createAccountAPI } from '$lib/api-client/account';
@@ -12,9 +13,15 @@
   import { Button, FormError } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
   import { formatMessageTime } from '$lib/utils/formatTime';
+  import { EXTERNAL_GIF_EMBEDS_CAPABILITY } from '$lib/externalGif';
 
   const userSettings = getUserSettings();
-  const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
+  const activeServerId = $derived(getActiveServer());
+  const currentUser = $derived(serverRegistry.getStore(activeServerId).currentUser);
+  const serverInfo = $derived(serverRegistry.getStore(activeServerId).serverInfo);
+  const supportsExternalGifEmbeds = $derived(
+    serverInfo?.supportsCapability?.(EXTERNAL_GIF_EMBEDS_CAPABILITY) ?? false
+  );
   const connection = useConnection();
   const activeLocale = $derived(getLocale());
 
@@ -319,6 +326,34 @@
       {/each}
     </div>
   </FormSection>
+
+  <!-- External GIFs -->
+  {#if supportsExternalGifEmbeds}
+    <FormSection title={gm.settingsTitle()} maxWidth="max-w-md" bordered>
+      <p class="mb-3 text-sm text-muted">
+        {gm.settingsDescription()}
+      </p>
+      <label class="choice-row cursor-pointer">
+        <input
+          type="checkbox"
+          checked={userPreferences.externalGifAutoLoad}
+          onchange={(event) =>
+            (userPreferences.externalGifAutoLoad = (
+              event.currentTarget as HTMLInputElement
+            ).checked)}
+          class="h-4 w-4 shrink-0 accent-primary"
+        />
+        <div>
+          <div class="font-medium">
+            {gm.settingsAutoLoadLabel()}
+          </div>
+          <div class="text-sm text-muted">
+            {gm.settingsAutoLoadDescription()}
+          </div>
+        </div>
+      </label>
+    </FormSection>
+  {/if}
 
   <!-- Timezone -->
   <FormSection title={m['settings.preferences.timezone.title']()} maxWidth="max-w-md" bordered>

@@ -60,3 +60,4 @@ For more about ADRs, see [Michael Nygard's article](https://cognitect.com/blog/2
 | [ADR-050](ADR-050-standalone-repository-with-selective-upstream-integration.md) | Standalone Repository with Selective Upstream Integration | 2026-07-12 |
 | [ADR-051](ADR-051-bounded-runtime-performance-profiles.md) | Bounded Runtime Performance Profiles Stay Below Operator Envelopes | 2026-07-17 |
 | [ADR-052](ADR-052-authorized-private-media-revalidation.md) | Protected Media Revalidates After Authorization | 2026-07-17 |
+| [ADR-053](ADR-053-provider-hosted-external-gif-embeds.md) | Provider-Hosted External GIF Embeds Stay Outside Towk Storage | 2026-07-24 |
