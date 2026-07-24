@@ -26,6 +26,8 @@ message UserSettings {
   optional string timezone = 1;
   // Preferred time format.
   TimeFormat time_format = 2;
+  // Whether the viewer publishes and may inspect reciprocal read receipts.
+  bool read_receipts_enabled = 3;
 }
 
 // Current authenticated user's public profile plus self-only settings.
