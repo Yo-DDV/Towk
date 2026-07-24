@@ -42,8 +42,6 @@
   let activeMediaElement = $state<HTMLIFrameElement | HTMLVideoElement | HTMLImageElement | null>(
     null
   );
-  let hydrationReady = $state(false);
-  let suppressedByPersistedPreview = $state(false);
 
   function clearLoadTimeout() {
     if (timeout) {
@@ -120,19 +118,6 @@
     attempt += 1;
   }
 
-  onMount(() => {
-    // A persisted OpenGraph card is historical server-issued state. The
-    // message row renders that card after MessageContent, so detect it only
-    // after hydration and keep this enhancement hidden. No provider element
-    // is mounted before this check completes. A standalone component has no
-    // message article and must remain visible.
-    const article = root?.closest('[role="article"]');
-    suppressedByPersistedPreview = Boolean(
-      article?.querySelector('[data-testid="link-preview-card"]')
-    );
-    hydrationReady = true;
-  });
-
   // Virtualized message rows can be reused for a different event. Never keep
   // the previous provider resource mounted when the descriptor changes.
   $effect(() => {
@@ -202,8 +187,6 @@
       typeof window !== 'undefined' && typeof window.IntersectionObserver === 'function';
     if (
       !root ||
-      !hydrationReady ||
-      suppressedByPersistedPreview ||
       !shouldObserveExternalGif({
         autoLoad,
         reducedMotion,
@@ -252,8 +235,6 @@
   data-state={loadState}
   data-load-origin={loadOrigin ?? undefined}
   aria-busy={loadState === 'loading'}
-  hidden={!hydrationReady || suppressedByPersistedPreview}
-  data-suppressed-by-preview={suppressedByPersistedPreview || undefined}
 >
   {#if loadState === 'loading' || loadState === 'loaded'}
     <div
