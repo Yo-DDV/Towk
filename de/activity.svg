@@ -50,8 +50,8 @@
   <rect x="0" y="0" width="1200" height="10" rx="5" fill="url(#accent)"/>
   <text class="title ink" x="32" y="48">Entwicklungsdynamik</text>
   <text class="subtitle muted" x="32" y="70">Towk-Aktivität seit dem Standalone-Start</text>
-<g><rect class="panel" x="32" y="82" width="270" height="94" rx="18"/><rect x="32" y="82" width="6" height="94" rx="3" fill="#43d8b0"/><text class="kpi ink" x="54" y="125">107</text><text class="label muted" x="54" y="151">Commits</text></g>
-<g><rect class="panel" x="318" y="82" width="270" height="94" rx="18"/><rect x="318" y="82" width="6" height="94" rx="3" fill="#4aa8ff"/><text class="kpi ink" x="340" y="125">89</text><text class="label muted" x="340" y="151">zusammengeführte Pull Requests</text></g>
+<g><rect class="panel" x="32" y="82" width="270" height="94" rx="18"/><rect x="32" y="82" width="6" height="94" rx="3" fill="#43d8b0"/><text class="kpi ink" x="54" y="125">108</text><text class="label muted" x="54" y="151">Commits</text></g>
+<g><rect class="panel" x="318" y="82" width="270" height="94" rx="18"/><rect x="318" y="82" width="6" height="94" rx="3" fill="#4aa8ff"/><text class="kpi ink" x="340" y="125">90</text><text class="label muted" x="340" y="151">zusammengeführte Pull Requests</text></g>
 <g><rect class="panel" x="604" y="82" width="270" height="94" rx="18"/><rect x="604" y="82" width="6" height="94" rx="3" fill="#7867f2"/><text class="kpi ink" x="626" y="125">9</text><text class="label muted" x="626" y="151">aktive Tage</text></g>
 <g><rect class="panel" x="890" y="82" width="270" height="94" rx="18"/><rect x="890" y="82" width="6" height="94" rx="3" fill="#f4a261"/><text class="kpi ink" x="912" y="125">2</text><text class="label muted" x="912" y="151">menschliche Commit-Autoren</text></g>
   <g><rect class="panel" x="32" y="204" width="740" height="274" rx="20"/><text class="label ink" x="54" y="239">Commits pro Tag</text><text class="small muted" x="54" y="259">Letzte 30 Tage</text><line class="grid" x1="54" y1="286.0" x2="750" y2="286.0" stroke-width="1"/>
@@ -59,8 +59,8 @@
 <line class="grid" x1="54" y1="356.0" x2="750" y2="356.0" stroke-width="1"/>
 <line class="grid" x1="54" y1="391.0" x2="750" y2="391.0" stroke-width="1"/>
 <line class="grid" x1="54" y1="426.0" x2="750" y2="426.0" stroke-width="1"/>
-<polygon points="54,426 54.0,426.0 78.0,426.0 102.0,426.0 126.0,426.0 150.0,426.0 174.0,426.0 198.0,426.0 222.0,426.0 246.0,426.0 270.0,426.0 294.0,426.0 318.0,426.0 342.0,426.0 366.0,426.0 390.0,426.0 414.0,426.0 438.0,418.6 462.0,286.0 486.0,378.1 510.0,403.9 534.0,403.9 558.0,426.0 582.0,426.0 606.0,426.0 630.0,426.0 654.0,344.9 678.0,426.0 702.0,389.2 726.0,403.9 750.0,411.3 750,426" fill="#43d8b0" opacity="0.13"/>
-<polyline points="54.0,426.0 78.0,426.0 102.0,426.0 126.0,426.0 150.0,426.0 174.0,426.0 198.0,426.0 222.0,426.0 246.0,426.0 270.0,426.0 294.0,426.0 318.0,426.0 342.0,426.0 366.0,426.0 390.0,426.0 414.0,426.0 438.0,418.6 462.0,286.0 486.0,378.1 510.0,403.9 534.0,403.9 558.0,426.0 582.0,426.0 606.0,426.0 630.0,426.0 654.0,344.9 678.0,426.0 702.0,389.2 726.0,403.9 750.0,411.3" fill="none" stroke="#43d8b0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+<polygon points="54,426 54.0,426.0 78.0,426.0 102.0,426.0 126.0,426.0 150.0,426.0 174.0,426.0 198.0,426.0 222.0,426.0 246.0,426.0 270.0,426.0 294.0,426.0 318.0,426.0 342.0,426.0 366.0,426.0 390.0,426.0 414.0,426.0 438.0,418.6 462.0,286.0 486.0,378.1 510.0,403.9 534.0,403.9 558.0,426.0 582.0,426.0 606.0,426.0 630.0,426.0 654.0,344.9 678.0,426.0 702.0,389.2 726.0,403.9 750.0,407.6 750,426" fill="#43d8b0" opacity="0.13"/>
+<polyline points="54.0,426.0 78.0,426.0 102.0,426.0 126.0,426.0 150.0,426.0 174.0,426.0 198.0,426.0 222.0,426.0 246.0,426.0 270.0,426.0 294.0,426.0 318.0,426.0 342.0,426.0 366.0,426.0 390.0,426.0 414.0,426.0 438.0,418.6 462.0,286.0 486.0,378.1 510.0,403.9 534.0,403.9 558.0,426.0 582.0,426.0 606.0,426.0 630.0,426.0 654.0,344.9 678.0,426.0 702.0,389.2 726.0,403.9 750.0,407.6" fill="none" stroke="#43d8b0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="438.0" cy="418.6" r="3.2" fill="#43d8b0"/>
 <circle cx="462.0" cy="286.0" r="3.2" fill="#43d8b0"/>
 <circle cx="486.0" cy="378.1" r="3.2" fill="#43d8b0"/>
@@ -69,7 +69,7 @@
 <circle cx="654.0" cy="344.9" r="3.2" fill="#43d8b0"/>
 <circle cx="702.0" cy="389.2" r="3.2" fill="#43d8b0"/>
 <circle cx="726.0" cy="403.9" r="3.2" fill="#43d8b0"/>
-<circle cx="750.0" cy="411.3" r="3.2" fill="#43d8b0"/>
+<circle cx="750.0" cy="407.6" r="3.2" fill="#43d8b0"/>
 <text class="small faint" x="54.0" y="446" text-anchor="middle">25</text>
 
 
@@ -109,9 +109,9 @@
 <g><rect class="track" x="984.0" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="984.0" y="424.0" width="17.8" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-15 – 2026-06-21: 0</title><text class="small faint" x="992.9" y="445" text-anchor="middle">15/06</text></g>
 <g><rect class="track" x="1011.8" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1011.8" y="424.0" width="17.8" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-22 – 2026-06-28: 0</title></g>
 <g><rect class="track" x="1039.7" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1039.7" y="424.0" width="17.8" height="2.0" rx="7.0" fill="#4aa8ff"/><title>2026-06-29 – 2026-07-05: 0</title><text class="small faint" x="1048.6" y="445" text-anchor="middle">29/06</text></g>
-<g><rect class="track" x="1067.5" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1067.5" y="292.7" width="17.8" height="133.3" rx="7.0" fill="#4aa8ff"/><title>2026-07-06 – 2026-07-12: 40</title></g>
-<g><rect class="track" x="1095.3" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1095.3" y="342.7" width="17.8" height="83.3" rx="7.0" fill="#4aa8ff"/><title>2026-07-13 – 2026-07-19: 25</title><text class="small faint" x="1104.3" y="445" text-anchor="middle">13/07</text></g>
-<g><rect class="track" x="1123.2" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1123.2" y="286.0" width="17.8" height="140.0" rx="7.0" fill="#4aa8ff"/><title>2026-07-20 – 2026-07-26: 42</title></g></g>
+<g><rect class="track" x="1067.5" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1067.5" y="295.8" width="17.8" height="130.2" rx="7.0" fill="#4aa8ff"/><title>2026-07-06 – 2026-07-12: 40</title></g>
+<g><rect class="track" x="1095.3" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1095.3" y="344.6" width="17.8" height="81.4" rx="7.0" fill="#4aa8ff"/><title>2026-07-13 – 2026-07-19: 25</title><text class="small faint" x="1104.3" y="445" text-anchor="middle">13/07</text></g>
+<g><rect class="track" x="1123.2" y="286" width="17.8" height="140" rx="7.0" opacity="0.44"/><rect x="1123.2" y="286.0" width="17.8" height="140.0" rx="7.0" fill="#4aa8ff"/><title>2026-07-20 – 2026-07-26: 43</title></g></g>
   <g><rect class="panel" x="32" y="500" width="558" height="150" rx="20"/><text class="label ink" x="54" y="535">Commits pro Monat</text><g><rect class="track" x="59.0" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="59.0" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#43d8b0"/><title>Aug 2025: 0</title><text class="small faint" x="75.4" y="629" text-anchor="middle">Aug</text></g>
 <g><rect class="track" x="101.8" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="101.8" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#43d8b0"/><title>Sep 2025: 0</title><text class="small faint" x="118.3" y="629" text-anchor="middle">Sep</text></g>
 <g><rect class="track" x="144.7" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="144.7" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#43d8b0"/><title>Okt 2025: 0</title><text class="small faint" x="161.1" y="629" text-anchor="middle">Okt</text></g>
@@ -123,7 +123,7 @@
 <g><rect class="track" x="401.7" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="401.7" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#43d8b0"/><title>Apr 2026: 0</title><text class="small faint" x="418.1" y="629" text-anchor="middle">Apr</text></g>
 <g><rect class="track" x="444.5" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="444.5" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#43d8b0"/><title>Mai 2026: 0</title><text class="small faint" x="460.9" y="629" text-anchor="middle">Mai</text></g>
 <g><rect class="track" x="487.3" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="487.3" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#43d8b0"/><title>Jun 2026: 0</title><text class="small faint" x="503.8" y="629" text-anchor="middle">Jun</text></g>
-<g><rect class="track" x="530.2" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="530.2" y="558.0" width="32.8" height="52.0" rx="7.0" fill="#43d8b0"/><title>Jul 2026: 107</title><text class="small faint" x="546.6" y="629" text-anchor="middle">Jul</text></g></g>
+<g><rect class="track" x="530.2" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="530.2" y="558.0" width="32.8" height="52.0" rx="7.0" fill="#43d8b0"/><title>Jul 2026: 108</title><text class="small faint" x="546.6" y="629" text-anchor="middle">Jul</text></g></g>
   <g><rect class="panel" x="610" y="500" width="558" height="150" rx="20"/><text class="label ink" x="632" y="535">Zusammengeführte PRs pro Monat</text><g><rect class="track" x="637.0" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="637.0" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#7867f2"/><title>Aug 2025: 0</title><text class="small faint" x="653.4" y="629" text-anchor="middle">Aug</text></g>
 <g><rect class="track" x="679.8" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="679.8" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#7867f2"/><title>Sep 2025: 0</title><text class="small faint" x="696.3" y="629" text-anchor="middle">Sep</text></g>
 <g><rect class="track" x="722.7" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="722.7" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#7867f2"/><title>Okt 2025: 0</title><text class="small faint" x="739.1" y="629" text-anchor="middle">Okt</text></g>
@@ -135,7 +135,7 @@
 <g><rect class="track" x="979.7" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="979.7" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#7867f2"/><title>Apr 2026: 0</title><text class="small faint" x="996.1" y="629" text-anchor="middle">Apr</text></g>
 <g><rect class="track" x="1022.5" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="1022.5" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#7867f2"/><title>Mai 2026: 0</title><text class="small faint" x="1038.9" y="629" text-anchor="middle">Mai</text></g>
 <g><rect class="track" x="1065.3" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="1065.3" y="608.0" width="32.8" height="2.0" rx="7.0" fill="#7867f2"/><title>Jun 2026: 0</title><text class="small faint" x="1081.8" y="629" text-anchor="middle">Jun</text></g>
-<g><rect class="track" x="1108.2" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="1108.2" y="558.0" width="32.8" height="52.0" rx="7.0" fill="#7867f2"/><title>Jul 2026: 89</title><text class="small faint" x="1124.6" y="629" text-anchor="middle">Jul</text></g></g>
-  <text class="small faint" x="32" y="674">Aktualisiert 24.07.2026, 23:08</text>
+<g><rect class="track" x="1108.2" y="558" width="32.8" height="52" rx="7.0" opacity="0.44"/><rect x="1108.2" y="558.0" width="32.8" height="52.0" rx="7.0" fill="#7867f2"/><title>Jul 2026: 90</title><text class="small faint" x="1124.6" y="629" text-anchor="middle">Jul</text></g></g>
+  <text class="small faint" x="32" y="674">Aktualisiert 24.07.2026, 23:15</text>
   <text class="small faint" x="1168" y="674" text-anchor="end">eigenständiges Towk · seit 12. Jul. 2026</text>
 </svg>
