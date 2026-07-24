@@ -1,169 +1,160 @@
-name: DM history deletion candidate
+name: Validate PR 187 DM history deletion
 
 on:
   pull_request:
     types: [opened, reopened, synchronize]
-    branches:
-      - main
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: dm-history-deletion-candidate-${{ github.event.pull_request.number }}
+  group: validate-pr-187-dm-history-deletion
   cancel-in-progress: true
 
 env:
-  TARGET_SHA: c7a6ac2517f9e4ae302cf67b9928925409768a95
-  TARGET_BRANCH: feat/dm-history-deletion
-  PATCH_BLOB_SHA: 4609a60c212db554fea2d8104f8620010ba6b3e5
-  PATCH_GZIP_SHA256: 71aa19c8ab774148749095fa5df31271a35a6781faf259bfd4c944e8606ae19d
-  PATCH_SHA256: 67e43eae5f11b35bde8d48e5bedc632e552a9a6cda7761a60be5462ab212581d
+  TARGET_SHA: 7314a71644d42416a43fb8ba34dd88133dc8ab5b
 
 jobs:
-  candidate:
-    name: generate, verify, and publish candidate
+  backend:
+    name: backend and race
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     steps:
       - name: Check out exact PR 187 head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
-          persist-credentials: true
-
-      - name: Verify exact source and target branch
+          persist-credentials: false
+      - name: Verify exact ref
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+      - uses: ./.github/actions/setup
+      - name: Check Go formatting
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
-          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-          test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "${TARGET_SHA}"
-
-      - name: Fetch and apply reviewed source patch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          response="${RUNNER_TEMP}/patch-blob.json"
-          patch_gz="${RUNNER_TEMP}/dm-history.patch.gz"
-          patch="${RUNNER_TEMP}/dm-history.patch"
-          curl --fail --silent --show-error \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${PATCH_BLOB_SHA}" \
-            > "${response}"
-          jq -r '.content' "${response}" | tr -d '\n' | base64 --decode > "${patch_gz}"
-          printf '%s  %s\n' "${PATCH_GZIP_SHA256}" "${patch_gz}" | sha256sum --check --status
-          gzip --decompress --stdout "${patch_gz}" > "${patch}"
-          printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --status
-          git apply --check "${patch}"
-          git apply "${patch}"
-          git diff --check
-
-      - name: Setup project toolchain and dependencies
-        uses: ./.github/actions/setup
-
-      - name: Format and generate canonical outputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t go_files < <(git diff --name-only -- '*.go')
-          if ((${#go_files[@]})); then
-            gofmt -w "${go_files[@]}"
+          mapfile -t files < <(git diff --name-only origin/main...HEAD -- '*.go')
+          if ((${#files[@]})); then
+            unformatted="$(gofmt -l "${files[@]}")"
+            test -z "${unformatted}" || { printf '%s\n' "${unformatted}"; exit 1; }
           fi
-          mise codegen-proto
-          pnpm --dir apps/frontend run paraglide
-          git add --all
-          first_tree="$(git write-tree)"
-          mise codegen-proto
-          pnpm --dir apps/frontend run paraglide
-          git add --all
-          second_tree="$(git write-tree)"
-          test "${first_tree}" = "${second_tree}"
-          git diff --cached --check
-          test -z "$(gofmt -l $(git diff --cached --name-only -- '*.go'))"
-
-      - name: Run targeted backend tests
+      - name: Build embedded frontend
+        run: mise build-frontend
+      - name: Run affected backend packages
         shell: bash
         run: |
-          set -euo pipefail
+          set -o pipefail
           cd cli
-          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server
+          go test -trimpath -p 1 ./internal/core ./internal/connectapi ./internal/http_server 2>&1 | tee "${RUNNER_TEMP}/backend.log"
+      - name: Run DM history race tests
+        shell: bash
+        run: |
+          set -o pipefail
+          cd cli
           go test -trimpath -race -count=1 ./internal/core \
-            -run 'Test(ForgetOneToOneDMConcurrentIsIdempotent|DMHistoryBoundaryAppliesAcrossOperationModels|DMAssetAccessFollowsPrivateHistoryCutoff)$'
-
+            -run 'Test(ForgetOneToOneDM|StartDMRestoresVisibility|RepeatedDMDeletion|DMAssetAccess)' \
+            2>&1 | tee "${RUNNER_TEMP}/race.log"
       - name: Run full CLI test task
         env:
           CHATTO_GO_TEST_P: "1"
         run: mise test-cli
-
-      - name: Run frontend typecheck, lint, and unit tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          pnpm run check:frontend
-          pnpm run lint:frontend
-          pnpm run test:frontend
-
-      - name: Run repository policy checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          mise public-surface-check
-          mise license-check
-          git diff --cached --check
-          if git diff --cached | grep -E '(/home/[^/[:space:]]+|/Users/[^/[:space:]]+|[A-Za-z]:\\Users\\|Co-authored-by:|Generated-by:|Assisted-by:)'; then
-            echo 'Blocked private path or forbidden attribution trailer in candidate diff' >&2
-            exit 1
-          fi
-
-      - name: Commit verified candidate with Yoan identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          export GIT_AUTHOR_NAME="$(git show -s --format=%an "${TARGET_SHA}")"
-          export GIT_AUTHOR_EMAIL="$(git show -s --format=%ae "${TARGET_SHA}")"
-          export GIT_COMMITTER_NAME="$(git show -s --format=%cn "${TARGET_SHA}")"
-          export GIT_COMMITTER_EMAIL="$(git show -s --format=%ce "${TARGET_SHA}")"
-          test "${GIT_AUTHOR_NAME}" = 'Yo-DDV'
-          test "${GIT_COMMITTER_NAME}" = 'Yo-DDV'
-          git commit -m 'fix(dm): complete private conversation deletion'
-          test "$(git show -s --format=%an HEAD)" = 'Yo-DDV'
-          test "$(git show -s --format=%cn HEAD)" = 'Yo-DDV'
-          if git show -s --format=%B HEAD | grep -E 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
-            echo 'Forbidden attribution trailer in candidate commit' >&2
-            exit 1
-          fi
-
-      - name: Publish verified fast-forward to PR 187
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-          test "$(git rev-parse "refs/remotes/origin/${TARGET_BRANCH}")" = "${TARGET_SHA}"
-          git merge-base --is-ancestor "${TARGET_SHA}" HEAD
-          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
-
-      - name: Archive verified candidate source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git rev-parse HEAD > "${RUNNER_TEMP}/towk-dm-history-candidate.sha"
-          git archive --format=tar.gz --output="${RUNNER_TEMP}/towk-dm-history-candidate.tar.gz" HEAD
-          sha256sum "${RUNNER_TEMP}/towk-dm-history-candidate.tar.gz" \
-            > "${RUNNER_TEMP}/towk-dm-history-candidate.sha256"
-
-      - name: Upload verified candidate source
+      - name: Upload backend evidence
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: towk-dm-history-candidate
+          name: pr-187-backend-evidence
           path: |
-            ${{ runner.temp }}/towk-dm-history-candidate.tar.gz
-            ${{ runner.temp }}/towk-dm-history-candidate.sha256
-            ${{ runner.temp }}/towk-dm-history-candidate.sha
+            ${{ runner.temp }}/backend.log
+            ${{ runner.temp }}/race.log
+          retention-days: 7
+          if-no-files-found: warn
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact PR 187 head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact ref
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+      - uses: ./.github/actions/setup
+        with:
+          install-cli-deps: "false"
+          mise-install-args: "node"
+      - name: Install Playwright Chromium
+        run: cd apps/frontend && pnpm exec playwright install chromium --with-deps
+        timeout-minutes: 15
+      - name: Check frontend
+        run: pnpm run check:frontend
+      - name: Lint frontend
+        run: pnpm run lint:frontend
+      - name: Run full frontend test task
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm run test:frontend 2>&1 | tee "${RUNNER_TEMP}/frontend.log"
+      - name: Upload frontend evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-187-frontend-evidence
+          path: ${{ runner.temp }}/frontend.log
+          retention-days: 7
+          if-no-files-found: warn
+
+  generated-and-policy:
+    name: generated output and policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact PR 187 head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact ref
+        run: test "$(git rev-parse HEAD)" = "${TARGET_SHA}"
+      - uses: ./.github/actions/setup
+      - name: Verify deterministic generated output
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise codegen-proto
+          pnpm --dir apps/frontend run paraglide
+          git diff --exit-code
+      - name: Run public surface and licence checks
+        run: |
+          mise public-surface-check
+          mise license-check
+      - name: Check diff hygiene and forbidden trailers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check origin/main...HEAD
+          if git log --format=%B origin/main..HEAD | grep -E 'Co-authored-by:|Generated-by:|Assisted-by:|Pair-programmed-by:'; then
+            echo 'Forbidden attribution trailer found' >&2
+            exit 1
+          fi
+      - name: Record exact validated ref
+        shell: bash
+        run: |
+          printf '%s\n' "${TARGET_SHA}" > "${RUNNER_TEMP}/validated-sha.txt"
+          git archive --format=tar.gz --output="${RUNNER_TEMP}/pr-187-source.tar.gz" "${TARGET_SHA}"
+          sha256sum "${RUNNER_TEMP}/pr-187-source.tar.gz" > "${RUNNER_TEMP}/pr-187-source.sha256"
+      - name: Upload exact source evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr-187-exact-source
+          path: |
+            ${{ runner.temp }}/validated-sha.txt
+            ${{ runner.temp }}/pr-187-source.tar.gz
+            ${{ runner.temp }}/pr-187-source.sha256
           retention-days: 7
           if-no-files-found: error
