@@ -171,9 +171,10 @@ jobs:
           fdr_text = fdr.read_text()
           old_fdr = '- **Profile actions** — the server returns viewer-specific Message and Call capabilities. The call action is exposed only when direct messaging is allowed and LiveKit is configured. Deleted accounts expose neither action.'
           new_fdr = '- **Profile actions** — the server returns viewer-specific Message and Call capabilities. Message opens the direct conversation and focuses its composer. Call opens the direct conversation, exposes the call surface, and starts the existing device-aware join flow. The call action is exposed only when direct messaging is allowed and LiveKit is configured, and it does not interrupt another active room call. Deleted accounts expose neither action.'
-          if fdr_text.count(old_fdr) != 1:
-              raise SystemExit('FDR-022: profile action contract not found exactly once')
-          fdr.write_text(fdr_text.replace(old_fdr, new_fdr, 1))
+          if fdr_text.count(old_fdr) == 1:
+              fdr.write_text(fdr_text.replace(old_fdr, new_fdr, 1))
+          elif fdr_text.count(new_fdr) != 1:
+              raise SystemExit('FDR-022: profile action contract is neither old nor expected final text')
           PY
 
       - name: Set up repository toolchain
@@ -242,7 +243,7 @@ jobs:
           git add -A
           git diff --cached --check
           test -n "$(git diff --cached --name-only)"
-          ! git diff --cached --name-only | grep -E '^\.github/workflows/(pr182-profile-action-polish|pr182-fix-polish-workflow)\.yml$' || true
+          ! git ls-files | grep -E '^\.github/workflows/(pr182-profile-action-polish|pr182-fix-polish-workflow)\.yml$'
           ! git diff --cached | grep -Ei '(^|[[:space:]])(Co-authored-by|Generated-by|Assisted-by|Pair-programmed-by):'
           author_name=$(git show -s --format=%an "$EXPECTED_HEAD")
           author_email=$(git show -s --format=%ae "$EXPECTED_HEAD")
