@@ -1,9 +1,9 @@
 name: sync user profiles with main
 
 on:
-  pull_request:
+  push:
     branches:
-      - main
+      - feat/user-profiles
     paths:
       - .github/workflows/user-profiles-sync-main.yml
 
