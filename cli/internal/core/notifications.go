@@ -99,7 +99,6 @@ func (c *ChattoCore) createNotification(
 	notification.CreatedAt = timestamppb.New(now)
 	notification.ActorId = actorID
 
-	// Store in KV
 	data, err := proto.Marshal(notification)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal notification: %w", err)
@@ -114,12 +113,13 @@ func (c *ChattoCore) createNotification(
 		return nil, fmt.Errorf("failed to store notification: %w", err)
 	}
 
-	// Preference, message, membership, room lifecycle, and read-marker changes
-	// can all race fanout. Their cleanup paths remove existing notifications;
-	// this post-create check closes the inverse ordering where cleanup completed
-	// immediately before this KV entry was stored. Fail closed on an unresolved
-	// current state: a best-effort notification must never leak an inaccessible
-	// target or contradict the user's latest preference.
+	// Preference, message, membership, room lifecycle, read-marker, and thread
+	// follow changes can all race fanout. Their cleanup paths remove existing
+	// notifications; this post-create check closes the inverse ordering where
+	// cleanup completed immediately before this KV entry was stored. Fail closed
+	// on an unresolved current state: a best-effort notification must never leak an
+	// inaccessible target or contradict the user's latest preference or thread
+	// subscription state.
 	visible, visibilityErr := c.notificationVisibleInCurrentState(ctx, recipientID, notification)
 	if visibilityErr != nil || !visible {
 		if err := c.discardCreatedNotification(ctx, key); err != nil {
@@ -131,11 +131,8 @@ func (c *ChattoCore) createNotification(
 		return nil, nil
 	}
 
-	// Publish sync event to recipient for real-time delivery
 	c.publishNotificationCreatedEvent(ctx, notification, silent)
 
-	// Call the notification callback for push notifications (if set)
-	// Run asynchronously to avoid blocking notification creation if push is slow
 	if c.OnNotificationCreated != nil && !silent {
 		callback := c.OnNotificationCreated
 		c.dispatchNotificationCallback(func() {
@@ -217,7 +214,6 @@ func (c *ChattoCore) GetNotifications(ctx context.Context, userID string) ([]*co
 		notifications = append(notifications, &notif)
 	}
 
-	// Sort by created_at descending (newest first)
 	sort.Slice(notifications, func(i, j int) bool {
 		return notifications[i].CreatedAt.AsTime().After(notifications[j].CreatedAt.AsTime())
 	})
@@ -262,12 +258,10 @@ func (c *ChattoCore) GetNotification(ctx context.Context, userID, notificationID
 func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificationID string) (bool, error) {
 	key := notificationKey(userID, notificationID)
 
-	// Fetch the notification before deleting so optional dismissal integrations
-	// can receive the complete record.
 	entry, err := c.storage.runtimeStateKV.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, jetstream.ErrKeyNotFound) {
-			return false, nil // Already dismissed
+			return false, nil
 		}
 		return false, fmt.Errorf("failed to get notification: %w", err)
 	}
@@ -278,9 +272,6 @@ func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificati
 	}
 	validForCallback := storedNotificationMatchesKey(userID, key, &notif)
 
-	// Delete only the revision we fetched. Concurrent dismissals on another
-	// replica then become an idempotent no-op instead of publishing duplicate
-	// live events and push-dismiss callbacks.
 	err = c.storage.runtimeStateKV.Delete(ctx, key, jetstream.LastRevision(entry.Revision()))
 	if errors.Is(err, jetstream.ErrKeyExists) || errors.Is(err, jetstream.ErrKeyNotFound) {
 		return false, nil
@@ -289,7 +280,6 @@ func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificati
 		return false, fmt.Errorf("failed to delete notification: %w", err)
 	}
 
-	// Publish sync event for cross-device sync (WebSocket)
 	c.publishNotificationDismissedEvent(ctx, userID, notificationID)
 	if err := c.deleteNotificationCenterSuppressions(ctx, userID, notificationID); err != nil {
 		c.logger.Warn("Failed to delete per-client notification-center suppressions",
@@ -298,8 +288,6 @@ func (c *ChattoCore) DismissNotification(ctx context.Context, userID, notificati
 			"error", err)
 	}
 
-	// Call the optional notification-dismissal integration (if set).
-	// Run asynchronously to avoid blocking notification dismissal
 	if validForCallback && c.OnNotificationDismissed != nil {
 		callback := c.OnNotificationDismissed
 		c.dispatchNotificationCallback(func() {
@@ -344,7 +332,6 @@ func (c *ChattoCore) dismissAllNotifications(ctx context.Context, userID string,
 		return 0, fmt.Errorf("failed to list notification keys: %w", err)
 	}
 
-	// Collect keys first to avoid modifying while iterating
 	var keys []string
 	for key := range lister.Keys() {
 		keys = append(keys, key)
@@ -750,8 +737,8 @@ func storedNotificationMatchesKey(userID, key string, notification *corev1.Notif
 // notificationVisibleInCurrentState is the authoritative delivery predicate
 // for stored notifications. Creation, API reads, realtime hydration, and the
 // native-push callback all pass through it, so a failed cleanup cannot expose a
-// stale notification after a preference, read marker, membership, room, or
-// message lifecycle transition.
+// stale notification after a preference, read marker, membership, room, message,
+// or thread-follow lifecycle transition.
 func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, userID string, notification *corev1.Notification) (bool, error) {
 	if err := validateNotificationInput(userID, notification); err != nil {
 		return false, nil
@@ -800,6 +787,15 @@ func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, user
 	if notification.GetCallStarted() != nil {
 		return true, nil
 	}
+	if notification.GetRoomMessage() != nil {
+		followsThread, err := c.notificationRecipientFollowsThread(ctx, userID, notification)
+		if err != nil {
+			return false, err
+		}
+		if !followsThread {
+			return false, nil
+		}
+	}
 	covered, err := c.notificationCoveredByCurrentReadState(ctx, userID, notification)
 	if err != nil {
 		return false, err
@@ -833,6 +829,26 @@ func (c *ChattoCore) notificationRecipientCanAccessCurrentRoom(ctx context.Conte
 		return false, true, fmt.Errorf("resolve notification room membership: %w", err)
 	}
 	return isMember, true, nil
+}
+
+func (c *ChattoCore) notificationRecipientFollowsThread(ctx context.Context, userID string, notification *corev1.Notification) (bool, error) {
+	threadRootEventID := notificationTargetThreadRootID(notification)
+	if threadRootEventID == "" {
+		return true, nil
+	}
+	roomID := notificationTargetRoomID(notification)
+	if roomID == "" {
+		return false, nil
+	}
+	room, err := c.FindRoomByID(ctx, roomID)
+	if err != nil {
+		return false, fmt.Errorf("resolve notification thread room: %w", err)
+	}
+	follows, err := c.IsFollowingThread(ctx, KindOfRoom(room), userID, roomID, threadRootEventID)
+	if err != nil {
+		return false, fmt.Errorf("resolve notification thread follow: %w", err)
+	}
+	return follows, nil
 }
 
 func (c *ChattoCore) notificationEligibleForCurrentPreference(ctx context.Context, userID string, notification *corev1.Notification) (bool, error) {
@@ -1028,7 +1044,6 @@ func (c *ChattoCore) notificationCoveredByCurrentReadState(ctx context.Context, 
 
 // publishNotificationCreatedEvent publishes a live event for cross-device sync.
 func (c *ChattoCore) publishNotificationCreatedEvent(ctx context.Context, notif *corev1.Notification, silent bool) {
-	// Extract navigation context from the notification payload
 	var roomID, eventID, inReplyToID string
 	switch n := notif.Notification.(type) {
 	case *corev1.Notification_DmMessage:
