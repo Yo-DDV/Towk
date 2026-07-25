@@ -272,6 +272,23 @@ describe('mobileNavigationSwipe', () => {
     }
   );
 
+  it('starts from a contenteditable composer surface', () => {
+    const { host } = hostElement();
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.textContent = 'Draft message';
+    host.append(editor);
+    const { onToggle } = roomPanelButton('members');
+    const action = mobileNavigationSwipe(host, TEST_OPTIONS);
+
+    const move = swipe(editor, 260, 120);
+
+    expect(move.defaultPrevented).toBe(true);
+    expect(onToggle).toHaveBeenCalledOnce();
+
+    action.destroy();
+  });
+
   it('starts from selected message text after horizontal intent wins', () => {
     const { host } = hostElement();
     const text = document.createElement('span');
