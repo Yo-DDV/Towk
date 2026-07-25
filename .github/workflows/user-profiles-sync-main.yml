@@ -1,0 +1,139 @@
+name: sync user profiles with main
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/user-profiles-sync-main.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: user-profiles-sync-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out profile branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/user-profiles
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Merge current main and resolve shared profile surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge --no-commit --no-ff origin/main || true
+
+          cat > apps/frontend/src/app.d.ts <<'EOF'
+          // See https://svelte.dev/docs/kit/types#app.d.ts
+          // for information about these interfaces
+          declare global {
+            namespace App {
+              // interface Error {}
+              // interface Locals {}
+              // interface PageData {}
+              interface PageState {
+                notificationServerId?: string;
+                notificationSidebarOpen?: boolean;
+                profileDialog?: string;
+                threadFilter?: 'all' | 'unread';
+                welcome?: boolean;
+                modal?: {
+                  type:
+                    | 'createRoom'
+                    | 'logout'
+                    | 'leaveRoom'
+                    | 'deleteDirectMessage'
+                    | 'deleteMessage'
+                    | 'leaveServer'
+                    | 'deleteAttachment'
+                    | 'deleteLinkPreview'
+                    | 'imageViewer';
+                  spaceId?: string;
+                  roomId?: string;
+                  roomName?: string;
+                  spaceName?: string;
+                  eventId?: string;
+                  attachmentId?: string;
+                  attachmentFilename?: string;
+                  previewUrl?: string;
+                  imageItems?: Array<{
+                    id?: string;
+                    src: string;
+                    originalSrc?: string;
+                    alt?: string;
+                    filename?: string;
+                  }>;
+                  imageIndex?: number;
+                };
+              }
+              // interface Platform {}
+            }
+          }
+
+          export {};
+          EOF
+
+          git checkout --ours apps/frontend/src/lib/ui/Dialog.svelte
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/frontend/src/lib/ui/Dialog.svelte')
+          text = path.read_text()
+          old = """  const sizeClasses = {
+              sm: 'w-100 max-w-[60vw]',
+              md: 'w-150 max-w-[80vw]',
+              lg: 'w-200 max-w-[90vw]'
+            };"""
+          new = """  const sizeClasses = {
+              sm: 'w-[calc(100vw-1.5rem)] max-w-md sm:w-100',
+              md: 'w-[calc(100vw-1.5rem)] max-w-2xl sm:w-150',
+              lg: 'w-[calc(100vw-1rem)] max-w-4xl sm:w-[calc(100vw-3rem)] lg:w-200'
+            };"""
+          if old not in text:
+              raise SystemExit('expected dialog size block not found')
+          path.write_text(text.replace(old, new))
+          PY
+
+          git checkout --ours apps/frontend/src/lib/i18n/messages.ts
+          git add apps/frontend/src/app.d.ts apps/frontend/src/lib/ui/Dialog.svelte apps/frontend/src/lib/i18n/messages.ts
+
+          unresolved=$(git diff --name-only --diff-filter=U)
+          if [ -n "$unresolved" ]; then
+            printf 'Unresolved merge paths:\n%s\n' "$unresolved" >&2
+            exit 1
+          fi
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Regenerate merged localization facade
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter towk-frontend paraglide
+          git add apps/frontend/src/lib/i18n/messages.ts
+          git diff --check
+
+      - name: Commit main synchronization
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/user-profiles-sync-main.yml
+          git add -A
+          test -z "$(git diff --name-only --diff-filter=U)"
+          ! git diff --cached | grep -Ei '(^|[[:space:]])(Co-authored-by|Generated-by|Assisted-by):'
+          author_name=$(git show -s --format=%an HEAD)
+          author_email=$(git show -s --format=%ae HEAD)
+          GIT_AUTHOR_NAME="$author_name" GIT_AUTHOR_EMAIL="$author_email" \
+          GIT_COMMITTER_NAME="$author_name" GIT_COMMITTER_EMAIL="$author_email" \
+            git commit -m 'chore(profiles): sync main before bench validation'
+          git push origin HEAD:feat/user-profiles
