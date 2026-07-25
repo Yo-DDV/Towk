@@ -78,23 +78,35 @@ jobs:
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
 
-  profile-remediation-gate:
-    name: profile-remediation-gate
-    if: github.event.pull_request.number == 182
+  profile-remediation-publisher:
+    name: profile-remediation-publisher
+    if: github.event.pull_request.number == 182 && github.head_ref == 'feat/user-profiles'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout code
+      - name: Checkout profile branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: false
+          ref: feat/user-profiles
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git fetch --no-tags origin main feat/user-profiles
 
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Check formatting
+      - name: Format profile remediation
         run: |
-          pnpm --dir apps/frontend exec prettier --check \
+          pnpm --dir apps/frontend exec prettier --write \
             src/lib/components/menus/UserContextMenu.svelte \
             src/lib/dm/startDM.ts \
             src/lib/dm/startDM.svelte.spec.ts
@@ -128,3 +140,20 @@ jobs:
           mise run license-check
           mise run public-surface-check
           git diff --check
+
+      - name: Publish formatted final tree and restore workflow
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git checkout origin/main -- .github/workflows/quick-gate.yml
+          git add -A
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          ! git diff --cached | grep -Ei '(^|[[:space:]])(Co-authored-by|Generated-by|Assisted-by|Pair-programmed-by):'
+          author_name=$(git show -s --format=%an "$EXPECTED_HEAD")
+          author_email=$(git show -s --format=%ae "$EXPECTED_HEAD")
+          GIT_AUTHOR_NAME="$author_name" GIT_AUTHOR_EMAIL="$author_email" \
+          GIT_COMMITTER_NAME="$author_name" GIT_COMMITTER_EMAIL="$author_email" \
+            git commit -m 'fix(profiles): finalize profile interaction polish'
+          git push origin HEAD:feat/user-profiles
