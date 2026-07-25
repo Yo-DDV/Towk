@@ -787,7 +787,7 @@ func (c *ChattoCore) notificationVisibleInCurrentState(ctx context.Context, user
 	if notification.GetCallStarted() != nil {
 		return true, nil
 	}
-	if notification.GetRoomMessage() != nil {
+	if notification.GetRoomMessage() != nil || notification.GetReply() != nil {
 		followsThread, err := c.notificationRecipientFollowsThread(ctx, userID, notification)
 		if err != nil {
 			return false, err
@@ -843,6 +843,15 @@ func (c *ChattoCore) notificationRecipientFollowsThread(ctx context.Context, use
 	room, err := c.FindRoomByID(ctx, roomID)
 	if err != nil {
 		return false, fmt.Errorf("resolve notification thread room: %w", err)
+	}
+	if reply := notification.GetReply(); reply != nil && reply.GetInReplyToId() != "" {
+		target, err := c.GetRoomEventByEventID(ctx, KindOfRoom(room), roomID, reply.GetInReplyToId())
+		if err != nil {
+			return false, fmt.Errorf("resolve notification direct reply target: %w", err)
+		}
+		if target.GetActorId() == userID {
+			return true, nil
+		}
 	}
 	follows, err := c.IsFollowingThread(ctx, KindOfRoom(room), userID, roomID, threadRootEventID)
 	if err != nil {

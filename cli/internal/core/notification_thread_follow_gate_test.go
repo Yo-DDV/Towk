@@ -100,6 +100,27 @@ func TestThreadRoomMessageNotificationsRequireThreadFollow(t *testing.T) {
 	if err != nil || created == nil {
 		t.Fatalf("CreateNotification ambient followed thread = (%+v, %v), want stored notification", created, err)
 	}
+	thirdReply, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "third thread reply", nil, root.Id, "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage third reply: %v", err)
+	}
+	stored, err := core.GetNotifications(ctx, ambient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications before unfollow: %v", err)
+	}
+	if len(stored) != 2 {
+		t.Fatalf("notifications before unfollow = %+v, want low-level room-message and follower reply", stored)
+	}
+	var followerReplyID string
+	for _, notification := range stored {
+		reply := notification.GetReply()
+		if reply != nil && reply.GetEventId() == thirdReply.Id {
+			followerReplyID = notification.GetId()
+		}
+	}
+	if followerReplyID == "" {
+		t.Fatalf("notifications before unfollow = %+v, want follower reply for event %s", stored, thirdReply.Id)
+	}
 	if err := core.UnfollowThread(ctx, KindChannel, ambient.Id, room.Id, root.Id); err != nil {
 		t.Fatalf("UnfollowThread ambient: %v", err)
 	}
@@ -109,5 +130,32 @@ func TestThreadRoomMessageNotificationsRequireThreadFollow(t *testing.T) {
 	}
 	if got != nil {
 		t.Fatalf("GetNotification after unfollow = %+v, want nil", got)
+	}
+	got, err = core.GetNotification(ctx, ambient.Id, followerReplyID)
+	if err != nil {
+		t.Fatalf("GetNotification follower reply after unfollow: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("GetNotification follower reply after unfollow = %+v, want nil", got)
+	}
+
+	ambientReply, err := core.PostMessage(ctx, KindChannel, room.Id, ambient.Id, "ambient direct-reply target", nil, root.Id, "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage ambient direct-reply target: %v", err)
+	}
+	directReply, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "direct reply after unfollow", nil, root.Id, ambientReply.Id, nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage direct reply after unfollow: %v", err)
+	}
+	remaining, err := core.GetNotifications(ctx, ambient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications direct reply after unfollow: %v", err)
+	}
+	if len(remaining) != 1 {
+		t.Fatalf("notifications after direct reply = %+v, want one direct reply", remaining)
+	}
+	direct := remaining[0].GetReply()
+	if direct == nil || direct.GetEventId() != directReply.Id || direct.GetInReplyToId() != ambientReply.Id {
+		t.Fatalf("notification after direct reply = %+v, want event %s replying to %s", remaining[0], directReply.Id, ambientReply.Id)
 	}
 }
