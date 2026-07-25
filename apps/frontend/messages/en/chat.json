@@ -11,10 +11,19 @@
       "time_minutes": "{count}m ago",
       "time_hours": "{count}h ago",
       "time_days": "{count}d ago",
+      "direct_message": "{actor} sent you a message",
+      "direct_message_unknown": "New message",
+      "mention": "{actor} mentioned you",
+      "mention_unknown": "You were mentioned",
+      "reply": "{actor} replied to your message",
+      "reply_unknown": "New reply to your message",
+      "room_message": "{actor} posted a message",
+      "room_message_unknown": "New message",
       "call_started": "{actor} started a call",
       "call_started_unknown": "A call started",
       "private_call_started": "{actor} is calling you",
-      "private_call_started_unknown": "Incoming call"
+      "private_call_started_unknown": "Incoming call",
+      "location_in_server": "#{room} in {server}"
     },
     "sign_out": {
       "title": "Sign Out",
