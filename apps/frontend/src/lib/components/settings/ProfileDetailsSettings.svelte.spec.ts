@@ -133,6 +133,26 @@ describe('ProfileDetailsSettings', () => {
     expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');
   });
 
+  it('renders a bounded error state instead of an infinite biography load', async () => {
+    mocks.getUserProfile.mockRejectedValue(new Error('offline'));
+
+    const { container } = render(ProfileDetailsSettings);
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Could not load profile details.'));
+    expect(container.querySelector('[data-testid="profile-details-error"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="profile-details-loading"]')).toBeNull();
+  });
+
+  it('stops the biography loading state when the current user is unavailable', async () => {
+    (mocks.currentUser as { user?: unknown }).user = undefined;
+
+    const { container } = render(ProfileDetailsSettings);
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Could not load profile details.'));
+    expect(container.querySelector('[data-testid="profile-details-loading"]')).toBeNull();
+    expect(mocks.getUserProfile).not.toHaveBeenCalled();
+  });
+
   it('applies Markdown to the current selection and saves the source', async () => {
     const { container } = render(ProfileDetailsSettings);
     const textarea = await vi.waitFor(() => {
