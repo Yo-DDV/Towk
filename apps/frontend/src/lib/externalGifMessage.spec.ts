@@ -28,6 +28,14 @@ describe('parseExternalGifMessageBodyList', () => {
     expect(result).toHaveLength(MAX_EXTERNAL_GIF_EMBEDS_PER_MESSAGE);
   });
 
+  it('accepts exact rich-composer self-links and Markdown autolinks', () => {
+    const body = `[${giphyMediaUrl}](${giphyMediaUrl})\n\n<${giphyPageUrl}>`;
+
+    expect(parseExternalGifMessageBodyList(body)?.map((descriptor) => descriptor.resourceUrl)).toEqual(
+      [giphyMediaUrl, 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt']
+    );
+  });
+
   it('preserves duplicate URLs instead of silently changing message meaning', () => {
     expect(parseExternalGifMessageBodyList(`${giphyPageUrl}\n${giphyPageUrl}`)).toHaveLength(2);
   });
@@ -36,7 +44,8 @@ describe('parseExternalGifMessageBodyList', () => {
     '',
     `reaction ${giphyPageUrl}`,
     `${giphyPageUrl}\nhttps://example.com/reaction.gif`,
-    `[reaction](${giphyPageUrl})`
+    `[reaction](${giphyPageUrl})`,
+    `[${giphyPageUrl}](${giphyMediaUrl})`
   ])('keeps non-GIF-only content on the ordinary Markdown path: %s', (body) => {
     expect(parseExternalGifMessageBodyList(body)).toBeNull();
   });
