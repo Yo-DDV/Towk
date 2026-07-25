@@ -24,13 +24,13 @@
     <a href="ROADMAP.md"><img src="https://img.shields.io/badge/Status-vor%201.0-f4a261?style=flat-square" alt="Projektstatus: vor 1.0" /></a>
     <img src="https://img.shields.io/badge/Betrieb-selbst%20gehostet-43d8b0?style=flat-square" alt="Selbst gehostet" />
     <img src="https://img.shields.io/badge/Client-installierbare%20PWA-4aa8ff?style=flat-square" alt="Installierbare Progressive Web App" />
-    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/Aktivit%C3%A4t-2%C3%97%20t%C3%A4glich%20aktualisiert-7867f2?style=flat-square" alt="Repository-Aktivität wird zweimal täglich aktualisiert" /></a>
+    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/activity-GitHub%20Actions%20%2F%206h-7867f2?style=flat-square" alt="Repository-Aktivität wird alle sechs Stunden durch GitHub Actions aktualisiert" /></a>
     <a href="LICENSING.md"><img src="https://img.shields.io/badge/Lizenz-AGPL--3.0--or--later%20%2B%20Apache--2.0-8250df?style=flat-square" alt="AGPL-3.0-or-later mit Apache-2.0-Bereichen" /></a>
   </p>
 
   <p>
     <a href="#why-towk">Warum Towk</a> ·
-    <a href="#development-pulse">Dynamik</a> ·
+    <a href="#repository-activity">Repository-Aktivität</a> ·
     <a href="#capabilities">Funktionen</a> ·
     <a href="#architecture">Architektur</a> ·
     <a href="#run-towk">Towk starten</a> ·
@@ -95,42 +95,46 @@ Es ist eine fokussierte Open-Source-Alternative für Teams und Communities, die
 ihren Kommunikationsarbeitsbereich selbst betreiben möchten — ohne den Anspruch,
 jede Funktion jeder Kollaborationsplattform zu ersetzen.
 
-<a id="development-pulse"></a>
-## Entwicklungsdynamik
+<a id="repository-activity"></a>
+## Repository-Aktivität
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/de/activity-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/de/activity.svg" width="100%" alt="Towk-Entwicklungsaktivität mit täglichen, wöchentlichen und monatlichen Commit- und Pull-Request-Diagrammen" />
-</picture>
-
-<picture>
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/de/contributors-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/de/contributors.svg" width="100%" alt="Autoren von Towk-Commits und zusammengeführten Pull Requests seit der öffentlichen Gründung des eigenständigen Repositorys" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/de/activity.svg" width="100%" alt="Towk-Repository-Aktivität der letzten 30 UTC-Tage: Commits, zusammengeführte Pull Requests, geschlossene Issues, aktive Mitwirkende, Codebewegung und Pull-Request-Durchlauf" />
 </picture>
 
 <details>
   <summary><strong>Wie diese Metriken entstehen</strong></summary>
 
-  Das Repository erzeugt die SVGs selbst aus der GitHub-API mit seinem auf das
-  Repository beschränkten `GITHUB_TOKEN`. Ein persönlicher Token oder externer
+  Das Repository erzeugt dieses SVG und den maschinenlesbaren Snapshot aus
+  seinem eigenen Git-Verlauf und der GitHub-API mit dem beschränkten
+  `GITHUB_TOKEN` des Workflows. Ein persönlicher Token oder externer
   Statistikdienst wird nicht verwendet. Der Workflow läuft nach jedem Push auf
-  `main` und ist täglich ungefähr für **06:17 und 21:17 Uhr Europe/Paris** geplant.
+  `main`, ungefähr alle sechs Stunden sowie bei manueller Ausführung.
 
-  Die primären Zähler und Autorenranglisten beginnen nach dem öffentlichen
-  Gründungs-Merge-Commit des eigenständigen Repositorys `205e91fe1ae5e5c23420974f7e04cf82456eeab3` vom
-  12. Juli 2026. Geerbte Chatto-Historie erscheint dadurch nicht als aktuelle
-  Towk-Entwicklung. Die Diagramme behalten rollierende Ansichten über 30 Tage,
-  12 Wochen und 12 Monate; Zeiträume vor diesem Gründungspunkt erscheinen mit
-  null Aktivität. Commits werden nach dem Gründungs-Commit topologisch aus `main`
-  ausgewählt und anhand ihres Commit-Zeitstempels in UTC gruppiert. Pull Requests
-  werden nach `merged_at` ab dem Gründungszeitpunkt gezählt. Ranglisten verwenden
-  den GitHub-Login, sofern vorhanden, andernfalls den öffentlichen Namen des
-  Commit-Autors. Erkannte Bots erscheinen nicht in den menschlichen Ranglisten,
-  sondern separat. Diese Zahlen beschreiben Repository-Aktivität und Git-
-  Attribution, nicht den individuellen Arbeitsaufwand. Commit-Nachrichten und
-  E-Mail-Adressen werden nicht auf den generierten Branch geschrieben.
+  Alle Kennzahlen und Diagramme verwenden dasselbe rollierende Fenster von
+  **30 UTC-Tagen**. Der öffentliche Ausgangspunkt des eigenständigen Repositorys
+  ist Commit `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, gemergt am 12. Juli 2026. Solange dieser Punkt im
+  Fenster liegt, bleiben frühere Tage bei null, damit geerbte Chatto-Historie nicht
+  als aktuelle Towk-Aktivität erscheint. Der aktuelle UTC-Tag ist ausdrücklich als
+  unvollständig gekennzeichnet.
 
-  Die SVGs und der maschinenlesbare Snapshot liegen auf dem Branch
+  Commits werden topologisch aus `main` ausgewählt und nach Commit-Zeitstempel
+  gruppiert. Hinzugefügte und gelöschte Zeilen sowie geänderte Dateien stammen aus
+  Git `--numstat`; Binärdateien zählen als geänderte Dateien, erzeugen aber keine
+  erfundenen Zeilensummen. Pull Requests zählen nach `merged_at`, wenn sie in
+  `main` zusammengeführt wurden; Issues zählen nach `closed_at`, Pull Requests
+  sind ausgeschlossen. Die Merge-Durchlaufzeit reicht von `created_at` bis
+  `merged_at`. Die Zeit bis zur ersten Review reicht von `created_at` bis zur
+  ersten eingereichten Review eines Menschen, der nicht der PR-Autor ist; PRs ohne
+  passende Review werden aus diesem Median ausgelassen. Aktive Mitwirkende sind
+  die unterschiedlichen menschlichen Commit- und Merge-PR-Autoren im Fenster.
+  Bots sind nur aus dieser menschlichen Zahl ausgeschlossen; Repository-Summen
+  enthalten Automation.
+
+  Diese Zahlen beschreiben Repository-Aktivität, nicht individuelle Leistung.
+  Commit-Nachrichten, E-Mail-Adressen, Review-Texte und Autorenranglisten werden
+  nicht auf den generierten Branch geschrieben. SVGs und Snapshot liegen auf
   [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
 </details>
 
