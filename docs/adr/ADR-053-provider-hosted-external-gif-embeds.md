@@ -6,9 +6,10 @@
 ## Context
 
 Users can paste GIF links produced by operating-system keyboards, browser searches,
-or other applications. Building a GIF search catalogue inside Towk would require
-provider accounts, API keys, usage limits, licensing decisions, and an additional
-third-party service dependency.
+or other applications. Some clipboard and share-sheet paths can provide more than one
+URL for the same action, such as a provider page plus a direct media rendition.
+Building a GIF search catalogue inside Towk would require provider accounts, API keys,
+usage limits, licensing decisions, and an additional third-party service dependency.
 
 Treating every URL that ends in `.gif` as trusted media would also be unsafe. It
 would allow arbitrary tracking origins, widen the browser security policy without
@@ -17,10 +18,10 @@ Server-side link previews are not an acceptable fallback for supported GIF links
 they would make the Towk server contact the provider and could persist a copied
 preview asset.
 
-The URL is still useful as durable, mixed-version message state, but showing it as a
-large raw link next to a full media card is duplicate presentation. Compatible clients
-therefore need a clean card while preserving the exact source URL for older clients,
-auditability, and an explicit source action.
+The URLs are still useful as durable, mixed-version message state, but showing them as
+large raw links next to full media cards is duplicate presentation. Compatible clients
+therefore need clean, bounded cards while preserving the exact source URLs for older
+clients, auditability, and explicit source actions.
 
 ## Decision
 
@@ -32,17 +33,23 @@ Recognition requires exact hosts, no URL credentials or explicit ports, ASCII in
 a bounded URL, bounded provider identifiers, and known path forms. Generic GIF URLs
 and Tenor page URLs are not included.
 
-The original URL remains the persisted message source of truth. No new message type,
-attachment, provider metadata, or migration is introduced. When a compatible client
-recognizes a standalone URL and the server advertises `external-gif-embeds-v1`, the
-client presents the privacy card instead of duplicating the raw-link body. The source
-remains available from the card. Servers advertise the capability when the operator
-setting is enabled. Clients without the capability, clients with incomplete discovery
-state, instances with the setting disabled, unsupported providers, and mixed-text
-messages render the original link normally.
+The original text body remains the persisted message source of truth. No new message
+type, attachment, provider metadata, or migration is introduced. When every token in
+a message is a recognized provider URL, the message contains no other text, there are
+at most four URLs, and the server advertises `external-gif-embeds-v1`, a compatible
+client presents one ordered privacy card per URL instead of duplicating the raw-link
+body. Each source remains available from its card. Servers advertise the capability
+when the operator setting is enabled. Clients without the capability, clients with
+incomplete discovery state, instances with the setting disabled, unsupported or mixed
+content, and messages above the bound render the original text normally.
+
+The four-card maximum bounds DOM growth and automatic provider eligibility for one
+message. Every candidate URL must independently pass the provider allowlist; a single
+unsupported token keeps the entire body on the normal Markdown path so the client does
+not silently discard content.
 
 Recognized URLs bypass server-side OpenGraph fetching unconditionally. The reader's
-browser loads the selected provider resource directly after an explicit click by
+browser loads each selected provider resource directly after an explicit click by
 default. A local user preference can enable viewport-proximate automatic loading,
 but only while the page is visible and proximity can be measured with
 `IntersectionObserver`; `prefers-reduced-motion` keeps the explicit-load path. The
@@ -55,7 +62,7 @@ GIPHY pages use a sandboxed official embed frame. Direct GIPHY, Tenor, and KLIPY
 media use native `img` or `video` elements. Towk does not execute provider HTML in
 the application DOM and does not load a provider search SDK. Any persisted
 link-preview card already attached to a historical message remains authoritative so
-rolling upgrades do not render two competing previews.
+rolling upgrades do not render competing previews.
 
 Automatically loaded media is cancelled while still in flight if the page becomes
 hidden or the network heuristic turns offline. A completed load stays mounted so the
@@ -63,11 +70,12 @@ browser can reuse the decoded resource. Manual loads are not cancelled by the ne
 heuristic. Load and error events are accepted only from the active media element and
 attempt, preventing stale retry events from changing the current state.
 
-Adding KLIPY direct-media recognition does not require a new capability version. The
-operator switch, privacy gate, storage boundary, wire representation, and rollback
-contract remain unchanged; older clients simply continue to display the same text URL.
-A provider expansion that changes any of those contracts requires a capability review
-and may require a new version.
+Adding KLIPY direct-media recognition or deriving several cards from one bounded text
+message does not require a new capability version. The operator switch, privacy gate,
+storage boundary, wire representation, and rollback contract remain unchanged; older
+clients simply continue to display the same text body. A provider expansion or message
+rule that changes any of those contracts requires a capability review and may require
+a new version.
 
 ## Consequences
 
@@ -77,7 +85,9 @@ and may require a new version.
   to the selected provider. The default click gate and source label make that
   boundary visible.
 - Provider removal, regional blocking, offline state, CSP changes, or network
-  failure can make the media unavailable while the persisted source URL remains.
+  failure can make media unavailable while the persisted source URLs remain.
+- A single GIF-only message can render no more than four ordered cards; a fifth URL or
+  any unsupported token falls back to ordinary text.
 - An older web view without `IntersectionObserver` uses click-to-load even when the
   user enabled automatic loading.
 - Historical messages with stored OpenGraph metadata can retain a different visual
