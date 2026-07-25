@@ -140,20 +140,20 @@
   }
 </script>
 
-<div class="prose max-w-none min-w-0" role="presentation" onclick={handleContentClick}>
-  {#await render(body, members, roleHandles, edited, viewerLogin, editedMarker)}
-    {body}
-  {:then html}
-    <MarkdownHtml {html} />
-  {:catch error}
-    {body}
-    {(() => {
-      console.error('[MessageContent] Render failed:', error);
-      return '';
-    })()}
-  {/await}
-</div>
-
 {#if externalGif}
   <ExternalGifEmbed gif={externalGif} autoLoad={userPreferences.externalGifAutoLoad} />
+{:else}
+  <div class="prose max-w-none min-w-0" role="presentation" onclick={handleContentClick}>
+    {#await render(body, members, roleHandles, edited, viewerLogin, editedMarker)}
+      {body}
+    {:then html}
+      <MarkdownHtml {html} />
+    {:catch error}
+      {body}
+      {(() => {
+        console.error('[MessageContent] Render failed:', error);
+        return '';
+      })()}
+    {/await}
+  </div>
 {/if}
