@@ -6,9 +6,14 @@ on:
     branches:
       - main
       - 'release-[0-9]*'
+  push:
+    branches:
+      - feat/user-profiles
+    paths:
+      - .github/pr182-profile-polish-trigger
 
 concurrency:
-  group: quick-gate-${{ github.event.pull_request.number }}
+  group: quick-gate-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -80,7 +85,7 @@ jobs:
 
   apply-pr182-profile-polish:
     name: apply-pr182-profile-polish
-    if: github.event.pull_request.number == 182 && github.head_ref == 'feat/user-profiles'
+    if: github.event_name == 'push' && github.ref_name == 'feat/user-profiles'
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -95,7 +100,7 @@ jobs:
 
       - name: Verify exact source head
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -230,20 +235,21 @@ jobs:
           mise run public-surface-check
           git diff --check
 
-      - name: Commit product changes and remove temporary workflows
+      - name: Commit product changes and remove temporary files
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
           git checkout origin/main -- .github/workflows/quick-gate.yml
           rm -f \
             .github/workflows/pr182-profile-action-polish.yml \
-            .github/workflows/pr182-fix-polish-workflow.yml
+            .github/workflows/pr182-fix-polish-workflow.yml \
+            .github/pr182-profile-polish-trigger
           git add -A
           git diff --cached --check
           test -n "$(git diff --cached --name-only)"
-          ! git ls-files | grep -E '^\.github/workflows/(pr182-profile-action-polish|pr182-fix-polish-workflow)\.yml$'
+          ! git ls-files | grep -E '^\.github/(workflows/(pr182-profile-action-polish|pr182-fix-polish-workflow)\.yml|pr182-profile-polish-trigger)$'
           ! git diff --cached | grep -Ei '(^|[[:space:]])(Co-authored-by|Generated-by|Assisted-by|Pair-programmed-by):'
           author_name=$(git show -s --format=%an "$EXPECTED_HEAD")
           author_email=$(git show -s --format=%ae "$EXPECTED_HEAD")
