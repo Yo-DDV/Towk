@@ -375,7 +375,7 @@ describe('ExternalGifEmbed', () => {
 
   it('cancels an in-flight automatic request when the document is hidden', async () => {
     const intersection = stubDeferredIntersectionObserver();
-    const screen = render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(intersection.observe).toHaveBeenCalledOnce();
 
