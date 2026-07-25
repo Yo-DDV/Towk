@@ -1,0 +1,53 @@
+name: i18n audit
+
+on:
+  push:
+    paths:
+      - '.github/workflows/i18n-audit.yml'
+      - 'apps/frontend/messages/**'
+      - 'apps/frontend/project.inlang/**'
+      - 'apps/frontend/scripts/**i18n**'
+      - 'apps/frontend/src/**'
+      - 'cli/internal/**'
+  pull_request:
+    branches:
+      - main
+      - 'release-[0-9]*'
+    paths:
+      - '.github/workflows/i18n-audit.yml'
+      - 'apps/frontend/messages/**'
+      - 'apps/frontend/project.inlang/**'
+      - 'apps/frontend/scripts/**i18n**'
+      - 'apps/frontend/src/**'
+      - 'cli/internal/**'
+  workflow_dispatch:
+
+concurrency:
+  group: i18n-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  i18n-audit:
+    name: i18n-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Verify localization audit implementation
+        run: |
+          set -euo pipefail
+          node --check apps/frontend/scripts/audit-user-visible-copy.mjs
+          node --test apps/frontend/scripts/audit-user-visible-copy.test.mjs
+
+      - name: Verify catalog parity and placeholders
+        run: node apps/frontend/scripts/check-i18n-catalogs.mjs
+
+      - name: Audit user-visible copy and translation semantics
+        run: node apps/frontend/scripts/audit-user-visible-copy.mjs
