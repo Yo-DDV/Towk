@@ -1,38 +1,75 @@
-name: Materialize README source files
+name: Bootstrap README repository activity
 
 on:
   push:
     branches:
       - docs/readme-repository-activity
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: materialize-readme-repository-activity
+  group: bootstrap-readme-repository-activity
   cancel-in-progress: true
 
 jobs:
   materialize:
     if: github.repository == 'Yo-DDV/Towk'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Check out the feature branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.sha }}
+          ref: docs/readme-repository-activity
           fetch-depth: 1
 
-      - name: Upload the source README files
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Set up the pinned Node.js toolchain
+        uses: ./.github/actions/setup
         with:
-          name: readme-source-files
-          path: |
-            README.md
-            README.de.md
-            README.es.md
-            README.fr.md
-            README.pt.md
-          if-no-files-found: error
-          retention-days: 1
+          install-cli-deps: "false"
+          install-frontend-deps: "false"
+          mise-install-args: node
+
+      - name: Materialize the repository-activity implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .bootstrap-readme-archive/*.b64 > /tmp/readme-impl.tar.gz.b64
+          base64 --decode /tmp/readme-impl.tar.gz.b64 > /tmp/readme-impl.tar.gz
+          echo "585dc9019149d23463c1e3d739b7b257230f349bea6ada6c9f75b4ebfdc7f18a  /tmp/readme-impl.tar.gz" | sha256sum --check --strict
+          tar -xzf /tmp/readme-impl.tar.gz -C .
+          rm -rf .bootstrap-readme-archive
+
+      - name: Verify the repository-activity implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/generate-readme-repository-activity.mjs
+          node --check tools/generate-readme-project-pulse.mjs
+          node --check tools/update-readme-project-pulse-copy.mjs
+          node --test tools/generate-readme-repository-activity.test.mjs
+          node --test tools/generate-readme-project-pulse.test.mjs
+          node --test tools/update-readme-project-pulse-copy.test.mjs
+          node --test tools/fact-check-readmes.test.mjs
+
+      - name: Update and verify localized README source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/update-readme-project-pulse-copy.mjs
+          node tools/update-readme-project-pulse-copy.mjs --check
+
+      - name: Commit the complete implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "Yo-DDV"
+          git config user.email "116607353+Yo-DDV@users.noreply.github.com"
+          git commit -m "docs(readme): implement repository activity metrics"
+          git push origin HEAD:docs/readme-repository-activity
