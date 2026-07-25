@@ -20,7 +20,7 @@ function detailedProfileKey(serverId: string, userId: string): string {
  * realtime invalidation.
  */
 export function createDetailedUserProfileCache() {
-  const entries = new Map<string, DetailedProfileEntry>();
+  const entries = new SvelteMap<string, DetailedProfileEntry>();
   const revisions = new SvelteMap<string, number>();
 
   function entryFor(key: string): DetailedProfileEntry {
