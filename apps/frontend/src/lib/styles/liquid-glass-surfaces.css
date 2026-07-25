@@ -1,10 +1,10 @@
 /*
  * Shared liquid-glass treatment for the two compact controls that anchor the
- * bottom application chrome. The opaque gradient and border are the universal
- * fallback; backdrop blur is a progressive enhancement only.
+ * bottom application chrome. The opaque gradient and inset ring are the
+ * universal fallback; backdrop blur is a progressive enhancement only.
  */
 :root {
-  --liquid-glass-fill: rgba(248, 250, 252, 0.9);
+  --liquid-glass-fill: rgb(248 250 252);
   --liquid-glass-fill-translucent: rgba(248, 250, 252, 0.7);
   --liquid-glass-sheen: rgba(255, 255, 255, 0.78);
   --liquid-glass-sheen-soft: rgba(255, 255, 255, 0.34);
@@ -18,7 +18,7 @@
 }
 
 :root[data-theme='dark'] {
-  --liquid-glass-fill: rgba(38, 38, 42, 0.94);
+  --liquid-glass-fill: rgb(38 38 42);
   --liquid-glass-fill-translucent: rgba(38, 38, 42, 0.72);
   --liquid-glass-sheen: rgba(255, 255, 255, 0.16);
   --liquid-glass-sheen-soft: rgba(255, 255, 255, 0.065);
@@ -34,7 +34,8 @@
 :root [data-testid='current-user-identity-card'],
 :root [data-testid='message-composer-shell'].composer-focus-shell {
   --liquid-glass-current-border: var(--liquid-glass-border);
-  background-color: var(--liquid-glass-fill);
+  --liquid-glass-current-fill: var(--liquid-glass-fill);
+  background-color: var(--liquid-glass-current-fill);
   background-image:
     radial-gradient(140% 185% at 4% -58%, var(--liquid-glass-sheen) 0%, transparent 52%),
     linear-gradient(
@@ -60,7 +61,8 @@
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   :root [data-testid='current-user-identity-card'],
   :root [data-testid='message-composer-shell'].composer-focus-shell {
-    background-color: var(--liquid-glass-fill-translucent);
+    --liquid-glass-current-fill: var(--liquid-glass-fill-translucent);
+    background-color: var(--liquid-glass-current-fill);
     -webkit-backdrop-filter: blur(15px) saturate(132%);
     backdrop-filter: blur(15px) saturate(132%);
   }
@@ -104,7 +106,7 @@
 }
 
 :root [data-testid='message-composer-shell'].composer-focus-shell.sending {
-  background-color: var(--liquid-glass-fill);
+  background-color: var(--liquid-glass-current-fill);
   background-image:
     linear-gradient(
       90deg,
@@ -156,6 +158,16 @@
       -webkit-backdrop-filter: blur(10px) saturate(125%);
       backdrop-filter: blur(10px) saturate(125%);
     }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    --liquid-glass-current-fill: var(--liquid-glass-fill);
+    background-color: var(--liquid-glass-current-fill);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 
