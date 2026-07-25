@@ -2,6 +2,7 @@
   import { resolve } from '$app/paths';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedJSONHeaders } from '$lib/auth/localizedRequest';
   import Hint from '$lib/ui/Hint.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { TextInput, FormError, Button, Form, z, validate } from '$lib/ui/form';
@@ -29,7 +30,7 @@
     try {
       const response = await fetch('/auth/forgot-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({ email })
       });
 
@@ -41,8 +42,8 @@
       }
 
       submitted = true;
-    } catch (err) {
-      error = err instanceof Error ? err.message : m['common.error.network']();
+    } catch {
+      error = m['common.error.network']();
     } finally {
       isLoading = false;
     }
