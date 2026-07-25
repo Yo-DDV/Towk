@@ -14,30 +14,7 @@ const SAFE_AREA_LEFT_PROPERTY = '--mobile-navigation-safe-left';
 const SAFE_AREA_RIGHT_PROPERTY = '--mobile-navigation-safe-right';
 const SAFE_AREA_BOTTOM_PROPERTY = '--mobile-navigation-safe-bottom';
 
-const BLOCKED_START_SELECTOR = [
-  'a',
-  'button',
-  'input',
-  'textarea',
-  'select',
-  'label',
-  'summary',
-  'iframe',
-  'audio',
-  'video',
-  'canvas',
-  '[contenteditable]:not([contenteditable="false"])',
-  '[draggable="true"]',
-  '[role="button"]',
-  '[role="checkbox"]',
-  '[role="combobox"]',
-  '[role="dialog"]',
-  '[role="listbox"]',
-  '[role="menu"]',
-  '[role="slider"]',
-  '[role="spinbutton"]',
-  '[role="switch"]',
-  '[role="textbox"]',
+const EXCLUDED_START_SELECTOR = [
   '[data-app-sidebar="true"]',
   '[data-mobile-navigation-swipe="ignore"]'
 ].join(',');
@@ -106,11 +83,6 @@ function isInsideSystemGestureGuard(
     x >= right - guards.right ||
     y >= bottom - guards.bottom
   );
-}
-
-function hasActiveTextSelection() {
-  const selection = document.getSelection();
-  return selection !== null && !selection.isCollapsed;
 }
 
 function ownsHorizontalGesture(element: Element, host: HTMLElement) {
@@ -237,6 +209,7 @@ function panConfig(
 ): PanGestureConfig {
   return {
     axis: 'x',
+    captureStart: true,
     enabled: () =>
       viewportBounds().width <=
       (options.maxViewportWidthPx ?? MAX_TOUCH_VIEWPORT_WIDTH_PX),
@@ -264,8 +237,8 @@ function panConfig(
 
       const target = startElement(event);
       if (!target || !node.contains(target)) return false;
-      if (target.closest(BLOCKED_START_SELECTOR)) return false;
-      if (hasActiveTextSelection()) return false;
+      const excludedTarget = target.closest(EXCLUDED_START_SELECTOR);
+      if (excludedTarget && node.contains(excludedTarget)) return false;
       if (ownsHorizontalGesture(target, node)) return false;
       return true;
     },
@@ -305,10 +278,13 @@ function panConfig(
 /**
  * Adds touch-only, system-safe horizontal navigation gestures to the app shell.
  *
- * The action deliberately leaves the outer screen edges, the bottom OS gesture
- * area, vertical scrolling, interactive controls, embedded content, and nested
- * horizontal scrollers untouched. A claimed gesture performs one state change:
- * open/close the left navigation or open/close the current room's right panel.
+ * Start events are observed in the capture phase so ordinary descendants cannot
+ * make navigation swipes disappear. Links, buttons, media, selected text, and
+ * editors remain untouched for taps, focus, long press, and vertical movement;
+ * default behavior is canceled only after a deliberate horizontal gesture is
+ * claimed. The outer screen edges, bottom OS gesture area, app-owned sidebar
+ * surfaces, explicit opt-outs, and nested horizontal gesture owners keep their
+ * existing priority.
  */
 export function mobileNavigationSwipe(
   node: HTMLElement,
