@@ -88,9 +88,11 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fqx '  reserved "preview_user_ids";' proto/chatto/api/v1/read_state.proto
-          ! grep -En 'PreviewUserIds|previewUserIds|preview_user_ids' \
-            cli/internal/pb/chatto/api/v1/read_state.pb.go \
-            packages/api-types/src/chatto/api/v1/read_state_pb.ts \
+          ! grep -En 'PreviewUserIds|GetPreviewUserIds' \
+            cli/internal/pb/chatto/api/v1/read_state.pb.go
+          ! grep -En 'previewUserIds' \
+            packages/api-types/src/chatto/api/v1/read_state_pb.ts
+          ! grep -F '| `preview_user_ids` |' \
             apps/docs-website/src/generated/connectrpc-api/api.raw.mdx \
             apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
 
