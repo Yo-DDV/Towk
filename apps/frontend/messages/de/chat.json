@@ -11,10 +11,19 @@
       "time_minutes": "vor {count} Min.",
       "time_hours": "vor {count} Std.",
       "time_days": "vor {count} Tg.",
+      "direct_message": "{actor} hat dir eine Nachricht gesendet",
+      "direct_message_unknown": "Neue Nachricht",
+      "mention": "{actor} hat dich erwähnt",
+      "mention_unknown": "Du wurdest erwähnt",
+      "reply": "{actor} hat auf deine Nachricht geantwortet",
+      "reply_unknown": "Neue Antwort auf deine Nachricht",
+      "room_message": "{actor} hat eine Nachricht gepostet",
+      "room_message_unknown": "Neue Nachricht",
       "call_started": "{actor} hat einen Anruf gestartet",
       "call_started_unknown": "Ein Anruf wurde gestartet",
       "private_call_started": "{actor} ruft dich an",
-      "private_call_started_unknown": "Eingehender Anruf"
+      "private_call_started_unknown": "Eingehender Anruf",
+      "location_in_server": "#{room} auf {server}"
     },
     "sign_out": {
       "title": "Abmelden",
