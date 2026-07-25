@@ -256,24 +256,25 @@ responsive dialog backed by the detailed profile API.
         class="pointer-events-none absolute -bottom-24 -left-16 -z-10 h-56 w-56 rounded-full bg-accent/10 blur-3xl"
         aria-hidden="true"
       ></div>
-      <div class="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
-        <div class="relative shrink-0 self-start rounded-full bg-background/75 p-1.5 shadow-xl ring-1 ring-text/10 backdrop-blur">
-          <UserAvatar user={profileUser} size="xl" showPresence />
+
+      <div class="profile-hero-layout">
+        <div class="profile-avatar-shell" data-testid="profile-avatar-shell">
+          <UserAvatar user={profileUser} size="xl" showPresence class="profile-avatar" />
         </div>
-        <div class="min-w-0 flex-1">
-          <div class="flex min-w-0 flex-col gap-2">
-            <p class="text-xs font-semibold tracking-[0.22em] text-muted uppercase">
-              {m['profile.details']()}
-            </p>
-            <h3 class="truncate text-3xl font-black tracking-tight text-text-top sm:text-4xl">
-              {displayName}
-            </h3>
-            <p class="truncate text-sm font-medium text-muted">@{login}</p>
+
+        <div class="profile-identity min-w-0">
+          <div class="profile-kicker">
+            <span class="profile-section-icon" aria-hidden="true">
+              <span class="iconify uil--user-square"></span>
+            </span>
+            <span>{m['profile.details']()}</span>
           </div>
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            <span
-              class="inline-flex min-h-8 items-center gap-2 rounded-full border border-text/10 bg-background/70 px-3 py-1 text-xs font-semibold shadow-sm backdrop-blur"
-            >
+          <h3 class="mt-3 truncate text-3xl font-black tracking-tight text-text-top sm:text-4xl">
+            {displayName}
+          </h3>
+          <p class="mt-1 truncate text-sm font-semibold text-muted">@{login}</p>
+          <div class="profile-presence-row mt-4 flex flex-wrap items-center gap-2">
+            <span class="profile-presence-chip">
               <span class={['h-2.5 w-2.5 rounded-full shadow-sm', presenceDotClass]} aria-hidden="true"
               ></span>
               {presenceLabel}
@@ -281,6 +282,43 @@ responsive dialog backed by the detailed profile API.
             <UserCustomStatusBadge status={customStatus} showText class="max-w-full" />
           </div>
         </div>
+
+        <section
+          class="profile-hero-roles"
+          aria-labelledby={rolesHeadingId}
+          data-testid="profile-hero-roles"
+        >
+          <h4 id={rolesHeadingId} class="flex items-center gap-2 text-sm font-bold text-text-top">
+            <span class="profile-section-icon" aria-hidden="true">
+              <span class="iconify uil--award"></span>
+            </span>
+            {m['profile.roles']()}
+          </h4>
+          <div class="mt-3 flex flex-wrap gap-2">
+            {#if loading}
+              <span class="profile-role-skeleton w-24"></span>
+              <span class="profile-role-skeleton w-16"></span>
+            {:else if profile}
+              {#if roles.length === 0}
+                <span class="profile-role-chip">{m['profile.member_role']()}</span>
+              {:else}
+                {#each roles as role (role.name)}
+                  <span
+                    class={['profile-role-chip', role.moderation && 'profile-role-chip-moderation']}
+                    title={role.name}
+                  >
+                    {#if role.moderation}
+                      <span class="iconify text-base uil--shield-check" aria-hidden="true"></span>
+                    {/if}
+                    {role.displayName || role.name}
+                  </span>
+                {/each}
+              {/if}
+            {:else}
+              <span class="text-sm font-medium text-muted">{m['profile.not_available']()}</span>
+            {/if}
+          </div>
+        </section>
       </div>
     </section>
 
@@ -292,7 +330,9 @@ responsive dialog backed by the detailed profile API.
         data-testid="user-profile-loading"
       >
         <div class="flex items-center gap-3 text-sm font-medium text-muted">
-          <span class="iconify animate-spin text-xl text-primary uil--spinner-alt" aria-hidden="true"></span>
+          <span class="profile-section-icon" aria-hidden="true">
+            <span class="iconify animate-spin uil--spinner-alt"></span>
+          </span>
           {m['profile.loading']()}
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
@@ -303,24 +343,28 @@ responsive dialog backed by the detailed profile API.
       </section>
     {:else if loadError}
       <section
-        class="profile-state-card flex items-start gap-3 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-danger shadow-sm backdrop-blur"
+        class="profile-state-card flex items-start gap-3 rounded-2xl border border-danger/30 bg-danger/10 p-4 text-danger shadow-sm backdrop-blur"
         role="alert"
         data-testid="user-profile-error"
       >
-        <span class="iconify mt-0.5 text-xl uil--exclamation-octagon" aria-hidden="true"></span>
+        <span class="profile-state-icon" aria-hidden="true">
+          <span class="iconify uil--exclamation-octagon"></span>
+        </span>
         <p class="text-sm font-medium leading-relaxed">{loadError}</p>
       </section>
     {/if}
 
     {#if profile}
-      <div class="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+      <div class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
         <section
           class="profile-card profile-biography-card grid min-w-0 gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
           aria-labelledby={biographyHeadingId}
         >
           <div class="flex items-center justify-between gap-3">
             <h4 id={biographyHeadingId} class="flex items-center gap-2 text-sm font-semibold text-text">
-              <span class="iconify text-lg text-primary uil--file-alt" aria-hidden="true"></span>
+              <span class="profile-section-icon" aria-hidden="true">
+                <span class="iconify uil--file-alt"></span>
+              </span>
               {m['profile.biography']()}
             </h4>
           </div>
@@ -333,115 +377,87 @@ responsive dialog backed by the detailed profile API.
           </div>
         </section>
 
-        <div class="grid min-w-0 gap-4">
-          <section
-            class="profile-card grid gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
-            aria-labelledby={rolesHeadingId}
-          >
-            <h4 id={rolesHeadingId} class="flex items-center gap-2 text-sm font-semibold text-text">
-              <span class="iconify text-lg text-primary uil--award" aria-hidden="true"></span>
-              {m['profile.roles']()}
-            </h4>
-            <div class="flex flex-wrap gap-2">
-              {#if roles.length === 0}
-                <span class="profile-role-chip border-text/10 bg-surface-200 text-text">
-                  {m['profile.member_role']()}
+        <section
+          class="profile-card grid gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
+          aria-labelledby={detailsHeadingId}
+        >
+          <h4 id={detailsHeadingId} class="sr-only">{m['profile.details']()}</h4>
+          <div class="grid gap-3">
+            <div class="profile-detail-tile">
+              <span class="profile-detail-icon iconify uil--calendar-alt" aria-hidden="true"></span>
+              <span class="min-w-0">
+                <span class="block text-xs font-semibold tracking-wide text-muted uppercase">
+                  {m['profile.joined']()}
                 </span>
-              {:else}
-                {#each roles as role (role.name)}
-                  <span
-                    class={[
-                      'profile-role-chip',
-                      role.moderation
-                        ? 'border-primary/35 bg-primary/10 font-semibold text-primary ring-1 ring-primary/10'
-                        : 'border-text/10 bg-surface-200/85 text-text'
-                    ]}
-                    title={role.name}
-                  >
-                    {#if role.moderation}
-                      <span class="iconify text-base uil--shield-check" aria-hidden="true"></span>
-                    {/if}
-                    {role.displayName || role.name}
-                  </span>
-                {/each}
-              {/if}
+                <span class="mt-1 block text-sm font-semibold text-text">
+                  {formatDate(profile.joinedAt)}
+                </span>
+              </span>
             </div>
-          </section>
-
-          <section
-            class="profile-card grid gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
-            aria-labelledby={detailsHeadingId}
-          >
-            <h4 id={detailsHeadingId} class="sr-only">{m['profile.details']()}</h4>
-            <div class="grid gap-3">
-              <div class="profile-detail-tile">
-                <span class="profile-detail-icon iconify uil--calendar-alt" aria-hidden="true"></span>
-                <span class="min-w-0">
-                  <span class="block text-xs font-semibold tracking-wide text-muted uppercase">
-                    {m['profile.joined']()}
-                  </span>
-                  <span class="mt-1 block text-sm font-semibold text-text">
-                    {formatDate(profile.joinedAt)}
-                  </span>
+            <div class="profile-detail-tile">
+              <span class="profile-detail-icon iconify uil--clock" aria-hidden="true"></span>
+              <span class="min-w-0">
+                <span class="block text-xs font-semibold tracking-wide text-muted uppercase">
+                  {m['profile.last_activity']()}
                 </span>
-              </div>
-              <div class="profile-detail-tile">
-                <span class="profile-detail-icon iconify uil--clock" aria-hidden="true"></span>
-                <span class="min-w-0">
-                  <span class="block text-xs font-semibold tracking-wide text-muted uppercase">
-                    {m['profile.last_activity']()}
-                  </span>
-                  <span class="mt-1 block text-sm font-semibold text-text">
-                    {#if !profile.lastActivityVisible}
-                      <span class="inline-flex items-center gap-1.5 text-muted">
-                        <span class="iconify uil--eye-slash" aria-hidden="true"></span>
-                        {m['profile.last_activity_hidden']()}
-                      </span>
-                    {:else if profile.lastActivity}
-                      {formatDateTime(profile.lastActivity)}
-                    {:else}
-                      <span class="text-muted">{m['profile.last_activity_unavailable']()}</span>
-                    {/if}
-                  </span>
+                <span class="mt-1 block text-sm font-semibold text-text">
+                  {#if !profile.lastActivityVisible}
+                    <span class="inline-flex items-center gap-1.5 text-muted">
+                      <span class="iconify uil--eye-slash" aria-hidden="true"></span>
+                      {m['profile.last_activity_hidden']()}
+                    </span>
+                  {:else if profile.lastActivity}
+                    {formatDateTime(profile.lastActivity)}
+                  {:else}
+                    <span class="text-muted">{m['profile.last_activity_unavailable']()}</span>
+                  {/if}
                 </span>
-              </div>
+              </span>
             </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
     {/if}
 
     {#if showActions}
       <section
-        class="profile-actions sticky bottom-0 z-10 -mx-1 flex flex-wrap gap-2 rounded-t-2xl border border-border/80 bg-background/90 px-3 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+        class="profile-actions sticky bottom-0 z-10 -mx-1 grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-2 rounded-t-2xl border border-border/80 bg-background/92 px-3 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(0,0,0,0.08)] backdrop-blur-xl"
         aria-label={m['profile.actions']()}
       >
         {#if profile?.viewerIsSelf}
-          <button type="button" class="btn-primary min-h-11 flex-1 sm:flex-none" onclick={handleEditProfile}>
-            <span class="iconify uil--edit" aria-hidden="true"></span>
+          <button type="button" class="profile-action-button btn-primary min-h-12" onclick={handleEditProfile}>
+            <span class="profile-action-icon" aria-hidden="true">
+              <span class="iconify uil--edit"></span>
+            </span>
             {m['profile.edit']()}
           </button>
         {/if}
         {#if mayMessage}
-          <button type="button" class="btn-primary min-h-11 flex-1 sm:flex-none" onclick={handleSendMessage}>
-            <span class="iconify uil--comment-alt-message" aria-hidden="true"></span>
+          <button type="button" class="profile-action-button btn-primary min-h-12" onclick={handleSendMessage}>
+            <span class="profile-action-icon" aria-hidden="true">
+              <span class="iconify uil--comment-alt-message"></span>
+            </span>
             {m['chat.user_menu.send_message']()}
           </button>
         {/if}
         {#if mayCall}
-          <button type="button" class="btn-secondary min-h-11 flex-1 sm:flex-none" onclick={handleCall}>
-            <span class="iconify uil--phone" aria-hidden="true"></span>
+          <button type="button" class="profile-action-button btn-accent min-h-12" onclick={handleCall}>
+            <span class="profile-action-icon" aria-hidden="true">
+              <span class="iconify uil--phone"></span>
+            </span>
             {m['profile.call']()}
           </button>
         {/if}
         {#if canBanFromRoom}
           <button
             type="button"
-            class="btn-danger min-h-11 flex-1 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            class="profile-action-button btn-danger min-h-12 disabled:cursor-not-allowed disabled:opacity-50"
             onclick={handleBanFromRoom}
             disabled={banningFromRoom}
           >
-            <span class="iconify uil--ban" aria-hidden="true"></span>
+            <span class="profile-action-icon" aria-hidden="true">
+              <span class="iconify uil--ban"></span>
+            </span>
             {banningFromRoom ? m['admin.moderation.banning']() : m['admin.moderation.ban_action']()}
           </button>
         {/if}
@@ -451,6 +467,128 @@ responsive dialog backed by the detailed profile API.
 </Dialog>
 
 <style>
+  .profile-hero {
+    container-type: inline-size;
+  }
+
+  .profile-hero-layout {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .profile-avatar-shell {
+    position: relative;
+    display: grid;
+    width: 6.5rem;
+    height: 6.5rem;
+    aspect-ratio: 1;
+    flex: none;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, white 24%, var(--color-text) 10%);
+    border-radius: 9999px;
+    padding: 0.55rem;
+    background: linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-surface-100) 90%, white 10%),
+      color-mix(in srgb, var(--color-background) 86%, black 14%)
+    );
+    box-shadow:
+      -0.65rem -0.65rem 1.35rem color-mix(in srgb, white 14%, transparent),
+      0.75rem 0.75rem 1.6rem color-mix(in srgb, black 28%, transparent),
+      inset 0.16rem 0.16rem 0.35rem color-mix(in srgb, white 22%, transparent),
+      inset -0.18rem -0.18rem 0.4rem color-mix(in srgb, black 16%, transparent);
+  }
+
+  .profile-avatar-shell::before {
+    position: absolute;
+    inset: 0.3rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 32%, transparent);
+    border-radius: inherit;
+    content: '';
+    pointer-events: none;
+  }
+
+  .profile-avatar-shell :global(.profile-avatar) {
+    width: 100% !important;
+    height: 100% !important;
+    aspect-ratio: 1;
+    border-radius: 9999px;
+  }
+
+  .profile-avatar-shell :global(.profile-avatar img),
+  .profile-avatar-shell :global(.profile-avatar > div:first-child) {
+    width: 100% !important;
+    height: 100% !important;
+    aspect-ratio: 1;
+    border-radius: 9999px;
+    object-fit: cover;
+  }
+
+  .profile-kicker {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    color: var(--color-muted);
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .profile-section-icon,
+  .profile-state-icon {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 48%, transparent);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-primary) 22%, var(--color-surface-100));
+    color: color-mix(in srgb, var(--color-primary) 82%, white 18%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 26%, transparent),
+      0 0.4rem 1rem color-mix(in srgb, var(--color-primary) 16%, transparent);
+    font-size: 1.1rem;
+  }
+
+  .profile-state-icon {
+    border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
+    background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface-100));
+    color: var(--color-danger);
+  }
+
+  .profile-presence-chip {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--color-text) 18%, transparent);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--color-background) 84%, transparent);
+    padding: 0.25rem 0.75rem;
+    color: var(--color-text);
+    font-size: 0.75rem;
+    font-weight: 750;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+    backdrop-filter: blur(0.75rem);
+  }
+
+  .profile-hero-roles {
+    grid-column: 1 / -1;
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--color-background) 70%, transparent);
+    padding: 0.9rem;
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
+      0 0.9rem 2rem color-mix(in srgb, black 10%, transparent);
+    backdrop-filter: blur(1rem) saturate(1.15);
+  }
+
   .profile-card,
   .profile-state-card,
   .profile-loading-grid {
@@ -464,12 +602,30 @@ responsive dialog backed by the detailed profile API.
     min-height: 2rem;
     align-items: center;
     gap: 0.375rem;
-    border-width: 1px;
+    border: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent);
     border-radius: 9999px;
+    background: color-mix(in srgb, var(--color-background) 88%, transparent);
     padding: 0.25rem 0.75rem;
+    color: var(--color-text-top);
     font-size: 0.875rem;
+    font-weight: 650;
     line-height: 1.25rem;
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 20%, transparent);
+  }
+
+  .profile-role-chip-moderation {
+    border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 20%, var(--color-background));
+    color: color-mix(in srgb, var(--color-primary) 84%, white 16%);
+    font-weight: 750;
+  }
+
+  .profile-role-skeleton {
+    display: inline-block;
+    height: 2rem;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--color-surface-200) 76%, transparent);
+    animation: profile-role-pulse 1.4s ease-in-out infinite;
   }
 
   .profile-detail-tile {
@@ -477,21 +633,48 @@ responsive dialog backed by the detailed profile API.
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.75rem;
     align-items: center;
-    border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-text) 11%, transparent);
     border-radius: 0.875rem;
-    background: color-mix(in srgb, var(--color-surface-100) 78%, transparent);
+    background: color-mix(in srgb, var(--color-surface-100) 80%, transparent);
     padding: 0.875rem;
   }
 
   .profile-detail-icon {
     display: grid;
-    min-height: 2.5rem;
-    min-width: 2.5rem;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
     place-items: center;
-    border-radius: 0.875rem;
-    background: color-mix(in srgb, var(--color-primary) 14%, transparent);
-    color: var(--color-primary);
-    font-size: 1.15rem;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+    border-radius: 0.9rem;
+    background: color-mix(in srgb, var(--color-primary) 20%, var(--color-surface-100));
+    color: color-mix(in srgb, var(--color-primary) 82%, white 18%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
+      0 0.5rem 1.15rem color-mix(in srgb, var(--color-primary) 13%, transparent);
+    font-size: 1.25rem;
+  }
+
+  .profile-action-button {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    padding-inline: 1rem;
+    font-weight: 750;
+  }
+
+  .profile-action-icon {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+    border-radius: 0.7rem;
+    background: color-mix(in srgb, currentColor 16%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, white 22%, transparent);
+    font-size: 1.05rem;
   }
 
   .profile-skeleton {
@@ -531,9 +714,61 @@ responsive dialog backed by the detailed profile API.
     word-break: break-word;
   }
 
+  @container (min-width: 42rem) {
+    .profile-hero-layout {
+      grid-template-columns: auto minmax(14rem, 1fr) minmax(15rem, 0.72fr);
+      gap: 1.5rem;
+    }
+
+    .profile-avatar-shell {
+      width: 7rem;
+      height: 7rem;
+    }
+
+    .profile-hero-roles {
+      grid-column: auto;
+    }
+  }
+
+  @container (max-width: 27rem) {
+    .profile-hero-layout {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      text-align: center;
+    }
+
+    .profile-identity {
+      width: 100%;
+    }
+
+    .profile-kicker,
+    .profile-presence-row {
+      justify-content: center;
+    }
+
+    .profile-hero-roles {
+      width: 100%;
+      text-align: left;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .profile-skeleton::after {
+    .profile-skeleton::after,
+    .profile-role-skeleton {
       animation: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .profile-avatar-shell,
+    .profile-hero-roles,
+    .profile-section-icon,
+    .profile-state-icon,
+    .profile-detail-icon,
+    .profile-action-icon,
+    .profile-role-chip {
+      border: 1px solid CanvasText;
+      box-shadow: none;
     }
   }
 
@@ -572,9 +807,15 @@ responsive dialog backed by the detailed profile API.
     .profile-actions {
       margin-inline: -0.25rem;
     }
+  }
 
-    .profile-actions > button {
-      justify-content: center;
+  @keyframes profile-role-pulse {
+    0%,
+    100% {
+      opacity: 0.58;
+    }
+    50% {
+      opacity: 1;
     }
   }
 
