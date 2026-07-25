@@ -6,6 +6,8 @@ declare global {
     // interface Locals {}
     // interface PageData {}
     interface PageState {
+      notificationServerId?: string;
+      notificationSidebarOpen?: boolean;
       profileDialog?: string;
       threadFilter?: 'all' | 'unread';
       welcome?: boolean;
@@ -14,6 +16,7 @@ declare global {
           | 'createRoom'
           | 'logout'
           | 'leaveRoom'
+          | 'deleteDirectMessage'
           | 'deleteMessage'
           | 'leaveServer'
           | 'deleteAttachment'
