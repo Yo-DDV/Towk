@@ -1,4 +1,4 @@
-name: read-receipts main source exporter
+name: read-receipts base source exporter
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: read-receipts-main-source-${{ github.event.pull_request.number }}
+  group: read-receipts-base-source-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -17,10 +17,10 @@ jobs:
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out exact main source
+      - name: Check out exact historical base
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ba9bccc955507b04d0d29666b47ca6dfd121176a
+          ref: 073f938eb7f463b69ff0a9f97a9175f0bb1e3ebd
           fetch-depth: 1
           persist-credentials: false
 
@@ -28,21 +28,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "ba9bccc955507b04d0d29666b47ca6dfd121176a"
-          archive="${RUNNER_TEMP}/towk-main-ba9bccc-source.tar.gz"
-          status="${RUNNER_TEMP}/towk-main-source-status.txt"
+          test "$(git rev-parse HEAD)" = "073f938eb7f463b69ff0a9f97a9175f0bb1e3ebd"
+          archive="${RUNNER_TEMP}/towk-base-073f938-source.tar.gz"
+          status="${RUNNER_TEMP}/towk-base-source-status.txt"
           tar --exclude=.git --exclude=node_modules -czf "${archive}" .
           {
-            printf 'main_sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'base_sha=%s\n' "$(git rev-parse HEAD)"
             printf 'archive_sha256=%s\n' "$(sha256sum "${archive}" | cut -d' ' -f1)"
           } > "${status}"
 
       - name: Upload source archive
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: towk-read-receipts-main-source
+          name: towk-read-receipts-base-source
           path: |
-            ${{ runner.temp }}/towk-main-ba9bccc-source.tar.gz
-            ${{ runner.temp }}/towk-main-source-status.txt
+            ${{ runner.temp }}/towk-base-073f938-source.tar.gz
+            ${{ runner.temp }}/towk-base-source-status.txt
           retention-days: 1
           if-no-files-found: error
