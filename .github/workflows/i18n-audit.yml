@@ -34,7 +34,7 @@ jobs:
   i18n-audit:
     name: i18n-audit
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -79,6 +79,29 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
+      - name: Pack branch audit snapshot
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -czf towk-i18n-snapshot.tgz \
+            apps/frontend/messages \
+            apps/frontend/project.inlang \
+            apps/frontend/scripts \
+            apps/frontend/src \
+            cli/internal
+
+      - name: Upload branch audit snapshot
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: i18n-audit-snapshot-${{ github.sha }}
+          path: |
+            audit-report.txt
+            towk-i18n-snapshot.tgz
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Publish branch audit report
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
         env:
@@ -95,15 +118,18 @@ jobs:
 
           report_path = Path('audit-report.txt')
           report = report_path.read_text(encoding='utf-8') if report_path.exists() else 'Audit report was not produced.'
-          max_report_chars = 58000
+          max_report_chars = 57000
           truncated = len(report) > max_report_chars
           if truncated:
             report = report[:max_report_chars] + '\n\n… report truncated at the GitHub comment size boundary.'
           status = 'PASS' if os.environ.get('AUDIT_STATUS') == '0' else 'FAIL'
+          artifact = f'i18n-audit-snapshot-{os.environ["GITHUB_SHA"]}'
           body = (
               '<!-- towk-i18n-audit-report -->\n'
               '### Localization audit — branch report\n\n'
               f'- Head: `{os.environ["GITHUB_SHA"]}`\n'
+              f'- Workflow run ID: `{os.environ["GITHUB_RUN_ID"]}`\n'
+              f'- Ephemeral artifact: `{artifact}` (one-day retention)\n'
               f'- Result: **{status}**\n'
               '- Scope: frontend source, backend user-facing fields, catalog parity, placeholders, and semantic checks.\n'
               '- Published content is restricted to repository paths, line numbers, categories, command results, and copy-redacted findings.\n\n'
