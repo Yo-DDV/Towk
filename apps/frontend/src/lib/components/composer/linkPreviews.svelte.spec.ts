@@ -37,7 +37,8 @@ describe('LinkPreviewState', () => {
     for (const url of [
       'https://giphy.com/gifs/reaction-happy-l0MYt5jPR6QX5pnqM',
       'https://media4.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.webp',
-      'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif'
+      'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif',
+      'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif'
     ]) {
       const cleanup = state.scheduleDetection(url, false);
       await vi.advanceTimersByTimeAsync(500);
