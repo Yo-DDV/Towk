@@ -10,15 +10,15 @@ const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
 const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
 
-async function sendStandaloneExternalGifUrl(
+async function sendExternalGifOnlyMessage(
   roomPage: {
     waitForInputEditable(): Promise<void>;
     messageInput: Locator;
   },
-  url: string
+  body: string
 ): Promise<void> {
   await roomPage.waitForInputEditable();
-  await roomPage.messageInput.fill(url);
+  await roomPage.messageInput.fill(body);
   await roomPage.messageInput.press('Enter');
 }
 
@@ -39,7 +39,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await sendStandaloneExternalGifUrl(roomPage, giphyUrl);
+    await sendExternalGifOnlyMessage(roomPage, giphyUrl);
 
     const message = page.locator('[role="article"]', { hasText: 'GIPHY' }).last();
     const embed = message.getByTestId('external-gif-embed');
@@ -69,7 +69,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await sendStandaloneExternalGifUrl(roomPage, giphyMediaUrl);
+    await sendExternalGifOnlyMessage(roomPage, giphyMediaUrl);
 
     const embed = page.getByTestId('external-gif-embed').last();
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
@@ -97,7 +97,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await sendStandaloneExternalGifUrl(roomPage, klipyMediaUrl);
+    await sendExternalGifOnlyMessage(roomPage, klipyMediaUrl);
 
     const embed = page.getByTestId('external-gif-embed').last();
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
@@ -126,7 +126,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await sendStandaloneExternalGifUrl(roomPage, tenorMediaUrl);
+    await sendExternalGifOnlyMessage(roomPage, tenorMediaUrl);
 
     const embed = page.getByTestId('external-gif-embed').last();
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
@@ -135,6 +135,60 @@ test.describe('External GIF embeds', () => {
     await embed.getByRole('button', { name: 'Load external GIF' }).click();
     await expect(embed.locator('img')).toHaveAttribute('src', tenorMediaUrl);
     await expect(embed).toHaveAttribute('data-state', 'loaded');
+  });
+
+  test('renders every URL in a GIF-only multi-link message without raw-link duplication', async ({
+    page,
+    chatPage,
+    roomPage
+  }) => {
+    let mediaRequests = 0;
+    let embedRequests = 0;
+    await page.route('https://i.giphy.com/**', async (route) => {
+      mediaRequests += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'image/gif',
+        body: onePixelGif,
+        headers: { 'Cache-Control': 'public, max-age=60' }
+      });
+    });
+    await page.route('https://giphy.com/embed/**', async (route) => {
+      embedRequests += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<!doctype html><title>GIPHY test embed</title>'
+      });
+    });
+
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
+    await sendExternalGifOnlyMessage(roomPage, `${giphyMediaUrl}\n\n${giphyUrl}`);
+
+    const message = page.locator('[role="article"]').last();
+    const embeds = message.getByTestId('external-gif-embed');
+    await expect(embeds).toHaveCount(2, { timeout: TIMEOUTS.UI_STANDARD });
+    await expect(message.getByTestId('external-gif-message')).toHaveAttribute('data-embed-count', '2');
+    await expect(message.getByRole('link', { name: giphyMediaUrl })).toHaveCount(0);
+    await expect(message.getByRole('link', { name: giphyUrl })).toHaveCount(0);
+    await expect(message.locator(`a[href="${giphyMediaUrl}"]`)).toHaveCount(1);
+    await expect(message.locator(`a[href="${giphyUrl}"]`)).toHaveCount(1);
+    expect(mediaRequests).toBe(0);
+    expect(embedRequests).toBe(0);
+
+    await embeds.nth(0).getByRole('button', { name: 'Load external GIF' }).click();
+    await expect(embeds.nth(0).locator('img')).toHaveAttribute('src', giphyMediaUrl);
+    expect(mediaRequests).toBe(1);
+    expect(embedRequests).toBe(0);
+
+    await embeds.nth(1).getByRole('button', { name: 'Load external GIF' }).click();
+    await expect(embeds.nth(1).locator('iframe')).toHaveAttribute(
+      'src',
+      'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt'
+    );
+    expect(embedRequests).toBe(1);
   });
 
   test('keeps a provider URL mixed with text as a normal link', async ({
