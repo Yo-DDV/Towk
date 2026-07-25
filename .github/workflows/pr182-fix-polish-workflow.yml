@@ -1,0 +1,45 @@
+name: harden profile polish cleanup check
+
+on:
+  push:
+    branches:
+      - feat/user-profiles
+    paths:
+      - .github/workflows/pr182-fix-polish-workflow.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/user-profiles
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Patch cleanup assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/pr182-profile-action-polish.yml')
+          text = path.read_text()
+          old = "! git diff --cached --name-only | grep -E '^\\.github/workflows/pr182-profile-action-polish\\.yml$'"
+          new = "! git ls-files | grep -E '^\\.github/workflows/pr182-profile-action-polish\\.yml$'"
+          if text.count(old) != 1:
+              raise SystemExit('cleanup assertion not found exactly once')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          rm -f .github/workflows/pr182-fix-polish-workflow.yml
+          git add -A
+          git diff --cached --check
+          author_name=$(git show -s --format=%an HEAD)
+          author_email=$(git show -s --format=%ae HEAD)
+          GIT_AUTHOR_NAME="$author_name" GIT_AUTHOR_EMAIL="$author_email" \
+          GIT_COMMITTER_NAME="$author_name" GIT_COMMITTER_EMAIL="$author_email" \
+            git commit -m 'ci: fix profile polish cleanup assertion'
+          git push origin HEAD:feat/user-profiles
