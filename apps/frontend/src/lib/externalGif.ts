@@ -278,10 +278,7 @@ export function parseExternalGifUrl(rawUrl: string): ExternalGifDescriptor | nul
   const url = safeHTTPSURL(rawUrl);
   if (!url) return null;
   return (
-    parseGiphyPage(url) ??
-    parseGiphyMedia(url) ??
-    parseTenorMedia(url) ??
-    parseKlipyMedia(url)
+    parseGiphyPage(url) ?? parseGiphyMedia(url) ?? parseTenorMedia(url) ?? parseKlipyMedia(url)
   );
 }
 
