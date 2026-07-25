@@ -262,11 +262,11 @@ test.describe('User context menu', () => {
       chatPage,
       roomPage
     }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
       const user = await createAndLoginTestUser(page);
       await chatPage.goto();
       await chatPage.enterRoom('general');
       await roomPage.sendMessage('Mobile profile');
+      await page.setViewportSize({ width: 390, height: 844 });
 
       const messageArticle = page.locator('[role="article"]', { hasText: 'Mobile profile' });
       await messageArticle.getByRole('button', { name: user.displayName }).click();
@@ -341,5 +341,4 @@ test.describe('User context menu', () => {
       );
     });
   });
-
 });
