@@ -52,7 +52,7 @@ cache entry when present. Towk does not put external media bytes in CacheStorage
 IndexedDB, NATS, S3, attachment storage, or a server proxy.
 
 GIPHY pages use a sandboxed official embed frame. Direct GIPHY, Tenor, and KLIPY
-media uses native `img` or `video` elements. Towk does not execute provider HTML in
+media use native `img` or `video` elements. Towk does not execute provider HTML in
 the application DOM and does not load a provider search SDK. Any persisted
 link-preview card already attached to a historical message remains authoritative so
 rolling upgrades do not render two competing previews.
