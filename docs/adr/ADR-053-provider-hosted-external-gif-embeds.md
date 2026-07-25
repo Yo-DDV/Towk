@@ -7,9 +7,11 @@
 
 Users can paste GIF links produced by operating-system keyboards, browser searches,
 or other applications. Some clipboard and share-sheet paths can provide more than one
-URL for the same action, such as a provider page plus a direct media rendition.
-Building a GIF search catalogue inside Towk would require provider accounts, API keys,
-usage limits, licensing decisions, and an additional third-party service dependency.
+URL for the same action, such as a provider page plus a direct media rendition. The
+rich composer can also serialize an automatically linked URL as an exact Markdown
+self-link such as `[URL](URL)`. Building a GIF search catalogue inside Towk would
+require provider accounts, API keys, usage limits, licensing decisions, and an
+additional third-party service dependency.
 
 Treating every URL that ends in `.gif` as trusted media would also be unsafe. It
 would allow arbitrary tracking origins, widen the browser security policy without
@@ -38,10 +40,13 @@ type, attachment, provider metadata, or migration is introduced. When every toke
 a message is a recognized provider URL, the message contains no other text, there are
 at most four URLs, and the server advertises `external-gif-embeds-v1`, a compatible
 client presents one ordered privacy card per URL instead of duplicating the raw-link
-body. Each source remains available from its card. Servers advertise the capability
-when the operator setting is enabled. Clients without the capability, clients with
-incomplete discovery state, instances with the setting disabled, unsupported or mixed
-content, and messages above the bound render the original text normally.
+body. An exact Markdown autolink or `[URL](URL)` self-link is treated as that URL only
+when the visible label equals the destination exactly and the destination passes the
+same provider validation. Custom labels remain ordinary Markdown. Each source remains
+available from its card. Servers advertise the capability when the operator setting
+is enabled. Clients without the capability, clients with incomplete discovery state,
+instances with the setting disabled, unsupported or mixed content, and messages above
+the bound render the original text normally.
 
 The four-card maximum bounds DOM growth and automatic provider eligibility for one
 message. Every candidate URL must independently pass the provider allowlist; a single
@@ -70,12 +75,13 @@ browser can reuse the decoded resource. Manual loads are not cancelled by the ne
 heuristic. Load and error events are accepted only from the active media element and
 attempt, preventing stale retry events from changing the current state.
 
-Adding KLIPY direct-media recognition or deriving several cards from one bounded text
-message does not require a new capability version. The operator switch, privacy gate,
-storage boundary, wire representation, and rollback contract remain unchanged; older
-clients simply continue to display the same text body. A provider expansion or message
-rule that changes any of those contracts requires a capability review and may require
-a new version.
+Adding KLIPY direct-media recognition, deriving several cards from one bounded text
+message, or recognizing the current composer's lossless self-link serialization does
+not require a new capability version. The operator switch, privacy gate, storage
+boundary, wire representation, and rollback contract remain unchanged; older clients
+simply continue to display the same text body. A provider expansion or message rule
+that changes any of those contracts requires a capability review and may require a
+new version.
 
 ## Consequences
 
@@ -86,8 +92,8 @@ a new version.
   boundary visible.
 - Provider removal, regional blocking, offline state, CSP changes, or network
   failure can make media unavailable while the persisted source URLs remain.
-- A single GIF-only message can render no more than four ordered cards; a fifth URL or
-  any unsupported token falls back to ordinary text.
+- A single GIF-only message can render no more than four ordered cards; a fifth URL,
+  a custom Markdown label, or any unsupported token falls back to ordinary text.
 - An older web view without `IntersectionObserver` uses click-to-load even when the
   user enabled automatic loading.
 - Historical messages with stored OpenGraph metadata can retain a different visual
