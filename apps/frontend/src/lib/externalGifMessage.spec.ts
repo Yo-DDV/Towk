@@ -31,13 +31,15 @@ describe('parseExternalGifMessageBodyList', () => {
   it('accepts exact rich-composer self-links and Markdown autolinks', () => {
     const body = `[${giphyMediaUrl}](${giphyMediaUrl})\n\n<${giphyPageUrl}>`;
 
-    expect(parseExternalGifMessageBodyList(body)?.map((descriptor) => descriptor.resourceUrl)).toEqual(
-      [giphyMediaUrl, 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt']
-    );
+    expect(
+      parseExternalGifMessageBodyList(body)?.map((descriptor) => descriptor.resourceUrl)
+    ).toEqual([giphyMediaUrl, 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt']);
   });
 
   it('preserves duplicate URLs instead of silently changing message meaning', () => {
-    expect(parseExternalGifMessageBodyList(`${giphyPageUrl}\n${giphyPageUrl}`)).toHaveLength(2);
+    expect(
+      parseExternalGifMessageBodyList(`${giphyPageUrl}\n${giphyPageUrl}`)
+    ).toHaveLength(2);
   });
 
   it.each([
