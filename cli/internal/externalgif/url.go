@@ -11,6 +11,9 @@ import (
 const maxExternalGIFURLLength = 2048
 const EnabledEnvironmentVariable = "CHATTO_WEBSERVER_EXTERNAL_GIF_EMBEDS"
 
+// Enabled reports whether the operator allows external GIF embeds. The feature
+// is enabled by default. Invalid explicit values fail closed instead of silently
+// advertising a browser-to-provider privacy boundary the operator did not intend.
 func Enabled() bool {
 	raw, ok := os.LookupEnv(EnabledEnvironmentVariable)
 	if !ok || strings.TrimSpace(raw) == "" {
@@ -55,6 +58,9 @@ var (
 	mediaFile          = regexp.MustCompile(`(?i)\.(gif|webp|mp4|webm)$`)
 )
 
+// IsTrustedURL reports whether rawURL matches one of the provider URL shapes
+// that Towk renders directly in the reader's browser. It performs no network
+// request and intentionally rejects generic GIF URLs.
 func IsTrustedURL(rawURL string) bool {
 	if rawURL == "" || len(rawURL) > maxExternalGIFURLLength || rawURL != strings.TrimSpace(rawURL) || strings.Contains(rawURL, `\`) || hasUnsafeURLByte(rawURL) {
 		return false
@@ -74,6 +80,8 @@ func IsTrustedURL(rawURL string) bool {
 	if err != nil || !strings.EqualFold(u.Scheme, "https") || u.User != nil || u.Port() != "" {
 		return false
 	}
+	// Provider path contracts are ASCII and exact. Reject every escaped path
+	// variant instead of trying to reason about equivalent decoded spellings.
 	if strings.Contains(u.EscapedPath(), "%") {
 		return false
 	}
@@ -140,9 +148,14 @@ func isGiphyMediaPath(host string, segments []string) bool {
 }
 
 func isTenorMediaPath(segments []string) bool {
+	// Tenor documents a bare media URL as well as named GIF/video renditions.
 	if len(segments) == 1 && safeID.MatchString(segments[0]) {
 		return true
 	}
+
+	// Older Tenor shares use /images/<32-hex-id>/<rendition>. Keep this
+	// narrowly bounded because these URLs still appear in historical messages
+	// and keyboard clipboard fallbacks.
 	if len(segments) == 3 && segments[0] == "images" && tenorLegacyImageID.MatchString(segments[1]) {
 		return mediaRenderMode(segments[2]) != ""
 	}
@@ -168,6 +181,8 @@ func isTenorMediaPath(segments []string) bool {
 }
 
 func isKlipyMediaPath(segments []string) bool {
+	// KLIPY keyboard shares use one exact, shard-addressed CDN path. Accepting
+	// only that shape avoids trusting every asset on the provider domain.
 	return len(segments) == 5 &&
 		segments[0] == "ii" &&
 		klipyAssetID.MatchString(segments[1]) &&
