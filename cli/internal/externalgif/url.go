@@ -9,12 +9,8 @@ import (
 )
 
 const maxExternalGIFURLLength = 2048
-
 const EnabledEnvironmentVariable = "CHATTO_WEBSERVER_EXTERNAL_GIF_EMBEDS"
 
-// Enabled reports whether the operator allows external GIF embeds. The feature
-// is enabled by default. Invalid explicit values fail closed instead of silently
-// advertising a browser-to-provider privacy boundary the operator did not intend.
 func Enabled() bool {
 	raw, ok := os.LookupEnv(EnabledEnvironmentVariable)
 	if !ok || strings.TrimSpace(raw) == "" {
@@ -43,6 +39,10 @@ var (
 		"media1.tenor.com": true,
 		"c.tenor.com":      true,
 	}
+	klipyMediaHosts = map[string]bool{
+		"static.klipy.com": true,
+		"static.klipy.co":  true,
+	}
 	safeID             = regexp.MustCompile(`^[A-Za-z0-9_-]{6,128}$`)
 	safeTenorVariant   = regexp.MustCompile(`^[A-Za-z0-9_-]{1,32}$`)
 	tenorLegacyImageID = regexp.MustCompile(`^[A-Fa-f0-9]{32}$`)
@@ -50,12 +50,11 @@ var (
 	safeMediaBasename  = regexp.MustCompile(`^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,178}[A-Za-z0-9])?$`)
 	safeGiphySlug      = regexp.MustCompile(`^[A-Za-z0-9_-]{6,256}$`)
 	giphyPageID        = regexp.MustCompile(`^[A-Za-z0-9]{6,128}$`)
+	klipyAssetID       = regexp.MustCompile(`^[A-Fa-f0-9]{32}$`)
+	klipyShard         = regexp.MustCompile(`^[A-Fa-f0-9]{2}$`)
 	mediaFile          = regexp.MustCompile(`(?i)\.(gif|webp|mp4|webm)$`)
 )
 
-// IsTrustedURL reports whether rawURL matches one of the provider URL shapes
-// that Towk renders directly in the reader's browser. It performs no network
-// request and intentionally rejects generic GIF URLs.
 func IsTrustedURL(rawURL string) bool {
 	if rawURL == "" || len(rawURL) > maxExternalGIFURLLength || rawURL != strings.TrimSpace(rawURL) || strings.Contains(rawURL, `\`) || hasUnsafeURLByte(rawURL) {
 		return false
@@ -75,8 +74,6 @@ func IsTrustedURL(rawURL string) bool {
 	if err != nil || !strings.EqualFold(u.Scheme, "https") || u.User != nil || u.Port() != "" {
 		return false
 	}
-	// Provider path contracts are ASCII and exact. Reject every escaped path
-	// variant instead of trying to reason about equivalent decoded spellings.
 	if strings.Contains(u.EscapedPath(), "%") {
 		return false
 	}
@@ -95,6 +92,9 @@ func IsTrustedURL(rawURL string) bool {
 	if tenorMediaHosts[host] {
 		return isTenorMediaPath(segments)
 	}
+	if klipyMediaHosts[host] {
+		return isKlipyMediaPath(segments)
+	}
 	return false
 }
 
@@ -102,7 +102,6 @@ func isGiphyPagePath(segments []string) bool {
 	if len(segments) != 2 {
 		return false
 	}
-
 	var id string
 	switch segments[0] {
 	case "embed":
@@ -144,10 +143,6 @@ func isTenorMediaPath(segments []string) bool {
 	if len(segments) == 1 && safeID.MatchString(segments[0]) {
 		return true
 	}
-
-	// Older Tenor shares use /images/<32-hex-id>/<rendition>. Keep this
-	// narrowly bounded because these URLs still appear in historical messages
-	// and keyboard clipboard fallbacks.
 	if len(segments) == 3 && segments[0] == "images" && tenorLegacyImageID.MatchString(segments[1]) {
 		return mediaRenderMode(segments[2]) != ""
 	}
@@ -170,6 +165,15 @@ func isTenorMediaPath(segments []string) bool {
 		return false
 	}
 	return mediaRenderMode(filename) != "" && safeID.MatchString(id)
+}
+
+func isKlipyMediaPath(segments []string) bool {
+	return len(segments) == 5 &&
+		segments[0] == "ii" &&
+		klipyAssetID.MatchString(segments[1]) &&
+		klipyShard.MatchString(segments[2]) &&
+		klipyShard.MatchString(segments[3]) &&
+		mediaRenderMode(segments[4]) != ""
 }
 
 func mediaRenderMode(filename string) string {
