@@ -9,9 +9,9 @@ Users can paste GIF links produced by operating-system keyboards, browser search
 or other applications. Some clipboard and share-sheet paths can provide more than one
 URL for the same action, such as a provider page plus a direct media rendition. The
 rich composer can also serialize an automatically linked URL as an exact Markdown
-self-link such as `[URL](URL)`. Building a GIF search catalogue inside Towk would
-require provider accounts, API keys, usage limits, licensing decisions, and an
-additional third-party service dependency.
+self-link such as `[URL](URL)` or `[URL](<URL>)`. Building a GIF search catalogue
+inside Towk would require provider accounts, API keys, usage limits, licensing
+decisions, and an additional third-party service dependency.
 
 Treating every URL that ends in `.gif` as trusted media would also be unsafe. It
 would allow arbitrary tracking origins, widen the browser security policy without
@@ -40,9 +40,9 @@ type, attachment, provider metadata, or migration is introduced. When every toke
 a message is a recognized provider URL, the message contains no other text, there are
 at most four URLs, and the server advertises `external-gif-embeds-v1`, a compatible
 client presents one ordered privacy card per URL instead of duplicating the raw-link
-body. An exact Markdown autolink or `[URL](URL)` self-link is treated as that URL only
-when the visible label equals the destination exactly and the destination passes the
-same provider validation. Custom labels remain ordinary Markdown. Each source remains
+body. An exact Markdown autolink or lossless self-link is treated as that URL only when
+the visible label equals the destination exactly and the destination passes the same
+provider validation. Custom labels remain ordinary Markdown. Each source remains
 available from its card. Servers advertise the capability when the operator setting
 is enabled. Clients without the capability, clients with incomplete discovery state,
 instances with the setting disabled, unsupported or mixed content, and messages above
