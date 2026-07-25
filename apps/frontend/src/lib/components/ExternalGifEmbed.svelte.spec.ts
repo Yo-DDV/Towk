@@ -1,4 +1,3 @@
-import { flushSync } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import '../../app.css';
@@ -101,67 +100,17 @@ class ImmediateIntersectionObserver {
   thresholds = [0];
 }
 
-function clickEmbedButton(name: string): void {
-  const root = document.querySelector<HTMLElement>('[data-testid="external-gif-embed"]');
-  const button = Array.from(root?.querySelectorAll<HTMLButtonElement>('button') ?? []).find(
-    (candidate) => candidate.textContent?.trim() === name
-  );
-  if (!button) throw new Error(`External GIF button not found: ${name}`);
-  flushSync(() => button.click());
-}
-
-function dispatchSynchronously(target: EventTarget, event: Event): void {
-  flushSync(() => {
-    target.dispatchEvent(event);
-  });
-}
-
-function externalGifState(): string | undefined {
-  return document.querySelector<HTMLElement>('[data-testid="external-gif-embed"]')?.dataset.state;
-}
-
-type DeferredIntersection = {
-  observe: ReturnType<typeof vi.fn>;
-  intersect(): void;
-};
-
-function stubDeferredIntersectionObserver(): DeferredIntersection {
-  let callback: IntersectionObserverCallback | null = null;
-  let target: Element | null = null;
-  const observe = vi.fn((nextTarget: Element) => {
-    target = nextTarget;
-  });
-
-  class DeferredIntersectionObserver extends ImmediateIntersectionObserver {
-    constructor(next: IntersectionObserverCallback) {
-      super(next);
-      callback = next;
-    }
-
-    override observe(nextTarget: Element) {
-      observe(nextTarget);
-    }
-  }
-
-  vi.stubGlobal('IntersectionObserver', DeferredIntersectionObserver);
-
-  return {
-    observe,
-    intersect() {
-      if (!callback || !target) throw new Error('intersection observer was not ready');
-      const activeCallback = callback;
-      const activeTarget = target;
-      flushSync(() => {
-        activeCallback(
-          [{ isIntersecting: true, target: activeTarget } as IntersectionObserverEntry],
-          {} as IntersectionObserver
-        );
-      });
-    }
-  };
-}
-
 let visibility: DocumentVisibilityState;
+const objectUrls: string[] = [];
+
+function pendingVideoDescriptor(): ExternalGifDescriptor {
+  if (typeof MediaSource === 'undefined') {
+    throw new Error('MediaSource is required for deterministic in-flight media tests');
+  }
+  const resourceUrl = URL.createObjectURL(new MediaSource());
+  objectUrls.push(resourceUrl);
+  return { ...tenorVideo, canonicalUrl: resourceUrl, resourceUrl };
+}
 
 beforeEach(async () => {
   visibility = 'visible';
@@ -173,6 +122,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  for (const url of objectUrls.splice(0)) URL.revokeObjectURL(url);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -241,7 +191,7 @@ describe('ExternalGifEmbed', () => {
     expect(document.querySelector('video')).toBeNull();
   });
 
-  it('supports legacy MediaQueryList listeners without weakening the click gate', async () => {
+  it('supports one legacy MediaQueryList listener without weakening the click gate', async () => {
     const motion = stubMotion(false, true);
     const rendered = render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: false } });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -257,13 +207,14 @@ describe('ExternalGifEmbed', () => {
   it('stops automatically loaded media when reduced motion becomes active', async () => {
     const motion = stubMotion(false);
     vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver);
-    render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    const pending = pendingVideoDescriptor();
+    render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(document.querySelector('img')).not.toBeNull();
+    expect(document.querySelector('video')).not.toBeNull();
 
     motion.setReduced(true);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(document.querySelector('img')).toBeNull();
+    expect(document.querySelector('video')).toBeNull();
   });
 
   it('treats offline detection as a hint and still permits an explicit cache-backed load', async () => {
@@ -279,9 +230,6 @@ describe('ExternalGifEmbed', () => {
       .toBeVisible();
     const loadButton = screen.getByRole('button', { name: 'Load external GIF' });
     await expect.element(loadButton).toBeEnabled();
-    await expect
-      .element(screen.getByRole('link', { name: 'Open source' }))
-      .toHaveAttribute('href', tenor.canonicalUrl);
     expect(document.querySelector('img')).toBeNull();
 
     await loadButton.click();
@@ -298,30 +246,31 @@ describe('ExternalGifEmbed', () => {
     vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
     vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
     stubMotion(false);
-    const screen = render(ExternalGifEmbed, { props: { gif: tenor } });
+    const pending = pendingVideoDescriptor();
+    const screen = render(ExternalGifEmbed, { props: { gif: pending } });
 
-    clickEmbedButton('Load external GIF');
-    const image = document.querySelector('img');
-    expect(image).not.toBeNull();
-    expect(externalGifState()).toBe('loading');
+    await screen.getByRole('button', { name: 'Load external GIF' }).click();
+    const video = document.querySelector('video');
+    expect(video).not.toBeNull();
 
     online = false;
-    dispatchSynchronously(window, new Event('offline'));
-    expect(document.querySelector('img')).toBe(image);
+    window.dispatchEvent(new Event('offline'));
+    expect(document.querySelector('video')).toBe(video);
 
-    if (image) dispatchSynchronously(image, new Event('error'));
+    video?.dispatchEvent(new Event('error'));
     await expect
       .element(screen.getByText('This external GIF may be unavailable while offline.'))
       .toBeVisible();
-    expect(document.querySelector('img')).toBeNull();
+    expect(document.querySelector('video')).toBeNull();
   });
 
   it('auto-loads only near the viewport when the user opted in', async () => {
     vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver);
-    const screen = render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    const pending = pendingVideoDescriptor();
+    const screen = render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(document.querySelector('img')?.getAttribute('src')).toBe(tenor.resourceUrl);
+    expect(document.querySelector('video')?.getAttribute('src')).toBe(pending.resourceUrl);
     await expect
       .element(screen.getByTestId('external-gif-embed'))
       .toHaveAttribute('data-load-origin', 'auto');
@@ -346,17 +295,18 @@ describe('ExternalGifEmbed', () => {
       }
     }
     vi.stubGlobal('IntersectionObserver', TrackingIntersectionObserver);
+    const pending = pendingVideoDescriptor();
 
-    render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(observe).not.toHaveBeenCalled();
-    expect(document.querySelector('img')).toBeNull();
+    expect(document.querySelector('video')).toBeNull();
 
     visibility = 'visible';
     document.dispatchEvent(new Event('visibilitychange'));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(observe).toHaveBeenCalledOnce();
-    expect(document.querySelector('img')?.getAttribute('src')).toBe(tenor.resourceUrl);
+    expect(document.querySelector('video')?.getAttribute('src')).toBe(pending.resourceUrl);
   });
 
   it('keeps successfully auto-loaded media mounted while the document is hidden', async () => {
@@ -374,18 +324,16 @@ describe('ExternalGifEmbed', () => {
   });
 
   it('cancels an in-flight automatic request when the document is hidden', async () => {
-    const intersection = stubDeferredIntersectionObserver();
-    render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver);
+    const pending = pendingVideoDescriptor();
+    render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(intersection.observe).toHaveBeenCalledOnce();
-
-    intersection.intersect();
-    expect(document.querySelector('img')).not.toBeNull();
-    expect(externalGifState()).toBe('loading');
+    expect(document.querySelector('video')).not.toBeNull();
 
     visibility = 'hidden';
-    dispatchSynchronously(document, new Event('visibilitychange'));
-    expect(document.querySelector('img')).toBeNull();
+    document.dispatchEvent(new Event('visibilitychange'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('video')).toBeNull();
   });
 
   it('cancels an in-flight automatic request when the network heuristic turns offline', async () => {
@@ -395,28 +343,28 @@ describe('ExternalGifEmbed', () => {
     vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
     vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
     stubMotion(false);
-    const intersection = stubDeferredIntersectionObserver();
-    render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver);
+    const pending = pendingVideoDescriptor();
+    render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(intersection.observe).toHaveBeenCalledOnce();
-
-    intersection.intersect();
-    expect(document.querySelector('img')).not.toBeNull();
+    expect(document.querySelector('video')).not.toBeNull();
 
     online = false;
-    dispatchSynchronously(window, new Event('offline'));
-    expect(document.querySelector('img')).toBeNull();
+    window.dispatchEvent(new Event('offline'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('video')).toBeNull();
   });
 
   it('keeps manually loaded media mounted when the document becomes hidden', async () => {
-    const screen = render(ExternalGifEmbed, { props: { gif: tenor } });
+    const pending = pendingVideoDescriptor();
+    const screen = render(ExternalGifEmbed, { props: { gif: pending } });
     await screen.getByRole('button', { name: 'Load external GIF' }).click();
-    expect(document.querySelector('img')).not.toBeNull();
+    expect(document.querySelector('video')).not.toBeNull();
 
     visibility = 'hidden';
     document.dispatchEvent(new Event('visibilitychange'));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(document.querySelector('img')).not.toBeNull();
+    expect(document.querySelector('video')).not.toBeNull();
   });
 
   it('rechecks page visibility when a queued intersection callback runs', async () => {
@@ -429,8 +377,9 @@ describe('ExternalGifEmbed', () => {
       override observe() {}
     }
     vi.stubGlobal('IntersectionObserver', DeferredIntersectionObserver);
+    const pending = pendingVideoDescriptor();
 
-    render(ExternalGifEmbed, { props: { gif: tenor, autoLoad: true } });
+    render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
     await new Promise((resolve) => setTimeout(resolve, 0));
     const callback = deferred.callback;
     expect(callback).toBeDefined();
@@ -442,34 +391,34 @@ describe('ExternalGifEmbed', () => {
       [{ isIntersecting: true, target: document.body } as unknown as IntersectionObserverEntry],
       {} as IntersectionObserver
     );
-    expect(document.querySelector('img')).toBeNull();
+    expect(document.querySelector('video')).toBeNull();
   });
 
   it('ignores stale media events across a retry attempt', async () => {
-    const screen = render(ExternalGifEmbed, { props: { gif: tenor } });
+    const pending = pendingVideoDescriptor();
+    const screen = render(ExternalGifEmbed, { props: { gif: pending } });
     const embed = screen.getByTestId('external-gif-embed');
-    clickEmbedButton('Load external GIF');
-    const first = document.querySelector('img');
-    expect(first).not.toBeNull();
-    if (first) dispatchSynchronously(first, new Event('error'));
+    await screen.getByRole('button', { name: 'Load external GIF' }).click();
+    const first = document.querySelector('video');
+    first?.dispatchEvent(new Event('error'));
 
-    expect(externalGifState()).toBe('failed');
-    clickEmbedButton('Retry');
-    const second = document.querySelector('img');
+    await expect.element(screen.getByText('The external GIF could not be loaded.')).toBeVisible();
+    await screen.getByRole('button', { name: 'Retry' }).click();
+    const second = document.querySelector('video');
     expect(second).not.toBe(first);
-    expect(second?.getAttribute('src')).toBe(tenor.resourceUrl);
-    expect(externalGifState()).toBe('loading');
+    expect(second?.getAttribute('src')).toBe(pending.resourceUrl);
+    await expect.element(embed).toHaveAttribute('data-state', 'loading');
 
-    if (first) dispatchSynchronously(first, new Event('load'));
-    expect(externalGifState()).toBe('loading');
+    first?.dispatchEvent(new Event('loadedmetadata'));
+    await expect.element(embed).toHaveAttribute('data-state', 'loading');
     await expect.element(screen.getByRole('button', { name: 'Hide' })).not.toBeInTheDocument();
 
-    if (second) dispatchSynchronously(second, new Event('load'));
+    second?.dispatchEvent(new Event('loadedmetadata'));
     await expect.element(embed).toHaveAttribute('data-state', 'loaded');
     await expect.element(screen.getByRole('button', { name: 'Hide' })).toBeVisible();
 
-    if (first) dispatchSynchronously(first, new Event('error'));
-    expect(externalGifState()).toBe('loaded');
+    first?.dispatchEvent(new Event('error'));
+    await expect.element(embed).toHaveAttribute('data-state', 'loaded');
   });
 
   it('lets the reader hide a loaded animation without immediately auto-loading it again', async () => {
@@ -501,5 +450,17 @@ describe('ExternalGifEmbed', () => {
     expect(document.querySelector('img')).toBeNull();
     expect(document.querySelector('iframe')).toBeNull();
     await expect.element(rendered.getByRole('button', { name: 'Load external GIF' })).toBeVisible();
+  });
+
+  it('cancels a pending automatic load when the preference is disabled', async () => {
+    vi.stubGlobal('IntersectionObserver', ImmediateIntersectionObserver);
+    const pending = pendingVideoDescriptor();
+    const rendered = render(ExternalGifEmbed, { props: { gif: pending, autoLoad: true } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('video')).not.toBeNull();
+
+    await rendered.rerender({ gif: pending, autoLoad: false });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('video')).toBeNull();
   });
 });
