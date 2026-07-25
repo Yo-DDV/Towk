@@ -141,9 +141,12 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
   })
 }));
 
-vi.mock('$app/environment', () => ({ browser: true }));
+vi.mock('$app/environment', () => ({ browser: true, version: 'test' }));
 
-vi.mock('$app/state', () => ({ page: { state: navigation.pageState } }));
+vi.mock('$app/state', () => ({
+  navigating: { complete: null },
+  page: { state: navigation.pageState }
+}));
 
 vi.mock('$app/navigation', () => ({
   goto: navigation.goto,
@@ -168,7 +171,9 @@ vi.mock('$lib/state/server/registry.svelte', () => {
     rooms: roomsState,
     permissions: permissionsState,
     activeCallRooms: activeCallRoomsState,
-    callParticipants: callParticipantsState
+    callParticipants: callParticipantsState,
+    notifications: { count: 0 },
+    serverInfo: { version: 'test' }
   };
 
   return {
@@ -177,6 +182,8 @@ vi.mock('$lib/state/server/registry.svelte', () => {
         id: 'origin',
         url: 'https://chat.example.test'
       },
+      servers: [{ id: 'origin', url: 'https://chat.example.test' }],
+      getServer: () => ({ id: 'origin', url: 'https://chat.example.test' }),
       isOriginServer: () => true,
       getStore: () => store,
       tryGetStore: () => store
@@ -195,7 +202,8 @@ vi.mock('$lib/state/userProfiles.svelte', () => ({
 }));
 
 vi.mock('$lib/api-client/memberDirectory', () => ({
-  createMemberDirectoryAPI: () => ({ getUserProfile: navigation.getUserProfile })
+  createMemberDirectoryAPI: () => ({ getUserProfile: navigation.getUserProfile }),
+  mapDirectoryMember: (member: unknown) => member
 }));
 
 describe('CurrentUserBar', () => {

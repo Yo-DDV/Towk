@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import type { Snippet } from 'svelte';
   import * as m from '$lib/i18n/messages';
   import { shouldAutoFocus } from '$lib/utils/shouldAutoFocus';
@@ -11,6 +12,7 @@
     title,
     size = 'md',
     tall = false,
+    mobileFullScreen = false,
     swipeToClose = false,
     describedBy,
     onclose
@@ -20,6 +22,8 @@
     size?: 'sm' | 'md' | 'lg';
     /** Allow content-heavy dialogs to use nearly the full dynamic viewport height. */
     tall?: boolean;
+    /** Promote the dialog to a viewport-filling sheet on narrow screens. */
+    mobileFullScreen?: boolean;
     /** Show a dedicated, bounded vertical swipe handle for touch dismissal. */
     swipeToClose?: boolean;
     /** ID of an element that describes the dialog (forwarded to aria-describedby). */
@@ -39,9 +43,17 @@
   let swipeStartedAt = 0;
   let swipeOffset = $state(0);
   let swiping = $state(false);
+  const mobileFullScreenQuery = '(max-width: 640px), (max-height: 620px)';
+
+  function matchesMobileFullScreenViewport() {
+    return browser && window.matchMedia(mobileFullScreenQuery).matches;
+  }
+
+  let mobileFullScreenViewport = $state(matchesMobileFullScreenViewport());
 
   const dialogId = $props.id();
   const titleId = `${dialogId}-title`;
+  const useMobileFullScreen = $derived(mobileFullScreen && mobileFullScreenViewport);
 
   const sizeClasses = {
     sm: 'w-[calc(100vw-1.5rem)] max-w-md sm:w-100',
@@ -147,6 +159,22 @@
     }
     event.preventDefault();
   }
+
+  $effect(() => {
+    if (!browser || !mobileFullScreen) {
+      mobileFullScreenViewport = false;
+      return;
+    }
+
+    const query = window.matchMedia(mobileFullScreenQuery);
+    const update = () => {
+      mobileFullScreenViewport = query.matches;
+    };
+    update();
+    query.addEventListener('change', update);
+
+    return () => query.removeEventListener('change', update);
+  });
 </script>
 
 <dialog
@@ -175,6 +203,18 @@
   }}
   class="m-auto bg-transparent backdrop:bg-black/50 {sizeClasses[size]}"
   class:closing
+  class:mobile-full-screen={useMobileFullScreen}
+  style:position={useMobileFullScreen ? 'fixed' : undefined}
+  style:inset={useMobileFullScreen ? '0' : undefined}
+  style:width={useMobileFullScreen ? '100vw' : undefined}
+  style:max-width={useMobileFullScreen ? 'none' : undefined}
+  style:height={useMobileFullScreen ? '100dvh' : undefined}
+  style:max-height={useMobileFullScreen ? 'none' : undefined}
+  style:box-sizing={useMobileFullScreen ? 'border-box' : undefined}
+  style:border={useMobileFullScreen ? '0' : undefined}
+  style:margin={useMobileFullScreen ? '0' : undefined}
+  style:padding={useMobileFullScreen ? '0' : undefined}
+  style:overflow={useMobileFullScreen ? 'hidden' : undefined}
   aria-labelledby={title ? titleId : undefined}
   aria-describedby={describedBy}
 >
@@ -182,6 +222,10 @@
     <div
       class="dialog-tray rounded-lg border border-text/10 bg-surface-100 p-2 shadow-xl"
       class:swiping
+      style:min-height={useMobileFullScreen ? '100dvh' : undefined}
+      style:border={useMobileFullScreen ? '0' : undefined}
+      style:border-radius={useMobileFullScreen ? '0' : undefined}
+      style:padding={useMobileFullScreen ? '0' : undefined}
       style:transform={swipeOffset ? `translate3d(0, ${swipeOffset}px, 0)` : undefined}
     >
       <div
@@ -189,6 +233,15 @@
           'dialog-content overflow-y-auto rounded-md bg-background p-3',
           tall ? 'max-h-[calc(100dvh-2rem)]' : 'max-h-[78vh]'
         ]}
+        style:min-height={useMobileFullScreen ? '100dvh' : undefined}
+        style:max-height={useMobileFullScreen ? '100dvh' : undefined}
+        style:border-radius={useMobileFullScreen ? '0' : undefined}
+        style:padding-top={useMobileFullScreen
+          ? 'max(0.75rem, env(safe-area-inset-top))'
+          : undefined}
+        style:padding-bottom={useMobileFullScreen
+          ? 'max(0.75rem, env(safe-area-inset-bottom))'
+          : undefined}
       >
         {#if swipeToClose}
           <div
@@ -251,6 +304,14 @@
     animation: backdrop-fade-out 100ms ease-in forwards;
   }
 
+  dialog[open].mobile-full-screen {
+    animation: mobile-full-screen-fade-in 100ms ease-out;
+  }
+
+  dialog[open].mobile-full-screen.closing {
+    animation: mobile-full-screen-fade-out 100ms ease-in forwards;
+  }
+
   .dialog-tray {
     transition: transform 160ms ease-out;
     will-change: transform;
@@ -258,6 +319,32 @@
 
   .dialog-tray.swiping {
     transition: none;
+  }
+
+  @media (max-width: 640px), (max-height: 620px) {
+    dialog[open].mobile-full-screen {
+      width: 100vw !important;
+      max-width: none !important;
+      height: 100dvh;
+      max-height: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    dialog[open].mobile-full-screen > .dialog-tray {
+      min-height: 100dvh;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+    }
+
+    dialog[open].mobile-full-screen .dialog-content {
+      min-height: 100dvh;
+      max-height: 100dvh;
+      border-radius: 0;
+      padding-top: max(0.75rem, env(safe-area-inset-top));
+      padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -305,6 +392,24 @@
   }
 
   @keyframes backdrop-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes mobile-full-screen-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes mobile-full-screen-fade-out {
     from {
       opacity: 1;
     }

@@ -236,6 +236,7 @@ responsive dialog backed by the detailed profile API.
   title={m['chat.user_menu.profile']()}
   size="lg"
   tall
+  mobileFullScreen
   swipeToClose
   onclose={handleDialogClose}
 >

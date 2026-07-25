@@ -198,7 +198,7 @@ describe('MentionAutocomplete', () => {
   describe('selection', () => {
     it('renders a distinct profile affordance for user results', () => {
       const { container } = renderAutocomplete({
-        query: 'al',
+        query: 'alice',
         members: [member('alice')]
       });
 

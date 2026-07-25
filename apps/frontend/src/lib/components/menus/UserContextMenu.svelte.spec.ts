@@ -39,7 +39,8 @@ vi.mock('$app/paths', () => ({
 }));
 
 vi.mock('$lib/navigation', () => ({
-  serverIdToSegment: (serverId: string) => serverId
+  serverIdToSegment: (serverId: string) => serverId,
+  segmentToServerId: (segment: string) => (segment === '-' ? 'server-1' : segment)
 }));
 
 vi.mock('$lib/state/server/connection.svelte', () => ({

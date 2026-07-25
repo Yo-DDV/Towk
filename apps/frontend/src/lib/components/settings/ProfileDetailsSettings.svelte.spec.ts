@@ -39,7 +39,11 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
 
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
+    originServer: { id: 'server-1', url: 'https://example.test' },
+    servers: [{ id: 'server-1', url: 'https://example.test', capabilities: [] }],
+    getServer: () => ({ id: 'server-1', url: 'https://example.test', capabilities: [] }),
     getStore: () => ({ currentUser: mocks.currentUser }),
+    isOriginServer: (serverId: string) => serverId === 'server-1',
     tryGetStore: () => ({ currentUser: mocks.currentUser })
   }
 }));
@@ -181,6 +185,9 @@ describe('ProfileDetailsSettings', () => {
       expect(node?.checked).toBe(true);
       return node!;
     });
+    await vi.waitFor(() =>
+      expect(container.querySelector('[data-testid="profile-details-loading"]')).toBeNull()
+    );
 
     checkbox.click();
     await vi.waitFor(() => expect(checkbox.checked).toBe(false));
