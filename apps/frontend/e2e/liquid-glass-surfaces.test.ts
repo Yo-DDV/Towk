@@ -4,6 +4,7 @@ import { createAndLoginTestUser } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
 
 type SurfaceStyle = {
+  backgroundColor: string;
   backgroundImage: string;
   backdropFilter: string;
   borderRadius: string;
@@ -16,6 +17,7 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
   return locator.evaluate((element) => {
     const style = getComputedStyle(element);
     return {
+      backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,
       backdropFilter:
         style.backdropFilter || style.getPropertyValue('-webkit-backdrop-filter') || 'none',
@@ -28,7 +30,7 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
 }
 
 test.describe('Liquid glass application surfaces', () => {
-  test('keeps the profile and composer readable, elevated, and responsive', async ({
+  test('keeps the profile and composer readable, elevated, themed, and responsive', async ({
     page,
     chatPage,
     roomPage
@@ -37,13 +39,19 @@ test.describe('Liquid glass application surfaces', () => {
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
+    const root = page.locator('html');
     const profile = page.getByTestId('current-user-identity-card');
     const composer = page.getByTestId('message-composer-shell');
 
     await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
-    const [profileStyle, composerStyle, supportsBackdropFilter] = await Promise.all([
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'light';
+    });
+    await expect(root).toHaveAttribute('data-theme', 'light');
+
+    const [lightProfileStyle, lightComposerStyle, supportsBackdropFilter] = await Promise.all([
       readSurfaceStyle(profile),
       readSurfaceStyle(composer),
       page.evaluate(
@@ -53,7 +61,8 @@ test.describe('Liquid glass application surfaces', () => {
       )
     ]);
 
-    for (const style of [profileStyle, composerStyle]) {
+    for (const style of [lightProfileStyle, lightComposerStyle]) {
+      expect(style.backgroundColor).toMatch(/rgba?\(248,\s*250,\s*252/);
       expect(style.backgroundImage).toContain('radial-gradient');
       expect(style.backgroundImage).toContain('linear-gradient');
       expect(style.borderRadius).not.toBe('0px');
@@ -63,6 +72,24 @@ test.describe('Liquid glass application surfaces', () => {
       }
     }
 
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'dark';
+    });
+    await expect(root).toHaveAttribute('data-theme', 'dark');
+
+    const [darkProfileStyle, darkComposerStyle] = await Promise.all([
+      readSurfaceStyle(profile),
+      readSurfaceStyle(composer)
+    ]);
+
+    for (const style of [darkProfileStyle, darkComposerStyle]) {
+      expect(style.backgroundColor).toMatch(/rgba?\(38,\s*38,\s*42/);
+      expect(style.backgroundImage).toContain('radial-gradient');
+      expect(style.boxShadow).not.toBe('none');
+    }
+    expect(darkProfileStyle.backgroundColor).not.toBe(lightProfileStyle.backgroundColor);
+    expect(darkComposerStyle.backgroundColor).not.toBe(lightComposerStyle.backgroundColor);
+
     const [profileBox, restingComposerBox] = await Promise.all([
       profile.boundingBox(),
       composer.boundingBox()
@@ -71,7 +98,7 @@ test.describe('Liquid glass application surfaces', () => {
     expect(restingComposerBox).not.toBeNull();
     expect(Math.abs(profileBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(0.5);
 
-    const restingComposerShadow = composerStyle.boxShadow;
+    const restingComposerShadow = darkComposerStyle.boxShadow;
     await roomPage.messageInput.click();
     await expect
       .poll(async () => (await readSurfaceStyle(composer)).boxShadow)
