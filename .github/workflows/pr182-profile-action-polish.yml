@@ -1,0 +1,1134 @@
+name: apply final profile interaction polish
+
+on:
+  push:
+    branches:
+      - feat/user-profiles
+    paths:
+      - .github/workflows/pr182-profile-action-polish.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr182-profile-action-polish
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out profile branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/user-profiles
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply reviewed profile polish
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              file.write_text(text.replace(old, new, 1))
+
+          menu_path = Path('apps/frontend/src/lib/components/menus/UserContextMenu.svelte')
+          menu = menu_path.read_text()
+          menu = menu.replace(
+              "import { startCallWith, startDMWith } from '$lib/dm/startDM';",
+              "import { focusActiveMessageComposer, startCallWith, startDMWith } from '$lib/dm/startDM';",
+              1,
+          )
+          old_send = """  async function handleSendMessage() {
+              clearHistoryMarkerForAction();
+              if (onSendMessage) {
+                await onSendMessage();
+                return;
+              }
+              await startDMWith(getActiveServer(), user.id);
+            }
+          """
+          new_send = """  async function handleSendMessage() {
+              clearHistoryMarkerForAction();
+              if (onSendMessage) {
+                await onSendMessage();
+                await focusActiveMessageComposer();
+                return;
+              }
+              await startDMWith(getActiveServer(), user.id);
+            }
+          """
+          if old_send not in menu:
+              raise SystemExit('UserContextMenu: send handler not found')
+          menu = menu.replace(old_send, new_send, 1)
+
+          hero_start = menu.index('      <div class="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">')
+          hero_end = menu.index('\n    </section>\n\n    {#if loading}', hero_start)
+          hero = """      <div class="profile-hero-layout">
+                <div class="profile-avatar-shell" data-testid="profile-avatar-shell">
+                  <UserAvatar user={profileUser} size="xl" showPresence class="profile-avatar" />
+                </div>
+
+                <div class="profile-identity min-w-0">
+                  <div class="profile-kicker">
+                    <span class="profile-section-icon" aria-hidden="true">
+                      <span class="iconify uil--user-square"></span>
+                    </span>
+                    <span>{m['profile.details']()}</span>
+                  </div>
+                  <h3 class="mt-3 truncate text-3xl font-black tracking-tight text-text-top sm:text-4xl">
+                    {displayName}
+                  </h3>
+                  <p class="mt-1 truncate text-sm font-semibold text-muted">@{login}</p>
+                  <div class="mt-4 flex flex-wrap items-center gap-2">
+                    <span class="profile-presence-chip">
+                      <span
+                        class={['h-2.5 w-2.5 rounded-full shadow-[0_0_0_3px_color-mix(in_srgb,currentColor_14%,transparent)]', presenceDotClass]}
+                        aria-hidden="true"
+                      ></span>
+                      {presenceLabel}
+                    </span>
+                    <UserCustomStatusBadge status={customStatus} showText class="max-w-full" />
+                  </div>
+                </div>
+
+                <section
+                  class="profile-hero-roles"
+                  aria-labelledby={rolesHeadingId}
+                  data-testid="profile-hero-roles"
+                >
+                  <h4 id={rolesHeadingId} class="flex items-center gap-2 text-sm font-bold text-text-top">
+                    <span class="profile-section-icon" aria-hidden="true">
+                      <span class="iconify uil--award"></span>
+                    </span>
+                    {m['profile.roles']()}
+                  </h4>
+                  <div class="mt-3 flex flex-wrap gap-2">
+                    {#if loading}
+                      <span class="profile-role-skeleton w-24"></span>
+                      <span class="profile-role-skeleton w-16"></span>
+                    {:else if profile}
+                      {#if roles.length === 0}
+                        <span class="profile-role-chip border-text/20 bg-background/85 font-semibold text-text-top">
+                          {m['profile.member_role']()}
+                        </span>
+                      {:else}
+                        {#each roles as role (role.name)}
+                          <span
+                            class={[
+                              'profile-role-chip',
+                              role.moderation
+                                ? 'border-primary/50 bg-primary/18 font-bold text-text-top ring-1 ring-primary/20'
+                                : 'border-text/20 bg-background/85 font-semibold text-text-top'
+                            ]}
+                            title={role.name}
+                          >
+                            {#if role.moderation}
+                              <span class="iconify text-base text-primary uil--shield-check" aria-hidden="true"></span>
+                            {/if}
+                            {role.displayName || role.name}
+                          </span>
+                        {/each}
+                      {/if}
+                    {:else}
+                      <span class="text-sm font-medium text-muted">{m['profile.not_available']()}</span>
+                    {/if}
+                  </div>
+                </section>
+              </div>"""
+          menu = menu[:hero_start] + hero + menu[hero_end:]
+
+          roles_start_marker = """          <section
+                    class="profile-card grid gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
+                    aria-labelledby={rolesHeadingId}
+                  >"""
+          roles_start = menu.index(roles_start_marker)
+          details_marker = """          <section
+                    class="profile-card grid gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
+                    aria-labelledby={detailsHeadingId}
+                  >"""
+          details_start = menu.index(details_marker, roles_start)
+          menu = menu[:roles_start] + menu[details_start:]
+
+          menu = menu.replace(
+              '<span class="iconify text-lg text-primary uil--file-alt" aria-hidden="true"></span>',
+              '<span class="profile-section-icon" aria-hidden="true"><span class="iconify uil--file-alt"></span></span>',
+              1,
+          )
+
+          actions_start = menu.index('    {#if showActions}')
+          actions_end = menu.index('  </article>', actions_start)
+          actions = """    {#if showActions}
+              <section
+                class="profile-actions sticky bottom-0 z-10 -mx-1 grid grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] gap-2 rounded-t-2xl border border-border/80 bg-background/92 px-3 pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(0,0,0,0.08)] backdrop-blur-xl"
+                aria-label={m['profile.actions']()}
+              >
+                {#if profile?.viewerIsSelf}
+                  <button type="button" class="profile-action-button btn-primary min-h-12" onclick={handleEditProfile}>
+                    <span class="profile-action-icon" aria-hidden="true"><span class="iconify uil--edit"></span></span>
+                    {m['profile.edit']()}
+                  </button>
+                {/if}
+                {#if mayMessage}
+                  <button type="button" class="profile-action-button btn-primary min-h-12" onclick={handleSendMessage}>
+                    <span class="profile-action-icon" aria-hidden="true"><span class="iconify uil--comment-alt-message"></span></span>
+                    {m['chat.user_menu.send_message']()}
+                  </button>
+                {/if}
+                {#if mayCall}
+                  <button type="button" class="profile-action-button btn-accent min-h-12" onclick={handleCall}>
+                    <span class="profile-action-icon" aria-hidden="true"><span class="iconify uil--phone"></span></span>
+                    {m['profile.call']()}
+                  </button>
+                {/if}
+                {#if canBanFromRoom}
+                  <button
+                    type="button"
+                    class="profile-action-button btn-danger min-h-12 disabled:cursor-not-allowed disabled:opacity-50"
+                    onclick={handleBanFromRoom}
+                    disabled={banningFromRoom}
+                  >
+                    <span class="profile-action-icon" aria-hidden="true"><span class="iconify uil--ban"></span></span>
+                    {banningFromRoom ? m['admin.moderation.banning']() : m['admin.moderation.ban_action']()}
+                  </button>
+                {/if}
+              </section>
+            {/if}
+          """
+          menu = menu[:actions_start] + actions + menu[actions_end:]
+
+          style_marker = '<style>\n'
+          style_insert = """<style>
+            .profile-hero {
+              container-type: inline-size;
+            }
+
+            .profile-hero-layout {
+              display: grid;
+              grid-template-columns: auto minmax(0, 1fr);
+              align-items: center;
+              gap: 1.25rem;
+            }
+
+            .profile-avatar-shell {
+              position: relative;
+              display: grid;
+              width: 6.5rem;
+              height: 6.5rem;
+              aspect-ratio: 1;
+              flex: none;
+              place-items: center;
+              border: 1px solid color-mix(in srgb, white 24%, var(--color-text) 10%);
+              border-radius: 9999px;
+              padding: 0.55rem;
+              background: linear-gradient(
+                145deg,
+                color-mix(in srgb, var(--color-surface-100) 90%, white 10%),
+                color-mix(in srgb, var(--color-background) 86%, black 14%)
+              );
+              box-shadow:
+                -0.65rem -0.65rem 1.35rem color-mix(in srgb, white 14%, transparent),
+                0.75rem 0.75rem 1.6rem color-mix(in srgb, black 28%, transparent),
+                inset 0.16rem 0.16rem 0.35rem color-mix(in srgb, white 22%, transparent),
+                inset -0.18rem -0.18rem 0.4rem color-mix(in srgb, black 16%, transparent);
+            }
+
+            .profile-avatar-shell::before {
+              position: absolute;
+              inset: 0.3rem;
+              border: 1px solid color-mix(in srgb, var(--color-primary) 28%, transparent);
+              border-radius: inherit;
+              content: '';
+              pointer-events: none;
+            }
+
+            .profile-avatar-shell :global(.profile-avatar) {
+              width: 100% !important;
+              height: 100% !important;
+              aspect-ratio: 1;
+              border-radius: 9999px;
+            }
+
+            .profile-avatar-shell :global(.profile-avatar > img),
+            .profile-avatar-shell :global(.profile-avatar > div:first-child) {
+              width: 100% !important;
+              height: 100% !important;
+              aspect-ratio: 1;
+              border-radius: 9999px;
+              object-fit: cover;
+            }
+
+            .profile-kicker {
+              display: flex;
+              align-items: center;
+              gap: 0.625rem;
+              color: var(--color-muted);
+              font-size: 0.6875rem;
+              font-weight: 800;
+              letter-spacing: 0.18em;
+              text-transform: uppercase;
+            }
+
+            .profile-section-icon {
+              display: inline-grid;
+              width: 2rem;
+              height: 2rem;
+              flex: none;
+              place-items: center;
+              border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+              border-radius: 0.75rem;
+              background: color-mix(in srgb, var(--color-primary) 22%, var(--color-surface-100));
+              color: color-mix(in srgb, var(--color-primary) 82%, white 18%);
+              box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 26%, transparent),
+                0 0.4rem 1rem color-mix(in srgb, var(--color-primary) 16%, transparent);
+              font-size: 1.1rem;
+            }
+
+            .profile-presence-chip {
+              display: inline-flex;
+              min-height: 2rem;
+              align-items: center;
+              gap: 0.5rem;
+              border: 1px solid color-mix(in srgb, var(--color-text) 16%, transparent);
+              border-radius: 9999px;
+              background: color-mix(in srgb, var(--color-background) 82%, transparent);
+              padding: 0.25rem 0.75rem;
+              color: var(--color-text);
+              font-size: 0.75rem;
+              font-weight: 750;
+              box-shadow: inset 0 1px 0 color-mix(in srgb, white 16%, transparent);
+              backdrop-filter: blur(0.75rem);
+            }
+
+            .profile-hero-roles {
+              grid-column: 1 / -1;
+              min-width: 0;
+              border: 1px solid color-mix(in srgb, var(--color-text) 13%, transparent);
+              border-radius: 1rem;
+              background: color-mix(in srgb, var(--color-background) 66%, transparent);
+              padding: 0.9rem;
+              box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
+                0 0.9rem 2rem color-mix(in srgb, black 10%, transparent);
+              backdrop-filter: blur(1rem) saturate(1.15);
+            }
+
+            .profile-role-skeleton {
+              display: inline-block;
+              height: 2rem;
+              border-radius: 9999px;
+              background: color-mix(in srgb, var(--color-surface-200) 76%, transparent);
+              animation: profile-role-pulse 1.4s ease-in-out infinite;
+            }
+
+            .profile-action-button {
+              display: inline-flex;
+              min-width: 0;
+              align-items: center;
+              justify-content: center;
+              gap: 0.625rem;
+              padding-inline: 1rem;
+              font-weight: 750;
+            }
+
+            .profile-action-icon {
+              display: inline-grid;
+              width: 2rem;
+              height: 2rem;
+              flex: none;
+              place-items: center;
+              border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+              border-radius: 0.7rem;
+              background: color-mix(in srgb, currentColor 14%, transparent);
+              box-shadow: inset 0 1px 0 color-mix(in srgb, white 18%, transparent);
+              font-size: 1.05rem;
+            }
+
+            @container (min-width: 42rem) {
+              .profile-hero-layout {
+                grid-template-columns: auto minmax(14rem, 1fr) minmax(15rem, 0.72fr);
+                gap: 1.5rem;
+              }
+
+              .profile-avatar-shell {
+                width: 7rem;
+                height: 7rem;
+              }
+
+              .profile-hero-roles {
+                grid-column: auto;
+              }
+            }
+
+            @container (max-width: 27rem) {
+              .profile-hero-layout {
+                grid-template-columns: minmax(0, 1fr);
+                justify-items: center;
+                text-align: center;
+              }
+
+              .profile-identity {
+                width: 100%;
+                text-align: center;
+              }
+
+              .profile-kicker,
+              .profile-identity > div:last-child {
+                justify-content: center;
+              }
+
+              .profile-hero-roles {
+                width: 100%;
+                text-align: left;
+              }
+            }
+          """
+          if style_marker not in menu:
+              raise SystemExit('UserContextMenu: style marker missing')
+          menu = menu.replace(style_marker, style_insert, 1)
+
+          old_detail_icon = """  .profile-detail-icon {
+              display: grid;
+              min-height: 2.5rem;
+              min-width: 2.5rem;
+              place-items: center;
+              border-radius: 0.875rem;
+              background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+              color: var(--color-primary);
+              font-size: 1.15rem;
+            }
+          """
+          new_detail_icon = """  .profile-detail-icon {
+              display: grid;
+              min-height: 2.75rem;
+              min-width: 2.75rem;
+              place-items: center;
+              border: 1px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+              border-radius: 0.9rem;
+              background: color-mix(in srgb, var(--color-primary) 20%, var(--color-surface-100));
+              color: color-mix(in srgb, var(--color-primary) 82%, white 18%);
+              box-shadow:
+                inset 0 1px 0 color-mix(in srgb, white 24%, transparent),
+                0 0.5rem 1.15rem color-mix(in srgb, var(--color-primary) 13%, transparent);
+              font-size: 1.25rem;
+            }
+          """
+          if old_detail_icon not in menu:
+              raise SystemExit('UserContextMenu: detail icon CSS missing')
+          menu = menu.replace(old_detail_icon, new_detail_icon, 1)
+
+          reduced_marker = """  @media (prefers-reduced-motion: reduce) {
+              .profile-skeleton::after {
+                animation: none;
+              }
+            }
+          """
+          reduced_replacement = """  @media (prefers-reduced-motion: reduce) {
+              .profile-skeleton::after,
+              .profile-role-skeleton {
+                animation: none;
+              }
+            }
+
+            @media (forced-colors: active) {
+              .profile-avatar-shell,
+              .profile-hero-roles,
+              .profile-section-icon,
+              .profile-detail-icon,
+              .profile-action-icon {
+                border: 1px solid CanvasText;
+                box-shadow: none;
+              }
+            }
+          """
+          if reduced_marker not in menu:
+              raise SystemExit('UserContextMenu: reduced-motion block missing')
+          menu = menu.replace(reduced_marker, reduced_replacement, 1)
+          keyframe_marker = """  @keyframes profile-skeleton-shimmer {
+              to {
+                transform: translateX(100%);
+              }
+            }
+          """
+          keyframe_replacement = """  @keyframes profile-role-pulse {
+              0%,
+              100% {
+                opacity: 0.58;
+              }
+              50% {
+                opacity: 1;
+              }
+            }
+
+            @keyframes profile-skeleton-shimmer {
+              to {
+                transform: translateX(100%);
+              }
+            }
+          """
+          if keyframe_marker not in menu:
+              raise SystemExit('UserContextMenu: keyframe marker missing')
+          menu = menu.replace(keyframe_marker, keyframe_replacement, 1)
+          menu_path.write_text(menu)
+
+          Path('apps/frontend/src/lib/dm/startDM.ts').write_text("""import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
+          import { goto } from '$app/navigation';
+          import { resolve } from '$app/paths';
+          import { serverIdToSegment } from '$lib/navigation';
+          import { createRoomCommandAPI, type PublicRoom } from '$lib/api-client/rooms';
+          import {
+            ROOM_CALL_JOIN_REQUEST_EVENT,
+            roomSidebarPanelStorageSuffix,
+            setPendingRoomCallJoin,
+            setPendingRoomSidebarPanel,
+            setRoomSidebarPanel,
+            type RoomCallJoinRequestDetail
+          } from '$lib/storage/roomSidebarPanel';
+          import { serverStorageKey } from '$lib/storage/serverStorage';
+
+          const MESSAGE_COMPOSER_FOCUS_TIMEOUT_MS = 2_000;
+
+          export async function ensureDMWith(serverId: string, userId: string): Promise<PublicRoom | null> {
+            const conn = serverConnectionManager.getClient(serverId);
+            return createRoomCommandAPI({
+              serverId,
+              baseUrl: conn.connectBaseUrl,
+              bearerToken: conn.bearerToken
+            }).startDM([userId]);
+          }
+
+          async function navigateToDM(serverId: string, roomId: string): Promise<void> {
+            await goto(
+              resolve('/chat/[serverId]/[roomId]', {
+                serverId: serverIdToSegment(serverId),
+                roomId
+              })
+            );
+          }
+
+          function nextAnimationFrame(): Promise<void> {
+            return new Promise((resolveFrame) => requestAnimationFrame(() => resolveFrame()));
+          }
+
+          /** Focus the active room composer after a DM navigation has settled. */
+          export async function focusActiveMessageComposer(): Promise<boolean> {
+            if (typeof document === 'undefined' || typeof requestAnimationFrame === 'undefined') return false;
+
+            const deadline = performance.now() + MESSAGE_COMPOSER_FOCUS_TIMEOUT_MS;
+            do {
+              const composer =
+                document.querySelector<HTMLElement>(
+                  '[data-testid="room-view-region"] [data-testid="message-input"]'
+                ) ?? document.querySelector<HTMLElement>('[data-testid="message-input"]');
+              if (composer) {
+                const formControlDisabled =
+                  (composer instanceof HTMLInputElement || composer instanceof HTMLTextAreaElement) &&
+                  composer.disabled;
+                if (!formControlDisabled && composer.getAttribute('aria-disabled') !== 'true') {
+                  composer.focus({ preventScroll: true });
+                  if (document.activeElement === composer) return true;
+                }
+              }
+              await nextAnimationFrame();
+            } while (performance.now() < deadline);
+
+            return false;
+          }
+
+          /** Start a DM conversation, navigate to it, and place the caret in the composer. */
+          export async function startDMWith(serverId: string, userId: string): Promise<void> {
+            const room = await ensureDMWith(serverId, userId);
+            if (!room) return;
+            await navigateToDM(serverId, room.id);
+            await focusActiveMessageComposer();
+          }
+
+          /** Start or open a DM, expose its call panel, then execute the real join/start flow. */
+          export async function startCallWith(serverId: string, userId: string): Promise<void> {
+            const room = await ensureDMWith(serverId, userId);
+            if (!room) return;
+
+            setRoomSidebarPanel(serverId, room.id, 'call');
+            setPendingRoomSidebarPanel(serverId, room.id, 'call');
+            setPendingRoomCallJoin(serverId, room.id);
+            window.dispatchEvent(
+              new StorageEvent('storage', {
+                key: serverStorageKey(serverId, roomSidebarPanelStorageSuffix(room.id)),
+                newValue: 'call'
+              })
+            );
+            await navigateToDM(serverId, room.id);
+            window.dispatchEvent(
+              new CustomEvent<RoomCallJoinRequestDetail>(ROOM_CALL_JOIN_REQUEST_EVENT, {
+                detail: { serverId, roomId: room.id }
+              })
+            );
+          }
+          """)
+
+          Path('apps/frontend/src/lib/storage/roomSidebarPanel.ts').write_text("""import { serverSlot, type Codec } from './slot';
+          import { serverStorageKey } from './serverStorage';
+
+          export const ROOM_SIDEBAR_PANELS = ['members', 'files', 'call'] as const;
+          export const ROOM_CALL_JOIN_REQUEST_EVENT = 'towk:room-call-join-request';
+
+          export type RoomSidebarPanel = (typeof ROOM_SIDEBAR_PANELS)[number];
+          export type RoomSidebarPanelState = RoomSidebarPanel | null;
+          export type RoomCallJoinRequestDetail = { serverId: string; roomId: string };
+
+          export const ROOM_SIDEBAR_DEFAULT_PANEL: RoomSidebarPanel = 'members';
+          const PENDING_ROOM_SIDEBAR_PANEL_SUFFIX = 'roomSidebarPanel:pendingOpen';
+          const PENDING_ROOM_CALL_JOIN_SUFFIX = 'roomCall:pendingJoin';
+          const PENDING_ROOM_CALL_JOIN_MAX_AGE_MS = 30_000;
+          const PENDING_ROOM_CALL_JOIN_FUTURE_SKEW_MS = 5_000;
+
+          type PendingRoomSidebarPanel = {
+            roomId: string;
+            panel: RoomSidebarPanel;
+          };
+
+          type PendingRoomCallJoin = {
+            roomId: string;
+            requestedAt: number;
+          };
+
+          function isRoomSidebarPanel(value: unknown): value is RoomSidebarPanel {
+            return typeof value === 'string' && ROOM_SIDEBAR_PANELS.includes(value as RoomSidebarPanel);
+          }
+
+          const codec: Codec<RoomSidebarPanel> = {
+            serialize: (value) => value,
+            parse: (raw) => {
+              if (isRoomSidebarPanel(raw)) return raw;
+              return undefined;
+            }
+          };
+
+          export function roomSidebarPanelStorageSuffix(roomId: string): string {
+            return `room:${roomId}:sidebarPanel`;
+          }
+
+          export function getRoomSidebarPanelState(serverId: string, roomId: string): RoomSidebarPanelState {
+            return serverSlot(
+              serverId,
+              roomSidebarPanelStorageSuffix(roomId),
+              ROOM_SIDEBAR_DEFAULT_PANEL,
+              codec
+            ).get();
+          }
+
+          export function setRoomSidebarPanelState(
+            serverId: string,
+            roomId: string,
+            panel: RoomSidebarPanelState
+          ): void {
+            if (panel === null) return;
+
+            serverSlot(
+              serverId,
+              roomSidebarPanelStorageSuffix(roomId),
+              ROOM_SIDEBAR_DEFAULT_PANEL,
+              codec
+            ).set(panel);
+          }
+
+          export function getRoomSidebarPanel(serverId: string, roomId: string): RoomSidebarPanel {
+            return getRoomSidebarPanelState(serverId, roomId) ?? ROOM_SIDEBAR_DEFAULT_PANEL;
+          }
+
+          export function setRoomSidebarPanel(
+            serverId: string,
+            roomId: string,
+            panel: RoomSidebarPanel
+          ): void {
+            setRoomSidebarPanelState(serverId, roomId, panel);
+          }
+
+          export function setPendingRoomSidebarPanel(
+            serverId: string,
+            roomId: string,
+            panel: RoomSidebarPanel
+          ): void {
+            const storage = getSessionStorage();
+            if (!storage) return;
+
+            storage.setItem(
+              pendingRoomSidebarPanelKey(serverId),
+              JSON.stringify({ roomId, panel } satisfies PendingRoomSidebarPanel)
+            );
+          }
+
+          export function consumePendingRoomSidebarPanel(
+            serverId: string,
+            roomId: string
+          ): RoomSidebarPanelState {
+            const storage = getSessionStorage();
+            if (!storage) return null;
+
+            const key = pendingRoomSidebarPanelKey(serverId);
+            const raw = storage.getItem(key);
+            if (!raw) return null;
+
+            let pending: Partial<PendingRoomSidebarPanel>;
+            try {
+              pending = JSON.parse(raw) as Partial<PendingRoomSidebarPanel>;
+            } catch {
+              storage.removeItem(key);
+              return null;
+            }
+
+            if (pending.roomId !== roomId) return null;
+            storage.removeItem(key);
+            return isRoomSidebarPanel(pending.panel) ? pending.panel : null;
+          }
+
+          export function setPendingRoomCallJoin(serverId: string, roomId: string): void {
+            const storage = getSessionStorage();
+            if (!storage) return;
+            storage.setItem(
+              pendingRoomCallJoinKey(serverId),
+              JSON.stringify({ roomId, requestedAt: Date.now() } satisfies PendingRoomCallJoin)
+            );
+          }
+
+          export function consumePendingRoomCallJoin(serverId: string, roomId: string): boolean {
+            const storage = getSessionStorage();
+            if (!storage) return false;
+
+            const key = pendingRoomCallJoinKey(serverId);
+            const raw = storage.getItem(key);
+            if (!raw) return false;
+
+            let pending: Partial<PendingRoomCallJoin>;
+            try {
+              pending = JSON.parse(raw) as Partial<PendingRoomCallJoin>;
+            } catch {
+              storage.removeItem(key);
+              return false;
+            }
+
+            if (pending.roomId !== roomId) return false;
+            storage.removeItem(key);
+            if (typeof pending.requestedAt !== 'number' || !Number.isFinite(pending.requestedAt)) {
+              return false;
+            }
+
+            const age = Date.now() - pending.requestedAt;
+            return age >= -PENDING_ROOM_CALL_JOIN_FUTURE_SKEW_MS && age <= PENDING_ROOM_CALL_JOIN_MAX_AGE_MS;
+          }
+
+          function pendingRoomSidebarPanelKey(serverId: string): string {
+            return serverStorageKey(serverId, PENDING_ROOM_SIDEBAR_PANEL_SUFFIX);
+          }
+
+          function pendingRoomCallJoinKey(serverId: string): string {
+            return serverStorageKey(serverId, PENDING_ROOM_CALL_JOIN_SUFFIX);
+          }
+
+          function getSessionStorage(): Storage | null {
+            try {
+              return globalThis.sessionStorage ?? null;
+            } catch {
+              return null;
+            }
+          }
+          """)
+
+          voice_path = Path('apps/frontend/src/lib/components/voice/VoiceCallPanel.svelte')
+          voice = voice_path.read_text()
+          old_pip_import = """  import {
+              supportsVideoPictureInPicture,
+              toggleVideoPictureInPicture
+            } from '$lib/pwa/pictureInPicture';
+          """
+          new_pip_import = """  import {
+              supportsVideoPictureInPicture,
+              toggleVideoPictureInPicture
+            } from '$lib/pwa/pictureInPicture';
+            import {
+              consumePendingRoomCallJoin,
+              ROOM_CALL_JOIN_REQUEST_EVENT,
+              type RoomCallJoinRequestDetail
+            } from '$lib/storage/roomSidebarPanel';
+          """
+          if old_pip_import not in voice:
+              raise SystemExit('VoiceCallPanel: PiP import block missing')
+          voice = voice.replace(old_pip_import, new_pip_import, 1)
+          voice = voice.replace(
+              '  let pictureInPictureActive = $state(false);\n',
+              '  let pictureInPictureActive = $state(false);\n  let requestedJoinInFlight = false;\n',
+              1,
+          )
+          old_mount = """  onMount(() => {
+              pictureInPictureAvailable = supportsVideoPictureInPicture();
+              const syncPictureInPictureState = () => {
+                pictureInPictureActive = Boolean(document.pictureInPictureElement);
+              };
+              document.addEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+              document.addEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+              return () => {
+                document.removeEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+                document.removeEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+              };
+            });
+          """
+          new_mount = """  onMount(() => {
+              pictureInPictureAvailable = supportsVideoPictureInPicture();
+              const syncPictureInPictureState = () => {
+                pictureInPictureActive = Boolean(document.pictureInPictureElement);
+              };
+              const handleProfileCallJoinRequest = (event: Event) => {
+                const detail = (event as CustomEvent<RoomCallJoinRequestDetail>).detail;
+                if (!detail || detail.serverId !== getActiveServer() || detail.roomId !== roomId) return;
+                consumePendingRoomCallJoin(detail.serverId, detail.roomId);
+                void joinFromProfileRequest();
+              };
+              document.addEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+              document.addEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+              window.addEventListener(ROOM_CALL_JOIN_REQUEST_EVENT, handleProfileCallJoinRequest);
+              queueMicrotask(() => {
+                const serverId = getActiveServer();
+                if (consumePendingRoomCallJoin(serverId, roomId)) void joinFromProfileRequest();
+              });
+              return () => {
+                document.removeEventListener('enterpictureinpicture', syncPictureInPictureState, true);
+                document.removeEventListener('leavepictureinpicture', syncPictureInPictureState, true);
+                window.removeEventListener(ROOM_CALL_JOIN_REQUEST_EVENT, handleProfileCallJoinRequest);
+              };
+            });
+          """
+          if old_mount not in voice:
+              raise SystemExit('VoiceCallPanel: mount block missing')
+          voice = voice.replace(old_mount, new_mount, 1)
+          old_join = """  async function handleJoin() {
+              await joinWithMode('ask');
+            }
+          """
+          new_join = """  async function joinFromProfileRequest(): Promise<void> {
+              if (requestedJoinInFlight || isInThisCall || isConnecting) return;
+              requestedJoinInFlight = true;
+              try {
+                await joinWithMode('ask');
+              } finally {
+                requestedJoinInFlight = false;
+              }
+            }
+
+            async function handleJoin() {
+              await joinWithMode('ask');
+            }
+          """
+          if old_join not in voice:
+              raise SystemExit('VoiceCallPanel: join block missing')
+          voice_path.write_text(voice.replace(old_join, new_join, 1))
+
+          sidebar_spec = Path('apps/frontend/src/lib/storage/roomSidebarPanel.spec.ts')
+          spec = sidebar_spec.read_text()
+          spec = spec.replace(
+              """  consumePendingRoomSidebarPanel,
+              getRoomSidebarPanel,""",
+              """  consumePendingRoomCallJoin,
+              consumePendingRoomSidebarPanel,
+              getRoomSidebarPanel,""",
+              1,
+          )
+          spec = spec.replace(
+              """  setPendingRoomSidebarPanel,
+              setRoomSidebarPanel,""",
+              """  setPendingRoomCallJoin,
+              setPendingRoomSidebarPanel,
+              setRoomSidebarPanel,""",
+              1,
+          )
+          insert = """
+
+            it('stores and consumes a pending call join for the target room exactly once', () => {
+              setPendingRoomCallJoin('server-a', 'room-1');
+
+              expect(consumePendingRoomCallJoin('server-a', 'room-2')).toBe(false);
+              expect(consumePendingRoomCallJoin('server-a', 'room-1')).toBe(true);
+              expect(consumePendingRoomCallJoin('server-a', 'room-1')).toBe(false);
+            });
+          """
+          pos = spec.rfind('\n});')
+          if pos == -1:
+              raise SystemExit('roomSidebarPanel.spec: describe end missing')
+          sidebar_spec.write_text(spec[:pos] + insert + spec[pos:])
+
+          menu_spec_path = Path('apps/frontend/src/lib/components/menus/UserContextMenu.svelte.spec.ts')
+          menu_spec = menu_spec_path.read_text()
+          menu_spec = menu_spec.replace(
+              '  startCallWith: vi.fn(),\n',
+              '  startCallWith: vi.fn(),\n  focusActiveMessageComposer: vi.fn(),\n',
+              1,
+          )
+          menu_spec = menu_spec.replace(
+              """vi.mock('$lib/dm/startDM', () => ({
+              startDMWith: mocks.startDMWith,
+              startCallWith: mocks.startCallWith
+            }));""",
+              """vi.mock('$lib/dm/startDM', () => ({
+              startDMWith: mocks.startDMWith,
+              startCallWith: mocks.startCallWith,
+              focusActiveMessageComposer: mocks.focusActiveMessageComposer
+            }));""",
+              1,
+          )
+          menu_spec = menu_spec.replace(
+              '  mocks.startCallWith.mockReset();\n',
+              '  mocks.startCallWith.mockReset();\n  mocks.focusActiveMessageComposer.mockReset();\n',
+              1,
+          )
+          menu_spec = menu_spec.replace(
+              """    expect(container.textContent).toContain('Last activity');
+              expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');""",
+              """    expect(container.textContent).toContain('Last activity');
+              expect(container.querySelector('[data-testid="profile-avatar-shell"]')).not.toBeNull();
+              expect(container.querySelector('[data-testid="profile-hero-roles"]')?.textContent).toContain(
+                'Moderator'
+              );
+              expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');""",
+              1,
+          )
+          menu_spec = menu_spec.replace(
+              """    await vi.waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce());
+              expect(mocks.startDMWith).not.toHaveBeenCalled();""",
+              """    await vi.waitFor(() => expect(onSendMessage).toHaveBeenCalledOnce());
+              expect(mocks.focusActiveMessageComposer).toHaveBeenCalledOnce();
+              expect(mocks.startDMWith).not.toHaveBeenCalled();""",
+              1,
+          )
+          menu_spec_path.write_text(menu_spec)
+
+          Path('apps/frontend/src/lib/dm/startDM.svelte.spec.ts').write_text("""import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+          import {
+            focusActiveMessageComposer,
+            startCallWith,
+            startDMWith
+          } from './startDM';
+          import { ROOM_CALL_JOIN_REQUEST_EVENT } from '$lib/storage/roomSidebarPanel';
+
+          const mocks = vi.hoisted(() => ({
+            startDM: vi.fn(),
+            goto: vi.fn(),
+            setRoomSidebarPanel: vi.fn(),
+            setPendingRoomSidebarPanel: vi.fn(),
+            setPendingRoomCallJoin: vi.fn()
+          }));
+
+          vi.mock('$lib/state/server/serverConnection.svelte', () => ({
+            serverConnectionManager: {
+              getClient: () => ({ connectBaseUrl: '/api/connect', bearerToken: 'token' })
+            }
+          }));
+
+          vi.mock('$lib/api-client/rooms', () => ({
+            createRoomCommandAPI: () => ({ startDM: mocks.startDM })
+          }));
+
+          vi.mock('$app/navigation', () => ({ goto: mocks.goto }));
+          vi.mock('$app/paths', () => ({
+            resolve: (_route: string, params: { serverId: string; roomId: string }) =>
+              `/chat/${params.serverId}/${params.roomId}`
+          }));
+          vi.mock('$lib/navigation', () => ({ serverIdToSegment: (serverId: string) => serverId }));
+          vi.mock('$lib/storage/serverStorage', () => ({
+            serverStorageKey: (serverId: string, suffix: string) => `${serverId}:${suffix}`
+          }));
+          vi.mock('$lib/storage/roomSidebarPanel', () => ({
+            ROOM_CALL_JOIN_REQUEST_EVENT: 'towk:room-call-join-request',
+            roomSidebarPanelStorageSuffix: (roomId: string) => `room:${roomId}:sidebarPanel`,
+            setRoomSidebarPanel: mocks.setRoomSidebarPanel,
+            setPendingRoomSidebarPanel: mocks.setPendingRoomSidebarPanel,
+            setPendingRoomCallJoin: mocks.setPendingRoomCallJoin
+          }));
+
+          beforeEach(() => {
+            document.body.replaceChildren();
+            mocks.startDM.mockReset();
+            mocks.goto.mockReset();
+            mocks.setRoomSidebarPanel.mockReset();
+            mocks.setPendingRoomSidebarPanel.mockReset();
+            mocks.setPendingRoomCallJoin.mockReset();
+            mocks.startDM.mockResolvedValue({ id: 'dm-room' });
+            mocks.goto.mockResolvedValue(undefined);
+          });
+
+          afterEach(() => document.body.replaceChildren());
+
+          describe('profile DM actions', () => {
+            it('navigates to the DM and focuses its message composer', async () => {
+              mocks.goto.mockImplementation(async () => {
+                const region = document.createElement('div');
+                region.dataset.testid = 'room-view-region';
+                const input = document.createElement('textarea');
+                input.dataset.testid = 'message-input';
+                region.append(input);
+                document.body.append(region);
+              });
+
+              await startDMWith('server-1', 'user-2');
+
+              expect(mocks.startDM).toHaveBeenCalledWith(['user-2']);
+              expect(mocks.goto).toHaveBeenCalledWith('/chat/server-1/dm-room');
+              expect(document.activeElement).toBe(document.querySelector('[data-testid="message-input"]'));
+            });
+
+            it('opens the call panel and emits a real join request after navigation', async () => {
+              let received: unknown = null;
+              const listener = (event: Event) => {
+                received = (event as CustomEvent).detail;
+              };
+              window.addEventListener(ROOM_CALL_JOIN_REQUEST_EVENT, listener);
+
+              try {
+                await startCallWith('server-1', 'user-2');
+              } finally {
+                window.removeEventListener(ROOM_CALL_JOIN_REQUEST_EVENT, listener);
+              }
+
+              expect(mocks.setRoomSidebarPanel).toHaveBeenCalledWith('server-1', 'dm-room', 'call');
+              expect(mocks.setPendingRoomSidebarPanel).toHaveBeenCalledWith(
+                'server-1',
+                'dm-room',
+                'call'
+              );
+              expect(mocks.setPendingRoomCallJoin).toHaveBeenCalledWith('server-1', 'dm-room');
+              expect(mocks.goto).toHaveBeenCalledWith('/chat/server-1/dm-room');
+              expect(received).toEqual({ serverId: 'server-1', roomId: 'dm-room' });
+            });
+
+            it('returns false when no active composer exists before the bounded wait', async () => {
+              vi.useFakeTimers();
+              const pending = focusActiveMessageComposer();
+              await vi.advanceTimersByTimeAsync(2_100);
+              await expect(pending).resolves.toBe(false);
+              vi.useRealTimers();
+            });
+          });
+          """)
+
+          voice_spec_path = Path('apps/frontend/src/lib/components/voice/VoiceCallPanel.svelte.spec.ts')
+          voice_spec = voice_spec_path.read_text()
+          voice_spec = voice_spec.replace(
+              "import VoiceCallPanelStoryHarness from './VoiceCallPanelStoryHarness.svelte';\n",
+              "import VoiceCallPanelStoryHarness from './VoiceCallPanelStoryHarness.svelte';\nimport { setPendingRoomCallJoin } from '$lib/storage/roomSidebarPanel';\n",
+              1,
+          )
+          voice_test = """
+
+            it('executes the real join flow for a pending profile call request', async () => {
+              const join = vi.fn();
+              setPendingRoomCallJoin('storybook-call-server', 'storybook-call-room');
+
+              render(VoiceCallPanelStoryHarness, {
+                props: {
+                  layout: 'sidebar',
+                  scenario: 'voice',
+                  onStoreSeeded: (store) => {
+                    store.voiceCall.connected = false;
+                    store.voiceCall.connecting = false;
+                    store.voiceCall.roomId = null;
+                    store.voiceCall.participants = [];
+                    vi.spyOn(store.voiceCall, 'join').mockImplementation(async (...args) => {
+                      join(...args);
+                      return { status: 'joined' as const };
+                    });
+                  }
+                }
+              });
+
+              await vi.waitFor(() => {
+                expect(join).toHaveBeenCalledWith(
+                  'wss://livekit.invalid',
+                  'storybook-call-room',
+                  'ask'
+                );
+              });
+            });
+          """
+          pos = voice_spec.rfind('\n});')
+          if pos == -1:
+              raise SystemExit('VoiceCallPanel spec: describe end missing')
+          voice_spec_path.write_text(voice_spec[:pos] + voice_test + voice_spec[pos:])
+          PY
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Format touched sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec prettier --write \
+            src/lib/components/menus/UserContextMenu.svelte \
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts \
+            src/lib/components/voice/VoiceCallPanel.svelte \
+            src/lib/components/voice/VoiceCallPanel.svelte.spec.ts \
+            src/lib/dm/startDM.ts \
+            src/lib/dm/startDM.svelte.spec.ts \
+            src/lib/storage/roomSidebarPanel.ts \
+            src/lib/storage/roomSidebarPanel.spec.ts
+
+      - name: Frontend typecheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend run check
+
+      - name: Server tests for pending call state
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec vitest run --project server \
+            src/lib/storage/roomSidebarPanel.spec.ts
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec playwright install --with-deps chromium
+
+      - name: Targeted browser component tests
+        shell: bash
+        env:
+          VITEST_BROWSER: chromium
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend exec vitest run --project client \
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts \
+            src/lib/components/voice/VoiceCallPanel.svelte.spec.ts \
+            src/lib/dm/startDM.svelte.spec.ts
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend run build
+
+      - name: Commit final profile polish
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/pr182-profile-action-polish.yml
+          git add -A
+          git diff --cached --check
+          test -n "$(git diff --cached --name-only)"
+          ! git diff --cached --name-only | grep -E '^\.github/workflows/pr182-profile-action-polish\.yml$'
+          ! git diff --cached | grep -Ei '(^|[[:space:]])(Co-authored-by|Generated-by|Assisted-by|Pair-programmed-by):'
+          author_name=$(git show -s --format=%an HEAD)
+          author_email=$(git show -s --format=%ae HEAD)
+          GIT_AUTHOR_NAME="$author_name" GIT_AUTHOR_EMAIL="$author_email" \
+          GIT_COMMITTER_NAME="$author_name" GIT_COMMITTER_EMAIL="$author_email" \
+            git commit -m 'fix(profiles): polish identity and launch actions'
+          git push origin HEAD:feat/user-profiles
