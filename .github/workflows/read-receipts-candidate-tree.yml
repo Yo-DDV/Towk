@@ -1,4 +1,4 @@
-name: read-receipts base source exporter
+name: read-receipts final tree publisher
 
 on:
   pull_request:
@@ -6,43 +6,125 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: read-receipts-base-source-${{ github.event.pull_request.number }}
+  group: read-receipts-final-tree-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  export:
+  publish:
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
+    env:
+      SOURCE_HEAD_SHA: 71151841c0f9937bfa2d80d026dedf6653f347fc
+      PATCH_BLOB_SHA: 785e6582c6ccaaee08b648d78c8b2309fa91bf90
+      PATCH_SHA256: d4aefe28a12ef1abb3eb1cb03fab781c7b85f9d7e7ef884dabd048875ff46399
     steps:
-      - name: Check out exact historical base
+      - name: Check out exact pull request head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: 073f938eb7f463b69ff0a9f97a9175f0bb1e3ebd
+          ref: ${{ env.SOURCE_HEAD_SHA }}
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Export source archive
+      - name: Apply reviewed source delta
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "073f938eb7f463b69ff0a9f97a9175f0bb1e3ebd"
-          archive="${RUNNER_TEMP}/towk-base-073f938-source.tar.gz"
-          status="${RUNNER_TEMP}/towk-base-source-status.txt"
-          tar --exclude=.git --exclude=node_modules -czf "${archive}" .
-          {
-            printf 'base_sha=%s\n' "$(git rev-parse HEAD)"
-            printf 'archive_sha256=%s\n' "$(sha256sum "${archive}" | cut -d' ' -f1)"
-          } > "${status}"
+          test "$(git rev-parse HEAD)" = "${SOURCE_HEAD_SHA}"
 
-      - name: Upload source archive
+          compressed_b64="${RUNNER_TEMP}/read-receipts-final.patch.gz.b64"
+          patch_file="${RUNNER_TEMP}/read-receipts-final.patch"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${PATCH_BLOB_SHA}" \
+            | jq -er '.content' \
+            | tr -d '\n' \
+            | base64 -d > "${compressed_b64}"
+
+          base64 -d "${compressed_b64}" | gzip -d > "${patch_file}"
+          printf '%s  %s\n' "${PATCH_SHA256}" "${patch_file}" | sha256sum --check --strict
+          git apply "${patch_file}"
+
+          rm -f .github/workflows/read-receipts-snapshot.yml
+          rm -f .github/workflows/read-receipts-candidate-tree.yml
+          git diff --check
+          git diff --name-status HEAD > "${RUNNER_TEMP}/read-receipts-final-files.txt"
+
+      - name: Create final tree object
+        id: final_tree
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          entries="${RUNNER_TEMP}/read-receipts-final-entries.json"
+          response="${RUNNER_TEMP}/read-receipts-final-tree.json"
+          base_tree="$(git show -s --format=%T HEAD)"
+          printf '[]' > "${entries}"
+
+          while IFS=$'\t' read -r status path; do
+            test -n "${status}"
+            if [[ "${status}" = D* ]]; then
+              jq --arg path "${path}" \
+                '. + [{path: $path, mode: "100644", type: "blob", sha: null}]' \
+                "${entries}" > "${entries}.next"
+              mv "${entries}.next" "${entries}"
+              continue
+            fi
+
+            test -f "${path}"
+            blob_sha="$({
+              base64 -w0 "${path}" \
+                | jq -Rs '{content: ., encoding: "base64"}' \
+                | curl --fail --silent --show-error --location --retry 3 \
+                    --request POST \
+                    --header "Accept: application/vnd.github+json" \
+                    --header "Authorization: Bearer ${GH_TOKEN}" \
+                    --header "X-GitHub-Api-Version: 2022-11-28" \
+                    --data-binary @- \
+                    "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs" \
+                | jq -er '.sha'
+            })"
+            test "$(git hash-object "${path}")" = "${blob_sha}"
+            jq --arg path "${path}" --arg sha "${blob_sha}" \
+              '. + [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \
+              "${entries}" > "${entries}.next"
+            mv "${entries}.next" "${entries}"
+          done < "${RUNNER_TEMP}/read-receipts-final-files.txt"
+
+          jq -n --arg base_tree "${base_tree}" --slurpfile tree "${entries}" \
+            '{base_tree: $base_tree, tree: $tree[0]}' \
+            | curl --fail --silent --show-error --location --retry 3 \
+                --request POST \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                --data-binary @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/trees" \
+            | tee "${response}"
+
+          tree_sha="$(jq -er '.sha' "${response}")"
+          printf 'tree_sha=%s\n' "${tree_sha}" >> "${GITHUB_OUTPUT}"
+          {
+            printf 'parent_sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'tree_sha=%s\n' "${tree_sha}"
+            printf 'files_sha256=%s\n' "$(sha256sum "${RUNNER_TEMP}/read-receipts-final-files.txt" | cut -d' ' -f1)"
+          } > "${RUNNER_TEMP}/read-receipts-final-status.txt"
+
+      - name: Upload final tree proof
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: towk-read-receipts-base-source
+          name: towk-read-receipts-final-tree
           path: |
-            ${{ runner.temp }}/towk-base-073f938-source.tar.gz
-            ${{ runner.temp }}/towk-base-source-status.txt
+            ${{ runner.temp }}/read-receipts-final-tree.json
+            ${{ runner.temp }}/read-receipts-final-status.txt
+            ${{ runner.temp }}/read-receipts-final-files.txt
           retention-days: 1
           if-no-files-found: error
