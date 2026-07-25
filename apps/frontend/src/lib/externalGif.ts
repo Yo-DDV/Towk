@@ -1,12 +1,12 @@
 export const EXTERNAL_GIF_EMBEDS_CAPABILITY = 'external-gif-embeds-v1';
 
-export type ExternalGifProvider = 'giphy' | 'tenor';
+export type ExternalGifProvider = 'giphy' | 'tenor' | 'klipy';
 export type ExternalGifRenderMode = 'iframe' | 'image' | 'video';
 export type ExternalGifLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
 
 export type ExternalGifDescriptor = {
   provider: ExternalGifProvider;
-  providerLabel: 'GIPHY' | 'Tenor';
+  providerLabel: 'GIPHY' | 'Tenor' | 'KLIPY';
   canonicalUrl: string;
   resourceUrl: string;
   renderMode: ExternalGifRenderMode;
@@ -35,6 +35,7 @@ const GIPHY_MEDIA_HOSTS = new Set([
   'media4.giphy.com'
 ]);
 const TENOR_MEDIA_HOSTS = new Set(['media.tenor.com', 'media1.tenor.com', 'c.tenor.com']);
+const KLIPY_MEDIA_HOSTS = new Set(['static.klipy.com', 'static.klipy.co']);
 const SAFE_ID = /^[A-Za-z0-9_-]{6,128}$/;
 const SAFE_TENOR_VARIANT = /^[A-Za-z0-9_-]{1,32}$/;
 const TENOR_LEGACY_IMAGE_ID = /^[A-Fa-f0-9]{32}$/;
@@ -42,6 +43,8 @@ const SAFE_GIPHY_METADATA = /^[A-Za-z0-9._-]{1,256}$/;
 const SAFE_MEDIA_BASENAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,178}[A-Za-z0-9])?$/;
 const SAFE_GIPHY_SLUG = /^[A-Za-z0-9_-]{6,256}$/;
 const GIPHY_PAGE_ID = /^[A-Za-z0-9]{6,128}$/;
+const KLIPY_ASSET_ID = /^[A-Fa-f0-9]{32}$/;
+const KLIPY_SHARD = /^[A-Fa-f0-9]{2}$/;
 const MEDIA_FILENAME = /\.(gif|webp|mp4|webm)$/i;
 
 function hasUnsafeURLCodePoint(rawUrl: string): boolean {
@@ -63,14 +66,11 @@ function safeHTTPSURL(rawUrl: string): URL | null {
   ) {
     return null;
   }
+
   const remainder = rawUrl.slice('https://'.length);
   const authority = remainder.split(/[/?#]/u, 1)[0];
   if (!authority || authority.includes('@') || authority.includes(':')) return null;
 
-  // WHATWG URL parsing normalizes literal dot segments before exposing
-  // pathname. Reject them from the raw path so frontend and backend
-  // classification stay identical and no allow-list shape is reached only
-  // after normalization.
   const rawPath = remainder.slice(authority.length).split(/[?#]/u, 1)[0];
   if (rawPath.includes('%')) return null;
   if (rawPath.split('/').some((segment) => segment === '.' || segment === '..')) return null;
@@ -83,8 +83,6 @@ function safeHTTPSURL(rawUrl: string): URL | null {
   }
 
   if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
-  // Provider path contracts are ASCII and exact. Reject every escaped path
-  // variant instead of trying to reason about equivalent decoded spellings.
   if (url.pathname.includes('%')) return null;
   url.hash = '';
   return url;
@@ -194,14 +192,10 @@ function parseTenorMedia(url: URL): ExternalGifDescriptor | null {
   const segments = strictPathSegments(url);
   if (!segments) return null;
 
-  // Tenor documents a bare media URL as well as named GIF/video renditions.
   if (segments.length === 1 && SAFE_ID.test(segments[0])) {
     return tenorDescriptor(url, segments[0], 'image');
   }
 
-  // Older Tenor shares use /images/<32-hex-id>/<rendition>. Keep this
-  // narrowly bounded because these URLs still appear in historical messages
-  // and keyboard clipboard fallbacks.
   if (
     segments.length === 3 &&
     segments[0] === 'images' &&
@@ -233,10 +227,48 @@ function parseTenorMedia(url: URL): ExternalGifDescriptor | null {
   return renderMode && SAFE_ID.test(id) ? tenorDescriptor(url, id, renderMode) : null;
 }
 
+function klipyDescriptor(
+  url: URL,
+  id: string,
+  renderMode: ExternalGifRenderMode
+): ExternalGifDescriptor {
+  return {
+    provider: 'klipy',
+    providerLabel: 'KLIPY',
+    canonicalUrl: url.href,
+    resourceUrl: url.href,
+    renderMode,
+    id
+  };
+}
+
+function parseKlipyMedia(url: URL): ExternalGifDescriptor | null {
+  if (!KLIPY_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
+  const segments = strictPathSegments(url);
+  if (
+    !segments ||
+    segments.length !== 5 ||
+    segments[0] !== 'ii' ||
+    !KLIPY_ASSET_ID.test(segments[1]) ||
+    !KLIPY_SHARD.test(segments[2]) ||
+    !KLIPY_SHARD.test(segments[3])
+  ) {
+    return null;
+  }
+
+  const renderMode = mediaRenderMode(segments[4]);
+  return renderMode ? klipyDescriptor(url, segments[1].toLowerCase(), renderMode) : null;
+}
+
 export function parseExternalGifUrl(rawUrl: string): ExternalGifDescriptor | null {
   const url = safeHTTPSURL(rawUrl);
   if (!url) return null;
-  return parseGiphyPage(url) ?? parseGiphyMedia(url) ?? parseTenorMedia(url);
+  return (
+    parseGiphyPage(url) ??
+    parseGiphyMedia(url) ??
+    parseTenorMedia(url) ??
+    parseKlipyMedia(url)
+  );
 }
 
 export function parseExternalGifMessageBody(body: string): ExternalGifDescriptor | null {
