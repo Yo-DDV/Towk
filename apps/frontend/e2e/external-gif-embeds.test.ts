@@ -4,11 +4,15 @@ import { createAndLoginTestUser } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
 
 const giphyUrl = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
-const giphyMediaUrl = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
+const giphyMediaUrl =
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
 const tenorMediaUrl = 'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif';
 const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
-const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+const onePixelGif = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',
+  'base64'
+);
 
 async function sendExternalGifOnlyMessage(
   roomPage: {
@@ -170,7 +174,10 @@ test.describe('External GIF embeds', () => {
     const message = page.locator('[role="article"]').last();
     const embeds = message.getByTestId('external-gif-embed');
     await expect(embeds).toHaveCount(2, { timeout: TIMEOUTS.UI_STANDARD });
-    await expect(message.getByTestId('external-gif-message')).toHaveAttribute('data-embed-count', '2');
+    await expect(message.getByTestId('external-gif-message')).toHaveAttribute(
+      'data-embed-count',
+      '2'
+    );
     await expect(message.getByRole('link', { name: giphyMediaUrl })).toHaveCount(0);
     await expect(message.getByRole('link', { name: giphyUrl })).toHaveCount(0);
     await expect(message.locator(`a[href="${giphyMediaUrl}"]`)).toHaveCount(1);
