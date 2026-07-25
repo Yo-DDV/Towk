@@ -19,9 +19,11 @@ describe('liquid glass surface stylesheet', () => {
     expect(enhancementIndex).toBeGreaterThan(0);
 
     const fallback = stylesheet.slice(0, enhancementIndex);
-    expect(fallback).toContain('--liquid-glass-fill: rgb(248 250 252);');
-    expect(fallback).toContain('--liquid-glass-fill: rgb(38 38 42);');
+    expect(fallback).toContain('--liquid-glass-fill: rgb(248, 250, 252);');
+    expect(fallback).toContain('--liquid-glass-fill: rgb(38, 38, 42);');
+    expect(fallback).toContain('--liquid-glass-caustic:');
     expect(fallback).toContain('background-color: var(--liquid-glass-current-fill);');
+    expect(fallback.match(/radial-gradient/g)).toHaveLength(2);
     expect(fallback).toContain('inset 0 0 0 1px var(--liquid-glass-current-border)');
     expect(fallback).not.toMatch(/\n\s*border\s*:/);
     expect(fallback).not.toContain('backdrop-filter:');
