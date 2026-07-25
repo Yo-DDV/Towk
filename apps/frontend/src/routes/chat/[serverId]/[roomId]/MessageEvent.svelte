@@ -36,6 +36,7 @@
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   import MessageAttachments from './MessageAttachments.svelte';
   import MessageMetaBar from './MessageMetaBar.svelte';
+  import ReadReceiptBadge from './ReadReceiptBadge.svelte';
   import { prefersTouchActions, supportsHoverActions } from '$lib/utils/inputCapabilities';
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import { formatMessageTime } from '$lib/utils/formatTime';
@@ -870,6 +871,14 @@
             <MessagePreviewCard {link} />
           </div>
         {/each}
+
+        <ReadReceiptBadge
+          {roomId}
+          messageEventId={event.id}
+          {threadRootEventId}
+          messageActorId={event.actorId ?? null}
+          currentUserId={currentUser.user?.id ?? null}
+        />
 
         <!-- Thread echo indicator, thread replies, and reactions -->
         {#if hasMessageFooter}

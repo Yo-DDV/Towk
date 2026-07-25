@@ -108,7 +108,17 @@
         "edited": "(bearbeitet)",
         "deleted": "Diese Nachricht wurde gelöscht."
       },
-      "start_marker": "Dies ist der Anfang dieser Unterhaltung."
+      "start_marker": "Dies ist der Anfang dieser Unterhaltung.",
+      "read_receipts": {
+        "title": "Gesehen von",
+        "count_one": "Gesehen von 1",
+        "count_many": "Gesehen von {count}",
+        "open_label": "{count} Lesebestätigungen anzeigen",
+        "latest_label": "Zuletzt gelesen um {time}",
+        "loading": "Leser werden geladen...",
+        "empty": "Keine Leserdetails verfügbar.",
+        "load_failed": "Lesebestätigungen konnten nicht geladen werden"
+      }
     },
     "attachment": {
       "delete_title": "Anhang löschen",

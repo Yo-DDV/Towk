@@ -158,6 +158,7 @@
     useUserSettingsUpdate((update) => {
       userSettings.timezone = update.timezone;
       userSettings.timeFormat = update.timeFormat;
+      userSettings.readReceiptsEnabled = update.readReceiptsEnabled;
     });
 
     // Handle session terminated events from server (logout from another tab/device, admin boot)

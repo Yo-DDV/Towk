@@ -108,7 +108,17 @@
         "edited": "(edited)",
         "deleted": "This message has been deleted."
       },
-      "start_marker": "This is the beginning of this conversation."
+      "start_marker": "This is the beginning of this conversation.",
+      "read_receipts": {
+        "title": "Seen by",
+        "count_one": "Seen by 1",
+        "count_many": "Seen by {count}",
+        "open_label": "Show {count} read receipts",
+        "latest_label": "Latest read at {time}",
+        "loading": "Loading readers...",
+        "empty": "No reader details available.",
+        "load_failed": "Failed to load read receipts"
+      }
     },
     "attachment": {
       "delete_title": "Delete Attachment",

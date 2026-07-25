@@ -157,7 +157,13 @@
       },
       "save_button": "Darstellung speichern",
       "saved": "Darstellungseinstellungen gespeichert",
-      "save_failed": "Darstellungseinstellungen konnten nicht gespeichert werden"
+      "save_failed": "Darstellungseinstellungen konnten nicht gespeichert werden",
+      "read_receipts": {
+        "title": "Lesebestätigungen",
+        "enabled_label": "Lesebestätigungen veröffentlichen",
+        "disabled_label": "Lesebestätigungen privat halten",
+        "description": "Wenn diese Option aktiviert ist, sehen andere Mitglieder, wann du ihre Nachrichten gelesen hast, und du kannst Bestätigungen für zugängliche Nachrichten ansehen."
+      }
     },
     "notifications": {
       "title": "Benachrichtigungen",

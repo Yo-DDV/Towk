@@ -157,7 +157,13 @@
       },
       "save_button": "Save Display Settings",
       "saved": "Display settings saved",
-      "save_failed": "Failed to save display settings"
+      "save_failed": "Failed to save display settings",
+      "read_receipts": {
+        "title": "Read receipts",
+        "enabled_label": "Publish read receipts",
+        "disabled_label": "Keep read receipts private",
+        "description": "When enabled, other members can see when you have read their messages, and you can inspect receipts on messages you can access."
+      }
     },
     "notifications": {
       "title": "Notifications",

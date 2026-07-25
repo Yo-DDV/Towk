@@ -337,9 +337,24 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
         event: {
           kind: RoomEventKind.ServerUserPreferencesUpdated,
           timezone: frame.event.value.timezone ?? null,
-          timeFormat: timeFormat(frame.event.value.timeFormat)
+          timeFormat: timeFormat(frame.event.value.timeFormat),
+          readReceiptsEnabled: frame.event.value.readReceiptsEnabled ?? true
         }
       } as unknown as EventEnvelope;
+    case 'readReceiptAdvanced': {
+      const value = frame.event.value;
+      return {
+        ...base,
+        event: {
+          kind: RoomEventKind.ReadReceiptAdvanced,
+          roomId: value.roomId,
+          threadRootEventId: value.threadRootEventId ?? null,
+          userId: value.userId,
+          eventId: value.eventId,
+          readAt: optionalTimestampToISO(value.readAt)
+        }
+      } as unknown as EventEnvelope;
+    }
     case 'roomGroupsUpdated':
       return {
         ...base,

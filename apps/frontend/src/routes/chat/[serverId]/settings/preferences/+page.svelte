@@ -33,6 +33,7 @@
   let timezoneSearch = $state(userSettings.timezone ?? '');
   let selectedTimezone = $state<string | null>(userSettings.timezone);
   let selectedTimeFormat = $state<TimeFormat>(userSettings.timeFormat);
+  let readReceiptsEnabled = $state(userSettings.readReceiptsEnabled);
   let isSaving = $state(false);
   let error = $state('');
 
@@ -53,7 +54,9 @@
 
   // Track if the form has been modified
   const isModified = $derived(
-    selectedTimezone !== userSettings.timezone || selectedTimeFormat !== userSettings.timeFormat
+    selectedTimezone !== userSettings.timezone ||
+      selectedTimeFormat !== userSettings.timeFormat ||
+      readReceiptsEnabled !== userSettings.readReceiptsEnabled
   );
 
   // Timezone validation
