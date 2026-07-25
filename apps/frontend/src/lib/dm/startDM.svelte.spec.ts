@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { activateActiveCallControl, focusActiveMessageComposer, startCallWith, startDMWith } from './startDM';
+import {
+  activateActiveCallControl,
+  focusActiveMessageComposer,
+  startCallWith,
+  startDMWith
+} from './startDM';
 
 const mocks = vi.hoisted(() => ({
   startDM: vi.fn(),

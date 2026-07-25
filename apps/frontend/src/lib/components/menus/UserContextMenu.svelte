@@ -96,7 +96,9 @@ responsive dialog backed by the detailed profile API.
     !profileUser.deleted && (profile?.viewerCanMessage ?? canSendMessage)
   );
   const mayCall = $derived(!profileUser.deleted && (profile?.viewerCanCall ?? false));
-  const showActions = $derived(Boolean(profile?.viewerIsSelf || mayMessage || mayCall || canBanFromRoom));
+  const showActions = $derived(
+    Boolean(profile?.viewerIsSelf || mayMessage || mayCall || canBanFromRoom)
+  );
   const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
 
   $effect(() => {
@@ -275,7 +277,9 @@ responsive dialog backed by the detailed profile API.
           <p class="mt-1 truncate text-sm font-semibold text-muted">@{login}</p>
           <div class="profile-presence-row mt-4 flex flex-wrap items-center gap-2">
             <span class="profile-presence-chip">
-              <span class={['h-2.5 w-2.5 rounded-full shadow-sm', presenceDotClass]} aria-hidden="true"
+              <span
+                class={['h-2.5 w-2.5 rounded-full shadow-sm', presenceDotClass]}
+                aria-hidden="true"
               ></span>
               {presenceLabel}
             </span>
@@ -350,7 +354,7 @@ responsive dialog backed by the detailed profile API.
         <span class="profile-state-icon" aria-hidden="true">
           <span class="iconify uil--exclamation-octagon"></span>
         </span>
-        <p class="text-sm font-medium leading-relaxed">{loadError}</p>
+        <p class="text-sm leading-relaxed font-medium">{loadError}</p>
       </section>
     {/if}
 
@@ -361,14 +365,19 @@ responsive dialog backed by the detailed profile API.
           aria-labelledby={biographyHeadingId}
         >
           <div class="flex items-center justify-between gap-3">
-            <h4 id={biographyHeadingId} class="flex items-center gap-2 text-sm font-semibold text-text">
+            <h4
+              id={biographyHeadingId}
+              class="flex items-center gap-2 text-sm font-semibold text-text"
+            >
               <span class="profile-section-icon" aria-hidden="true">
                 <span class="iconify uil--file-alt"></span>
               </span>
               {m['profile.biography']()}
             </h4>
           </div>
-          <div class="profile-biography min-h-40 rounded-xl border border-text/10 bg-surface-100/70 p-4 text-sm leading-relaxed shadow-inner">
+          <div
+            class="profile-biography min-h-40 rounded-xl border border-text/10 bg-surface-100/70 p-4 text-sm leading-relaxed shadow-inner"
+          >
             {#if profile.biographyMarkdown.trim()}
               <MessageContent body={profile.biographyMarkdown} />
             {:else}
@@ -425,7 +434,11 @@ responsive dialog backed by the detailed profile API.
         aria-label={m['profile.actions']()}
       >
         {#if profile?.viewerIsSelf}
-          <button type="button" class="profile-action-button btn-primary min-h-12" onclick={handleEditProfile}>
+          <button
+            type="button"
+            class="profile-action-button btn-primary min-h-12"
+            onclick={handleEditProfile}
+          >
             <span class="profile-action-icon" aria-hidden="true">
               <span class="iconify uil--edit"></span>
             </span>
@@ -433,7 +446,11 @@ responsive dialog backed by the detailed profile API.
           </button>
         {/if}
         {#if mayMessage}
-          <button type="button" class="profile-action-button btn-primary min-h-12" onclick={handleSendMessage}>
+          <button
+            type="button"
+            class="profile-action-button btn-primary min-h-12"
+            onclick={handleSendMessage}
+          >
             <span class="profile-action-icon" aria-hidden="true">
               <span class="iconify uil--comment-alt-message"></span>
             </span>
@@ -441,7 +458,11 @@ responsive dialog backed by the detailed profile API.
           </button>
         {/if}
         {#if mayCall}
-          <button type="button" class="profile-action-button btn-accent min-h-12" onclick={handleCall}>
+          <button
+            type="button"
+            class="profile-action-button btn-accent min-h-12"
+            onclick={handleCall}
+          >
             <span class="profile-action-icon" aria-hidden="true">
               <span class="iconify uil--phone"></span>
             </span>
