@@ -31,7 +31,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/profile-patch/[0-9][0-9].b64 > "${RUNNER_TEMP}/user-profiles.patch.xz.b64"
+          cat \
+            .github/profile-patch/00-00.b64 \
+            .github/profile-patch/00-01.b64 \
+            .github/profile-patch/00-02.b64 \
+            .github/profile-patch/00-03.b64 \
+            .github/profile-patch/00-04.b64 \
+            .github/profile-patch/00-05.b64 \
+            .github/profile-patch/01.b64 \
+            .github/profile-patch/02.b64 \
+            .github/profile-patch/03.b64 \
+            > "${RUNNER_TEMP}/user-profiles.patch.xz.b64"
           test "$(wc -c < "${RUNNER_TEMP}/user-profiles.patch.xz.b64")" -eq 42920
           printf '%s  %s\n' \
             '55d558580bed45de9a72887f4318ebb02359a4bad9bb2ceec134b7a5039b1466' \
