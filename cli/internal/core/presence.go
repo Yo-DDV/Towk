@@ -269,5 +269,13 @@ func (c *ChattoCore) touchUserLastActivityIfKnown(ctx context.Context, userID st
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return
 	}
+	settings, err := c.GetUserSettings(ctx, userID)
+	if err != nil {
+		c.logger.Warn("Failed to read last activity visibility", "user_id", userID, "error", err)
+		return
+	}
+	if !effectiveShowLastActivity(settings) {
+		return
+	}
 	c.touchUserLastActivity(ctx, userID)
 }

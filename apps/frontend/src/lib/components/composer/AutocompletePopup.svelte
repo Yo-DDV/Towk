@@ -27,6 +27,7 @@ configurable selection keys, and customizable item rendering via snippets.
     testid?: string;
     class?: string;
     item: Snippet<[{ item: T; selected: boolean }]>;
+    action?: Snippet<[{ item: T; selected: boolean }]>;
   };
 
   let {
@@ -37,7 +38,8 @@ configurable selection keys, and customizable item rendering via snippets.
     onClose,
     testid,
     class: className = '',
-    item
+    item,
+    action
   }: Props = $props();
 
   let selectedIndex = $derived.by(() => {
@@ -79,11 +81,10 @@ configurable selection keys, and customizable item rendering via snippets.
   >
     <ul class="menu-section">
       {#each items as entry, index (getKey(entry))}
-        <li>
+        <li class="flex min-w-0 items-stretch" onmouseenter={() => (selectedIndex = index)}>
           <button
             type="button"
-            class={['menu-item', index === selectedIndex && 'menu-item-active']}
-            onmouseenter={() => (selectedIndex = index)}
+            class={['menu-item min-w-0 flex-1', index === selectedIndex && 'menu-item-active']}
             onclick={() => onSelect(entry, 'click')}
             {@attach (el) => {
               // Keep the selected item in view during keyboard navigation
@@ -92,6 +93,9 @@ configurable selection keys, and customizable item rendering via snippets.
           >
             {@render item({ item: entry, selected: index === selectedIndex })}
           </button>
+          {#if action}
+            {@render action({ item: entry, selected: index === selectedIndex })}
+          {/if}
         </li>
       {/each}
     </ul>

@@ -197,6 +197,12 @@ const msg_settings_profile_details_load_failed = (): LocalizedString => messages
 const msg_settings_profile_details_biography_title = (): LocalizedString => messages().settings_profile_details_biography_title(empty());
 const msg_settings_profile_details_biography_description = (): LocalizedString => messages().settings_profile_details_biography_description(empty());
 const msg_settings_profile_details_formatting_toolbar = (): LocalizedString => messages().settings_profile_details_formatting_toolbar(empty());
+const msg_settings_profile_details_bold = (): LocalizedString => messages().settings_profile_details_bold(empty());
+const msg_settings_profile_details_italic = (): LocalizedString => messages().settings_profile_details_italic(empty());
+const msg_settings_profile_details_heading = (): LocalizedString => messages().settings_profile_details_heading(empty());
+const msg_settings_profile_details_bullet_list = (): LocalizedString => messages().settings_profile_details_bullet_list(empty());
+const msg_settings_profile_details_numbered_list = (): LocalizedString => messages().settings_profile_details_numbered_list(empty());
+const msg_settings_profile_details_quote = (): LocalizedString => messages().settings_profile_details_quote(empty());
 const msg_settings_profile_details_link_text = (): LocalizedString => messages().settings_profile_details_link_text(empty());
 const msg_settings_profile_details_add_link = (): LocalizedString => messages().settings_profile_details_add_link(empty());
 const msg_settings_profile_details_inline_code = (): LocalizedString => messages().settings_profile_details_inline_code(empty());
@@ -607,8 +613,10 @@ const msg_profile_last_activity_unavailable = (): LocalizedString => messages().
 const msg_profile_biography = (): LocalizedString => messages().profile_biography(empty());
 const msg_profile_biography_empty = (): LocalizedString => messages().profile_biography_empty(empty());
 const msg_profile_actions = (): LocalizedString => messages().profile_actions(empty());
+const msg_profile_details = (): LocalizedString => messages().profile_details(empty());
 const msg_profile_call = (): LocalizedString => messages().profile_call(empty());
 const msg_profile_not_available = (): LocalizedString => messages().profile_not_available(empty());
+const msg_profile_edit = (): LocalizedString => messages().profile_edit(empty());
 const msg_room_create_title = (): LocalizedString => messages().room_create_title(empty());
 const msg_room_create_description = (): LocalizedString => messages().room_create_description(empty());
 const msg_room_create_name_placeholder = (): LocalizedString => messages().room_create_name_placeholder(empty());
@@ -2163,6 +2171,12 @@ export { msg_settings_profile_details_load_failed as 'settings.profile.details.l
 export { msg_settings_profile_details_biography_title as 'settings.profile.details.biography_title' };
 export { msg_settings_profile_details_biography_description as 'settings.profile.details.biography_description' };
 export { msg_settings_profile_details_formatting_toolbar as 'settings.profile.details.formatting_toolbar' };
+export { msg_settings_profile_details_bold as 'settings.profile.details.bold' };
+export { msg_settings_profile_details_italic as 'settings.profile.details.italic' };
+export { msg_settings_profile_details_heading as 'settings.profile.details.heading' };
+export { msg_settings_profile_details_bullet_list as 'settings.profile.details.bullet_list' };
+export { msg_settings_profile_details_numbered_list as 'settings.profile.details.numbered_list' };
+export { msg_settings_profile_details_quote as 'settings.profile.details.quote' };
 export { msg_settings_profile_details_link_text as 'settings.profile.details.link_text' };
 export { msg_settings_profile_details_add_link as 'settings.profile.details.add_link' };
 export { msg_settings_profile_details_inline_code as 'settings.profile.details.inline_code' };
@@ -2529,8 +2543,10 @@ export { msg_profile_last_activity_unavailable as 'profile.last_activity_unavail
 export { msg_profile_biography as 'profile.biography' };
 export { msg_profile_biography_empty as 'profile.biography_empty' };
 export { msg_profile_actions as 'profile.actions' };
+export { msg_profile_details as 'profile.details' };
 export { msg_profile_call as 'profile.call' };
 export { msg_profile_not_available as 'profile.not_available' };
+export { msg_profile_edit as 'profile.edit' };
 export { msg_room_create_title as 'room.create.title' };
 export { msg_room_create_description as 'room.create.description' };
 export { msg_room_create_name_placeholder as 'room.create.name_placeholder' };

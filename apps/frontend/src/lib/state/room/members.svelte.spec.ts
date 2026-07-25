@@ -9,6 +9,7 @@ class FakeMemberDirectoryAPI {
   listRoomMembers: MemberDirectoryAPI['listRoomMembers'];
   listUsers: MemberDirectoryAPI['listUsers'];
   getUser: MemberDirectoryAPI['getUser'];
+  getUserProfile: MemberDirectoryAPI['getUserProfile'];
   getUserByLogin: MemberDirectoryAPI['getUserByLogin'];
   batchGetUsers: MemberDirectoryAPI['batchGetUsers'];
   getRoomMember: MemberDirectoryAPI['getRoomMember'];
@@ -23,6 +24,7 @@ class FakeMemberDirectoryAPI {
     });
     this.listUsers = vi.fn();
     this.getUser = vi.fn();
+    this.getUserProfile = vi.fn();
     this.getUserByLogin = vi.fn();
     this.batchGetUsers = vi.fn();
     this.getRoomMember = vi.fn();

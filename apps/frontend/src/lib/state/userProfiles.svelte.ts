@@ -1,5 +1,117 @@
 import { createContext } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
+import type { DetailedUserProfile } from '$lib/api-client/memberDirectory';
+
+type DetailedProfileEntry = {
+  generation: number;
+  hasValue: boolean;
+  value: DetailedUserProfile | null;
+  inFlight: Promise<DetailedUserProfile | null> | null;
+};
+
+function detailedProfileKey(serverId: string, userId: string): string {
+  return `${serverId}\u0000${userId}`;
+}
+
+/**
+ * Small server-scoped cache for detailed profiles. Directory rows remain light,
+ * while repeated openings of the same profile reuse one request. Generation
+ * counters prevent an older response from repopulating an entry after a
+ * realtime invalidation.
+ */
+export function createDetailedUserProfileCache() {
+  const entries = new Map<string, DetailedProfileEntry>();
+  const revisions = new SvelteMap<string, number>();
+
+  function entryFor(key: string): DetailedProfileEntry {
+    let entry = entries.get(key);
+    if (!entry) {
+      entry = { generation: 0, hasValue: false, value: null, inFlight: null };
+      entries.set(key, entry);
+    }
+    return entry;
+  }
+
+  async function load(
+    serverId: string,
+    userId: string,
+    loader: () => Promise<DetailedUserProfile | null>
+  ): Promise<DetailedUserProfile | null> {
+    const key = detailedProfileKey(serverId, userId);
+    const entry = entryFor(key);
+    if (entry.hasValue) return entry.value;
+    if (entry.inFlight) return entry.inFlight;
+
+    const generation = entry.generation;
+    const request = loader()
+      .then(async (value) => {
+        const latest = entryFor(key);
+        if (latest.generation !== generation) {
+          if (latest.inFlight === request) latest.inFlight = null;
+          return load(serverId, userId, loader);
+        }
+        latest.value = value;
+        latest.hasValue = true;
+        latest.inFlight = null;
+        return value;
+      })
+      .catch((error) => {
+        const latest = entryFor(key);
+        if (latest.inFlight === request) latest.inFlight = null;
+        throw error;
+      });
+
+    entry.inFlight = request;
+    return request;
+  }
+
+  function invalidate(serverId: string, userId: string): void {
+    const key = detailedProfileKey(serverId, userId);
+    const entry = entryFor(key);
+    entry.generation += 1;
+    entry.hasValue = false;
+    entry.value = null;
+    entry.inFlight = null;
+    revisions.set(key, (revisions.get(key) ?? 0) + 1);
+  }
+
+  function revision(serverId: string, userId: string): number {
+    return revisions.get(detailedProfileKey(serverId, userId)) ?? 0;
+  }
+
+  function clearServer(serverId: string): void {
+    const prefix = `${serverId}\u0000`;
+    for (const key of entries.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      entries.delete(key);
+      revisions.delete(key);
+    }
+  }
+
+  return { load, invalidate, revision, clearServer };
+}
+
+const detailedUserProfiles = createDetailedUserProfileCache();
+
+export function loadDetailedUserProfile(
+  serverId: string,
+  userId: string,
+  loader: () => Promise<DetailedUserProfile | null>
+): Promise<DetailedUserProfile | null> {
+  return detailedUserProfiles.load(serverId, userId, loader);
+}
+
+export function invalidateDetailedUserProfile(serverId: string, userId: string): void {
+  detailedUserProfiles.invalidate(serverId, userId);
+}
+
+export function getDetailedUserProfileRevision(serverId: string, userId: string): number {
+  return detailedUserProfiles.revision(serverId, userId);
+}
+
+export function clearDetailedUserProfilesForServer(serverId: string): void {
+  detailedUserProfiles.clearServer(serverId);
+}
 
 /**
  * Global cache for live user profile updates (display name, avatar URL, login,
@@ -89,10 +201,7 @@ function scheduleExpiry(
     }
     expiryCleanups.delete(userId);
   });
-  expiryCleanups.set(
-    userId,
-    cleanup
-  );
+  expiryCleanups.set(userId, cleanup);
 }
 
 function mergeProfileUpdate(
@@ -118,6 +227,27 @@ export function createUserProfileCache() {
   });
   setCache(state);
 
+  return {
+    update: (
+      userId: string,
+      displayName: string,
+      avatarUrl: string | null,
+      login: string,
+      customStatus?: CustomUserStatus | null
+    ) => {
+      const update: ProfileUpdate = { displayName, avatarUrl, login };
+      if (customStatus !== undefined) update.customStatus = customStatus;
+      mergeProfileUpdate(state.current, userId, update);
+    },
+    updateStatus: (userId: string, customStatus: CustomUserStatus | null) => {
+      mergeProfileUpdate(state.current, userId, { customStatus });
+    }
+  };
+}
+
+/** Access the live identity cache from a descendant component. */
+export function useUserProfileCache() {
+  const state = getCache();
   return {
     update: (
       userId: string,

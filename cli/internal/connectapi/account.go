@@ -23,6 +23,14 @@ func (s *accountService) UpdateProfile(ctx context.Context, req *connect.Request
 		return nil, invalidArgument("at least one of display_name, login, or biography_markdown must be provided")
 	}
 
+	normalizedBiography := ""
+	if req.Msg.BiographyMarkdown != nil {
+		normalizedBiography, err = core.NormalizeAndValidateUserBiography(req.Msg.GetBiographyMarkdown())
+		if err != nil {
+			return nil, connectError(err)
+		}
+	}
+
 	var updated *corev1.User
 	if req.Msg.DisplayName != nil {
 		updated, err = s.api.core.UpdateUserDisplayName(ctx, caller.UserID, req.Msg.GetDisplayName())
@@ -37,7 +45,7 @@ func (s *accountService) UpdateProfile(ctx context.Context, req *connect.Request
 		}
 	}
 	if req.Msg.BiographyMarkdown != nil {
-		if err := s.api.core.UpdateUserBiography(ctx, caller.UserID, req.Msg.GetBiographyMarkdown()); err != nil {
+		if err := s.api.core.UpdateUserBiography(ctx, caller.UserID, normalizedBiography); err != nil {
 			return nil, connectError(err)
 		}
 	}

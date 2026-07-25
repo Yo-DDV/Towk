@@ -23,6 +23,7 @@
     clearLabel = m['ui.combobox.clear'](),
     class: className,
     item,
+    itemAction,
     ontextchange,
     onselect,
     onclear
@@ -44,6 +45,7 @@
     clearLabel?: string;
     class?: ClassValue;
     item?: Snippet<[{ item: T; selected: boolean }]>;
+    itemAction?: Snippet<[{ item: T; selected: boolean }]>;
     ontextchange?: (text: string) => void;
     onselect?: (item: T) => void;
     onclear?: () => void;
@@ -183,20 +185,31 @@
   <div class="menu-section">
     {#if items.length > 0}
       {#each items as option, index (getValue(option))}
-        <button
-          type="button"
-          role="option"
-          aria-selected={index === selectedIndex}
-          class={['menu-item w-full text-left', index === selectedIndex && 'menu-item-active']}
+        <div
+          role="presentation"
+          class="flex min-w-0 items-stretch"
           onpointerenter={() => (selectedIndex = index)}
-          onclick={() => selectOption(option)}
         >
-          {#if item}
-            {@render item({ item: option, selected: index === selectedIndex })}
-          {:else}
-            <span class="min-w-0 truncate">{getLabel(option)}</span>
+          <button
+            type="button"
+            role="option"
+            aria-selected={index === selectedIndex}
+            class={[
+              'menu-item min-w-0 flex-1 text-left',
+              index === selectedIndex && 'menu-item-active'
+            ]}
+            onclick={() => selectOption(option)}
+          >
+            {#if item}
+              {@render item({ item: option, selected: index === selectedIndex })}
+            {:else}
+              <span class="min-w-0 truncate">{getLabel(option)}</span>
+            {/if}
+          </button>
+          {#if itemAction}
+            {@render itemAction({ item: option, selected: index === selectedIndex })}
           {/if}
-        </button>
+        </div>
       {/each}
     {:else if loading}
       <div class="px-3 py-2 text-sm text-muted">{m['ui.combobox.loading']()}</div>

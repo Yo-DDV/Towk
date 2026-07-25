@@ -7,7 +7,35 @@ import UserContextMenu from './UserContextMenu.svelte';
 const mocks = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   startDMWith: vi.fn(),
-  startCallWith: vi.fn()
+  startCallWith: vi.fn(),
+  goto: vi.fn(),
+  pushState: vi.fn(),
+  replaceState: vi.fn(),
+  pageState: {} as Record<string, unknown>
+}));
+
+vi.mock('$app/environment', () => ({ browser: true }));
+
+vi.mock('$app/state', () => ({
+  page: { state: mocks.pageState }
+}));
+
+vi.mock('$app/navigation', () => ({
+  goto: mocks.goto,
+  pushState: (_url: string, state: Record<string, unknown>) => {
+    for (const key of Object.keys(mocks.pageState)) delete mocks.pageState[key];
+    Object.assign(mocks.pageState, state);
+    mocks.pushState(_url, state);
+  },
+  replaceState: (_url: string, state: Record<string, unknown>) => {
+    for (const key of Object.keys(mocks.pageState)) delete mocks.pageState[key];
+    Object.assign(mocks.pageState, state);
+    mocks.replaceState(_url, state);
+  }
+}));
+
+vi.mock('$app/paths', () => ({
+  resolve: (_route: string, params: { serverId: string }) => `/chat/${params.serverId}/settings`
 }));
 
 vi.mock('$lib/state/server/connection.svelte', () => ({
@@ -35,7 +63,10 @@ vi.mock('$lib/state/userProfiles.svelte', () => ({
   getLiveDisplayName: (_userId: string, fallback: string) => fallback,
   getLiveLogin: (_userId: string, fallback: string) => fallback,
   getLiveAvatarUrl: (_userId: string, fallback: string | null) => fallback,
-  getLiveCustomStatus: (_userId: string, fallback: unknown) => fallback
+  getLiveCustomStatus: (_userId: string, fallback: unknown) => fallback,
+  getDetailedUserProfileRevision: () => 0,
+  loadDetailedUserProfile: (_serverId: string, _userId: string, load: () => Promise<unknown>) =>
+    load()
 }));
 
 vi.mock('$lib/state/presenceCache.svelte', () => ({
@@ -88,6 +119,10 @@ beforeEach(() => {
   mocks.getUserProfile.mockReset();
   mocks.startDMWith.mockReset();
   mocks.startCallWith.mockReset();
+  mocks.goto.mockReset();
+  mocks.pushState.mockReset();
+  mocks.replaceState.mockReset();
+  for (const key of Object.keys(mocks.pageState)) delete mocks.pageState[key];
   mocks.getUserProfile.mockResolvedValue(profile);
 });
 
@@ -122,6 +157,29 @@ describe('UserContextMenu', () => {
     const { container } = renderMenu();
 
     await vi.waitFor(() => expect(container.textContent).toContain('Member'));
+  });
+
+  it('does not expose message or call actions for deleted users', async () => {
+    mocks.getUserProfile.mockResolvedValue({
+      ...profile,
+      user: { ...profile.user, deleted: true },
+      viewerCanMessage: true,
+      viewerCanCall: true
+    });
+    const { container } = renderMenu();
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+
+    expect(container.textContent).not.toContain('Send Message');
+    expect(buttonByText.bind(null, container, 'Call')).toThrow();
+  });
+
+  it('offers profile editing only for the authenticated user', async () => {
+    mocks.getUserProfile.mockResolvedValue({ ...profile, viewerIsSelf: true });
+    const { container } = renderMenu();
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+
+    buttonByText(container, 'Edit profile').click();
+    await vi.waitFor(() => expect(mocks.goto).toHaveBeenCalledWith('/chat/server-1/settings'));
   });
 
   it('preserves the existing send callback when supplied by a caller', async () => {

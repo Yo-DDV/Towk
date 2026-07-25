@@ -124,7 +124,10 @@ const {
 }));
 const navigation = vi.hoisted(() => ({
   goto: vi.fn(),
-  pushState: vi.fn()
+  pushState: vi.fn(),
+  replaceState: vi.fn(),
+  pageState: {} as Record<string, unknown>,
+  getUserProfile: vi.fn()
 }));
 
 vi.mock('$lib/state/activeServer.svelte', () => ({
@@ -138,9 +141,22 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
   })
 }));
 
+vi.mock('$app/environment', () => ({ browser: true }));
+
+vi.mock('$app/state', () => ({ page: { state: navigation.pageState } }));
+
 vi.mock('$app/navigation', () => ({
   goto: navigation.goto,
-  pushState: navigation.pushState
+  pushState: (_url: string, state: Record<string, unknown>) => {
+    for (const key of Object.keys(navigation.pageState)) delete navigation.pageState[key];
+    Object.assign(navigation.pageState, state);
+    navigation.pushState(_url, state);
+  },
+  replaceState: (_url: string, state: Record<string, unknown>) => {
+    for (const key of Object.keys(navigation.pageState)) delete navigation.pageState[key];
+    Object.assign(navigation.pageState, state);
+    navigation.replaceState(_url, state);
+  }
 }));
 
 vi.mock('$lib/state/server/registry.svelte', () => {
@@ -171,7 +187,15 @@ vi.mock('$lib/state/server/registry.svelte', () => {
 vi.mock('$lib/state/userProfiles.svelte', () => ({
   getLiveAvatarUrl: (_userId: string, fallback: string | null) => fallback,
   getLiveCustomStatus: (_userId: string, fallback: unknown) => fallback,
-  getLiveDisplayName: (_userId: string, fallback: string) => fallback
+  getLiveDisplayName: (_userId: string, fallback: string) => fallback,
+  getLiveLogin: (_userId: string, fallback: string) => fallback,
+  getDetailedUserProfileRevision: () => 0,
+  loadDetailedUserProfile: (_serverId: string, _userId: string, load: () => Promise<unknown>) =>
+    load()
+}));
+
+vi.mock('$lib/api-client/memberDirectory', () => ({
+  createMemberDirectoryAPI: () => ({ getUserProfile: navigation.getUserProfile })
 }));
 
 describe('CurrentUserBar', () => {
@@ -205,6 +229,21 @@ describe('CurrentUserBar', () => {
     voiceCallState.toggleScreenShare.mockClear();
     voiceCallState.leave.mockClear();
     navigation.goto.mockClear();
+    navigation.pushState.mockClear();
+    navigation.replaceState.mockClear();
+    navigation.getUserProfile.mockReset();
+    navigation.getUserProfile.mockResolvedValue({
+      user: { ...currentUserState.user, deleted: false },
+      roles: [],
+      joinedAt: '2026-01-01T00:00:00.000Z',
+      biographyMarkdown: '',
+      lastActivity: null,
+      lastActivityVisible: true,
+      viewerIsSelf: true,
+      viewerCanMessage: false,
+      viewerCanCall: false
+    });
+    for (const key of Object.keys(navigation.pageState)) delete navigation.pageState[key];
     roomsState.currentUserId = 'user-1';
     roomsState.rooms = [
       {
@@ -257,6 +296,18 @@ describe('CurrentUserBar', () => {
       '[data-testid="current-user-presence-menu"] [aria-label="Away"] span'
     )!;
     expect(presenceDot.className).toContain('bg-presence-away');
+  });
+
+  it('opens the current user profile from the identity area', async () => {
+    const { container } = render(CurrentUserBarTestHarness);
+
+    (q(container, '[data-testid="current-user-identity-text"]') as HTMLButtonElement).click();
+
+    await vi.waitFor(() => {
+      expect(q(container, '[data-testid="user-profile-dialog"]')).toBeTruthy();
+      expect(container.textContent).toContain('Edit profile');
+    });
+    expect(navigation.getUserProfile).toHaveBeenCalledWith('user-1');
   });
 
   it('keeps the username line when display name and username match', () => {

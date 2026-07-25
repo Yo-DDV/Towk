@@ -169,6 +169,7 @@ type EventEnvelopeEvent =
       kind: typeof RoomEventKind.ServerUserPreferencesUpdated;
       timezone: string | null;
       timeFormat: TimeFormat;
+      showLastActivity: boolean;
     }
   | { kind: typeof RoomEventKind.SessionTerminated; reason: string }
   | { kind: typeof RoomEventKind.ThreadCreated; roomId?: string; threadRootEventId?: string }
@@ -194,6 +195,7 @@ type EventEnvelopeEvent =
       displayName: string;
       avatarUrl: string | null;
       login: string;
+      detailsChanged: boolean;
     }
   | {
       kind: typeof RoomEventKind.UserTyping;
@@ -353,6 +355,7 @@ export type UserProfileUpdate = {
   displayName: string;
   avatarUrl: string | null;
   login: string;
+  detailsChanged: boolean;
 };
 
 export function onUserProfileUpdate(handler: (update: UserProfileUpdate) => void): () => void {
@@ -363,7 +366,8 @@ export function onUserProfileUpdate(handler: (update: UserProfileUpdate) => void
         userId: e.userId,
         displayName: e.displayName,
         avatarUrl: e.avatarUrl,
-        login: e.login
+        login: e.login,
+        detailsChanged: e.detailsChanged
       };
     },
     handler
@@ -541,13 +545,18 @@ export function onRoomMarkedAsRead(handler: (info: RoomMarkedAsReadInfo) => void
 export type UserSettingsUpdate = {
   timezone: string | null;
   timeFormat: TimeFormat;
+  showLastActivity: boolean;
 };
 
 export function onUserSettingsUpdate(handler: (update: UserSettingsUpdate) => void): () => void {
   return onTypedEvent(
     RoomEventKind.ServerUserPreferencesUpdated,
     (_env, e) => {
-      return { timezone: e.timezone, timeFormat: e.timeFormat };
+      return {
+        timezone: e.timezone,
+        timeFormat: e.timeFormat,
+        showLastActivity: e.showLastActivity
+      };
     },
     handler
   );

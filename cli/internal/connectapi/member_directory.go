@@ -163,7 +163,8 @@ func (s *userService) GetUserProfile(ctx context.Context, req *connect.Request[a
 	if err != nil {
 		return nil, connectError(err)
 	}
-	lastActivityVisible := settings == nil || settings.ShowLastActivity == nil || settings.GetShowLastActivity()
+	targetAvailable := !user.GetDeleted()
+	lastActivityVisible := targetAvailable && (settings == nil || settings.ShowLastActivity == nil || settings.GetShowLastActivity())
 	viewerIsSelf := caller.UserID == user.GetId()
 
 	canStartDM, err := s.api.core.CanStartDM(ctx, caller.UserID)
@@ -177,10 +178,10 @@ func (s *userService) GetUserProfile(ctx context.Context, req *connect.Request[a
 		BiographyMarkdown:   biography,
 		LastActivityVisible: lastActivityVisible,
 		ViewerIsSelf:        viewerIsSelf,
-		ViewerCanMessage:    !viewerIsSelf && canStartDM,
-		ViewerCanCall:       !viewerIsSelf && canStartDM,
+		ViewerCanMessage:    targetAvailable && !viewerIsSelf && canStartDM,
+		ViewerCanCall:       targetAvailable && !viewerIsSelf && canStartDM && s.api.config.LiveKit.IsConfigured(),
 	}
-	if viewerIsSelf || lastActivityVisible {
+	if targetAvailable && (viewerIsSelf || lastActivityVisible) {
 		lastActivity, err := s.api.core.GetUserLastActivity(ctx, user.GetId())
 		if err != nil {
 			return nil, connectError(err)

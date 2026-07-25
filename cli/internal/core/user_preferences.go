@@ -59,6 +59,22 @@ func (c *ChattoCore) UpdateUserSettings(ctx context.Context, userID string, inpu
 		}
 	}
 
+	// Visibility transitions clear the latest-value record before publishing the
+	// new preference. This prevents an old hidden timestamp from reappearing when
+	// visibility is enabled again and keeps the transition fail-closed if runtime
+	// state cannot be cleaned up.
+	if input.ShowLastActivity != nil {
+		current, err := c.GetUserSettings(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("read current user settings: %w", err)
+		}
+		if effectiveShowLastActivity(current) != *input.ShowLastActivity {
+			if err := c.deleteUserLastActivity(ctx, userID); err != nil {
+				return nil, fmt.Errorf("clear user last activity before visibility change: %w", err)
+			}
+		}
+	}
+
 	changed := false
 	if err := c.configManager.model.updateSubject(ctx, userID, func(_ events.Aggregate, _ string, _ uint64) ([]*corev1.Event, error) {
 		current, _, err := c.ServerConfig.UserSettings(userID)

@@ -68,7 +68,9 @@
     "biography": "Sobre",
     "biography_empty": "Ainda não há biografia.",
     "actions": "Ações do perfil",
+    "details": "Detalhes do perfil",
     "call": "Ligar",
-    "not_available": "Indisponível"
+    "not_available": "Indisponível",
+    "edit": "Editar perfil"
   }
 }

@@ -172,10 +172,7 @@ export function createMemberDirectoryAPI(config: MemberDirectoryAPIConfig) {
   };
 }
 
-export type MemberDirectoryAPI = Omit<
-  ReturnType<typeof createMemberDirectoryAPI>,
-  'getUserProfile'
->;
+export type MemberDirectoryAPI = ReturnType<typeof createMemberDirectoryAPI>;
 
 export function mapDirectoryMember(member: APIDirectoryMember): DirectoryMember {
   const user = member.user;

@@ -22,21 +22,32 @@ func (c *ChattoCore) GetUserBiography(ctx context.Context, userID string) (strin
 	return biography, nil
 }
 
+// NormalizeAndValidateUserBiography normalizes line endings and validates the
+// durable biography contract without mutating user state. Callers that update
+// multiple profile fields can use this as a preflight to avoid partial writes.
+func NormalizeAndValidateUserBiography(value string) (string, error) {
+	value = normalizeUserBiography(value)
+	if !utf8.ValidString(value) {
+		return "", fmt.Errorf("%w: biography is not valid UTF-8", ErrInvalidArgument)
+	}
+	if len([]byte(value)) > MaxUserBiographyBytes {
+		return "", fmt.Errorf("%w: biography exceeds %d bytes", ErrInvalidArgument, MaxUserBiographyBytes)
+	}
+	if strings.IndexByte(value, 0) >= 0 {
+		return "", fmt.Errorf("%w: biography contains a null character", ErrInvalidArgument)
+	}
+	return value, nil
+}
+
 // UpdateUserBiography stores or clears the authenticated user's Markdown
 // biography under the existing user-PII envelope.
 func (c *ChattoCore) UpdateUserBiography(ctx context.Context, userID, biography string) error {
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return fmt.Errorf("user not found: %w", err)
 	}
-	biography = normalizeUserBiography(biography)
-	if !utf8.ValidString(biography) {
-		return fmt.Errorf("%w: biography is not valid UTF-8", ErrInvalidArgument)
-	}
-	if len([]byte(biography)) > MaxUserBiographyBytes {
-		return fmt.Errorf("%w: biography exceeds %d bytes", ErrInvalidArgument, MaxUserBiographyBytes)
-	}
-	if strings.IndexByte(biography, 0) >= 0 {
-		return fmt.Errorf("%w: biography contains a null character", ErrInvalidArgument)
+	biography, err := NormalizeAndValidateUserBiography(biography)
+	if err != nil {
+		return err
 	}
 
 	current, _ := c.Users.Biography(userID)

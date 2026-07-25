@@ -6,6 +6,7 @@ declare global {
     // interface Locals {}
     // interface PageData {}
     interface PageState {
+      profileDialog?: string;
       threadFilter?: 'all' | 'unread';
       welcome?: boolean;
       modal?: {
