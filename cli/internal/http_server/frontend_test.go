@@ -315,6 +315,48 @@ func TestClientAcceptsEncoding(t *testing.T) {
 			encoding:       "br",
 		},
 		{
+			name:           "explicit zero quality rejects encoding",
+			acceptEncoding: "gzip;q=1, br;q=0",
+			expected:       false,
+			encoding:       "br",
+		},
+		{
+			name:           "explicit zero quality overrides wildcard",
+			acceptEncoding: "*;q=1, br;q=0",
+			expected:       false,
+			encoding:       "br",
+		},
+		{
+			name:           "wildcard accepts unlisted encoding",
+			acceptEncoding: "gzip;q=0.5, *;q=0.2",
+			expected:       true,
+			encoding:       "br",
+		},
+		{
+			name:           "encoding tokens are case insensitive",
+			acceptEncoding: "GZip, BR",
+			expected:       true,
+			encoding:       "br",
+		},
+		{
+			name:           "invalid quality rejects encoding",
+			acceptEncoding: "br;q=invalid",
+			expected:       false,
+			encoding:       "br",
+		},
+		{
+			name:           "quality parameter without a value rejects encoding",
+			acceptEncoding: "br;q",
+			expected:       false,
+			encoding:       "br",
+		},
+		{
+			name:           "non finite quality rejects encoding",
+			acceptEncoding: "br;q=NaN",
+			expected:       false,
+			encoding:       "br",
+		},
+		{
 			name:           "no spaces",
 			acceptEncoding: "gzip,deflate,br",
 			expected:       true,
@@ -328,6 +370,75 @@ func TestClientAcceptsEncoding(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestServePrecompressedFileHonorsEncodingQuality(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	clientFS := fstest.MapFS{
+		"app.js.br": &fstest.MapFile{Data: []byte("brotli")},
+		"app.js.gz": &fstest.MapFile{Data: []byte("gzip")},
+	}
+
+	tests := []struct {
+		name           string
+		acceptEncoding string
+		wantEncoding   string
+		wantBody       string
+	}{
+		{
+			name:           "prefers higher client quality",
+			acceptEncoding: "br;q=0.4, gzip;q=0.9",
+			wantEncoding:   "gzip",
+			wantBody:       "gzip",
+		},
+		{
+			name:           "prefers brotli when qualities tie",
+			acceptEncoding: "gzip;q=1, br;q=1",
+			wantEncoding:   "br",
+			wantBody:       "brotli",
+		},
+		{
+			name:           "falls back to gzip when brotli is rejected",
+			acceptEncoding: "br;q=0, gzip;q=0.5",
+			wantEncoding:   "gzip",
+			wantBody:       "gzip",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := gin.New()
+			router.GET("/app.js", func(c *gin.Context) {
+				if !servePrecompressedFile(c, clientFS, "app.js") {
+					c.Status(http.StatusNotAcceptable)
+				}
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/app.js", nil)
+			req.Header.Set("Accept-Encoding", tt.acceptEncoding)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, tt.wantEncoding, w.Header().Get("Content-Encoding"))
+			assert.Equal(t, "Accept-Encoding", w.Header().Get("Vary"))
+			assert.Equal(t, tt.wantBody, w.Body.String())
+		})
+	}
+}
+
+func TestServePrecompressedFileKeepsIdentityFallbackCacheSafe(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	clientFS := fstest.MapFS{
+		"app.js.br": &fstest.MapFile{Data: []byte("brotli")},
+		"app.js.gz": &fstest.MapFile{Data: []byte("gzip")},
+	}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/app.js", nil)
+	c.Request.Header.Set("Accept-Encoding", "br;q=0, gzip;q=0")
+
+	assert.False(t, servePrecompressedFile(c, clientFS, "app.js"))
+	assert.Equal(t, "Accept-Encoding", c.Writer.Header().Get("Vary"))
 }
 
 func TestServeSPAFallback(t *testing.T) {

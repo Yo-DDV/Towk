@@ -13,27 +13,78 @@ function deploymentFiles(checkedInConfig) {
   return {
     checkedInConfig,
     compose: [
+      '"443:443/udp"',
+      '"livekit/livekit-server:v1.13.4@sha256:189f7c81b704a36642bc5c7e2d3e1ae83744627c11978a23a251bf19fbec64e0"',
       '"50000-50200:50000-50200/udp"',
       '"50201-50400:50201-50400/udp"',
       '"3478:3478/udp"',
       '"7881:7881/tcp"',
     ].join("\n"),
+    frontendConfig:
+      "const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS !== '0';",
     generator: `  port_range_start: 50000
   port_range_end: 50200
   relay_range_start: 50201
   relay_range_end: 50400
 `,
     exampleReadme:
-      "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs",
+      "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
     deploymentGuide:
-      "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs",
+      "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
     callGuide:
-      "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs",
+      "50000-50200 50201-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
+    mise: '"github:livekit/livekit" = "1.13.4"',
   };
 }
 
 test("the checked-in call deployment keeps direct media and TURN relay ranges aligned", async () => {
   assert.deepEqual(await checkCallDeploymentConfig(), []);
+});
+
+test("rejects a Compose deployment that makes Caddy HTTP/3 unreachable", () => {
+  const files = deploymentFiles(`rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+turn:
+  relay_range_start: 50201
+  relay_range_end: 50400
+`);
+  files.compose = files.compose.replace('"443:443/udp"\n', "");
+
+  assert.deepEqual(findCallDeploymentViolations(files), [
+    "compose.yml: Caddy must publish UDP 443 so HTTP/3 is reachable",
+  ]);
+});
+
+test("rejects opt-in-only frontend precompression", () => {
+  const files = deploymentFiles(`rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+turn:
+  relay_range_start: 50201
+  relay_range_end: 50400
+`);
+  files.frontendConfig =
+    "const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS === '1';";
+
+  assert.deepEqual(findCallDeploymentViolations(files), [
+    "svelte.config.js: standard builds must enable precompression unless explicitly disabled",
+  ]);
+});
+
+test("rejects mismatched LiveKit versions between Compose and the development toolchain", () => {
+  const files = deploymentFiles(`rtc:
+  port_range_start: 50000
+  port_range_end: 50200
+turn:
+  relay_range_start: 50201
+  relay_range_end: 50400
+`);
+  files.mise = '"github:livekit/livekit" = "1.13.3"';
+
+  assert.deepEqual(findCallDeploymentViolations(files), [
+    "LiveKit: Compose image and development toolchain versions must match",
+  ]);
 });
 
 test("rejects an unpublished or overlapping TURN relay range", () => {
@@ -45,18 +96,22 @@ turn:
   relay_range_start: 50200
   relay_range_end: 50400
 `,
-    compose: '"50000-50200:50000-50200/udp"\n"3478:3478/udp"\n"7881:7881/tcp"',
+    compose:
+      '"443:443/udp"\n"livekit/livekit-server:v1.13.4@sha256:189f7c81b704a36642bc5c7e2d3e1ae83744627c11978a23a251bf19fbec64e0"\n"50000-50200:50000-50200/udp"\n"3478:3478/udp"\n"7881:7881/tcp"',
+    frontendConfig:
+      "const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS !== '0';",
     generator: `  port_range_start: 50000
   port_range_end: 50200
   relay_range_start: 50200
   relay_range_end: 50400
 `,
     exampleReadme:
-      "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs",
+      "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
     deploymentGuide:
-      "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs",
+      "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
     callGuide:
-      "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs",
+      "50000-50200 50200-50400 use_external_ip allow_restricted_peer_cidrs HTTP/3 TURN/TLS",
+    mise: '"github:livekit/livekit" = "1.13.4"',
   };
 
   assert.deepEqual(findCallDeploymentViolations(files), [

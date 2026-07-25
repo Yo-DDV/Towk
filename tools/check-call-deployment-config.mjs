@@ -10,7 +10,9 @@ import { pathToFileURL } from "node:url";
 const files = {
   compose: "examples/dockercompose/compose.yml",
   checkedInConfig: "examples/dockercompose/livekit.yaml",
+  frontendConfig: "apps/frontend/svelte.config.js",
   generator: "examples/dockercompose/init-env.sh",
+  mise: "mise.toml",
   exampleReadme: "examples/dockercompose/README.md",
   deploymentGuide:
     "apps/docs-website/src/content/docs/guides/deployment/docker-compose.mdx",
@@ -159,6 +161,37 @@ function privateTurnViolations(contents, name) {
 
 export function findCallDeploymentViolations(contents) {
   const violations = [];
+  if (!contents.compose.includes('"443:443/udp"')) {
+    violations.push(
+      "compose.yml: Caddy must publish UDP 443 so HTTP/3 is reachable",
+    );
+  }
+  if (
+    !contents.frontendConfig.includes(
+      "process.env.CHATTO_FRONTEND_PRECOMPRESS !== '0'",
+    )
+  ) {
+    violations.push(
+      "svelte.config.js: standard builds must enable precompression unless explicitly disabled",
+    );
+  }
+
+  const composeLiveKitVersion = contents.compose.match(
+    /livekit-server:v([^@\s]+)@sha256:[0-9a-f]{64}/,
+  )?.[1];
+  const miseLiveKitVersion = contents.mise.match(
+    /"github:livekit\/livekit"\s*=\s*"([^"]+)"/,
+  )?.[1];
+  if (
+    composeLiveKitVersion === undefined ||
+    miseLiveKitVersion === undefined ||
+    composeLiveKitVersion !== miseLiveKitVersion
+  ) {
+    violations.push(
+      "LiveKit: Compose image and development toolchain versions must match",
+    );
+  }
+
   const rtcStart = yamlNumber(
     contents.checkedInConfig,
     "rtc",
@@ -247,6 +280,11 @@ export function findCallDeploymentViolations(contents) {
     ) {
       violations.push(
         `${name}: private-node embedded TURN permission must be documented`,
+      );
+    }
+    if (!document.includes("HTTP/3") || !document.includes("TURN/TLS")) {
+      violations.push(
+        `${name}: HTTP/3 and restrictive-network TURN/TLS fallbacks must be documented`,
       );
     }
   }
