@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, type Locator } from '@playwright/test';
 import { test } from './setup';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { TIMEOUTS } from './constants';
@@ -9,6 +9,18 @@ const tenorMediaUrl = 'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-conte
 const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
 const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+
+async function sendStandaloneExternalGifUrl(
+  roomPage: {
+    waitForInputEditable(): Promise<void>;
+    messageInput: Locator;
+  },
+  url: string
+): Promise<void> {
+  await roomPage.waitForInputEditable();
+  await roomPage.messageInput.fill(url);
+  await roomPage.messageInput.press('Enter');
+}
 
 test.describe('External GIF embeds', () => {
   test('replaces the standalone GIPHY URL with the default privacy card', async ({
@@ -27,7 +39,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await roomPage.sendMessage(giphyUrl);
+    await sendStandaloneExternalGifUrl(roomPage, giphyUrl);
 
     const message = page.locator('[role="article"]', { hasText: 'GIPHY' }).last();
     const embed = message.getByTestId('external-gif-embed');
@@ -57,7 +69,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await roomPage.sendMessage(giphyMediaUrl);
+    await sendStandaloneExternalGifUrl(roomPage, giphyMediaUrl);
 
     const embed = page.getByTestId('external-gif-embed').last();
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
@@ -85,7 +97,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await roomPage.sendMessage(klipyMediaUrl);
+    await sendStandaloneExternalGifUrl(roomPage, klipyMediaUrl);
 
     const embed = page.getByTestId('external-gif-embed').last();
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
@@ -114,7 +126,7 @@ test.describe('External GIF embeds', () => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
-    await roomPage.sendMessage(tenorMediaUrl);
+    await sendStandaloneExternalGifUrl(roomPage, tenorMediaUrl);
 
     const embed = page.getByTestId('external-gif-embed').last();
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
