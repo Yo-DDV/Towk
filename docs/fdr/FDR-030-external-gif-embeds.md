@@ -5,30 +5,33 @@
 
 ## Overview
 
-Towk can render a message that consists only of a supported external GIF URL. The
+Towk can render a message that contains only supported external GIF URLs. The
 persisted message remains ordinary text; compatible clients present one privacy-gated
-media card instead of duplicating the raw URL in the message body. Towk does not
-provide GIF search or copy provider media into server storage.
+media card per recognized URL instead of duplicating the raw URLs in the message body.
+Towk does not provide GIF search or copy provider media into server storage.
 
 ## Behavior
 
-- A message must contain exactly one supported URL, apart from surrounding
-  whitespace. Mixed text, Markdown links, quotes, and code remain normal message
-  content.
+- A message may contain from one to four supported URLs separated only by whitespace.
+  Every non-whitespace token must be a supported URL. Mixed text, Markdown links,
+  quotes, code, unsupported URLs, and messages above the four-card bound remain normal
+  message content.
 - Supported URL shapes are official GIPHY page/embed URLs and direct GIPHY, Tenor,
   or KLIPY GIF, WebP, MP4, or WebM media URLs. Current `i.giphy.com/media/...` CDN
-  forms, bounded historical Tenor media forms, exact KLIPY `/ii/<asset>/<shard>/<shard>/<media>`
-  paths on `static.klipy.com` or `static.klipy.co`, and one trailing slash on a GIPHY
-  page/embed URL are accepted.
-- When the active server advertises `external-gif-embeds-v1`, a recognized standalone
-  URL is presented as the external-media card instead of a second large raw-link body.
-  The original URL remains the persisted message source and stays reachable through
-  the card's source action.
+  forms, bounded historical Tenor media forms, exact KLIPY
+  `/ii/<asset>/<shard>/<shard>/<media>` paths on `static.klipy.com` or
+  `static.klipy.co`, and one trailing slash on a GIPHY page/embed URL are accepted.
+- When the active server advertises `external-gif-embeds-v1`, a recognized GIF-only
+  message is presented as one ordered media card per URL instead of a second large
+  raw-link body. The original URLs remain the persisted message source and stay
+  reachable through each card's source action.
 - Loading requires a click by default. The placeholder states that the browser will
   contact the provider.
 - A local preference can auto-load supported media only when it approaches the
   visible timeline. Background tabs, offline state, reduced-motion preferences, and
   browsers without `IntersectionObserver` keep click-to-load behavior.
+- The four-card message bound also limits the number of concurrent provider resources
+  an auto-load preference can make eligible from one message.
 - An in-flight automatic request is cancelled if the page becomes hidden or the
   network heuristic turns offline. Successfully loaded media stays mounted so room
   changes and visibility transitions can reuse the browser-managed resource. Reduced
@@ -45,18 +48,22 @@ provide GIF search or copy provider media into server storage.
 - Operators can disable the presentation capability with
   `CHATTO_WEBSERVER_EXTERNAL_GIF_EMBEDS=false`.
 - Unsupported providers, disabled or older servers, incomplete capability discovery,
-  and mixed-text messages render the original link normally.
+  mixed-content messages, and messages above the card bound render the original text
+  normally.
 - A message that already contains any persisted link-preview card keeps that
   historical card and does not show a second GIF presentation.
 
 ## Design Decisions
 
-### 1. URL-only messages are the activation boundary
+### 1. GIF-only messages are the activation boundary
 
-**Decision:** Only a standalone provider URL becomes an external GIF embed.
-**Why:** This avoids unexpected third-party requests from ordinary prose and keeps
-message parsing deterministic.
-**Tradeoff:** A GIF URL accompanied by commentary remains a normal link.
+**Decision:** A message becomes external GIF presentation only when every token is a
+supported URL and there are no more than four URLs.
+**Why:** This covers keyboard/share-sheet payloads that include both a provider page
+and a direct rendition, while avoiding unexpected third-party requests from ordinary
+prose and keeping parsing deterministic and bounded.
+**Tradeoff:** Commentary, unsupported links, or a fifth URL keep the complete message
+on the ordinary Markdown path.
 
 ### 2. The reader loads provider media directly
 
@@ -112,16 +119,16 @@ second provider-backed card beside it would create duplicate presentation and co
 contact a provider that the historical message never contacted directly.
 **Tradeoff:** Older messages can look different from newly posted GIF links.
 
-### 8. The raw URL is source state, not duplicate presentation
+### 8. Raw URLs are source state, not duplicate presentation
 
-**Decision:** Compatible clients replace the standalone raw-link body with the card,
-while preserving the exact text URL in the message event and exposing it through the
-source action. Fallback clients continue to render the text normally.
-**Why:** Showing the same URL as both a large blue link and a full media card is visual
+**Decision:** Compatible clients replace the GIF-only raw-link body with ordered
+cards, while preserving every exact text URL in the message event and exposing each
+one through its source action. Fallback clients continue to render the text normally.
+**Why:** Showing the same URLs as both large blue links and media cards is visual
 duplication, while deleting or rewriting the stored body would break mixed-version
 compatibility and auditability.
-**Tradeoff:** Copying the original URL requires the card's source action on compatible
-clients instead of selecting the body text directly.
+**Tradeoff:** Copying an original URL requires the corresponding card's source action
+on compatible clients instead of selecting the body text directly.
 
 ## Security and Privacy
 
@@ -129,6 +136,8 @@ clients instead of selecting the body text directly.
 - URL credentials, explicit ports, encoded path forms, non-ASCII/control characters,
   oversized URLs and identifiers, arbitrary HTML, and provider scripts in the
   application DOM are rejected.
+- Every token in a GIF-only message must validate independently, and no more than four
+  cards are rendered from one message.
 - GIPHY frames use a restricted sandbox and no referrer. Direct GIPHY, Tenor, and
   KLIPY images also request no referrer. Video elements follow Towk's document-wide
   `strict-origin-when-cross-origin` policy because browsers do not expose a
@@ -141,13 +150,13 @@ clients instead of selecting the body text directly.
 
 ## Compatibility
 
-The feature is advertised with `external-gif-embeds-v1`. Adding another strictly
-validated direct-media provider does not change the privacy gate, storage boundary,
-or wire contract: older clients still exchange and render the ordinary text URL,
-while newer clients recognize the additional path. Old clients and servers continue
-to display the original link. Incomplete server discovery also falls back to that
-link instead of assuming support. No protobuf, persisted event, database, or storage
-migration is required.
+The feature is advertised with `external-gif-embeds-v1`. Supporting several already
+recognized URLs in one bounded GIF-only message does not change the privacy gate,
+storage boundary, or wire contract: older clients still exchange and render the
+ordinary text body, while newer clients derive ordered cards from it. Adding another
+strictly validated direct-media provider likewise leaves the wire representation
+unchanged. Incomplete server discovery falls back to the text instead of assuming
+support. No protobuf, persisted event, database, or storage migration is required.
 
 ## Related
 
