@@ -22,12 +22,16 @@ function unwrapExactMarkdownSelfLink(token: string): string | null {
   if (separatorIndex <= 1) return null;
 
   const label = token.slice(1, separatorIndex);
-  const destination = token.slice(separatorIndex + 2, -1);
+  const rawDestination = token.slice(separatorIndex + 2, -1);
+  const destination = rawDestination.startsWith('<')
+    ? unwrapExactMarkdownAutolink(rawDestination)
+    : rawDestination;
   if (!label || !destination || label.includes(']')) return null;
 
-  // TipTap can serialize an automatically linked URL as [URL](URL). Accept
-  // only that lossless form: a custom label is user-authored Markdown and must
-  // remain visible instead of being replaced by an external-media card.
+  // TipTap can serialize an automatically linked URL as [URL](URL) or
+  // [URL](<URL>). Accept only those lossless forms: a custom label is
+  // user-authored Markdown and must remain visible instead of being replaced by
+  // an external-media card.
   return label === destination ? destination : null;
 }
 
