@@ -5,6 +5,8 @@ import { loadLocaleMessages } from '$lib/i18n/messages';
 import { setReactiveLocale } from '$lib/i18n/state.svelte';
 
 const GIPHY_URL = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
+const GIPHY_MEDIA_URL =
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
 const KLIPY_URL =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
 const CAPABILITY = 'external-gif-embeds-v1';
@@ -71,6 +73,31 @@ describe('MessageContent external GIF capability wiring', () => {
     await expect.element(screen.getByRole('link', { name: GIPHY_URL })).not.toBeInTheDocument();
   });
 
+  it('renders every supported URL when the complete message contains only GIF URLs', async () => {
+    mocks.serverInfo.capabilities = [CAPABILITY];
+    const body = `${GIPHY_MEDIA_URL}\n\n${GIPHY_URL}`;
+    const screen = render(MessageContent, { props: { body } });
+
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('[data-testid="external-gif-embed"]')).toHaveLength(2);
+    });
+    await expect.element(screen.getByTestId('external-gif-message')).toHaveAttribute(
+      'data-embed-count',
+      '2'
+    );
+    expect(
+      Array.from(document.querySelectorAll('[data-testid="external-gif-embed"]')).map((element) =>
+        element.getAttribute('data-provider')
+      )
+    ).toEqual(['giphy', 'giphy']);
+    await expect
+      .element(screen.getByRole('link', { name: GIPHY_MEDIA_URL }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole('link', { name: GIPHY_URL })).not.toBeInTheDocument();
+    expect(document.querySelectorAll(`a[href="${GIPHY_MEDIA_URL}"]`)).toHaveLength(1);
+    expect(document.querySelectorAll(`a[href="${GIPHY_URL}"]`)).toHaveLength(1);
+  });
+
   it('uses the registered capability while the live store is temporarily partial', async () => {
     mocks.registered.capabilities = [CAPABILITY];
     const partialStore = mocks.store as {
@@ -122,5 +149,16 @@ describe('MessageContent external GIF capability wiring', () => {
 
     await expect.element(screen.getByTestId('external-gif-embed')).not.toBeInTheDocument();
     await expect.element(screen.getByRole('link', { name: KLIPY_URL })).toBeVisible();
+  });
+
+  it('keeps the whole message as Markdown when one URL is unsupported', async () => {
+    mocks.serverInfo.capabilities = [CAPABILITY];
+    const unsupportedUrl = 'https://example.com/reaction.gif';
+    const body = `${GIPHY_URL}\n${unsupportedUrl}`;
+    const screen = render(MessageContent, { props: { body } });
+
+    await expect.element(screen.getByTestId('external-gif-embed')).not.toBeInTheDocument();
+    await expect.element(screen.getByRole('link', { name: GIPHY_URL })).toBeVisible();
+    await expect.element(screen.getByRole('link', { name: unsupportedUrl })).toBeVisible();
   });
 });
