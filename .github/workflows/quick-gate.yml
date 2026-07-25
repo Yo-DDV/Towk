@@ -77,3 +77,54 @@ jobs:
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
+
+  profile-remediation-gate:
+    name: profile-remediation-gate
+    if: github.event.pull_request.number == 182
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Check formatting
+        run: |
+          pnpm --dir apps/frontend exec prettier --check \
+            src/lib/components/menus/UserContextMenu.svelte \
+            src/lib/dm/startDM.ts \
+            src/lib/dm/startDM.svelte.spec.ts
+
+      - name: Run targeted lint
+        run: |
+          pnpm --dir apps/frontend exec eslint \
+            src/lib/components/menus/UserContextMenu.svelte \
+            src/lib/dm/startDM.ts \
+            src/lib/dm/startDM.svelte.spec.ts
+
+      - name: Run Svelte and TypeScript checks
+        run: pnpm --dir apps/frontend run check
+
+      - name: Install Chromium
+        run: pnpm --dir apps/frontend exec playwright install --with-deps chromium
+
+      - name: Run targeted browser tests
+        env:
+          VITEST_BROWSER: chromium
+        run: |
+          pnpm --dir apps/frontend exec vitest run --project client \
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts \
+            src/lib/dm/startDM.svelte.spec.ts
+
+      - name: Build frontend
+        run: pnpm --dir apps/frontend run build
+
+      - name: Run repository policy checks
+        run: |
+          mise run license-check
+          mise run public-surface-check
+          git diff --check
