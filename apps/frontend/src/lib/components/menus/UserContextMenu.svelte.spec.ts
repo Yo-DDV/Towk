@@ -144,12 +144,14 @@ describe('UserContextMenu', () => {
     expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');
 
     const avatarShell = q(container, '[data-testid="profile-avatar-shell"]');
+    if (!avatarShell) throw new Error('Expected the profile avatar shell to be rendered.');
     const avatarRect = avatarShell.getBoundingClientRect();
     expect(avatarRect.width).toBeGreaterThan(64);
     expect(Math.abs(avatarRect.width - avatarRect.height)).toBeLessThan(1);
     expect(getComputedStyle(avatarShell).borderRadius).not.toBe('0px');
 
     const heroRoles = q(container, '[data-testid="profile-hero-roles"]');
+    if (!heroRoles) throw new Error('Expected the profile hero roles to be rendered.');
     expect(heroRoles.textContent).toContain('Moderator');
     expect(heroRoles.closest('.profile-hero')).not.toBeNull();
     expect(container.querySelectorAll('.profile-section-icon').length).toBeGreaterThanOrEqual(3);
