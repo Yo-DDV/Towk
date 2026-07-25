@@ -142,6 +142,17 @@ describe('UserContextMenu', () => {
     expect(container.textContent).toContain('Hello');
     expect(container.textContent).toContain('Last activity');
     expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');
+
+    const avatarShell = q(container, '[data-testid="profile-avatar-shell"]');
+    const avatarRect = avatarShell.getBoundingClientRect();
+    expect(avatarRect.width).toBeGreaterThan(64);
+    expect(Math.abs(avatarRect.width - avatarRect.height)).toBeLessThan(1);
+    expect(getComputedStyle(avatarShell).borderRadius).not.toBe('0px');
+
+    const heroRoles = q(container, '[data-testid="profile-hero-roles"]');
+    expect(heroRoles.textContent).toContain('Moderator');
+    expect(heroRoles.closest('.profile-hero')).not.toBeNull();
+    expect(container.querySelectorAll('.profile-section-icon').length).toBeGreaterThanOrEqual(3);
   });
 
   it('keeps a polished loading state visible until the detailed profile resolves', async () => {
