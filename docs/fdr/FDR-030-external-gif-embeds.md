@@ -12,10 +12,13 @@ Towk does not provide GIF search or copy provider media into server storage.
 
 ## Behavior
 
-- A message may contain from one to four supported URLs separated only by whitespace.
-  Every non-whitespace token must be a supported URL. Mixed text, Markdown links,
-  quotes, code, unsupported URLs, and messages above the four-card bound remain normal
-  message content.
+- A message may contain from one to four supported URL tokens separated only by
+  whitespace. Every non-whitespace token must be a supported URL. Mixed text, Markdown
+  with a custom label, quotes, code, unsupported URLs, and messages above the four-card
+  bound remain normal message content.
+- Exact Markdown autolinks and exact `[URL](URL)` self-links emitted by the rich
+  composer are treated as their underlying URL. The visible label must equal the
+  destination exactly so user-authored link text is never discarded.
 - Supported URL shapes are official GIPHY page/embed URLs and direct GIPHY, Tenor,
   or KLIPY GIF, WebP, MP4, or WebM media URLs. Current `i.giphy.com/media/...` CDN
   forms, bounded historical Tenor media forms, exact KLIPY
@@ -58,12 +61,13 @@ Towk does not provide GIF search or copy provider media into server storage.
 ### 1. GIF-only messages are the activation boundary
 
 **Decision:** A message becomes external GIF presentation only when every token is a
-supported URL and there are no more than four URLs.
-**Why:** This covers keyboard/share-sheet payloads that include both a provider page
-and a direct rendition, while avoiding unexpected third-party requests from ordinary
-prose and keeping parsing deterministic and bounded.
-**Tradeoff:** Commentary, unsupported links, or a fifth URL keep the complete message
-on the ordinary Markdown path.
+supported URL and there are no more than four URLs. Exact composer-generated
+self-links are accepted only when their visible text and destination are identical.
+**Why:** This covers keyboard/share-sheet payloads and rich-composer serialization
+without hiding user-authored labels, while avoiding unexpected third-party requests
+from ordinary prose and keeping parsing deterministic and bounded.
+**Tradeoff:** Commentary, custom labels, unsupported links, or a fifth URL keep the
+complete message on the ordinary Markdown path.
 
 ### 2. The reader loads provider media directly
 
@@ -138,6 +142,8 @@ on compatible clients instead of selecting the body text directly.
   application DOM are rejected.
 - Every token in a GIF-only message must validate independently, and no more than four
   cards are rendered from one message.
+- Exact Markdown self-links are unwrapped only when the visible label and destination
+  are identical and the destination independently passes the provider allowlist.
 - GIPHY frames use a restricted sandbox and no referrer. Direct GIPHY, Tenor, and
   KLIPY images also request no referrer. Video elements follow Towk's document-wide
   `strict-origin-when-cross-origin` policy because browsers do not expose a
@@ -151,12 +157,13 @@ on compatible clients instead of selecting the body text directly.
 ## Compatibility
 
 The feature is advertised with `external-gif-embeds-v1`. Supporting several already
-recognized URLs in one bounded GIF-only message does not change the privacy gate,
-storage boundary, or wire contract: older clients still exchange and render the
-ordinary text body, while newer clients derive ordered cards from it. Adding another
-strictly validated direct-media provider likewise leaves the wire representation
-unchanged. Incomplete server discovery falls back to the text instead of assuming
-support. No protobuf, persisted event, database, or storage migration is required.
+recognized URLs in one bounded GIF-only message, including exact self-links emitted by
+the current composer, does not change the privacy gate, storage boundary, or wire
+contract: older clients still exchange and render the ordinary text body, while newer
+clients derive ordered cards from it. Adding another strictly validated direct-media
+provider likewise leaves the wire representation unchanged. Incomplete server
+discovery falls back to the text instead of assuming support. No protobuf, persisted
+event, database, or storage migration is required.
 
 ## Related
 
