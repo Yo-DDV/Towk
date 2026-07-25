@@ -139,6 +139,33 @@ describe('UserContextMenu', () => {
     expect(mocks.getUserProfile).toHaveBeenCalledWith('user-1');
   });
 
+  it('keeps a polished loading state visible until the detailed profile resolves', async () => {
+    let resolveProfile!: (value: typeof profile) => void;
+    mocks.getUserProfile.mockReturnValue(
+      new Promise((resolve) => {
+        resolveProfile = resolve;
+      })
+    );
+
+    const { container } = renderMenu();
+
+    await expect.element(q(container, '[data-testid="user-profile-loading"]')).toBeVisible();
+    expect(container.textContent).toContain('Alice Example');
+
+    resolveProfile(profile);
+    await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
+  });
+
+  it('renders a bounded error state when profile details cannot be loaded', async () => {
+    mocks.getUserProfile.mockRejectedValue(new Error('network'));
+
+    const { container } = renderMenu();
+
+    await vi.waitFor(() => expect(container.textContent).toContain('Could not load this profile.'));
+    expect(q(container, '[data-testid="user-profile-error"]')).toBeTruthy();
+    expect(container.textContent).toContain('Alice Example');
+  });
+
   it('opens direct messages and calls from capability-filtered actions', async () => {
     const { container } = renderMenu();
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
