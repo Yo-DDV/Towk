@@ -38,6 +38,10 @@ vi.mock('$app/paths', () => ({
   resolve: (_route: string, params: { serverId: string }) => `/chat/${params.serverId}/settings`
 }));
 
+vi.mock('$lib/navigation', () => ({
+  serverIdToSegment: (serverId: string) => serverId
+}));
+
 vi.mock('$lib/state/server/connection.svelte', () => ({
   useConnection: () => () => ({
     connectBaseUrl: '/api/connect',
