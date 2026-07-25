@@ -71,6 +71,10 @@ function safeHTTPSURL(rawUrl: string): URL | null {
   const authority = remainder.split(/[/?#]/u, 1)[0];
   if (!authority || authority.includes('@') || authority.includes(':')) return null;
 
+  // WHATWG URL parsing normalizes literal dot segments before exposing
+  // pathname. Reject them from the raw path so frontend and backend
+  // classification stay identical and no allow-list shape is reached only
+  // after normalization.
   const rawPath = remainder.slice(authority.length).split(/[?#]/u, 1)[0];
   if (rawPath.includes('%')) return null;
   if (rawPath.split('/').some((segment) => segment === '.' || segment === '..')) return null;
@@ -83,6 +87,8 @@ function safeHTTPSURL(rawUrl: string): URL | null {
   }
 
   if (url.protocol !== 'https:' || url.username || url.password || url.port) return null;
+  // Provider path contracts are ASCII and exact. Reject every escaped path
+  // variant instead of trying to reason about equivalent decoded spellings.
   if (url.pathname.includes('%')) return null;
   url.hash = '';
   return url;
@@ -192,10 +198,14 @@ function parseTenorMedia(url: URL): ExternalGifDescriptor | null {
   const segments = strictPathSegments(url);
   if (!segments) return null;
 
+  // Tenor documents a bare media URL as well as named GIF/video renditions.
   if (segments.length === 1 && SAFE_ID.test(segments[0])) {
     return tenorDescriptor(url, segments[0], 'image');
   }
 
+  // Older Tenor shares use /images/<32-hex-id>/<rendition>. Keep this
+  // narrowly bounded because these URLs still appear in historical messages
+  // and keyboard clipboard fallbacks.
   if (
     segments.length === 3 &&
     segments[0] === 'images' &&
@@ -245,6 +255,10 @@ function klipyDescriptor(
 function parseKlipyMedia(url: URL): ExternalGifDescriptor | null {
   if (!KLIPY_MEDIA_HOSTS.has(url.hostname.toLowerCase())) return null;
   const segments = strictPathSegments(url);
+
+  // KLIPY keyboard shares use one exact, shard-addressed CDN path. Accepting
+  // only that shape avoids treating every asset on the provider domain as a
+  // trusted message embed.
   if (
     !segments ||
     segments.length !== 5 ||
