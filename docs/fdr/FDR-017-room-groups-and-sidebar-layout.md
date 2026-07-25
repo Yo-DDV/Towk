@@ -1,7 +1,7 @@
 # FDR-017: Room Groups & Sidebar Layout
 
 **Status:** Active
-**Last reviewed:** 2026-07-24
+**Last reviewed:** 2026-07-25
 
 ## Overview
 
@@ -21,8 +21,8 @@ Channel rooms are organized into **room groups** — named, ordered containers t
 - Moving a room between groups requires `room.manage` in both the source and the target group (the room's effective ACL changes overnight).
 - Creating, editing, moving, deleting, or reordering sidebar links requires `room.manage` for the affected group. Moving a sidebar link between groups requires `room.manage` in both the source and target groups, matching room moves.
 - Room-scope permissions (`message.post`, `room.join`, `message.react`, etc.) can be configured per group, with per-room overrides on top.
-- On touch viewports below the desktop room-sidebar breakpoint, a deliberate horizontal swipe from eligible central content opens the left server/channel navigation when moving right or the current channel's member panel when moving left. Reversing direction closes the currently open side. One gesture performs at most one state change, and the existing navigation buttons remain available.
-- Towk does not claim swipes that start in the outer 24 CSS pixels of either horizontal edge or the bottom 24 CSS pixels, expanded by any larger safe-area inset; use multiple contacts; remain short, vertical, or ambiguous; begin on interactive, editable, embedded, selected, or horizontally scrollable content; or target a room without a member panel.
+- On touch viewports below the desktop room-sidebar breakpoint, a deliberate horizontal swipe from the central app shell opens the left server/channel navigation when moving right or the current channel's member panel when moving left. Reversing direction closes the currently open side. The swipe may start on ordinary text, links, controls, media, or editable content; one gesture performs at most one state change, and the existing navigation buttons remain available.
+- Towk observes navigation-swipe starts before descendant propagation but does not cancel native behavior until horizontal intent is confirmed. It does not claim starts in the outer 24 CSS pixels of either horizontal edge or the bottom 24 CSS pixels, expanded by any larger safe-area inset; multi-touch, short, vertical, or ambiguous movement; app sidebar surfaces; explicit component opt-outs; nested horizontal gesture owners; or a leftward gesture in a room without a member panel.
 
 ## Design Decisions
 
@@ -80,11 +80,11 @@ Channel rooms are organized into **room groups** — named, ordered containers t
 **Why:** Clients need room/sidebar data around lifecycle commands. Keeping the directory read model in ConnectRPC lets clients render navigation and action affordances through one protobuf API surface.
 **Tradeoff:** The service owns the room/sidebar visibility contract directly, so changes to room visibility must update the ConnectRPC mapping and tests.
 
-### 10. Mobile navigation swipes yield to system gestures and content
+### 10. Mobile navigation swipes yield to system gestures and explicit horizontal owners
 
-**Decision:** Towk recognizes one-finger horizontal navigation swipes only inside eligible central content on touch viewports narrower than the desktop room-sidebar breakpoint. A rightward swipe opens the left server/channel navigation, while a leftward swipe opens the member panel when the current room exposes one. Reversing direction closes the open side. The recognizer waits for horizontal intent, applies distance or velocity commitment, and performs only one transition per gesture.
-**Why:** Mobile users expect direct spatial navigation, but iOS, Android, and browsers already reserve edge gestures for back navigation and system actions. Deferring claim until horizontal intent is clear adds a spatial shortcut without replacing system navigation, vertical message scrolling, or component-specific gestures.
-**Tradeoff:** Protected edge and bottom strips, controls, editors, embedded surfaces, selected text, nested horizontal scrollers, and multi-touch interactions do not initiate app navigation. Direct-message rooms do not expose a member-panel swipe. The existing buttons remain the discoverable and keyboard-accessible path.
+**Decision:** Towk recognizes one-finger horizontal navigation swipes across the central app shell on touch viewports narrower than the desktop room-sidebar breakpoint. A rightward swipe opens the left server/channel navigation, while a leftward swipe opens the member panel when the current room exposes one. Reversing direction closes the open side. The recognizer observes starts in the capture phase, waits for horizontal intent, applies distance or velocity commitment, and performs only one transition per gesture. Ordinary links, controls, media, selected text, and editors are eligible start targets.
+**Why:** Mobile users expect the spatial shortcut to work consistently across the message surface and composer, not only on empty layout space. Capturing the start before descendant propagation makes recognition reliable, while deferring `preventDefault()` until horizontal intent wins preserves taps, focus, text input, long press, and vertical scrolling. The protected edge and bottom strips still leave iOS, Android, and browser gestures in control.
+**Tradeoff:** A deliberate claimed horizontal drag cancels the native interaction of the element underneath it. Protected system strips, app sidebar surfaces, explicit component opt-outs, nested horizontal gesture owners, and multi-touch interactions do not initiate app navigation. Direct-message rooms do not expose a member-panel swipe. Existing buttons remain the discoverable and keyboard-accessible path.
 
 ## Permissions
 
