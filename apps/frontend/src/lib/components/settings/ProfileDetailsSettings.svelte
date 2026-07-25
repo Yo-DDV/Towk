@@ -25,8 +25,10 @@
   let savedShowLastActivity = $state(currentUser.user?.settings?.showLastActivity ?? true);
   let editor = $state<HTMLTextAreaElement>();
   let loading = $state(true);
+  let detailsLoaded = $state(false);
   let bioSaving = $state(false);
   let privacySaving = $state(false);
+  let loadError = $state('');
   let bioError = $state('');
   let bioSuccess = $state('');
   let privacyError = $state('');
@@ -48,10 +50,28 @@
 
   $effect(() => {
     const userId = currentUser.user?.id;
-    if (!userId || loadedUserId === userId) return;
+    const currentShowLastActivity = currentUser.user?.settings?.showLastActivity ?? true;
+
+    if (!userId) {
+      loadedUserId = null;
+      biography = '';
+      savedBiography = '';
+      showLastActivity = currentShowLastActivity;
+      savedShowLastActivity = currentShowLastActivity;
+      detailsLoaded = false;
+      loading = false;
+      loadError = m['settings.profile.details.load_failed']();
+      return;
+    }
+
+    if (loadedUserId === userId) return;
     loadedUserId = userId;
     let cancelled = false;
     loading = true;
+    detailsLoaded = false;
+    loadError = '';
+    bioError = '';
+    bioSuccess = '';
 
     const conn = connection();
     void createMemberDirectoryAPI({
@@ -61,14 +81,20 @@
     })
       .getUserProfile(userId)
       .then((profile) => {
-        if (cancelled || !profile) return;
-        biography = profile.biographyMarkdown;
-        savedBiography = profile.biographyMarkdown;
+        if (cancelled) return;
+        biography = profile?.biographyMarkdown ?? '';
+        savedBiography = biography;
         showLastActivity = currentUser.user?.settings?.showLastActivity ?? true;
         savedShowLastActivity = showLastActivity;
+        detailsLoaded = true;
       })
       .catch(() => {
-        if (!cancelled) bioError = m['settings.profile.details.load_failed']();
+        if (!cancelled) {
+          biography = '';
+          savedBiography = '';
+          detailsLoaded = false;
+          loadError = m['settings.profile.details.load_failed']();
+        }
       })
       .finally(() => {
         if (!cancelled) loading = false;
@@ -115,7 +141,7 @@
   }
 
   async function saveBiography() {
-    if (!biographyModified || !biographyValid) return;
+    if (!detailsLoaded || !biographyModified || !biographyValid) return;
     bioSaving = true;
     bioError = '';
     bioSuccess = '';
@@ -133,7 +159,7 @@
   }
 
   async function savePrivacy() {
-    if (!privacyModified) return;
+    if (!privacyModified || !currentUser.user) return;
     privacySaving = true;
     privacyError = '';
     privacySuccess = '';
@@ -169,17 +195,34 @@
 
   {#if loading}
     <div
-      class="flex min-h-20 items-center gap-3 rounded-xl border border-border bg-surface-100 p-4 text-sm text-muted"
+      class="profile-details-loading grid gap-4 rounded-2xl border border-border/80 bg-background/70 p-4 shadow-sm backdrop-blur"
       role="status"
+      aria-live="polite"
+      data-testid="profile-details-loading"
     >
-      <span class="iconify animate-spin text-xl uil--spinner-alt" aria-hidden="true"></span>
-      {m['profile.loading']()}
+      <div class="flex items-center gap-3 text-sm font-medium text-muted">
+        <span class="iconify animate-spin text-xl text-primary uil--spinner-alt" aria-hidden="true"></span>
+        {m['profile.loading']()}
+      </div>
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div class="profile-details-skeleton h-72 rounded-xl"></div>
+        <div class="profile-details-skeleton h-72 rounded-xl"></div>
+      </div>
+    </div>
+  {:else if loadError && !detailsLoaded}
+    <div
+      class="flex items-start gap-3 rounded-2xl border border-danger/20 bg-danger/10 p-4 text-danger shadow-sm"
+      role="alert"
+      data-testid="profile-details-error"
+    >
+      <span class="iconify mt-0.5 text-xl uil--exclamation-octagon" aria-hidden="true"></span>
+      <p class="text-sm font-medium leading-relaxed">{loadError}</p>
     </div>
   {:else}
-    <div class="grid gap-4 lg:grid-cols-2">
-      <div class="grid min-w-0 gap-2">
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(18rem,0.95fr)]">
+      <div class="profile-details-card grid min-w-0 gap-3 rounded-2xl border border-text/10 bg-background/70 p-3 shadow-sm backdrop-blur-xl sm:p-4">
         <div
-          class="flex flex-wrap gap-1 rounded-xl border border-border bg-surface-100 p-1.5 shadow-sm"
+          class="flex flex-wrap gap-1 rounded-xl border border-text/10 bg-surface-100/80 p-1.5 shadow-inner"
           role="toolbar"
           aria-label={m['settings.profile.details.formatting_toolbar']()}
         >
@@ -261,7 +304,7 @@
           bind:this={editor}
           bind:value={biography}
           rows="13"
-          class="w-full resize-y rounded-xl border border-border bg-background p-4 text-sm leading-relaxed shadow-inner transition-colors outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+          class="w-full resize-y rounded-xl border border-input-border bg-input p-4 text-sm leading-relaxed shadow-inner transition-colors outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           aria-label={m['settings.profile.details.biography_label']()}
           aria-invalid={!biographyValid}
           placeholder={m['settings.profile.details.biography_placeholder']()}
@@ -283,16 +326,14 @@
       </div>
 
       <section
-        class="min-h-64 min-w-0 rounded-xl border border-border bg-surface-100 p-4 shadow-sm"
+        class="profile-details-card min-h-72 min-w-0 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
         aria-label={m['settings.profile.details.preview']()}
       >
-        <div
-          class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase"
-        >
-          <span class="iconify text-base uil--eye" aria-hidden="true"></span>
+        <div class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase">
+          <span class="iconify text-base text-primary uil--eye" aria-hidden="true"></span>
           {m['settings.profile.details.preview']()}
         </div>
-        <div class="profile-biography-preview rounded-lg bg-background/60 p-4 ring-1 ring-text/5">
+        <div class="profile-biography-preview min-h-56 rounded-xl border border-text/10 bg-surface-100/70 p-4 shadow-inner">
           {#if biography.trim()}
             <MessageContent body={biography} />
           {:else}
@@ -313,7 +354,7 @@
     <div class="mt-4">
       <Button
         onclick={saveBiography}
-        disabled={!biographyModified || !biographyValid || bioSaving}
+        disabled={!detailsLoaded || !biographyModified || !biographyValid || bioSaving}
         loading={bioSaving}
       >
         {m['settings.profile.details.save_biography']()}
@@ -324,13 +365,13 @@
 
 <FormSection title={m['settings.profile.details.privacy_title']()} maxWidth="max-w-2xl">
   <label
-    class="group flex cursor-pointer items-start gap-4 rounded-xl border border-border bg-surface-100 p-4 shadow-sm transition-colors hover:border-primary/35"
+    class="group flex cursor-pointer items-start gap-4 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl transition-colors hover:border-primary/35"
   >
     <input
       type="checkbox"
       bind:checked={showLastActivity}
       class="peer sr-only"
-      disabled={loading || privacySaving}
+      disabled={loading || privacySaving || !currentUser.user}
       onchange={() => {
         privacyError = '';
         privacySuccess = '';
@@ -360,7 +401,7 @@
   <div class="mt-4">
     <Button
       onclick={savePrivacy}
-      disabled={!privacyModified || privacySaving || loading}
+      disabled={!privacyModified || privacySaving || loading || !currentUser.user}
       loading={privacySaving}
     >
       {m['settings.profile.details.save_privacy']()}
@@ -369,6 +410,33 @@
 </FormSection>
 
 <style>
+  .profile-details-card,
+  .profile-details-loading {
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, white 16%, transparent),
+      0 16px 40px color-mix(in srgb, black 7%, transparent);
+  }
+
+  .profile-details-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--color-surface-200) 70%, transparent);
+  }
+
+  .profile-details-skeleton::after {
+    position: absolute;
+    inset: 0;
+    content: '';
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, white 18%, transparent),
+      transparent
+    );
+    animation: profile-details-skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+
   :global(.profile-biography-preview) {
     overflow-wrap: anywhere;
   }
@@ -380,5 +448,17 @@
 
   :global(.profile-biography-preview a) {
     word-break: break-word;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .profile-details-skeleton::after {
+      animation: none;
+    }
+  }
+
+  @keyframes profile-details-skeleton-shimmer {
+    to {
+      transform: translateX(100%);
+    }
   }
 </style>
