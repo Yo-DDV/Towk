@@ -7,8 +7,6 @@ type SurfaceStyle = {
   backgroundImage: string;
   backdropFilter: string;
   borderRadius: string;
-  borderTopStyle: string;
-  borderTopWidth: string;
   boxShadow: string;
   outlineStyle: string;
   outlineWidth: string;
@@ -22,8 +20,6 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
       backdropFilter:
         style.backdropFilter || style.getPropertyValue('-webkit-backdrop-filter') || 'none',
       borderRadius: style.borderRadius,
-      borderTopStyle: style.borderTopStyle,
-      borderTopWidth: style.borderTopWidth,
       boxShadow: style.boxShadow,
       outlineStyle: style.outlineStyle,
       outlineWidth: style.outlineWidth
@@ -60,14 +56,20 @@ test.describe('Liquid glass application surfaces', () => {
     for (const style of [profileStyle, composerStyle]) {
       expect(style.backgroundImage).toContain('radial-gradient');
       expect(style.backgroundImage).toContain('linear-gradient');
-      expect(style.borderTopStyle).toBe('solid');
-      expect(style.borderTopWidth).toBe('1px');
       expect(style.borderRadius).not.toBe('0px');
       expect(style.boxShadow).not.toBe('none');
       if (supportsBackdropFilter) {
         expect(style.backdropFilter).toContain('blur(');
       }
     }
+
+    const [profileBox, restingComposerBox] = await Promise.all([
+      profile.boundingBox(),
+      composer.boundingBox()
+    ]);
+    expect(profileBox).not.toBeNull();
+    expect(restingComposerBox).not.toBeNull();
+    expect(Math.abs(profileBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(0.5);
 
     const restingComposerShadow = composerStyle.boxShadow;
     await roomPage.messageInput.click();
@@ -77,6 +79,12 @@ test.describe('Liquid glass application surfaces', () => {
     await expect
       .poll(async () => (await readSurfaceStyle(composer)).boxShadow)
       .toContain('232, 120, 59');
+
+    const focusedComposerBox = await composer.boundingBox();
+    expect(focusedComposerBox).not.toBeNull();
+    expect(Math.abs(focusedComposerBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(
+      0.5
+    );
 
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
@@ -105,8 +113,8 @@ test.describe('Liquid glass application surfaces', () => {
 
     for (const surface of [profile, composer]) {
       const style = await readSurfaceStyle(surface);
-      expect(style.borderTopStyle).toBe('solid');
-      expect(style.borderTopWidth).toBe('1px');
+      expect(style.outlineStyle).toBe('solid');
+      expect(style.outlineWidth).toBe('1px');
       expect(style.boxShadow).toBe('none');
       expect(style.backdropFilter).toBe('none');
     }
