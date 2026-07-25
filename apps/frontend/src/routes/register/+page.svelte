@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedJSONHeaders } from '$lib/auth/localizedRequest';
   import type { AuthenticatedUserSummary } from '$lib/state/server/registry.svelte';
   import Divider from '$lib/ui/Divider.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
@@ -73,7 +74,7 @@
     try {
       const response = await fetch('/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({ email: normalizedEmail })
       });
       const body = await response.json();
@@ -87,8 +88,8 @@
       completionToken = '';
       step = 'code';
       queueMicrotask(() => codeInputs[0]?.focus());
-    } catch (err) {
-      error = err instanceof Error ? err.message : m['auth.register.failed']();
+    } catch {
+      error = m['auth.register.failed']();
     } finally {
       isLoading = false;
       isResending = false;
@@ -146,7 +147,7 @@
     try {
       const response = await fetch('/auth/register/verify-code', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({ email: normalizedEmail, code })
       });
       const body = await response.json();
@@ -157,8 +158,8 @@
       }
       completionToken = body.completionToken;
       step = 'details';
-    } catch (err) {
-      error = err instanceof Error ? err.message : m['auth.register.failed']();
+    } catch {
+      error = m['auth.register.failed']();
     } finally {
       isLoading = false;
     }
@@ -188,7 +189,7 @@
     try {
       const response = await fetch('/auth/register/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({
           token: completionToken,
           login,
@@ -221,8 +222,8 @@
       } else {
         goto(resolve('/'), { replaceState: true });
       }
-    } catch (err) {
-      error = err instanceof Error ? err.message : m['auth.register.failed']();
+    } catch {
+      error = m['auth.register.failed']();
     } finally {
       isLoading = false;
     }
