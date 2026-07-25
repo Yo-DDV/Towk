@@ -266,6 +266,9 @@ func (c *ChattoCore) refreshPresence(ctx context.Context, userID string) error {
 }
 
 func (c *ChattoCore) touchUserLastActivityIfKnown(ctx context.Context, userID string) {
+	if c.Users == nil {
+		return
+	}
 	if _, err := c.GetUser(ctx, userID); err != nil {
 		return
 	}
