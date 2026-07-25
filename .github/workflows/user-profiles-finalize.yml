@@ -1,11 +1,12 @@
 name: publish user profiles candidate
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/user-profiles
+      - main
     paths:
       - .github/profile-patch/READY
+      - .github/workflows/user-profiles-finalize.yml
 
 permissions:
   contents: write
