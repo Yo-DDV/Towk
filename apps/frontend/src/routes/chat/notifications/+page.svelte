@@ -9,6 +9,7 @@
   import * as m from '$lib/i18n/messages';
   import type { NotificationItem } from '$lib/state/server/notifications.svelte';
   import { notificationTarget } from '$lib/state/server/notifications.svelte';
+  import { notificationLocation } from '$lib/notifications/notificationCopy';
   import { prepareUiForNotificationTarget } from '$lib/notifications/notificationNavigationUi';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
@@ -169,6 +170,12 @@
     return formatDate(date, userSettings, activeLocale);
   }
 
+  function getNotificationLocation(item: ServerNotification): string | null {
+    const target = notificationTarget(item.notification);
+    if (target.isDM) return null;
+    return notificationLocation(target.roomName, item.serverName);
+  }
+
   async function handleClick(item: ServerNotification) {
     if (pendingNotificationIds.has(item.notification.id)) return;
     pendingNotificationIds.add(item.notification.id);
@@ -297,9 +304,7 @@
         {#each allNotifications as item (item.notification.id)}
           {@const actor = item.notification.actor ?? null}
           {@const pending = pendingNotificationIds.has(item.notification.id)}
-          {@const location = serverRegistry
-            .getStore(item.serverId)
-            .notifications.getLocationString(item.notification, item.serverName)}
+          {@const location = getNotificationLocation(item)}
           <div
             class={[
               'flex w-full cursor-pointer items-center gap-3 border-b border-border px-4 py-3 soft-list-item hover:bg-surface-100',
