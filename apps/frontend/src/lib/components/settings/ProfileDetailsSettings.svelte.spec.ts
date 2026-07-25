@@ -39,7 +39,8 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
 
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
-    getStore: () => ({ currentUser: mocks.currentUser })
+    getStore: () => ({ currentUser: mocks.currentUser }),
+    tryGetStore: () => ({ currentUser: mocks.currentUser })
   }
 }));
 
