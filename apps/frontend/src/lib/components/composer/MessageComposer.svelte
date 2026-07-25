@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Code, ConnectError } from '@connectrpc/connect';
   import { onDestroy, tick, untrack } from 'svelte';
   import { replaceState } from '$app/navigation';
   import { page } from '$app/state';
@@ -966,7 +967,16 @@
       editorApi?.setContent('');
       editState.cancelEdit();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : m['composer.edit_failed']());
+      if (
+        error instanceof ConnectError &&
+        error.code === Code.FailedPrecondition &&
+        error.rawMessage === 'edit window has expired'
+      ) {
+        cancelEdit();
+        toast.error(m['composer.edit_window_expired']());
+      } else {
+        toast.error(m['composer.edit_failed']());
+      }
     }
 
     loading = false;
