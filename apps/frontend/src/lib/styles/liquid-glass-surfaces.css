@@ -33,7 +33,7 @@
 
 :root [data-testid='current-user-identity-card'],
 :root [data-testid='message-composer-shell'].composer-focus-shell {
-  border: 1px solid var(--liquid-glass-border);
+  --liquid-glass-current-border: var(--liquid-glass-border);
   background-color: var(--liquid-glass-fill);
   background-image:
     radial-gradient(140% 185% at 4% -58%, var(--liquid-glass-sheen) 0%, transparent 52%),
@@ -45,6 +45,7 @@
     );
   background-clip: padding-box;
   box-shadow:
+    inset 0 0 0 1px var(--liquid-glass-current-border),
     inset 0 1px 0 var(--liquid-glass-sheen),
     inset 0 -1px 0 var(--liquid-glass-depth),
     0 12px 28px -20px var(--liquid-glass-shadow),
@@ -52,7 +53,6 @@
     -6px -6px 20px -18px var(--liquid-glass-lift);
   isolation: isolate;
   transition:
-    border-color 160ms ease,
     background-color 160ms ease,
     box-shadow 180ms ease;
 }
@@ -69,8 +69,9 @@
 @media (hover: hover) and (pointer: fine) {
   :root [data-testid='current-user-identity-card']:hover,
   :root [data-testid='message-composer-shell'].composer-focus-shell:hover {
-    border-color: var(--liquid-glass-border-strong);
+    --liquid-glass-current-border: var(--liquid-glass-border-strong);
     box-shadow:
+      inset 0 0 0 1px var(--liquid-glass-current-border),
       inset 0 1px 0 var(--liquid-glass-sheen),
       inset 0 -1px 0 var(--liquid-glass-depth),
       0 14px 32px -20px var(--liquid-glass-shadow),
@@ -80,8 +81,9 @@
 }
 
 :root [data-testid='current-user-identity-card']:focus-within {
-  border-color: var(--liquid-glass-border-strong);
+  --liquid-glass-current-border: var(--liquid-glass-border-strong);
   box-shadow:
+    inset 0 0 0 1px var(--liquid-glass-current-border),
     inset 0 1px 0 var(--liquid-glass-sheen),
     inset 0 -1px 0 var(--liquid-glass-depth),
     0 0 0 2px rgba(14, 165, 233, 0.2),
@@ -90,8 +92,9 @@
 }
 
 :root [data-testid='message-composer-shell'].composer-focus-shell:focus-within {
-  border-color: rgba(232, 120, 59, 0.82);
+  --liquid-glass-current-border: rgba(232, 120, 59, 0.82);
   box-shadow:
+    inset 0 0 0 1px var(--liquid-glass-current-border),
     inset 0 1px 0 var(--liquid-glass-sheen),
     inset 0 -1px 0 var(--liquid-glass-depth),
     0 0 0 1px rgba(232, 120, 59, 0.32),
@@ -140,6 +143,7 @@
   :root [data-testid='current-user-identity-card'],
   :root [data-testid='message-composer-shell'].composer-focus-shell {
     box-shadow:
+      inset 0 0 0 1px var(--liquid-glass-current-border),
       inset 0 1px 0 var(--liquid-glass-sheen),
       inset 0 -1px 0 var(--liquid-glass-depth),
       0 8px 20px -17px var(--liquid-glass-shadow),
@@ -158,7 +162,7 @@
 @media (prefers-contrast: more) {
   :root [data-testid='current-user-identity-card'],
   :root [data-testid='message-composer-shell'].composer-focus-shell {
-    border-color: var(--liquid-glass-border-strong);
+    --liquid-glass-current-border: var(--liquid-glass-border-strong);
   }
 }
 
@@ -176,7 +180,8 @@
 @media (forced-colors: active) {
   :root [data-testid='current-user-identity-card'],
   :root [data-testid='message-composer-shell'].composer-focus-shell {
-    border-color: CanvasText;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
     background: Canvas;
     box-shadow: none;
     -webkit-backdrop-filter: none;
@@ -187,5 +192,11 @@
   :root [data-testid='message-composer-shell'].composer-focus-shell:focus-within {
     outline: 2px solid Highlight;
     outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  :root [data-testid='message-composer-shell'].composer-focus-shell.sending {
+    background: Canvas;
+    animation: none;
   }
 }
