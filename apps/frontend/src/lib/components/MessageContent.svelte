@@ -14,7 +14,8 @@
   import { wrapValidMentions, type RoomMember } from '$lib/mentions';
   import { parseTrustedMarkdownHtml } from '$lib/security/trustedHtml';
   import ExternalGifEmbed from './ExternalGifEmbed.svelte';
-  import { EXTERNAL_GIF_EMBEDS_CAPABILITY, resolveExternalGifMessage } from '$lib/externalGif';
+  import { EXTERNAL_GIF_EMBEDS_CAPABILITY } from '$lib/externalGif';
+  import { resolveExternalGifMessageList } from '$lib/externalGifMessage';
   import { userPreferences } from '$lib/state/userPreferences.svelte';
 
   let {
@@ -59,9 +60,9 @@
   // `wrapValidMentions` already treats as "no self-mention."
   const viewerLogin = $derived(activeStore?.currentUser?.user?.login);
   const editedMarker = $derived(edited ? m['room.message.meta.edited']() : '');
-  const externalGif = $derived.by(() =>
+  const externalGifs = $derived.by(() =>
     allowExternalGif
-      ? resolveExternalGifMessage(body, {
+      ? resolveExternalGifMessageList(body, {
           supportsCapability: supportsExternalGif,
           hasPersistedLinkPreview: false
         })
@@ -140,8 +141,16 @@
   }
 </script>
 
-{#if externalGif}
-  <ExternalGifEmbed gif={externalGif} autoLoad={userPreferences.externalGifAutoLoad} />
+{#if externalGifs}
+  <div
+    class="flex w-full max-w-md flex-col"
+    data-testid="external-gif-message"
+    data-embed-count={externalGifs.length}
+  >
+    {#each externalGifs as gif, index (`${gif.provider}:${gif.id}:${gif.resourceUrl}:${index}`)}
+      <ExternalGifEmbed gif={gif} autoLoad={userPreferences.externalGifAutoLoad} />
+    {/each}
+  </div>
 {:else}
   <div class="prose max-w-none min-w-0" role="presentation" onclick={handleContentClick}>
     {#await render(body, members, roleHandles, edited, viewerLogin, editedMarker)}
