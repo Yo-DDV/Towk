@@ -20,17 +20,21 @@ function pointer(type: string, x: number, y = 24) {
   });
 }
 
-function touch(type: string, x: number, y = 24) {
+function touch(type: string, x: number, y = 24, touchCount = 1) {
   const event = new Event(type, { bubbles: true, cancelable: true }) as TouchEvent;
-  const item = { identifier: 1, clientX: x, clientY: y };
-  const currentTouches = type === 'touchend' || type === 'touchcancel' ? [] : [item];
-  const touchList = (items: typeof currentTouches) =>
-    Object.assign(items, { item: (i: number) => items[i] ?? null });
+  const items = Array.from({ length: touchCount }, (_, index) => ({
+    identifier: index + 1,
+    clientX: x + index,
+    clientY: y + index
+  }));
+  const currentTouches = type === 'touchend' || type === 'touchcancel' ? [] : items;
+  const touchList = <T>(values: T[]) =>
+    Object.assign(values, { item: (i: number) => values[i] ?? null });
   Object.defineProperty(event, 'touches', {
     value: touchList(currentTouches)
   });
   Object.defineProperty(event, 'changedTouches', {
-    value: touchList([item])
+    value: touchList(items)
   });
   return event;
 }
@@ -150,6 +154,74 @@ describe('panGesture', () => {
 
     expect(onStart).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
+
+    action.destroy();
+  });
+
+  it('leaves rejected starts entirely to the target content', () => {
+    const host = hostElement();
+    const shouldStart = vi.fn(() => false);
+    const onStart = vi.fn();
+    const onEnd = vi.fn();
+    const action = panGesture(host, {
+      axis: 'x',
+      shouldStart,
+      onStart,
+      onEnd
+    });
+
+    host.dispatchEvent(pointer('pointerdown', 20));
+    window.dispatchEvent(pointer('pointermove', 200));
+    window.dispatchEvent(pointer('pointerup', 200));
+
+    expect(shouldStart).toHaveBeenCalledOnce();
+    expect(onStart).not.toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
+
+    action.destroy();
+  });
+
+  it('waits for the configured axis-dominance ratio before claiming', () => {
+    const host = hostElement();
+    const onStart = vi.fn();
+    const onUpdate = vi.fn();
+    const action = panGesture(host, {
+      axis: 'x',
+      directionLockPx: 12,
+      directionLockRatio: 1.5,
+      onStart,
+      onUpdate
+    });
+
+    host.dispatchEvent(pointer('pointerdown', 100, 100));
+    window.dispatchEvent(pointer('pointermove', 116, 112));
+    expect(onStart).not.toHaveBeenCalled();
+
+    window.dispatchEvent(pointer('pointermove', 140, 120));
+    window.dispatchEvent(pointer('pointerup', 140, 120));
+
+    expect(onStart).toHaveBeenCalledOnce();
+    expect(onUpdate).toHaveBeenLastCalledWith(40);
+
+    action.destroy();
+  });
+
+  it('ignores multi-touch starts', () => {
+    const host = hostElement();
+    const onStart = vi.fn();
+    const onEnd = vi.fn();
+    const action = panGesture(host, {
+      axis: 'x',
+      onStart,
+      onEnd
+    });
+
+    host.dispatchEvent(touch('touchstart', 100, 100, 2));
+    window.dispatchEvent(touch('touchmove', 240, 100, 2));
+    window.dispatchEvent(touch('touchend', 240, 100, 2));
+
+    expect(onStart).not.toHaveBeenCalled();
+    expect(onEnd).not.toHaveBeenCalled();
 
     action.destroy();
   });

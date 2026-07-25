@@ -39,6 +39,7 @@ export { createTypingIndicator } from './useTypingIndicator.svelte';
 export type { TypingIndicator, TypingUser } from './useTypingIndicator.svelte';
 
 // UI hooks
+export { useAutoHideScrollbars } from './useAutoHideScrollbars.svelte';
 export { useVisualViewport } from './useVisualViewport.svelte';
 export { usePinchZoomPrevention } from './usePinchZoomPrevention.svelte';
 export { usePageTitle } from './usePageTitle.svelte';

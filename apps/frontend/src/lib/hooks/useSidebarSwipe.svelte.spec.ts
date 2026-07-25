@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { sidebarEdgeSwipe, sidebarSwipe } from './useSidebarSwipe.svelte';
 import { sidebarNav } from '$lib/state/globals.svelte';
+import { sidebarSwipe } from './useSidebarSwipe.svelte';
 
 const originalElementsFromPoint = document.elementsFromPoint;
 
@@ -10,20 +10,20 @@ function resetSidebar() {
   sidebarNav.setMobile(true);
 }
 
-function makeEdgeGestureHost() {
-  const edge = document.createElement('div');
+function makeGestureHost() {
+  const host = document.createElement('div');
   const underlying = document.createElement('button');
 
-  edge.setPointerCapture = vi.fn();
-  edge.releasePointerCapture = vi.fn();
-  document.body.append(underlying, edge);
+  host.setPointerCapture = vi.fn();
+  host.releasePointerCapture = vi.fn();
+  document.body.append(underlying, host);
 
   Object.defineProperty(document, 'elementsFromPoint', {
     configurable: true,
-    value: vi.fn(() => [edge, underlying])
+    value: vi.fn(() => [host, underlying])
   });
 
-  return { edge, underlying };
+  return { host, underlying };
 }
 
 function pointer(type: string, x: number, y = 24) {
@@ -51,7 +51,7 @@ function touch(type: string, x: number, y = 24) {
   return event;
 }
 
-describe('sidebarEdgeSwipe', () => {
+describe('sidebarSwipe', () => {
   beforeEach(() => {
     resetSidebar();
   });
@@ -64,43 +64,43 @@ describe('sidebarEdgeSwipe', () => {
     document.body.replaceChildren();
   });
 
-  it('does not synthesize taps into the content behind the edge target', () => {
-    const { edge, underlying } = makeEdgeGestureHost();
+  it('forwards a stationary overlay tap to the underlying content', () => {
+    const { host, underlying } = makeGestureHost();
     const onUnderlyingPointerDown = vi.fn();
     const onUnderlyingClick = vi.fn();
     underlying.addEventListener('pointerdown', onUnderlyingPointerDown);
     underlying.addEventListener('click', onUnderlyingClick);
 
-    const action = sidebarEdgeSwipe(edge);
-    edge.dispatchEvent(pointer('pointerdown', 2));
-    edge.dispatchEvent(pointer('pointerup', 2));
+    const action = sidebarSwipe(host);
+    host.dispatchEvent(pointer('pointerdown', 120));
+    window.dispatchEvent(pointer('pointerup', 120));
 
-    expect(onUnderlyingPointerDown).not.toHaveBeenCalled();
-    expect(onUnderlyingClick).not.toHaveBeenCalled();
+    expect(onUnderlyingPointerDown).toHaveBeenCalledOnce();
+    expect(onUnderlyingClick).toHaveBeenCalledOnce();
     expect(sidebarNav.isOpen).toBe(false);
 
     action.destroy();
   });
 
-  it('still opens the mobile sidebar on a rightward edge drag', () => {
-    const { edge } = makeEdgeGestureHost();
-    const action = sidebarEdgeSwipe(edge);
+  it('opens the mobile sidebar on a rightward drag', () => {
+    const { host } = makeGestureHost();
+    const action = sidebarSwipe(host);
 
-    edge.dispatchEvent(pointer('pointerdown', 2));
-    window.dispatchEvent(pointer('pointermove', 210));
-    window.dispatchEvent(pointer('pointerup', 210));
+    host.dispatchEvent(pointer('pointerdown', 40));
+    window.dispatchEvent(pointer('pointermove', 250));
+    window.dispatchEvent(pointer('pointerup', 250));
 
     expect(sidebarNav.isOpen).toBe(true);
 
     action.destroy();
   });
 
-  it('still closes the mobile sidebar on a leftward drag', () => {
-    const { edge } = makeEdgeGestureHost();
+  it('closes the mobile sidebar on a leftward pointer drag', () => {
+    const { host } = makeGestureHost();
     sidebarNav.isOpen = true;
-    const action = sidebarSwipe(edge);
+    const action = sidebarSwipe(host);
 
-    edge.dispatchEvent(pointer('pointerdown', 320));
+    host.dispatchEvent(pointer('pointerdown', 320));
     window.dispatchEvent(pointer('pointermove', 0));
     window.dispatchEvent(pointer('pointerup', 0));
 
@@ -110,11 +110,11 @@ describe('sidebarEdgeSwipe', () => {
   });
 
   it('closes the mobile sidebar on a leftward touch drag', () => {
-    const { edge } = makeEdgeGestureHost();
+    const { host } = makeGestureHost();
     sidebarNav.isOpen = true;
-    const action = sidebarSwipe(edge);
+    const action = sidebarSwipe(host);
 
-    edge.dispatchEvent(touch('touchstart', 320));
+    host.dispatchEvent(touch('touchstart', 320));
     const move = touch('touchmove', 0);
     window.dispatchEvent(move);
     window.dispatchEvent(touch('touchend', 0));

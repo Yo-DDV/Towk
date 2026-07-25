@@ -78,6 +78,8 @@ export const titleState = new TitleState();
  */
 export const SIDEBAR_PANEL_WIDTH_PX = 68 + 256;
 
+type SidebarToggleHandler = () => boolean;
+
 /**
  * Controls the visibility of the left sidebars (Server Gutter and RoomList).
  * Tracks the user's desktop preference separately from viewport-driven changes
@@ -103,6 +105,7 @@ export class SidebarNavState {
   private desktopOpen = $state(true);
   private _isMobile = $state(false);
   private dragBaselineOpen = false;
+  private toggleHandlers: SidebarToggleHandler[] = [];
 
   constructor(initialDesktopOpen = true) {
     this.isOpen = initialDesktopOpen;
@@ -122,7 +125,23 @@ export class SidebarNavState {
     }
   }
 
+  /**
+   * Register a route-level action for the app-header menu button. The most
+   * recently registered handler runs first; returning true consumes the action
+   * without changing the sidebar visibility state.
+   */
+  registerToggleHandler(handler: SidebarToggleHandler): () => void {
+    this.toggleHandlers.push(handler);
+    return () => {
+      const index = this.toggleHandlers.lastIndexOf(handler);
+      if (index >= 0) this.toggleHandlers.splice(index, 1);
+    };
+  }
+
   toggle() {
+    const handler = this.toggleHandlers[this.toggleHandlers.length - 1];
+    if (handler?.()) return;
+
     if (this._isMobile) {
       this.isOpen = !this.isOpen;
       return;
@@ -147,6 +166,15 @@ export class SidebarNavState {
       return 1 + px / SIDEBAR_PANEL_WIDTH_PX;
     }
     return this.isOpen ? 1 : 0;
+  }
+
+  open() {
+    this.dragOffset = null;
+    if (this._isMobile) {
+      this.isOpen = true;
+      return;
+    }
+    this.setDesktopOpen(true);
   }
 
   close() {

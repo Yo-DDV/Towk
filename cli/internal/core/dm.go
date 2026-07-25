@@ -260,6 +260,21 @@ func (c *ChattoCore) notifyDMParticipants(ctx context.Context, roomID, senderID,
 		if participantID == senderID {
 			continue
 		}
+		// A reply in a thread that predates the participant's private cutoff must
+		// not recreate visibility or disclose activity from deleted history.
+		if inThread != "" {
+			accessible, err := c.CanAccessDMEvent(ctx, participantID, roomID, inThread)
+			if err != nil {
+				c.logger.Warn("Failed to enforce DM history cutoff for notification",
+					"participant_id", participantID,
+					"room_id", roomID,
+					"error", err)
+				continue
+			}
+			if !accessible {
+				continue
+			}
+		}
 
 		// Skip if user has muted this DM room
 		level, err := c.GetEffectiveNotificationLevel(ctx, participantID, roomID)

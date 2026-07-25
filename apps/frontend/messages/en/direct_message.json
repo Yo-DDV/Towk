@@ -1,0 +1,21 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "direct_message_delete": {
+      "title": "Delete conversation",
+      "action": "Delete conversation",
+      "prompt": "Delete the conversation with {room}? Its history will be removed from your account. The other participant will keep their copy.",
+      "failed": "Failed to delete conversation",
+      "local_cleanup_failed": "The conversation was deleted, but this device could not remove all cached data.",
+      "more_actions": "Conversation actions",
+      "menu_description": "Remove it from your account",
+      "only_for_you": "Only for you",
+      "history_title": "Your history will be removed",
+      "history_body": "Messages, threads, files, and cached drafts from this conversation will no longer be available to you.",
+      "peer_title": "The other participant keeps their copy",
+      "peer_body": "Nothing is deleted from their account, and they are not notified about this action.",
+      "reopen_title": "Future messages can reopen the conversation",
+      "reopen_body": "Only messages sent after deletion will appear. The previous history will stay hidden."
+    }
+  }
+}

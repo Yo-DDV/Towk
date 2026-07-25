@@ -1,9 +1,10 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "emoji": {
-    "search_placeholder": "Buscar emojis...",
+    "search_placeholder": "Buscar emojis o :atajo:",
     "no_results": "No se encontraron emojis",
     "recently_used": "Usados recientemente",
+    "open_picker": "Elegir un emoji",
     "categories": {
       "smileys_emotion": "Caritas y emociones",
       "people_body": "Personas y cuerpo",

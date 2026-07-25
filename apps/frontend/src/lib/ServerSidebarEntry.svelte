@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { serverIdToSegment } from '$lib/navigation';
+  import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { serverConnectionManager } from '$lib/state/server/serverConnection.svelte';
   import { createEventBusHandlerRegistrar } from '$lib/eventBus.svelte';
@@ -59,9 +60,9 @@
     return createRoomDirectoryAPI(connectAPIConfig());
   }
 
-  // After the URL collapse (ADR-027), the active context is the deployment-wide
-  // server named in the current URL segment.
-  const isActiveServer = $derived(page.params.serverId === serverSegment);
+  // The active server can come from the URL or from notification-center page
+  // state while that global route preserves the previously selected instance.
+  const isActiveServer = $derived(getActiveServer() === serverId);
 
   let displayName = $state('');
   let logoUrl = $state<string | null>(null);
@@ -239,7 +240,9 @@
       }
     }
     if (!notification) {
-      await goto(resolve('/chat/notifications'));
+      await goto(resolve('/chat/notifications'), {
+        state: { notificationServerId: serverId }
+      });
       return;
     }
 

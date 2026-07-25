@@ -1,7 +1,7 @@
 # FDR-017: Room Groups & Sidebar Layout
 
 **Status:** Active
-**Last reviewed:** 2026-06-18
+**Last reviewed:** 2026-07-24
 
 ## Overview
 
@@ -21,6 +21,8 @@ Channel rooms are organized into **room groups** — named, ordered containers t
 - Moving a room between groups requires `room.manage` in both the source and the target group (the room's effective ACL changes overnight).
 - Creating, editing, moving, deleting, or reordering sidebar links requires `room.manage` for the affected group. Moving a sidebar link between groups requires `room.manage` in both the source and target groups, matching room moves.
 - Room-scope permissions (`message.post`, `room.join`, `message.react`, etc.) can be configured per group, with per-room overrides on top.
+- On touch viewports below the desktop room-sidebar breakpoint, a deliberate horizontal swipe from eligible central content opens the left server/channel navigation when moving right or the current channel's member panel when moving left. Reversing direction closes the currently open side. One gesture performs at most one state change, and the existing navigation buttons remain available.
+- Towk does not claim swipes that start in the outer 24 CSS pixels of either horizontal edge or the bottom 24 CSS pixels, expanded by any larger safe-area inset; use multiple contacts; remain short, vertical, or ambiguous; begin on interactive, editable, embedded, selected, or horizontally scrollable content; or target a room without a member panel.
 
 ## Design Decisions
 
@@ -78,6 +80,12 @@ Channel rooms are organized into **room groups** — named, ordered containers t
 **Why:** Clients need room/sidebar data around lifecycle commands. Keeping the directory read model in ConnectRPC lets clients render navigation and action affordances through one protobuf API surface.
 **Tradeoff:** The service owns the room/sidebar visibility contract directly, so changes to room visibility must update the ConnectRPC mapping and tests.
 
+### 10. Mobile navigation swipes yield to system gestures and content
+
+**Decision:** Towk recognizes one-finger horizontal navigation swipes only inside eligible central content on touch viewports narrower than the desktop room-sidebar breakpoint. A rightward swipe opens the left server/channel navigation, while a leftward swipe opens the member panel when the current room exposes one. Reversing direction closes the open side. The recognizer waits for horizontal intent, applies distance or velocity commitment, and performs only one transition per gesture.
+**Why:** Mobile users expect direct spatial navigation, but iOS, Android, and browsers already reserve edge gestures for back navigation and system actions. Deferring claim until horizontal intent is clear adds a spatial shortcut without replacing system navigation, vertical message scrolling, or component-specific gestures.
+**Tradeoff:** Protected edge and bottom strips, controls, editors, embedded surfaces, selected text, nested horizontal scrollers, and multi-touch interactions do not initiate app navigation. Direct-message rooms do not expose a member-panel swipe. The existing buttons remain the discoverable and keyboard-accessible path.
+
 ## Permissions
 
 - `room.create` — configured per group (or at server scope as a default).
@@ -86,7 +94,13 @@ Channel rooms are organized into **room groups** — named, ordered containers t
 - `room.join` — controls whether a non-member can join a visible channel room directly.
 - All channel-room-scope permissions (`message.post`, `room.join`, etc.) are configurable per group with per-room overrides.
 
+## Standards and vendor references
+
+- [Apple Human Interface Guidelines: Gestures](https://developer.apple.com/design/human-interface-guidelines/gestures)
+- [Android Developers: Edge-to-edge views](https://developer.android.com/develop/ui/views/layout/edge-to-edge)
+- [W3C: Pointer Events Level 3](https://www.w3.org/TR/pointerevents3/)
+
 ## Related
 
 - **ADRs:** ADR-031 (room-group-centric ACL), ADR-037 (DM access via membership), ADR-040 (permission-only RBAC with owner override)
-- **FDRs:** FDR-001 (Roles & Permissions), FDR-007 (Direct Messages), FDR-019 (Room Lifecycle)
+- **FDRs:** FDR-001 (Roles & Permissions), FDR-007 (Direct Messages), FDR-019 (Room Lifecycle), FDR-027 (PWA Shell & Service Worker)

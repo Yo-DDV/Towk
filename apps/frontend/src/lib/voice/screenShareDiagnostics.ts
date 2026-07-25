@@ -94,6 +94,35 @@ export type ScreenShareDiagnosticsCollection = {
   counters: ScreenShareDiagnosticsCounters;
 };
 
+type StickyDiagnosticsField = keyof Pick<
+  ScreenShareDiagnosticsSample,
+  | 'width'
+  | 'height'
+  | 'sourceWidth'
+  | 'sourceHeight'
+  | 'sourceFramesPerSecond'
+  | 'framesPerSecond'
+  | 'bitrateBps'
+  | 'targetBitrateBps'
+  | 'availableBitrateBps'
+  | 'packetLossPercent'
+  | 'jitterMs'
+  | 'roundTripTimeMs'
+  | 'frameDropPercent'
+  | 'codec'
+  | 'encoderImplementation'
+  | 'decoderImplementation'
+  | 'powerEfficientCodec'
+  | 'qualityLimitationReason'
+  | 'qualityLimitationDurations'
+  | 'qualityLimitationResolutionChanges'
+  | 'networkType'
+  | 'protocol'
+  | 'localCandidateType'
+  | 'remoteCandidateType'
+  | 'contentHint'
+>;
+
 type RtcStat = {
   id: string;
   type: string;
@@ -209,6 +238,19 @@ function linkedStats(report: RTCStatsReport, stats: RtcStat[], type: string): Rt
   return fallback;
 }
 
+function linkedMediaSource(report: RTCStatsReport, primary: RtcStat): RtcStat | null {
+  const sourceId = stringValue(primary.mediaSourceId);
+  const linked = sourceId ? (report.get(sourceId) as RtcStat | undefined) : undefined;
+  if (linked?.type === 'media-source' && statKindIsVideo(linked)) return linked;
+
+  let source: RtcStat | null = null;
+  report.forEach((value) => {
+    const stat = value as RtcStat;
+    if (!source && stat.type === 'media-source' && statKindIsVideo(stat)) source = stat;
+  });
+  return source;
+}
+
 function selectedCandidatePair(report: RTCStatsReport, primary: RtcStat | null): RtcStat | null {
   const transportId = primary ? stringValue(primary.transportId) : null;
   const transport = transportId ? (report.get(transportId) as RtcStat | undefined) : undefined;
@@ -315,6 +357,7 @@ export async function collectScreenShareDiagnostics({
   if (!rtpStats.length) throw new Error('No active video RTP statistics were reported.');
 
   const primary = choosePrimary(rtpStats)!;
+  const mediaSource = direction === 'outbound' ? linkedMediaSource(report, primary) : null;
   const remoteFeedback =
     direction === 'outbound' ? linkedStats(report, rtpStats, 'remote-inbound-rtp') : [];
   const pair = selectedCandidatePair(report, primary);
@@ -418,9 +461,10 @@ export async function collectScreenShareDiagnostics({
     direction,
     width: numberValue(primary.frameWidth),
     height: numberValue(primary.frameHeight),
-    sourceWidth: numberValue(captureSettings?.width),
-    sourceHeight: numberValue(captureSettings?.height),
-    sourceFramesPerSecond: numberValue(captureSettings?.frameRate),
+    sourceWidth: numberValue(captureSettings?.width) ?? numberValue(mediaSource?.width),
+    sourceHeight: numberValue(captureSettings?.height) ?? numberValue(mediaSource?.height),
+    sourceFramesPerSecond:
+      numberValue(captureSettings?.frameRate) ?? numberValue(mediaSource?.framesPerSecond),
     framesPerSecond: max(rtpStats, 'framesPerSecond') ?? derivedFramesPerSecond,
     bitrateBps:
       derivedBitrate ??
@@ -513,4 +557,77 @@ export function appendScreenShareDiagnosticsSample(
   sample: ScreenShareDiagnosticsSample
 ): ScreenShareDiagnosticsSample[] {
   return [...history, sample].slice(-SCREEN_SHARE_DIAGNOSTICS_HISTORY_LIMIT);
+}
+
+export function screenShareDiagnosticsHasVideoSignal(
+  sample: ScreenShareDiagnosticsSample
+): boolean {
+  return (
+    sample.width !== null ||
+    sample.height !== null ||
+    sample.framesPerSecond !== null ||
+    sample.bitrateBps !== null ||
+    sample.codec !== null
+  );
+}
+
+export function screenShareDiagnosticsSampleIsPartial(
+  sample: ScreenShareDiagnosticsSample
+): boolean {
+  if (!screenShareDiagnosticsHasVideoSignal(sample)) return true;
+  return sample.width === null || sample.height === null || sample.framesPerSecond === null;
+}
+
+export function mergeScreenShareDiagnosticsSample(
+  previous: ScreenShareDiagnosticsSample | null,
+  next: ScreenShareDiagnosticsSample
+): ScreenShareDiagnosticsSample {
+  if (!previous) return next;
+
+  const shouldKeepStableVideoFields = screenShareDiagnosticsSampleIsPartial(next);
+  if (!shouldKeepStableVideoFields) return next;
+
+  const stickyFields: StickyDiagnosticsField[] = [
+    'width',
+    'height',
+    'sourceWidth',
+    'sourceHeight',
+    'sourceFramesPerSecond',
+    'framesPerSecond',
+    'bitrateBps',
+    'targetBitrateBps',
+    'availableBitrateBps',
+    'packetLossPercent',
+    'jitterMs',
+    'roundTripTimeMs',
+    'frameDropPercent',
+    'codec',
+    'encoderImplementation',
+    'decoderImplementation',
+    'powerEfficientCodec',
+    'qualityLimitationReason',
+    'qualityLimitationDurations',
+    'qualityLimitationResolutionChanges',
+    'networkType',
+    'protocol',
+    'localCandidateType',
+    'remoteCandidateType',
+    'contentHint'
+  ];
+
+  const merged: ScreenShareDiagnosticsSample = {
+    ...next,
+    health:
+      next.health === 'unknown' && previous.health !== 'unknown' ? previous.health : next.health,
+    activeLayerCount: next.activeLayerCount > 0 ? next.activeLayerCount : previous.activeLayerCount,
+    layers: next.layers.length ? next.layers : previous.layers
+  };
+
+  for (const field of stickyFields) {
+    if (merged[field] === null) {
+      Object.assign(merged, { [field]: previous[field] });
+    }
+  }
+
+  return merged;
 }

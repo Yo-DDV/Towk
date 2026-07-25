@@ -1,0 +1,21 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "direct_message_delete": {
+      "title": "Supprimer la conversation",
+      "action": "Supprimer la conversation",
+      "prompt": "Supprimer la conversation avec {room} ? Son historique sera retiré de votre compte. L’autre participant conservera sa copie.",
+      "failed": "Impossible de supprimer la conversation",
+      "local_cleanup_failed": "La conversation a été supprimée, mais cet appareil n’a pas pu effacer toutes les données en cache.",
+      "more_actions": "Actions de la conversation",
+      "menu_description": "La retirer de votre compte",
+      "only_for_you": "Pour vous uniquement",
+      "history_title": "Votre historique sera retiré",
+      "history_body": "Les messages, fils, fichiers et brouillons en cache de cette conversation ne vous seront plus accessibles.",
+      "peer_title": "L’autre participant conserve sa copie",
+      "peer_body": "Rien n’est supprimé de son compte et il n’est pas informé de cette action.",
+      "reopen_title": "Un futur message peut rouvrir la conversation",
+      "reopen_body": "Seuls les messages envoyés après la suppression apparaîtront. L’ancien historique restera masqué."
+    }
+  }
+}

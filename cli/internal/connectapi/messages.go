@@ -32,6 +32,14 @@ func (s *messageService) CreateMessage(ctx context.Context, req *connect.Request
 		AlsoSendToChannel:  req.Msg.AlsoSendToChannel,
 		ClientRequestID:    req.Msg.GetClientRequestId(),
 	}
+	for _, eventID := range []string{input.ThreadRootEventID, input.InReplyTo} {
+		if eventID == "" {
+			continue
+		}
+		if err := s.requireAccessibleDMEvent(ctx, caller.UserID, input.RoomID, eventID); err != nil {
+			return nil, connectError(err)
+		}
+	}
 	if input.ClientRequestID != "" {
 		input.RequestFingerprint = createMessageRequestFingerprint(req.Msg)
 		result, err := s.api.core.Messages().FindIdempotentPost(ctx, input)
@@ -110,6 +118,9 @@ func (s *messageService) UpdateMessage(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireAccessibleDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId); err != nil {
+		return nil, connectError(err)
+	}
 
 	event, kind, err := s.api.core.Messages().UpdateMessage(ctx, core.MessageUpdateInput{
 		ActorID:           caller.UserID,
@@ -135,6 +146,9 @@ func (s *messageService) DeleteMessage(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireAccessibleDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId); err != nil {
+		return nil, connectError(err)
+	}
 
 	if err := s.api.core.Messages().DeleteMessage(ctx, core.MessageDeleteInput{
 		ActorID: caller.UserID,
@@ -150,6 +164,9 @@ func (s *messageService) DeleteAttachment(ctx context.Context, req *connect.Requ
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if err := s.requireAccessibleDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId); err != nil {
+		return nil, connectError(err)
 	}
 
 	if err := s.api.core.Messages().DeleteAttachment(ctx, core.MessageAttachmentDeleteInput{
@@ -168,6 +185,9 @@ func (s *messageService) DeleteLinkPreview(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireAccessibleDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.EventId); err != nil {
+		return nil, connectError(err)
+	}
 
 	if err := s.api.core.Messages().DeleteLinkPreview(ctx, core.MessageLinkPreviewDeleteInput{
 		ActorID: caller.UserID,
@@ -178,6 +198,24 @@ func (s *messageService) DeleteLinkPreview(ctx context.Context, req *connect.Req
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(&apiv1.DeleteLinkPreviewResponse{Deleted: true}), nil
+}
+
+func (s *messageService) requireAccessibleDMEvent(ctx context.Context, actorID, roomID, eventID string) error {
+	kind, err := s.api.core.FindRoomKind(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	if kind != core.KindDM {
+		return nil
+	}
+	accessible, err := s.api.core.CanAccessDMEvent(ctx, actorID, roomID, eventID)
+	if err != nil {
+		return err
+	}
+	if !accessible {
+		return core.ErrMessageNotFound
+	}
+	return nil
 }
 
 func (s *messageService) hydratePostedEvent(ctx context.Context, viewerID string, kind core.RoomKind, event *corev1.Event) (*apiv1.RoomTimelineEvent, error) {

@@ -1,5 +1,6 @@
 import type { Track } from 'livekit-client';
 import type { PresenceStatus } from '$lib/render/types';
+import type { ScreenShareDiagnosticsDirection } from '$lib/voice/screenShareDiagnostics';
 
 export type CallFullscreenMediaKind = 'camera' | 'screen';
 
@@ -16,6 +17,7 @@ export type CallFullscreenMedia = {
     avatarUrl: string | null;
     presenceStatus: PresenceStatus;
   };
+  diagnosticsDirection?: ScreenShareDiagnosticsDirection;
   onClose?: () => void;
 };
 
