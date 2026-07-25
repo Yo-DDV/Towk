@@ -33,7 +33,7 @@
   let bioSuccess = $state('');
   let privacyError = $state('');
   let privacySuccess = $state('');
-  let loadedUserId = $state<string | null>(null);
+  let loadedUserId: string | null = null;
 
   const biographyBytes = $derived(profileBiographyByteLength(biography));
   const biographyValid = $derived(isProfileBiographyWithinLimit(biography));
