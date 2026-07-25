@@ -201,7 +201,8 @@
       data-testid="profile-details-loading"
     >
       <div class="flex items-center gap-3 text-sm font-medium text-muted">
-        <span class="iconify animate-spin text-xl text-primary uil--spinner-alt" aria-hidden="true"></span>
+        <span class="iconify animate-spin text-xl text-primary uil--spinner-alt" aria-hidden="true"
+        ></span>
         {m['profile.loading']()}
       </div>
       <div class="grid gap-4 lg:grid-cols-2">
@@ -215,12 +216,14 @@
       role="alert"
       data-testid="profile-details-error"
     >
-      <span class="iconify mt-0.5 text-xl uil--exclamation-octagon" aria-hidden="true"></span>
-      <p class="text-sm font-medium leading-relaxed">{loadError}</p>
+      <span class="mt-0.5 iconify text-xl uil--exclamation-octagon" aria-hidden="true"></span>
+      <p class="text-sm leading-relaxed font-medium">{loadError}</p>
     </div>
   {:else}
     <div class="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(18rem,0.95fr)]">
-      <div class="profile-details-card grid min-w-0 gap-3 rounded-2xl border border-text/10 bg-background/70 p-3 shadow-sm backdrop-blur-xl sm:p-4">
+      <div
+        class="profile-details-card grid min-w-0 gap-3 rounded-2xl border border-text/10 bg-background/70 p-3 shadow-sm backdrop-blur-xl sm:p-4"
+      >
         <div
           class="flex flex-wrap gap-1 rounded-xl border border-text/10 bg-surface-100/80 p-1.5 shadow-inner"
           role="toolbar"
@@ -329,11 +332,15 @@
         class="profile-details-card min-h-72 min-w-0 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
         aria-label={m['settings.profile.details.preview']()}
       >
-        <div class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase">
+        <div
+          class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase"
+        >
           <span class="iconify text-base text-primary uil--eye" aria-hidden="true"></span>
           {m['settings.profile.details.preview']()}
         </div>
-        <div class="profile-biography-preview min-h-56 rounded-xl border border-text/10 bg-surface-100/70 p-4 shadow-inner">
+        <div
+          class="profile-biography-preview min-h-56 rounded-xl border border-text/10 bg-surface-100/70 p-4 shadow-inner"
+        >
           {#if biography.trim()}
             <MessageContent body={biography} />
           {:else}

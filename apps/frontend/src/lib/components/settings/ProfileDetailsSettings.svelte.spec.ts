@@ -143,7 +143,9 @@ describe('ProfileDetailsSettings', () => {
 
     const { container } = render(ProfileDetailsSettings);
 
-    await vi.waitFor(() => expect(container.textContent).toContain('Could not load profile details.'));
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain('Could not load profile details.')
+    );
     expect(container.querySelector('[data-testid="profile-details-error"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="profile-details-loading"]')).toBeNull();
   });
@@ -153,7 +155,9 @@ describe('ProfileDetailsSettings', () => {
 
     const { container } = render(ProfileDetailsSettings);
 
-    await vi.waitFor(() => expect(container.textContent).toContain('Could not load profile details.'));
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain('Could not load profile details.')
+    );
     expect(container.querySelector('[data-testid="profile-details-loading"]')).toBeNull();
     expect(mocks.getUserProfile).not.toHaveBeenCalled();
   });
