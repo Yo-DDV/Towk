@@ -147,7 +147,7 @@
     data-testid="external-gif-message"
     data-embed-count={externalGifs.length}
   >
-    {#each externalGifs as gif}
+    {#each externalGifs as gif (gif.canonicalUrl)}
       <ExternalGifEmbed gif={gif} autoLoad={userPreferences.externalGifAutoLoad} />
     {/each}
   </div>
