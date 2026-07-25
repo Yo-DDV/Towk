@@ -16,9 +16,9 @@ Towk does not provide GIF search or copy provider media into server storage.
   whitespace. Every non-whitespace token must be a supported URL. Mixed text, Markdown
   with a custom label, quotes, code, unsupported URLs, and messages above the four-card
   bound remain normal message content.
-- Exact Markdown autolinks and exact `[URL](URL)` self-links emitted by the rich
-  composer are treated as their underlying URL. The visible label must equal the
-  destination exactly so user-authored link text is never discarded.
+- Exact Markdown autolinks and exact `[URL](URL)` or `[URL](<URL>)` self-links emitted
+  by the rich composer are treated as their underlying URL. The visible label must
+  equal the destination exactly so user-authored link text is never discarded.
 - Supported URL shapes are official GIPHY page/embed URLs and direct GIPHY, Tenor,
   or KLIPY GIF, WebP, MP4, or WebM media URLs. Current `i.giphy.com/media/...` CDN
   forms, bounded historical Tenor media forms, exact KLIPY
