@@ -46,10 +46,9 @@
   let suppressedByPersistedPreview = $state(false);
 
   function clearLoadTimeout() {
-    if (timeout) {
-      clearTimeout(timeout);
-      timeout = null;
-    }
+    if (!timeout) return;
+    clearTimeout(timeout);
+    timeout = null;
   }
 
   function resetMedia() {
@@ -76,9 +75,9 @@
     clearLoadTimeout();
     activeMediaElement = null;
     hiddenByUser = false;
-    // `navigator.onLine` is only a hint. Keep automatic loads conservative,
-    // but let an explicit user action reach the browser HTTP cache even when
-    // the platform currently reports an offline state.
+
+    // `navigator.onLine` is only a hint. Automatic loads stay conservative,
+    // while an explicit user action may still reach a fresh browser cache.
     if (!online && origin === 'auto') return;
 
     failureReason = null;
@@ -147,7 +146,7 @@
   });
 
   onMount(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    if (typeof window.matchMedia !== 'function') return;
     const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
     const sync = () => {
       const nextReducedMotion = mediaQuery.matches;
@@ -167,8 +166,7 @@
     }
   });
 
-  $effect(() => {
-    if (typeof document === 'undefined') return;
+  onMount(() => {
     const updateVisibility = () => {
       pageVisible = document.visibilityState === 'visible';
       if (!pageVisible && loadState === 'loading') stopAutomaticLoad();
@@ -178,8 +176,7 @@
     return () => document.removeEventListener('visibilitychange', updateVisibility);
   });
 
-  $effect(() => {
-    if (typeof window === 'undefined') return;
+  onMount(() => {
     const updateOnline = () => {
       online = navigator.onLine;
       if (!online && loadState === 'loading' && loadOrigin === 'auto') {
@@ -195,6 +192,12 @@
       window.removeEventListener('online', updateOnline);
       window.removeEventListener('offline', updateOnline);
     };
+  });
+
+  $effect(() => {
+    if (!autoLoad && loadState === 'loading' && loadOrigin === 'auto') {
+      stopAutomaticLoad();
+    }
   });
 
   $effect(() => {
