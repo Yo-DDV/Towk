@@ -27,7 +27,7 @@ jobs:
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Execute extracted patch step with trace
+      - name: Execute corrected extracted patch step with trace
         id: trace
         shell: bash
         env:
@@ -48,13 +48,13 @@ jobs:
           start = text.index('        run: |\n', step) + len('        run: |\n')
           end = text.index('\n      - name: Regenerate protobuf bindings and API documentation\n', start)
           lines = text[start:end].splitlines()
-          extracted = []
-          for line in lines:
-              if line.startswith('          '):
-                  extracted.append(line[10:])
-              else:
-                  extracted.append(line)
-          Path(sys.argv[1]).write_text('\n'.join(extracted) + '\n', encoding='utf-8')
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines) + '\n'
+          old = '(cd proto && mise x -- buf format -w chatto/core/v1/live_events.proto chatto/realtime/v1/realtime.proto)'
+          new = '''(cd proto && mise x -- buf format -w chatto/core/v1/live_events.proto)
+          (cd proto && mise x -- buf format -w chatto/realtime/v1/realtime.proto)'''
+          if script.count(old) != 1:
+              raise SystemExit(f'expected one obsolete buf format command, got {script.count(old)}')
+          Path(sys.argv[1]).write_text(script.replace(old, new, 1), encoding='utf-8')
           PY
 
           set +e
@@ -66,7 +66,7 @@ jobs:
             printf 'source_head=%s\n' "${GITHUB_SHA}"
             printf 'patch_step_status=%s\n' "${status}"
             printf '%s\n' '--- trace tail ---'
-            tail -n 120 "${log}" | sed -E \
+            tail -n 160 "${log}" | sed -E \
               -e 's/(Authorization: Bearer )[A-Za-z0-9._-]+/\1***/g' \
               -e 's/(GH_TOKEN=).*/\1***/g' \
               -e 's/[[:cntrl:]]//g'
@@ -74,7 +74,7 @@ jobs:
 
           encoded="$(base64 -w0 "${report}")"
           payload="$(jq -n \
-            --arg message 'chore(ci): record read receipt patch trace [skip read-receipts-privacy-v2] [skip read-receipts-patch-trace]' \
+            --arg message 'chore(ci): record corrected read receipt patch trace [skip read-receipts-privacy-v2] [skip read-receipts-privacy-executor] [skip read-receipts-patch-trace]' \
             --arg content "${encoded}" \
             --arg branch 'feat/read-receipts' \
             '{message:$message,content:$content,branch:$branch}')"
@@ -84,7 +84,7 @@ jobs:
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header 'X-GitHub-Api-Version: 2022-11-28' \
             --data-binary "${payload}" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/read-receipts-patch-trace-v2.txt" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/read-receipts-patch-trace-v3.txt" \
             >/dev/null
 
           exit "${status}"
