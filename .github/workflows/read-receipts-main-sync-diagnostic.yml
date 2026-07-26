@@ -1,5 +1,5 @@
 name: read-receipts main sync diagnostic
-# Registered before this pull-request trigger commit.
+# Workflow registered; this commit triggers the pull-request diagnostic.
 
 on:
   pull_request:
