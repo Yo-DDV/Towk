@@ -1,4 +1,4 @@
-name: read-receipts frontend diagnostic
+name: read-receipts merge diagnostic
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: read-receipts-frontend-diagnostic-${{ github.event.pull_request.number }}
+  group: read-receipts-merge-diagnostic-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -17,17 +17,34 @@ jobs:
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out exact pull request head
+      - name: Check out exact pull request merge
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Verify merge parents
+        shell: bash
+        env:
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^1)" = "${EXPECTED_BASE_SHA}"
+          test "$(git rev-parse HEAD^2)" = "${EXPECTED_HEAD_SHA}"
+          {
+            printf 'merge_sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'base_sha=%s\n' "$(git rev-parse HEAD^1)"
+            printf 'head_sha=%s\n' "$(git rev-parse HEAD^2)"
+          } > "${RUNNER_TEMP}/read-receipts-merge-identity.txt"
 
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
       - name: Apply reviewed remediation patch
+        id: apply
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,9 +55,11 @@ jobs:
             4e651e6b972f1f12031b7ddad6c638b093dcb250
         run: |
           set -euo pipefail
+          log="${RUNNER_TEMP}/read-receipts-merge-apply.log"
           encoded="${RUNNER_TEMP}/read-receipts-remediation.patch.gz.b64"
           archive="${RUNNER_TEMP}/read-receipts-remediation.patch.gz"
           patch="${RUNNER_TEMP}/read-receipts-remediation.patch"
+          exec > >(tee "${log}") 2>&1
           : > "${encoded}"
           for sha in ${PATCH_PART_SHAS}; do
             chunk="${RUNNER_TEMP}/read-receipts-remediation-${sha}.part"
@@ -57,12 +76,33 @@ jobs:
           printf '%s  %s\n' "${PATCH_GZIP_SHA256}" "${archive}" | sha256sum --check --strict
           gzip -dc "${archive}" > "${patch}"
           printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --strict
-          git apply --check "${patch}"
+          git apply --check --verbose "${patch}"
           git apply "${patch}"
+          git diff --check
           mise run codegen-proto
+          git diff --name-status HEAD > "${RUNNER_TEMP}/read-receipts-merge-files.txt"
+          tar -czf "${RUNNER_TEMP}/read-receipts-merge-candidate.tar.gz" -- \
+            apps/frontend/messages/de/room.json \
+            apps/frontend/messages/en/room.json \
+            apps/frontend/messages/es/room.json \
+            apps/frontend/messages/fr/room.json \
+            apps/frontend/messages/pt/room.json \
+            apps/frontend/src/lib/ServerSettings.svelte \
+            apps/frontend/src/lib/api-client/readState.ts \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/EventList.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/MessageEvent.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/MessageMetaBar.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/RoomEvent.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/ThreadPane.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/TimelineEventsPane.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts' \
+            proto/chatto/api/v1/read_state.proto \
+            packages/api-types/src/chatto/api/v1/read_state_pb.ts
 
       - name: Run Svelte and TypeScript check
         id: svelte
+        if: steps.apply.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -71,6 +111,7 @@ jobs:
 
       - name: Run targeted frontend tests
         id: vitest
+        if: steps.apply.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -85,6 +126,7 @@ jobs:
 
       - name: Run targeted ESLint
         id: eslint
+        if: steps.apply.outcome == 'success'
         continue-on-error: true
         shell: bash
         run: |
@@ -109,29 +151,35 @@ jobs:
             'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \
             2>&1 | tee "${RUNNER_TEMP}/read-receipts-eslint.log"
 
-      - name: Upload frontend diagnostic logs
+      - name: Upload merge diagnostic
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: towk-read-receipts-frontend-diagnostic
+          name: towk-read-receipts-merge-diagnostic
           path: |
+            ${{ runner.temp }}/read-receipts-merge-identity.txt
+            ${{ runner.temp }}/read-receipts-merge-apply.log
+            ${{ runner.temp }}/read-receipts-merge-files.txt
+            ${{ runner.temp }}/read-receipts-merge-candidate.tar.gz
             ${{ runner.temp }}/read-receipts-svelte-check.log
             ${{ runner.temp }}/read-receipts-vitest.log
             ${{ runner.temp }}/read-receipts-eslint.log
           retention-days: 1
           if-no-files-found: warn
 
-      - name: Require frontend checks
+      - name: Require diagnostic completion
         if: always()
         shell: bash
         env:
+          APPLY_OUTCOME: ${{ steps.apply.outcome }}
           SVELTE_OUTCOME: ${{ steps.svelte.outcome }}
           VITEST_OUTCOME: ${{ steps.vitest.outcome }}
           ESLINT_OUTCOME: ${{ steps.eslint.outcome }}
         run: |
           set -euo pipefail
-          printf 'svelte=%s\nvitest=%s\neslint=%s\n' \
-            "${SVELTE_OUTCOME}" "${VITEST_OUTCOME}" "${ESLINT_OUTCOME}"
+          printf 'apply=%s\nsvelte=%s\nvitest=%s\neslint=%s\n' \
+            "${APPLY_OUTCOME}" "${SVELTE_OUTCOME}" "${VITEST_OUTCOME}" "${ESLINT_OUTCOME}"
+          test "${APPLY_OUTCOME}" = success
           test "${SVELTE_OUTCOME}" = success
           test "${VITEST_OUTCOME}" = success
           test "${ESLINT_OUTCOME}" = success
