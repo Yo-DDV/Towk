@@ -1,0 +1,25 @@
+source_head=5d190a18e0c9626b199cff9dfa707365089e2660
+patch_step_status=254
+--- trace tail ---
++ set -o pipefail
++ python3 -
+++ tee /home/runner/work/_temp/read-receipts-privacy-patch.err
++ patch_status=0
++ test 0 -ne 0
++ set -euo pipefail
++ gofmt -w cli/internal/core/read_receipts.go cli/internal/core/read_receipts_test.go cli/internal/core/my_events_model.go cli/internal/http_server/realtime.go cli/internal/http_server/realtime_test.go
++ cd proto
++ mise x -- buf format -w chatto/core/v1/live_events.proto
++ cd proto
++ mise x -- buf format -w chatto/realtime/v1/realtime.proto
++ pnpm --dir apps/frontend exec prettier --write src/lib/api-client/renderTypes.ts src/lib/eventBus.svelte.ts src/lib/realtimeEventMapper.ts src/lib/realtimeEventMapper.spec.ts 'src/routes/chat/[serverId]/[roomId]/EventList.svelte' 'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.ts' 'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.spec.ts'
+[90msrc/lib/api-client/renderTypes.ts[39m 1257ms (unchanged)
+[90msrc/lib/eventBus.svelte.ts[39m 165ms (unchanged)
+[90msrc/lib/realtimeEventMapper.ts[39m 67ms (unchanged)
+[90msrc/lib/realtimeEventMapper.spec.ts[39m 22ms (unchanged)
+src/routes/chat/[serverId]/[roomId]/EventList.svelte 417ms
+src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.ts 8ms
+[90msrc/routes/chat/[serverId]/[roomId]/readReceiptPresentation.spec.ts[39m 17ms (unchanged)
++ pnpm exec prettier --write docs/fdr/FDR-031-read-receipts.md docs/adr/ADR-054-read-receipt-publication-boundary.md
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "prettier" not found
