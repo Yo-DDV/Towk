@@ -1,4 +1,5 @@
 name: read-receipts main sync diagnostic
+# Registered before this trigger commit.
 
 on:
   push:
