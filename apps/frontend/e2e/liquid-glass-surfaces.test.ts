@@ -30,7 +30,7 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
 }
 
 test.describe('Liquid glass application surfaces', () => {
-  test('keeps the profile and composer readable, elevated, themed, and responsive', async ({
+  test('keeps the profile and composer uniformly edge-lit, themed, and responsive', async ({
     page,
     chatPage,
     roomPage
@@ -61,14 +61,15 @@ test.describe('Liquid glass application surfaces', () => {
 
     for (const style of [lightProfileStyle, lightComposerStyle]) {
       expect(style.backgroundColor).toMatch(/rgba?\(248,\s*250,\s*252/);
-      expect(style.backgroundImage).toContain('radial-gradient');
       expect(style.backgroundImage).toContain('linear-gradient');
+      expect(style.backgroundImage).not.toContain('radial-gradient');
       expect(style.borderRadius).not.toBe('0px');
       expect(style.boxShadow).not.toBe('none');
       if (supportsBackdropFilter) {
         expect(style.backdropFilter).toContain('blur(');
       }
     }
+    expect(lightProfileStyle.backgroundImage).toBe(lightComposerStyle.backgroundImage);
 
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.reload();
@@ -94,9 +95,11 @@ test.describe('Liquid glass application surfaces', () => {
 
     for (const style of [darkProfileStyle, darkComposerStyle]) {
       expect(style.backgroundColor).toMatch(/rgba?\(38,\s*38,\s*42/);
-      expect(style.backgroundImage).toContain('radial-gradient');
+      expect(style.backgroundImage).toContain('linear-gradient');
+      expect(style.backgroundImage).not.toContain('radial-gradient');
       expect(style.boxShadow).not.toBe('none');
     }
+    expect(darkProfileStyle.backgroundImage).toBe(darkComposerStyle.backgroundImage);
     expect(darkProfileStyle.backgroundColor).not.toBe(lightProfileStyle.backgroundColor);
     expect(darkComposerStyle.backgroundColor).not.toBe(lightComposerStyle.backgroundColor);
 
