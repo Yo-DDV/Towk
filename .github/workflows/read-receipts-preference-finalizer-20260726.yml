@@ -131,33 +131,72 @@ jobs:
           git diff --check
 
       - name: Check Svelte and TypeScript
+        id: svelte
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          pnpm --dir apps/frontend run check
+          set -o pipefail
+          pnpm --dir apps/frontend run check 2>&1 | tee "${RUNNER_TEMP}/read-receipts-preference-svelte.log"
 
       - name: Run focused preference tests
+        id: vitest
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -o pipefail
           pnpm --dir apps/frontend exec vitest --run \
             src/lib/api-client-tests/account.spec.ts \
-            'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+            'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts' \
+            2>&1 | tee "${RUNNER_TEMP}/read-receipts-preference-vitest.log"
 
       - name: Lint preference sources
+        id: eslint
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
+          set -o pipefail
           pnpm --dir apps/frontend exec eslint \
             'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \
-            'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+            'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts' \
+            2>&1 | tee "${RUNNER_TEMP}/read-receipts-preference-eslint.log"
 
       - name: Build frontend
+        id: build
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          mise run build-frontend
+          set -o pipefail
+          mise run build-frontend 2>&1 | tee "${RUNNER_TEMP}/read-receipts-preference-build.log"
           git diff --check
+
+      - name: Upload preference diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: towk-read-receipts-preference-diagnostic
+          path: |
+            ${{ runner.temp }}/read-receipts-preference-svelte.log
+            ${{ runner.temp }}/read-receipts-preference-vitest.log
+            ${{ runner.temp }}/read-receipts-preference-eslint.log
+            ${{ runner.temp }}/read-receipts-preference-build.log
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Require preference checks
+        shell: bash
+        env:
+          SVELTE_OUTCOME: ${{ steps.svelte.outcome }}
+          VITEST_OUTCOME: ${{ steps.vitest.outcome }}
+          ESLINT_OUTCOME: ${{ steps.eslint.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+        run: |
+          set -euo pipefail
+          printf 'svelte=%s\nvitest=%s\neslint=%s\nbuild=%s\n' \
+            "${SVELTE_OUTCOME}" "${VITEST_OUTCOME}" "${ESLINT_OUTCOME}" "${BUILD_OUTCOME}"
+          test "${SVELTE_OUTCOME}" = success
+          test "${VITEST_OUTCOME}" = success
+          test "${ESLINT_OUTCOME}" = success
+          test "${BUILD_OUTCOME}" = success
 
       - name: Commit and push validated fix
         shell: bash
