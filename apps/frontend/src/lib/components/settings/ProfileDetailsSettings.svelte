@@ -11,7 +11,9 @@
   import {
     isProfileBiographyWithinLimit,
     MAX_PROFILE_BIOGRAPHY_BYTES,
-    profileBiographyByteLength
+    MAX_PROFILE_BIOGRAPHY_CHARACTERS,
+    profileBiographyByteLength,
+    profileBiographyCharacterLength
   } from '$lib/profileBiography';
   import * as m from '$lib/i18n/messages';
 
@@ -35,6 +37,7 @@
   let privacySuccess = $state('');
   let loadedUserId: string | null = null;
 
+  const biographyCharacters = $derived(profileBiographyCharacterLength(biography));
   const biographyBytes = $derived(profileBiographyByteLength(biography));
   const biographyValid = $derived(isProfileBiographyWithinLimit(biography));
   const biographyModified = $derived(biography !== savedBiography);
@@ -310,22 +313,33 @@
           class="w-full resize-y rounded-xl border border-input-border bg-input p-4 text-sm leading-relaxed shadow-inner transition-colors outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
           aria-label={m['settings.profile.details.biography_label']()}
           aria-invalid={!biographyValid}
+          aria-describedby="profile-biography-counter"
           placeholder={m['settings.profile.details.biography_placeholder']()}
           disabled={bioSaving}
           oninput={() => {
             bioError = '';
             bioSuccess = '';
           }}></textarea>
-        <p
-          class:text-danger={!biographyValid}
-          class="text-right text-xs text-muted"
+        <div
+          id="profile-biography-counter"
+          class="flex flex-wrap justify-end gap-x-2 gap-y-1 text-right text-xs text-muted"
           aria-live="polite"
+          data-testid="profile-biography-counter"
         >
-          {m['settings.profile.details.byte_count']({
-            used: biographyBytes,
-            limit: MAX_PROFILE_BIOGRAPHY_BYTES
-          })}
-        </p>
+          <span class:text-danger={biographyCharacters > MAX_PROFILE_BIOGRAPHY_CHARACTERS}>
+            {m['settings.profile.details.character_count']({
+              used: biographyCharacters,
+              limit: MAX_PROFILE_BIOGRAPHY_CHARACTERS
+            })}
+          </span>
+          <span aria-hidden="true">·</span>
+          <span class:text-danger={biographyBytes > MAX_PROFILE_BIOGRAPHY_BYTES}>
+            {m['settings.profile.details.byte_count']({
+              used: biographyBytes,
+              limit: MAX_PROFILE_BIOGRAPHY_BYTES
+            })}
+          </span>
+        </div>
       </div>
 
       <section

@@ -66,6 +66,7 @@ responsive dialog backed by the detailed profile API.
   const historyMarker = `profile:${componentId}`;
   const rolesHeadingId = `${componentId}-roles-heading`;
   const biographyHeadingId = `${componentId}-biography-heading`;
+  const biographyContentId = `${componentId}-biography-content`;
   const detailsHeadingId = `${componentId}-details-heading`;
   const serverId = $derived(getActiveServer());
   let visible = $state(true);
@@ -74,6 +75,7 @@ responsive dialog backed by the detailed profile API.
   let profile = $state<DetailedUserProfile | null>(null);
   let loading = $state(true);
   let loadError = $state('');
+  let biographyExpanded = $state(false);
 
   const displayName = $derived(getLiveDisplayName(user.id, user.displayName || user.login));
   const login = $derived(getLiveLogin(user.id, user.login));
@@ -99,6 +101,13 @@ responsive dialog backed by the detailed profile API.
   const showActions = $derived(
     Boolean(profile?.viewerIsSelf || mayMessage || mayCall || canBanFromRoom)
   );
+  const biographyCharacterCount = $derived(
+    profile ? Array.from(profile.biographyMarkdown).length : 0
+  );
+  const biographyLineCount = $derived(profile ? profile.biographyMarkdown.split('\n').length : 0);
+  const biographyCollapsible = $derived(
+    Boolean(profile && (biographyCharacterCount > 720 || biographyLineCount > 14))
+  );
   const profileRevision = $derived(getDetailedUserProfileRevision(serverId, user.id));
 
   $effect(() => {
@@ -117,6 +126,7 @@ responsive dialog backed by the detailed profile API.
     const targetServerId = serverId;
     void profileRevision;
     let cancelled = false;
+    biographyExpanded = false;
     loading = true;
     loadError = '';
 
@@ -250,15 +260,6 @@ responsive dialog backed by the detailed profile API.
     <section
       class="profile-hero relative isolate overflow-hidden rounded-3xl border border-text/10 bg-linear-to-br from-background/95 via-surface-100/90 to-surface-200/80 p-5 shadow-lg ring-1 ring-white/10 backdrop-blur-xl sm:p-6"
     >
-      <div
-        class="pointer-events-none absolute -top-24 -right-24 -z-10 h-64 w-64 rounded-full bg-primary/20 blur-3xl"
-        aria-hidden="true"
-      ></div>
-      <div
-        class="pointer-events-none absolute -bottom-24 -left-16 -z-10 h-56 w-56 rounded-full bg-accent/10 blur-3xl"
-        aria-hidden="true"
-      ></div>
-
       <div class="profile-hero-layout">
         <div class="profile-avatar-shell" data-testid="profile-avatar-shell">
           <UserAvatar user={profileUser} size="xl" showPresence class="profile-avatar" />
@@ -359,39 +360,13 @@ responsive dialog backed by the detailed profile API.
     {/if}
 
     {#if profile}
-      <div class="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
+      <div class="profile-content-stack grid min-w-0 gap-4">
         <section
-          class="profile-card profile-biography-card grid min-w-0 gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
-          aria-labelledby={biographyHeadingId}
-        >
-          <div class="flex items-center justify-between gap-3">
-            <h4
-              id={biographyHeadingId}
-              class="flex items-center gap-2 text-sm font-semibold text-text"
-            >
-              <span class="profile-section-icon" aria-hidden="true">
-                <span class="iconify uil--file-alt"></span>
-              </span>
-              {m['profile.biography']()}
-            </h4>
-          </div>
-          <div
-            class="profile-biography min-h-40 rounded-xl border border-text/10 bg-surface-100/70 p-4 text-sm leading-relaxed shadow-inner"
-          >
-            {#if profile.biographyMarkdown.trim()}
-              <MessageContent body={profile.biographyMarkdown} />
-            {:else}
-              <p class="text-muted">{m['profile.biography_empty']()}</p>
-            {/if}
-          </div>
-        </section>
-
-        <section
-          class="profile-card grid gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
+          class="profile-card profile-facts-card rounded-2xl border border-text/10 bg-background/70 p-3 shadow-sm backdrop-blur-xl"
           aria-labelledby={detailsHeadingId}
         >
           <h4 id={detailsHeadingId} class="sr-only">{m['profile.details']()}</h4>
-          <div class="grid gap-3">
+          <div class="profile-facts-grid">
             <div class="profile-detail-tile">
               <span class="profile-detail-icon iconify uil--calendar-alt" aria-hidden="true"></span>
               <span class="min-w-0">
@@ -424,6 +399,58 @@ responsive dialog backed by the detailed profile API.
               </span>
             </div>
           </div>
+        </section>
+
+        <section
+          class="profile-card profile-biography-card grid min-w-0 gap-3 rounded-2xl border border-text/10 bg-background/70 p-4 shadow-sm backdrop-blur-xl"
+          aria-labelledby={biographyHeadingId}
+        >
+          <h4
+            id={biographyHeadingId}
+            class="flex items-center gap-2 text-sm font-semibold text-text"
+          >
+            <span class="profile-section-icon" aria-hidden="true">
+              <span class="iconify uil--file-alt"></span>
+            </span>
+            {m['profile.biography']()}
+          </h4>
+          <div
+            class="profile-biography-shell"
+            class:profile-biography-shell-collapsed={biographyCollapsible && !biographyExpanded}
+          >
+            <div
+              id={biographyContentId}
+              class="profile-biography rounded-xl border border-text/10 bg-surface-100/70 p-4 text-sm leading-relaxed shadow-inner"
+              class:profile-biography-content-collapsed={biographyCollapsible && !biographyExpanded}
+              data-testid="profile-biography-content"
+            >
+              {#if profile.biographyMarkdown.trim()}
+                <MessageContent body={profile.biographyMarkdown} />
+              {:else}
+                <p class="text-muted">{m['profile.biography_empty']()}</p>
+              {/if}
+            </div>
+            {#if biographyCollapsible && !biographyExpanded}
+              <div class="profile-biography-fade" aria-hidden="true"></div>
+            {/if}
+          </div>
+          {#if biographyCollapsible}
+            <button
+              type="button"
+              class="profile-biography-toggle"
+              aria-expanded={biographyExpanded}
+              aria-controls={biographyContentId}
+              onclick={() => (biographyExpanded = !biographyExpanded)}
+            >
+              <span
+                class={['iconify text-lg', biographyExpanded ? 'uil--angle-up' : 'uil--angle-down']}
+                aria-hidden="true"
+              ></span>
+              {biographyExpanded
+                ? m['profile.biography_collapse']()
+                : m['profile.biography_expand']()}
+            </button>
+          {/if}
         </section>
       </div>
     {/if}
@@ -516,10 +543,10 @@ responsive dialog backed by the detailed profile API.
       color-mix(in srgb, var(--color-background) 86%, black 14%)
     );
     box-shadow:
-      -0.65rem -0.65rem 1.35rem color-mix(in srgb, white 14%, transparent),
-      0.75rem 0.75rem 1.6rem color-mix(in srgb, black 28%, transparent),
-      inset 0.16rem 0.16rem 0.35rem color-mix(in srgb, white 22%, transparent),
-      inset -0.18rem -0.18rem 0.4rem color-mix(in srgb, black 16%, transparent);
+      0 1rem 2.1rem color-mix(in srgb, black 24%, transparent),
+      0 0 0 0.32rem color-mix(in srgb, var(--color-surface-200) 55%, transparent),
+      inset 0 1px 0 color-mix(in srgb, white 10%, transparent),
+      inset 0 -0.22rem 0.5rem color-mix(in srgb, black 18%, transparent);
   }
 
   .profile-avatar-shell::before {
@@ -608,6 +635,76 @@ responsive dialog backed by the detailed profile API.
       inset 0 1px 0 color-mix(in srgb, white 18%, transparent),
       0 0.9rem 2rem color-mix(in srgb, black 10%, transparent);
     backdrop-filter: blur(1rem) saturate(1.15);
+  }
+
+  .profile-facts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: 0.75rem;
+  }
+
+  .profile-biography-shell {
+    position: relative;
+    min-width: 0;
+  }
+
+  .profile-biography-shell-collapsed {
+    overflow: hidden;
+    border-radius: 0.75rem;
+  }
+
+  .profile-biography-content-collapsed {
+    max-height: clamp(18rem, 52dvh, 32rem);
+    overflow: hidden;
+  }
+
+  .profile-biography-fade {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 6rem;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      color-mix(in srgb, var(--color-surface-100) 94%, transparent) 82%
+    );
+  }
+
+  .profile-biography-toggle {
+    display: inline-flex;
+    min-height: 2.75rem;
+    width: fit-content;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    justify-self: center;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--color-primary) 13%, var(--color-background));
+    padding: 0.45rem 1rem;
+    color: var(--color-text-top);
+    font-size: 0.8125rem;
+    font-weight: 750;
+    transition:
+      border-color 140ms ease,
+      background-color 140ms ease,
+      transform 140ms ease;
+  }
+
+  .profile-biography-toggle:hover {
+    border-color: color-mix(in srgb, var(--color-primary) 68%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 20%, var(--color-background));
+  }
+
+  .profile-biography-toggle:active {
+    transform: translateY(1px);
+  }
+
+  .profile-biography-toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
   }
 
   .profile-card,
@@ -751,7 +848,7 @@ responsive dialog backed by the detailed profile API.
     }
   }
 
-  @container (max-width: 27rem) {
+  @container (max-width: 22rem) {
     .profile-hero-layout {
       grid-template-columns: minmax(0, 1fr);
       justify-items: center;
@@ -777,6 +874,10 @@ responsive dialog backed by the detailed profile API.
     .profile-skeleton::after,
     .profile-role-skeleton {
       animation: none;
+    }
+
+    .profile-biography-toggle {
+      transition: none;
     }
   }
 
@@ -823,6 +924,17 @@ responsive dialog backed by the detailed profile API.
 
     .profile-hero {
       border-radius: 1.25rem;
+      padding: 1rem;
+    }
+
+    .profile-avatar-shell {
+      width: 5.75rem;
+      height: 5.75rem;
+      padding: 0.45rem;
+    }
+
+    .profile-biography-content-collapsed {
+      max-height: min(24rem, 48dvh);
     }
 
     .profile-actions {

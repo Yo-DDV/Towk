@@ -221,6 +221,9 @@ const msg_settings_profile_details_show_last_activity = (): LocalizedString => m
 const msg_settings_profile_details_show_last_activity_description = (): LocalizedString => messages().settings_profile_details_show_last_activity_description(empty());
 const msg_settings_profile_details_privacy_saved = (): LocalizedString => messages().settings_profile_details_privacy_saved(empty());
 const msg_settings_profile_details_save_privacy = (): LocalizedString => messages().settings_profile_details_save_privacy(empty());
+const msg_settings_profile_details_character_count = (
+  inputs: Parameters<LocaleMessages['settings_profile_details_character_count']>[0]
+): LocalizedString => messages().settings_profile_details_character_count(inputs);
 const msg_settings_preferences_title = (): LocalizedString => messages().settings_preferences_title(empty());
 const msg_settings_preferences_subtitle = (): LocalizedString => messages().settings_preferences_subtitle(empty());
 const msg_settings_preferences_theme_title = (): LocalizedString => messages().settings_preferences_theme_title(empty());
@@ -617,6 +620,8 @@ const msg_profile_details = (): LocalizedString => messages().profile_details(em
 const msg_profile_call = (): LocalizedString => messages().profile_call(empty());
 const msg_profile_not_available = (): LocalizedString => messages().profile_not_available(empty());
 const msg_profile_edit = (): LocalizedString => messages().profile_edit(empty());
+const msg_profile_biography_expand = (): LocalizedString => messages().profile_biography_expand(empty());
+const msg_profile_biography_collapse = (): LocalizedString => messages().profile_biography_collapse(empty());
 const msg_room_create_title = (): LocalizedString => messages().room_create_title(empty());
 const msg_room_create_description = (): LocalizedString => messages().room_create_description(empty());
 const msg_room_create_name_placeholder = (): LocalizedString => messages().room_create_name_placeholder(empty());
@@ -2218,6 +2223,7 @@ export { msg_settings_profile_details_show_last_activity as 'settings.profile.de
 export { msg_settings_profile_details_show_last_activity_description as 'settings.profile.details.show_last_activity_description' };
 export { msg_settings_profile_details_privacy_saved as 'settings.profile.details.privacy_saved' };
 export { msg_settings_profile_details_save_privacy as 'settings.profile.details.save_privacy' };
+export { msg_settings_profile_details_character_count as 'settings.profile.details.character_count' };
 export { msg_settings_preferences_title as 'settings.preferences.title' };
 export { msg_settings_preferences_subtitle as 'settings.preferences.subtitle' };
 export { msg_settings_preferences_theme_title as 'settings.preferences.theme.title' };
@@ -2572,6 +2578,8 @@ export { msg_profile_details as 'profile.details' };
 export { msg_profile_call as 'profile.call' };
 export { msg_profile_not_available as 'profile.not_available' };
 export { msg_profile_edit as 'profile.edit' };
+export { msg_profile_biography_expand as 'profile.biography_expand' };
+export { msg_profile_biography_collapse as 'profile.biography_collapse' };
 export { msg_room_create_title as 'room.create.title' };
 export { msg_room_create_description as 'room.create.description' };
 export { msg_room_create_name_placeholder as 'room.create.name_placeholder' };

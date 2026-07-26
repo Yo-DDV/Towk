@@ -10,7 +10,10 @@ import (
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
-const MaxUserBiographyBytes = 16 * 1024
+const (
+	MaxUserBiographyCharacters = 1024
+	MaxUserBiographyBytes      = 4 * 1024
+)
 
 // GetUserBiography returns the current decrypted biography. An unset biography
 // is represented by an empty string.
@@ -29,6 +32,9 @@ func NormalizeAndValidateUserBiography(value string) (string, error) {
 	value = normalizeUserBiography(value)
 	if !utf8.ValidString(value) {
 		return "", fmt.Errorf("%w: biography is not valid UTF-8", ErrInvalidArgument)
+	}
+	if utf8.RuneCountInString(value) > MaxUserBiographyCharacters {
+		return "", fmt.Errorf("%w: biography exceeds %d Unicode characters", ErrInvalidArgument, MaxUserBiographyCharacters)
 	}
 	if len([]byte(value)) > MaxUserBiographyBytes {
 		return "", fmt.Errorf("%w: biography exceeds %d bytes", ErrInvalidArgument, MaxUserBiographyBytes)

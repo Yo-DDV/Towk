@@ -43,7 +43,7 @@ be present.
 | --- | --- | --- |
 | `display_name` | `optional string` | New display name, when changing it. Empty clears the explicit display name. The server also rejects control and confusing invisible characters. |
 | `login` | `optional string` | New login identifier, when changing it. The server accepts ASCII letters, digits, period, underscore, and hyphen, starting with a letter or digit. |
-| `biography_markdown` | `optional string` | Markdown biography. Empty clears the biography. Raw HTML and remote images are not rendered by supported clients. |
+| `biography_markdown` | `optional string` | Markdown biography. Empty clears the biography. Supported clients and the core enforce at most 1,024 Unicode code points and 4 KiB of UTF-8. Raw HTML and remote images are not rendered by supported clients. |
 
 
 <a id="chatto-api-v1-UpdateProfileResponse"></a>

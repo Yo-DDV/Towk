@@ -106,7 +106,7 @@
       "details": {
         "load_failed": "Impossible de charger les détails du profil.",
         "biography_title": "Biographie",
-        "biography_description": "Rédigez une courte biographie Markdown affichée sur votre profil serveur. Le HTML brut et les images distantes ne sont pas rendus.",
+        "biography_description": "Rédigez une biographie Markdown concise affichée sur votre profil serveur (1 024 caractères maximum). Le HTML brut et les images distantes ne sont pas rendus.",
         "formatting_toolbar": "Mise en forme de la biographie",
         "bold": "Gras",
         "italic": "Italique",
@@ -121,7 +121,7 @@
         "biography_placeholder": "Présentez-vous aux autres membres…",
         "byte_count": "{used} octets sur {limit}",
         "preview": "Aperçu",
-        "biography_too_large": "La biographie dépasse la limite UTF-8 de 16 Kio.",
+        "biography_too_large": "La biographie est limitée à 1 024 caractères et 4 Kio en UTF-8.",
         "biography_saved": "Biographie enregistrée.",
         "save_failed": "Impossible d’enregistrer les détails du profil.",
         "save_biography": "Enregistrer la biographie",
@@ -129,7 +129,8 @@
         "show_last_activity": "Afficher ma dernière activité",
         "show_last_activity_description": "Autoriser les membres authentifiés de ce serveur à voir votre dernière activité agrégée. La désactivation supprime la valeur enregistrée.",
         "privacy_saved": "Confidentialité de l’activité enregistrée.",
-        "save_privacy": "Enregistrer la confidentialité"
+        "save_privacy": "Enregistrer la confidentialité",
+        "character_count": "{used} sur {limit} caractères"
       }
     },
     "preferences": {

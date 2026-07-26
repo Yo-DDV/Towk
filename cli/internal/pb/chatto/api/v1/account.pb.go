@@ -32,8 +32,9 @@ type UpdateProfileRequest struct {
 	// New login identifier, when changing it. The server accepts ASCII letters,
 	// digits, period, underscore, and hyphen, starting with a letter or digit.
 	Login *string `protobuf:"bytes,2,opt,name=login,proto3,oneof" json:"login,omitempty"`
-	// Markdown biography. Empty clears the biography. Raw HTML and remote
-	// images are not rendered by supported clients.
+	// Markdown biography. Empty clears the biography. Supported clients and
+	// the core enforce at most 1,024 Unicode code points and 4 KiB of UTF-8.
+	// Raw HTML and remote images are not rendered by supported clients.
 	BiographyMarkdown *string `protobuf:"bytes,3,opt,name=biography_markdown,json=biographyMarkdown,proto3,oneof" json:"biography_markdown,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -718,11 +719,11 @@ var File_chatto_api_v1_account_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_account_proto_rawDesc = "" +
 	"\n" +
-	"\x1bchatto/api/v1/account.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a'chatto/api/v1/external_identities.proto\x1a\x1cchatto/api/v1/presence.proto\x1a\x1fchatto/api/v1/user_status.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1achatto/api/v1/viewer.proto\"\xde\x01\n" +
+	"\x1bchatto/api/v1/account.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a'chatto/api/v1/external_identities.proto\x1a\x1cchatto/api/v1/presence.proto\x1a\x1fchatto/api/v1/user_status.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1achatto/api/v1/viewer.proto\"\xdd\x01\n" +
 	"\x14UpdateProfileRequest\x12/\n" +
 	"\fdisplay_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x18 H\x00R\vdisplayName\x88\x01\x01\x12$\n" +
-	"\x05login\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18 H\x01R\x05login\x88\x01\x01\x12=\n" +
-	"\x12biography_markdown\x18\x03 \x01(\tB\t\xbaH\x06r\x04(\x80\x80\x01H\x02R\x11biographyMarkdown\x88\x01\x01B\x0f\n" +
+	"\x05login\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18 H\x01R\x05login\x88\x01\x01\x12<\n" +
+	"\x12biography_markdown\x18\x03 \x01(\tB\b\xbaH\x05r\x03(\x80 H\x02R\x11biographyMarkdown\x88\x01\x01B\x0f\n" +
 	"\r_display_nameB\b\n" +
 	"\x06_loginB\x15\n" +
 	"\x13_biography_markdown\"@\n" +

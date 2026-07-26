@@ -19,7 +19,7 @@ A user's profile carries the public identity they present to the rest of the ser
 - **Settings** — currently timezone (IANA name, e.g., `Europe/Berlin`) and time format (browser default / 12-hour / 24-hour). Stored server-side so they sync across devices. If not set, the frontend uses the browser timezone and locale time-format default.
 - **Display theme** — users can choose System, Light, or Dark. System follows the browser or OS color-scheme preference. The choice is browser-local and applies immediately on that device.
 - **Detailed profile** — authenticated server members can open one on-demand profile surface showing avatar, display name, login, presence, custom status, all explicitly assigned configured roles, join date, Markdown biography, and latest activity when visible.
-- **Biography** — users can store up to 16 KiB of valid UTF-8 Markdown inside the existing user-PII encryption boundary. Supported clients render it through the same sanitized Markdown path used for message content; raw HTML is not trusted.
+- **Biography** — users can store up to 1,024 Unicode code points and 4 KiB of valid UTF-8 Markdown inside the existing user-PII encryption boundary. Supported clients render it through the same sanitized Markdown path used for message content; raw HTML is not trusted. Long biographies open as a bounded preview and can be expanded without truncating the stored Markdown.
 - **Latest activity** — Towk stores one encrypted, monotonic, coalesced timestamp rather than an activity history. Visibility is enabled by default for upgrade compatibility and can be disabled by the profile owner. Disabling visibility removes the stored latest value before the preference is published.
 - **Profile actions** — the server returns viewer-specific Message and Call capabilities. Message opens the direct conversation and focuses its composer. Call opens the direct conversation, exposes the call surface, and starts the existing device-aware join flow. The call action is exposed only when direct messaging is allowed and LiveKit is configured, and it does not interrupt another active room call. Deleted accounts expose neither action.
 - **Responsive dialog** — the profile is centered on wide viewports and Fold-class layouts, and becomes safe-area-aware full-screen UI on narrow or low viewports. It supports Escape, backdrop, browser/system Back, focus restoration, and a bounded touch dismissal gesture.
@@ -95,9 +95,9 @@ A user's profile carries the public identity they present to the rest of the ser
 
 ### 12. Biography uses the existing user-PII envelope
 
-**Decision:** Biography Markdown is normalized, validated before any multi-field profile mutation, limited to 16 KiB of UTF-8, and encrypted with the user's PII DEK. Clearing it appends an explicit clear event.
+**Decision:** Biography Markdown is normalized, validated before any multi-field profile mutation, limited to 1,024 Unicode code points and 4 KiB of UTF-8, and encrypted with the user's PII DEK. Clearing it appends an explicit clear event.
 **Why:** Biography is user-authored personal information and belongs inside the same encryption and crypto-erasure boundary as other profile PII. Preflight validation prevents an invalid biography from partially applying a display-name or login change.
-**Tradeoff:** The limit is byte-based rather than character-based, so multi-byte scripts reach the bound with fewer visible characters. The editor reports UTF-8 bytes to make that boundary explicit.
+**Tradeoff:** Existing biographies above the new product boundary remain readable and are never truncated automatically, but their owners must shorten them before a later save. The editor reports both Unicode characters and UTF-8 bytes so the boundary is explicit.
 
 ### 13. Latest activity is a latest-value privacy signal, not surveillance history
 

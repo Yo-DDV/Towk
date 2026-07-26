@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { PresenceStatus } from '$lib/render/types';
+import { MAX_PROFILE_BIOGRAPHY_CHARACTERS } from '$lib/profileBiography';
 import ProfileDetailsSettings from './ProfileDetailsSettings.svelte';
 
 const mocks = vi.hoisted(() => ({
@@ -180,6 +181,28 @@ describe('ProfileDetailsSettings', () => {
       expect(mocks.updateProfile).toHaveBeenCalledWith({ biographyMarkdown: '**Hello** profile' })
     );
     expect(mocks.invalidateDetailedUserProfile).toHaveBeenCalledWith('server-1', 'user-1');
+  });
+
+  it('blocks a biography that exceeds the Unicode character limit', async () => {
+    const { container } = render(ProfileDetailsSettings);
+    const textarea = await vi.waitFor(() => {
+      const node = container.querySelector<HTMLTextAreaElement>('textarea');
+      expect(node?.value).toBe('Hello profile');
+      return node!;
+    });
+
+    textarea.value = 'a'.repeat(MAX_PROFILE_BIOGRAPHY_CHARACTERS + 1);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(
+        container.querySelector('[data-testid="profile-biography-counter"]')?.textContent
+      ).toContain(
+        `${MAX_PROFILE_BIOGRAPHY_CHARACTERS + 1} of ${MAX_PROFILE_BIOGRAPHY_CHARACTERS} characters`
+      );
+      expect(buttonByText(container, 'Save biography').disabled).toBe(true);
+    });
+    expect(mocks.updateProfile).not.toHaveBeenCalled();
   });
 
   it('saves the last-activity opt-out and updates the current viewer state', async () => {

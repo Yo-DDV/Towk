@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 	"hmans.de/chatto/internal/events"
@@ -21,8 +22,11 @@ func TestNormalizeAndValidateUserBiography(t *testing.T) {
 		}
 	})
 
-	t.Run("accepts exact UTF-8 byte limit", func(t *testing.T) {
-		value := strings.Repeat("é", MaxUserBiographyBytes/2)
+	t.Run("accepts exact Unicode and UTF-8 limits", func(t *testing.T) {
+		value := strings.Repeat("🙂", MaxUserBiographyCharacters)
+		if utf8.RuneCountInString(value) != MaxUserBiographyCharacters {
+			t.Fatalf("fixture characters = %d", utf8.RuneCountInString(value))
+		}
 		if len([]byte(value)) != MaxUserBiographyBytes {
 			t.Fatalf("fixture bytes = %d", len([]byte(value)))
 		}
@@ -31,8 +35,15 @@ func TestNormalizeAndValidateUserBiography(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects value over Unicode character limit", func(t *testing.T) {
+		value := strings.Repeat("a", MaxUserBiographyCharacters+1)
+		if _, err := NormalizeAndValidateUserBiography(value); !errors.Is(err, ErrInvalidArgument) {
+			t.Fatalf("error = %v, want ErrInvalidArgument", err)
+		}
+	})
+
 	t.Run("rejects value over UTF-8 byte limit", func(t *testing.T) {
-		value := strings.Repeat("é", MaxUserBiographyBytes/2+1)
+		value := strings.Repeat("🙂", MaxUserBiographyCharacters+1)
 		if _, err := NormalizeAndValidateUserBiography(value); !errors.Is(err, ErrInvalidArgument) {
 			t.Fatalf("error = %v, want ErrInvalidArgument", err)
 		}

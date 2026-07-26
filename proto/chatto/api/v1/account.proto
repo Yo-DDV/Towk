@@ -22,9 +22,10 @@ message UpdateProfileRequest {
     min_len: 2
     max_len: 32
   }];
-  // Markdown biography. Empty clears the biography. Raw HTML and remote
-  // images are not rendered by supported clients.
-  optional string biography_markdown = 3 [(buf.validate.field).string.max_bytes = 16384];
+  // Markdown biography. Empty clears the biography. Supported clients and
+  // the core enforce at most 1,024 Unicode code points and 4 KiB of UTF-8.
+  // Raw HTML and remote images are not rendered by supported clients.
+  optional string biography_markdown = 3 [(buf.validate.field).string.max_bytes = 4096];
 }
 
 // Result of a profile update.

@@ -71,6 +71,8 @@
     "details": "Detalhes do perfil",
     "call": "Ligar",
     "not_available": "Indisponível",
-    "edit": "Editar perfil"
+    "edit": "Editar perfil",
+    "biography_expand": "Mostrar biografia completa",
+    "biography_collapse": "Recolher biografia"
   }
 }
