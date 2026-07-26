@@ -1,0 +1,90 @@
+name: read-receipts patch trace
+
+on:
+  push:
+    branches:
+      - feat/read-receipts
+
+permissions:
+  contents: write
+
+concurrency:
+  group: read-receipts-patch-trace
+  cancel-in-progress: true
+
+jobs:
+  trace:
+    if: ${{ !contains(github.event.head_commit.message, '[skip read-receipts-patch-trace]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Execute extracted patch step with trace
+        id: trace
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -u
+          script="${RUNNER_TEMP}/read-receipts-patch-step.sh"
+          log="${RUNNER_TEMP}/read-receipts-patch-step.log"
+          report="${RUNNER_TEMP}/read-receipts-patch-trace.txt"
+
+          python3 - "${script}" <<'PY'
+          from pathlib import Path
+          import sys
+
+          workflow = Path('.github/workflows/read-receipts-realtime-privacy-finalizer-v2.yml')
+          text = workflow.read_text(encoding='utf-8')
+          step = text.index('      - name: Apply anonymous realtime invalidation contract\n')
+          start = text.index('        run: |\n', step) + len('        run: |\n')
+          end = text.index('\n      - name: Regenerate protobuf bindings and API documentation\n', start)
+          lines = text[start:end].splitlines()
+          extracted = []
+          for line in lines:
+              if line.startswith('          '):
+                  extracted.append(line[10:])
+              else:
+                  extracted.append(line)
+          Path(sys.argv[1]).write_text('\n'.join(extracted) + '\n', encoding='utf-8')
+          PY
+
+          set +e
+          bash -x "${script}" > "${log}" 2>&1
+          status=$?
+          set -e
+
+          {
+            printf 'source_head=%s\n' "${GITHUB_SHA}"
+            printf 'patch_step_status=%s\n' "${status}"
+            printf '%s\n' '--- trace tail ---'
+            tail -n 120 "${log}" | sed -E \
+              -e 's/(Authorization: Bearer )[A-Za-z0-9._-]+/\1***/g' \
+              -e 's/(GH_TOKEN=).*/\1***/g' \
+              -e 's/[[:cntrl:]]//g'
+          } > "${report}"
+
+          encoded="$(base64 -w0 "${report}")"
+          payload="$(jq -n \
+            --arg message 'chore(ci): record read receipt patch trace [skip read-receipts-privacy-v2] [skip read-receipts-patch-trace]' \
+            --arg content "${encoded}" \
+            --arg branch 'feat/read-receipts' \
+            '{message:$message,content:$content,branch:$branch}')"
+          curl --fail --silent --show-error --location --retry 3 \
+            --request PUT \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            --data-binary "${payload}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/read-receipts-patch-trace-v2.txt" \
+            >/dev/null
+
+          exit "${status}"
