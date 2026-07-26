@@ -17,10 +17,10 @@
     "preferences": {
       "external_gifs": {
         "title": "External GIFs",
-        "description": "External GIFs stay on the provider’s servers. Loading one contacts that provider directly from this browser.",
+        "description": "External GIFs stay on the provider’s servers. They load automatically near the visible timeline and contact that provider directly from this browser.",
         "auto_load": {
           "label": "Load external GIFs automatically",
-          "description": "Load supported GIFs when they approach the visible timeline. Reduced-motion preferences still require a click."
+          "description": "Enabled by default. Turn this off to require a click before Towk contacts a provider. Reduced motion, offline mode, and compatibility fallbacks may still require a click."
         }
       }
     }
