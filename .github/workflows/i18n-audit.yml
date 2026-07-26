@@ -4,22 +4,20 @@ on:
   push:
     paths:
       - '.github/workflows/i18n-audit.yml'
-      - 'apps/frontend/messages/**'
-      - 'apps/frontend/project.inlang/**'
-      - 'apps/frontend/scripts/**'
-      - 'apps/frontend/src/**'
-      - 'cli/internal/**'
+      - 'apps/frontend/**'
+      - 'cli/**'
+      - 'tools/**'
+      - 'docker/**'
   pull_request:
     branches:
       - main
       - 'release-[0-9]*'
     paths:
       - '.github/workflows/i18n-audit.yml'
-      - 'apps/frontend/messages/**'
-      - 'apps/frontend/project.inlang/**'
-      - 'apps/frontend/scripts/**'
-      - 'apps/frontend/src/**'
-      - 'cli/internal/**'
+      - 'apps/frontend/**'
+      - 'cli/**'
+      - 'tools/**'
+      - 'docker/**'
   workflow_dispatch:
 
 concurrency:
@@ -79,17 +77,20 @@ jobs:
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: Pack branch audit snapshot
+      - name: Pack complete branch source snapshot
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
         shell: bash
         run: |
           set -euo pipefail
-          tar -czf towk-i18n-snapshot.tgz \
-            apps/frontend/messages \
-            apps/frontend/project.inlang \
-            apps/frontend/scripts \
-            apps/frontend/src \
-            cli/internal
+          tar \
+            --exclude=.git \
+            --exclude='**/node_modules' \
+            --exclude='**/.svelte-kit' \
+            --exclude='**/dist' \
+            --exclude='**/coverage' \
+            --exclude='**/playwright-report' \
+            --exclude='**/test-results' \
+            -czf towk-source-snapshot.tgz .
 
       - name: Upload branch audit snapshot
         if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
@@ -98,7 +99,7 @@ jobs:
           name: i18n-audit-snapshot-${{ github.sha }}
           path: |
             audit-report.txt
-            towk-i18n-snapshot.tgz
+            towk-source-snapshot.tgz
           if-no-files-found: error
           retention-days: 1
 
@@ -131,7 +132,7 @@ jobs:
               f'- Workflow run ID: `{os.environ["GITHUB_RUN_ID"]}`\n'
               f'- Ephemeral artifact: `{artifact}` (one-day retention)\n'
               f'- Result: **{status}**\n'
-              '- Scope: frontend source, backend user-facing fields, catalog parity, placeholders, and semantic checks.\n'
+              '- Scope: complete repository source plus catalog parity, placeholders, and semantic checks.\n'
               '- Published content is restricted to repository paths, line numbers, categories, command results, and copy-redacted findings.\n\n'
               '<details open><summary>Audit output</summary>\n\n```text\n'
               f'{report}\n'
