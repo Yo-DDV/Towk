@@ -275,9 +275,7 @@
     <div
       class={[
         'relative flex max-w-full items-center justify-center overflow-hidden bg-black/10',
-        gif.renderMode === 'iframe'
-          ? 'aspect-video min-h-48 w-full'
-          : 'external-gif-direct-media'
+        gif.renderMode === 'iframe' ? 'aspect-video min-h-48 w-full' : 'external-gif-direct-media'
       ]}
       data-testid="external-gif-media"
     >
@@ -401,6 +399,7 @@
     </div>
   {/if}
 </section>
+
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
 <style>
