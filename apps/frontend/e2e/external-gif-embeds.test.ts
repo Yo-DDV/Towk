@@ -6,12 +6,16 @@ import { TIMEOUTS } from './constants';
 const PREFERENCES_KEY = 'chatto:preferences';
 const EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION = 1;
 const giphyUrl = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
-const giphyMediaUrl = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
+const giphyMediaUrl =
+  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
 const giphyEmbedUrl = 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt';
 const tenorMediaUrl = 'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif';
 const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
-const onePixelGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==', 'base64');
+const onePixelGif = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==',
+  'base64'
+);
 
 async function sendExternalGifOnlyMessage(
   roomPage: {
@@ -56,7 +60,11 @@ async function setExternalGifAutoLoad(page: Page, enabled: boolean): Promise<voi
 }
 
 test.describe('External GIF embeds', () => {
-  test('auto-loads a standalone GIPHY page URL by default', async ({ page, chatPage, roomPage }) => {
+  test('auto-loads a standalone GIPHY page URL by default', async ({
+    page,
+    chatPage,
+    roomPage
+  }) => {
     await page.route('https://giphy.com/embed/**', async (route) => {
       await route.fulfill({
         status: 200,
@@ -69,9 +77,10 @@ test.describe('External GIF embeds', () => {
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
-    const requestPromise = page.waitForRequest((request) => request.url() === giphyEmbedUrl, {
-      timeout: TIMEOUTS.UI_STANDARD
-    });
+    const requestPromise = page.waitForRequest(
+      (request) => request.url() === giphyEmbedUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
+    );
     await sendExternalGifOnlyMessage(roomPage, giphyUrl);
     await requestPromise;
 
@@ -87,7 +96,11 @@ test.describe('External GIF embeds', () => {
     await expect(message.getByRole('link', { name: giphyUrl })).toHaveCount(0);
   });
 
-  test('auto-loads current GIPHY CDN media by default', async ({ page, chatPage, roomPage }) => {
+  test('auto-loads current GIPHY CDN media by default', async ({
+    page,
+    chatPage,
+    roomPage
+  }) => {
     await page.route('https://i.giphy.com/**', async (route) => {
       await route.fulfill({
         status: 200,
@@ -101,9 +114,10 @@ test.describe('External GIF embeds', () => {
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
-    const requestPromise = page.waitForRequest((request) => request.url() === giphyMediaUrl, {
-      timeout: TIMEOUTS.UI_STANDARD
-    });
+    const requestPromise = page.waitForRequest(
+      (request) => request.url() === giphyMediaUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
+    );
     await sendExternalGifOnlyMessage(roomPage, giphyMediaUrl);
     await requestPromise;
 
@@ -114,7 +128,7 @@ test.describe('External GIF embeds', () => {
     await expect(embed).toHaveAttribute('data-state', 'loaded');
   });
 
-  test('auto-loads the KLIPY media URL observed on Docker 1', async ({
+  test('auto-loads the KLIPY media URL at a readable intrinsic size', async ({
     page,
     chatPage,
     roomPage
@@ -132,18 +146,31 @@ test.describe('External GIF embeds', () => {
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
-    const requestPromise = page.waitForRequest((request) => request.url() === klipyMediaUrl, {
-      timeout: TIMEOUTS.UI_STANDARD
-    });
+    const requestPromise = page.waitForRequest(
+      (request) => request.url() === klipyMediaUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
+    );
     await sendExternalGifOnlyMessage(roomPage, klipyMediaUrl);
     await requestPromise;
 
     const embed = page.getByTestId('external-gif-embed').last();
+    const image = embed.locator('img');
     await expect(embed).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(embed).toHaveAttribute('data-provider', 'klipy');
     await expect(embed).toHaveAttribute('data-load-origin', 'auto');
-    await expect(embed.locator('img')).toHaveAttribute('src', klipyMediaUrl);
+    await expect(image).toHaveAttribute('src', klipyMediaUrl);
     await expect(embed).toHaveAttribute('data-state', 'loaded');
+    await expect(embed.getByTestId('external-gif-controls')).toBeVisible();
+
+    const imageBounds = await image.boundingBox();
+    const shellBounds = await embed.boundingBox();
+    expect(imageBounds).not.toBeNull();
+    expect(shellBounds).not.toBeNull();
+    if (!imageBounds || !shellBounds) throw new Error('KLIPY media geometry was unavailable');
+    expect(imageBounds.width).toBeGreaterThanOrEqual(319);
+    expect(imageBounds.width).toBeLessThanOrEqual(577);
+    expect(Math.abs(imageBounds.width - imageBounds.height)).toBeLessThan(2);
+    expect(Math.abs(shellBounds.width - imageBounds.width)).toBeLessThan(2);
   });
 
   test('auto-loads an official Tenor media URL', async ({ page, chatPage, roomPage }) => {
@@ -160,9 +187,10 @@ test.describe('External GIF embeds', () => {
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
-    const requestPromise = page.waitForRequest((request) => request.url() === tenorMediaUrl, {
-      timeout: TIMEOUTS.UI_STANDARD
-    });
+    const requestPromise = page.waitForRequest(
+      (request) => request.url() === tenorMediaUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
+    );
     await sendExternalGifOnlyMessage(roomPage, tenorMediaUrl);
     await requestPromise;
 
@@ -282,9 +310,10 @@ test.describe('External GIF embeds', () => {
     await expect(embed.getByRole('button', { name: 'Load external GIF' })).toBeVisible();
     expect(embedRequests).toBe(0);
 
-    const requestPromise = page.waitForRequest((request) => request.url() === giphyEmbedUrl, {
-      timeout: TIMEOUTS.UI_STANDARD
-    });
+    const requestPromise = page.waitForRequest(
+      (request) => request.url() === giphyEmbedUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
+    );
     await embed.getByRole('button', { name: 'Load external GIF' }).click();
     await requestPromise;
     await expect(embed.locator('iframe')).toHaveAttribute('src', giphyEmbedUrl);
