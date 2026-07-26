@@ -1,5 +1,5 @@
-source_head=009b18c045b18c58d8cf02122e5007f8df0b9632
+source_head=534df03df3fa376aa16560eb73fe2e4d9fbaf3d1
 main_head=d277c59d2ebb16d076de6ae793e4679251be38b4
 merge_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
-failed_stage=merge
-exit_code=1
+failed_stage=format-sources
+exit_code=2
