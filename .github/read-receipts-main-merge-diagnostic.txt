@@ -1,6 +1,235 @@
-feature_head=7e79b2ddabae15cbc9f37c26b824204ea525dbf8
+feature_head=35f028fe3346debce90c2834d4c0dcfbfe3cfab1
 main_head=d277c59d2ebb16d076de6ae793e4679251be38b4
 merge_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
-merge_status=128
+merge_status=1
+--- merge stdout ---
+Auto-merging apps/docs-website/src/content/docs/reference/connectrpc-api/account.mdx
+CONFLICT (content): Merge conflict in apps/docs-website/src/content/docs/reference/connectrpc-api/account.mdx
+Auto-merging apps/docs-website/src/content/docs/reference/connectrpc-api/realtime.mdx
+CONFLICT (content): Merge conflict in apps/docs-website/src/content/docs/reference/connectrpc-api/realtime.mdx
+Auto-merging apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+CONFLICT (content): Merge conflict in apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+Auto-merging apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+CONFLICT (content): Merge conflict in apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+Auto-merging apps/docs-website/src/generated/connectrpc-api/realtime.raw.mdx
+CONFLICT (content): Merge conflict in apps/docs-website/src/generated/connectrpc-api/realtime.raw.mdx
+Auto-merging apps/frontend/messages/de/settings.json
+Auto-merging apps/frontend/messages/en/settings.json
+Auto-merging apps/frontend/messages/es/settings.json
+Auto-merging apps/frontend/messages/fr/settings.json
+Auto-merging apps/frontend/messages/pt/settings.json
+Auto-merging apps/frontend/src/lib/api-client-tests/account.spec.ts
+CONFLICT (content): Merge conflict in apps/frontend/src/lib/api-client-tests/account.spec.ts
+Auto-merging apps/frontend/src/lib/api-client/account.ts
+CONFLICT (content): Merge conflict in apps/frontend/src/lib/api-client/account.ts
+Auto-merging apps/frontend/src/lib/api-client/viewer.ts
+CONFLICT (content): Merge conflict in apps/frontend/src/lib/api-client/viewer.ts
+Auto-merging apps/frontend/src/lib/eventBus.svelte.ts
+CONFLICT (content): Merge conflict in apps/frontend/src/lib/eventBus.svelte.ts
+Auto-merging apps/frontend/src/lib/i18n/messages.ts
+Auto-merging apps/frontend/src/lib/realtimeEventMapper.spec.ts
+CONFLICT (content): Merge conflict in apps/frontend/src/lib/realtimeEventMapper.spec.ts
+Auto-merging apps/frontend/src/lib/realtimeEventMapper.ts
+CONFLICT (content): Merge conflict in apps/frontend/src/lib/realtimeEventMapper.ts
+Auto-merging apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte
+CONFLICT (content): Merge conflict in apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte
+Auto-merging apps/frontend/src/routes/chat/[serverId]/settings/preferences/+page.svelte
+Auto-merging cli/internal/connectapi/account.go
+CONFLICT (content): Merge conflict in cli/internal/connectapi/account.go
+Auto-merging cli/internal/connectapi/server.go
+CONFLICT (content): Merge conflict in cli/internal/connectapi/server.go
+Auto-merging cli/internal/connectapi/viewer.go
+CONFLICT (content): Merge conflict in cli/internal/connectapi/viewer.go
+Auto-merging cli/internal/core/config_projection.go
+CONFLICT (content): Merge conflict in cli/internal/core/config_projection.go
+Auto-merging cli/internal/core/user_preferences.go
+CONFLICT (content): Merge conflict in cli/internal/core/user_preferences.go
+Auto-merging cli/internal/core/users.go
+Auto-merging cli/internal/events/subjects.go
+Auto-merging cli/internal/http_server/realtime.go
+CONFLICT (content): Merge conflict in cli/internal/http_server/realtime.go
+Auto-merging cli/internal/pb/chatto/api/v1/account.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/api/v1/account.pb.go
+Auto-merging cli/internal/pb/chatto/api/v1/viewer.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/api/v1/viewer.pb.go
+Auto-merging cli/internal/pb/chatto/core/v1/config_events.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/core/v1/config_events.pb.go
+Auto-merging cli/internal/pb/chatto/core/v1/event.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/core/v1/event.pb.go
+Auto-merging cli/internal/pb/chatto/core/v1/user_events.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/core/v1/user_events.pb.go
+Auto-merging cli/internal/pb/chatto/core/v1/user_preferences.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/core/v1/user_preferences.pb.go
+Auto-merging cli/internal/pb/chatto/realtime/v1/realtime.pb.go
+CONFLICT (content): Merge conflict in cli/internal/pb/chatto/realtime/v1/realtime.pb.go
+Auto-merging docs/adr/INDEX.md
+CONFLICT (content): Merge conflict in docs/adr/INDEX.md
+Auto-merging docs/fdr/INDEX.md
+CONFLICT (content): Merge conflict in docs/fdr/INDEX.md
+Auto-merging packages/api-types/src/chatto/api/v1/account_pb.ts
+CONFLICT (content): Merge conflict in packages/api-types/src/chatto/api/v1/account_pb.ts
+Auto-merging packages/api-types/src/chatto/api/v1/viewer_pb.ts
+CONFLICT (content): Merge conflict in packages/api-types/src/chatto/api/v1/viewer_pb.ts
+Auto-merging packages/api-types/src/chatto/realtime/v1/realtime_pb.ts
+CONFLICT (content): Merge conflict in packages/api-types/src/chatto/realtime/v1/realtime_pb.ts
+Auto-merging proto/chatto/api/v1/account.proto
+CONFLICT (content): Merge conflict in proto/chatto/api/v1/account.proto
+Auto-merging proto/chatto/api/v1/viewer.proto
+CONFLICT (content): Merge conflict in proto/chatto/api/v1/viewer.proto
+Auto-merging proto/chatto/core/v1/config_events.proto
+Auto-merging proto/chatto/core/v1/event.proto
+CONFLICT (content): Merge conflict in proto/chatto/core/v1/event.proto
+Auto-merging proto/chatto/core/v1/user_events.proto
+CONFLICT (content): Merge conflict in proto/chatto/core/v1/user_events.proto
+Auto-merging proto/chatto/core/v1/user_preferences.proto
+CONFLICT (content): Merge conflict in proto/chatto/core/v1/user_preferences.proto
+Auto-merging proto/chatto/realtime/v1/realtime.proto
+CONFLICT (content): Merge conflict in proto/chatto/realtime/v1/realtime.proto
+Automatic merge failed; fix conflicts and then commit the result.
+--- merge stderr ---
 --- unmerged index entries: mode blob stage path ---
+100644 206f9b4d63f60c2efa24f720f975a8828aa09f47 1	apps/docs-website/src/content/docs/reference/connectrpc-api/account.mdx
+100644 464e6a995df9cf8abc35e8769208f76f53d6bf6a 2	apps/docs-website/src/content/docs/reference/connectrpc-api/account.mdx
+100644 83384fa6bd765441b47f844981410b6108ff6b6e 3	apps/docs-website/src/content/docs/reference/connectrpc-api/account.mdx
+100644 55b5a30656ce89ca76efec47225f3b6f4179dc1e 1	apps/docs-website/src/content/docs/reference/connectrpc-api/realtime.mdx
+100644 300a5fcac7f804e9f1ebde2ba08a016d150e804e 2	apps/docs-website/src/content/docs/reference/connectrpc-api/realtime.mdx
+100644 6418f16234c874dd346ed9a8f45f2c92b4ee503d 3	apps/docs-website/src/content/docs/reference/connectrpc-api/realtime.mdx
+100644 b292a980f34913a6fb3889a4504072890715d029 1	apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+100644 5de5bbd42f789ee6831d249a6e38e09b7641c76f 2	apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+100644 d016077d4cf0a2dab8a43bc16cd6a8fd241627f4 3	apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+100644 59f19d2ebd396f2bfaa0298223fd1a16259e33f7 1	apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+100644 82bba95a537a972a7ef09d5bab4632e3fb75f298 2	apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+100644 50d060763f7ae3bddac7bd3b372fa4b2a2438412 3	apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+100644 997f126c6e73cba3a5c2ff82af5344246f31443b 1	apps/docs-website/src/generated/connectrpc-api/realtime.raw.mdx
+100644 890db21ffb5fbb60b1124ec3e1d43ba664b48b70 2	apps/docs-website/src/generated/connectrpc-api/realtime.raw.mdx
+100644 17108d86a22fe530cad4a6f77d09c96cdf12205e 3	apps/docs-website/src/generated/connectrpc-api/realtime.raw.mdx
+100644 52201fbdf72fedf2d712a331aca61b92367e19c0 1	apps/frontend/src/lib/api-client-tests/account.spec.ts
+100644 1d1a08be40f7ec04c190bb6e9bf3ca47b8e52ea5 2	apps/frontend/src/lib/api-client-tests/account.spec.ts
+100644 24d4397825111ceac0af9b6ade237a075310724f 3	apps/frontend/src/lib/api-client-tests/account.spec.ts
+100644 031e88fe9e66e7a68e07c39be06f48a1e29029f9 1	apps/frontend/src/lib/api-client/account.ts
+100644 907bd27be19b8cf43a2b01cc4833f9b3c59a0675 2	apps/frontend/src/lib/api-client/account.ts
+100644 3d2792314d4df7d568854136de068ca615451dfc 3	apps/frontend/src/lib/api-client/account.ts
+100644 e310649afd254b83f89286a1d058883da805402f 1	apps/frontend/src/lib/api-client/viewer.ts
+100644 ee739b28212605689dc8dfd584206c1d5f71ed56 2	apps/frontend/src/lib/api-client/viewer.ts
+100644 dd768d25bad88baeca65e0c2ad94c22c9d2f54ca 3	apps/frontend/src/lib/api-client/viewer.ts
+100644 c428a3673e2d25c218dc5a83acb86405a918bfdb 1	apps/frontend/src/lib/eventBus.svelte.ts
+100644 0d9f6196c5cc80fc957540da83a72ea817e82da9 2	apps/frontend/src/lib/eventBus.svelte.ts
+100644 e991ba13daaba55497f9a933276d71c175e3584a 3	apps/frontend/src/lib/eventBus.svelte.ts
+100644 95ad42553277148ff52d2cb759f1a1b2e6f3f97a 1	apps/frontend/src/lib/realtimeEventMapper.spec.ts
+100644 35a33ca755b17b3ccdeb4e6e404a2776998a7fa2 2	apps/frontend/src/lib/realtimeEventMapper.spec.ts
+100644 8d0a9a05dddca704f44cf05700c2dd329294cb47 3	apps/frontend/src/lib/realtimeEventMapper.spec.ts
+100644 c3a4df103b7888cda535c50e6e370468b3edbca3 1	apps/frontend/src/lib/realtimeEventMapper.ts
+100644 068f4b17a5d7e07457046bad5b536406d94e0f88 2	apps/frontend/src/lib/realtimeEventMapper.ts
+100644 575502685c5c332355a963d7579884158a890326 3	apps/frontend/src/lib/realtimeEventMapper.ts
+100644 2c82f80631886dfbea4a7a68139c661ddb406568 1	apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte
+100644 86caad9d40214179ead8da8c4757b1f186b61fd2 2	apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte
+100644 f5a1aab020904c82653a98ee9e7913b41ee481ad 3	apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte
+100644 920fc5a6285ac5c8ec90986513190c6a5feb2d30 1	cli/internal/connectapi/account.go
+100644 deff95d191a0b298e9d14947b5b93a67d42aa122 2	cli/internal/connectapi/account.go
+100644 6504aa7c9532493dc9bb4c6b1180ab5eefc38003 3	cli/internal/connectapi/account.go
+100644 af72d86a1f1cfcf2dbfdf371a4e48edd432f76d3 1	cli/internal/connectapi/server.go
+100644 6b3d62010979d6b16183ea9a000bf21bdfa21d92 2	cli/internal/connectapi/server.go
+100644 4c99aaac00aa747f70bfb691f40ffc7644947674 3	cli/internal/connectapi/server.go
+100644 25ccafc2f94b77931115d058b38741fdbd044af7 1	cli/internal/connectapi/viewer.go
+100644 56af32cc8886879d2bfae42778d9d8c5fff56054 2	cli/internal/connectapi/viewer.go
+100644 088e75973f48113a1e451cc637f0b9f6bfcf3215 3	cli/internal/connectapi/viewer.go
+100644 8a889218fb9ad277e8f8e8174387d944c5ef5e6e 1	cli/internal/core/config_projection.go
+100644 64595727309a7c8f953593012f8d98125fa63d2d 2	cli/internal/core/config_projection.go
+100644 e46029116edae472bef42c2cfeeac7e8b670b54d 3	cli/internal/core/config_projection.go
+100644 65473c59bbecad6778377cc63e05ef153c7357ad 1	cli/internal/core/user_preferences.go
+100644 3cca18312dd3fd62e001cb2efb44a5cda3a92f88 2	cli/internal/core/user_preferences.go
+100644 452c7f2176aaf84b746b64c664464e9ad5b815d5 3	cli/internal/core/user_preferences.go
+100644 e18453ad85b7fc0f53ab348ada18e22067f4931e 1	cli/internal/http_server/realtime.go
+100644 898b6f9d796db99305f78a19782d80171948aabe 2	cli/internal/http_server/realtime.go
+100644 433229cea389a37a6900b0e750ce479be4e4072c 3	cli/internal/http_server/realtime.go
+100644 9bc8b2c889e46e82ec248a0d7dea993371d9704f 1	cli/internal/pb/chatto/api/v1/account.pb.go
+100644 fffab83b1fc4177a5e6eccfa871ba0483131e00a 2	cli/internal/pb/chatto/api/v1/account.pb.go
+100644 91d32397ae2aded7c26878de6610b3091ee0aef2 3	cli/internal/pb/chatto/api/v1/account.pb.go
+100644 5bdbcf59914fdfc0d0e2a8ae29c972b63c291f03 1	cli/internal/pb/chatto/api/v1/viewer.pb.go
+100644 63354665133355f18f84025cc55320645e8b4d67 2	cli/internal/pb/chatto/api/v1/viewer.pb.go
+100644 7aa7e923f830be6979a3e746dd0938ae05351506 3	cli/internal/pb/chatto/api/v1/viewer.pb.go
+100644 57e09888e3ecd8cfe2bc89d06f9601c8cff96af2 1	cli/internal/pb/chatto/core/v1/config_events.pb.go
+100644 21c468de83a22e2d0d5785e467efa22261f64048 2	cli/internal/pb/chatto/core/v1/config_events.pb.go
+100644 1c8ff368d012110def18c3182162ca85150a77fd 3	cli/internal/pb/chatto/core/v1/config_events.pb.go
+100644 ecb56c28392b93a25e7b4e9cfe17c86fb05ebde7 1	cli/internal/pb/chatto/core/v1/event.pb.go
+100644 aa16b21a35a4b9cf79da0fb28fc1313fdcf425f9 2	cli/internal/pb/chatto/core/v1/event.pb.go
+100644 90107b583431c09a9c633191b8e09f89fbe4da3a 3	cli/internal/pb/chatto/core/v1/event.pb.go
+100644 bf1e98c74e0d6879fe16a86b54b0f0fddace49c0 1	cli/internal/pb/chatto/core/v1/user_events.pb.go
+100644 00a6cba01b46700488d1555027b0d962a1d62b2b 2	cli/internal/pb/chatto/core/v1/user_events.pb.go
+100644 12b1a357ec71b1695c4c1a1fc3b166d55c664169 3	cli/internal/pb/chatto/core/v1/user_events.pb.go
+100644 b6109ce4e564fe1d835279b0c94dba676ec67688 1	cli/internal/pb/chatto/core/v1/user_preferences.pb.go
+100644 56b70158861c9d9841e06cbdf372753b29f2ed8e 2	cli/internal/pb/chatto/core/v1/user_preferences.pb.go
+100644 811244d3d815cbd6c8b214599dce63f461d85711 3	cli/internal/pb/chatto/core/v1/user_preferences.pb.go
+100644 9d2b786376ca0b2f22b34aa641be410776b20bc6 1	cli/internal/pb/chatto/realtime/v1/realtime.pb.go
+100644 ac85cd730aeb08f1e2f161881fece6dbdfb50745 2	cli/internal/pb/chatto/realtime/v1/realtime.pb.go
+100644 0c63e3fb50e5691fd04086646aa4d334983f6df1 3	cli/internal/pb/chatto/realtime/v1/realtime.pb.go
+100644 91c0d64757cdb33247bf81b31f7b9946ff853f89 1	docs/adr/INDEX.md
+100644 50c6b7c853bb95a43e2bc1b8caf375dd72196843 2	docs/adr/INDEX.md
+100644 350d05c8e4cdafa2b7534666ede1327c883d6156 3	docs/adr/INDEX.md
+100644 28ae2d861d384273e22c26b470e85f33cbfa976d 1	docs/fdr/INDEX.md
+100644 cbc1fd64e3f6982795a2d85f3399cb669bebf7d8 2	docs/fdr/INDEX.md
+100644 99de118b65b7b5da4de61cdd52c6dcca1cc0f29e 3	docs/fdr/INDEX.md
+100644 8657c48f7d4c4cf59d77ef9254ee5f6f9aa8a4b8 1	packages/api-types/src/chatto/api/v1/account_pb.ts
+100644 2a56b292185aba26bd412530934f913ad8f28d4b 2	packages/api-types/src/chatto/api/v1/account_pb.ts
+100644 f542b4fdfb96ac3ce57e9f07c163896fa99b81c5 3	packages/api-types/src/chatto/api/v1/account_pb.ts
+100644 7f1c7d1ca184cbca1d0a1f4366d7abcf539f344b 1	packages/api-types/src/chatto/api/v1/viewer_pb.ts
+100644 c8bc0f403df793bcb1193b553bd1afc5405fd316 2	packages/api-types/src/chatto/api/v1/viewer_pb.ts
+100644 bd4015ba7d6104a8ead9742c07027ccda6780f83 3	packages/api-types/src/chatto/api/v1/viewer_pb.ts
+100644 58e2b0b08ebd1b636cb31feed9fa2674e6c1da3b 1	packages/api-types/src/chatto/realtime/v1/realtime_pb.ts
+100644 1e0afe249aefa240f81b101b3dac9461df8812e0 2	packages/api-types/src/chatto/realtime/v1/realtime_pb.ts
+100644 849ab70f5f21f1341770615a3ceaee72a764db28 3	packages/api-types/src/chatto/realtime/v1/realtime_pb.ts
+100644 85790bf0e1dbb2ada4881c8f49317d32d83a2121 1	proto/chatto/api/v1/account.proto
+100644 08a4a89088aac7b2c8bb0e9e0ba84945e84a09a1 2	proto/chatto/api/v1/account.proto
+100644 321711d1464e85b992b58ef4a296823821cbbec4 3	proto/chatto/api/v1/account.proto
+100644 e85557d474dd62210aab234345b006b4f6114e5a 1	proto/chatto/api/v1/viewer.proto
+100644 14b450c15279118b9c073ecd59934d56315df879 2	proto/chatto/api/v1/viewer.proto
+100644 43c293af404522e969f2f3790395a128204ef25f 3	proto/chatto/api/v1/viewer.proto
+100644 a4d89a4ae2b28b2951df51b8d63d3e3f430817e5 1	proto/chatto/core/v1/event.proto
+100644 11317d3f82f267e10aabd77aa68037a033f02106 2	proto/chatto/core/v1/event.proto
+100644 67c29a4e8af26123798eade02b27d97d008ea953 3	proto/chatto/core/v1/event.proto
+100644 4af491e0a80c9dfe03b606a93f9896d7849217fc 1	proto/chatto/core/v1/user_events.proto
+100644 cc6a8c87ed7a04ef745ec1ddaccbbc099ceb6b32 2	proto/chatto/core/v1/user_events.proto
+100644 2de229eb0ea863d29fbf9df7d8d99ec255e11bae 3	proto/chatto/core/v1/user_events.proto
+100644 b8b14fab9ecf4bacbcb621ee2b56627ca5e54555 1	proto/chatto/core/v1/user_preferences.proto
+100644 724d066bad26fa468c842d7092b15b1e8290d124 2	proto/chatto/core/v1/user_preferences.proto
+100644 619cb056e5ddae4d3311e9f06102082312d602ae 3	proto/chatto/core/v1/user_preferences.proto
+100644 e570545bcb2142ffad8589186f01d89c5cc12378 1	proto/chatto/realtime/v1/realtime.proto
+100644 0eb4338b89769a7383942545b5279d16df92e68f 2	proto/chatto/realtime/v1/realtime.proto
+100644 6dd6e5f137b5c4169f239f6a47ae45ee07931f47 3	proto/chatto/realtime/v1/realtime.proto
 --- conflict paths ---
+apps/docs-website/src/content/docs/reference/connectrpc-api/account.mdx
+apps/docs-website/src/content/docs/reference/connectrpc-api/realtime.mdx
+apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+apps/docs-website/src/generated/connectrpc-api/api.raw.mdx
+apps/docs-website/src/generated/connectrpc-api/realtime.raw.mdx
+apps/frontend/src/lib/api-client-tests/account.spec.ts
+apps/frontend/src/lib/api-client/account.ts
+apps/frontend/src/lib/api-client/viewer.ts
+apps/frontend/src/lib/eventBus.svelte.ts
+apps/frontend/src/lib/realtimeEventMapper.spec.ts
+apps/frontend/src/lib/realtimeEventMapper.ts
+apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte
+cli/internal/connectapi/account.go
+cli/internal/connectapi/server.go
+cli/internal/connectapi/viewer.go
+cli/internal/core/config_projection.go
+cli/internal/core/user_preferences.go
+cli/internal/http_server/realtime.go
+cli/internal/pb/chatto/api/v1/account.pb.go
+cli/internal/pb/chatto/api/v1/viewer.pb.go
+cli/internal/pb/chatto/core/v1/config_events.pb.go
+cli/internal/pb/chatto/core/v1/event.pb.go
+cli/internal/pb/chatto/core/v1/user_events.pb.go
+cli/internal/pb/chatto/core/v1/user_preferences.pb.go
+cli/internal/pb/chatto/realtime/v1/realtime.pb.go
+docs/adr/INDEX.md
+docs/fdr/INDEX.md
+packages/api-types/src/chatto/api/v1/account_pb.ts
+packages/api-types/src/chatto/api/v1/viewer_pb.ts
+packages/api-types/src/chatto/realtime/v1/realtime_pb.ts
+proto/chatto/api/v1/account.proto
+proto/chatto/api/v1/viewer.proto
+proto/chatto/core/v1/event.proto
+proto/chatto/core/v1/user_events.proto
+proto/chatto/core/v1/user_preferences.proto
+proto/chatto/realtime/v1/realtime.proto
