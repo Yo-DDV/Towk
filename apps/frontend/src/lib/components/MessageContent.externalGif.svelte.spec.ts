@@ -62,25 +62,28 @@ beforeEach(async () => {
 });
 
 describe('MessageContent external GIF capability wiring', () => {
-  it('replaces the standalone GIPHY URL with the privacy card when the live store advertises support', async () => {
-    mocks.serverInfo.capabilities = [CAPABILITY];
-    const screen = render(MessageContent, { props: { body: GIPHY_URL } });
+  it(
+    'replaces the standalone GIPHY URL with the privacy card when the live store advertises support',
+    async () => {
+      mocks.serverInfo.capabilities = [CAPABILITY];
+      const screen = render(MessageContent, { props: { body: GIPHY_URL } });
 
-    await expect.element(screen.getByTestId('external-gif-embed')).toBeVisible();
-    await expect
-      .element(screen.getByRole('button', { name: 'Load external GIF' }))
-      .toBeVisible();
-    await expect
-      .element(screen.getByRole('link', { name: 'Open source' }))
-      .toHaveAttribute('href', GIPHY_URL);
-    await expect
-      .element(screen.getByRole('link', { name: GIPHY_URL }))
-      .not.toBeInTheDocument();
-  });
+      await expect.element(screen.getByTestId('external-gif-embed')).toBeVisible();
+      await expect
+        .element(screen.getByRole('button', { name: 'Load external GIF' }))
+        .toBeVisible();
+      await expect
+        .element(screen.getByRole('link', { name: 'Open source' }))
+        .toHaveAttribute('href', GIPHY_URL);
+      await expect
+        .element(screen.getByRole('link', { name: GIPHY_URL }))
+        .not.toBeInTheDocument();
+    }
+  );
 
-  it('renders rich-composer self-links as ordered GIF cards', async () => {
+  it('renders the persisted rich-composer hybrid body as ordered GIF cards', async () => {
     mocks.serverInfo.capabilities = [CAPABILITY];
-    const body = `[${GIPHY_MEDIA_URL}](${GIPHY_MEDIA_URL})\n\n[${GIPHY_URL}](${GIPHY_URL})`;
+    const body = `[${GIPHY_MEDIA_URL}](${GIPHY_MEDIA_URL})\n\n${GIPHY_URL}`;
     const screen = render(MessageContent, { props: { body } });
 
     await vi.waitFor(() => {
@@ -102,6 +105,19 @@ describe('MessageContent external GIF capability wiring', () => {
       .not.toBeInTheDocument();
     expect(document.querySelectorAll(`a[href="${GIPHY_MEDIA_URL}"]`)).toHaveLength(1);
     expect(document.querySelectorAll(`a[href="${GIPHY_URL}"]`)).toHaveLength(1);
+  });
+
+  it('renders duplicate GIF URLs as distinct cards', async () => {
+    mocks.serverInfo.capabilities = [CAPABILITY];
+    const body = `[${GIPHY_URL}](${GIPHY_URL})\n\n[${GIPHY_URL}](${GIPHY_URL})`;
+    const screen = render(MessageContent, { props: { body } });
+
+    await expect.element(screen.getByTestId('external-gif-message')).toHaveAttribute(
+      'data-embed-count',
+      '2'
+    );
+    await expect.element(screen.getByTestId('external-gif-embed')).toHaveCount(2);
+    expect(document.querySelectorAll(`a[href="${GIPHY_URL}"]`)).toHaveLength(2);
   });
 
   it('uses the registered capability while the live store is temporarily partial', async () => {
