@@ -33,14 +33,17 @@ jobs:
 
           path = Path('.github/workflows/read-receipts-realtime-privacy-finalizer-v2.yml')
           source = path.read_text(encoding='utf-8')
-          old = '''          pnpm exec prettier --write \\
-            docs/fdr/FDR-031-read-receipts.md \\
-            docs/adr/ADR-054-read-receipt-publication-boundary.md
-          '''
-          new = '''          pnpm --dir apps/frontend exec prettier --write \\
-            ../../docs/fdr/FDR-031-read-receipts.md \\
-            ../../docs/adr/ADR-054-read-receipt-publication-boundary.md
-          '''
+          slash = chr(92)
+          old = '\n'.join([
+              f'          pnpm exec prettier --write {slash}',
+              f'            docs/fdr/FDR-031-read-receipts.md {slash}',
+              '            docs/adr/ADR-054-read-receipt-publication-boundary.md',
+          ])
+          new = '\n'.join([
+              f'          pnpm --dir apps/frontend exec prettier --write {slash}',
+              f'            ../../docs/fdr/FDR-031-read-receipts.md {slash}',
+              '            ../../docs/adr/ADR-054-read-receipt-publication-boundary.md',
+          ])
           if source.count(old) != 1:
               raise SystemExit(f'expected one root prettier command, got {source.count(old)}')
           path.write_text(source.replace(old, new, 1), encoding='utf-8')
