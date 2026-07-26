@@ -30,5 +30,41 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Rebuild, validate, and publish the additive candidate
+        id: reconcile
+        continue-on-error: true
         shell: bash
-        run: bash .github/scripts/pr173-reconcile.sh
+        run: |
+          set -o pipefail
+          bash .github/scripts/pr173-reconcile.sh 2>&1 | tee "${RUNNER_TEMP}/pr173-reconcile.log"
+
+      - name: Collect bounded reconciliation diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/pr173-reconciliation-diagnostics"
+          mkdir -p "${output}"
+          cp "${RUNNER_TEMP}/pr173-reconcile.log" "${output}/reconcile.log"
+          if test -f .github/read-receipts-main-merge-finalizer-status.txt; then
+            cp .github/read-receipts-main-merge-finalizer-status.txt "${output}/status.txt"
+          fi
+          {
+            printf 'event_head=%s\n' "${{ github.event.pull_request.head.sha }}"
+            printf 'step_outcome=%s\n' "${{ steps.reconcile.outcome }}"
+            printf 'step_conclusion=%s\n' "${{ steps.reconcile.conclusion }}"
+          } > "${output}/workflow.txt"
+          tail -n 240 "${RUNNER_TEMP}/pr173-reconcile.log" > "${output}/reconcile-tail.log"
+
+      - name: Upload reconciliation diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr173-reconciliation-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/pr173-reconciliation-diagnostics
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Preserve reconciliation failure
+        if: steps.reconcile.outcome == 'failure'
+        shell: bash
+        run: exit 1
