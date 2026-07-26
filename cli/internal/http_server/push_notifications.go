@@ -18,6 +18,12 @@ type pushNotificationCloseRequest struct {
 
 func (s *HTTPServer) setupPushNotificationRoutes() {
 	s.router.POST(pushNotificationClosePath, limitLegacyRequestBody(), s.handlePushNotificationClose)
+
+	// Keep the small authenticated JSON endpoints registered from one existing
+	// setup hook. Room purge owns its own strict body limit, authorization, and
+	// durable cleanup lifecycle; it is intentionally not part of ConnectRPC so
+	// older generated clients cannot accidentally expose the destructive method.
+	s.setupRoomPurgeRoutes()
 }
 
 func (s *HTTPServer) handlePushNotificationClose(c *gin.Context) {
