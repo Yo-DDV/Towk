@@ -36,12 +36,6 @@
   let hasMore = $state(false);
   let totalCount = $state(0);
 
-  const label = $derived(
-    summary.readerCount === 1
-      ? m['room.message.read_receipts.count_one']()
-      : m['room.message.read_receipts.count_many']({ count: summary.readerCount })
-  );
-
   function api() {
     const conn = connection();
     return createReadStateAPI({
@@ -110,14 +104,15 @@
 
 <button
   type="button"
-  class="{className} gap-1.5 border-transparent px-2 text-xs"
+  data-testid="read-receipt-indicator"
+  class="{className} gap-1 border-transparent px-1.5 text-[11px] opacity-70 transition-opacity duration-150 hover:opacity-90 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-accent/50 focus-visible:outline-none motion-reduce:transition-none"
   aria-label={m['room.message.read_receipts.open_label']({ count: summary.readerCount })}
   aria-expanded={open}
   onclick={toggle}
   onfocus={anchorFromEvent}
 >
-  <span class="iconify text-sm uil--check-circle" aria-hidden="true"></span>
-  <span>{label}</span>
+  <span class="iconify text-xs uil--check-circle" aria-hidden="true"></span>
+  <span aria-hidden="true">{summary.readerCount}</span>
 </button>
 
 <FloatingPopover {open} {anchor} role="dialog" class="w-[min(22rem,calc(100vw-2rem))] menu">
