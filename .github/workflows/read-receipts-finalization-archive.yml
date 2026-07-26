@@ -42,7 +42,12 @@ jobs:
           set -euo pipefail
           cat .github/pr173-reconstruct.part00 \
               .github/pr173-reconstruct.part01 \
-              .github/pr173-reconstruct.part02 \
+              .github/pr173-reconstruct.part02.00 \
+              .github/pr173-reconstruct.part02.01 \
+              .github/pr173-reconstruct.part02.02 \
+              .github/pr173-reconstruct.part02.03 \
+              .github/pr173-reconstruct.part02.04 \
+              .github/pr173-reconstruct.part02.05 \
               .github/pr173-reconstruct.part03 \
               .github/pr173-reconstruct.part04 \
               > .github/pr173-reconstruct.py.gz.b64
