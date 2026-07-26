@@ -1,5 +1,5 @@
-source_head=534df03df3fa376aa16560eb73fe2e4d9fbaf3d1
+source_head=630d91908080eb6f6bd99d0fdd269776f8bd7df4
 main_head=d277c59d2ebb16d076de6ae793e4679251be38b4
-merge_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
-failed_stage=format-sources
-exit_code=2
+merge_base=d277c59d2ebb16d076de6ae793e4679251be38b4
+failed_stage=contract
+exit_code=1
