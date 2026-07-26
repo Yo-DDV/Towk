@@ -120,10 +120,25 @@ openssl s_client \
   -CAfile "$tmp/turn.crt" \
   </dev/null >/dev/null
 
-runtime=$(docker exec "$name" sh -c 'printf "uid=%s\n" "$(id -u)"; grep -E "^(NoNewPrivs|CapEff):" /proc/1/status')
+runtime=$(docker exec "$name" sh -c 'printf "uid=%s\n" "$(id -u)"; grep -E "^(NoNewPrivs|CapEff|CapBnd):" /proc/1/status')
 grep -qx 'uid=1000' <<<"$runtime"
 grep -Eq '^NoNewPrivs:[[:space:]]+1$' <<<"$runtime"
-grep -Eq '^CapEff:[[:space:]]+0*400$' <<<"$runtime"
+python3 - "$runtime" <<'PY_RUNTIME'
+import re
+import sys
+
+status = sys.argv[1]
+values = {
+    name: int(value, 16)
+    for name, value in re.findall(r"^(CapEff|CapBnd):\s*([0-9A-Fa-f]+)$", status, re.MULTILINE)
+}
+if set(values) != {"CapEff", "CapBnd"}:
+    raise SystemExit("could not read effective and bounding capability masks")
+net_bind_service = 1 << 10
+for name, value in values.items():
+    if value & ~net_bind_service:
+        raise SystemExit(f"{name} contains capabilities beyond NET_BIND_SERVICE: {value:#x}")
+PY_RUNTIME
 [[ $(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' "$name") == true ]]
 [[ $(stat -c %a "$tmp/turn.key") == 640 ]]
 [[ $(stat -c %a "$tmp/livekit.yaml") == 640 ]]
