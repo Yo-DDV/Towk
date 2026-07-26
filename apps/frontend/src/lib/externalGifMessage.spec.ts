@@ -34,9 +34,17 @@ describe('parseExternalGifMessageBodyList', () => {
     expect(
       parseExternalGifMessageBodyList(body)?.map((descriptor) => descriptor.resourceUrl)
     ).toEqual([giphyMediaUrl, 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt']);
-    expect(parseExternalGifMessageBodyList(`[${giphyPageUrl}](<${giphyPageUrl}>)`)).toHaveLength(
-      1
-    );
+    expect(
+      parseExternalGifMessageBodyList(`[${giphyPageUrl}](<${giphyPageUrl}>)`)
+    ).toHaveLength(1);
+  });
+
+  it('accepts the hybrid body persisted by the rich composer', () => {
+    const body = `[${giphyMediaUrl}](${giphyMediaUrl})\n\n${giphyPageUrl}`;
+
+    expect(
+      parseExternalGifMessageBodyList(body)?.map((descriptor) => descriptor.resourceUrl)
+    ).toEqual([giphyMediaUrl, 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt']);
   });
 
   it('preserves duplicate URLs instead of silently changing message meaning', () => {
