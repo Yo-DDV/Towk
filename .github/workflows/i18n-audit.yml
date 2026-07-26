@@ -27,6 +27,11 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Record current main revision
+        id: main
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Pack current main source
         shell: bash
         run: |
@@ -53,20 +58,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           COMMENT_ID: '5080736416'
+          MAIN_SHA: ${{ steps.main.outputs.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          body=$(cat <<EOF
-          <!-- towk-i18n-audit-report -->
-          ### Localization integration snapshot
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          - Branch head: `${GITHUB_SHA}`
-          - Main checked out: `${GITHUB_WORKFLOW_SHA}`
-          - Workflow run ID: `${GITHUB_RUN_ID}`
-          - Artifact: `i18n-main-snapshot-${GITHUB_SHA}`
-          - Purpose: ephemeral current-main integration snapshot; not part of the final pull-request diff.
-          EOF
+          body = (
+              '<!-- towk-i18n-audit-report -->\n'
+              '### Localization integration snapshot\n\n'
+              f'- Branch head: `{os.environ["GITHUB_SHA"]}`\n'
+              f'- Main checked out: `{os.environ["MAIN_SHA"]}`\n'
+              f'- Workflow run ID: `{os.environ["GITHUB_RUN_ID"]}`\n'
+              f'- Artifact: `i18n-main-snapshot-{os.environ["GITHUB_SHA"]}`\n'
+              '- Purpose: ephemeral current-main integration snapshot; not part of the final pull-request diff.\n'
           )
+          Path('comment.json').write_text(json.dumps({'body': body}), encoding='utf-8')
+          PY
           gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
-            -f body="$body"
+            --input comment.json
