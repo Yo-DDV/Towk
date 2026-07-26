@@ -1,14 +1,16 @@
 # FDR-030: External GIF Embeds
 
 **Status:** Active
-**Last reviewed:** 2026-07-25
+**Last reviewed:** 2026-07-26
 
 ## Overview
 
 Towk can render a message that contains only supported external GIF URLs. The
-persisted message remains ordinary text; compatible clients present one privacy-gated
-media card per recognized URL instead of duplicating the raw URLs in the message body.
-Towk does not provide GIF search or copy provider media into server storage.
+persisted message remains ordinary text; compatible clients present one media card per
+recognized URL instead of duplicating the raw URLs in the message body. Supported GIFs
+load automatically near the visible timeline by default, while a local preference lets
+the reader require an explicit click. Towk does not provide GIF search or copy provider
+media into server storage.
 
 ## Behavior
 
@@ -28,13 +30,19 @@ Towk does not provide GIF search or copy provider media into server storage.
   message is presented as one ordered media card per URL instead of a second large
   raw-link body. The original URLs remain the persisted message source and stay
   reachable through each card's source action.
-- Loading requires a click by default. The placeholder states that the browser will
-  contact the provider.
-- A local preference can auto-load supported media only when it approaches the
-  visible timeline. Background tabs, offline state, reduced-motion preferences, and
-  browsers without `IntersectionObserver` keep click-to-load behavior.
+- Supported media auto-loads by default only when it approaches the visible timeline.
+  The preference is local to the browser and can be disabled to restore click-to-load.
+- Background tabs, offline state, reduced-motion preferences, and browsers without
+  `IntersectionObserver` keep the explicit-load fallback instead of loading eagerly.
 - The four-card message bound also limits the number of concurrent provider resources
-  an auto-load preference can make eligible from one message.
+  that automatic loading can make eligible from one message.
+- Direct image and video media preserve their intrinsic aspect ratio. On sufficiently
+  wide displays, very small media is enlarged to a readable minimum, while a responsive
+  maximum width and height prevent overflow. GIPHY page embeds use a bounded 16:9 frame
+  because the page URL does not expose the media's intrinsic dimensions without a
+  provider API.
+- Provider controls are rendered in a compact footer below the media so the card width
+  follows the actual content instead of leaving an empty panel beside narrow GIFs.
 - An in-flight automatic request is cancelled if the page becomes hidden or the
   network heuristic turns offline. Successfully loaded media stays mounted so room
   changes and visibility transitions can reuse the browser-managed resource. Reduced
@@ -78,13 +86,18 @@ and removal policy authoritative.
 **Tradeoff:** The provider receives the reader's request metadata, and the media may
 later disappear.
 
-### 3. Click-to-load is the default
+### 3. Automatic loading is the default, with a local opt-out
 
-**Decision:** External media is not requested until the reader activates it, unless
-the reader enables the local auto-load preference.
-**Why:** A message author should not silently cause every reader to contact a third
-party.
-**Tradeoff:** Loading requires one additional interaction by default.
+**Decision:** Supported media starts loading when it approaches the visible timeline.
+The reader can disable automatic loading locally to require a click before a provider
+request is made. Reduced motion, offline state, hidden pages, and environments without
+`IntersectionObserver` remain click-to-load.
+**Why:** GIFs are expected to behave like native chat media without requiring a manual
+step for every message. A local opt-out preserves user control, while conservative
+fallbacks avoid eager background loading and respect accessibility preferences.
+**Tradeoff:** With the default enabled, viewing a timeline containing a supported GIF
+can disclose the reader's network address and browser request metadata to that
+provider without a per-message click.
 
 ### 4. Provider URL shapes are allow-listed
 
@@ -105,14 +118,15 @@ removal. An application-managed cache would create a separate retained copy.
 revalidation. Browser connectivity detection is treated only as a hint, so a manual
 load may still be attempted to reuse an available cache entry.
 
-### 6. Auto-load fails closed
+### 6. Automatic loading fails closed
 
 **Decision:** Automatic loading requires a visible document and a working
 `IntersectionObserver`. Towk does not substitute an eager fallback when proximity
 cannot be measured.
-**Why:** A compatibility fallback must not turn one opt-in setting into an unbounded
-batch of provider requests from a long or background timeline.
-**Tradeoff:** Older web views require a click even when the preference is enabled.
+**Why:** A compatibility fallback must not turn the default into an unbounded batch of
+provider requests from a long or background timeline.
+**Tradeoff:** Older web views require a click even while the automatic-loading
+preference is enabled.
 
 ### 7. Historical previews win over the enhancement
 
@@ -134,6 +148,18 @@ compatibility and auditability.
 **Tradeoff:** Copying an original URL requires the corresponding card's source action
 on compatible clients instead of selecting the body text directly.
 
+### 9. Direct media follows intrinsic geometry
+
+**Decision:** Direct images and videos use their intrinsic aspect ratio and natural
+width within responsive minimum and maximum bounds. Provider-page iframes remain a
+bounded 16:9 surface. Controls are placed below the media.
+**Why:** A fixed full-width panel makes portrait or narrow GIFs look undersized and
+leaves unused space beside them. Intrinsic sizing preserves the source composition
+while still producing a readable chat presentation on desktop and a safe full-width
+layout on mobile.
+**Tradeoff:** Very small source assets may be upscaled to the readable minimum, and
+very large assets are reduced to fit the conversation viewport.
+
 ## Security and Privacy
 
 - Only HTTPS URLs on exact provider hosts are eligible.
@@ -144,6 +170,9 @@ on compatible clients instead of selecting the body text directly.
   cards are rendered from one message.
 - Exact Markdown self-links are unwrapped only when the visible label and destination
   are identical and the destination independently passes the provider allowlist.
+- Automatic loading can disclose the reader's network address and browser request
+  metadata when eligible media approaches the visible timeline. The local opt-out and
+  conservative fallback conditions allow the reader to retain click-to-load behavior.
 - GIPHY frames use a restricted sandbox and no referrer. Direct GIPHY, Tenor, and
   KLIPY images also request no referrer. Video elements follow Towk's document-wide
   `strict-origin-when-cross-origin` policy because browsers do not expose a
@@ -157,13 +186,12 @@ on compatible clients instead of selecting the body text directly.
 ## Compatibility
 
 The feature is advertised with `external-gif-embeds-v1`. Supporting several already
-recognized URLs in one bounded GIF-only message, including exact self-links emitted by
-the current composer, does not change the privacy gate, storage boundary, or wire
-contract: older clients still exchange and render the ordinary text body, while newer
-clients derive ordered cards from it. Adding another strictly validated direct-media
-provider likewise leaves the wire representation unchanged. Incomplete server
-discovery falls back to the text instead of assuming support. No protobuf, persisted
-event, database, or storage migration is required.
+recognized URLs in one bounded GIF-only message, exact self-links emitted by the
+current composer, automatic loading before the first public merge, and intrinsic
+responsive presentation do not change the wire contract: older clients still exchange
+and render the ordinary text body, while newer clients derive ordered cards from it.
+Incomplete server discovery falls back to the text instead of assuming support. No
+protobuf, persisted event, database, or storage migration is required.
 
 ## Related
 
