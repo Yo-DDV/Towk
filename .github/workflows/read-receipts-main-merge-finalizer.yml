@@ -28,26 +28,27 @@ jobs:
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Merge current main, reconcile contracts, validate, and publish
+      - name: Rebuild additive candidate, validate, and publish
         shell: bash
         env:
+          DESIGN_BASE: b9f61f1b28608784c1e1ed1e2232131e681a12b3
+          FEATURE_SOURCE: f07456ce30c48fd35d63fcc9d3480b5792f40cfa
           EXPECTED_MAIN: d277c59d2ebb16d076de6ae793e4679251be38b4
         run: |
           set -Eeuo pipefail
           stage=preflight
           feature_head="$(git rev-parse HEAD)"
           main_head=""
-          merge_base=""
+          merge_base="${DESIGN_BASE}"
           status_file=".github/read-receipts-main-merge-finalizer-status.txt"
 
           publish_failure() {
             code=$?
             trap - ERR
             set +e
-            git merge --abort >/dev/null 2>&1 || true
+            git read-tree --reset -u "${feature_head}" >/dev/null 2>&1 || true
             git restore --staged --worktree . >/dev/null 2>&1 || true
             main_head="${main_head:-unknown}"
-            merge_base="${merge_base:-unknown}"
             {
               printf 'source_head=%s\n' "${feature_head}"
               printf 'main_head=%s\n' "${main_head}"
@@ -71,11 +72,13 @@ jobs:
           git config user.email '116607353+Yo-DDV@users.noreply.github.com'
           git fetch --no-tags origin main
           main_head="$(git rev-parse origin/main)"
-          merge_base="$(git merge-base HEAD origin/main)"
           test "${main_head}" = "${EXPECTED_MAIN}"
+          git cat-file -e "${DESIGN_BASE}^{commit}"
+          git cat-file -e "${FEATURE_SOURCE}^{commit}"
+          git merge-base --is-ancestor "${FEATURE_SOURCE}" "${feature_head}"
 
-          stage=merge
-          if git merge --no-commit --no-ff origin/main; then
+          stage=merge-tree
+          if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then
             merge_status=0
           else
             merge_status=$?
@@ -295,6 +298,14 @@ jobs:
             ../../docs/fdr/FDR-031-read-receipts.md \
             ../../docs/fdr/INDEX.md
 
+          stage=main-preservation
+          test -f apps/frontend/src/lib/components/ExternalGifEmbed.svelte
+          test -f apps/frontend/src/lib/styles/liquid-glass-surfaces.css
+          test -f apps/frontend/src/lib/components/settings/ProfileDetailsSettings.svelte
+          test -f examples/dockercompose/compose.turn-tls.yml
+          deleted_from_main="$(git diff --diff-filter=D --name-only "${EXPECTED_MAIN}")"
+          test -z "${deleted_from_main}"
+
           stage=codegen
           mise run codegen-proto
           pnpm --filter @towk/api-types build
@@ -420,6 +431,6 @@ jobs:
           stage=publish
           git fetch --no-tags origin main
           test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"
-          git commit -m 'merge(main): synchronize privacy-aware read receipts'
+          git commit -m 'fix(integration): reconcile privacy-aware read receipts with main'
           git push origin HEAD:feat/read-receipts
           trap - ERR
