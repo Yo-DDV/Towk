@@ -250,8 +250,7 @@ jobs:
           write(fdr_index_path, fdr_index)
           PY
 
-          stage=format-sources
-          gofmt -w \
+          for path in \
             cli/internal/connectapi/account.go \
             cli/internal/connectapi/read_state.go \
             cli/internal/connectapi/read_state_privacy_test.go \
@@ -264,7 +263,15 @@ jobs:
             cli/internal/core/user_preferences.go \
             cli/internal/http_server/realtime.go \
             cli/internal/http_server/realtime_test.go
+          do
+            stage="format-go:${path}"
+            gofmt -w "${path}"
+          done
+
+          stage=format-proto
           (cd proto && mise x -- buf format -w .)
+
+          stage=format-frontend
           pnpm --dir apps/frontend exec prettier --write \
             src/lib/api-client-tests/account.spec.ts \
             src/lib/api-client/account.ts \
