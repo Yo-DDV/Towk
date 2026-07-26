@@ -44,6 +44,10 @@
     "banner_removed": "Bannière supprimée",
     "banner_delete_failed": "Échec de la suppression de la bannière",
     "banner_change": "Changer la bannière",
-    "banner_upload": "Téléverser la bannière"
+    "banner_upload": "Téléverser la bannière",
+    "read_receipts": {
+      "label": "Activer les confirmations de lecture",
+      "description": "Autorise les utilisateurs à publier et consulter les confirmations dans les salons et les fils. L’état privé de non-lu continue de fonctionner quand l’option est désactivée."
+    }
   }
 }

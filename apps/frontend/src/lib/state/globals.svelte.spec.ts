@@ -22,6 +22,81 @@ describe('SidebarNavState', () => {
     expect(sidebar.isOpen).toBe(true);
   });
 
+  it('allows a route to consume the app-header menu action', () => {
+    const sidebar = new SidebarNavState();
+    let calls = 0;
+    const unregister = sidebar.registerToggleHandler(() => {
+      calls++;
+      return true;
+    });
+
+    sidebar.toggle();
+    expect(calls).toBe(1);
+    expect(sidebar.isOpen).toBe(true);
+
+    unregister();
+    sidebar.toggle();
+    expect(sidebar.isOpen).toBe(false);
+  });
+
+  it('lets a route reveal a delayed secondary pane and then toggle it', () => {
+    const sidebar = new SidebarNavState();
+    let secondaryPaneRendered = false;
+
+    sidebar.registerToggleHandler(() => {
+      if (!secondaryPaneRendered) {
+        secondaryPaneRendered = true;
+        sidebar.open();
+        return true;
+      }
+
+      if (sidebar.isOpen) {
+        sidebar.close();
+      } else {
+        sidebar.open();
+      }
+      return true;
+    });
+
+    sidebar.toggle();
+    expect(secondaryPaneRendered).toBe(true);
+    expect(sidebar.isOpen).toBe(true);
+
+    sidebar.toggle();
+    expect(sidebar.isOpen).toBe(false);
+
+    sidebar.toggle();
+    expect(sidebar.isOpen).toBe(true);
+  });
+
+  it('falls back to the normal toggle when a route does not consume the action', () => {
+    const sidebar = new SidebarNavState();
+    sidebar.registerToggleHandler(() => false);
+
+    sidebar.toggle();
+
+    expect(sidebar.isOpen).toBe(false);
+  });
+
+  it('uses the most recently registered route handler', () => {
+    const sidebar = new SidebarNavState();
+    const calls: string[] = [];
+    sidebar.registerToggleHandler(() => {
+      calls.push('first');
+      return true;
+    });
+    const unregisterSecond = sidebar.registerToggleHandler(() => {
+      calls.push('second');
+      return true;
+    });
+
+    sidebar.toggle();
+    unregisterSecond();
+    sidebar.toggle();
+
+    expect(calls).toEqual(['second', 'first']);
+  });
+
   it('does not persist mobile overlay open and close changes', () => {
     const sidebar = new SidebarNavState();
 
@@ -36,6 +111,20 @@ describe('SidebarNavState', () => {
 
     sidebar.setMobile(false);
     expect(sidebar.isOpen).toBe(true);
+  });
+
+  it('opens the sidebar without changing a closed desktop preference from mobile', () => {
+    const sidebar = new SidebarNavState();
+
+    sidebar.toggle();
+    expect(sidebar.isOpen).toBe(false);
+
+    sidebar.setMobile(true);
+    sidebar.open();
+    expect(sidebar.isOpen).toBe(true);
+
+    sidebar.setMobile(false);
+    expect(sidebar.isOpen).toBe(false);
   });
 
   it('restores a closed desktop preference after mobile use', () => {

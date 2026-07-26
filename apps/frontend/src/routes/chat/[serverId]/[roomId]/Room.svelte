@@ -14,7 +14,7 @@
     usePresenceChange,
     createTypingIndicator
   } from '$lib/hooks';
-  import { appState, sidebarNav } from '$lib/state/globals.svelte';
+  import { appState, sidebarNav, SIDEBAR_PANEL_WIDTH_PX } from '$lib/state/globals.svelte';
   import * as m from '$lib/i18n/messages';
   import {
     createComposerContext,
@@ -54,6 +54,7 @@
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
   import { isMessagePostedEvent } from '$lib/render/eventKinds';
   import { onDestroy, onMount, tick } from 'svelte';
+  import { sineInOut } from 'svelte/easing';
   import { fly } from 'svelte/transition';
   import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
   import RoomEventsPane from './RoomEventsPane.svelte';
@@ -407,6 +408,20 @@
   let showVoiceCall = $derived(!!room.roomData && !!serverInfo.livekitUrl);
   // Channel rooms can be left unless membership is granted by Universal policy.
   let showLeaveRoom = $derived(!!room.roomData && !room.isDM && !room.roomData.room.isUniversal);
+  let canDeleteDirectMessage = $derived(
+    !!room.roomData && room.isDM && room.dmData?.participants.length === 2
+  );
+
+  function openDeleteDirectMessageConfirmation(): void {
+    if (!canDeleteDirectMessage) return;
+    pushState('', {
+      modal: {
+        type: 'deleteDirectMessage',
+        roomId,
+        roomName: title
+      }
+    });
+  }
   const activeRoomSidebarPanel = $derived(
     roomSidebarPanelForRoom(room.isDM, appUi.activeDesktopRoomSidebarPanel, showVoiceCall)
   );
@@ -575,6 +590,8 @@
           {#snippet actions()}
             <RoomSidebarToggle
               mode="mobile"
+              {canDeleteDirectMessage}
+              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
               activePanel={mobileRoomSidebarPanel}
               panels={roomSidebarTogglePanels}
               hasActiveCall={hasActiveRoomCall}
@@ -582,6 +599,8 @@
             />
             <RoomSidebarToggle
               mode="desktop"
+              {canDeleteDirectMessage}
+              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
               activePanel={activeRoomSidebarPanel}
               panels={roomSidebarTogglePanels}
               hasActiveCall={hasActiveRoomCall}
@@ -684,9 +703,15 @@
           onclick={() => appUi.closeMobileRoomSidebarPanel()}
         ></button>
         <div
-          class="absolute inset-y-0 right-0 z-20 flex min-h-0 w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] sm:w-[90%] lg:hidden"
+          class="absolute inset-y-0 right-0 z-20 flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] lg:hidden"
           data-testid="room-sidebar-mobile-pane"
-          transition:fly={{ x: 300, duration: motionDuration(MOTION_DURATION.expressive) }}
+          style:width={`${SIDEBAR_PANEL_WIDTH_PX}px`}
+          transition:fly={{
+            x: SIDEBAR_PANEL_WIDTH_PX,
+            duration: motionDuration(360),
+            easing: sineInOut,
+            opacity: 1
+          }}
         >
           <RoomSidebar
             {roomId}

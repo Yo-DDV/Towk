@@ -117,7 +117,8 @@
         "latest_label": "Latest read at {time}",
         "loading": "Loading readers...",
         "empty": "No reader details available.",
-        "load_failed": "Failed to load read receipts"
+        "load_failed": "Failed to load read receipts",
+        "load_more": "Load {remaining} more"
       }
     },
     "attachment": {

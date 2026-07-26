@@ -29,6 +29,13 @@ func (s *roomDirectoryService) ListRooms(ctx context.Context, req *connect.Reque
 
 	apiRooms := make([]*apiv1.RoomWithViewerState, 0, len(rooms))
 	for _, room := range rooms {
+		visible, err := s.roomVisibleToCaller(ctx, caller.UserID, room)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !visible {
+			continue
+		}
 		apiRooms = append(apiRooms, apiRoomWithViewerState(room))
 	}
 
@@ -94,6 +101,13 @@ func (s *roomDirectoryService) GetRoom(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, connectError(err)
 	}
+	visible, err := s.roomVisibleToCaller(ctx, caller.UserID, room)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	if !visible {
+		return nil, connectError(core.ErrPermissionDenied)
+	}
 	return connect.NewResponse(&apiv1.GetRoomResponse{Room: apiRoomWithViewerState(room)}), nil
 }
 
@@ -110,9 +124,23 @@ func (s *roomDirectoryService) BatchGetRooms(ctx context.Context, req *connect.R
 
 	apiRooms := make([]*apiv1.RoomWithViewerState, 0, len(rooms))
 	for _, room := range rooms {
+		visible, err := s.roomVisibleToCaller(ctx, caller.UserID, room)
+		if err != nil {
+			return nil, connectError(err)
+		}
+		if !visible {
+			continue
+		}
 		apiRooms = append(apiRooms, apiRoomWithViewerState(room))
 	}
 	return connect.NewResponse(&apiv1.BatchGetRoomsResponse{Rooms: apiRooms}), nil
+}
+
+func (s *roomDirectoryService) roomVisibleToCaller(ctx context.Context, callerID string, room *core.DirectoryRoom) (bool, error) {
+	if room == nil || room.Room == nil || core.KindOfRoom(room.Room) != core.KindDM {
+		return true, nil
+	}
+	return s.api.core.CanAccessDMConversation(ctx, callerID, room.Room.GetId())
 }
 
 func apiRoomWithViewerState(room *core.DirectoryRoom) *apiv1.RoomWithViewerState {

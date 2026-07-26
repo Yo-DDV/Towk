@@ -21,7 +21,6 @@ const (
 	maxReadReceiptMessageBatch  = 100
 	maxReadReceiptMemberScan    = 5000
 	maxReadReceiptIntervals     = 128
-	readReceiptPreviewLimit     = 3
 )
 
 // ReadReceiptAdvance describes an advance-only public receipt mutation.
@@ -42,7 +41,6 @@ type ReadReceiptReaderRecord struct {
 type ReadReceiptSummaryRecord struct {
 	MessageEventID string
 	ReaderCount    int
-	PreviewUserIDs []string
 	LatestReadAt   time.Time
 }
 
@@ -303,14 +301,6 @@ func (s *ReadReceiptModel) Summaries(ctx context.Context, actorID, roomID, threa
 		summary := &ReadReceiptSummaryRecord{MessageEventID: target.eventID, ReaderCount: len(readers)}
 		if len(readers) > 0 {
 			summary.LatestReadAt = readers[0].ReadAt
-			previewCount := len(readers)
-			if previewCount > readReceiptPreviewLimit {
-				previewCount = readReceiptPreviewLimit
-			}
-			summary.PreviewUserIDs = make([]string, 0, previewCount)
-			for _, reader := range readers[:previewCount] {
-				summary.PreviewUserIDs = append(summary.PreviewUserIDs, reader.UserID)
-			}
 		}
 		result = append(result, summary)
 	}

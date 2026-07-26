@@ -79,7 +79,6 @@ func (s *roomService) GetReadReceiptSummaries(ctx context.Context, req *connect.
 		item := &apiv1.ReadReceiptSummary{
 			MessageEventId: summary.MessageEventID,
 			ReaderCount:    int32(summary.ReaderCount),
-			PreviewUserIds: summary.PreviewUserIDs,
 		}
 		if !summary.LatestReadAt.IsZero() {
 			item.LatestReadAt = timestamppb.New(summary.LatestReadAt)

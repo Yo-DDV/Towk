@@ -4,7 +4,8 @@ import {
   CHANNEL_ROOM_SIDEBAR_PANELS,
   DM_ROOM_SIDEBAR_PANELS,
   roomSidebarPanelForRoom,
-  roomSidebarPanelsForRoom
+  roomSidebarPanelsForRoom,
+  roomSidebarShellClass
 } from './roomSidebarBehavior';
 
 describe('room sidebar behavior', () => {
@@ -56,5 +57,17 @@ describe('room sidebar behavior', () => {
   it('returns all channel panels when LiveKit is configured', () => {
     expect(CHANNEL_ROOM_SIDEBAR_PANELS).toEqual(['members', 'files', 'call']);
     expect(roomSidebarPanelsForRoom(false, true)).toEqual(['members', 'files', 'call']);
+  });
+
+  it('uses a fixed desktop width while keeping overlay and maximized layouts fluid', () => {
+    expect(roomSidebarShellClass('desktop', false)).toBe(
+      'border-l border-border w-64 shrink-0'
+    );
+    expect(roomSidebarShellClass('desktop', true)).toBe(
+      'border-l border-border min-w-0 flex-1'
+    );
+    expect(roomSidebarShellClass('overlay', false)).toBe(
+      'w-full min-w-0 flex-1 overflow-hidden'
+    );
   });
 });

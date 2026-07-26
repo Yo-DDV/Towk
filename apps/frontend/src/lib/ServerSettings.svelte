@@ -16,7 +16,7 @@
   import * as m from '$lib/i18n/messages';
 
   import { Panel } from '$lib/components/admin';
-  import { TextInput, TextArea, Button } from '$lib/ui/form';
+  import { TextInput, TextArea, Button, Checkbox } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
   import { dropZone } from '$lib/attachments/dropZone.svelte';
   import DropZoneOverlay from '$lib/attachments/DropZoneOverlay.svelte';
@@ -41,6 +41,7 @@
   let description = $state('');
   let motd = $state('');
   let welcomeMessage = $state('');
+  let readReceiptsEnabled = $state(true);
   let saving = $state(false);
   let saveSuccess = $state(false);
 
@@ -88,6 +89,7 @@
       description = state.description ?? '';
       motd = state.motd ?? '';
       welcomeMessage = state.welcomeMessage ?? '';
+      readReceiptsEnabled = state.readReceiptsEnabled;
       logoUrl = state.logoUrl ?? null;
       bannerUrl = state.bannerUrl ?? null;
     } catch (_e) {
@@ -111,15 +113,13 @@
     error = null;
 
     try {
-      const profile = await updateServerConfig(
-        apiConfig(),
-        {
-          name: name.trim(),
-          description: description.trim(),
-          motd,
-          welcomeMessage
-        }
-      );
+      const profile = await updateServerConfig(apiConfig(), {
+        name: name.trim(),
+        description: description.trim(),
+        motd,
+        welcomeMessage,
+        readReceiptsEnabled
+      });
 
       name = profile.name;
       description = profile.description ?? '';
@@ -283,6 +283,14 @@
           rows={3}
           disabled={saving}
           description={m['server_settings.welcome_message_help']()}
+        />
+
+        <Checkbox
+          id="server-read-receipts"
+          bind:checked={readReceiptsEnabled}
+          label={m['server_settings.read_receipts.label']()}
+          description={m['server_settings.read_receipts.description']()}
+          disabled={saving}
         />
 
         <div class="flex items-center gap-3">

@@ -117,7 +117,8 @@
         "latest_label": "Dernière lecture à {time}",
         "loading": "Chargement des lecteurs...",
         "empty": "Aucun détail de lecteur disponible.",
-        "load_failed": "Impossible de charger les confirmations de lecture"
+        "load_failed": "Impossible de charger les confirmations de lecture",
+        "load_more": "Charger {remaining} de plus"
       }
     },
     "attachment": {

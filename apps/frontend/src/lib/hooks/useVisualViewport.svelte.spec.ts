@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { flushSync } from 'svelte';
 import { useVisualViewport } from './useVisualViewport.svelte';
 
+const VISUAL_KEYBOARD_OPEN_ATTRIBUTE = 'data-visual-keyboard-open';
+
 type MutableVisualViewport = Omit<VisualViewport, 'height' | 'offsetTop' | 'width'> & {
   height: number;
   offsetTop: number;
@@ -32,6 +34,7 @@ function mountHook() {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  document.body.removeAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE);
   document.body.style.height = '';
   document.body.style.top = '';
 });
@@ -49,8 +52,11 @@ describe('useVisualViewport', () => {
 
     expect(document.body.style.height).toBe('390px');
     expect(document.body.style.top).toBe('28px');
+    expect(document.body.hasAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE)).toBe(true);
 
     cleanup();
+
+    expect(document.body.hasAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE)).toBe(false);
   });
 
   it('tracks viewport scrolling and clears the offset after the keyboard closes', () => {
@@ -66,6 +72,7 @@ describe('useVisualViewport', () => {
     viewport.dispatchEvent(new Event('scrollend'));
 
     expect(document.body.style.top).toBe('44px');
+    expect(document.body.hasAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE)).toBe(true);
 
     viewport.height = 780;
     viewport.offsetTop = 0;
@@ -73,6 +80,7 @@ describe('useVisualViewport', () => {
 
     expect(document.body.style.height).toBe('');
     expect(document.body.style.top).toBe('');
+    expect(document.body.hasAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE)).toBe(false);
 
     cleanup();
   });
@@ -91,6 +99,7 @@ describe('useVisualViewport', () => {
 
     expect(document.body.style.height).toBe('180px');
     expect(document.body.style.top).toBe('12px');
+    expect(document.body.hasAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE)).toBe(true);
 
     viewport.height = 390;
     viewport.offsetTop = 0;
@@ -98,6 +107,7 @@ describe('useVisualViewport', () => {
 
     expect(document.body.style.height).toBe('');
     expect(document.body.style.top).toBe('');
+    expect(document.body.hasAttribute(VISUAL_KEYBOARD_OPEN_ATTRIBUTE)).toBe(false);
 
     cleanup();
   });

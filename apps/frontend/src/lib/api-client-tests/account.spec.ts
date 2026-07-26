@@ -131,7 +131,8 @@ describe('createAccountAPI', () => {
     mocks.updateSettings.mockResolvedValue({
       settings: {
         timezone: 'Europe/Berlin',
-        timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR
+        timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+        readReceiptsEnabled: false
       }
     });
 
@@ -143,17 +144,20 @@ describe('createAccountAPI', () => {
     await expect(
       api.updateSettings({
         timezone: 'Europe/Berlin',
-        timeFormat: TimeFormat.TwentyFourHour
+        timeFormat: TimeFormat.TwentyFourHour,
+        readReceiptsEnabled: false
       })
     ).resolves.toEqual({
       timezone: 'Europe/Berlin',
-      timeFormat: TimeFormat.TwentyFourHour
+      timeFormat: TimeFormat.TwentyFourHour,
+      readReceiptsEnabled: false
     });
 
     expect(mocks.updateSettings).toHaveBeenCalledWith(
       {
         timezone: 'Europe/Berlin',
-        timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR
+        timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+        readReceiptsEnabled: false
       },
       { headers: undefined }
     );
@@ -191,13 +195,15 @@ describe('createAccountAPI', () => {
 
     await expect(api.updateSettings({ timezone: null })).resolves.toEqual({
       timezone: null,
-      timeFormat: TimeFormat.Auto
+      timeFormat: TimeFormat.Auto,
+      readReceiptsEnabled: true
     });
 
     expect(mocks.updateSettings).toHaveBeenCalledWith(
       {
         timezone: '',
-        timeFormat: undefined
+        timeFormat: undefined,
+        readReceiptsEnabled: undefined
       },
       { headers: undefined }
     );

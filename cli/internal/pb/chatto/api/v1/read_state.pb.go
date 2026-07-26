@@ -359,7 +359,6 @@ type ReadReceiptSummary struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	MessageEventId string                 `protobuf:"bytes,1,opt,name=message_event_id,json=messageEventId,proto3" json:"message_event_id,omitempty"`
 	ReaderCount    int32                  `protobuf:"varint,2,opt,name=reader_count,json=readerCount,proto3" json:"reader_count,omitempty"`
-	PreviewUserIds []string               `protobuf:"bytes,3,rep,name=preview_user_ids,json=previewUserIds,proto3" json:"preview_user_ids,omitempty"`
 	LatestReadAt   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=latest_read_at,json=latestReadAt,proto3" json:"latest_read_at,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -407,13 +406,6 @@ func (x *ReadReceiptSummary) GetReaderCount() int32 {
 		return x.ReaderCount
 	}
 	return 0
-}
-
-func (x *ReadReceiptSummary) GetPreviewUserIds() []string {
-	if x != nil {
-		return x.PreviewUserIds
-	}
-	return nil
 }
 
 func (x *ReadReceiptSummary) GetLatestReadAt() *timestamppb.Timestamp {
@@ -738,12 +730,11 @@ const file_chatto_api_v1_read_state_proto_rawDesc = "" +
 	"\x14thread_root_event_id\x18\x02 \x01(\tR\x11threadRootEventId\x12,\n" +
 	"\x0eup_to_event_id\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\vupToEventId\"6\n" +
 	"\x1aAdvanceReadReceiptResponse\x12\x18\n" +
-	"\aupdated\x18\x01 \x01(\bR\aupdated\"\xcd\x01\n" +
+	"\aupdated\x18\x01 \x01(\bR\aupdated\"\xbb\x01\n" +
 	"\x12ReadReceiptSummary\x12(\n" +
 	"\x10message_event_id\x18\x01 \x01(\tR\x0emessageEventId\x12!\n" +
-	"\freader_count\x18\x02 \x01(\x05R\vreaderCount\x12(\n" +
-	"\x10preview_user_ids\x18\x03 \x03(\tR\x0epreviewUserIds\x12@\n" +
-	"\x0elatest_read_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flatestReadAt\"\xa9\x01\n" +
+	"\freader_count\x18\x02 \x01(\x05R\vreaderCount\x12@\n" +
+	"\x0elatest_read_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flatestReadAtJ\x04\b\x03\x10\x04R\x10preview_user_ids\"\xa9\x01\n" +
 	"\x1eGetReadReceiptSummariesRequest\x12 \n" +
 	"\aroom_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x06roomId\x12/\n" +
 	"\x14thread_root_event_id\x18\x02 \x01(\tR\x11threadRootEventId\x124\n" +

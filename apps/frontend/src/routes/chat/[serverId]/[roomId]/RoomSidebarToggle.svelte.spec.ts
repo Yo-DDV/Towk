@@ -187,4 +187,49 @@ describe('RoomSidebarToggle', () => {
     expect(group!.classList.contains('lg:hidden')).toBe(true);
     expect(group!.classList.contains('hidden')).toBe(false);
   });
+
+  it('offers private DM deletion only when enabled', async () => {
+    const onDeleteDirectMessage = vi.fn();
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn(),
+        canDeleteDirectMessage: true,
+        onDeleteDirectMessage
+      }
+    });
+
+    const actionsButton = container.querySelector(
+      '[data-testid="direct-message-actions-button"]'
+    ) as HTMLButtonElement | null;
+    expect(actionsButton).toBeTruthy();
+
+    actionsButton!.click();
+    await tick();
+
+    const deleteButton = container.querySelector(
+      '[data-testid="delete-direct-message-button"]'
+    ) as HTMLButtonElement | null;
+    expect(deleteButton).toBeTruthy();
+    expect(actionsButton!.getAttribute('aria-expanded')).toBe('true');
+    expect(container.textContent).toContain('Conversation actions');
+    expect(container.textContent).toContain('Remove it from your account');
+
+    deleteButton!.click();
+    await tick();
+
+    expect(onDeleteDirectMessage).toHaveBeenCalledOnce();
+  });
+
+  it('hides private DM deletion by default', async () => {
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn()
+      }
+    });
+
+    expect(container.querySelector('[data-testid="direct-message-actions-button"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="delete-direct-message-button"]')).toBeFalsy();
+  });
 });

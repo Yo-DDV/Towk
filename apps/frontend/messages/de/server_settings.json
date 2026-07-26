@@ -44,6 +44,10 @@
     "banner_removed": "Banner entfernt",
     "banner_delete_failed": "Banner konnte nicht gelöscht werden",
     "banner_change": "Banner ändern",
-    "banner_upload": "Banner hochladen"
+    "banner_upload": "Banner hochladen",
+    "read_receipts": {
+      "label": "Lesebestätigungen aktivieren",
+      "description": "Benutzer können Lesebestätigungen in Räumen und Threads veröffentlichen und ansehen. Der private Ungelesen-Status funktioniert weiter, wenn dies deaktiviert ist."
+    }
   }
 }

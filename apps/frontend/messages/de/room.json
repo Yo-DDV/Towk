@@ -117,7 +117,8 @@
         "latest_label": "Zuletzt gelesen um {time}",
         "loading": "Leser werden geladen...",
         "empty": "Keine Leserdetails verfügbar.",
-        "load_failed": "Lesebestätigungen konnten nicht geladen werden"
+        "load_failed": "Lesebestätigungen konnten nicht geladen werden",
+        "load_more": "{remaining} weitere laden"
       }
     },
     "attachment": {

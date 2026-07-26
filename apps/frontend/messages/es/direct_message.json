@@ -1,0 +1,21 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "direct_message_delete": {
+      "title": "Eliminar conversación",
+      "action": "Eliminar conversación",
+      "prompt": "¿Eliminar la conversación con {room}? Su historial se quitará de tu cuenta. La otra persona conservará su copia.",
+      "failed": "No se pudo eliminar la conversación",
+      "local_cleanup_failed": "La conversación se eliminó, pero este dispositivo no pudo borrar todos los datos almacenados en caché.",
+      "more_actions": "Acciones de la conversación",
+      "menu_description": "Quitarla de tu cuenta",
+      "only_for_you": "Solo para ti",
+      "history_title": "Se quitará tu historial",
+      "history_body": "Los mensajes, hilos, archivos y borradores en caché de esta conversación dejarán de estar disponibles para ti.",
+      "peer_title": "La otra persona conserva su copia",
+      "peer_body": "No se elimina nada de su cuenta ni recibe una notificación sobre esta acción.",
+      "reopen_title": "Los mensajes futuros pueden reabrir la conversación",
+      "reopen_body": "Solo aparecerán los mensajes enviados después de eliminarla. El historial anterior seguirá oculto."
+    }
+  }
+}

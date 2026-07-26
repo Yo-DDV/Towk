@@ -1,11 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import ServerGutter from '$lib/ServerGutter.svelte';
-  import {
-    SIDEBAR_PANEL_WIDTH_PX,
-    sidebarEdgeSwipe,
-    sidebarSwipe
-  } from '$lib/hooks/useSidebarSwipe.svelte';
+  import { mobileNavigationSwipe } from '$lib/hooks/useMobileNavigationSwipe.svelte';
+  import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
   import * as m from '$lib/i18n/messages';
   import { sidebarNav } from '$lib/state/globals.svelte';
 
@@ -15,30 +12,12 @@
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && progress === 0 && !dragging);
   const tx = $derived((progress - 1) * SIDEBAR_PANEL_WIDTH_PX);
+  const mobileTransform = $derived(
+    sidebarNav.isMobile ? `translate3d(${tx}px, 0, 0)` : undefined
+  );
 </script>
 
 {#if sidebarNav.isMobile}
-  <!--
-		Edge gesture zone (swipe-to-open). `touch-action: none` is essential:
-		without it, Chrome / iOS Safari fire pointercancel ~8px into a
-		horizontal drag (text-selection / back-navigation gesture detection).
-		Hidden when sidebar is open (the backdrop takes over). Plain taps are
-		intentionally swallowed here; this target exists only to start swipes.
-	-->
-  {#if !sidebarNav.isOpen || dragging}
-    <div
-      use:sidebarEdgeSwipe
-      data-app-sidebar="true"
-      data-testid="mobile-sidebar-edge"
-      class="fixed top-11 bottom-0 left-0 z-40 w-6 touch-none md:hidden"
-      aria-hidden="true"
-      onpointerdown={(event) => event.stopPropagation()}
-      onpointerup={(event) => event.stopPropagation()}
-      onclick={(event) => event.stopPropagation()}
-      oncontextmenu={(event) => event.stopPropagation()}
-    ></div>
-  {/if}
-
   <button
     type="button"
     use:sidebarSwipe
@@ -46,7 +25,7 @@
     data-testid="mobile-sidebar-backdrop"
     class={[
       'fixed inset-0 top-11 z-40 touch-none bg-black/50 md:hidden',
-      !dragging && 'transition-opacity duration-200',
+      !dragging && 'sidebar-mobile-backdrop-anim',
       mobileClosed && 'pointer-events-none'
     ]}
     style:opacity={progress}
@@ -58,7 +37,11 @@
   ></button>
 {/if}
 
-<div class="flex min-h-0 flex-1 flex-row">
+<div
+  use:mobileNavigationSwipe
+  data-testid="mobile-navigation-swipe-region"
+  class="mobile-navigation-swipe-region flex min-h-0 flex-1 flex-row"
+>
   <div
     use:sidebarSwipe
     data-app-sidebar="true"
@@ -75,7 +58,7 @@
       mobileClosed && 'sidebar-mobile-closed',
       !dragging && 'sidebar-mobile-anim'
     ]}
-    style:transform={sidebarNav.isMobile ? `translateX(${tx}px)` : undefined}
+    style:transform={mobileTransform}
   >
     <ServerGutter />
   </div>
@@ -84,27 +67,46 @@
 </div>
 
 <style>
+  :global(.mobile-navigation-swipe-region) {
+    --mobile-navigation-safe-left: env(safe-area-inset-left, 0px);
+    --mobile-navigation-safe-right: env(safe-area-inset-right, 0px);
+    --mobile-navigation-safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   /*
 		Mobile sidebar animation — slide via transform, plus a delayed visibility
 		swap so the off-screen panel is reported as `visibility: hidden` (not just
 		visually hidden by transform) once the close animation finishes. This
 		matters for accessibility tooling and Playwright's `toBeVisible()`.
 
-		Open  → transform animates 200ms, visibility flips to `visible` immediately.
-		Close → transform animates 200ms, visibility flips to `hidden` AFTER 200ms.
+		Open  → transform animates 360ms, visibility flips to `visible` immediately.
+		Close → transform animates 360ms, visibility flips to `hidden` AFTER 360ms.
 	*/
   @media (max-width: 767px) {
+    :global(.sidebar-mobile-backdrop-anim) {
+      transition: opacity 320ms ease-out;
+    }
     :global(.sidebar-mobile-anim) {
       visibility: visible;
+      backface-visibility: hidden;
       transition:
-        transform 200ms ease-out,
+        transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
         visibility 0s linear 0s;
+      will-change: transform;
     }
     :global(.sidebar-mobile-anim.sidebar-mobile-closed) {
       visibility: hidden;
       transition:
-        transform 200ms ease-out,
-        visibility 0s linear 200ms;
+        transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 360ms;
+    }
+  }
+
+  @media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    :global(.sidebar-mobile-backdrop-anim),
+    :global(.sidebar-mobile-anim),
+    :global(.sidebar-mobile-anim.sidebar-mobile-closed) {
+      transition: none;
     }
   }
 </style>

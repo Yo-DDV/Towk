@@ -134,10 +134,67 @@ function enqueueAccountLifecycle(scope: PrivateDataScope, active: boolean): Prom
   return lifecycle;
 }
 
+function logicalKeyBelongsToRoom(logicalKey: string, roomId: string): boolean {
+  const root = `room:${roomId}`;
+  return logicalKey === root || logicalKey.startsWith(`${root}:thread:`);
+}
+
+async function purgeOfflineRoomRecords(scope: PrivateDataScope, roomId: string): Promise<void> {
+  if (!roomId || !(await waitForActiveAccount(scope))) return;
+
+  const [drafts, timelines, outbox] = await Promise.all([
+    encryptedPrivateData.list<PersistedDraft>(scope, 'draft'),
+    encryptedPrivateData.list<CachedTimeline>(scope, 'timeline'),
+    encryptedPrivateData.list<QueuedMessage>(scope, 'outbox')
+  ]);
+  if (!accountIsActive(scope)) return;
+
+  const logicalKeys = new Set<string>([draftLogicalKey(roomId)]);
+  for (const record of drafts) {
+    if (logicalKeyBelongsToRoom(record.logicalKey, roomId)) logicalKeys.add(record.logicalKey);
+  }
+  for (const record of timelines) {
+    if (logicalKeyBelongsToRoom(record.logicalKey, roomId)) logicalKeys.add(record.logicalKey);
+  }
+
+  const deletions: Promise<unknown>[] = [];
+  for (const logicalKey of logicalKeys) {
+    deletions.push(
+      trackWrite(scope, () => encryptedPrivateData.delete(scope, 'draft', logicalKey)),
+      trackWrite(scope, () => encryptedPrivateData.delete(scope, 'timeline', logicalKey)),
+      trackWrite(scope, () => encryptedDraftFiles.delete(scope, logicalKey))
+    );
+  }
+  for (const record of outbox) {
+    if (record.value.roomId !== roomId) continue;
+    deletions.push(
+      trackWrite(scope, () => encryptedPrivateData.delete(scope, 'outbox', record.logicalKey))
+    );
+  }
+  await Promise.all(deletions);
+}
+
 if (lifecycleChannel) {
   lifecycleChannel.addEventListener('message', (event: MessageEvent<unknown>) => {
     if (!event.data || typeof event.data !== 'object') return;
-    const message = event.data as { type?: unknown; identity?: unknown };
+    const message = event.data as {
+      type?: unknown;
+      identity?: unknown;
+      roomId?: unknown;
+      scope?: Partial<PrivateDataScope>;
+    };
+    if (message.type === 'purge-room') {
+      const scope = message.scope;
+      if (
+        typeof message.roomId === 'string' &&
+        typeof scope?.serverId === 'string' &&
+        typeof scope.serverUrl === 'string' &&
+        typeof scope.userId === 'string'
+      ) {
+        void purgeOfflineRoomRecords(scope as PrivateDataScope, message.roomId);
+      }
+      return;
+    }
     if (typeof message.identity !== 'string') return;
     if (message.type === 'deactivate') {
       desiredAccountState.set(message.identity, false);
@@ -238,6 +295,11 @@ export function deletePersistedDraftFiles(
 
 export function purgeOfflineAccount(scope: PrivateDataScope): Promise<void> {
   return enqueueAccountLifecycle(scope, false);
+}
+
+export async function purgeOfflineRoom(scope: PrivateDataScope, roomId: string): Promise<void> {
+  await purgeOfflineRoomRecords(scope, roomId);
+  lifecycleChannel?.postMessage({ type: 'purge-room', scope, roomId });
 }
 
 export async function loadCachedTimeline(
