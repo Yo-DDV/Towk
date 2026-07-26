@@ -1,0 +1,28 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "room": {
+    "external_gif": {
+      "load": "Cargar GIF externo",
+      "loading": "Cargando GIF externo…",
+      "load_failed": "No se pudo cargar el GIF externo.",
+      "offline": "Es posible que este GIF externo no esté disponible sin conexión.",
+      "retry": "Reintentar",
+      "hide": "Ocultar",
+      "open_source": "Abrir fuente",
+      "privacy_notice": "Cargar este GIF desde {provider}. El proveedor recibirá la solicitud de red de este navegador.",
+      "media_title": "GIF animado de {provider}"
+    }
+  },
+  "settings": {
+    "preferences": {
+      "external_gifs": {
+        "title": "GIF externos",
+        "description": "Los GIF externos permanecen en los servidores del proveedor. Se cargan automáticamente al acercarse a la zona visible y contactan directamente con el proveedor desde este navegador.",
+        "auto_load": {
+          "label": "Cargar GIF externos automáticamente",
+          "description": "Activado de forma predeterminada. Desactiva esta opción para exigir un clic antes de que Towk contacte con un proveedor. La reducción de movimiento, el modo sin conexión y las alternativas de compatibilidad aún pueden requerir un clic."
+        }
+      }
+    }
+  }
+}

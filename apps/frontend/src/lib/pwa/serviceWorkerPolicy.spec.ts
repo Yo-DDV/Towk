@@ -63,6 +63,20 @@ describe('classifyServiceWorkerRequest', () => {
     });
   });
 
+  it.each([
+    'https://media4.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.webp',
+    'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif',
+    'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif',
+    'https://giphy.com/embed/l0MYt5jPR6QX5pnqM'
+  ])('keeps external GIF resources outside Towk-managed caches: %s', (url) => {
+    expect(classify(url)).toEqual({
+      cacheableShellAsset: false,
+      networkFirstAsset: false,
+      navigationRequest: false,
+      networkOnly: true
+    });
+  });
+
   it('keeps cross-origin and non-GET requests network-only', () => {
     expect(classify('https://other.example/manifest.webmanifest')).toMatchObject({
       cacheableShellAsset: false,
