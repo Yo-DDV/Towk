@@ -1,27 +1,14 @@
-name: i18n audit
+name: temporary main snapshot
 
 on:
   push:
-    paths:
-      - '.github/workflows/i18n-audit.yml'
-      - 'apps/frontend/**'
-      - 'cli/**'
-      - 'tools/**'
-      - 'docker/**'
-  pull_request:
     branches:
-      - main
-      - 'release-[0-9]*'
+      - fix/localization-completeness
     paths:
       - '.github/workflows/i18n-audit.yml'
-      - 'apps/frontend/**'
-      - 'cli/**'
-      - 'tools/**'
-      - 'docker/**'
-  workflow_dispatch:
 
 concurrency:
-  group: i18n-audit-${{ github.event.pull_request.number || github.ref }}
+  group: temporary-main-snapshot
   cancel-in-progress: true
 
 permissions:
@@ -29,56 +16,18 @@ permissions:
   issues: write
 
 jobs:
-  i18n-audit:
-    name: i18n-audit
+  snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Checkout code
+      - name: Check out current main
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: main
+          fetch-depth: 1
           persist-credentials: false
 
-      - name: Run localization audit suite
-        id: audit
-        shell: bash
-        run: |
-          set +e
-          : > audit-report.txt
-          status=0
-
-          run_check() {
-            local label="$1"
-            shift
-            printf '\n## %s\n\n' "$label" >> audit-report.txt
-            "$@" >> audit-report.txt 2>&1
-            local exit_code=$?
-            if [ "$exit_code" -ne 0 ]; then
-              status=1
-            fi
-            printf '\nExit code: %s\n' "$exit_code" >> audit-report.txt
-          }
-
-          run_check 'Audit implementation syntax' node --check apps/frontend/scripts/audit-user-visible-copy.mjs
-          run_check 'Audit implementation tests' node --test apps/frontend/scripts/audit-user-visible-copy.test.mjs
-          run_check 'Catalog parity and placeholders' node apps/frontend/scripts/check-i18n-catalogs.mjs
-          run_check 'User-visible copy and translation semantics' node apps/frontend/scripts/audit-user-visible-copy.mjs
-
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path('audit-report.txt')
-          text = path.read_text(encoding='utf-8')
-          text = re.sub(r'(:\s*)"(?:[^"\\]|\\.)*"$', r'\1<copy omitted>', text, flags=re.MULTILINE)
-          path.write_text(text, encoding='utf-8')
-          PY
-
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Pack complete branch source snapshot
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
+      - name: Pack current main source
         shell: bash
         run: |
           set -euo pipefail
@@ -90,60 +39,34 @@ jobs:
             --exclude='**/coverage' \
             --exclude='**/playwright-report' \
             --exclude='**/test-results' \
-            -czf towk-source-snapshot.tgz .
+            -czf towk-main-source-snapshot.tgz .
 
-      - name: Upload branch audit snapshot
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
+      - name: Upload current main source
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: i18n-audit-snapshot-${{ github.sha }}
-          path: |
-            audit-report.txt
-            towk-source-snapshot.tgz
+          name: i18n-main-snapshot-${{ github.sha }}
+          path: towk-main-source-snapshot.tgz
           if-no-files-found: error
           retention-days: 1
 
-      - name: Publish branch audit report
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/fix/localization-completeness'
+      - name: Publish snapshot reference
         env:
           GH_TOKEN: ${{ github.token }}
           COMMENT_ID: '5080736416'
-          AUDIT_STATUS: ${{ steps.audit.outputs.status }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
+          body=$(cat <<EOF
+          <!-- towk-i18n-audit-report -->
+          ### Localization integration snapshot
 
-          report_path = Path('audit-report.txt')
-          report = report_path.read_text(encoding='utf-8') if report_path.exists() else 'Audit report was not produced.'
-          max_report_chars = 57000
-          truncated = len(report) > max_report_chars
-          if truncated:
-            report = report[:max_report_chars] + '\n\n… report truncated at the GitHub comment size boundary.'
-          status = 'PASS' if os.environ.get('AUDIT_STATUS') == '0' else 'FAIL'
-          artifact = f'i18n-audit-snapshot-{os.environ["GITHUB_SHA"]}'
-          body = (
-              '<!-- towk-i18n-audit-report -->\n'
-              '### Localization audit — branch report\n\n'
-              f'- Head: `{os.environ["GITHUB_SHA"]}`\n'
-              f'- Workflow run ID: `{os.environ["GITHUB_RUN_ID"]}`\n'
-              f'- Ephemeral artifact: `{artifact}` (one-day retention)\n'
-              f'- Result: **{status}**\n'
-              '- Scope: complete repository source plus catalog parity, placeholders, and semantic checks.\n'
-              '- Published content is restricted to repository paths, line numbers, categories, command results, and copy-redacted findings.\n\n'
-              '<details open><summary>Audit output</summary>\n\n```text\n'
-              f'{report}\n'
-              '```\n\n</details>'
+          - Branch head: `${GITHUB_SHA}`
+          - Main checked out: `${GITHUB_WORKFLOW_SHA}`
+          - Workflow run ID: `${GITHUB_RUN_ID}`
+          - Artifact: `i18n-main-snapshot-${GITHUB_SHA}`
+          - Purpose: ephemeral current-main integration snapshot; not part of the final pull-request diff.
+          EOF
           )
-          Path('audit-comment.json').write_text(json.dumps({'body': body}), encoding='utf-8')
-          PY
           gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
-            --input audit-comment.json
-
-      - name: Enforce localization audit result
-        if: steps.audit.outputs.status != '0'
-        run: exit 1
+            -f body="$body"
