@@ -50,8 +50,9 @@ jobs:
               .github/pr173-reconstruct.part02.05 \
               .github/pr173-reconstruct.part03 \
               .github/pr173-reconstruct.part04 \
-              > .github/pr173-reconstruct.py.gz.b64
+              > "${RUNNER_TEMP}/pr173-reconstruct.py.gz.b64"
           base64 -d .github/pr173-terminal.sh.gz.b64 | gzip -d > "${RUNNER_TEMP}/pr173-terminal.sh"
+          sed -i 's#base64 -d \.github/pr173-reconstruct\.py\.gz\.b64#base64 -d "${RUNNER_TEMP}/pr173-reconstruct.py.gz.b64"#' "${RUNNER_TEMP}/pr173-terminal.sh"
           chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
           set +e
           set -o pipefail
