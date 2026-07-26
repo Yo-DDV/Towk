@@ -17,10 +17,10 @@
     "preferences": {
       "external_gifs": {
         "title": "GIF externes",
-        "description": "Les GIF externes restent sur les serveurs du fournisseur. Leur chargement contacte directement ce fournisseur depuis ce navigateur.",
+        "description": "Les GIF externes restent sur les serveurs du fournisseur. Ils se chargent automatiquement à l’approche de la zone visible et contactent directement ce fournisseur depuis ce navigateur.",
         "auto_load": {
           "label": "Charger automatiquement les GIF externes",
-          "description": "Charge les GIF compatibles lorsqu’ils approchent de la zone visible. La réduction des animations exige toujours un clic."
+          "description": "Activé par défaut. Désactivez cette option pour exiger un clic avant que Towk contacte un fournisseur. La réduction des animations, le mode hors ligne et certains navigateurs peuvent toujours imposer un clic."
         }
       }
     }
