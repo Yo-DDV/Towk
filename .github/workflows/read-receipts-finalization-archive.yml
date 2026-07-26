@@ -40,6 +40,12 @@ jobs:
           TARGET_BRANCH: feat/read-receipts
         run: |
           set -euo pipefail
+          cat .github/pr173-reconstruct.part00 \
+              .github/pr173-reconstruct.part01 \
+              .github/pr173-reconstruct.part02 \
+              .github/pr173-reconstruct.part03 \
+              .github/pr173-reconstruct.part04 \
+              > .github/pr173-reconstruct.py.gz.b64
           base64 -d .github/pr173-terminal.sh.gz.b64 | gzip -d > "${RUNNER_TEMP}/pr173-terminal.sh"
           chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
           set +e
