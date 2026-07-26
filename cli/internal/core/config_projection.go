@@ -33,10 +33,11 @@ type serverConfigState struct {
 }
 
 type userConfigState struct {
-	timezone        *string
-	timeFormat      *corev1.TimeFormat
-	serverLevel     *corev1.NotificationLevel
-	roomLevelByRoom map[string]corev1.NotificationLevel
+	timezone         *string
+	timeFormat       *corev1.TimeFormat
+	showLastActivity *bool
+	serverLevel      *corev1.NotificationLevel
+	roomLevelByRoom  map[string]corev1.NotificationLevel
 }
 
 // ServerConfigProjection is kept as a compatibility alias while callers and
@@ -100,6 +101,10 @@ func (p *ConfigProjection) Apply(event *corev1.Event, _ uint64) error {
 		u.timeFormat = &tf
 	case *corev1.Event_UserTimeFormatCleared:
 		p.ensureUserLocked(e.UserTimeFormatCleared.GetUserId()).timeFormat = nil
+	case *corev1.Event_UserLastActivityVisibilityChanged:
+		u := p.ensureUserLocked(e.UserLastActivityVisibilityChanged.GetUserId())
+		value := e.UserLastActivityVisibilityChanged.GetShowLastActivity()
+		u.showLastActivity = &value
 	case *corev1.Event_UserServerNotificationLevelSet:
 		u := p.ensureUserLocked(e.UserServerNotificationLevelSet.GetUserId())
 		level := e.UserServerNotificationLevelSet.GetLevel()
@@ -145,6 +150,7 @@ func (p *ConfigProjection) applyLegacyUserPreferencesLocked(e *corev1.UserServer
 	if prefs == nil {
 		u.timezone = nil
 		u.timeFormat = nil
+		u.showLastActivity = nil
 		return
 	}
 	if prefs.GetTimezone() != "" {
@@ -155,6 +161,12 @@ func (p *ConfigProjection) applyLegacyUserPreferencesLocked(e *corev1.UserServer
 	}
 	tf := prefs.GetTimeFormat()
 	u.timeFormat = &tf
+	if prefs.ShowLastActivity != nil {
+		value := prefs.GetShowLastActivity()
+		u.showLastActivity = &value
+	} else {
+		u.showLastActivity = nil
+	}
 }
 
 func (p *ConfigProjection) Get() *configv1.ServerConfig {
@@ -211,7 +223,7 @@ func (p *ConfigProjection) UserSettings(userID string) (*corev1.ServerUserPrefer
 	p.RLock()
 	defer p.RUnlock()
 	u := p.users[userID]
-	if u == nil || (u.timezone == nil && u.timeFormat == nil) {
+	if u == nil || (u.timezone == nil && u.timeFormat == nil && u.showLastActivity == nil) {
 		return nil, false, nil
 	}
 	prefs := &corev1.ServerUserPreferences{}
@@ -221,6 +233,10 @@ func (p *ConfigProjection) UserSettings(userID string) (*corev1.ServerUserPrefer
 	}
 	if u.timeFormat != nil {
 		prefs.TimeFormat = *u.timeFormat
+	}
+	if u.showLastActivity != nil {
+		value := *u.showLastActivity
+		prefs.ShowLastActivity = &value
 	}
 	return prefs, true, nil
 }

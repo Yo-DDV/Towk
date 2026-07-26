@@ -1,13 +1,11 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
-  import {
-    createMemberDirectoryAPI,
-    type DirectoryMember
-  } from '$lib/api-client/memberDirectory';
+  import { createMemberDirectoryAPI, type DirectoryMember } from '$lib/api-client/memberDirectory';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { Combobox } from '$lib/ui/form';
   import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import { getAvatarInitials } from '$lib/utils/initials';
+  import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import * as m from '$lib/i18n/messages';
 
   type User = DirectoryMember;
@@ -32,6 +30,7 @@
   let loading = $state(false);
   let requestId = 0;
   let searchTimer: ReturnType<typeof setTimeout> | null = null;
+  let profileUser = $state<User | null>(null);
 
   onDestroy(() => {
     if (searchTimer) clearTimeout(searchTimer);
@@ -57,6 +56,11 @@
     searchTimer = setTimeout(() => {
       void searchUsers(search, currentRequest);
     }, 200);
+  }
+
+  function openProfile(event: MouseEvent, user: User) {
+    event.stopPropagation();
+    profileUser = user;
   }
 
   async function searchUsers(search: string, currentRequest: number) {
@@ -113,4 +117,21 @@
     <span class="min-w-0 truncate text-sm text-text">{user.displayName}</span>
     <span class="min-w-0 truncate text-sm text-muted">@{user.login}</span>
   {/snippet}
+
+  {#snippet itemAction({ item: user })}
+    <button
+      type="button"
+      class="grid w-10 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-colors hover:bg-surface-200 hover:text-text"
+      data-testid={`user-combobox-profile-${user.id}`}
+      aria-label={`${m['chat.user_menu.profile']()}: ${user.displayName}`}
+      title={m['chat.user_menu.profile']()}
+      onclick={(event) => openProfile(event, user)}
+    >
+      <span class="iconify uil--user-square" aria-hidden="true"></span>
+    </button>
+  {/snippet}
 </Combobox>
+
+{#if profileUser}
+  <UserContextMenu user={profileUser} onClose={() => (profileUser = null)} />
+{/if}

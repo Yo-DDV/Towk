@@ -1,7 +1,7 @@
 # FDR-011: User Presence
 
 **Status:** Active
-**Last reviewed:** 2026-06-25
+**Last reviewed:** 2026-07-25
 
 ## Overview
 
@@ -19,6 +19,8 @@ Every user has a presence status visible to others as a colored dot on their ava
 - Users can choose "Look offline" locally. The client does not report an Offline status; it stops reporting presence to the server and pauses live event subscriptions so the existing presence record expires normally.
 - Disconnecting (closing the tab, network drop) does not send an active Offline signal. After 60 seconds without a heartbeat refresh, the presence entry expires and the user appears Offline.
 - The presence dot updates across the UI as other users' statuses change, in real time.
+- Eligible presence refreshes also advance the profile latest-activity value at most once per five-minute coalescing window. Towk stores only the latest encrypted timestamp, not a presence or activity history.
+- "Look offline" stops presence reporting and therefore does not advance latest activity. Disabling latest-activity visibility removes the stored value and filters it from profile responses.
 
 ## Design Decisions
 
@@ -64,9 +66,15 @@ Every user has a presence status visible to others as a colored dot on their ava
 **Why:** Servers are independent and shouldn't have to coordinate among themselves — that would require cross-server discovery and trust. The client is already connected to all of them and can coordinate cheaply. See ADR-025.
 **Tradeoff:** A user signed in from two different devices to the same server may have competing presence writers; the latest write wins until TTL expiry.
 
+### 8. Presence may advance one privacy-aware latest-activity value
+
+**Decision:** Successful non-offline presence activity may update one encrypted latest-activity timestamp in `RUNTIME_STATE`. Updates are monotonic and coalesced; no per-heartbeat or historical series is retained. Invisible clients do not report presence and cannot advance the value.
+**Why:** Profiles need a useful approximation of recent activity without turning ephemeral presence into durable monitoring history. Reusing eligible presence refreshes avoids a separate tracking channel.
+**Tradeoff:** The value is approximate and can lag within the coalescing interval. It is not suitable for auditing, attendance, moderation evidence, or billing. The profile owner can disable it, which deletes the stored value before the hidden preference becomes effective.
+
 ## Permissions
 
-Presence status is public. Any authenticated user can see any other authenticated user's presence.
+Presence status is public. Any authenticated user can see any other authenticated user's presence. Latest activity is a separate profile field, filtered server-side by the target user's visibility preference and unavailable for deleted accounts.
 
 ## Related
 

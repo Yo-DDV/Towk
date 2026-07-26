@@ -304,7 +304,8 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
           userId: value.userId,
           login: value.login,
           displayName: value.displayName,
-          avatarUrl: value.avatarUrl ?? null
+          avatarUrl: value.avatarUrl ?? null,
+          detailsChanged: value.detailsChanged
         }
       } as unknown as EventEnvelope;
     }
@@ -337,7 +338,8 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
         event: {
           kind: RoomEventKind.ServerUserPreferencesUpdated,
           timezone: frame.event.value.timezone ?? null,
-          timeFormat: timeFormat(frame.event.value.timeFormat)
+          timeFormat: timeFormat(frame.event.value.timeFormat),
+          showLastActivity: frame.event.value.showLastActivity
         }
       } as unknown as EventEnvelope;
     case 'roomGroupsUpdated':

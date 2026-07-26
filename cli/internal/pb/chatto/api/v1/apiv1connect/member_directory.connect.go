@@ -40,6 +40,9 @@ const (
 	// UserServiceBatchGetUsersProcedure is the fully-qualified name of the UserService's BatchGetUsers
 	// RPC.
 	UserServiceBatchGetUsersProcedure = "/chatto.api.v1.UserService/BatchGetUsers"
+	// UserServiceGetUserProfileProcedure is the fully-qualified name of the UserService's
+	// GetUserProfile RPC.
+	UserServiceGetUserProfileProcedure = "/chatto.api.v1.UserService/GetUserProfile"
 )
 
 // UserServiceClient is a client for the chatto.api.v1.UserService service.
@@ -53,6 +56,8 @@ type UserServiceClient interface {
 	// Gets visible user rows for multiple stable user IDs. Unknown IDs are
 	// omitted from the response.
 	BatchGetUsers(context.Context, *connect.Request[v1.BatchGetUsersRequest]) (*connect.Response[v1.BatchGetUsersResponse], error)
+	// Gets one complete profile without inflating directory rows.
+	GetUserProfile(context.Context, *connect.Request[v1.GetUserProfileRequest]) (*connect.Response[v1.GetUserProfileResponse], error)
 }
 
 // NewUserServiceClient constructs a client for the chatto.api.v1.UserService service. By default,
@@ -84,14 +89,21 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(userServiceMethods.ByName("BatchGetUsers")),
 			connect.WithClientOptions(opts...),
 		),
+		getUserProfile: connect.NewClient[v1.GetUserProfileRequest, v1.GetUserProfileResponse](
+			httpClient,
+			baseURL+UserServiceGetUserProfileProcedure,
+			connect.WithSchema(userServiceMethods.ByName("GetUserProfile")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // userServiceClient implements UserServiceClient.
 type userServiceClient struct {
-	listUsers     *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
-	getUser       *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
-	batchGetUsers *connect.Client[v1.BatchGetUsersRequest, v1.BatchGetUsersResponse]
+	listUsers      *connect.Client[v1.ListUsersRequest, v1.ListUsersResponse]
+	getUser        *connect.Client[v1.GetUserRequest, v1.GetUserResponse]
+	batchGetUsers  *connect.Client[v1.BatchGetUsersRequest, v1.BatchGetUsersResponse]
+	getUserProfile *connect.Client[v1.GetUserProfileRequest, v1.GetUserProfileResponse]
 }
 
 // ListUsers calls chatto.api.v1.UserService.ListUsers.
@@ -109,6 +121,11 @@ func (c *userServiceClient) BatchGetUsers(ctx context.Context, req *connect.Requ
 	return c.batchGetUsers.CallUnary(ctx, req)
 }
 
+// GetUserProfile calls chatto.api.v1.UserService.GetUserProfile.
+func (c *userServiceClient) GetUserProfile(ctx context.Context, req *connect.Request[v1.GetUserProfileRequest]) (*connect.Response[v1.GetUserProfileResponse], error) {
+	return c.getUserProfile.CallUnary(ctx, req)
+}
+
 // UserServiceHandler is an implementation of the chatto.api.v1.UserService service.
 type UserServiceHandler interface {
 	// Lists users visible to the authenticated user. Admin-sensitive account
@@ -120,6 +137,8 @@ type UserServiceHandler interface {
 	// Gets visible user rows for multiple stable user IDs. Unknown IDs are
 	// omitted from the response.
 	BatchGetUsers(context.Context, *connect.Request[v1.BatchGetUsersRequest]) (*connect.Response[v1.BatchGetUsersResponse], error)
+	// Gets one complete profile without inflating directory rows.
+	GetUserProfile(context.Context, *connect.Request[v1.GetUserProfileRequest]) (*connect.Response[v1.GetUserProfileResponse], error)
 }
 
 // NewUserServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -147,6 +166,12 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(userServiceMethods.ByName("BatchGetUsers")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userServiceGetUserProfileHandler := connect.NewUnaryHandler(
+		UserServiceGetUserProfileProcedure,
+		svc.GetUserProfile,
+		connect.WithSchema(userServiceMethods.ByName("GetUserProfile")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/chatto.api.v1.UserService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserServiceListUsersProcedure:
@@ -155,6 +180,8 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 			userServiceGetUserHandler.ServeHTTP(w, r)
 		case UserServiceBatchGetUsersProcedure:
 			userServiceBatchGetUsersHandler.ServeHTTP(w, r)
+		case UserServiceGetUserProfileProcedure:
+			userServiceGetUserProfileHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -174,4 +201,8 @@ func (UnimplementedUserServiceHandler) GetUser(context.Context, *connect.Request
 
 func (UnimplementedUserServiceHandler) BatchGetUsers(context.Context, *connect.Request[v1.BatchGetUsersRequest]) (*connect.Response[v1.BatchGetUsersResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.UserService.BatchGetUsers is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) GetUserProfile(context.Context, *connect.Request[v1.GetUserProfileRequest]) (*connect.Response[v1.GetUserProfileResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.UserService.GetUserProfile is not implemented"))
 }

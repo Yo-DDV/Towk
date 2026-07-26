@@ -579,6 +579,7 @@ The updated display preferences are inline for the connected user.
 | --- | --- | --- |
 | `timezone` | `optional string` | IANA timezone name, when the user has selected a fixed timezone. |
 | `time_format` | `chatto.api.v1.TimeFormat` | Preferred time display format. |
+| `show_last_activity` | `bool` | Effective last-activity visibility preference. |
 
 
 
@@ -708,6 +709,7 @@ Basic profile fields are inline. Use `UserService.GetUser` or
 | `login` | `string` | Login name. |
 | `display_name` | `string` | Display name. |
 | `avatar_url` | `optional string` | Avatar URL, when the user has an avatar. |
+| `details_changed` | `bool` | True when clients should invalidate the detailed profile cache. |
 
 
 

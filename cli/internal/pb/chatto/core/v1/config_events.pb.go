@@ -638,6 +638,58 @@ func (x *UserTimeFormatClearedEvent) GetUserId() string {
 	return ""
 }
 
+type UserLastActivityVisibilityChangedEvent struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	UserId           string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ShowLastActivity bool                   `protobuf:"varint,2,opt,name=show_last_activity,json=showLastActivity,proto3" json:"show_last_activity,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UserLastActivityVisibilityChangedEvent) Reset() {
+	*x = UserLastActivityVisibilityChangedEvent{}
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserLastActivityVisibilityChangedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserLastActivityVisibilityChangedEvent) ProtoMessage() {}
+
+func (x *UserLastActivityVisibilityChangedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserLastActivityVisibilityChangedEvent.ProtoReflect.Descriptor instead.
+func (*UserLastActivityVisibilityChangedEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *UserLastActivityVisibilityChangedEvent) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *UserLastActivityVisibilityChangedEvent) GetShowLastActivity() bool {
+	if x != nil {
+		return x.ShowLastActivity
+	}
+	return false
+}
+
 type UserServerNotificationLevelSetEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -648,7 +700,7 @@ type UserServerNotificationLevelSetEvent struct {
 
 func (x *UserServerNotificationLevelSetEvent) Reset() {
 	*x = UserServerNotificationLevelSetEvent{}
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[14]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -660,7 +712,7 @@ func (x *UserServerNotificationLevelSetEvent) String() string {
 func (*UserServerNotificationLevelSetEvent) ProtoMessage() {}
 
 func (x *UserServerNotificationLevelSetEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[14]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -673,7 +725,7 @@ func (x *UserServerNotificationLevelSetEvent) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use UserServerNotificationLevelSetEvent.ProtoReflect.Descriptor instead.
 func (*UserServerNotificationLevelSetEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{14}
+	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UserServerNotificationLevelSetEvent) GetUserId() string {
@@ -699,7 +751,7 @@ type UserServerNotificationLevelClearedEvent struct {
 
 func (x *UserServerNotificationLevelClearedEvent) Reset() {
 	*x = UserServerNotificationLevelClearedEvent{}
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[15]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -711,7 +763,7 @@ func (x *UserServerNotificationLevelClearedEvent) String() string {
 func (*UserServerNotificationLevelClearedEvent) ProtoMessage() {}
 
 func (x *UserServerNotificationLevelClearedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[15]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -724,7 +776,7 @@ func (x *UserServerNotificationLevelClearedEvent) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use UserServerNotificationLevelClearedEvent.ProtoReflect.Descriptor instead.
 func (*UserServerNotificationLevelClearedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{15}
+	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UserServerNotificationLevelClearedEvent) GetUserId() string {
@@ -745,7 +797,7 @@ type UserRoomNotificationLevelSetEvent struct {
 
 func (x *UserRoomNotificationLevelSetEvent) Reset() {
 	*x = UserRoomNotificationLevelSetEvent{}
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[16]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -757,7 +809,7 @@ func (x *UserRoomNotificationLevelSetEvent) String() string {
 func (*UserRoomNotificationLevelSetEvent) ProtoMessage() {}
 
 func (x *UserRoomNotificationLevelSetEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[16]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -770,7 +822,7 @@ func (x *UserRoomNotificationLevelSetEvent) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use UserRoomNotificationLevelSetEvent.ProtoReflect.Descriptor instead.
 func (*UserRoomNotificationLevelSetEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{16}
+	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *UserRoomNotificationLevelSetEvent) GetUserId() string {
@@ -804,7 +856,7 @@ type UserRoomNotificationLevelClearedEvent struct {
 
 func (x *UserRoomNotificationLevelClearedEvent) Reset() {
 	*x = UserRoomNotificationLevelClearedEvent{}
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[17]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -816,7 +868,7 @@ func (x *UserRoomNotificationLevelClearedEvent) String() string {
 func (*UserRoomNotificationLevelClearedEvent) ProtoMessage() {}
 
 func (x *UserRoomNotificationLevelClearedEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_chatto_core_v1_config_events_proto_msgTypes[17]
+	mi := &file_chatto_core_v1_config_events_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -829,7 +881,7 @@ func (x *UserRoomNotificationLevelClearedEvent) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use UserRoomNotificationLevelClearedEvent.ProtoReflect.Descriptor instead.
 func (*UserRoomNotificationLevelClearedEvent) Descriptor() ([]byte, []int) {
-	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{17}
+	return file_chatto_core_v1_config_events_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *UserRoomNotificationLevelClearedEvent) GetUserId() string {
@@ -879,7 +931,10 @@ const file_chatto_core_v1_config_events_proto_rawDesc = "" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x1a.chatto.core.v1.TimeFormatR\n" +
 	"timeFormat\"5\n" +
 	"\x1aUserTimeFormatClearedEvent\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"w\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"o\n" +
+	"&UserLastActivityVisibilityChangedEvent\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12,\n" +
+	"\x12show_last_activity\x18\x02 \x01(\bR\x10showLastActivity\"w\n" +
 	"#UserServerNotificationLevelSetEvent\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x127\n" +
 	"\x05level\x18\x02 \x01(\x0e2!.chatto.core.v1.NotificationLevelR\x05level\"B\n" +
@@ -906,7 +961,7 @@ func file_chatto_core_v1_config_events_proto_rawDescGZIP() []byte {
 	return file_chatto_core_v1_config_events_proto_rawDescData
 }
 
-var file_chatto_core_v1_config_events_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_chatto_core_v1_config_events_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_chatto_core_v1_config_events_proto_goTypes = []any{
 	(*ServerNameChangedEvent)(nil),                  // 0: chatto.core.v1.ServerNameChangedEvent
 	(*ServerDescriptionChangedEvent)(nil),           // 1: chatto.core.v1.ServerDescriptionChangedEvent
@@ -922,22 +977,23 @@ var file_chatto_core_v1_config_events_proto_goTypes = []any{
 	(*UserTimezoneClearedEvent)(nil),                // 11: chatto.core.v1.UserTimezoneClearedEvent
 	(*UserTimeFormatChangedEvent)(nil),              // 12: chatto.core.v1.UserTimeFormatChangedEvent
 	(*UserTimeFormatClearedEvent)(nil),              // 13: chatto.core.v1.UserTimeFormatClearedEvent
-	(*UserServerNotificationLevelSetEvent)(nil),     // 14: chatto.core.v1.UserServerNotificationLevelSetEvent
-	(*UserServerNotificationLevelClearedEvent)(nil), // 15: chatto.core.v1.UserServerNotificationLevelClearedEvent
-	(*UserRoomNotificationLevelSetEvent)(nil),       // 16: chatto.core.v1.UserRoomNotificationLevelSetEvent
-	(*UserRoomNotificationLevelClearedEvent)(nil),   // 17: chatto.core.v1.UserRoomNotificationLevelClearedEvent
-	(*v1.ServerPerformancePolicy)(nil),              // 18: chatto.config.v1.ServerPerformancePolicy
-	(*AssetRecord)(nil),                             // 19: chatto.core.v1.AssetRecord
-	(TimeFormat)(0),                                 // 20: chatto.core.v1.TimeFormat
-	(NotificationLevel)(0),                          // 21: chatto.core.v1.NotificationLevel
+	(*UserLastActivityVisibilityChangedEvent)(nil),  // 14: chatto.core.v1.UserLastActivityVisibilityChangedEvent
+	(*UserServerNotificationLevelSetEvent)(nil),     // 15: chatto.core.v1.UserServerNotificationLevelSetEvent
+	(*UserServerNotificationLevelClearedEvent)(nil), // 16: chatto.core.v1.UserServerNotificationLevelClearedEvent
+	(*UserRoomNotificationLevelSetEvent)(nil),       // 17: chatto.core.v1.UserRoomNotificationLevelSetEvent
+	(*UserRoomNotificationLevelClearedEvent)(nil),   // 18: chatto.core.v1.UserRoomNotificationLevelClearedEvent
+	(*v1.ServerPerformancePolicy)(nil),              // 19: chatto.config.v1.ServerPerformancePolicy
+	(*AssetRecord)(nil),                             // 20: chatto.core.v1.AssetRecord
+	(TimeFormat)(0),                                 // 21: chatto.core.v1.TimeFormat
+	(NotificationLevel)(0),                          // 22: chatto.core.v1.NotificationLevel
 }
 var file_chatto_core_v1_config_events_proto_depIdxs = []int32{
-	18, // 0: chatto.core.v1.ServerPerformancePolicyChangedEvent.policy:type_name -> chatto.config.v1.ServerPerformancePolicy
-	19, // 1: chatto.core.v1.ServerLogoSetEvent.asset:type_name -> chatto.core.v1.AssetRecord
-	19, // 2: chatto.core.v1.ServerBannerSetEvent.asset:type_name -> chatto.core.v1.AssetRecord
-	20, // 3: chatto.core.v1.UserTimeFormatChangedEvent.time_format:type_name -> chatto.core.v1.TimeFormat
-	21, // 4: chatto.core.v1.UserServerNotificationLevelSetEvent.level:type_name -> chatto.core.v1.NotificationLevel
-	21, // 5: chatto.core.v1.UserRoomNotificationLevelSetEvent.level:type_name -> chatto.core.v1.NotificationLevel
+	19, // 0: chatto.core.v1.ServerPerformancePolicyChangedEvent.policy:type_name -> chatto.config.v1.ServerPerformancePolicy
+	20, // 1: chatto.core.v1.ServerLogoSetEvent.asset:type_name -> chatto.core.v1.AssetRecord
+	20, // 2: chatto.core.v1.ServerBannerSetEvent.asset:type_name -> chatto.core.v1.AssetRecord
+	21, // 3: chatto.core.v1.UserTimeFormatChangedEvent.time_format:type_name -> chatto.core.v1.TimeFormat
+	22, // 4: chatto.core.v1.UserServerNotificationLevelSetEvent.level:type_name -> chatto.core.v1.NotificationLevel
+	22, // 5: chatto.core.v1.UserRoomNotificationLevelSetEvent.level:type_name -> chatto.core.v1.NotificationLevel
 	6,  // [6:6] is the sub-list for method output_type
 	6,  // [6:6] is the sub-list for method input_type
 	6,  // [6:6] is the sub-list for extension type_name
@@ -958,7 +1014,7 @@ func file_chatto_core_v1_config_events_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_core_v1_config_events_proto_rawDesc), len(file_chatto_core_v1_config_events_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   18,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
