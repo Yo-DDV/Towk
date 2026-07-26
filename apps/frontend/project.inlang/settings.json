@@ -12,6 +12,7 @@
       "./messages/{locale}/error_page.json",
       "./messages/{locale}/chat.json",
       "./messages/{locale}/room.json",
+      "./messages/{locale}/direct_message.json",
       "./messages/{locale}/server_settings.json",
       "./messages/{locale}/ui.json",
       "./messages/{locale}/quick_switcher.json",
