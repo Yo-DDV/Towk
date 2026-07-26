@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import '../../app.css';
 import { loadLocaleMessages } from '$lib/i18n/messages';
@@ -32,6 +32,8 @@ beforeEach(async () => {
   setReactiveLocale('en');
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe('ExternalGifEmbed responsive media geometry', () => {
   it('keeps direct media intrinsic, bounded, and above its compact controls', async () => {
     const screen = render(ExternalGifEmbed, { props: { gif: directImage, autoLoad: false } });
@@ -52,13 +54,7 @@ describe('ExternalGifEmbed responsive media geometry', () => {
     expect(image?.classList.contains('max-h-[36rem]')).toBe(true);
     expect(media).not.toBeNull();
     expect(controls).not.toBeNull();
-    expect(
-      Boolean(
-        media &&
-          controls &&
-          media.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING
-      )
-    ).toBe(true);
+    expect(media?.nextElementSibling).toBe(controls);
   });
 
   it('keeps provider page embeds responsive in a bounded widescreen frame', async () => {
