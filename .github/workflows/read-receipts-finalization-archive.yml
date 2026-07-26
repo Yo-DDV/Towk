@@ -35,46 +35,23 @@ jobs:
           path = Path('.github/workflows/read-receipts-main-merge-finalizer.yml')
           source = path.read_text(encoding='utf-8')
 
-          old_status = '''              printf 'failed_stage=%s\\n' "${stage}"
-              printf 'exit_code=%s\\n' "${code}"
-          '''
-          new_status = '''              printf 'failed_stage=%s\\n' "${stage}"
-              printf 'exit_code=%s\\n' "${code}"
-              printf 'run_id=%s\\n' "${GITHUB_RUN_ID}"
-              printf 'run_attempt=%s\\n' "${GITHUB_RUN_ATTEMPT}"
-          '''
-          if source.count(old_status) != 1:
-              raise SystemExit(f'expected one status block, got {source.count(old_status)}')
-          source = source.replace(old_status, new_status, 1)
+          old = "              printf 'exit_code=%s\\n' \"${code}\"\n"
+          new = old + "              printf 'run_id=%s\\n' \"${GITHUB_RUN_ID}\"\n" + "              printf 'run_attempt=%s\\n' \"${GITHUB_RUN_ATTEMPT}\"\n"
+          if source.count(old) != 1:
+              raise SystemExit(f'expected one exit-code status line, got {source.count(old)}')
+          source = source.replace(old, new, 1)
 
-          old_contract = '''          stage=contract
-          python3 - <<'PY'
-          '''
-          new_contract = '''          stage=contract-assertions
-          python3 - <<'PY'
-          '''
-          if source.count(old_contract) != 1:
-              raise SystemExit(f'expected one contract stage, got {source.count(old_contract)}')
-          source = source.replace(old_contract, new_contract, 1)
+          old = '          stage=contract\n'
+          new = '          stage=contract-assertions\n'
+          if source.count(old) != 1:
+              raise SystemExit(f'expected one contract stage line, got {source.count(old)}')
+          source = source.replace(old, new, 1)
 
-          old_buf = '''          PY
-          (cd proto && mise x -- buf build && mise x -- buf lint --path chatto/api/v1/read_state.proto --path chatto/core/v1/live_events.proto --path chatto/realtime/v1/realtime.proto)
-
-          stage=backend
-          '''
-          new_buf = '''          PY
-
-          stage=contract-buf-build
-          (cd proto && mise x -- buf build)
-
-          stage=contract-buf-lint
-          (cd proto && mise x -- buf lint --path chatto/api/v1/read_state.proto --path chatto/core/v1/live_events.proto --path chatto/realtime/v1/realtime.proto)
-
-          stage=backend
-          '''
-          if source.count(old_buf) != 1:
-              raise SystemExit(f'expected one buf contract block, got {source.count(old_buf)}')
-          source = source.replace(old_buf, new_buf, 1)
+          old = '          (cd proto && mise x -- buf build && mise x -- buf lint --path chatto/api/v1/read_state.proto --path chatto/core/v1/live_events.proto --path chatto/realtime/v1/realtime.proto)\n'
+          new = "          stage=contract-buf-build\n          (cd proto && mise x -- buf build)\n\n          stage=contract-buf-lint\n          (cd proto && mise x -- buf lint --path chatto/api/v1/read_state.proto --path chatto/core/v1/live_events.proto --path chatto/realtime/v1/realtime.proto)\n"
+          if source.count(old) != 1:
+              raise SystemExit(f'expected one buf contract line, got {source.count(old)}')
+          source = source.replace(old, new, 1)
 
           path.write_text(source, encoding='utf-8')
           PY
