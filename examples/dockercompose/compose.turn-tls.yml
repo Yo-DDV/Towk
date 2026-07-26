@@ -1,0 +1,28 @@
+# Optional dedicated-address TURN/TLS profile.
+# Use through ./turn-tls.sh so prerequisites are checked before containers change.
+services:
+  livekit:
+    # TURN/TLS support and its regression smoke tests target this exact release.
+    # This pin is intentionally scoped to the opt-in overlay until the standard
+    # profile independently adopts the same release.
+    image: livekit/livekit-server:v1.13.4@sha256:189f7c81b704a36642bc5c7e2d3e1ae83744627c11978a23a251bf19fbec64e0
+    cap_add:
+      - NET_BIND_SERVICE
+    group_add:
+      - "${TURN_KEY_GID:?Run ./turn-tls.sh preflight to derive TURN_KEY_GID}"
+    ports: !override
+      - "50000-50200:50000-50200/udp"
+      - "50201-50400:50201-50400/udp"
+      - "7881:7881/tcp"
+      - "3478:3478/udp"
+      - "${TURN_BIND_IP:?Set TURN_BIND_IP}:443:443/tcp"
+    volumes:
+      - "${TURN_LIVEKIT_CONFIG_FILE:?Run ./turn-tls.sh preflight}:/etc/livekit.yaml:ro"
+      - "${TURN_CERT_FILE:?Set TURN_CERT_FILE}:/etc/livekit-certs/fullchain.pem:ro"
+      - "${TURN_KEY_FILE:?Set TURN_KEY_FILE}:/etc/livekit-certs/privkey.pem:ro"
+
+  caddy:
+    ports: !override
+      - "${WEB_BIND_IP:?Set WEB_BIND_IP}:80:80/tcp"
+      - "${WEB_BIND_IP:?Set WEB_BIND_IP}:443:443/tcp"
+      - "${WEB_BIND_IP:?Set WEB_BIND_IP}:443:443/udp"

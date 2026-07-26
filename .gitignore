@@ -19,6 +19,7 @@ Thumbs.db
 !.env.example
 !.env.test
 examples/dockercompose/livekit.generated.yaml
+examples/dockercompose/.turn-tls/
 
 # Local runtime secrets and operator-generated archives
 /chatto.toml
