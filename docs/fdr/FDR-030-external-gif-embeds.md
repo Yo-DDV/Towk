@@ -195,5 +195,5 @@ protobuf, persisted event, database, or storage migration is required.
 
 ## Related
 
-- **ADR:** [ADR-053](../adr/ADR-053-provider-hosted-external-gif-embeds.md)
+- **ADR:** [ADR-054](../adr/ADR-054-provider-hosted-external-gif-embeds.md)
 - **FDRs:** FDR-009 (Link Previews), FDR-027 (PWA Shell & Service Worker)
