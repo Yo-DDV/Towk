@@ -79,9 +79,9 @@ test.describe('Liquid glass application surfaces', () => {
       .poll(async () => (await readSurfaceStyle(profile)).backgroundColor)
       .toMatch(/rgba?\(38,\s*38,\s*42/);
 
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    });
+    const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
+    await sidebarToggle.focus();
+    await expect(sidebarToggle).toBeFocused();
     await expect
       .poll(() => composer.evaluate((element) => element.matches(':focus-within')))
       .toBe(false);
@@ -147,9 +147,9 @@ test.describe('Liquid glass application surfaces', () => {
     await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
-    await page.evaluate(() => {
-      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    });
+    const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
+    await sidebarToggle.focus();
+    await expect(sidebarToggle).toBeFocused();
     await expect
       .poll(() => composer.evaluate((element) => element.matches(':focus-within')))
       .toBe(false);
