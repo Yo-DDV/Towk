@@ -3,6 +3,7 @@ import { render } from 'vitest-browser-svelte';
 import '../../app.css';
 import { loadLocaleMessages } from '$lib/i18n/messages';
 import { setReactiveLocale } from '$lib/i18n/state.svelte';
+import { userPreferences } from '$lib/state/userPreferences.svelte';
 
 const GIPHY_URL = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
 const GIPHY_MEDIA_URL = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
@@ -55,6 +56,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   mocks.serverInfo.capabilities = [];
   mocks.registered.capabilities = [];
+  userPreferences.externalGifAutoLoad = false;
   await loadLocaleMessages('en');
   setReactiveLocale('en');
 });
@@ -94,9 +96,7 @@ describe('MessageContent external GIF capability wiring', () => {
     await expect
       .element(screen.getByRole('link', { name: GIPHY_MEDIA_URL }))
       .not.toBeInTheDocument();
-    await expect
-      .element(screen.getByRole('link', { name: GIPHY_URL }))
-      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole('link', { name: GIPHY_URL })).not.toBeInTheDocument();
     expect(document.querySelectorAll(`a[href="${GIPHY_MEDIA_URL}"]`)).toHaveLength(1);
     expect(document.querySelectorAll(`a[href="${GIPHY_URL}"]`)).toHaveLength(1);
   });
@@ -128,9 +128,7 @@ describe('MessageContent external GIF capability wiring', () => {
     try {
       const screen = render(MessageContent, { props: { body: GIPHY_URL } });
       await expect.element(screen.getByTestId('external-gif-embed')).toBeVisible();
-      await expect
-        .element(screen.getByRole('link', { name: GIPHY_URL }))
-        .not.toBeInTheDocument();
+      await expect.element(screen.getByRole('link', { name: GIPHY_URL })).not.toBeInTheDocument();
     } finally {
       partialStore.serverInfo = liveServerInfo;
     }
@@ -144,9 +142,7 @@ describe('MessageContent external GIF capability wiring', () => {
     await expect.element(embed).toBeVisible();
     await expect.element(embed).toHaveAttribute('data-provider', 'klipy');
     await expect.element(screen.getByText(/KLIPY/)).toBeVisible();
-    await expect
-      .element(screen.getByRole('link', { name: KLIPY_URL }))
-      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole('link', { name: KLIPY_URL })).not.toBeInTheDocument();
   });
 
   it('honors a live disabled capability over stale registered support', async () => {
