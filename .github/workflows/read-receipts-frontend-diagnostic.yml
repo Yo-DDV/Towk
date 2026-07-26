@@ -27,16 +27,26 @@ jobs:
       - name: Verify merge parents
         shell: bash
         env:
-          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^1)" = "${EXPECTED_BASE_SHA}"
-          test "$(git rev-parse HEAD^2)" = "${EXPECTED_HEAD_SHA}"
+          git fetch --no-tags --depth=1 origin main
+          current_main="$(git rev-parse FETCH_HEAD)"
+          parents="$(git show -s --format=%P HEAD)"
+          test "$(wc -w <<< "${parents}")" -eq 2
+          case " ${parents} " in
+            *" ${current_main} "*) ;;
+            *) echo "merge parent missing current main ${current_main}: ${parents}" >&2; exit 11 ;;
+          esac
+          case " ${parents} " in
+            *" ${EXPECTED_HEAD_SHA} "*) ;;
+            *) echo "merge parent missing PR head ${EXPECTED_HEAD_SHA}: ${parents}" >&2; exit 12 ;;
+          esac
           {
             printf 'merge_sha=%s\n' "$(git rev-parse HEAD)"
-            printf 'base_sha=%s\n' "$(git rev-parse HEAD^1)"
-            printf 'head_sha=%s\n' "$(git rev-parse HEAD^2)"
+            printf 'main_sha=%s\n' "${current_main}"
+            printf 'head_sha=%s\n' "${EXPECTED_HEAD_SHA}"
+            printf 'parents=%s\n' "${parents}"
           } > "${RUNNER_TEMP}/read-receipts-merge-identity.txt"
 
       - name: Set up repository toolchain
