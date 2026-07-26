@@ -1,4 +1,5 @@
 name: temporary main snapshot
+# One-shot retrieval for rebuilding the mature localization branch.
 
 on:
   push:
