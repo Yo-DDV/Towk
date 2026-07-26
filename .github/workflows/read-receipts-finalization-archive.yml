@@ -41,58 +41,58 @@ jobs:
           path = Path('.github/scripts/pr173-reconcile.sh')
           source = path.read_text(encoding='utf-8')
 
-          old = '''  git read-tree --reset -u "${feature_head}" >/dev/null 2>&1 || true
-          git restore --staged --worktree . >/dev/null 2>&1 || true
-          '''
-          new = '''  git merge --abort >/dev/null 2>&1 || true
-          git checkout --detach "${feature_head}" >/dev/null 2>&1 || true
-          git restore --staged --worktree . >/dev/null 2>&1 || true
-          '''
-          if source.count(old) != 1:
-              raise SystemExit(f'expected one failure reset block, got {source.count(old)}')
-          source = source.replace(old, new, 1)
+          def replace_once(old: str, new: str, label: str) -> None:
+              global source
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one exact match, got {count}')
+              source = source.replace(old, new, 1)
 
-          old = '''stage="merge-tree"
-          if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then
-            merge_status=0
-          else
-            merge_status=$?
-          fi
-          '''
-          new = '''stage="prepare-tree"
-          git checkout --detach "${FEATURE_SOURCE}"
+          replace_once(
+              '  git read-tree --reset -u "${feature_head}" >/dev/null 2>&1 || true\n'
+              '  git restore --staged --worktree . >/dev/null 2>&1 || true\n',
+              '  git merge --abort >/dev/null 2>&1 || true\n'
+              '  git checkout --detach "${feature_head}" >/dev/null 2>&1 || true\n'
+              '  git restore --staged --worktree . >/dev/null 2>&1 || true\n',
+              'failure reset block',
+          )
 
-          stage="merge-tree"
-          if git merge --no-commit --no-ff "${EXPECTED_MAIN}"; then
-            merge_status=0
-          else
-            merge_status=$?
-          fi
-          '''
-          if source.count(old) != 1:
-              raise SystemExit(f'expected one merge-tree block, got {source.count(old)}')
-          source = source.replace(old, new, 1)
+          replace_once(
+              'stage="merge-tree"\n'
+              'if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then\n'
+              '  merge_status=0\n'
+              'else\n'
+              '  merge_status=$?\n'
+              'fi\n',
+              'stage="prepare-tree"\n'
+              'git checkout --detach "${FEATURE_SOURCE}"\n\n'
+              'stage="merge-tree"\n'
+              'if git merge --no-commit --no-ff "${EXPECTED_MAIN}"; then\n'
+              '  merge_status=0\n'
+              'else\n'
+              '  merge_status=$?\n'
+              'fi\n',
+              'merge-tree block',
+          )
 
-          old = '''stage="publish"
-          git fetch --no-tags origin main
-          test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"
-          git commit -m 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'
-          git push origin "HEAD:${TARGET_BRANCH}"
-          trap - ERR
-          '''
-          new = '''stage="publish"
-          git fetch --no-tags origin main "${TARGET_BRANCH}"
-          test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"
-          test "$(git rev-parse "origin/${TARGET_BRANCH}")" = "${feature_head}"
-          candidate_tree="$(git write-tree)"
-          candidate_commit="$(printf '%s\\n' 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]' | git commit-tree "${candidate_tree}" -p "${feature_head}")"
-          git push origin "${candidate_commit}:refs/heads/${TARGET_BRANCH}"
-          printf 'candidate_commit=%s\\n' "${candidate_commit}"
-          trap - ERR
-          '''
-          if source.count(old) != 1:
-              raise SystemExit(f'expected one publish block, got {source.count(old)}')
-          source = source.replace(old, new, 1)
+          replace_once(
+              'stage="publish"\n'
+              'git fetch --no-tags origin main\n'
+              'test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"\n'
+              "git commit -m 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'\n"
+              'git push origin "HEAD:${TARGET_BRANCH}"\n'
+              'trap - ERR\n',
+              'stage="publish"\n'
+              'git fetch --no-tags origin main "${TARGET_BRANCH}"\n'
+              'test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"\n'
+              'test "$(git rev-parse "origin/${TARGET_BRANCH}")" = "${feature_head}"\n'
+              'candidate_tree="$(git write-tree)"\n'
+              "candidate_commit=\"$(printf '%s\\n' 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]' | git commit-tree \"${candidate_tree}\" -p \"${feature_head}\")\"\n"
+              'git push origin "${candidate_commit}:refs/heads/${TARGET_BRANCH}"\n'
+              'printf \'candidate_commit=%s\\n\' "${candidate_commit}"\n'
+              'trap - ERR\n',
+              'publish block',
+          )
 
           path.write_text(source, encoding='utf-8')
           PY
@@ -111,7 +111,13 @@ jobs:
           set -euo pipefail
           output="${RUNNER_TEMP}/pr173-reconciliation-diagnostics"
           mkdir -p "${output}"
-          cp "${RUNNER_TEMP}/pr173-reconcile.log" "${output}/reconcile.log"
+          if test -f "${RUNNER_TEMP}/pr173-reconcile.log"; then
+            cp "${RUNNER_TEMP}/pr173-reconcile.log" "${output}/reconcile.log"
+            tail -n 260 "${RUNNER_TEMP}/pr173-reconcile.log" > "${output}/reconcile-tail.log"
+          else
+            printf '%s\n' 'reconciliation log was not created' > "${output}/reconcile.log"
+            cp "${output}/reconcile.log" "${output}/reconcile-tail.log"
+          fi
           if test -f .github/read-receipts-main-merge-finalizer-status.txt; then
             cp .github/read-receipts-main-merge-finalizer-status.txt "${output}/status.txt"
           fi
@@ -120,7 +126,6 @@ jobs:
             printf 'step_outcome=%s\n' "${{ steps.reconcile.outcome }}"
             printf 'step_conclusion=%s\n' "${{ steps.reconcile.conclusion }}"
           } > "${output}/workflow.txt"
-          tail -n 260 "${RUNNER_TEMP}/pr173-reconcile.log" > "${output}/reconcile-tail.log"
 
       - name: Upload reconciliation diagnostics
         if: always()
