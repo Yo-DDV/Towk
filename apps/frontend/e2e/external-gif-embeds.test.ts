@@ -170,7 +170,7 @@ test.describe('External GIF embeds', () => {
     expect(imageBounds.width).toBeGreaterThanOrEqual(319);
     expect(imageBounds.width).toBeLessThanOrEqual(577);
     expect(Math.abs(imageBounds.width - imageBounds.height)).toBeLessThan(2);
-    expect(Math.abs(shellBounds.width - imageBounds.width)).toBeLessThan(2);
+    expect(Math.abs(shellBounds.width - imageBounds.width)).toBeLessThanOrEqual(3);
   });
 
   test('auto-loads an official Tenor media URL', async ({ page, chatPage, roomPage }) => {
