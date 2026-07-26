@@ -6,6 +6,7 @@
   import MessageEvent from './MessageEvent.svelte';
   import SystemEvent from './SystemEvent.svelte';
   import type { OpenThreadHandler } from './threadOpenOptions';
+  import { shouldShowReadReceiptIndicator } from './readReceiptPresentation';
 
   let {
     event,
@@ -33,6 +34,9 @@
   // for now; a future iteration can teach Room.svelte to pass `isDM` down
   // and we can revive the suppression here.
   const isDMJoinLeave = $derived(false);
+  const visibleReadReceiptSummary = $derived(
+    shouldShowReadReceiptIndicator(event) ? readReceiptSummary : undefined
+  );
 </script>
 
 {#if !event?.event || isDMJoinLeave}
@@ -45,7 +49,7 @@
     {messageStore}
     {onOpenThread}
     {threadHasUnread}
-    {readReceiptSummary}
+    readReceiptSummary={visibleReadReceiptSummary}
     {readReceiptThreadRootEventId}
   />
 {:else}
