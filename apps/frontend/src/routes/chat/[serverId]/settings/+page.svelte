@@ -8,6 +8,7 @@
   import { toast } from '$lib/ui/toast';
   import { dropZone } from '$lib/attachments/dropZone.svelte';
   import DropZoneOverlay from '$lib/attachments/DropZoneOverlay.svelte';
+  import ProfileDetailsSettings from '$lib/components/settings/ProfileDetailsSettings.svelte';
   import {
     validateAndNormalizeDisplayName,
     validateAndNormalizeLogin,
@@ -369,6 +370,8 @@
       </Button>
     {/snippet}
   </Form>
+
+  <ProfileDetailsSettings />
 </div>
 
 <Dialog

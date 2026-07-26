@@ -12,64 +12,92 @@ afterEach(() => {
 
 describe('call video codec compatibility', () => {
   it('sends and decodes the VP8 common baseline', async () => {
-    const capabilities = RTCRtpSender.getCapabilities('video');
-    const vp8Codecs = capabilities?.codecs.filter(
-      (codec) => codec.mimeType.toLowerCase() === 'video/vp8'
-    );
-    expect(vp8Codecs?.length).toBeGreaterThan(0);
+    await expectCodecLoopback('video/VP8');
+  });
 
-    const sender = new RTCPeerConnection();
-    const receiver = new RTCPeerConnection();
-    peerConnections.push(sender, receiver);
-    sender.onicecandidate = ({ candidate }) => {
-      if (candidate) void receiver.addIceCandidate(candidate);
-    };
-    receiver.onicecandidate = ({ candidate }) => {
-      if (candidate) void sender.addIceCandidate(candidate);
-    };
-
-    const track = createAnimatedCanvasTrack();
-    mediaTracks.push(track);
-    const transceiver = sender.addTransceiver(track, { direction: 'sendonly' });
-    transceiver.setCodecPreferences(vp8Codecs!);
-
-    const remoteTrack = new Promise<MediaStreamTrack>((resolve) => {
-      receiver.ontrack = (event) => resolve(event.track);
-    });
-    const offer = await sender.createOffer();
-    await sender.setLocalDescription(offer);
-    await receiver.setRemoteDescription(offer);
-    const answer = await receiver.createAnswer();
-    await receiver.setLocalDescription(answer);
-    await sender.setRemoteDescription(answer);
-
-    const receivedTrack = await remoteTrack;
-    mediaTracks.push(receivedTrack);
-    const video = document.createElement('video');
-    video.autoplay = true;
-    video.muted = true;
-    video.playsInline = true;
-    video.srcObject = new MediaStream([receivedTrack]);
-    document.body.append(video);
-
-    try {
-      await vi.waitFor(
-        async () => {
-          const outbound = await primaryVideoRtpStats(sender, 'outbound-rtp');
-          const inbound = await primaryVideoRtpStats(receiver, 'inbound-rtp');
-          expect(outbound.codecMimeType).toBe('video/VP8');
-          expect(outbound.bytes).toBeGreaterThan(0);
-          expect(inbound.codecMimeType).toBe('video/VP8');
-          expect(inbound.bytes).toBeGreaterThan(0);
-          expect(inbound.frames).toBeGreaterThan(0);
-        },
-        { timeout: 10_000, interval: 100 }
-      );
-    } finally {
-      video.remove();
+  it('sends and decodes H.264 packetization mode 1 when the browser exposes it', async (context) => {
+    const compatibleH264 = matchingCodecs('video/H264', h264ModeOneCapability);
+    if (!compatibleH264.length) {
+      context.skip();
+      return;
     }
+    await expectCodecLoopback('video/H264', h264ModeOneCapability);
   });
 });
+
+function h264ModeOneCapability(codec: RTCRtpCapabilities['codecs'][number]): boolean {
+  return /(?:^|;)\s*packetization-mode=1(?:;|$)/i.test(codec.sdpFmtpLine ?? '');
+}
+
+function matchingCodecs(
+  mimeType: string,
+  codecFilter: (codec: RTCRtpCapabilities['codecs'][number]) => boolean = () => true
+): RTCRtpCapabilities['codecs'] {
+  return (
+    RTCRtpSender.getCapabilities('video')?.codecs.filter(
+      (codec) => codec.mimeType.toLowerCase() === mimeType.toLowerCase() && codecFilter(codec)
+    ) ?? []
+  );
+}
+
+async function expectCodecLoopback(
+  mimeType: string,
+  codecFilter: (codec: RTCRtpCapabilities['codecs'][number]) => boolean = () => true
+): Promise<void> {
+  const codecs = matchingCodecs(mimeType, codecFilter);
+  expect(codecs.length).toBeGreaterThan(0);
+
+  const sender = new RTCPeerConnection();
+  const receiver = new RTCPeerConnection();
+  peerConnections.push(sender, receiver);
+  sender.onicecandidate = ({ candidate }) => {
+    if (candidate) void receiver.addIceCandidate(candidate);
+  };
+  receiver.onicecandidate = ({ candidate }) => {
+    if (candidate) void sender.addIceCandidate(candidate);
+  };
+
+  const track = createAnimatedCanvasTrack();
+  mediaTracks.push(track);
+  const transceiver = sender.addTransceiver(track, { direction: 'sendonly' });
+  transceiver.setCodecPreferences(codecs);
+
+  const remoteTrack = new Promise<MediaStreamTrack>((resolve) => {
+    receiver.ontrack = (event) => resolve(event.track);
+  });
+  const offer = await sender.createOffer();
+  await sender.setLocalDescription(offer);
+  await receiver.setRemoteDescription(offer);
+  const answer = await receiver.createAnswer();
+  await receiver.setLocalDescription(answer);
+  await sender.setRemoteDescription(answer);
+
+  const receivedTrack = await remoteTrack;
+  mediaTracks.push(receivedTrack);
+  const video = document.createElement('video');
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = new MediaStream([receivedTrack]);
+  document.body.append(video);
+
+  try {
+    await vi.waitFor(
+      async () => {
+        const outbound = await primaryVideoRtpStats(sender, 'outbound-rtp');
+        const inbound = await primaryVideoRtpStats(receiver, 'inbound-rtp');
+        expect(outbound.codecMimeType?.toLowerCase()).toBe(mimeType.toLowerCase());
+        expect(outbound.bytes).toBeGreaterThan(0);
+        expect(inbound.codecMimeType?.toLowerCase()).toBe(mimeType.toLowerCase());
+        expect(inbound.bytes).toBeGreaterThan(0);
+        expect(inbound.frames).toBeGreaterThan(0);
+      },
+      { timeout: 10_000, interval: 100 }
+    );
+  } finally {
+    video.remove();
+  }
+}
 
 function createAnimatedCanvasTrack(): MediaStreamTrack {
   const canvas = document.createElement('canvas');

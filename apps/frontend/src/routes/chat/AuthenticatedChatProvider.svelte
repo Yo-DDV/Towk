@@ -19,6 +19,7 @@
     useSessionTerminated
   } from '$lib/hooks';
   import {
+    invalidateDetailedUserProfile,
     scheduleCustomStatusExpiry,
     type CustomUserStatus
   } from '$lib/state/userProfiles.svelte';
@@ -158,6 +159,17 @@
     useUserSettingsUpdate((update) => {
       userSettings.timezone = update.timezone;
       userSettings.timeFormat = update.timeFormat;
+      if (currentUserState.user) {
+        currentUserState.user = {
+          ...currentUserState.user,
+          settings: {
+            timezone: update.timezone,
+            timeFormat: update.timeFormat,
+            showLastActivity: update.showLastActivity
+          }
+        };
+        invalidateDetailedUserProfile(authenticatedOriginServerId, currentUserState.user.id);
+      }
     });
 
     // Handle session terminated events from server (logout from another tab/device, admin boot)

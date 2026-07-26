@@ -11,8 +11,12 @@
 
   const activeInstanceId = $derived(getActiveServer());
   const serverSegment = $derived(serverIdToSegment(activeInstanceId));
+  const modalContainerId = $props.id();
+  const deleteDirectMessageDescriptionId = `${modalContainerId}-delete-dm-description`;
   import Dialog from '$lib/ui/Dialog.svelte';
   import ConfirmDialog from '$lib/ui/ConfirmDialog.svelte';
+  import { Button } from '$lib/ui/form';
+  import Pill from '$lib/ui/Pill.svelte';
   import CreateRoom from '$lib/CreateRoom.svelte';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
   import { createMessageAPI } from '$lib/api-client/messages';
@@ -25,6 +29,8 @@
     refreshAttachmentUrlsForAssets
   } from '$lib/attachments/attachmentUrls';
   import { assetUrlForServer } from '$lib/assets/assetUrls';
+  import { purgeOfflineRoom } from '$lib/pwa/offlineData';
+  import { privateDataScopeForServer } from '$lib/pwa/scope';
   import { toast } from '$lib/ui/toast';
   import { clearLastRoom } from '$lib/storage/lastRoom';
   import { notifyRoomMessageMutated } from '$lib/state/room/messageMutationEvents';
@@ -56,6 +62,7 @@
   }
 
   let leavingRoom = $state(false);
+  let deletingDirectMessage = $state(false);
   let leavingServer = $state(false);
   let deletingMessage = $state(false);
   let deletingLinkPreview = $state(false);
@@ -64,16 +71,19 @@
   // Keep the lightbox ahead of the 24-hour access ticket expiry.
   const IMAGE_MODAL_URL_REFRESH_MS = 23 * 60 * 60 * 1000;
 
+  function getRoomCommandAPI() {
+    const conn = serverConnectionManager.getClient(activeInstanceId);
+    return createRoomCommandAPI({
+      serverId: conn.serverId ?? activeInstanceId,
+      baseUrl: conn.connectBaseUrl,
+      bearerToken: conn.bearerToken
+    });
+  }
+
   async function handleLeaveRoom(roomId: string) {
     leavingRoom = true;
     try {
-      const conn = serverConnectionManager.getClient(activeInstanceId);
-      const api = createRoomCommandAPI({
-        serverId: conn.serverId ?? activeInstanceId,
-        baseUrl: conn.connectBaseUrl,
-        bearerToken: conn.bearerToken
-      });
-      await api.leaveRoom(roomId);
+      await getRoomCommandAPI().leaveRoom(roomId);
     } catch (error) {
       leavingRoom = false;
       toast.error(m['room.leave.failed']());
@@ -85,6 +95,39 @@
 
     clearLastRoom(activeInstanceId);
     goto(resolve('/chat/[serverId]', { serverId: serverSegment }));
+  }
+
+  async function handleDeleteDirectMessage(roomId: string) {
+    deletingDirectMessage = true;
+    try {
+      await getRoomCommandAPI().leaveRoom(roomId);
+    } catch (error) {
+      deletingDirectMessage = false;
+      toast.error(m['room.direct_message_delete.failed']());
+      console.error('Error deleting direct-message history:', error);
+      closeModal();
+      return;
+    }
+
+    const scope = privateDataScopeForServer(serverRegistry.getServer(activeInstanceId));
+    if (scope) {
+      try {
+        await purgeOfflineRoom(scope, roomId);
+      } catch (error) {
+        toast.error(m['room.direct_message_delete.local_cleanup_failed']());
+        console.error('Error purging deleted direct-message data from this device:', error);
+      }
+    }
+
+    try {
+      await serverRegistry.getStore(activeInstanceId).rooms.refresh();
+    } catch (error) {
+      console.warn('Failed to refresh rooms after deleting direct-message history:', error);
+    }
+
+    deletingDirectMessage = false;
+    clearLastRoom(activeInstanceId);
+    goto(resolve('/chat/[serverId]', { serverId: serverSegment }), { replaceState: true });
   }
 
   async function handleLeaveServer() {
@@ -260,6 +303,124 @@
   >
     {m['room.leave.prompt']({ room: roomName ?? '' })}
   </ConfirmDialog>
+{:else if modalType === 'deleteDirectMessage' && roomId}
+  <Dialog
+    visible
+    title={m['room.direct_message_delete.title']()}
+    size="md"
+    describedBy={deleteDirectMessageDescriptionId}
+    onclose={closeModal}
+  >
+    <form
+      class="flex flex-col gap-5"
+      onsubmit={(event) => {
+        event.preventDefault();
+        if (!deletingDirectMessage) {
+          handleDeleteDirectMessage(roomId);
+        }
+      }}
+    >
+      <section class="rounded-xl border border-danger/25 bg-danger/[0.06] p-4 sm:p-5">
+        <div class="flex items-start gap-3.5 sm:gap-4">
+          <div
+            class="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-danger/10 text-danger ring-1 ring-danger/20 sm:h-12 sm:w-12"
+            aria-hidden="true"
+          >
+            <span class="iconify text-xl uil--trash-alt sm:text-2xl"></span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <Pill tone="danger">{m['room.direct_message_delete.only_for_you']()}</Pill>
+            <p
+              id={deleteDirectMessageDescriptionId}
+              class="mt-2.5 text-sm leading-6 text-text sm:text-base"
+            >
+              {m['room.direct_message_delete.prompt']({ room: roomName ?? '' })}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="overflow-hidden surface-box"
+        aria-label={m['room.direct_message_delete.only_for_you']()}
+      >
+        <ul class="divide-y divide-border">
+          <li class="flex items-start gap-3 px-3.5 py-3.5 sm:px-4">
+            <span
+              class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-200 text-muted"
+              aria-hidden="true"
+            >
+              <span class="iconify text-lg uil--eye-slash"></span>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-medium text-text">
+                {m['room.direct_message_delete.history_title']()}
+              </span>
+              <span class="mt-0.5 block text-xs leading-5 text-muted sm:text-sm">
+                {m['room.direct_message_delete.history_body']()}
+              </span>
+            </span>
+          </li>
+          <li class="flex items-start gap-3 px-3.5 py-3.5 sm:px-4">
+            <span
+              class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-200 text-muted"
+              aria-hidden="true"
+            >
+              <span class="iconify text-lg uil--user-check"></span>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-medium text-text">
+                {m['room.direct_message_delete.peer_title']()}
+              </span>
+              <span class="mt-0.5 block text-xs leading-5 text-muted sm:text-sm">
+                {m['room.direct_message_delete.peer_body']()}
+              </span>
+            </span>
+          </li>
+          <li class="flex items-start gap-3 px-3.5 py-3.5 sm:px-4">
+            <span
+              class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface-200 text-muted"
+              aria-hidden="true"
+            >
+              <span class="iconify text-lg uil--comment-alt-message"></span>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-medium text-text">
+                {m['room.direct_message_delete.reopen_title']()}
+              </span>
+              <span class="mt-0.5 block text-xs leading-5 text-muted sm:text-sm">
+                {m['room.direct_message_delete.reopen_body']()}
+              </span>
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <div class="grid grid-cols-1 gap-2 border-t border-text/10 pt-4 sm:grid-cols-2">
+        <Button
+          type="button"
+          variant="secondary"
+          fullWidth
+          disabled={deletingDirectMessage}
+          onclick={closeModal}
+        >
+          {m['common.cancel']()}
+        </Button>
+        <Button
+          type="submit"
+          variant="danger"
+          fullWidth
+          loading={deletingDirectMessage}
+          loadingText={m['ui.dialog.submit_loading']({
+            label: m['room.direct_message_delete.action']()
+          })}
+        >
+          <span class="iconify uil--trash-alt" aria-hidden="true"></span>
+          {m['room.direct_message_delete.action']()}
+        </Button>
+      </div>
+    </form>
+  </Dialog>
 {:else if modalType === 'leaveServer'}
   <ConfirmDialog
     title={m['room.server.leave_title']()}

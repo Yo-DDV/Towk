@@ -1,0 +1,29 @@
+@media (any-hover: hover) and (any-pointer: fine) {
+  :root[data-auto-hide-scrollbars],
+  :root[data-auto-hide-scrollbars] * {
+    scrollbar-color: transparent transparent;
+  }
+
+  :root[data-auto-hide-scrollbars][data-scrollbar-active],
+  :root[data-auto-hide-scrollbars]
+    [data-scrollbar-active]:not(.timeline-scrollbar-suspended) {
+    scrollbar-color: var(--color-surface-300) transparent;
+  }
+
+  :root[data-auto-hide-scrollbars]::-webkit-scrollbar-thumb,
+  :root[data-auto-hide-scrollbars] *::-webkit-scrollbar-thumb,
+  :root[data-auto-hide-scrollbars]::-webkit-scrollbar-track,
+  :root[data-auto-hide-scrollbars] *::-webkit-scrollbar-track,
+  :root[data-auto-hide-scrollbars]::-webkit-scrollbar-corner,
+  :root[data-auto-hide-scrollbars] *::-webkit-scrollbar-corner,
+  :root[data-auto-hide-scrollbars]::-webkit-scrollbar-button,
+  :root[data-auto-hide-scrollbars] *::-webkit-scrollbar-button {
+    background-color: transparent;
+  }
+
+  :root[data-auto-hide-scrollbars][data-scrollbar-active]::-webkit-scrollbar-thumb,
+  :root[data-auto-hide-scrollbars]
+    [data-scrollbar-active]:not(.timeline-scrollbar-suspended)::-webkit-scrollbar-thumb {
+    background-color: var(--color-surface-300);
+  }
+}

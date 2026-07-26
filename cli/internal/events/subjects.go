@@ -133,6 +133,7 @@ const (
 	EventUserTimezoneCleared                = "user_timezone_cleared"
 	EventUserTimeFormatChanged              = "user_time_format_changed"
 	EventUserTimeFormatCleared              = "user_time_format_cleared"
+	EventUserLastActivityVisibilityChanged  = "user_last_activity_visibility_changed"
 	EventUserServerNotificationLevelSet     = "user_server_notification_level_set"
 	EventUserServerNotificationLevelCleared = "user_server_notification_level_cleared"
 	EventUserRoomNotificationLevelSet       = "user_room_notification_level_set"
@@ -157,6 +158,8 @@ const (
 	EventUserDEKGenerated             = "dek_generated"
 	EventUserCustomStatusSet          = "custom_status_set"
 	EventUserCustomStatusCleared      = "custom_status_cleared"
+	EventUserBiographyChanged         = "biography_changed"
+	EventUserBiographyCleared         = "biography_cleared"
 
 	// RBAC aggregate
 	EventRBACRoleCreated            = "role_created"
@@ -319,6 +322,8 @@ func EventTypeOf(e *corev1.Event) string {
 		return EventUserTimeFormatChanged
 	case *corev1.Event_UserTimeFormatCleared:
 		return EventUserTimeFormatCleared
+	case *corev1.Event_UserLastActivityVisibilityChanged:
+		return EventUserLastActivityVisibilityChanged
 	case *corev1.Event_UserServerNotificationLevelSet:
 		return EventUserServerNotificationLevelSet
 	case *corev1.Event_UserServerNotificationLevelCleared:
@@ -364,6 +369,10 @@ func EventTypeOf(e *corev1.Event) string {
 		return EventUserCustomStatusSet
 	case *corev1.Event_UserCustomStatusCleared:
 		return EventUserCustomStatusCleared
+	case *corev1.Event_UserBiographyChanged:
+		return EventUserBiographyChanged
+	case *corev1.Event_UserBiographyCleared:
+		return EventUserBiographyCleared
 
 	case *corev1.Event_RbacRoleCreated:
 		return EventRBACRoleCreated

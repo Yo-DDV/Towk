@@ -130,6 +130,8 @@
     "screen_stats_loading": "Reading WebRTC statistics…",
     "screen_stats_unavailable": "Statistics are temporarily unavailable for this track.",
     "screen_stats_retrying": "Towk will retry on the next sample.",
+    "screen_stats_partial_sample": "Partial sample · keeping the last stable values visible.",
+    "screen_stats_observed_causes": "Observed causes",
     "screen_stats_resolution": "Delivered resolution",
     "screen_stats_source_resolution": "Capture resolution",
     "screen_stats_fps": "Frames per second",
@@ -172,6 +174,12 @@
     "screen_stats_content_hint": "Content hint",
     "screen_stats_yes": "Yes",
     "screen_stats_no": "No",
-    "screen_stats_local_only": "Updates every 2 seconds while open · 60-second local history · nothing is uploaded"
+    "screen_stats_technical_details": "Technical details",
+    "video_quality_title": "Video quality",
+    "screen_share_frame_rate": "Screen-share frame rate",
+    "screen_share_frame_rate_standard": "Stable · up to 30 FPS",
+    "screen_share_frame_rate_high": "High motion · up to 60 FPS",
+    "screen_share_frame_rate_unavailable": "High frame rate is unavailable in this browser",
+    "screen_stats_local_only": "Local metrics · 60-second history · nothing is uploaded"
   }
 }

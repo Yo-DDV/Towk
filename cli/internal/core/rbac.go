@@ -230,6 +230,7 @@ func (c *ChattoCore) AssignServerRole(ctx context.Context, actorID, userID, role
 	}
 
 	c.logger.Info("Assigned role", "role", roleName, "user_id", userID, "actor_id", actorID)
+	c.publishUserProfileDetailsUpdate(ctx, userID)
 	return nil
 }
 
@@ -265,6 +266,7 @@ func (c *ChattoCore) AssignServerRoleToExistingUser(ctx context.Context, actorID
 	}
 
 	c.logger.Info("Assigned role", "role", roleName, "user_id", userID, "actor_id", actorID)
+	c.publishUserProfileDetailsUpdate(ctx, userID)
 	return nil
 }
 
@@ -299,6 +301,7 @@ func (c *ChattoCore) RevokeServerRole(ctx context.Context, actorID, userID, role
 	}
 
 	c.logger.Info("Revoked role", "role", roleName, "user_id", userID, "actor_id", actorID)
+	c.publishUserProfileDetailsUpdate(ctx, userID)
 	return nil
 }
 
@@ -331,6 +334,7 @@ func (c *ChattoCore) RevokeServerRoleFromExistingUser(ctx context.Context, actor
 	}
 
 	c.logger.Info("Revoked role", "role", roleName, "user_id", userID, "actor_id", actorID)
+	c.publishUserProfileDetailsUpdate(ctx, userID)
 	return nil
 }
 
@@ -879,5 +883,8 @@ func (c *ChattoCore) RevokeAllUserRoles(ctx context.Context, actorID, userID str
 	}
 
 	c.logger.Debug("Revoked all roles for user", "user_id", userID, "actor_id", actorID)
+	if len(entries) > 0 {
+		c.publishUserProfileDetailsUpdate(ctx, userID)
+	}
 	return nil
 }

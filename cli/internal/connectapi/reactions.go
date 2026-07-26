@@ -13,6 +13,9 @@ func (s *messageService) AddReaction(ctx context.Context, req *connect.Request[a
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireAccessibleDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.MessageEventId); err != nil {
+		return nil, connectError(err)
+	}
 
 	added, err := s.api.core.ReactionModel().AddReaction(ctx, core.ReactionMutationInput{
 		ActorID:        caller.UserID,
@@ -33,6 +36,9 @@ func (s *messageService) RemoveReaction(ctx context.Context, req *connect.Reques
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if err := s.requireAccessibleDMEvent(ctx, caller.UserID, req.Msg.RoomId, req.Msg.MessageEventId); err != nil {
+		return nil, connectError(err)
 	}
 
 	removed, err := s.api.core.ReactionModel().RemoveReaction(ctx, core.ReactionMutationInput{

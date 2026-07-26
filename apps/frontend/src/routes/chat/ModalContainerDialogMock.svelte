@@ -9,15 +9,17 @@ Tiny test double for Dialog used by ModalContainer specs.
   let {
     children,
     footer,
-    title
+    title,
+    describedBy
   }: {
     children: Snippet;
     footer?: Snippet;
     title: string;
+    describedBy?: string;
   } = $props();
 </script>
 
-<dialog open aria-label={title}>
+<dialog open aria-label={title} aria-describedby={describedBy}>
   <div>{@render children()}</div>
   {#if footer}
     <footer>{@render footer()}</footer>

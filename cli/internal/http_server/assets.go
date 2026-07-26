@@ -352,6 +352,18 @@ func (s *HTTPServer) resolveStableAttachment(c *gin.Context, ctx context.Context
 		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: not a member of the room"})
 		return nil, false
 	}
+	if kind == core.KindDM {
+		accessible, err := s.core.CanAccessDMAsset(ctx, userID, roomID, assetID)
+		if err != nil {
+			s.logger.Error("Failed to enforce DM attachment history cutoff", "error", err, "room_id", roomID)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify access"})
+			return nil, false
+		}
+		if !accessible {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+			return nil, false
+		}
+	}
 
 	attachment := core.AttachmentFromAsset(declared.GetAsset())
 	if attachment == nil {

@@ -201,7 +201,7 @@
         <span class="iconify text-lg uil--bell"></span>
       </button>
       <button type="button" class="app-header-icon" aria-label="Quick switcher">
-        <span class="iconify text-lg uil--apps"></span>
+        <span class="iconify text-lg uil--search"></span>
       </button>
     </div>
   </div>

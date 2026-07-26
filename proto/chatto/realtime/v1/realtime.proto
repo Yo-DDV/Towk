@@ -449,6 +449,8 @@ message RealtimeUserProfileUpdatedEvent {
   string display_name = 3;
   // Avatar URL, when the user has an avatar.
   optional string avatar_url = 4;
+  // True when clients should invalidate the detailed profile cache.
+  bool details_changed = 5;
 }
 
 // User-custom-status set signal.
@@ -483,6 +485,8 @@ message RealtimeServerUserPreferencesUpdatedEvent {
   optional string timezone = 1;
   // Preferred time display format.
   chatto.api.v1.TimeFormat time_format = 2;
+  // Effective last-activity visibility preference.
+  bool show_last_activity = 3;
 }
 
 // Room-group layout signal.

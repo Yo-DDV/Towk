@@ -26,6 +26,9 @@ message UserSettings {
   optional string timezone = 1;
   // Preferred time format.
   TimeFormat time_format = 2;
+  // Whether other authenticated server members may see last activity.
+  // The API returns true when no explicit preference has been stored.
+  bool show_last_activity = 3;
 }
 
 // Current authenticated user's public profile plus self-only settings.

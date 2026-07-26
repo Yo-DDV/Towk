@@ -44,12 +44,29 @@ func (s *roomService) ListRoomAttachments(ctx context.Context, req *connect.Requ
 		return nil, connectError(err)
 	}
 
+	kind, err := s.api.core.FindRoomKind(ctx, req.Msg.RoomId)
+	if err != nil {
+		return nil, connectError(err)
+	}
 	thumbnail := assetThumbnailOptions(req.Msg.Thumbnail)
 	mapper := attachmentMapper{api: s.api}
 	attachments := make([]*apiv1.RoomAttachmentListItem, 0, len(result.Items))
+	cutoffReached := false
 	for _, item := range result.Items {
 		if item == nil {
 			continue
+		}
+		if kind == core.KindDM {
+			accessible, err := s.api.core.CanAccessDMEvent(ctx, caller.UserID, req.Msg.RoomId, item.MessageEventID)
+			if err != nil {
+				return nil, connectError(err)
+			}
+			if !accessible {
+				// The attachment projection is ordered newest-first. Once the private
+				// cutoff is reached, all remaining rows are older as well.
+				cutoffReached = true
+				continue
+			}
 		}
 		attachments = append(attachments, &apiv1.RoomAttachmentListItem{
 			Attachment:        mapper.asset(item.Attachment, caller.UserID, thumbnail),
@@ -59,9 +76,16 @@ func (s *roomService) ListRoomAttachments(ctx context.Context, req *connect.Requ
 		})
 	}
 
+	hasMore := result.HasMore && !cutoffReached
+	visibleCount := offset + len(attachments)
+	if hasMore {
+		// PageInfo exposes only a lower bound while more visible rows may exist;
+		// it must never disclose the count of privately deleted attachments.
+		visibleCount++
+	}
 	return connect.NewResponse(&apiv1.ListRoomAttachmentsResponse{
 		Attachments: attachments,
-		Page:        apiPageInfo(result.TotalCount, result.HasMore),
+		Page:        apiPageInfo(visibleCount, hasMore),
 	}), nil
 }
 
@@ -76,6 +100,9 @@ func (s *assetService) GetAsset(ctx context.Context, req *connect.Request[apiv1.
 		AssetID: req.Msg.AssetId,
 	})
 	if err != nil {
+		return nil, connectError(err)
+	}
+	if err := s.requireAccessibleDMAsset(ctx, caller.UserID, req.Msg.RoomId, req.Msg.AssetId); err != nil {
 		return nil, connectError(err)
 	}
 	mapper := attachmentMapper{api: s.api}
@@ -97,13 +124,47 @@ func (s *assetService) BatchGetAssets(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, connectError(err)
 	}
+	kind, err := s.api.core.FindRoomKind(ctx, req.Msg.RoomId)
+	if err != nil {
+		return nil, connectError(err)
+	}
 	thumbnail := assetThumbnailOptions(req.Msg.Thumbnail)
 	mapper := attachmentMapper{api: s.api}
 	out := make([]*apiv1.Asset, 0, len(assets))
 	for _, asset := range assets {
+		if asset == nil {
+			continue
+		}
+		if kind == core.KindDM {
+			accessible, err := s.api.core.CanAccessDMAsset(ctx, caller.UserID, req.Msg.RoomId, asset.GetId())
+			if err != nil {
+				return nil, connectError(err)
+			}
+			if !accessible {
+				continue
+			}
+		}
 		out = append(out, mapper.asset(asset, caller.UserID, thumbnail))
 	}
 	return connect.NewResponse(&apiv1.BatchGetAssetsResponse{Assets: out}), nil
+}
+
+func (s *assetService) requireAccessibleDMAsset(ctx context.Context, actorID, roomID, assetID string) error {
+	kind, err := s.api.core.FindRoomKind(ctx, roomID)
+	if err != nil {
+		return err
+	}
+	if kind != core.KindDM {
+		return nil
+	}
+	accessible, err := s.api.core.CanAccessDMAsset(ctx, actorID, roomID, assetID)
+	if err != nil {
+		return err
+	}
+	if !accessible {
+		return core.ErrNotFound
+	}
+	return nil
 }
 
 func (s *attachmentMapper) asset(attachment *corev1.Attachment, viewerID string, thumbnail attachmentThumbnailRequest) *apiv1.Asset {

@@ -14,11 +14,18 @@ import RoomSidebarTestHarness from './RoomSidebarTestHarness.svelte';
 
 const queryMock = vi.hoisted(() => vi.fn());
 const memberDirectoryMocks = vi.hoisted(() => ({
+  getUserProfile: vi.fn(),
   listRoomMembers: vi.fn()
 }));
 const attachmentMocks = vi.hoisted(() => ({
   listRoomAttachments: vi.fn(),
   refreshAssetUrls: vi.fn()
+}));
+const navigationMocks = vi.hoisted(() => ({
+  goto: vi.fn(),
+  pushState: vi.fn(),
+  replaceState: vi.fn(),
+  pageState: {} as Record<string, unknown>
 }));
 const callStore = vi.hoisted(() => ({
   voiceCall: {
@@ -135,6 +142,34 @@ vi.mock('$lib/hooks', () => ({
   useEvent: vi.fn()
 }));
 
+vi.mock('$lib/components/menus/UserContextMenu.svelte', async () => {
+  const { default: UserContextMenuMock } = await import('./RoomSidebarUserContextMenuMock.svelte');
+  return { default: UserContextMenuMock };
+});
+
+vi.mock('$app/state', () => ({
+  navigating: { complete: null },
+  page: { state: navigationMocks.pageState }
+}));
+
+vi.mock('$app/navigation', () => ({
+  goto: navigationMocks.goto,
+  pushState: (_url: string, state: Record<string, unknown>) => {
+    for (const key of Object.keys(navigationMocks.pageState)) delete navigationMocks.pageState[key];
+    Object.assign(navigationMocks.pageState, state);
+    navigationMocks.pushState(_url, state);
+  },
+  replaceState: (_url: string, state: Record<string, unknown>) => {
+    for (const key of Object.keys(navigationMocks.pageState)) delete navigationMocks.pageState[key];
+    Object.assign(navigationMocks.pageState, state);
+    navigationMocks.replaceState(_url, state);
+  }
+}));
+
+vi.mock('$app/paths', () => ({
+  resolve: (_route: string, params: { serverId: string }) => `/chat/${params.serverId}/settings`
+}));
+
 vi.mock('$lib/state/server/connection.svelte', () => ({
   useConnection: () => () => ({
     serverId: 'test-server',
@@ -165,6 +200,7 @@ vi.mock('$lib/api-client/attachments', () => ({
 vi.mock('$lib/api-client/memberDirectory', async (importActual) => ({
   ...(await importActual<typeof import('$lib/api-client/memberDirectory')>()),
   createMemberDirectoryAPI: vi.fn(() => ({
+    getUserProfile: memberDirectoryMocks.getUserProfile,
     listRoomMembers: memberDirectoryMocks.listRoomMembers
   }))
 }));
@@ -192,7 +228,10 @@ vi.mock('$lib/state/userProfiles.svelte', () => ({
   getLiveAvatarUrl: (_userId: string, fallback: string | null) => fallback,
   getLiveCustomStatus: (_userId: string, fallback: unknown) => fallback,
   getLiveDisplayName: (_userId: string, fallback: string) => fallback,
-  getLiveLogin: (_userId: string, fallback: string) => fallback
+  getLiveLogin: (_userId: string, fallback: string) => fallback,
+  getDetailedUserProfileRevision: () => 0,
+  loadDetailedUserProfile: (_serverId: string, _userId: string, load: () => Promise<unknown>) =>
+    load()
 }));
 
 function member(index: number): RoomMember {
@@ -366,9 +405,21 @@ describe('RoomSidebar', () => {
     await loadLocaleMessages('en');
     setReactiveLocale('en');
     queryMock.mockReset();
+    memberDirectoryMocks.getUserProfile.mockReset();
     memberDirectoryMocks.listRoomMembers.mockReset();
     attachmentMocks.listRoomAttachments.mockReset();
     attachmentMocks.refreshAssetUrls.mockReset();
+    memberDirectoryMocks.getUserProfile.mockResolvedValue({
+      user: { ...member(1), deleted: false },
+      roles: [],
+      joinedAt: '2026-01-01T00:00:00.000Z',
+      biographyMarkdown: '',
+      lastActivity: null,
+      lastActivityVisible: true,
+      viewerIsSelf: false,
+      viewerCanMessage: false,
+      viewerCanCall: false
+    });
     memberDirectoryMocks.listRoomMembers.mockResolvedValue(memberPage([member(1)]));
     attachmentMocks.listRoomAttachments.mockResolvedValue({
       items: [],

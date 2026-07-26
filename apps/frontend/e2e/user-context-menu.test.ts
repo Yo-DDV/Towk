@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import { createAndLoginTestUser } from './fixtures/testUser';
 import { withServerUser } from './fixtures/serverUser';
 import { waitForRoomReady } from './fixtures/realtimeSync';
+import { connectPost } from './fixtures/connectHelpers';
 import { test } from './setup';
 import { TIMEOUTS } from './constants';
 
@@ -27,6 +28,9 @@ test.describe('User context menu', () => {
         async ({ page: page2, user: userB, chatPage: chatPage2, roomPage: roomPage2 }) => {
           await chatPage2.enterRoom('general');
           await waitForRoomReady(page2, 'general');
+          await connectPost(page2, 'chatto.api.v1.MyAccountService/UpdateProfile', {
+            biographyMarkdown: '**Hello** from the detailed profile.'
+          });
 
           await roomPage2.sendMessage('Hello from User B');
 
@@ -47,6 +51,11 @@ test.describe('User context menu', () => {
           await expect(profileDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
           await expect(profileDialog.getByText(userB.displayName)).toBeVisible();
           await expect(profileDialog.getByText(`@${userB.login}`)).toBeVisible();
+          await expect(profileDialog.getByText('Member')).toBeVisible();
+          await expect(profileDialog.getByText('Hello from the detailed profile.')).toBeVisible();
+          await expect(profileDialog.getByText('Last activity')).toBeVisible();
+          await expect(profileDialog.getByRole('button', { name: 'Send Message' })).toBeVisible();
+          await expect(profileDialog.getByRole('button', { name: 'Call' })).not.toBeVisible();
         }
       );
     });
@@ -174,6 +183,31 @@ test.describe('User context menu', () => {
       await expect(profileDialog).not.toBeVisible({ timeout: TIMEOUTS.UI_FAST });
     });
 
+    test('browser Back closes the user profile dialog without leaving the room', async ({
+      page,
+      chatPage,
+      roomPage
+    }) => {
+      const user = await createAndLoginTestUser(page);
+      await chatPage.goto();
+      await chatPage.enterRoom('general');
+      await roomPage.sendMessage('Back navigation profile');
+
+      const messageArticle = page.locator('[role="article"]', {
+        hasText: 'Back navigation profile'
+      });
+      await messageArticle.getByRole('button', { name: user.displayName }).click();
+
+      const profileDialog = page.getByRole('dialog', { name: 'User profile' });
+      await expect(profileDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      const roomURL = page.url();
+
+      await page.goBack();
+
+      await expect(profileDialog).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(page).toHaveURL(roomURL);
+    });
+
     test('clicking outside closes the user profile dialog', async ({
       page,
       chatPage,
@@ -200,27 +234,111 @@ test.describe('User context menu', () => {
     });
   });
 
-  test.describe('Send Message button', () => {
-    test('user profile dialog shows Send Message button', async ({ page, chatPage, roomPage }) => {
+  test.describe('self profile actions and mobile dismissal', () => {
+    test('own profile exposes editing and hides self-message/self-call actions', async ({
+      page,
+      chatPage,
+      roomPage
+    }) => {
       const user = await createAndLoginTestUser(page);
       await chatPage.goto();
       await chatPage.enterRoom('general');
+      await roomPage.sendMessage('Own profile actions');
 
-      // Send a message so we have an avatar to click
-      await roomPage.sendMessage('Test message');
-
-      // Open user profile from member list
-      await roomPage.expectMemberVisible(user.login, { timeout: TIMEOUTS.UI_STANDARD });
-      const memberButton = roomPage.memberList.getByRole('button', {
-        name: new RegExp(user.displayName)
+      const messageArticle = page.locator('[role="article"]', {
+        hasText: 'Own profile actions'
       });
-      await memberButton.click();
+      await messageArticle.getByRole('button', { name: user.displayName }).click();
 
       const profileDialog = page.getByRole('dialog', { name: 'User profile' });
       await expect(profileDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      await expect(profileDialog.getByRole('button', { name: 'Edit profile' })).toBeVisible();
+      await expect(profileDialog.getByRole('button', { name: 'Send Message' })).not.toBeVisible();
+      await expect(profileDialog.getByRole('button', { name: 'Call' })).not.toBeVisible();
+    });
 
-      // Verify "Send Message" button is visible
-      await expect(profileDialog.getByRole('button', { name: 'Send Message' })).toBeVisible();
+    test('narrow viewport uses a full-screen safe-area surface and supports swipe-to-close', async ({
+      page,
+      chatPage,
+      roomPage
+    }) => {
+      const user = await createAndLoginTestUser(page);
+      await chatPage.goto();
+      await chatPage.enterRoom('general');
+      await roomPage.sendMessage('Mobile profile');
+      await page.setViewportSize({ width: 390, height: 844 });
+
+      const messageArticle = page.locator('[role="article"]', { hasText: 'Mobile profile' });
+      await messageArticle.getByRole('button', { name: user.displayName }).click();
+
+      const profileDialog = page.getByRole('dialog', { name: 'User profile' });
+      await expect(profileDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+      const box = await profileDialog.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeLessThanOrEqual(1);
+      expect(box!.y).toBeLessThanOrEqual(1);
+      expect(box!.width).toBeGreaterThanOrEqual(389);
+      expect(box!.height).toBeGreaterThanOrEqual(843);
+
+      const handle = profileDialog.locator('.dialog-swipe-handle');
+      await expect(handle).toBeVisible();
+      const handleBox = await handle.boundingBox();
+      expect(handleBox).not.toBeNull();
+      const x = handleBox!.x + handleBox!.width / 2;
+      const y = handleBox!.y + handleBox!.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x, y + 220, { steps: 8 });
+      await page.mouse.up();
+
+      await expect(profileDialog).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    });
+  });
+
+  test.describe('when voice calls are configured', () => {
+    test.use({
+      serverOptions: {
+        env: {
+          CHATTO_LIVEKIT_ENABLED: 'true',
+          CHATTO_LIVEKIT_URL: 'ws://localhost:7880',
+          CHATTO_LIVEKIT_API_KEY: 'devkey',
+          CHATTO_LIVEKIT_API_SECRET: 'secret'
+        }
+      }
+    });
+
+    test('another user profile exposes the Call action', async ({
+      page,
+      chatPage,
+      roomPage,
+      browser,
+      serverURL
+    }) => {
+      await createAndLoginTestUser(page);
+      await chatPage.goto();
+      await chatPage.enterRoom('general');
+
+      await withServerUser(
+        browser!,
+        serverURL,
+        async ({ page: page2, user: userB, chatPage: chatPage2, roomPage: roomPage2 }) => {
+          await chatPage2.enterRoom('general');
+          await waitForRoomReady(page2, 'general');
+          await roomPage2.sendMessage('Call-capable profile');
+          await roomPage.expectMessageVisible('Call-capable profile', {
+            timeout: TIMEOUTS.REALTIME_EVENT
+          });
+
+          const messageArticle = page.locator('[role="article"]', {
+            hasText: 'Call-capable profile'
+          });
+          await messageArticle.getByRole('button', { name: userB.displayName }).click();
+
+          const profileDialog = page.getByRole('dialog', { name: 'User profile' });
+          await expect(profileDialog).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+          await expect(profileDialog.getByRole('button', { name: 'Call' })).toBeVisible();
+        }
+      );
     });
   });
 });

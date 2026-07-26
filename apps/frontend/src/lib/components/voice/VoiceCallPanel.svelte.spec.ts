@@ -107,7 +107,8 @@ describe('VoiceCallPanel screen-share audio', () => {
       expect(processingValues.map((item) => item.textContent?.trim())).toEqual([
         'Noise reduction Requested, unavailable on this route',
         'Automatic gain Requested, unavailable on this route',
-        'Echo cancellation Requested, status not exposed by this browser'
+        'Echo cancellation Requested, status not exposed by this browser',
+        'Screen-share frame rate Stable · up to 30 FPS'
       ]);
       expect(deviceValues).toHaveLength(3);
       expect(document.activeElement).toBe(processingValues[0]);
@@ -451,6 +452,26 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(screenShareControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
   });
 
+  it('requests the high receiver layer for a featured remote screen share', async () => {
+    const setParticipantMediaExpanded = vi.fn();
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'screen',
+        onStoreSeeded: (store) => {
+          vi.spyOn(store.voiceCall, 'setParticipantMediaExpanded').mockImplementation(
+            setParticipantMediaExpanded
+          );
+        }
+      }
+    });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="call-featured-stage-card"]')).not.toBeNull();
+      expect(setParticipantMediaExpanded).toHaveBeenCalledWith('dana', 'screen', true);
+    });
+  });
+
   it('distinguishes two connections from the same account and exposes call audio control', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'devices' }
@@ -641,11 +662,14 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     )!;
     expect(button.getAttribute('aria-expanded')).toBe('true');
     expect(button.getAttribute('aria-controls')).toBe(panel.id);
-    expect(panel.getAttribute('role')).toBe('dialog');
-    expect(panel.getAttribute('aria-describedby')).toBe(`${panel.id}-privacy`);
-    expect(container.textContent).toContain('Receiving');
-    expect(container.textContent).toContain('1920 × 1080');
-    expect(container.textContent).toContain('AV1');
+    expect(panel.getAttribute('role')).toBe('region');
+    expect(panel.getAttribute('aria-modal')).toBeNull();
+    expect(panel.className).toContain('absolute');
+    expect(panel.closest('[data-call-media-card]')).toBe(mediaCard);
+    expect(panel.textContent).toContain('Receiving');
+    expect(panel.textContent).toContain('1920 × 1080');
+    expect(panel.textContent).not.toContain('Technical details');
+    expect(panel.textContent).toContain('AV1');
 
     container
       .querySelector<HTMLButtonElement>('[data-testid="screen-share-diagnostics-close"]')!
@@ -653,7 +677,6 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
     await vi.waitFor(() => {
       expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();
     });
-    await vi.waitFor(() => expect(document.activeElement).toBe(button));
   });
 
   it('identifies presenter diagnostics and dismisses the panel with Escape', async () => {
@@ -670,7 +693,11 @@ describe('VoiceCallPanel screen-share diagnostics', () => {
       .querySelector<HTMLButtonElement>('[data-testid="call-screen-share-stats-button"]')!
       .click();
 
-    await vi.waitFor(() => expect(container.textContent).toContain('Sending'));
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector('[data-testid="screen-share-diagnostics-panel"]')?.textContent
+      ).toContain('Sending')
+    );
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await vi.waitFor(() => {
       expect(container.querySelector('[data-testid="screen-share-diagnostics-panel"]')).toBeNull();

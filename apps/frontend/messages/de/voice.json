@@ -130,6 +130,8 @@
     "screen_stats_loading": "WebRTC-Statistiken werden gelesen…",
     "screen_stats_unavailable": "Für diesen Stream sind Statistiken vorübergehend nicht verfügbar.",
     "screen_stats_retrying": "Towk versucht es bei der nächsten Messung erneut.",
+    "screen_stats_partial_sample": "Teilweise Messung · die letzten stabilen Werte bleiben sichtbar.",
+    "screen_stats_observed_causes": "Beobachtete Ursachen",
     "screen_stats_resolution": "Übertragene Auflösung",
     "screen_stats_source_resolution": "Aufnahmeauflösung",
     "screen_stats_fps": "Bilder pro Sekunde",
@@ -172,6 +174,12 @@
     "screen_stats_content_hint": "Inhaltshinweis",
     "screen_stats_yes": "Ja",
     "screen_stats_no": "Nein",
-    "screen_stats_local_only": "Aktualisierung alle 2 Sekunden bei geöffnetem Fenster · 60 Sekunden lokaler Verlauf · kein Upload"
+    "screen_stats_technical_details": "Technische Details",
+    "video_quality_title": "Videoqualität",
+    "screen_share_frame_rate": "Bildrate der Bildschirmfreigabe",
+    "screen_share_frame_rate_standard": "Stabil · bis zu 30 FPS",
+    "screen_share_frame_rate_high": "Flüssige Bewegung · bis zu 60 FPS",
+    "screen_share_frame_rate_unavailable": "Eine hohe Bildrate ist in diesem Browser nicht verfügbar",
+    "screen_stats_local_only": "Lokale Metriken · 60 Sekunden Verlauf · kein Upload"
   }
 }
