@@ -1,7 +1,7 @@
 # FDR-031: Read Receipts
 
 **Status:** Active
-**Last reviewed:** 2026-07-25
+**Last reviewed:** 2026-07-26
 
 ## Overview
 
@@ -14,7 +14,8 @@ Read receipts are separate from private unread markers and notifications. Opting
 - A client publishes a receipt only for messages that are actually visible in the active timeline, while the document is visible and focused.
 - A receipt is never published for the viewer's own message.
 - Room and thread receipts use separate cursors. Reading a thread does not mark the room timeline as read, and reading the room timeline does not publish thread receipts.
-- The compact message footer shows only the number of readers.
+- The compact message footer shows only a subdued receipt icon and the number of readers.
+- When one author posts several messages consecutively, only the final visible message in that run shows the indicator. A message from another author starts a new run; non-message timeline events do not.
 - Opening the footer detail requests a paginated reader list for the selected message. Reader identities and timestamps are not part of the compact summary.
 - If the server-wide switch is disabled, users cannot publish or inspect receipts. Existing private unread state remains unchanged.
 - If a user disables read receipts, future visible reads are not published and the user cannot inspect reader lists. Reads made while disabled are not backfilled if the user re-enables the setting later.
