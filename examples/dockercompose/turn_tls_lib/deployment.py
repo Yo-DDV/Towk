@@ -90,11 +90,15 @@ def activate_profile(
             wait_service(runner, settings, "livekit", overlay=True)
             verify_https(runner, settings, opt_in_render)
             verify_turn_tls(runner, settings)
-    except TurnTLSException as primary:
+    except (Exception, KeyboardInterrupt) as primary:
         if not mutation_started:
             raise
         try:
             restore_standard_profile(runner, settings)
         except RollbackError as rollback:
             raise RollbackError(f"Activation failed ({primary}); {rollback}") from primary
-        raise ValidationError(f"Activation failed and the standard profile was restored: {primary}") from primary
+        if isinstance(primary, TurnTLSException):
+            raise ValidationError(
+                f"Activation failed and the standard profile was restored: {primary}"
+            ) from primary
+        raise

@@ -155,9 +155,9 @@ def resolve_ipv4(domain: str) -> set[str]:
 
 def validate_dns(domain: str, expected_ip: str, resolver=resolve_ipv4) -> set[str]:
     answers = resolver(domain)
-    if expected_ip not in answers:
+    if answers != {expected_ip}:
         rendered = ", ".join(sorted(answers)) if answers else "no IPv4 answers"
         raise ValidationError(
-            f"TURN_DOMAIN must resolve to TURN_BIND_IP {expected_ip}; resolver returned {rendered}"
+            f"TURN_DOMAIN must resolve only to TURN_BIND_IP {expected_ip}; resolver returned {rendered}"
         )
     return answers

@@ -25,8 +25,8 @@ routable IPv4 addresses assigned directly to the host:
 
 - `WEB_BIND_IP`: Caddy TCP 80, TCP 443, and UDP 443 (HTTP/3);
 - `TURN_BIND_IP`: LiveKit TURN/TLS TCP 443;
-- `TURN_DOMAIN`: an A record containing `TURN_BIND_IP` and covered by a publicly
-  trusted certificate.
+- `TURN_DOMAIN`: a DNS name whose IPv4 answers contain only `TURN_BIND_IP` and
+  that is covered by a publicly trusted certificate.
 
 A provider-side one-to-one NAT address that is not present on a host interface is
 not accepted. Single-IP L4/SNI multiplexing is outside this profile.
@@ -74,7 +74,8 @@ Replace the documentation addresses with addresses actually assigned to the
 host. The preflight fails before any container change when it finds:
 
 - missing, non-public, non-local, wildcard, or identical bind addresses;
-- an invalid domain or an A record that does not include `TURN_BIND_IP`;
+- an invalid domain or IPv4 answers that are empty, omit `TURN_BIND_IP`, or
+  include any other address;
 - unreadable, expired, near-expiry, hostname-invalid, or mismatched certificate
   material;
 - a private key accessible by other users;
@@ -201,8 +202,10 @@ confirming no clients still depend on it.
 - **The key is not readable by LiveKit**: assign it to a dedicated group, use
   `0640`, and run the helper as an operator who can read that group. Never use
   `0644` for the private key.
-- **DNS validation fails after an update**: wait for the authoritative A record
-  and local resolver cache to converge, then rerun `preflight`.
+- **DNS validation fails after an update**: publish only `TURN_BIND_IP` as the
+  domain's IPv4 answer, wait for authoritative DNS and the local resolver cache
+  to converge, then rerun `preflight`. Multiple A records are rejected because
+  clients could otherwise reach an address without the TURN/TLS listener.
 - **Certificate renewal is not visible**: keep the same exported paths and rerun
   `./turn-tls.sh up`; the helper resolves and validates the current files before
   recreating LiveKit.

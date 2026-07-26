@@ -34,7 +34,7 @@ addresses on the same host:
 
 1. `WEB_BIND_IP` is used by Caddy for Towk HTTPS and HTTP/3.
 2. `TURN_BIND_IP` is a distinct address used by LiveKit for TURN/TLS on TCP 443.
-3. `TURN_DOMAIN` resolves to `TURN_BIND_IP` and is covered by the configured
+3. `TURN_DOMAIN` resolves only to `TURN_BIND_IP` and is covered by the configured
    publicly trusted certificate.
 
 The standard Compose command and single-address topology remain unchanged. The
@@ -81,7 +81,8 @@ least:
 - missing or non-IP bind values;
 - identical web and TURN bind addresses;
 - bind addresses that are not available on the host;
-- a TURN domain that does not resolve to the dedicated address;
+- a TURN domain with no IPv4 answer, an answer other than the dedicated address,
+  or multiple IPv4 answers;
 - unreadable, expired, mismatched, or hostname-invalid certificate material;
 - an occupied TCP 443 socket on either selected address;
 - an effective Compose render that restores wildcard TCP 443 and creates a

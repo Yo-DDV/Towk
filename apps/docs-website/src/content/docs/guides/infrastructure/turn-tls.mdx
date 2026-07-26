@@ -24,8 +24,8 @@ addresses assigned directly to that host:
 
 - `WEB_BIND_IP` for Caddy TCP 80, TCP 443, and UDP 443;
 - `TURN_BIND_IP` for LiveKit TURN/TLS TCP 443;
-- `TURN_DOMAIN`, whose A record includes `TURN_BIND_IP` and whose certificate is
-  publicly trusted.
+- `TURN_DOMAIN`, whose IPv4 answers contain only `TURN_BIND_IP` and whose
+  certificate is publicly trusted.
 
 A second DNS name on the same address does not let Caddy and LiveKit both bind
 TCP 443. Single-IP L4/SNI multiplexing is intentionally outside this profile.
@@ -80,9 +80,10 @@ key must be unencrypted because LiveKit has no interactive passphrase channel.
    ```
 
    The preflight checks required tools and Compose version, distinct public host
-   addresses, DNS A records, certificate validity, public trust, hostname
-   coverage, key matching and permissions, TCP 443 ownership, the default render,
-   the opt-in render, exact port bindings, read-only mounts, and runtime hardening.
+   addresses, the single effective DNS IPv4 answer, certificate validity,
+   public trust, hostname coverage, key matching and permissions, TCP 443
+   ownership, the default render, the opt-in render, exact port bindings,
+   read-only mounts, and runtime hardening.
 
 3. **Open both firewall layers**
 

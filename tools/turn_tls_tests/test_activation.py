@@ -60,6 +60,18 @@ class ActivationFlowTests(unittest.TestCase):
                 turn_tls.activate_profile(object(), self.settings, self.opt_in)
         rollback.assert_called_once()
 
+    def test_keyboard_interrupt_restores_standard_profile(self) -> None:
+        with (
+            mock.patch.object(deployment_impl, "service_running", return_value=True),
+            mock.patch.object(deployment_impl, "compose_up"),
+            mock.patch.object(deployment_impl, "wait_service"),
+            mock.patch.object(deployment_impl, "verify_https", side_effect=KeyboardInterrupt),
+            mock.patch.object(deployment_impl, "restore_standard_profile") as rollback,
+        ):
+            with self.assertRaises(KeyboardInterrupt):
+                turn_tls.activate_profile(object(), self.settings, self.opt_in)
+        rollback.assert_called_once()
+
     def test_rollback_orders_livekit_before_caddy(self) -> None:
         events: list[str] = []
 

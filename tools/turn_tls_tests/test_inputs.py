@@ -28,19 +28,23 @@ class InputValidationTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(turn_tls.ValidationError):
                 turn_tls.validate_domain(value)
 
-    def test_dns_must_include_dedicated_address(self) -> None:
+    def test_dns_must_resolve_only_to_dedicated_address(self) -> None:
         result = turn_tls.validate_dns(
             "turn.example.com",
             "8.8.8.8",
-            resolver=lambda _: {"8.8.8.8", "1.1.1.1"},
+            resolver=lambda _: {"8.8.8.8"},
         )
-        self.assertEqual(result, {"8.8.8.8", "1.1.1.1"})
-        with self.assertRaisesRegex(turn_tls.ValidationError, "must resolve"):
-            turn_tls.validate_dns(
-                "turn.example.com",
-                "8.8.8.8",
-                resolver=lambda _: {"1.1.1.1"},
-            )
+        self.assertEqual(result, {"8.8.8.8"})
+        for answers in ({"1.1.1.1"}, {"8.8.8.8", "1.1.1.1"}, set()):
+            with self.subTest(answers=answers), self.assertRaisesRegex(
+                turn_tls.ValidationError,
+                "must resolve only",
+            ):
+                turn_tls.validate_dns(
+                    "turn.example.com",
+                    "8.8.8.8",
+                    resolver=lambda _, values=answers: values,
+                )
 
     def test_load_settings_rejects_missing_and_equal_addresses(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

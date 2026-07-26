@@ -89,6 +89,11 @@ def binding_covers_listener(binding: str, listener: str) -> bool:
     return binding == normalized_listener
 
 
+def binding_conflicts_with_selected_addresses(binding: str, selected: set[str]) -> bool:
+    normalized = binding.strip("[]")
+    return normalized in {"", "*", "0.0.0.0", "::"} or normalized in selected
+
+
 def validate_port_443_ownership(runner: Runner, settings: Settings) -> None:
     allowed_ids = compose_service_ids(runner, settings, ["caddy", "livekit"], overlay=False)
     # A second run may already use the overlay project configuration.
@@ -96,6 +101,7 @@ def validate_port_443_ownership(runner: Runner, settings: Settings) -> None:
     running_ids = all_running_container_ids(runner, settings.root)
     inspected = inspect_containers(runner, settings.root, running_ids)
 
+    selected_addresses = {settings.web_bind_ip, settings.turn_bind_ip}
     allowed_bindings: set[str] = set()
     external: list[str] = []
     for container in inspected:
@@ -105,7 +111,10 @@ def validate_port_443_ownership(runner: Runner, settings: Settings) -> None:
             continue
         if container_id in allowed_ids:
             allowed_bindings.update(bindings)
-        else:
+        elif any(
+            binding_conflicts_with_selected_addresses(binding, selected_addresses)
+            for binding in bindings
+        ):
             name = str(container.get("Name") or container_id[:12]).lstrip("/")
             external.append(name)
     if external:
@@ -115,9 +124,14 @@ def validate_port_443_ownership(runner: Runner, settings: Settings) -> None:
         )
 
     listeners = active_tcp443_listener_ips(runner, settings.root)
-    uncovered = {
+    conflicting_listeners = {
         address
         for address in listeners
+        if binding_conflicts_with_selected_addresses(address, selected_addresses)
+    }
+    uncovered = {
+        address
+        for address in conflicting_listeners
         if not any(binding_covers_listener(binding, address) for binding in allowed_bindings)
     }
     if uncovered:

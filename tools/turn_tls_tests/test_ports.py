@@ -62,6 +62,35 @@ class PortOwnershipTests(unittest.TestCase):
             ):
                 turn_tls.validate_port_443_ownership(object(), settings)
 
+    def test_ignores_external_listener_bound_to_unrelated_address(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            cert = root / "cert.pem"
+            key = root / "key.pem"
+            cert.write_text("synthetic")
+            key.write_text("synthetic")
+            settings = fixture_settings(root, cert, key)
+            external = {
+                "Id": "external-id",
+                "Name": "/other-proxy",
+                "HostConfig": {
+                    "PortBindings": {
+                        "443/tcp": [{"HostIp": "192.0.2.12", "HostPort": "443"}],
+                    },
+                },
+            }
+            with (
+                mock.patch.object(containers_impl, "compose_service_ids", return_value=set()),
+                mock.patch.object(containers_impl, "all_running_container_ids", return_value={"external-id"}),
+                mock.patch.object(containers_impl, "inspect_containers", return_value=[external]),
+                mock.patch.object(
+                    containers_impl,
+                    "active_tcp443_listener_ips",
+                    return_value={"192.0.2.12"},
+                ),
+            ):
+                turn_tls.validate_port_443_ownership(object(), settings)
+
     def test_extracts_only_tcp_443_bindings(self) -> None:
         container = {
             "HostConfig": {
