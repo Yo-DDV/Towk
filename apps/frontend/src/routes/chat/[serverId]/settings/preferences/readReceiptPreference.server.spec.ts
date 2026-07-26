@@ -11,7 +11,9 @@ describe('read receipt preference page', () => {
     expect(updateStart).toBeGreaterThanOrEqual(0);
     expect(updateEnd).toBeGreaterThan(updateStart);
     expect(source.slice(updateStart, updateEnd)).toContain('readReceiptsEnabled');
+    expect(source).toContain("settings.preferences.read_receipts.title");
     expect(source).toContain('bind:checked={readReceiptsEnabled}');
+    expect(source).toContain('disabled={isSaving}');
     expect(source).toContain('readReceiptsEnabled = settings.readReceiptsEnabled;');
   });
 });
