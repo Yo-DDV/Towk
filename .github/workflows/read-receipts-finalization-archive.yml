@@ -1,0 +1,66 @@
+name: read-receipts finalization archive
+
+on:
+  push:
+    branches:
+      - feat/read-receipts
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: read-receipts-finalization-archive-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  archive:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'feat/read-receipts'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact feature head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Archive merge base, feature head, and current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+
+          feature_head="$(git rev-parse HEAD)"
+          main_head="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "${feature_head}" "${main_head}")"
+          output="${RUNNER_TEMP}/towk-pr173-finalization"
+          mkdir -p "${output}"
+
+          {
+            printf 'feature_head=%s\n' "${feature_head}"
+            printf 'main_head=%s\n' "${main_head}"
+            printf 'merge_base=%s\n' "${merge_base}"
+          } > "${output}/refs.txt"
+
+          git archive --format=tar "${merge_base}" | gzip -9 > "${output}/merge-base.tar.gz"
+          git archive --format=tar "${feature_head}" | gzip -9 > "${output}/feature-head.tar.gz"
+          git archive --format=tar "${main_head}" | gzip -9 > "${output}/main-head.tar.gz"
+
+          sha256sum \
+            "${output}/merge-base.tar.gz" \
+            "${output}/feature-head.tar.gz" \
+            "${output}/main-head.tar.gz" \
+            > "${output}/SHA256SUMS"
+
+      - name: Upload exact-ref source archives
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: towk-pr173-finalization-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/towk-pr173-finalization
+          retention-days: 1
+          if-no-files-found: error
