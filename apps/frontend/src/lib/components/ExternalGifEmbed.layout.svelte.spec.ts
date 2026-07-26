@@ -45,16 +45,25 @@ describe('ExternalGifEmbed responsive media geometry', () => {
     const controls = document.querySelector<HTMLElement>('[data-testid="external-gif-controls"]');
 
     expect(shell?.dataset.renderMode).toBe('image');
-    expect(shell?.classList.contains('sm:w-fit')).toBe(true);
-    expect(shell?.classList.contains('sm:min-w-80')).toBe(true);
-    expect(shell?.classList.contains('sm:max-w-xl')).toBe(true);
+    expect(shell?.classList.contains('external-gif-direct')).toBe(true);
+    expect(media?.classList.contains('external-gif-direct-media')).toBe(true);
+    expect(image?.classList.contains('external-gif-direct-element')).toBe(true);
     expect(image?.classList.contains('object-contain')).toBe(true);
-    expect(image?.classList.contains('sm:w-auto')).toBe(true);
-    expect(image?.classList.contains('sm:min-w-80')).toBe(true);
     expect(image?.classList.contains('max-h-[36rem]')).toBe(true);
     expect(media).not.toBeNull();
     expect(controls).not.toBeNull();
     expect(media?.nextElementSibling).toBe(controls);
+
+    await vi.waitFor(() => {
+      const shellBounds = shell?.getBoundingClientRect();
+      const imageBounds = image?.getBoundingClientRect();
+      expect(shellBounds).toBeDefined();
+      expect(imageBounds).toBeDefined();
+      if (!shellBounds || !imageBounds) throw new Error('direct GIF geometry was unavailable');
+      expect(imageBounds.width).toBeGreaterThanOrEqual(319);
+      expect(imageBounds.width).toBeLessThanOrEqual(577);
+      expect(Math.abs(shellBounds.width - imageBounds.width)).toBeLessThanOrEqual(3);
+    });
   });
 
   it('keeps provider page embeds responsive in a bounded widescreen frame', async () => {
