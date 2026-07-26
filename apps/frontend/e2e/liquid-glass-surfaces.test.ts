@@ -35,6 +35,7 @@ test.describe('Liquid glass application surfaces', () => {
     chatPage,
     roomPage
   }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
@@ -46,9 +47,6 @@ test.describe('Liquid glass application surfaces', () => {
     await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
-    await page.evaluate(() => {
-      document.documentElement.dataset.theme = 'light';
-    });
     await expect(root).toHaveAttribute('data-theme', 'light');
 
     const [lightProfileStyle, lightComposerStyle, supportsBackdropFilter] = await Promise.all([
@@ -72,10 +70,21 @@ test.describe('Liquid glass application surfaces', () => {
       }
     }
 
-    await page.evaluate(() => {
-      document.documentElement.dataset.theme = 'dark';
-    });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.reload();
     await expect(root).toHaveAttribute('data-theme', 'dark');
+    await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    await expect
+      .poll(async () => (await readSurfaceStyle(profile)).backgroundColor)
+      .toMatch(/rgba?\(38,\s*38,\s*42/);
+
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await expect
+      .poll(() => composer.evaluate((element) => element.matches(':focus-within')))
+      .toBe(false);
 
     const [darkProfileStyle, darkComposerStyle] = await Promise.all([
       readSurfaceStyle(profile),
@@ -137,6 +146,13 @@ test.describe('Liquid glass application surfaces', () => {
 
     await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    });
+    await expect
+      .poll(() => composer.evaluate((element) => element.matches(':focus-within')))
+      .toBe(false);
 
     for (const surface of [profile, composer]) {
       const style = await readSurfaceStyle(surface);
