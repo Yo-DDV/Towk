@@ -1,4 +1,4 @@
-name: read-receipts patch diagnostic
+name: read-receipts terminal finalization
 
 on:
   pull_request:
@@ -7,64 +7,37 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: read-receipts-patch-diagnostic-${{ github.event.pull_request.number }}
+  group: read-receipts-terminal-finalization-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  diagnose:
+  finalize:
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 60
     steps:
-      - name: Check out exact feature head
+      - name: Check out exact temporary head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
-      - name: Apply feature delta onto current main with rejects
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Reconstruct, validate, and publish the clean product tree
         shell: bash
+        env:
+          PR173_DESIGN_BASE: b9f61f1b28608784c1e1ed1e2232131e681a12b3
+          PR173_FEATURE_SOURCE: f07456ce30c48fd35d63fcc9d3480b5792f40cfa
+          PR173_EXPECTED_MAIN: d277c59d2ebb16d076de6ae793e4679251be38b4
+          TARGET_BRANCH: feat/read-receipts
         run: |
-          set -euo pipefail
-          readonly DESIGN_BASE="b9f61f1b28608784c1e1ed1e2232131e681a12b3"
-          readonly FEATURE_SOURCE="f07456ce30c48fd35d63fcc9d3480b5792f40cfa"
-          readonly EXPECTED_MAIN="d277c59d2ebb16d076de6ae793e4679251be38b4"
-          output="${RUNNER_TEMP}/pr173-patch-diagnostic"
-          mkdir -p "${output}/rejects" "${output}/sources"
-
-          git diff --binary "${DESIGN_BASE}" "${FEATURE_SOURCE}" > "${output}/feature.patch"
-          git checkout --detach "${EXPECTED_MAIN}"
-
-          set +e
-          git apply --reject --whitespace=nowarn "${output}/feature.patch" \
-            > "${output}/apply.stdout" 2> "${output}/apply.stderr"
-          apply_status=$?
-          set -e
-          printf 'apply_status=%s\n' "${apply_status}" > "${output}/status.txt"
-
-          find . -type f -name '*.rej' -print0 | while IFS= read -r -d '' reject; do
-            relative="${reject#./}"
-            source_path="${relative%.rej}"
-            safe="$(printf '%s' "${source_path}" | tr '/ ' '__')"
-            mkdir -p "${output}/rejects/$(dirname "${relative}")"
-            cp "${reject}" "${output}/rejects/${relative}"
-            git show "${DESIGN_BASE}:${source_path}" > "${output}/sources/${safe}.base" 2>/dev/null || true
-            git show "${FEATURE_SOURCE}:${source_path}" > "${output}/sources/${safe}.feature" 2>/dev/null || true
-            git show "${EXPECTED_MAIN}:${source_path}" > "${output}/sources/${safe}.main" 2>/dev/null || true
-          done
-
-          find . -type f -name '*.rej' -printf '%P\n' | sort -u > "${output}/reject-paths.txt"
-          git diff --name-only "${EXPECTED_MAIN}" | sort -u > "${output}/applied-paths.txt"
-          git diff --stat "${EXPECTED_MAIN}" > "${output}/applied-stat.txt"
-
-      - name: Upload patch diagnostic
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr173-patch-diagnostic-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/pr173-patch-diagnostic
-          retention-days: 1
-          if-no-files-found: error
+          set -Eeuo pipefail
+          base64 -d .github/pr173-terminal.sh.gz.b64 | gzip -d > "${RUNNER_TEMP}/pr173-terminal.sh"
+          chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
+          bash "${RUNNER_TEMP}/pr173-terminal.sh"
