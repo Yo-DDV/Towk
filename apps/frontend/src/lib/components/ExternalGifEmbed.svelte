@@ -248,10 +248,15 @@
 <!-- eslint-disable svelte/no-navigation-without-resolve -- provider URLs are validated external destinations -->
 <section
   bind:this={root}
-  class="external-gif-embed mt-2 w-full max-w-md overflow-hidden rounded-lg border border-border bg-surface-200"
+  class={[
+    'external-gif-embed inline-flex max-w-full flex-col overflow-hidden rounded-lg border border-border bg-background',
+    gif.renderMode === 'iframe' ? 'w-full max-w-xl' : 'w-full sm:w-fit sm:min-w-80 sm:max-w-xl'
+  ]}
   data-testid="external-gif-embed"
   data-provider={gif.provider}
   data-media-provider={gif.provider}
+  data-render-mode={gif.renderMode}
+  data-auto-load={autoLoad ? 'enabled' : 'disabled'}
   data-state={loadState}
   data-load-origin={loadOrigin ?? undefined}
   aria-busy={loadState === 'loading'}
@@ -261,9 +266,10 @@
   {#if loadState === 'loading' || loadState === 'loaded'}
     <div
       class={[
-        'relative flex items-center justify-center bg-black/10',
-        gif.renderMode === 'iframe' ? 'aspect-video min-h-36' : 'min-h-36'
+        'relative flex max-w-full items-center justify-center overflow-hidden bg-black/10',
+        gif.renderMode === 'iframe' ? 'aspect-video min-h-48 w-full' : 'w-full sm:w-fit'
       ]}
+      data-testid="external-gif-media"
     >
       {#key attempt}
         {#if gif.renderMode === 'iframe'}
@@ -271,7 +277,7 @@
             bind:this={activeMediaElement}
             src={gif.resourceUrl}
             title={gm.mediaTitle(gif.providerLabel)}
-            class="h-full w-full border-0"
+            class="h-full min-h-48 w-full border-0"
             loading="lazy"
             sandbox="allow-scripts allow-same-origin"
             allow="autoplay"
@@ -283,7 +289,7 @@
             bind:this={activeMediaElement}
             src={gif.resourceUrl}
             aria-label={gm.mediaTitle(gif.providerLabel)}
-            class="max-h-[28rem] w-full bg-black object-contain"
+            class="block h-auto max-h-[36rem] w-full max-w-full bg-black object-contain sm:w-auto sm:min-w-80"
             autoplay={!reducedMotion}
             controls={reducedMotion}
             muted
@@ -298,7 +304,7 @@
             bind:this={activeMediaElement}
             src={gif.resourceUrl}
             alt={gm.mediaTitle(gif.providerLabel)}
-            class="max-h-[28rem] w-full object-contain"
+            class="block h-auto max-h-[36rem] w-full max-w-full object-contain sm:w-auto sm:min-w-80"
             loading="lazy"
             decoding="async"
             referrerpolicy="no-referrer"
@@ -310,7 +316,7 @@
 
       {#if loadState === 'loading'}
         <div
-          class="absolute inset-0 flex items-center justify-center bg-surface/80 text-sm text-muted"
+          class="absolute inset-0 flex items-center justify-center bg-black/25 px-4 text-center text-sm text-white backdrop-blur-[1px]"
           role="status"
           aria-live="polite"
         >
@@ -321,9 +327,10 @@
   {:else}
     <div
       class={[
-        'flex flex-col items-center justify-center gap-3 px-5 py-6 text-center',
-        gif.renderMode === 'iframe' ? 'aspect-video min-h-36' : 'min-h-36'
+        'flex w-full flex-col items-center justify-center gap-3 bg-surface-100 px-5 py-6 text-center',
+        gif.renderMode === 'iframe' ? 'aspect-video min-h-48' : 'min-h-40 sm:min-w-80'
       ]}
+      data-testid="external-gif-fallback"
     >
       <span class="iconify text-3xl text-muted uil--image" aria-hidden="true"></span>
       <div class="max-w-sm text-sm text-muted" role="status" aria-live="polite">
@@ -356,20 +363,23 @@
     </div>
   {/if}
 
-  {#if loadState === 'loaded'}
-    <div class="flex items-center justify-between gap-2 border-t border-border px-3 text-xs">
+  {#if loadState === 'loading' || loadState === 'loaded'}
+    <div
+      class="flex min-h-10 w-full items-center justify-between gap-2 border-t border-border bg-surface-100 px-2.5 text-xs"
+      data-testid="external-gif-controls"
+    >
       <span class="truncate text-muted">{gif.providerLabel}</span>
       <div class="flex shrink-0 items-center gap-1">
         <button
           type="button"
-          class="inline-flex min-h-11 items-center rounded px-2 text-muted hover:text-text"
+          class="inline-flex min-h-10 items-center rounded px-2 text-muted hover:bg-surface-200 hover:text-text"
           onclick={hideMedia}
         >
           {gm.hide()}
         </button>
         <span aria-hidden="true" class="text-muted/50">·</span>
         <a
-          class="inline-flex min-h-11 items-center rounded px-2 text-muted hover:text-text"
+          class="inline-flex min-h-10 items-center rounded px-2 text-muted hover:bg-surface-200 hover:text-text"
           href={gif.canonicalUrl}
           target="_blank"
           rel="noopener noreferrer"
