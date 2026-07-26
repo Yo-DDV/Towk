@@ -15,12 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check out profile branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: feat/user-profiles
-          fetch-depth: 1
-          persist-credentials: false
-
       - name: Apply remediation in diagnostic mode
-        run: python3 .github/profile-polish/apply.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --branch feat/user-profiles https://github.com/Yo-DDV/Towk.git repo
+          cd repo
+          python3 .github/profile-polish/apply.py
