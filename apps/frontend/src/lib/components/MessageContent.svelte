@@ -14,7 +14,10 @@
   import { wrapValidMentions, type RoomMember } from '$lib/mentions';
   import { parseTrustedMarkdownHtml } from '$lib/security/trustedHtml';
   import ExternalGifEmbed from './ExternalGifEmbed.svelte';
-  import { EXTERNAL_GIF_EMBEDS_CAPABILITY } from '$lib/externalGif';
+  import {
+    EXTERNAL_GIF_EMBEDS_CAPABILITY,
+    type ExternalGifDescriptor
+  } from '$lib/externalGif';
   import { resolveExternalGifMessageList } from '$lib/externalGifMessage';
   import { userPreferences } from '$lib/state/userPreferences.svelte';
 
@@ -68,6 +71,10 @@
         })
       : null
   );
+
+  function externalGifKey(gif: ExternalGifDescriptor, index: number): string {
+    return `${gif.provider}:${gif.id}:${gif.resourceUrl}:${index}`;
+  }
 
   function injectEditedMarker(html: string, markerText: string): string {
     const doc = parseTrustedMarkdownHtml(`<div>${html}</div>`);
@@ -147,7 +154,7 @@
     data-testid="external-gif-message"
     data-embed-count={externalGifs.length}
   >
-    {#each externalGifs as gif, index (`${gif.provider}:${gif.id}:${gif.resourceUrl}:${index}`)}
+    {#each externalGifs as gif, index (externalGifKey(gif, index))}
       <ExternalGifEmbed gif={gif} autoLoad={userPreferences.externalGifAutoLoad} />
     {/each}
   </div>

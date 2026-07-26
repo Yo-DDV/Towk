@@ -5,10 +5,8 @@ import {
   resolveExternalGifMessageList
 } from './externalGifMessage';
 
-const giphyPageUrl =
-  'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
-const giphyMediaUrl =
-  'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
+const giphyPageUrl = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
+const giphyMediaUrl = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
 const tenorMediaUrl = 'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif';
 const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
@@ -34,9 +32,7 @@ describe('parseExternalGifMessageBodyList', () => {
     expect(
       parseExternalGifMessageBodyList(body)?.map((descriptor) => descriptor.resourceUrl)
     ).toEqual([giphyMediaUrl, 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt']);
-    expect(
-      parseExternalGifMessageBodyList(`[${giphyPageUrl}](<${giphyPageUrl}>)`)
-    ).toHaveLength(1);
+    expect(parseExternalGifMessageBodyList(`[${giphyPageUrl}](<${giphyPageUrl}>)`)).toHaveLength(1);
   });
 
   it('accepts the hybrid body persisted by the rich composer', () => {
@@ -48,9 +44,7 @@ describe('parseExternalGifMessageBodyList', () => {
   });
 
   it('preserves duplicate URLs instead of silently changing message meaning', () => {
-    expect(
-      parseExternalGifMessageBodyList(`${giphyPageUrl}\n${giphyPageUrl}`)
-    ).toHaveLength(2);
+    expect(parseExternalGifMessageBodyList(`${giphyPageUrl}\n${giphyPageUrl}`)).toHaveLength(2);
   });
 
   it.each([
