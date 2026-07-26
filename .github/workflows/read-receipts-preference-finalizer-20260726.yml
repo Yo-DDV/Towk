@@ -1,4 +1,5 @@
 name: read-receipts preference finalizer
+# Registered on the branch before this trigger commit.
 
 on:
   pull_request:
