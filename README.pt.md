@@ -24,13 +24,13 @@
     <a href="ROADMAP.md"><img src="https://img.shields.io/badge/estado-pr%C3%A9--1.0-f4a261?style=flat-square" alt="Estado do projeto: pré-1.0" /></a>
     <img src="https://img.shields.io/badge/implanta%C3%A7%C3%A3o-autoalojada-43d8b0?style=flat-square" alt="Autoalojado" />
     <img src="https://img.shields.io/badge/cliente-PWA%20instal%C3%A1vel-4aa8ff?style=flat-square" alt="Aplicação Web Progressiva instalável" />
-    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/atividade-atualizada%202%C3%97%20por%20dia-7867f2?style=flat-square" alt="Atividade do repositório atualizada duas vezes por dia" /></a>
+    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/activity-GitHub%20Actions%20%2F%206h-7867f2?style=flat-square" alt="Atividade do repositório atualizada pelo GitHub Actions a cada seis horas" /></a>
     <a href="LICENSING.md"><img src="https://img.shields.io/badge/licen%C3%A7a-AGPL--3.0--or--later%20%2B%20Apache--2.0-8250df?style=flat-square" alt="AGPL-3.0-or-later com superfícies Apache-2.0" /></a>
   </p>
 
   <p>
     <a href="#why-towk">Porquê Towk</a> ·
-    <a href="#development-pulse">Ritmo</a> ·
+    <a href="#repository-activity">Atividade do repositório</a> ·
     <a href="#capabilities">Funcionalidades</a> ·
     <a href="#architecture">Arquitetura</a> ·
     <a href="#run-towk">Executar Towk</a> ·
@@ -95,45 +95,46 @@ uma alternativa de código aberto e focada para equipas e comunidades que querem
 operar o seu próprio espaço de comunicação — sem alegar que substitui todas as
 funcionalidades de todas as plataformas colaborativas.
 
-<a id="development-pulse"></a>
-## Ritmo de desenvolvimento
+<a id="repository-activity"></a>
+## Atividade do repositório
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/activity-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/activity.svg" width="100%" alt="Atividade de desenvolvimento do Towk com gráficos diários, semanais e mensais de commits e pull requests" />
-</picture>
-
-<picture>
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/contributors.svg" width="100%" alt="Autores dos commits e pull requests integradas do Towk desde a criação pública do repositório independente" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/pt/activity.svg" width="100%" alt="Atividade do repositório Towk nos últimos 30 dias UTC: commits, pull requests integradas, issues fechadas, colaboradores ativos, movimento do código e fluxo das pull requests" />
 </picture>
 
 <details>
   <summary><strong>Como estas métricas são produzidas</strong></summary>
 
-  O próprio repositório gera estes SVG a partir da API do GitHub com o seu
-  `GITHUB_TOKEN` limitado ao repositório; não usa um token pessoal nem um serviço
-  externo de estatísticas. O workflow é executado depois de cada push para `main`
-  e está agendado aproximadamente para as **06:17 e 21:17 no fuso horário
-  Europe/Paris**, todos os dias.
+  O repositório gera este SVG e o seu instantâneo legível por máquina a partir
+  do próprio histórico Git e da API do GitHub, usando o `GITHUB_TOKEN` limitado
+  do workflow; não usa um token pessoal nem um serviço externo de estatísticas. O
+  workflow é executado depois de cada push para `main`, aproximadamente a cada
+  seis horas e também por execução manual.
 
-  Os contadores principais e as classificações começam depois do commit público
-  que criou o repositório independente `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, integrado em 12 de julho
-  de 2026. Assim, o histórico herdado do Chatto não é apresentado como progresso
-  atual do Towk. Os gráficos mantêm janelas móveis de 30 dias, 12 semanas e 12
-  meses; os períodos anteriores a essa criação aparecem com atividade zero. Os
-  commits são selecionados topologicamente a partir de `main` depois do commit de
-  criação e agrupados pelo respetivo carimbo temporal de commit em UTC. As pull
-  requests são contadas por `merged_at` depois do instante de criação. As
-  classificações usam o nome de utilizador do GitHub quando está disponível e, caso
-  contrário, o nome público do autor do commit. Os bots detetados são excluídos das
-  classificações humanas e apresentados separadamente. Estes números descrevem a
-  atividade do repositório e a atribuição Git, não o esforço individual. As
-  mensagens de commit e os endereços de correio eletrónico não são escritos no ramo
-  gerado.
+  Todos os valores principais e gráficos usam a mesma janela móvel de
+  **30 dias UTC**. O ponto de partida público do repositório independente é o
+  commit `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, integrado em 12 de julho de 2026; enquanto estiver
+  dentro da janela, os dias anteriores permanecem a zero para não apresentar o
+  histórico herdado do Chatto como atividade atual do Towk. O dia UTC atual é
+  explicitamente assinalado como incompleto.
 
-  Os SVG e o instantâneo legível por máquina são publicados no ramo
-  [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
+  Os commits são selecionados topologicamente a partir de `main` e agrupados pelo
+  respetivo carimbo temporal de commit. As adições, remoções e ficheiros alterados
+  vêm de Git `--numstat`; ficheiros binários contam como alterados sem inventar
+  totais de linhas. As pull requests são contadas por `merged_at` quando são
+  integradas em `main`, e as issues por `closed_at`, excluindo pull requests. O
+  tempo até à integração vai de `created_at` a `merged_at`. O tempo até à
+  primeira revisão vai de `created_at` à primeira revisão submetida por uma pessoa
+  diferente do autor; pull requests sem uma revisão válida são omitidas dessa
+  mediana. Os colaboradores ativos são os autores humanos distintos de commits e
+  PR integradas dentro da janela. Os bots são excluídos apenas dessa contagem
+  humana; os totais do repositório incluem automação.
+
+  Estes números descrevem a atividade do repositório, não o esforço individual.
+  Mensagens de commit, endereços de email, textos de revisão e classificações de
+  autores não são escritos no ramo gerado. Os SVG e o instantâneo são publicados
+  em [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
 </details>
 
 <a id="capabilities"></a>
