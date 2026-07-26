@@ -250,7 +250,7 @@
   bind:this={root}
   class={[
     'external-gif-embed inline-flex max-w-full flex-col overflow-hidden rounded-lg border border-border bg-background',
-    gif.renderMode === 'iframe' ? 'w-full max-w-xl' : 'w-full sm:w-fit sm:min-w-80 sm:max-w-xl'
+    gif.renderMode === 'iframe' ? 'w-full max-w-xl' : 'w-full sm:w-fit sm:max-w-xl sm:min-w-80'
   ]}
   data-testid="external-gif-embed"
   data-provider={gif.provider}

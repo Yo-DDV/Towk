@@ -152,7 +152,7 @@
     data-embed-count={externalGifs.length}
   >
     {#each externalGifs as gif, index (externalGifKey(gif, index))}
-      <ExternalGifEmbed gif={gif} autoLoad={userPreferences.externalGifAutoLoad} />
+      <ExternalGifEmbed {gif} autoLoad={userPreferences.externalGifAutoLoad} />
     {/each}
   </div>
 {:else}
