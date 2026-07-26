@@ -1,0 +1,627 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+readonly DESIGN_BASE="b9f61f1b28608784c1e1ed1e2232131e681a12b3"
+readonly FEATURE_SOURCE="f07456ce30c48fd35d63fcc9d3480b5792f40cfa"
+readonly EXPECTED_MAIN="d277c59d2ebb16d076de6ae793e4679251be38b4"
+readonly TARGET_BRANCH="feat/read-receipts"
+
+stage="preflight"
+feature_head="$(git rev-parse HEAD)"
+main_head=""
+status_file=".github/read-receipts-main-merge-finalizer-status.txt"
+
+publish_failure() {
+  code=$?
+  trap - ERR
+  set +e
+
+  git read-tree --reset -u "${feature_head}" >/dev/null 2>&1 || true
+  git restore --staged --worktree . >/dev/null 2>&1 || true
+
+  main_head="${main_head:-unknown}"
+  mkdir -p "$(dirname "${status_file}")"
+  {
+    printf 'source_head=%s\n' "${feature_head}"
+    printf 'feature_source=%s\n' "${FEATURE_SOURCE}"
+    printf 'main_head=%s\n' "${main_head}"
+    printf 'design_base=%s\n' "${DESIGN_BASE}"
+    printf 'failed_stage=%s\n' "${stage}"
+    printf 'exit_code=%s\n' "${code}"
+    printf 'run_id=%s\n' "${GITHUB_RUN_ID:-unknown}"
+    printf 'run_attempt=%s\n' "${GITHUB_RUN_ATTEMPT:-unknown}"
+  } > "${status_file}"
+
+  git config user.name 'Yo-DDV'
+  git config user.email '116607353+Yo-DDV@users.noreply.github.com'
+  git add "${status_file}"
+  git diff --cached --check
+
+  if ! git diff --cached --quiet; then
+    git commit -m 'chore(ci): record read receipt reconciliation failure [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'
+    git push origin "HEAD:${TARGET_BRANCH}"
+  fi
+
+  exit 0
+}
+trap publish_failure ERR
+
+git config user.name 'Yo-DDV'
+git config user.email '116607353+Yo-DDV@users.noreply.github.com'
+
+git fetch --no-tags origin main
+main_head="$(git rev-parse origin/main)"
+test "${main_head}" = "${EXPECTED_MAIN}"
+
+git cat-file -e "${DESIGN_BASE}^{commit}"
+git cat-file -e "${FEATURE_SOURCE}^{commit}"
+git merge-base --is-ancestor "${FEATURE_SOURCE}" "${feature_head}"
+
+stage="provenance"
+if git log --format='%B' "${DESIGN_BASE}..${FEATURE_SOURCE}" |
+  grep -Eiq '^(Co-authored-by|Generated-by|Assisted-by|Pair-programmed-by):'; then
+  printf '%s\n' 'forbidden authorship trailer detected' >&2
+  exit 1
+fi
+
+stage="merge-tree"
+if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then
+  merge_status=0
+else
+  merge_status=$?
+fi
+if test "${merge_status}" -gt 1; then
+  exit "${merge_status}"
+fi
+
+stage="resolve-conflicts"
+conflict_dir="${RUNNER_TEMP}/pr173-conflicts"
+mkdir -p "${conflict_dir}"
+mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+for path in "${conflicts[@]}"; do
+  case "${path}" in
+    apps/docs-website/src/content/docs/reference/connectrpc-api/*|\
+    apps/docs-website/src/generated/connectrpc-api/*|\
+    cli/internal/pb/*|\
+    packages/api-types/src/chatto/*|\
+    docs/adr/INDEX.md|\
+    docs/fdr/INDEX.md)
+      git checkout --theirs -- "${path}"
+      ;;
+    *)
+      safe="$(printf '%s' "${path}" | tr '/ ' '__')"
+      git show ":1:${path}" > "${conflict_dir}/${safe}.base"
+      git show ":2:${path}" > "${conflict_dir}/${safe}.feature"
+      git show ":3:${path}" > "${conflict_dir}/${safe}.main"
+      git merge-file --union \
+        "${conflict_dir}/${safe}.feature" \
+        "${conflict_dir}/${safe}.base" \
+        "${conflict_dir}/${safe}.main" || true
+      cp "${conflict_dir}/${safe}.feature" "${path}"
+      ;;
+  esac
+  git add "${path}"
+done
+test -z "$(git diff --name-only --diff-filter=U)"
+
+stage="normalize-contracts"
+python3 - <<'PY'
+from pathlib import Path
+
+
+def read(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def write(path: str, value: str) -> None:
+    Path(path).write_text(value, encoding="utf-8")
+
+
+def replace_once(path: str, old: str, new: str) -> None:
+    value = read(path)
+    count = value.count(old)
+    if count != 1:
+        raise SystemExit(f"{path}: expected one exact match, got {count}: {old!r}")
+    write(path, value.replace(old, new, 1))
+
+
+for path, old, new in (
+    (
+        "proto/chatto/api/v1/account.proto",
+        "  optional bool read_receipts_enabled = 3;\n",
+        "  optional bool read_receipts_enabled = 4;\n",
+    ),
+    (
+        "proto/chatto/api/v1/viewer.proto",
+        "  bool read_receipts_enabled = 3;\n",
+        "  bool read_receipts_enabled = 4;\n",
+    ),
+    (
+        "proto/chatto/core/v1/user_preferences.proto",
+        "  optional bool read_receipts_enabled = 3;\n",
+        "  optional bool read_receipts_enabled = 4;\n",
+    ),
+    (
+        "proto/chatto/core/v1/user_events.proto",
+        "  bool read_receipts_enabled = 3;\n",
+        "  bool read_receipts_enabled = 4;\n",
+    ),
+    (
+        "proto/chatto/realtime/v1/realtime.proto",
+        "  bool read_receipts_enabled = 3;\n",
+        "  bool read_receipts_enabled = 4;\n",
+    ),
+):
+    replace_once(path, old, new)
+
+event_path = "proto/chatto/core/v1/event.proto"
+event_source = read(event_path)
+for old, new in (
+    (
+        "ServerReadReceiptsEnabledChangedEvent server_read_receipts_enabled_changed = 519;",
+        "ServerReadReceiptsEnabledChangedEvent server_read_receipts_enabled_changed = 520;",
+    ),
+    (
+        "UserReadReceiptsEnabledChangedEvent user_read_receipts_enabled_changed = 520;",
+        "UserReadReceiptsEnabledChangedEvent user_read_receipts_enabled_changed = 521;",
+    ),
+    (
+        "UserReadReceiptsEnabledClearedEvent user_read_receipts_enabled_cleared = 521;",
+        "UserReadReceiptsEnabledClearedEvent user_read_receipts_enabled_cleared = 522;",
+    ),
+):
+    if event_source.count(old) != 1:
+        raise SystemExit(f"{event_path}: expected one {old!r}")
+    event_source = event_source.replace(old, new, 1)
+write(event_path, event_source)
+
+replace_once(
+    "proto/chatto/api/v1/read_state.proto",
+    '  reserved 3;\n  reserved "preview_user_ids";\n  google.protobuf.Timestamp latest_read_at = 4;\n',
+    '  reserved 3, 4;\n  reserved "preview_user_ids", "latest_read_at";\n',
+)
+replace_once(
+    "cli/internal/core/read_receipts.go",
+    "\tLatestReadAt   time.Time\n",
+    "",
+)
+replace_once(
+    "cli/internal/core/read_receipts.go",
+    "\t\tif len(readers) > 0 {\n\t\t\tsummary.LatestReadAt = readers[0].ReadAt\n\t\t}\n",
+    "",
+)
+replace_once(
+    "cli/internal/connectapi/read_state.go",
+    "\t\tif !summary.LatestReadAt.IsZero() {\n\t\t\titem.LatestReadAt = timestamppb.New(summary.LatestReadAt)\n\t\t}\n",
+    "",
+)
+replace_once(
+    "apps/frontend/src/lib/api-client/readState.ts",
+    "  latestReadAt: string | null;\n",
+    "",
+)
+replace_once(
+    "apps/frontend/src/lib/api-client/readState.ts",
+    "            readerCount: summary.readerCount,\n"
+    "            latestReadAt: protobufTimestampToISOString(summary.latestReadAt) ?? null\n",
+    "            readerCount: summary.readerCount\n",
+)
+replace_once(
+    "cli/internal/connectapi/read_state_privacy_test.go",
+    'func TestReadReceiptSummarySchemaDoesNotExposeReaderIdentities(t *testing.T) {\n'
+    "\tfields := (&apiv1.ReadReceiptSummary{}).ProtoReflect().Descriptor().Fields()\n"
+    '\tif field := fields.ByName("preview_user_ids"); field != nil {\n'
+    '\t\tt.Fatalf("read receipt summary exposes identity field %q", field.Name())\n'
+    "\t}\n"
+    "}\n",
+    "func TestReadReceiptSummarySchemaIsCountOnly(t *testing.T) {\n"
+    "\tfields := (&apiv1.ReadReceiptSummary{}).ProtoReflect().Descriptor().Fields()\n"
+    '\tfor _, name := range []string{"preview_user_ids", "latest_read_at"} {\n'
+    "\t\tif field := fields.ByName(protoreflect.Name(name)); field != nil {\n"
+    '\t\t\tt.Fatalf("read receipt summary exposes private field %q", field.Name())\n'
+    "\t\t}\n"
+    "\t}\n"
+    "}\n",
+)
+privacy_test = Path("cli/internal/connectapi/read_state_privacy_test.go")
+privacy_value = privacy_test.read_text(encoding="utf-8")
+needle = '"testing"\n\n\tapiv1'
+replacement = '"testing"\n\n\t"google.golang.org/protobuf/reflect/protoreflect"\n\n\tapiv1'
+if privacy_value.count(needle) != 1:
+    raise SystemExit(
+        "cli/internal/connectapi/read_state_privacy_test.go: "
+        f"expected one import insertion point, got {privacy_value.count(needle)}"
+    )
+privacy_test.write_text(privacy_value.replace(needle, replacement, 1), encoding="utf-8")
+
+old_adr = Path("docs/adr/ADR-054-read-receipt-publication-boundary.md")
+new_adr = Path("docs/adr/ADR-055-read-receipt-publication-boundary.md")
+if not old_adr.exists():
+    raise SystemExit("missing read receipt ADR before renumbering")
+new_adr.write_text(
+    old_adr.read_text(encoding="utf-8").replace(
+        "# ADR-054: Read Receipt Publication Boundary",
+        "# ADR-055: Read Receipt Publication Boundary",
+        1,
+    ),
+    encoding="utf-8",
+)
+old_adr.unlink()
+
+fdr_path = "docs/fdr/FDR-031-read-receipts.md"
+fdr = read(fdr_path).replace(
+    "ADR-054 (Read Receipt Publication Boundary)",
+    "ADR-055 (Read Receipt Publication Boundary)",
+)
+write(fdr_path, fdr)
+
+adr_index_path = "docs/adr/INDEX.md"
+adr_index = read(adr_index_path)
+adr_row = (
+    "| [ADR-055](ADR-055-read-receipt-publication-boundary.md)"
+    "                     | Read Receipt Publication Boundary"
+    "                                      | 2026-07-25 |\n"
+)
+if "ADR-055-read-receipt-publication-boundary.md" not in adr_index:
+    if not adr_index.endswith("\n"):
+        adr_index += "\n"
+    adr_index += adr_row
+write(adr_index_path, adr_index)
+
+fdr_index_path = "docs/fdr/INDEX.md"
+fdr_index = read(fdr_index_path)
+fdr_row = (
+    "| [FDR-031](FDR-031-read-receipts.md)"
+    "                    | Read Receipts"
+    "                      | Active | 2026-07-26    |\n"
+)
+if "FDR-031-read-receipts.md" not in fdr_index:
+    if not fdr_index.endswith("\n"):
+        fdr_index += "\n"
+    fdr_index += fdr_row
+write(fdr_index_path, fdr_index)
+PY
+
+stage="format-go"
+gofmt -w \
+  cli/internal/connectapi/account.go \
+  cli/internal/connectapi/read_state.go \
+  cli/internal/connectapi/read_state_privacy_test.go \
+  cli/internal/connectapi/server.go \
+  cli/internal/connectapi/viewer.go \
+  cli/internal/core/config_projection.go \
+  cli/internal/core/my_events_model.go \
+  cli/internal/core/read_receipts.go \
+  cli/internal/core/read_receipts_test.go \
+  cli/internal/core/user_preferences.go \
+  cli/internal/http_server/realtime.go \
+  cli/internal/http_server/realtime_test.go
+
+stage="format-proto"
+(
+  cd proto
+  mise x -- buf format -w .
+)
+
+stage="format-frontend"
+pnpm --dir apps/frontend exec prettier --write \
+  src/lib/api-client-tests/account.spec.ts \
+  src/lib/api-client/account.ts \
+  src/lib/api-client/readState.ts \
+  src/lib/api-client/viewer.ts \
+  src/lib/eventBus.svelte.ts \
+  src/lib/realtimeEventMapper.spec.ts \
+  src/lib/realtimeEventMapper.ts \
+  src/routes/chat/AuthenticatedChatProvider.svelte \
+  'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte' \
+  'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte.spec.ts' \
+  'src/routes/chat/[serverId]/[roomId]/EventList.svelte' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.spec.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.spec.ts' \
+  'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \
+  'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts' \
+  ../../docs/adr/ADR-055-read-receipt-publication-boundary.md \
+  ../../docs/adr/INDEX.md \
+  ../../docs/fdr/FDR-031-read-receipts.md \
+  ../../docs/fdr/INDEX.md
+
+stage="main-preservation"
+test -f apps/frontend/src/lib/components/ExternalGifEmbed.svelte
+test -f apps/frontend/src/lib/styles/liquid-glass-surfaces.css
+test -f apps/frontend/src/lib/components/settings/ProfileDetailsSettings.svelte
+test -f examples/dockercompose/compose.turn-tls.yml
+deleted_from_main="$(git diff --diff-filter=D --name-only "${EXPECTED_MAIN}")"
+test -z "${deleted_from_main}"
+
+stage="codegen"
+mise run codegen-proto
+pnpm --filter @towk/api-types build
+git diff --check "${EXPECTED_MAIN}"
+
+stage="contract-assertions"
+python3 - <<'PY'
+from pathlib import Path
+
+
+def message_block(path: str, name: str) -> str:
+    text = Path(path).read_text(encoding="utf-8")
+    start = text.index(f"message {name} {{")
+    end = text.index("\n}", start) + 2
+    return text[start:end]
+
+
+def require(condition: bool, description: str) -> None:
+    if not condition:
+        raise SystemExit(f"contract assertion failed: {description}")
+
+
+summary = message_block(
+    "proto/chatto/api/v1/read_state.proto",
+    "ReadReceiptSummary",
+)
+require("string message_event_id = 1;" in summary, "summary message id")
+require("int32 reader_count = 2;" in summary, "summary count")
+require("latest_read_at =" not in summary, "summary omits timestamp")
+require("preview_user_ids =" not in summary, "summary omits identities")
+require("reserved 3, 4;" in summary, "summary reserves removed fields")
+require(
+    'reserved "preview_user_ids", "latest_read_at";' in summary,
+    "summary reserves removed names",
+)
+
+for path, name in (
+    (
+        "proto/chatto/core/v1/live_events.proto",
+        "PublicReadReceiptAdvancedEvent",
+    ),
+    (
+        "proto/chatto/realtime/v1/realtime.proto",
+        "RealtimeReadReceiptAdvancedEvent",
+    ),
+):
+    block = message_block(path, name)
+    require("string room_id = 1;" in block, f"{name} room")
+    require(
+        "optional string thread_root_event_id = 2;" in block,
+        f"{name} thread",
+    )
+    require("reserved 3, 4, 5, 6;" in block, f"{name} reserved tags")
+    for forbidden in (
+        "user_id =",
+        "event_id =",
+        "event_sequence =",
+        "read_at =",
+    ):
+        require(forbidden not in block, f"{name} omits {forbidden}")
+
+account = Path("proto/chatto/api/v1/account.proto").read_text(encoding="utf-8")
+viewer = Path("proto/chatto/api/v1/viewer.proto").read_text(encoding="utf-8")
+prefs = Path("proto/chatto/core/v1/user_preferences.proto").read_text(
+    encoding="utf-8"
+)
+user_events = Path("proto/chatto/core/v1/user_events.proto").read_text(
+    encoding="utf-8"
+)
+realtime = Path("proto/chatto/realtime/v1/realtime.proto").read_text(
+    encoding="utf-8"
+)
+require(
+    "optional bool show_last_activity = 3;" in account,
+    "account preserves last activity field",
+)
+require(
+    "optional bool read_receipts_enabled = 4;" in account,
+    "account uses additive read receipt field",
+)
+require(
+    "bool show_last_activity = 3;" in viewer,
+    "viewer preserves last activity field",
+)
+require(
+    "bool read_receipts_enabled = 4;" in viewer,
+    "viewer uses additive read receipt field",
+)
+require(
+    "optional bool show_last_activity = 3;" in prefs,
+    "core preferences preserve last activity field",
+)
+require(
+    "optional bool read_receipts_enabled = 4;" in prefs,
+    "core preferences use additive read receipt field",
+)
+require(
+    "bool show_last_activity = 3;" in user_events,
+    "preference event preserves last activity field",
+)
+require(
+    "bool read_receipts_enabled = 4;" in user_events,
+    "preference event uses additive read receipt field",
+)
+require(
+    "bool show_last_activity = 3;" in realtime,
+    "realtime preferences preserve last activity field",
+)
+require(
+    "bool read_receipts_enabled = 4;" in realtime,
+    "realtime preferences use additive read receipt field",
+)
+
+event = Path("proto/chatto/core/v1/event.proto").read_text(encoding="utf-8")
+require(
+    "user_last_activity_visibility_changed = 519;" in event,
+    "durable last activity event id",
+)
+require(
+    "server_read_receipts_enabled_changed = 520;" in event,
+    "server read receipt event id",
+)
+require(
+    "user_read_receipts_enabled_changed = 521;" in event,
+    "user read receipt event id",
+)
+require(
+    "user_read_receipts_enabled_cleared = 522;" in event,
+    "user read receipt clear event id",
+)
+
+require(
+    Path("docs/adr/ADR-055-read-receipt-publication-boundary.md").exists(),
+    "ADR-055 exists",
+)
+require(
+    not Path("docs/adr/ADR-054-read-receipt-publication-boundary.md").exists(),
+    "obsolete ADR number absent",
+)
+require(
+    "FDR-031-read-receipts.md"
+    in Path("docs/fdr/INDEX.md").read_text(encoding="utf-8"),
+    "FDR index entry",
+)
+
+mapper = Path("cli/internal/http_server/realtime.go").read_text(
+    encoding="utf-8"
+)
+require(
+    "envelope.CreatedAt = nil" in mapper,
+    "realtime envelope timestamp cleared",
+)
+require(
+    "envelope.ActorId = nil" in mapper,
+    "realtime envelope actor cleared",
+)
+PY
+
+stage="contract-buf-build"
+(
+  cd proto
+  mise x -- buf build
+)
+
+stage="contract-buf-lint"
+(
+  cd proto
+  mise x -- buf lint \
+    --path chatto/api/v1/read_state.proto \
+    --path chatto/core/v1/live_events.proto \
+    --path chatto/realtime/v1/realtime.proto
+)
+
+stage="backend"
+(
+  cd cli
+  go test -race -trimpath -tags test_endpoints \
+    ./internal/core \
+    ./internal/connectapi \
+    ./internal/http_server \
+    ./internal/events \
+    -run 'ReadReceipt|ReadReceipts|RealtimeMapper|UserSettings|ServerUserPreferences|Subject' \
+    -count=1
+  go vet \
+    ./internal/core \
+    ./internal/connectapi \
+    ./internal/http_server \
+    ./internal/events
+)
+
+stage="frontend-check"
+pnpm --dir apps/frontend run check
+pnpm --dir apps/frontend exec vitest --run \
+  src/lib/realtimeEventMapper.spec.ts \
+  src/lib/api-client-tests/account.spec.ts \
+  src/lib/api-client-tests/viewer.spec.ts \
+  src/lib/api-client-tests/serverState.spec.ts \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.spec.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.spec.ts' \
+  'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+pnpm --dir apps/frontend exec eslint \
+  src/lib/api-client-tests/account.spec.ts \
+  src/lib/api-client/account.ts \
+  src/lib/api-client/readState.ts \
+  src/lib/api-client/viewer.ts \
+  src/lib/eventBus.svelte.ts \
+  src/lib/realtimeEventMapper.spec.ts \
+  src/lib/realtimeEventMapper.ts \
+  src/routes/chat/AuthenticatedChatProvider.svelte \
+  'src/routes/chat/[serverId]/[roomId]/EventList.svelte' \
+  'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte' \
+  'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte.spec.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.spec.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts' \
+  'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.spec.ts' \
+  'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \
+  'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+
+stage="browser-component"
+pnpm --dir apps/frontend exec playwright install chromium
+pnpm --dir apps/frontend exec vitest --run \
+  'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte.spec.ts'
+
+stage="build"
+mise run build-frontend
+pnpm run build:docs
+mise run license-check
+mise run public-surface-check
+git diff --check "${EXPECTED_MAIN}"
+
+stage="scope"
+allowed_paths="${RUNNER_TEMP}/pr173-allowed-paths.txt"
+candidate_paths="${RUNNER_TEMP}/pr173-candidate-paths.txt"
+git diff --name-only "${DESIGN_BASE}" "${FEATURE_SOURCE}" | sort -u > "${allowed_paths}"
+printf '%s\n' "docs/adr/ADR-055-read-receipt-publication-boundary.md" >> "${allowed_paths}"
+sort -u -o "${allowed_paths}" "${allowed_paths}"
+git diff --name-only "${EXPECTED_MAIN}" | sort -u > "${candidate_paths}"
+
+unexpected_paths="$(
+  comm -23 "${candidate_paths}" "${allowed_paths}"
+)"
+if test -n "${unexpected_paths}"; then
+  printf '%s\n' "unexpected paths in reconciled candidate:" >&2
+  printf '%s\n' "${unexpected_paths}" >&2
+  exit 1
+fi
+
+test -z "$(git diff --diff-filter=D --name-only "${EXPECTED_MAIN}")"
+
+stage="cleanup"
+rm -f \
+  .github/workflows/read-receipts-finalization-archive.yml \
+  .github/workflows/read-receipts-finalizer-instrument.yml \
+  .github/workflows/read-receipts-main-merge-diagnostic.yml \
+  .github/workflows/read-receipts-main-merge-finalizer.yml \
+  .github/workflows/read-receipts-main-merge-fixer.yml \
+  .github/scripts/pr173-reconcile.sh \
+  .github/read-receipts-finalization-trigger.txt \
+  .github/read-receipts-main-merge-diagnostic.txt \
+  .github/read-receipts-main-merge-finalizer-status.txt
+find .github -maxdepth 2 -type f \
+  \( -name '*read-receipts*status*' \
+  -o -name '*read-receipts*trace*' \
+  -o -name '*read-receipts*trigger*' \) \
+  -delete
+
+git add -A
+git diff --cached --check
+test -z "$(git diff --name-only --diff-filter=U)"
+git diff --check "${EXPECTED_MAIN}"
+
+stage="final-scope"
+git diff --name-only "${EXPECTED_MAIN}" | sort -u > "${candidate_paths}"
+unexpected_paths="$(
+  comm -23 "${candidate_paths}" "${allowed_paths}"
+)"
+if test -n "${unexpected_paths}"; then
+  printf '%s\n' "unexpected final paths:" >&2
+  printf '%s\n' "${unexpected_paths}" >&2
+  exit 1
+fi
+test -z "$(git diff --diff-filter=D --name-only "${EXPECTED_MAIN}")"
+
+stage="publish"
+git fetch --no-tags origin main
+test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"
+git commit -m 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'
+git push origin "HEAD:${TARGET_BRANCH}"
+trap - ERR
