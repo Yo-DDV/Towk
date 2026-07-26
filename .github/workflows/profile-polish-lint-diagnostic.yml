@@ -1,0 +1,46 @@
+name: diagnose profile polish lint
+
+on:
+  pull_request:
+    types: [synchronize, ready_for_review]
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.number == 182 && github.head_ref == 'feat/user-profiles'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Reproduce lint and type diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --branch feat/user-profiles https://github.com/Yo-DDV/Towk.git repo
+          cd repo
+          python3 .github/profile-polish/run.py
+          corepack enable
+          pnpm install --frozen-lockfile --reporter=silent >/dev/null
+          pnpm --filter towk-frontend paraglide >/dev/null
+          pnpm --dir apps/frontend exec prettier --write \
+            messages/de/chat.json messages/de/settings.json \
+            messages/en/chat.json messages/en/settings.json \
+            messages/es/chat.json messages/es/settings.json \
+            messages/fr/chat.json messages/fr/settings.json \
+            messages/pt/chat.json messages/pt/settings.json \
+            src/lib/components/menus/UserContextMenu.svelte \
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts \
+            src/lib/components/settings/ProfileDetailsSettings.svelte \
+            src/lib/components/settings/ProfileDetailsSettings.svelte.spec.ts \
+            src/lib/profileBiography.ts src/lib/profileBiography.spec.ts >/dev/null
+          pnpm --filter @towk/api-types build >/dev/null
+          pnpm --dir apps/frontend exec eslint \
+            src/lib/components/menus/UserContextMenu.svelte \
+            src/lib/components/menus/UserContextMenu.svelte.spec.ts \
+            src/lib/components/settings/ProfileDetailsSettings.svelte \
+            src/lib/components/settings/ProfileDetailsSettings.svelte.spec.ts \
+            src/lib/profileBiography.ts src/lib/profileBiography.spec.ts
+          pnpm --dir apps/frontend run check
