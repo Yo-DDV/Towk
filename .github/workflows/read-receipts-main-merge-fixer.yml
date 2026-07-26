@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   fix:
-    if: ${{ contains(github.event.head_commit.message, '[run pr173-merge-fixer]') }}
+    if: ${{ contains(github.event.head_commit.message, '[run pr173-format-fixer]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out exact feature head
@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 1
           persist-credentials: true
 
-      - name: Correct merge conflict status handling
+      - name: Split formatting gates by source file
         shell: bash
         run: |
           set -euo pipefail
@@ -33,33 +33,59 @@ jobs:
 
           path = Path('.github/workflows/read-receipts-main-merge-finalizer.yml')
           source = path.read_text(encoding='utf-8')
-          old = '''          stage=merge
-          set +e
-          git merge --no-commit --no-ff origin/main
-          merge_status=$?
-          set -e
-          if test "${merge_status}" -gt 1; then
-            exit "${merge_status}"
-          fi
+          start = source.index('          stage=format-sources\n')
+          end = source.index('\n          stage=codegen\n', start)
+          new = '''          for path in \\
+            cli/internal/connectapi/account.go \\
+            cli/internal/connectapi/read_state.go \\
+            cli/internal/connectapi/read_state_privacy_test.go \\
+            cli/internal/connectapi/server.go \\
+            cli/internal/connectapi/viewer.go \\
+            cli/internal/core/config_projection.go \\
+            cli/internal/core/my_events_model.go \\
+            cli/internal/core/read_receipts.go \\
+            cli/internal/core/read_receipts_test.go \\
+            cli/internal/core/user_preferences.go \\
+            cli/internal/http_server/realtime.go \\
+            cli/internal/http_server/realtime_test.go
+          do
+            stage="format-go:${path}"
+            gofmt -w "${path}"
+          done
+
+          stage=format-proto
+          (cd proto && mise x -- buf format -w .)
+
+          stage=format-frontend
+          pnpm --dir apps/frontend exec prettier --write \\
+            src/lib/api-client-tests/account.spec.ts \\
+            src/lib/api-client/account.ts \\
+            src/lib/api-client/readState.ts \\
+            src/lib/api-client/viewer.ts \\
+            src/lib/eventBus.svelte.ts \\
+            src/lib/realtimeEventMapper.spec.ts \\
+            src/lib/realtimeEventMapper.ts \\
+            src/routes/chat/AuthenticatedChatProvider.svelte \\
+            'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte' \\
+            'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte.spec.ts' \\
+            'src/routes/chat/[serverId]/[roomId]/EventList.svelte' \\
+            'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.ts' \\
+            'src/routes/chat/[serverId]/[roomId]/readReceiptPresentation.spec.ts' \\
+            'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts' \\
+            'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.spec.ts' \\
+            'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \\
+            'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts' \\
+            ../../docs/adr/ADR-055-read-receipt-publication-boundary.md \\
+            ../../docs/adr/INDEX.md \\
+            ../../docs/fdr/FDR-031-read-receipts.md \\
+            ../../docs/fdr/INDEX.md
 '''
-          new = '''          stage=merge
-          if git merge --no-commit --no-ff origin/main; then
-            merge_status=0
-          else
-            merge_status=$?
-          fi
-          if test "${merge_status}" -gt 1; then
-            exit "${merge_status}"
-          fi
-'''
-          if source.count(old) != 1:
-              raise SystemExit(f'expected one merge controller block, got {source.count(old)}')
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          path.write_text(source[:start] + new + source[end:], encoding='utf-8')
           PY
           rm -f .github/workflows/read-receipts-main-merge-fixer.yml
           git config user.name 'Yo-DDV'
           git config user.email '116607353+Yo-DDV@users.noreply.github.com'
           git add -A
           git diff --cached --check
-          git commit -m 'chore(ci): correct merge conflict status handling [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'
+          git commit -m 'chore(ci): split read receipt format gates [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'
           git push origin HEAD:feat/read-receipts
