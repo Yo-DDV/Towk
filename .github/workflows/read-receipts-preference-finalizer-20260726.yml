@@ -44,44 +44,45 @@ jobs:
               raise SystemExit('unexpected preferences form import state')
           source = source.replace(old_import, new_import, 1)
 
-          old_save = """      const settings = await accountAPI().updateSettings({
-            timezone: selectedTimezone,
-            timeFormat: selectedTimeFormat
-          });
-          userSettings.updateFromData(settings);
-"""
-          new_save = """      const settings = await accountAPI().updateSettings({
-            timezone: selectedTimezone,
-            timeFormat: selectedTimeFormat,
-            readReceiptsEnabled
-          });
-          userSettings.updateFromData(settings);
-          readReceiptsEnabled = settings.readReceiptsEnabled;
-"""
+          old_save = (
+              "      const settings = await accountAPI().updateSettings({\n"
+              "        timezone: selectedTimezone,\n"
+              "        timeFormat: selectedTimeFormat\n"
+              "      });\n"
+              "      userSettings.updateFromData(settings);\n"
+          )
+          new_save = (
+              "      const settings = await accountAPI().updateSettings({\n"
+              "        timezone: selectedTimezone,\n"
+              "        timeFormat: selectedTimeFormat,\n"
+              "        readReceiptsEnabled\n"
+              "      });\n"
+              "      userSettings.updateFromData(settings);\n"
+              "      readReceiptsEnabled = settings.readReceiptsEnabled;\n"
+          )
           if source.count(old_save) != 1:
               raise SystemExit('unexpected preferences save state')
           source = source.replace(old_save, new_save, 1)
 
           save_marker = "\n  <!-- Save -->\n"
-          section = """
-
-          <!-- Read receipts -->
-          <FormSection
-            title={m['settings.preferences.read_receipts.title']()}
-            maxWidth="max-w-md"
-            bordered
-          >
-            <Checkbox
-              id="read-receipts-enabled"
-              bind:checked={readReceiptsEnabled}
-              label={readReceiptsEnabled
-                ? m['settings.preferences.read_receipts.enabled_label']()
-                : m['settings.preferences.read_receipts.disabled_label']()}
-              description={m['settings.preferences.read_receipts.description']()}
-              disabled={isSaving}
-            />
-          </FormSection>
-"""
+          section = (
+              "\n  <!-- Read receipts -->\n"
+              "  <FormSection\n"
+              "    title={m['settings.preferences.read_receipts.title']()}\n"
+              "    maxWidth=\"max-w-md\"\n"
+              "    bordered\n"
+              "  >\n"
+              "    <Checkbox\n"
+              "      id=\"read-receipts-enabled\"\n"
+              "      bind:checked={readReceiptsEnabled}\n"
+              "      label={readReceiptsEnabled\n"
+              "        ? m['settings.preferences.read_receipts.enabled_label']()\n"
+              "        : m['settings.preferences.read_receipts.disabled_label']()}\n"
+              "      description={m['settings.preferences.read_receipts.description']()}\n"
+              "      disabled={isSaving}\n"
+              "    />\n"
+              "  </FormSection>\n"
+          )
           if source.count(save_marker) != 1:
               raise SystemExit('unexpected preferences save marker state')
           source = source.replace(save_marker, section + save_marker, 1)
@@ -91,30 +92,30 @@ jobs:
               'apps/frontend/src/routes/chat/[serverId]/settings/preferences/'
               'readReceiptPreference.server.spec.ts'
           )
-          test.write_text(
-              """import { readFileSync } from 'node:fs';
-          import { fileURLToPath } from 'node:url';
-          import { describe, expect, it } from 'vitest';
-
-          describe('read receipt preference page', () => {
-            it('renders and persists the reciprocal read receipt switch', () => {
-              const source = readFileSync(
-                fileURLToPath(new URL('./+page.svelte', import.meta.url)),
-                'utf8'
-              );
-              const updateStart = source.indexOf('accountAPI().updateSettings({');
-              const updateEnd = source.indexOf('});', updateStart);
-
-              expect(updateStart).toBeGreaterThanOrEqual(0);
-              expect(updateEnd).toBeGreaterThan(updateStart);
-              expect(source.slice(updateStart, updateEnd)).toContain('readReceiptsEnabled');
-              expect(source).toContain('bind:checked={readReceiptsEnabled}');
-              expect(source).toContain('readReceiptsEnabled = settings.readReceiptsEnabled;');
-            });
-          });
-          """,
-              encoding='utf-8',
-          )
+          test_lines = [
+              "import { readFileSync } from 'node:fs';",
+              "import { fileURLToPath } from 'node:url';",
+              "import { describe, expect, it } from 'vitest';",
+              '',
+              "describe('read receipt preference page', () => {",
+              "  it('renders and persists the reciprocal read receipt switch', () => {",
+              '    const source = readFileSync(',
+              "      fileURLToPath(new URL('./+page.svelte', import.meta.url)),",
+              "      'utf8'",
+              '    );',
+              "    const updateStart = source.indexOf('accountAPI().updateSettings({');",
+              "    const updateEnd = source.indexOf('});', updateStart);",
+              '',
+              '    expect(updateStart).toBeGreaterThanOrEqual(0);',
+              '    expect(updateEnd).toBeGreaterThan(updateStart);',
+              "    expect(source.slice(updateStart, updateEnd)).toContain('readReceiptsEnabled');",
+              "    expect(source).toContain('bind:checked={readReceiptsEnabled}');",
+              "    expect(source).toContain('readReceiptsEnabled = settings.readReceiptsEnabled;');",
+              '  });',
+              '});',
+              '',
+          ]
+          test.write_text('\n'.join(test_lines), encoding='utf-8')
           PY
 
           rm -f .github/workflows/read-receipts-preference-finalizer-20260726.yml
