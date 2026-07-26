@@ -1,4 +1,4 @@
-name: read-receipts reconciliation
+name: read-receipts patch diagnostic
 
 on:
   pull_request:
@@ -7,138 +7,64 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: read-receipts-reconciliation-${{ github.event.pull_request.number }}
+  group: read-receipts-patch-diagnostic-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  reconcile:
+  diagnose:
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
       - name: Check out exact feature head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Set up repository toolchain
-        uses: ./.github/actions/setup
-
-      - name: Rebuild, validate, and publish the additive candidate
-        id: reconcile
-        continue-on-error: true
+      - name: Apply feature delta onto current main with rejects
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
+          readonly DESIGN_BASE="b9f61f1b28608784c1e1ed1e2232131e681a12b3"
+          readonly FEATURE_SOURCE="f07456ce30c48fd35d63fcc9d3480b5792f40cfa"
+          readonly EXPECTED_MAIN="d277c59d2ebb16d076de6ae793e4679251be38b4"
+          output="${RUNNER_TEMP}/pr173-patch-diagnostic"
+          mkdir -p "${output}/rejects" "${output}/sources"
 
-          source_path = Path('.github/scripts/pr173-reconcile.sh')
-          patched_path = Path(os.environ['RUNNER_TEMP']) / 'pr173-reconcile.sh'
-          source = source_path.read_text(encoding='utf-8')
-
-          def replace_once(old: str, new: str, label: str) -> None:
-              global source
-              count = source.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected one exact match, got {count}')
-              source = source.replace(old, new, 1)
-
-          replace_once(
-              '  git read-tree --reset -u "${feature_head}" >/dev/null 2>&1 || true\n'
-              '  git restore --staged --worktree . >/dev/null 2>&1 || true\n',
-              '  git merge --abort >/dev/null 2>&1 || true\n'
-              '  git checkout --detach "${feature_head}" >/dev/null 2>&1 || true\n'
-              '  git restore --staged --worktree . >/dev/null 2>&1 || true\n',
-              'failure reset block',
-          )
-
-          replace_once(
-              'stage="merge-tree"\n'
-              'if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then\n'
-              '  merge_status=0\n'
-              'else\n'
-              '  merge_status=$?\n'
-              'fi\n',
-              'stage="prepare-tree"\n'
-              'git checkout --detach "${FEATURE_SOURCE}"\n\n'
-              'stage="merge-tree"\n'
-              'if git merge --no-commit --no-ff "${EXPECTED_MAIN}"; then\n'
-              '  merge_status=0\n'
-              'else\n'
-              '  merge_status=$?\n'
-              'fi\n',
-              'merge-tree block',
-          )
-
-          replace_once(
-              'stage="publish"\n'
-              'git fetch --no-tags origin main\n'
-              'test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"\n'
-              "git commit -m 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]'\n"
-              'git push origin "HEAD:${TARGET_BRANCH}"\n'
-              'trap - ERR\n',
-              'stage="publish"\n'
-              'git fetch --no-tags origin main "${TARGET_BRANCH}"\n'
-              'test "$(git rev-parse origin/main)" = "${EXPECTED_MAIN}"\n'
-              'test "$(git rev-parse "origin/${TARGET_BRANCH}")" = "${feature_head}"\n'
-              'candidate_tree="$(git write-tree)"\n'
-              "candidate_commit=\"$(printf '%s\\n' 'fix(integration): reconcile privacy-aware read receipts with main [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]' | git commit-tree \"${candidate_tree}\" -p \"${feature_head}\")\"\n"
-              'git push origin "${candidate_commit}:refs/heads/${TARGET_BRANCH}"\n'
-              'printf \'candidate_commit=%s\\n\' "${candidate_commit}"\n'
-              'trap - ERR\n',
-              'publish block',
-          )
-
-          patched_path.write_text(source, encoding='utf-8')
-          PY
+          git diff --binary "${DESIGN_BASE}" "${FEATURE_SOURCE}" > "${output}/feature.patch"
+          git checkout --detach "${EXPECTED_MAIN}"
 
           set +e
-          set -o pipefail
-          bash "${RUNNER_TEMP}/pr173-reconcile.sh" 2>&1 | tee "${RUNNER_TEMP}/pr173-reconcile.log"
-          status=${PIPESTATUS[0]}
+          git apply --reject --whitespace=nowarn "${output}/feature.patch" \
+            > "${output}/apply.stdout" 2> "${output}/apply.stderr"
+          apply_status=$?
           set -e
-          exit "${status}"
+          printf 'apply_status=%s\n' "${apply_status}" > "${output}/status.txt"
 
-      - name: Collect bounded reconciliation diagnostics
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          output="${RUNNER_TEMP}/pr173-reconciliation-diagnostics"
-          mkdir -p "${output}"
-          if test -f "${RUNNER_TEMP}/pr173-reconcile.log"; then
-            cp "${RUNNER_TEMP}/pr173-reconcile.log" "${output}/reconcile.log"
-            tail -n 260 "${RUNNER_TEMP}/pr173-reconcile.log" > "${output}/reconcile-tail.log"
-          else
-            printf '%s\n' 'reconciliation log was not created' > "${output}/reconcile.log"
-            cp "${output}/reconcile.log" "${output}/reconcile-tail.log"
-          fi
-          if test -f .github/read-receipts-main-merge-finalizer-status.txt; then
-            cp .github/read-receipts-main-merge-finalizer-status.txt "${output}/status.txt"
-          fi
-          {
-            printf 'event_head=%s\n' "${{ github.event.pull_request.head.sha }}"
-            printf 'step_outcome=%s\n' "${{ steps.reconcile.outcome }}"
-            printf 'step_conclusion=%s\n' "${{ steps.reconcile.conclusion }}"
-          } > "${output}/workflow.txt"
+          find . -type f -name '*.rej' -print0 | while IFS= read -r -d '' reject; do
+            relative="${reject#./}"
+            source_path="${relative%.rej}"
+            safe="$(printf '%s' "${source_path}" | tr '/ ' '__')"
+            mkdir -p "${output}/rejects/$(dirname "${relative}")"
+            cp "${reject}" "${output}/rejects/${relative}"
+            git show "${DESIGN_BASE}:${source_path}" > "${output}/sources/${safe}.base" 2>/dev/null || true
+            git show "${FEATURE_SOURCE}:${source_path}" > "${output}/sources/${safe}.feature" 2>/dev/null || true
+            git show "${EXPECTED_MAIN}:${source_path}" > "${output}/sources/${safe}.main" 2>/dev/null || true
+          done
 
-      - name: Upload reconciliation diagnostics
-        if: always()
+          find . -type f -name '*.rej' -printf '%P\n' | sort -u > "${output}/reject-paths.txt"
+          git diff --name-only "${EXPECTED_MAIN}" | sort -u > "${output}/applied-paths.txt"
+          git diff --stat "${EXPECTED_MAIN}" > "${output}/applied-stat.txt"
+
+      - name: Upload patch diagnostic
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: pr173-reconciliation-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/pr173-reconciliation-diagnostics
+          name: pr173-patch-diagnostic-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/pr173-patch-diagnostic
           retention-days: 1
           if-no-files-found: error
-
-      - name: Preserve reconciliation failure
-        if: steps.reconcile.outcome == 'failure'
-        shell: bash
-        run: exit 1
