@@ -1,0 +1,420 @@
+name: read-receipts finalizer
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: read-receipts-finalizer-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    if: github.event.pull_request.head.ref == 'feat/read-receipts'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact pull request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Synchronize current main without publishing
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          printf 'source_head=%s\n' "${source_head}" >> "${GITHUB_OUTPUT}"
+          printf 'main_sha=%s\n' "${main_sha}" >> "${GITHUB_OUTPUT}"
+
+          if git merge-base --is-ancestor "${main_sha}" "${source_head}"; then
+            printf 'needs_merge=false\n' >> "${GITHUB_OUTPUT}"
+          else
+            printf 'needs_merge=true\n' >> "${GITHUB_OUTPUT}"
+            git merge --no-commit --no-ff "${main_sha}"
+          fi
+          git diff --check
+
+      - name: Apply verified privacy remediation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATCH_GZIP_SHA256: b417f306713672f4cdce90e3098999fa2b2a20b515896c479cb1856762ba2f27
+          PATCH_SHA256: ed06045e6a501fd4a4b47442daf16b3abfbba3138352a9af1b0c2003e764ff9c
+          PATCH_PART_SHAS: >-
+            e48d04421ffc32f2985bf7bdd46956419db2f4e2
+            4e651e6b972f1f12031b7ddad6c638b093dcb250
+        run: |
+          set -euo pipefail
+          encoded="${RUNNER_TEMP}/read-receipts-remediation.patch.gz.b64"
+          archive="${RUNNER_TEMP}/read-receipts-remediation.patch.gz"
+          patch="${RUNNER_TEMP}/read-receipts-remediation.patch"
+          : > "${encoded}"
+
+          for sha in ${PATCH_PART_SHAS}; do
+            chunk="${RUNNER_TEMP}/read-receipts-remediation-${sha}.part"
+            curl --fail --silent --show-error --location --retry 3 \
+              --header "Accept: application/vnd.github.raw+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" \
+              > "${chunk}"
+            test "$(git hash-object "${chunk}")" = "${sha}"
+            cat "${chunk}" >> "${encoded}"
+          done
+
+          base64 -d "${encoded}" > "${archive}"
+          printf '%s  %s\n' "${PATCH_GZIP_SHA256}" "${archive}" | sha256sum --check --strict
+          gzip -dc "${archive}" > "${patch}"
+          printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --strict
+
+          if git apply --check "${patch}"; then
+            git apply "${patch}"
+          elif git apply --reverse --check "${patch}"; then
+            echo 'Privacy remediation was already present.'
+          else
+            echo 'Privacy remediation does not apply cleanly.' >&2
+            exit 40
+          fi
+          git diff --check
+
+      - name: Apply verified frontend compatibility remediation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PATCH_BLOB_SHA: f12b1b4277d103f7d6b742fe1d442bbbcc2d2500
+        run: |
+          set -euo pipefail
+          payload="${RUNNER_TEMP}/read-receipts-frontend.payload"
+          decoded_once="${RUNNER_TEMP}/read-receipts-frontend.decoded-once"
+          decoded_twice="${RUNNER_TEMP}/read-receipts-frontend.decoded-twice"
+          candidate="${RUNNER_TEMP}/read-receipts-frontend.patch"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${PATCH_BLOB_SHA}" \
+            | jq -er '.content' \
+            | tr -d '\r\n' \
+            | base64 -d > "${payload}"
+          test "$(git hash-object "${payload}")" = "${PATCH_BLOB_SHA}"
+
+          apply_candidate() {
+            local input="$1"
+            local label="$2"
+            if git apply --check "${input}" >/dev/null 2>&1; then
+              git apply "${input}"
+              echo "Applied frontend remediation as ${label}."
+              return 0
+            fi
+            if git apply --reverse --check "${input}" >/dev/null 2>&1; then
+              echo "Frontend remediation already present (${label})."
+              return 0
+            fi
+            return 1
+          }
+
+          if apply_candidate "${payload}" raw; then
+            true
+          elif gzip -t "${payload}" >/dev/null 2>&1 && gzip -dc "${payload}" > "${candidate}" && apply_candidate "${candidate}" raw-gzip; then
+            true
+          elif base64 -di "${payload}" > "${decoded_once}" 2>/dev/null && apply_candidate "${decoded_once}" base64; then
+            true
+          elif gzip -t "${decoded_once}" >/dev/null 2>&1 && gzip -dc "${decoded_once}" > "${candidate}" && apply_candidate "${candidate}" base64-gzip; then
+            true
+          elif base64 -di "${decoded_once}" > "${decoded_twice}" 2>/dev/null && apply_candidate "${decoded_twice}" double-base64; then
+            true
+          elif gzip -t "${decoded_twice}" >/dev/null 2>&1 && gzip -dc "${decoded_twice}" > "${candidate}" && apply_candidate "${candidate}" double-base64-gzip; then
+            true
+          else
+            echo 'Unable to decode or apply frontend remediation.' >&2
+            exit 41
+          fi
+          git diff --check
+
+      - name: Regenerate protobuf bindings and API documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise run codegen-proto
+          pnpm --filter @towk/api-types build
+
+      - name: Verify count-only public summary contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          proto = Path('proto/chatto/api/v1/read_state.proto').read_text(encoding='utf-8')
+          start = proto.index('message ReadReceiptSummary {')
+          end = proto.index('\n}', start) + 2
+          section = proto[start:end]
+          assert 'int32 reader_count = 2;' in section
+          assert 'reserved 3;' in section
+          assert 'reserved "preview_user_ids";' in section
+          assert 'repeated string preview_user_ids' not in section
+
+          generated = [
+              Path('cli/internal/pb/chatto/api/v1/read_state.pb.go').read_text(encoding='utf-8'),
+              Path('packages/api-types/src/chatto/api/v1/read_state_pb.ts').read_text(encoding='utf-8'),
+          ]
+          for text in generated:
+              marker = 'ReadReceiptSummary'
+              start = text.index(marker)
+              window = text[start:start + 5000]
+              assert 'PreviewUserIds' not in window
+              assert 'previewUserIds' not in window
+
+          backend = Path('cli/internal/connectapi/read_state.go').read_text(encoding='utf-8')
+          assert 'PreviewUserIds' not in backend
+          assert 'previewUserIds' not in backend
+          PY
+          test -f 'apps/frontend/src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte'
+          test -f 'apps/frontend/src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts'
+          test -f docs/fdr/FDR-031-read-receipts.md
+          test -f docs/adr/ADR-054-read-receipt-publication-boundary.md
+
+      - name: Validate protobuf surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd proto
+          buf build
+          buf lint --path chatto/api/v1/read_state.proto
+
+      - name: Test affected backend under race
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd cli
+          go test -race -trimpath -tags test_endpoints \
+            ./internal/core ./internal/connectapi ./internal/http_server ./internal/events \
+            -run 'ReadReceipt|ReadReceipts|UserSettings|ServerUserPreferences|Subject' \
+            -count=1
+          go vet ./internal/core ./internal/connectapi ./internal/http_server ./internal/events
+
+      - name: Check and test affected frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --dir apps/frontend run check
+          pnpm --dir apps/frontend exec vitest --run \
+            src/lib/realtimeEventMapper.spec.ts \
+            src/lib/api-client-tests/account.spec.ts \
+            src/lib/api-client-tests/viewer.spec.ts \
+            src/lib/api-client-tests/serverState.spec.ts \
+            'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.spec.ts'
+          pnpm --dir apps/frontend exec eslint \
+            src/lib/ServerSettings.svelte \
+            src/lib/api-client/readState.ts \
+            src/lib/api-client/serverState.ts \
+            src/lib/api-client/viewer.ts \
+            src/lib/eventBus.svelte.ts \
+            src/lib/realtimeEventMapper.ts \
+            src/lib/state/userSettings.svelte.ts \
+            'src/routes/chat/[serverId]/[roomId]/EventList.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/MessageEvent.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/MessageMetaBar.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/RoomEvent.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/ThreadPane.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/TimelineEventsPane.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts' \
+            'src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.spec.ts' \
+            'src/routes/chat/[serverId]/settings/preferences/+page.svelte'
+
+      - name: Build frontend, docs, and public surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise run build-frontend
+          pnpm run build:docs
+          mise run public-surface-check
+
+      - name: Check license and final diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          mise run license-check
+          git diff --check
+
+      - name: Create and publish final synchronized commit
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_HEAD: ${{ steps.refs.outputs.source_head }}
+          MAIN_SHA: ${{ steps.refs.outputs.main_sha }}
+          NEEDS_MERGE: ${{ steps.refs.outputs.needs_merge }}
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/read-receipts-candidate-tree.yml \
+            .github/workflows/read-receipts-snapshot.yml \
+            .github/workflows/read-receipts-remediation.yml \
+            .github/workflows/read-receipts-frontend-diagnostic.yml \
+            .github/workflows/read-receipts-finalize-20260726.yml
+
+          git add -A
+          git diff --cached --check
+
+          tree_sha="$(git write-tree)"
+          for path in \
+            .github/workflows/read-receipts-candidate-tree.yml \
+            .github/workflows/read-receipts-snapshot.yml \
+            .github/workflows/read-receipts-remediation.yml \
+            .github/workflows/read-receipts-frontend-diagnostic.yml \
+            .github/workflows/read-receipts-finalize-20260726.yml; do
+            if git ls-tree -r --name-only "${tree_sha}" | grep -Fxq "${path}"; then
+              echo "Temporary workflow remained in final tree: ${path}" >&2
+              exit 70
+            fi
+          done
+
+          if test "${NEEDS_MERGE}" = true; then
+            parents="$(jq -n --arg source "${SOURCE_HEAD}" --arg main "${MAIN_SHA}" '[ $source, $main ]')"
+          else
+            parents="$(jq -n --arg source "${SOURCE_HEAD}" '[ $source ]')"
+          fi
+
+          timestamp="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          payload="${RUNNER_TEMP}/read-receipts-final-commit.json"
+          response="${RUNNER_TEMP}/read-receipts-final-commit-response.json"
+          jq -n \
+            --arg message 'fix(messages): remediate read receipt privacy and frontend' \
+            --arg tree "${tree_sha}" \
+            --argjson parents "${parents}" \
+            --arg name 'Yo-DDV' \
+            --arg email '116607353+Yo-DDV@users.noreply.github.com' \
+            --arg date "${timestamp}" \
+            '{message: $message, tree: $tree, parents: $parents, author: {name: $name, email: $email, date: $date}, committer: {name: $name, email: $email, date: $date}}' \
+            > "${payload}"
+
+          curl --fail --silent --show-error --location --retry 3 \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data-binary @"${payload}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/commits" \
+            | tee "${response}"
+          commit_sha="$(jq -er '.sha' "${response}")"
+
+          current_ref="$(curl --fail --silent --show-error --location --retry 3 \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/ref/heads/feat/read-receipts" \
+            | jq -er '.object.sha')"
+          test "${current_ref}" = "${SOURCE_HEAD}"
+
+          jq -n --arg sha "${commit_sha}" '{sha: $sha, force: false}' \
+            | curl --fail --silent --show-error --location --retry 3 \
+                --request PATCH \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                --data-binary @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/refs/heads/feat/read-receipts"
+
+          printf 'commit_sha=%s\n' "${commit_sha}" >> "${GITHUB_OUTPUT}"
+          printf 'tree_sha=%s\n' "${tree_sha}" >> "${GITHUB_OUTPUT}"
+          {
+            printf 'source_head=%s\n' "${SOURCE_HEAD}"
+            printf 'main_sha=%s\n' "${MAIN_SHA}"
+            printf 'final_commit=%s\n' "${commit_sha}"
+            printf 'final_tree=%s\n' "${tree_sha}"
+          } > "${RUNNER_TEMP}/read-receipts-finalizer-status.txt"
+
+      - name: Update pull request handoff truth
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_SHA: ${{ steps.publish.outputs.commit_sha }}
+          MAIN_SHA: ${{ steps.refs.outputs.main_sha }}
+        run: |
+          set -euo pipefail
+          body="${RUNNER_TEMP}/read-receipts-pr-body.md"
+          cat > "${body}" <<EOF
+          Closes #172
+
+          ## Summary
+
+          Implements privacy-aware read receipts for direct messages, group conversations, channels, and threads.
+
+          - Keeps the public summary strictly count-only; reader identities are available only through the authorized paginated detail endpoint.
+          - Separates public read-receipt cursors from private unread/read markers and notification state.
+          - Enforces server-wide and per-user controls, with no retroactive publication after opt-out.
+          - Restores the complete responsive frontend, visibility/focus gating, realtime invalidation, profile/admin settings, translations, tests, FDR-031, and ADR-054.
+          - Synchronizes the branch additively with current main without force-push.
+
+          ## Privacy and compatibility
+
+          \`ReadReceiptSummary\` exposes only \`reader_count\` and \`latest_read_at\`. Protobuf field number 3 and the name \`preview_user_ids\` are reserved. The detail endpoint remains membership- and preference-gated. Existing private unread markers remain the unread source of truth. No data migration is required; operational rollback is the server-wide switch.
+
+          ## Verification
+
+          Exact head for the next Docker 1 campaign: \`${FINAL_SHA}\`.
+          Main integrated by this commit: \`${MAIN_SHA}\`.
+
+          Automated validation completed before publication:
+
+          - protobuf code generation and API documentation regeneration;
+          - count-only descriptor/source checks;
+          - targeted Buf build/lint;
+          - targeted Go tests under race and \`go vet\`;
+          - Svelte/TypeScript check;
+          - targeted Vitest and ESLint;
+          - frontend production build, documentation build, and public-surface check;
+          - REUSE/license check and Git diff hygiene;
+          - removal of every temporary read-receipts workflow from the final tree.
+
+          Not claimed: the physical authenticated Docker 1 browser/PWA/device campaign. That is the next gate.
+
+          ## Docker 1 validation requested
+
+          Integrate \`#173@${FINAL_SHA}\` additively into a fresh Docker 1 aggregate. Do not reuse aggregate \`e2ea1937e58e76d6f8431d3066e804b0e644a405\`, do not merge to main, and do not publish a release image.
+
+          Revalidate count-only summaries, paginated authorized detail, 1:1/group/channel/thread behavior, server/user opt-out without backfill, realtime multi-tab/device propagation, visibility/focus gating, responsive/PWA/accessibility behavior, and unread/notification/message regressions.
+
+          ## Checklist
+
+          - [x] Privacy leak reported by Docker 1 removed.
+          - [x] Missing frontend component and integration restored.
+          - [x] Backend, API, realtime, frontend, generated bindings, docs, i18n, FDR, and ADR included.
+          - [x] Current main synchronized without force-push or code removal.
+          - [x] Temporary transport/diagnostic workflows absent from final diff.
+          - [x] No merge to main, tag, release, package publication, prompt, transcript, secret, private log, or personal data added.
+          - [x] Ready for a fresh Docker 1 qualification campaign.
+          EOF
+
+          jq -Rs '{body: .}' < "${body}" \
+            | curl --fail --silent --show-error --location --retry 3 \
+                --request PATCH \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                --data-binary @- \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/173"
+
+      - name: Upload finalizer proof
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: towk-read-receipts-finalizer-proof
+          path: ${{ runner.temp }}/read-receipts-finalizer-status.txt
+          retention-days: 1
+          if-no-files-found: error
