@@ -30,14 +30,18 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin main
+          git config user.name 'Yo-DDV'
+          git config user.email '116607353+Yo-DDV@users.noreply.github.com'
 
           feature_head="$(git rev-parse HEAD)"
           main_head="$(git rev-parse origin/main)"
           merge_base="$(git merge-base "${feature_head}" "${main_head}")"
           report=".github/read-receipts-main-merge-diagnostic.txt"
+          merge_stdout="${RUNNER_TEMP}/read-receipts-merge.stdout"
+          merge_stderr="${RUNNER_TEMP}/read-receipts-merge.stderr"
 
           set +e
-          git merge --no-commit --no-ff origin/main
+          git merge --no-commit --no-ff origin/main > "${merge_stdout}" 2> "${merge_stderr}"
           merge_status=$?
           set -e
 
@@ -46,6 +50,10 @@ jobs:
             printf 'main_head=%s\n' "${main_head}"
             printf 'merge_base=%s\n' "${merge_base}"
             printf 'merge_status=%s\n' "${merge_status}"
+            printf '%s\n' '--- merge stdout ---'
+            cat "${merge_stdout}" || true
+            printf '%s\n' '--- merge stderr ---'
+            cat "${merge_stderr}" || true
             printf '%s\n' '--- unmerged index entries: mode blob stage path ---'
             git ls-files -u || true
             printf '%s\n' '--- conflict paths ---'
@@ -55,8 +63,6 @@ jobs:
           git merge --abort 2>/dev/null || true
           cp "${RUNNER_TEMP}/read-receipts-main-merge-diagnostic.txt" "${report}"
 
-          git config user.name 'Yo-DDV'
-          git config user.email '116607353+Yo-DDV@users.noreply.github.com'
           git add "${report}"
           git diff --cached --check
           git commit -m 'chore(ci): record additive main merge diagnostic [skip pr173-merge-diagnostic]'
