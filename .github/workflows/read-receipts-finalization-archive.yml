@@ -30,6 +30,8 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Reconstruct, validate, and publish the clean product tree
+        id: terminal
+        continue-on-error: true
         shell: bash
         env:
           PR173_DESIGN_BASE: b9f61f1b28608784c1e1ed1e2232131e681a12b3
@@ -37,7 +39,46 @@ jobs:
           PR173_EXPECTED_MAIN: d277c59d2ebb16d076de6ae793e4679251be38b4
           TARGET_BRANCH: feat/read-receipts
         run: |
-          set -Eeuo pipefail
+          set -euo pipefail
           base64 -d .github/pr173-terminal.sh.gz.b64 | gzip -d > "${RUNNER_TEMP}/pr173-terminal.sh"
           chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
-          bash "${RUNNER_TEMP}/pr173-terminal.sh"
+          set +e
+          set -o pipefail
+          bash -x "${RUNNER_TEMP}/pr173-terminal.sh" 2>&1 | tee "${RUNNER_TEMP}/pr173-terminal.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          printf 'exit_code=%s\n' "${status}" > "${RUNNER_TEMP}/pr173-terminal-status.txt"
+          exit "${status}"
+
+      - name: Collect bounded terminal diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/pr173-terminal-diagnostics"
+          mkdir -p "${output}"
+          cp "${RUNNER_TEMP}/pr173-terminal-status.txt" "${output}/status.txt" 2>/dev/null || true
+          if test -f "${RUNNER_TEMP}/pr173-terminal.log"; then
+            tail -n 420 "${RUNNER_TEMP}/pr173-terminal.log" > "${output}/terminal-tail.log"
+          else
+            printf '%s\n' 'terminal log was not created' > "${output}/terminal-tail.log"
+          fi
+          printf 'event_head=%s\nstep_outcome=%s\nstep_conclusion=%s\n' \
+            "${{ github.event.pull_request.head.sha }}" \
+            "${{ steps.terminal.outcome }}" \
+            "${{ steps.terminal.conclusion }}" \
+            > "${output}/workflow.txt"
+
+      - name: Upload terminal diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr173-terminal-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/pr173-terminal-diagnostics
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Preserve terminal failure
+        if: steps.terminal.outcome == 'failure'
+        shell: bash
+        run: exit 1
