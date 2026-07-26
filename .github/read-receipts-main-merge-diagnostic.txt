@@ -1,0 +1,6 @@
+feature_head=04192a9d0e717707681d61d62a9d9f9b0d241718
+main_head=d277c59d2ebb16d076de6ae793e4679251be38b4
+merge_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
+merge_status=128
+--- unmerged index entries: mode blob stage path ---
+--- conflict paths ---
