@@ -1,5 +1,8 @@
-source_head=630d91908080eb6f6bd99d0fdd269776f8bd7df4
+source_head=f06aad043d879ec43a5ba427a8481c24edc5ced3
+feature_source=f07456ce30c48fd35d63fcc9d3480b5792f40cfa
 main_head=d277c59d2ebb16d076de6ae793e4679251be38b4
-merge_base=d277c59d2ebb16d076de6ae793e4679251be38b4
-failed_stage=contract
+design_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
+failed_stage=prepare-tree
 exit_code=1
+run_id=30217717140
+run_attempt=1
