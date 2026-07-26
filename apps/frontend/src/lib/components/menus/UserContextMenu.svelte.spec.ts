@@ -136,6 +136,10 @@ describe('UserContextMenu', () => {
     const { container } = renderMenu();
 
     await expect.element(q(container, '[data-testid="user-profile-dialog"]')).toBeInTheDocument();
+    const dialog = container.querySelector('dialog');
+    if (!dialog) throw new Error('Expected the profile dialog to be rendered.');
+    expect(dialog.getAttribute('aria-label')).toBe('User profile');
+    expect(dialog.querySelector('header h2')).toBeNull();
     await vi.waitFor(() => expect(container.textContent).toContain('Moderator'));
     expect(container.textContent).toContain('Alice Example');
     expect(container.textContent).toContain('@alice');

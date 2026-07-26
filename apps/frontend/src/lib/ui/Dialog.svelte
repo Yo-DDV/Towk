@@ -10,6 +10,7 @@
     footer,
     visible = $bindable(false),
     title,
+    ariaLabel,
     size = 'md',
     tall = false,
     mobileFullScreen = false,
@@ -19,6 +20,8 @@
   }: {
     visible?: boolean;
     title?: string;
+    /** Accessible name used when the dialog does not render a visible title. */
+    ariaLabel?: string;
     size?: 'sm' | 'md' | 'lg';
     /** Allow content-heavy dialogs to use nearly the full dynamic viewport height. */
     tall?: boolean;
@@ -216,6 +219,7 @@
   style:padding={useMobileFullScreen ? '0' : undefined}
   style:overflow={useMobileFullScreen ? 'hidden' : undefined}
   aria-labelledby={title ? titleId : undefined}
+  aria-label={title ? undefined : ariaLabel}
   aria-describedby={describedBy}
 >
   {#if visible || closing}

@@ -245,7 +245,7 @@ responsive dialog backed by the detailed profile API.
 
 <Dialog
   bind:visible
-  title={m['chat.user_menu.profile']()}
+  ariaLabel={m['chat.user_menu.profile']()}
   size="lg"
   tall
   mobileFullScreen
