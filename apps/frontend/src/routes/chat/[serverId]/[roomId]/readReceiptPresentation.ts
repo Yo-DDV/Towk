@@ -1,6 +1,12 @@
 import { isMessagePostedEvent } from '$lib/render/eventKinds';
 import type { RoomEventView } from '$lib/render/types';
 
+const readReceiptIndicatorVisible = Symbol('readReceiptIndicatorVisible');
+
+type PresentedRoomEventView = RoomEventView & {
+  [readReceiptIndicatorVisible]?: boolean;
+};
+
 /**
  * Returns the message IDs that may render a compact read-receipt indicator.
  *
@@ -26,4 +32,27 @@ export function readReceiptIndicatorEventIds(events: readonly RoomEventView[]): 
   }
 
   return indicatorEventIds;
+}
+
+/**
+ * Decorates message view objects with timeline-local presentation metadata.
+ * Cloning keeps the decision isolated when the same source event is rendered in
+ * both a room timeline and a thread timeline.
+ */
+export function withReadReceiptPresentation(
+  events: readonly RoomEventView[]
+): PresentedRoomEventView[] {
+  const indicatorEventIds = readReceiptIndicatorEventIds(events);
+
+  return events.map((event) => {
+    if (!isMessagePostedEvent(event.event)) return event;
+    return {
+      ...event,
+      [readReceiptIndicatorVisible]: indicatorEventIds.has(event.id)
+    };
+  });
+}
+
+export function shouldShowReadReceiptIndicator(event: RoomEventView): boolean {
+  return (event as PresentedRoomEventView)[readReceiptIndicatorVisible] !== false;
 }
