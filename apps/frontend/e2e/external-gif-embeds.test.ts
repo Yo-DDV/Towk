@@ -6,6 +6,7 @@ import { TIMEOUTS } from './constants';
 const giphyUrl = 'https://giphy.com/gifs/justin-word-oh-really-wow-QUENDfi6DEMLzQ0CKt';
 const giphyMediaUrl =
   'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/l0MYt5jPR6QX5pnqM/giphy.gif';
+const giphyEmbedUrl = 'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt';
 const tenorMediaUrl = 'https://media1.tenor.com/m/2wdlar795ZAAAAAd/example-content-url.gif';
 const klipyMediaUrl =
   'https://static.klipy.com/ii/4493325008d34b7bf8cd6813cd5c1619/12/66/VRmb0agTs8UFUzia.gif';
@@ -54,10 +55,7 @@ test.describe('External GIF embeds', () => {
     await expect(message.getByRole('link', { name: giphyUrl })).toHaveCount(0);
 
     await embed.getByRole('button', { name: 'Load external GIF' }).click();
-    await expect(embed.locator('iframe')).toHaveAttribute(
-      'src',
-      'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt'
-    );
+    await expect(embed.locator('iframe')).toHaveAttribute('src', giphyEmbedUrl);
   });
 
   test('renders current GIPHY CDN media after consent', async ({ page, chatPage, roomPage }) => {
@@ -185,17 +183,26 @@ test.describe('External GIF embeds', () => {
     expect(mediaRequests).toBe(0);
     expect(embedRequests).toBe(0);
 
+    const mediaRequestPromise = page.waitForRequest(
+      (request) => request.url() === giphyMediaUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
+    );
     await embeds.nth(0).getByRole('button', { name: 'Load external GIF' }).click();
+    await mediaRequestPromise;
     await expect(embeds.nth(0).locator('img')).toHaveAttribute('src', giphyMediaUrl);
-    expect(mediaRequests).toBe(1);
+    await expect(embeds.nth(0)).toHaveAttribute('data-state', 'loaded');
+    await expect.poll(() => mediaRequests).toBe(1);
     expect(embedRequests).toBe(0);
 
-    await embeds.nth(1).getByRole('button', { name: 'Load external GIF' }).click();
-    await expect(embeds.nth(1).locator('iframe')).toHaveAttribute(
-      'src',
-      'https://giphy.com/embed/QUENDfi6DEMLzQ0CKt'
+    const embedRequestPromise = page.waitForRequest(
+      (request) => request.url() === giphyEmbedUrl,
+      { timeout: TIMEOUTS.UI_STANDARD }
     );
-    expect(embedRequests).toBe(1);
+    await embeds.nth(1).getByRole('button', { name: 'Load external GIF' }).click();
+    await embedRequestPromise;
+    await expect(embeds.nth(1).locator('iframe')).toHaveAttribute('src', giphyEmbedUrl);
+    await expect(embeds.nth(1)).toHaveAttribute('data-state', 'loaded');
+    await expect.poll(() => embedRequests).toBe(1);
   });
 
   test('keeps a provider URL mixed with text as a normal link', async ({
