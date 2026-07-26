@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { RoomEventView } from '$lib/render/types';
-import { readReceiptIndicatorEventIds } from './readReceiptPresentation';
+import {
+  readReceiptIndicatorEventIds,
+  shouldShowReadReceiptIndicator,
+  withReadReceiptPresentation
+} from './readReceiptPresentation';
 
 function message(id: string, actorId?: string | null): RoomEventView {
   return {
@@ -34,9 +38,13 @@ function systemEvent(id: string): RoomEventView {
 
 describe('readReceiptIndicatorEventIds', () => {
   it('keeps only the final message in one consecutive author run', () => {
-    expect([...readReceiptIndicatorEventIds([message('a1', 'alice'), message('a2', 'alice'), message('a3', 'alice')])]).toEqual([
-      'a3'
+    const ids = readReceiptIndicatorEventIds([
+      message('a1', 'alice'),
+      message('a2', 'alice'),
+      message('a3', 'alice')
     ]);
+
+    expect(ids).toEqual(new Set(['a3']));
   });
 
   it('keeps the final message of every author run', () => {
@@ -65,5 +73,17 @@ describe('readReceiptIndicatorEventIds', () => {
     const ids = readReceiptIndicatorEventIds([message('unknown-1'), message('unknown-2')]);
 
     expect(ids).toEqual(new Set(['unknown-1', 'unknown-2']));
+  });
+
+  it('decorates each timeline independently and leaves source events untouched', () => {
+    const first = message('a1', 'alice');
+    const second = message('a2', 'alice');
+    const presented = withReadReceiptPresentation([first, second]);
+
+    expect(presented[0]).not.toBe(first);
+    expect(presented[1]).not.toBe(second);
+    expect(shouldShowReadReceiptIndicator(first)).toBe(true);
+    expect(shouldShowReadReceiptIndicator(presented[0])).toBe(false);
+    expect(shouldShowReadReceiptIndicator(presented[1])).toBe(true);
   });
 });
