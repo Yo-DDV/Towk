@@ -6,6 +6,22 @@ const rootLayout = readFileSync(new URL('../../routes/+layout.svelte', import.me
 
 const backdropEnhancement =
   '@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px)))';
+const darkThemeStart = stylesheet.indexOf(":root[data-theme='dark']");
+const surfaceRulesStart = stylesheet.indexOf(":root [data-testid='current-user-identity-card']");
+const lightTheme = stylesheet.slice(0, darkThemeStart);
+const darkTheme = stylesheet.slice(darkThemeStart, surfaceRulesStart);
+
+function cssVariable(block: string, name: string): string {
+  const match = block.match(new RegExp(`--${name}:\\s*([^;]+);`));
+  if (!match) throw new Error(`Missing CSS variable --${name}`);
+  return match[1].trim();
+}
+
+function rgbaAlpha(value: string): number {
+  const match = value.match(/,\s*([0-9.]+)\)$/);
+  if (!match) throw new Error(`Expected rgba() value, received ${value}`);
+  return Number(match[1]);
+}
 
 describe('liquid glass surface stylesheet', () => {
   it('loads once from the application shell and targets only the intended surfaces', () => {
@@ -35,8 +51,8 @@ describe('liquid glass surface stylesheet', () => {
     expect(stylesheet).toContain('--liquid-glass-edge-sheen:');
     expect(stylesheet).toContain('inset 1px 0 0 var(--liquid-glass-edge-sheen)');
     expect(stylesheet).toContain('inset -1px 0 0 var(--liquid-glass-edge-sheen)');
-    expect(stylesheet).toContain('transparent 12%');
-    expect(stylesheet).toContain('transparent 88%');
+    expect(stylesheet).toContain('transparent 6%');
+    expect(stylesheet).toContain('transparent 94%');
     expect(stylesheet).not.toContain('radial-gradient');
     expect(stylesheet).not.toContain('at 4% -58%');
     expect(stylesheet).not.toContain('at 104% 136%');
@@ -45,12 +61,33 @@ describe('liquid glass surface stylesheet', () => {
     expect(stylesheet).not.toContain('-6px -6px');
   });
 
+  it('keeps the regular-style material neutral and bounds internal luminance', () => {
+    const lightFaceTop = cssVariable(lightTheme, 'liquid-glass-face-top');
+    const darkFaceTop = cssVariable(darkTheme, 'liquid-glass-face-top');
+    const lightEdgeHighlight = cssVariable(lightTheme, 'liquid-glass-edge-highlight');
+    const darkEdgeHighlight = cssVariable(darkTheme, 'liquid-glass-edge-highlight');
+    const lightFill = cssVariable(lightTheme, 'liquid-glass-fill-translucent');
+    const darkFill = cssVariable(darkTheme, 'liquid-glass-fill-translucent');
+
+    expect(lightFaceTop).toContain('148, 163, 184');
+    expect(darkFaceTop).toContain('148, 163, 184');
+    expect(lightEdgeHighlight).toContain('226, 232, 240');
+    expect(darkEdgeHighlight).toContain('203, 213, 225');
+    expect(rgbaAlpha(lightFaceTop)).toBeLessThanOrEqual(0.04);
+    expect(rgbaAlpha(darkFaceTop)).toBeLessThanOrEqual(0.02);
+    expect(rgbaAlpha(lightEdgeHighlight)).toBeLessThanOrEqual(0.22);
+    expect(rgbaAlpha(darkEdgeHighlight)).toBeLessThanOrEqual(0.07);
+    expect(rgbaAlpha(lightFill)).toBeLessThanOrEqual(0.5);
+    expect(rgbaAlpha(darkFill)).toBeLessThanOrEqual(0.54);
+    expect(stylesheet).not.toContain('rgba(255, 255, 255');
+  });
+
   it('progressively enhances supported engines without making blur mandatory', () => {
     expect(stylesheet).toContain(backdropEnhancement);
-    expect(stylesheet).toContain('-webkit-backdrop-filter: blur(18px) saturate(135%);');
-    expect(stylesheet).toContain('backdrop-filter: blur(18px) saturate(135%);');
-    expect(stylesheet).toContain('-webkit-backdrop-filter: blur(12px) saturate(128%);');
-    expect(stylesheet).toContain('backdrop-filter: blur(12px) saturate(128%);');
+    expect(stylesheet).toContain('-webkit-backdrop-filter: blur(18px) saturate(115%);');
+    expect(stylesheet).toContain('backdrop-filter: blur(18px) saturate(115%);');
+    expect(stylesheet).toContain('-webkit-backdrop-filter: blur(12px) saturate(110%);');
+    expect(stylesheet).toContain('backdrop-filter: blur(12px) saturate(110%);');
   });
 
   it('respects transparency, contrast, motion, and forced-color preferences', () => {
