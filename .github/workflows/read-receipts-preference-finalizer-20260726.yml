@@ -121,20 +121,41 @@ jobs:
           rm -f .github/workflows/read-receipts-preference-finalizer-20260726.yml
           git diff --check
 
-      - name: Format and validate frontend
+      - name: Format preference sources
         shell: bash
         run: |
           set -euo pipefail
           pnpm --dir apps/frontend exec prettier --write \
             'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \
             'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+          git diff --check
+
+      - name: Check Svelte and TypeScript
+        shell: bash
+        run: |
+          set -euo pipefail
           pnpm --dir apps/frontend run check
+
+      - name: Run focused preference tests
+        shell: bash
+        run: |
+          set -euo pipefail
           pnpm --dir apps/frontend exec vitest --run \
             src/lib/api-client-tests/account.spec.ts \
             'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+
+      - name: Lint preference sources
+        shell: bash
+        run: |
+          set -euo pipefail
           pnpm --dir apps/frontend exec eslint \
             'src/routes/chat/[serverId]/settings/preferences/+page.svelte' \
             'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
+
+      - name: Build frontend
+        shell: bash
+        run: |
+          set -euo pipefail
           mise run build-frontend
           git diff --check
 
