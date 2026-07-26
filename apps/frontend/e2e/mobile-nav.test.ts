@@ -117,7 +117,31 @@ test.describe('Mobile Navigation', () => {
     await expect(roomList).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
   });
 
-  test('sidebar opens on a rightward mobile edge swipe', async ({ page, chatPage }) => {
+  test('sidebar opens on a rightward mobile swipe beyond the system edge guard', async ({
+    page,
+    chatPage
+  }) => {
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    const roomPage = await chatPage.enterRoom('general');
+    await expect(roomPage.messageInput).toBeVisible();
+
+    await page.setViewportSize({ width: 375, height: 667 });
+
+    const hamburger = page.locator('button[title="Toggle sidebar"]');
+    const roomList = page.locator('.room-list');
+    await expect(hamburger).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    await expect(roomList).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+
+    await touchDrag(page, 32, 220, 160);
+
+    await expect(roomList).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+  });
+
+  test('sidebar stays closed for a rightward mobile swipe inside the system edge guard', async ({
+    page,
+    chatPage
+  }) => {
     await createAndLoginTestUser(page);
     await chatPage.goto();
     const roomPage = await chatPage.enterRoom('general');
@@ -132,7 +156,7 @@ test.describe('Mobile Navigation', () => {
 
     await touchDrag(page, 2, 220, 160);
 
-    await expect(roomList).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    await expect(roomList).not.toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
   });
 
   test('sidebar closes on a leftward mouse drag on mobile', async ({ page, chatPage }) => {

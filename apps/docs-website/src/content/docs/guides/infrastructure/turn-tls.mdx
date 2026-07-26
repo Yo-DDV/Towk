@@ -1,0 +1,177 @@
+---
+title: Self-Hosted TURN/TLS Fallback
+description: Add an optional LiveKit TURN/TLS listener on a dedicated public IPv4 address for TCP-443-only networks.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+Towk's standard Docker Compose profile keeps direct WebRTC UDP, embedded
+TURN/UDP, relay allocation UDP, and ICE/TCP available. Those paths cover most
+networks. Some corporate, guest, and filtered networks block all UDP and permit
+outbound media only through TLS on TCP 443. The optional TURN/TLS profile adds a
+last-resort self-hosted path for those clients.
+
+<Aside type="caution" title="Compatibility fallback, not an accelerator">
+  TURN/TLS relays media through LiveKit and usually adds latency, server bandwidth,
+  and head-of-line blocking compared with direct UDP or TURN/UDP. Keep every
+  faster candidate enabled and measure the route actually selected by ICE.
+</Aside>
+
+## Topology and prerequisites
+
+The supported first delivery uses one Linux host and two distinct public IPv4
+addresses assigned directly to that host:
+
+- `WEB_BIND_IP` for Caddy TCP 80, TCP 443, and UDP 443;
+- `TURN_BIND_IP` for LiveKit TURN/TLS TCP 443;
+- `TURN_DOMAIN`, whose IPv4 answers contain only `TURN_BIND_IP` and whose
+  certificate is publicly trusted.
+
+A second DNS name on the same address does not let Caddy and LiveKit both bind
+TCP 443. Single-IP L4/SNI multiplexing is intentionally outside this profile.
+
+Install Docker Compose 2.24.4 or newer, Python 3.10 or newer, OpenSSL, `ip`, `ss`,
+and `curl`. Complete the normal Compose setup first. The default command remains
+unchanged and has no new certificate, listener, or LiveKit capability:
+
+```bash
+docker compose up -d
+```
+
+## Protect the key
+
+The publicly trusted certificate and key stay on the host and are mounted
+read-only. Export absolute host paths for both files. LiveKit continues to run as
+UID/GID `1000:1000`, with a read-only root filesystem, `cap_drop: ALL`, and
+`no-new-privileges`. The overlay adds only `NET_BIND_SERVICE`, plus the numeric
+group that can read the private key.
+
+```bash
+sudo chgrp towk-turn /etc/towk/turn/privkey.pem
+sudo chmod 0640 /etc/towk/turn/privkey.pem
+sudo chmod 0644 /etc/towk/turn/fullchain.pem
+```
+
+Do not make the private key world-readable and do not run LiveKit as root. The
+key must be unencrypted because LiveKit has no interactive passphrase channel.
+
+## Activate safely
+
+<Steps>
+
+1. **Export the dedicated-address inputs**
+
+   ```bash
+   export WEB_BIND_IP=203.0.113.10
+   export TURN_BIND_IP=203.0.113.11
+   export TURN_DOMAIN=turn.example.com
+   export TURN_CERT_FILE=/etc/towk/turn/fullchain.pem
+   export TURN_KEY_FILE=/etc/towk/turn/privkey.pem
+   ```
+
+   Replace the documentation addresses with globally routable addresses present
+   on the host. The helper does not source or evaluate an environment file.
+
+2. **Run the non-mutating preflight**
+
+   ```bash
+   ./turn-tls.sh preflight
+   ./turn-tls.sh render > /tmp/towk-turn-tls-compose.json
+   ```
+
+   The preflight checks required tools and Compose version, distinct public host
+   addresses, the single effective DNS IPv4 answer, certificate validity,
+   public trust, hostname coverage, key matching and permissions, TCP 443
+   ownership, the default render, the opt-in render, exact port bindings,
+   read-only mounts, and runtime hardening.
+
+3. **Open both firewall layers**
+
+   Allow TCP 80/443 and UDP 443 on `WEB_BIND_IP`; TCP 443 on `TURN_BIND_IP`;
+   TCP 7881; UDP 3478; direct media UDP 50000-50200; and TURN allocation UDP
+   50201-50400. Apply the rules in both the host firewall and provider firewall.
+   Never expose NATS port 4222 publicly.
+
+4. **Converge the profile**
+
+   ```bash
+   ./turn-tls.sh up
+   ```
+
+   On an existing deployment, Caddy is recreated first on `WEB_BIND_IP` and its
+   HTTPS endpoint is checked before LiveKit is recreated on `TURN_BIND_IP`.
+   LiveKit health and a hostname-verified TLS handshake must pass before final
+   convergence. A failed mutation triggers deterministic restoration of the
+   standard profile without deleting data or certificates.
+
+</Steps>
+
+The helper generates `.turn-tls/livekit.yaml` from the selected standard LiveKit
+configuration. It preserves the existing API keys, webhook, RTC ports, public-IP
+strategy, and unmanaged TURN options while setting:
+
+```yaml
+turn:
+  enabled: true
+  udp_port: 3478
+  tls_port: 443
+  relay_range_start: 50201
+  relay_range_end: 50400
+  external_tls: false
+  domain: "turn.example.com"
+  cert_file: /etc/livekit-certs/fullchain.pem
+  key_file: /etc/livekit-certs/privkey.pem
+```
+
+`external_tls` stays false because LiveKit terminates TLS directly. The generated
+file and key are group-readable only and mounted read-only. A custom generated
+filename must remain below `.turn-tls/`; the helper rejects output paths outside
+that private deployment directory.
+
+## Prove the selected route
+
+Container health and a successful `openssl s_client` check prove the listener,
+not the browser's media route. For each Chromium, Firefox, and Safari target,
+start a two-participant call and collect the standard WebRTC statistics. Resolve
+the active `transport.selectedCandidatePairId`, then inspect the corresponding
+local and remote candidate records.
+
+Record `candidateType`, `protocol`, `relayProtocol`, address, and port for each
+network policy:
+
+| Policy | Route to look for |
+| --- | --- |
+| Normal UDP | Direct UDP when ICE selects it |
+| Direct UDP blocked | TURN relay with `relayProtocol=udp`, when selected |
+| All UDP blocked | ICE/TCP when available and selected |
+| Only outbound TCP 443 | TURN relay with `relayProtocol=tls` |
+
+Do not use a browser-specific `selected` property as the primary proof. Record
+the exact browser, OS, PWA mode, network enforcement, and both endpoints.
+Physical Safari/iOS, Android, and mobile-network results remain `UNVERIFIED`
+until executed on real devices and networks.
+
+## Renewal, idempotence, and rollback
+
+After certificate renewal, export the same paths and rerun:
+
+```bash
+./turn-tls.sh up
+```
+
+The helper revalidates the current certificate and key, regenerates the LiveKit
+configuration atomically, and reconverges the services. A second unchanged run
+is also safe.
+
+Disable the profile with:
+
+```bash
+./turn-tls.sh disable
+```
+
+Standard LiveKit is restored first so dedicated TCP 443 is released before
+standard Caddy returns to its wildcard binding. Towk volumes, application data,
+certificate files, and normal WebRTC ports are retained.
+
+For the complete operator checklist and troubleshooting, read
+[`examples/dockercompose/README.turn-tls.md`](https://github.com/Yo-DDV/Towk/blob/main/examples/dockercompose/README.turn-tls.md).

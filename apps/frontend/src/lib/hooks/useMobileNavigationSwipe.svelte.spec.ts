@@ -253,14 +253,105 @@ describe('mobileNavigationSwipe', () => {
     action.destroy();
   });
 
-  it('does not start from editable or interactive controls', () => {
+  it.each(['a', 'button', 'input', 'textarea', 'img', 'span'] as const)(
+    'starts a navigation swipe from ordinary <%s> content',
+    (tag) => {
+      const { host } = hostElement();
+      const target = document.createElement(tag);
+      target.textContent = tag === 'span' ? 'Selectable message text' : '';
+      host.append(target);
+      const { onToggle } = roomPanelButton('members');
+      const action = mobileNavigationSwipe(host, TEST_OPTIONS);
+
+      const move = swipe(target, 260, 120);
+
+      expect(move.defaultPrevented).toBe(true);
+      expect(onToggle).toHaveBeenCalledOnce();
+
+      action.destroy();
+    }
+  );
+
+  it('starts from a contenteditable composer surface', () => {
+    const { host } = hostElement();
+    const editor = document.createElement('div');
+    editor.contentEditable = 'true';
+    editor.textContent = 'Draft message';
+    host.append(editor);
+    const { onToggle } = roomPanelButton('members');
+    const action = mobileNavigationSwipe(host, TEST_OPTIONS);
+
+    const move = swipe(editor, 260, 120);
+
+    expect(move.defaultPrevented).toBe(true);
+    expect(onToggle).toHaveBeenCalledOnce();
+
+    action.destroy();
+  });
+
+  it('starts from selected message text after horizontal intent wins', () => {
+    const { host } = hostElement();
+    const text = document.createElement('span');
+    text.textContent = 'Selected message text';
+    host.append(text);
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    document.getSelection()?.addRange(range);
+    const { onToggle } = roomPanelButton('members');
+    const action = mobileNavigationSwipe(host, TEST_OPTIONS);
+
+    const move = swipe(text, 260, 120);
+
+    expect(move.defaultPrevented).toBe(true);
+    expect(onToggle).toHaveBeenCalledOnce();
+
+    action.destroy();
+  });
+
+  it('observes starts before interactive descendants stop propagation', () => {
+    const { host } = hostElement();
+    const button = document.createElement('button');
+    button.addEventListener('touchstart', (event) => event.stopPropagation());
+    host.append(button);
+    const { onToggle } = roomPanelButton('members');
+    const action = mobileNavigationSwipe(host, TEST_OPTIONS);
+
+    const move = swipe(button, 260, 120);
+
+    expect(move.defaultPrevented).toBe(true);
+    expect(onToggle).toHaveBeenCalledOnce();
+
+    action.destroy();
+  });
+
+  it('leaves a short touch on an input unclaimed', () => {
     const { host } = hostElement();
     const input = document.createElement('input');
     host.append(input);
     const { onToggle } = roomPanelButton('members');
     const action = mobileNavigationSwipe(host, TEST_OPTIONS);
 
-    const move = swipe(input, 260, 120);
+    const start = touch('touchstart', 180);
+    input.dispatchEvent(start);
+    const end = touch('touchend', 180);
+    window.dispatchEvent(end);
+
+    expect(start.defaultPrevented).toBe(false);
+    expect(end.defaultPrevented).toBe(false);
+    expect(onToggle).not.toHaveBeenCalled();
+
+    action.destroy();
+  });
+
+  it('respects an explicit component opt-out', () => {
+    const { host } = hostElement();
+    const target = document.createElement('div');
+    target.dataset.mobileNavigationSwipe = 'ignore';
+    host.append(target);
+    const { onToggle } = roomPanelButton('members');
+    const action = mobileNavigationSwipe(host, TEST_OPTIONS);
+
+    const move = swipe(target, 260, 120);
 
     expect(move.defaultPrevented).toBe(false);
     expect(onToggle).not.toHaveBeenCalled();

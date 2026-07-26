@@ -28,6 +28,7 @@
   import { ToastContainer } from '$lib/ui/toast';
   import { AppHeader, Frame } from '$lib/ui';
   import '../app.css';
+  import '$lib/styles/liquid-glass-surfaces.css';
   import '$lib/styles/auto-hide-scrollbars.css';
 
   let { data, children } = $props();
