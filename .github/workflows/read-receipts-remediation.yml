@@ -1,4 +1,4 @@
-name: read-receipts remediation publisher
+name: read-receipts final remediation publisher
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: read-receipts-remediation-${{ github.event.pull_request.number }}
+  group: read-receipts-final-remediation-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -17,17 +17,42 @@ jobs:
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
     steps:
-      - name: Check out exact pull request head
+      - name: Check out exact pull request merge
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Verify merge parents
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin main
+          current_main="$(git rev-parse FETCH_HEAD)"
+          parents="$(git show -s --format=%P HEAD)"
+          test "$(wc -w <<< "${parents}")" -eq 2
+          case " ${parents} " in
+            *" ${current_main} "*) ;;
+            *) echo "merge parent missing current main ${current_main}: ${parents}" >&2; exit 11 ;;
+          esac
+          case " ${parents} " in
+            *" ${EXPECTED_HEAD_SHA} "*) ;;
+            *) echo "merge parent missing PR head ${EXPECTED_HEAD_SHA}: ${parents}" >&2; exit 12 ;;
+          esac
+          {
+            printf 'merge_sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'main_sha=%s\n' "${current_main}"
+            printf 'head_sha=%s\n' "${EXPECTED_HEAD_SHA}"
+            printf 'parents=%s\n' "${parents}"
+          } > "${RUNNER_TEMP}/read-receipts-remediation-identity.txt"
 
       - name: Set up repository toolchain
         uses: ./.github/actions/setup
 
-      - name: Apply reviewed remediation patch
+      - name: Apply privacy remediation
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -59,7 +84,28 @@ jobs:
           printf '%s  %s\n' "${PATCH_GZIP_SHA256}" "${archive}" | sha256sum --check --strict
           gzip -dc "${archive}" > "${patch}"
           printf '%s  %s\n' "${PATCH_SHA256}" "${patch}" | sha256sum --check --strict
-          git apply --check "${patch}"
+          git apply --check --verbose "${patch}"
+          git apply "${patch}"
+          git diff --check
+
+      - name: Apply current-main frontend compatibility
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPAT_PATCH_BLOB_SHA: f12b1b4277d103f7d6b742fe1d442bbbcc2d2500
+          COMPAT_PATCH_SHA256: c8e173a44287692814a7ddcd94843ae00b86d14ee54d34091ce526f6b93964a8
+        run: |
+          set -euo pipefail
+          patch="${RUNNER_TEMP}/read-receipts-main-compat.patch"
+          curl --fail --silent --show-error --location --retry 3 \
+            --header "Accept: application/vnd.github.raw+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/${COMPAT_PATCH_BLOB_SHA}" \
+            > "${patch}"
+          test "$(git hash-object "${patch}")" = "${COMPAT_PATCH_BLOB_SHA}"
+          printf '%s  %s\n' "${COMPAT_PATCH_SHA256}" "${patch}" | sha256sum --check --strict
+          git apply --check --verbose "${patch}"
           git apply "${patch}"
           git diff --check
 
@@ -76,12 +122,17 @@ jobs:
           test -f 'apps/frontend/src/routes/chat/[serverId]/[roomId]/readReceiptVisibility.ts'
           test -f docs/fdr/FDR-031-read-receipts.md
           test -f docs/adr/ADR-054-read-receipt-publication-boundary.md
+          ! grep -Fq "room.message.meta.read_receipts" \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte'
+          ! grep -Fq 'reader.user.' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte'
 
-      - name: Regenerate protobuf bindings and API documentation
+      - name: Regenerate protobuf bindings and build API types
         shell: bash
         run: |
           set -euo pipefail
           mise run codegen-proto
+          pnpm --dir packages/api-types run build
 
       - name: Verify count-only summary schema
         shell: bash
@@ -133,11 +184,24 @@ jobs:
             -count=1
           go vet ./internal/core ./internal/connectapi ./internal/http_server ./internal/events
 
-      - name: Check and test affected frontend
+      - name: Check formatting and frontend types
         shell: bash
         run: |
           set -euo pipefail
+          pnpm --dir apps/frontend exec prettier --check \
+            messages/de/room.json \
+            messages/en/room.json \
+            messages/es/room.json \
+            messages/fr/room.json \
+            messages/pt/room.json \
+            'src/routes/chat/[serverId]/[roomId]/MessageEvent.svelte' \
+            'src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte'
           pnpm --dir apps/frontend run check
+
+      - name: Test affected frontend
+        shell: bash
+        run: |
+          set -euo pipefail
           pnpm --dir apps/frontend exec vitest --run \
             src/lib/realtimeEventMapper.spec.ts \
             src/lib/api-client-tests/account.spec.ts \
@@ -183,6 +247,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           files="${RUNNER_TEMP}/read-receipts-remediation-files.txt"
@@ -191,14 +256,20 @@ jobs:
           response="${RUNNER_TEMP}/read-receipts-remediation-tree.json"
           status_file="${RUNNER_TEMP}/read-receipts-remediation-status.txt"
           base_tree="$(git show -s --format=%T HEAD)"
+          current_main="$(git rev-parse HEAD^1)"
 
           printf '%s\n' \
             'apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx' \
             'apps/docs-website/src/generated/connectrpc-api/api.raw.mdx' \
+            'apps/frontend/messages/de/room.json' \
             'apps/frontend/messages/de/server_settings.json' \
+            'apps/frontend/messages/en/room.json' \
             'apps/frontend/messages/en/server_settings.json' \
+            'apps/frontend/messages/es/room.json' \
             'apps/frontend/messages/es/server_settings.json' \
+            'apps/frontend/messages/fr/room.json' \
             'apps/frontend/messages/fr/server_settings.json' \
+            'apps/frontend/messages/pt/room.json' \
             'apps/frontend/messages/pt/server_settings.json' \
             'apps/frontend/src/lib/ServerSettings.svelte' \
             'apps/frontend/src/lib/api-client-tests/account.spec.ts' \
@@ -208,6 +279,7 @@ jobs:
             'apps/frontend/src/lib/i18n/messages.ts' \
             'apps/frontend/src/lib/state/server/store.svelte.spec.ts' \
             'apps/frontend/src/routes/chat/[serverId]/[roomId]/EventList.svelte' \
+            'apps/frontend/src/routes/chat/[serverId]/[roomId]/MessageEvent.svelte' \
             'apps/frontend/src/routes/chat/[serverId]/[roomId]/MessageMetaBar.svelte' \
             'apps/frontend/src/routes/chat/[serverId]/[roomId]/ReadReceiptBadge.svelte' \
             'apps/frontend/src/routes/chat/[serverId]/[roomId]/RoomEvent.svelte' \
@@ -269,10 +341,15 @@ jobs:
             mv "${entries}.next" "${entries}"
           done < "${files}"
 
-          jq --arg path '.github/workflows/read-receipts-remediation.yml' \
-            '. + [{path: $path, mode: "100644", type: "blob", sha: null}]' \
-            "${entries}" > "${entries}.next"
-          mv "${entries}.next" "${entries}"
+          for temporary_path in \
+            '.github/workflows/read-receipts-remediation.yml' \
+            '.github/workflows/read-receipts-frontend-diagnostic.yml'
+          do
+            jq --arg path "${temporary_path}" \
+              '. + [{path: $path, mode: "100644", type: "blob", sha: null}]' \
+              "${entries}" > "${entries}.next"
+            mv "${entries}.next" "${entries}"
+          done
 
           jq -n --arg base_tree "${base_tree}" --slurpfile tree "${entries}" \
             '{base_tree: $base_tree, tree: $tree[0]}' \
@@ -288,10 +365,13 @@ jobs:
           tree_sha="$(jq -er '.sha' "${response}")"
           printf 'tree_sha=%s\n' "${tree_sha}" >> "${GITHUB_OUTPUT}"
           {
-            printf 'parent_sha=%s\n' "$(git rev-parse HEAD)"
+            printf 'source_head_sha=%s\n' "${SOURCE_HEAD_SHA}"
+            printf 'main_sha=%s\n' "${current_main}"
+            printf 'merge_sha=%s\n' "$(git rev-parse HEAD)"
             printf 'tree_sha=%s\n' "${tree_sha}"
             printf 'files_sha256=%s\n' "$(sha256sum "${files}" | cut -d' ' -f1)"
             printf 'privacy_schema=count-only\n'
+            printf 'protobuf=success\n'
             printf 'backend=success\n'
             printf 'frontend=success\n'
             printf 'build=success\n'
@@ -302,8 +382,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: towk-read-receipts-remediation-tree
+          name: towk-read-receipts-final-remediation-tree
           path: |
+            ${{ runner.temp }}/read-receipts-remediation-identity.txt
             ${{ runner.temp }}/read-receipts-remediation-tree.json
             ${{ runner.temp }}/read-receipts-remediation-status.txt
             ${{ runner.temp }}/read-receipts-remediation-files.txt
