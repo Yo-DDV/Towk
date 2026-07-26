@@ -130,6 +130,12 @@ jobs:
             'src/routes/chat/[serverId]/settings/preferences/readReceiptPreference.server.spec.ts'
           git diff --check
 
+      - name: Build generated API types
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @towk/api-types build
+
       - name: Check Svelte and TypeScript
         id: svelte
         continue-on-error: true
