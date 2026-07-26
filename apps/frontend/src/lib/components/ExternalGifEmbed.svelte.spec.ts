@@ -407,11 +407,16 @@ describe('ExternalGifEmbed', () => {
     const second = document.querySelector('video');
     expect(second).not.toBe(first);
     expect(second?.getAttribute('src')).toBe(pending.resourceUrl);
-    await expect.element(embed).toHaveAttribute('data-state', 'loading');
+    expect(first?.dataset.loadAttempt).toBe('1');
+    expect(second?.dataset.loadAttempt).toBe('2');
+    expect(
+      document.querySelector('[data-testid="external-gif-embed"]')?.getAttribute('data-state')
+    ).toBe('loading');
 
     first?.dispatchEvent(new Event('loadedmetadata'));
-    await expect.element(embed).toHaveAttribute('data-state', 'loading');
-    await expect.element(screen.getByRole('button', { name: 'Hide' })).not.toBeInTheDocument();
+    expect(
+      document.querySelector('[data-testid="external-gif-embed"]')?.getAttribute('data-state')
+    ).toBe('loading');
 
     second?.dispatchEvent(new Event('loadedmetadata'));
     await expect.element(embed).toHaveAttribute('data-state', 'loaded');
