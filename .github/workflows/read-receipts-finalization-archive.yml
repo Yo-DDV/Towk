@@ -36,10 +36,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import os
           from pathlib import Path
 
-          path = Path('.github/scripts/pr173-reconcile.sh')
-          source = path.read_text(encoding='utf-8')
+          source_path = Path('.github/scripts/pr173-reconcile.sh')
+          patched_path = Path(os.environ['RUNNER_TEMP']) / 'pr173-reconcile.sh'
+          source = source_path.read_text(encoding='utf-8')
 
           def replace_once(old: str, new: str, label: str) -> None:
               global source
@@ -94,12 +96,12 @@ jobs:
               'publish block',
           )
 
-          path.write_text(source, encoding='utf-8')
+          patched_path.write_text(source, encoding='utf-8')
           PY
 
           set +e
           set -o pipefail
-          bash .github/scripts/pr173-reconcile.sh 2>&1 | tee "${RUNNER_TEMP}/pr173-reconcile.log"
+          bash "${RUNNER_TEMP}/pr173-reconcile.sh" 2>&1 | tee "${RUNNER_TEMP}/pr173-reconcile.log"
           status=${PIPESTATUS[0]}
           set -e
           exit "${status}"
