@@ -80,6 +80,7 @@ test.describe('Liquid glass application surfaces', () => {
       .toMatch(/rgba?\(38,\s*38,\s*42/);
 
     const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
+    await composer.evaluate((element) => element.setAttribute('inert', ''));
     await sidebarToggle.focus();
     await expect(sidebarToggle).toBeFocused();
     await expect
@@ -108,6 +109,7 @@ test.describe('Liquid glass application surfaces', () => {
     expect(Math.abs(profileBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(0.5);
 
     const restingComposerShadow = darkComposerStyle.boxShadow;
+    await composer.evaluate((element) => element.removeAttribute('inert'));
     await roomPage.messageInput.click();
     await expect
       .poll(async () => (await readSurfaceStyle(composer)).boxShadow)
@@ -148,6 +150,7 @@ test.describe('Liquid glass application surfaces', () => {
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
 
     const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
+    await composer.evaluate((element) => element.setAttribute('inert', ''));
     await sidebarToggle.focus();
     await expect(sidebarToggle).toBeFocused();
     await expect
@@ -162,6 +165,7 @@ test.describe('Liquid glass application surfaces', () => {
       expect(style.backdropFilter).toBe('none');
     }
 
+    await composer.evaluate((element) => element.removeAttribute('inert'));
     await roomPage.messageInput.click();
     const focusedComposerStyle = await readSurfaceStyle(composer);
     expect(focusedComposerStyle.outlineStyle).toBe('solid');
