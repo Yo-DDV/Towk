@@ -39,9 +39,6 @@
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let failureReason = $state<'network' | 'offline' | null>(null);
   let mediaIdentity = $state<string | null>(null);
-  let activeMediaElement = $state<HTMLIFrameElement | HTMLVideoElement | HTMLImageElement | null>(
-    null
-  );
   let hydrationReady = $state(false);
   let suppressedByPersistedPreview = $state(false);
 
@@ -53,7 +50,6 @@
 
   function resetMedia() {
     clearLoadTimeout();
-    activeMediaElement = null;
     hiddenByUser = false;
     failureReason = null;
     loadOrigin = null;
@@ -64,7 +60,6 @@
   function stopAutomaticLoad() {
     if (loadOrigin !== 'auto') return;
     clearLoadTimeout();
-    activeMediaElement = null;
     failureReason = null;
     loadOrigin = null;
     loadState = 'idle';
@@ -73,7 +68,6 @@
 
   function startLoad(origin: 'manual' | 'auto' = 'manual') {
     clearLoadTimeout();
-    activeMediaElement = null;
     hiddenByUser = false;
 
     // `navigator.onLine` is only a hint. Automatic loads stay conservative,
@@ -82,28 +76,43 @@
 
     failureReason = null;
     loadOrigin = origin;
-    attempt += 1;
+    const loadAttempt = attempt + 1;
+    attempt = loadAttempt;
     loadState = 'loading';
-    timeout = setTimeout(() => {
-      activeMediaElement = null;
+
+    const nextTimeout = setTimeout(() => {
+      // A cleared timer can still be queued. Never let an earlier attempt
+      // overwrite a newer retry or a successfully loaded resource.
+      if (timeout !== nextTimeout || attempt !== loadAttempt || loadState !== 'loading') return;
+      timeout = null;
       failureReason = online ? 'network' : 'offline';
       loadOrigin = null;
       loadState = 'failed';
-      timeout = null;
     }, LOAD_TIMEOUT_MS);
+    timeout = nextTimeout;
+  }
+
+  function eventAttempt(event: Event): number | null {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return null;
+    const value = Number(target.dataset.loadAttempt);
+    return Number.isSafeInteger(value) ? value : null;
+  }
+
+  function isCurrentLoadEvent(event: Event): boolean {
+    return loadState === 'loading' && eventAttempt(event) === attempt;
   }
 
   function handleLoaded(event: Event) {
-    if (loadState !== 'loading' || event.currentTarget !== activeMediaElement) return;
+    if (!isCurrentLoadEvent(event)) return;
     clearLoadTimeout();
     failureReason = null;
     loadState = 'loaded';
   }
 
   function handleFailed(event: Event) {
-    if (loadState !== 'loading' || event.currentTarget !== activeMediaElement) return;
+    if (!isCurrentLoadEvent(event)) return;
     clearLoadTimeout();
-    activeMediaElement = null;
     failureReason = online ? 'network' : 'offline';
     loadOrigin = null;
     loadState = 'failed';
@@ -111,7 +120,6 @@
 
   function hideMedia() {
     clearLoadTimeout();
-    activeMediaElement = null;
     hiddenByUser = true;
     failureReason = null;
     loadOrigin = null;
@@ -250,7 +258,7 @@
   bind:this={root}
   class={[
     'external-gif-embed inline-flex max-w-full flex-col overflow-hidden rounded-lg border border-border bg-background',
-    gif.renderMode === 'iframe' ? 'w-full max-w-xl' : 'w-full sm:w-fit sm:max-w-xl sm:min-w-80'
+    gif.renderMode === 'iframe' ? 'w-full max-w-xl' : 'external-gif-direct'
   ]}
   data-testid="external-gif-embed"
   data-provider={gif.provider}
@@ -267,14 +275,15 @@
     <div
       class={[
         'relative flex max-w-full items-center justify-center overflow-hidden bg-black/10',
-        gif.renderMode === 'iframe' ? 'aspect-video min-h-48 w-full' : 'w-full sm:w-fit'
+        gif.renderMode === 'iframe'
+          ? 'aspect-video min-h-48 w-full'
+          : 'external-gif-direct-media'
       ]}
       data-testid="external-gif-media"
     >
       {#key attempt}
         {#if gif.renderMode === 'iframe'}
           <iframe
-            bind:this={activeMediaElement}
             src={gif.resourceUrl}
             title={gm.mediaTitle(gif.providerLabel)}
             class="h-full min-h-48 w-full border-0"
@@ -282,32 +291,33 @@
             sandbox="allow-scripts allow-same-origin"
             allow="autoplay"
             referrerpolicy="no-referrer"
+            data-load-attempt={attempt}
             onload={handleLoaded}
           ></iframe>
         {:else if gif.renderMode === 'video'}
           <video
-            bind:this={activeMediaElement}
             src={gif.resourceUrl}
             aria-label={gm.mediaTitle(gif.providerLabel)}
-            class="block h-auto max-h-[36rem] w-full max-w-full bg-black object-contain sm:w-auto sm:min-w-80"
+            class="external-gif-direct-element block h-auto max-h-[36rem] max-w-full bg-black object-contain"
             autoplay={!reducedMotion}
             controls={reducedMotion}
             muted
             loop
             playsinline
             preload="metadata"
+            data-load-attempt={attempt}
             onloadedmetadata={handleLoaded}
             onerror={handleFailed}
           ></video>
         {:else}
           <img
-            bind:this={activeMediaElement}
             src={gif.resourceUrl}
             alt={gm.mediaTitle(gif.providerLabel)}
-            class="block h-auto max-h-[36rem] w-full max-w-full object-contain sm:w-auto sm:min-w-80"
+            class="external-gif-direct-element block h-auto max-h-[36rem] max-w-full object-contain"
             loading="lazy"
             decoding="async"
             referrerpolicy="no-referrer"
+            data-load-attempt={attempt}
             onload={handleLoaded}
             onerror={handleFailed}
           />
@@ -392,3 +402,30 @@
   {/if}
 </section>
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
+
+<style>
+  .external-gif-direct,
+  .external-gif-direct-media,
+  .external-gif-direct-element {
+    width: 100%;
+  }
+
+  @media (min-width: 640px) {
+    .external-gif-direct {
+      width: fit-content;
+      min-width: 20rem;
+      max-width: 36rem;
+    }
+
+    .external-gif-direct-media {
+      width: fit-content;
+      max-width: 100%;
+    }
+
+    .external-gif-direct-element {
+      width: auto;
+      min-width: 20rem;
+      max-width: 36rem;
+    }
+  }
+</style>
