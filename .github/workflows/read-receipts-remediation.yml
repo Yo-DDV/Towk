@@ -92,9 +92,27 @@ jobs:
             cli/internal/pb/chatto/api/v1/read_state.pb.go
           ! grep -En 'previewUserIds' \
             packages/api-types/src/chatto/api/v1/read_state_pb.ts
-          ! grep -F '| `preview_user_ids` |' \
-            apps/docs-website/src/generated/connectrpc-api/api.raw.mdx \
-            apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx
+          python3 - <<'PY'
+          from pathlib import Path
+
+          anchor = '<a id="chatto-api-v1-ReadReceiptSummary"></a>'
+          paths = (
+              Path('apps/docs-website/src/generated/connectrpc-api/api.raw.mdx'),
+              Path('apps/docs-website/src/content/docs/reference/connectrpc-api/types.mdx'),
+          )
+
+          for path in paths:
+              text = path.read_text(encoding='utf-8')
+              start = text.find(anchor)
+              if start < 0:
+                  raise SystemExit(f'{path}: ReadReceiptSummary anchor missing')
+              end = text.find('\n<a id="', start + len(anchor))
+              section = text[start:] if end < 0 else text[start:end]
+              if '| `reader_count` |' not in section:
+                  raise SystemExit(f'{path}: reader_count missing from ReadReceiptSummary')
+              if 'preview_user_ids' in section:
+                  raise SystemExit(f'{path}: preview_user_ids leaked from ReadReceiptSummary')
+          PY
 
       - name: Validate protobuf surface
         shell: bash
@@ -151,6 +169,7 @@ jobs:
           set -euo pipefail
           mise run build-frontend
           pnpm run build:docs
+          mise run public-surface-check
 
       - name: Check license and diff hygiene
         shell: bash
