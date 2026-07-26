@@ -2,33 +2,33 @@
   "version": 3,
   "repository": "Yo-DDV/Towk",
   "branch": "main",
-  "sourceCommit": "2dd91618a872d82a1b8023ddb82283d446c4fa01",
-  "generatedAt": "2026-07-26T12:55:35.735Z",
+  "sourceCommit": "252319b7dd16caed079afd71fd720f30a45de7d4",
+  "generatedAt": "2026-07-26T13:01:21.902Z",
   "window": {
     "kind": "rolling-30-utc-days",
     "days": 30,
     "start": "2026-06-27T00:00:00.000Z",
-    "end": "2026-07-26T12:55:35.735Z",
+    "end": "2026-07-26T13:01:21.902Z",
     "currentDayPartial": true
   },
   "baselineCommit": "205e91fe1ae5e5c23420974f7e04cf82456eeab3",
   "baselineAt": "2026-07-12T10:20:05.000Z",
   "effectiveWindowStart": "2026-07-12T10:20:05.000Z",
   "headline": {
-    "commits": 118,
-    "mergedPullRequests": 100,
-    "issuesClosed": 66,
+    "commits": 119,
+    "mergedPullRequests": 101,
+    "issuesClosed": 67,
     "activeHumanContributors": 2
   },
   "flow": {
-    "medianPrLeadTimeHours": 1.04875,
+    "medianPrLeadTimeHours": 1.0652777777777778,
     "medianFirstReviewHours": null,
     "reviewedPullRequests": 0
   },
   "codeMovement": {
-    "additions": 123182,
+    "additions": 123738,
     "deletions": 37919,
-    "filesChanged": 2236
+    "filesChanged": 2240
   },
   "automation": {
     "commits": 15,
@@ -357,13 +357,13 @@
     {
       "date": "2026-07-26",
       "label": "26",
-      "commits": 3,
-      "mergedPullRequests": 3,
-      "issuesClosed": 3,
-      "additions": 4468,
+      "commits": 4,
+      "mergedPullRequests": 4,
+      "issuesClosed": 4,
+      "additions": 5024,
       "deletions": 806,
-      "filesChanged": 54,
-      "medianPrLeadTimeHours": 10.309444444444445
+      "filesChanged": 58,
+      "medianPrLeadTimeHours": 12.594583333333333
     }
   ]
 }
