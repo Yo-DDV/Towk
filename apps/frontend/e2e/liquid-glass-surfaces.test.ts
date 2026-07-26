@@ -13,6 +13,12 @@ type SurfaceStyle = {
   outlineWidth: string;
 };
 
+type GlassTokens = {
+  edgeHighlight: string;
+  faceTop: string;
+  fillTranslucent: string;
+};
+
 async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
   return locator.evaluate((element) => {
     const style = getComputedStyle(element);
@@ -29,8 +35,25 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
   });
 }
 
+async function readGlassTokens(locator: Locator): Promise<GlassTokens> {
+  return locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      edgeHighlight: style.getPropertyValue('--liquid-glass-edge-highlight').trim(),
+      faceTop: style.getPropertyValue('--liquid-glass-face-top').trim(),
+      fillTranslucent: style.getPropertyValue('--liquid-glass-fill-translucent').trim()
+    };
+  });
+}
+
+function rgbaAlpha(value: string): number {
+  const match = value.match(/,\s*([0-9.]+)\)$/);
+  if (!match) throw new Error(`Expected rgba() value, received ${value}`);
+  return Number(match[1]);
+}
+
 test.describe('Liquid glass application surfaces', () => {
-  test('keeps the profile and composer uniformly edge-lit, themed, and responsive', async ({
+  test('keeps the profile and composer neutral, uniformly edge-lit, and responsive', async ({
     page,
     chatPage,
     roomPage
@@ -49,15 +72,17 @@ test.describe('Liquid glass application surfaces', () => {
 
     await expect(root).toHaveAttribute('data-theme', 'light');
 
-    const [lightProfileStyle, lightComposerStyle, supportsBackdropFilter] = await Promise.all([
-      readSurfaceStyle(profile),
-      readSurfaceStyle(composer),
-      page.evaluate(
-        () =>
-          CSS.supports('backdrop-filter', 'blur(1px)') ||
-          CSS.supports('-webkit-backdrop-filter', 'blur(1px)')
-      )
-    ]);
+    const [lightProfileStyle, lightComposerStyle, lightTokens, supportsBackdropFilter] =
+      await Promise.all([
+        readSurfaceStyle(profile),
+        readSurfaceStyle(composer),
+        readGlassTokens(composer),
+        page.evaluate(
+          () =>
+            CSS.supports('backdrop-filter', 'blur(1px)') ||
+            CSS.supports('-webkit-backdrop-filter', 'blur(1px)')
+        )
+      ]);
 
     for (const style of [lightProfileStyle, lightComposerStyle]) {
       expect(style.backgroundColor).toMatch(/rgba?\(248,\s*250,\s*252/);
@@ -70,15 +95,25 @@ test.describe('Liquid glass application surfaces', () => {
       }
     }
     expect(lightProfileStyle.backgroundImage).toBe(lightComposerStyle.backgroundImage);
+    expect(lightTokens.faceTop).toContain('148, 163, 184');
+    expect(lightTokens.edgeHighlight).toContain('226, 232, 240');
+    expect(rgbaAlpha(lightTokens.faceTop)).toBeLessThanOrEqual(0.04);
+    expect(rgbaAlpha(lightTokens.edgeHighlight)).toBeLessThanOrEqual(0.22);
+    expect(rgbaAlpha(lightTokens.fillTranslucent)).toBeLessThanOrEqual(0.5);
+    expect(Object.values(lightTokens).join(' ')).not.toContain('255, 255, 255');
 
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.reload();
     await expect(root).toHaveAttribute('data-theme', 'dark');
     await expect(profile).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+
+    const darkBackgroundPattern = supportsBackdropFilter
+      ? /rgba?\(24,\s*24,\s*27/
+      : /rgba?\(38,\s*38,\s*42/;
     await expect
       .poll(async () => (await readSurfaceStyle(profile)).backgroundColor)
-      .toMatch(/rgba?\(38,\s*38,\s*42/);
+      .toMatch(darkBackgroundPattern);
 
     const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
     await composer.evaluate((element) => element.setAttribute('inert', ''));
@@ -88,13 +123,14 @@ test.describe('Liquid glass application surfaces', () => {
       .poll(() => composer.evaluate((element) => element.matches(':focus-within')))
       .toBe(false);
 
-    const [darkProfileStyle, darkComposerStyle] = await Promise.all([
+    const [darkProfileStyle, darkComposerStyle, darkTokens] = await Promise.all([
       readSurfaceStyle(profile),
-      readSurfaceStyle(composer)
+      readSurfaceStyle(composer),
+      readGlassTokens(composer)
     ]);
 
     for (const style of [darkProfileStyle, darkComposerStyle]) {
-      expect(style.backgroundColor).toMatch(/rgba?\(38,\s*38,\s*42/);
+      expect(style.backgroundColor).toMatch(darkBackgroundPattern);
       expect(style.backgroundImage).toContain('linear-gradient');
       expect(style.backgroundImage).not.toContain('radial-gradient');
       expect(style.boxShadow).not.toBe('none');
@@ -102,6 +138,12 @@ test.describe('Liquid glass application surfaces', () => {
     expect(darkProfileStyle.backgroundImage).toBe(darkComposerStyle.backgroundImage);
     expect(darkProfileStyle.backgroundColor).not.toBe(lightProfileStyle.backgroundColor);
     expect(darkComposerStyle.backgroundColor).not.toBe(lightComposerStyle.backgroundColor);
+    expect(darkTokens.faceTop).toContain('148, 163, 184');
+    expect(darkTokens.edgeHighlight).toContain('203, 213, 225');
+    expect(rgbaAlpha(darkTokens.faceTop)).toBeLessThanOrEqual(0.02);
+    expect(rgbaAlpha(darkTokens.edgeHighlight)).toBeLessThanOrEqual(0.07);
+    expect(rgbaAlpha(darkTokens.fillTranslucent)).toBeLessThanOrEqual(0.54);
+    expect(Object.values(darkTokens).join(' ')).not.toContain('255, 255, 255');
 
     const [profileBox, restingComposerBox] = await Promise.all([
       profile.boundingBox(),
