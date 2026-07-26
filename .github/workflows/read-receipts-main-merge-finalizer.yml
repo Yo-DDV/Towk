@@ -75,10 +75,11 @@ jobs:
           test "${main_head}" = "${EXPECTED_MAIN}"
 
           stage=merge
-          set +e
-          git merge --no-commit --no-ff origin/main
-          merge_status=$?
-          set -e
+          if git merge --no-commit --no-ff origin/main; then
+            merge_status=0
+          else
+            merge_status=$?
+          fi
           if test "${merge_status}" -gt 1; then
             exit "${merge_status}"
           fi
@@ -130,8 +131,6 @@ jobs:
                   raise SystemExit(f'{path}: expected one exact match, got {count}: {old!r}')
               write(path, value.replace(old, new, 1))
 
-          # Preserve the profile preference already merged to main and move the
-          # unreleased read-receipt fields to the next additive field number.
           replacements = (
               ('proto/chatto/api/v1/account.proto',
                '  optional bool read_receipts_enabled = 3;\n',
@@ -167,7 +166,6 @@ jobs:
               event_source = event_source.replace(old, new, 1)
           write(event_path, event_source)
 
-          # Compact summaries expose only the message ID and reader count.
           replace_once(
               'proto/chatto/api/v1/read_state.proto',
               '  reserved 3;\n  reserved "preview_user_ids";\n  google.protobuf.Timestamp latest_read_at = 4;\n',
@@ -212,7 +210,6 @@ jobs:
           )
           privacy_test.write_text(value, encoding='utf-8')
 
-          # Main already owns ADR-054; read receipts take the next free number.
           old_adr = Path('docs/adr/ADR-054-read-receipt-publication-boundary.md')
           new_adr = Path('docs/adr/ADR-055-read-receipt-publication-boundary.md')
           if not old_adr.exists():
@@ -404,6 +401,7 @@ jobs:
             .github/workflows/read-receipts-finalization-archive.yml \
             .github/workflows/read-receipts-main-merge-diagnostic.yml \
             .github/workflows/read-receipts-main-merge-finalizer.yml \
+            .github/workflows/read-receipts-main-merge-fixer.yml \
             .github/read-receipts-finalization-trigger.txt \
             .github/read-receipts-main-merge-diagnostic.txt \
             .github/read-receipts-main-merge-finalizer-status.txt
