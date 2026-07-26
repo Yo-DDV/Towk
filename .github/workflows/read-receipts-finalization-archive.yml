@@ -34,8 +34,32 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/scripts/pr173-reconcile.sh')
+          source = path.read_text(encoding='utf-8')
+          old = '''stage="merge-tree"
+          if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then
+          '''
+          new = '''stage="prepare-tree"
+          git read-tree --reset -u "${DESIGN_BASE}"
+
+          stage="merge-tree"
+          if git read-tree -m -u "${DESIGN_BASE}" "${FEATURE_SOURCE}" "${EXPECTED_MAIN}"; then
+          '''
+          if source.count(old) != 1:
+              raise SystemExit(f'expected one merge-tree entry point, got {source.count(old)}')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          set +e
           set -o pipefail
           bash .github/scripts/pr173-reconcile.sh 2>&1 | tee "${RUNNER_TEMP}/pr173-reconcile.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          exit "${status}"
 
       - name: Collect bounded reconciliation diagnostics
         if: always()
