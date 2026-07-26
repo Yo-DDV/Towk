@@ -1,26 +1,27 @@
 name: read-receipts main sync diagnostic
-# Registered before this trigger commit.
+# Registered before this pull-request trigger commit.
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/read-receipts
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: read-receipts-main-sync-diagnostic
+  group: read-receipts-main-sync-diagnostic-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   inspect:
+    if: github.event.pull_request.head.ref == 'feat/read-receipts'
     runs-on: ubuntu-latest
     steps:
       - name: Check out exact branch head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
