@@ -100,10 +100,10 @@ def file_readable_by_container(path: Path, *, uid: int, supplementary_gid: int |
 def validate_key_permissions(path: Path) -> int:
     metadata = path.stat()
     mode = stat.S_IMODE(metadata.st_mode)
-    if mode & 0o037:
+    if mode & ~0o640:
         raise ValidationError(
             f"TURN_KEY_FILE permissions are too broad ({mode:04o}); allow at most owner read/write "
-            "and dedicated-group read"
+            "and dedicated-group read, with no execute or special bits"
         )
     if metadata.st_uid == LIVEKIT_UID and mode & stat.S_IRUSR:
         return LIVEKIT_GID
@@ -121,9 +121,9 @@ def validate_key_permissions(path: Path) -> int:
 
 def validate_certificate_permissions(path: Path, key_gid: int) -> None:
     mode = stat.S_IMODE(path.stat().st_mode)
-    if mode & stat.S_IWOTH:
+    if mode & 0o022:
         raise ValidationError(
-            f"TURN_CERT_FILE permissions are too broad ({mode:04o}); remove write access for other users"
+            f"TURN_CERT_FILE permissions are too broad ({mode:04o}); remove group and other write access"
         )
     if not file_readable_by_container(path, uid=LIVEKIT_UID, supplementary_gid=key_gid):
         raise ValidationError(
