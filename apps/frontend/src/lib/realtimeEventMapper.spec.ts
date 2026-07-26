@@ -11,7 +11,8 @@ import {
   RealtimeEventEnvelopeSchema,
   RealtimeMentionNotificationEventSchema,
   RealtimeNewDirectMessageNotificationEventSchema,
-  RealtimeNotificationCreatedEventSchema
+  RealtimeNotificationCreatedEventSchema,
+  RealtimeReadReceiptAdvancedEventSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
 
 describe('realtimeEventToEventEnvelope', () => {
@@ -156,6 +157,35 @@ describe('realtimeEventToEventEnvelope', () => {
       displayName: 'Grace Hopper',
       avatarUrl: '/assets/avatar.png'
     });
+  });
+
+  it('maps read receipt realtime frames as anonymous invalidations', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-read-receipt',
+        event: {
+          case: 'readReceiptAdvanced',
+          value: create(RealtimeReadReceiptAdvancedEventSchema, {
+            roomId: 'room-1',
+            threadRootEventId: 'thread-1'
+          })
+        }
+      })
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt-read-receipt',
+      createdAt: '',
+      actorId: null,
+      event: {
+        kind: RoomEventKind.ReadReceiptAdvanced,
+        roomId: 'room-1',
+        threadRootEventId: 'thread-1'
+      }
+    });
+    expect(event?.event).not.toHaveProperty('userId');
+    expect(event?.event).not.toHaveProperty('eventId');
+    expect(event?.event).not.toHaveProperty('readAt');
   });
 
   it('preserves per-client notification-center suppression', () => {

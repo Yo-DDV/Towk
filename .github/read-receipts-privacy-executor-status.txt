@@ -1,8 +1,0 @@
-source_head=ac1d238b4d2e2410109f5a7b07b3680898b35450
-setup=success
-patch=success
-codegen=success
-contract=success
-backend=success
-frontend=failure
-build=skipped

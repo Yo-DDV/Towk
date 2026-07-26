@@ -14,8 +14,9 @@ Read receipts are separate from private unread markers and notifications. Opting
 - A client publishes a receipt only for messages that are actually visible in the active timeline, while the document is visible and focused.
 - A receipt is never published for the viewer's own message.
 - Room and thread receipts use separate cursors. Reading a thread does not mark the room timeline as read, and reading the room timeline does not publish thread receipts.
-- The compact message footer shows only the number of readers.
-- Opening the footer detail requests a paginated reader list for the selected message. Reader identities and timestamps are not part of the compact summary.
+- The compact message footer shows only a subdued receipt icon and reader count. Within an uninterrupted run from one author, only the final message renders the indicator.
+- Opening the footer detail requests a paginated reader list for the selected message. Reader identities and timestamps are not part of the compact summary or realtime invalidation.
+- Realtime invalidation contains only the room and optional thread root. It carries no reader identity, read timestamp, target message ID, sequence, envelope actor, or envelope creation time.
 - If the server-wide switch is disabled, users cannot publish or inspect receipts. Existing private unread state remains unchanged.
 - If a user disables read receipts, future visible reads are not published and the user cannot inspect reader lists. Reads made while disabled are not backfilled if the user re-enables the setting later.
 - Previously published receipts remain historical unless the account or room lifecycle removes the corresponding state.
@@ -43,7 +44,7 @@ Read receipts are separate from private unread markers and notifications. Opting
 
 ### 4. Summaries are count-only by default
 
-**Decision:** Message footers use batch summaries that expose enabled state and reader counts. Reader identities and read timestamps are fetched only from the explicit detail action for one message.
+**Decision:** Message footers use bounded batch summaries that expose enabled state and reader counts. Realtime signals are anonymous room/thread invalidations. Reader identities and read timestamps are fetched only from the explicit detail action for one message.
 **Why:** Counts are enough for the timeline affordance and avoid putting a rolling list of identities into every rendered message.
 **Tradeoff:** Opening details requires a second request.
 

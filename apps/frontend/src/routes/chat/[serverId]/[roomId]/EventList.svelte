@@ -38,6 +38,10 @@
     visibleUnreadMarkerEventId
   } from './tombstoneVisibility';
   import { latestVisibleReadReceiptTarget, visibleMessageEventIds } from './readReceiptVisibility';
+  import {
+    readReceiptSummaryEventIds,
+    withReadReceiptPresentation
+  } from './readReceiptPresentation';
 
   let {
     roomId,
@@ -208,6 +212,7 @@
     const nowMs = Date.now();
     return visibleTombstoneEvents(timelineEvents, nowMs);
   });
+  let presentedEvents = $derived(withReadReceiptPresentation(filteredEvents));
   let messageEventCount = $derived(
     filteredEvents.filter((event) => isMessagePostedEvent(event.event)).length
   );
@@ -442,7 +447,7 @@
   }
 
   // Apply message grouping and day separators
-  let eventsWithMeta = $derived(computeEventMetadata(filteredEvents, userSettings, activeLocale));
+  let eventsWithMeta = $derived(computeEventMetadata(presentedEvents, userSettings, activeLocale));
 
   // If the marker points at an expired tombstone, move it to the next visible
   // event instead of silently dropping the unread boundary.
@@ -1352,10 +1357,7 @@
   }
 
   function renderedMessageEventIds(): string[] {
-    return filteredEvents
-      .filter((event) => isMessagePostedEvent(event.event))
-      .map((event) => event.id)
-      .slice(-120);
+    return readReceiptSummaryEventIds(presentedEvents);
   }
 
   async function refreshReadReceiptSummaries(): Promise<void> {

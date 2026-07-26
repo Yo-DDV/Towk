@@ -151,9 +151,6 @@ type EventEnvelopeEvent =
       kind: typeof RoomEventKind.ReadReceiptAdvanced;
       roomId: string;
       threadRootEventId?: string | null;
-      userId: string;
-      eventId: string;
-      readAt?: string | null;
     }
   | { kind: typeof RoomEventKind.RoomArchived; roomId: string }
   | { kind: typeof RoomEventKind.RoomCreated; roomId: string }
@@ -663,9 +660,6 @@ export function onPresenceChange(handler: PresenceHandler): () => void {
 export type ReadReceiptAdvanced = {
   roomId: string;
   threadRootEventId: string | null;
-  userId: string;
-  eventId: string;
-  readAt: string | null;
 };
 
 export function onReadReceiptAdvanced(handler: (update: ReadReceiptAdvanced) => void): () => void {
@@ -673,10 +667,7 @@ export function onReadReceiptAdvanced(handler: (update: ReadReceiptAdvanced) => 
     RoomEventKind.ReadReceiptAdvanced,
     (_env, e) => ({
       roomId: e.roomId,
-      threadRootEventId: e.threadRootEventId ?? null,
-      userId: e.userId,
-      eventId: e.eventId,
-      readAt: e.readAt ?? null
+      threadRootEventId: e.threadRootEventId ?? null
     }),
     handler
   );

@@ -2980,26 +2980,19 @@ func (x *RealtimeServerUserPreferencesUpdatedEvent) GetReadReceiptsEnabled() boo
 	return false
 }
 
-// Compact public read-receipt cursor delta.
+// Anonymous public read-receipt invalidation.
 //
-// Clients use this as an invalidation signal and refetch bounded summaries for
-// rendered messages through `RoomService.GetReadReceiptSummaries`.
+// Clients refetch authorized count-only summaries for rendered messages through
+// `RoomService.GetReadReceiptSummaries`. Reader identity, read time, target
+// message and sequence are intentionally excluded from the realtime stream.
 type RealtimeReadReceiptAdvancedEvent struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Room containing the affected timeline.
 	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
-	// Thread root when the cursor belongs to a thread timeline.
+	// Thread root when the invalidation belongs to a thread timeline.
 	ThreadRootEventId *string `protobuf:"bytes,2,opt,name=thread_root_event_id,json=threadRootEventId,proto3,oneof" json:"thread_root_event_id,omitempty"`
-	// User whose public cursor advanced.
-	UserId string `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	// Highest message event covered by the advance.
-	EventId string `protobuf:"bytes,4,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	// Monotonic room-stream sequence for event_id.
-	EventSequence uint64 `protobuf:"varint,5,opt,name=event_sequence,json=eventSequence,proto3" json:"event_sequence,omitempty"`
-	// Server-recorded time of the advance.
-	ReadAt        *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RealtimeReadReceiptAdvancedEvent) Reset() {
@@ -3044,34 +3037,6 @@ func (x *RealtimeReadReceiptAdvancedEvent) GetThreadRootEventId() string {
 		return *x.ThreadRootEventId
 	}
 	return ""
-}
-
-func (x *RealtimeReadReceiptAdvancedEvent) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *RealtimeReadReceiptAdvancedEvent) GetEventId() string {
-	if x != nil {
-		return x.EventId
-	}
-	return ""
-}
-
-func (x *RealtimeReadReceiptAdvancedEvent) GetEventSequence() uint64 {
-	if x != nil {
-		return x.EventSequence
-	}
-	return 0
-}
-
-func (x *RealtimeReadReceiptAdvancedEvent) GetReadAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ReadAt
-	}
-	return nil
 }
 
 // Room-group layout signal.
@@ -3811,15 +3776,11 @@ const file_chatto_realtime_v1_realtime_proto_rawDesc = "" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x19.chatto.api.v1.TimeFormatR\n" +
 	"timeFormat\x122\n" +
 	"\x15read_receipts_enabled\x18\x03 \x01(\bR\x13readReceiptsEnabledB\v\n" +
-	"\t_timezone\"\x9a\x02\n" +
+	"\t_timezone\"\xce\x01\n" +
 	" RealtimeReadReceiptAdvancedEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x124\n" +
-	"\x14thread_root_event_id\x18\x02 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x19\n" +
-	"\bevent_id\x18\x04 \x01(\tR\aeventId\x12%\n" +
-	"\x0eevent_sequence\x18\x05 \x01(\x04R\reventSequence\x123\n" +
-	"\aread_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x06readAtB\x17\n" +
-	"\x15_thread_root_event_id\":\n" +
+	"\x14thread_root_event_id\x18\x02 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01B\x17\n" +
+	"\x15_thread_root_event_idJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\auser_idR\bevent_idR\x0eevent_sequenceR\aread_at\":\n" +
 	"\x1eRealtimeRoomGroupsUpdatedEvent\x12\x18\n" +
 	"\achanged\x18\x01 \x01(\bR\achanged\";\n" +
 	" RealtimeServerMemberDeletedEvent\x12\x17\n" +
@@ -3997,15 +3958,14 @@ var file_chatto_realtime_v1_realtime_proto_depIdxs = []int32{
 	45, // 56: chatto.realtime.v1.RealtimeNotificationLevelChangedEvent.effective_level:type_name -> chatto.api.v1.NotificationLevel
 	43, // 57: chatto.realtime.v1.RealtimeUserCustomStatusSetEvent.expires_at:type_name -> google.protobuf.Timestamp
 	46, // 58: chatto.realtime.v1.RealtimeServerUserPreferencesUpdatedEvent.time_format:type_name -> chatto.api.v1.TimeFormat
-	43, // 59: chatto.realtime.v1.RealtimeReadReceiptAdvancedEvent.read_at:type_name -> google.protobuf.Timestamp
-	1,  // 60: chatto.realtime.v1.RealtimeCallEvent.source:type_name -> chatto.realtime.v1.RealtimeCallEventSource
-	0,  // 61: chatto.realtime.v1.RealtimeCallEvent.connection_state:type_name -> chatto.realtime.v1.RealtimeCallParticipantConnectionState
-	43, // 62: chatto.realtime.v1.RealtimeCallEvent.interruption_deadline:type_name -> google.protobuf.Timestamp
-	63, // [63:63] is the sub-list for method output_type
-	63, // [63:63] is the sub-list for method input_type
-	63, // [63:63] is the sub-list for extension type_name
-	63, // [63:63] is the sub-list for extension extendee
-	0,  // [0:63] is the sub-list for field type_name
+	1,  // 59: chatto.realtime.v1.RealtimeCallEvent.source:type_name -> chatto.realtime.v1.RealtimeCallEventSource
+	0,  // 60: chatto.realtime.v1.RealtimeCallEvent.connection_state:type_name -> chatto.realtime.v1.RealtimeCallParticipantConnectionState
+	43, // 61: chatto.realtime.v1.RealtimeCallEvent.interruption_deadline:type_name -> google.protobuf.Timestamp
+	62, // [62:62] is the sub-list for method output_type
+	62, // [62:62] is the sub-list for method input_type
+	62, // [62:62] is the sub-list for extension type_name
+	62, // [62:62] is the sub-list for extension extendee
+	0,  // [0:62] is the sub-list for field type_name
 }
 
 func init() { file_chatto_realtime_v1_realtime_proto_init() }

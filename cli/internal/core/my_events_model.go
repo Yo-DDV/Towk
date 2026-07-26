@@ -357,10 +357,22 @@ func (s *MyEventsModel) filterLiveSyncEvent(ctx context.Context, userID string, 
 		if !isMember {
 			return nil, false
 		}
-		if event.GetPublicReadReceiptAdvanced() != nil {
+		if receipt := event.GetPublicReadReceiptAdvanced(); receipt != nil {
 			enabled, _ := s.core.ReadReceipts().Policy(userID)
 			if !enabled {
 				return nil, false
+			}
+			// Rebuild the event at the authorization boundary. This also strips
+			// legacy unknown fields from mixed-version producers and guarantees
+			// that no actor or read timestamp reaches downstream adapters.
+			event = &corev1.LiveEvent{
+				Id: event.GetId(),
+				Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{
+					PublicReadReceiptAdvanced: &corev1.PublicReadReceiptAdvancedEvent{
+						RoomId:            receipt.GetRoomId(),
+						ThreadRootEventId: optionalString(receipt.GetThreadRootEventId()),
+					},
+				},
 			}
 		}
 		return NewLiveEventEnvelope(event), true

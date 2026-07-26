@@ -258,9 +258,6 @@ export type RoomEventPayload =
       kind: 'readReceiptAdvanced';
       roomId: string;
       threadRootEventId?: string | null;
-      userId: string;
-      eventId: string;
-      readAt?: string | null;
     }
   | { kind: 'roomArchived'; roomId: string }
   | { kind: 'roomCreated'; roomId?: string }

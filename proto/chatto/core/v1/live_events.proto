@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package chatto.core.v1;
 
-import "google/protobuf/timestamp.proto";
 import "chatto/core/v1/room_events.proto";
 import "chatto/core/v1/user_events.proto";
 import "chatto/core/v1/user_preferences.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 
@@ -285,14 +285,13 @@ message SessionTerminatedEvent {
   string reason = 1;
 }
 
-
-// PublicReadReceiptAdvancedEvent carries a compact room-scoped cursor delta.
-// Reader lists are fetched separately through the authenticated API.
+// PublicReadReceiptAdvancedEvent is an anonymous room-scoped invalidation.
+// Clients refetch authorized count-only summaries; reader identity, read time,
+// target message and sequence remain behind the explicit paginated detail API.
 message PublicReadReceiptAdvancedEvent {
+  reserved 3, 4, 5, 6;
+  reserved "user_id", "event_id", "event_sequence", "read_at";
+
   string room_id = 1;
   optional string thread_root_event_id = 2;
-  string user_id = 3;
-  string event_id = 4;
-  uint64 event_sequence = 5;
-  google.protobuf.Timestamp read_at = 6;
 }

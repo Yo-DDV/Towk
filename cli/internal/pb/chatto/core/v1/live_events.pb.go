@@ -1244,16 +1244,13 @@ func (x *SessionTerminatedEvent) GetReason() string {
 	return ""
 }
 
-// PublicReadReceiptAdvancedEvent carries a compact room-scoped cursor delta.
-// Reader lists are fetched separately through the authenticated API.
+// PublicReadReceiptAdvancedEvent is an anonymous room-scoped invalidation.
+// Clients refetch authorized count-only summaries; reader identity, read time,
+// target message and sequence remain behind the explicit paginated detail API.
 type PublicReadReceiptAdvancedEvent struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	RoomId            string                 `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
 	ThreadRootEventId *string                `protobuf:"bytes,2,opt,name=thread_root_event_id,json=threadRootEventId,proto3,oneof" json:"thread_root_event_id,omitempty"`
-	UserId            string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	EventId           string                 `protobuf:"bytes,4,opt,name=event_id,json=eventId,proto3" json:"event_id,omitempty"`
-	EventSequence     uint64                 `protobuf:"varint,5,opt,name=event_sequence,json=eventSequence,proto3" json:"event_sequence,omitempty"`
-	ReadAt            *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=read_at,json=readAt,proto3" json:"read_at,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1302,39 +1299,11 @@ func (x *PublicReadReceiptAdvancedEvent) GetThreadRootEventId() string {
 	return ""
 }
 
-func (x *PublicReadReceiptAdvancedEvent) GetUserId() string {
-	if x != nil {
-		return x.UserId
-	}
-	return ""
-}
-
-func (x *PublicReadReceiptAdvancedEvent) GetEventId() string {
-	if x != nil {
-		return x.EventId
-	}
-	return ""
-}
-
-func (x *PublicReadReceiptAdvancedEvent) GetEventSequence() uint64 {
-	if x != nil {
-		return x.EventSequence
-	}
-	return 0
-}
-
-func (x *PublicReadReceiptAdvancedEvent) GetReadAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ReadAt
-	}
-	return nil
-}
-
 var File_chatto_core_v1_live_events_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_live_events_proto_rawDesc = "" +
 	"\n" +
-	" chatto/core/v1/live_events.proto\x12\x0echatto.core.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a chatto/core/v1/room_events.proto\x1a chatto/core/v1/user_events.proto\x1a%chatto/core/v1/user_preferences.proto\"\xf6\x10\n" +
+	" chatto/core/v1/live_events.proto\x12\x0echatto.core.v1\x1a chatto/core/v1/room_events.proto\x1a chatto/core/v1/user_events.proto\x1a%chatto/core/v1/user_preferences.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xf6\x10\n" +
 	"\tLiveEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -1406,15 +1375,11 @@ const file_chatto_core_v1_live_events_proto_rawDesc = "" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"(\n" +
 	"\x16RoomGroupsUpdatedEventJ\x04\b\x01\x10\x02R\bspace_id\"0\n" +
 	"\x16SessionTerminatedEvent\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason\"\x98\x02\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"\xcc\x01\n" +
 	"\x1ePublicReadReceiptAdvancedEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x124\n" +
-	"\x14thread_root_event_id\x18\x02 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userId\x12\x19\n" +
-	"\bevent_id\x18\x04 \x01(\tR\aeventId\x12%\n" +
-	"\x0eevent_sequence\x18\x05 \x01(\x04R\reventSequence\x123\n" +
-	"\aread_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x06readAtB\x17\n" +
-	"\x15_thread_root_event_idB\xb2\x01\n" +
+	"\x14thread_root_event_id\x18\x02 \x01(\tH\x00R\x11threadRootEventId\x88\x01\x01B\x17\n" +
+	"\x15_thread_root_event_idJ\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\auser_idR\bevent_idR\x0eevent_sequenceR\aread_atB\xb2\x01\n" +
 	"\x12com.chatto.core.v1B\x0fLiveEventsProtoP\x01Z1hmans.de/chatto/internal/pb/chatto/core/v1;corev1\xa2\x02\x03CCX\xaa\x02\x0eChatto.Core.V1\xca\x02\x0eChatto\\Core\\V1\xe2\x02\x1aChatto\\Core\\V1\\GPBMetadata\xea\x02\x10Chatto::Core::V1b\x06proto3"
 
 var (
@@ -1482,12 +1447,11 @@ var file_chatto_core_v1_live_events_proto_depIdxs = []int32{
 	14, // 21: chatto.core.v1.LiveEvent.session_terminated:type_name -> chatto.core.v1.SessionTerminatedEvent
 	24, // 22: chatto.core.v1.NotificationLevelChangedEvent.level:type_name -> chatto.core.v1.NotificationLevel
 	24, // 23: chatto.core.v1.NotificationLevelChangedEvent.effective_level:type_name -> chatto.core.v1.NotificationLevel
-	16, // 24: chatto.core.v1.PublicReadReceiptAdvancedEvent.read_at:type_name -> google.protobuf.Timestamp
-	25, // [25:25] is the sub-list for method output_type
-	25, // [25:25] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_chatto_core_v1_live_events_proto_init() }

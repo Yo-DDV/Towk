@@ -20,13 +20,13 @@ The ConnectRPC API exposes three operations on the room service:
 - fetch count-only summaries for a bounded set of message event IDs;
 - list readers for one message with pagination.
 
-Realtime delivery uses a compact room-scoped event that carries the room, optional thread root, reader, message event ID, event sequence, and read timestamp. Clients use it to refresh local summaries, not as an authorization source.
+Realtime delivery uses an anonymous room-scoped invalidation containing only the room and optional thread root. It omits the reader, read timestamp, target message, sequence, envelope actor, and envelope creation time. Clients refetch authorized count-only summaries; reader identities and read timestamps remain behind the explicit paginated detail request.
 
 ## Consequences
 
 - The privacy switch is durable across disable/enable cycles.
 - Private unread markers, notification dismissal, and public receipts can evolve independently.
-- Counts can be rendered without exposing reader identities in every message response.
+- Counts can be rendered without exposing reader identities in every message response or realtime frame.
 - Reader identity and timestamp disclosure happens only after an explicit paginated request for one message.
 - Old clients can continue to use private unread APIs. They do not publish receipts unless they call the new receipt API.
 - Rollback can disable the feature at server level without migrating private unread state.

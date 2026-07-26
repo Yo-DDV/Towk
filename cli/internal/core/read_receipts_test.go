@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -72,7 +73,7 @@ func readerCountFor(t *testing.T, summaries []*ReadReceiptSummaryRecord, eventID
 	return 0
 }
 
-func TestReadReceiptModel_AdvancesMonotonicallyAndPublishesCompactDelta(t *testing.T) {
+func TestReadReceiptModel_AdvancesMonotonicallyAndPublishesAnonymousInvalidation(t *testing.T) {
 	f := newReadReceiptFixture(t)
 	ctx := testContext(t)
 	first := f.post(t, f.author, "first")
@@ -102,12 +103,32 @@ func TestReadReceiptModel_AdvancesMonotonicallyAndPublishesCompactDelta(t *testi
 	if err := proto.Unmarshal(msg.Data, &live); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	delta := live.GetPublicReadReceiptAdvanced()
-	if delta == nil || delta.GetRoomId() != f.room.Id || delta.GetUserId() != f.reader.Id || delta.GetEventId() != second.Id {
-		t.Fatalf("delta = %+v", delta)
+	invalidation := live.GetPublicReadReceiptAdvanced()
+	if invalidation == nil || invalidation.GetRoomId() != f.room.Id || invalidation.GetThreadRootEventId() != "" {
+		t.Fatalf("invalidation = %+v", invalidation)
+	}
+	if live.GetActorId() != "" || live.GetCreatedAt() != nil {
+		t.Fatalf("live envelope leaked metadata: actor=%q created_at=%v", live.GetActorId(), live.GetCreatedAt())
+	}
+	descriptor := invalidation.ProtoReflect().Descriptor()
+	if descriptor.Fields().Len() != 2 ||
+		descriptor.Fields().ByName("user_id") != nil ||
+		descriptor.Fields().ByName("event_id") != nil ||
+		descriptor.Fields().ByName("event_sequence") != nil ||
+		descriptor.Fields().ByName("read_at") != nil ||
+		!descriptor.ReservedRanges().Has(3) ||
+		!descriptor.ReservedRanges().Has(4) ||
+		!descriptor.ReservedRanges().Has(5) ||
+		!descriptor.ReservedRanges().Has(6) ||
+		!descriptor.ReservedNames().Has("user_id") ||
+		!descriptor.ReservedNames().Has("event_id") ||
+		!descriptor.ReservedNames().Has("event_sequence") ||
+		!descriptor.ReservedNames().Has("read_at") {
+		t.Fatalf("unsafe public read receipt descriptor: %v", descriptor)
 	}
 
-	stale, err := f.core.ReadReceipts().Advance(ctx, f.reader.Id, f.room.Id, "", first.Id)
+	stale, err :=
+		f.core.ReadReceipts().Advance(ctx, f.reader.Id, f.room.Id, "", first.Id)
 	if err != nil {
 		t.Fatalf("stale Advance: %v", err)
 	}
@@ -128,6 +149,53 @@ func TestReadReceiptModel_AdvancesMonotonicallyAndPublishesCompactDelta(t *testi
 	}
 	if len(readers) != 1 || readers[0].UserID != f.reader.Id || readers[0].ReadAt.IsZero() {
 		t.Fatalf("readers = %+v", readers)
+	}
+}
+
+func TestReadReceiptModel_FilterLiveSyncEventStripsLegacyEnvelopeMetadata(t *testing.T) {
+	f := newReadReceiptFixture(t)
+	threadRoot := "ROOT1"
+	payload := &corev1.PublicReadReceiptAdvancedEvent{
+		RoomId:            f.room.Id,
+		ThreadRootEventId: &threadRoot,
+	}
+	legacyUnknown := protowire.AppendTag(nil, 3, protowire.BytesType)
+	legacyUnknown = protowire.AppendString(legacyUnknown, f.reader.Id)
+	legacyUnknown = protowire.AppendTag(legacyUnknown, 4, protowire.BytesType)
+	legacyUnknown = protowire.AppendString(legacyUnknown, "M4")
+	legacyUnknown = protowire.AppendTag(legacyUnknown, 5, protowire.VarintType)
+	legacyUnknown = protowire.AppendVarint(legacyUnknown, 42)
+	legacyUnknown = protowire.AppendTag(legacyUnknown, 6, protowire.BytesType)
+	legacyUnknown = protowire.AppendBytes(legacyUnknown, []byte{0x08, 0x01})
+	payload.ProtoReflect().SetUnknown(legacyUnknown)
+	live := &corev1.LiveEvent{
+		Id:        "legacy-receipt-invalidation",
+		ActorId:   f.reader.Id,
+		CreatedAt: timestamppb.Now(),
+		Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{
+			PublicReadReceiptAdvanced: payload,
+		},
+	}
+	envelope, ok := f.core.myEvents().filterLiveSyncEvent(
+		testContext(t),
+		f.viewer.Id,
+		map[string]struct{}{f.room.Id: {}},
+		&nats.Msg{Subject: subjects.LiveSyncRoomEvent(string(KindChannel), f.room.Id, "read_receipt")},
+		live,
+	)
+	if !ok || envelope == nil || envelope.LiveEvent() == nil {
+		t.Fatalf("filterLiveSyncEvent = (%v, %v), want deliverable event", envelope, ok)
+	}
+	sanitized := envelope.LiveEvent()
+	if sanitized.GetActorId() != "" || sanitized.GetCreatedAt() != nil {
+		t.Fatalf("sanitized envelope leaked metadata: actor=%q created_at=%v", sanitized.GetActorId(), sanitized.GetCreatedAt())
+	}
+	invalidation := sanitized.GetPublicReadReceiptAdvanced()
+	if invalidation == nil || invalidation.GetRoomId() != f.room.Id || invalidation.GetThreadRootEventId() != threadRoot {
+		t.Fatalf("sanitized invalidation = %+v", invalidation)
+	}
+	if unknown := invalidation.ProtoReflect().GetUnknown(); len(unknown) != 0 {
+		t.Fatalf("sanitized invalidation retained %d unknown bytes", len(unknown))
 	}
 }
 

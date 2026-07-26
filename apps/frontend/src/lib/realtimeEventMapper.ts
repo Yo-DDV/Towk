@@ -345,13 +345,12 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
       const value = frame.event.value;
       return {
         ...base,
+        createdAt: '',
+        actorId: null,
         event: {
           kind: RoomEventKind.ReadReceiptAdvanced,
           roomId: value.roomId,
-          threadRootEventId: value.threadRootEventId ?? null,
-          userId: value.userId,
-          eventId: value.eventId,
-          readAt: optionalTimestampToISO(value.readAt)
+          threadRootEventId: value.threadRootEventId ?? null
         }
       } as unknown as EventEnvelope;
     }

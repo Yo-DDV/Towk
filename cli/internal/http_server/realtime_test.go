@@ -386,20 +386,20 @@ func TestRealtimeMapperMapsOfflinePresence(t *testing.T) {
 	}
 }
 
-func TestRealtimeMapperMapsReadReceiptAdvance(t *testing.T) {
+func TestRealtimeMapperMapsAnonymousReadReceiptInvalidation(t *testing.T) {
 	threadRoot := "ROOT1"
-	readAt := timestamppb.New(time.Unix(1_700_000_000, 123).UTC())
+	payload := &corev1.PublicReadReceiptAdvancedEvent{
+		RoomId:            "R1",
+		ThreadRootEventId: &threadRoot,
+	}
+	payload.ProtoReflect().SetUnknown([]byte{0x1a, 0x02, 'U', '1'})
 	frame, err := (&HTTPServer{}).realtimeEventEnvelope(context.Background(), "", core.NewLiveEventEnvelope(&corev1.LiveEvent{
-		Id:      "receipt-live-1",
-		ActorId: "U1",
-		Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{PublicReadReceiptAdvanced: &corev1.PublicReadReceiptAdvancedEvent{
-			RoomId:            "R1",
-			ThreadRootEventId: &threadRoot,
-			UserId:            "U1",
-			EventId:           "M4",
-			EventSequence:     42,
-			ReadAt:            readAt,
-		}},
+		Id:        "receipt-live-1",
+		ActorId:   "U1",
+		CreatedAt: timestamppb.New(time.Unix(1_700_000_000, 123).UTC()),
+		Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{
+			PublicReadReceiptAdvanced: payload,
+		},
 	}))
 	if err != nil {
 		t.Fatalf("realtimeEventEnvelope: %v", err)
@@ -408,11 +408,27 @@ func TestRealtimeMapperMapsReadReceiptAdvance(t *testing.T) {
 	if receipt == nil {
 		t.Fatalf("event = %T, want read_receipt_advanced", frame.GetEvent())
 	}
-	if receipt.GetRoomId() != "R1" || receipt.GetThreadRootEventId() != threadRoot || receipt.GetUserId() != "U1" || receipt.GetEventId() != "M4" || receipt.GetEventSequence() != 42 {
+	if receipt.GetRoomId() != "R1" || receipt.GetThreadRootEventId() != threadRoot {
 		t.Fatalf("read_receipt_advanced = %+v", receipt)
 	}
-	if receipt.GetReadAt() == nil || !receipt.GetReadAt().AsTime().Equal(readAt.AsTime()) {
-		t.Fatalf("read_at = %v, want %v", receipt.GetReadAt(), readAt)
+	if frame.ActorId != nil || frame.GetCreatedAt() != nil {
+		t.Fatalf("realtime envelope leaked metadata: actor=%v created_at=%v", frame.ActorId, frame.GetCreatedAt())
+	}
+	descriptor := receipt.ProtoReflect().Descriptor()
+	if descriptor.Fields().Len() != 2 ||
+		descriptor.Fields().ByName("user_id") != nil ||
+		descriptor.Fields().ByName("event_id") != nil ||
+		descriptor.Fields().ByName("event_sequence") != nil ||
+		descriptor.Fields().ByName("read_at") != nil ||
+		!descriptor.ReservedRanges().Has(3) ||
+		!descriptor.ReservedRanges().Has(4) ||
+		!descriptor.ReservedRanges().Has(5) ||
+		!descriptor.ReservedRanges().Has(6) ||
+		!descriptor.ReservedNames().Has("user_id") ||
+		!descriptor.ReservedNames().Has("event_id") ||
+		!descriptor.ReservedNames().Has("event_sequence") ||
+		!descriptor.ReservedNames().Has("read_at") {
+		t.Fatalf("unsafe realtime read receipt descriptor: %v", descriptor)
 	}
 }
 

@@ -489,23 +489,19 @@ message RealtimeServerUserPreferencesUpdatedEvent {
   bool read_receipts_enabled = 3;
 }
 
-// Compact public read-receipt cursor delta.
+// Anonymous public read-receipt invalidation.
 //
-// Clients use this as an invalidation signal and refetch bounded summaries for
-// rendered messages through `RoomService.GetReadReceiptSummaries`.
+// Clients refetch authorized count-only summaries for rendered messages through
+// `RoomService.GetReadReceiptSummaries`. Reader identity, read time, target
+// message and sequence are intentionally excluded from the realtime stream.
 message RealtimeReadReceiptAdvancedEvent {
+  reserved 3, 4, 5, 6;
+  reserved "user_id", "event_id", "event_sequence", "read_at";
+
   // Room containing the affected timeline.
   string room_id = 1;
-  // Thread root when the cursor belongs to a thread timeline.
+  // Thread root when the invalidation belongs to a thread timeline.
   optional string thread_root_event_id = 2;
-  // User whose public cursor advanced.
-  string user_id = 3;
-  // Highest message event covered by the advance.
-  string event_id = 4;
-  // Monotonic room-stream sequence for event_id.
-  uint64 event_sequence = 5;
-  // Server-recorded time of the advance.
-  google.protobuf.Timestamp read_at = 6;
 }
 
 // Room-group layout signal.

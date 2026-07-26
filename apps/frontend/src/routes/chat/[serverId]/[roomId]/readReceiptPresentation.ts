@@ -56,3 +56,17 @@ export function withReadReceiptPresentation(
 export function shouldShowReadReceiptIndicator(event: RoomEventView): boolean {
   return (event as PresentedRoomEventView)[readReceiptIndicatorVisible] !== false;
 }
+
+export const READ_RECEIPT_SUMMARY_BATCH_LIMIT = 100;
+
+/**
+ * Returns the bounded message batch used by the count-only summary API.
+ * Hidden members of an uninterrupted author run are excluded before the
+ * protobuf limit is applied.
+ */
+export function readReceiptSummaryEventIds(events: readonly RoomEventView[]): string[] {
+  return events
+    .filter((event) => isMessagePostedEvent(event.event) && shouldShowReadReceiptIndicator(event))
+    .map((event) => event.id)
+    .slice(-READ_RECEIPT_SUMMARY_BATCH_LIMIT);
+}

@@ -555,13 +555,13 @@ func (s *HTTPServer) mapRealtimeLive(ctx context.Context, viewerID string, envel
 		}}
 	case *corev1.LiveEvent_PublicReadReceiptAdvanced:
 		receipt := payload.PublicReadReceiptAdvanced
+		// Read-receipt realtime delivery is an anonymous invalidation. The
+		// explicitly authorized paginated detail API owns identity and time.
+		envelope.CreatedAt = nil
+		envelope.ActorId = nil
 		envelope.Event = &realtimev1.RealtimeEventEnvelope_ReadReceiptAdvanced{ReadReceiptAdvanced: &realtimev1.RealtimeReadReceiptAdvancedEvent{
 			RoomId:            receipt.GetRoomId(),
 			ThreadRootEventId: receipt.ThreadRootEventId,
-			UserId:            receipt.GetUserId(),
-			EventId:           receipt.GetEventId(),
-			EventSequence:     receipt.GetEventSequence(),
-			ReadAt:            receipt.GetReadAt(),
 		}}
 	case *corev1.LiveEvent_ThreadFollowChanged:
 		follow := payload.ThreadFollowChanged

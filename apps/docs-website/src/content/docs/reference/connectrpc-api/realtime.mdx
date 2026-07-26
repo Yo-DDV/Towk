@@ -397,19 +397,16 @@ channel echoes should also refresh or patch visible echo rows whose
 
 ### RealtimeReadReceiptAdvancedEvent
 
-Compact public read-receipt cursor delta.
+Anonymous public read-receipt invalidation.
 
-Clients use this as an invalidation signal and refetch bounded summaries for
-rendered messages through `RoomService.GetReadReceiptSummaries`.
+Clients refetch authorized count-only summaries for rendered messages through
+`RoomService.GetReadReceiptSummaries`. Reader identity, read time, target
+message and sequence are intentionally excluded from the realtime stream.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `room_id` | `string` | Room containing the affected timeline. |
-| `thread_root_event_id` | `optional string` | Thread root when the cursor belongs to a thread timeline. |
-| `user_id` | `string` | User whose public cursor advanced. |
-| `event_id` | `string` | Highest message event covered by the advance. |
-| `event_sequence` | `uint64` | Monotonic room-stream sequence for event_id. |
-| `read_at` | `google.protobuf.Timestamp` | Server-recorded time of the advance. |
+| `thread_root_event_id` | `optional string` | Thread root when the invalidation belongs to a thread timeline. |
 
 <a id="chatto-realtime-v1-RealtimeRoomEvent"></a>
 

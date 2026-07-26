@@ -209,7 +209,7 @@ func (s *ReadReceiptModel) Advance(ctx context.Context, actorID, roomID, threadR
 		}
 
 		advance := &ReadReceiptAdvance{Updated: true, EventID: target.eventID, EventSequence: target.sequence, ReadAt: now}
-		s.publishAdvance(ctx, actorID, kind, room.GetId(), threadRootEventID, advance)
+		s.publishAdvance(ctx, kind, room.GetId(), threadRootEventID, advance)
 		return advance, nil
 	}
 	return nil, fmt.Errorf("public read receipt cursor update failed after %d retries", maxReadReceiptUpdateRetries)
@@ -448,22 +448,23 @@ func readReceiptIntervalTime(intervals []*corev1.PublicReadReceiptInterval, targ
 	return time.Time{}, false
 }
 
-func (s *ReadReceiptModel) publishAdvance(ctx context.Context, actorID string, kind RoomKind, roomID, threadRootEventID string, advance *ReadReceiptAdvance) {
+func (s *ReadReceiptModel) publishAdvance(ctx context.Context, kind RoomKind, roomID, threadRootEventID string, advance *ReadReceiptAdvance) {
 	if advance == nil || !advance.Updated {
 		return
 	}
-	event := newLiveEvent(actorID, &corev1.LiveEvent{Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{
+	event := newLiveEvent("", &corev1.LiveEvent{Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{
 		PublicReadReceiptAdvanced: &corev1.PublicReadReceiptAdvancedEvent{
 			RoomId:            roomID,
 			ThreadRootEventId: optionalString(threadRootEventID),
-			UserId:            actorID,
-			EventId:           advance.EventID,
-			EventSequence:     advance.EventSequence,
-			ReadAt:            timestamppb.New(advance.ReadAt),
 		},
 	}})
+	// This room-wide signal is an anonymous invalidation. Keeping the live
+	// envelope free of actor and creation metadata prevents identity or read
+	// timing from escaping through alternate realtime adapters.
+	event.ActorId = ""
+	event.CreatedAt = nil
 	if err := s.core.publishLiveEvent(ctx, subjects.LiveSyncRoomEvent(string(kind), roomID, "read_receipt"), event); err != nil {
-		s.core.logger.Warn("failed to publish public read receipt delta", "error", err)
+		s.core.logger.Warn("failed to publish public read receipt invalidation", "error", err)
 	}
 }
 

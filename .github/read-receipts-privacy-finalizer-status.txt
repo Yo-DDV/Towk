@@ -1,9 +1,0 @@
-source_head=f6d60801eb97f813beb5151bf565835fc988f1ef
-setup=success
-patch=failure
-codegen=skipped
-contract=skipped
-backend=skipped
-frontend=skipped
-build=skipped
-patch_error=
