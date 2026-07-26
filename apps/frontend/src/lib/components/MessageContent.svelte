@@ -14,10 +14,7 @@
   import { wrapValidMentions, type RoomMember } from '$lib/mentions';
   import { parseTrustedMarkdownHtml } from '$lib/security/trustedHtml';
   import ExternalGifEmbed from './ExternalGifEmbed.svelte';
-  import {
-    EXTERNAL_GIF_EMBEDS_CAPABILITY,
-    type ExternalGifDescriptor
-  } from '$lib/externalGif';
+  import { EXTERNAL_GIF_EMBEDS_CAPABILITY, type ExternalGifDescriptor } from '$lib/externalGif';
   import { resolveExternalGifMessageList } from '$lib/externalGifMessage';
   import { userPreferences } from '$lib/state/userPreferences.svelte';
 
