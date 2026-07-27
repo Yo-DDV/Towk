@@ -103,6 +103,27 @@ test('catalog audit rejects known register and dialect regressions', () => {
   );
 });
 
+test('catalog audit rejects European Portuguese wording in the pt-BR catalog', () => {
+  const values = [
+    'A preparar o microfone…',
+    'A gravar',
+    'Autorize-o nas definições do navegador.',
+    'A preparar a reprodução…',
+    'Esta gravação é demasiado curta.',
+    'Esta mensagem é demasiado grande.',
+    'Regresse ao Towk.',
+    'Este conteúdo partilhado não está disponível.',
+    'O conteúdo expirou. Partilhe-o novamente.'
+  ];
+  const base = new Map(values.map((_, index) => [`ui.${index}`, `English ${index}`]));
+  const localized = new Map(values.map((value, index) => [`ui.${index}`, value]));
+
+  assert.deepEqual(
+    findCatalogSemanticViolations('pt', base, localized).map(({ key }) => key),
+    values.map((_, index) => `ui.${index}`)
+  );
+});
+
 test('catalog audit allows locale-specific cognates without masking other locales', () => {
   const base = new Map([['ui.notifications', 'Notifications']]);
   assert.deepEqual(

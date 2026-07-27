@@ -249,10 +249,14 @@ const SUSPICIOUS_TRANSLATIONS = [
   ['pt', /\bthreads?\b/i, 'untranslated English term'],
   [
     'pt',
-    /\b(?:ficheiros?|ecrã|respetiv[ao]|iniciar sessão|partilhar|multimédia|workers?)\b/i,
+    /\b(?:ficheiros?|ecrã|respetiv[ao]|iniciar sessão|partilh(?:ar|ad[oa]s?|e)|multimédia|workers?)\b/i,
     'European Portuguese or untranslated term in the pt-BR catalog'
   ],
-  ['pt', /\bA carregar\b/i, 'European Portuguese progressive form in the pt-BR catalog'],
+  [
+    'pt',
+    /\b(?:A (?:carregar|gravar|preparar)|definições|demasiad[oa]s?|regresse)\b/i,
+    'European Portuguese wording in the pt-BR catalog'
+  ],
   [
     'pt',
     /\b(?:Tininho|Trituração|remarcação|LaserZap|Celesta Sonho)\b/i,
