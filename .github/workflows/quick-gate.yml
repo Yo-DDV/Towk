@@ -99,7 +99,48 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Reconstruct, validate, and publish product head
+        id: finalize
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: bash -x .github/pr173-final-clean.sh
+        run: |
+          set +e
+          set -o pipefail
+          bash -x .github/pr173-final-clean.sh 2>&1 | tee "${RUNNER_TEMP}/pr173-final-clean.log"
+          status=${PIPESTATUS[0]}
+          printf 'exit_code=%s\n' "${status}" > "${RUNNER_TEMP}/pr173-final-clean-status.txt"
+          exit "${status}"
+
+      - name: Collect bounded finalizer diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/pr173-final-clean-diagnostics"
+          mkdir -p "${output}"
+          cp "${RUNNER_TEMP}/pr173-final-clean-status.txt" "${output}/status.txt" 2>/dev/null || true
+          if test -f "${RUNNER_TEMP}/pr173-final-clean.log"; then
+            tail -n 600 "${RUNNER_TEMP}/pr173-final-clean.log" > "${output}/terminal-tail.log"
+          else
+            printf '%s\n' 'finalizer log was not created' > "${output}/terminal-tail.log"
+          fi
+          printf 'head=%s\noutcome=%s\nconclusion=%s\n' \
+            "${{ github.event.pull_request.head.sha }}" \
+            "${{ steps.finalize.outcome }}" \
+            "${{ steps.finalize.conclusion }}" \
+            > "${output}/workflow.txt"
+
+      - name: Upload bounded finalizer diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr173-final-clean-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/pr173-final-clean-diagnostics
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Preserve finalizer failure
+        if: steps.finalize.outcome == 'failure'
+        shell: bash
+        run: exit 1
