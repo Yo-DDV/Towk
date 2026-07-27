@@ -53,6 +53,37 @@ jobs:
               > "${RUNNER_TEMP}/pr173-reconstruct.py.gz.b64"
           base64 -d .github/pr173-terminal.sh.gz.b64 | gzip -d > "${RUNNER_TEMP}/pr173-terminal.sh"
           sed -i 's#base64 -d \.github/pr173-reconstruct\.py\.gz\.b64#base64 -d "${RUNNER_TEMP}/pr173-reconstruct.py.gz.b64"#' "${RUNNER_TEMP}/pr173-terminal.sh"
+          python3 - "${RUNNER_TEMP}/pr173-terminal.sh" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          source = path.read_text(encoding='utf-8')
+          needle = 'python3 "${RUNNER_TEMP}/pr173-reconstruct.py"\n'
+          inserted = '''python3 "${RUNNER_TEMP}/pr173-reconstruct.py"
+          python3 - <<'PYFIX'
+          from pathlib import Path
+
+          paths = (
+              'apps/frontend/src/lib/api-client/account.ts',
+              'apps/frontend/src/lib/api-client/viewer.ts',
+              'apps/frontend/src/lib/eventBus.svelte.ts',
+          )
+          malformed = 'readReceiptsEnabled: boolean;,'
+          corrected = 'readReceiptsEnabled: boolean;'
+          for name in paths:
+              file_path = Path(name)
+              text = file_path.read_text(encoding='utf-8')
+              count = text.count(malformed)
+              if count != 1:
+                  raise SystemExit(f'{name}: expected one malformed merged declaration, got {count}')
+              file_path.write_text(text.replace(malformed, corrected, 1), encoding='utf-8')
+          PYFIX
+          '''
+          if source.count(needle) != 1:
+              raise SystemExit(f'expected one reconstruction command, got {source.count(needle)}')
+          path.write_text(source.replace(needle, inserted, 1), encoding='utf-8')
+          PY
           chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
           set +e
           set -o pipefail
