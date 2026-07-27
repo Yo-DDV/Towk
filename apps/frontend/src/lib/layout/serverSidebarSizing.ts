@@ -4,7 +4,7 @@ import {
 } from '$lib/storage/serverSidebarWidth';
 
 export const FOLD_LIKE_MIN_VIEWPORT_WIDTH = 768;
-export const FOLD_LIKE_MAX_VIEWPORT_WIDTH = 1100;
+export const FOLD_LIKE_MAX_VIEWPORT_WIDTH = 1280;
 export const FOLD_LIKE_MIN_ASPECT_RATIO = 4 / 5;
 export const FOLD_LIKE_MAX_ASPECT_RATIO = 5 / 4;
 export const FOLD_LIKE_SIDEBAR_MAX_WIDTH = 360;
