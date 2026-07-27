@@ -160,6 +160,10 @@ func (s *accountService) UpdateSettings(ctx context.Context, req *connect.Reques
 		timeFormat := apiTimeFormatToCore(req.Msg.GetTimeFormat())
 		input.TimeFormat = &timeFormat
 	}
+	if req.Msg.ReadReceiptsEnabled != nil {
+		enabled := req.Msg.GetReadReceiptsEnabled()
+		input.ReadReceiptsEnabled = &enabled
+	}
 	if req.Msg.ShowLastActivity != nil {
 		showLastActivity := req.Msg.GetShowLastActivity()
 		input.ShowLastActivity = &showLastActivity

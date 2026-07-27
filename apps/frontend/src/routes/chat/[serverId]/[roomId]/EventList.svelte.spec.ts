@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import { render } from 'vitest-browser-svelte';
 import EventListTestHarness from './EventListTestHarness.svelte';
 import { setVirtualizerScrollOffset } from './EventListVirtualizerMock.svelte';
 
 const resumeCallbacks = vi.hoisted(() => [] as Array<() => void>);
+const readReceiptMocks = vi.hoisted(() => ({
+  advanceReadReceipt: vi.fn(),
+  getReadReceiptSummaries: vi.fn()
+}));
 let resizeCallbacks: ResizeObserverCallback[] = [];
 
 class ResizeObserverMock implements ResizeObserver {
@@ -41,6 +45,21 @@ vi.mock('$lib/state/activeServer.svelte', () => ({
   getActiveServer: () => 'server-1'
 }));
 
+vi.mock('$lib/state/server/connection.svelte', () => ({
+  useConnection: () => () => ({
+    serverId: 'server-1',
+    connectBaseUrl: 'https://chat.example.test/api/connect',
+    bearerToken: 'token'
+  })
+}));
+
+vi.mock('$lib/api-client/readState', () => ({
+  createReadStateAPI: () => ({
+    advanceReadReceipt: readReceiptMocks.advanceReadReceipt,
+    getReadReceiptSummaries: readReceiptMocks.getReadReceiptSummaries
+  })
+}));
+
 vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
     getStore: () => ({
@@ -59,6 +78,52 @@ vi.mock('$lib/hooks/useMayHaveMissedMessagesCallback.svelte', () => ({
 }));
 
 describe('EventList jump completion', () => {
+  beforeEach(() => {
+    readReceiptMocks.advanceReadReceipt.mockReset().mockResolvedValue(false);
+    readReceiptMocks.getReadReceiptSummaries
+      .mockReset()
+      .mockResolvedValue({ enabled: true, summaries: [] });
+  });
+
+  it('discards an in-flight summary response after receipts are disabled', async () => {
+    let resolveSummary:
+      | ((value: {
+          enabled: boolean;
+          summaries: Array<{ messageEventId: string; readerCount: number }>;
+        }) => void)
+      | undefined;
+    readReceiptMocks.getReadReceiptSummaries.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSummary = resolve;
+        })
+    );
+
+    const rendered = render(EventListTestHarness, {
+      props: {
+        eventIds: ['msg-1'],
+        scrollToEventId: null,
+        readReceiptsEnabled: true
+      }
+    });
+
+    await vi.waitFor(() =>
+      expect(readReceiptMocks.getReadReceiptSummaries).toHaveBeenCalledTimes(1)
+    );
+    await rendered.rerender({
+      eventIds: ['msg-1'],
+      scrollToEventId: null,
+      readReceiptsEnabled: false
+    });
+    resolveSummary?.({
+      enabled: true,
+      summaries: [{ messageEventId: 'msg-1', readerCount: 1 }]
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('[data-testid="read-receipt-summary-msg-1"]')).toBeNull();
+  });
+
   it('shows a retryable load failure instead of the empty state', async () => {
     const onRetryLoad = vi.fn();
     render(EventListTestHarness, {
@@ -189,9 +254,9 @@ describe('EventList jump completion', () => {
     expect(document.querySelector('[data-testid="timeline-room-switch-mask"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
-    expect(
-      Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)
-    ).toBe(callsBeforeRouteChange);
+    expect(Number(page.getByTestId('virtualizer-scroll-calls').element().textContent)).toBe(
+      callsBeforeRouteChange
+    );
 
     await rendered.rerender({
       roomId: 'room-new',
@@ -637,9 +702,9 @@ describe('EventList jump completion', () => {
 
     expect(document.querySelector('[data-event-id="msg-old"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="timeline-room-carryover"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="timeline-room-carryover"]')?.getAttribute('aria-hidden')).toBe(
-      'true'
-    );
+    expect(
+      document.querySelector('[data-testid="timeline-room-carryover"]')?.getAttribute('aria-hidden')
+    ).toBe('true');
     expect(document.querySelector('[data-testid="virtualizer-scroll-calls"]')).not.toBeNull();
   });
 

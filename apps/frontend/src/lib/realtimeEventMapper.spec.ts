@@ -12,6 +12,7 @@ import {
   RealtimeMentionNotificationEventSchema,
   RealtimeNewDirectMessageNotificationEventSchema,
   RealtimeNotificationCreatedEventSchema,
+  RealtimeReadReceiptAdvancedEventSchema,
   RealtimeServerUserPreferencesUpdatedEventSchema,
   RealtimeUserProfileUpdatedEventSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
@@ -162,6 +163,35 @@ describe('realtimeEventToEventEnvelope', () => {
     });
   });
 
+  it('maps read receipt realtime frames as anonymous invalidations', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-read-receipt',
+        event: {
+          case: 'readReceiptAdvanced',
+          value: create(RealtimeReadReceiptAdvancedEventSchema, {
+            roomId: 'room-1',
+            threadRootEventId: 'thread-1'
+          })
+        }
+      })
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt-read-receipt',
+      createdAt: '',
+      actorId: null,
+      event: {
+        kind: RoomEventKind.ReadReceiptAdvanced,
+        roomId: 'room-1',
+        threadRootEventId: 'thread-1'
+      }
+    });
+    expect(event?.event).not.toHaveProperty('userId');
+    expect(event?.event).not.toHaveProperty('eventId');
+    expect(event?.event).not.toHaveProperty('readAt');
+  });
+
   it('preserves detailed-profile invalidation signals', () => {
     const event = realtimeEventToEventEnvelope(
       create(RealtimeEventEnvelopeSchema, {
@@ -188,7 +218,7 @@ describe('realtimeEventToEventEnvelope', () => {
     });
   });
 
-  it('preserves the effective last-activity preference', () => {
+  it('preserves the effective user preferences', () => {
     const event = realtimeEventToEventEnvelope(
       create(RealtimeEventEnvelopeSchema, {
         id: 'evt-preferences',
@@ -197,18 +227,25 @@ describe('realtimeEventToEventEnvelope', () => {
           case: 'serverUserPreferencesUpdated',
           value: create(RealtimeServerUserPreferencesUpdatedEventSchema, {
             timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+            readReceiptsEnabled: true,
             showLastActivity: false
           })
         }
       })
     ) as unknown as {
-      event: { kind: string; timeFormat: TimeFormat; showLastActivity: boolean };
+      event: {
+        kind: string;
+        timeFormat: TimeFormat;
+        readReceiptsEnabled: boolean;
+        showLastActivity: boolean;
+      };
     };
 
     expect(event.event).toEqual({
       kind: RoomEventKind.ServerUserPreferencesUpdated,
       timezone: null,
       timeFormat: TimeFormat.TwentyFourHour,
+      readReceiptsEnabled: true,
       showLastActivity: false
     });
   });

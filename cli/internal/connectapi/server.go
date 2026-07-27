@@ -22,6 +22,7 @@ type serverProfileOptions struct {
 
 const (
 	serverCapabilityMessageCreateIdempotency = "message.create-idempotency-v1"
+	serverCapabilityReadReceipts             = "read-receipts-v1"
 	serverCapabilityExternalGIFEmbeds        = "external-gif-embeds-v1"
 )
 
@@ -63,7 +64,7 @@ func (a *API) serverProfile(ctx context.Context, options serverProfileOptions) (
 	profile := &apiv1.ServerPublicProfile{
 		Name:         a.effectiveServerName(ctx),
 		Version:      a.version,
-		Capabilities: capabilities,
+		Capabilities: append(capabilities, serverCapabilityReadReceipts),
 	}
 
 	if a.core != nil && a.core.ConfigManager() != nil {

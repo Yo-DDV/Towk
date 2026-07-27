@@ -26,6 +26,8 @@ type UserSettingsInput struct {
 	Timezone *string
 	// TimeFormat preference. nil = no change.
 	TimeFormat *corev1.TimeFormat
+	// ReadReceiptsEnabled controls reciprocal public read receipts. nil = no change.
+	ReadReceiptsEnabled *bool
 	// ShowLastActivity controls disclosure to other authenticated users. nil = no change.
 	ShowLastActivity *bool
 }
@@ -101,6 +103,20 @@ func (c *ChattoCore) UpdateUserSettings(ctx context.Context, userID string, inpu
 				UserTimeFormatChanged: &corev1.UserTimeFormatChangedEvent{UserId: userID, TimeFormat: *input.TimeFormat},
 			}}))
 		}
+		if input.ReadReceiptsEnabled != nil {
+			currentEnabled := true
+			if current != nil && current.ReadReceiptsEnabled != nil {
+				currentEnabled = current.GetReadReceiptsEnabled()
+			}
+			if currentEnabled != *input.ReadReceiptsEnabled {
+				evs = append(evs, newEvent(userID, &corev1.Event{Event: &corev1.Event_UserReadReceiptsEnabledChanged{
+					UserReadReceiptsEnabledChanged: &corev1.UserReadReceiptsEnabledChangedEvent{
+						UserId:  userID,
+						Enabled: *input.ReadReceiptsEnabled,
+					},
+				}}))
+			}
+		}
 		if input.ShowLastActivity != nil {
 			effectiveCurrent := true
 			if current != nil && current.ShowLastActivity != nil {
@@ -149,9 +165,10 @@ func (c *ChattoCore) publishServerUserPreferencesUpdatedEvent(ctx context.Contex
 	event := newLiveEvent(userID, &corev1.LiveEvent{
 		Event: &corev1.LiveEvent_ServerUserPreferencesUpdated{
 			ServerUserPreferencesUpdated: &corev1.ServerUserPreferencesUpdatedEvent{
-				Timezone:         tz,
-				TimeFormat:       settings.TimeFormat,
-				ShowLastActivity: effectiveShowLastActivity(settings),
+				Timezone:            tz,
+				TimeFormat:          settings.TimeFormat,
+				ShowLastActivity:    effectiveShowLastActivity(settings),
+				ReadReceiptsEnabled: effectiveUserReadReceiptsEnabled(settings),
 			},
 		},
 	})
@@ -180,12 +197,21 @@ func (c *ChattoCore) deleteUserSettings(ctx context.Context, userID string) erro
 				UserTimeFormatCleared: &corev1.UserTimeFormatClearedEvent{UserId: userID},
 			}}),
 		}
+		if current.ReadReceiptsEnabled != nil {
+			evs = append(evs, newEvent(SystemActorID, &corev1.Event{Event: &corev1.Event_UserReadReceiptsEnabledCleared{
+				UserReadReceiptsEnabledCleared: &corev1.UserReadReceiptsEnabledClearedEvent{UserId: userID},
+			}}))
+		}
 		return evs, nil
 	})
 }
 
 // effectiveShowLastActivity preserves the upgrade contract: an absent stored
 // preference means enabled.
+func effectiveUserReadReceiptsEnabled(settings *corev1.ServerUserPreferences) bool {
+	return settings == nil || settings.ReadReceiptsEnabled == nil || settings.GetReadReceiptsEnabled()
+}
+
 func effectiveShowLastActivity(settings *corev1.ServerUserPreferences) bool {
 	return settings == nil || settings.ShowLastActivity == nil || settings.GetShowLastActivity()
 }

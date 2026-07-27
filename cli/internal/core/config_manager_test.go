@@ -374,9 +374,9 @@ func TestConfigManager_SetServerConfigSkipsUnchangedValues(t *testing.T) {
 		t.Fatalf("unchanged config write appended events: before=%d after=%d", before.State.Msgs, afterNoop.State.Msgs)
 	}
 
-	changed := *cfg
+	changed := cloneServerConfig(cfg)
 	changed.Motd = "new motd"
-	if err := core.configManager.SetServerConfig(ctx, "test", &changed); err != nil {
+	if err := core.configManager.SetServerConfig(ctx, "test", changed); err != nil {
 		t.Fatalf("SetServerConfig changed value: %v", err)
 	}
 	afterChange, err := core.storage.serverEvtStream.Info(ctx)

@@ -261,6 +261,10 @@ const msg_settings_preferences_time_format_24h_description = (): LocalizedString
 const msg_settings_preferences_save_button = (): LocalizedString => messages().settings_preferences_save_button(empty());
 const msg_settings_preferences_saved = (): LocalizedString => messages().settings_preferences_saved(empty());
 const msg_settings_preferences_save_failed = (): LocalizedString => messages().settings_preferences_save_failed(empty());
+const msg_settings_preferences_read_receipts_title = (): LocalizedString => messages().settings_preferences_read_receipts_title(empty());
+const msg_settings_preferences_read_receipts_enabled_label = (): LocalizedString => messages().settings_preferences_read_receipts_enabled_label(empty());
+const msg_settings_preferences_read_receipts_disabled_label = (): LocalizedString => messages().settings_preferences_read_receipts_disabled_label(empty());
+const msg_settings_preferences_read_receipts_description = (): LocalizedString => messages().settings_preferences_read_receipts_description(empty());
 const msg_settings_notifications_title = (): LocalizedString => messages().settings_notifications_title(empty());
 const msg_settings_notifications_subtitle = (): LocalizedString => messages().settings_notifications_subtitle(empty());
 const msg_settings_notifications_push_title = (): LocalizedString => messages().settings_notifications_push_title(empty());
@@ -751,6 +755,23 @@ const msg_room_message_meta_reply_preview_fallback = (): LocalizedString => mess
 const msg_room_message_meta_edited = (): LocalizedString => messages().room_message_meta_edited(empty());
 const msg_room_message_meta_deleted = (): LocalizedString => messages().room_message_meta_deleted(empty());
 const msg_room_message_start_marker = (): LocalizedString => messages().room_message_start_marker(empty());
+const msg_room_message_read_receipts_title = (): LocalizedString => messages().room_message_read_receipts_title(empty());
+const msg_room_message_read_receipts_count_one = (): LocalizedString => messages().room_message_read_receipts_count_one(empty());
+const msg_room_message_read_receipts_count_many = (
+  inputs: Parameters<LocaleMessages['room_message_read_receipts_count_many']>[0]
+): LocalizedString => messages().room_message_read_receipts_count_many(inputs);
+const msg_room_message_read_receipts_open_label = (
+  inputs: Parameters<LocaleMessages['room_message_read_receipts_open_label']>[0]
+): LocalizedString => messages().room_message_read_receipts_open_label(inputs);
+const msg_room_message_read_receipts_latest_label = (
+  inputs: Parameters<LocaleMessages['room_message_read_receipts_latest_label']>[0]
+): LocalizedString => messages().room_message_read_receipts_latest_label(inputs);
+const msg_room_message_read_receipts_loading = (): LocalizedString => messages().room_message_read_receipts_loading(empty());
+const msg_room_message_read_receipts_empty = (): LocalizedString => messages().room_message_read_receipts_empty(empty());
+const msg_room_message_read_receipts_load_failed = (): LocalizedString => messages().room_message_read_receipts_load_failed(empty());
+const msg_room_message_read_receipts_load_more = (
+  inputs: Parameters<LocaleMessages['room_message_read_receipts_load_more']>[0]
+): LocalizedString => messages().room_message_read_receipts_load_more(inputs);
 const msg_room_attachment_delete_title = (): LocalizedString => messages().room_attachment_delete_title(empty());
 const msg_room_attachment_delete_prompt = (): LocalizedString => messages().room_attachment_delete_prompt(empty());
 const msg_room_attachment_delete_label = (): LocalizedString => messages().room_attachment_delete_label(empty());
@@ -913,6 +934,8 @@ const msg_server_settings_banner_removed = (): LocalizedString => messages().ser
 const msg_server_settings_banner_delete_failed = (): LocalizedString => messages().server_settings_banner_delete_failed(empty());
 const msg_server_settings_banner_change = (): LocalizedString => messages().server_settings_banner_change(empty());
 const msg_server_settings_banner_upload = (): LocalizedString => messages().server_settings_banner_upload(empty());
+const msg_server_settings_read_receipts_label = (): LocalizedString => messages().server_settings_read_receipts_label(empty());
+const msg_server_settings_read_receipts_description = (): LocalizedString => messages().server_settings_read_receipts_description(empty());
 const msg_ui_toggle_sidebar = (): LocalizedString => messages().ui_toggle_sidebar(empty());
 const msg_ui_notifications = (): LocalizedString => messages().ui_notifications(empty());
 const msg_ui_open_quick_switcher = (): LocalizedString => messages().ui_open_quick_switcher(empty());
@@ -2257,6 +2280,10 @@ export { msg_settings_preferences_time_format_24h_description as 'settings.prefe
 export { msg_settings_preferences_save_button as 'settings.preferences.save_button' };
 export { msg_settings_preferences_saved as 'settings.preferences.saved' };
 export { msg_settings_preferences_save_failed as 'settings.preferences.save_failed' };
+export { msg_settings_preferences_read_receipts_title as 'settings.preferences.read_receipts.title' };
+export { msg_settings_preferences_read_receipts_enabled_label as 'settings.preferences.read_receipts.enabled_label' };
+export { msg_settings_preferences_read_receipts_disabled_label as 'settings.preferences.read_receipts.disabled_label' };
+export { msg_settings_preferences_read_receipts_description as 'settings.preferences.read_receipts.description' };
 export { msg_settings_notifications_title as 'settings.notifications.title' };
 export { msg_settings_notifications_subtitle as 'settings.notifications.subtitle' };
 export { msg_settings_notifications_push_title as 'settings.notifications.push.title' };
@@ -2673,6 +2700,15 @@ export { msg_room_message_meta_reply_preview_fallback as 'room.message.meta.repl
 export { msg_room_message_meta_edited as 'room.message.meta.edited' };
 export { msg_room_message_meta_deleted as 'room.message.meta.deleted' };
 export { msg_room_message_start_marker as 'room.message.start_marker' };
+export { msg_room_message_read_receipts_title as 'room.message.read_receipts.title' };
+export { msg_room_message_read_receipts_count_one as 'room.message.read_receipts.count_one' };
+export { msg_room_message_read_receipts_count_many as 'room.message.read_receipts.count_many' };
+export { msg_room_message_read_receipts_open_label as 'room.message.read_receipts.open_label' };
+export { msg_room_message_read_receipts_latest_label as 'room.message.read_receipts.latest_label' };
+export { msg_room_message_read_receipts_loading as 'room.message.read_receipts.loading' };
+export { msg_room_message_read_receipts_empty as 'room.message.read_receipts.empty' };
+export { msg_room_message_read_receipts_load_failed as 'room.message.read_receipts.load_failed' };
+export { msg_room_message_read_receipts_load_more as 'room.message.read_receipts.load_more' };
 export { msg_room_attachment_delete_title as 'room.attachment.delete_title' };
 export { msg_room_attachment_delete_prompt as 'room.attachment.delete_prompt' };
 export { msg_room_attachment_delete_label as 'room.attachment.delete_label' };
@@ -2805,6 +2841,8 @@ export { msg_server_settings_banner_removed as 'server_settings.banner_removed' 
 export { msg_server_settings_banner_delete_failed as 'server_settings.banner_delete_failed' };
 export { msg_server_settings_banner_change as 'server_settings.banner_change' };
 export { msg_server_settings_banner_upload as 'server_settings.banner_upload' };
+export { msg_server_settings_read_receipts_label as 'server_settings.read_receipts.label' };
+export { msg_server_settings_read_receipts_description as 'server_settings.read_receipts.description' };
 export { msg_ui_toggle_sidebar as 'ui.toggle_sidebar' };
 export { msg_ui_notifications as 'ui.notifications' };
 export { msg_ui_open_quick_switcher as 'ui.open_quick_switcher' };

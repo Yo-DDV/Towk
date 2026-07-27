@@ -80,6 +80,15 @@ const (
 	// RoomServiceMarkRoomAsReadProcedure is the fully-qualified name of the RoomService's
 	// MarkRoomAsRead RPC.
 	RoomServiceMarkRoomAsReadProcedure = "/chatto.api.v1.RoomService/MarkRoomAsRead"
+	// RoomServiceAdvanceReadReceiptProcedure is the fully-qualified name of the RoomService's
+	// AdvanceReadReceipt RPC.
+	RoomServiceAdvanceReadReceiptProcedure = "/chatto.api.v1.RoomService/AdvanceReadReceipt"
+	// RoomServiceGetReadReceiptSummariesProcedure is the fully-qualified name of the RoomService's
+	// GetReadReceiptSummaries RPC.
+	RoomServiceGetReadReceiptSummariesProcedure = "/chatto.api.v1.RoomService/GetReadReceiptSummaries"
+	// RoomServiceListReadReceiptReadersProcedure is the fully-qualified name of the RoomService's
+	// ListReadReceiptReaders RPC.
+	RoomServiceListReadReceiptReadersProcedure = "/chatto.api.v1.RoomService/ListReadReceiptReaders"
 	// RoomServiceBanMemberProcedure is the fully-qualified name of the RoomService's BanMember RPC.
 	RoomServiceBanMemberProcedure = "/chatto.api.v1.RoomService/BanMember"
 	// RoomServiceUnbanMemberProcedure is the fully-qualified name of the RoomService's UnbanMember RPC.
@@ -150,6 +159,12 @@ type RoomServiceClient interface {
 	// usually call this after the user has viewed the latest visible event in the
 	// room.
 	MarkRoomAsRead(context.Context, *connect.Request[v1.MarkRoomAsReadRequest]) (*connect.Response[v1.MarkRoomAsReadResponse], error)
+	// Advances the caller's public read-receipt cursor for a room or thread.
+	AdvanceReadReceipt(context.Context, *connect.Request[v1.AdvanceReadReceiptRequest]) (*connect.Response[v1.AdvanceReadReceiptResponse], error)
+	// Returns bounded reader counts for rendered messages.
+	GetReadReceiptSummaries(context.Context, *connect.Request[v1.GetReadReceiptSummariesRequest]) (*connect.Response[v1.GetReadReceiptSummariesResponse], error)
+	// Lists current authorized readers for one message with bounded pagination.
+	ListReadReceiptReaders(context.Context, *connect.Request[v1.ListReadReceiptReadersRequest]) (*connect.Response[v1.ListReadReceiptReadersResponse], error)
 	// Bans a member from a channel room. Direct-message rooms cannot be moderated
 	// this way, and the target must currently be a room member.
 	BanMember(context.Context, *connect.Request[v1.BanMemberRequest]) (*connect.Response[v1.BanMemberResponse], error)
@@ -283,6 +298,24 @@ func NewRoomServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(roomServiceMethods.ByName("MarkRoomAsRead")),
 			connect.WithClientOptions(opts...),
 		),
+		advanceReadReceipt: connect.NewClient[v1.AdvanceReadReceiptRequest, v1.AdvanceReadReceiptResponse](
+			httpClient,
+			baseURL+RoomServiceAdvanceReadReceiptProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("AdvanceReadReceipt")),
+			connect.WithClientOptions(opts...),
+		),
+		getReadReceiptSummaries: connect.NewClient[v1.GetReadReceiptSummariesRequest, v1.GetReadReceiptSummariesResponse](
+			httpClient,
+			baseURL+RoomServiceGetReadReceiptSummariesProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("GetReadReceiptSummaries")),
+			connect.WithClientOptions(opts...),
+		),
+		listReadReceiptReaders: connect.NewClient[v1.ListReadReceiptReadersRequest, v1.ListReadReceiptReadersResponse](
+			httpClient,
+			baseURL+RoomServiceListReadReceiptReadersProcedure,
+			connect.WithSchema(roomServiceMethods.ByName("ListReadReceiptReaders")),
+			connect.WithClientOptions(opts...),
+		),
 		banMember: connect.NewClient[v1.BanMemberRequest, v1.BanMemberResponse](
 			httpClient,
 			baseURL+RoomServiceBanMemberProcedure,
@@ -300,27 +333,30 @@ func NewRoomServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // roomServiceClient implements RoomServiceClient.
 type roomServiceClient struct {
-	createRoom            *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
-	updateRoom            *connect.Client[v1.UpdateRoomRequest, v1.UpdateRoomResponse]
-	archiveRoom           *connect.Client[v1.ArchiveRoomRequest, v1.ArchiveRoomResponse]
-	unarchiveRoom         *connect.Client[v1.UnarchiveRoomRequest, v1.UnarchiveRoomResponse]
-	joinRoom              *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
-	joinRoomGroup         *connect.Client[v1.JoinRoomGroupRequest, v1.JoinRoomGroupResponse]
-	startDM               *connect.Client[v1.StartDMRequest, v1.StartDMResponse]
-	leaveRoom             *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
-	listMembers           *connect.Client[v1.ListRoomMembersRequest, v1.ListRoomMembersResponse]
-	getMember             *connect.Client[v1.GetRoomMemberRequest, v1.GetRoomMemberResponse]
-	batchGetMembers       *connect.Client[v1.BatchGetRoomMembersRequest, v1.BatchGetRoomMembersResponse]
-	addMember             *connect.Client[v1.AddMemberRequest, v1.AddMemberResponse]
-	removeMember          *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
-	listBans              *connect.Client[v1.ListBansRequest, v1.ListBansResponse]
-	listRoomAttachments   *connect.Client[v1.ListRoomAttachmentsRequest, v1.ListRoomAttachmentsResponse]
-	updateTypingIndicator *connect.Client[v1.UpdateTypingIndicatorRequest, v1.UpdateTypingIndicatorResponse]
-	getRoomEvents         *connect.Client[v1.GetRoomEventsRequest, v1.GetRoomEventsResponse]
-	getRoomEventsAround   *connect.Client[v1.GetRoomEventsAroundRequest, v1.GetRoomEventsAroundResponse]
-	markRoomAsRead        *connect.Client[v1.MarkRoomAsReadRequest, v1.MarkRoomAsReadResponse]
-	banMember             *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
-	unbanMember           *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
+	createRoom              *connect.Client[v1.CreateRoomRequest, v1.CreateRoomResponse]
+	updateRoom              *connect.Client[v1.UpdateRoomRequest, v1.UpdateRoomResponse]
+	archiveRoom             *connect.Client[v1.ArchiveRoomRequest, v1.ArchiveRoomResponse]
+	unarchiveRoom           *connect.Client[v1.UnarchiveRoomRequest, v1.UnarchiveRoomResponse]
+	joinRoom                *connect.Client[v1.JoinRoomRequest, v1.JoinRoomResponse]
+	joinRoomGroup           *connect.Client[v1.JoinRoomGroupRequest, v1.JoinRoomGroupResponse]
+	startDM                 *connect.Client[v1.StartDMRequest, v1.StartDMResponse]
+	leaveRoom               *connect.Client[v1.LeaveRoomRequest, v1.LeaveRoomResponse]
+	listMembers             *connect.Client[v1.ListRoomMembersRequest, v1.ListRoomMembersResponse]
+	getMember               *connect.Client[v1.GetRoomMemberRequest, v1.GetRoomMemberResponse]
+	batchGetMembers         *connect.Client[v1.BatchGetRoomMembersRequest, v1.BatchGetRoomMembersResponse]
+	addMember               *connect.Client[v1.AddMemberRequest, v1.AddMemberResponse]
+	removeMember            *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
+	listBans                *connect.Client[v1.ListBansRequest, v1.ListBansResponse]
+	listRoomAttachments     *connect.Client[v1.ListRoomAttachmentsRequest, v1.ListRoomAttachmentsResponse]
+	updateTypingIndicator   *connect.Client[v1.UpdateTypingIndicatorRequest, v1.UpdateTypingIndicatorResponse]
+	getRoomEvents           *connect.Client[v1.GetRoomEventsRequest, v1.GetRoomEventsResponse]
+	getRoomEventsAround     *connect.Client[v1.GetRoomEventsAroundRequest, v1.GetRoomEventsAroundResponse]
+	markRoomAsRead          *connect.Client[v1.MarkRoomAsReadRequest, v1.MarkRoomAsReadResponse]
+	advanceReadReceipt      *connect.Client[v1.AdvanceReadReceiptRequest, v1.AdvanceReadReceiptResponse]
+	getReadReceiptSummaries *connect.Client[v1.GetReadReceiptSummariesRequest, v1.GetReadReceiptSummariesResponse]
+	listReadReceiptReaders  *connect.Client[v1.ListReadReceiptReadersRequest, v1.ListReadReceiptReadersResponse]
+	banMember               *connect.Client[v1.BanMemberRequest, v1.BanMemberResponse]
+	unbanMember             *connect.Client[v1.UnbanMemberRequest, v1.UnbanMemberResponse]
 }
 
 // CreateRoom calls chatto.api.v1.RoomService.CreateRoom.
@@ -418,6 +454,21 @@ func (c *roomServiceClient) MarkRoomAsRead(ctx context.Context, req *connect.Req
 	return c.markRoomAsRead.CallUnary(ctx, req)
 }
 
+// AdvanceReadReceipt calls chatto.api.v1.RoomService.AdvanceReadReceipt.
+func (c *roomServiceClient) AdvanceReadReceipt(ctx context.Context, req *connect.Request[v1.AdvanceReadReceiptRequest]) (*connect.Response[v1.AdvanceReadReceiptResponse], error) {
+	return c.advanceReadReceipt.CallUnary(ctx, req)
+}
+
+// GetReadReceiptSummaries calls chatto.api.v1.RoomService.GetReadReceiptSummaries.
+func (c *roomServiceClient) GetReadReceiptSummaries(ctx context.Context, req *connect.Request[v1.GetReadReceiptSummariesRequest]) (*connect.Response[v1.GetReadReceiptSummariesResponse], error) {
+	return c.getReadReceiptSummaries.CallUnary(ctx, req)
+}
+
+// ListReadReceiptReaders calls chatto.api.v1.RoomService.ListReadReceiptReaders.
+func (c *roomServiceClient) ListReadReceiptReaders(ctx context.Context, req *connect.Request[v1.ListReadReceiptReadersRequest]) (*connect.Response[v1.ListReadReceiptReadersResponse], error) {
+	return c.listReadReceiptReaders.CallUnary(ctx, req)
+}
+
 // BanMember calls chatto.api.v1.RoomService.BanMember.
 func (c *roomServiceClient) BanMember(ctx context.Context, req *connect.Request[v1.BanMemberRequest]) (*connect.Response[v1.BanMemberResponse], error) {
 	return c.banMember.CallUnary(ctx, req)
@@ -492,6 +543,12 @@ type RoomServiceHandler interface {
 	// usually call this after the user has viewed the latest visible event in the
 	// room.
 	MarkRoomAsRead(context.Context, *connect.Request[v1.MarkRoomAsReadRequest]) (*connect.Response[v1.MarkRoomAsReadResponse], error)
+	// Advances the caller's public read-receipt cursor for a room or thread.
+	AdvanceReadReceipt(context.Context, *connect.Request[v1.AdvanceReadReceiptRequest]) (*connect.Response[v1.AdvanceReadReceiptResponse], error)
+	// Returns bounded reader counts for rendered messages.
+	GetReadReceiptSummaries(context.Context, *connect.Request[v1.GetReadReceiptSummariesRequest]) (*connect.Response[v1.GetReadReceiptSummariesResponse], error)
+	// Lists current authorized readers for one message with bounded pagination.
+	ListReadReceiptReaders(context.Context, *connect.Request[v1.ListReadReceiptReadersRequest]) (*connect.Response[v1.ListReadReceiptReadersResponse], error)
 	// Bans a member from a channel room. Direct-message rooms cannot be moderated
 	// this way, and the target must currently be a room member.
 	BanMember(context.Context, *connect.Request[v1.BanMemberRequest]) (*connect.Response[v1.BanMemberResponse], error)
@@ -621,6 +678,24 @@ func NewRoomServiceHandler(svc RoomServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(roomServiceMethods.ByName("MarkRoomAsRead")),
 		connect.WithHandlerOptions(opts...),
 	)
+	roomServiceAdvanceReadReceiptHandler := connect.NewUnaryHandler(
+		RoomServiceAdvanceReadReceiptProcedure,
+		svc.AdvanceReadReceipt,
+		connect.WithSchema(roomServiceMethods.ByName("AdvanceReadReceipt")),
+		connect.WithHandlerOptions(opts...),
+	)
+	roomServiceGetReadReceiptSummariesHandler := connect.NewUnaryHandler(
+		RoomServiceGetReadReceiptSummariesProcedure,
+		svc.GetReadReceiptSummaries,
+		connect.WithSchema(roomServiceMethods.ByName("GetReadReceiptSummaries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	roomServiceListReadReceiptReadersHandler := connect.NewUnaryHandler(
+		RoomServiceListReadReceiptReadersProcedure,
+		svc.ListReadReceiptReaders,
+		connect.WithSchema(roomServiceMethods.ByName("ListReadReceiptReaders")),
+		connect.WithHandlerOptions(opts...),
+	)
 	roomServiceBanMemberHandler := connect.NewUnaryHandler(
 		RoomServiceBanMemberProcedure,
 		svc.BanMember,
@@ -673,6 +748,12 @@ func NewRoomServiceHandler(svc RoomServiceHandler, opts ...connect.HandlerOption
 			roomServiceGetRoomEventsAroundHandler.ServeHTTP(w, r)
 		case RoomServiceMarkRoomAsReadProcedure:
 			roomServiceMarkRoomAsReadHandler.ServeHTTP(w, r)
+		case RoomServiceAdvanceReadReceiptProcedure:
+			roomServiceAdvanceReadReceiptHandler.ServeHTTP(w, r)
+		case RoomServiceGetReadReceiptSummariesProcedure:
+			roomServiceGetReadReceiptSummariesHandler.ServeHTTP(w, r)
+		case RoomServiceListReadReceiptReadersProcedure:
+			roomServiceListReadReceiptReadersHandler.ServeHTTP(w, r)
 		case RoomServiceBanMemberProcedure:
 			roomServiceBanMemberHandler.ServeHTTP(w, r)
 		case RoomServiceUnbanMemberProcedure:
@@ -760,6 +841,18 @@ func (UnimplementedRoomServiceHandler) GetRoomEventsAround(context.Context, *con
 
 func (UnimplementedRoomServiceHandler) MarkRoomAsRead(context.Context, *connect.Request[v1.MarkRoomAsReadRequest]) (*connect.Response[v1.MarkRoomAsReadResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.MarkRoomAsRead is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) AdvanceReadReceipt(context.Context, *connect.Request[v1.AdvanceReadReceiptRequest]) (*connect.Response[v1.AdvanceReadReceiptResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.AdvanceReadReceipt is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) GetReadReceiptSummaries(context.Context, *connect.Request[v1.GetReadReceiptSummariesRequest]) (*connect.Response[v1.GetReadReceiptSummariesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.GetReadReceiptSummaries is not implemented"))
+}
+
+func (UnimplementedRoomServiceHandler) ListReadReceiptReaders(context.Context, *connect.Request[v1.ListReadReceiptReadersRequest]) (*connect.Response[v1.ListReadReceiptReadersResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("chatto.api.v1.RoomService.ListReadReceiptReaders is not implemented"))
 }
 
 func (UnimplementedRoomServiceHandler) BanMember(context.Context, *connect.Request[v1.BanMemberRequest]) (*connect.Response[v1.BanMemberResponse], error) {
