@@ -69,39 +69,53 @@ function isAllowedChar(char: string): boolean {
   return ALLOWED_CHAR_PATTERN.test(char);
 }
 
+export type ValidationErrorCode =
+  | 'display_name_empty'
+  | 'display_name_too_long'
+  | 'display_name_consecutive_spaces'
+  | 'display_name_invalid_start'
+  | 'display_name_control_characters'
+  | 'display_name_invisible_characters'
+  | 'display_name_invalid_characters'
+  | 'username_empty'
+  | 'username_too_short'
+  | 'username_too_long'
+  | 'username_invalid_start'
+  | 'username_invalid_characters';
+
 export interface ValidationResult {
   valid: boolean;
-  error?: string;
+  errorCode?: ValidationErrorCode;
 }
 
 /**
  * Validate a display name.
  *
- * Returns { valid: true } if valid, or { valid: false, error: "message" } if invalid.
+ * Returns a stable error code when validation fails; callers localize it at render time.
  *
  * Note: This function expects the name to already be trimmed.
  * Use normalizeDisplayName() before validating.
  */
 export function validateDisplayName(name: string): ValidationResult {
   if (name === '') {
-    return { valid: false, error: 'Display name cannot be empty' };
+    return { valid: false, errorCode: 'display_name_empty' };
   }
 
   // Check length in characters (matching backend which uses utf8.RuneCountInString() in Go)
   if ([...name].length > MAX_DISPLAY_NAME_LENGTH) {
-    return { valid: false, error: `Display name cannot exceed ${MAX_DISPLAY_NAME_LENGTH} characters` };
+    return { valid: false, errorCode: 'display_name_too_long' };
   }
 
   // Check for consecutive spaces
   if (/\s{2,}/.test(name)) {
-    return { valid: false, error: 'Display name cannot contain consecutive spaces' };
+    return { valid: false, errorCode: 'display_name_consecutive_spaces' };
   }
 
   // Must start with a letter or digit (the avatar placeholder uses the first
   // character, so leading symbols/punctuation/emoji render badly).
   const firstChar = [...name][0];
   if (!/^[\p{L}\p{N}]$/u.test(firstChar)) {
-    return { valid: false, error: 'Display name must start with a letter or digit' };
+    return { valid: false, errorCode: 'display_name_invalid_start' };
   }
 
   // Check each character
@@ -109,16 +123,12 @@ export function validateDisplayName(name: string): ValidationResult {
     if (!isAllowedChar(char)) {
       // Provide a helpful error message
       if (isControlChar(char)) {
-        return { valid: false, error: 'Display name cannot contain control characters' };
+        return { valid: false, errorCode: 'display_name_control_characters' };
       }
       if (isZeroWidthChar(char)) {
-        return { valid: false, error: 'Display name cannot contain invisible characters' };
+        return { valid: false, errorCode: 'display_name_invisible_characters' };
       }
-      return {
-        valid: false,
-        error:
-          "Display name can only contain letters, numbers, emoji, and basic punctuation (- ' . _)"
-      };
+      return { valid: false, errorCode: 'display_name_invalid_characters' };
     }
   }
 

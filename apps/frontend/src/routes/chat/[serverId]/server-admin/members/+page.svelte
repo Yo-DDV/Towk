@@ -20,6 +20,7 @@
   import { getLocale } from '$lib/i18n/runtime';
   import { localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const userSettings = getUserSettings();
   const connection = useConnection();
@@ -93,7 +94,7 @@
       hasMore = result.hasMore;
     } catch (e) {
       if (currentRequest !== requestId) return;
-      error = e instanceof Error ? e.message : m['admin.members.load_failed']();
+      error = localizedErrorMessage(e, m['admin.members.load_failed']());
     } finally {
       if (currentRequest === requestId) {
         loading = false;
@@ -121,7 +122,7 @@
       hasMore = result.hasMore;
     } catch (e) {
       if (currentRequest !== requestId) return;
-      error = e instanceof Error ? e.message : m['admin.members.load_more_failed']();
+      error = localizedErrorMessage(e, m['admin.members.load_more_failed']());
     } finally {
       if (currentRequest === requestId) {
         loadingMore = false;

@@ -15,6 +15,7 @@
   import { DeleteRoleModal, RolePermissionsMatrix, type Role } from '$lib/components/rbac';
   import { localizedRoleDescription, localizedRoleDisplayName } from '$lib/rbacLabels';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   type User = RoleUser;
 
@@ -46,7 +47,7 @@
     try {
       resp = await roleAPI().getRole(roleName);
     } catch (err) {
-      error = err instanceof Error ? err.message : m['admin.permissions.server_not_found']();
+      error = localizedErrorMessage(err, m['admin.permissions.server_not_found']());
       loading = false;
       return;
     }
@@ -86,7 +87,7 @@
       // Reload data
       await loadData();
     } catch (err) {
-      error = err instanceof Error ? err.message : m['admin.permissions.update_role_failed']();
+      error = localizedErrorMessage(err, m['admin.permissions.update_role_failed']());
     }
 
     saving = false;
@@ -123,8 +124,7 @@
       );
     } catch (err) {
       editPingable = previousPingable;
-      error =
-        err instanceof Error ? err.message : m['admin.permissions.update_role_ping_failed']();
+      error = localizedErrorMessage(err, m['admin.permissions.update_role_ping_failed']());
     }
 
     savingPingable = false;
@@ -139,7 +139,7 @@
     try {
       await roleAPI().deleteRole(role.name);
     } catch (err) {
-      error = err instanceof Error ? err.message : m['admin.permissions.delete_role_failed']();
+      error = localizedErrorMessage(err, m['admin.permissions.delete_role_failed']());
       deleting = false;
       showDeleteConfirm = false;
       return;

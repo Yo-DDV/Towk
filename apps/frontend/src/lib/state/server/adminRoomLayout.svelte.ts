@@ -7,6 +7,8 @@ import type {
   AdminSidebarLinkInfo
 } from '$lib/api-client/adminRoomLayout';
 import type { RoomCommandAPI } from '$lib/api-client/rooms';
+import * as m from '$lib/i18n/messages';
+import { localizedErrorMessage } from '$lib/i18n/localizedError';
 import { RoomEventKind, roomEventKind, type RoomEventKindSource } from '$lib/render/eventKinds';
 import { SvelteMap } from 'svelte/reactivity';
 
@@ -36,8 +38,7 @@ export type RoomMovePlan = {
 };
 
 export type StoreResult<T extends object = object> =
-  | ({ ok: true } & T)
-  | { ok: false; error: string };
+  ({ ok: true } & T) | { ok: false; error: string };
 
 export type RoomMoveFlushResult =
   | {
@@ -61,13 +62,7 @@ export type GroupRoomOrder = SvelteMap<string, string[]>;
 export type GroupItemOrder = SvelteMap<string, AdminSidebarItem[]>;
 
 function errorMessage(error: unknown): string {
-  if (!error) return 'unknown error';
-  if (typeof error === 'string') return error;
-  if (error instanceof Error) return error.message;
-  if (typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-    return error.message;
-  }
-  return String(error);
+  return localizedErrorMessage(error, m['common.error.generic']());
 }
 
 export function buildGroupRoomOrder(groups: AdminRoomGroup[]): GroupRoomOrder {
@@ -276,7 +271,7 @@ export class AdminRoomLayoutStore {
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
     }
-    if (!group) return { ok: false, error: 'Room group not found' };
+    if (!group) return { ok: false, error: m['common.error.not_found']() };
     this.groups = [...this.groups, group];
     this.markMutation();
     await this.refresh();
@@ -321,7 +316,7 @@ export class AdminRoomLayoutStore {
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
     }
-    if (!link) return { ok: false, error: 'Sidebar link not found' };
+    if (!link) return { ok: false, error: m['common.error.not_found']() };
 
     this.markMutation();
     await this.refresh();
@@ -339,7 +334,7 @@ export class AdminRoomLayoutStore {
     } catch (error) {
       return { ok: false, error: errorMessage(error) };
     }
-    if (!link) return { ok: false, error: 'Sidebar link not found' };
+    if (!link) return { ok: false, error: m['common.error.not_found']() };
 
     this.markMutation();
     await this.refresh();

@@ -5,6 +5,7 @@
   import { TopOverlayNotice } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   let reconnectingServerId = $state<string | null>(null);
 
@@ -12,9 +13,7 @@
   const originNeedsReauth = $derived(originServer?.reauthRequiredAt != null);
   const activeServer = $derived(serverRegistry.getServer(getActiveServer()));
   const activeRemoteNeedsReauth = $derived(
-    !!activeServer &&
-      activeServer.id !== originServer?.id &&
-      activeServer.reauthRequiredAt != null
+    !!activeServer && activeServer.id !== originServer?.id && activeServer.reauthRequiredAt != null
   );
 
   const noticeServer = $derived.by<RegisteredServer | null>(() => {
@@ -30,7 +29,7 @@
       await startRemoteReauthentication(server);
     } catch (err) {
       reconnectingServerId = null;
-      toast.error(err instanceof Error ? err.message : m['ui.auth_status.remote_failed']());
+      toast.error(localizedErrorMessage(err, m['ui.auth_status.remote_failed']()));
     }
   }
 </script>

@@ -68,7 +68,7 @@
         },
         "role": {
           "title": "Permisos de rol",
-          "description": "Controle quién puede editar roles, asignar roles y administrar permisos preestablecidos"
+          "description": "Controla quién puede editar roles, asignarlos y administrar los valores predeterminados de permisos"
         },
         "admin": {
           "title": "Permisos de administrador",
@@ -105,7 +105,9 @@
       "override_for_permission_scope": "Sobrescribir con {state} para {permission} en {scope}",
       "no_override_effective_scope": "Sin sobrescritura para {permission} en {scope}; estado efectivo: {state}",
       "subject_override_at_scope": "{state} (sobrescritura de {subject} en {scope})",
-      "effective_inherited": "Estado efectivo: {state} (heredado)"
+      "effective_inherited": "Estado efectivo: {state} (heredado)",
+      "load_failed": "No se pudieron cargar los permisos.",
+      "update_failed": "No se pudo actualizar el permiso."
     },
     "permission_descriptions": {
       "server_manage": "Actualizar la configuración del servidor (nombre, descripción, logotipo)",

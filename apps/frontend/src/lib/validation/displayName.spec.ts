@@ -47,7 +47,7 @@ describe('validateDisplayName', () => {
       it(`accepts ${description}: "${name}"`, () => {
         const result = validateDisplayName(name);
         expect(result.valid).toBe(true);
-        expect(result.error).toBeUndefined();
+        expect(result.errorCode).toBeUndefined();
       });
     }
   });
@@ -65,7 +65,7 @@ describe('validateDisplayName', () => {
       it(`rejects ${description}`, () => {
         const result = validateDisplayName(name);
         expect(result.valid).toBe(false);
-        expect(result.error).toContain('control characters');
+        expect(result.errorCode).toBe('display_name_control_characters');
       });
     }
   });
@@ -85,7 +85,7 @@ describe('validateDisplayName', () => {
       it(`rejects ${description}`, () => {
         const result = validateDisplayName(name);
         expect(result.valid).toBe(false);
-        expect(result.error).toContain('invisible characters');
+        expect(result.errorCode).toBe('display_name_invisible_characters');
       });
     }
   });
@@ -94,13 +94,13 @@ describe('validateDisplayName', () => {
     it('rejects double space', () => {
       const result = validateDisplayName('John  Doe');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('consecutive spaces');
+      expect(result.errorCode).toBe('display_name_consecutive_spaces');
     });
 
     it('rejects triple space', () => {
       const result = validateDisplayName('John   Doe');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('consecutive spaces');
+      expect(result.errorCode).toBe('display_name_consecutive_spaces');
     });
   });
 
@@ -128,7 +128,7 @@ describe('validateDisplayName', () => {
       it(`rejects ${description}: "${name}"`, () => {
         const result = validateDisplayName(name);
         expect(result.valid).toBe(false);
-        expect(result.error).toContain('must start with a letter or digit');
+        expect(result.errorCode).toBe('display_name_invalid_start');
       });
     }
   });
@@ -157,7 +157,7 @@ describe('validateDisplayName', () => {
       it(`rejects ${description}`, () => {
         const result = validateDisplayName(name);
         expect(result.valid).toBe(false);
-        expect(result.error).toContain('can only contain');
+        expect(result.errorCode).toBe('display_name_invalid_characters');
       });
     }
   });
@@ -166,14 +166,14 @@ describe('validateDisplayName', () => {
     it('rejects empty string', () => {
       const result = validateDisplayName('');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('cannot be empty');
+      expect(result.errorCode).toBe('display_name_empty');
     });
 
     it('rejects names exceeding character limit', () => {
       const longName = 'a'.repeat(33);
       const result = validateDisplayName(longName);
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('cannot exceed');
+      expect(result.errorCode).toBe('display_name_too_long');
     });
 
     it('accepts names at exactly character limit', () => {
@@ -228,13 +228,13 @@ describe('validateAndNormalizeDisplayName', () => {
   it('normalizes and rejects invalid name', () => {
     const result = validateAndNormalizeDisplayName('  John\nDoe  ');
     expect(result.valid).toBe(false);
-    expect(result.error).toBeDefined();
+    expect(result.errorCode).toBeDefined();
     expect(result.normalized).toBeUndefined();
   });
 
   it('rejects whitespace-only after normalization', () => {
     const result = validateAndNormalizeDisplayName('   ');
     expect(result.valid).toBe(false);
-    expect(result.error).toContain('cannot be empty');
+    expect(result.errorCode).toBe('display_name_empty');
   });
 });

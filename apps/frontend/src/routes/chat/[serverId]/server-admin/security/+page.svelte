@@ -9,6 +9,7 @@
   import { Hint } from '$lib/ui';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const connection = useConnection();
 
@@ -32,7 +33,7 @@
       const config = await getServerSecurityConfig(apiConfig());
       blockedUsernames = config.blockedUsernames;
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = localizedErrorMessage(err, m['admin.security.load_failed']());
       toast.error(error);
     } finally {
       loading = false;
@@ -52,7 +53,7 @@
       blockedUsernames = config.blockedUsernames;
       toast.success(m['admin.security.settings_saved']());
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = localizedErrorMessage(err, m['admin.security.save_failed']());
       toast.error(error);
     } finally {
       saving = false;

@@ -13,10 +13,12 @@
     validateAndNormalizeDisplayName,
     validateAndNormalizeLogin,
     getLoginChangeCooldownRemaining,
-    formatCooldownRemaining
+    formatCooldownRemaining,
+    validationErrorMessage
   } from '$lib/validation';
   import { getAvatarInitials } from '$lib/utils/initials';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   // Capture the active server's CurrentUserState at init. The settings
   // page is scoped to one server (it lives under `[serverId]/settings`),
@@ -111,7 +113,7 @@
 
       toast.success(m['settings.profile.avatar.uploaded']());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : m['settings.profile.avatar.upload_failed']());
+      toast.error(localizedErrorMessage(e, m['settings.profile.avatar.upload_failed']()));
     } finally {
       uploadingAvatar = false;
       if (avatarFileInput) avatarFileInput.value = '';
@@ -149,7 +151,7 @@
 
       toast.success(m['settings.profile.avatar.removed']());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : m['settings.profile.avatar.delete_failed']());
+      toast.error(localizedErrorMessage(e, m['settings.profile.avatar.delete_failed']()));
     } finally {
       deletingAvatar = false;
     }
@@ -163,7 +165,9 @@
     if (displayNameModified) {
       const validation = validateAndNormalizeDisplayName(displayName);
       if (!validation.valid) {
-        error = validation.error ?? m['settings.profile.display_name.invalid']();
+        error =
+          validationErrorMessage(validation.errorCode) ??
+          m['settings.profile.display_name.invalid']();
         return;
       }
       normalizedDisplayName = validation.normalized!;
@@ -180,7 +184,8 @@
       }
       const validation = validateAndNormalizeLogin(login);
       if (!validation.valid) {
-        error = validation.error ?? m['settings.profile.username.invalid']();
+        error =
+          validationErrorMessage(validation.errorCode) ?? m['settings.profile.username.invalid']();
         return;
       }
       normalizedLogin = validation.normalized!;
@@ -247,7 +252,7 @@
 
       successMessage = m['settings.profile.saved']();
     } catch (err) {
-      error = err instanceof Error ? err.message : m['settings.profile.save_failed']();
+      error = localizedErrorMessage(err, m['settings.profile.save_failed']());
     } finally {
       isSaving = false;
     }

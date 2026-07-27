@@ -7,6 +7,8 @@
   import { serverRegistry, generateServerId } from '$lib/state/server/registry.svelte';
   import { serverIdToSegment } from '$lib/navigation';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
+  import { localizedJSONHeaders } from '$lib/auth/localizedRequest';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { PRODUCT_NAME } from '$lib/product';
 
@@ -55,7 +57,7 @@
       // Exchange the authorization code for a bearer token
       const response = await fetch(`${flow.remoteUrl}/oauth/token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({
           grant_type: 'authorization_code',
           code,
@@ -129,8 +131,7 @@
       if (err instanceof DOMException && err.name === 'AbortError') {
         errorMessage = m['auth.callback.token_exchange_timeout']();
       } else {
-        errorMessage =
-          err instanceof Error ? err.message : m['auth.callback.token_exchange_failed']();
+        errorMessage = localizedErrorMessage(err, m['auth.callback.token_exchange_failed']());
       }
     }
   });
@@ -149,7 +150,7 @@
       <span class="iconify text-4xl text-danger uil--exclamation-triangle"></span>
       <p class="font-medium">{m['auth.callback.failed_title']()}</p>
       <p class="text-sm text-muted">{errorMessage}</p>
-      <a href={resolve('/')} class="btn-secondary btn cursor-pointer">{m['common.retry']()}</a>
+      <a href={resolve('/')} class="btn btn-secondary cursor-pointer">{m['common.retry']()}</a>
     </div>
   {/if}
 </div>

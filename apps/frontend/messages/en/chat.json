@@ -14,7 +14,18 @@
       "call_started": "{actor} started a call",
       "call_started_unknown": "A call started",
       "private_call_started": "{actor} is calling you",
-      "private_call_started_unknown": "Incoming call"
+      "private_call_started_unknown": "Incoming call",
+      "direct_message": "{actor} sent you a message",
+      "direct_message_unknown": "New message",
+      "mention": "{actor} mentioned you",
+      "mention_unknown": "You were mentioned",
+      "reply": "{actor} replied to your message",
+      "reply_unknown": "New reply to your message",
+      "room_message": "{actor} posted a message",
+      "room_message_unknown": "New message",
+      "location_in_server": "#{room} in {server}",
+      "load_failed": "Notifications could not be loaded.",
+      "room_load_failed": "The room notification could not be loaded."
     },
     "sign_out": {
       "title": "Sign Out",
@@ -28,7 +39,11 @@
     "server_nav": {
       "back_to_server": "Back to Server",
       "server_fallback": "Server",
-      "administration": "Server administration"
+      "administration": "Server administration",
+      "go_to_notifications": "Go to {count} notifications",
+      "go_to_notification": "Go to notification",
+      "go_to_first_unread_room": "Go to first unread room",
+      "notification_count": "{count} notifications"
     },
     "user_menu": {
       "profile": "User profile",
@@ -52,7 +67,8 @@
       "no_unread": "No unread threads right now.",
       "message_missing": "Message no longer available",
       "in_room": "in",
-      "in_room_capitalized": "In"
+      "in_room_capitalized": "In",
+      "load_failed": "Threads could not be loaded."
     }
   },
   "profile": {

@@ -1260,7 +1260,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	encryptionKV, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.KeyValue, error) {
 		return js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 			Bucket:      "ENCRYPTION_KEYS",
-			Description: "KMS key-encryption keys (excluded from backups)",
+			Description: "KMS key-encryption keys (excluded from backups)", // i18n-audit-ignore -- operational metadata is localized by stream name at the UI boundary
 			Storage:     jetstream.FileStorage,
 			History:     1,
 			Replicas:    cfg.Replicas,
@@ -1273,7 +1273,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	runtimeStateKV, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.KeyValue, error) {
 		return js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 			Bucket:         "RUNTIME_STATE",
-			Description:    "Persisted latest-value runtime/user state",
+			Description:    "Persisted latest-value runtime/user state", // i18n-audit-ignore -- localized by stream name at the UI boundary
 			Storage:        jetstream.FileStorage,
 			History:        1,
 			Compression:    true,
@@ -1288,7 +1288,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	memoryCacheKV, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.KeyValue, error) {
 		return js.CreateOrUpdateKeyValue(ctx, jetstream.KeyValueConfig{
 			Bucket:         "MEMORY_CACHE",
-			Description:    "Volatile memory-backed runtime cache state",
+			Description:    "Volatile memory-backed runtime cache state", // i18n-audit-ignore -- localized by stream name at the UI boundary
 			Storage:        jetstream.MemoryStorage,
 			History:        1,
 			Replicas:       cfg.Replicas,
@@ -1305,7 +1305,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 		imageCacheStore, err = createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.ObjectStore, error) {
 			return js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
 				Bucket:      "ASSET_CACHE",
-				Description: "Cached resized images",
+				Description: "Cached resized images", // i18n-audit-ignore -- operational metadata is localized by stream name at the UI boundary
 				Storage:     jetstream.FileStorage,
 				Compression: true,
 				TTL:         cfg.Assets.Cache.TTLOrDefault(),
@@ -1321,7 +1321,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	linkPreviewAssets, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.ObjectStore, error) {
 		return js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
 			Bucket:      "LINK_PREVIEW_ASSETS",
-			Description: "Bounded remotely fetched link-preview images",
+			Description: "Bounded remotely fetched link-preview images", // i18n-audit-ignore -- operational metadata is localized by stream name at the UI boundary
 			Storage:     jetstream.FileStorage,
 			Compression: true,
 			MaxBytes:    cfg.Assets.LinkPreviews.MaxStoreBytesOrDefault(),
@@ -1335,7 +1335,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	serverAssets, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.ObjectStore, error) {
 		return js.CreateOrUpdateObjectStore(ctx, jetstream.ObjectStoreConfig{
 			Bucket:      "SERVER_ASSETS",
-			Description: "Server asset binaries (avatars, branding, attachments, and legacy link previews)",
+			Description: "Server asset binaries (avatars, branding, attachments, and legacy link previews)", // i18n-audit-ignore -- operational metadata is localized by stream name at the UI boundary
 			Storage:     jetstream.FileStorage,
 			Compression: true,
 			MaxBytes:    cfg.Assets.MaxStoreBytesOrDefault(),
@@ -1353,7 +1353,7 @@ func newStorage(js jetstream.JetStream, ctx context.Context, cfg config.CoreConf
 	serverEvtStream, err := createJetStreamResourceWithRetry(ctx, func(ctx context.Context) (jetstream.Stream, error) {
 		return js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
 			Name:        eventStreamName,
-			Description: "Event-sourcing log (ADR-033)",
+			Description: "Event-sourcing log (ADR-033)", // i18n-audit-ignore -- operational metadata is localized by stream name at the UI boundary
 			Subjects:    []string{"evt.>"},
 			Storage:     jetstream.FileStorage,
 			Compression: jetstream.S2Compression,

@@ -213,9 +213,16 @@ func (c *ChattoCore) deleteSupersededPushSubscriptions(ctx context.Context, user
 }
 
 func normalizePushLocale(locale string) string {
-	switch strings.ToLower(strings.TrimSpace(locale)) {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(locale), "_", "-"))
+	if separator := strings.IndexAny(normalized, ",;"); separator >= 0 {
+		normalized = normalized[:separator]
+	}
+	if separator := strings.IndexByte(normalized, '-'); separator >= 0 {
+		normalized = normalized[:separator]
+	}
+	switch normalized {
 	case "de", "fr", "es", "pt":
-		return strings.ToLower(strings.TrimSpace(locale))
+		return normalized
 	default:
 		return defaultPushLocale
 	}

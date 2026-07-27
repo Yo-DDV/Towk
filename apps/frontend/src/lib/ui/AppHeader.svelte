@@ -81,9 +81,7 @@
   }
 
   function shouldUseNativeLinkNavigation(event: MouseEvent): boolean {
-    return (
-      event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-    );
+    return event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
   }
 
   async function handleNotifications(event: MouseEvent) {
@@ -229,7 +227,8 @@
           <h2 class="text-sm font-semibold text-text">{m['ui.version_info.title']()}</h2>
           <code
             data-testid="deployed-version"
-            class="block text-xs leading-relaxed break-all text-muted">v{deployedVersion}</code
+            class="block text-xs leading-relaxed break-all text-muted"
+            ><span aria-hidden="true">v</span>{deployedVersion}</code
           >
           <a
             href={`https://github.com/Yo-DDV/towk${correspondingSourcePath}`}

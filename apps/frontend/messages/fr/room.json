@@ -175,7 +175,9 @@
       "show_files": "Afficher les fichiers",
       "hide_files": "Masquer les fichiers",
       "show_call": "Afficher l’appel",
-      "hide_call": "Masquer l’appel"
+      "hide_call": "Masquer l’appel",
+      "members_load_failed": "Impossible de charger les membres du salon.",
+      "members_refresh_failed": "Impossible d’actualiser les membres du salon."
     },
     "title": {
       "direct_message": "Message direct"
@@ -208,6 +210,10 @@
       "left_room": "a quitté le salon",
       "archived_room": "a archivé le salon",
       "unarchived_room": "a désarchivé le salon"
+    },
+    "system_defaults": {
+      "announcements_description": "Annonces et actualités",
+      "general_description": "Discussion générale"
     }
   }
 }

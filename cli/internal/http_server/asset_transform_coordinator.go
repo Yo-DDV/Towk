@@ -25,9 +25,9 @@ type assetTransformOutput struct {
 }
 
 type assetTransformFailure struct {
-	status  int
-	message string
-	cause   error
+	status     int
+	messageKey string
+	cause      error
 }
 
 type assetTransformJobObserver func(active, pending int)

@@ -7,6 +7,8 @@
  * Mixed case is preserved; uniqueness and login are case-insensitive.
  */
 
+import { getLocale } from '$lib/i18n/runtime';
+
 import type { ValidationResult } from './displayName';
 
 /** Maximum login length in characters (matching backend) */
@@ -24,31 +26,28 @@ const LOGIN_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 /**
  * Validate a login/username.
  *
- * Returns { valid: true } if valid, or { valid: false, error: "message" } if invalid.
+ * Returns a stable error code when validation fails; callers localize it at render time.
  * The login should be trimmed before validating (use normalizeLogin).
  */
 export function validateLogin(login: string): ValidationResult {
   if (login === '') {
-    return { valid: false, error: 'Username cannot be empty' };
+    return { valid: false, errorCode: 'username_empty' };
   }
 
   if (login.length < MIN_LOGIN_LENGTH) {
-    return { valid: false, error: `Username must be at least ${MIN_LOGIN_LENGTH} characters` };
+    return { valid: false, errorCode: 'username_too_short' };
   }
 
   if (login.length > MAX_LOGIN_LENGTH) {
-    return { valid: false, error: `Username cannot exceed ${MAX_LOGIN_LENGTH} characters` };
+    return { valid: false, errorCode: 'username_too_long' };
   }
 
   if (!LOGIN_PATTERN.test(login)) {
     const firstChar = login[0];
     if (firstChar === '.' || firstChar === '_' || firstChar === '-') {
-      return { valid: false, error: 'Username must start with a letter or number' };
+      return { valid: false, errorCode: 'username_invalid_start' };
     }
-    return {
-      valid: false,
-      error: 'Username can only contain letters, numbers, periods, underscores, and hyphens'
-    };
+    return { valid: false, errorCode: 'username_invalid_characters' };
   }
 
   return { valid: true };
@@ -93,12 +92,22 @@ export function getLoginChangeCooldownRemaining(lastChangeDate: Date | null): nu
 export function formatCooldownRemaining(ms: number): string {
   if (ms <= 0) return '';
 
-  const days = Math.ceil(ms / (24 * 60 * 60 * 1000));
-  if (days > 1) return `${days} days`;
-
-  const hours = Math.ceil(ms / (60 * 60 * 1000));
-  if (hours > 1) return `${hours} hours`;
-
-  const minutes = Math.ceil(ms / (60 * 1000));
-  return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+  const locale = getLocale();
+  let value: number;
+  let unit: Intl.NumberFormatOptions['unit'];
+  if (ms >= 24 * 60 * 60 * 1000) {
+    value = Math.ceil(ms / (24 * 60 * 60 * 1000));
+    unit = 'day';
+  } else if (ms >= 60 * 60 * 1000) {
+    value = Math.ceil(ms / (60 * 60 * 1000));
+    unit = 'hour';
+  } else {
+    value = Math.ceil(ms / (60 * 1000));
+    unit = 'minute';
+  }
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit,
+    unitDisplay: 'long'
+  }).format(value);
 }

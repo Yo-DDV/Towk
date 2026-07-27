@@ -105,7 +105,9 @@
       "override_for_permission_scope": "Override {state} for {permission} at {scope}",
       "no_override_effective_scope": "No override for {permission} at {scope}, effective {state}",
       "subject_override_at_scope": "{state} ({subject} override at {scope})",
-      "effective_inherited": "Effective {state} (inherited)"
+      "effective_inherited": "Effective {state} (inherited)",
+      "load_failed": "Permissions could not be loaded.",
+      "update_failed": "The permission could not be updated."
     },
     "permission_descriptions": {
       "server_manage": "Update server settings (name, description, logo)",

@@ -82,9 +82,9 @@
       "reconnecting": "Réseau disponible. Reconnexion de Towk…"
     },
     "outbox": {
-      "pending_title": "{count} message(s) en attente",
+      "pending_title": "Messages en attente : {count}",
       "pending_message": "Chiffré sur cet appareil et envoyé automatiquement dès que possible.",
-      "attention_title": "{count} message(s) à vérifier",
+      "attention_title": "Messages à vérifier : {count}",
       "attention_message": "Reconnectez-vous ou relancez l’envoi.",
       "retry": "Réessayer",
       "manage": "Gérer",
@@ -94,7 +94,10 @@
       "attachment_only": "Message avec pièces jointes",
       "voice_message": "Message vocal",
       "unsupported_server": "Ce serveur ne peut pas relancer ce message automatiquement sans risque. Conservez-le ici ou supprimez-le.",
-      "discard": "Supprimer"
+      "discard": "Supprimer",
+      "error_authentication": "Reconnectez-vous à ce serveur avant de réessayer.",
+      "error_permanent": "Le serveur a refusé ce message. Vérifiez-le avant de réessayer ou supprimez-le.",
+      "error_retry_limit": "Les tentatives automatiques sont épuisées. Réessayez manuellement lorsque la connexion est stable."
     },
     "cached_timeline": "Affichage de l’historique chiffré de cet appareil pendant la reconnexion.",
     "corresponding_source": "Voir la source correspondante pour Towk {version}",

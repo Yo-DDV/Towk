@@ -25,11 +25,13 @@
   import { getLiveLogin } from '$lib/state/userProfiles.svelte';
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import {
     validateAndNormalizeDisplayName,
     validateAndNormalizeLogin,
     getLoginChangeCooldownRemaining,
-    formatCooldownRemaining
+    formatCooldownRemaining,
+    validationErrorMessage
   } from '$lib/validation';
 
   // Everyone role is implicit for all server members and shouldn't be assignable
@@ -83,7 +85,7 @@
       editDisplayName = resp.member?.displayName ?? '';
       lastLoginChange = resp.member?.lastLoginChange ? new Date(resp.member.lastLoginChange) : null;
     } catch (err) {
-      error = err instanceof Error ? err.message : m['admin.members.load_failed']();
+      error = localizedErrorMessage(err, m['admin.members.load_failed']());
     } finally {
       loading = false;
     }
@@ -132,7 +134,8 @@
     if (displayNameModified) {
       const v = validateAndNormalizeDisplayName(editDisplayName);
       if (!v.valid || v.normalized === undefined) {
-        identityError = v.error ?? m['admin.members.invalid_display_name']();
+        identityError =
+          validationErrorMessage(v.errorCode) ?? m['admin.members.invalid_display_name']();
         return;
       }
       input.displayName = v.normalized;
@@ -141,7 +144,8 @@
     if (loginModified) {
       const v = validateAndNormalizeLogin(editLogin);
       if (!v.valid || v.normalized === undefined) {
-        identityError = v.error ?? m['admin.members.invalid_username']();
+        identityError =
+          validationErrorMessage(v.errorCode) ?? m['admin.members.invalid_username']();
         return;
       }
       input.login = v.normalized;
@@ -152,7 +156,7 @@
     try {
       updated = await adminUsersAPI().updateUser(input);
     } catch (err) {
-      identityError = err instanceof Error ? err.message : m['admin.members.update_user_failed']();
+      identityError = localizedErrorMessage(err, m['admin.members.update_user_failed']());
     }
     savingIdentity = false;
 
@@ -186,8 +190,7 @@
     try {
       cleared = await adminUsersAPI().clearUsernameCooldown(member.id);
     } catch (err) {
-      identityError =
-        err instanceof Error ? err.message : m['admin.members.clear_cooldown_failed']();
+      identityError = localizedErrorMessage(err, m['admin.members.clear_cooldown_failed']());
     }
     clearingCooldown = false;
 
@@ -214,7 +217,7 @@
     try {
       updatedMember = await adminUsersAPI().updateUserPassword(member.id, adminPassword);
     } catch (err) {
-      passwordError = err instanceof Error ? err.message : m['admin.members.set_password_failed']();
+      passwordError = localizedErrorMessage(err, m['admin.members.set_password_failed']());
     }
     settingPassword = false;
 
@@ -308,7 +311,7 @@
         }
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : m['admin.members.role_update_failed']();
+      error = localizedErrorMessage(err, m['admin.members.role_update_failed']());
     }
 
     updating = null;

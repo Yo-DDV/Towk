@@ -105,7 +105,9 @@
       "override_for_permission_scope": "Überschreibung {state} für {permission} bei {scope}",
       "no_override_effective_scope": "Keine Überschreibung für {permission} bei {scope}, effektiv {state}",
       "subject_override_at_scope": "{state} ({subject}-Überschreibung bei {scope})",
-      "effective_inherited": "Effektiv {state} (geerbt)"
+      "effective_inherited": "Effektiv {state} (geerbt)",
+      "load_failed": "Die Berechtigungen konnten nicht geladen werden.",
+      "update_failed": "Die Berechtigung konnte nicht aktualisiert werden."
     },
     "permission_descriptions": {
       "server_manage": "Servereinstellungen aktualisieren (Name, Beschreibung, Logo)",

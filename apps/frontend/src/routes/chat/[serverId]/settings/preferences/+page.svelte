@@ -1,5 +1,6 @@
 <script lang="ts">
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { externalGifMessages as gm } from '$lib/i18n/externalGifMessages';
   import { getLocale, setLocale, type Locale } from '$lib/i18n/runtime';
   import { useConnection } from '$lib/state/server/connection.svelte';
@@ -187,7 +188,7 @@
 
       toast.success(m['settings.preferences.saved']());
     } catch (err) {
-      error = err instanceof Error ? err.message : m['settings.preferences.save_failed']();
+      error = localizedErrorMessage(err, m['settings.preferences.save_failed']());
     } finally {
       isSaving = false;
     }

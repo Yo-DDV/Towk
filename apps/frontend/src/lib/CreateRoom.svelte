@@ -1,6 +1,7 @@
 <script lang="ts">
   import { useConnection } from '$lib/state/server/connection.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
   import {
     TextInput,
@@ -69,7 +70,7 @@
 
       onroomcreated?.(roomId);
     } catch (err) {
-      submitError = err instanceof Error ? err.message : m['room.create.failed']();
+      submitError = localizedErrorMessage(err, m['room.create.failed']());
     } finally {
       isLoading = false;
     }

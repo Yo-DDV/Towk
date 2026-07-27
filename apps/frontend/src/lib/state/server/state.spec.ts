@@ -122,7 +122,7 @@ describe('ServerInfoState.init()', () => {
     await state.init();
 
     expect(state.loading).toBe(false);
-    expect(state.error).toBe('[Network] Failed to fetch');
+    expect(state.error).toBe('The service is temporarily unavailable. Please try again.');
     expect(state.name).toBe('Towk'); // product default unchanged
     expect(consoleError).toHaveBeenCalledTimes(1);
     expect(consoleError.mock.calls[0][0]).toContain('https://towk.example');
@@ -136,7 +136,7 @@ describe('ServerInfoState.init()', () => {
     await state.init();
 
     expect(state.loading).toBe(false);
-    expect(state.error).toBe('boom');
+    expect(state.error).toBe('The service is temporarily unavailable. Please try again.');
     expect(consoleError).toHaveBeenCalledTimes(1);
     expect(consoleError.mock.calls[0][0]).toContain('https://towk.example');
     expect(consoleError.mock.calls[0][0]).toContain('failed to load server info');

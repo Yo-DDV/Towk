@@ -131,6 +131,20 @@
         "privacy_saved": "Confidentialité de l’activité enregistrée.",
         "save_privacy": "Enregistrer la confidentialité",
         "character_count": "{used} sur {limit} caractères"
+      },
+      "validation": {
+        "display_name_empty": "Le nom d’affichage ne peut pas être vide.",
+        "display_name_too_long": "Le nom d’affichage ne peut pas dépasser {max} caractères.",
+        "display_name_consecutive_spaces": "Le nom d’affichage ne peut pas contenir plusieurs espaces consécutives.",
+        "display_name_invalid_start": "Le nom d’affichage doit commencer par une lettre ou un chiffre.",
+        "display_name_control_characters": "Le nom d’affichage ne peut pas contenir de caractères de contrôle.",
+        "display_name_invisible_characters": "Le nom d’affichage ne peut pas contenir de caractères invisibles.",
+        "display_name_invalid_characters": "Le nom d’affichage ne peut contenir que des lettres, des chiffres, des émojis et des signes de ponctuation simples (- ' . _).",
+        "username_empty": "Le nom d’utilisateur ne peut pas être vide.",
+        "username_too_short": "Le nom d’utilisateur doit comporter au moins {min} caractères.",
+        "username_too_long": "Le nom d’utilisateur ne peut pas dépasser {max} caractères.",
+        "username_invalid_start": "Le nom d’utilisateur doit commencer par une lettre ou un chiffre.",
+        "username_invalid_characters": "Le nom d’utilisateur ne peut contenir que des lettres, des chiffres, des points, des tirets bas et des tirets."
       }
     },
     "preferences": {

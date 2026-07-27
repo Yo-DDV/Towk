@@ -175,7 +175,9 @@
       "show_files": "Mostrar archivos",
       "hide_files": "Ocultar archivos",
       "show_call": "Mostrar llamada",
-      "hide_call": "Ocultar llamada"
+      "hide_call": "Ocultar llamada",
+      "members_load_failed": "No se pudieron cargar los miembros del canal.",
+      "members_refresh_failed": "No se pudieron actualizar los miembros del canal."
     },
     "title": {
       "direct_message": "Mensaje directo"
@@ -208,6 +210,10 @@
       "left_room": "salió de la sala",
       "archived_room": "archivó la sala",
       "unarchived_room": "desarchivó la sala"
+    },
+    "system_defaults": {
+      "announcements_description": "Anuncios y novedades",
+      "general_description": "Conversación general"
     }
   }
 }

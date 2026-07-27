@@ -27,8 +27,8 @@ type DefaultGlobalRoom struct {
 // server-tier everyone defaults; the "announcements" room is universal and
 // adds a room-tier everyone/message.post denial.
 var DefaultGlobalRooms = []DefaultGlobalRoom{
-	{Name: AnnouncementsRoomName, Description: "Announcements and news", Universal: true},
-	{Name: "general", Description: "General discussion"},
+	{Name: AnnouncementsRoomName, Description: "Announcements and news", Universal: true}, // i18n-audit-ignore -- localized by stable default room name when rendered
+	{Name: "general", Description: "General discussion"},                                  // i18n-audit-ignore -- localized by stable default room name when rendered
 }
 
 // SeedDefaultRooms creates the default channel rooms

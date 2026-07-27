@@ -16,6 +16,7 @@
   } from '$lib/hooks';
   import { appState, sidebarNav, SIDEBAR_PANEL_WIDTH_PX } from '$lib/state/globals.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedRoomDescription } from '$lib/roomLabels';
   import {
     createComposerContext,
     createMentionRoles,
@@ -56,7 +57,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { sineInOut } from 'svelte/easing';
   import { fly } from 'svelte/transition';
-  import { MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
+  import { motionDuration } from '$lib/ui/motion.svelte';
   import RoomEventsPane from './RoomEventsPane.svelte';
   import RoomSidebar from './RoomSidebar.svelte';
   import RoomSidebarToggle from './RoomSidebarToggle.svelte';
@@ -301,8 +302,9 @@
   let roomDescription = $derived.by(() => {
     if (!room.roomData || room.isDM) return undefined;
 
-    const description = room.roomData.room.description?.trim();
-    return description || undefined;
+    return (
+      localizedRoomDescription(room.roomData.room.name, room.roomData.room.description) ?? undefined
+    );
   });
 
   // Page title includes space name for regular rooms
@@ -703,7 +705,7 @@
           onclick={() => appUi.closeMobileRoomSidebarPanel()}
         ></button>
         <div
-          class="absolute inset-y-0 right-0 z-20 flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] lg:hidden"
+          class="absolute inset-y-0 right-0 z-20 flex min-h-0 max-w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] lg:hidden"
           data-testid="room-sidebar-mobile-pane"
           style:width={`${SIDEBAR_PANEL_WIDTH_PX}px`}
           transition:fly={{

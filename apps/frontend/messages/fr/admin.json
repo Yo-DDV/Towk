@@ -165,7 +165,7 @@
       "room_permissions_subtitle": "Permissions propres au salon (appliquées après celles du groupe)",
       "group_permissions_title_fallback": "Permissions du groupe",
       "room_permissions_title_fallback": "Permissions du salon",
-      "permissions_page_title": "Permissions - {name}",
+      "permissions_page_title": "Autorisations – {name}",
       "back_to_rooms": "Retour aux salons",
       "group_permissions_hint": "Ces permissions s’appliquent aux salons de ce groupe après celles du serveur. Chaque salon peut encore définir ses propres exceptions.",
       "room_permissions_hint": "Ces permissions propres au salon prévalent sur celles du groupe et sur les valeurs par défaut du serveur.",
@@ -236,7 +236,9 @@
       "subtitle": "Restrictions d'inscription et protection du compte",
       "blocked_usernames": "Noms d'utilisateur bloqués",
       "blocked_usernames_description": "Un par ligne. Les utilisateurs ne peuvent pas s'inscrire avec ces noms.",
-      "settings_saved": "Paramètres enregistrés"
+      "settings_saved": "Paramètres enregistrés",
+      "load_failed": "Impossible de charger les paramètres de sécurité.",
+      "save_failed": "Impossible d’enregistrer les paramètres de sécurité."
     },
     "system": {
       "title": "Système",
@@ -263,12 +265,12 @@
       "performance_effective": "Effectif",
       "performance_limits": "Limites de concurrence des médias",
       "performance_limit_summary": "{requested} demandé / {effective} effectif",
-      "performance_custom_help": "Utilisez des valeurs positives. Les admissions d’images doivent être au moins égales au nombre de workers de transformation.",
-      "performance_field_image_transform_workers": "Workers de transformation d’images",
+      "performance_custom_help": "Utilisez des valeurs positives. Le nombre d’admissions d’images doit être au moins égal au nombre de processus de transformation.",
+      "performance_field_image_transform_workers": "Processus de transformation d’images",
       "performance_field_image_transform_admissions": "Admissions de transformation d’images",
-      "performance_field_asset_upload_workers": "Workers d’envoi",
-      "performance_field_link_preview_workers": "Workers d’aperçu de liens",
-      "performance_field_video_workers": "Workers de transcodage multimédia",
+      "performance_field_asset_upload_workers": "Processus d’envoi",
+      "performance_field_link_preview_workers": "Processus d’aperçu de liens",
+      "performance_field_video_workers": "Processus de transcodage multimédia",
       "performance_process_envelope": "Enveloppe du processus détectée",
       "performance_cpu_count": "{count} processeurs disponibles",
       "performance_memory_amount": "{amount} de mémoire disponible",
@@ -366,7 +368,17 @@
       "failed": "Échoué",
       "started": "Démarré",
       "stopped": "Arrêté",
-      "failed_at": "échec à {sequence}"
+      "failed_at": "échec à {sequence}",
+      "stream_descriptions": {
+        "encryption_keys": "Clés de chiffrement KMS (exclues des sauvegardes)",
+        "runtime_state": "Dernier état persistant de l’exécution et des utilisateurs",
+        "memory_cache": "État d’exécution volatil conservé en mémoire",
+        "asset_cache": "Images redimensionnées mises en cache",
+        "link_preview_assets": "Images d’aperçu de liens distantes, avec stockage limité",
+        "server_assets": "Fichiers du serveur (avatars, identité visuelle, pièces jointes et anciens aperçus de liens)",
+        "event_log": "Journal de sourcing d’événements (ADR-033)"
+      },
+      "load_failed": "Impossible de charger les informations système."
     },
     "event_log": {
       "title": "Journal des événements",
@@ -403,7 +415,9 @@
       "inspected_rows_one": "{count} ligne conservée inspectée",
       "inspected_rows_many": "{count} lignes conservées inspectées",
       "loading_older": "Chargement d'événements plus anciens...",
-      "no_matches": "Aucun événement ne correspond à ces filtres."
+      "no_matches": "Aucun événement ne correspond à ces filtres.",
+      "load_failed": "Impossible de charger le journal des événements.",
+      "load_older_failed": "Impossible de charger les événements plus anciens."
     },
     "users": {
       "empty": "Aucun utilisateur trouvé",

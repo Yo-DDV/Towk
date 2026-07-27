@@ -401,9 +401,16 @@ var notificationCopies = map[string]notificationCopy{
 // NormalizeLocale returns a supported Towk notification locale. Legacy-empty
 // and unsupported values intentionally fall back to English.
 func NormalizeLocale(locale string) string {
-	switch strings.ToLower(strings.TrimSpace(locale)) {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(locale), "_", "-"))
+	if separator := strings.IndexAny(normalized, ",;"); separator >= 0 {
+		normalized = normalized[:separator]
+	}
+	if separator := strings.IndexByte(normalized, '-'); separator >= 0 {
+		normalized = normalized[:separator]
+	}
+	switch normalized {
 	case "de", "fr", "es", "pt":
-		return strings.ToLower(strings.TrimSpace(locale))
+		return normalized
 	default:
 		return "en"
 	}

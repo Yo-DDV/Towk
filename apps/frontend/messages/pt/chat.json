@@ -3,22 +3,33 @@
   "chat": {
     "notifications": {
       "title": "Notificações",
-      "subtitle": "Aqui estão as novidades",
+      "subtitle": "Confira as novidades",
       "clear_all": "Limpar tudo",
       "empty_title": "Sem notificações",
-      "empty_body": "Vocês estão todos atualizados!",
+      "empty_body": "Você está em dia!",
       "time_now": "Agora mesmo",
-      "time_minutes": "{count}m atrás",
-      "time_hours": "{count}h atrás",
-      "time_days": "{count}d atrás",
+      "time_minutes": "Há {count} min",
+      "time_hours": "Há {count} h",
+      "time_days": "Há {count} d",
       "call_started": "{actor} iniciou uma chamada",
       "call_started_unknown": "Uma chamada foi iniciada",
       "private_call_started": "{actor} está ligando para você",
-      "private_call_started_unknown": "Chamada recebida"
+      "private_call_started_unknown": "Chamada recebida",
+      "direct_message": "{actor} enviou uma mensagem para você",
+      "direct_message_unknown": "Nova mensagem",
+      "mention": "{actor} mencionou você",
+      "mention_unknown": "Você foi mencionado",
+      "reply": "{actor} respondeu à sua mensagem",
+      "reply_unknown": "Nova resposta à sua mensagem",
+      "room_message": "{actor} publicou uma mensagem",
+      "room_message_unknown": "Nova mensagem",
+      "location_in_server": "#{room} em {server}",
+      "load_failed": "Não foi possível carregar as notificações.",
+      "room_load_failed": "Não foi possível carregar a notificação do canal."
     },
     "sign_out": {
       "title": "Sair",
-      "current_server": "Servidor Atual",
+      "current_server": "Servidor atual",
       "all_servers": "Todos os servidores",
       "description": "Saia apenas do servidor selecionado ou desconecte todos os servidores deste cliente."
     },
@@ -28,10 +39,14 @@
     "server_nav": {
       "back_to_server": "Voltar ao servidor",
       "server_fallback": "Servidor",
-      "administration": "Administração de servidor"
+      "administration": "Administração do servidor",
+      "go_to_notifications": "Ir para {count} notificações",
+      "go_to_notification": "Ir para a notificação",
+      "go_to_first_unread_room": "Ir para o primeiro canal não lido",
+      "notification_count": "Notificações: {count}"
     },
     "user_menu": {
-      "profile": "Perfil de usuário",
+      "profile": "Perfil do usuário",
       "send_message": "Enviar mensagem"
     },
     "server_gutter": {
@@ -39,20 +54,21 @@
     },
     "threads": {
       "title": "Meus tópicos",
-      "subtitle": "Tópicos que você está seguindo",
+      "subtitle": "Tópicos que você segue",
       "filter_label": "Filtrar tópicos",
       "filter_all": "Todos",
-      "filter_unread": "Não lido",
+      "filter_unread": "Não lidos",
       "empty_title": "Nenhum tópico seguido",
       "empty_body": "Os tópicos que você segue aparecerão aqui. Você segue automaticamente os tópicos dos quais participa.",
       "no_unread_loaded": "Nenhum tópico não lido carregado",
-      "all_caught_up": "Todos apanhados",
-      "loaded_count": "{loaded} de {total} threads seguidos carregados.",
+      "all_caught_up": "Tudo em dia",
+      "loaded_count": "{loaded} de {total} tópicos seguidos carregados.",
       "load_more": "Carregar mais",
       "no_unread": "Nenhum tópico não lido no momento.",
       "message_missing": "A mensagem não está mais disponível",
       "in_room": "em",
-      "in_room_capitalized": "Em"
+      "in_room_capitalized": "Em",
+      "load_failed": "Não foi possível carregar as conversas."
     }
   },
   "profile": {

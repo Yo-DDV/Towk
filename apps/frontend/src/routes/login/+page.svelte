@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedJSONHeaders } from '$lib/auth/localizedRequest';
   import { isSafeInternalPath } from '$lib/navigation/safeInternalPath';
   import type { AuthenticatedUserSummary } from '$lib/state/server/registry.svelte';
   import type { PublicAuthProvider } from '$lib/api-client/server';
@@ -155,7 +156,7 @@
     try {
       const response = await fetch('/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({ identifier, password }),
         credentials: 'include'
       });
@@ -183,8 +184,8 @@
       } else {
         navigateAfterLogin(data.redirectUrl);
       }
-    } catch (err) {
-      error = err instanceof Error ? err.message : m['auth.login.failed']();
+    } catch {
+      error = m['auth.login.failed']();
     } finally {
       isLoading = false;
     }

@@ -2,7 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "error_page": {
     "title": "algo salió mal",
-    "description": "Esta vista no se pudo abrir. Puede volver a Towk e intentarlo nuevamente desde allí.",
+    "description": "Esta vista no se pudo abrir. Puedes volver a Towk e intentarlo de nuevo desde allí.",
     "unknown": "Error desconocido",
     "home_link": "Volver a Towk",
     "missing_media_title": "Medios no disponibles",

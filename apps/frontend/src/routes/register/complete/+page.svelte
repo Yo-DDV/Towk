@@ -3,6 +3,8 @@
   import { resolve } from '$app/paths';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
+  import { localizedJSONHeaders } from '$lib/auth/localizedRequest';
   import type { AuthenticatedUserSummary } from '$lib/state/server/registry.svelte';
   import Divider from '$lib/ui/Divider.svelte';
   import Hint from '$lib/ui/Hint.svelte';
@@ -66,7 +68,7 @@
     try {
       const response = await fetch('/auth/register/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({
           token,
           login,
@@ -104,7 +106,7 @@
         goto(resolve('/'), { replaceState: true });
       }
     } catch (err) {
-      error = err instanceof Error ? err.message : m['auth.register.failed']();
+      error = localizedErrorMessage(err, m['auth.register.failed']());
     } finally {
       isLoading = false;
     }

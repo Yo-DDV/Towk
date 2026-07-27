@@ -121,7 +121,7 @@ func (s *HTTPServer) serveServerAsset(c *gin.Context) {
 	reader, info, err := s.core.GetServerAssetFromAnyBackend(c.Request.Context(), path)
 	if err != nil {
 		s.logger.Error("Failed to get server asset", "error", err, "asset_id", path)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Asset not found"})
+		writeLocalizedError(c, http.StatusNotFound, "asset.not_found")
 		return
 	}
 	// Close the reader if it implements io.Closer
@@ -194,7 +194,7 @@ func (s *HTTPServer) serveStableAttachment(c *gin.Context) {
 	reader, info, err := s.core.GetAttachmentReader(ctx, attachment)
 	if err != nil {
 		s.logger.Error("Failed to get stable attachment", "error", err, "attachment_id", assetID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Attachment not found"})
+		writeLocalizedError(c, http.StatusNotFound, "asset.attachment_not_found")
 		return
 	}
 	if closer, ok := reader.(io.Closer); ok {
@@ -254,7 +254,8 @@ func (s *HTTPServer) serveStableTransformedAttachment(c *gin.Context) {
 	assetID := c.Param("assetID")
 	params, err := parseStableTransformParams(c.Param("dimensions"), c.Param("fit"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		s.logger.Debug("Invalid stable attachment transform parameters", "error", err, "asset_id", assetID)
+		writeLocalizedError(c, http.StatusBadRequest, "asset.transform_parameters_invalid")
 		return
 	}
 
@@ -315,7 +316,7 @@ func parseStableTransformParams(dimensions, fit string) (*signedurl.TransformPar
 
 func (s *HTTPServer) resolveStableAttachment(c *gin.Context, ctx context.Context, assetID string, params *signedurl.TransformParams) (*corev1.Attachment, bool) {
 	if assetID == "" {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Attachment not found"})
+		writeLocalizedError(c, http.StatusNotFound, "asset.attachment_not_found")
 		return nil, false
 	}
 
@@ -326,48 +327,48 @@ func (s *HTTPServer) resolveStableAttachment(c *gin.Context, ctx context.Context
 
 	declared, ok := s.core.Assets.AssetCreation(assetID)
 	if !ok || declared == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Attachment not found"})
+		writeLocalizedError(c, http.StatusNotFound, "asset.attachment_not_found")
 		return nil, false
 	}
 	roomID, ok := s.core.Assets.AssetRoomID(assetID)
 	if !ok {
 		s.logger.Warn("Asset has no room scope", "attachment_id", assetID)
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+		writeLocalizedError(c, http.StatusForbidden, "asset.access_denied")
 		return nil, false
 	}
 
 	kind, err := s.core.FindRoomKind(ctx, roomID)
 	if err != nil {
 		s.logger.Error("Failed to resolve room kind for stable attachment auth", "error", err, "room_id", roomID)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify access"})
+		writeLocalizedError(c, http.StatusInternalServerError, "asset.verify_access_failed")
 		return nil, false
 	}
 	isMember, err := s.core.RoomMembershipExists(ctx, kind, userID, roomID)
 	if err != nil {
 		s.logger.Error("Failed to check stable attachment room membership", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify access"})
+		writeLocalizedError(c, http.StatusInternalServerError, "asset.verify_access_failed")
 		return nil, false
 	}
 	if !isMember {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: not a member of the room"})
+		writeLocalizedError(c, http.StatusForbidden, "asset.not_room_member")
 		return nil, false
 	}
 	if kind == core.KindDM {
 		accessible, err := s.core.CanAccessDMAsset(ctx, userID, roomID, assetID)
 		if err != nil {
 			s.logger.Error("Failed to enforce DM attachment history cutoff", "error", err, "room_id", roomID)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify access"})
+			writeLocalizedError(c, http.StatusInternalServerError, "asset.verify_access_failed")
 			return nil, false
 		}
 		if !accessible {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+			writeLocalizedError(c, http.StatusForbidden, "asset.access_denied")
 			return nil, false
 		}
 	}
 
 	attachment := core.AttachmentFromAsset(declared.GetAsset())
 	if attachment == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Attachment not found"})
+		writeLocalizedError(c, http.StatusNotFound, "asset.attachment_not_found")
 		return nil, false
 	}
 	attachment.RoomId = roomID
@@ -379,37 +380,37 @@ func (s *HTTPServer) resolveStableAssetViewerID(c *gin.Context, assetID string, 
 		ticket, err := signedurl.ParseSignedAssetAccessTicket(s.config.Core.Assets.SigningSecret, access)
 		if err != nil {
 			s.logger.Warn("Invalid asset access ticket", "error", err, "asset_id", assetID)
-			c.JSON(http.StatusForbidden, gin.H{"error": "Invalid asset access ticket"})
+			writeLocalizedError(c, http.StatusForbidden, "asset.ticket_invalid")
 			return "", false
 		}
 		if ticket.Expired(time.Now().Unix()) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Asset access ticket expired"})
+			writeLocalizedError(c, http.StatusForbidden, "asset.ticket_expired")
 			return "", false
 		}
 		if ticket.AssetID != assetID {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Asset access ticket does not match asset"})
+			writeLocalizedError(c, http.StatusForbidden, "asset.ticket_asset_mismatch")
 			return "", false
 		}
 		if !ticket.MatchesTransform(params) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Asset access ticket does not match derivative"})
+			writeLocalizedError(c, http.StatusForbidden, "asset.ticket_derivative_mismatch")
 			return "", false
 		}
 		return ticket.UserID, true
 	}
 
 	if params != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Asset derivative URL requires a signed access ticket"})
+		writeLocalizedError(c, http.StatusForbidden, "asset.derivative_ticket_required")
 		return "", false
 	}
 
 	reqWithUser := s.injectUserIntoContext(c)
 	if authenticationValidationError(reqWithUser.Context()) != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service temporarily unavailable"})
+		writeLocalizedError(c, http.StatusServiceUnavailable, "auth.service_temporarily_unavailable")
 		return "", false
 	}
 	user := authctx.ForContext(reqWithUser.Context())
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		writeLocalizedError(c, http.StatusUnauthorized, "auth.authentication_required")
 		return "", false
 	}
 	return user.Id, true
@@ -425,7 +426,7 @@ func (s *HTTPServer) serveTransformedAsset(c *gin.Context, req transformRequest)
 			"resource_id1", req.ResourceID1,
 			"resource_id2", req.ResourceID2,
 			"error", err)
-		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid or expired transform URL"})
+		writeLocalizedError(c, http.StatusForbidden, "asset.transform_url_invalid")
 		return
 	}
 
@@ -480,22 +481,22 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 	output, err := s.transformCoordinator().Do(ctx, cacheKey, func(workCtx context.Context) (*assetTransformOutput, error) {
 		reader, contentType, err := req.FetchAsset(workCtx)
 		if err != nil {
-			return nil, &assetTransformFailure{status: http.StatusNotFound, message: "Asset not found", cause: err}
+			return nil, &assetTransformFailure{status: http.StatusNotFound, messageKey: "asset.not_found", cause: err}
 		}
 		if closer, ok := reader.(io.Closer); ok {
 			defer closer.Close()
 		}
 		if contentType == "" || !isImageContentType(contentType) {
 			return nil, &assetTransformFailure{
-				status:  http.StatusBadRequest,
-				message: "Asset is not an image",
-				cause:   fmt.Errorf("unsupported transform content type %q", contentType),
+				status:     http.StatusBadRequest,
+				messageKey: "asset.not_image",
+				cause:      fmt.Errorf("unsupported transform content type %q", contentType),
 			}
 		}
 
 		data, err := io.ReadAll(reader)
 		if err != nil {
-			return nil, &assetTransformFailure{status: http.StatusInternalServerError, message: "Failed to read asset", cause: err}
+			return nil, &assetTransformFailure{status: http.StatusInternalServerError, messageKey: "asset.read_failed", cause: err}
 		}
 
 		var transformStarted time.Time
@@ -519,12 +520,12 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 			s.metrics.observeMediaTransform(outcome, int64(len(data)), time.Since(transformStarted))
 		}
 		if err != nil {
-			return nil, &assetTransformFailure{status: http.StatusInternalServerError, message: "Failed to transform image", cause: err}
+			return nil, &assetTransformFailure{status: http.StatusInternalServerError, messageKey: "asset.transform_failed", cause: err}
 		}
 
 		transformedData, err := io.ReadAll(result.Reader)
 		if err != nil {
-			return nil, &assetTransformFailure{status: http.StatusInternalServerError, message: "Failed to read transformed image", cause: err}
+			return nil, &assetTransformFailure{status: http.StatusInternalServerError, messageKey: "asset.read_transformed_failed", cause: err}
 		}
 
 		// Cache writes stay inside the bounded shared job. A full or unavailable
@@ -543,17 +544,17 @@ func (s *HTTPServer) serveTransformedAssetWithParams(c *gin.Context, req transfo
 		}
 		if errors.Is(err, errAssetTransformBusy) || errors.Is(err, errAssetTransformClosed) {
 			c.Header("Retry-After", "1")
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Asset transformation is temporarily unavailable"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "asset.transform_unavailable")
 			return
 		}
 		var failure *assetTransformFailure
 		if errors.As(err, &failure) {
 			s.logger.Error("Failed to transform asset", "error", failure.cause, "asset_id", req.AssetID)
-			c.JSON(failure.status, gin.H{"error": failure.message})
+			writeLocalizedError(c, failure.status, failure.messageKey)
 			return
 		}
 		s.logger.Error("Failed to transform asset", "error", err, "asset_id", req.AssetID)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to transform image"})
+		writeLocalizedError(c, http.StatusInternalServerError, "asset.transform_failed")
 		return
 	}
 

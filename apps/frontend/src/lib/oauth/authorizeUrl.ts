@@ -6,6 +6,7 @@ export type OAuthAuthorizeParameters = {
   code_challenge: string;
   code_challenge_method: string;
   state: string;
+  locale: string;
 };
 
 function parseHttpUrl(value: string): URL {

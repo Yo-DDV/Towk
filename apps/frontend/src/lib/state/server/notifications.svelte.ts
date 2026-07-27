@@ -1,6 +1,8 @@
 import { SvelteSet } from 'svelte/reactivity';
 import { resolve } from '$app/paths';
 import { serverIdToSegment } from '$lib/navigation';
+import * as m from '$lib/i18n/messages';
+import { localizedErrorMessage } from '$lib/i18n/localizedError';
 import {
   NotificationItemKind,
   type DirectMessageNotificationItem,
@@ -317,7 +319,7 @@ export class NotificationStore {
       this.hasLoaded = true;
     } catch (e) {
       if (generation !== this.#fetchGeneration) return;
-      this.error = e instanceof Error ? e.message : 'Failed to fetch notifications';
+      this.error = localizedErrorMessage(e, m['chat.notifications.load_failed']());
       console.error('Failed to fetch notifications:', e);
     } finally {
       await signalFetch;
@@ -365,7 +367,7 @@ export class NotificationStore {
         notification
       };
     } catch (e) {
-      this.error = e instanceof Error ? e.message : 'Failed to fetch room notification';
+      this.error = localizedErrorMessage(e, m['chat.notifications.room_load_failed']());
       console.error('Failed to fetch room notification:', e);
       return { ok: false, totalCount: null, notification: null };
     }

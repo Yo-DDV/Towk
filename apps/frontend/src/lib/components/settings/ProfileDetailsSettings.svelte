@@ -16,6 +16,7 @@
     profileBiographyCharacterLength
   } from '$lib/profileBiography';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const activeServerId = getActiveServer();
   const currentUser = serverRegistry.getStore(activeServerId).currentUser;
@@ -154,8 +155,7 @@
       if (currentUser.user) invalidateDetailedUserProfile(activeServerId, currentUser.user.id);
       bioSuccess = m['settings.profile.details.biography_saved']();
     } catch (error) {
-      bioError =
-        error instanceof Error ? error.message : m['settings.profile.details.save_failed']();
+      bioError = localizedErrorMessage(error, m['settings.profile.details.save_failed']());
     } finally {
       bioSaving = false;
     }
@@ -184,8 +184,7 @@
       if (currentUser.user) invalidateDetailedUserProfile(activeServerId, currentUser.user.id);
       privacySuccess = m['settings.profile.details.privacy_saved']();
     } catch (error) {
-      privacyError =
-        error instanceof Error ? error.message : m['settings.profile.details.save_failed']();
+      privacyError = localizedErrorMessage(error, m['settings.profile.details.save_failed']());
     } finally {
       privacySaving = false;
     }

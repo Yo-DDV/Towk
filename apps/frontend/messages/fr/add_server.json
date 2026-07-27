@@ -20,6 +20,7 @@
     "description_url": "Towk est décentralisé : votre client se connecte directement à chaque serveur. Saisissez une URL pour en ajouter un.",
     "description_preview": "Vous êtes sur le point de vous connecter à ce serveur. Vous serez redirigé vers sa page de connexion pour vous authentifier.",
     "url_label": "URL du serveur",
-    "url_placeholder": "chat.example.com"
+    "url_placeholder": "chat.example.com",
+    "version": "Towk v{version}"
   }
 }

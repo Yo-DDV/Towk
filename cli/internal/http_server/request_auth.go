@@ -22,7 +22,7 @@ func authenticationValidationError(ctx context.Context) error {
 }
 
 func writeAuthenticationUnavailable(c *gin.Context) {
-	c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service temporarily unavailable"})
+	writeLocalizedError(c, http.StatusServiceUnavailable, "auth.service_temporarily_unavailable")
 }
 
 // injectUserIntoContext extracts the authenticated user from either a bearer token

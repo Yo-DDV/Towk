@@ -12,6 +12,9 @@ const themeScript = appHtml.match(/<script>\s*([\s\S]*?)\s*<\/script>/i)?.[1];
 const pwaInstallScript = appHtml.match(
   /<script data-pwa-install-bootstrap>\s*([\s\S]*?)\s*<\/script>/i
 )?.[1];
+const pwaManifestScript = appHtml.match(
+  /<script data-pwa-manifest-bootstrap>\s*([\s\S]*?)\s*<\/script>/i
+)?.[1];
 
 type WebAppManifest = {
   icons?: Array<{ src?: string; sizes?: string; type?: string; purpose?: string }>;
@@ -145,6 +148,23 @@ function runPwaInstallScript() {
   return { browserWindow, dispatched, listeners };
 }
 
+function runPwaManifestScript(locale: string) {
+  if (!pwaManifestScript) throw new Error('PWA manifest bootstrap script not found');
+
+  const appended: Array<{ rel?: string; href?: string }> = [];
+  const browserWindow = { __towkShellLocale: locale };
+  const document = {
+    documentElement: { lang: locale },
+    createElement: () => ({}) as { rel?: string; href?: string },
+    head: {
+      appendChild: (node: { rel?: string; href?: string }) => appended.push(node)
+    }
+  };
+
+  runInNewContext(pwaManifestScript, { document, encodeURIComponent, window: browserWindow });
+  return appended[0];
+}
+
 describe('app.html metadata', () => {
   it('captures the native install prompt before the manifest is discovered', () => {
     const { browserWindow, dispatched, listeners } = runPwaInstallScript();
@@ -156,12 +176,19 @@ describe('app.html metadata', () => {
     expect(browserWindow.__towkInstallPrompt).toBe(prompt);
     expect(dispatched).toContain('towk:pwa-install-prompt-captured');
     expect(appHtml.indexOf('data-pwa-install-bootstrap')).toBeLessThan(
-      appHtml.indexOf('rel="manifest"')
+      appHtml.indexOf('data-pwa-manifest-bootstrap')
     );
 
     listeners.get('appinstalled')?.(new Event('appinstalled'));
     expect(browserWindow.__towkInstallPrompt).toBeNull();
     expect(dispatched).toContain('towk:pwa-install-prompt-cleared');
+  });
+
+  it('requests the PWA manifest in the active shell locale', () => {
+    expect(runPwaManifestScript('pt')).toEqual({
+      rel: 'manifest',
+      href: '/manifest.webmanifest?locale=pt'
+    });
   });
 
   it('defines theme colors matching the outer frame background colors', () => {

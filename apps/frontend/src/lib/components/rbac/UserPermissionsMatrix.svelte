@@ -12,6 +12,7 @@ matrix and the mutation dispatch for cell clicks; delegates rendering to
   import { createPermissionAPI } from '$lib/api-client/permissions';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import {
     setUserPermission,
     type UserMutationScope,
@@ -64,7 +65,7 @@ matrix and the mutation dispatch for cell clicks; delegates rendering to
     } catch (err) {
       if (uid !== userId) return;
       loading = false;
-      error = err instanceof Error ? err.message : String(err);
+      error = localizedErrorMessage(err, m['rbac.permissions.load_failed']());
       return;
     }
 

@@ -14,6 +14,7 @@ These preferences are server-side and sync across devices.
   import { FormError } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import {
     getServerNotificationPreference,
     updateRoomNotificationPreference,
@@ -94,7 +95,7 @@ These preferences are server-side and sync across devices.
         notificationLevelStore.setRoomPreference(room.id, room.level, room.effectiveLevel);
       }
     } catch (e) {
-      error = e instanceof Error ? e.message : m['settings.notifications.levels.load_failed']();
+      error = localizedErrorMessage(e, m['settings.notifications.levels.load_failed']());
     } finally {
       loading = false;
     }
@@ -114,9 +115,7 @@ These preferences are server-side and sync across devices.
       await loadPreferences();
       toast.success(m['settings.notifications.levels.server_updated']());
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : m['settings.notifications.levels.update_failed']()
-      );
+      toast.error(localizedErrorMessage(e, m['settings.notifications.levels.update_failed']()));
     } finally {
       savingServerLevel = false;
     }
@@ -135,9 +134,7 @@ These preferences are server-side and sync across devices.
       notificationLevelStore.setRoomPreference(roomId, pref.level, pref.effectiveLevel);
       toast.success(m['settings.notifications.levels.room_updated']());
     } catch (e) {
-      toast.error(
-        e instanceof Error ? e.message : m['settings.notifications.levels.update_failed']()
-      );
+      toast.error(localizedErrorMessage(e, m['settings.notifications.levels.update_failed']()));
     } finally {
       savingRoomId = null;
     }

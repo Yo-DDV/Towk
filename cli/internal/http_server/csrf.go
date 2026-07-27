@@ -28,11 +28,13 @@ func (s *HTTPServer) csrfMiddleware() gin.HandlerFunc {
 		if s.requiresCSRF(c) {
 			valid, err := s.validCSRFToken(c)
 			if err != nil {
-				c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service temporarily unavailable"})
+				writeLocalizedError(c, http.StatusServiceUnavailable, "auth.service_temporarily_unavailable")
+				c.Abort()
 				return
 			}
 			if !valid {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "CSRF token missing or invalid"})
+				writeLocalizedError(c, http.StatusForbidden, "csrf.token_invalid")
+				c.Abort()
 				return
 			}
 		}
@@ -41,10 +43,12 @@ func (s *HTTPServer) csrfMiddleware() gin.HandlerFunc {
 		if isSafeHTTPMethod(c.Request.Method) && hasCookieCredential(session) {
 			if err := s.ensureCSRFToken(c); err != nil {
 				if errors.Is(err, errAuthenticationServiceUnavailable) {
-					c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service temporarily unavailable"})
+					writeLocalizedError(c, http.StatusServiceUnavailable, "auth.service_temporarily_unavailable")
+					c.Abort()
 					return
 				}
-				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare CSRF token"})
+				writeLocalizedError(c, http.StatusInternalServerError, "csrf.prepare_failed")
+				c.Abort()
 				return
 			}
 		}

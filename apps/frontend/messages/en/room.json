@@ -175,7 +175,9 @@
       "show_files": "Show files",
       "hide_files": "Hide files",
       "show_call": "Show call",
-      "hide_call": "Hide call"
+      "hide_call": "Hide call",
+      "members_load_failed": "Room members could not be loaded.",
+      "members_refresh_failed": "Room members could not be refreshed."
     },
     "title": {
       "direct_message": "Direct Message"
@@ -208,6 +210,10 @@
       "left_room": "left the room",
       "archived_room": "archived the room",
       "unarchived_room": "unarchived the room"
+    },
+    "system_defaults": {
+      "announcements_description": "Announcements and news",
+      "general_description": "General discussion"
     }
   }
 }

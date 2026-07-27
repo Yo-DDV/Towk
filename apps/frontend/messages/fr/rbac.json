@@ -105,7 +105,9 @@
       "override_for_permission_scope": "Remplacer par {state} pour {permission} sur {scope}",
       "no_override_effective_scope": "Aucun remplacement pour {permission} sur {scope}, état effectif : {state}",
       "subject_override_at_scope": "{state} (remplacement de {subject} sur {scope})",
-      "effective_inherited": "État effectif : {state} (hérité)"
+      "effective_inherited": "État effectif : {state} (hérité)",
+      "load_failed": "Impossible de charger les permissions.",
+      "update_failed": "Impossible de modifier la permission."
     },
     "permission_descriptions": {
       "server_manage": "Mettre à jour les paramètres du serveur (nom, description, logo)",

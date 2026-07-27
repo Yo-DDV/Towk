@@ -175,7 +175,9 @@
       "show_files": "Dateien anzeigen",
       "hide_files": "Dateien ausblenden",
       "show_call": "Anruf anzeigen",
-      "hide_call": "Anruf ausblenden"
+      "hide_call": "Anruf ausblenden",
+      "members_load_failed": "Die Raummitglieder konnten nicht geladen werden.",
+      "members_refresh_failed": "Die Raummitglieder konnten nicht aktualisiert werden."
     },
     "title": {
       "direct_message": "Direktnachricht"
@@ -208,6 +210,10 @@
       "left_room": "hat den Raum verlassen",
       "archived_room": "hat den Raum archiviert",
       "unarchived_room": "hat den Raum wiederhergestellt"
+    },
+    "system_defaults": {
+      "announcements_description": "Ankündigungen und Neuigkeiten",
+      "general_description": "Allgemeine Diskussion"
     }
   }
 }

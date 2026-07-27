@@ -65,9 +65,9 @@
     },
     "message": {
       "empty": "Nenhuma mensagem ainda",
-      "loading": "A carregar mensagens",
+      "loading": "Carregando mensagens",
       "load_failed": "Não foi possível carregar as mensagens",
-      "load_failed_hint": "Verifica a ligação e tenta novamente.",
+      "load_failed_hint": "Verifique a conexão e tente novamente.",
       "retry_load": "Tentar novamente",
       "delete_title": "Excluir mensagem",
       "delete_prompt": "Tem certeza de que deseja excluir esta mensagem? Isto não pode ser desfeito.",
@@ -91,7 +91,7 @@
         "more": "Mais ações",
         "edit_short": "Editar",
         "copy_link": "Copiar link",
-        "share": "Partilhar"
+        "share": "Compartilhar"
       },
       "meta": {
         "thread": "Tópico",
@@ -175,7 +175,9 @@
       "show_files": "Mostrar arquivos",
       "hide_files": "Ocultar arquivos",
       "show_call": "Mostrar chamada",
-      "hide_call": "Ocultar chamada"
+      "hide_call": "Ocultar chamada",
+      "members_load_failed": "Não foi possível carregar os membros do canal.",
+      "members_refresh_failed": "Não foi possível atualizar os membros do canal."
     },
     "title": {
       "direct_message": "Mensagem direta"
@@ -208,6 +210,10 @@
       "left_room": "saiu da sala",
       "archived_room": "arquivou a sala",
       "unarchived_room": "restaurou a sala"
+    },
+    "system_defaults": {
+      "announcements_description": "Anúncios e novidades",
+      "general_description": "Conversa geral"
     }
   }
 }

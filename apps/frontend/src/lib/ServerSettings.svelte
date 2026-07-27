@@ -14,6 +14,7 @@
     type ServerStateAPIConfig
   } from '$lib/api-client/serverState';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   import { Panel } from '$lib/components/admin';
   import { TextInput, TextArea, Button, Checkbox } from '$lib/ui/form';
@@ -152,7 +153,7 @@
       logoUrl = profile.logoUrl ?? null;
       toast.success(m['server_settings.logo_uploaded']());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : m['server_settings.logo_upload_failed']());
+      toast.error(localizedErrorMessage(e, m['server_settings.logo_upload_failed']()));
     } finally {
       uploadingLogo = false;
       if (logoFileInput) logoFileInput.value = '';
@@ -181,7 +182,7 @@
       logoUrl = profile.logoUrl ?? null;
       toast.success(m['server_settings.logo_removed']());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : m['server_settings.logo_delete_failed']());
+      toast.error(localizedErrorMessage(e, m['server_settings.logo_delete_failed']()));
     } finally {
       deletingLogo = false;
     }
@@ -205,7 +206,7 @@
       bannerUrl = profile.bannerUrl ?? null;
       toast.success(m['server_settings.banner_uploaded']());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : m['server_settings.banner_upload_failed']());
+      toast.error(localizedErrorMessage(e, m['server_settings.banner_upload_failed']()));
     } finally {
       uploadingBanner = false;
       if (bannerFileInput) bannerFileInput.value = '';
@@ -234,7 +235,7 @@
       bannerUrl = profile.bannerUrl ?? null;
       toast.success(m['server_settings.banner_removed']());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : m['server_settings.banner_delete_failed']());
+      toast.error(localizedErrorMessage(e, m['server_settings.banner_delete_failed']()));
     } finally {
       deletingBanner = false;
     }

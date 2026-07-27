@@ -180,6 +180,19 @@
     "screen_share_frame_rate_standard": "Stable · jusqu’à 30 FPS",
     "screen_share_frame_rate_high": "Mouvement fluide · jusqu’à 60 FPS",
     "screen_share_frame_rate_unavailable": "La haute fréquence d’images n’est pas disponible dans ce navigateur",
-    "screen_stats_local_only": "Métriques locales · historique de 60 secondes · aucun envoi de données"
+    "screen_stats_local_only": "Métriques locales · historique de 60 secondes · aucun envoi de données",
+    "push": {
+      "channel_title": "{actor} a démarré un appel",
+      "private_title": "{actor} vous appelle",
+      "unknown_channel_title": "Un appel a démarré",
+      "unknown_private_title": "Appel entrant",
+      "channel_body": "Dans #{room}",
+      "private_body": "Conversation privée",
+      "view_room": "Voir le salon",
+      "view_conversation": "Voir la conversation",
+      "join": "Rejoindre",
+      "channel_body_unknown": "Ouvrez Towk pour voir l’appel"
+    },
+    "jitter_value": "{milliseconds} ms"
   }
 }

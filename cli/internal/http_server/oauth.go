@@ -65,42 +65,27 @@ func (s *HTTPServer) setupOAuthRoutes() {
 		state := c.Query("state")
 
 		if responseType != "code" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "unsupported_response_type",
-				"error_description": "Only response_type=code is supported",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "unsupported_response_type", "oauth.response_type_code_only")
 			return
 		}
 
 		if redirectURI == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "redirect_uri is required",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.redirect_uri_required")
 			return
 		}
 
 		if codeChallenge == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "code_challenge is required (PKCE)",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.code_challenge_required")
 			return
 		}
 
 		if codeChallengeMethod != "S256" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "code_challenge_method must be S256",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.code_challenge_method_s256")
 			return
 		}
 
 		if !s.isAllowedOAuthRedirectURI(redirectURI) {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "Invalid redirect_uri: must use an allowed HTTPS origin or localhost",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.redirect_uri_allowed")
 			return
 		}
 
@@ -155,27 +140,18 @@ func (s *HTTPServer) setupOAuthRoutes() {
 			req.RedirectURI = c.PostForm("redirect_uri")
 		} else {
 			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error":             "invalid_request",
-					"error_description": "Invalid request body",
-				})
+				writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.invalid_request_body")
 				return
 			}
 		}
 
 		if req.GrantType != "authorization_code" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "unsupported_grant_type",
-				"error_description": "Only grant_type=authorization_code is supported",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "unsupported_grant_type", "oauth.grant_type_code_only")
 			return
 		}
 
 		if req.Code == "" || req.CodeVerifier == "" || req.RedirectURI == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error":             "invalid_request",
-				"error_description": "code, code_verifier, and redirect_uri are required",
-			})
+			writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.code_fields_required")
 			return
 		}
 
@@ -185,25 +161,22 @@ func (s *HTTPServer) setupOAuthRoutes() {
 		if err != nil {
 			status := http.StatusBadRequest
 			oauthErr := "invalid_grant"
-			desc := err.Error()
+			descriptionKey := "oauth.exchange_failed"
 
 			switch err {
 			case core.ErrAuthCodeNotFound:
-				desc = "Authorization code is invalid or has expired"
+				descriptionKey = "oauth.authorization_code_invalid"
 			case core.ErrAuthCodeInvalidVerifier:
-				desc = "PKCE code_verifier does not match code_challenge"
+				descriptionKey = "oauth.verifier_mismatch"
 			case core.ErrAuthCodeRedirectMismatch:
-				desc = "redirect_uri does not match the authorization request"
+				descriptionKey = "oauth.redirect_mismatch"
 			default:
 				status = http.StatusInternalServerError
 				oauthErr = "server_error"
 				log.Error("OAuth token exchange failed", "error", err)
 			}
 
-			c.JSON(status, gin.H{
-				"error":             oauthErr,
-				"error_description": desc,
-			})
+			writeLocalizedOAuthError(c, status, oauthErr, descriptionKey)
 			return
 		}
 
@@ -231,18 +204,18 @@ func (s *HTTPServer) setupOAuthRoutes() {
 			return
 		}
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			writeLocalizedError(c, http.StatusUnauthorized, "auth.authentication_required")
 			return
 		}
 
 		params, err := readPendingOAuthAuthorize(sessions.Default(c))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No pending authorization request"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.pending_request_missing")
 			return
 		}
 		redirectOrigin, ok := s.allowedOAuthRedirectOrigin(params.RedirectURI)
 		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid redirect_uri"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.redirect_uri_invalid")
 			return
 		}
 
@@ -259,25 +232,25 @@ func (s *HTTPServer) setupOAuthRoutes() {
 			return
 		}
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			writeLocalizedError(c, http.StatusUnauthorized, "auth.authentication_required")
 			return
 		}
 
 		params, err := readPendingOAuthAuthorize(sessions.Default(c))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No pending authorization request"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.pending_request_missing")
 			return
 		}
 		redirectOrigin, ok := s.allowedOAuthRedirectOrigin(params.RedirectURI)
 		if !ok {
 			clearPendingOAuthAuthorize(sessions.Default(c))
 			_ = sessions.Default(c).Save()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid redirect_uri"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.redirect_uri_invalid")
 			return
 		}
 		if err := s.core.GrantOAuthConsent(c.Request.Context(), credential.auth.UserID, redirectOrigin); err != nil {
 			log.Error("Failed to record OAuth consent grant", "error", err, "userId", credential.auth.UserID)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record consent"})
+			writeLocalizedError(c, http.StatusInternalServerError, "oauth.consent_record_failed")
 			return
 		}
 
@@ -295,14 +268,14 @@ func (s *HTTPServer) setupOAuthRoutes() {
 			return
 		}
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			writeLocalizedError(c, http.StatusUnauthorized, "auth.authentication_required")
 			return
 		}
 
 		session := sessions.Default(c)
 		params, err := readPendingOAuthAuthorize(session)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No pending authorization request"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.pending_request_missing")
 			return
 		}
 		redirectOrigin, ok := s.allowedOAuthRedirectOrigin(params.RedirectURI)
@@ -311,18 +284,18 @@ func (s *HTTPServer) setupOAuthRoutes() {
 			log.Warn("Failed to clear denied OAuth authorize session", "error", saveErr)
 		}
 		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid redirect_uri"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.redirect_uri_invalid")
 			return
 		}
 		if err := s.core.RecordOAuthConsentDenied(c.Request.Context(), credential.auth.UserID, redirectOrigin); err != nil {
 			log.Error("Failed to record OAuth consent denial", "error", err, "userId", credential.auth.UserID)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record consent denial"})
+			writeLocalizedError(c, http.StatusInternalServerError, "oauth.consent_denial_record_failed")
 			return
 		}
 
-		redirectURL, err := oauthErrorRedirectURL(params.RedirectURI, params.State, "access_denied", "The user denied the authorization request")
+		redirectURL, err := oauthErrorRedirectURL(params.RedirectURI, params.State, "access_denied", localizedText(c, "oauth.user_denied"))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid redirect_uri"})
+			writeLocalizedError(c, http.StatusBadRequest, "oauth.redirect_uri_invalid")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"redirectUrl": redirectURL})
@@ -381,27 +354,18 @@ func clearPendingOAuthAuthorize(session sessions.Session) {
 func (s *HTTPServer) continueOAuthAuthorize(c *gin.Context, userID string, authGeneration uint64) {
 	params, err := readPendingOAuthAuthorize(sessions.Default(c))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "No pending authorization request",
-		})
+		writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.pending_request_missing")
 		return
 	}
 	redirectOrigin, ok := s.allowedOAuthRedirectOrigin(params.RedirectURI)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid redirect_uri",
-		})
+		writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.redirect_uri_invalid")
 		return
 	}
 	consented, err := s.core.HasOAuthConsent(c.Request.Context(), userID, redirectOrigin)
 	if err != nil {
 		log.Error("Failed to check OAuth consent", "error", err, "userId", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Failed to check OAuth consent",
-		})
+		writeLocalizedOAuthError(c, http.StatusInternalServerError, "server_error", "oauth.consent_check_failed")
 		return
 	}
 	if !consented {
@@ -432,10 +396,7 @@ func (s *HTTPServer) completeOAuthAuthorizeURL(c *gin.Context, userID string, au
 	session.Save()
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "No pending authorization request",
-		})
+		writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.pending_request_missing")
 		return "", false
 	}
 
@@ -443,20 +404,14 @@ func (s *HTTPServer) completeOAuthAuthorizeURL(c *gin.Context, userID string, au
 	code, err := s.core.CreateAuthCodeForGeneration(ctx, userID, params.RedirectURI, params.CodeChallenge, params.CodeChallengeMethod, authGeneration)
 	if err != nil {
 		log.Error("Failed to create authorization code", "error", err, "userId", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":             "server_error",
-			"error_description": "Failed to generate authorization code",
-		})
+		writeLocalizedOAuthError(c, http.StatusInternalServerError, "server_error", "oauth.authorization_code_failed")
 		return "", false
 	}
 
 	// Build redirect URL with code and state
 	u, err := url.Parse(params.RedirectURI)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":             "invalid_request",
-			"error_description": "Invalid redirect_uri",
-		})
+		writeLocalizedOAuthError(c, http.StatusBadRequest, "invalid_request", "oauth.redirect_uri_invalid")
 		return "", false
 	}
 
@@ -599,5 +554,5 @@ func oauthErrorRedirectURL(redirectURI, state, code, description string) (string
 func setOAuthTokenCORS(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("Access-Control-Allow-Methods", "POST, OPTIONS")
-	c.Header("Access-Control-Allow-Headers", "Content-Type")
+	c.Header("Access-Control-Allow-Headers", "Content-Type, "+towkLocaleHeader)
 }

@@ -82,9 +82,9 @@
       "reconnecting": "Netzwerk verfügbar. Towk verbindet sich erneut…"
     },
     "outbox": {
-      "pending_title": "{count} Nachricht(en) warten",
+      "pending_title": "Wartende Nachrichten: {count}",
       "pending_message": "Auf diesem Gerät verschlüsselt und wird automatisch gesendet, sobald dies möglich ist.",
-      "attention_title": "{count} Nachricht(en) benötigen Aufmerksamkeit",
+      "attention_title": "Zu prüfende Nachrichten: {count}",
       "attention_message": "Neu verbinden oder erneut versuchen, um die Zustellung abzuschließen.",
       "retry": "Jetzt erneut versuchen",
       "manage": "Verwalten",
@@ -94,7 +94,10 @@
       "attachment_only": "Nachricht mit Anhängen",
       "voice_message": "Sprachnachricht",
       "unsupported_server": "Dieser Server kann die Nachricht nicht sicher automatisch erneut senden. Behalte oder verwerfe sie hier.",
-      "discard": "Verwerfen"
+      "discard": "Verwerfen",
+      "error_authentication": "Melde dich erneut bei diesem Server an, bevor du es noch einmal versuchst.",
+      "error_permanent": "Der Server hat diese Nachricht abgelehnt. Prüfe sie vor einem erneuten Versuch oder verwirf sie.",
+      "error_retry_limit": "Die automatischen Versuche sind ausgeschöpft. Versuche es bei stabiler Verbindung manuell erneut."
     },
     "cached_timeline": "Der verschlüsselte Verlauf dieses Geräts wird während der Wiederverbindung angezeigt.",
     "corresponding_source": "Zugehörigen Towk-Quellcode für {version} anzeigen",

@@ -1,6 +1,6 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "welcome": {
-    "verified": "Su correo electrónico ha sido verificado y su cuenta está lista."
+    "verified": "Tu correo electrónico ha sido verificado y tu cuenta está lista."
   }
 }

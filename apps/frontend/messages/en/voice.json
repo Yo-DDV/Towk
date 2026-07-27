@@ -180,6 +180,19 @@
     "screen_share_frame_rate_standard": "Stable · up to 30 FPS",
     "screen_share_frame_rate_high": "High motion · up to 60 FPS",
     "screen_share_frame_rate_unavailable": "High frame rate is unavailable in this browser",
-    "screen_stats_local_only": "Local metrics · 60-second history · nothing is uploaded"
+    "screen_stats_local_only": "Local metrics · 60-second history · nothing is uploaded",
+    "push": {
+      "channel_title": "{actor} started a call",
+      "private_title": "{actor} is calling you",
+      "unknown_channel_title": "A call started",
+      "unknown_private_title": "Incoming call",
+      "channel_body": "In #{room}",
+      "private_body": "Private conversation",
+      "view_room": "View room",
+      "view_conversation": "View conversation",
+      "join": "Join",
+      "channel_body_unknown": "Open Towk to view the call"
+    },
+    "jitter_value": "{milliseconds} ms"
   }
 }

@@ -22,6 +22,7 @@
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const connection = useConnection();
 
@@ -112,6 +113,33 @@
     return largest;
   });
 
+  function localizedStreamDescription(name: string): string | null {
+    switch (name) {
+      case 'ENCRYPTION_KEYS':
+        return m['admin.system.stream_descriptions.encryption_keys']();
+      case 'RUNTIME_STATE':
+        return m['admin.system.stream_descriptions.runtime_state']();
+      case 'MEMORY_CACHE':
+        return m['admin.system.stream_descriptions.memory_cache']();
+      case 'ASSET_CACHE':
+        return m['admin.system.stream_descriptions.asset_cache']();
+      case 'LINK_PREVIEW_ASSETS':
+        return m['admin.system.stream_descriptions.link_preview_assets']();
+      case 'SERVER_ASSETS':
+        return m['admin.system.stream_descriptions.server_assets']();
+      case 'EVT':
+        return m['admin.system.stream_descriptions.event_log']();
+      default:
+        return null;
+    }
+  }
+
+  function localizedStreamStorage(storage: string): string {
+    if (storage === 'File') return m['admin.system.account_storage']();
+    if (storage === 'Memory') return m['admin.system.account_memory']();
+    return m['admin.system.performance_source_unknown']();
+  }
+
   function apiConfig() {
     const conn = connection();
     return {
@@ -126,7 +154,7 @@
     try {
       systemInfo = await getAdminSystemInfo(apiConfig());
     } catch (err) {
-      error = err instanceof Error ? err.message : String(err);
+      error = localizedErrorMessage(err, m['admin.system.load_failed']());
       systemInfo = null;
     } finally {
       loading = false;
@@ -734,13 +762,14 @@
               <th class="px-4 py-3 font-medium">{m['admin.system.replicas']()}</th>
             {/snippet}
             {#snippet row(stream)}
+              {@const description = localizedStreamDescription(stream.name)}
               <td class="px-4 py-3">
                 <div class="font-medium">{stream.name}</div>
-                {#if stream.description}
-                  <div class="text-xs text-muted">{stream.description}</div>
+                {#if description}
+                  <div class="text-xs text-muted">{description}</div>
                 {/if}
               </td>
-              <td class="px-4 py-3">{stream.storage}</td>
+              <td class="px-4 py-3">{localizedStreamStorage(stream.storage)}</td>
               <td class="px-4 py-3 font-mono text-sm">{formatNumber(stream.messages)}</td>
               <td class="px-4 py-3 font-mono text-sm">{formatBytes(stream.bytes)}</td>
               <td class="px-4 py-3 font-mono text-sm">{formatNumber(stream.consumerCount)}</td>
@@ -811,9 +840,13 @@
               </td>
               <td class="px-4 py-3 font-mono text-sm">{formatNumber(consumer.redelivered)}</td>
               <td class="px-4 py-3 whitespace-nowrap">
-                <div class="font-mono text-sm">stream {consumer.ackFloorStreamSequence}</div>
+                <div class="font-mono text-sm">
+                  {m['admin.system.stream']()}
+                  {consumer.ackFloorStreamSequence}
+                </div>
                 <div class="font-mono text-xs text-muted">
-                  consumer {consumer.ackFloorConsumerSequence}
+                  {m['admin.system.consumer']()}
+                  {consumer.ackFloorConsumerSequence}
                 </div>
               </td>
             {/snippet}
@@ -882,7 +915,9 @@
                   {formatBytes(projection.estimatedBytes)}
                 </div>
                 <div class="text-xs whitespace-nowrap text-muted">
-                  {formatBytes(projection.averageEntryBytes)} avg
+                  {m['admin.system.average_message_size']({
+                    size: formatBytes(projection.averageEntryBytes)
+                  })}
                 </div>
               </td>
             {/snippet}

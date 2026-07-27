@@ -11,6 +11,7 @@
   import { getUserSettings } from '$lib/state/userSettings.svelte';
   import { formatDateTime as formatDateTimeUtil } from '$lib/utils/formatTime';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const userSettings = getUserSettings();
 
@@ -84,9 +85,7 @@
         </Panel>
       {/if}
     {:catch err}
-      <Hint tone="danger"
-        >{err instanceof Error ? err.message : m['admin.event_log.unavailable']()}</Hint
-      >
+      <Hint tone="danger">{localizedErrorMessage(err, m['admin.event_log.unavailable']())}</Hint>
     {/await}
   </div>
 </div>

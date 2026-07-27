@@ -3,6 +3,7 @@
   import { resolve } from '$app/paths';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedJSONHeaders } from '$lib/auth/localizedRequest';
   import Hint from '$lib/ui/Hint.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { TextInput, FormError, Button, z, validate } from '$lib/ui/form';
@@ -42,7 +43,7 @@
     try {
       const response = await fetch('/auth/reset-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: localizedJSONHeaders(),
         body: JSON.stringify({ token, password })
       });
 
@@ -57,8 +58,8 @@
       const url = resolve('/login') + '?reset=success';
       // eslint-disable-next-line svelte/no-navigation-without-resolve -- url is resolved above
       goto(url);
-    } catch (err) {
-      error = err instanceof Error ? err.message : m['common.error.network']();
+    } catch {
+      error = m['common.error.network']();
     } finally {
       isLoading = false;
     }
