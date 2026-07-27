@@ -10,8 +10,9 @@ nav, …) are passed in via the `children` snippet by `Chrome.svelte`.
 See the "UI" section of `docs/GLOSSARY.md`.
 -->
 <script lang="ts">
-  import type { Snippet } from 'svelte';
+  import { onMount, type Snippet } from 'svelte';
   import { SIDEBAR_PANEL_WIDTH_PX, sidebarSwipe } from '$lib/hooks/useSidebarSwipe.svelte';
+  import { getServerSidebarMaxWidth } from '$lib/layout/serverSidebarSizing';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverSidebarWidth } from '$lib/state/serverSidebarWidth.svelte';
   import {
@@ -35,6 +36,10 @@ See the "UI" section of `docs/GLOSSARY.md`.
     mobileWidth?: string;
   } = $props();
 
+  let viewportWidth = $state(0);
+  let viewportHeight = $state(0);
+  let hasCoarsePointer = $state(false);
+
   // On mobile the panel slides as a single unit with the Server Gutter — both
   // apply the same translateX driven by `sidebarNav.progress`. On desktop the
   // sidebar toggles via `hidden`/`flex` (no overlay; layout reflows).
@@ -42,6 +47,42 @@ See the "UI" section of `docs/GLOSSARY.md`.
   const dragging = $derived(sidebarNav.dragOffset !== null);
   const mobileClosed = $derived(sidebarNav.isMobile && sidebarNav.progress === 0 && !dragging);
   const resizable = $derived(!width);
+  const effectiveMaxWidth = $derived(
+    getServerSidebarMaxWidth({
+      width: viewportWidth,
+      height: viewportHeight,
+      hasCoarsePointer
+    })
+  );
+  const renderedWidth = $derived(Math.min(serverSidebarWidth.value, effectiveMaxWidth));
+
+  onMount(() => {
+    const coarsePointerQuery = window.matchMedia('(any-pointer: coarse)');
+
+    const syncViewport = () => {
+      viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+      hasCoarsePointer = coarsePointerQuery.matches;
+    };
+
+    syncViewport();
+    window.addEventListener('resize', syncViewport);
+
+    if (typeof coarsePointerQuery.addEventListener === 'function') {
+      coarsePointerQuery.addEventListener('change', syncViewport);
+    } else {
+      coarsePointerQuery.addListener(syncViewport);
+    }
+
+    return () => {
+      window.removeEventListener('resize', syncViewport);
+      if (typeof coarsePointerQuery.removeEventListener === 'function') {
+        coarsePointerQuery.removeEventListener('change', syncViewport);
+      } else {
+        coarsePointerQuery.removeListener(syncViewport);
+      }
+    };
+  });
 </script>
 
 <div
@@ -68,16 +109,16 @@ See the "UI" section of `docs/GLOSSARY.md`.
     !dragging && 'sidebar-mobile-anim',
     resizable && 'server-sidebar--resizable'
   ]}
-  style:--server-sidebar-width={resizable ? `${serverSidebarWidth.value}px` : undefined}
+  style:--server-sidebar-width={resizable ? `${renderedWidth}px` : undefined}
   style:transform={sidebarNav.isMobile ? `translateX(${tx}px)` : undefined}
 >
   {@render children()}
   <CurrentUserBar />
   {#if resizable && !sidebarNav.isMobile}
     <ResizeHandle
-      width={serverSidebarWidth.value}
+      width={renderedWidth}
       min={SERVER_SIDEBAR_MIN_WIDTH}
-      max={SERVER_SIDEBAR_MAX_WIDTH}
+      max={effectiveMaxWidth || SERVER_SIDEBAR_MAX_WIDTH}
       onResize={(w) => serverSidebarWidth.set(w)}
       onReset={() => serverSidebarWidth.reset()}
       label={m['ui.resize_handle.resize_sidebar']()}
@@ -89,6 +130,14 @@ See the "UI" section of `docs/GLOSSARY.md`.
   @media (min-width: 768px) {
     .server-sidebar--resizable {
       width: var(--server-sidebar-width);
+    }
+  }
+
+  /* Prevent a pre-hydration flash of the persisted 480 px desktop width on a
+     Fold-like touch viewport. Runtime sizing uses the same geometry contract. */
+  @media (min-width: 768px) and (max-width: 1100px) and (min-aspect-ratio: 4/5) and (max-aspect-ratio: 5/4) and (any-pointer: coarse) {
+    .server-sidebar--resizable {
+      max-width: clamp(16rem, 38vw, 22.5rem);
     }
   }
 </style>
