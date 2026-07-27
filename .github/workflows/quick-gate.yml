@@ -77,3 +77,55 @@ jobs:
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
+
+  pr173-terminal-finalize:
+    name: pr173-terminal-finalize
+    if: github.event.pull_request.head.ref == 'feat/read-receipts'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Execute terminal finalizer payload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR173_DESIGN_BASE: b9f61f1b28608784c1e1ed1e2232131e681a12b3
+          PR173_FEATURE_SOURCE: f07456ce30c48fd35d63fcc9d3480b5792f40cfa
+          PR173_EXPECTED_MAIN: d277c59d2ebb16d076de6ae793e4679251be38b4
+          TARGET_BRANCH: feat/read-receipts
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/read-receipts-terminal-finalize.yml')
+          lines = workflow.read_text(encoding='utf-8').splitlines()
+          marker = '        run: |'
+          try:
+              index = lines.index(marker)
+          except ValueError as exc:
+              raise SystemExit('terminal finalizer run block was not found') from exc
+          body = []
+          for line in lines[index + 1:]:
+              if line.startswith('          '):
+                  body.append(line[10:])
+              elif not line:
+                  body.append('')
+              else:
+                  raise SystemExit(f'unexpected line outside terminal run block: {line!r}')
+          target = Path('/tmp/pr173-terminal-finalize.sh')
+          target.write_text('\n'.join(body) + '\n', encoding='utf-8')
+          PY
+          chmod +x /tmp/pr173-terminal-finalize.sh
+          bash -x /tmp/pr173-terminal-finalize.sh
