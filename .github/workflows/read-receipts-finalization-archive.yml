@@ -117,7 +117,20 @@ jobs:
           '''
           if source.count(needle) != 1:
               raise SystemExit(f'expected one reconstruction command, got {source.count(needle)}')
-          path.write_text(source.replace(needle, inserted, 1), encoding='utf-8')
+          source = source.replace(needle, inserted, 1)
+
+          old_contract = """              for forbidden in ('user_id =', 'event_id =', 'event_sequence =', 'read_at ='):
+                  assert forbidden not in event
+"""
+          new_contract = """              for forbidden in ('user_id', 'event_id', 'event_sequence', 'read_at'):
+                  assert f' {forbidden} =' not in event
+"""
+          if source.count(old_contract) != 1:
+              raise SystemExit(
+                  f'expected one realtime privacy assertion block, got {source.count(old_contract)}'
+              )
+          source = source.replace(old_contract, new_contract, 1)
+          path.write_text(source, encoding='utf-8')
           PY
           chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
           set +e
