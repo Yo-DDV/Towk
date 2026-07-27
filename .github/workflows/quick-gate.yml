@@ -114,6 +114,32 @@ jobs:
 
           path = Path(os.environ['RUNNER_TEMP']) / 'pr173-final-clean.sh'
           source = path.read_text(encoding='utf-8')
+
+          index_marker = "provider_path.write_text(provider, encoding='utf-8')\nPYFIX"
+          index_patch = '''provider_path.write_text(provider, encoding='utf-8')
+
+fdr_index_path = Path('docs/fdr/INDEX.md')
+fdr_index = fdr_index_path.read_text(encoding='utf-8')
+fdr_row = '| [FDR-031](FDR-031-read-receipts.md) | Privacy-Aware Read Receipts | Active | 2026-07-27 |'
+if 'FDR-031-read-receipts.md' not in fdr_index:
+    rows = fdr_index.splitlines()
+    insert_at = next((index + 1 for index, row in enumerate(rows) if 'FDR-030-external-gif-embeds.md' in row), len(rows))
+    rows.insert(insert_at, fdr_row)
+    fdr_index_path.write_text('\\n'.join(rows) + '\\n', encoding='utf-8')
+
+adr_index_path = Path('docs/adr/INDEX.md')
+adr_index = adr_index_path.read_text(encoding='utf-8')
+adr_row = '| [ADR-055](ADR-055-read-receipt-publication-boundary.md) | Read-Receipt Publication Boundary | 2026-07-27 |'
+if 'ADR-055-read-receipt-publication-boundary.md' not in adr_index:
+    rows = adr_index.splitlines()
+    insert_at = next((index + 1 for index, row in enumerate(rows) if 'ADR-054-provider-hosted-external-gif-embeds.md' in row), len(rows))
+    rows.insert(insert_at, adr_row)
+    adr_index_path.write_text('\\n'.join(rows) + '\\n', encoding='utf-8')
+PYFIX'''
+          if source.count(index_marker) != 1:
+              raise SystemExit('expected one decision-index insertion point')
+          source = source.replace(index_marker, index_patch, 1)
+
           start = "inserted = '''python3 \"${RUNNER_TEMP}/pr173-reconstruct.py\""
           end = "PYFIX\n'''\nif source.count(needle)"
           if source.count(start) != 1 or source.count(end) != 1:
