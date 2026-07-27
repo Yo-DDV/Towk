@@ -14,6 +14,9 @@ describe('getServerSidebarMaxWidth', () => {
       getServerSidebarMaxWidth({ width: 1000, height: 1000, hasCoarsePointer: true })
     ).toBe(FOLD_LIKE_SIDEBAR_MAX_WIDTH);
     expect(
+      getServerSidebarMaxWidth({ width: 1176, height: 1176, hasCoarsePointer: true })
+    ).toBe(FOLD_LIKE_SIDEBAR_MAX_WIDTH);
+    expect(
       getServerSidebarMaxWidth({ width: 768, height: 960, hasCoarsePointer: true })
     ).toBe(288);
   });
@@ -38,7 +41,7 @@ describe('getServerSidebarMaxWidth', () => {
       getServerSidebarMaxWidth({ width: 767, height: 767, hasCoarsePointer: true })
     ).toBe(SERVER_SIDEBAR_MAX_WIDTH);
     expect(
-      getServerSidebarMaxWidth({ width: 1101, height: 1101, hasCoarsePointer: true })
+      getServerSidebarMaxWidth({ width: 1281, height: 1281, hasCoarsePointer: true })
     ).toBe(SERVER_SIDEBAR_MAX_WIDTH);
   });
 
