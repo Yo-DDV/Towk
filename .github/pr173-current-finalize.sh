@@ -43,27 +43,36 @@ python3 - <<'PYFIX'
 from pathlib import Path
 import re
 
-expected_counts = {
-    'apps/frontend/src/lib/api-client/account.ts': 2,
-    'apps/frontend/src/lib/api-client/viewer.ts': 1,
-    'apps/frontend/src/lib/eventBus.svelte.ts': 2,
-}
-declaration_pattern = re.compile(r'(readReceiptsEnabled\\??:\\s*boolean;),')
-for name, expected_count in expected_counts.items():
+declaration_pattern = re.compile(r'(readReceiptsEnabled\??:\s*boolean;),')
+for name in (
+    'apps/frontend/src/lib/api-client/account.ts',
+    'apps/frontend/src/lib/api-client/viewer.ts',
+    'apps/frontend/src/lib/eventBus.svelte.ts',
+):
     file_path = Path(name)
     text = file_path.read_text(encoding='utf-8')
-    corrected, count = declaration_pattern.subn(lambda match: match.group(1), text)
-    if count != expected_count:
-        raise SystemExit(
-            f'{name}: expected {expected_count} malformed merged declarations, got {count}'
-        )
+    corrected = declaration_pattern.sub(lambda match: match.group(1), text)
+    if declaration_pattern.search(corrected):
+        raise SystemExit(f'{name}: malformed merged declaration remains')
     file_path.write_text(corrected, encoding='utf-8')
 
 def replace_message(path_name: str, message_name: str, replacement: str) -> None:
     file_path = Path(path_name)
     text = file_path.read_text(encoding='utf-8')
     start = text.index(f'message {message_name} {{')
-    end = text.index(chr(10) + '}', start) + 2
+    depth = 0
+    end = None
+    for index in range(start, len(text)):
+        char = text[index]
+        if char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                end = index + 1
+                break
+    if end is None:
+        raise SystemExit(f'{path_name}: unterminated message {message_name}')
     file_path.write_text(text[:start] + replacement + text[end:], encoding='utf-8')
 
 replace_message(
@@ -90,6 +99,44 @@ replace_message(
   optional string thread_root_event_id = 2;
 }''',
 )
+
+profile_path = Path('apps/frontend/src/lib/components/settings/ProfileDetailsSettings.svelte')
+profile = profile_path.read_text(encoding='utf-8')
+profile_old = '''          settings: {
+            timezone: currentUser.user.settings?.timezone ?? null,
+            timeFormat: currentUser.user.settings?.timeFormat ?? settings.timeFormat,
+            showLastActivity: settings.showLastActivity
+          }'''
+profile_new = '''          settings: {
+            timezone: currentUser.user.settings?.timezone ?? null,
+            timeFormat: currentUser.user.settings?.timeFormat ?? settings.timeFormat,
+            showLastActivity: settings.showLastActivity,
+            readReceiptsEnabled: currentUser.user.settings?.readReceiptsEnabled ?? true
+          }'''
+if profile_old in profile:
+    profile = profile.replace(profile_old, profile_new, 1)
+elif 'readReceiptsEnabled: currentUser.user.settings?.readReceiptsEnabled ?? true' not in profile:
+    raise SystemExit('ProfileDetailsSettings: expected combined privacy settings block was not found')
+profile_path.write_text(profile, encoding='utf-8')
+
+provider_path = Path('apps/frontend/src/routes/chat/AuthenticatedChatProvider.svelte')
+provider = provider_path.read_text(encoding='utf-8')
+provider_old = '''          settings: {
+            timezone: update.timezone,
+            timeFormat: update.timeFormat,
+            showLastActivity: update.showLastActivity
+          }'''
+provider_new = '''          settings: {
+            timezone: update.timezone,
+            timeFormat: update.timeFormat,
+            showLastActivity: update.showLastActivity,
+            readReceiptsEnabled: update.readReceiptsEnabled
+          }'''
+if provider_old in provider:
+    provider = provider.replace(provider_old, provider_new, 1)
+elif 'readReceiptsEnabled: update.readReceiptsEnabled' not in provider:
+    raise SystemExit('AuthenticatedChatProvider: expected combined settings block was not found')
+provider_path.write_text(provider, encoding='utf-8')
 PYFIX
 '''
 if source.count(needle) != 1:
@@ -97,10 +144,10 @@ if source.count(needle) != 1:
 source = source.replace(needle, inserted, 1)
 
 old_contract = """              for forbidden in ('user_id =', 'event_id =', 'event_sequence =', 'read_at ='):
-                  assert forbidden not in event
+                   assert forbidden not in event
 """
 new_contract = """              for forbidden in ('user_id', 'event_id', 'event_sequence', 'read_at'):
-                  assert f' {forbidden} =' not in event
+                   assert f' {forbidden} =' not in event
 """
 if source.count(old_contract) == 1:
     source = source.replace(old_contract, new_contract, 1)
