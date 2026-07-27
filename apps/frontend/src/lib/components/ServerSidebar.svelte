@@ -15,10 +15,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
   import { getServerSidebarMaxWidth } from '$lib/layout/serverSidebarSizing';
   import { sidebarNav } from '$lib/state/globals.svelte';
   import { serverSidebarWidth } from '$lib/state/serverSidebarWidth.svelte';
-  import {
-    SERVER_SIDEBAR_MAX_WIDTH,
-    SERVER_SIDEBAR_MIN_WIDTH
-  } from '$lib/storage/serverSidebarWidth';
+  import { SERVER_SIDEBAR_MIN_WIDTH } from '$lib/storage/serverSidebarWidth';
   import * as m from '$lib/i18n/messages';
   import CurrentUserBar from './CurrentUserBar.svelte';
   import ResizeHandle from './ResizeHandle.svelte';
@@ -118,7 +115,7 @@ See the "UI" section of `docs/GLOSSARY.md`.
     <ResizeHandle
       width={renderedWidth}
       min={SERVER_SIDEBAR_MIN_WIDTH}
-      max={effectiveMaxWidth || SERVER_SIDEBAR_MAX_WIDTH}
+      max={effectiveMaxWidth}
       onResize={(w) => serverSidebarWidth.set(w)}
       onReset={() => serverSidebarWidth.reset()}
       label={m['ui.resize_handle.resize_sidebar']()}
@@ -135,7 +132,8 @@ See the "UI" section of `docs/GLOSSARY.md`.
 
   /* Prevent a pre-hydration flash of the persisted 480 px desktop width on a
      Fold-like touch viewport. Runtime sizing uses the same geometry contract. */
-  @media (min-width: 768px) and (max-width: 1100px) and (min-aspect-ratio: 4/5) and (max-aspect-ratio: 5/4) and (any-pointer: coarse) {
+  @media (min-width: 768px) and (max-width: 1280px) and (min-aspect-ratio: 4/5) and
+    (max-aspect-ratio: 5/4) and (any-pointer: coarse) {
     .server-sidebar--resizable {
       max-width: clamp(16rem, 38vw, 22.5rem);
     }
