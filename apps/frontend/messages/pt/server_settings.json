@@ -44,10 +44,6 @@
     "banner_removed": "Banner removido",
     "banner_delete_failed": "Falha ao excluir o banner",
     "banner_change": "Alterar banner",
-    "banner_upload": "Enviar banner",
-    "read_receipts": {
-      "label": "Ativar confirmações de leitura",
-      "description": "Permite que os usuários publiquem e consultem confirmações de leitura em salas e tópicos. O estado privado de não lido continua funcionando quando isto está desativado."
-    }
+    "banner_upload": "Enviar banner"
   }
 }

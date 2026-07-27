@@ -5,7 +5,7 @@
   import * as m from '$lib/i18n/messages';
   import { getLocale } from '$lib/i18n/runtime';
   import type { RoomEventView } from '$lib/render/types';
-  import { isMessagePostedEvent, RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
+  import { isMessagePostedEvent } from '$lib/render/eventKinds';
   import type { MessagesStore, RefreshCurrentWindowResult, RoomMember } from '$lib/state/room';
   import { getComposerContext, getRoomPermissions } from '$lib/state/room';
   import RoomEvent from './RoomEvent.svelte';
@@ -23,11 +23,8 @@
   import { INITIAL_ROOM_MESSAGE_BACKFILL_TARGET } from '$lib/state/room/messages/queries';
   import { formatDayLabel } from '$lib/utils/formatTime';
   import { useTabResumeCallback } from '$lib/hooks/useTabResumeCallback.svelte';
-  import { useConnection } from '$lib/state/server/connection.svelte';
-  import { createReadStateAPI, type ReadReceiptSummary } from '$lib/api-client/readState';
   import { delayedLoadingVisible, MOTION_DURATION, motionDuration } from '$lib/ui/motion.svelte';
   import { useMayHaveMissedMessagesCallback } from '$lib/hooks/useMayHaveMissedMessagesCallback.svelte';
-  import { useEvent } from '$lib/hooks/useEvent.svelte';
   import type { ResumeSignal } from '$lib/hooks/resumeCoordinator.svelte';
   import type { OpenThreadHandler, ThreadOpenOptions } from './threadOpenOptions';
   import { convergeAtBottom } from './bottomScrollConvergence';
@@ -37,11 +34,6 @@
     visibleTombstoneEvents,
     visibleUnreadMarkerEventId
   } from './tombstoneVisibility';
-  import { latestVisibleReadReceiptTarget, visibleMessageEventIds } from './readReceiptVisibility';
-  import {
-    readReceiptSummaryEventIds,
-    withReadReceiptPresentation
-  } from './readReceiptPresentation';
 
   let {
     roomId,
@@ -64,7 +56,6 @@
     onOpenThread,
     // Filtering - whether to filter out thread replies (false for thread pane)
     filterThreadReplies = true,
-    readReceiptThreadRootEventId = null,
     // Up-arrow-to-edit
     enableLastEditableFinder = false,
     // Loading states
@@ -110,7 +101,6 @@
     onOpenThread?: OpenThreadHandler;
     // Filtering
     filterThreadReplies?: boolean;
-    readReceiptThreadRootEventId?: string | null;
     // Up-arrow-to-edit
     enableLastEditableFinder?: boolean;
     // Loading states
@@ -185,7 +175,6 @@
   const composerContext = getComposerContext();
   const scrollState = composerContext.scrollState;
   const userSettings = getUserSettings();
-  const connection = useConnection();
   const activeLocale = $derived(getLocale());
   const firstVisibleDate = $derived(
     firstVisibleAt ? formatDayLabel(firstVisibleAt, userSettings, activeLocale) : null
@@ -212,20 +201,12 @@
     const nowMs = Date.now();
     return visibleTombstoneEvents(timelineEvents, nowMs);
   });
-  let presentedEvents = $derived(withReadReceiptPresentation(filteredEvents));
   let messageEventCount = $derived(
     filteredEvents.filter((event) => isMessagePostedEvent(event.event)).length
   );
   const renderedTimelineRoomId = $derived(renderedRoomId ?? roomId);
   const isCurrentRoomWindowRendered = $derived(renderedTimelineRoomId === roomId);
   const isRoomSwitching = $derived(!isCurrentRoomWindowRendered);
-  const readReceiptTimelineKey = $derived(
-    `${renderedTimelineRoomId}:${readReceiptThreadRootEventId ?? ''}`
-  );
-  let readReceiptSummaries = $state(new Map<string, ReadReceiptSummary>());
-  let readReceiptSummaryRefreshSerial = 0;
-  let readReceiptAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
-  let readReceiptLastAdvancedEventId: string | null = null;
 
   function suspendRoomScrollbar() {
     if (roomRevealTimer) {
@@ -249,14 +230,11 @@
 
     requestAnimationFrame(() => {
       roomRevealActive = true;
-      roomRevealTimer = setTimeout(
-        () => {
-          roomRevealActive = false;
-          roomScrollbarSuspended = false;
-          roomRevealTimer = null;
-        },
-        motionDuration(MOTION_DURATION.expressive) + 40
-      );
+      roomRevealTimer = setTimeout(() => {
+        roomRevealActive = false;
+        roomScrollbarSuspended = false;
+        roomRevealTimer = null;
+      }, motionDuration(MOTION_DURATION.expressive) + 40);
     });
   }
 
@@ -447,7 +425,7 @@
   }
 
   // Apply message grouping and day separators
-  let eventsWithMeta = $derived(computeEventMetadata(presentedEvents, userSettings, activeLocale));
+  let eventsWithMeta = $derived(computeEventMetadata(filteredEvents, userSettings, activeLocale));
 
   // If the marker points at an expired tombstone, move it to the next visible
   // event instead of silently dropping the unread boundary.
@@ -1300,7 +1278,6 @@
     }
 
     previousOffset = offset;
-    scheduleReadReceiptAdvance();
 
     // Track the date of the first visible event for the "Jump to Present" button
     if (!shouldScrollToBottom && virtualizerHandle) {
@@ -1346,111 +1323,6 @@
       return;
     }
   }
-
-  function readReceiptAPI() {
-    const conn = connection();
-    return createReadStateAPI({
-      serverId: conn.serverId ?? getActiveServer(),
-      baseUrl: conn.connectBaseUrl,
-      bearerToken: conn.bearerToken
-    });
-  }
-
-  function renderedMessageEventIds(): string[] {
-    return readReceiptSummaryEventIds(presentedEvents);
-  }
-
-  async function refreshReadReceiptSummaries(): Promise<void> {
-    const ids = renderedMessageEventIds();
-    if (!userSettings.readReceiptsEnabled || ids.length === 0 || isRoomSwitching) {
-      readReceiptSummaries = new Map();
-      return;
-    }
-
-    const serial = ++readReceiptSummaryRefreshSerial;
-    try {
-      const result = await readReceiptAPI().getReadReceiptSummaries({
-        roomId: renderedTimelineRoomId,
-        threadRootEventId: readReceiptThreadRootEventId,
-        messageEventIds: ids
-      });
-      if (serial !== readReceiptSummaryRefreshSerial) return;
-      if (!result.enabled) {
-        readReceiptSummaries = new Map();
-        return;
-      }
-      readReceiptSummaries = new Map(
-        result.summaries.map((summary) => [summary.messageEventId, summary])
-      );
-    } catch {
-      if (serial === readReceiptSummaryRefreshSerial) {
-        readReceiptSummaries = new Map();
-      }
-    }
-  }
-
-  function documentIsReadable(): boolean {
-    if (typeof document === 'undefined') return false;
-    if (document.hidden) return false;
-    return typeof document.hasFocus !== 'function' || document.hasFocus();
-  }
-
-  function scheduleReadReceiptAdvance(): void {
-    if (readReceiptAdvanceTimer) {
-      clearTimeout(readReceiptAdvanceTimer);
-      readReceiptAdvanceTimer = null;
-    }
-    if (!userSettings.readReceiptsEnabled || isRoomSwitching || !documentIsReadable()) return;
-
-    readReceiptAdvanceTimer = setTimeout(async () => {
-      readReceiptAdvanceTimer = null;
-      const targetEventId = latestVisibleReadReceiptTarget(
-        filteredEvents,
-        visibleMessageEventIds(scrollContainer ?? null),
-        currentUser.user?.id ?? null,
-        readReceiptThreadRootEventId
-      );
-      if (!targetEventId || targetEventId === readReceiptLastAdvancedEventId) return;
-
-      readReceiptLastAdvancedEventId = targetEventId;
-      try {
-        await readReceiptAPI().advanceReadReceipt({
-          roomId: renderedTimelineRoomId,
-          threadRootEventId: readReceiptThreadRootEventId,
-          upToEventId: targetEventId
-        });
-      } catch {
-        readReceiptLastAdvancedEventId = null;
-      }
-    }, 450);
-  }
-
-  $effect(() => {
-    void readReceiptTimelineKey;
-    void updateCounter;
-    void messageEventCount;
-    void userSettings.readReceiptsEnabled;
-    void refreshReadReceiptSummaries();
-    scheduleReadReceiptAdvance();
-  });
-
-  useEvent((serverEvent) => {
-    if (roomEventKind(serverEvent.event) !== RoomEventKind.ReadReceiptAdvanced) return;
-    const payload = serverEvent.event as {
-      roomId?: string;
-      threadRootEventId?: string | null;
-      messageEventId?: string;
-    };
-    if (payload.roomId !== renderedTimelineRoomId) return;
-    if ((payload.threadRootEventId ?? null) !== (readReceiptThreadRootEventId ?? null)) return;
-    void refreshReadReceiptSummaries();
-  });
-
-  $effect(() => {
-    return () => {
-      if (readReceiptAdvanceTimer) clearTimeout(readReceiptAdvanceTimer);
-    };
-  });
 
   // Determine if a message can open a thread
   // Root messages open their own thread; echoes open the original thread
@@ -1499,7 +1371,7 @@
   >
     <div
       class={roomRevealActive
-        ? 'timeline-room-reveal mt-auto'
+        ? 'mt-auto timeline-room-reveal'
         : isRoomSwitching
           ? 'timeline-room-carryover'
           : 'mt-auto'}
@@ -1592,8 +1464,6 @@
                   roomId={renderedTimelineRoomId}
                   {messageStore}
                   onOpenThread={getOpenThreadHandler(eventData)}
-                  readReceiptSummary={readReceiptSummaries.get(eventData.id)}
-                  {readReceiptThreadRootEventId}
                 />
               {/if}
             {/if}
@@ -1614,7 +1484,9 @@
       data-testid="timeline-room-switch-mask"
     >
       {#if !hasRoomSwitchCarryOver}
-        <div class="timeline-room-switch-placeholder flex min-h-full flex-col gap-4 px-4 pt-7 pb-6">
+        <div
+          class="timeline-room-switch-placeholder flex min-h-full flex-col gap-4 px-4 pt-7 pb-6"
+        >
           <div class="flex gap-3">
             <div
               class="timeline-room-switch-block timeline-room-switch-avatar mt-1 size-9 shrink-0 rounded-full"
@@ -1654,8 +1526,7 @@
       class="pointer-events-none absolute inset-x-4 top-4 z-20 h-px overflow-hidden rounded-full bg-surface-200/40"
       aria-hidden="true"
     >
-      <span class="timeline-room-switch-progress block h-full w-1/3 rounded-full bg-primary/80"
-      ></span>
+      <span class="timeline-room-switch-progress block h-full w-1/3 rounded-full bg-primary/80"></span>
     </div>
   {/if}
 
@@ -1737,11 +1608,7 @@
   .timeline-room-switch-block {
     opacity: 0.58;
     background:
-      linear-gradient(
-        135deg,
-        color-mix(in srgb, var(--color-surface-200) 74%, transparent),
-        transparent 120%
-      ),
+      linear-gradient(135deg, color-mix(in srgb, var(--color-surface-200) 74%, transparent), transparent 120%),
       color-mix(in srgb, var(--color-surface-100) 82%, var(--color-primary) 6%);
     box-shadow:
       inset 0 0 0 1px color-mix(in srgb, var(--color-text) 4%, transparent),

@@ -102,7 +102,36 @@
       },
       "saved": "Perfil atualizado com sucesso",
       "save_failed": "Falha ao salvar o perfil",
-      "save_button": "Salvar alterações"
+      "save_button": "Salvar alterações",
+      "details": {
+        "load_failed": "Não foi possível carregar os detalhes do perfil.",
+        "biography_title": "Biografia",
+        "biography_description": "Escreva uma biografia curta em Markdown para o seu perfil no servidor (até 1.024 caracteres). HTML bruto e imagens remotas não são apresentados.",
+        "formatting_toolbar": "Formatação da biografia",
+        "bold": "Negrito",
+        "italic": "Itálico",
+        "heading": "Título",
+        "bullet_list": "Lista com marcadores",
+        "numbered_list": "Lista numerada",
+        "quote": "Citação",
+        "link_text": "texto do link",
+        "add_link": "Adicionar link",
+        "inline_code": "Código em linha",
+        "biography_label": "Biografia em Markdown",
+        "biography_placeholder": "Conte aos outros membros um pouco sobre você…",
+        "byte_count": "{used} de {limit} bytes",
+        "preview": "Pré-visualização",
+        "biography_too_large": "A biografia está limitada a 1.024 caracteres e 4 KiB em UTF-8.",
+        "biography_saved": "Biografia salva.",
+        "save_failed": "Não foi possível salvar os detalhes do perfil.",
+        "save_biography": "Salvar biografia",
+        "privacy_title": "Privacidade de atividade",
+        "show_last_activity": "Mostrar minha última atividade",
+        "show_last_activity_description": "Permite que membros autenticados deste servidor vejam o horário da sua última atividade consolidada. Desativar remove o valor armazenado.",
+        "privacy_saved": "Privacidade de atividade salva.",
+        "save_privacy": "Salvar privacidade",
+        "character_count": "{used} de {limit} caracteres"
+      }
     },
     "preferences": {
       "title": "Tela",
@@ -157,13 +186,7 @@
       },
       "save_button": "Salvar configurações de exibição",
       "saved": "Configurações de exibição salvas",
-      "save_failed": "Falha ao salvar as configurações de exibição",
-      "read_receipts": {
-        "title": "Confirmações de leitura",
-        "enabled_label": "Publicar confirmações de leitura",
-        "disabled_label": "Manter confirmações de leitura privadas",
-        "description": "Quando ativado, outros membros podem ver quando leu as mensagens deles, e você pode consultar confirmações nas mensagens às quais tem acesso."
-      }
+      "save_failed": "Falha ao salvar as configurações de exibição"
     },
     "notifications": {
       "title": "Notificações",

@@ -3,7 +3,6 @@ package core
 import (
 	"sort"
 	"strings"
-	"time"
 
 	"hmans.de/chatto/internal/events"
 	configv1 "hmans.de/chatto/internal/pb/chatto/config/v1"
@@ -23,25 +22,22 @@ type ConfigProjection struct {
 }
 
 type serverConfigState struct {
-	serverName               string
-	description              string
-	welcomeMessage           string
-	motd                     string
-	blockedUsernames         *string
-	performancePolicy        *configv1.ServerPerformancePolicy
-	logo                     *corev1.AssetRecord
-	banner                   *corev1.AssetRecord
-	readReceiptsEnabled      *bool
-	readReceiptsEnabledSince time.Time
+	serverName        string
+	description       string
+	welcomeMessage    string
+	motd              string
+	blockedUsernames  *string
+	performancePolicy *configv1.ServerPerformancePolicy
+	logo              *corev1.AssetRecord
+	banner            *corev1.AssetRecord
 }
 
 type userConfigState struct {
-	timezone                 *string
-	timeFormat               *corev1.TimeFormat
-	serverLevel              *corev1.NotificationLevel
-	roomLevelByRoom          map[string]corev1.NotificationLevel
-	readReceiptsEnabled      *bool
-	readReceiptsEnabledSince time.Time
+	timezone         *string
+	timeFormat       *corev1.TimeFormat
+	showLastActivity *bool
+	serverLevel      *corev1.NotificationLevel
+	roomLevelByRoom  map[string]corev1.NotificationLevel
 }
 
 // ServerConfigProjection is kept as a compatibility alias while callers and
@@ -93,28 +89,6 @@ func (p *ConfigProjection) Apply(event *corev1.Event, _ uint64) error {
 		p.server.banner = cloneAssetRecord(e.ServerBannerSet.GetAsset())
 	case *corev1.Event_ServerBannerCleared:
 		p.server.banner = nil
-	case *corev1.Event_ServerReadReceiptsEnabledChanged:
-		enabled := e.ServerReadReceiptsEnabledChanged.GetEnabled()
-		p.server.readReceiptsEnabled = &enabled
-		if enabled && event.GetCreatedAt() != nil {
-			p.server.readReceiptsEnabledSince = event.GetCreatedAt().AsTime().UTC()
-		} else {
-			p.server.readReceiptsEnabledSince = time.Time{}
-		}
-	case *corev1.Event_UserReadReceiptsEnabledChanged:
-		u := p.ensureUserLocked(e.UserReadReceiptsEnabledChanged.GetUserId())
-		enabled := e.UserReadReceiptsEnabledChanged.GetEnabled()
-		u.readReceiptsEnabled = &enabled
-		if enabled && event.GetCreatedAt() != nil {
-			u.readReceiptsEnabledSince = event.GetCreatedAt().AsTime().UTC()
-		} else {
-			u.readReceiptsEnabledSince = time.Time{}
-		}
-	case *corev1.Event_UserReadReceiptsEnabledCleared:
-		userID := e.UserReadReceiptsEnabledCleared.GetUserId()
-		u := p.ensureUserLocked(userID)
-		u.readReceiptsEnabled = nil
-		u.readReceiptsEnabledSince = time.Time{}
 	case *corev1.Event_UserTimezoneChanged:
 		u := p.ensureUserLocked(e.UserTimezoneChanged.GetUserId())
 		tz := e.UserTimezoneChanged.GetTimezone()
@@ -127,6 +101,10 @@ func (p *ConfigProjection) Apply(event *corev1.Event, _ uint64) error {
 		u.timeFormat = &tf
 	case *corev1.Event_UserTimeFormatCleared:
 		p.ensureUserLocked(e.UserTimeFormatCleared.GetUserId()).timeFormat = nil
+	case *corev1.Event_UserLastActivityVisibilityChanged:
+		u := p.ensureUserLocked(e.UserLastActivityVisibilityChanged.GetUserId())
+		value := e.UserLastActivityVisibilityChanged.GetShowLastActivity()
+		u.showLastActivity = &value
 	case *corev1.Event_UserServerNotificationLevelSet:
 		u := p.ensureUserLocked(e.UserServerNotificationLevelSet.GetUserId())
 		level := e.UserServerNotificationLevelSet.GetLevel()
@@ -172,6 +150,7 @@ func (p *ConfigProjection) applyLegacyUserPreferencesLocked(e *corev1.UserServer
 	if prefs == nil {
 		u.timezone = nil
 		u.timeFormat = nil
+		u.showLastActivity = nil
 		return
 	}
 	if prefs.GetTimezone() != "" {
@@ -182,6 +161,12 @@ func (p *ConfigProjection) applyLegacyUserPreferencesLocked(e *corev1.UserServer
 	}
 	tf := prefs.GetTimeFormat()
 	u.timeFormat = &tf
+	if prefs.ShowLastActivity != nil {
+		value := prefs.GetShowLastActivity()
+		u.showLastActivity = &value
+	} else {
+		u.showLastActivity = nil
+	}
 }
 
 func (p *ConfigProjection) Get() *configv1.ServerConfig {
@@ -192,8 +177,7 @@ func (p *ConfigProjection) Get() *configv1.ServerConfig {
 		p.server.welcomeMessage == "" &&
 		p.server.motd == "" &&
 		p.server.blockedUsernames == nil &&
-		p.server.performancePolicy == nil &&
-		p.server.readReceiptsEnabled == nil {
+		p.server.performancePolicy == nil {
 		return nil
 	}
 	cfg := &configv1.ServerConfig{
@@ -205,10 +189,6 @@ func (p *ConfigProjection) Get() *configv1.ServerConfig {
 	}
 	if p.server.blockedUsernames != nil {
 		cfg.BlockedUsernames = *p.server.blockedUsernames
-	}
-	if p.server.readReceiptsEnabled != nil {
-		enabled := *p.server.readReceiptsEnabled
-		cfg.ReadReceiptsEnabled = &enabled
 	}
 	return cfg
 }
@@ -243,7 +223,7 @@ func (p *ConfigProjection) UserSettings(userID string) (*corev1.ServerUserPrefer
 	p.RLock()
 	defer p.RUnlock()
 	u := p.users[userID]
-	if u == nil || (u.timezone == nil && u.timeFormat == nil && u.readReceiptsEnabled == nil) {
+	if u == nil || (u.timezone == nil && u.timeFormat == nil && u.showLastActivity == nil) {
 		return nil, false, nil
 	}
 	prefs := &corev1.ServerUserPreferences{}
@@ -254,33 +234,11 @@ func (p *ConfigProjection) UserSettings(userID string) (*corev1.ServerUserPrefer
 	if u.timeFormat != nil {
 		prefs.TimeFormat = *u.timeFormat
 	}
-	if u.readReceiptsEnabled != nil {
-		enabled := *u.readReceiptsEnabled
-		prefs.ReadReceiptsEnabled = &enabled
+	if u.showLastActivity != nil {
+		value := *u.showLastActivity
+		prefs.ShowLastActivity = &value
 	}
 	return prefs, true, nil
-}
-
-// ReadReceiptServerPolicy returns the effective global receipt policy and the
-// server timestamp from which a re-enabled policy may accept new advances.
-func (p *ConfigProjection) ReadReceiptServerPolicy() (bool, time.Time) {
-	p.RLock()
-	defer p.RUnlock()
-	if p.server.readReceiptsEnabled == nil {
-		return true, time.Time{}
-	}
-	return *p.server.readReceiptsEnabled, p.server.readReceiptsEnabledSince
-}
-
-// ReadReceiptUserPolicy returns the effective user policy and its opt-in floor.
-func (p *ConfigProjection) ReadReceiptUserPolicy(userID string) (bool, time.Time) {
-	p.RLock()
-	defer p.RUnlock()
-	u := p.users[userID]
-	if u == nil || u.readReceiptsEnabled == nil {
-		return true, time.Time{}
-	}
-	return *u.readReceiptsEnabled, u.readReceiptsEnabledSince
 }
 
 func (p *ConfigProjection) EffectiveServerName() string {

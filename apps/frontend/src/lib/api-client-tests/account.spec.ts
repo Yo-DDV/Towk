@@ -80,14 +80,18 @@ describe('createAccountAPI', () => {
       bearerToken: 'token'
     });
 
-    await expect(api.updateProfile({ displayName: 'Alice Two', login: 'alice2' })).resolves.toEqual(
-      {
-        id: 'U1',
-        login: 'alice2',
+    await expect(
+      api.updateProfile({
         displayName: 'Alice Two',
-        avatarUrl: 'https://cdn/avatar.webp'
-      }
-    );
+        login: 'alice2',
+        biographyMarkdown: '**Hello**'
+      })
+    ).resolves.toEqual({
+      id: 'U1',
+      login: 'alice2',
+      displayName: 'Alice Two',
+      avatarUrl: 'https://cdn/avatar.webp'
+    });
     await expect(api.deleteAvatar()).resolves.toEqual({
       id: 'U1',
       login: 'alice2',
@@ -108,7 +112,7 @@ describe('createAccountAPI', () => {
       useBinaryFormat: true
     });
     expect(mocks.updateProfile).toHaveBeenCalledWith(
-      { displayName: 'Alice Two', login: 'alice2' },
+      { displayName: 'Alice Two', login: 'alice2', biographyMarkdown: '**Hello**' },
       { headers: { Authorization: 'Bearer token' } }
     );
     expect(mocks.deleteAvatar).toHaveBeenCalledWith(
@@ -132,7 +136,7 @@ describe('createAccountAPI', () => {
       settings: {
         timezone: 'Europe/Berlin',
         timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
-        readReceiptsEnabled: false
+        showLastActivity: false
       }
     });
 
@@ -145,19 +149,19 @@ describe('createAccountAPI', () => {
       api.updateSettings({
         timezone: 'Europe/Berlin',
         timeFormat: TimeFormat.TwentyFourHour,
-        readReceiptsEnabled: false
+        showLastActivity: false
       })
     ).resolves.toEqual({
       timezone: 'Europe/Berlin',
       timeFormat: TimeFormat.TwentyFourHour,
-      readReceiptsEnabled: false
+      showLastActivity: false
     });
 
     expect(mocks.updateSettings).toHaveBeenCalledWith(
       {
         timezone: 'Europe/Berlin',
         timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
-        readReceiptsEnabled: false
+        showLastActivity: false
       },
       { headers: undefined }
     );
@@ -184,7 +188,8 @@ describe('createAccountAPI', () => {
   it('sends empty timezone when clearing settings', async () => {
     mocks.updateSettings.mockResolvedValue({
       settings: {
-        timeFormat: APITimeFormat.TIME_FORMAT_AUTO
+        timeFormat: APITimeFormat.TIME_FORMAT_AUTO,
+        showLastActivity: true
       }
     });
 
@@ -196,14 +201,14 @@ describe('createAccountAPI', () => {
     await expect(api.updateSettings({ timezone: null })).resolves.toEqual({
       timezone: null,
       timeFormat: TimeFormat.Auto,
-      readReceiptsEnabled: true
+      showLastActivity: true
     });
 
     expect(mocks.updateSettings).toHaveBeenCalledWith(
       {
         timezone: '',
         timeFormat: undefined,
-        readReceiptsEnabled: undefined
+        showLastActivity: undefined
       },
       { headers: undefined }
     );

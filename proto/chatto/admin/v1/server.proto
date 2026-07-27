@@ -16,8 +16,6 @@ message ServerConfig {
   string motd = 3;
   // Welcome message shown on the login page.
   string welcome_message = 4;
-  // Whether members may publish and inspect reciprocal read receipts.
-  bool read_receipts_enabled = 5;
 }
 
 // Request server profile settings.
@@ -46,8 +44,6 @@ message UpdateServerConfigRequest {
   // Optional welcome message shown on the login page. Set to empty string to
   // clear.
   optional string welcome_message = 4 [(buf.validate.field).string.max_len = 10000];
-  // Enables or disables reciprocal public read receipts server-wide.
-  optional bool read_receipts_enabled = 5;
 }
 
 // Result of updating runtime-editable server profile settings.

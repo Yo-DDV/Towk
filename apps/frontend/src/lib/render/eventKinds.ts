@@ -23,7 +23,6 @@ export const RoomEventKind = {
   PresenceChanged: 'presenceChanged',
   ReactionAdded: 'reactionAdded',
   ReactionRemoved: 'reactionRemoved',
-  ReadReceiptAdvanced: 'readReceiptAdvanced',
   RoomArchived: 'roomArchived',
   RoomCreated: 'roomCreated',
   RoomDeleted: 'roomDeleted',

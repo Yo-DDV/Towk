@@ -108,18 +108,7 @@
         "edited": "(editado)",
         "deleted": "Este mensaje ha sido eliminado."
       },
-      "start_marker": "Este es el inicio de esta conversación.",
-      "read_receipts": {
-        "title": "Visto por",
-        "count_one": "Visto por 1",
-        "count_many": "Visto por {count}",
-        "open_label": "Mostrar {count} confirmaciones de lectura",
-        "latest_label": "Última lectura a las {time}",
-        "loading": "Cargando lectores...",
-        "empty": "No hay detalles de lectores disponibles.",
-        "load_failed": "No se pudieron cargar las confirmaciones de lectura",
-        "load_more": "Cargar {remaining} más"
-      }
+      "start_marker": "Este es el inicio de esta conversación."
     },
     "attachment": {
       "delete_title": "Eliminar archivo adjunto",

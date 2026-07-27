@@ -746,6 +746,326 @@ func (x *BatchGetRoomMembersResponse) GetMembers() []*DirectoryMember {
 	return nil
 }
 
+// One explicitly assigned role shown on a detailed user profile.
+type UserProfileRole struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Stable configured role name.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Administrator-configured display name.
+	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	// Display ordering hint. This is not an authorization rank.
+	Position int32 `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
+	// True when the role carries moderation or administration authority.
+	Moderation    bool `protobuf:"varint,4,opt,name=moderation,proto3" json:"moderation,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserProfileRole) Reset() {
+	*x = UserProfileRole{}
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserProfileRole) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserProfileRole) ProtoMessage() {}
+
+func (x *UserProfileRole) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserProfileRole.ProtoReflect.Descriptor instead.
+func (*UserProfileRole) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_member_directory_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *UserProfileRole) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *UserProfileRole) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *UserProfileRole) GetPosition() int32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+func (x *UserProfileRole) GetModeration() bool {
+	if x != nil {
+		return x.Moderation
+	}
+	return false
+}
+
+// Detailed server-scoped profile loaded on demand. Directory rows deliberately
+// remain lightweight and never include biography or last activity.
+type UserProfile struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Public identity, presence, and custom status.
+	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
+	// All explicitly assigned roles, ordered for presentation.
+	Roles []*UserProfileRole `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	// Account/server join time when known.
+	JoinedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=joined_at,json=joinedAt,proto3" json:"joined_at,omitempty"`
+	// Sanitized Markdown source stored by the profile owner.
+	BiographyMarkdown string `protobuf:"bytes,4,opt,name=biography_markdown,json=biographyMarkdown,proto3" json:"biography_markdown,omitempty"`
+	// Latest coalesced activity time when visible and available.
+	LastActivity *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_activity,json=lastActivity,proto3,oneof" json:"last_activity,omitempty"`
+	// Whether the target currently allows last activity to be disclosed.
+	LastActivityVisible bool `protobuf:"varint,6,opt,name=last_activity_visible,json=lastActivityVisible,proto3" json:"last_activity_visible,omitempty"`
+	// Whether the profile belongs to the authenticated viewer.
+	ViewerIsSelf bool `protobuf:"varint,7,opt,name=viewer_is_self,json=viewerIsSelf,proto3" json:"viewer_is_self,omitempty"`
+	// Whether the viewer may start a direct message with this user.
+	ViewerCanMessage bool `protobuf:"varint,8,opt,name=viewer_can_message,json=viewerCanMessage,proto3" json:"viewer_can_message,omitempty"`
+	// Whether the viewer may start a direct call with this user.
+	ViewerCanCall bool `protobuf:"varint,9,opt,name=viewer_can_call,json=viewerCanCall,proto3" json:"viewer_can_call,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UserProfile) Reset() {
+	*x = UserProfile{}
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserProfile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserProfile) ProtoMessage() {}
+
+func (x *UserProfile) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserProfile.ProtoReflect.Descriptor instead.
+func (*UserProfile) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_member_directory_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *UserProfile) GetUser() *User {
+	if x != nil {
+		return x.User
+	}
+	return nil
+}
+
+func (x *UserProfile) GetRoles() []*UserProfileRole {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *UserProfile) GetJoinedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.JoinedAt
+	}
+	return nil
+}
+
+func (x *UserProfile) GetBiographyMarkdown() string {
+	if x != nil {
+		return x.BiographyMarkdown
+	}
+	return ""
+}
+
+func (x *UserProfile) GetLastActivity() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastActivity
+	}
+	return nil
+}
+
+func (x *UserProfile) GetLastActivityVisible() bool {
+	if x != nil {
+		return x.LastActivityVisible
+	}
+	return false
+}
+
+func (x *UserProfile) GetViewerIsSelf() bool {
+	if x != nil {
+		return x.ViewerIsSelf
+	}
+	return false
+}
+
+func (x *UserProfile) GetViewerCanMessage() bool {
+	if x != nil {
+		return x.ViewerCanMessage
+	}
+	return false
+}
+
+func (x *UserProfile) GetViewerCanCall() bool {
+	if x != nil {
+		return x.ViewerCanCall
+	}
+	return false
+}
+
+// Request one detailed profile by stable user ID or login.
+type GetUserProfileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Target:
+	//
+	//	*GetUserProfileRequest_UserId
+	//	*GetUserProfileRequest_Login
+	Target        isGetUserProfileRequest_Target `protobuf_oneof:"target"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserProfileRequest) Reset() {
+	*x = GetUserProfileRequest{}
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserProfileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserProfileRequest) ProtoMessage() {}
+
+func (x *GetUserProfileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserProfileRequest.ProtoReflect.Descriptor instead.
+func (*GetUserProfileRequest) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_member_directory_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetUserProfileRequest) GetTarget() isGetUserProfileRequest_Target {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *GetUserProfileRequest) GetUserId() string {
+	if x != nil {
+		if x, ok := x.Target.(*GetUserProfileRequest_UserId); ok {
+			return x.UserId
+		}
+	}
+	return ""
+}
+
+func (x *GetUserProfileRequest) GetLogin() string {
+	if x != nil {
+		if x, ok := x.Target.(*GetUserProfileRequest_Login); ok {
+			return x.Login
+		}
+	}
+	return ""
+}
+
+type isGetUserProfileRequest_Target interface {
+	isGetUserProfileRequest_Target()
+}
+
+type GetUserProfileRequest_UserId struct {
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3,oneof"`
+}
+
+type GetUserProfileRequest_Login struct {
+	Login string `protobuf:"bytes,2,opt,name=login,proto3,oneof"`
+}
+
+func (*GetUserProfileRequest_UserId) isGetUserProfileRequest_Target() {}
+
+func (*GetUserProfileRequest_Login) isGetUserProfileRequest_Target() {}
+
+// Detailed user profile response.
+type GetUserProfileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       *UserProfile           `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUserProfileResponse) Reset() {
+	*x = GetUserProfileResponse{}
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUserProfileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUserProfileResponse) ProtoMessage() {}
+
+func (x *GetUserProfileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_member_directory_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUserProfileResponse.ProtoReflect.Descriptor instead.
+func (*GetUserProfileResponse) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_member_directory_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *GetUserProfileResponse) GetProfile() *UserProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return nil
+}
+
 var File_chatto_api_v1_member_directory_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_member_directory_proto_rawDesc = "" +
@@ -790,11 +1110,36 @@ const file_chatto_api_v1_member_directory_proto_rawDesc = "" +
 	"\buser_ids\x18\x02 \x03(\tB\x10\xbaH\r\x92\x01\n" +
 	"\b\x01\x10d\"\x04r\x02\x10\x01R\auserIds\"W\n" +
 	"\x1bBatchGetRoomMembersResponse\x128\n" +
-	"\amembers\x18\x01 \x03(\v2\x1e.chatto.api.v1.DirectoryMemberR\amembers2\x83\x02\n" +
+	"\amembers\x18\x01 \x03(\v2\x1e.chatto.api.v1.DirectoryMemberR\amembers\"\x84\x01\n" +
+	"\x0fUserProfileRole\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1a\n" +
+	"\bposition\x18\x03 \x01(\x05R\bposition\x12\x1e\n" +
+	"\n" +
+	"moderation\x18\x04 \x01(\bR\n" +
+	"moderation\"\xdc\x03\n" +
+	"\vUserProfile\x12'\n" +
+	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\x124\n" +
+	"\x05roles\x18\x02 \x03(\v2\x1e.chatto.api.v1.UserProfileRoleR\x05roles\x127\n" +
+	"\tjoined_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\bjoinedAt\x12-\n" +
+	"\x12biography_markdown\x18\x04 \x01(\tR\x11biographyMarkdown\x12D\n" +
+	"\rlast_activity\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampH\x00R\flastActivity\x88\x01\x01\x122\n" +
+	"\x15last_activity_visible\x18\x06 \x01(\bR\x13lastActivityVisible\x12$\n" +
+	"\x0eviewer_is_self\x18\a \x01(\bR\fviewerIsSelf\x12,\n" +
+	"\x12viewer_can_message\x18\b \x01(\bR\x10viewerCanMessage\x12&\n" +
+	"\x0fviewer_can_call\x18\t \x01(\bR\rviewerCanCallB\x10\n" +
+	"\x0e_last_activity\"f\n" +
+	"\x15GetUserProfileRequest\x12\"\n" +
+	"\auser_id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x00R\x06userId\x12\x1f\n" +
+	"\x05login\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x00R\x05loginB\b\n" +
+	"\x06target\"N\n" +
+	"\x16GetUserProfileResponse\x124\n" +
+	"\aprofile\x18\x01 \x01(\v2\x1a.chatto.api.v1.UserProfileR\aprofile2\xe2\x02\n" +
 	"\vUserService\x12N\n" +
 	"\tListUsers\x12\x1f.chatto.api.v1.ListUsersRequest\x1a .chatto.api.v1.ListUsersResponse\x12H\n" +
 	"\aGetUser\x12\x1d.chatto.api.v1.GetUserRequest\x1a\x1e.chatto.api.v1.GetUserResponse\x12Z\n" +
-	"\rBatchGetUsers\x12#.chatto.api.v1.BatchGetUsersRequest\x1a$.chatto.api.v1.BatchGetUsersResponseB\xb0\x01\n" +
+	"\rBatchGetUsers\x12#.chatto.api.v1.BatchGetUsersRequest\x1a$.chatto.api.v1.BatchGetUsersResponse\x12]\n" +
+	"\x0eGetUserProfile\x12$.chatto.api.v1.GetUserProfileRequest\x1a%.chatto.api.v1.GetUserProfileResponseB\xb0\x01\n" +
 	"\x11com.chatto.api.v1B\x14MemberDirectoryProtoP\x01Z/hmans.de/chatto/internal/pb/chatto/api/v1;apiv1\xa2\x02\x03CAX\xaa\x02\rChatto.Api.V1\xca\x02\rChatto\\Api\\V1\xe2\x02\x19Chatto\\Api\\V1\\GPBMetadata\xea\x02\x0fChatto::Api::V1b\x06proto3"
 
 var (
@@ -809,7 +1154,7 @@ func file_chatto_api_v1_member_directory_proto_rawDescGZIP() []byte {
 	return file_chatto_api_v1_member_directory_proto_rawDescData
 }
 
-var file_chatto_api_v1_member_directory_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_chatto_api_v1_member_directory_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_chatto_api_v1_member_directory_proto_goTypes = []any{
 	(*DirectoryMember)(nil),             // 0: chatto.api.v1.DirectoryMember
 	(*ListUsersRequest)(nil),            // 1: chatto.api.v1.ListUsersRequest
@@ -824,35 +1169,46 @@ var file_chatto_api_v1_member_directory_proto_goTypes = []any{
 	(*GetRoomMemberResponse)(nil),       // 10: chatto.api.v1.GetRoomMemberResponse
 	(*BatchGetRoomMembersRequest)(nil),  // 11: chatto.api.v1.BatchGetRoomMembersRequest
 	(*BatchGetRoomMembersResponse)(nil), // 12: chatto.api.v1.BatchGetRoomMembersResponse
-	(*User)(nil),                        // 13: chatto.api.v1.User
-	(*timestamppb.Timestamp)(nil),       // 14: google.protobuf.Timestamp
-	(*PageRequest)(nil),                 // 15: chatto.api.v1.PageRequest
-	(*PageInfo)(nil),                    // 16: chatto.api.v1.PageInfo
+	(*UserProfileRole)(nil),             // 13: chatto.api.v1.UserProfileRole
+	(*UserProfile)(nil),                 // 14: chatto.api.v1.UserProfile
+	(*GetUserProfileRequest)(nil),       // 15: chatto.api.v1.GetUserProfileRequest
+	(*GetUserProfileResponse)(nil),      // 16: chatto.api.v1.GetUserProfileResponse
+	(*User)(nil),                        // 17: chatto.api.v1.User
+	(*timestamppb.Timestamp)(nil),       // 18: google.protobuf.Timestamp
+	(*PageRequest)(nil),                 // 19: chatto.api.v1.PageRequest
+	(*PageInfo)(nil),                    // 20: chatto.api.v1.PageInfo
 }
 var file_chatto_api_v1_member_directory_proto_depIdxs = []int32{
-	13, // 0: chatto.api.v1.DirectoryMember.user:type_name -> chatto.api.v1.User
-	14, // 1: chatto.api.v1.DirectoryMember.created_at:type_name -> google.protobuf.Timestamp
-	15, // 2: chatto.api.v1.ListUsersRequest.page:type_name -> chatto.api.v1.PageRequest
+	17, // 0: chatto.api.v1.DirectoryMember.user:type_name -> chatto.api.v1.User
+	18, // 1: chatto.api.v1.DirectoryMember.created_at:type_name -> google.protobuf.Timestamp
+	19, // 2: chatto.api.v1.ListUsersRequest.page:type_name -> chatto.api.v1.PageRequest
 	0,  // 3: chatto.api.v1.ListUsersResponse.users:type_name -> chatto.api.v1.DirectoryMember
-	16, // 4: chatto.api.v1.ListUsersResponse.page:type_name -> chatto.api.v1.PageInfo
+	20, // 4: chatto.api.v1.ListUsersResponse.page:type_name -> chatto.api.v1.PageInfo
 	0,  // 5: chatto.api.v1.GetUserResponse.user:type_name -> chatto.api.v1.DirectoryMember
 	0,  // 6: chatto.api.v1.BatchGetUsersResponse.users:type_name -> chatto.api.v1.DirectoryMember
-	15, // 7: chatto.api.v1.ListRoomMembersRequest.page:type_name -> chatto.api.v1.PageRequest
+	19, // 7: chatto.api.v1.ListRoomMembersRequest.page:type_name -> chatto.api.v1.PageRequest
 	0,  // 8: chatto.api.v1.ListRoomMembersResponse.members:type_name -> chatto.api.v1.DirectoryMember
-	16, // 9: chatto.api.v1.ListRoomMembersResponse.page:type_name -> chatto.api.v1.PageInfo
+	20, // 9: chatto.api.v1.ListRoomMembersResponse.page:type_name -> chatto.api.v1.PageInfo
 	0,  // 10: chatto.api.v1.GetRoomMemberResponse.member:type_name -> chatto.api.v1.DirectoryMember
 	0,  // 11: chatto.api.v1.BatchGetRoomMembersResponse.members:type_name -> chatto.api.v1.DirectoryMember
-	1,  // 12: chatto.api.v1.UserService.ListUsers:input_type -> chatto.api.v1.ListUsersRequest
-	3,  // 13: chatto.api.v1.UserService.GetUser:input_type -> chatto.api.v1.GetUserRequest
-	5,  // 14: chatto.api.v1.UserService.BatchGetUsers:input_type -> chatto.api.v1.BatchGetUsersRequest
-	2,  // 15: chatto.api.v1.UserService.ListUsers:output_type -> chatto.api.v1.ListUsersResponse
-	4,  // 16: chatto.api.v1.UserService.GetUser:output_type -> chatto.api.v1.GetUserResponse
-	6,  // 17: chatto.api.v1.UserService.BatchGetUsers:output_type -> chatto.api.v1.BatchGetUsersResponse
-	15, // [15:18] is the sub-list for method output_type
-	12, // [12:15] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	17, // 12: chatto.api.v1.UserProfile.user:type_name -> chatto.api.v1.User
+	13, // 13: chatto.api.v1.UserProfile.roles:type_name -> chatto.api.v1.UserProfileRole
+	18, // 14: chatto.api.v1.UserProfile.joined_at:type_name -> google.protobuf.Timestamp
+	18, // 15: chatto.api.v1.UserProfile.last_activity:type_name -> google.protobuf.Timestamp
+	14, // 16: chatto.api.v1.GetUserProfileResponse.profile:type_name -> chatto.api.v1.UserProfile
+	1,  // 17: chatto.api.v1.UserService.ListUsers:input_type -> chatto.api.v1.ListUsersRequest
+	3,  // 18: chatto.api.v1.UserService.GetUser:input_type -> chatto.api.v1.GetUserRequest
+	5,  // 19: chatto.api.v1.UserService.BatchGetUsers:input_type -> chatto.api.v1.BatchGetUsersRequest
+	15, // 20: chatto.api.v1.UserService.GetUserProfile:input_type -> chatto.api.v1.GetUserProfileRequest
+	2,  // 21: chatto.api.v1.UserService.ListUsers:output_type -> chatto.api.v1.ListUsersResponse
+	4,  // 22: chatto.api.v1.UserService.GetUser:output_type -> chatto.api.v1.GetUserResponse
+	6,  // 23: chatto.api.v1.UserService.BatchGetUsers:output_type -> chatto.api.v1.BatchGetUsersResponse
+	16, // 24: chatto.api.v1.UserService.GetUserProfile:output_type -> chatto.api.v1.GetUserProfileResponse
+	21, // [21:25] is the sub-list for method output_type
+	17, // [17:21] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_chatto_api_v1_member_directory_proto_init() }
@@ -866,13 +1222,18 @@ func file_chatto_api_v1_member_directory_proto_init() {
 		(*GetUserRequest_UserId)(nil),
 		(*GetUserRequest_Login)(nil),
 	}
+	file_chatto_api_v1_member_directory_proto_msgTypes[14].OneofWrappers = []any{}
+	file_chatto_api_v1_member_directory_proto_msgTypes[15].OneofWrappers = []any{
+		(*GetUserProfileRequest_UserId)(nil),
+		(*GetUserProfileRequest_Login)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_api_v1_member_directory_proto_rawDesc), len(file_chatto_api_v1_member_directory_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

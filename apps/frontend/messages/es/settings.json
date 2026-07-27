@@ -102,7 +102,36 @@
       },
       "saved": "Perfil actualizado exitosamente",
       "save_failed": "No se pudo guardar el perfil",
-      "save_button": "Guardar cambios"
+      "save_button": "Guardar cambios",
+      "details": {
+        "load_failed": "No se pudieron cargar los detalles del perfil.",
+        "biography_title": "Biografía",
+        "biography_description": "Escribe una biografía breve en Markdown para tu perfil del servidor (hasta 1024 caracteres). No se muestran HTML sin procesar ni imágenes remotas.",
+        "formatting_toolbar": "Formato de la biografía",
+        "bold": "Negrita",
+        "italic": "Cursiva",
+        "heading": "Encabezado",
+        "bullet_list": "Lista con viñetas",
+        "numbered_list": "Lista numerada",
+        "quote": "Cita",
+        "link_text": "texto del enlace",
+        "add_link": "Añadir enlace",
+        "inline_code": "Código en línea",
+        "biography_label": "Biografía en Markdown",
+        "biography_placeholder": "Cuéntales a los demás miembros algo sobre ti…",
+        "byte_count": "{used} de {limit} bytes",
+        "preview": "Vista previa",
+        "biography_too_large": "La biografía está limitada a 1024 caracteres y 4 KiB en UTF-8.",
+        "biography_saved": "Biografía guardada.",
+        "save_failed": "No se pudieron guardar los detalles del perfil.",
+        "save_biography": "Guardar biografía",
+        "privacy_title": "Privacidad de actividad",
+        "show_last_activity": "Mostrar mi última actividad",
+        "show_last_activity_description": "Permite que los miembros autenticados de este servidor vean tu última hora de actividad consolidada. Al desactivarlo se elimina el valor guardado.",
+        "privacy_saved": "Privacidad de actividad guardada.",
+        "save_privacy": "Guardar privacidad",
+        "character_count": "{used} de {limit} caracteres"
+      }
     },
     "preferences": {
       "title": "Pantalla",
@@ -157,13 +186,7 @@
       },
       "save_button": "Guardar configuración de pantalla",
       "saved": "Configuración de pantalla guardada",
-      "save_failed": "No se pudo guardar la configuración de pantalla",
-      "read_receipts": {
-        "title": "Confirmaciones de lectura",
-        "enabled_label": "Publicar confirmaciones de lectura",
-        "disabled_label": "Mantener privadas las confirmaciones de lectura",
-        "description": "Cuando está activado, otros miembros pueden ver cuándo has leído sus mensajes, y tú puedes consultar confirmaciones en los mensajes a los que tienes acceso."
-      }
+      "save_failed": "No se pudo guardar la configuración de pantalla"
     },
     "notifications": {
       "title": "Notificaciones",

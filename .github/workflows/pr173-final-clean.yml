@@ -1,0 +1,46 @@
+name: PR 173 final clean publication
+
+on:
+  push:
+    branches:
+      - feat/read-receipts
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: pr173-final-clean-publication
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: ${{ contains(github.event.head_commit.message, '[run pr173-final-clean]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact isolated finalizer head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Reconstruct, validate, publish, and finalize PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: bash .github/pr173-final-clean.sh
+
+      - name: Upload terminal result
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr173-final-clean-${{ github.sha }}
+          path: ${{ runner.temp }}/pr173-final-result.txt
+          retention-days: 1
+          if-no-files-found: warn

@@ -1,8 +1,0 @@
-source_head=88d978d49899b4a613b5222ddb5f81fbedce9adb
-feature_source=f07456ce30c48fd35d63fcc9d3480b5792f40cfa
-main_head=d277c59d2ebb16d076de6ae793e4679251be38b4
-design_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
-failed_stage=format-go
-exit_code=2
-run_id=30217806954
-run_attempt=1

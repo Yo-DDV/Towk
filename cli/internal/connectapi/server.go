@@ -7,6 +7,7 @@ import (
 
 	"connectrpc.com/connect"
 	"hmans.de/chatto/internal/config"
+	"hmans.de/chatto/internal/externalgif"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 	discoveryv1 "hmans.de/chatto/internal/pb/chatto/discovery/v1"
 )
@@ -21,7 +22,7 @@ type serverProfileOptions struct {
 
 const (
 	serverCapabilityMessageCreateIdempotency = "message.create-idempotency-v1"
-	serverCapabilityReadReceipts             = "read-receipts-v1"
+	serverCapabilityExternalGIFEmbeds        = "external-gif-embeds-v1"
 )
 
 func (s *serverDiscoveryService) GetServer(ctx context.Context, _ *connect.Request[discoveryv1.GetServerRequest]) (*connect.Response[discoveryv1.GetServerResponse], error) {
@@ -49,11 +50,20 @@ func (a *API) effectiveServerName(ctx context.Context) string {
 	return "Towk"
 }
 
+func serverCapabilities(coreReady, externalGIFEnabled bool) []string {
+	capabilities := []string{serverCapabilityMessageCreateIdempotency}
+	if coreReady && externalGIFEnabled {
+		capabilities = append(capabilities, serverCapabilityExternalGIFEmbeds)
+	}
+	return capabilities
+}
+
 func (a *API) serverProfile(ctx context.Context, options serverProfileOptions) (*apiv1.ServerPublicProfile, error) {
+	capabilities := serverCapabilities(a.core != nil, externalgif.Enabled())
 	profile := &apiv1.ServerPublicProfile{
 		Name:         a.effectiveServerName(ctx),
 		Version:      a.version,
-		Capabilities: []string{serverCapabilityMessageCreateIdempotency, serverCapabilityReadReceipts},
+		Capabilities: capabilities,
 	}
 
 	if a.core != nil && a.core.ConfigManager() != nil {

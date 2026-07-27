@@ -356,7 +356,6 @@
     showStartMarker={false}
     onLoadMore={(options) => store.loadMore(options)}
     filterThreadReplies={false}
-    readReceiptThreadRootEventId={threadRootEventId}
     {updateCounter}
     enableLastEditableFinder={true}
     isLoading={store.isInitialLoading}

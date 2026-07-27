@@ -1,6 +1,11 @@
 <script lang="ts">
   import { provideEventBus } from '$lib/eventBus.svelte';
-  import { usePresenceChange, useReconnectCallback } from '$lib/hooks';
+  import {
+    usePresenceChange,
+    useReconnectCallback,
+    useUserCustomStatusUpdate,
+    useUserProfileUpdate
+  } from '$lib/hooks';
   import { presencePreference } from '$lib/state/presencePreference.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import {
@@ -8,6 +13,10 @@
     getPresenceCache
   } from '$lib/state/presenceCache.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
+  import {
+    invalidateDetailedUserProfile,
+    useUserProfileCache
+  } from '$lib/state/userProfiles.svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
@@ -22,6 +31,7 @@
 
   // Capture presence cache during init (context must be read synchronously)
   const presenceCache = getPresenceCache();
+  const profileCache = useUserProfileCache();
 
   // Per-server stores (rooms list, room directory, …) self-manage their
   // refresh and event-ingestion lifecycles from inside `ServerStateStore`
@@ -44,6 +54,16 @@
   // (including newly-mounted ones like popovers) sees the latest presence.
   usePresenceChange((userId, status) => {
     presenceCache.update({ serverId: getActiveServer(), userId }, status);
+  });
+
+  useUserProfileUpdate((update) => {
+    const serverId = getActiveServer();
+    profileCache.update(update.userId, update.displayName, update.avatarUrl, update.login);
+    if (update.detailsChanged) invalidateDetailedUserProfile(serverId, update.userId);
+  });
+
+  useUserCustomStatusUpdate((update) => {
+    profileCache.updateStatus(update.userId, update.customStatus);
   });
 
   function currentUserPresenceStores() {

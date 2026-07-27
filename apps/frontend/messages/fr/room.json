@@ -108,18 +108,7 @@
         "edited": "(modifié)",
         "deleted": "Ce message a été supprimé."
       },
-      "start_marker": "C’est le début de cette conversation.",
-      "read_receipts": {
-        "title": "Vu par",
-        "count_one": "Vu par 1",
-        "count_many": "Vu par {count}",
-        "open_label": "Afficher {count} confirmations de lecture",
-        "latest_label": "Dernière lecture à {time}",
-        "loading": "Chargement des lecteurs...",
-        "empty": "Aucun détail de lecteur disponible.",
-        "load_failed": "Impossible de charger les confirmations de lecture",
-        "load_more": "Charger {remaining} de plus"
-      }
+      "start_marker": "C’est le début de cette conversation."
     },
     "attachment": {
       "delete_title": "Supprimer la pièce jointe",

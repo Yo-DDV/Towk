@@ -3,6 +3,7 @@ import { defaultNotificationSoundFilters, defaultSoundId } from '$lib/audio/noti
 import { UserPreferencesState, resolveDisplayTheme } from './userPreferences.svelte';
 
 const STORAGE_KEY = 'chatto:preferences';
+const EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION = 1;
 
 function mockSystemTheme(theme: 'light' | 'dark') {
   vi.stubGlobal(
@@ -63,6 +64,51 @@ describe('UserPreferencesState', () => {
       localStorage.setItem('theme', 'dark');
       const state = new UserPreferencesState();
       expect(state.displayTheme).toBe('dark');
+    });
+
+    it('auto-loads external GIFs when storage is empty', () => {
+      const state = new UserPreferencesState();
+      expect(state.externalGifAutoLoad).toBe(true);
+    });
+
+    it('migrates the previous unversioned opt-in default to automatic loading', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ externalGifAutoLoad: false }));
+      const state = new UserPreferencesState();
+
+      expect(state.externalGifAutoLoad).toBe(true);
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toMatchObject({
+        externalGifAutoLoad: true,
+        externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
+      });
+    });
+
+    it('hydrates and persists an explicit current-version auto-load opt-out', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          externalGifAutoLoad: false,
+          externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
+        })
+      );
+      const state = new UserPreferencesState();
+      expect(state.externalGifAutoLoad).toBe(false);
+
+      state.externalGifAutoLoad = true;
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toMatchObject({
+        externalGifAutoLoad: true,
+        externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
+      });
+    });
+
+    it('falls back to automatic loading for an invalid current-version preference', () => {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          externalGifAutoLoad: 'yes',
+          externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
+        })
+      );
+      expect(new UserPreferencesState().externalGifAutoLoad).toBe(true);
     });
 
     it('uses the default sound when storage is empty', () => {
@@ -220,6 +266,17 @@ describe('UserPreferencesState', () => {
 
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
       expect(stored.notificationSound).toBe('pop');
+    });
+
+    it('persists an explicit external GIF auto-load opt-out', () => {
+      const state = new UserPreferencesState();
+      state.externalGifAutoLoad = false;
+
+      expect(state.externalGifAutoLoad).toBe(false);
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}')).toMatchObject({
+        externalGifAutoLoad: false,
+        externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
+      });
     });
 
     it('updates and persists individual notification sound filters', () => {

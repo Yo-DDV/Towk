@@ -11,7 +11,6 @@
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import { useRenderData } from '$lib/render/data';
   import type { RoomEventView } from '$lib/render/types';
-  import type { ReadReceiptSummary } from '$lib/api-client/readState';
   import {
     getRoomPermissions,
     getRoomMembers,
@@ -72,9 +71,7 @@
     roomId,
     messageStore = null,
     onOpenThread,
-    threadHasUnread,
-    readReceiptSummary = null,
-    readReceiptThreadRootEventId = null
+    threadHasUnread
   }: {
     event: RoomEventView;
     compact?: boolean;
@@ -82,8 +79,6 @@
     messageStore?: MessagesStore | null;
     onOpenThread?: OpenThreadHandler;
     threadHasUnread?: boolean;
-    readReceiptSummary?: ReadReceiptSummary | null;
-    readReceiptThreadRootEventId?: string | null;
   } = $props();
 
   const connection = useConnection();
@@ -435,8 +430,7 @@
   const hasMessageFooter = $derived(
     (isEcho && !!onOpenThread) ||
       (hasReplies && !!onOpenThread) ||
-      (msg?.reactions?.length ?? 0) > 0 ||
-      (readReceiptSummary?.readerCount ?? 0) > 0
+      (msg?.reactions?.length ?? 0) > 0
   );
 
   // Check if current user is mentioned (but not by themselves)
@@ -896,8 +890,6 @@
             onOpenThread={onOpenThread ? handleOpenThread : undefined}
             onOpenEmojiPicker={roomPermissions.canReact ? openEmojiPickerFromEvent : undefined}
             isEchoEvent={isEcho}
-            {readReceiptSummary}
-            {readReceiptThreadRootEventId}
           />
         {/if}
       </div>
