@@ -119,6 +119,10 @@ test('catalog audit rejects European Portuguese wording in the pt-BR catalog', (
     'O dispositivo gere a saída de áudio.',
     'Perfil Económico.',
     'Capacidade detetada.',
+    'A conversa foi eliminada.',
+    'O seu histórico será removido.',
+    'Ela não recebe qualquer notificação.',
+    'Após a eliminação, as mensagens serão apresentadas.',
     'Este conteúdo partilhado não está disponível.',
     'O conteúdo expirou. Partilhe-o novamente.'
   ];

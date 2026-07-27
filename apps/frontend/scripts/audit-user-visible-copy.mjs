@@ -249,7 +249,7 @@ const SUSPICIOUS_TRANSLATIONS = [
   ['pt', /\bthreads?\b/i, 'untranslated English term'],
   [
     'pt',
-    /\b(?:ficheiros?|ecrã|respetiv[ao]|iniciar sessão|partilh(?:ar|ad[oa]s?|e)|aplicaç(?:ão|ões)|afix(?:ar|á-lo)|auscultador(?:es)?|gere|económico|detetad[oa]s?|multimédia|workers?)\b/i,
+    /\b(?:ficheiros?|ecrã|respetiv[ao]|iniciar sessão|partilh(?:ar|ad[oa]s?|e)|aplicaç(?:ão|ões)|afix(?:ar|á-lo)|auscultador(?:es)?|gere|económico|detetad[oa]s?|eliminad[oa]s?|eliminação|O seu histórico|qualquer notificação|serão apresentad[oa]s?|multimédia|workers?)\b/i,
     'European Portuguese or untranslated term in the pt-BR catalog'
   ],
   [
