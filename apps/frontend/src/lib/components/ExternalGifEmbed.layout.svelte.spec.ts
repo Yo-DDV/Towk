@@ -35,11 +35,24 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ExternalGifEmbed responsive media geometry', () => {
-  it('keeps direct media intrinsic, bounded, and above its compact controls', async () => {
+  it('shrinks direct media and its fallback to a narrow message column without cropping', async () => {
     const screen = render(ExternalGifEmbed, { props: { gif: directImage, autoLoad: false } });
-    await screen.getByRole('button', { name: 'Load external GIF' }).click();
+    screen.container.style.width = '15rem';
 
     const shell = document.querySelector<HTMLElement>('[data-testid="external-gif-embed"]');
+    const fallback = document.querySelector<HTMLElement>('[data-testid="external-gif-fallback"]');
+
+    await vi.waitFor(() => {
+      const hostBounds = screen.container.getBoundingClientRect();
+      const shellBounds = shell?.getBoundingClientRect();
+      expect(shellBounds).toBeDefined();
+      if (!shellBounds) throw new Error('direct GIF fallback geometry was unavailable');
+      expect(shellBounds.width).toBeLessThanOrEqual(hostBounds.width + 1);
+      expect(fallback?.scrollWidth).toBeLessThanOrEqual(Math.ceil(shellBounds.width) + 1);
+    });
+
+    await screen.getByRole('button', { name: 'Load external GIF' }).click();
+
     const media = document.querySelector<HTMLElement>('[data-testid="external-gif-media"]');
     const image = media?.querySelector<HTMLImageElement>('img');
     const controls = document.querySelector<HTMLElement>('[data-testid="external-gif-controls"]');
@@ -55,14 +68,17 @@ describe('ExternalGifEmbed responsive media geometry', () => {
     expect(media?.nextElementSibling).toBe(controls);
 
     await vi.waitFor(() => {
+      const hostBounds = screen.container.getBoundingClientRect();
       const shellBounds = shell?.getBoundingClientRect();
       const imageBounds = image?.getBoundingClientRect();
       expect(shellBounds).toBeDefined();
       expect(imageBounds).toBeDefined();
       if (!shellBounds || !imageBounds) throw new Error('direct GIF geometry was unavailable');
-      expect(imageBounds.width).toBeGreaterThanOrEqual(319);
-      expect(imageBounds.width).toBeLessThanOrEqual(577);
+      expect(shellBounds.width).toBeGreaterThan(0);
+      expect(shellBounds.width).toBeLessThanOrEqual(hostBounds.width + 1);
+      expect(imageBounds.width).toBeLessThanOrEqual(shellBounds.width + 1);
       expect(Math.abs(shellBounds.width - imageBounds.width)).toBeLessThanOrEqual(3);
+      expect(shell?.scrollWidth).toBeLessThanOrEqual(Math.ceil(shellBounds.width) + 1);
     });
   });
 

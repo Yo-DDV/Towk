@@ -336,7 +336,7 @@
     <div
       class={[
         'flex w-full flex-col items-center justify-center gap-3 bg-surface-100 px-5 py-6 text-center',
-        gif.renderMode === 'iframe' ? 'aspect-video min-h-48' : 'min-h-40 sm:min-w-80'
+        gif.renderMode === 'iframe' ? 'aspect-video min-h-48' : 'min-h-40'
       ]}
       data-testid="external-gif-fallback"
     >
@@ -407,13 +407,17 @@
   .external-gif-direct-media,
   .external-gif-direct-element {
     width: 100%;
+    min-width: 0;
+  }
+
+  .external-gif-direct {
+    max-width: 36rem;
   }
 
   @media (min-width: 640px) {
     .external-gif-direct {
       width: fit-content;
-      min-width: 20rem;
-      max-width: 36rem;
+      max-width: min(100%, 36rem);
     }
 
     .external-gif-direct-media {
@@ -423,8 +427,7 @@
 
     .external-gif-direct-element {
       width: auto;
-      min-width: 20rem;
-      max-width: 36rem;
+      max-width: 100%;
     }
   }
 </style>
