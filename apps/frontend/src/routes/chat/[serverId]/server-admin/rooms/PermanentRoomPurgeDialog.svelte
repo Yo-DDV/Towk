@@ -34,8 +34,9 @@
   const confirmationError = $derived(
     touched && room && !confirmationMatches ? rp.confirmationError(room.name) : null
   );
-  const dialogTitleId = $props.id() + '-title';
-  const dialogDescriptionId = $props.id() + '-description';
+  const dialogId = $props.id();
+  const dialogTitleId = `${dialogId}-title`;
+  const dialogDescriptionId = `${dialogId}-description`;
 
   $effect(() => {
     const key = visible && room ? room.id : '';

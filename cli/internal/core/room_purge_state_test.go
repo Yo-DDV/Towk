@@ -148,7 +148,7 @@ func TestExclusiveRoomLinkPreviewAssetIDsPreservesSharedPreview(t *testing.T) {
 					RoomId:  roomID,
 					EventId: "E22222222222222",
 					Body: &corev1.MessageBody{
-						LinkPreview: &corev1.LinkPreview{ImageAssetId: assetID},
+						LinkPreview: &corev1.LinkPreview{ImageAssetId: &assetID},
 					},
 				},
 			},

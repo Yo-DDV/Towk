@@ -19,6 +19,7 @@
   import { Pill } from '$lib/ui';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { SvelteSet } from 'svelte/reactivity';
   import PermanentRoomPurgeDialog from './PermanentRoomPurgeDialog.svelte';
 
   type RoomPurgeAPIFactory = (config: RoomPurgeAPIConfig) => RoomPurgeAPI;
@@ -61,7 +62,7 @@
   let serverReportedAlreadyPurged = $state(false);
 
   const archivedRooms = $derived.by(() => {
-    const seen = new Set<string>();
+    const seen = new SvelteSet<string>();
     const rooms: AdminRoomInfo[] = [];
     for (const group of layout.groups) {
       for (const room of group.rooms ?? []) {
