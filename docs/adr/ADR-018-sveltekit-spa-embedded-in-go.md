@@ -12,11 +12,13 @@ Towk's design goal is a single self-hosted executable. The frontend is a SvelteK
 
 ## Decision
 
-Configure SvelteKit with `adapter-static` (`fallback: '200.html'`, `precompress: true`) and `ssr = false`. The compiled SPA output is embedded into the Go binary with `//go:embed all:.client`. The Go server handles:
+Configure SvelteKit with `adapter-static` (`fallback: '200.html'`, precompression enabled by default) and `ssr = false`. Resource-constrained source builders may set `CHATTO_FRONTEND_PRECOMPRESS=0`; runtime serving still falls back to the identity representation. The compiled SPA output is embedded into the Go binary with `//go:embed all:.client`. The Go server handles:
 
 - Serving the `200.html` fallback for all unrecognized routes (SPA client-side routing)
 - Serving SvelteKit's immutable assets (`/_app/immutable/`) with 1-year cache headers and ETags
-- Serving precompressed `.br` and `.gz` variants without runtime compression
+- Serving precompressed `.br` and `.gz` variants according to `Accept-Encoding`
+  quality values, including explicit `q=0` rejection, without runtime
+  compression
 - Injecting server-side OpenGraph meta tags into the `200.html` response for asset/space preview URLs
 
 ## Consequences

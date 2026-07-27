@@ -695,6 +695,112 @@ local notification state need to be reconciled.
 | `previous_last_read_at` | `google.protobuf.Timestamp` | Previous room read timestamp, when one existed. |
 
 
+<a id="chatto-api-v1-RoomService-AdvanceReadReceipt"></a>
+
+### AdvanceReadReceipt
+
+Advances the caller's public read-receipt cursor for a room or thread.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/AdvanceReadReceipt
+```
+
+<a id="chatto-api-v1-AdvanceReadReceiptRequest"></a>
+
+#### Input: AdvanceReadReceiptRequest
+
+Request to advance the current user's public read-receipt cursor.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `thread_root_event_id` | `string` | No field description provided. |
+| `up_to_event_id` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-AdvanceReadReceiptResponse"></a>
+
+#### Result: AdvanceReadReceiptResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `updated` | `bool` | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-GetReadReceiptSummaries"></a>
+
+### GetReadReceiptSummaries
+
+Returns bounded reader counts for rendered messages.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/GetReadReceiptSummaries
+```
+
+<a id="chatto-api-v1-GetReadReceiptSummariesRequest"></a>
+
+#### Input: GetReadReceiptSummariesRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `thread_root_event_id` | `string` | No field description provided. |
+| `message_event_ids` | `repeated string` | No field description provided. |
+
+
+<a id="chatto-api-v1-GetReadReceiptSummariesResponse"></a>
+
+#### Result: GetReadReceiptSummariesResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `summaries` | repeated [`ReadReceiptSummary`](/reference/connectrpc-api/types/#chatto-api-v1-ReadReceiptSummary) | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-ListReadReceiptReaders"></a>
+
+### ListReadReceiptReaders
+
+Lists current authorized readers for one message with bounded pagination.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/ListReadReceiptReaders
+```
+
+<a id="chatto-api-v1-ListReadReceiptReadersRequest"></a>
+
+#### Input: ListReadReceiptReadersRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `thread_root_event_id` | `string` | No field description provided. |
+| `message_event_id` | `string` | No field description provided. |
+| `page` | [`PageRequest`](/reference/connectrpc-api/types/#chatto-api-v1-PageRequest) | No field description provided. |
+
+
+<a id="chatto-api-v1-ListReadReceiptReadersResponse"></a>
+
+#### Result: ListReadReceiptReadersResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `readers` | repeated [`ReadReceiptReader`](/reference/connectrpc-api/types/#chatto-api-v1-ReadReceiptReader) | No field description provided. |
+| `page` | [`PageInfo`](/reference/connectrpc-api/types/#chatto-api-v1-PageInfo) | No field description provided. |
+
+
 <a id="chatto-api-v1-RoomService-BanMember"></a>
 
 ### BanMember

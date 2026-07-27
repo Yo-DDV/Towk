@@ -119,13 +119,14 @@ a publicly trusted certificate. Route `wss://livekit.example.com` on TCP 443 to
 LiveKit port 7880. Media travels directly to LiveKit instead of through the HTTP
 reverse proxy:
 
-| Public port          | Purpose                                                         |
-| -------------------- | --------------------------------------------------------------- |
-| TCP 443              | Secure LiveKit API and WebSocket signaling, proxied to TCP 7880 |
-| TCP 7881             | ICE/TCP media fallback when UDP is unavailable                  |
-| UDP 3478             | Optional embedded TURN/STUN relay                               |
-| UDP media range      | Direct WebRTC media; the Compose example uses 50000-50200       |
-| UDP TURN relay range | TURN allocation sockets; the Compose example uses 50201-50400   |
+| Public port          | Purpose                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| TCP 443              | Secure LiveKit API and WebSocket signaling, proxied to TCP 7880                           |
+| UDP 443              | HTTP/3 for HTTP requests when the proxy supports it; WebSocket signaling stays on TCP 443 |
+| TCP 7881             | ICE/TCP media fallback when UDP is unavailable                                            |
+| UDP 3478             | Optional embedded TURN/STUN relay                                                         |
+| UDP media range      | Direct WebRTC media; the Compose example uses 50000-50200                                 |
+| UDP TURN relay range | TURN allocation sockets; the Compose example uses 50201-50400                             |
 
 The port range must match `rtc.port_range_start` and `rtc.port_range_end` in
 your LiveKit configuration. Do not route the TCP or UDP media ports through a
@@ -159,6 +160,32 @@ block this TCP fallback need TURN/TLS. If your users can only reach outbound TCP
 443, LiveKit or TURN needs a dedicated IP address or host so it can listen on
 443 without conflicting with your HTTPS reverse proxy, and the TURN TLS
 certificate must match the advertised TURN domain.
+
+For a dedicated LiveKit TURN address, configure both the low-latency UDP path
+and the restrictive-firewall TLS path:
+
+```yaml
+turn:
+  enabled: true
+  udp_port: 443
+  tls_port: 443
+  domain: turn.example.com
+  cert_file: /etc/livekit-certs/fullchain.pem
+  key_file: /etc/livekit-certs/privkey.pem
+  relay_range_start: 50201
+  relay_range_end: 50400
+```
+
+Open TCP and UDP 443 and the relay allocation range on that address. Keep direct
+media UDP and ICE/TCP enabled. WebRTC exposes direct UDP, TURN/UDP, ICE/TCP, and
+TURN/TLS candidates so connectivity checks can select a working route without
+making the slower TCP relay the only path. Exact candidate selection depends on
+the browser, network, and ICE priorities.
+
+The web HTTP/3 listener and TURN/UDP both want UDP 443; HTTPS and TURN/TLS both
+want TCP 443. They cannot share one IP through a normal HTTP reverse proxy.
+Use a separate public IP or host for TURN instead of sacrificing either HTTP/3
+or the strict-firewall call fallback.
 
 For a public LiveKit node, prefer `rtc.use_external_ip: true`. When a custom
 topology sets `use_external_ip: false` and `rtc.node_ip` is private, LiveKit's

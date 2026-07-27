@@ -213,18 +213,33 @@ existing realtime connections stay with the replica that accepted them.
 The example publishes LiveKit's Layer 4 media ports directly from its container
 to the host:
 
-| Public port | Destination | Protocol and purpose |
-| ----------- | ----------- | -------------------- |
-| TCP 80 | Caddy | HTTP redirect and ACME HTTP challenge |
-| TCP 443 | Caddy | HTTPS and secure WebSocket traffic for both domains |
-| TCP 7881 | LiveKit 7881 | WebRTC media fallback when UDP is unavailable |
-| UDP 3478 | LiveKit 3478 | Embedded TURN/STUN relay |
-| UDP 50000-50200 | Same LiveKit ports | Direct WebRTC media |
-| UDP 50201-50400 | Same LiveKit ports | Embedded TURN relay allocations |
+| Public port     | Destination        | Protocol and purpose                                                     |
+| --------------- | ------------------ | ------------------------------------------------------------------------ |
+| TCP 80          | Caddy              | HTTP redirect and ACME HTTP challenge                                    |
+| TCP 443         | Caddy              | HTTPS and secure WebSocket traffic for both domains                      |
+| UDP 443         | Caddy              | HTTP/3 for both domains; HTTP/2 and HTTP/1.1 remain available on TCP 443 |
+| TCP 7881        | LiveKit 7881       | WebRTC media fallback when UDP is unavailable                            |
+| UDP 3478        | LiveKit 3478       | Embedded TURN/STUN relay                                                 |
+| UDP 50000-50200 | Same LiveKit ports | Direct WebRTC media                                                      |
+| UDP 50201-50400 | Same LiveKit ports | Embedded TURN relay allocations                                          |
 
 The standard Caddy image does not include the optional Caddy L4 plugin, and this
 single-host setup does not need it. Open the matching host and cloud firewall
 rules, and do not expose NATS port 4222 publicly.
+
+Caddy enables HTTP/3 automatically when UDP 443 is reachable. The Compose file
+therefore publishes both protocols on port 443. UDP 443 is an optional fast
+path from the client's perspective: browsers behind firewalls that block QUIC
+fall back to HTTP/2 or HTTP/1.1 on TCP 443. Keep TCP 443 published and allowed
+even when HTTP/3 is working.
+
+Official Towk builds contain Brotli and gzip variants of static frontend
+assets. The embedded origin selects them from the client's weighted
+`Accept-Encoding` preferences and returns `Vary: Accept-Encoding`; the identity
+representation remains available to legacy clients. Do not add a second
+compression pass at the reverse proxy. Resource-constrained source builders
+can set `CHATTO_FRONTEND_PRECOMPRESS=0` before `mise build-frontend`, accepting
+larger transfers in exchange for lower build-time CPU and disk use.
 
 The generated configuration uses `rtc.use_external_ip: true`; keep that default
 when the single LiveKit host has a public address. If a custom topology instead
@@ -442,10 +457,33 @@ example certificate-free beyond the HTTPS certificates managed by Caddy.
 Networks that block UDP entirely still need TURN/TLS. Add that only when you also provide a TURN domain plus certificate/key, or run LiveKit behind L4 TLS forwarding that terminates TLS before LiveKit.
 
 <Aside>
-  Some networks only allow outbound traffic on TCP 443. If you need TURN on
-  port 443, run LiveKit or a dedicated TURN server on a separate IP address or
-  host so it does not conflict with Caddy.
+  Some networks only allow outbound traffic on TCP 443. If you need TURN on port
+  443, run LiveKit or a dedicated TURN server on a separate IP address or host
+  so it does not conflict with Caddy.
 </Aside>
+
+For an embedded TURN listener on a dedicated host, the relevant LiveKit fields
+are:
+
+```yaml
+turn:
+  enabled: true
+  udp_port: 443
+  tls_port: 443
+  domain: turn.example.com
+  cert_file: /etc/livekit-certs/fullchain.pem
+  key_file: /etc/livekit-certs/privkey.pem
+  relay_range_start: 50201
+  relay_range_end: 50400
+```
+
+Publish TCP and UDP 443 plus the relay range on that dedicated address. The
+certificate must cover `turn.example.com`. TURN/UDP on 443 normally performs
+better than TURN/TLS, while TURN/TLS is the last-resort path for networks that
+permit only HTTPS-like TCP traffic. A single IP cannot simultaneously give
+UDP 443 to Caddy HTTP/3 and LiveKit TURN/UDP, or TCP 443 to Caddy HTTPS and
+LiveKit TURN/TLS; use separate addresses rather than silently disabling either
+fallback.
 
 See [Voice & Video Calls](/guides/infrastructure/voice-calls/#turn-for-restrictive-networks) for the full TURN tradeoffs, including when to use a dedicated TURN server.
 
@@ -458,6 +496,8 @@ See [Voice & Video Calls](/guides/infrastructure/voice-calls/#turn-for-restricti
 **The first account is not an owner** — Make sure `CHATTO_OWNERS_EMAILS` contains the verified email address for that account. For an already-verified account, restart Towk after updating the variable; Towk applies matching owner roles on boot.
 
 **Caddy not getting certificates** — Verify DNS records point to your server and ports 80/443 are open. Check `docker compose logs caddy` for ACME errors.
+
+**HTTP/3 not negotiated** — Confirm UDP 443 is published by Compose and allowed by both the host and provider firewalls. TCP 443 must remain open for HTTP/2 and HTTP/1.1 fallback.
 
 **Container startup order** — `depends_on` with `condition: service_healthy` ensures NATS and LiveKit are ready before Towk starts. If health checks fail, check the individual service logs.
 

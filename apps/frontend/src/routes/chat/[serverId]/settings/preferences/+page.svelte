@@ -10,7 +10,7 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { PaneHeader, FormSection } from '$lib/ui';
-  import { Button, FormError } from '$lib/ui/form';
+  import { Button, Checkbox, FormError } from '$lib/ui/form';
   import { toast } from '$lib/ui/toast';
   import { formatMessageTime } from '$lib/utils/formatTime';
   import { EXTERNAL_GIF_EMBEDS_CAPABILITY } from '$lib/externalGif';
@@ -40,6 +40,7 @@
   let timezoneSearch = $state(userSettings.timezone ?? '');
   let selectedTimezone = $state<string | null>(userSettings.timezone);
   let selectedTimeFormat = $state<TimeFormat>(userSettings.timeFormat);
+  let readReceiptsEnabled = $state(userSettings.readReceiptsEnabled);
   let isSaving = $state(false);
   let error = $state('');
 
@@ -60,7 +61,9 @@
 
   // Track if the form has been modified
   const isModified = $derived(
-    selectedTimezone !== userSettings.timezone || selectedTimeFormat !== userSettings.timeFormat
+    selectedTimezone !== userSettings.timezone ||
+      selectedTimeFormat !== userSettings.timeFormat ||
+      readReceiptsEnabled !== userSettings.readReceiptsEnabled
   );
 
   // Timezone validation
@@ -170,9 +173,11 @@
       // Update the local settings state so formatting changes take effect immediately
       const settings = await accountAPI().updateSettings({
         timezone: selectedTimezone,
-        timeFormat: selectedTimeFormat
+        timeFormat: selectedTimeFormat,
+        readReceiptsEnabled
       });
       userSettings.updateFromData(settings);
+      readReceiptsEnabled = settings.readReceiptsEnabled;
       if (currentUser.user) {
         currentUser.user = {
           ...currentUser.user,
@@ -455,6 +460,19 @@
         </button>
       {/each}
     </div>
+  </FormSection>
+
+  <!-- Read receipts -->
+  <FormSection title={m['settings.preferences.read_receipts.title']()} maxWidth="max-w-md" bordered>
+    <Checkbox
+      id="read-receipts-enabled"
+      bind:checked={readReceiptsEnabled}
+      label={readReceiptsEnabled
+        ? m['settings.preferences.read_receipts.enabled_label']()
+        : m['settings.preferences.read_receipts.disabled_label']()}
+      description={m['settings.preferences.read_receipts.description']()}
+      disabled={isSaving}
+    />
   </FormSection>
 
   <!-- Save -->

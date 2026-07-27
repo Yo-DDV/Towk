@@ -131,6 +131,11 @@ describe('getAuthenticatedServerState', () => {
         hasUnreadRooms: true
       }
     });
+    mocks.getServerConfig.mockResolvedValue({
+      config: {
+        readReceiptsEnabled: false
+      }
+    });
 
     const state = await getAuthenticatedServerState({
       baseUrl: 'https://chat.example.test/api/connect',
@@ -211,7 +216,8 @@ describe('getAuthenticatedServerState', () => {
       viewerCanDeleteAnyUser: false,
       viewerCanDeleteSelf: true,
       viewerCanManageUserPermissions: true,
-      viewerHasUnreadRooms: true
+      viewerHasUnreadRooms: true,
+      readReceiptsEnabled: false
     });
   });
 
@@ -281,7 +287,8 @@ describe('getAuthenticatedServerState', () => {
         name: 'Connect Server',
         description: 'Connect description',
         motd: 'Connect MOTD',
-        welcomeMessage: 'Connect welcome'
+        welcomeMessage: 'Connect welcome',
+        readReceiptsEnabled: true
       }
     );
 
@@ -294,7 +301,8 @@ describe('getAuthenticatedServerState', () => {
         serverName: 'Connect Server',
         description: 'Connect description',
         motd: 'Connect MOTD',
-        welcomeMessage: 'Connect welcome'
+        welcomeMessage: 'Connect welcome',
+        readReceiptsEnabled: true
       },
       { headers: { Authorization: 'Bearer token' } }
     );
@@ -315,7 +323,8 @@ describe('getAuthenticatedServerState', () => {
         serverName: 'Connect Server',
         description: 'Connect description',
         motd: 'Connect MOTD',
-        welcomeMessage: 'Connect welcome'
+        welcomeMessage: 'Connect welcome',
+        readReceiptsEnabled: false
       }
     });
 
@@ -328,7 +337,8 @@ describe('getAuthenticatedServerState', () => {
       name: 'Connect Server',
       description: 'Connect description',
       motd: 'Connect MOTD',
-      welcomeMessage: 'Connect welcome'
+      welcomeMessage: 'Connect welcome',
+      readReceiptsEnabled: false
     });
 
     expect(mocks.getServerConfig).toHaveBeenCalledWith(

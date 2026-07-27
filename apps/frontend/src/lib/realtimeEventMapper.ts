@@ -339,9 +339,23 @@ export function realtimeEventToEventEnvelope(frame: RealtimeEventEnvelope): Even
           kind: RoomEventKind.ServerUserPreferencesUpdated,
           timezone: frame.event.value.timezone ?? null,
           timeFormat: timeFormat(frame.event.value.timeFormat),
+          readReceiptsEnabled: frame.event.value.readReceiptsEnabled ?? true,
           showLastActivity: frame.event.value.showLastActivity
         }
       } as unknown as EventEnvelope;
+    case 'readReceiptAdvanced': {
+      const value = frame.event.value;
+      return {
+        ...base,
+        createdAt: '',
+        actorId: null,
+        event: {
+          kind: RoomEventKind.ReadReceiptAdvanced,
+          roomId: value.roomId,
+          threadRootEventId: value.threadRootEventId ?? null
+        }
+      } as unknown as EventEnvelope;
+    }
     case 'roomGroupsUpdated':
       return {
         ...base,

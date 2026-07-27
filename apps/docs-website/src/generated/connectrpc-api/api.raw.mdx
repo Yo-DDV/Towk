@@ -349,6 +349,7 @@ fields are left unchanged. An empty timezone clears the explicit timezone.
 | `timezone` | `optional string` | IANA timezone override. Empty clears the override. |
 | `time_format` | optional [`TimeFormat`](#chatto-api-v1-TimeFormat) | Preferred time format. |
 | `show_last_activity` | `optional bool` | Whether other authenticated server members may see last activity. Absent stored state is treated as enabled for upgrade compatibility. |
+| `read_receipts_enabled` | `optional bool` | Enables or disables reciprocal public read receipts for this account. |
 
 
 <a id="chatto-api-v1-UpdateSettingsResponse"></a>
@@ -2076,6 +2077,112 @@ local notification state need to be reconciled.
 | `previous_last_read_at` | `google.protobuf.Timestamp` | Previous room read timestamp, when one existed. |
 
 
+<a id="chatto-api-v1-RoomService-AdvanceReadReceipt"></a>
+
+### AdvanceReadReceipt
+
+Advances the caller's public read-receipt cursor for a room or thread.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/AdvanceReadReceipt
+```
+
+<a id="chatto-api-v1-AdvanceReadReceiptRequest"></a>
+
+#### Input: AdvanceReadReceiptRequest
+
+Request to advance the current user's public read-receipt cursor.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `thread_root_event_id` | `string` | No field description provided. |
+| `up_to_event_id` | `string` | No field description provided. |
+
+
+<a id="chatto-api-v1-AdvanceReadReceiptResponse"></a>
+
+#### Result: AdvanceReadReceiptResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `updated` | `bool` | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-GetReadReceiptSummaries"></a>
+
+### GetReadReceiptSummaries
+
+Returns bounded reader counts for rendered messages.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/GetReadReceiptSummaries
+```
+
+<a id="chatto-api-v1-GetReadReceiptSummariesRequest"></a>
+
+#### Input: GetReadReceiptSummariesRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `thread_root_event_id` | `string` | No field description provided. |
+| `message_event_ids` | `repeated string` | No field description provided. |
+
+
+<a id="chatto-api-v1-GetReadReceiptSummariesResponse"></a>
+
+#### Result: GetReadReceiptSummariesResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `summaries` | repeated [`ReadReceiptSummary`](#chatto-api-v1-ReadReceiptSummary) | No field description provided. |
+
+
+<a id="chatto-api-v1-RoomService-ListReadReceiptReaders"></a>
+
+### ListReadReceiptReaders
+
+Lists current authorized readers for one message with bounded pagination.
+
+```http
+POST /api/connect/chatto.api.v1.RoomService/ListReadReceiptReaders
+```
+
+<a id="chatto-api-v1-ListReadReceiptReadersRequest"></a>
+
+#### Input: ListReadReceiptReadersRequest
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | No field description provided. |
+| `thread_root_event_id` | `string` | No field description provided. |
+| `message_event_id` | `string` | No field description provided. |
+| `page` | [`PageRequest`](#chatto-api-v1-PageRequest) | No field description provided. |
+
+
+<a id="chatto-api-v1-ListReadReceiptReadersResponse"></a>
+
+#### Result: ListReadReceiptReadersResponse
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | `bool` | No field description provided. |
+| `readers` | repeated [`ReadReceiptReader`](#chatto-api-v1-ReadReceiptReader) | No field description provided. |
+| `page` | [`PageInfo`](#chatto-api-v1-PageInfo) | No field description provided. |
+
+
 <a id="chatto-api-v1-RoomService-BanMember"></a>
 
 ### BanMember
@@ -3570,6 +3677,7 @@ Server-level display settings for the authenticated user.
 | `timezone` | `optional string` | Optional IANA timezone override. Absent means the client should use the browser's local timezone. |
 | `time_format` | [`TimeFormat`](#chatto-api-v1-TimeFormat) | Preferred time format. |
 | `show_last_activity` | `bool` | Whether other authenticated server members may see last activity. The API returns true when no explicit preference has been stored. |
+| `read_receipts_enabled` | `bool` | Whether the viewer publishes and may inspect reciprocal read receipts. |
 
 
 
@@ -3929,6 +4037,32 @@ One explicitly assigned role shown on a detailed user profile.
 | `display_name` | `string` | Administrator-configured display name. |
 | `position` | `int32` | Display ordering hint. This is not an authorization rank. |
 | `moderation` | `bool` | True when the role carries moderation or administration authority. |
+
+
+
+<a id="chatto-api-v1-ReadReceiptReader"></a>
+
+### ReadReceiptReader
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user` | [`User`](#chatto-api-v1-User) | No field description provided. |
+| `read_at` | `google.protobuf.Timestamp` | No field description provided. |
+
+
+
+<a id="chatto-api-v1-ReadReceiptSummary"></a>
+
+### ReadReceiptSummary
+
+Compact reader summary for one message.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `message_event_id` | `string` | No field description provided. |
+| `reader_count` | `int32` | No field description provided. |
 
 
 

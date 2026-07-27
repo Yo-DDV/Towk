@@ -3,7 +3,10 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import { execSync } from 'node:child_process';
 import { resolveFrontendBuildVersion } from './src/lib/pwa/buildVersion.js';
 
-const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS === '1';
+// Production and release builds should emit cache-friendly Brotli and gzip
+// variants by default. Resource-constrained source builders can opt out
+// explicitly without changing the runtime identity fallback.
+const precompress = process.env.CHATTO_FRONTEND_PRECOMPRESS !== '0';
 
 function buildVersionName() {
   let gitRevision = '';

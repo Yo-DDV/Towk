@@ -1,11 +1,21 @@
 <script lang="ts">
+  import type { ReadReceiptSummary } from '$lib/api-client/readState';
   import type { RoomEventView } from '$lib/render/types';
 
-  let { event }: { event: RoomEventView } = $props();
+  let {
+    event,
+    readReceiptSummary
+  }: {
+    event: RoomEventView;
+    readReceiptSummary?: ReadReceiptSummary;
+  } = $props();
 </script>
 
 <div data-event-id={event.id}>
   {event.id}
+  {#if readReceiptSummary}
+    <span data-testid={`read-receipt-summary-${event.id}`}>{readReceiptSummary.readerCount}</span>
+  {/if}
   {#if event.id === 'msg-with-pending-image'}
     <img
       data-testid="mock-timeline-image"

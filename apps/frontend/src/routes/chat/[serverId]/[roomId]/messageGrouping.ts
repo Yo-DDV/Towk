@@ -2,6 +2,7 @@ import type { RoomEventView } from '$lib/render/types';
 import { isMessagePostedEvent } from '$lib/render/eventKinds';
 import type { UserSettingsState } from '$lib/state/userSettings.svelte';
 import { isSameDay, formatDayLabel } from '$lib/utils/formatTime';
+import { withReadReceiptPresentation } from './readReceiptPresentation';
 
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 
@@ -18,10 +19,11 @@ export function computeEventMetadata(
   locale?: string
 ): EventWithMeta[] {
   const result: EventWithMeta[] = [];
+  const presentedEvents = withReadReceiptPresentation(events);
 
-  for (let i = 0; i < events.length; i++) {
-    const event = events[i];
-    const prevEvent: RoomEventView | null = i > 0 ? events[i - 1] : null;
+  for (let i = 0; i < presentedEvents.length; i++) {
+    const event = presentedEvents[i];
+    const prevEvent: RoomEventView | null = i > 0 ? presentedEvents[i - 1] : null;
 
     const eventDate = new Date(event.createdAt);
     const prevEventDate = prevEvent ? new Date(prevEvent.createdAt) : null;

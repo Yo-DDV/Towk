@@ -40,8 +40,11 @@ type ServerConfig struct {
 	// Owner-requested runtime performance policy. Absence preserves the
 	// historical runtime limits for upgraded installations.
 	PerformancePolicy *ServerPerformancePolicy `protobuf:"bytes,8,opt,name=performance_policy,json=performancePolicy,proto3" json:"performance_policy,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// Whether reciprocal public read receipts are enabled. Absence means enabled
+	// for mixed-version compatibility and existing installations.
+	ReadReceiptsEnabled *bool `protobuf:"varint,9,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3,oneof" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ServerConfig) Reset() {
@@ -114,6 +117,13 @@ func (x *ServerConfig) GetPerformancePolicy() *ServerPerformancePolicy {
 		return x.PerformancePolicy
 	}
 	return nil
+}
+
+func (x *ServerConfig) GetReadReceiptsEnabled() bool {
+	if x != nil && x.ReadReceiptsEnabled != nil {
+		return *x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 // Bounded worker policy stored as a durable server configuration fact.
@@ -266,7 +276,7 @@ var File_chatto_config_v1_config_proto protoreflect.FileDescriptor
 
 const file_chatto_config_v1_config_proto_rawDesc = "" +
 	"\n" +
-	"\x1dchatto/config/v1/config.proto\x12\x10chatto.config.v1\"\xbb\x02\n" +
+	"\x1dchatto/config/v1/config.proto\x12\x10chatto.config.v1\"\x8e\x03\n" +
 	"\fServerConfig\x12'\n" +
 	"\x0fwelcome_message\x18\x01 \x01(\tR\x0ewelcomeMessage\x12\x1f\n" +
 	"\vserver_name\x18\x02 \x01(\tR\n" +
@@ -274,7 +284,9 @@ const file_chatto_config_v1_config_proto_rawDesc = "" +
 	"\x04motd\x18\x03 \x01(\tR\x04motd\x12+\n" +
 	"\x11blocked_usernames\x18\x04 \x01(\tR\x10blockedUsernames\x12 \n" +
 	"\vdescription\x18\a \x01(\tR\vdescription\x12X\n" +
-	"\x12performance_policy\x18\b \x01(\v2).chatto.config.v1.ServerPerformancePolicyR\x11performancePolicyJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\bog_titleR\x0eog_description\"\x92\x02\n" +
+	"\x12performance_policy\x18\b \x01(\v2).chatto.config.v1.ServerPerformancePolicyR\x11performancePolicy\x127\n" +
+	"\x15read_receipts_enabled\x18\t \x01(\bH\x00R\x13readReceiptsEnabled\x88\x01\x01B\x18\n" +
+	"\x16_read_receipts_enabledJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\bog_titleR\x0eog_description\"\x92\x02\n" +
 	"\x11PerformanceLimits\x126\n" +
 	"\x17image_transform_workers\x18\x01 \x01(\x05R\x15imageTransformWorkers\x12<\n" +
 	"\x1aimage_transform_admissions\x18\x02 \x01(\x05R\x18imageTransformAdmissions\x120\n" +
@@ -321,6 +333,7 @@ func file_chatto_config_v1_config_proto_init() {
 	if File_chatto_config_v1_config_proto != nil {
 		return
 	}
+	file_chatto_config_v1_config_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

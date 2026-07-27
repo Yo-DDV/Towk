@@ -62,3 +62,4 @@ For more about ADRs, see [Michael Nygard's article](https://cognitect.com/blog/2
 | [ADR-052](ADR-052-authorized-private-media-revalidation.md)                     | Protected Media Revalidates After Authorization                        | 2026-07-17 |
 | [ADR-053](ADR-053-optional-self-hosted-turn-tls-profile.md)                     | Optional Self-Hosted TURN/TLS Profile                                  | 2026-07-26 |
 | [ADR-054](ADR-054-provider-hosted-external-gif-embeds.md)                       | Provider-Hosted External GIF Embeds Stay Outside Towk Storage          | 2026-07-24 |
+| [ADR-055](ADR-055-read-receipt-publication-boundary.md)                         | Read Receipt Publication Boundary                                      | 2026-07-25 |

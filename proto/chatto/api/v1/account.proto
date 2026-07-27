@@ -87,6 +87,8 @@ message UpdateSettingsRequest {
   // Whether other authenticated server members may see last activity.
   // Absent stored state is treated as enabled for upgrade compatibility.
   optional bool show_last_activity = 3;
+  // Enables or disables reciprocal public read receipts for this account.
+  optional bool read_receipts_enabled = 4;
 }
 
 // Result of updating display preferences.

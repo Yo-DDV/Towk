@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"hmans.de/chatto/internal/core"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
@@ -382,6 +383,72 @@ func TestRealtimeMapperMapsOfflinePresence(t *testing.T) {
 	}
 	if presence.Status != apiv1.PresenceStatus_PRESENCE_STATUS_OFFLINE {
 		t.Fatalf("presence status = %v, want OFFLINE", presence.Status)
+	}
+}
+
+func TestRealtimeMapperMapsAnonymousReadReceiptInvalidation(t *testing.T) {
+	threadRoot := "ROOT1"
+	payload := &corev1.PublicReadReceiptAdvancedEvent{
+		RoomId:            "R1",
+		ThreadRootEventId: &threadRoot,
+	}
+	payload.ProtoReflect().SetUnknown([]byte{0x1a, 0x02, 'U', '1'})
+	frame, err := (&HTTPServer{}).realtimeEventEnvelope(context.Background(), "", core.NewLiveEventEnvelope(&corev1.LiveEvent{
+		Id:        "receipt-live-1",
+		ActorId:   "U1",
+		CreatedAt: timestamppb.New(time.Unix(1_700_000_000, 123).UTC()),
+		Event: &corev1.LiveEvent_PublicReadReceiptAdvanced{
+			PublicReadReceiptAdvanced: payload,
+		},
+	}))
+	if err != nil {
+		t.Fatalf("realtimeEventEnvelope: %v", err)
+	}
+	receipt := frame.GetReadReceiptAdvanced()
+	if receipt == nil {
+		t.Fatalf("event = %T, want read_receipt_advanced", frame.GetEvent())
+	}
+	if receipt.GetRoomId() != "R1" || receipt.GetThreadRootEventId() != threadRoot {
+		t.Fatalf("read_receipt_advanced = %+v", receipt)
+	}
+	if frame.ActorId != nil || frame.GetCreatedAt() != nil {
+		t.Fatalf("realtime envelope leaked metadata: actor=%v created_at=%v", frame.ActorId, frame.GetCreatedAt())
+	}
+	descriptor := receipt.ProtoReflect().Descriptor()
+	if descriptor.Fields().Len() != 2 ||
+		descriptor.Fields().ByName("user_id") != nil ||
+		descriptor.Fields().ByName("event_id") != nil ||
+		descriptor.Fields().ByName("event_sequence") != nil ||
+		descriptor.Fields().ByName("read_at") != nil ||
+		!descriptor.ReservedRanges().Has(3) ||
+		!descriptor.ReservedRanges().Has(4) ||
+		!descriptor.ReservedRanges().Has(5) ||
+		!descriptor.ReservedRanges().Has(6) ||
+		!descriptor.ReservedNames().Has("user_id") ||
+		!descriptor.ReservedNames().Has("event_id") ||
+		!descriptor.ReservedNames().Has("event_sequence") ||
+		!descriptor.ReservedNames().Has("read_at") {
+		t.Fatalf("unsafe realtime read receipt descriptor: %v", descriptor)
+	}
+}
+
+func TestRealtimeMapperIncludesReadReceiptPreference(t *testing.T) {
+	frame, err := (&HTTPServer{}).realtimeEventEnvelope(context.Background(), "", core.NewLiveEventEnvelope(&corev1.LiveEvent{
+		Id:      "settings-live-1",
+		ActorId: "U1",
+		Event: &corev1.LiveEvent_ServerUserPreferencesUpdated{ServerUserPreferencesUpdated: &corev1.ServerUserPreferencesUpdatedEvent{
+			ReadReceiptsEnabled: false,
+		}},
+	}))
+	if err != nil {
+		t.Fatalf("realtimeEventEnvelope: %v", err)
+	}
+	settings := frame.GetServerUserPreferencesUpdated()
+	if settings == nil {
+		t.Fatalf("event = %T, want server_user_preferences_updated", frame.GetEvent())
+	}
+	if settings.GetReadReceiptsEnabled() {
+		t.Fatalf("read_receipts_enabled = true, want false")
 	}
 }
 

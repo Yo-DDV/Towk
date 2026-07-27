@@ -31,6 +31,7 @@
     onLoadMore,
     onOpenThread,
     filterThreadReplies = true,
+    readReceiptThreadRootEventId = null,
     enableLastEditableFinder = false,
     isLoading = false,
     loadFailed = false,
@@ -69,6 +70,7 @@
     onLoadMore?: (options?: { silent?: boolean }) => Promise<void>;
     onOpenThread?: OpenThreadHandler;
     filterThreadReplies?: boolean;
+    readReceiptThreadRootEventId?: string | null;
     enableLastEditableFinder?: boolean;
     isLoading?: boolean;
     loadFailed?: boolean;
@@ -131,6 +133,7 @@
   {onLoadMore}
   {onOpenThread}
   {filterThreadReplies}
+  {readReceiptThreadRootEventId}
   {updateCounter}
   {enableLastEditableFinder}
   {isLoading}

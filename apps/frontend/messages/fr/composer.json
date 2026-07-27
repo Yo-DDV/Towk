@@ -55,6 +55,7 @@
       "too_large": "Ce message vocal est trop volumineux pour être envoyé. Enregistrez un message plus court."
     },
     "edit_failed": "Échec de la modification du message",
+    "edit_window_expired": "Ce message ne peut plus être modifié, car le délai de modification est écoulé.",
     "mention": {
       "all_room_members": "Tous les membres du salon",
       "members_here": "Membres actuellement ici",
