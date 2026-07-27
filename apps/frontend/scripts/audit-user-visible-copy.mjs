@@ -2,13 +2,14 @@
 
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const MAX_SOURCE_FILE_BYTES = 2 * 1024 * 1024;
 const FRONTEND_ROOT = 'apps/frontend/src';
 const BACKEND_ROOT = 'cli/internal';
 const MESSAGES_ROOT = 'apps/frontend/messages';
 const SETTINGS_FILE = 'apps/frontend/project.inlang/settings.json';
+const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 const USER_FACING_ATTRIBUTES = [
   'alt',
@@ -249,7 +250,7 @@ const SUSPICIOUS_TRANSLATIONS = [
   ['pt', /\bthreads?\b/i, 'untranslated English term'],
   [
     'pt',
-    /\b(?:ficheiros?|ecrã|respetiv[ao]|iniciar sessão|partilh(?:ar|ad[oa]s?|e)|aplicaç(?:ão|ões)|afix(?:ar|á-lo)|auscultador(?:es)?|gere|económico|detetad[oa]s?|eliminad[oa]s?|eliminação|O seu histórico|qualquer notificação|serão apresentad[oa]s?|multimédia|workers?)\b/i,
+    /\b(?:ficheiros?|ecrã|respetiv[ao]|iniciar sessão|partilh(?:ar|ad[oa]s?|e)|aplicaç(?:ão|ões)|afix(?:ar|á-lo)|auscultador(?:es)?|gere|económico|detetad[oa]s?|eliminad[oa]s?|eliminação|O seu histórico|qualquer notificação|serão apresentad[oa]s?|multimédia|subjects|workers?|papel|papéis|cargos)\b/i,
     'European Portuguese or untranslated term in the pt-BR catalog'
   ],
   [
@@ -744,7 +745,7 @@ function formatViolation(violation) {
 }
 
 async function main() {
-  const result = await auditUserVisibleCopy();
+  const result = await auditUserVisibleCopy(REPOSITORY_ROOT);
   if (result.violations.length > 0) {
     process.stderr.write(`${result.violations.map(formatViolation).join('\n')}\n`);
     process.stderr.write(

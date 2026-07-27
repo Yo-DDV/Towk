@@ -37,7 +37,7 @@
       "granted": "Garantido",
       "denied": "Negado",
       "no_decision": "Nenhuma decisão",
-      "no_role_decided": "Nenhum papel decidido",
+      "no_role_decided": "Nenhuma função definida",
       "hide_trace": "Ocultar rastro",
       "show_trace": "Mostrar rastreamento",
       "trace_one": "Rastreamento de resolução (1 entrada)",
