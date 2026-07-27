@@ -1,0 +1,33 @@
+name: pr173 current-main finalization
+
+on:
+  push:
+    branches:
+      - feat/read-receipts
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pr173-current-main-finalization
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: ${{ contains(github.event.head_commit.message, '[run pr173-current-finalize]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Reconstruct, validate, and publish clean product head
+        shell: bash
+        run: bash .github/pr173-current-finalize.sh
