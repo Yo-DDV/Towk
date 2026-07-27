@@ -64,20 +64,22 @@ jobs:
           python3 - <<'PYFIX'
           from pathlib import Path
 
-          paths = (
-              'apps/frontend/src/lib/api-client/account.ts',
-              'apps/frontend/src/lib/api-client/viewer.ts',
-              'apps/frontend/src/lib/eventBus.svelte.ts',
-          )
+          expected_counts = {
+              'apps/frontend/src/lib/api-client/account.ts': 1,
+              'apps/frontend/src/lib/api-client/viewer.ts': 1,
+              'apps/frontend/src/lib/eventBus.svelte.ts': 2,
+          }
           malformed = 'readReceiptsEnabled: boolean;,'
           corrected = 'readReceiptsEnabled: boolean;'
-          for name in paths:
+          for name, expected_count in expected_counts.items():
               file_path = Path(name)
               text = file_path.read_text(encoding='utf-8')
               count = text.count(malformed)
-              if count != 1:
-                  raise SystemExit(f'{name}: expected one malformed merged declaration, got {count}')
-              file_path.write_text(text.replace(malformed, corrected, 1), encoding='utf-8')
+              if count != expected_count:
+                  raise SystemExit(
+                      f'{name}: expected {expected_count} malformed merged declarations, got {count}'
+                  )
+              file_path.write_text(text.replace(malformed, corrected), encoding='utf-8')
           PYFIX
           '''
           if source.count(needle) != 1:
