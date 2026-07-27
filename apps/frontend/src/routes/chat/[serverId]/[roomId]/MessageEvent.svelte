@@ -152,6 +152,11 @@
   }
 
   function openEmojiPickerFromEvent(e: MouseEvent) {
+    if (!canUseHoverActions) {
+      openEmojiPicker('sheet');
+      return;
+    }
+
     emojiPickerPresentation = 'auto';
     emojiPickerPos = { x: e.clientX, y: e.clientY };
   }
