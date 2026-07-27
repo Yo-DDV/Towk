@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"html"
 	"io/fs"
+	"math"
 	"mime"
 	"net/http"
 	"path"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -264,22 +267,61 @@ func injectAppleTouchIcon(content []byte, iconURL string) []byte {
 	))
 }
 
-// clientAcceptsEncoding checks if the client accepts a specific encoding.
-// It parses the Accept-Encoding header and looks for the encoding name.
-func clientAcceptsEncoding(acceptEncoding, encoding string) bool {
-	// Simple check - look for the encoding in the header
-	// This handles common cases like "gzip, deflate, br" or "br"
-	for _, part := range strings.Split(acceptEncoding, ",") {
-		part = strings.TrimSpace(part)
-		// Strip quality value if present (e.g., "gzip;q=0.8")
-		if idx := strings.Index(part, ";"); idx != -1 {
-			part = part[:idx]
+// clientEncodingQuality returns the client's quality preference for an
+// encoding. An explicit coding takes precedence over a wildcard, including
+// when the explicit quality is zero.
+func clientEncodingQuality(acceptEncoding, encoding string) float64 {
+	encoding = strings.ToLower(strings.TrimSpace(encoding))
+	explicitQuality := -1.0
+	wildcardQuality := -1.0
+
+	for _, item := range strings.Split(acceptEncoding, ",") {
+		segments := strings.Split(item, ";")
+		coding := strings.ToLower(strings.TrimSpace(segments[0]))
+		if coding == "" {
+			continue
 		}
-		if part == encoding {
-			return true
+
+		quality := 1.0
+		for _, parameter := range segments[1:] {
+			name, value, found := strings.Cut(parameter, "=")
+			if !strings.EqualFold(strings.TrimSpace(name), "q") {
+				continue
+			}
+			if !found {
+				quality = 0
+				break
+			}
+			parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+			if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed < 0 || parsed > 1 {
+				quality = 0
+			} else {
+				quality = parsed
+			}
+			break
+		}
+
+		switch coding {
+		case encoding:
+			explicitQuality = max(explicitQuality, quality)
+		case "*":
+			wildcardQuality = max(wildcardQuality, quality)
 		}
 	}
-	return false
+
+	if explicitQuality >= 0 {
+		return explicitQuality
+	}
+	if wildcardQuality >= 0 {
+		return wildcardQuality
+	}
+	return 0
+}
+
+// clientAcceptsEncoding checks whether the client assigns a non-zero quality
+// value to a specific content coding.
+func clientAcceptsEncoding(acceptEncoding, encoding string) bool {
+	return clientEncodingQuality(acceptEncoding, encoding) > 0
 }
 
 // serveSPAFallback serves the 200.html file as a fallback for SPA routing.
@@ -335,6 +377,10 @@ func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
 // It checks for .br (brotli) and .gz (gzip) variants based on Accept-Encoding.
 // Returns true if a compressed file was served, false if the original should be served.
 func servePrecompressedFile(c *gin.Context, clientFS fs.FS, filePath string) bool {
+	// Every negotiable response, including the identity fallback, must vary on
+	// Accept-Encoding so shared caches do not mix representations.
+	c.Header("Vary", "Accept-Encoding")
+
 	acceptEncoding := c.GetHeader("Accept-Encoding")
 	if acceptEncoding == "" {
 		return false
@@ -344,13 +390,20 @@ func servePrecompressedFile(c *gin.Context, clientFS fs.FS, filePath string) boo
 	encodings := []struct {
 		name      string
 		extension string
+		quality   float64
 	}{
-		{"br", ".br"},
-		{"gzip", ".gz"},
+		{name: "br", extension: ".br"},
+		{name: "gzip", extension: ".gz"},
 	}
+	for index := range encodings {
+		encodings[index].quality = clientEncodingQuality(acceptEncoding, encodings[index].name)
+	}
+	sort.SliceStable(encodings, func(left, right int) bool {
+		return encodings[left].quality > encodings[right].quality
+	})
 
 	for _, enc := range encodings {
-		if !clientAcceptsEncoding(acceptEncoding, enc.name) {
+		if enc.quality <= 0 {
 			continue
 		}
 
@@ -368,8 +421,6 @@ func servePrecompressedFile(c *gin.Context, clientFS fs.FS, filePath string) boo
 
 		c.Header("Content-Encoding", enc.name)
 		c.Header("Content-Type", contentType)
-		// Vary header tells caches that response varies based on Accept-Encoding
-		c.Header("Vary", "Accept-Encoding")
 		c.Data(http.StatusOK, contentType, content)
 		return true
 	}

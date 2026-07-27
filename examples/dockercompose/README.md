@@ -63,10 +63,10 @@ The included Caddy service is a convenient default, not a requirement. If you
 already run Caddy, nginx, Apache, Traefik, or another public web server, keep it
 and configure two routes:
 
-| Public endpoint | Destination | Purpose |
-| --- | --- | --- |
-| Your Towk HTTPS hostname | `towk:4000` | Towk web app, ConnectRPC APIs, realtime connections, and the LiveKit webhook |
-| Your LiveKit secure WebSocket hostname | `livekit:7880` | LiveKit API and WebSocket signaling |
+| Public endpoint                        | Destination    | Purpose                                                                      |
+| -------------------------------------- | -------------- | ---------------------------------------------------------------------------- |
+| Your Towk HTTPS hostname               | `towk:4000`    | Towk web app, ConnectRPC APIs, realtime connections, and the LiveKit webhook |
+| Your LiveKit secure WebSocket hostname | `livekit:7880` | LiveKit API and WebSocket signaling                                          |
 
 The hostnames can be any names you control. Both need publicly trusted TLS
 certificates. If your proxy is on the Compose network, use the service names
@@ -94,17 +94,32 @@ does not include the optional Caddy L4 plugin.
 
 Preserve these public ports when using Caddy or your own proxy:
 
-| Public endpoint | Destination | Purpose |
-| --- | --- | --- |
-| Your Towk and LiveKit hostnames (TCP 443) | Your HTTP proxy | HTTPS and secure WebSocket traffic |
-| TCP 7881 | `livekit:7881` | WebRTC media fallback when direct UDP is unavailable |
-| UDP 3478 | `livekit:3478` | LiveKit's embedded TURN/STUN relay |
-| UDP 50000-50200 | Same ports on `livekit` | Direct WebRTC media |
-| UDP 50201-50400 | Same ports on `livekit` | Embedded TURN relay allocations |
+| Public endpoint                           | Destination             | Purpose                                                                         |
+| ----------------------------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| Your Towk and LiveKit hostnames (TCP 443) | Your HTTP proxy         | HTTPS and secure WebSocket traffic                                              |
+| Your Towk and LiveKit hostnames (UDP 443) | Caddy                   | HTTP/3 for HTTP requests; WebSocket signaling and fallback HTTP stay on TCP 443 |
+| TCP 7881                                  | `livekit:7881`          | WebRTC media fallback when direct UDP is unavailable                            |
+| UDP 3478                                  | `livekit:3478`          | LiveKit's embedded TURN/STUN relay                                              |
+| UDP 50000-50200                           | Same ports on `livekit` | Direct WebRTC media                                                             |
+| UDP 50201-50400                           | Same ports on `livekit` | Embedded TURN relay allocations                                                 |
 
 TCP 80 is also published in this example so Caddy can redirect HTTP and solve
 the ACME HTTP challenge. Your replacement proxy may use a different certificate
 flow. TLS for both HTTPS endpoints must use a publicly trusted certificate.
+
+Caddy enables HTTP/3 automatically when UDP 443 is reachable. Publishing UDP
+443 is an acceleration path, not a hard dependency: corporate firewalls and
+some mobile networks that block QUIC continue over TCP 443 without a separate
+configuration. Keep TCP and UDP 443 open in both the host and provider
+firewalls.
+
+Official Towk builds also contain precompressed Brotli and gzip variants of the
+frontend. The origin selects an acceptable variant from `Accept-Encoding`;
+proxies should preserve `Content-Encoding` and `Vary: Accept-Encoding` instead
+of compressing an already encoded response. Source builders with very limited
+build memory or disk can set `CHATTO_FRONTEND_PRECOMPRESS=0` before the frontend
+build. That opt-out trades network transfer size for build resources and keeps
+the uncompressed identity fallback.
 
 The Compose `ports` entries publish LiveKit media directly on the host, so no L4
 Caddy configuration is needed. Do not expose NATS port 4222 publicly; Towk and
@@ -439,6 +454,8 @@ If you don't need calls, remove the `livekit` service from `compose.yml`, delete
 
 **Calls not working**: Ensure the LiveKit API key/secret in `.env` matches the `keys:` section in the selected LiveKit config (`livekit.generated.yaml` or `livekit.yaml`). Also verify the webhook URL points to your Towk instance. Make sure `CHATTO_LIVEKIT_URL` uses the public `wss://livekit.` subdomain (not the internal Docker hostname), since browsers connect to it directly.
 
+**HTTP/3 not used**: Confirm UDP 443 is open in both the host and cloud firewall. Do not remove TCP 443: it remains the HTTP/2 and HTTP/1.1 fallback for clients or networks that block UDP.
+
 **LiveKit media ports**: The example exposes UDP 50000-50200 for direct WebRTC media, UDP 3478 for the TURN/STUN listener, UDP 50201-50400 for TURN relay allocations, and TCP 7881 as a media fallback. The relay range is deliberately distinct from the direct media range; keep all four mappings aligned with `livekit.generated.yaml` or `livekit.yaml` and your firewall.
 
-**Calls fail for some users**: The built-in TURN/UDP relay helps with symmetric NATs and some mobile, Firefox, and restrictive-network cases. Networks that block UDP entirely still need an advanced TURN/TLS setup, such as a dedicated TURN host or L4 TLS forwarding with matching certificates.
+**Calls fail for some users**: The built-in TURN/UDP relay helps with symmetric NATs and some mobile, Firefox, and restrictive-network cases. Networks that block UDP entirely still need TURN/TLS on TCP 443. Use a dedicated public address or host with a matching certificate because Caddy already owns TCP 443 on the web address. Do not disable direct UDP or ICE/TCP when adding TURN/TLS; keeping every candidate path lets browser connectivity checks select the best route allowed by the network.

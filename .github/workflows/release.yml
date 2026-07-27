@@ -66,6 +66,8 @@ jobs:
       - name: Build embedded client and synchronize legal files
         run: |
           mise build-frontend
+          test -n "$(find cli/internal/http_server/.client -type f -name '*.br' -print -quit)"
+          test -n "$(find cli/internal/http_server/.client -type f -name '*.gz' -print -quit)"
           mise sync-cli-legal
 
       - name: Build and verify release archives
