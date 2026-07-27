@@ -77,3 +77,29 @@ jobs:
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
+
+  pr173-final-clean:
+    name: pr173-final-clean
+    if: github.event.pull_request.head.ref == 'feat/read-receipts'
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact isolated finalizer head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Reconstruct, validate, and publish product head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash -x .github/pr173-final-clean.sh
