@@ -16,6 +16,7 @@ const MAX_AUTOMATIC_ATTEMPTS = 12;
 const RETRY_DELAYS_MS = [5_000, 15_000, 60_000, 5 * 60_000, 30 * 60_000] as const;
 
 export type OutboxFailureKind = 'retryable' | 'authentication' | 'permanent';
+export type OutboxStoredError = 'authentication' | 'permanent' | 'retry_limit' | 'unsupported';
 
 export type OutboxSentDetail = {
   scope: PrivateDataScope;
@@ -35,10 +36,14 @@ function scopeIdentity(scope: PrivateDataScope): string {
   return `${scope.serverId}\u0000${scope.serverUrl}\u0000${scope.userId}`;
 }
 
-function safeErrorMessage(error: unknown): string {
-  if (error instanceof ConnectError) return `${error.code}: ${error.rawMessage || error.message}`;
-  if (error instanceof Error) return error.message.slice(0, 300);
-  return 'Unknown send failure';
+function storedOutboxError(
+  failure: OutboxFailureKind,
+  needsAttention: boolean
+): OutboxStoredError | null {
+  if (!needsAttention) return null;
+  if (failure === 'authentication') return 'authentication';
+  if (failure === 'retryable') return 'retry_limit';
+  return 'permanent';
 }
 
 export function classifyOutboxFailure(error: unknown): OutboxFailureKind {
@@ -169,17 +174,17 @@ export class PwaOutbox extends EventTarget {
     });
   }
 
-  markUnsupported(scope: PrivateDataScope, message: string): Promise<void> {
+  markUnsupported(scope: PrivateDataScope): Promise<void> {
     this.#remember([scope]);
     return this.#runExclusive(scope, async () => {
       let changed = false;
       for (const record of await listQueuedMessages(scope)) {
-        if (record.value.state === 'needs_attention' && record.value.lastError === message)
+        if (record.value.state === 'needs_attention' && record.value.lastError === 'unsupported')
           continue;
         await saveQueuedMessage(scope, {
           ...record.value,
           state: 'needs_attention',
-          lastError: message
+          lastError: 'unsupported'
         });
         changed = true;
       }
@@ -230,7 +235,7 @@ export class PwaOutbox extends EventTarget {
             attemptCount,
             nextAttemptAt: needsAttention ? queued.nextAttemptAt : nextRetryAt(attemptCount, now),
             state: needsAttention ? 'needs_attention' : 'queued',
-            lastError: safeErrorMessage(error)
+            lastError: storedOutboxError(failure, needsAttention)
           });
           if (failure === 'authentication' || failure === 'retryable') break;
         }

@@ -552,7 +552,7 @@ describe('NotificationStore', () => {
 
     expect(store.notifications).toHaveLength(1);
     expect(store.notifications[0].id).toBe('original');
-    expect(store.error).toContain('Cannot query field');
+    expect(store.error).toBe('Notifications could not be loaded.');
     expect(store.hasLoaded).toBe(false);
     expect(consoleError).toHaveBeenCalled();
   });
@@ -562,7 +562,7 @@ describe('NotificationStore', () => {
       makeAPI({ notificationsError: new Error('something broke') })
     );
     await expect(store.fetch()).resolves.toBeUndefined();
-    expect(store.error).toBe('something broke');
+    expect(store.error).toBe('Notifications could not be loaded.');
   });
 
   it('does not throw on network/transport error', async () => {
@@ -571,7 +571,7 @@ describe('NotificationStore', () => {
     await expect(store.fetch()).resolves.toBeUndefined();
     // Existing notifications survive a network blip too.
     expect(store.notifications).toHaveLength(1);
-    expect(store.error).toBe('network down');
+    expect(store.error).toBe('Notifications could not be loaded.');
   });
 
   it('suppresses live echo refreshes for locally dismissed notifications', async () => {
@@ -667,6 +667,6 @@ describe('NotificationStore', () => {
     expect(homeStore.notifications).toHaveLength(1);
     expect(homeStore.error).toBeNull();
     expect(remoteStore.notifications).toHaveLength(0);
-    expect(remoteStore.error).toContain('Cannot query field');
+    expect(remoteStore.error).toBe('Notifications could not be loaded.');
   });
 });

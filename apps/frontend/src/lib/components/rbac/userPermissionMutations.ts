@@ -1,11 +1,11 @@
 import type { PermissionAPI, PermissionState } from '$lib/api-client/permissions';
+import * as m from '$lib/i18n/messages';
+import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
 export type UserPermissionState = PermissionState;
 
 export type UserMutationScope =
-  | { tier: 'server' }
-  | { tier: 'group'; groupId: string }
-  | { tier: 'room'; roomId: string };
+  { tier: 'server' } | { tier: 'group'; groupId: string } | { tier: 'room'; roomId: string };
 
 export async function setUserPermission(
   api: PermissionAPI,
@@ -23,6 +23,6 @@ export async function setUserPermission(
     });
     return {};
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
+    return { error: localizedErrorMessage(error, m['rbac.permissions.update_failed']()) };
   }
 }

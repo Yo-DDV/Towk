@@ -38,7 +38,16 @@
       "generic": "Algo deu errado",
       "unexpected_server_response": "Resposta inesperada do servidor. Tente novamente.",
       "client_not_configured": "Este cliente não está configurado. Recarregue o aplicativo.",
-      "server_not_found": "Este servidor não está mais disponível. Recarregue o aplicativo."
+      "server_not_found": "Este servidor não está mais disponível. Recarregue o aplicativo.",
+      "authentication_required": "Entre novamente para continuar.",
+      "permission_denied": "Você não tem permissão para realizar esta ação.",
+      "not_found": "O item solicitado não foi encontrado.",
+      "conflict": "O item foi alterado antes da conclusão da ação. Atualize a página e tente novamente.",
+      "unavailable": "O serviço está temporariamente indisponível. Tente novamente.",
+      "timeout": "A solicitação excedeu o tempo limite. Tente novamente.",
+      "rate_limited": "Muitas solicitações. Aguarde um momento e tente novamente.",
+      "cancelled": "A solicitação foi cancelada.",
+      "invalid_request": "Não foi possível concluir a solicitação. Verifique as informações inseridas."
     },
     "delete": "Excluir",
     "save": "Salvar",

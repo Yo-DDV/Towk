@@ -6,6 +6,7 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   import { useRenderData } from '$lib/render/data';
   import { RoomEventViewDocument, type RoomEventView } from '$lib/render/types';
@@ -114,7 +115,7 @@
       totalCount = result.totalCount;
     } catch (e) {
       if (thisId !== loadId) return;
-      error = e instanceof Error ? e.message : 'Failed to load threads';
+      error = localizedErrorMessage(e, m['chat.threads.load_failed']());
     } finally {
       if (thisId === loadId) {
         loading = false;

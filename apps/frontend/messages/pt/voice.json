@@ -31,10 +31,10 @@
     "microphone": "Microfone",
     "speaker": "Alto-falante",
     "phone_microphone": "Microfone viva-voz",
-    "headset_microphone": "Microfone modo auscultador",
+    "headset_microphone": "Microfone do fone de ouvido",
     "bluetooth_microphone": "Microfone Bluetooth",
     "phone_speaker": "Alto-falante viva-voz",
-    "headset_speaker": "Auscultador do telefone",
+    "headset_speaker": "Fone de ouvido do telefone",
     "bluetooth_speaker": "Áudio Bluetooth",
     "camera": "Câmera",
     "camera_front": "Câmera frontal",
@@ -55,9 +55,9 @@
     "default_communications_device": "Dispositivo de comunicação padrão",
     "choose_speaker": "Escolher outro alto-falante…",
     "no_devices": "Nenhum dispositivo encontrado",
-    "system_managed_audio_output": "O dispositivo gere a saída de áudio",
+    "system_managed_audio_output": "O dispositivo gerencia a saída de áudio",
     "microphone_processing_active": "A redução de ruído e o ganho automático estão ativos.",
-    "microphone_processing_system": "O sistema gere o processamento do microfone nesta rota.",
+    "microphone_processing_system": "O sistema gerencia o processamento do microfone nesta rota.",
     "microphone_processing_limited": "O processamento do microfone está limitado nesta rota.",
     "microphone_processing_title": "Processamento do microfone",
     "microphone_noise_reduction": "Redução de ruído",
@@ -180,6 +180,19 @@
     "screen_share_frame_rate_standard": "Estável · até 30 FPS",
     "screen_share_frame_rate_high": "Movimento fluido · até 60 FPS",
     "screen_share_frame_rate_unavailable": "A alta taxa de quadros não está disponível neste navegador",
-    "screen_stats_local_only": "Métricas locais · histórico de 60 segundos · nenhum dado é enviado"
+    "screen_stats_local_only": "Métricas locais · histórico de 60 segundos · nenhum dado é enviado",
+    "jitter_value": "{milliseconds} ms",
+    "push": {
+      "channel_title": "{actor} iniciou uma chamada",
+      "private_title": "{actor} está ligando para você",
+      "unknown_channel_title": "Uma chamada foi iniciada",
+      "unknown_private_title": "Chamada recebida",
+      "channel_body": "Em #{room}",
+      "private_body": "Conversa privada",
+      "view_room": "Ver sala",
+      "view_conversation": "Ver conversa",
+      "join": "Entrar",
+      "channel_body_unknown": "Abra o Towk para ver a chamada"
+    }
   }
 }

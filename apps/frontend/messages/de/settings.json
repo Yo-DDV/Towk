@@ -131,6 +131,20 @@
         "privacy_saved": "Aktivitätsdatenschutz gespeichert.",
         "save_privacy": "Datenschutz speichern",
         "character_count": "{used} von {limit} Zeichen"
+      },
+      "validation": {
+        "display_name_empty": "Der Anzeigename darf nicht leer sein.",
+        "display_name_too_long": "Der Anzeigename darf höchstens {max} Zeichen lang sein.",
+        "display_name_consecutive_spaces": "Der Anzeigename darf keine aufeinanderfolgenden Leerzeichen enthalten.",
+        "display_name_invalid_start": "Der Anzeigename muss mit einem Buchstaben oder einer Ziffer beginnen.",
+        "display_name_control_characters": "Der Anzeigename darf keine Steuerzeichen enthalten.",
+        "display_name_invisible_characters": "Der Anzeigename darf keine unsichtbaren Zeichen enthalten.",
+        "display_name_invalid_characters": "Der Anzeigename darf nur Buchstaben, Zahlen, Emojis und einfache Satzzeichen (- ' . _) enthalten.",
+        "username_empty": "Der Benutzername darf nicht leer sein.",
+        "username_too_short": "Der Benutzername muss mindestens {min} Zeichen lang sein.",
+        "username_too_long": "Der Benutzername darf höchstens {max} Zeichen lang sein.",
+        "username_invalid_start": "Der Benutzername muss mit einem Buchstaben oder einer Ziffer beginnen.",
+        "username_invalid_characters": "Der Benutzername darf nur Buchstaben, Zahlen, Punkte, Unterstriche und Bindestriche enthalten."
       }
     },
     "preferences": {

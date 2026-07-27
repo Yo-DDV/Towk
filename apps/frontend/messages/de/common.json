@@ -38,7 +38,16 @@
       "generic": "Etwas ist schiefgelaufen",
       "unexpected_server_response": "Unerwartete Serverantwort. Bitte versuche es erneut.",
       "client_not_configured": "Dieser Client ist nicht konfiguriert. Bitte lade die App neu.",
-      "server_not_found": "Dieser Server ist nicht mehr verfügbar. Bitte lade die App neu."
+      "server_not_found": "Dieser Server ist nicht mehr verfügbar. Bitte lade die App neu.",
+      "authentication_required": "Bitte melde dich erneut an, um fortzufahren.",
+      "permission_denied": "Du hast keine Berechtigung, diese Aktion auszuführen.",
+      "not_found": "Das angeforderte Element wurde nicht gefunden.",
+      "conflict": "Das Element wurde geändert, bevor die Aktion abgeschlossen war. Aktualisiere die Seite und versuche es erneut.",
+      "unavailable": "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuche es erneut.",
+      "timeout": "Zeitüberschreitung bei der Anfrage. Bitte versuche es erneut.",
+      "rate_limited": "Zu viele Anfragen. Bitte warte kurz und versuche es erneut.",
+      "cancelled": "Die Anfrage wurde abgebrochen.",
+      "invalid_request": "Die Anfrage konnte nicht abgeschlossen werden. Prüfe die eingegebenen Angaben."
     },
     "delete": "Löschen",
     "save": "Speichern",

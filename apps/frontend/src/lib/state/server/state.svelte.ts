@@ -4,6 +4,7 @@
 
 import { getPublicServerInfo, type PublicServerInfo } from '$lib/api-client/server';
 import * as m from '$lib/i18n/messages';
+import { localizedErrorMessage } from '$lib/i18n/localizedError';
 import { PRODUCT_NAME } from '$lib/product';
 import {
   getAuthenticatedServerState,
@@ -77,7 +78,7 @@ export class ServerInfoState {
     } catch (err) {
       // Defensive: anything thrown during the query or above .then body.
       // Don't re-throw — failure is isolated to this server.
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = localizedErrorMessage(err, m['common.error.unavailable']());
       console.error(`[server:${this.#label}] failed to load server info`, err);
     } finally {
       this.loading = false;
@@ -97,7 +98,7 @@ export class ServerInfoState {
       this.capabilities = [...info.capabilities];
       this.directRegistrationEnabled = info.directRegistrationEnabled;
     } catch (err) {
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = localizedErrorMessage(err, m['common.error.unavailable']());
       console.error(`[server:${this.#label}] failed to load server info`, err);
     }
   }

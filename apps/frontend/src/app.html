@@ -59,6 +59,7 @@
 
           root.lang = locale;
           root.dir = 'ltr';
+          window.__towkShellLocale = locale;
         }
 
         applyTheme();
@@ -99,7 +100,16 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <script data-pwa-manifest-bootstrap>
+      (() => {
+        const manifest = document.createElement('link');
+        manifest.rel = 'manifest';
+        manifest.href = `/manifest.webmanifest?locale=${encodeURIComponent(
+          window.__towkShellLocale || document.documentElement.lang || 'en'
+        )}`;
+        document.head.appendChild(manifest);
+      })();
+    </script>
     <link rel="icon" href="/icons/favicon.png" type="image/png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <style data-ios-standalone-viewport-fix>
@@ -127,10 +137,7 @@
 
           @supports selector(div:has(> .composer-focus-shell)) {
             body:not([data-visual-keyboard-open]) div:has(> .composer-focus-shell) {
-              padding-bottom: max(
-                0.5rem,
-                calc(env(safe-area-inset-bottom, 0px) - 0.5rem)
-              );
+              padding-bottom: max(0.5rem, calc(env(safe-area-inset-bottom, 0px) - 0.5rem));
             }
           }
         }

@@ -4,7 +4,7 @@
     "direct_message_delete": {
       "title": "Eliminar conversación",
       "action": "Eliminar conversación",
-      "prompt": "¿Eliminar la conversación con {room}? Su historial se quitará de tu cuenta. La otra persona conservará su copia.",
+      "prompt": "¿Eliminar la conversación con {room}? El historial se quitará de tu cuenta. La otra persona conservará su copia.",
       "failed": "No se pudo eliminar la conversación",
       "local_cleanup_failed": "La conversación se eliminó, pero este dispositivo no pudo borrar todos los datos almacenados en caché.",
       "more_actions": "Acciones de la conversación",

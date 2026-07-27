@@ -20,6 +20,7 @@
     "description_url": "Towk es distribuido: tu cliente se conecta directamente a cada servidor. Introduce una URL para agregar otro.",
     "description_preview": "Estás a punto de iniciar sesión en este servidor. Se te enviará a su página de inicio de sesión para autenticarte.",
     "url_label": "URL del servidor",
-    "url_placeholder": "chat.ejemplo.com"
+    "url_placeholder": "chat.ejemplo.com",
+    "version": "Towk v{version}"
   }
 }

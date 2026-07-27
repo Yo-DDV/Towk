@@ -6,7 +6,8 @@ const parameters: OAuthAuthorizeParameters = {
   redirect_uri: 'https://app.example/servers/callback',
   code_challenge: 'challenge',
   code_challenge_method: 'S256',
-  state: 'state'
+  state: 'state',
+  locale: 'fr'
 };
 
 describe('buildServerOAuthAuthorizeUrl', () => {
@@ -29,6 +30,7 @@ describe('buildServerOAuthAuthorizeUrl', () => {
     expect(result.searchParams.get('code_challenge')).toBe('challenge');
     expect(result.searchParams.get('code_challenge_method')).toBe('S256');
     expect(result.searchParams.get('state')).toBe('state');
+    expect(result.searchParams.get('locale')).toBe('fr');
   });
 
   it.each([
@@ -67,6 +69,7 @@ describe('buildServerOAuthAuthorizeUrl', () => {
     );
 
     expect(result.searchParams.get('state')).toBe('state');
+    expect(result.searchParams.get('locale')).toBe('fr');
     expect(result.searchParams.get('redirect_uri')).toBe(parameters.redirect_uri);
   });
 });

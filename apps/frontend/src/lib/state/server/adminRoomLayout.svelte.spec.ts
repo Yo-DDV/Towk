@@ -226,7 +226,7 @@ describe('AdminRoomLayoutStore — loading', () => {
     expect(store.groups.map((g) => g.name)).toEqual(['Lobby']);
 
     await store.refresh();
-    expect(store.error).toBe('offline');
+    expect(store.error).toBe('Something went wrong');
     expect(store.groups.map((g) => g.name)).toEqual(['Lobby']);
   });
 
@@ -324,7 +324,7 @@ describe('AdminRoomLayoutStore — mutations', () => {
 
     await expect(store.renameGroup('g1', 'Changed')).resolves.toEqual({
       ok: false,
-      error: 'nope'
+      error: 'Something went wrong'
     });
     expect(store.groups.map((g) => g.name)).toEqual(['Original']);
   });
@@ -430,7 +430,7 @@ describe('AdminRoomLayoutStore — drag sequencing', () => {
       ok: false,
       movedCount: 1,
       reorderedCount: 2,
-      errors: ['Failed to move room: move denied'],
+      errors: ['Failed to move room: Something went wrong'],
       refreshRequested: true
     });
     expect(query).toHaveBeenCalledTimes(1);

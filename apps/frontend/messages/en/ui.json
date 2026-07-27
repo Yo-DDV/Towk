@@ -82,9 +82,9 @@
       "reconnecting": "Network available. Reconnecting Towk…"
     },
     "outbox": {
-      "pending_title": "{count} message(s) waiting",
+      "pending_title": "Messages waiting: {count}",
       "pending_message": "Encrypted on this device and sent automatically when possible.",
-      "attention_title": "{count} message(s) need attention",
+      "attention_title": "Messages needing attention: {count}",
       "attention_message": "Reconnect or retry to complete delivery.",
       "retry": "Retry now",
       "manage": "Manage",
@@ -94,7 +94,10 @@
       "attachment_only": "Message with attachments",
       "voice_message": "Voice message",
       "unsupported_server": "This server cannot safely retry the message automatically. Keep it here or discard it.",
-      "discard": "Discard"
+      "discard": "Discard",
+      "error_authentication": "Sign in to this server again before retrying.",
+      "error_permanent": "The server rejected this message. Review it before retrying or discard it.",
+      "error_retry_limit": "Automatic retries were exhausted. Retry manually when the connection is stable."
     },
     "cached_timeline": "Showing this device’s encrypted history while Towk reconnects.",
     "corresponding_source": "View corresponding source for Towk {version}",

@@ -33,6 +33,7 @@ under it. Column headers are clickable when `onRoleClick` is provided
   import { setRolePermission, type MutationScope } from './permissionMutations';
   import MatrixCell from './MatrixCell.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   type State = 'allow' | 'deny' | 'neutral';
 
@@ -184,7 +185,7 @@ under it. Column headers are clickable when `onRoleClick` is provided
         return;
       }
       loading = false;
-      error = err instanceof Error ? err.message : String(err);
+      error = localizedErrorMessage(err, m['rbac.permissions.load_failed']());
       return;
     }
 

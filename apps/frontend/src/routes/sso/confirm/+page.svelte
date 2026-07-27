@@ -9,6 +9,7 @@
     type PendingExternalIdentityInfo
   } from '$lib/api-client/externalIdentities';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import type { AuthenticatedUserSummary } from '$lib/state/server/registry.svelte';
   import Hint from '$lib/ui/Hint.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
@@ -63,7 +64,7 @@
       if (err instanceof ConnectError && err.code === Code.NotFound) {
         loadError = m['auth.sso.invalid']();
       } else {
-        loadError = err instanceof Error ? err.message : m['auth.sso.load_failed']();
+        loadError = localizedErrorMessage(err, m['auth.sso.load_failed']());
       }
     } finally {
       loading = false;
@@ -99,7 +100,7 @@
       await invalidateAll();
       goto(resolve((pending.redirectPath || '/') as '/'), { replaceState: true });
     } catch (err) {
-      actionError = err instanceof Error ? err.message : m['auth.sso.create_failed']();
+      actionError = localizedErrorMessage(err, m['auth.sso.create_failed']());
     } finally {
       submitting = false;
     }
@@ -113,7 +114,7 @@
       await flowAPI.confirmLink(data.token);
       goto(resolve((pending.redirectPath || '/') as '/'), { replaceState: true });
     } catch (err) {
-      actionError = err instanceof Error ? err.message : m['auth.sso.link_failed']();
+      actionError = localizedErrorMessage(err, m['auth.sso.link_failed']());
     } finally {
       submitting = false;
     }

@@ -22,6 +22,7 @@ registry.
   import Dialog from '$lib/ui/Dialog.svelte';
   import type { RoomsStore } from '$lib/state/server/rooms.svelte';
   import type { RoomDirectoryStore, DirectoryRoom } from '$lib/state/server/roomDirectory.svelte';
+  import { localizedRoomDescription } from '$lib/roomLabels';
 
   let {
     directory,
@@ -50,7 +51,8 @@ registry.
     const query = searchQuery.toLowerCase();
     return (
       room.name.toLowerCase().includes(query) ||
-      (room.description?.toLowerCase().includes(query) ?? false)
+      (localizedRoomDescription(room.name, room.description)?.toLowerCase().includes(query) ??
+        false)
     );
   }
 
@@ -217,14 +219,15 @@ registry.
       : ''}"
   >
     {#snippet roomLabel()}
+      {@const description = localizedRoomDescription(room.name, room.description)}
       <div class="flex min-w-0 items-start gap-2 font-medium">
         <span class="mt-0.5 shrink-0 text-muted/60">#</span>
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-2">
             <span class="min-w-0 truncate">{room.name}</span>
           </div>
-          {#if room.description}
-            <div class="truncate text-xs font-normal text-muted/80">{room.description}</div>
+          {#if description}
+            <div class="truncate text-xs font-normal text-muted/80">{description}</div>
           {/if}
         </div>
       </div>
@@ -292,7 +295,7 @@ registry.
              header action lines up vertically with Join / Joined. -->
         <button
           type="button"
-          class="btn-accent btn w-28 shrink-0 justify-center border border-transparent btn-sm transition-none"
+          class="btn btn-accent w-28 shrink-0 justify-center border border-transparent btn-sm transition-none"
           onclick={() => handleJoinGroup(set)}
           disabled={joining}
         >

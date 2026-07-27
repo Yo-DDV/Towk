@@ -271,7 +271,7 @@ describe('RoomMembersStore', () => {
       store.ensureLoaded();
 
       await vi.waitFor(() => {
-        expect(store.loadError).toBe('network failed');
+        expect(store.loadError).toBe('Room members could not be loaded.');
         expect(store.isInitialLoading).toBe(false);
       });
 
@@ -299,7 +299,7 @@ describe('RoomMembersStore', () => {
       expect(store.totalCount).toBe(3);
       expect(store.hasFirstPage).toBe(true);
       expect(store.hasLoadedAll).toBe(false);
-      expect(store.loadError).toBe('network failed');
+      expect(store.loadError).toBe('Room members could not be loaded.');
       expect(fakeAPI.listRoomMembers).toHaveBeenCalledTimes(2);
     } finally {
       consoleErrorSpy.mockRestore();
@@ -397,7 +397,7 @@ describe('RoomMembersStore', () => {
       expect(store.members.map((member) => member.login)).toEqual(['refresh-a']);
       expect(store.totalCount).toBe(3);
       expect(store.hasLoadedAll).toBe(false);
-      expect(store.loadError).toBe('network failed');
+      expect(store.loadError).toBe('Room members could not be refreshed.');
     } finally {
       consoleErrorSpy.mockRestore();
     }

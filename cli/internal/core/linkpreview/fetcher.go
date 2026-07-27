@@ -136,7 +136,7 @@ func (f *Fetcher) fetch(ctx context.Context, rawURL string) (*FetchResult, error
 	if videoID := ParseYouTubeVideoID(rawURL); videoID != "" {
 		f.logger.Debug("Detected YouTube URL", "video_id", videoID)
 		return &FetchResult{
-			Title:     "YouTube Video",
+			Title:     "YouTube",
 			EmbedType: "youtube",
 			EmbedID:   videoID,
 		}, nil

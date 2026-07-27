@@ -11,6 +11,7 @@ import { buildServerOAuthAuthorizeUrl } from '$lib/oauth/authorizeUrl';
 import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
 import { clearCachedUser } from './loadAuth';
 import * as m from '$lib/i18n/messages';
+import { getLocale } from '$lib/i18n/runtime';
 
 export async function startServerOAuthFlow(
   serverUrl: string,
@@ -30,7 +31,8 @@ export async function startServerOAuthFlow(
     redirect_uri: redirectUri,
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    state
+    state,
+    locale: getLocale()
   });
 
   saveFlowState({

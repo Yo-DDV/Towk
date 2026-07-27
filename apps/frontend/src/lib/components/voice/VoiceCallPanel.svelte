@@ -885,7 +885,11 @@ Room sidebar panel for voice/video calls.
         {#if participant.networkWarningMetric === 'packetLoss' && participant.packetLossPercent !== null}
           <span>{formatNetworkMetric(participant.packetLossPercent)}%</span>
         {:else if participant.networkWarningMetric === 'jitter' && participant.jitterMs !== null}
-          <span>{formatNetworkMetric(participant.jitterMs)} ms</span>
+          <span
+            >{m['voice.jitter_value']({
+              milliseconds: formatNetworkMetric(participant.jitterMs)
+            })}</span
+          >
         {/if}
       </span>
     {/if}

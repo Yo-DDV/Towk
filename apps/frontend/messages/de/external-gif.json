@@ -20,7 +20,7 @@
         "description": "Externe GIFs verbleiben auf den Servern des Anbieters. Sie werden automatisch geladen, wenn sie sich dem sichtbaren Verlauf nähern, und kontaktieren den Anbieter direkt über diesen Browser.",
         "auto_load": {
           "label": "Externe GIFs automatisch laden",
-          "description": "Standardmäßig aktiviert. Deaktivieren Sie diese Option, damit Towk einen Anbieter erst nach einem Klick kontaktiert. Reduzierte Bewegung, Offlinebetrieb und Kompatibilitätsfallbacks können weiterhin einen Klick erfordern."
+          "description": "Standardmäßig aktiviert. Deaktiviere diese Option, damit Towk einen Anbieter erst nach einem Klick kontaktiert. Reduzierte Bewegung, Offlinebetrieb und Kompatibilitätsalternativen können weiterhin einen Klick erfordern."
         }
       }
     }

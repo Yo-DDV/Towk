@@ -1,3 +1,5 @@
+import * as m from '$lib/i18n/messages';
+import { localizedErrorMessage } from '$lib/i18n/localizedError';
 import {
   EMPTY_ADMIN_EVENT_LOG_FILTER,
   type AdminEventLogAPI,
@@ -86,7 +88,7 @@ export class AdminEventLogStore {
       this.applyConnection(conn, false);
     } catch (e) {
       if (currentRequest !== this.requestId) return;
-      this.error = e instanceof Error ? e.message : 'Failed to load event log';
+      this.error = localizedErrorMessage(e, m['admin.event_log.load_failed']());
     } finally {
       if (currentRequest === this.requestId) {
         this.loading = false;
@@ -111,7 +113,7 @@ export class AdminEventLogStore {
       this.applyConnection(conn, true);
     } catch (e) {
       if (currentRequest !== this.requestId) return;
-      this.error = e instanceof Error ? e.message : 'Failed to load older events';
+      this.error = localizedErrorMessage(e, m['admin.event_log.load_older_failed']());
     } finally {
       if (currentRequest === this.requestId) {
         this.loadingMore = false;

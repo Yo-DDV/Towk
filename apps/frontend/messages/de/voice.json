@@ -180,6 +180,19 @@
     "screen_share_frame_rate_standard": "Stabil · bis zu 30 FPS",
     "screen_share_frame_rate_high": "Flüssige Bewegung · bis zu 60 FPS",
     "screen_share_frame_rate_unavailable": "Eine hohe Bildrate ist in diesem Browser nicht verfügbar",
-    "screen_stats_local_only": "Lokale Metriken · 60 Sekunden Verlauf · kein Upload"
+    "screen_stats_local_only": "Lokale Metriken · 60 Sekunden Verlauf · kein Upload",
+    "push": {
+      "channel_title": "{actor} hat einen Anruf gestartet",
+      "private_title": "{actor} ruft dich an",
+      "unknown_channel_title": "Ein Anruf wurde gestartet",
+      "unknown_private_title": "Eingehender Anruf",
+      "channel_body": "In #{room}",
+      "private_body": "Private Unterhaltung",
+      "view_room": "Raum anzeigen",
+      "view_conversation": "Unterhaltung anzeigen",
+      "join": "Beitreten",
+      "channel_body_unknown": "Öffne Towk, um den Anruf anzuzeigen"
+    },
+    "jitter_value": "{milliseconds} ms"
   }
 }

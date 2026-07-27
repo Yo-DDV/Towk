@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getPublicServerInfo } from '$lib/api-client/server';
+import { getPublicServerInfo, InvalidTowkServerResponseError } from '$lib/api-client/server';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -98,5 +98,13 @@ describe('getPublicServerInfo', () => {
       bannerUrl: null,
       capabilities: []
     });
+  });
+
+  it('rejects a non-Towk discovery response with a typed local error', async () => {
+    mocks.getServer.mockResolvedValue({ profile: undefined, login: undefined });
+
+    await expect(getPublicServerInfo('https://not-towk.example.test')).rejects.toBeInstanceOf(
+      InvalidTowkServerResponseError
+    );
   });
 });

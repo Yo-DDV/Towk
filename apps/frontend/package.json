@@ -8,7 +8,7 @@
     "dev": "vite dev",
     "build": "vite build",
     "preview": "vite preview",
-    "check:i18n": "node --test scripts/i18n-facade-parser.test.mjs && node scripts/check-i18n-catalogs.mjs",
+    "check:i18n": "node --test scripts/i18n-facade-parser.test.mjs scripts/audit-user-visible-copy.test.mjs && node scripts/check-i18n-catalogs.mjs && node scripts/audit-user-visible-copy.mjs",
     "paraglide": "pnpm run check:i18n && paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide --strategy localStorage preferredLanguage baseLocale --emit-ts-declarations --output-structure locale-modules --silent && node scripts/generate-i18n-facade.mjs",
     "prepare": "svelte-kit sync || echo ''",
     "check": "pnpm run paraglide && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

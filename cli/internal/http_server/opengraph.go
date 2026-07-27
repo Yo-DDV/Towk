@@ -82,13 +82,13 @@ func (meta *OpenGraphMeta) generateTags() string {
 }
 
 // getOpenGraphMeta determines the appropriate OpenGraph metadata for a URL path.
-func (s *HTTPServer) getOpenGraphMeta(ctx context.Context, urlPath string) *OpenGraphMeta {
+func (s *HTTPServer) getOpenGraphMeta(ctx context.Context, urlPath, locale string) *OpenGraphMeta {
 	baseURL := strings.TrimSuffix(s.config.Webserver.URL, "/")
 
 	// Get server name for both site_name and og:title — server identity
 	// is the single source of truth for link previews.
 	serverName := "Towk"
-	description := "Come join our community!"
+	description := localizedTextForLocale(locale, "meta.community_description")
 	if s.core != nil && s.core.ConfigManager() != nil {
 		if name, err := s.core.ConfigManager().GetEffectiveServerName(ctx); err == nil && name != "" {
 			serverName = name
@@ -149,8 +149,8 @@ func isSpecialRoute(segment string) bool {
 }
 
 // injectOpenGraphTags replaces the OG placeholder in HTML content with actual meta tags.
-func (s *HTTPServer) injectOpenGraphTags(ctx context.Context, content []byte, urlPath string) []byte {
-	ogMeta := s.getOpenGraphMeta(ctx, urlPath)
+func (s *HTTPServer) injectOpenGraphTags(ctx context.Context, content []byte, urlPath, locale string) []byte {
+	ogMeta := s.getOpenGraphMeta(ctx, urlPath, locale)
 	ogTags := ogMeta.generateTags()
 	return bytes.Replace(content, []byte(ogPlaceholder), []byte(ogTags), 1)
 }

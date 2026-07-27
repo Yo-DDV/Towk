@@ -16,8 +16,13 @@ ADR-027 — only user-facing copy says "server".
   import { ConnectError } from '@connectrpc/connect';
   import { startServerOAuthFlow } from '$lib/auth/reauth';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
-  import { getPublicServerInfo, type PublicServerInfo } from '$lib/api-client/server';
+  import {
+    getPublicServerInfo,
+    InvalidTowkServerResponseError,
+    type PublicServerInfo
+  } from '$lib/api-client/server';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { TextInput } from '$lib/ui/form';
   import FormDialog from '$lib/ui/FormDialog.svelte';
 
@@ -138,12 +143,14 @@ ADR-027 — only user-facing copy says "server".
       probedInfo = info;
       stage = 'preview';
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
+      if (err instanceof InvalidTowkServerResponseError) {
+        formError = m['add_server.not_chatto_server']();
+      } else if (err instanceof DOMException && err.name === 'AbortError') {
         formError = m['add_server.connection_timed_out']();
       } else if (err instanceof TypeError || err instanceof ConnectError) {
         formError = m['add_server.connection_failed']();
       } else {
-        formError = err instanceof Error ? err.message : m['add_server.connect_failed']();
+        formError = localizedErrorMessage(err, m['add_server.connect_failed']());
       }
     } finally {
       probing = false;
@@ -160,7 +167,7 @@ ADR-027 — only user-facing copy says "server".
       await startServerOAuthFlow(probedUrl, probedInfo);
     } catch (err) {
       connecting = false;
-      formError = err instanceof Error ? err.message : m['add_server.start_failed']();
+      formError = localizedErrorMessage(err, m['add_server.start_failed']());
     }
   }
 
@@ -228,7 +235,9 @@ ADR-027 — only user-facing copy says "server".
           <div class="truncate text-lg font-semibold">{probedInfo.name}</div>
           <div class="truncate text-sm text-muted">{hostnameOf(probedUrl)}</div>
           {#if probedInfo.version}
-            <div class="text-xs text-muted/70">Towk v{probedInfo.version}</div>
+            <div class="text-xs text-muted/70">
+              {m['add_server.version']({ version: probedInfo.version })}
+            </div>
           {/if}
           {#if probedInfo.description}
             <p class="mt-2 text-sm text-muted">{probedInfo.description}</p>

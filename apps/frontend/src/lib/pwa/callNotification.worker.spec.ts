@@ -53,6 +53,25 @@ describe('call push notifications', () => {
     });
   });
 
+  it.each([
+    ['en', 'In #Room'],
+    ['fr', 'Dans #Salon'],
+    ['de', 'In #Raum'],
+    ['es', 'En #Sala'],
+    ['pt', 'Em #Sala']
+  ])('localizes the fallback room name for %s', (locale, body) => {
+    const notification = normalizeCallPushNotification(
+      {
+        url: 'https://towk.example/chat/-/R1',
+        expiresAt: 10_000,
+        call: { ...payload, roomName: '' }
+      },
+      9_000,
+      locale
+    );
+    expect(notification?.options.body).toBe(body);
+  });
+
   it('uses private-conversation wording and English as a safe fallback', () => {
     const notification = normalizeCallPushNotification(
       {

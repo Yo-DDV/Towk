@@ -131,6 +131,20 @@
         "privacy_saved": "Activity privacy saved.",
         "save_privacy": "Save privacy",
         "character_count": "{used} of {limit} characters"
+      },
+      "validation": {
+        "display_name_empty": "Display name cannot be empty.",
+        "display_name_too_long": "Display name cannot exceed {max} characters.",
+        "display_name_consecutive_spaces": "Display name cannot contain consecutive spaces.",
+        "display_name_invalid_start": "Display name must start with a letter or digit.",
+        "display_name_control_characters": "Display name cannot contain control characters.",
+        "display_name_invisible_characters": "Display name cannot contain invisible characters.",
+        "display_name_invalid_characters": "Display name can only contain letters, numbers, emoji, and basic punctuation (- ' . _).",
+        "username_empty": "Username cannot be empty.",
+        "username_too_short": "Username must contain at least {min} characters.",
+        "username_too_long": "Username cannot exceed {max} characters.",
+        "username_invalid_start": "Username must start with a letter or number.",
+        "username_invalid_characters": "Username can only contain letters, numbers, periods, underscores, and hyphens."
       }
     },
     "preferences": {

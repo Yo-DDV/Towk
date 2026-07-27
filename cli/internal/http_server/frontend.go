@@ -1,6 +1,7 @@
 package http_server
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"embed"
@@ -198,14 +199,37 @@ func pwaManifestIconFallbacks(value any) []map[string]string {
 	return fallbacks
 }
 
-func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs) ([]byte, error) {
-	if icons == nil {
-		return staticManifest, nil
-	}
-
+func dynamicPWAManifest(staticManifest []byte, icons *pwaServerIconURLs, locale string) ([]byte, error) {
 	var manifest map[string]any
 	if err := json.Unmarshal(staticManifest, &manifest); err != nil {
 		return nil, err
+	}
+
+	locale, ok := normalizeSupportedLocale(locale)
+	if !ok {
+		locale = "en"
+	}
+	manifest["lang"] = locale
+	manifest["dir"] = "ltr"
+	manifest["description"] = localizedTextForLocale(locale, "manifest.description")
+	if shortcuts, ok := manifest["shortcuts"].([]any); ok {
+		for _, shortcut := range shortcuts {
+			shortcutMap, ok := shortcut.(map[string]any)
+			if !ok {
+				continue
+			}
+			switch shortcutMap["url"] {
+			case "/":
+				shortcutMap["name"] = localizedTextForLocale(locale, "manifest.open_name")
+				shortcutMap["short_name"] = "Towk"
+				shortcutMap["description"] = localizedTextForLocale(locale, "manifest.open_description")
+			case "/chat/notifications":
+				name := localizedTextForLocale(locale, "manifest.notifications_name")
+				shortcutMap["name"] = name
+				shortcutMap["short_name"] = name
+				shortcutMap["description"] = localizedTextForLocale(locale, "manifest.notifications_description")
+			}
+		}
 	}
 
 	if icons != nil {
@@ -324,6 +348,22 @@ func clientAcceptsEncoding(acceptEncoding, encoding string) bool {
 	return clientEncodingQuality(acceptEncoding, encoding) > 0
 }
 
+func injectLocalizedShellMetadata(content []byte, locale string) []byte {
+	locale, ok := normalizeSupportedLocale(locale)
+	if !ok {
+		locale = "en"
+	}
+	content = bytes.Replace(content, []byte(`<html lang="en"`), []byte(`<html lang="`+locale+`"`), 1)
+	description := html.EscapeString(localizedTextForLocale(locale, "meta.app_description"))
+	content = bytes.Replace(
+		content,
+		[]byte(`<meta name="description" content="Towk self-hosted communication workspace" />`),
+		[]byte(`<meta name="description" content="`+description+`" />`),
+		1,
+	)
+	return content
+}
+
 // serveSPAFallback serves the 200.html file as a fallback for SPA routing.
 // It injects OpenGraph meta tags based on the URL path.
 // Returns true if the fallback was served successfully, false if an error occurred.
@@ -331,7 +371,7 @@ func (s *HTTPServer) serveSPAFallback(c *gin.Context, clientFS fs.FS) bool {
 	content, err := fs.ReadFile(clientFS, "200.html")
 	if err != nil {
 		log.Error("Failed to read 200.html for SPA fallback", "error", err)
-		c.String(http.StatusInternalServerError, "Failed to load application")
+		c.String(http.StatusInternalServerError, localizedText(c, "app.load_failed"))
 		return false
 	}
 
@@ -339,7 +379,10 @@ func (s *HTTPServer) serveSPAFallback(c *gin.Context, clientFS fs.FS) bool {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 500*time.Millisecond)
 	defer cancel()
 
-	content = s.injectOpenGraphTags(ctx, content, c.Request.URL.Path)
+	locale := requestLocale(c)
+	setLocalizedResponseHeaders(c, locale)
+	content = injectLocalizedShellMetadata(content, locale)
+	content = s.injectOpenGraphTags(ctx, content, c.Request.URL.Path, locale)
 	if icons := s.currentPWAIconURLs(ctx); icons != nil {
 		content = injectAppleTouchIcon(content, icons.AppleTouch180)
 	}
@@ -349,25 +392,28 @@ func (s *HTTPServer) serveSPAFallback(c *gin.Context, clientFS fs.FS) bool {
 }
 
 func (s *HTTPServer) servePWAWebManifest(c *gin.Context, clientFS fs.FS) {
-	c.Header("Vary", "User-Agent")
+	locale := requestLocale(c)
+	setLocalizedResponseHeaders(c, locale)
+	appendVary(c, "User-Agent")
 	content, err := fs.ReadFile(clientFS, "manifest.webmanifest")
 	if err != nil {
-		c.Status(http.StatusInternalServerError)
+		writeLocalizedError(c, http.StatusInternalServerError, "app.load_failed")
 		return
 	}
 	content, err = dynamicPWAManifest(
 		content,
 		s.currentPWAIconURLs(c.Request.Context()),
+		locale,
 	)
 	if err != nil {
 		s.logger.Warn("failed to generate dynamic PWA manifest", "error", err)
-		c.Status(http.StatusInternalServerError)
+		writeLocalizedError(c, http.StatusInternalServerError, "app.load_failed")
 		return
 	}
 	content, err = pwaManifestForUserAgent(content, c.GetHeader("User-Agent"))
 	if err != nil {
 		s.logger.Warn("failed to select PWA display mode", "error", err)
-		c.Status(http.StatusInternalServerError)
+		writeLocalizedError(c, http.StatusInternalServerError, "app.load_failed")
 		return
 	}
 	c.Data(http.StatusOK, "application/manifest+json", content)
@@ -517,7 +563,7 @@ func (s *HTTPServer) setupFrontendRoutes() error {
 		// Serve the original file
 		content, err := fs.ReadFile(clientFS, filePath)
 		if err != nil {
-			c.Status(http.StatusInternalServerError)
+			writeLocalizedError(c, http.StatusInternalServerError, "app.load_failed")
 			return
 		}
 

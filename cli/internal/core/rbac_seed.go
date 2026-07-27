@@ -49,20 +49,20 @@ func defaultRBACRoles() map[string]*corev1.Role {
 		RoleOwner: {
 			Name:        RoleOwner,
 			DisplayName: "Owner",
-			Description: "Full server control",
+			Description: "Full server control", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			Position:    PositionOwner,
 			Pingable:    false,
 		},
 		RoleAdmin: {
 			Name:        RoleAdmin,
 			DisplayName: "Admin",
-			Description: "Full administrative access to the server",
+			Description: "Full administrative access to the server", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			Position:    PositionAdmin,
 			Pingable:    false,
 		},
 		RoleModerator: {
 			Name:        RoleModerator,
-			Description: "View access to admin panels without management permissions",
+			Description: "View access to admin panels without management permissions", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			DisplayName: "Moderator",
 			Position:    PositionModerator,
 			Pingable:    true,
@@ -70,7 +70,7 @@ func defaultRBACRoles() map[string]*corev1.Role {
 		RoleEveryone: {
 			Name:        RoleEveryone,
 			DisplayName: "Everyone",
-			Description: "All authenticated users",
+			Description: "All authenticated users", // i18n-audit-ignore -- system roles are localized by stable role name at the UI boundary
 			Position:    PositionEveryone,
 			Pingable:    false,
 		},

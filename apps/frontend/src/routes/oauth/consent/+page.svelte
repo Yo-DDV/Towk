@@ -2,8 +2,10 @@
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';
   import { csrfFetch } from '$lib/auth/csrf';
+  import { localizedHeaders } from '$lib/auth/localizedRequest';
   import AuthLayout from '$lib/components/AuthLayout.svelte';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import { Button, FormError } from '$lib/ui/form';
   import { onMount } from 'svelte';
@@ -23,6 +25,7 @@
     try {
       const response = await fetch('/oauth/consent/request', {
         credentials: 'include',
+        headers: localizedHeaders(),
         signal: AbortSignal.timeout(10000)
       });
 
@@ -54,7 +57,7 @@
       if (err instanceof DOMException && err.name === 'AbortError') {
         error = m['auth.oauth.request_timeout']();
       } else {
-        error = err instanceof Error ? err.message : m['auth.oauth.request_load_failed']();
+        error = localizedErrorMessage(err, m['auth.oauth.request_load_failed']());
       }
     } finally {
       loading = false;
@@ -104,7 +107,7 @@
       if (err instanceof DOMException && err.name === 'AbortError') {
         error = m['auth.oauth.decision_timeout']();
       } else {
-        error = err instanceof Error ? err.message : m['auth.oauth.submit_failed']();
+        error = localizedErrorMessage(err, m['auth.oauth.submit_failed']());
       }
     } finally {
       submitting = null;

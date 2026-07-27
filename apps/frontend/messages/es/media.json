@@ -1,7 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "media": {
-    "server_banner_alt": "Bandera del servidor",
+    "server_banner_alt": "Imagen de cabecera del servidor",
     "fullscreen_video": "Vídeo en pantalla completa",
     "close_fullscreen_video": "Cerrar vídeo en pantalla completa",
     "video_alt": "Video",

@@ -14,6 +14,7 @@ rendering to `SubjectPermissionsMatrix` (shared with the user variant).
   import { createPermissionAPI } from '$lib/api-client/permissions';
   import { toast } from '$lib/ui/toast';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import {
     setRolePermission,
     type MutationScope as RoleMutationScope,
@@ -60,7 +61,7 @@ rendering to `SubjectPermissionsMatrix` (shared with the user variant).
     } catch (err) {
       if (name !== roleName) return;
       loading = false;
-      error = err instanceof Error ? err.message : String(err);
+      error = localizedErrorMessage(err, m['rbac.permissions.load_failed']());
       return;
     }
 

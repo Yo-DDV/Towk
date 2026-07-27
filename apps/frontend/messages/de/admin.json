@@ -13,8 +13,8 @@
       "back_to_server": "Zurück zum Server"
     },
     "common": {
-      "page_title": "{title} | Admin",
-      "server_admin_page_title": "{title} | Server Admin",
+      "page_title": "{title} | Administration",
+      "server_admin_page_title": "{title} | Serververwaltung",
       "loading": "Wird geladen...",
       "unknown": "Unbekannt",
       "rooms": "Räume",
@@ -236,14 +236,16 @@
       "subtitle": "Registrierungsbeschränkungen und Kontoschutz",
       "blocked_usernames": "Blockierte Benutzernamen",
       "blocked_usernames_description": "Eine pro Zeile. Benutzer können sich nicht mit diesen Namen registrieren.",
-      "settings_saved": "Einstellungen gespeichert"
+      "settings_saved": "Einstellungen gespeichert",
+      "load_failed": "Die Sicherheitseinstellungen konnten nicht geladen werden.",
+      "save_failed": "Die Sicherheitseinstellungen konnten nicht gespeichert werden."
     },
     "system": {
       "title": "System",
       "subtitle": "Broker, JetStream-Speicher, Consumer und Projektionszustand",
       "loading": "Systeminformationen werden geladen...",
       "performance_title": "Laufzeitleistung",
-      "performance_subtitle": "Legen Sie fest, wie viele Medienaufgaben Towk parallel ausführen darf. Host- und Betreibergrenzen haben immer Vorrang.",
+      "performance_subtitle": "Lege fest, wie viele Medienaufgaben Towk parallel ausführen darf. Host- und Betreibergrenzen haben immer Vorrang.",
       "performance_loading": "Leistungseinstellungen werden geladen...",
       "performance_load_failed": "Die Leistungseinstellungen konnten nicht geladen werden.",
       "performance_profile": "Leistungsprofil",
@@ -263,7 +265,7 @@
       "performance_effective": "Wirksam",
       "performance_limits": "Parallelitätsgrenzen für Medien",
       "performance_limit_summary": "{requested} angefordert / {effective} wirksam",
-      "performance_custom_help": "Verwenden Sie positive Werte. Bildzulassungen müssen mindestens so hoch wie die Bild-Worker sein.",
+      "performance_custom_help": "Verwende positive Werte. Die Bildzulassungen müssen mindestens so hoch wie die Anzahl der Bild-Worker sein.",
       "performance_field_image_transform_workers": "Worker für Bildumwandlung",
       "performance_field_image_transform_admissions": "Zulassungen für Bildumwandlung",
       "performance_field_asset_upload_workers": "Upload-Worker",
@@ -287,9 +289,9 @@
       "performance_save": "Leistungsprofil speichern",
       "performance_saved": "Leistungsprofil gespeichert",
       "performance_save_failed": "Das Leistungsprofil konnte nicht gespeichert werden.",
-      "performance_save_conflict": "Diese Einstellungen wurden auf einem anderen Gerät geändert. Die neuesten Werte wurden geladen; prüfen Sie sie vor dem erneuten Speichern.",
+      "performance_save_conflict": "Diese Einstellungen wurden auf einem anderen Gerät geändert. Die neuesten Werte wurden geladen; prüfe sie vor dem erneuten Speichern.",
       "performance_policy_error": "Die gespeicherte Leistungsrichtlinie ist ungültig. Towk verwendet bis zur Korrektur vorsichtige Grenzen.",
-      "performance_custom_invalid": "Prüfen Sie die benutzerdefinierten Grenzen vor dem Speichern.",
+      "performance_custom_invalid": "Prüfe die benutzerdefinierten Grenzen vor dem Speichern.",
       "connection": "Verbindung",
       "broker": "NATS-Broker",
       "connected": "Verbunden",
@@ -301,7 +303,7 @@
       "max_payload": "Maximale Nutzlast",
       "server_id": "Server-ID",
       "server_name": "Servername",
-      "limit": "Limit: {limit}",
+      "limit": "Grenzwert: {limit}",
       "used_of_limit": "{used} von {limit}",
       "jetstream_account": "JetStream-Konto",
       "account_storage": "Dateispeicher",
@@ -345,7 +347,7 @@
       "redelivered": "Erneut zugestellt",
       "acked_through": "Bestätigt bis",
       "no_consumers": "Keine Consumer registriert.",
-      "durable": "Durable: {name}",
+      "durable": "Dauerhaft: {name}",
       "pull": "Pull",
       "push": "Push",
       "bound": "Gebunden",
@@ -366,7 +368,17 @@
       "failed": "Fehlgeschlagen",
       "started": "Gestartet",
       "stopped": "Gestoppt",
-      "failed_at": "fehlgeschlagen bei {sequence}"
+      "failed_at": "fehlgeschlagen bei {sequence}",
+      "stream_descriptions": {
+        "encryption_keys": "KMS-Schlüsselverschlüsselungsschlüssel (von Sicherungen ausgeschlossen)",
+        "runtime_state": "Persistierter letzter Laufzeit- und Benutzerzustand",
+        "memory_cache": "Flüchtiger, speicherbasierter Laufzeitzustand",
+        "asset_cache": "Zwischengespeicherte skalierte Bilder",
+        "link_preview_assets": "Begrenzt gespeicherte, extern abgerufene Linkvorschau-Bilder",
+        "server_assets": "Serverdateien (Avatare, Branding, Anhänge und ältere Linkvorschauen)",
+        "event_log": "Event-Sourcing-Protokoll (ADR-033)"
+      },
+      "load_failed": "Die Systeminformationen konnten nicht geladen werden."
     },
     "event_log": {
       "title": "Event-Log",
@@ -377,8 +389,8 @@
       "event": "Event",
       "aggregate": "Aggregat",
       "actor": "Akteur",
-      "event_title": "Event {sequence}",
-      "event_page_title": "Event {sequence} | Admin",
+      "event_title": "Ereignis {sequence}",
+      "event_page_title": "Ereignis {sequence} | Administration",
       "event_subtitle": "Ein einzelner Eintrag aus EVT",
       "loading_event": "Event wird geladen...",
       "metadata": "Metadaten",
@@ -403,7 +415,9 @@
       "inspected_rows_one": "{count} aufbewahrte Zeile geprüft",
       "inspected_rows_many": "{count} aufbewahrte Zeilen geprüft",
       "loading_older": "Ältere Events werden geladen...",
-      "no_matches": "Keine Events passen zu diesen Filtern."
+      "no_matches": "Keine Events passen zu diesen Filtern.",
+      "load_failed": "Das Ereignisprotokoll konnte nicht geladen werden.",
+      "load_older_failed": "Ältere Ereignisse konnten nicht geladen werden."
     },
     "users": {
       "empty": "Keine Benutzer gefunden",

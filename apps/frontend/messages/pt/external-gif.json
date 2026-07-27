@@ -3,13 +3,13 @@
   "room": {
     "external_gif": {
       "load": "Carregar GIF externo",
-      "loading": "A carregar GIF externo…",
+      "loading": "Carregando GIF externo…",
       "load_failed": "Não foi possível carregar o GIF externo.",
       "offline": "Este GIF externo pode não estar disponível offline.",
       "retry": "Tentar novamente",
       "hide": "Ocultar",
       "open_source": "Abrir fonte",
-      "privacy_notice": "Carregar este GIF de {provider}. O fornecedor receberá o pedido de rede deste navegador.",
+      "privacy_notice": "Carregar este GIF de {provider}. O provedor receberá a solicitação de rede deste navegador.",
       "media_title": "GIF animado de {provider}"
     }
   },
@@ -17,10 +17,10 @@
     "preferences": {
       "external_gifs": {
         "title": "GIFs externos",
-        "description": "Os GIFs externos permanecem nos servidores do fornecedor. São carregados automaticamente ao aproximarem-se da área visível e contactam o fornecedor diretamente a partir deste navegador.",
+        "description": "Os GIFs externos permanecem nos servidores do provedor. Eles são carregados automaticamente quando se aproximam da área visível e entram em contato diretamente com o provedor por meio deste navegador.",
         "auto_load": {
           "label": "Carregar GIFs externos automaticamente",
-          "description": "Ativado por predefinição. Desative esta opção para exigir um clique antes de o Towk contactar um fornecedor. A redução de movimento, o modo offline e as alternativas de compatibilidade ainda podem exigir um clique."
+          "description": "Ativado por padrão. Desative esta opção para exigir um clique antes que o Towk entre em contato com um provedor. O movimento reduzido, o modo offline e as alternativas de compatibilidade ainda podem exigir um clique."
         }
       }
     }

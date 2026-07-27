@@ -24,6 +24,7 @@
     hardRedirectAfterSignOut
   } from '$lib/auth/signOut';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const currentUser = $derived(serverRegistry.getStore(getActiveServer()).currentUser);
   const connection = useConnection();
@@ -156,7 +157,7 @@
       if (loadSerial !== ssoLoadSerial || activeServerId !== getActiveServer()) {
         return;
       }
-      ssoError = err instanceof Error ? err.message : m['settings.account.sso.load_failed']();
+      ssoError = localizedErrorMessage(err, m['settings.account.sso.load_failed']());
     } finally {
       if (loadSerial === ssoLoadSerial && activeServerId === getActiveServer()) {
         ssoLoading = false;
@@ -210,10 +211,9 @@
       } else if (err instanceof ConnectError && err.code === Code.FailedPrecondition) {
         ssoError = m['settings.account.sso.fresh_auth_required']();
       } else if (currentPassword !== undefined) {
-        linkFreshAuthError =
-          err instanceof Error ? err.message : m['settings.account.sso.link_failed']();
+        linkFreshAuthError = localizedErrorMessage(err, m['settings.account.sso.link_failed']());
       } else {
-        ssoError = err instanceof Error ? err.message : m['settings.account.sso.link_failed']();
+        ssoError = localizedErrorMessage(err, m['settings.account.sso.link_failed']());
       }
       linkingProviderId = '';
     }
@@ -326,12 +326,13 @@
         finishDisconnectedSession(client.serverId ?? serverId);
       } else if (currentPassword !== undefined) {
         cancelExplicitSignOutRedirect();
-        disconnectFreshAuthError =
-          err instanceof Error ? err.message : m['settings.account.sso.disconnect_failed']();
+        disconnectFreshAuthError = localizedErrorMessage(
+          err,
+          m['settings.account.sso.disconnect_failed']()
+        );
       } else {
         cancelExplicitSignOutRedirect();
-        ssoError =
-          err instanceof Error ? err.message : m['settings.account.sso.disconnect_failed']();
+        ssoError = localizedErrorMessage(err, m['settings.account.sso.disconnect_failed']());
         disconnectTarget = null;
       }
     } finally {
@@ -391,8 +392,7 @@
           ? m['settings.account.password.already_set']()
           : m['settings.account.password.fresh_auth_required']();
       } else {
-        passwordError =
-          err instanceof Error ? err.message : m['settings.account.password.save_failed']();
+        passwordError = localizedErrorMessage(err, m['settings.account.password.save_failed']());
       }
     } finally {
       passwordSubmitting = false;
@@ -458,7 +458,7 @@
       } else if (err instanceof ConnectError && err.code === Code.FailedPrecondition) {
         error = m['settings.account.delete_modal.fresh_auth_required']();
       } else {
-        error = err instanceof Error ? err.message : m['settings.account.delete_failed']();
+        error = localizedErrorMessage(err, m['settings.account.delete_failed']());
       }
     } finally {
       isDeleting = false;

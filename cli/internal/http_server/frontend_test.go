@@ -3,6 +3,7 @@ package http_server
 import (
 	"context"
 	"encoding/json"
+	"html"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -217,19 +218,23 @@ func TestDynamicPWAManifest(t *testing.T) {
   ]
 }`)
 
-	t.Run("keeps static manifest when no server logo is available", func(t *testing.T) {
-		got, err := dynamicPWAManifest(staticManifest, nil)
-		if err != nil {
-			t.Fatalf("dynamicPWAManifest: %v", err)
-		}
-		assert.Equal(t, string(staticManifest), string(got))
+	t.Run("localizes the static manifest without changing its identity", func(t *testing.T) {
+		got, err := dynamicPWAManifest(staticManifest, nil, "en")
+		require.NoError(t, err)
+		var manifest map[string]any
+		require.NoError(t, json.Unmarshal(got, &manifest))
+		assert.Equal(t, "Towk", manifest["name"])
+		assert.Equal(t, "/", manifest["id"])
+		assert.Equal(t, "en", manifest["lang"])
+		assert.Equal(t, "ltr", manifest["dir"])
+		assert.Equal(t, localizedTextForLocale("en", "manifest.description"), manifest["description"])
 	})
 
 	t.Run("replaces install and shortcut icons with server logo URLs", func(t *testing.T) {
 		got, err := dynamicPWAManifest(staticManifest, &pwaServerIconURLs{
 			Icon192: "/assets/server/logo/t/192",
 			Icon512: "/assets/server/logo/t/512",
-		})
+		}, "en")
 		if err != nil {
 			t.Fatalf("dynamicPWAManifest: %v", err)
 		}
@@ -258,6 +263,26 @@ func TestDynamicPWAManifest(t *testing.T) {
 		assert.Nil(t, shortcutIcons[0].(map[string]any)["type"])
 		assert.Equal(t, "/icons/icon-192.png", shortcutIcons[1].(map[string]any)["src"])
 		assert.Equal(t, "image/png", shortcutIcons[1].(map[string]any)["type"])
+	})
+
+	t.Run("localizes manifest shortcuts in French", func(t *testing.T) {
+		localizedStatic := []byte(`{
+  "name": "Towk",
+  "shortcuts": [
+    { "name": "Open Towk", "short_name": "Towk", "description": "Open Towk.", "url": "/" },
+    { "name": "Notifications", "short_name": "Notifications", "description": "Open your Towk notifications.", "url": "/chat/notifications" }
+  ]
+}`)
+		got, err := dynamicPWAManifest(localizedStatic, nil, "fr-FR")
+		require.NoError(t, err)
+		var manifest map[string]any
+		require.NoError(t, json.Unmarshal(got, &manifest))
+		assert.Equal(t, "fr", manifest["lang"])
+		assert.Equal(t, localizedTextForLocale("fr", "manifest.description"), manifest["description"])
+		shortcuts := manifest["shortcuts"].([]any)
+		assert.Equal(t, localizedTextForLocale("fr", "manifest.open_name"), shortcuts[0].(map[string]any)["name"])
+		assert.Equal(t, localizedTextForLocale("fr", "manifest.notifications_name"), shortcuts[1].(map[string]any)["name"])
+		assert.Equal(t, localizedTextForLocale("fr", "manifest.notifications_description"), shortcuts[1].(map[string]any)["description"])
 	})
 
 }
@@ -522,6 +547,27 @@ func TestServeSPAFallback(t *testing.T) {
 		assert.NotContains(t, w.Body.String(), defaultAppleTouchIconHref)
 	})
 
+	t.Run("localizes shell and OpenGraph metadata", func(t *testing.T) {
+		mockFS := fstest.MapFS{
+			"200.html": &fstest.MapFile{
+				Data: []byte(`<!DOCTYPE html><html lang="en"><head><!-- OG_META_PLACEHOLDER --><meta name="description" content="Towk self-hosted communication workspace" /></head><body>SPA</body></html>`),
+			},
+		}
+		server := newTestServer()
+		router := gin.New()
+		router.GET("/test", func(c *gin.Context) { server.serveSPAFallback(c, mockFS) })
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Accept-Language", "fr-FR, en;q=0.8")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "fr", w.Header().Get("Content-Language"))
+		assert.Equal(t, "X-Towk-Locale, Accept-Language", w.Header().Get("Vary"))
+		assert.Contains(t, w.Body.String(), `<html lang="fr">`)
+		assert.Contains(t, w.Body.String(), html.EscapeString(localizedTextForLocale("fr", "meta.app_description")))
+		assert.Contains(t, w.Body.String(), html.EscapeString(localizedTextForLocale("fr", "meta.community_description")))
+	})
+
 	t.Run("returns 500 when 200.html is missing", func(t *testing.T) {
 		// Empty filesystem - no 200.html
 		mockFS := fstest.MapFS{}
@@ -592,6 +638,35 @@ func TestServePWAWebManifestUsesServerLogoWhenAvailable(t *testing.T) {
 	assert.Nil(t, icons[0].(map[string]any)["type"])
 	assert.Equal(t, "/icons/icon-192.png", icons[4].(map[string]any)["src"])
 	assert.Equal(t, "image/png", icons[4].(map[string]any)["type"])
+}
+
+func TestServePWAWebManifestUsesExplicitLocale(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockFS := fstest.MapFS{
+		"manifest.webmanifest": &fstest.MapFile{Data: []byte(`{
+  "name": "Towk",
+  "description": "English",
+  "lang": "en",
+  "shortcuts": [
+    { "name": "Open Towk", "short_name": "Towk", "description": "Open Towk.", "url": "/" },
+    { "name": "Notifications", "short_name": "Notifications", "description": "Open your Towk notifications.", "url": "/chat/notifications" }
+  ]
+}`)},
+	}
+	server := &HTTPServer{router: gin.New()}
+	server.router.GET("/manifest.webmanifest", func(c *gin.Context) { server.servePWAWebManifest(c, mockFS) })
+	req := httptest.NewRequest(http.MethodGet, "/manifest.webmanifest?locale=es-MX", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "es", w.Header().Get("Content-Language"))
+	assert.Equal(t, "X-Towk-Locale, Accept-Language, User-Agent", w.Header().Get("Vary"))
+	var manifest map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &manifest))
+	assert.Equal(t, "es", manifest["lang"])
+	assert.Equal(t, localizedTextForLocale("es", "manifest.description"), manifest["description"])
+	shortcuts := manifest["shortcuts"].([]any)
+	assert.Equal(t, localizedTextForLocale("es", "manifest.notifications_name"), shortcuts[1].(map[string]any)["name"])
 }
 
 func TestServePWAWebManifestSelectsDisplayModeByUserAgent(t *testing.T) {
@@ -671,7 +746,8 @@ func TestServePWAWebManifestSelectsDisplayModeByUserAgent(t *testing.T) {
 			server.router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusOK, w.Code)
-			assert.Equal(t, "User-Agent", w.Header().Get("Vary"))
+			assert.Equal(t, "X-Towk-Locale, Accept-Language, User-Agent", w.Header().Get("Vary"))
+			assert.Equal(t, "en", w.Header().Get("Content-Language"))
 
 			var manifest map[string]any
 			if err := json.Unmarshal(w.Body.Bytes(), &manifest); err != nil {
@@ -685,15 +761,11 @@ func TestServePWAWebManifestSelectsDisplayModeByUserAgent(t *testing.T) {
 			assert.Equal(t, "/chat/share-target", manifest["share_target"].(map[string]any)["action"])
 			assert.Equal(t, "/chat/share-target", manifest["file_handlers"].([]any)[0].(map[string]any)["action"])
 
-			var originalManifest map[string]any
-			if err := json.Unmarshal(mockFS["manifest.webmanifest"].Data, &originalManifest); err != nil {
-				t.Fatalf("unmarshal original manifest: %v", err)
-			}
-			delete(originalManifest, "display")
-			delete(originalManifest, "display_override")
-			delete(manifest, "display")
-			delete(manifest, "display_override")
-			assert.Equal(t, originalManifest, manifest, "only display modes may change")
+			assert.Equal(t, "Towk", manifest["name"])
+			assert.Equal(t, "en", manifest["lang"])
+			assert.Equal(t, "ltr", manifest["dir"])
+			assert.Equal(t, localizedTextForLocale("en", "manifest.description"), manifest["description"])
+			assert.Equal(t, "/icons/icon-192.png", manifest["icons"].([]any)[0].(map[string]any)["src"])
 		})
 	}
 }

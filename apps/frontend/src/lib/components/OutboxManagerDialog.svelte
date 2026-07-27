@@ -72,6 +72,20 @@
     return serverRegistry.getServer(scope.serverId)?.name ?? scope.serverUrl;
   }
 
+  function outboxErrorMessage(code: string): string {
+    switch (code) {
+      case 'authentication':
+        return m['ui.outbox.error_authentication']();
+      case 'retry_limit':
+        return m['ui.outbox.error_retry_limit']();
+      case 'unsupported':
+        return m['ui.outbox.unsupported_server']();
+      case 'permanent':
+      default:
+        return m['ui.outbox.error_permanent']();
+    }
+  }
+
   function canRetry(scope: PrivateDataScope): boolean {
     return supportsMessageCreateIdempotency(serverRegistry.tryGetStore(scope.serverId)?.serverInfo);
   }
@@ -110,7 +124,7 @@
               </p>
               {#if item.record.value.lastError}
                 <p class="mt-1 line-clamp-2 text-xs text-warning">
-                  {item.record.value.lastError}
+                  {outboxErrorMessage(item.record.value.lastError)}
                 </p>
               {/if}
             </div>

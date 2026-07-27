@@ -14,6 +14,7 @@
   import { quickSwitcher } from '$lib/state/globals.svelte';
   import { RoomType } from '$lib/render/types';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { toast } from '$lib/ui/toast';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
   import { createMemberDirectoryAPI, type DirectoryMember } from '$lib/api-client/memberDirectory';
@@ -392,7 +393,7 @@
           })
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : m['quick_switcher.start_dm_failed']());
+        toast.error(localizedErrorMessage(err, m['quick_switcher.start_dm_failed']()));
       }
       return;
     }
@@ -567,7 +568,7 @@
               {/each}
             </div>
           {:else if filtered.length === 0 && !loading && !userSearchLoading}
-            <p class="px-3 py-6 text-center text-muted surface-pop">
+            <p class="surface-pop px-3 py-6 text-center text-muted">
               {m['quick_switcher.no_results']()}
             </p>
           {:else}

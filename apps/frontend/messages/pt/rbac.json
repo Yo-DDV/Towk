@@ -37,7 +37,7 @@
       "granted": "Garantido",
       "denied": "Negado",
       "no_decision": "Nenhuma decisão",
-      "no_role_decided": "Nenhum papel decidido",
+      "no_role_decided": "Nenhuma função definida",
       "hide_trace": "Ocultar rastro",
       "show_trace": "Mostrar rastreamento",
       "trace_one": "Rastreamento de resolução (1 entrada)",
@@ -105,7 +105,9 @@
       "override_for_permission_scope": "Substituir por {state} para {permission} em {scope}",
       "no_override_effective_scope": "Sem substituição para {permission} em {scope}; estado efetivo: {state}",
       "subject_override_at_scope": "{state} (substituição de {subject} em {scope})",
-      "effective_inherited": "Estado efetivo: {state} (herdado)"
+      "effective_inherited": "Estado efetivo: {state} (herdado)",
+      "load_failed": "Não foi possível carregar as permissões.",
+      "update_failed": "Não foi possível atualizar a permissão."
     },
     "permission_descriptions": {
       "server_manage": "Atualizar as configurações do servidor (nome, descrição, logotipo)",

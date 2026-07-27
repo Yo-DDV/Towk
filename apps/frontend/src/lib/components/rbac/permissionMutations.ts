@@ -1,4 +1,6 @@
 import type { PermissionAPI, PermissionState } from '$lib/api-client/permissions';
+import * as m from '$lib/i18n/messages';
+import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
 export type { PermissionState };
 
@@ -22,6 +24,6 @@ export async function setRolePermission(
     });
     return {};
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
+    return { error: localizedErrorMessage(error, m['rbac.permissions.update_failed']()) };
   }
 }

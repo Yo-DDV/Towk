@@ -8,6 +8,7 @@
   import { createLinkPreviewAPI } from '$lib/api-client/linkPreviews';
   import { createRoleAPI } from '$lib/api-client/roles';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
   import { useConnection } from '$lib/state/server/connection.svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { parseMessageLink } from '$lib/messageLinks';
@@ -533,14 +534,8 @@
     const rect = node.getBoundingClientRect();
     const rootFontSize =
       Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-    const availableWidth = Math.max(
-      0,
-      window.innerWidth - FLOATING_VIEWPORT_PADDING_PX * 2
-    );
-    const pickerWidth = Math.min(
-      DESKTOP_EMOJI_PICKER_WIDTH_REM * rootFontSize,
-      availableWidth
-    );
+    const availableWidth = Math.max(0, window.innerWidth - FLOATING_VIEWPORT_PADDING_PX * 2);
+    const pickerWidth = Math.min(DESKTOP_EMOJI_PICKER_WIDTH_REM * rootFontSize, availableWidth);
 
     return {
       top: rect.top,
@@ -975,7 +970,7 @@
         cancelEdit();
         toast.error(m['composer.edit_window_expired']());
       } else {
-        toast.error(m['composer.edit_failed']());
+        toast.error(localizedErrorMessage(error, m['composer.edit_failed']()));
       }
     }
 

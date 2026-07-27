@@ -43,6 +43,7 @@ type CallCopy = {
   unknownPrivateTitle: string;
   channelBody: (room: string) => string;
   privateBody: string;
+  unknownRoom: string;
   viewRoom: string;
   viewConversation: string;
   join: string;
@@ -56,6 +57,7 @@ const COPY: Record<string, CallCopy> = {
     unknownPrivateTitle: 'Incoming call',
     channelBody: (room) => `In #${room}`,
     privateBody: 'Private conversation',
+    unknownRoom: 'Room',
     viewRoom: 'View room',
     viewConversation: 'View conversation',
     join: 'Join'
@@ -67,6 +69,7 @@ const COPY: Record<string, CallCopy> = {
     unknownPrivateTitle: 'Appel entrant',
     channelBody: (room) => `Dans #${room}`,
     privateBody: 'Conversation privée',
+    unknownRoom: 'Salon',
     viewRoom: 'Voir le salon',
     viewConversation: 'Voir la conversation',
     join: 'Rejoindre'
@@ -78,6 +81,7 @@ const COPY: Record<string, CallCopy> = {
     unknownPrivateTitle: 'Eingehender Anruf',
     channelBody: (room) => `In #${room}`,
     privateBody: 'Private Unterhaltung',
+    unknownRoom: 'Raum',
     viewRoom: 'Raum anzeigen',
     viewConversation: 'Unterhaltung anzeigen',
     join: 'Beitreten'
@@ -89,6 +93,7 @@ const COPY: Record<string, CallCopy> = {
     unknownPrivateTitle: 'Llamada entrante',
     channelBody: (room) => `En #${room}`,
     privateBody: 'Conversación privada',
+    unknownRoom: 'Sala',
     viewRoom: 'Ver sala',
     viewConversation: 'Ver conversación',
     join: 'Unirse'
@@ -100,6 +105,7 @@ const COPY: Record<string, CallCopy> = {
     unknownPrivateTitle: 'Chamada recebida',
     channelBody: (room) => `Em #${room}`,
     privateBody: 'Conversa privada',
+    unknownRoom: 'Sala',
     viewRoom: 'Ver sala',
     viewConversation: 'Ver conversa',
     join: 'Entrar'
@@ -128,7 +134,7 @@ export function normalizeCallPushNotification(
   const copy = COPY[locale.toLowerCase().split('-')[0]] ?? COPY.en;
   const isPrivate = call.isPrivate === true;
   const actorKnown = call.actorKnown === true;
-  const roomName = call.roomName?.trim() || 'Room';
+  const roomName = call.roomName?.trim() || copy.unknownRoom;
   const tag = envelope.tag;
   const options: ActionableNotificationOptions = {
     body: isPrivate ? copy.privateBody : copy.channelBody(roomName),

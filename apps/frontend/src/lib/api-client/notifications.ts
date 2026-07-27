@@ -10,7 +10,7 @@ import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/pres
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { PresenceStatus } from './renderTypes.js';
 import { currentPushClientId } from '$lib/notifications/pushClientId';
-import * as m from '$lib/i18n/messages';
+import { notificationSummary } from '$lib/notifications/notificationCopy';
 import { protobufTimestampToISOString } from '$lib/protobufTimestamp';
 
 export type NotificationAPIConfig = {
@@ -240,7 +240,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
       return {
         kind: NotificationItemKind.DirectMessage,
         ...base,
-        summary: notificationSummary(actor, NotificationItemKind.DirectMessage),
+        summary: notificationSummary(actor?.displayName, NotificationItemKind.DirectMessage),
         room: { id: item.kind.value.room?.id ?? '' },
         eventId: item.kind.value.eventId,
         dmInThread: item.kind.value.threadRootEventId ?? null
@@ -249,7 +249,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
       return {
         kind: NotificationItemKind.Mention,
         ...base,
-        summary: notificationSummary(actor, NotificationItemKind.Mention),
+        summary: notificationSummary(actor?.displayName, NotificationItemKind.Mention),
         mentionRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
@@ -260,7 +260,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
       return {
         kind: NotificationItemKind.Reply,
         ...base,
-        summary: notificationSummary(actor, NotificationItemKind.Reply),
+        summary: notificationSummary(actor?.displayName, NotificationItemKind.Reply),
         replyRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
@@ -272,7 +272,7 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
       return {
         kind: NotificationItemKind.RoomMessage,
         ...base,
-        summary: notificationSummary(actor, NotificationItemKind.RoomMessage),
+        summary: notificationSummary(actor?.displayName, NotificationItemKind.RoomMessage),
         roomMsgRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
@@ -284,7 +284,11 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
       return {
         kind: NotificationItemKind.CallStarted,
         ...base,
-        summary: notificationSummary(actor, NotificationItemKind.CallStarted, isPrivate),
+        summary: notificationSummary(
+          actor?.displayName,
+          NotificationItemKind.CallStarted,
+          isPrivate
+        ),
         callRoom: item.kind.value.room
           ? { id: item.kind.value.room.id, name: item.kind.value.room.name }
           : null,
@@ -295,33 +299,6 @@ function notificationItem(item: APINotificationItem): NotificationItem | null {
     }
     default:
       return null;
-  }
-}
-
-function notificationSummary(
-  actor: NotificationActor | null,
-  kind: NotificationItemKind,
-  isPrivate = false
-): string {
-  const actorName = actor?.displayName || null;
-  switch (kind) {
-    case NotificationItemKind.DirectMessage:
-      return actorName ? `${actorName} sent you a message` : 'New message';
-    case NotificationItemKind.Mention:
-      return actorName ? `${actorName} mentioned you` : 'You were mentioned';
-    case NotificationItemKind.Reply:
-      return actorName ? `${actorName} replied to your message` : 'New reply to your message';
-    case NotificationItemKind.RoomMessage:
-      return actorName ? `${actorName} posted a message` : 'New message';
-    case NotificationItemKind.CallStarted:
-      if (isPrivate) {
-        return actorName
-          ? m['chat.notifications.private_call_started']({ actor: actorName })
-          : m['chat.notifications.private_call_started_unknown']();
-      }
-      return actorName
-        ? m['chat.notifications.call_started']({ actor: actorName })
-        : m['chat.notifications.call_started_unknown']();
   }
 }
 

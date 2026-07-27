@@ -6,21 +6,32 @@
       "subtitle": "Esto es lo nuevo",
       "clear_all": "Borrar todo",
       "empty_title": "Sin notificaciones",
-      "empty_body": "¡Estáis todos atrapados!",
-      "time_now": "En este momento",
-      "time_minutes": "Hace {count}m",
-      "time_hours": "Hace {count}h",
-      "time_days": "Hace {count}d",
+      "empty_body": "¡Ya estás al día!",
+      "time_now": "Ahora mismo",
+      "time_minutes": "Hace {count} min",
+      "time_hours": "Hace {count} h",
+      "time_days": "Hace {count} d",
       "call_started": "{actor} inició una llamada",
       "call_started_unknown": "Se inició una llamada",
       "private_call_started": "{actor} te está llamando",
-      "private_call_started_unknown": "Llamada entrante"
+      "private_call_started_unknown": "Llamada entrante",
+      "direct_message": "{actor} te envió un mensaje",
+      "direct_message_unknown": "Nuevo mensaje",
+      "mention": "{actor} te mencionó",
+      "mention_unknown": "Te han mencionado",
+      "reply": "{actor} respondió a tu mensaje",
+      "reply_unknown": "Nueva respuesta a tu mensaje",
+      "room_message": "{actor} publicó un mensaje",
+      "room_message_unknown": "Nuevo mensaje",
+      "location_in_server": "#{room} en {server}",
+      "load_failed": "No se pudieron cargar las notificaciones.",
+      "room_load_failed": "No se pudo cargar la notificación del canal."
     },
     "sign_out": {
       "title": "Desconectar",
       "current_server": "Servidor actual",
       "all_servers": "Todos los servidores",
-      "description": "Cierre sesión únicamente en el servidor seleccionado o desconecte todos los servidores de este cliente."
+      "description": "Cierra sesión únicamente en el servidor seleccionado o desconecta todos los servidores de este cliente."
     },
     "overview": {
       "title": "Descripción general"
@@ -28,7 +39,11 @@
     "server_nav": {
       "back_to_server": "Volver al servidor",
       "server_fallback": "Servidor",
-      "administration": "administración del servidor"
+      "administration": "Administración del servidor",
+      "go_to_notifications": "Ir a {count} notificaciones",
+      "go_to_notification": "Ir a la notificación",
+      "go_to_first_unread_room": "Ir al primer canal sin leer",
+      "notification_count": "Notificaciones: {count}"
     },
     "user_menu": {
       "profile": "Perfil de usuario",
@@ -39,20 +54,21 @@
     },
     "threads": {
       "title": "Mis hilos",
-      "subtitle": "Hilos que estás siguiendo",
+      "subtitle": "Hilos que sigues",
       "filter_label": "Filtrar hilos",
-      "filter_all": "Todo",
-      "filter_unread": "No leído",
-      "empty_title": "No se siguen hilos",
+      "filter_all": "Todos",
+      "filter_unread": "No leídos",
+      "empty_title": "Ningún hilo seguido",
       "empty_body": "Los hilos que sigues aparecerán aquí. Sigues automáticamente los hilos en los que participas.",
-      "no_unread_loaded": "No se cargaron hilos no leídos",
-      "all_caught_up": "todos atrapados",
-      "loaded_count": "{loaded} de {total} siguió los hilos cargados.",
+      "no_unread_loaded": "No se han cargado hilos no leídos",
+      "all_caught_up": "Todo al día",
+      "loaded_count": "{loaded} de {total} hilos seguidos cargados.",
       "load_more": "Cargar más",
       "no_unread": "No hay hilos sin leer en este momento.",
       "message_missing": "El mensaje ya no está disponible",
       "in_room": "en",
-      "in_room_capitalized": "En"
+      "in_room_capitalized": "En",
+      "load_failed": "No se pudieron cargar los hilos."
     }
   },
   "profile": {

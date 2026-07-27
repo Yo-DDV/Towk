@@ -9,14 +9,14 @@
     "pwa_install": {
       "action_install": "Instalar Towk",
       "title": "Instalar Towk como aplicación",
-      "description": "Abre Towk directamente en su propia ventana, como tus otras aplicaciones.",
+      "description": "Abre Towk directamente en una ventana independiente, como tus otras aplicaciones.",
       "benefits_label": "Ventajas de instalar Towk",
       "benefit_launch": "Acceso directo",
       "benefit_focus": "Ventana propia",
       "benefit_notifications": "Notificaciones del sistema",
       "install_now": "Instalar ahora",
       "installing": "Abriendo la instalación…",
-      "install_failed": "El navegador no pudo abrir su diálogo de instalación. Los pasos manuales se muestran abajo.",
+      "install_failed": "El navegador no pudo abrir el cuadro de instalación. Los pasos manuales aparecen abajo.",
       "manual_help": "Ayuda para instalar",
       "recommended": "Recomendado en iPhone y iPad",
       "confirm_add": "Pulsa Añadir para terminar.",
@@ -82,9 +82,9 @@
       "reconnecting": "Red disponible. Towk se está reconectando…"
     },
     "outbox": {
-      "pending_title": "{count} mensaje(s) en espera",
+      "pending_title": "Mensajes en espera: {count}",
       "pending_message": "Cifrado en este dispositivo y enviado automáticamente cuando sea posible.",
-      "attention_title": "{count} mensaje(s) requieren atención",
+      "attention_title": "Mensajes que requieren atención: {count}",
       "attention_message": "Vuelve a conectarte o reintenta para completar la entrega.",
       "retry": "Reintentar ahora",
       "manage": "Gestionar",
@@ -94,7 +94,10 @@
       "attachment_only": "Mensaje con archivos adjuntos",
       "voice_message": "Mensaje de voz",
       "unsupported_server": "Este servidor no puede reintentar el mensaje automáticamente de forma segura. Consérvalo aquí o descártalo.",
-      "discard": "Descartar"
+      "discard": "Descartar",
+      "error_authentication": "Vuelve a iniciar sesión en este servidor antes de reintentar.",
+      "error_permanent": "El servidor rechazó este mensaje. Revísalo antes de reintentar o descártalo.",
+      "error_retry_limit": "Se agotaron los reintentos automáticos. Reintenta manualmente cuando la conexión sea estable."
     },
     "cached_timeline": "Se muestra el historial cifrado de este dispositivo mientras Towk se reconecta.",
     "corresponding_source": "Ver fuente correspondiente para Towk {version}",
@@ -104,13 +107,13 @@
       "source": "Ver el código fuente correspondiente"
     },
     "sign_out": "desconectar",
-    "close": "Cerca",
+    "close": "Cerrar",
     "auth_status": {
       "origin_title": "La sesión expiró",
       "origin_message": "Puedes seguir leyendo lo que ya está cargado. Inicie sesión nuevamente para enviar mensajes y actualizar datos.",
       "origin_action": "Iniciar sesión nuevamente",
       "remote_title": "{server} necesita iniciar sesión",
-      "remote_message": "Este servidor rechazó el inicio de sesión almacenado. Vuelva a conectarlo para reanudar las actualizaciones y acciones en vivo.",
+      "remote_message": "Este servidor rechazó el inicio de sesión guardado. Vuelve a conectarlo para reanudar las actualizaciones y las acciones en tiempo real.",
       "remote_action": "Reconectar",
       "remote_failed": "No se pudo iniciar la reconexión",
       "sidebar_reauth": "{server} necesita iniciar sesión"
@@ -168,7 +171,7 @@
       "custom": "Personalizado",
       "custom_label": "Caducidad personalizada",
       "error_required": "Elige una fecha de vencimiento.",
-      "error_invalid": "Introduzca una caducidad válida.",
+      "error_invalid": "Introduce una fecha de caducidad válida.",
       "error_future": "El vencimiento debe ser en el futuro."
     },
     "form": {

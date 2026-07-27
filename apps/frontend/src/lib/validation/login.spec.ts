@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect } from 'vitest';
+import { setLocale } from '$lib/i18n/runtime';
 import {
   validateLogin,
   normalizeLogin,
@@ -6,9 +7,10 @@ import {
   getLoginChangeCooldownRemaining,
   formatCooldownRemaining,
   MAX_LOGIN_LENGTH,
-  MIN_LOGIN_LENGTH,
   LOGIN_CHANGE_COOLDOWN_MS
 } from './login';
+
+beforeEach(async () => setLocale('en'));
 
 describe('validateLogin', () => {
   describe('valid logins', () => {
@@ -32,37 +34,37 @@ describe('validateLogin', () => {
     it('rejects empty string', () => {
       const result = validateLogin('');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('empty');
+      expect(result.errorCode).toBe('username_empty');
     });
 
     it('rejects too short', () => {
       const result = validateLogin('a');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain(`${MIN_LOGIN_LENGTH}`);
+      expect(result.errorCode).toBe('username_too_short');
     });
 
     it('rejects too long', () => {
       const result = validateLogin('a'.repeat(MAX_LOGIN_LENGTH + 1));
       expect(result.valid).toBe(false);
-      expect(result.error).toContain(`${MAX_LOGIN_LENGTH}`);
+      expect(result.errorCode).toBe('username_too_long');
     });
 
     it('rejects starting with period', () => {
       const result = validateLogin('.alice');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('start with');
+      expect(result.errorCode).toBe('username_invalid_start');
     });
 
     it('rejects starting with underscore', () => {
       const result = validateLogin('_alice');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('start with');
+      expect(result.errorCode).toBe('username_invalid_start');
     });
 
     it('rejects starting with hyphen', () => {
       const result = validateLogin('-alice');
       expect(result.valid).toBe(false);
-      expect(result.error).toContain('start with');
+      expect(result.errorCode).toBe('username_invalid_start');
     });
 
     it('rejects spaces', () => {
@@ -155,5 +157,10 @@ describe('formatCooldownRemaining', () => {
 
   it('formats single minute', () => {
     expect(formatCooldownRemaining(60 * 1000)).toBe('1 minute');
+  });
+
+  it('formats the duration in the active locale', async () => {
+    await setLocale('fr');
+    expect(formatCooldownRemaining(5 * 24 * 60 * 60 * 1000)).toMatch(/^5[\u00a0\u202f]jours$/);
   });
 });

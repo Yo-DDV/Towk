@@ -992,6 +992,17 @@ func TestNotificationCopyForLocale(t *testing.T) {
 		})
 	}
 
+	for input, want := range map[string]string{
+		"fr-FR":           "fr",
+		"pt_BR":           "pt",
+		"de-DE;q=0.9":     "de",
+		"es-MX, en;q=0.8": "es",
+		"it":              "en",
+	} {
+		if got := NormalizeLocale(input); got != want {
+			t.Fatalf("NormalizeLocale(%q) = %q, want %q", input, got, want)
+		}
+	}
 	if got := notificationCopyForLocale("it"); got != notificationCopyForLocale("en") {
 		t.Fatalf("unsupported locale did not fall back to English: %#v", got)
 	}

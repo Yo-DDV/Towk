@@ -41,7 +41,7 @@ describe('permission mutation dispatch', () => {
       'allow'
     );
 
-    expect(result.error).toBe('boom');
+    expect(result.error).toBe('The permission could not be updated.');
   });
 
   const userCases = [
@@ -75,6 +75,6 @@ describe('permission mutation dispatch', () => {
       'allow'
     );
 
-    expect(result.error).toBe('boom');
+    expect(result.error).toBe('The permission could not be updated.');
   });
 });

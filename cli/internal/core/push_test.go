@@ -212,6 +212,22 @@ func TestSavePushSubscription(t *testing.T) {
 			t.Fatalf("localized subscription locale = %q, want fr", localized.Locale)
 		}
 
+		regional, err := core.SavePushSubscriptionWithLocale(
+			ctx,
+			userID,
+			"https://push.example.com/regional",
+			p256dh,
+			auth,
+			userAgent,
+			"pt-BR",
+		)
+		if err != nil {
+			t.Fatalf("SavePushSubscriptionWithLocale regional error: %v", err)
+		}
+		if regional.Locale != "pt" {
+			t.Fatalf("regional subscription locale = %q, want pt", regional.Locale)
+		}
+
 		fallback, err := core.SavePushSubscriptionWithLocale(
 			ctx,
 			userID,

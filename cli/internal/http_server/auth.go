@@ -37,27 +37,18 @@ func (s *HTTPServer) authEmailServerName(ctx context.Context) string {
 	return "Towk"
 }
 
-func (s *HTTPServer) emailOTPExpirationText() string {
+func (s *HTTPServer) emailOTPExpirationText(locale string) string {
 	ttl := s.config.Auth.EmailOTP.TTLOrDefault()
 	switch {
 	case ttl%time.Hour == 0:
 		hours := int(ttl / time.Hour)
-		if hours == 1 {
-			return "1 hour"
-		}
-		return fmt.Sprintf("%d hours", hours)
+		return localizedDuration(locale, hours, "duration.hour.one", "duration.hour.other")
 	case ttl%time.Minute == 0:
 		minutes := int(ttl / time.Minute)
-		if minutes == 1 {
-			return "1 minute"
-		}
-		return fmt.Sprintf("%d minutes", minutes)
+		return localizedDuration(locale, minutes, "duration.minute.one", "duration.minute.other")
 	case ttl%time.Second == 0:
 		seconds := int(ttl / time.Second)
-		if seconds == 1 {
-			return "1 second"
-		}
-		return fmt.Sprintf("%d seconds", seconds)
+		return localizedDuration(locale, seconds, "duration.second.one", "duration.second.other")
 	default:
 		return ttl.String()
 	}
@@ -123,14 +114,14 @@ func (s *HTTPServer) setupAuthRoutes() {
 			Token string `json:"token" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token is required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.token_required")
 			return
 		}
 
 		ctx := c.Request.Context()
 		if err := s.core.RevokeAuthTokenWithReason(ctx, req.Token, "explicit"); err != nil {
 			log.Error("Failed to revoke token", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to revoke token"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.revoke_token_failed")
 			return
 		}
 
@@ -148,7 +139,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 
 		// Parse request body
 		if err := c.ShouldBindJSON(&loginRequest); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Password is required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.password_required")
 			return
 		}
 
@@ -159,7 +150,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		if login == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Login is required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.login_required")
 			return
 		}
 
@@ -170,7 +161,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			maxLength = 254
 		}
 		if len(login) > maxLength {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid credentials"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.invalid_credentials")
 			return
 		}
 
@@ -180,11 +171,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 		if err != nil {
 			if errors.Is(err, core.ErrAuthRateLimitExceeded) {
 				setAuthRetryAfter(c, retryAfter)
-				c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many login attempts. Try again later."})
+				writeLocalizedError(c, http.StatusTooManyRequests, "auth.too_many_login_attempts")
 				return
 			}
 			log.Error("Failed to reserve login rate limit", "error", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication is temporarily unavailable"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "auth.temporarily_unavailable")
 			return
 		}
 		user, authGeneration, err := s.core.VerifyPasswordWithAuthGeneration(ctx, login, loginRequest.Password)
@@ -193,7 +184,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 				log.Warn("Failed to append failed-login audit event", "error", auditErr)
 			}
 			log.Error("Login failed", "error", err)
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			writeLocalizedError(c, http.StatusUnauthorized, "auth.invalid_credentials")
 			return
 		}
 
@@ -204,11 +195,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 					log.Warn("Failed to append stale-login audit event", "error", auditErr)
 				}
 				log.Warn("Login became stale before session creation", "userId", user.Id)
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+				writeLocalizedError(c, http.StatusUnauthorized, "auth.invalid_credentials")
 				return
 			}
 			log.Error("Failed to save session", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		}
 		if s.passwordLoginSessionCreatedHook != nil {
@@ -232,14 +223,14 @@ func (s *HTTPServer) setupAuthRoutes() {
 					log.Warn("Failed to append stale-login audit event", "error", auditErr)
 				}
 				log.Warn("Login became stale before bearer token creation", "userId", user.Id)
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+				writeLocalizedError(c, http.StatusUnauthorized, "auth.invalid_credentials")
 				return
 			}
 			log.Error("Failed to create auth token on login", "userId", user.Id, "error", err)
 			_ = s.core.RevokeCookieSession(ctx, user.Id, cookieCredential.sessionID)
 			clearCookieSessionAuth(session)
 			_ = session.Save()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		} else {
 			bearerToken = token
@@ -254,7 +245,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			session.Clear()
 			_ = session.Save()
 			s.clearCSRFCookie(c)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		}
 
@@ -267,7 +258,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			session.Clear()
 			_ = session.Save()
 			s.clearCSRFCookie(c)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		}
 
@@ -295,7 +286,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 	auth.POST("register", func(c *gin.Context) {
 		// Check if registration is enabled
 		if !s.config.Auth.DirectRegistrationOrDefault() {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
+			writeLocalizedError(c, http.StatusForbidden, "auth.registration_disabled")
 			return
 		}
 
@@ -304,7 +295,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "A valid email address is required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.valid_email_required")
 			return
 		}
 		// Normalize at the HTTP boundary so downstream core code can treat email as canonical.
@@ -312,7 +303,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 
 		// Require mailer — can't do email-first registration without email delivery
 		if s.mailer == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Email delivery is not configured"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "auth.email_delivery_not_configured")
 			return
 		}
 
@@ -326,9 +317,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		if emailClaimed {
 			// Don't reveal that the email is taken — just return success
 			log.Info("Registration attempt for already-claimed email")
-			c.JSON(http.StatusOK, gin.H{
-				"message": "If this email is available, you will receive a registration code.",
-			})
+			writeLocalizedMessage(c, http.StatusOK, "auth.registration_request_neutral")
 			return
 		}
 
@@ -338,44 +327,41 @@ func (s *HTTPServer) setupAuthRoutes() {
 			if errors.Is(err, core.ErrRegistrationCodeLimitExceeded) ||
 				errors.Is(err, core.ErrRegistrationCodeExhausted) {
 				log.Info("Registration code request throttled")
-				c.JSON(http.StatusOK, gin.H{
-					"message": "If this email is available, you will receive a registration code.",
-				})
+				writeLocalizedMessage(c, http.StatusOK, "auth.registration_request_neutral")
 				return
 			}
 			log.Error("Failed to create registration code", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.registration_failed")
 			return
 		}
 
 		// Send registration email
 		serverName := s.authEmailServerName(ctx)
-		expirationText := s.emailOTPExpirationText()
+		locale := requestLocale(c)
+		expirationText := s.emailOTPExpirationText(locale)
 		err = s.mailer.Send(email.Message{
 			To:      req.Email,
-			Subject: fmt.Sprintf("Complete your registration for %s", serverName),
-			Body:    fmt.Sprintf("Welcome to %s!\n\nUse this verification code to finish creating your account on %s:\n\n%s\n\nThis code will expire in %s.\n\nIf you didn't request this, you can ignore this email.", serverName, serverName, code, expirationText),
+			Subject: localizedTextForLocale(locale, "email.registration_subject", serverName),
+			Body:    localizedTextForLocale(locale, "email.registration_body", serverName, serverName, code, expirationText),
 		})
 		if err != nil {
 			log.Error("Failed to send registration email", "error", err)
 			if cancelErr := s.core.CancelRegistrationCode(ctx, req.Email, code); cancelErr != nil {
 				log.Warn("Failed to cancel undelivered registration code", "error", cancelErr)
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send email"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.email_send_failed")
 			return
 		}
 
 		log.Info("Sent registration email")
-		c.JSON(http.StatusOK, gin.H{
-			"message": "If this email is available, you will receive a registration code.",
-		})
+		writeLocalizedMessage(c, http.StatusOK, "auth.registration_request_neutral")
 	})
 
 	// Registration code verification endpoint (step 2)
 	// Validates the emailed six-digit code and returns a short-lived completion token.
 	auth.POST("register/verify-code", func(c *gin.Context) {
 		if !s.config.Auth.DirectRegistrationOrDefault() {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
+			writeLocalizedError(c, http.StatusForbidden, "auth.registration_disabled")
 			return
 		}
 
@@ -385,7 +371,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "A valid email address and verification code are required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.valid_email_code_required")
 			return
 		}
 		req.Email = strings.ToLower(strings.TrimSpace(req.Email))
@@ -396,11 +382,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 				errors.Is(err, core.ErrRegistrationCodeExpired) ||
 				errors.Is(err, core.ErrRegistrationCodeInvalid) ||
 				errors.Is(err, core.ErrRegistrationCodeExhausted) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired registration code"})
+				writeLocalizedError(c, http.StatusBadRequest, "auth.registration_code_invalid")
 				return
 			}
 			log.Error("Failed to verify registration code", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.registration_failed")
 			return
 		}
 
@@ -413,7 +399,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 	auth.POST("register/complete", func(c *gin.Context) {
 		// Check if registration is enabled
 		if !s.config.Auth.DirectRegistrationOrDefault() {
-			c.JSON(http.StatusForbidden, gin.H{"error": "Registration is disabled"})
+			writeLocalizedError(c, http.StatusForbidden, "auth.registration_disabled")
 			return
 		}
 
@@ -425,7 +411,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token, login, and a password between 8 and 128 characters are required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.registration_complete_required")
 			return
 		}
 
@@ -435,23 +421,23 @@ func (s *HTTPServer) setupAuthRoutes() {
 		tokenData, err := s.core.GetRegistrationToken(ctx, req.Token)
 		if err != nil {
 			if errors.Is(err, core.ErrRegistrationTokenNotFound) || errors.Is(err, core.ErrRegistrationTokenExpired) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired registration code"})
+				writeLocalizedError(c, http.StatusBadRequest, "auth.registration_code_invalid")
 				return
 			}
 			log.Error("Failed to validate registration completion token", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.registration_failed")
 			return
 		}
 
 		// Validate login format
 		if !isValidLogin(req.Login) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Login must be 2-32 characters, using only letters, numbers, dots, dashes, or underscores (no consecutive periods)"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.login_requirements")
 			return
 		}
 
 		// Validate passwords match
 		if req.Password != req.PasswordConfirmation {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.passwords_mismatch")
 			return
 		}
 
@@ -459,11 +445,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 		isBlocked, err := s.core.ConfigManager().IsUsernameBlocked(ctx, req.Login)
 		if err != nil {
 			log.Error("Failed to check blocked usernames", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.registration_failed")
 			return
 		}
 		if isBlocked {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "This username is not available"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.username_unavailable")
 			return
 		}
 
@@ -471,11 +457,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 		emailClaimed, err := s.core.IsEmailClaimed(ctx, tokenData.Email)
 		if err != nil {
 			log.Error("Failed to check email availability", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.registration_failed")
 			return
 		}
 		if emailClaimed {
-			c.JSON(http.StatusConflict, gin.H{"error": "This email address is already in use"})
+			writeLocalizedError(c, http.StatusConflict, "auth.email_in_use")
 			return
 		}
 
@@ -483,27 +469,31 @@ func (s *HTTPServer) setupAuthRoutes() {
 		user, err := s.core.CreateVerifiedUser(ctx, "system", req.Login, req.Login, req.Password, tokenData.Email)
 		if err != nil {
 			if errors.Is(err, core.ErrLoginAlreadyTaken) {
-				c.JSON(http.StatusConflict, gin.H{"error": "Username is already taken"})
+				writeLocalizedError(c, http.StatusConflict, "auth.username_taken")
 				return
 			}
 			if errors.Is(err, core.ErrUsernameBlocked) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "This username is not available"})
+				writeLocalizedError(c, http.StatusBadRequest, "auth.username_unavailable")
 				return
 			}
 			if errors.Is(err, core.ErrEmailAlreadyVerified) {
-				c.JSON(http.StatusConflict, gin.H{"error": "This email address is already in use"})
+				writeLocalizedError(c, http.StatusConflict, "auth.email_in_use")
 				return
 			}
 			if errors.Is(err, core.ErrLimitExceeded) {
-				c.JSON(http.StatusForbidden, gin.H{"error": "This instance is not accepting new users"})
+				writeLocalizedError(c, http.StatusForbidden, "auth.instance_not_accepting")
 				return
 			}
-			if errors.Is(err, core.ErrPasswordTooShort) || errors.Is(err, core.ErrPasswordTooLong) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if errors.Is(err, core.ErrPasswordTooShort) {
+				writeLocalizedError(c, http.StatusBadRequest, "auth.password_too_short", core.MinPasswordLength)
+				return
+			}
+			if errors.Is(err, core.ErrPasswordTooLong) {
+				writeLocalizedError(c, http.StatusBadRequest, "auth.password_too_long", core.MaxPasswordLength)
 				return
 			}
 			log.Error("Registration failed", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.registration_failed")
 			return
 		}
 
@@ -518,7 +508,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		// Create server-side cookie session
 		if err := s.createCookieSession(c, user.Id, "registration_complete"); err != nil {
 			log.Error("Failed to save session", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		}
 		session := sessions.Default(c)
@@ -529,7 +519,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			session.Clear()
 			_ = session.Save()
 			s.clearCSRFCookie(c)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		}
 
@@ -548,7 +538,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			session.Clear()
 			_ = session.Save()
 			s.clearCSRFCookie(c)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.session_create_failed")
 			return
 		}
 		response["token"] = token
@@ -560,16 +550,16 @@ func (s *HTTPServer) setupAuthRoutes() {
 	auth.POST("verify-email/request-code", func(c *gin.Context) {
 		req := s.injectUserIntoContext(c)
 		if authenticationValidationError(req.Context()) != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service temporarily unavailable"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "auth.service_temporarily_unavailable")
 			return
 		}
 		user := authctx.ForContext(req.Context())
 		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			writeLocalizedError(c, http.StatusUnauthorized, "auth.authentication_required")
 			return
 		}
 		if s.mailer == nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Email delivery is not configured"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "auth.email_delivery_not_configured")
 			return
 		}
 
@@ -577,7 +567,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			Email string `json:"email" binding:"required,email"`
 		}
 		if err := c.ShouldBindJSON(&body); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "A valid email address is required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.valid_email_required")
 			return
 		}
 		body.Email = strings.ToLower(strings.TrimSpace(body.Email))
@@ -586,41 +576,42 @@ func (s *HTTPServer) setupAuthRoutes() {
 		if err != nil {
 			if errors.Is(err, core.ErrEmailVerificationCodeLimitExceeded) ||
 				errors.Is(err, core.ErrEmailVerificationCodeExhausted) {
-				c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many verification code requests. Please try again later."})
+				writeLocalizedError(c, http.StatusTooManyRequests, "auth.too_many_verification_requests")
 				return
 			}
 			log.Error("Failed to create email verification code", "userId", user.Id, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send verification code"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.verification_code_send_failed")
 			return
 		}
 		serverName := s.authEmailServerName(req.Context())
-		expirationText := s.emailOTPExpirationText()
+		locale := requestLocale(c)
+		expirationText := s.emailOTPExpirationText(locale)
 		if err := s.mailer.Send(email.Message{
 			To:      body.Email,
-			Subject: fmt.Sprintf("Verify your email for %s", serverName),
-			Body:    fmt.Sprintf("Use this verification code to add this email address to your %s account:\n\n%s\n\nThis code will expire in %s.\n\nIf you didn't request this, you can ignore this email.", serverName, code, expirationText),
+			Subject: localizedTextForLocale(locale, "email.verification_subject", serverName),
+			Body:    localizedTextForLocale(locale, "email.verification_body", serverName, code, expirationText),
 		}); err != nil {
 			log.Error("Failed to send email verification code", "userId", user.Id, "error", err)
 			if cancelErr := s.core.CancelEmailVerificationCode(req.Context(), user.Id, body.Email, code); cancelErr != nil {
 				log.Warn("Failed to cancel undelivered email verification code", "userId", user.Id, "error", cancelErr)
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send verification code"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.verification_code_send_failed")
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Verification code sent."})
+		writeLocalizedMessage(c, http.StatusOK, "auth.verification_code_sent")
 	})
 
 	// Authenticated email verification code confirmation.
 	auth.POST("verify-email/confirm-code", func(c *gin.Context) {
 		req := s.injectUserIntoContext(c)
 		if authenticationValidationError(req.Context()) != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Authentication service temporarily unavailable"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "auth.service_temporarily_unavailable")
 			return
 		}
 		user := authctx.ForContext(req.Context())
 		if user == nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+			writeLocalizedError(c, http.StatusUnauthorized, "auth.authentication_required")
 			return
 		}
 
@@ -629,7 +620,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			Code  string `json:"code" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&body); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "A valid email address and verification code are required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.valid_email_code_required")
 			return
 		}
 		body.Email = strings.ToLower(strings.TrimSpace(body.Email))
@@ -639,15 +630,15 @@ func (s *HTTPServer) setupAuthRoutes() {
 				errors.Is(err, core.ErrTokenExpired) ||
 				errors.Is(err, core.ErrEmailVerificationCodeInvalid) ||
 				errors.Is(err, core.ErrEmailVerificationCodeExhausted) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired verification code"})
+				writeLocalizedError(c, http.StatusBadRequest, "auth.verification_code_invalid")
 				return
 			}
 			if errors.Is(err, core.ErrEmailAlreadyVerified) {
-				c.JSON(http.StatusConflict, gin.H{"error": "This email address is already in use"})
+				writeLocalizedError(c, http.StatusConflict, "auth.email_in_use")
 				return
 			}
 			log.Error("Email verification failed", "userId", user.Id, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email verification failed"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.email_verification_failed")
 			return
 		}
 
@@ -663,7 +654,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email format"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.invalid_email_format")
 			return
 		}
 
@@ -676,9 +667,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 			} else {
 				log.Error("Failed to reserve forgot-password rate limit", "error", reserveErr)
 			}
-			c.JSON(http.StatusOK, gin.H{
-				"message": "If that email is registered, you will receive a password reset link.",
-			})
+			writeLocalizedMessage(c, http.StatusOK, "auth.reset_request_neutral")
 			return
 		}
 
@@ -692,11 +681,13 @@ func (s *HTTPServer) setupAuthRoutes() {
 		// Only send email if token was created (email exists and is verified)
 		if token != "" && s.mailer != nil {
 			serverName := s.authEmailServerName(ctx)
+			locale := requestLocale(c)
 			resetURL := fmt.Sprintf("%s/reset-password?token=%s", s.config.Webserver.URL, token)
+			expirationText := localizedDuration(locale, 1, "duration.hour.one", "duration.hour.other")
 			err = s.mailer.Send(email.Message{
 				To:      normalizedEmail,
-				Subject: fmt.Sprintf("Reset your %s password", serverName),
-				Body:    fmt.Sprintf("Hi,\n\nWe received a request to reset the password for your %s account.\n\nClick the link below to set a new password:\n\n%s\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, you can safely ignore this email.", serverName, resetURL),
+				Subject: localizedTextForLocale(locale, "email.reset_subject", serverName),
+				Body:    localizedTextForLocale(locale, "email.reset_body", serverName, resetURL, expirationText),
 			})
 			if err != nil {
 				log.Error("Failed to send password reset email", "error", err)
@@ -706,9 +697,7 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		// Always return success to prevent email enumeration
-		c.JSON(http.StatusOK, gin.H{
-			"message": "If that email is registered, you will receive a password reset link.",
-		})
+		writeLocalizedMessage(c, http.StatusOK, "auth.reset_request_neutral")
 	})
 
 	// Reset password endpoint - set a new password using a reset token
@@ -719,14 +708,18 @@ func (s *HTTPServer) setupAuthRoutes() {
 		}
 
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token and a password between 8 and 128 characters are required"})
+			writeLocalizedError(c, http.StatusBadRequest, "auth.reset_required")
 			return
 		}
 
 		// Defence in depth: validator's max=128 counts runes; core's check counts bytes.
 		// Enforce the byte cap here so a multi-byte payload can't slip past binding.
 		if err := core.ValidatePassword(req.Password); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			if errors.Is(err, core.ErrPasswordTooShort) {
+				writeLocalizedError(c, http.StatusBadRequest, "auth.password_too_short", core.MinPasswordLength)
+			} else {
+				writeLocalizedError(c, http.StatusBadRequest, "auth.password_too_long", core.MaxPasswordLength)
+			}
 			return
 		}
 
@@ -735,11 +728,11 @@ func (s *HTTPServer) setupAuthRoutes() {
 		if err != nil {
 			if errors.Is(err, core.ErrAuthRateLimitExceeded) {
 				setAuthRetryAfter(c, retryAfter)
-				c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many reset attempts. Try again later."})
+				writeLocalizedError(c, http.StatusTooManyRequests, "auth.too_many_reset_attempts")
 				return
 			}
 			log.Error("Failed to reserve reset-password rate limit", "error", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Password reset is temporarily unavailable"})
+			writeLocalizedError(c, http.StatusServiceUnavailable, "auth.reset_temporarily_unavailable")
 			return
 		}
 
@@ -748,16 +741,16 @@ func (s *HTTPServer) setupAuthRoutes() {
 		err = s.core.ResetPasswordWithPassword(ctx, req.Token, req.Password)
 		if err != nil {
 			if errors.Is(err, core.ErrPasswordResetTokenNotFound) || errors.Is(err, core.ErrPasswordResetTokenExpired) {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset link"})
+				writeLocalizedError(c, http.StatusBadRequest, "auth.reset_link_invalid")
 				return
 			}
 			log.Error("Failed to reset password", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset password"})
+			writeLocalizedError(c, http.StatusInternalServerError, "auth.reset_failed")
 			return
 		}
 
 		log.Info("Password reset successfully")
-		c.JSON(http.StatusOK, gin.H{"message": "Password has been reset. You can now log in."})
+		writeLocalizedMessage(c, http.StatusOK, "auth.reset_success")
 	})
 
 	// Register test endpoints if built with -tags test_endpoints

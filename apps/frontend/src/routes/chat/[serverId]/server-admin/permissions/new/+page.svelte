@@ -11,6 +11,7 @@
   import { FormError } from '$lib/ui/form';
   import { RoleForm } from '$lib/components/rbac';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   const connection = useConnection();
 
@@ -54,7 +55,7 @@
         pingable
       });
     } catch (err) {
-      error = err instanceof Error ? err.message : m['admin.permissions.load_instance_failed']();
+      error = localizedErrorMessage(err, m['admin.permissions.load_instance_failed']());
       creating = false;
       return;
     }

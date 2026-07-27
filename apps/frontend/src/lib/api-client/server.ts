@@ -1,7 +1,6 @@
 import { createPublicTowkClient } from './connect.js';
 import { ServerDiscoveryService } from '@towk/api-types/chatto/discovery/v1/server_pb';
 import { mapServerProfile } from './serverProfile.js';
-import * as m from '$lib/i18n/messages';
 
 export type PublicAuthProvider = {
   id: string;
@@ -9,6 +8,13 @@ export type PublicAuthProvider = {
   label: string;
   loginUrl: string;
 };
+
+export class InvalidTowkServerResponseError extends Error {
+  constructor() {
+    super('invalid Towk server discovery response');
+    this.name = 'InvalidTowkServerResponseError';
+  }
+}
 
 export type PublicServerInfo = {
   name: string;
@@ -30,7 +36,7 @@ export async function getPublicServerInfo(
   const client = createPublicTowkClient(ServerDiscoveryService, baseUrl);
   const response = await client.getServer({}, { signal: options.signal });
   if (!response.profile?.name) {
-    throw new Error(m['add_server.not_chatto_server']());
+    throw new InvalidTowkServerResponseError();
   }
   const profile = mapServerProfile(response.profile);
 

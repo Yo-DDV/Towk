@@ -78,7 +78,8 @@ func limitRequestBody(maxBytes int64, readTimeout time.Duration) gin.HandlerFunc
 			return
 		}
 		if c.Request.ContentLength > maxBytes {
-			c.AbortWithStatusJSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Request body is too large"})
+			writeLocalizedError(c, http.StatusRequestEntityTooLarge, "http.request_body_too_large")
+			c.Abort()
 			return
 		}
 

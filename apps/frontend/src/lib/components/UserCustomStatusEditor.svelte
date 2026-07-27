@@ -19,16 +19,11 @@
     type CustomStatusTemplateId
   } from '$lib/customStatusTemplates';
   import * as m from '$lib/i18n/messages';
+  import { localizedErrorMessage } from '$lib/i18n/localizedError';
 
   type Mode = CustomStatusTemplateId | 'custom';
   type ExpiryPreset =
-    | 'today'
-    | 'thirty_minutes'
-    | 'one_hour'
-    | 'four_hours'
-    | 'tomorrow'
-    | 'never'
-    | 'custom';
+    'today' | 'thirty_minutes' | 'one_hour' | 'four_hours' | 'tomorrow' | 'never' | 'custom';
 
   let {
     status,
@@ -271,7 +266,7 @@
       toast.success(m['settings.profile.status.saved']());
       onClose?.();
     } catch (err) {
-      error = err instanceof Error ? err.message : m['settings.profile.status.save_failed']();
+      error = localizedErrorMessage(err, m['settings.profile.status.save_failed']());
     } finally {
       isSaving = false;
     }
@@ -301,7 +296,7 @@
       toast.success(m['settings.profile.status.saved']());
       onClose?.();
     } catch (err) {
-      error = err instanceof Error ? err.message : m['settings.profile.status.save_failed']();
+      error = localizedErrorMessage(err, m['settings.profile.status.save_failed']());
     } finally {
       isSaving = false;
     }
@@ -324,7 +319,7 @@
       toast.success(m['settings.profile.status.cleared']());
       onClose?.();
     } catch (err) {
-      error = err instanceof Error ? err.message : m['settings.profile.status.clear_failed']();
+      error = localizedErrorMessage(err, m['settings.profile.status.clear_failed']());
     } finally {
       isClearing = false;
     }

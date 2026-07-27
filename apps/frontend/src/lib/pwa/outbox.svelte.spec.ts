@@ -77,8 +77,32 @@ describe('PwaOutbox', () => {
       clientRequestId: 'request-retry',
       attemptCount: 1,
       nextAttemptAt: 6_000,
-      state: 'queued'
+      state: 'queued',
+      lastError: null
     });
+  });
+
+  it('stores a retry-limit code only after automatic attempts are exhausted', async () => {
+    const outbox = new PwaOutbox();
+    await outbox.queue(scope, message('request-retry-limit'));
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      await outbox.flush(
+        scope,
+        async () => {
+          throw new ConnectError('raw retryable detail', Code.Unavailable);
+        },
+        { force: true, now: 1_000 + attempt }
+      );
+    }
+
+    const [record] = await listQueuedMessages(scope);
+    expect(record.value).toMatchObject({
+      state: 'needs_attention',
+      attemptCount: 12,
+      lastError: 'retry_limit'
+    });
+    expect(JSON.stringify(record.value)).not.toContain('raw retryable detail');
   });
 
   it('preserves send order while the oldest message is retryable', async () => {
@@ -116,21 +140,41 @@ describe('PwaOutbox', () => {
     );
 
     const [record] = await listQueuedMessages(scope);
-    expect(record.value.state).toBe('needs_attention');
+    expect(record.value).toMatchObject({ state: 'needs_attention', lastError: 'permanent' });
     expect(outbox.summary.needsAttention).toBe(1);
+  });
+
+  it('stores a stable authentication code instead of a raw server message', async () => {
+    const outbox = new PwaOutbox();
+    await outbox.queue(scope, message('request-authentication'));
+
+    await outbox.flush(
+      scope,
+      async () => {
+        throw new ConnectError('raw authentication detail', Code.Unauthenticated);
+      },
+      { force: true }
+    );
+
+    const [record] = await listQueuedMessages(scope);
+    expect(record.value).toMatchObject({
+      state: 'needs_attention',
+      lastError: 'authentication'
+    });
+    expect(JSON.stringify(record.value)).not.toContain('raw authentication detail');
   });
 
   it('blocks queued messages when the server no longer advertises safe retries', async () => {
     const outbox = new PwaOutbox();
     await outbox.queue(scope, message('request-unsupported'));
 
-    await outbox.markUnsupported(scope, 'Safe retry unsupported');
+    await outbox.markUnsupported(scope);
 
     const [record] = await listQueuedMessages(scope);
     expect(record.value).toMatchObject({
       clientRequestId: 'request-unsupported',
       state: 'needs_attention',
-      lastError: 'Safe retry unsupported',
+      lastError: 'unsupported',
       attemptCount: 0
     });
     expect(outbox.summary).toMatchObject({ queued: 0, needsAttention: 1 });

@@ -38,7 +38,16 @@
       "generic": "Algo salió mal",
       "unexpected_server_response": "Respuesta inesperada del servidor. Inténtalo de nuevo.",
       "client_not_configured": "Este cliente no está configurado. Recarga la aplicación.",
-      "server_not_found": "Este servidor ya no está disponible. Recarga la aplicación."
+      "server_not_found": "Este servidor ya no está disponible. Recarga la aplicación.",
+      "authentication_required": "Vuelve a iniciar sesión para continuar.",
+      "permission_denied": "No tienes permiso para realizar esta acción.",
+      "not_found": "No se encontró el elemento solicitado.",
+      "conflict": "El elemento cambió antes de que terminara la acción. Actualiza la página e inténtalo de nuevo.",
+      "unavailable": "El servicio no está disponible temporalmente. Inténtalo de nuevo.",
+      "timeout": "La solicitud agotó el tiempo de espera. Inténtalo de nuevo.",
+      "rate_limited": "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.",
+      "cancelled": "La solicitud se canceló.",
+      "invalid_request": "No se pudo completar la solicitud. Revisa la información introducida."
     },
     "delete": "Eliminar",
     "save": "Guardar",

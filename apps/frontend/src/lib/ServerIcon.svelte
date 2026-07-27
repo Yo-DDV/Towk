@@ -1,4 +1,5 @@
 <script lang="ts">
+  import * as m from '$lib/i18n/messages';
   /* eslint-disable svelte/no-navigation-without-resolve -- href is a prop; callers pass already-resolved paths */
   import ServerLogo from './components/ServerLogo.svelte';
   import NotificationBadge from './ui/NotificationBadge.svelte';
@@ -63,18 +64,16 @@
         }}
         class="absolute -top-1.5 -right-1.5 z-10 flex h-6 min-w-6 cursor-pointer items-center justify-center notification-dot"
         aria-label={indicator === 'notification' && notificationCount > 0
-          ? `Go to ${notificationCount} notifications`
+          ? m['chat.server_nav.go_to_notifications']({ count: notificationCount })
           : indicator === 'notification'
-            ? 'Go to notification'
-            : 'Go to first unread room'}
+            ? m['chat.server_nav.go_to_notification']()
+            : m['chat.server_nav.go_to_first_unread_room']()}
       >
         {#if indicator === 'notification' && notificationCount > 0}
-          <NotificationBadge
-            count={notificationCount}
-            overlay
-            testid="server-notification-badge"
-          />
-          <span class="sr-only">{notificationCount} notifications</span>
+          <NotificationBadge count={notificationCount} overlay testid="server-notification-badge" />
+          <span class="sr-only"
+            >{m['chat.server_nav.notification_count']({ count: notificationCount })}</span
+          >
         {:else}
           <UnreadDot
             color={indicator === 'notification' ? 'warning' : 'muted'}
@@ -91,7 +90,9 @@
           class="absolute top-0 right-0 z-10"
           testid="server-notification-badge"
         />
-        <span class="sr-only">{notificationCount} notifications</span>
+        <span class="sr-only"
+          >{m['chat.server_nav.notification_count']({ count: notificationCount })}</span
+        >
       {:else}
         <UnreadDot
           color={indicator === 'notification' ? 'warning' : 'muted'}

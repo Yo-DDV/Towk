@@ -22,6 +22,7 @@
   import { flip } from 'svelte/animate';
   import { dndzone, type DndEvent } from 'svelte-dnd-action';
   import * as m from '$lib/i18n/messages';
+  import { localizedRoomDescription } from '$lib/roomLabels';
 
   let {
     layout,
@@ -577,6 +578,10 @@
                 >
                   <div class="min-w-0 flex-1">
                     {#if room.kind === 'room'}
+                      {@const description = localizedRoomDescription(
+                        room.room.name,
+                        room.room.description
+                      )}
                       <div class="flex min-w-0 items-start gap-2">
                         <span class="mt-0.5 shrink-0 text-muted">#</span>
                         <div class="min-w-0 flex-1">
@@ -598,8 +603,8 @@
                               >
                             {/if}
                           </div>
-                          {#if room.room.description}
-                            <p class="truncate text-sm text-muted">{room.room.description}</p>
+                          {#if description}
+                            <p class="truncate text-sm text-muted">{description}</p>
                           {/if}
                         </div>
                       </div>

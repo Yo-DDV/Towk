@@ -38,7 +38,16 @@
       "generic": "Something went wrong",
       "unexpected_server_response": "Unexpected server response. Please try again.",
       "client_not_configured": "This client is not configured. Please reload the app.",
-      "server_not_found": "This server is no longer available. Please reload the app."
+      "server_not_found": "This server is no longer available. Please reload the app.",
+      "authentication_required": "Please sign in again to continue.",
+      "permission_denied": "You do not have permission to perform this action.",
+      "not_found": "The requested item could not be found.",
+      "conflict": "The item changed before this action completed. Refresh and try again.",
+      "unavailable": "The service is temporarily unavailable. Please try again.",
+      "timeout": "The request timed out. Please try again.",
+      "rate_limited": "Too many requests. Please wait and try again.",
+      "cancelled": "The request was cancelled.",
+      "invalid_request": "The request could not be completed. Check the entered information."
     },
     "delete": "Delete",
     "save": "Save",
