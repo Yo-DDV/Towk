@@ -58,12 +58,30 @@ scroll container; children render inside the scroll container.
   }
 
   function trackScrollEdges(el: HTMLElement) {
+    let pendingLayoutFrame: number | null = null;
+
     const update = () => {
       updateScrollEdges(el);
     };
+    const updateAfterLayout = () => {
+      if (pendingLayoutFrame !== null) return;
+
+      pendingLayoutFrame = requestAnimationFrame(() => {
+        pendingLayoutFrame = null;
+        update();
+      });
+    };
 
     update();
+    updateAfterLayout();
     el.addEventListener('scroll', update, { passive: true });
+
+    const mediaLayoutEvents = ['load', 'error', 'loadedmetadata'] as const;
+    for (const eventName of mediaLayoutEvents) {
+      // Media lifecycle events do not all bubble, so observe them in capture phase.
+      el.addEventListener(eventName, updateAfterLayout, true);
+    }
+
     const ro = new ResizeObserver(update);
     ro.observe(el);
     for (const child of el.children) {
@@ -80,6 +98,10 @@ scroll container; children render inside the scroll container.
     mo.observe(el, { childList: true });
     return () => {
       el.removeEventListener('scroll', update);
+      for (const eventName of mediaLayoutEvents) {
+        el.removeEventListener(eventName, updateAfterLayout, true);
+      }
+      if (pendingLayoutFrame !== null) cancelAnimationFrame(pendingLayoutFrame);
       mo.disconnect();
       ro.disconnect();
     };
