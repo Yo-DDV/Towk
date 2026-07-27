@@ -78,43 +78,28 @@ jobs:
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
 
-  pr173-export-sources:
-    name: pr173-export-sources
+  pr173-terminal-finalize:
+    name: pr173-terminal-finalize
     if: github.event.pull_request.head.ref == 'feat/read-receipts'
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 90
     steps:
       - name: Check out exact PR head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: false
+          persist-credentials: true
 
-      - name: Archive immutable reconciliation refs
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Reconstruct, validate, publish, and finalize PR #173
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: |
-          set -euo pipefail
-          output="${RUNNER_TEMP}/pr173-exact-sources"
-          mkdir -p "${output}"
-          git fetch --no-tags origin main
-          main_head="$(git rev-parse origin/main)"
-          design_base=b9f61f1b28608784c1e1ed1e2232131e681a12b3
-          feature_source=f07456ce30c48fd35d63fcc9d3480b5792f40cfa
-          git cat-file -e "${design_base}^{commit}"
-          git cat-file -e "${feature_source}^{commit}"
-          git archive --format=tar "${design_base}" | gzip -9 > "${output}/design-base.tar.gz"
-          git archive --format=tar "${feature_source}" | gzip -9 > "${output}/feature-source.tar.gz"
-          git archive --format=tar "${main_head}" | gzip -9 > "${output}/current-main.tar.gz"
-          printf 'design_base=%s\nfeature_source=%s\ncurrent_main=%s\npr_head=%s\n' \
-            "${design_base}" "${feature_source}" "${main_head}" "${{ github.event.pull_request.head.sha }}" \
-            > "${output}/refs.txt"
-          sha256sum "${output}"/*.tar.gz > "${output}/SHA256SUMS"
-
-      - name: Upload immutable source archives
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: pr173-exact-sources-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/pr173-exact-sources
-          retention-days: 1
-          if-no-files-found: error
+        run: bash .github/pr173-terminal-exact.sh
