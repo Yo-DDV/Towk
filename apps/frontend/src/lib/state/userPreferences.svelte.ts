@@ -17,16 +17,22 @@ import { Codecs, globalSlot } from '$lib/storage/slot';
 export type DisplayTheme = 'system' | 'light' | 'dark';
 type EffectiveTheme = 'light' | 'dark';
 
+const EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION = 1;
+
 interface Preferences {
   displayTheme: DisplayTheme;
   notificationSound: NotificationSoundId;
   notificationSoundFilters: NotificationSoundFilters;
+  externalGifAutoLoad: boolean;
+  externalGifAutoLoadPreferenceVersion: number;
 }
 
 const defaultPreferences: Preferences = {
   displayTheme: 'system',
   notificationSound: defaultSoundId,
-  notificationSoundFilters: defaultNotificationSoundFilters
+  notificationSoundFilters: defaultNotificationSoundFilters,
+  externalGifAutoLoad: true,
+  externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
 };
 
 const slot = globalSlot('preferences', defaultPreferences, Codecs.json<Preferences>());
@@ -107,13 +113,27 @@ function loadPreferences(): Preferences {
   const isValidSound = notificationSounds.some((s) => s.id === stored.notificationSound);
   const displayTheme =
     getStoredDisplayTheme() ?? getLegacyDisplayTheme() ?? defaultPreferences.displayTheme;
-  return {
+  const externalGifPreferenceIsCurrent =
+    stored.externalGifAutoLoadPreferenceVersion === EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION;
+  const preferences: Preferences = {
     ...defaultPreferences,
     ...stored,
     displayTheme,
     notificationSound: isValidSound ? stored.notificationSound : defaultSoundId,
-    notificationSoundFilters: normalizeNotificationSoundFilters(stored.notificationSoundFilters)
+    notificationSoundFilters: normalizeNotificationSoundFilters(stored.notificationSoundFilters),
+    externalGifAutoLoad:
+      externalGifPreferenceIsCurrent && typeof stored.externalGifAutoLoad === 'boolean'
+        ? stored.externalGifAutoLoad
+        : defaultPreferences.externalGifAutoLoad,
+    externalGifAutoLoadPreferenceVersion: EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION
   };
+
+  // The previous alpha default was opt-in and could be persisted incidentally
+  // whenever another preference changed. Migrate that unversioned state once
+  // to the new auto-load default; subsequent explicit opt-outs keep version 1.
+  if (!externalGifPreferenceIsCurrent) slot.set(preferences);
+
+  return preferences;
 }
 
 export class UserPreferencesState {
@@ -149,6 +169,16 @@ export class UserPreferencesState {
 
   set notificationSoundFilters(value: NotificationSoundFilters) {
     this.#prefs.notificationSoundFilters = normalizeNotificationSoundFilters(value);
+    slot.set(this.#prefs);
+  }
+
+  get externalGifAutoLoad(): boolean {
+    return this.#prefs.externalGifAutoLoad;
+  }
+
+  set externalGifAutoLoad(value: boolean) {
+    this.#prefs.externalGifAutoLoad = value === true;
+    this.#prefs.externalGifAutoLoadPreferenceVersion = EXTERNAL_GIF_AUTO_LOAD_PREFERENCE_VERSION;
     slot.set(this.#prefs);
   }
 

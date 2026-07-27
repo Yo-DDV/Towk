@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
+	"hmans.de/chatto/internal/externalgif"
 	apiv1 "hmans.de/chatto/internal/pb/chatto/api/v1"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
@@ -12,6 +13,12 @@ func (s *messageService) FetchLinkPreview(ctx context.Context, req *connect.Requ
 	caller, err := requireCaller(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	// Supported external GIF URLs are rendered only by the reader's browser.
+	// Never turn them into a server-side OpenGraph fetch or persisted preview.
+	if externalgif.IsTrustedURL(req.Msg.Url) {
+		return connect.NewResponse(&apiv1.FetchLinkPreviewResponse{}), nil
 	}
 
 	preview, err := s.api.core.GetLinkPreview(ctx, caller.UserID, req.Msg.Url)

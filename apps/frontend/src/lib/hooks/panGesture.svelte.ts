@@ -39,6 +39,9 @@ export type PanGestureConfig = {
   /** Optional start predicate. Return false to leave the press entirely to the
    *  target content or browser. */
   shouldStart?: (event: PointerEvent | TouchEvent) => boolean;
+  /** Observe start events in the capture phase so descendants cannot hide them.
+   *  Default behavior remains passive until the gesture wins direction lock. */
+  captureStart?: boolean;
   /** Distance required before either axis can win the direction lock. */
   directionLockPx?: number;
   /** Primary/perpendicular dominance ratio required to win the direction lock.
@@ -66,6 +69,7 @@ type Sample = { v: number; t: number };
 
 export function panGesture(node: HTMLElement, config: PanGestureConfig) {
   let cfg = config;
+  let captureStart = config.captureStart ?? false;
   let pointerId: number | null = null;
   let touchId: number | null = null;
   let startX = 0;
@@ -277,17 +281,37 @@ export function panGesture(node: HTMLElement, config: PanGestureConfig) {
     reset();
   }
 
-  node.addEventListener('pointerdown', onDown);
-  node.addEventListener('touchstart', onTouchStart, { passive: true });
+  function addStartListeners() {
+    node.addEventListener('pointerdown', onDown, captureStart);
+    node.addEventListener('touchstart', onTouchStart, {
+      capture: captureStart,
+      passive: true
+    });
+  }
+
+  function removeStartListeners() {
+    node.removeEventListener('pointerdown', onDown, captureStart);
+    node.removeEventListener('touchstart', onTouchStart, captureStart);
+  }
+
+  addStartListeners();
 
   return {
     update(next: PanGestureConfig) {
+      const nextCaptureStart = next.captureStart ?? false;
+      if (nextCaptureStart !== captureStart) {
+        reset();
+        removeStartListeners();
+        captureStart = nextCaptureStart;
+        cfg = next;
+        addStartListeners();
+        return;
+      }
       cfg = next;
     },
     destroy() {
       reset();
-      node.removeEventListener('pointerdown', onDown);
-      node.removeEventListener('touchstart', onTouchStart);
+      removeStartListeners();
     }
   };
 }

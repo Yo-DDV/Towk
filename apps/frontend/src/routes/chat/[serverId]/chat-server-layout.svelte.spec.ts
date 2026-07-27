@@ -43,6 +43,7 @@ vi.mock('$lib/state/server/registry.svelte', () => ({
   serverRegistry: {
     originProbed: true,
     originServer: { id: 'origin' },
+    servers: [],
     tryGetStore: () => mocks.serverStore,
     getServer: () => ({ reauthRequiredAt: mocks.reauthRequiredAt })
   }
@@ -59,6 +60,7 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
 }));
 
 vi.mock('$lib/eventBus.svelte', () => ({
+  attachRealtimeEventEnvelope: (event: unknown) => event,
   provideEventBus: vi.fn()
 }));
 

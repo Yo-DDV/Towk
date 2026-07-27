@@ -1253,6 +1253,9 @@ func TestReadMarkerNotificationDismissalPublishesSyncAndPushDismissal(t *testing
 	if err := nc.Flush(); err != nil {
 		t.Fatalf("Flush subscription: %v", err)
 	}
+	if err := core.FollowThread(ctx, KindChannel, reader.Id, room.Id, root.Id); err != nil {
+		t.Fatalf("FollowThread reader: %v", err)
+	}
 
 	coveredReply, err := core.CreateNotification(ctx, reader.Id, author.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{

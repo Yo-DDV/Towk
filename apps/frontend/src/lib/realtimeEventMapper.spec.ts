@@ -11,8 +11,12 @@ import {
   RealtimeEventEnvelopeSchema,
   RealtimeMentionNotificationEventSchema,
   RealtimeNewDirectMessageNotificationEventSchema,
-  RealtimeNotificationCreatedEventSchema
+  RealtimeNotificationCreatedEventSchema,
+  RealtimeServerUserPreferencesUpdatedEventSchema,
+  RealtimeUserProfileUpdatedEventSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
+import { TimeFormat as APITimeFormat } from '@towk/api-types/api/v1/viewer_pb';
+import { TimeFormat } from '$lib/render/types';
 
 describe('realtimeEventToEventEnvelope', () => {
   it('preserves the exact call connection on participant transitions', () => {
@@ -155,6 +159,57 @@ describe('realtimeEventToEventEnvelope', () => {
       id: 'user-2',
       displayName: 'Grace Hopper',
       avatarUrl: '/assets/avatar.png'
+    });
+  });
+
+  it('preserves detailed-profile invalidation signals', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-profile',
+        createdAt: timestampNow(),
+        event: {
+          case: 'userProfileUpdated',
+          value: create(RealtimeUserProfileUpdatedEventSchema, {
+            userId: 'user-1',
+            login: 'alice',
+            displayName: 'Alice',
+            detailsChanged: true
+          })
+        }
+      })
+    ) as unknown as {
+      event: { kind: string; userId: string; detailsChanged: boolean };
+    };
+
+    expect(event.event).toMatchObject({
+      kind: RoomEventKind.UserProfileUpdated,
+      userId: 'user-1',
+      detailsChanged: true
+    });
+  });
+
+  it('preserves the effective last-activity preference', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-preferences',
+        createdAt: timestampNow(),
+        event: {
+          case: 'serverUserPreferencesUpdated',
+          value: create(RealtimeServerUserPreferencesUpdatedEventSchema, {
+            timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+            showLastActivity: false
+          })
+        }
+      })
+    ) as unknown as {
+      event: { kind: string; timeFormat: TimeFormat; showLastActivity: boolean };
+    };
+
+    expect(event.event).toEqual({
+      kind: RoomEventKind.ServerUserPreferencesUpdated,
+      timezone: null,
+      timeFormat: TimeFormat.TwentyFourHour,
+      showLastActivity: false
     });
   });
 

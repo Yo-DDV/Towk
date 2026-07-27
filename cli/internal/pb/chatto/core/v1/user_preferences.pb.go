@@ -144,9 +144,12 @@ type ServerUserPreferences struct {
 	Timezone *string `protobuf:"bytes,1,opt,name=timezone,proto3,oneof" json:"timezone,omitempty"`
 	// Preferred time display format.
 	// TIME_FORMAT_UNSPECIFIED means the frontend uses the browser's locale default.
-	TimeFormat    TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.core.v1.TimeFormat" json:"time_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeFormat TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.core.v1.TimeFormat" json:"time_format,omitempty"`
+	// Whether last activity is visible to other authenticated members.
+	// Absence is interpreted as true for mixed-version upgrades.
+	ShowLastActivity *bool `protobuf:"varint,3,opt,name=show_last_activity,json=showLastActivity,proto3,oneof" json:"show_last_activity,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ServerUserPreferences) Reset() {
@@ -191,6 +194,13 @@ func (x *ServerUserPreferences) GetTimeFormat() TimeFormat {
 		return x.TimeFormat
 	}
 	return TimeFormat_TIME_FORMAT_UNSPECIFIED
+}
+
+func (x *ServerUserPreferences) GetShowLastActivity() bool {
+	if x != nil && x.ShowLastActivity != nil {
+		return *x.ShowLastActivity
+	}
+	return false
 }
 
 // UserPreferences stores per-user preferences scoped to the server.
@@ -291,12 +301,14 @@ var File_chatto_core_v1_user_preferences_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_user_preferences_proto_rawDesc = "" +
 	"\n" +
-	"%chatto/core/v1/user_preferences.proto\x12\x0echatto.core.v1\"\x82\x01\n" +
+	"%chatto/core/v1/user_preferences.proto\x12\x0echatto.core.v1\"\xcc\x01\n" +
 	"\x15ServerUserPreferences\x12\x1f\n" +
 	"\btimezone\x18\x01 \x01(\tH\x00R\btimezone\x88\x01\x01\x12;\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x1a.chatto.core.v1.TimeFormatR\n" +
-	"timeFormatB\v\n" +
-	"\t_timezone\"c\n" +
+	"timeFormat\x121\n" +
+	"\x12show_last_activity\x18\x03 \x01(\bH\x01R\x10showLastActivity\x88\x01\x01B\v\n" +
+	"\t_timezoneB\x15\n" +
+	"\x13_show_last_activity\"c\n" +
 	"\x0fUserPreferences\x12P\n" +
 	"\x12notification_level\x18\x01 \x01(\x0e2!.chatto.core.v1.NotificationLevelR\x11notificationLevel\"g\n" +
 	"\x13RoomUserPreferences\x12P\n" +

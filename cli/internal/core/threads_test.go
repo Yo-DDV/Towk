@@ -1362,7 +1362,7 @@ func TestChattoCore_NotifyThreadFollowers(t *testing.T) {
 	core.DismissAllNotifications(ctx, userC.Id)
 
 	// User B posts another reply. A gets the follower notification, while C
-	// remains covered by the channel's ALL_MESSAGES default despite unfollowing.
+	// stays silent after explicitly unfollowing the thread.
 	core.PostMessage(ctx, KindChannel, room.Id, userB.Id, "Another reply from B", nil, rootMsg.Id, "", nil, false)
 
 	// Check notifications
@@ -1378,10 +1378,8 @@ func TestChattoCore_NotifyThreadFollowers(t *testing.T) {
 	if len(notifsB) != 0 {
 		t.Errorf("Expected 0 notifications for user B (reply author), got %d", len(notifsB))
 	}
-	if len(notifsC) != 1 {
-		t.Errorf("Expected 1 ALL_MESSAGES notification for user C (unfollowed), got %d", len(notifsC))
-	} else if roomMessage := notifsC[0].GetRoomMessage(); roomMessage == nil || roomMessage.GetInThread() != rootMsg.Id {
-		t.Errorf("Expected thread-scoped room message notification for user C, got %+v", notifsC[0])
+	if len(notifsC) != 0 {
+		t.Errorf("Expected 0 notifications for user C (unfollowed), got %d", len(notifsC))
 	}
 }
 

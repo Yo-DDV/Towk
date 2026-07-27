@@ -1,0 +1,234 @@
+/*
+ * Shared liquid-glass treatment for the two compact controls that anchor the
+ * bottom application chrome. The opaque fallback and progressive blur use a
+ * neutral, edge-defined material so no fixed hotspot or white wash appears
+ * inside either surface.
+ */
+:root {
+  --liquid-glass-fill: rgb(248, 250, 252);
+  --liquid-glass-fill-translucent: rgba(248, 250, 252, 0.5);
+  --liquid-glass-face-top: rgba(148, 163, 184, 0.035);
+  --liquid-glass-face-middle: rgba(148, 163, 184, 0.006);
+  --liquid-glass-face-bottom: rgba(15, 23, 42, 0.03);
+  --liquid-glass-edge-highlight: rgba(226, 232, 240, 0.22);
+  --liquid-glass-edge-sheen: rgba(148, 163, 184, 0.028);
+  --liquid-glass-edge-shadow: rgba(15, 23, 42, 0.1);
+  --liquid-glass-border: rgba(226, 232, 240, 0.46);
+  --liquid-glass-border-strong: rgba(100, 116, 139, 0.4);
+  --liquid-glass-shadow: rgba(15, 23, 42, 0.18);
+  --liquid-glass-shadow-soft: rgba(15, 23, 42, 0.1);
+  --liquid-glass-shimmer: rgba(226, 232, 240, 0.14);
+}
+
+:root[data-theme='dark'] {
+  --liquid-glass-fill: rgb(38, 38, 42);
+  --liquid-glass-fill-translucent: rgba(24, 24, 27, 0.54);
+  --liquid-glass-face-top: rgba(148, 163, 184, 0.018);
+  --liquid-glass-face-middle: rgba(148, 163, 184, 0.003);
+  --liquid-glass-face-bottom: rgba(0, 0, 0, 0.065);
+  --liquid-glass-edge-highlight: rgba(203, 213, 225, 0.065);
+  --liquid-glass-edge-sheen: rgba(148, 163, 184, 0.012);
+  --liquid-glass-edge-shadow: rgba(0, 0, 0, 0.26);
+  --liquid-glass-border: rgba(203, 213, 225, 0.08);
+  --liquid-glass-border-strong: rgba(203, 213, 225, 0.18);
+  --liquid-glass-shadow: rgba(0, 0, 0, 0.48);
+  --liquid-glass-shadow-soft: rgba(0, 0, 0, 0.28);
+  --liquid-glass-shimmer: rgba(203, 213, 225, 0.04);
+}
+
+:root [data-testid='current-user-identity-card'],
+:root [data-testid='message-composer-shell'].composer-focus-shell {
+  --liquid-glass-current-border: var(--liquid-glass-border);
+  --liquid-glass-current-fill: var(--liquid-glass-fill);
+  background-color: var(--liquid-glass-current-fill);
+  background-image:
+    linear-gradient(
+      180deg,
+      var(--liquid-glass-face-top) 0%,
+      var(--liquid-glass-face-middle) 24%,
+      transparent 58%,
+      var(--liquid-glass-face-bottom) 100%
+    ),
+    linear-gradient(
+      90deg,
+      var(--liquid-glass-edge-sheen) 0%,
+      transparent 6%,
+      transparent 94%,
+      var(--liquid-glass-edge-sheen) 100%
+    );
+  background-clip: padding-box;
+  box-shadow:
+    inset 0 0 0 1px var(--liquid-glass-current-border),
+    inset 0 1px 0 var(--liquid-glass-edge-highlight),
+    inset 1px 0 0 var(--liquid-glass-edge-sheen),
+    inset -1px 0 0 var(--liquid-glass-edge-sheen),
+    inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+    0 9px 22px -18px var(--liquid-glass-shadow),
+    0 2px 7px -6px var(--liquid-glass-shadow-soft);
+  isolation: isolate;
+  transition:
+    background-color 160ms ease,
+    box-shadow 180ms ease;
+}
+
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    --liquid-glass-current-fill: var(--liquid-glass-fill-translucent);
+    background-color: var(--liquid-glass-current-fill);
+    -webkit-backdrop-filter: blur(18px) saturate(115%);
+    backdrop-filter: blur(18px) saturate(115%);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root [data-testid='current-user-identity-card']:hover,
+  :root [data-testid='message-composer-shell'].composer-focus-shell:hover {
+    --liquid-glass-current-border: var(--liquid-glass-border-strong);
+    box-shadow:
+      inset 0 0 0 1px var(--liquid-glass-current-border),
+      inset 0 1px 0 var(--liquid-glass-edge-highlight),
+      inset 1px 0 0 var(--liquid-glass-edge-sheen),
+      inset -1px 0 0 var(--liquid-glass-edge-sheen),
+      inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+      0 11px 26px -18px var(--liquid-glass-shadow),
+      0 3px 9px -7px var(--liquid-glass-shadow-soft);
+  }
+}
+
+:root [data-testid='current-user-identity-card']:focus-within {
+  --liquid-glass-current-border: var(--liquid-glass-border-strong);
+  box-shadow:
+    inset 0 0 0 1px var(--liquid-glass-current-border),
+    inset 0 1px 0 var(--liquid-glass-edge-highlight),
+    inset 1px 0 0 var(--liquid-glass-edge-sheen),
+    inset -1px 0 0 var(--liquid-glass-edge-sheen),
+    inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+    0 0 0 2px rgba(14, 165, 233, 0.2),
+    0 11px 26px -18px var(--liquid-glass-shadow);
+}
+
+:root [data-testid='message-composer-shell'].composer-focus-shell:focus-within {
+  --liquid-glass-current-border: rgba(232, 120, 59, 0.82);
+  box-shadow:
+    inset 0 0 0 1px var(--liquid-glass-current-border),
+    inset 0 1px 0 var(--liquid-glass-edge-highlight),
+    inset 1px 0 0 var(--liquid-glass-edge-sheen),
+    inset -1px 0 0 var(--liquid-glass-edge-sheen),
+    inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+    0 0 0 1px rgba(232, 120, 59, 0.32),
+    0 0 0 4px rgba(232, 120, 59, 0.12),
+    0 11px 28px -18px var(--liquid-glass-shadow);
+}
+
+:root [data-testid='message-composer-shell'].composer-focus-shell.sending {
+  background-color: var(--liquid-glass-current-fill);
+  background-image:
+    linear-gradient(90deg, transparent 0%, var(--liquid-glass-shimmer) 50%, transparent 100%),
+    linear-gradient(
+      180deg,
+      var(--liquid-glass-face-top) 0%,
+      var(--liquid-glass-face-middle) 24%,
+      transparent 58%,
+      var(--liquid-glass-face-bottom) 100%
+    ),
+    linear-gradient(
+      90deg,
+      var(--liquid-glass-edge-sheen) 0%,
+      transparent 6%,
+      transparent 94%,
+      var(--liquid-glass-edge-sheen) 100%
+    );
+  background-position:
+    200% 0,
+    0 0,
+    0 0;
+  background-size:
+    200% 100%,
+    100% 100%,
+    100% 100%;
+  animation: liquid-glass-composer-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes liquid-glass-composer-shimmer {
+  to {
+    background-position:
+      -200% 0,
+      0 0,
+      0 0;
+  }
+}
+
+@media (max-width: 767px) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    box-shadow:
+      inset 0 0 0 1px var(--liquid-glass-current-border),
+      inset 0 1px 0 var(--liquid-glass-edge-highlight),
+      inset 1px 0 0 var(--liquid-glass-edge-sheen),
+      inset -1px 0 0 var(--liquid-glass-edge-sheen),
+      inset 0 -1px 0 var(--liquid-glass-edge-shadow),
+      0 7px 18px -17px var(--liquid-glass-shadow),
+      0 2px 7px -7px var(--liquid-glass-shadow-soft);
+  }
+
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    :root [data-testid='current-user-identity-card'],
+    :root [data-testid='message-composer-shell'].composer-focus-shell {
+      -webkit-backdrop-filter: blur(12px) saturate(110%);
+      backdrop-filter: blur(12px) saturate(110%);
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    --liquid-glass-current-fill: var(--liquid-glass-fill);
+    background-color: var(--liquid-glass-current-fill);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    --liquid-glass-current-border: var(--liquid-glass-border-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    transition: none;
+  }
+
+  :root [data-testid='message-composer-shell'].composer-focus-shell.sending {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  :root [data-testid='current-user-identity-card'],
+  :root [data-testid='message-composer-shell'].composer-focus-shell {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+    background: Canvas;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  :root [data-testid='current-user-identity-card']:focus-within,
+  :root [data-testid='message-composer-shell'].composer-focus-shell:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+
+  :root [data-testid='message-composer-shell'].composer-focus-shell.sending {
+    background: Canvas;
+    animation: none;
+  }
+}

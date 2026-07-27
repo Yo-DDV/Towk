@@ -11,7 +11,7 @@ option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 // USER LIFECYCLE EVENTS (server-scoped)
 //
 // Top-level Event oneof tags owned by this file:
-//   - 700-716: durable user aggregate events on evt.user.{userId}.*
+//   - 700-719: durable user aggregate events on evt.user.{userId}.*
 //   - 1010-1015: live-only user lifecycle and preference broadcasts
 //
 // Keep these tags coordinated with event.proto. Message-internal field numbers
@@ -41,6 +41,8 @@ message UserProfileUpdatedEvent {
   string avatar_url = 3;
   // The user's current login/username.
   string login = 4;
+  // True when clients should invalidate the detailed profile cache.
+  bool details_changed = 5;
 }
 
 // ============================================================================
@@ -54,6 +56,8 @@ message ServerUserPreferencesUpdatedEvent {
   string timezone = 1;
   // Time display format preference.
   TimeFormat time_format = 2;
+  // Effective last-activity visibility preference.
+  bool show_last_activity = 3;
 }
 
 // ============================================================================
@@ -166,6 +170,23 @@ message UserCustomStatusSetEvent {
 
 message UserCustomStatusClearedEvent {
   string user_id = 1;
+}
+
+message UserBiographyChangedEvent {
+  string user_id = 1;
+  EncryptedUserString encrypted_biography = 10;
+}
+
+message UserBiographyClearedEvent {
+  string user_id = 1;
+}
+
+// One encrypted latest-value record stored in RUNTIME_STATE. This is not an
+// activity history and is removed during account deletion.
+message EncryptedUserLastActivity {
+  bytes encrypted_value = 1;
+  bytes nonce = 2;
+  int32 content_key_epoch = 3;
 }
 
 // UserKeyShreddedEvent is the durable audit signal that the user's

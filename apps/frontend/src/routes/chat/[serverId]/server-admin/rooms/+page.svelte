@@ -4,18 +4,19 @@
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import AdminRoomLayoutEditor from './AdminRoomLayoutEditor.svelte';
+  import ArchivedRoomPurgePanel from './ArchivedRoomPurgePanel.svelte';
   import * as m from '$lib/i18n/messages';
 
   const activeServerId = $derived(getActiveServer());
   const serverSegment = $derived(serverIdToSegment(activeServerId));
+  const server = $derived(serverRegistry.getServer(activeServerId));
   const stores = $derived(serverRegistry.getStore(activeServerId));
   const layout = $derived(stores.adminRoomLayout);
 
   $effect(() => stores.activateAdminRoomLayout());
 
-  function refreshServerRoomState() {
-    void stores.rooms.refresh();
-    void stores.roomDirectory.refresh();
+  async function refreshServerRoomState() {
+    await Promise.all([layout.refresh(), stores.rooms.refresh(), stores.roomDirectory.refresh()]);
   }
 </script>
 
@@ -24,3 +25,7 @@
 />
 
 <AdminRoomLayoutEditor {layout} {serverSegment} onroomcreated={refreshServerRoomState} />
+
+{#if server}
+  <ArchivedRoomPurgePanel {layout} {server} onroompurged={refreshServerRoomState} />
+{/if}

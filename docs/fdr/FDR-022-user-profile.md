@@ -1,11 +1,11 @@
 # FDR-022: User Profile
 
 **Status:** Active
-**Last reviewed:** 2026-06-23
+**Last reviewed:** 2026-07-25
 
 ## Overview
 
-A user's profile carries the public identity they present to the rest of the server (login, display name, avatar, custom status) plus server-synced personal settings (timezone, time format). Most of the profile is self-editable; one field — the login — is throttled to discourage identity-confusion abuse, with an admin escape hatch for legitimate needs. Browser-local display preferences, such as theme, live outside the profile.
+A user's profile carries the public identity they present to the rest of the server (login, display name, avatar, custom status), explicitly assigned roles, account age, a Markdown biography, and a privacy-aware latest-activity value. The web client presents these fields through one canonical profile dialog opened from user identity surfaces while directory rows remain lightweight. Most profile data is self-editable; one field — the login — is throttled to discourage identity-confusion abuse, with an admin escape hatch for legitimate needs. Browser-local display preferences, such as theme, live outside the profile.
 
 ## Behavior
 
@@ -18,6 +18,11 @@ A user's profile carries the public identity they present to the rest of the ser
 - **Custom status expiry** — users can optionally choose an expiry date and time. After that instant, projected reads and the web client hide the status automatically. Users can also clear it manually.
 - **Settings** — currently timezone (IANA name, e.g., `Europe/Berlin`) and time format (browser default / 12-hour / 24-hour). Stored server-side so they sync across devices. If not set, the frontend uses the browser timezone and locale time-format default.
 - **Display theme** — users can choose System, Light, or Dark. System follows the browser or OS color-scheme preference. The choice is browser-local and applies immediately on that device.
+- **Detailed profile** — authenticated server members can open one on-demand profile surface showing avatar, display name, login, presence, custom status, all explicitly assigned configured roles, join date, Markdown biography, and latest activity when visible.
+- **Biography** — users can store up to 1,024 Unicode code points and 4 KiB of valid UTF-8 Markdown inside the existing user-PII encryption boundary. Supported clients render it through the same sanitized Markdown path used for message content; raw HTML is not trusted. Long biographies open as a bounded preview and can be expanded without truncating the stored Markdown.
+- **Latest activity** — Towk stores one encrypted, monotonic, coalesced timestamp rather than an activity history. Visibility is enabled by default for upgrade compatibility and can be disabled by the profile owner. Disabling visibility removes the stored latest value before the preference is published.
+- **Profile actions** — the server returns viewer-specific Message and Call capabilities. Message opens the direct conversation and focuses its composer. Call opens the direct conversation, exposes the call surface, and starts the existing device-aware join flow. The call action is exposed only when direct messaging is allowed and LiveKit is configured, and it does not interrupt another active room call. Deleted accounts expose neither action.
+- **Responsive dialog** — the profile is centered on wide viewports and Fold-class layouts, and becomes safe-area-aware full-screen UI on narrow or low viewports. It supports Escape, backdrop, browser/system Back, focus restoration, and a bounded touch dismissal gesture.
 - **Admin overrides** — operators with the right permissions can update other users' profiles, bypass the login cooldown, clear the cooldown so the user can change again before the 30 days expire, and force-delete an avatar.
 
 ## Design Decisions
@@ -82,13 +87,45 @@ A user's profile carries the public identity they present to the rest of the ser
 **Why:** This keeps the durable EVT model simple and preserves the "any emoji plus any text" API while allowing built-in statuses to be localized for each viewer.
 **Tradeoff:** Older clients that do not know the reserved tokens may display the raw token. This is acceptable during early development and avoids a protobuf shape change solely for UI presets.
 
+### 11. Detailed profiles are loaded on demand
+
+**Decision:** Directory and room-member rows stay lightweight. The complete profile is fetched through `UserService.GetUserProfile` only when a viewer opens it.
+**Why:** Biography, role presentation, latest activity, and viewer-specific capabilities are not needed for every row and would inflate frequently loaded directory payloads.
+**Tradeoff:** Opening a profile requires one additional request. The frontend uses a small server-scoped cache and realtime invalidation to avoid repeated reads while preventing stale responses from repopulating invalidated entries.
+
+### 12. Biography uses the existing user-PII envelope
+
+**Decision:** Biography Markdown is normalized, validated before any multi-field profile mutation, limited to 1,024 Unicode code points and 4 KiB of UTF-8, and encrypted with the user's PII DEK. Clearing it appends an explicit clear event.
+**Why:** Biography is user-authored personal information and belongs inside the same encryption and crypto-erasure boundary as other profile PII. Preflight validation prevents an invalid biography from partially applying a display-name or login change.
+**Tradeoff:** Existing biographies above the new product boundary remain readable and are never truncated automatically, but their owners must shorten them before a later save. The editor reports both Unicode characters and UTF-8 bytes so the boundary is explicit.
+
+### 13. Latest activity is a latest-value privacy signal, not surveillance history
+
+**Decision:** The runtime store keeps at most one encrypted UTC timestamp per user, advances it monotonically, and coalesces writes to a five-minute interval. No sequence of activity observations is retained.
+**Why:** The profile needs a useful "last active" hint without creating a durable behavior history or writing every heartbeat. Runtime-state storage matches the latest-value semantics, while the user PII key preserves crypto-erasure.
+**Tradeoff:** The timestamp is approximate within the coalescing window and is not an audit record. Backups that contain both encrypted data and still-valid keys retain the same limitations documented for other encrypted PII.
+
+### 14. Visibility is enforced and cleaned up server-side
+
+**Decision:** An absent preference means visible. When a user disables latest activity, the server deletes the stored value before publishing the hidden preference and fails closed if cleanup cannot complete. Invisible clients do not report presence and therefore do not advance latest activity.
+**Why:** Hiding a field only in the frontend would leave stale data available through the API and could reappear after re-enabling. Server-side filtering and cleanup make the privacy choice authoritative.
+**Tradeoff:** Re-enabling visibility starts with no previous timestamp; a new value appears only after later eligible activity.
+
+### 15. One accessible responsive surface replaces divergent profile popovers
+
+**Decision:** User identities open the same detailed profile dialog. Selectors and autocomplete preserve their primary selection action and expose profile opening as a secondary affordance.
+**Why:** A canonical surface keeps desktop, mobile, accessibility, privacy, caching, and action rules consistent across messages, member lists, the current-user bar, and selection controls.
+**Tradeoff:** The dialog carries more layout logic than a small popover, including history integration and safe-area handling, but removes duplicated contextual implementations.
+
 ## Permissions
 
-- Self-edit (display name, avatar, custom status, settings, own login subject to cooldown) — no explicit permission; just authentication.
+- Read a detailed profile — authentication on the same server; latest activity is filtered by the target user's privacy preference.
+- Self-edit (display name, avatar, biography, custom status, settings, own login subject to cooldown) — no explicit permission; just authentication.
+- Message/Call actions — returned as viewer-specific capabilities; Call additionally requires configured LiveKit service.
 - Cross-user edit — `user.manage-accounts`.
 - Clear another user's login cooldown — same gate.
 
 ## Related
 
-- **ADRs:** ADR-007 (per-user encryption with crypto-shredding), ADR-021 (dual asset storage), ADR-043 (client-shell internationalization)
+- **ADRs:** ADR-007 (per-user encryption with crypto-shredding), ADR-036 (runtime-state boundary), ADR-042 (protobuf-first public API), ADR-043 (client-shell internationalization)
 - **FDRs:** FDR-001 (Roles & Permissions), FDR-008 (File Attachments & Video Processing), FDR-011 (User Presence), FDR-018 (Account Lifecycle)
