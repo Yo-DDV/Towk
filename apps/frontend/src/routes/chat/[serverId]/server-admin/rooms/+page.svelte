@@ -4,7 +4,6 @@
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import AdminRoomLayoutEditor from './AdminRoomLayoutEditor.svelte';
-  import ArchivedRoomPurgePanel from './ArchivedRoomPurgePanel.svelte';
   import * as m from '$lib/i18n/messages';
 
   const activeServerId = $derived(getActiveServer());
@@ -24,8 +23,10 @@
   title={m['admin.common.server_admin_page_title']({ title: m['admin.rooms_admin.title']() })}
 />
 
-<AdminRoomLayoutEditor {layout} {serverSegment} onroomcreated={refreshServerRoomState} />
-
-{#if server}
-  <ArchivedRoomPurgePanel {layout} {server} onroompurged={refreshServerRoomState} />
-{/if}
+<AdminRoomLayoutEditor
+  {layout}
+  {server}
+  {serverSegment}
+  onroomcreated={refreshServerRoomState}
+  onroompurged={refreshServerRoomState}
+/>
