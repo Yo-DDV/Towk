@@ -254,6 +254,11 @@ export type RoomEventPayload =
       messageEventId: string;
       emoji: string;
     }
+  | {
+      kind: 'readReceiptAdvanced';
+      roomId: string;
+      threadRootEventId?: string | null;
+    }
   | { kind: 'roomArchived'; roomId: string }
   | { kind: 'roomCreated'; roomId?: string }
   | { kind: 'roomDeleted'; roomId: string }
@@ -280,6 +285,7 @@ export type RoomEventPayload =
       kind: 'serverUserPreferencesUpdated';
       timezone?: string | null;
       timeFormat?: TimeFormat;
+      readReceiptsEnabled?: boolean;
     }
   | { kind: 'sessionTerminated'; reason?: string }
   | {

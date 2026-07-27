@@ -21,10 +21,17 @@ function renderPopup(props: {
   selectKeys?: string[];
   onSelect?: (item: Item, key: string) => void;
   onClose?: () => void;
+  withAction?: boolean;
 }) {
   const item = createRawSnippet<[{ item: Item; selected: boolean }]>((entry) => ({
     render: () => `<span class="entry">${entry().item.label}</span>`
   }));
+  const action = props.withAction
+    ? createRawSnippet<[{ item: Item; selected: boolean }]>((entry) => ({
+        render: () =>
+          `<button type="button" class="profile-action">Profile ${entry().item.label}</button>`
+      }))
+    : undefined;
   return render(AutocompletePopup<Item>, {
     props: {
       items: props.items,
@@ -33,7 +40,8 @@ function renderPopup(props: {
       onSelect: props.onSelect ?? (() => {}),
       onClose: props.onClose ?? (() => {}),
       testid: 'popup',
-      item
+      item,
+      action
     }
   });
 }
@@ -152,6 +160,17 @@ describe('AutocompletePopup', () => {
       const buttons = container.querySelectorAll('button');
       (buttons[1] as HTMLButtonElement).click();
       expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ label: 'b' }), 'click');
+    });
+
+    it('keeps a secondary action separate from primary selection', () => {
+      const onSelect = vi.fn();
+      const { container } = renderPopup({ items: items('a'), onSelect, withAction: true });
+
+      (container.querySelector('.profile-action') as HTMLButtonElement).click();
+
+      expect(onSelect).not.toHaveBeenCalled();
+      (container.querySelector('.menu-item') as HTMLButtonElement).click();
+      expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ label: 'a' }), 'click');
     });
   });
 

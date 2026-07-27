@@ -32,6 +32,8 @@ export type CurrentUser = {
   settings?: {
     timezone?: string | null;
     timeFormat: TimeFormat;
+    readReceiptsEnabled: boolean;
+    showLastActivity: boolean;
   } | null;
 };
 
@@ -117,7 +119,9 @@ export async function getViewerStateViaConnect(config: ViewerAPIConfig): Promise
       settings: response.user.settings
         ? {
             timezone: response.user.settings.timezone ?? null,
-            timeFormat: apiTimeFormat(response.user.settings.timeFormat)
+            timeFormat: apiTimeFormat(response.user.settings.timeFormat),
+            readReceiptsEnabled: response.user.settings.readReceiptsEnabled,
+            showLastActivity: response.user.settings.showLastActivity ?? true
           }
         : null
     },

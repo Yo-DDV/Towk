@@ -11,8 +11,13 @@ import {
   RealtimeEventEnvelopeSchema,
   RealtimeMentionNotificationEventSchema,
   RealtimeNewDirectMessageNotificationEventSchema,
-  RealtimeNotificationCreatedEventSchema
+  RealtimeNotificationCreatedEventSchema,
+  RealtimeReadReceiptAdvancedEventSchema,
+  RealtimeServerUserPreferencesUpdatedEventSchema,
+  RealtimeUserProfileUpdatedEventSchema
 } from '@towk/api-types/realtime/v1/realtime_pb';
+import { TimeFormat as APITimeFormat } from '@towk/api-types/api/v1/viewer_pb';
+import { TimeFormat } from '$lib/render/types';
 
 describe('realtimeEventToEventEnvelope', () => {
   it('preserves the exact call connection on participant transitions', () => {
@@ -155,6 +160,93 @@ describe('realtimeEventToEventEnvelope', () => {
       id: 'user-2',
       displayName: 'Grace Hopper',
       avatarUrl: '/assets/avatar.png'
+    });
+  });
+
+  it('maps read receipt realtime frames as anonymous invalidations', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-read-receipt',
+        event: {
+          case: 'readReceiptAdvanced',
+          value: create(RealtimeReadReceiptAdvancedEventSchema, {
+            roomId: 'room-1',
+            threadRootEventId: 'thread-1'
+          })
+        }
+      })
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt-read-receipt',
+      createdAt: '',
+      actorId: null,
+      event: {
+        kind: RoomEventKind.ReadReceiptAdvanced,
+        roomId: 'room-1',
+        threadRootEventId: 'thread-1'
+      }
+    });
+    expect(event?.event).not.toHaveProperty('userId');
+    expect(event?.event).not.toHaveProperty('eventId');
+    expect(event?.event).not.toHaveProperty('readAt');
+  });
+
+  it('preserves detailed-profile invalidation signals', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-profile',
+        createdAt: timestampNow(),
+        event: {
+          case: 'userProfileUpdated',
+          value: create(RealtimeUserProfileUpdatedEventSchema, {
+            userId: 'user-1',
+            login: 'alice',
+            displayName: 'Alice',
+            detailsChanged: true
+          })
+        }
+      })
+    ) as unknown as {
+      event: { kind: string; userId: string; detailsChanged: boolean };
+    };
+
+    expect(event.event).toMatchObject({
+      kind: RoomEventKind.UserProfileUpdated,
+      userId: 'user-1',
+      detailsChanged: true
+    });
+  });
+
+  it('preserves the effective user preferences', () => {
+    const event = realtimeEventToEventEnvelope(
+      create(RealtimeEventEnvelopeSchema, {
+        id: 'evt-preferences',
+        createdAt: timestampNow(),
+        event: {
+          case: 'serverUserPreferencesUpdated',
+          value: create(RealtimeServerUserPreferencesUpdatedEventSchema, {
+            timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+            readReceiptsEnabled: true,
+            showLastActivity: false
+          })
+        }
+      })
+    ) as unknown as {
+      event: {
+        kind: string;
+        timeFormat: TimeFormat;
+        readReceiptsEnabled: boolean;
+        showLastActivity: boolean;
+      };
+    };
+
+    expect(event.event).toEqual({
+      kind: RoomEventKind.ServerUserPreferencesUpdated,
+      timezone: null,
+      timeFormat: TimeFormat.TwentyFourHour,
+      readReceiptsEnabled: true,
+      showLastActivity: false
     });
   });
 

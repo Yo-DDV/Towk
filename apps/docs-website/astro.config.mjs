@@ -103,6 +103,7 @@ export default defineConfig({
             "guides/infrastructure/s3-storage",
             "guides/infrastructure/video-processing",
             "guides/infrastructure/voice-calls",
+            "guides/infrastructure/turn-tls",
           ],
         },
         {

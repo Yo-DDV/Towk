@@ -13,7 +13,7 @@ const READMES = {
 };
 const ANCHORS = [
   "why-towk",
-  "development-pulse",
+  "repository-activity",
   "capabilities",
   "architecture",
   "run-towk",
@@ -23,7 +23,9 @@ const ASSETS = [
   "hero.svg",
   "hero-mobile.svg",
   "activity.svg",
-  "activity-mobile.svg",
+  "activity-mobile.svg"
+];
+const OBSOLETE_METRIC_ASSETS = [
   "contributors.svg",
   "contributors-mobile.svg"
 ];
@@ -58,16 +60,20 @@ export function checkReadme(content, locale, filename) {
     assert(ids.includes(anchor), `${filename}: missing #${anchor} anchor`);
     assert(content.includes(`href="#${anchor}"`), `${filename}: navigation does not link to #${anchor}`);
   }
+  assert(!ids.includes("development-pulse"), `${filename}: obsolete #development-pulse anchor remains`);
 
   const metricPrefix = `https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/${locale}/`;
   for (const asset of ASSETS) {
     assert(content.includes(`${metricPrefix}${asset}`), `${filename}: missing localized ${asset}`);
   }
+  for (const asset of OBSOLETE_METRIC_ASSETS) {
+    assert(!content.includes(`${metricPrefix}${asset}`), `${filename}: obsolete localized ${asset} remains`);
+  }
   const metricReferences = occurrences(content, /https:\/\/raw\.githubusercontent\.com\/Yo-DDV\/Towk\/readme-metrics\/[a-z]{2}\/[a-z-]+\.svg/g);
   assert(metricReferences === ASSETS.length, `${filename}: expected ${ASSETS.length} metric image references, found ${metricReferences}`);
 
   const imageTags = [...content.matchAll(/<img\b[^>]*>/gi)].map((match) => match[0]);
-  assert(imageTags.length >= 10, `${filename}: expected product and presentation imagery`);
+  assert(imageTags.length >= 9, `${filename}: expected product and presentation imagery`);
   for (const image of imageTags) {
     assert(/\balt="[^"]+"/i.test(image), `${filename}: image without useful alt text: ${image.slice(0, 100)}`);
   }

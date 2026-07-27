@@ -55,6 +55,7 @@
       "too_large": "This voice message is too large to send. Record a shorter message."
     },
     "edit_failed": "Failed to edit message",
+    "edit_window_expired": "This message can no longer be edited because the edit window has expired.",
     "mention": {
       "all_room_members": "All room members",
       "members_here": "Members currently here",

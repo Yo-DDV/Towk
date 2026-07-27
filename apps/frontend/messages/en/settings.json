@@ -102,7 +102,36 @@
       },
       "saved": "Profile updated successfully",
       "save_failed": "Failed to save profile",
-      "save_button": "Save Changes"
+      "save_button": "Save Changes",
+      "details": {
+        "load_failed": "Could not load profile details.",
+        "biography_title": "Biography",
+        "biography_description": "Write a concise Markdown biography shown on your server profile (up to 1,024 characters). Raw HTML and remote images are not rendered.",
+        "formatting_toolbar": "Biography formatting",
+        "bold": "Bold",
+        "italic": "Italic",
+        "heading": "Heading",
+        "bullet_list": "Bulleted list",
+        "numbered_list": "Numbered list",
+        "quote": "Quote",
+        "link_text": "link text",
+        "add_link": "Add link",
+        "inline_code": "Inline code",
+        "biography_label": "Biography in Markdown",
+        "biography_placeholder": "Tell other members about yourself…",
+        "byte_count": "{used} of {limit} bytes",
+        "preview": "Preview",
+        "biography_too_large": "The biography is limited to 1,024 characters and 4 KiB of UTF-8.",
+        "biography_saved": "Biography saved.",
+        "save_failed": "Could not save profile details.",
+        "save_biography": "Save biography",
+        "privacy_title": "Activity privacy",
+        "show_last_activity": "Show my last activity",
+        "show_last_activity_description": "Allow authenticated members of this server to see your latest coalesced activity time. Turning this off removes the stored value.",
+        "privacy_saved": "Activity privacy saved.",
+        "save_privacy": "Save privacy",
+        "character_count": "{used} of {limit} characters"
+      }
     },
     "preferences": {
       "title": "Display",
@@ -157,7 +186,13 @@
       },
       "save_button": "Save Display Settings",
       "saved": "Display settings saved",
-      "save_failed": "Failed to save display settings"
+      "save_failed": "Failed to save display settings",
+      "read_receipts": {
+        "title": "Read receipts",
+        "enabled_label": "Publish read receipts",
+        "disabled_label": "Keep read receipts private",
+        "description": "When enabled, other members can see when you have read their messages, and you can inspect receipts on messages you can access."
+      }
     },
     "notifications": {
       "title": "Notifications",

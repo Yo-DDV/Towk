@@ -24,13 +24,13 @@
     <a href="ROADMAP.md"><img src="https://img.shields.io/badge/status-pre--1.0-f4a261?style=flat-square" alt="Project status: pre-1.0" /></a>
     <img src="https://img.shields.io/badge/deployment-self--hosted-43d8b0?style=flat-square" alt="Self-hosted" />
     <img src="https://img.shields.io/badge/client-installable%20PWA-4aa8ff?style=flat-square" alt="Installable Progressive Web App" />
-    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/activity-refreshed%20twice%20daily-7867f2?style=flat-square" alt="Repository activity refreshed twice daily" /></a>
+    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/activity-GitHub%20Actions%20%2F%206h-7867f2?style=flat-square" alt="Repository activity refreshed by GitHub Actions every six hours" /></a>
     <a href="LICENSING.md"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later%20%2B%20Apache--2.0-8250df?style=flat-square" alt="AGPL-3.0-or-later with Apache-2.0 surfaces" /></a>
   </p>
 
   <p>
     <a href="#why-towk">Why Towk</a> ·
-    <a href="#development-pulse">Development pulse</a> ·
+    <a href="#repository-activity">Repository activity</a> ·
     <a href="#capabilities">Capabilities</a> ·
     <a href="#architecture">Architecture</a> ·
     <a href="#run-towk">Run Towk</a> ·
@@ -93,42 +93,45 @@ is a focused open-source alternative for teams and communities that want to run
 their communication workspace themselves — not a claim to replace every feature
 of every collaboration platform.
 
-<a id="development-pulse"></a>
-## Development pulse
+<a id="repository-activity"></a>
+## Repository activity
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/activity-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/activity.svg" width="100%" alt="Towk development activity with daily, weekly and monthly commit and pull request charts" />
-</picture>
-
-<picture>
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/contributors-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/contributors.svg" width="100%" alt="Towk commit and merged pull request authors since the public standalone foundation" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/en/activity.svg" width="100%" alt="Towk repository activity over the last 30 UTC days: commits, merged pull requests, closed issues, active contributors, code movement and pull request flow" />
 </picture>
 
 <details>
   <summary><strong>How these metrics are produced</strong></summary>
 
-  The repository generates these SVGs from GitHub's API with its scoped
-  `GITHUB_TOKEN`; it does not use a personal token or an external statistics
-  service. The workflow refreshes after every push to `main` and is scheduled at
-  approximately **06:17 and 21:17 Europe/Paris** each day.
+  The repository generates this SVG and its machine-readable snapshot from
+  its own Git history and the GitHub API with the workflow's scoped
+  `GITHUB_TOKEN`; no personal token or external statistics service is used. The
+  workflow runs after every push to `main`, approximately every six hours, and
+  on manual dispatch.
 
-  The headline counters and contributor rankings begin after the public
-  standalone-foundation merge commit `205e91fe1ae5e5c23420974f7e04cf82456eeab3` from 12 July 2026. This
-  prevents inherited Chatto history from being presented as current Towk progress.
-  The charts retain rolling views of 30 days, 12 weeks and 12 months; periods before
-  that foundation point appear as zero. Commits are selected topologically from
-  `main` after the foundation commit and bucketed by their committed timestamp in
-  UTC. Pull requests are counted by `merged_at` after the foundation timestamp.
-  Rankings use the GitHub login when available and otherwise the public commit
-  author name. Detected bots are excluded from human rankings and reported
-  separately. These figures describe repository activity and Git attribution, not
-  individual effort. Raw commit messages and email addresses are not written to the
-  generated branch.
+  Every headline value and chart uses the same rolling **30 UTC-day** window. The
+  public standalone-repository baseline is commit `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, merged on
+  12 July 2026; while that baseline falls inside the rolling window, earlier days
+  remain zero so inherited Chatto history is not presented as current Towk
+  activity. The current UTC day is explicitly marked as partial.
 
-  The generated SVGs and machine-readable snapshot live on the
-  [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics) branch.
+  Commits are selected topologically from `main` and bucketed by committed
+  timestamp. Additions, deletions and changed-file counts come from Git
+  `--numstat`; binary files count as changed files but do not invent line totals.
+  Pull requests are counted by `merged_at` when merged into `main`, and issues
+  are counted by `closed_at` with pull requests excluded. Merge lead time is
+  measured from `created_at` to `merged_at`. First-review time is measured from
+  `created_at` to the first submitted review by a human who is not the pull
+  request author; pull requests without such a review are omitted from that median.
+  Active contributors are the distinct human commit and merged-PR authors in the
+  window. Bots are excluded only from that human count; repository totals include
+  automation.
+
+  These figures describe repository activity, not individual effort. Raw commit
+  messages, email addresses, review bodies and contributor rankings are not written
+  to the generated branch. The SVGs and snapshot live on
+  [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
 </details>
 
 <a id="capabilities"></a>

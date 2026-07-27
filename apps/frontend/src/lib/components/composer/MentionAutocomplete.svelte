@@ -16,6 +16,7 @@ Shows matching room members when typing @username in chat input.
   import { getAvatarInitials } from '$lib/utils/initials';
   import SkeletonImg from '$lib/ui/SkeletonImg.svelte';
   import AutocompletePopup from './AutocompletePopup.svelte';
+  import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
   import type { MentionRole } from './autocomplete.svelte';
   import * as m from '$lib/i18n/messages';
 
@@ -74,9 +75,16 @@ Shows matching room members when typing @username in chat input.
   });
 
   let popupRef = $state<{ handleKeyDown: (e: KeyboardEvent) => boolean } | null>(null);
+  let profileMember = $state<RoomMember | null>(null);
 
   export function handleKeyDown(event: KeyboardEvent): boolean {
+    if (profileMember) return false;
     return popupRef?.handleKeyDown(event) ?? false;
+  }
+
+  function openProfile(event: MouseEvent, member: RoomMember) {
+    event.stopPropagation();
+    profileMember = member;
   }
 
   function handleSelect(result: MentionResult, key: string) {
@@ -85,49 +93,68 @@ Shows matching room members when typing @username in chat input.
 </script>
 
 <AutocompletePopup
-  bind:this={popupRef}
-  items={results}
-  getKey={(r) => `${r.type}:${r.handle}`}
-  selectKeys={['Enter', 'Tab']}
-  onSelect={handleSelect}
-  {onClose}
-  testid="mention-autocomplete"
-  class="md:w-72"
->
-  {#snippet item({ item: result })}
-    {#if result.type === 'user'}
-      {#if result.member.avatarUrl}
-        <SkeletonImg
-          loading="lazy"
-          src={result.member.avatarUrl}
-          alt={result.member.login}
-          class="h-6 w-6 shrink-0 rounded-full object-cover"
-        />
+    bind:this={popupRef}
+    items={results}
+    getKey={(r) => `${r.type}:${r.handle}`}
+    selectKeys={['Enter', 'Tab']}
+    onSelect={handleSelect}
+    {onClose}
+    testid="mention-autocomplete"
+    class={profileMember ? 'invisible pointer-events-none md:w-72' : 'md:w-72'}
+  >
+    {#snippet item({ item: result })}
+      {#if result.type === 'user'}
+        {#if result.member.avatarUrl}
+          <SkeletonImg
+            loading="lazy"
+            src={result.member.avatarUrl}
+            alt={result.member.login}
+            class="h-6 w-6 shrink-0 rounded-full object-cover"
+          />
+        {:else}
+          <div
+            class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-200 text-xs font-semibold text-muted"
+          >
+            {getAvatarInitials(result.member.displayName, result.member.login)}
+          </div>
+        {/if}
+        <span class="min-w-0 truncate text-sm text-text">{result.member.displayName}</span>
+        <span class="min-w-0 truncate text-sm text-muted">@{result.member.login}</span>
+      {:else if result.type === 'virtual'}
+        <div
+          class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-200 text-xs font-semibold text-muted"
+        >
+          <span class="iconify h-4 w-4 uil--megaphone"></span>
+        </div>
+        <span class="min-w-0 truncate text-sm text-text">{result.label}</span>
+        <span class="min-w-0 truncate text-sm text-muted">@{result.handle}</span>
       {:else}
         <div
           class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-200 text-xs font-semibold text-muted"
         >
-          {getAvatarInitials(result.member.displayName, result.member.login)}
+          <span class="iconify h-4 w-4 uil--users-alt"></span>
         </div>
+        <span class="min-w-0 truncate text-sm text-text">{m['composer.mention.role']()}</span>
+        <span class="min-w-0 truncate text-sm text-muted">@{result.role.name}</span>
       {/if}
-      <span class="min-w-0 truncate text-sm text-text">{result.member.displayName}</span>
-      <span class="min-w-0 truncate text-sm text-muted">@{result.member.login}</span>
-    {:else if result.type === 'virtual'}
-      <div
-        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-200 text-xs font-semibold text-muted"
-      >
-        <span class="iconify h-4 w-4 uil--megaphone"></span>
-      </div>
-      <span class="min-w-0 truncate text-sm text-text">{result.label}</span>
-      <span class="min-w-0 truncate text-sm text-muted">@{result.handle}</span>
-    {:else}
-      <div
-        class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-200 text-xs font-semibold text-muted"
-      >
-        <span class="iconify h-4 w-4 uil--users-alt"></span>
-      </div>
-      <span class="min-w-0 truncate text-sm text-text">{m['composer.mention.role']()}</span>
-      <span class="min-w-0 truncate text-sm text-muted">@{result.role.name}</span>
-    {/if}
-  {/snippet}
-</AutocompletePopup>
+    {/snippet}
+
+    {#snippet action({ item: result })}
+      {#if result.type === 'user'}
+        <button
+          type="button"
+          class="grid w-10 shrink-0 cursor-pointer place-items-center rounded-md text-muted transition-colors hover:bg-surface-200 hover:text-text"
+          data-testid={`mention-profile-${result.member.id}`}
+          aria-label={`${m['chat.user_menu.profile']()}: ${result.member.displayName}`}
+          title={m['chat.user_menu.profile']()}
+          onclick={(event) => openProfile(event, result.member)}
+        >
+          <span class="iconify uil--user-square" aria-hidden="true"></span>
+        </button>
+      {/if}
+    {/snippet}
+  </AutocompletePopup>
+
+{#if profileMember}
+  <UserContextMenu user={profileMember} onClose={() => (profileMember = null)} />
+{/if}

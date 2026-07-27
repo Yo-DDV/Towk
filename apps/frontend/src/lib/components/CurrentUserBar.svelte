@@ -31,6 +31,7 @@ to the user settings page for the active server.
   import UserAvatar from './UserAvatar.svelte';
   import UserCustomStatusBadge from './UserCustomStatusBadge.svelte';
   import UserCustomStatusEditor from './UserCustomStatusEditor.svelte';
+  import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
 
   const connection = useConnection();
   const presenceCache = getPresenceCache();
@@ -89,6 +90,7 @@ to the user settings page for the active server.
   const presenceLabel = $derived.by(() => presenceStatusLabel(currentPresence));
   let statusMenuAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
   let customStatusDialogVisible = $state(false);
+  let ownProfileOpen = $state(false);
 
   function customStatusAPIConfig() {
     const conn = connection();
@@ -341,16 +343,19 @@ to the user settings page for the active server.
       >
         <UserAvatar user={activeServerUser} size="sm" showPresence />
       </button>
-      <div
-        class="flex min-w-0 flex-1 flex-col overflow-hidden leading-tight"
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 cursor-pointer flex-col overflow-hidden rounded px-1 text-left leading-tight transition-colors hover:bg-surface-100"
         data-testid="current-user-identity-text"
+        aria-label={m['chat.user_menu.profile']()}
+        onclick={() => (ownProfileOpen = true)}
       >
         <span class="flex min-w-0 items-center gap-1.5 overflow-hidden text-sm font-semibold">
           <span class="min-w-0 truncate">{displayName}</span>
           <UserCustomStatusBadge status={activeServerUser.customStatus} class="text-xs" />
         </span>
         <span class="truncate text-xs text-muted">@{login}</span>
-      </div>
+      </button>
       <a
         href={resolve('/chat/[serverId]/settings', { serverId: serverSegment })}
         title={m['voice.user_settings']()}
@@ -361,6 +366,13 @@ to the user settings page for the active server.
       </a>
     </div>
   </div>
+{/if}
+
+{#if ownProfileOpen && activeServerUser}
+  <UserContextMenu
+    user={{ ...activeServerUser, presenceStatus: currentPresence }}
+    onClose={() => (ownProfileOpen = false)}
+  />
 {/if}
 
 {#if statusMenuAnchor && activeServerUser}

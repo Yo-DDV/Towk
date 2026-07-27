@@ -386,12 +386,12 @@ func TestChattoCore_DefaultAllMessagesNotifiesJoinedChannelMembers(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetNotifications(thread reply): %v", err)
 	}
-	if len(notifications) != 2 {
-		t.Fatalf("notifications after thread reply = %d, want 2", len(notifications))
+	if len(notifications) != 1 {
+		t.Fatalf("notifications after unfollowed thread reply = %d, want only the root room notification: %+v", len(notifications), notifications)
 	}
-	threadNotification := notifications[0].GetRoomMessage()
-	if threadNotification == nil || threadNotification.GetRoomId() != room.Id || threadNotification.GetEventId() != threadReply.Id || threadNotification.GetInThread() != posted.Id {
-		t.Fatalf("thread notification = %+v, want room %s event %s thread %s", notifications[0], room.Id, threadReply.Id, posted.Id)
+	roomMessage = notifications[0].GetRoomMessage()
+	if roomMessage == nil || roomMessage.GetRoomId() != room.Id || roomMessage.GetEventId() != posted.Id || roomMessage.GetInThread() != "" {
+		t.Fatalf("notification after unfollowed thread reply = %+v, want only root room event %s", notifications[0], posted.Id)
 	}
 
 	threadReplyTime, err := core.GetEventTimestamp(ctx, KindChannel, room.Id, threadReply.Id)
@@ -405,11 +405,37 @@ func TestChattoCore_DefaultAllMessagesNotifiesJoinedChannelMembers(t *testing.T)
 	if err != nil {
 		t.Fatalf("GetNotifications(after room read): %v", err)
 	}
-	if len(notifications) != 1 || notifications[0].GetRoomMessage().GetInThread() != posted.Id {
-		t.Fatalf("notifications after room read = %+v, want thread notification only", notifications)
+	if len(notifications) != 0 {
+		t.Fatalf("notifications after room read = %+v, want none for unfollowed thread reply", notifications)
 	}
-	if got := core.DismissThreadReadNotifications(ctx, KindChannel, recipient.Id, room.Id, posted.Id, threadReplyTime); got != 1 {
-		t.Fatalf("DismissThreadReadNotifications = %d, want thread notification", got)
+	if got := core.DismissThreadReadNotifications(ctx, KindChannel, recipient.Id, room.Id, posted.Id, threadReplyTime); got != 0 {
+		t.Fatalf("DismissThreadReadNotifications = %d, want no unfollowed thread notification", got)
+	}
+
+	if err := core.FollowThread(ctx, KindChannel, recipient.Id, room.Id, posted.Id); err != nil {
+		t.Fatalf("FollowThread(recipient): %v", err)
+	}
+	followedReply, err := core.PostMessage(ctx, KindChannel, room.Id, author.Id, "followed thread notification", nil, posted.Id, "", nil, false)
+	if err != nil {
+		t.Fatalf("PostMessage(followed thread reply): %v", err)
+	}
+	notifications, err = core.GetNotifications(ctx, recipient.Id)
+	if err != nil {
+		t.Fatalf("GetNotifications(followed thread reply): %v", err)
+	}
+	if len(notifications) != 1 {
+		t.Fatalf("notifications after followed thread reply = %d, want 1: %+v", len(notifications), notifications)
+	}
+	replyNotification := notifications[0].GetReply()
+	if replyNotification == nil || replyNotification.GetRoomId() != room.Id || replyNotification.GetEventId() != followedReply.Id || replyNotification.GetInThread() != posted.Id {
+		t.Fatalf("followed thread notification = %+v, want reply event %s thread %s", notifications[0], followedReply.Id, posted.Id)
+	}
+	followedReplyTime, err := core.GetEventTimestamp(ctx, KindChannel, room.Id, followedReply.Id)
+	if err != nil {
+		t.Fatalf("GetEventTimestamp(followed reply): %v", err)
+	}
+	if got := core.DismissThreadReadNotifications(ctx, KindChannel, recipient.Id, room.Id, posted.Id, followedReplyTime); got != 1 {
+		t.Fatalf("DismissThreadReadNotifications(followed) = %d, want thread notification", got)
 	}
 
 	if err := core.SetSpaceNotificationLevel(ctx, recipient.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_NORMAL); err != nil {
@@ -709,9 +735,23 @@ func TestChattoCore_DefaultAllMessagesDoesNotDuplicateThreadEcho(t *testing.T) {
 	if len(notifications) != 1 {
 		t.Fatalf("notifications for one echoed reply = %d, want exactly 1: %+v", len(notifications), notifications)
 	}
+	events, err := core.GetRoomEvents(ctx, KindChannel, room.Id, 50, nil)
+	if err != nil {
+		t.Fatalf("GetRoomEvents: %v", err)
+	}
+	echoEventID := ""
+	for _, event := range events.Events {
+		if message := event.GetMessagePosted(); message != nil && message.GetEchoOfEventId() == reply.Id {
+			echoEventID = event.Id
+			break
+		}
+	}
+	if echoEventID == "" {
+		t.Fatalf("missing channel echo for reply %s", reply.Id)
+	}
 	roomMessage := notifications[0].GetRoomMessage()
-	if roomMessage == nil || roomMessage.GetEventId() != reply.Id || roomMessage.GetInThread() != root.Id {
-		t.Fatalf("notification = %+v, want original reply %s in thread %s", notifications[0], reply.Id, root.Id)
+	if roomMessage == nil || roomMessage.GetEventId() != echoEventID || roomMessage.GetInThread() != "" {
+		t.Fatalf("notification = %+v, want root-scope channel echo %s", notifications[0], echoEventID)
 	}
 }
 
@@ -757,12 +797,8 @@ func TestChattoCore_DefaultAllMessagesDoesNotRenotifyWhenThreadEchoIsEnabledLate
 	if err != nil {
 		t.Fatalf("GetNotifications: %v", err)
 	}
-	if len(notifications) != 1 {
-		t.Fatalf("notifications after enabling echo = %d, want exactly 1: %+v", len(notifications), notifications)
-	}
-	roomMessage := notifications[0].GetRoomMessage()
-	if roomMessage == nil || roomMessage.GetEventId() != reply.Id || roomMessage.GetInThread() != root.Id {
-		t.Fatalf("notification = %+v, want original reply %s in thread %s", notifications[0], reply.Id, root.Id)
+	if len(notifications) != 0 {
+		t.Fatalf("notifications after enabling echo = %d, want none for unfollowed historical thread reply: %+v", len(notifications), notifications)
 	}
 }
 

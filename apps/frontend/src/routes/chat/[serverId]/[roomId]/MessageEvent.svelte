@@ -11,6 +11,7 @@
   import ContextMenu from '$lib/ui/ContextMenu.svelte';
   import { useRenderData } from '$lib/render/data';
   import type { RoomEventView } from '$lib/render/types';
+  import type { ReadReceiptSummary } from '$lib/api-client/readState';
   import {
     getRoomPermissions,
     getRoomMembers,
@@ -55,6 +56,7 @@
   import { shouldHighlightCurrentUserMention } from './messageMentionHighlight';
   import { roomReplyTargetEventId } from './messageReplyTarget';
   import { selectedQuoteTextForMessageBody } from './selectedReplyQuote';
+  import { canEditMessage } from './messageEditPolicy';
   import type { OpenThreadHandler } from './threadOpenOptions';
   import { createThreadAPI } from '$lib/api-client/threads';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
@@ -71,7 +73,9 @@
     roomId,
     messageStore = null,
     onOpenThread,
-    threadHasUnread
+    threadHasUnread,
+    readReceiptSummary = null,
+    readReceiptThreadRootEventId = null
   }: {
     event: RoomEventView;
     compact?: boolean;
@@ -79,6 +83,8 @@
     messageStore?: MessagesStore | null;
     onOpenThread?: OpenThreadHandler;
     threadHasUnread?: boolean;
+    readReceiptSummary?: ReadReceiptSummary | null;
+    readReceiptThreadRootEventId?: string | null;
   } = $props();
 
   const connection = useConnection();
@@ -115,11 +121,15 @@
   // messages requires message.manage.
   const isAuthor = $derived(currentUser.user?.id === event?.actorId);
   const canEdit = $derived(
-    (isAuthor &&
-      event &&
-      Date.now() - new Date(event.createdAt).getTime() <
-        serverInfo.messageEditWindowSeconds * 1000) ||
-      roomPermissions.canManageOthersMessage
+    event
+      ? canEditMessage({
+          isAuthor,
+          canManageOthersMessage: roomPermissions.canManageOthersMessage,
+          createdAt: event.createdAt,
+          messageEditWindowSeconds: serverInfo.messageEditWindowSeconds,
+          nowMs: Date.now()
+        })
+      : false
   );
   const canDelete = $derived(isAuthor || roomPermissions.canManageOthersMessage);
 
@@ -430,7 +440,8 @@
   const hasMessageFooter = $derived(
     (isEcho && !!onOpenThread) ||
       (hasReplies && !!onOpenThread) ||
-      (msg?.reactions?.length ?? 0) > 0
+      (msg?.reactions?.length ?? 0) > 0 ||
+      (readReceiptSummary?.readerCount ?? 0) > 0
   );
 
   // Check if current user is mentioned (but not by themselves)
@@ -890,6 +901,8 @@
             onOpenThread={onOpenThread ? handleOpenThread : undefined}
             onOpenEmojiPicker={roomPermissions.canReact ? openEmojiPickerFromEvent : undefined}
             isEchoEvent={isEcho}
+            {readReceiptSummary}
+            {readReceiptThreadRootEventId}
           />
         {/if}
       </div>

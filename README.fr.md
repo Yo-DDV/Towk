@@ -24,13 +24,13 @@
     <a href="ROADMAP.md"><img src="https://img.shields.io/badge/statut-pr%C3%A9--1.0-f4a261?style=flat-square" alt="Statut du projet : pré-1.0" /></a>
     <img src="https://img.shields.io/badge/d%C3%A9ploiement-auto--h%C3%A9berg%C3%A9-43d8b0?style=flat-square" alt="Auto-hébergé" />
     <img src="https://img.shields.io/badge/client-PWA%20installable-4aa8ff?style=flat-square" alt="Application web progressive installable" />
-    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/activit%C3%A9-actualis%C3%A9e%202%C3%97%20par%20jour-7867f2?style=flat-square" alt="Activité du dépôt actualisée deux fois par jour" /></a>
+    <a href=".github/workflows/refresh-readme-metrics.yml"><img src="https://img.shields.io/badge/activity-GitHub%20Actions%20%2F%206h-7867f2?style=flat-square" alt="Activité du dépôt actualisée par GitHub Actions toutes les six heures" /></a>
     <a href="LICENSING.md"><img src="https://img.shields.io/badge/licence-AGPL--3.0--or--later%20%2B%20Apache--2.0-8250df?style=flat-square" alt="AGPL-3.0-or-later avec surfaces Apache-2.0" /></a>
   </p>
 
   <p>
     <a href="#why-towk">Pourquoi Towk</a> ·
-    <a href="#development-pulse">Dynamique</a> ·
+    <a href="#repository-activity">Activité du dépôt</a> ·
     <a href="#capabilities">Fonctionnalités</a> ·
     <a href="#architecture">Architecture</a> ·
     <a href="#run-towk">Lancer Towk</a> ·
@@ -95,42 +95,46 @@ constitue une alternative open source ciblée pour les équipes et communautés 
 souhaitent exploiter elles-mêmes leur espace de communication — sans prétendre
 remplacer chaque fonctionnalité de chaque plateforme collaborative.
 
-<a id="development-pulse"></a>
-## Dynamique du développement
+<a id="repository-activity"></a>
+## Activité du dépôt
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/fr/activity-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/fr/activity.svg" width="100%" alt="Activité de développement de Towk avec graphiques des commits quotidiens, hebdomadaires et mensuels et des pull requests" />
-</picture>
-
-<picture>
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/fr/contributors-mobile.svg" />
-  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/fr/contributors.svg" width="100%" alt="Auteurs des commits et des pull requests fusionnées de Towk depuis la fondation publique du dépôt autonome" />
+  <img src="https://raw.githubusercontent.com/Yo-DDV/Towk/readme-metrics/fr/activity.svg" width="100%" alt="Activité du dépôt Towk sur les 30 derniers jours UTC : commits, pull requests fusionnées, issues fermées, contributeurs actifs, mouvement du code et flux des pull requests" />
 </picture>
 
 <details>
   <summary><strong>Comment ces métriques sont produites</strong></summary>
 
-  Le dépôt génère lui-même ces SVG à partir de l’API GitHub avec son
-  `GITHUB_TOKEN` limité au dépôt ; aucun jeton personnel ni service de statistiques
-  externe n’est utilisé. Le workflow s’exécute après chaque push sur `main` et est
-  planifié approximativement à **06 h 17 et 21 h 17, heure de Paris**, chaque jour.
+  Le dépôt génère lui-même ce SVG et son instantané lisible par machine à
+  partir de son historique Git et de l’API GitHub, avec le `GITHUB_TOKEN` limité
+  du workflow ; aucun jeton personnel ni service de statistiques externe n’est
+  utilisé. Le workflow s’exécute après chaque push sur `main`, approximativement
+  toutes les six heures, ainsi qu’à la demande.
 
-  Les compteurs principaux et les classements commencent après le commit public de
-  fondation du dépôt autonome `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, fusionné le 12 juillet 2026.
-  L’historique hérité de Chatto n’est ainsi pas présenté comme de l’activité Towk
-  actuelle. Les graphiques conservent des vues glissantes sur 30 jours, 12 semaines
-  et 12 mois ; les périodes antérieures à cette fondation apparaissent à zéro. Les
-  commits sont sélectionnés topologiquement depuis `main` après ce commit, puis
-  regroupés selon leur horodatage de commit en UTC. Les pull requests sont comptées
-  selon `merged_at` après l’horodatage de fondation. Les classements utilisent
-  l’identifiant GitHub lorsqu’il existe, sinon le nom public de l’auteur du commit.
-  Les robots détectés sont exclus des classements humains et présentés séparément.
-  Ces chiffres décrivent l’activité du dépôt et l’attribution Git, pas l’effort
-  individuel. Les messages de commit et les adresses électroniques ne sont pas
-  écrits sur la branche générée.
+  Toutes les valeurs principales et tous les graphiques utilisent la même fenêtre
+  glissante de **30 jours UTC**. Le point de départ public du dépôt autonome est le
+  commit `205e91fe1ae5e5c23420974f7e04cf82456eeab3`, fusionné le 12 juillet 2026 ; tant qu’il se trouve
+  dans cette fenêtre, les jours antérieurs restent à zéro afin de ne pas présenter
+  l’historique hérité de Chatto comme de l’activité Towk actuelle. Le jour UTC en
+  cours est explicitement signalé comme partiel.
 
-  Les SVG et l’instantané lisible par machine sont publiés sur la branche
+  Les commits sont sélectionnés topologiquement depuis `main` et regroupés selon
+  leur horodatage de commit. Les ajouts, suppressions et nombres de fichiers
+  modifiés proviennent de Git `--numstat` ; un fichier binaire compte comme
+  fichier modifié sans inventer de total de lignes. Les pull requests sont comptées
+  selon `merged_at` lorsqu’elles sont fusionnées dans `main`, et les issues selon
+  `closed_at`, pull requests exclues. Le délai de fusion va de `created_at` à
+  `merged_at`. Le délai de première revue va de `created_at` à la première revue
+  soumise par une personne différente de l’auteur ; les pull requests sans revue
+  correspondante sont exclues de cette médiane. Les contributeurs actifs sont les
+  auteurs humains distincts de commits et de PR fusionnées sur la période. Les
+  robots sont exclus uniquement de ce nombre humain ; les totaux du dépôt incluent
+  l’automatisation.
+
+  Ces chiffres décrivent l’activité du dépôt, pas l’effort individuel. Les messages
+  de commit, adresses électroniques, corps de revue et classements d’auteurs ne sont
+  pas écrits sur la branche générée. Les SVG et l’instantané sont publiés sur
   [`readme-metrics`](https://github.com/Yo-DDV/Towk/tree/readme-metrics).
 </details>
 

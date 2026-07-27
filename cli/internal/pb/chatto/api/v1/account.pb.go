@@ -31,9 +31,13 @@ type UpdateProfileRequest struct {
 	DisplayName *string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3,oneof" json:"display_name,omitempty"`
 	// New login identifier, when changing it. The server accepts ASCII letters,
 	// digits, period, underscore, and hyphen, starting with a letter or digit.
-	Login         *string `protobuf:"bytes,2,opt,name=login,proto3,oneof" json:"login,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Login *string `protobuf:"bytes,2,opt,name=login,proto3,oneof" json:"login,omitempty"`
+	// Markdown biography. Empty clears the biography. Supported clients and
+	// the core enforce at most 1,024 Unicode code points and 4 KiB of UTF-8.
+	// Raw HTML and remote images are not rendered by supported clients.
+	BiographyMarkdown *string `protobuf:"bytes,3,opt,name=biography_markdown,json=biographyMarkdown,proto3,oneof" json:"biography_markdown,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *UpdateProfileRequest) Reset() {
@@ -76,6 +80,13 @@ func (x *UpdateProfileRequest) GetDisplayName() string {
 func (x *UpdateProfileRequest) GetLogin() string {
 	if x != nil && x.Login != nil {
 		return *x.Login
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetBiographyMarkdown() string {
+	if x != nil && x.BiographyMarkdown != nil {
+		return *x.BiographyMarkdown
 	}
 	return ""
 }
@@ -411,9 +422,14 @@ type UpdateSettingsRequest struct {
 	// IANA timezone override. Empty clears the override.
 	Timezone *string `protobuf:"bytes,1,opt,name=timezone,proto3,oneof" json:"timezone,omitempty"`
 	// Preferred time format.
-	TimeFormat    *TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat,oneof" json:"time_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TimeFormat *TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.api.v1.TimeFormat,oneof" json:"time_format,omitempty"`
+	// Whether other authenticated server members may see last activity.
+	// Absent stored state is treated as enabled for upgrade compatibility.
+	ShowLastActivity *bool `protobuf:"varint,3,opt,name=show_last_activity,json=showLastActivity,proto3,oneof" json:"show_last_activity,omitempty"`
+	// Enables or disables reciprocal public read receipts for this account.
+	ReadReceiptsEnabled *bool `protobuf:"varint,4,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3,oneof" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *UpdateSettingsRequest) Reset() {
@@ -458,6 +474,20 @@ func (x *UpdateSettingsRequest) GetTimeFormat() TimeFormat {
 		return *x.TimeFormat
 	}
 	return TimeFormat_TIME_FORMAT_UNSPECIFIED
+}
+
+func (x *UpdateSettingsRequest) GetShowLastActivity() bool {
+	if x != nil && x.ShowLastActivity != nil {
+		return *x.ShowLastActivity
+	}
+	return false
+}
+
+func (x *UpdateSettingsRequest) GetReadReceiptsEnabled() bool {
+	if x != nil && x.ReadReceiptsEnabled != nil {
+		return *x.ReadReceiptsEnabled
+	}
+	return false
 }
 
 // Result of updating display preferences.
@@ -698,12 +728,14 @@ var File_chatto_api_v1_account_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_account_proto_rawDesc = "" +
 	"\n" +
-	"\x1bchatto/api/v1/account.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a'chatto/api/v1/external_identities.proto\x1a\x1cchatto/api/v1/presence.proto\x1a\x1fchatto/api/v1/user_status.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1achatto/api/v1/viewer.proto\"\x88\x01\n" +
+	"\x1bchatto/api/v1/account.proto\x12\rchatto.api.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1achatto/api/v1/common.proto\x1a'chatto/api/v1/external_identities.proto\x1a\x1cchatto/api/v1/presence.proto\x1a\x1fchatto/api/v1/user_status.proto\x1a\x19chatto/api/v1/users.proto\x1a\x1achatto/api/v1/viewer.proto\"\xdd\x01\n" +
 	"\x14UpdateProfileRequest\x12/\n" +
 	"\fdisplay_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x18 H\x00R\vdisplayName\x88\x01\x01\x12$\n" +
-	"\x05login\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18 H\x01R\x05login\x88\x01\x01B\x0f\n" +
+	"\x05login\x18\x02 \x01(\tB\t\xbaH\x06r\x04\x10\x02\x18 H\x01R\x05login\x88\x01\x01\x12<\n" +
+	"\x12biography_markdown\x18\x03 \x01(\tB\b\xbaH\x05r\x03(\x80 H\x02R\x11biographyMarkdown\x88\x01\x01B\x0f\n" +
 	"\r_display_nameB\b\n" +
-	"\x06_login\"@\n" +
+	"\x06_loginB\x15\n" +
+	"\x13_biography_markdown\"@\n" +
 	"\x15UpdateProfileResponse\x12'\n" +
 	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\"e\n" +
 	"\x13UploadAvatarRequest\x120\n" +
@@ -718,13 +750,17 @@ const file_chatto_api_v1_account_proto_rawDesc = "" +
 	"\xbaH\ar\x05\x10\b\x18\x80\x01R\bpassword\x123\n" +
 	"\x10current_password\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80\x01R\x0fcurrentPassword\"A\n" +
 	"\x16UpdatePasswordResponse\x12'\n" +
-	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\"\x96\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x13.chatto.api.v1.UserR\x04user\"\xb3\x02\n" +
 	"\x15UpdateSettingsRequest\x12\x1f\n" +
 	"\btimezone\x18\x01 \x01(\tH\x00R\btimezone\x88\x01\x01\x12?\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x19.chatto.api.v1.TimeFormatH\x01R\n" +
-	"timeFormat\x88\x01\x01B\v\n" +
+	"timeFormat\x88\x01\x01\x121\n" +
+	"\x12show_last_activity\x18\x03 \x01(\bH\x02R\x10showLastActivity\x88\x01\x01\x127\n" +
+	"\x15read_receipts_enabled\x18\x04 \x01(\bH\x03R\x13readReceiptsEnabled\x88\x01\x01B\v\n" +
 	"\t_timezoneB\x0e\n" +
-	"\f_time_format\"Q\n" +
+	"\f_time_formatB\x15\n" +
+	"\x13_show_last_activityB\x18\n" +
+	"\x16_read_receipts_enabled\"Q\n" +
 	"\x16UpdateSettingsResponse\x127\n" +
 	"\bsettings\x18\x01 \x01(\v2\x1b.chatto.api.v1.UserSettingsR\bsettings\"T\n" +
 	"\x1dRequestAccountDeletionRequest\x123\n" +

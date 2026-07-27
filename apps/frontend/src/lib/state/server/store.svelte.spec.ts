@@ -96,7 +96,8 @@ const { soundMocks, apiMocks } = vi.hoisted(() => ({
         viewerCanDeleteAnyUser: false,
         viewerCanDeleteSelf: false,
         viewerCanManageUserPermissions: false,
-        viewerHasUnreadRooms: false
+        viewerHasUnreadRooms: false,
+        readReceiptsEnabled: false
       })
     ),
     getViewerStateViaConnect: vi.fn(() =>
@@ -403,7 +404,8 @@ beforeEach(() => {
     viewerCanDeleteAnyUser: false,
     viewerCanDeleteSelf: false,
     viewerCanManageUserPermissions: false,
-    viewerHasUnreadRooms: false
+    viewerHasUnreadRooms: false,
+    readReceiptsEnabled: false
   });
   apiMocks.getViewerStateViaConnect.mockResolvedValue({
     user: {

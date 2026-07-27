@@ -10,6 +10,7 @@ import { PresenceStatus } from '$lib/render/types';
 import { RoomEventKind } from '$lib/render/eventKinds';
 import { pwaOutbox } from '$lib/pwa/outbox.svelte';
 import { sidebarNav } from '$lib/state/globals.svelte';
+import { Code, ConnectError } from '@connectrpc/connect';
 
 function postedMessageEvent(
   id = 'msg_123',
@@ -1326,6 +1327,29 @@ describe('MessageComposer', () => {
         eventId: 'evt_edit',
         body: 'original body'
       });
+    });
+
+    it('exits edit mode and localizes an expired edit-window rejection', async () => {
+      roomStateMock.editState.eventId = 'evt_expired';
+      roomStateMock.editState.originalBody = 'original body';
+      updateMessageConnectMock.mockRejectedValueOnce(
+        new ConnectError('edit window has expired', Code.FailedPrecondition)
+      );
+
+      const { container } = renderMessageComposer({ roomId: 'room_456' });
+      const editor = await findEditor(container);
+
+      await expect.element(editor).toHaveTextContent('original body');
+      (q(container, 'button[aria-label="Send message"]') as HTMLButtonElement).click();
+
+      await vi.waitFor(() => expect(updateMessageConnectMock).toHaveBeenCalledOnce());
+      expect(roomStateMock.editState.cancelEdit).toHaveBeenCalledOnce();
+      expect(getToasts().map((entry) => entry.message)).toContain(
+        'This message can no longer be edited because the edit window has expired.'
+      );
+      expect(getToasts().map((entry) => entry.message)).not.toContain(
+        '[failed_precondition] edit window has expired'
+      );
     });
 
     it('can force rich keyboard behavior while editing plain text', async () => {

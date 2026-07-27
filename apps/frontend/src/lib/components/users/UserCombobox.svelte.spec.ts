@@ -17,7 +17,8 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
 vi.mock('$lib/api-client/memberDirectory', () => ({
   createMemberDirectoryAPI: () => ({
     listUsers: mocks.listUsers
-  })
+  }),
+  mapDirectoryMember: (member: unknown) => member
 }));
 
 async function settle() {
@@ -68,5 +69,22 @@ describe('UserCombobox', () => {
     await settle();
 
     expect(mocks.listUsers).toHaveBeenCalledWith('alice', 10, 0);
+  });
+  it('renders a separate profile action without changing the actor selection', async () => {
+    const { container } = render(UserCombobox, {
+      props: {
+        id: 'actor',
+        label: 'Actor'
+      }
+    });
+
+    const input = container.querySelector('input') as HTMLInputElement;
+    input.value = 'alice';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await vi.advanceTimersByTimeAsync(220);
+    await settle();
+
+    expect(container.querySelector('[data-testid="user-combobox-profile-user-1"]')).not.toBeNull();
+    expect(input.value).toBe('alice');
   });
 });

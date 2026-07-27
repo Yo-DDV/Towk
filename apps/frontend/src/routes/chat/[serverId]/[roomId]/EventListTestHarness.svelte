@@ -25,7 +25,8 @@
     onLoadMore,
     updateCounter = 0,
     pendingHighlightId = null,
-    isReconcilingCachedData = false
+    isReconcilingCachedData = false,
+    readReceiptsEnabled = true
   }: {
     eventIds: string[];
     roomId?: string;
@@ -43,11 +44,17 @@
     updateCounter?: number;
     pendingHighlightId?: string | null;
     isReconcilingCachedData?: boolean;
+    readReceiptsEnabled?: boolean;
   } = $props();
 
   createComposerContext({ scroll: true });
   createRoomPermissions(() => DEFAULT_ROOM_PERMISSIONS);
-  setUserSettings(new UserSettingsState());
+  const userSettings = new UserSettingsState();
+  setUserSettings(userSettings);
+
+  $effect(() => {
+    userSettings.readReceiptsEnabled = readReceiptsEnabled;
+  });
 
   const events = $derived(
     eventIds.map((id): RoomEventView => ({

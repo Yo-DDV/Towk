@@ -196,6 +196,16 @@ describe('MentionAutocomplete', () => {
   });
 
   describe('selection', () => {
+    it('renders a distinct profile affordance for user results', () => {
+      const { container } = renderAutocomplete({
+        query: 'alice',
+        members: [member('alice')]
+      });
+
+      expect(container.querySelector('[data-testid="mention-profile-u_alice"]')).not.toBeNull();
+      expect(container.querySelectorAll('.menu-item')).toHaveLength(1);
+    });
+
     it('clicking a result calls onSelect with viaTab=false', () => {
       const onSelect = vi.fn();
       const { container } = renderAutocomplete({

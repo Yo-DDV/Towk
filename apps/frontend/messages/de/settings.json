@@ -102,7 +102,36 @@
       },
       "saved": "Profil erfolgreich aktualisiert",
       "save_failed": "Profil konnte nicht gespeichert werden",
-      "save_button": "Änderungen speichern"
+      "save_button": "Änderungen speichern",
+      "details": {
+        "load_failed": "Profildetails konnten nicht geladen werden.",
+        "biography_title": "Biografie",
+        "biography_description": "Verfasse eine kurze Markdown-Biografie für dein Serverprofil (höchstens 1.024 Zeichen). Rohes HTML und entfernte Bilder werden nicht dargestellt.",
+        "formatting_toolbar": "Biografie formatieren",
+        "bold": "Fett",
+        "italic": "Kursiv",
+        "heading": "Überschrift",
+        "bullet_list": "Aufzählung",
+        "numbered_list": "Nummerierte Liste",
+        "quote": "Zitat",
+        "link_text": "Linktext",
+        "add_link": "Link hinzufügen",
+        "inline_code": "Inline-Code",
+        "biography_label": "Biografie in Markdown",
+        "biography_placeholder": "Erzähle den anderen Mitgliedern etwas über dich…",
+        "byte_count": "{used} von {limit} Bytes",
+        "preview": "Vorschau",
+        "biography_too_large": "Die Biografie ist auf 1.024 Zeichen und 4 KiB UTF-8 begrenzt.",
+        "biography_saved": "Biografie gespeichert.",
+        "save_failed": "Profildetails konnten nicht gespeichert werden.",
+        "save_biography": "Biografie speichern",
+        "privacy_title": "Aktivitätsdatenschutz",
+        "show_last_activity": "Meine letzte Aktivität anzeigen",
+        "show_last_activity_description": "Erlaube angemeldeten Mitgliedern dieses Servers, deine zuletzt zusammengefasste Aktivitätszeit zu sehen. Beim Ausschalten wird der gespeicherte Wert entfernt.",
+        "privacy_saved": "Aktivitätsdatenschutz gespeichert.",
+        "save_privacy": "Datenschutz speichern",
+        "character_count": "{used} von {limit} Zeichen"
+      }
     },
     "preferences": {
       "title": "Darstellung",
@@ -157,7 +186,13 @@
       },
       "save_button": "Darstellung speichern",
       "saved": "Darstellungseinstellungen gespeichert",
-      "save_failed": "Darstellungseinstellungen konnten nicht gespeichert werden"
+      "save_failed": "Darstellungseinstellungen konnten nicht gespeichert werden",
+      "read_receipts": {
+        "title": "Lesebestätigungen",
+        "enabled_label": "Lesebestätigungen veröffentlichen",
+        "disabled_label": "Lesebestätigungen privat halten",
+        "description": "Wenn diese Option aktiviert ist, sehen andere Mitglieder, wann du ihre Nachrichten gelesen hast, und du kannst Bestätigungen für zugängliche Nachrichten ansehen."
+      }
     },
     "notifications": {
       "title": "Benachrichtigungen",

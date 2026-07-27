@@ -198,6 +198,10 @@ func (cm *ConfigManager) effectiveConfigForUpdate() *configv1.ServerConfig {
 		cfg = &configv1.ServerConfig{}
 	}
 	cfg.BlockedUsernames = cm.projection.EffectiveBlockedUsernames()
+	if cfg.ReadReceiptsEnabled == nil {
+		enabled := true
+		cfg.ReadReceiptsEnabled = &enabled
+	}
 	return cfg
 }
 
@@ -252,7 +256,21 @@ func serverConfigEvents(actorID string, current, next *configv1.ServerConfig) []
 			},
 		}}))
 	}
+	if effectiveReadReceiptsEnabled(current) != effectiveReadReceiptsEnabled(next) {
+		evs = append(evs, newEvent(actorID, &corev1.Event{Event: &corev1.Event_ServerReadReceiptsEnabledChanged{
+			ServerReadReceiptsEnabledChanged: &corev1.ServerReadReceiptsEnabledChangedEvent{
+				Enabled: effectiveReadReceiptsEnabled(next),
+			},
+		}}))
+	}
 	return evs
+}
+
+func effectiveReadReceiptsEnabled(cfg *configv1.ServerConfig) bool {
+	if cfg == nil || cfg.ReadReceiptsEnabled == nil {
+		return true
+	}
+	return cfg.GetReadReceiptsEnabled()
 }
 
 // =============================================================================
@@ -298,6 +316,16 @@ func (cm *ConfigManager) GetEffectiveDescription(_ context.Context) (string, err
 		return DefaultDescription, nil
 	}
 	return cm.projection.EffectiveDescription(), nil
+}
+
+// GetEffectiveReadReceiptsEnabled returns the server-wide receipt policy.
+// The feature is enabled when no explicit setting has been stored.
+func (cm *ConfigManager) GetEffectiveReadReceiptsEnabled(_ context.Context) (bool, error) {
+	if cm.projection == nil {
+		return true, nil
+	}
+	enabled, _ := cm.projection.ReadReceiptServerPolicy()
+	return enabled, nil
 }
 
 // =============================================================================

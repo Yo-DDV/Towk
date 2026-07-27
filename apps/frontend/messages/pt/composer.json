@@ -55,6 +55,7 @@
       "too_large": "Esta mensagem de voz é demasiado grande para enviar. Grave uma mensagem mais curta."
     },
     "edit_failed": "Falha ao editar a mensagem",
+    "edit_window_expired": "Esta mensagem já não pode ser editada porque a janela de edição expirou.",
     "mention": {
       "all_room_members": "Todos os membros da sala",
       "members_here": "Membros atualmente aqui",

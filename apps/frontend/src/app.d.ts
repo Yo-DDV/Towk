@@ -8,6 +8,7 @@ declare global {
     interface PageState {
       notificationServerId?: string;
       notificationSidebarOpen?: boolean;
+      profileDialog?: string;
       threadFilter?: 'all' | 'unread';
       welcome?: boolean;
       modal?: {

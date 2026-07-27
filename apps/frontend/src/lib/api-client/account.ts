@@ -24,16 +24,21 @@ export type AccountUser = {
 export type AccountUserSettings = {
   timezone?: string | null;
   timeFormat: TimeFormat;
+  readReceiptsEnabled: boolean;
+  showLastActivity: boolean;
 };
 
 export type UpdateProfileInput = {
   displayName?: string;
   login?: string;
+  biographyMarkdown?: string;
 };
 
 export type UpdateSettingsInput = {
   timezone?: string | null;
   timeFormat?: TimeFormat;
+  readReceiptsEnabled?: boolean;
+  showLastActivity?: boolean;
 };
 
 export type UpdatePasswordInput = {
@@ -83,7 +88,10 @@ export function createAccountAPI(config: AccountAPIConfig) {
       const response = await client.updateSettings(
         {
           timezone: input.timezone === null ? '' : input.timezone,
-          timeFormat: input.timeFormat === undefined ? undefined : timeFormatToAPI(input.timeFormat)
+          timeFormat:
+            input.timeFormat === undefined ? undefined : timeFormatToAPI(input.timeFormat),
+          readReceiptsEnabled: input.readReceiptsEnabled,
+          showLastActivity: input.showLastActivity
         },
         { headers: headers() }
       );
@@ -129,7 +137,9 @@ function accountUser(user: APIUser | undefined): AccountUser {
 function userSettings(settings: APIUserSettings | undefined): AccountUserSettings {
   return {
     timezone: settings?.timezone ?? null,
-    timeFormat: settings ? apiTimeFormat(settings.timeFormat) : TimeFormat.Auto
+    timeFormat: settings ? apiTimeFormat(settings.timeFormat) : TimeFormat.Auto,
+    readReceiptsEnabled: settings?.readReceiptsEnabled ?? true,
+    showLastActivity: settings?.showLastActivity ?? true
   };
 }
 
