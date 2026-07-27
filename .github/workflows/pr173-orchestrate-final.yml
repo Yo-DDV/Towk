@@ -1,0 +1,37 @@
+name: pr173 terminal orchestration
+
+on:
+  push:
+    branches:
+      - feat/read-receipts
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: pr173-terminal-orchestration
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: ${{ contains(github.event.head_commit.message, '[run pr173-orchestrate-final]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Reconstruct, validate, publish, and qualify terminal head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: bash .github/pr173-orchestrate-final.sh
