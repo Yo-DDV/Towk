@@ -106,12 +106,15 @@ test('catalog audit rejects known register and dialect regressions', () => {
 test('catalog audit rejects European Portuguese wording in the pt-BR catalog', () => {
   const values = [
     'A preparar o microfone…',
+    'A abrir a instalação…',
     'A gravar',
     'Autorize-o nas definições do navegador.',
     'A preparar a reprodução…',
     'Esta gravação é demasiado curta.',
     'Esta mensagem é demasiado grande.',
     'Regresse ao Towk.',
+    'Abra como as outras aplicações.',
+    'O Firefox propõe afixá-lo na barra de tarefas.',
     'Este conteúdo partilhado não está disponível.',
     'O conteúdo expirou. Partilhe-o novamente.'
   ];
