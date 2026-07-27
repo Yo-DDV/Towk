@@ -55,6 +55,7 @@
   import MessagePreviewCard from '$lib/components/MessagePreviewCard.svelte';
   import { shouldHighlightCurrentUserMention } from './messageMentionHighlight';
   import { roomReplyTargetEventId } from './messageReplyTarget';
+  import { reactionTriggerTarget } from './messageReactionTrigger';
   import { selectedQuoteTextForMessageBody } from './selectedReplyQuote';
   import { canEditMessage } from './messageEditPolicy';
   import type { OpenThreadHandler } from './threadOpenOptions';
@@ -162,6 +163,13 @@
   }
 
   function openEmojiPickerFromEvent(e: MouseEvent) {
+    if (
+      reactionTriggerTarget((e as PointerEvent).pointerType, canUseHoverActions) === 'action-sheet'
+    ) {
+      showActionSheet = true;
+      return;
+    }
+
     emojiPickerPresentation = 'auto';
     emojiPickerPos = { x: e.clientX, y: e.clientY };
   }
