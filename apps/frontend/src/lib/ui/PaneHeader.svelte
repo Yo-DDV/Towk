@@ -58,7 +58,7 @@ choice).
     /**
      * Render a left-arrow back button before the title. Use for
      * slideover panels and overlays whose "back" doesn't navigate.
-     * Takes precedence over `backHref` when both are provided.
+     * Takes precedence over `backHref` when both are passed.
      */
     onBack?: (event: MouseEvent) => void;
     /** Title attribute / aria-label for the back affordance. */
@@ -70,8 +70,9 @@ choice).
 </script>
 
 <div
+  data-ui="pane-header"
   class={[
-    'flex h-14 shrink-0 items-center justify-between border-b border-border pr-4',
+    'pane-header flex h-14 shrink-0 items-center justify-between border-b border-border pr-4',
     hasBack ? 'pl-2' : 'pl-4'
   ]}
 >

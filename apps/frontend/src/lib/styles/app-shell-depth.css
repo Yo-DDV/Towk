@@ -1,0 +1,11 @@
+/*
+ * Ordered entry point for Towk's depth-aware application material system.
+ * Keep persistent surfaces, controls, interaction states, and accessibility
+ * adaptations split so each layer stays reviewable without changing cascade
+ * order.
+ */
+@import './app-shell-depth.tokens.css';
+@import './app-shell-depth.surfaces.css';
+@import './app-shell-depth.controls.css';
+@import './app-shell-depth.states.css';
+@import './app-shell-depth.preferences.css';

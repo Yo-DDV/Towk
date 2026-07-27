@@ -11,7 +11,8 @@
 </script>
 
 <div
-  class="flex min-h-0 flex-1 bg-background transition-opacity duration-300 md:overflow-hidden md:rounded-2xl md:shadow-lg md:ring-1 md:ring-surface-200/40 {className}"
+  data-testid="app-content-frame"
+  class="app-content-frame flex min-h-0 flex-1 bg-background transition-opacity duration-300 md:overflow-hidden md:rounded-2xl {className}"
 >
   {@render children()}
 </div>

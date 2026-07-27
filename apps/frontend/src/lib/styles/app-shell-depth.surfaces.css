@@ -1,0 +1,229 @@
+/* Application shell ------------------------------------------------------- */
+.app-envelope {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--towk-envelope);
+  background-image: none;
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 1px 0 0 var(--towk-edge-soft),
+    inset -1px 0 0 var(--towk-edge-shadow),
+    inset 0 -1px 0 var(--towk-edge-shadow);
+}
+
+.app-content-frame {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--towk-frame);
+  background-image: none;
+  border-radius: 1.25rem;
+  box-shadow:
+    0 0 0 1px var(--towk-stroke),
+    inset 0 1px 0 var(--towk-edge-light),
+    0 1px 2px var(--towk-key-shadow),
+    0 24px 64px -30px var(--towk-deep-shadow),
+    0 10px 28px -22px var(--towk-ambient-shadow);
+}
+
+/* Persistent surfaces use a stable Mica-like material. Keeping these panes
+ * opaque avoids costly full-height live blur and keeps message text crisp. */
+.app-header,
+.server-gutter,
+.server-sidebar,
+.pane-header,
+[data-testid='room-sidebar-mobile-pane'],
+[data-testid='room-sidebar-desktop-pane'],
+[data-testid='room-sidebar-mobile-pane'] > aside,
+[data-testid='room-sidebar-desktop-pane'] > aside {
+  background-color: var(--towk-navigation);
+  background-image: none;
+}
+
+.server-gutter,
+.server-sidebar,
+[data-testid='room-sidebar-mobile-pane'],
+[data-testid='room-sidebar-desktop-pane'] {
+  --color-background: var(--towk-navigation);
+}
+
+.app-header {
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow),
+    0 8px 20px -20px var(--towk-ambient-shadow);
+}
+
+.server-gutter {
+  border-right-color: var(--towk-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset -1px 0 0 var(--towk-edge-shadow),
+    8px 0 20px -20px var(--towk-ambient-shadow);
+}
+
+.server-sidebar {
+  border-right-color: var(--towk-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset -1px 0 0 var(--towk-edge-shadow),
+    10px 0 24px -22px var(--towk-ambient-shadow);
+}
+
+.pane-header {
+  position: relative;
+  z-index: 20;
+  border-bottom-color: var(--towk-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow),
+    0 8px 18px -19px var(--towk-ambient-shadow);
+}
+
+[data-testid='room-sidebar-mobile-pane'] {
+  border-left-color: var(--towk-stroke-strong);
+  box-shadow:
+    inset 1px 0 0 var(--towk-edge-light),
+    -16px 0 38px -27px var(--towk-deep-shadow);
+}
+
+[data-testid='room-sidebar-desktop-pane'] {
+  border-left: 1px solid var(--towk-stroke);
+  box-shadow:
+    inset 1px 0 0 var(--towk-edge-light),
+    -10px 0 24px -22px var(--towk-ambient-shadow);
+}
+
+[data-testid='room-view-region'] {
+  background-color: var(--towk-canvas);
+  background-image: none;
+}
+
+/* Scroll boundaries ------------------------------------------------------- */
+.scroll-edge-cue {
+  background: transparent;
+  background-image: none;
+}
+
+.scroll-edge-cue[data-edge='top'] {
+  box-shadow:
+    inset 0 1px 0 var(--towk-stroke),
+    inset 0 12px 18px -18px var(--towk-key-shadow);
+}
+
+.scroll-edge-cue[data-edge='bottom'] {
+  box-shadow:
+    inset 0 -1px 0 var(--towk-stroke),
+    inset 0 -12px 18px -18px var(--towk-key-shadow);
+}
+
+/* Reusable content and transient surfaces -------------------------------- */
+.panel-shell,
+.surface-box,
+.checkbox-option,
+.choice-row,
+.meta-badge,
+.menu,
+.floating-tooltip,
+.dialog-tray,
+dialog.bottom-sheet > div {
+  background-image: none;
+  border-color: var(--towk-stroke);
+}
+
+.panel-shell {
+  background-color: var(--towk-content-raised);
+  box-shadow:
+    0 0 0 1px var(--towk-stroke),
+    inset 0 1px 0 var(--towk-edge-light),
+    0 1px 2px var(--towk-key-shadow),
+    0 10px 24px -22px var(--towk-ambient-shadow);
+}
+
+.surface-box,
+.checkbox-option,
+.choice-row,
+.meta-badge {
+  background-color: var(--towk-control-subtle);
+  box-shadow: inset 0 1px 0 var(--towk-edge-light);
+}
+
+.checkbox-option:hover,
+.choice-row:hover {
+  background-color: var(--towk-control-hover);
+  border-color: var(--towk-stroke-strong);
+}
+
+.choice-row-selected {
+  background-color: color-mix(in srgb, var(--color-accent) 10%, var(--towk-control-subtle));
+  border-color: color-mix(in srgb, var(--color-accent) 34%, var(--towk-stroke));
+}
+
+.choice-row-selected:hover {
+  background-color: color-mix(in srgb, var(--color-accent) 14%, var(--towk-control-subtle));
+  border-color: color-mix(in srgb, var(--color-accent) 44%, var(--towk-stroke));
+}
+
+.menu,
+.floating-tooltip,
+.dialog-tray,
+dialog.bottom-sheet > div {
+  background-color: var(--towk-transient-solid);
+  box-shadow:
+    0 0 0 1px var(--towk-stroke),
+    inset 0 1px 0 var(--towk-edge-light),
+    0 2px 4px var(--towk-key-shadow),
+    0 18px 44px -24px var(--towk-deep-shadow),
+    0 8px 22px -18px var(--towk-ambient-shadow);
+}
+
+.dialog-content,
+.menu-section,
+.menu-section-sm {
+  background-color: var(--towk-content-raised);
+  background-image: none;
+}
+
+.surface-pop {
+  box-shadow:
+    0 1px 2px var(--towk-key-shadow),
+    0 10px 24px -20px var(--towk-ambient-shadow);
+}
+
+.embed-frame {
+  background-color: var(--towk-content-raised);
+  background-image: none;
+  border-color: var(--towk-stroke);
+  outline-color: var(--towk-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    0 1px 2px var(--towk-key-shadow),
+    0 10px 22px -20px var(--towk-ambient-shadow);
+}
+
+[data-testid='current-user-call-card'],
+[data-testid='current-user-call-reconnecting'] {
+  background-color: var(--towk-control);
+  background-image: none;
+  border-color: var(--towk-stroke);
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow),
+    0 1px 2px var(--towk-key-shadow),
+    0 8px 18px -16px var(--towk-ambient-shadow);
+}
+
+/* Form fields remain visually inset instead of becoming translucent. */
+.input,
+.textarea {
+  background-image: none;
+  box-shadow:
+    inset 0 1px 2px var(--towk-edge-shadow),
+    0 1px 0 var(--towk-edge-light);
+}
+
+.input:focus,
+.textarea:focus {
+  box-shadow:
+    inset 0 1px 2px var(--towk-edge-shadow),
+    0 0 0 3px var(--towk-focus-neutral);
+}

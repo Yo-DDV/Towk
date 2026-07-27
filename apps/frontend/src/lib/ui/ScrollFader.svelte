@@ -1,11 +1,11 @@
 <!--
 @component
 
-Wraps a scrollable region with edge fade overlays. Provides a
+Wraps a scrollable region with edge depth cues. Provides a
 `position: relative` outer wrapper containing an inner overflow-y-auto
 scroll container; children render inside the scroll container.
 
-- The fades hide automatically when the scroll is at the matching edge.
+- The cues hide automatically when the scroll is at the matching edge.
 - The scroll element is exposed via `bind:scrollEl` so callers can wire
   things that need it (virtua `scrollRef`, scroll-to-bottom logic,
   etc.).
@@ -19,11 +19,11 @@ scroll container; children render inside the scroll container.
 
   type Props = {
     children: Snippet;
-    /** Show the top fade overlay. */
+    /** Show the top edge cue. */
     top?: boolean;
-    /** Show the bottom fade overlay. */
+    /** Show the bottom edge cue. */
     bottom?: boolean;
-    /** Tailwind class for fade height. Default `h-8`. */
+    /** Tailwind class for cue height. Default `h-8`. */
     fadeHeight?: string;
     /** Extra classes for the outer positioning wrapper. */
     class?: string;
@@ -128,8 +128,10 @@ scroll container; children render inside the scroll container.
   {#if top}
     <div
       aria-hidden="true"
+      data-ui="scroll-edge-cue"
+      data-edge="top"
       class={[
-        'pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-background to-transparent transition-opacity',
+        'scroll-edge-cue pointer-events-none absolute inset-x-0 top-0 transition-opacity',
         fadeHeight,
         !scrolledFromTop && 'opacity-0'
       ]}
@@ -138,8 +140,10 @@ scroll container; children render inside the scroll container.
   {#if bottom}
     <div
       aria-hidden="true"
+      data-ui="scroll-edge-cue"
+      data-edge="bottom"
       class={[
-        'pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background to-transparent transition-opacity',
+        'scroll-edge-cue pointer-events-none absolute inset-x-0 bottom-0 transition-opacity',
         fadeHeight,
         !scrolledFromBottom && 'opacity-0'
       ]}
