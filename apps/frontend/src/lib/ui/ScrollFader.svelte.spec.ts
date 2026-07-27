@@ -74,4 +74,25 @@ describe('ScrollFader', () => {
 
     expect(getBottomFade(container).classList.contains('opacity-0')).toBe(true);
   });
+
+  it('recomputes the bottom fade after nested media loads without a scroll event', async () => {
+    const { container, component } = render(ScrollFaderTestHarness);
+
+    const scrollEl = container.querySelector<HTMLElement>('[data-testid="scroll"]');
+    const media = container.querySelector<HTMLImageElement>('[data-testid="media"]');
+    if (!scrollEl || !media) throw new Error('scroll fader harness not rendered');
+
+    component.setScrollMetrics({ scrollTop: 150, scrollHeight: 300, clientHeight: 100 });
+    scrollEl.dispatchEvent(new Event('scroll'));
+    flushSync();
+    expect(getBottomFade(container).classList.contains('opacity-0')).toBe(false);
+
+    component.setScrollMetrics({ scrollTop: 200, scrollHeight: 300, clientHeight: 100 });
+    media.dispatchEvent(new Event('load'));
+    flushSync();
+    await nextFrame();
+    flushSync();
+
+    expect(getBottomFade(container).classList.contains('opacity-0')).toBe(true);
+  });
 });
