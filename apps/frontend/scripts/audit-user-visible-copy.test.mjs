@@ -115,6 +115,10 @@ test('catalog audit rejects European Portuguese wording in the pt-BR catalog', (
     'Regresse ao Towk.',
     'Abra como as outras aplicações.',
     'O Firefox propõe afixá-lo na barra de tarefas.',
+    'Microfone modo auscultador.',
+    'O dispositivo gere a saída de áudio.',
+    'Perfil Económico.',
+    'Capacidade detetada.',
     'Este conteúdo partilhado não está disponível.',
     'O conteúdo expirou. Partilhe-o novamente.'
   ];
