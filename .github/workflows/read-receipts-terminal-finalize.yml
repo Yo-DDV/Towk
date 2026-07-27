@@ -69,6 +69,25 @@ jobs:
 
           python3 "${RUNNER_TEMP}/pr173-reconstruct.py"
 
+          python3 - <<'PY'
+          from pathlib import Path
+
+          paths = (
+              'apps/frontend/src/lib/api-client/account.ts',
+              'apps/frontend/src/lib/api-client/viewer.ts',
+              'apps/frontend/src/lib/eventBus.svelte.ts',
+          )
+          malformed = 'readReceiptsEnabled: boolean;,'
+          corrected = 'readReceiptsEnabled: boolean;'
+          for name in paths:
+              path = Path(name)
+              source = path.read_text(encoding='utf-8')
+              count = source.count(malformed)
+              if count != 1:
+                  raise SystemExit(f'{name}: expected one malformed merged declaration, got {count}')
+              path.write_text(source.replace(malformed, corrected, 1), encoding='utf-8')
+          PY
+
           gofmt -w \
             cli/internal/connectapi/account.go \
             cli/internal/connectapi/read_state.go \
