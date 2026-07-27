@@ -70,16 +70,55 @@ jobs:
               'apps/frontend/src/lib/api-client/viewer.ts': 1,
               'apps/frontend/src/lib/eventBus.svelte.ts': 2,
           }
-          pattern = re.compile(r'(readReceiptsEnabled\??:\s*boolean;),')
+          declaration_pattern = re.compile(r'(readReceiptsEnabled\??:\s*boolean;),')
           for name, expected_count in expected_counts.items():
               file_path = Path(name)
               text = file_path.read_text(encoding='utf-8')
-              corrected, count = pattern.subn(lambda match: match.group(1), text)
+              corrected, count = declaration_pattern.subn(lambda match: match.group(1), text)
               if count != expected_count:
                   raise SystemExit(
                       f'{name}: expected {expected_count} malformed merged declarations, got {count}'
                   )
               file_path.write_text(corrected, encoding='utf-8')
+
+          def replace_message(path_name: str, message_name: str, replacement: str) -> None:
+              file_path = Path(path_name)
+              text = file_path.read_text(encoding='utf-8')
+              pattern = re.compile(
+                  rf'message {re.escape(message_name)} \{{.*?\n\}}',
+                  re.DOTALL,
+              )
+              corrected, count = pattern.subn(lambda _: replacement, text, count=1)
+              if count != 1:
+                  raise SystemExit(
+                      f'{path_name}: expected one message {message_name}, got {count}'
+                  )
+              file_path.write_text(corrected, encoding='utf-8')
+
+          replace_message(
+              'proto/chatto/core/v1/live_events.proto',
+              'PublicReadReceiptAdvancedEvent',
+              """message PublicReadReceiptAdvancedEvent {
+            reserved 3, 4, 5, 6;
+            reserved \"user_id\", \"event_id\", \"event_sequence\", \"read_at\";
+
+            string room_id = 1;
+            optional string thread_root_event_id = 2;
+          }""",
+          )
+          replace_message(
+              'proto/chatto/realtime/v1/realtime.proto',
+              'RealtimeReadReceiptAdvancedEvent',
+              """message RealtimeReadReceiptAdvancedEvent {
+            reserved 3, 4, 5, 6;
+            reserved \"user_id\", \"event_id\", \"event_sequence\", \"read_at\";
+
+            // Room containing the affected timeline.
+            string room_id = 1;
+            // Thread root when the invalidation belongs to a thread timeline.
+            optional string thread_root_event_id = 2;
+          }""",
+          )
           PYFIX
           '''
           if source.count(needle) != 1:
