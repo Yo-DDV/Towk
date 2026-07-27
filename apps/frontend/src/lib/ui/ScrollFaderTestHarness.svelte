@@ -43,7 +43,10 @@
 </script>
 
 <ScrollFader top bottom bind:this={scrollFader} bind:scrollEl data-testid="scroll">
-  <div data-testid="content">Message</div>
+  <div data-testid="content">
+    Message
+    <img data-testid="media" alt="" />
+  </div>
   {#if showExtraChild}
     <div data-testid="extra-content">Extra message</div>
   {/if}
