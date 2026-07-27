@@ -9,6 +9,7 @@
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { provideEventBus } from '$lib/eventBus.svelte';
   import Chrome from '$lib/components/chat/Chrome.svelte';
+  import RoomDeletionCleanupObserver from '$lib/pwa/RoomDeletionCleanupObserver.svelte';
 
   let { children } = $props();
 
@@ -97,6 +98,8 @@
     goto(resolve('/login'), { replaceState: true });
   });
 </script>
+
+<RoomDeletionCleanupObserver />
 
 {#if shouldRenderChrome}
   <Chrome>

@@ -19,9 +19,9 @@ require (
 	filippo.io/age v1.3.1
 	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/aws/aws-sdk-go-v2 v1.42.1
-	github.com/aws/aws-sdk-go-v2/credentials v1.19.29
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.105.2
+	github.com/aws/aws-sdk-go-v2 v1.43.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.19.30
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.0
 	github.com/aws/smithy-go v1.27.4
 	github.com/c2h5oh/datasize v0.0.0-20231215233829-aa82cc1e6500
 	github.com/caarlos0/env/v11 v11.4.1
@@ -35,7 +35,7 @@ require (
 	github.com/gorilla/securecookie v1.1.2
 	github.com/gorilla/sessions v1.4.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/livekit/protocol v1.50.1
+	github.com/livekit/protocol v1.50.4
 	github.com/markbates/goth v1.82.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/mocktools/go-smtp-mock/v2 v2.5.4
@@ -45,7 +45,7 @@ require (
 	github.com/nats-io/nkeys v0.4.16
 	github.com/otiai10/opengraph/v2 v2.2.0
 	github.com/pelletier/go-toml/v2 v2.4.3
-	github.com/prometheus/client_golang v1.24.0
+	github.com/prometheus/client_golang v1.24.1
 	github.com/rivo/uniseg v0.4.7
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
@@ -75,13 +75,13 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/aokoli/goutils v1.0.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.14 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.30 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.30 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.31 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.31 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.31 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.32 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.30 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.31 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.31 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.32 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -132,7 +132,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/jxskiss/base62 v1.1.0 // indirect
-	github.com/klauspost/compress v1.19.0 // indirect
+	github.com/klauspost/compress v1.19.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect
@@ -168,7 +168,7 @@ require (
 	github.com/pion/webrtc/v4 v4.2.13 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.70.0 // indirect
+	github.com/prometheus/common v0.70.1 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/pseudomuto/protoc-gen-doc v1.5.1 // indirect
 	github.com/pseudomuto/protokit v0.2.0 // indirect

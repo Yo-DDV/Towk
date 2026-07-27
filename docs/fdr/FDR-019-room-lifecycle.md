@@ -1,98 +1,151 @@
 # FDR-019: Room Lifecycle
 
 **Status:** Active
-**Last reviewed:** 2026-07-04
+**Last reviewed:** 2026-07-26
 
 ## Overview
 
-A channel room goes through a lifecycle of create, edit, archive, unarchive, and delete. Each transition is permission-gated and (where appropriate) audit-logged. This FDR focuses on channel rooms — DM room lifecycle is much simpler and lives in FDR-007.
+A channel room moves through create, edit, archive, unarchive, ordinary delete, and — for server owners only — permanent purge after archive. Each transition is permission-gated and, where appropriate, represented by durable events. This record covers channel rooms; direct-message lifecycle is defined by FDR-007.
 
 ## Behavior
 
-- **Create** — server admins (or anyone with `room.create` in the target group) create a channel room by giving it a name (1–30 chars, alphanumeric / hyphen / underscore, case-insensitive unique across the server), an optional description, a room group, and optionally the Universal setting.
-- **Edit** — `room.manage` holders can change the name, description, group, Universal setting, and explicit member set of an existing channel room.
-- **Display** — when set, the optional description appears after the channel room name in the desktop room pane header.
-- **Universal** — a channel room with Universal enabled behaves as joined for every server member who is currently eligible to join it. The system does not fan out `UserJoinedRoomEvent` facts for implicit membership. Existing explicit memberships remain intact, so disabling Universal restores the prior explicit membership set.
-- **Bootstrap defaults** — fresh servers seed `#announcements` as Universal and `#general` as a normal channel room in the default Lobby group.
-- **Join / leave** — joining a Universal room succeeds without writing an explicit membership event. Leaving a Universal room is rejected; users should mute it instead. DMs cannot be Universal.
-- **API surface** — ConnectRPC `RoomService` exposes create, edit, archive, unarchive, Universal, join, leave, manager add/remove, ban, and unban commands. ConnectRPC `RoomDirectoryService` exposes the complementary room list, room-group/sidebar list, single-room refresh, per-room viewer capability state, and group join-all command.
-- **Archive** — `room.manage` toggles an `archived` flag on the room. Archived rooms vanish from the sidebar, the Browse Rooms page, and search results, but members stay joined and history is intact. The owner can still navigate to the room directly.
-- **Unarchive** — same permission, flips the flag back. The room reappears in the sidebar and discovery surfaces.
-- **Manage members** — `room.manage` holders can add or remove explicit members of non-Universal channel rooms. Adding can bring a user into a private room even when that user could not self-join through `room.join`. Active room bans still block adding; the user must be unbanned first.
-- **Ban member** — `room.ban-member` holders can ban a user from a channel room with a required reason and optional expiry. The banned user loses room read/write/live access immediately and cannot rejoin until the ban is removed or expires.
-- **Delete** — `room.manage` appends `RoomDeletedEvent` to `EVT`, releases the room from its group layout, and causes projections to remove the room, its name claim, and its memberships.
-- Moving a room between groups requires `room.manage` in both groups (see FDR-017).
+- **Create** — `room.create` holders create a channel room with a unique URL-safe name, optional description, room group, and optional Universal setting.
+- **Edit** — `room.manage` holders may change room metadata, group placement, Universal state, and explicit membership.
+- **Archive** — `room.manage` sets the archived flag. The room disappears from normal sidebar, directory, and search surfaces while its membership and history remain intact.
+- **Unarchive** — the same permission clears the archived flag and returns the room to discovery surfaces.
+- **Ordinary delete** — `room.manage` appends `RoomDeletedEvent`, removes the room from its group and projections, and retains historical EVT facts for replay and audit.
+- **Permanent purge** — a current server owner may permanently erase an archived channel room from the server-admin Rooms page. The owner must enter the room's current name exactly. The operation removes the room's messages and private body facts, threads and follows, reactions, calls and call keys, memberships and bans, room-scoped RBAC, room-level notification preferences and read state, room-owned attachments and derivatives, and exclusively referenced managed link-preview images. It retains only the minimum room and asset tombstones required to prevent replay resurrection.
+- **PWA cleanup** — after a successful purge, and whenever `RoomDeletedEvent` is observed later, the client removes the exact room's encrypted drafts, draft files, cached timelines, and queued outbox messages from the authenticated server/account scope. Other rooms and accounts are untouched.
+- Moving a room between groups still requires `room.manage` in both groups; see FDR-017.
+
+## Permanent purge API
+
+- `GET /api/admin/room-purge-capability` returns `{ "canPurgeArchivedRooms": boolean }` for an authenticated viewer. It reports `true` only for an effective server owner and only while the durable replica-cleanup projector is healthy.
+- `POST /api/admin/rooms/{roomID}/purge` accepts the strict JSON body `{ "confirmation": "<exact room name>" }`.
+- Cookie-authenticated origin requests use the normal CSRF header. Remote-server requests use bearer authentication.
+- Unknown fields, trailing JSON, oversized bodies, forged identifiers, empty confirmation, non-owner callers, and active rooms are rejected server-side.
+- Success returns aggregate deletion counts and `alreadyPurged`; it never returns message text, filenames, object keys, or other room content.
+- Responses are `private, no-store` and `nosniff`. Retryable conflicts carry a bounded `Retry-After` value.
+- Older servers that do not expose the capability endpoint simply do not show the destructive UI. There is no fallback to ordinary deletion.
 
 ## Design Decisions
 
-### 1. Room name uniqueness via EVT projection and OCC
+### 1. Room names remain unique through EVT projection and OCC
 
-**Decision:** Room names are unique server-wide (case-insensitive). Uniqueness is enforced by checking a room catalog projection snapshot and appending name-changing room events with wildcard OCC against the room aggregate event set.
-**Why:** Race-tolerant name claiming is the only way to safely handle two operators creating the same-named room at the same moment. EVT OCC lets the event log remain the source of truth without maintaining a legacy KV name mirror.
-**Tradeoff:** Renames must coordinate through the event log and projection readiness instead of a single KV claim. The snapshot carries the matching `evt.room.>` sequence so stale projections conflict and retry instead of committing a duplicate claim. The payoff is no dual-write divergence.
+**Decision:** Room names are unique server-wide, case-insensitively. Name-changing writes use a room-catalog snapshot and wildcard OCC against the room aggregate event set.
+
+**Why:** Two operators must not be able to claim the same name concurrently, and EVT remains the source of truth without a second KV name index.
+
+**Tradeoff:** Conflicts wait for projection catch-up and retry instead of performing a single KV claim.
 
 ### 2. Every channel room belongs to exactly one group
 
-**Decision:** `groupID` is non-nullable on channel rooms. The public create-room API requires an explicit `groupId`; lower-level bootstrap/import paths may still pass an empty group ID to fall back to the seed room group while constructing first-boot state.
-**Why:** Optional grouping means an "unsorted" branch in the permission resolver and sidebar layout — extra cases that nobody actually wants. Requiring a group simplifies the resolver and gives operators a consistent unit of permission scope. See ADR-031 and FDR-017.
-**Tradeoff:** Bulk room creation tools need to know which group to drop rooms into. The API surfaces a clear error if `groupID` is missing.
+**Decision:** Channel rooms have a group. The public create API requires one; bootstrap paths may fall back to the seed group.
 
-### 3. Archive is a flag, not a state machine
+**Why:** Required grouping keeps sidebar order and permission resolution free of an "ungrouped" branch.
 
-**Decision:** Archive is a single boolean on the room record. The room stays in the same KV bucket, keeps its event history, keeps its members; only the discovery affordances filter on `archived: false`.
-**Why:** Archive's purpose is "stop showing this room everywhere, but don't lose the history". A full archived-rooms-elsewhere migration would mean different code paths for archived rooms, divergent reads, and a hard road back to active state. A flag is enough.
-**Tradeoff:** Every "show me rooms" query needs to remember to filter on `archived`. Centralised in the resolver layer.
+**Tradeoff:** Bulk creation tools must choose a destination group.
 
-### 4. Delete is a durable tombstone
+### 3. Archive is reversible state
 
-**Decision:** Deleting a room appends a durable `RoomDeletedEvent` to `EVT`. Projections remove the room from user-visible catalogs and membership state; historical facts remain in the event log.
-**Why:** `EVT` is both source of truth and audit log. Purging the room's event history would destroy the forensic trail and make replay semantics dependent on destructive stream operations.
-**Tradeoff:** Deleted-room history still consumes storage. User-visible reads must consistently respect the tombstone.
+**Decision:** Archive is a boolean. The room stays in the same aggregate and retains history and memberships.
 
-### 5. Membership survives archive
+**Why:** Archive means "hide without losing history" and must be reversible without reconstructing membership.
 
-**Decision:** Archiving doesn't kick anyone out. Members can still see the room if they navigate to it directly; they just can't find it through normal browse paths.
-**Why:** Forcibly leaving members would mean re-joining them on unarchive, which the membership system doesn't model. Keeping membership intact lets archive be reversible without ambiguity.
-**Tradeoff:** A user with a deep-link to an archived room can still post in it. In practice, archived rooms are usually emptied or muted first.
+**Tradeoff:** Every discovery surface must consistently filter archived rooms.
 
-### 6. Live layout updates broadcast on archive / unarchive
+### 4. Ordinary delete remains a durable tombstone
 
-**Decision:** Archive and unarchive both publish a `RoomLayoutUpdatedEvent` so all connected clients refresh the sidebar.
-**Why:** Without this, archiving a room would still show it in everyone's sidebar until they refresh. Live update keeps the visual state consistent across sessions.
-**Tradeoff:** One more event class to maintain. Fits cleanly into the existing live-event pattern (FDR-012's mechanism).
+**Decision:** Ordinary deletion appends `RoomDeletedEvent`; historical room facts remain.
 
-### 7. Channel member bans use dedicated moderation events
+**Why:** Ordinary delete preserves the event-sourced forensic trail and replay semantics.
 
-**Decision:** Banning someone from a channel room appends a normal `UserLeftRoomEvent` with the target user as actor, plus `RoomMemberBannedEvent` with the target user, required reason, optional expiry, and moderator actor. Unbanning appends `RoomMemberUnbannedEvent` with a required moderator reason. DMs are excluded; their participant set is fixed by DM creation policy in FDR-007.
-**Why:** Other room members should see an ordinary leave in room history, while the moderation/audit fact remains explicit and prevents the banned user from immediately rejoining. The public leave event does not reveal that the user was banned.
-**Tradeoff:** A ban is represented by two durable facts: one public membership transition and one moderation fact.
+**Tradeoff:** Historical facts consume storage. Owners needing content erasure must stage the room through archive and permanent purge.
 
-### 8. Join and leave events remain actor-only
+### 5. Permanent purge is owner-only
 
-**Decision:** `UserJoinedRoomEvent` and `UserLeftRoomEvent` do not carry a target user. The event actor is the user who joined or left. Manager-controlled add/remove writes a normal join/leave fact with the target user as actor plus a dedicated moderation audit fact with the manager as actor. Moderator bans use the same split. To the target user, an active ban is evaluated as an ordinary join authorization denial rather than a distinct API/UI state.
-**Why:** Join and leave are ordinary membership facts. Keeping the user in the envelope avoids dual-subject ambiguity and keeps room history focused on membership transitions. Separate moderation facts preserve who performed manager actions without changing public timeline semantics.
-**Tradeoff:** Audited manager actions are represented by two durable facts: one public membership transition and one moderation fact.
+**Decision:** Permanent purge is not an editable RBAC permission. The caller must be a current effective server owner, and the room must already be archived.
 
-### 9. Server-admin exposes active room bans
+**Why:** The operation is irreversible and destroys content that delegated room managers are normally expected to preserve. Archive provides a deliberate reversible staging step.
 
-**Decision:** Server-admin includes a Moderation page listing active room bans with target, room, moderator, reason, creation time, and optional expiry. Unbanning from the list prompts for a moderator reason and appends `RoomMemberUnbannedEvent`.
-**Why:** Operators need a way to audit and reverse room-level bans without spelunking the event log or editing RBAC state by hand.
-**Tradeoff:** The first page lists active bans only. Historical moderation audit remains in the durable event log.
+**Tradeoff:** Delegated administrators cannot perform the operation.
 
-### 10. Universal rooms derive membership from join eligibility
+### 6. Exact confirmation identifies the destructive target
 
-**Decision:** Universal is a durable boolean on channel rooms, changed through `RoomUniversalChangedEvent`. Effective membership is explicit membership plus, for Universal channel rooms, every user for whom `room.join` currently resolves allow and no active room ban applies.
-**Why:** Operators often need "everyone can see this channel" behavior without writing per-user membership events for every current and future server member. Deriving membership keeps the event log compact and makes disabling Universal restore the previous explicit membership state.
-**Tradeoff:** Member-derived surfaces such as member lists, mentions, unread state, attachment access, voice calls, and live event delivery must use effective membership rather than the explicit membership projection alone.
+**Decision:** The request must contain the room's current name with exact case and character equality.
+
+**Why:** A generic checkbox does not prove that the operator has identified the specific room.
+
+**Tradeoff:** Renaming a room before purge changes the required confirmation. An interrupted post-tombstone purge resumes only with the original confirmed name, protected by a server-keyed HMAC marker that does not store it in clear text.
+
+### 7. Destructive stream operations accept typed exact aggregates only
+
+**Decision:** Secure deletion accepts only canonical exact room, scoped-RBAC, or asset aggregates. Raw subject filters and wildcard roots are rejected before a consumer is created.
+
+**Why:** `evt.>`, `evt.room.>`, or a forged identifier must never widen one-room deletion to the instance.
+
+**Tradeoff:** Related config facts that live outside the room aggregate require a narrow payload-and-subject verified scan.
+
+### 8. Tombstone-first, OCC, lease, and bounded quiescence
+
+**Decision:** A distributed per-room lease serializes purge attempts. The backend publishes an OCC-protected `RoomDeletedEvent` before physical erasure, records a resumable runtime marker, performs exact cleanup passes, and requires two stable observations separated by a quiet interval before completion.
+
+**Why:** Crashes, retries, stale writers, and multiple replicas must not leave the room without an anti-resurrection marker or silently declare success while late data remains.
+
+**Tradeoff:** A purge can return a retryable conflict while another attempt holds the lease or while late writes are being reconciled.
+
+### 9. Projection cleanup is part of erasure correctness
+
+**Decision:** Every replica runs a durable narrow projector for room-deletion tombstones. It waits for core projections to become current, then releases only the target room's timeline bodies, threads/follows, reactions, RBAC, preferences, and call state. A fatal cleanup-projector failure makes the serving replica unavailable.
+
+**Why:** Removing shared JetStream facts is insufficient if a sibling process still retains decrypted room content in memory.
+
+**Tradeoff:** Permanent-purge capability remains unavailable until the cleanup projector is healthy and current.
+
+### 10. Asset ownership must be proven
+
+**Decision:** Room-owned attachment aggregates are deleted only when projection evidence binds them to the target room. Managed link-preview images are deleted only when no other room references them and the dedicated preview object store proves the compatibility object. Ambiguous legacy or same-named generic server assets are retained.
+
+**Why:** A corrupt message body or identifier collision must not erase another room's media, branding, avatar, or shared preview.
+
+**Tradeoff:** Ambiguous legacy bytes may require operator review rather than unsafe automatic deletion.
+
+### 11. Active calls are evicted and call keys are shredded
+
+**Decision:** The purge enumerates LiveKit participants for the exact room, removes only those participants, validates canonical call-key references, and shreds the corresponding keys before completion.
+
+**Why:** A deleted room must not remain live through the media plane, and key material must not survive the room's content.
+
+**Tradeoff:** If LiveKit or the key store is unavailable, the purge stops safely and remains resumable.
+
+### 12. Existing backups are not rewritten
+
+**Decision:** Purge affects the active instance and its current object stores. Towk does not discover or mutate operator-controlled backups, snapshots, or exported archives.
+
+**Why:** Backup media is outside the application's safe authority and may contain unrelated recovery data.
+
+**Tradeoff:** Restoring a pre-purge backup may reintroduce the room. The owner must run purge again before returning that restored instance to service.
 
 ## Permissions
 
-- `room.create` — create a new channel room in a group. Configurable per group.
-- `room.manage` — edit, archive, unarchive, delete, change Universal state, and add/remove explicit members for a channel room. Configurable per group and per room.
-- `room.ban-member` — ban members from a channel room. Configurable per group and per room.
-- `room.join` — gates whether a user can become an explicit member of an unarchived room and whether a user is an implicit member of a Universal room. Configurable per group and per room.
+- `room.create` — create a channel room in a group.
+- `room.manage` — edit, archive, unarchive, ordinary-delete, change Universal state, and manage explicit membership.
+- `room.ban-member` — manage channel-room bans.
+- `room.join` — controls explicit join and Universal effective membership.
+- **Server owner** — permanently purge an archived channel room. This capability is deliberately not delegated through the editable permission matrix.
+
+## UX, responsive, and accessibility
+
+The destructive action appears only for archived rooms after the backend confirms owner capability. It uses a selected red trash action and a separate irreversible confirmation dialog. The dialog lists the deleted data categories, explains the backup boundary, requires exact confirmation, keeps errors visible for retry, and cannot be dismissed while the request is active. It becomes full-screen when width or height is constrained, respects safe areas, restores focus, supports keyboard and touch input, preserves real disabled states, supports forced colors, and reduces motion when requested. User-visible copy is provided in English, French, German, Spanish, and Portuguese.
+
+## Rollback and recovery
+
+- Source rollback removes the feature but cannot reconstruct content or binaries already erased.
+- An interrupted purge is retried with the same room ID and exact original confirmation; the HMAC-protected marker resumes cleanup.
+- Minimal room and asset tombstones remain so cold replay cannot resurrect the purged catalog entry or room-owned assets.
+- Restoring an older backup creates newly active data; purge must be rerun on that restored instance before reopening it to users.
 
 ## Related
 
-- **ADRs:** ADR-031 (room-group-centric ACL), ADR-033 (event-sourced state with projections), ADR-035 (per-aggregate phased migration)
-- **FDRs:** FDR-001 (Roles & Permissions), FDR-007 (Direct Messages), FDR-017 (Room Groups & Sidebar Layout)
+- **ADRs:** ADR-007, ADR-031, ADR-033, ADR-034, ADR-036
+- **FDRs:** FDR-001, FDR-007, FDR-008, FDR-009, FDR-016, FDR-017, FDR-027
