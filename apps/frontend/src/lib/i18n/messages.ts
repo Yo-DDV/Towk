@@ -1414,6 +1414,7 @@ const msg_composer_voice_retry_short = (): LocalizedString => messages().compose
 const msg_composer_voice_too_short = (): LocalizedString => messages().composer_voice_too_short(empty());
 const msg_composer_voice_too_large = (): LocalizedString => messages().composer_voice_too_large(empty());
 const msg_composer_edit_failed = (): LocalizedString => messages().composer_edit_failed(empty());
+const msg_composer_edit_window_expired = (): LocalizedString => messages().composer_edit_window_expired(empty());
 const msg_composer_mention_all_room_members = (): LocalizedString => messages().composer_mention_all_room_members(empty());
 const msg_composer_mention_members_here = (): LocalizedString => messages().composer_mention_members_here(empty());
 const msg_composer_mention_role = (): LocalizedString => messages().composer_mention_role(empty());
@@ -3257,6 +3258,7 @@ export { msg_composer_voice_retry_short as 'composer.voice.retry_short' };
 export { msg_composer_voice_too_short as 'composer.voice.too_short' };
 export { msg_composer_voice_too_large as 'composer.voice.too_large' };
 export { msg_composer_edit_failed as 'composer.edit_failed' };
+export { msg_composer_edit_window_expired as 'composer.edit_window_expired' };
 export { msg_composer_mention_all_room_members as 'composer.mention.all_room_members' };
 export { msg_composer_mention_members_here as 'composer.mention.members_here' };
 export { msg_composer_mention_role as 'composer.mention.role' };

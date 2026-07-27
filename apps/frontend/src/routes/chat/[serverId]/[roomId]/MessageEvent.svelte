@@ -56,6 +56,7 @@
   import { shouldHighlightCurrentUserMention } from './messageMentionHighlight';
   import { roomReplyTargetEventId } from './messageReplyTarget';
   import { selectedQuoteTextForMessageBody } from './selectedReplyQuote';
+  import { canEditMessage } from './messageEditPolicy';
   import type { OpenThreadHandler } from './threadOpenOptions';
   import { createThreadAPI } from '$lib/api-client/threads';
   import { createRoomCommandAPI } from '$lib/api-client/rooms';
@@ -120,11 +121,15 @@
   // messages requires message.manage.
   const isAuthor = $derived(currentUser.user?.id === event?.actorId);
   const canEdit = $derived(
-    (isAuthor &&
-      event &&
-      Date.now() - new Date(event.createdAt).getTime() <
-        serverInfo.messageEditWindowSeconds * 1000) ||
-      roomPermissions.canManageOthersMessage
+    event
+      ? canEditMessage({
+          isAuthor,
+          canManageOthersMessage: roomPermissions.canManageOthersMessage,
+          createdAt: event.createdAt,
+          messageEditWindowSeconds: serverInfo.messageEditWindowSeconds,
+          nowMs: Date.now()
+        })
+      : false
   );
   const canDelete = $derived(isAuthor || roomPermissions.canManageOthersMessage);
 

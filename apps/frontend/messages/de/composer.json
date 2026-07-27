@@ -55,6 +55,7 @@
       "too_large": "Diese Sprachnachricht ist zu groß zum Senden. Nimm eine kürzere Nachricht auf."
     },
     "edit_failed": "Nachricht konnte nicht bearbeitet werden",
+    "edit_window_expired": "Diese Nachricht kann nicht mehr bearbeitet werden, weil das Bearbeitungsfenster abgelaufen ist.",
     "mention": {
       "all_room_members": "Alle Raummitglieder",
       "members_here": "Gerade anwesende Mitglieder",
