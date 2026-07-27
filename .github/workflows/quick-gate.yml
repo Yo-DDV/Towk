@@ -77,3 +77,61 @@ jobs:
           bash -n tools/verify-compose-project-name.sh tools/verify-release-archives.sh tools/runtime-image-process.sh tools/runtime-image-process_test.sh tools/verify-runtime-image.sh docker/docker-entrypoint.sh
           bash tools/verify-compose-project-name.sh
           bash tools/runtime-image-process_test.sh
+
+  pr173-svelte-diagnostic:
+    name: pr173-svelte-diagnostic
+    if: github.event.pull_request.head.ref == 'feat/read-receipts'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact product head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: da6d362c7764cafea34e9dfd9a3762ef40b34bf7
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up repository toolchain
+        uses: ./.github/actions/setup
+
+      - name: Run and capture Svelte check
+        id: svelte
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          pnpm --dir apps/frontend run check 2>&1 | tee "${RUNNER_TEMP}/pr173-svelte-check.log"
+          status=${PIPESTATUS[0]}
+          printf 'exit_code=%s\n' "${status}" > "${RUNNER_TEMP}/pr173-svelte-status.txt"
+          exit "${status}"
+
+      - name: Collect Svelte diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="${RUNNER_TEMP}/pr173-svelte-diagnostics"
+          mkdir -p "${output}"
+          cp "${RUNNER_TEMP}/pr173-svelte-status.txt" "${output}/status.txt" 2>/dev/null || true
+          if test -f "${RUNNER_TEMP}/pr173-svelte-check.log"; then
+            tail -n 500 "${RUNNER_TEMP}/pr173-svelte-check.log" > "${output}/svelte-tail.log"
+          fi
+          printf 'head=%s\noutcome=%s\nconclusion=%s\n' \
+            'da6d362c7764cafea34e9dfd9a3762ef40b34bf7' \
+            "${{ steps.svelte.outcome }}" \
+            "${{ steps.svelte.conclusion }}" \
+            > "${output}/workflow.txt"
+
+      - name: Upload Svelte diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pr173-svelte-diagnostics-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/pr173-svelte-diagnostics
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Preserve Svelte failure
+        if: steps.svelte.outcome == 'failure'
+        run: exit 1
