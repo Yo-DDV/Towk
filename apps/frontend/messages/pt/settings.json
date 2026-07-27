@@ -186,7 +186,13 @@
       },
       "save_button": "Salvar configurações de exibição",
       "saved": "Configurações de exibição salvas",
-      "save_failed": "Falha ao salvar as configurações de exibição"
+      "save_failed": "Falha ao salvar as configurações de exibição",
+      "read_receipts": {
+        "title": "Confirmações de leitura",
+        "enabled_label": "Publicar confirmações de leitura",
+        "disabled_label": "Manter confirmações de leitura privadas",
+        "description": "Quando ativado, outros membros podem ver quando leu as mensagens deles, e você pode consultar confirmações nas mensagens às quais tem acesso."
+      }
     },
     "notifications": {
       "title": "Notificações",

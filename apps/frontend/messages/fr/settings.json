@@ -186,7 +186,13 @@
       },
       "save_button": "Enregistrer les paramètres d'affichage",
       "saved": "Paramètres d'affichage enregistrés",
-      "save_failed": "Échec de l'enregistrement des paramètres d'affichage"
+      "save_failed": "Échec de l'enregistrement des paramètres d'affichage",
+      "read_receipts": {
+        "title": "Confirmations de lecture",
+        "enabled_label": "Publier mes confirmations de lecture",
+        "disabled_label": "Garder mes confirmations de lecture privées",
+        "description": "Quand l’option est activée, les autres membres peuvent voir quand vous avez lu leurs messages, et vous pouvez consulter les confirmations sur les messages accessibles."
+      }
     },
     "notifications": {
       "title": "Notifications",

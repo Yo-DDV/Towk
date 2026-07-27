@@ -44,6 +44,10 @@ message ServerUserPreferences {
   // Whether last activity is visible to other authenticated members.
   // Absence is interpreted as true for mixed-version upgrades.
   optional bool show_last_activity = 3;
+
+  // Whether this user publishes and may inspect public read receipts. Absence
+  // means enabled for mixed-version compatibility.
+  optional bool read_receipts_enabled = 4;
 }
 
 // UserPreferences stores per-user preferences scoped to the server.

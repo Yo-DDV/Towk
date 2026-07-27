@@ -617,8 +617,9 @@ func TestServerDiscoveryServiceGetServerPublicMetadata(t *testing.T) {
 	if msg.GetProfile().GetVersion() != "9.8.7" {
 		t.Fatalf("profile version = %q, want 9.8.7", msg.GetProfile().GetVersion())
 	}
-	if capabilities := msg.GetProfile().GetCapabilities(); len(capabilities) != 1 || capabilities[0] != serverCapabilityMessageCreateIdempotency {
-		t.Fatalf("profile capabilities = %v, want %q", capabilities, serverCapabilityMessageCreateIdempotency)
+	capabilities := msg.GetProfile().GetCapabilities()
+	if !slices.Contains(capabilities, serverCapabilityMessageCreateIdempotency) || !slices.Contains(capabilities, serverCapabilityReadReceipts) {
+		t.Fatalf("profile capabilities = %v, want %q and %q", capabilities, serverCapabilityMessageCreateIdempotency, serverCapabilityReadReceipts)
 	}
 	if !msg.GetLogin().GetDirectRegistrationEnabled() {
 		t.Fatal("DirectRegistrationEnabled = false, want true")
@@ -2152,8 +2153,10 @@ func TestMyAccountServiceUpdatesSelfProfileAndSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
-	if settings := settingsResp.Msg.GetSettings(); settings.GetTimezone() != tz || settings.GetTimeFormat() != apiv1.TimeFormat_TIME_FORMAT_24_HOUR {
-		t.Fatalf("settings = %+v, want timezone %q and 24-hour format", settings, tz)
+	if settings := settingsResp.Msg.GetSettings(); settings.GetTimezone() != tz ||
+		settings.GetTimeFormat() != apiv1.TimeFormat_TIME_FORMAT_24_HOUR ||
+		!settings.GetReadReceiptsEnabled() {
+		t.Fatalf("settings = %+v, want timezone %q, 24-hour format, and default-enabled read receipts", settings, tz)
 	}
 
 	clear := ""
@@ -2970,7 +2973,9 @@ func TestAdminServerServiceUpdateServerConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetServerConfig: %v", err)
 	}
-	if initialResp.Msg.GetConfig().GetServerName() != "" || initialResp.Msg.GetPublicProfile().GetName() != "Towk" {
+	if initialResp.Msg.GetConfig().GetServerName() != "" ||
+		!initialResp.Msg.GetConfig().GetReadReceiptsEnabled() ||
+		initialResp.Msg.GetPublicProfile().GetName() != "Towk" {
 		t.Fatalf("initial server config response = %+v", initialResp.Msg)
 	}
 
@@ -3025,6 +3030,7 @@ func TestAdminServerServiceUpdateServerConfig(t *testing.T) {
 	}
 	if getResp.Msg.GetConfig().GetServerName() != "Connect Settings" ||
 		getResp.Msg.GetConfig().GetDescription() != "Updated description only" ||
+		!getResp.Msg.GetConfig().GetReadReceiptsEnabled() ||
 		getResp.Msg.GetPublicProfile().GetDescription() != "Updated description only" {
 		t.Fatalf("partial server config response = %+v", getResp.Msg)
 	}
@@ -7602,6 +7608,126 @@ func TestRoomAndThreadServicesRequiresAuthAndMembership(t *testing.T) {
 	}
 }
 
+func TestRoomServiceReadReceiptsRequiresAuthenticationAndMembership(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("read-receipt-authz")
+	message := env.post(room.Id, env.viewer.Id, "receipt authz", "")
+
+	advance := connect.NewRequest(&apiv1.AdvanceReadReceiptRequest{RoomId: room.Id, UpToEventId: message.Id})
+	if _, err := env.rooms.AdvanceReadReceipt(env.ctx, advance); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("unauthenticated AdvanceReadReceipt code = %v, want %v", connect.CodeOf(err), connect.CodeUnauthenticated)
+	}
+
+	outsider, err := env.core.CreateUser(env.ctx, core.SystemActorID, "receipt-api-outsider", "Receipt API Outsider", "password")
+	if err != nil {
+		t.Fatalf("CreateUser outsider: %v", err)
+	}
+	outsiderCtx := withCaller(env.ctx, outsider)
+	if _, err := env.rooms.AdvanceReadReceipt(outsiderCtx, advance); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("outsider AdvanceReadReceipt code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	}
+	if _, err := env.rooms.GetReadReceiptSummaries(outsiderCtx, connect.NewRequest(&apiv1.GetReadReceiptSummariesRequest{
+		RoomId: room.Id, MessageEventIds: []string{message.Id},
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("outsider GetReadReceiptSummaries code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	}
+	if _, err := env.rooms.ListReadReceiptReaders(outsiderCtx, connect.NewRequest(&apiv1.ListReadReceiptReadersRequest{
+		RoomId: room.Id, MessageEventId: message.Id,
+	})); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("outsider ListReadReceiptReaders code = %v, want %v", connect.CodeOf(err), connect.CodePermissionDenied)
+	}
+}
+
+func TestRoomServiceReadReceiptsAreReciprocalAndPaginated(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	room := env.createJoinedRoom("read-receipt-api")
+	createReader := func(login string) *corev1.User {
+		user, err := env.core.CreateUser(env.ctx, core.SystemActorID, login, login, "password")
+		if err != nil {
+			t.Fatalf("CreateUser(%s): %v", login, err)
+		}
+		if _, err := env.core.JoinRoom(env.ctx, user.Id, core.KindChannel, user.Id, room.Id); err != nil {
+			t.Fatalf("JoinRoom(%s): %v", login, err)
+		}
+		return user
+	}
+	readerA := createReader("receipt-api-reader-a")
+	readerB := createReader("receipt-api-reader-b")
+	message := env.post(room.Id, env.viewer.Id, "receipt api", "")
+
+	for _, reader := range []*corev1.User{readerA, readerB} {
+		response, err := env.rooms.AdvanceReadReceipt(withCaller(env.ctx, reader), connect.NewRequest(&apiv1.AdvanceReadReceiptRequest{
+			RoomId: room.Id, UpToEventId: message.Id,
+		}))
+		if err != nil {
+			t.Fatalf("AdvanceReadReceipt(%s): %v", reader.Login, err)
+		}
+		if !response.Msg.GetUpdated() {
+			t.Fatalf("AdvanceReadReceipt(%s) updated = false", reader.Login)
+		}
+	}
+
+	viewerCtx := withCaller(env.ctx, env.viewer)
+	summaries, err := env.rooms.GetReadReceiptSummaries(viewerCtx, connect.NewRequest(&apiv1.GetReadReceiptSummariesRequest{
+		RoomId: room.Id, MessageEventIds: []string{message.Id},
+	}))
+	if err != nil {
+		t.Fatalf("GetReadReceiptSummaries: %v", err)
+	}
+	if !summaries.Msg.GetEnabled() || len(summaries.Msg.GetSummaries()) != 1 || summaries.Msg.GetSummaries()[0].GetReaderCount() != 2 {
+		t.Fatalf("summaries = %+v", summaries.Msg)
+	}
+
+	page1, err := env.rooms.ListReadReceiptReaders(viewerCtx, connect.NewRequest(&apiv1.ListReadReceiptReadersRequest{
+		RoomId: room.Id, MessageEventId: message.Id, Page: &apiv1.PageRequest{Limit: 1},
+	}))
+	if err != nil {
+		t.Fatalf("ListReadReceiptReaders page 1: %v", err)
+	}
+	if !page1.Msg.GetEnabled() || len(page1.Msg.GetReaders()) != 1 || page1.Msg.GetPage().GetTotalCount() != 2 || !page1.Msg.GetPage().GetHasMore() {
+		t.Fatalf("page 1 = %+v", page1.Msg)
+	}
+	page2, err := env.rooms.ListReadReceiptReaders(viewerCtx, connect.NewRequest(&apiv1.ListReadReceiptReadersRequest{
+		RoomId: room.Id, MessageEventId: message.Id, Page: &apiv1.PageRequest{Limit: 1, Offset: 1},
+	}))
+	if err != nil {
+		t.Fatalf("ListReadReceiptReaders page 2: %v", err)
+	}
+	if len(page2.Msg.GetReaders()) != 1 || page2.Msg.GetPage().GetTotalCount() != 2 || page2.Msg.GetPage().GetHasMore() {
+		t.Fatalf("page 2 = %+v", page2.Msg)
+	}
+
+	disabled := false
+	if _, err := env.account.UpdateSettings(withCaller(env.ctx, readerA), connect.NewRequest(&apiv1.UpdateSettingsRequest{ReadReceiptsEnabled: &disabled})); err != nil {
+		t.Fatalf("disable reader settings: %v", err)
+	}
+	disabledSummary, err := env.rooms.GetReadReceiptSummaries(withCaller(env.ctx, readerA), connect.NewRequest(&apiv1.GetReadReceiptSummariesRequest{
+		RoomId: room.Id, MessageEventIds: []string{message.Id},
+	}))
+	if err != nil {
+		t.Fatalf("disabled GetReadReceiptSummaries: %v", err)
+	}
+	if disabledSummary.Msg.GetEnabled() || len(disabledSummary.Msg.GetSummaries()) != 0 {
+		t.Fatalf("disabled summaries = %+v", disabledSummary.Msg)
+	}
+	if _, err := env.rooms.AdvanceReadReceipt(withCaller(env.ctx, readerA), connect.NewRequest(&apiv1.AdvanceReadReceiptRequest{
+		RoomId: room.Id, UpToEventId: message.Id,
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("disabled AdvanceReadReceipt code = %v, want %v", connect.CodeOf(err), connect.CodeFailedPrecondition)
+	}
+
+	// Existing published history remains visible to another enabled member.
+	historical, err := env.rooms.GetReadReceiptSummaries(viewerCtx, connect.NewRequest(&apiv1.GetReadReceiptSummariesRequest{
+		RoomId: room.Id, MessageEventIds: []string{message.Id},
+	}))
+	if err != nil {
+		t.Fatalf("historical GetReadReceiptSummaries: %v", err)
+	}
+	if historical.Msg.GetSummaries()[0].GetReaderCount() != 2 {
+		t.Fatalf("historical summaries = %+v", historical.Msg)
+	}
+}
+
 func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	room := env.createJoinedRoom("read-state-room")
@@ -7629,6 +7755,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	if err := env.core.SetSpaceNotificationLevel(env.ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
 		t.Fatalf("SetSpaceNotificationLevel(ALL_MESSAGES): %v", err)
 	}
+	if err := env.core.FollowThread(env.ctx, core.KindChannel, reader.Id, room.Id, threadRoot.Id); err != nil {
+		t.Fatalf("FollowThread reader: %v", err)
+	}
 	roomMention, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Mention{
 			Mention: &corev1.MentionNotification{RoomId: room.Id, EventId: e1.Id},
@@ -7636,6 +7765,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	})
 	if err != nil {
 		t.Fatalf("CreateNotification room mention: %v", err)
+	}
+	if roomMention == nil {
+		t.Fatal("CreateNotification room mention was suppressed")
 	}
 	roomReply, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
@@ -7645,6 +7777,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	if err != nil {
 		t.Fatalf("CreateNotification room reply: %v", err)
 	}
+	if roomReply == nil {
+		t.Fatal("CreateNotification room reply was suppressed")
+	}
 	futureRoomNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_RoomMessage{
 			RoomMessage: &corev1.RoomMessageNotification{RoomId: room.Id, EventId: e3.Id},
@@ -7653,6 +7788,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	if err != nil {
 		t.Fatalf("CreateNotification future room message: %v", err)
 	}
+	if futureRoomNotification == nil {
+		t.Fatal("CreateNotification future room message was suppressed")
+	}
 	threadNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: threadReply.Id, InReplyToId: threadRoot.Id, InThread: threadRoot.Id},
@@ -7660,6 +7798,9 @@ func TestRoomAndThreadServicesMarkRoomAsReadAnchorsAndDoesNotRegress(t *testing.
 	})
 	if err != nil {
 		t.Fatalf("CreateNotification thread reply: %v", err)
+	}
+	if threadNotification == nil {
+		t.Fatal("CreateNotification thread reply was suppressed")
 	}
 
 	ctx := withCaller(env.ctx, reader)
@@ -7804,6 +7945,12 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	if err := env.core.SetSpaceNotificationLevel(env.ctx, reader.Id, corev1.NotificationLevel_NOTIFICATION_LEVEL_ALL_MESSAGES); err != nil {
 		t.Fatalf("SetSpaceNotificationLevel(ALL_MESSAGES): %v", err)
 	}
+	if err := env.core.FollowThread(env.ctx, core.KindChannel, reader.Id, room.Id, root.Id); err != nil {
+		t.Fatalf("FollowThread reader root: %v", err)
+	}
+	if err := env.core.FollowThread(env.ctx, core.KindChannel, reader.Id, room.Id, otherRoot.Id); err != nil {
+		t.Fatalf("FollowThread reader other root: %v", err)
+	}
 	threadReplyNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: reply1.Id, InReplyToId: root.Id, InThread: root.Id},
@@ -7811,6 +7958,9 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	})
 	if err != nil {
 		t.Fatalf("CreateNotification thread reply: %v", err)
+	}
+	if threadReplyNotification == nil {
+		t.Fatal("CreateNotification thread reply was suppressed")
 	}
 	threadMentionNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Mention{
@@ -7820,6 +7970,9 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	if err != nil {
 		t.Fatalf("CreateNotification thread mention: %v", err)
 	}
+	if threadMentionNotification == nil {
+		t.Fatal("CreateNotification thread mention was suppressed")
+	}
 	futureThreadNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
 			Reply: &corev1.ReplyNotification{RoomId: room.Id, EventId: reply3.Id, InReplyToId: root.Id, InThread: root.Id},
@@ -7827,6 +7980,9 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	})
 	if err != nil {
 		t.Fatalf("CreateNotification future thread reply: %v", err)
+	}
+	if futureThreadNotification == nil {
+		t.Fatal("CreateNotification future thread reply was suppressed")
 	}
 	otherThreadNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Reply{
@@ -7836,6 +7992,9 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	if err != nil {
 		t.Fatalf("CreateNotification other thread reply: %v", err)
 	}
+	if otherThreadNotification == nil {
+		t.Fatal("CreateNotification other thread reply was suppressed")
+	}
 	roomNotification, err := env.core.CreateNotification(env.ctx, reader.Id, env.viewer.Id, &corev1.Notification{
 		Notification: &corev1.Notification_Mention{
 			Mention: &corev1.MentionNotification{RoomId: room.Id, EventId: root.Id},
@@ -7843,6 +8002,9 @@ func TestRoomAndThreadServicesMarkThreadAsReadAnchorsAndDoesNotRegress(t *testin
 	})
 	if err != nil {
 		t.Fatalf("CreateNotification room mention: %v", err)
+	}
+	if roomNotification == nil {
+		t.Fatal("CreateNotification room mention was suppressed")
 	}
 
 	ctx := withCaller(env.ctx, reader)

@@ -98,6 +98,9 @@ func TestNewChattoCoreInitializesOperationModels(t *testing.T) {
 	if core.ReadState() == nil {
 		t.Fatal("ReadState() = nil")
 	}
+	if core.ReadReceipts() == nil {
+		t.Fatal("ReadReceipts() = nil")
+	}
 	if core.ThreadFollows() == nil {
 		t.Fatal("ThreadFollows() = nil")
 	}

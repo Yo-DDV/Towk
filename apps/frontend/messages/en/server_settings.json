@@ -44,6 +44,10 @@
     "banner_removed": "Banner removed",
     "banner_delete_failed": "Failed to delete banner",
     "banner_change": "Change Banner",
-    "banner_upload": "Upload Banner"
+    "banner_upload": "Upload Banner",
+    "read_receipts": {
+      "label": "Enable read receipts",
+      "description": "Let users publish and inspect read receipts in rooms and threads. Private unread state still works when this is off."
+    }
   }
 }

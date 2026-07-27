@@ -50,6 +50,7 @@ export type AuthenticatedServerState = {
   viewerCanDeleteSelf: boolean;
   viewerCanManageUserPermissions: boolean;
   viewerHasUnreadRooms: boolean;
+  readReceiptsEnabled: boolean;
 };
 
 export type EditableServerConfig = {
@@ -57,6 +58,7 @@ export type EditableServerConfig = {
   description: string;
   motd: string;
   welcomeMessage: string;
+  readReceiptsEnabled?: boolean;
 };
 
 export type EditableServerProfile = ServerProfile;
@@ -97,6 +99,7 @@ function mapEditableServerConfig(
         description?: string;
         motd?: string;
         welcomeMessage?: string;
+        readReceiptsEnabled?: boolean;
       }
     | null
     | undefined
@@ -105,7 +108,8 @@ function mapEditableServerConfig(
     name: config?.serverName ?? '',
     description: config?.description ?? '',
     motd: config?.motd ?? '',
-    welcomeMessage: config?.welcomeMessage ?? ''
+    welcomeMessage: config?.welcomeMessage ?? '',
+    readReceiptsEnabled: config?.readReceiptsEnabled ?? true
   };
 }
 
@@ -123,7 +127,7 @@ function blockedUsernameEntries(text: string): string[] {
 export async function getAuthenticatedServerState(
   config: ServerStateAPIConfig
 ): Promise<AuthenticatedServerState> {
-  const { discovery, server, viewer, headers } = serverClients(config);
+  const { discovery, server, viewer, adminServer, headers } = serverClients(config);
   const [discoveryResponse, motdResponse, runtimeResponse, viewerResponse] = await Promise.all([
     discovery.getServer({}),
     server.getMotd({}, { headers }),
@@ -137,6 +141,9 @@ export async function getAuthenticatedServerState(
   const viewerState = viewerResponse.viewerState;
   const can = (permission: string) => viewerPermissions[permission] ?? false;
   const capability = (key: string) => viewerCapabilities[key] ?? false;
+  const adminConfig = can('server.manage')
+    ? (await adminServer.getServerConfig({}, { headers })).config
+    : null;
 
   return {
     name: profile.name,
@@ -176,7 +183,8 @@ export async function getAuthenticatedServerState(
     viewerCanDeleteAnyUser: can('user.delete-any'),
     viewerCanDeleteSelf: can('user.delete-self'),
     viewerCanManageUserPermissions: can('user.manage-permissions'),
-    viewerHasUnreadRooms: viewerState?.hasUnreadRooms ?? false
+    viewerHasUnreadRooms: viewerState?.hasUnreadRooms ?? false,
+    readReceiptsEnabled: adminConfig?.readReceiptsEnabled ?? true
   };
 }
 
@@ -196,7 +204,8 @@ export async function updateServerConfig(
       serverName: input.name,
       description: input.description,
       motd: input.motd,
-      welcomeMessage: input.welcomeMessage
+      welcomeMessage: input.welcomeMessage,
+      readReceiptsEnabled: input.readReceiptsEnabled ?? true
     },
     { headers }
   );

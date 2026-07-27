@@ -198,8 +198,9 @@ func (s *viewerService) roomNotificationPreferences(ctx context.Context, userID 
 
 func coreUserSettingsToAPI(settings *corev1.ServerUserPreferences) *apiv1.UserSettings {
 	response := &apiv1.UserSettings{
-		TimeFormat:       apiv1.TimeFormat_TIME_FORMAT_AUTO,
-		ShowLastActivity: true,
+		TimeFormat:          apiv1.TimeFormat_TIME_FORMAT_AUTO,
+		ShowLastActivity:    true,
+		ReadReceiptsEnabled: true,
 	}
 	if settings == nil {
 		return response
@@ -208,6 +209,7 @@ func coreUserSettingsToAPI(settings *corev1.ServerUserPreferences) *apiv1.UserSe
 		response.Timezone = settings.Timezone
 	}
 	response.TimeFormat = coreTimeFormatToAPI(settings.GetTimeFormat())
+	response.ReadReceiptsEnabled = settings.ReadReceiptsEnabled == nil || settings.GetReadReceiptsEnabled()
 	response.ShowLastActivity = settings.ShowLastActivity == nil || settings.GetShowLastActivity()
 	return response
 }

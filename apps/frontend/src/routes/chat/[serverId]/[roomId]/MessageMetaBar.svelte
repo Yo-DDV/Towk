@@ -24,12 +24,14 @@ Contains the thread reply button, reaction pills, and an add-reaction button.
   import { resolve } from '$app/paths';
   import { on } from 'svelte/events';
   import type { RoomEventView } from '$lib/render/types';
+  import type { ReadReceiptSummary } from '$lib/api-client/readState';
   import UserAvatar, { UserAvatarViewData } from '$lib/components/UserAvatar.svelte';
   import UnreadDot from '$lib/ui/UnreadDot.svelte';
   import { useReactionActions, type MessageActionParams } from '$lib/hooks';
   import { useRenderData } from '$lib/render/data';
   import type { MessagesStore } from '$lib/state/room';
   import FloatingPopover from '$lib/ui/FloatingPopover.svelte';
+  import ReadReceiptBadge from './ReadReceiptBadge.svelte';
   import { getEmojiByName, getEmojiDisplayName } from '$lib/emoji';
   import * as m from '$lib/i18n/messages';
 
@@ -58,7 +60,9 @@ Contains the thread reply button, reaction pills, and an add-reaction button.
     onToggleThreadFollow,
     onOpenThread,
     onOpenEmojiPicker,
-    isEchoEvent = false
+    isEchoEvent = false,
+    readReceiptSummary = null,
+    readReceiptThreadRootEventId = null
   }: {
     roomId: string;
     messageEventId: string;
@@ -76,6 +80,8 @@ Contains the thread reply button, reaction pills, and an add-reaction button.
     onOpenThread?: () => void;
     onOpenEmojiPicker?: (e: MouseEvent) => void;
     isEchoEvent?: boolean;
+    readReceiptSummary?: ReadReceiptSummary | null;
+    readReceiptThreadRootEventId?: string | null;
   } = $props();
 
   const reactionActions = useReactionActions();
@@ -225,6 +231,16 @@ Contains the thread reply button, reaction pills, and an add-reaction button.
         ></span>
       </button>
     {/if}
+  {/if}
+
+  {#if readReceiptSummary && readReceiptSummary.readerCount > 0}
+    <ReadReceiptBadge
+      {roomId}
+      {messageEventId}
+      threadRootEventId={readReceiptThreadRootEventId}
+      summary={readReceiptSummary}
+      class={baseButtonClass}
+    />
   {/if}
 
   <!-- Reaction pills -->

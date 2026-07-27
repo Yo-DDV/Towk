@@ -2,10 +2,10 @@ syntax = "proto3";
 
 package chatto.core.v1;
 
-import "google/protobuf/timestamp.proto";
 import "chatto/core/v1/room_events.proto";
 import "chatto/core/v1/user_events.proto";
 import "chatto/core/v1/user_preferences.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 
@@ -81,6 +81,9 @@ message LiveEvent {
 
     // ----- Room layout -----
     RoomGroupsUpdatedEvent room_groups_updated = 90;
+
+    // ----- Public read receipts -----
+    PublicReadReceiptAdvancedEvent public_read_receipt_advanced = 92;
 
     // ----- Session termination -----
     SessionTerminatedEvent session_terminated = 100;
@@ -280,4 +283,15 @@ message RoomGroupsUpdatedEvent {
 message SessionTerminatedEvent {
   // Reason for termination: "logout", "admin_boot", "account_deleted"
   string reason = 1;
+}
+
+// PublicReadReceiptAdvancedEvent is an anonymous room-scoped invalidation.
+// Clients refetch authorized count-only summaries; reader identity, read time,
+// target message and sequence remain behind the explicit paginated detail API.
+message PublicReadReceiptAdvancedEvent {
+  reserved 3, 4, 5, 6;
+  reserved "user_id", "event_id", "event_sequence", "read_at";
+
+  string room_id = 1;
+  optional string thread_root_event_id = 2;
 }

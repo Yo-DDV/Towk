@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package chatto.core.v1;
 
-import "chatto/core/v1/user_preferences.proto";
 import "chatto/core/v1/models.proto";
+import "chatto/core/v1/user_preferences.proto";
 
 option go_package = "hmans.de/chatto/internal/pb/chatto/core/v1;corev1";
 
@@ -58,6 +58,8 @@ message ServerUserPreferencesUpdatedEvent {
   TimeFormat time_format = 2;
   // Effective last-activity visibility preference.
   bool show_last_activity = 3;
+  // Whether reciprocal public read receipts are enabled for this user.
+  bool read_receipts_enabled = 4;
 }
 
 // ============================================================================

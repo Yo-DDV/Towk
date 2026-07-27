@@ -213,6 +213,7 @@ Server-level display settings for the authenticated user.
 | `timezone` | `optional string` | Optional IANA timezone override. Absent means the client should use the browser's local timezone. |
 | `time_format` | [`TimeFormat`](#chatto-api-v1-TimeFormat) | Preferred time format. |
 | `show_last_activity` | `bool` | Whether other authenticated server members may see last activity. The API returns true when no explicit preference has been stored. |
+| `read_receipts_enabled` | `bool` | Whether the viewer publishes and may inspect reciprocal read receipts. |
 
 <a id="chatto-api-v1-ViewerCapabilities"></a>
 
@@ -532,6 +533,28 @@ One explicitly assigned role shown on a detailed user profile.
 | `display_name` | `string` | Administrator-configured display name. |
 | `position` | `int32` | Display ordering hint. This is not an authorization rank. |
 | `moderation` | `bool` | True when the role carries moderation or administration authority. |
+
+<a id="chatto-api-v1-ReadReceiptReader"></a>
+
+### ReadReceiptReader
+
+No message description provided.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `user` | [`User`](#chatto-api-v1-User) | No field description provided. |
+| `read_at` | `google.protobuf.Timestamp` | No field description provided. |
+
+<a id="chatto-api-v1-ReadReceiptSummary"></a>
+
+### ReadReceiptSummary
+
+Compact reader summary for one message.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `message_event_id` | `string` | No field description provided. |
+| `reader_count` | `int32` | No field description provided. |
 
 <a id="chatto-api-v1-RoomMessagePosted"></a>
 
@@ -1407,6 +1430,7 @@ Runtime-editable server profile settings.
 | `description` | `string` | Short server description for OG link-preview metadata. |
 | `motd` | `string` | Message of the day for the authenticated header. |
 | `welcome_message` | `string` | Welcome message shown on the login page. |
+| `read_receipts_enabled` | `bool` | Whether members may publish and inspect reciprocal read receipts. |
 
 
 

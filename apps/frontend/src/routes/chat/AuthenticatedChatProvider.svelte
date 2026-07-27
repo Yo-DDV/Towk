@@ -159,13 +159,15 @@
     useUserSettingsUpdate((update) => {
       userSettings.timezone = update.timezone;
       userSettings.timeFormat = update.timeFormat;
+      userSettings.readReceiptsEnabled = update.readReceiptsEnabled;
       if (currentUserState.user) {
         currentUserState.user = {
           ...currentUserState.user,
           settings: {
             timezone: update.timezone,
             timeFormat: update.timeFormat,
-            showLastActivity: update.showLastActivity
+            showLastActivity: update.showLastActivity,
+            readReceiptsEnabled: update.readReceiptsEnabled
           }
         };
         invalidateDetailedUserProfile(authenticatedOriginServerId, currentUserState.user.id);

@@ -1,5 +1,5 @@
 /**
- * Server-side user display preferences (timezone, time format).
+ * Server-side user display preferences (timezone, time format, read receipts).
  *
  * Populated from the LoadCurrentUser query during app initialization.
  * Used by time formatting utilities to respect user preferences.
@@ -21,6 +21,9 @@ export class UserSettingsState {
   /** Time display format preference. */
   timeFormat = $state<TimeFormat>(TimeFormat.Auto);
 
+  /** Whether this account publishes and may inspect reciprocal read receipts. */
+  readReceiptsEnabled = $state(true);
+
   /**
    * Effective timezone for Intl.DateTimeFormat.
    * Returns undefined when unset, which tells Intl to use browser default.
@@ -39,14 +42,19 @@ export class UserSettingsState {
 
   /** Update from server settings data. */
   updateFromData(
-    settings: { timezone?: string | null; timeFormat: TimeFormat } | null | undefined
+    settings:
+      | { timezone?: string | null; timeFormat: TimeFormat; readReceiptsEnabled?: boolean }
+      | null
+      | undefined
   ) {
     if (settings) {
       this.timezone = settings.timezone ?? null;
       this.timeFormat = settings.timeFormat;
+      this.readReceiptsEnabled = settings.readReceiptsEnabled ?? true;
     } else {
       this.timezone = null;
       this.timeFormat = TimeFormat.Auto;
+      this.readReceiptsEnabled = true;
     }
   }
 }

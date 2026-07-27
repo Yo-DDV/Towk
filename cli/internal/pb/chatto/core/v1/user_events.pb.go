@@ -269,8 +269,10 @@ type ServerUserPreferencesUpdatedEvent struct {
 	TimeFormat TimeFormat `protobuf:"varint,2,opt,name=time_format,json=timeFormat,proto3,enum=chatto.core.v1.TimeFormat" json:"time_format,omitempty"`
 	// Effective last-activity visibility preference.
 	ShowLastActivity bool `protobuf:"varint,3,opt,name=show_last_activity,json=showLastActivity,proto3" json:"show_last_activity,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Whether reciprocal public read receipts are enabled for this user.
+	ReadReceiptsEnabled bool `protobuf:"varint,4,opt,name=read_receipts_enabled,json=readReceiptsEnabled,proto3" json:"read_receipts_enabled,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ServerUserPreferencesUpdatedEvent) Reset() {
@@ -320,6 +322,13 @@ func (x *ServerUserPreferencesUpdatedEvent) GetTimeFormat() TimeFormat {
 func (x *ServerUserPreferencesUpdatedEvent) GetShowLastActivity() bool {
 	if x != nil {
 		return x.ShowLastActivity
+	}
+	return false
+}
+
+func (x *ServerUserPreferencesUpdatedEvent) GetReadReceiptsEnabled() bool {
+	if x != nil {
+		return x.ReadReceiptsEnabled
 	}
 	return false
 }
@@ -1565,7 +1574,7 @@ var File_chatto_core_v1_user_events_proto protoreflect.FileDescriptor
 
 const file_chatto_core_v1_user_events_proto_rawDesc = "" +
 	"\n" +
-	" chatto/core/v1/user_events.proto\x12\x0echatto.core.v1\x1a%chatto/core/v1/user_preferences.proto\x1a\x1bchatto/core/v1/models.proto\"d\n" +
+	" chatto/core/v1/user_events.proto\x12\x0echatto.core.v1\x1a\x1bchatto/core/v1/models.proto\x1a%chatto/core/v1/user_preferences.proto\"d\n" +
 	"\x10UserCreatedEvent\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05login\x18\x02 \x01(\tR\x05login\x12!\n" +
@@ -1578,12 +1587,13 @@ const file_chatto_core_v1_user_events_proto_rawDesc = "" +
 	"\n" +
 	"avatar_url\x18\x03 \x01(\tR\tavatarUrl\x12\x14\n" +
 	"\x05login\x18\x04 \x01(\tR\x05login\x12'\n" +
-	"\x0fdetails_changed\x18\x05 \x01(\bR\x0edetailsChanged\"\xaa\x01\n" +
+	"\x0fdetails_changed\x18\x05 \x01(\bR\x0edetailsChanged\"\xde\x01\n" +
 	"!ServerUserPreferencesUpdatedEvent\x12\x1a\n" +
 	"\btimezone\x18\x01 \x01(\tR\btimezone\x12;\n" +
 	"\vtime_format\x18\x02 \x01(\x0e2\x1a.chatto.core.v1.TimeFormatR\n" +
 	"timeFormat\x12,\n" +
-	"\x12show_last_activity\x18\x03 \x01(\bR\x10showLastActivity\"\x80\x01\n" +
+	"\x12show_last_activity\x18\x03 \x01(\bR\x10showLastActivity\x122\n" +
+	"\x15read_receipts_enabled\x18\x04 \x01(\bR\x13readReceiptsEnabled\"\x80\x01\n" +
 	"\x13EncryptedUserString\x12'\n" +
 	"\x0fencrypted_value\x18\x01 \x01(\fR\x0eencryptedValue\x12\x14\n" +
 	"\x05nonce\x18\x02 \x01(\fR\x05nonce\x12*\n" +
@@ -1741,8 +1751,8 @@ func file_chatto_core_v1_user_events_proto_init() {
 	if File_chatto_core_v1_user_events_proto != nil {
 		return
 	}
-	file_chatto_core_v1_user_preferences_proto_init()
 	file_chatto_core_v1_models_proto_init()
+	file_chatto_core_v1_user_preferences_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

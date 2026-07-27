@@ -176,6 +176,7 @@
           settings: {
             timezone: currentUser.user.settings?.timezone ?? null,
             timeFormat: currentUser.user.settings?.timeFormat ?? settings.timeFormat,
+            readReceiptsEnabled: settings.readReceiptsEnabled,
             showLastActivity: settings.showLastActivity
           }
         };

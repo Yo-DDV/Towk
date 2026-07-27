@@ -147,6 +147,11 @@ type EventEnvelopeEvent =
       messageEventId: string;
       emoji: string;
     }
+  | {
+      kind: typeof RoomEventKind.ReadReceiptAdvanced;
+      roomId: string;
+      threadRootEventId?: string | null;
+    }
   | { kind: typeof RoomEventKind.RoomArchived; roomId: string }
   | { kind: typeof RoomEventKind.RoomCreated; roomId: string }
   | { kind: typeof RoomEventKind.RoomDeleted; roomId: string }
@@ -169,6 +174,7 @@ type EventEnvelopeEvent =
       kind: typeof RoomEventKind.ServerUserPreferencesUpdated;
       timezone: string | null;
       timeFormat: TimeFormat;
+      readReceiptsEnabled: boolean;
       showLastActivity: boolean;
     }
   | { kind: typeof RoomEventKind.SessionTerminated; reason: string }
@@ -545,6 +551,7 @@ export function onRoomMarkedAsRead(handler: (info: RoomMarkedAsReadInfo) => void
 export type UserSettingsUpdate = {
   timezone: string | null;
   timeFormat: TimeFormat;
+  readReceiptsEnabled: boolean;
   showLastActivity: boolean;
 };
 
@@ -555,6 +562,7 @@ export function onUserSettingsUpdate(handler: (update: UserSettingsUpdate) => vo
       return {
         timezone: e.timezone,
         timeFormat: e.timeFormat,
+        readReceiptsEnabled: e.readReceiptsEnabled,
         showLastActivity: e.showLastActivity
       };
     },
@@ -652,6 +660,22 @@ export function onPresenceChange(handler: PresenceHandler): () => void {
       if (!userId) return;
       handler(userId, status);
     }
+  );
+}
+
+export type ReadReceiptAdvanced = {
+  roomId: string;
+  threadRootEventId: string | null;
+};
+
+export function onReadReceiptAdvanced(handler: (update: ReadReceiptAdvanced) => void): () => void {
+  return onTypedEvent(
+    RoomEventKind.ReadReceiptAdvanced,
+    (_env, e) => ({
+      roomId: e.roomId,
+      threadRootEventId: e.threadRootEventId ?? null
+    }),
+    handler
   );
 }
 

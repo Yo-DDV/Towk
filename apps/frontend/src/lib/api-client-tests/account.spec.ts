@@ -136,6 +136,7 @@ describe('createAccountAPI', () => {
       settings: {
         timezone: 'Europe/Berlin',
         timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+        readReceiptsEnabled: false,
         showLastActivity: false
       }
     });
@@ -149,11 +150,13 @@ describe('createAccountAPI', () => {
       api.updateSettings({
         timezone: 'Europe/Berlin',
         timeFormat: TimeFormat.TwentyFourHour,
+        readReceiptsEnabled: false,
         showLastActivity: false
       })
     ).resolves.toEqual({
       timezone: 'Europe/Berlin',
       timeFormat: TimeFormat.TwentyFourHour,
+      readReceiptsEnabled: false,
       showLastActivity: false
     });
 
@@ -161,6 +164,7 @@ describe('createAccountAPI', () => {
       {
         timezone: 'Europe/Berlin',
         timeFormat: APITimeFormat.TIME_FORMAT_24_HOUR,
+        readReceiptsEnabled: false,
         showLastActivity: false
       },
       { headers: undefined }
@@ -201,6 +205,7 @@ describe('createAccountAPI', () => {
     await expect(api.updateSettings({ timezone: null })).resolves.toEqual({
       timezone: null,
       timeFormat: TimeFormat.Auto,
+      readReceiptsEnabled: true,
       showLastActivity: true
     });
 
@@ -208,6 +213,7 @@ describe('createAccountAPI', () => {
       {
         timezone: '',
         timeFormat: undefined,
+        readReceiptsEnabled: undefined,
         showLastActivity: undefined
       },
       { headers: undefined }
