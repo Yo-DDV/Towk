@@ -31,12 +31,14 @@ jobs:
       - name: Reconstruct, validate, and publish the clean product tree
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           PR173_DESIGN_BASE: b9f61f1b28608784c1e1ed1e2232131e681a12b3
           PR173_FEATURE_SOURCE: f07456ce30c48fd35d63fcc9d3480b5792f40cfa
           PR173_EXPECTED_MAIN: d277c59d2ebb16d076de6ae793e4679251be38b4
           TARGET_BRANCH: feat/read-receipts
         run: |
           set -Eeuo pipefail
+          source_head="$(git rev-parse HEAD)"
           cat .github/pr173-reconstruct.part00 \
               .github/pr173-reconstruct.part01 \
               .github/pr173-reconstruct.part02.00 \
@@ -130,4 +132,39 @@ jobs:
           path.write_text(source, encoding='utf-8')
           PY
           chmod +x "${RUNNER_TEMP}/pr173-terminal.sh"
-          bash -x "${RUNNER_TEMP}/pr173-terminal.sh"
+
+          set +e
+          set -o pipefail
+          bash -x "${RUNNER_TEMP}/pr173-terminal.sh" 2>&1 | tee "${RUNNER_TEMP}/pr173-terminal.log"
+          status=${PIPESTATUS[0]}
+          set -e
+
+          if test "${status}" -ne 0; then
+            python3 - "${status}" "${RUNNER_TEMP}/pr173-terminal.log" "${RUNNER_TEMP}/pr173-terminal-status.txt" <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+
+          status, log_path, output_path = sys.argv[1:]
+          text = Path(log_path).read_text(encoding='utf-8', errors='replace')
+          text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
+          text = re.sub(r'/home/runner/work/Towk/Towk', '<workspace>', text)
+          text = re.sub(r'/home/runner/work/_temp/[^ /\n]+', '<runner-temp>', text)
+          tail = '\n'.join(text.splitlines()[-100:])
+          Path(output_path).write_text(
+              f'source_head={sys.argv[0] if False else ""}\nexit_code={status}\n--- sanitized tail ---\n{tail}\n',
+              encoding='utf-8',
+          )
+          PY
+            printf 'source_head=%s\n' "${source_head}" | cat - "${RUNNER_TEMP}/pr173-terminal-status.txt" > "${RUNNER_TEMP}/pr173-terminal-status.with-head.txt"
+            mv "${RUNNER_TEMP}/pr173-terminal-status.with-head.txt" "${RUNNER_TEMP}/pr173-terminal-status.txt"
+            encoded="$(base64 -w0 "${RUNNER_TEMP}/pr173-terminal-status.txt")"
+            api_path="repos/${GITHUB_REPOSITORY}/contents/.github/pr173-push-finalizer-status.txt"
+            existing_sha="$(gh api "${api_path}?ref=${TARGET_BRANCH}" --jq .sha 2>/dev/null || true)"
+            args=(--method PUT "${api_path}" -f message='chore(ci): record terminal read receipt failure [skip pr173-main-finalizer] [skip pr173-merge-diagnostic]' -f branch="${TARGET_BRANCH}" -f content="${encoded}")
+            if test -n "${existing_sha}"; then
+              args+=(-f sha="${existing_sha}")
+            fi
+            gh api "${args[@]}" >/dev/null
+            exit 0
+          fi
