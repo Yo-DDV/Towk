@@ -1,4 +1,9 @@
 /* Application shell ------------------------------------------------------- */
+html,
+body {
+  background-color: var(--towk-envelope);
+}
+
 .app-envelope {
   position: relative;
   isolation: isolate;
@@ -21,13 +26,23 @@
     0 0 0 1px var(--towk-stroke),
     inset 0 1px 0 var(--towk-edge-light),
     0 1px 2px var(--towk-key-shadow),
-    0 24px 64px -30px var(--towk-deep-shadow),
-    0 10px 28px -22px var(--towk-ambient-shadow);
+    0 0 30px -20px var(--towk-deep-shadow),
+    0 8px 20px -18px var(--towk-ambient-shadow);
+}
+
+/* The top application bar belongs to the outer envelope. Keeping its fill
+ * identical also covers the safe-area and fallback background around it. */
+.app-header {
+  background-color: var(--towk-envelope);
+  background-image: none;
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow),
+    0 8px 20px -20px var(--towk-ambient-shadow);
 }
 
 /* Persistent surfaces use a stable Mica-like material. Keeping these panes
  * opaque avoids costly full-height live blur and keeps message text crisp. */
-.app-header,
 .server-gutter,
 .server-sidebar,
 .pane-header,
@@ -44,13 +59,6 @@
 [data-testid='room-sidebar-mobile-pane'],
 [data-testid='room-sidebar-desktop-pane'] {
   --color-background: var(--towk-navigation);
-}
-
-.app-header {
-  box-shadow:
-    inset 0 1px 0 var(--towk-edge-light),
-    inset 0 -1px 0 var(--towk-edge-shadow),
-    0 8px 20px -20px var(--towk-ambient-shadow);
 }
 
 .server-gutter {
@@ -121,7 +129,7 @@
 .surface-box,
 .checkbox-option,
 .choice-row,
-.meta-badge,
+.meta-bade,
 .menu,
 .floating-tooltip,
 .dialog-tray,

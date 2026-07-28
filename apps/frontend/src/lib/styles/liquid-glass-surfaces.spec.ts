@@ -49,6 +49,12 @@ function rgbChannels(value: string): [number, number, number] {
   return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
 }
 
+function expectAchromatic(value: string) {
+  const [red, green, blue] = rgbChannels(value);
+  expect(red).toBe(green);
+  expect(green).toBe(blue);
+}
+
 function relativeLuminance(value: string): number {
   const channels = rgbChannels(value).map((channel) => {
     const normalized = channel / 255;
@@ -84,7 +90,7 @@ describe('depth-aware application surfaces', () => {
 
   it('adds styling hooks without moving or duplicating the application structure', () => {
     expect(rootLayout).toContain('data-testid="app-envelope"');
-    expect(rootLayout).toContain('class="app-envelope flex h-full w-full flex-col');
+    expect(rootLayout).toContain('class="app-envelope flex h-full with-full flex-col');
     expect(frame).toContain('data-testid="app-content-frame"');
     expect(frame).toContain('class="app-content-frame flex min-h-0 flex-1');
     expect(paneHeader).toContain('data-ui="pane-header"');
@@ -97,22 +103,68 @@ describe('depth-aware application surfaces', () => {
     expect(matrixCell).toContain('data-override={isOverride');
   });
 
-  it('keeps the dark envelope and navigation above the inset content canvas', () => {
+  it('uses a comfortable achromatic dark scale with a complete outer envelope', () => {
     const darkStart = appShell.indexOf(":root[data-theme='dark']");
     const darkEnd = appShell.indexOf('/* Application shell', darkStart);
     const darkTheme = appShell.slice(darkStart, darkEnd);
+
+    const neutralVariables = [
+      'color-background',
+      'color-text',
+      'color-text-top',
+      'color-muted',
+      'color-border',
+      'color-surface',
+      'color-surface-100',
+      'color-surface-200',
+      'color-surface-300',
+      'color-surface-highlighted',
+      'color-input',
+      'color-input-border',
+      'color-primary',
+      'color-primary-hover',
+      'color-panel-tint',
+      'towk-canvas',
+      'towk-content-raised',
+      'towk-envelope',
+      'towk-frame',
+      'towk-navigation',
+      'towk-control',
+       'towk-control-hover',
+      'towk-control-pressed',
+      'towk-control-subtle',
+      'towk-transient-solid',
+      'towk-transient-glass',
+     'towk-stroke',
+      'towk-stroke-strong',
+      'towk-edge-light',
+      'towk-edge-soft',
+      'towk-focus-neutral',
+      'towk-action-primary',
+      'towk-action-primary-hover'
+    ];
+
+    for (const name of neutralVariables) expectAchromatic(cssVariable(darkTheme, name));
 
     const envelope = cssVariable(darkTheme, 'towk-envelope');
     const navigation = cssVariable(darkTheme, 'towk-navigation');
     const frameFill = cssVariable(darkTheme, 'towk-frame');
     const canvas = cssVariable(darkTheme, 'towk-canvas');
     const background = cssVariable(darkTheme, 'color-background');
+    const envelopeChannel = rgbChannels(envelope)[0];
+    const canvasChannel = rgbChannels(canvas)[0];
 
     expect(relativeLuminance(envelope)).toBeGreaterThan(relativeLuminance(navigation));
     expect(relativeLuminance(navigation)).toBeGreaterThan(relativeLuminance(canvas));
     expect(relativeLuminance(frameFill)).toBeGreaterThanOrEqual(relativeLuminance(canvas));
     expect(relativeLuminance(canvas)).toBeCloseTo(relativeLuminance(background), 4);
-    expect(relativeLuminance(envelope)).toBeLessThan(0.02);
+    expect(relativeLuminance(canvas)).toBeGreaterThan(0.008);
+    expect(relativeLuminance(envelope)).toBeLessThan(0.03);
+    expect(envelopeChannel - canvasChannel).toBeGreaterThanOrEqual(10);
+    expect(canvasChannel).toBeGreaterThanOrEqual(24);
+
+    expect(appShell).toContain('html,\nbody {\n  background-color: var(--towk-envelope);');
+    expect(appShell).toContain('.app-header {\n  background-color: var(--towk-envelope);');
   });
 
   it('contains no decorative color-gradient function in canonical or material surfaces', () => {
@@ -120,7 +172,7 @@ describe('depth-aware application surfaces', () => {
     expect(liquidGlass).not.toMatch(gradientFunction);
     expect(appShell).not.toMatch(gradientFunction);
     expect(appCss).not.toMatch(/\bbg-gradient|--tw-gradient/i);
-    expect(scrollFader).not.toMatch(/bg-gradient|from-background|to-transparent/);
+    expect(scrollFader).vot.toMatch(/bg-gradient|from-background|to-transparent/);
     expect(toggleChip).not.toMatch(/bg-gradient|--tw-gradient|from-[a-z]|to-[a-z]/i);
     expect(matrixCell).not.toMatch(/bg-gradient|--tw-gradient|from-[a-z]|to-[a-z]/i);
 
@@ -150,7 +202,7 @@ describe('depth-aware application surfaces', () => {
 
   it('uses stable persistent surfaces and reserves live blur for transient UI', () => {
     expect(appShell).toContain('Persistent surfaces use a stable Mica-like material');
-    expect(appShell).toContain('.app-header,');
+    expect(appShell).toContain('.app-header {');
     expect(appShell).toContain('.server-gutter,');
     expect(appShell).toContain('.server-sidebar,');
     expect(appShell).toContain('.pane-header,');
@@ -171,7 +223,7 @@ describe('depth-aware application surfaces', () => {
     expect(appShell).toContain('A viewport-filling dialog is content, not a floating glass control.');
   });
 
-  it('ships opaque fallbacks before bounded progressive blur', () => {
+  it('ships opaque fallbacks before bounded, non-amplifying progressive blur', () => {
     const liquidEnhancement = liquidGlass.indexOf(backdropEnhancement);
     const shellEnhancement = appShell.indexOf(backdropEnhancement);
 
@@ -180,23 +232,39 @@ describe('depth-aware application surfaces', () => {
     expect(liquidGlass.slice(0, liquidEnhancement)).not.toContain('backdrop-filter:');
     expect(appShell.slice(0, shellEnhancement)).not.toContain('backdrop-filter:');
 
-    expect(liquidGlass).toContain('backdrop-filter: blur(16px) saturate(112%);');
-    expect(liquidGlass).toContain('backdrop-filter: blur(12px) saturate(108%);');
-    expect(appShell).toContain('backdrop-filter: blur(16px) saturate(112%);');
-    expect(appShell).toContain('backdrop-filter: blur(12px) saturate(108%);');
+    expect(liquidGlass).toContain('backdrop-filter: blur(16px) saturate(100%);');
+    expect(liquidGlass).toContain('backdrop-filter: blur(12px) saturate(100%);');
+    expect(appShell).toContain('backdrop-filter: blur(16px) saturate(100%);');
+    expect(appShell).toContain('backdrop-filter: blur(12px) saturate(100%);');
     expect(`${liquidGlass}\n${appShell}`).not.toMatch(/blur\((?:1[7-9]|[2-9]\d)px\)/);
+    expect(`${liquidGlass}\n${appShell}`).not.toMatch(/saturate\((?:10[1-9]|1[1-9]\d|[2-9]\d\d)%\)/);
   });
 
-  it('keeps compact glass neutral without an interior white wash', () => {
+  it('keeps compact glass achromatic without an interior white wash', () => {
     const darkStart = liquidGlass.indexOf(":root[data-theme='dark']");
     const rulesStart = liquidGlass.indexOf(":root [data-testid='current-user-identity-card']");
     const darkTheme = liquidGlass.slice(darkStart, rulesStart);
+
+    const neutralVariables = [
+      'liquid-glass-solid',
+      'liquid-glass-translucent',
+      'liquid-glass-border',
+      'liquid-glass-border-strong',
+      'liquid-glass-edge-light',
+      'liquid-glass-edge-side',
+      'liquid-glass-edge-shadow',
+      'liquid-glass-key-shadow',
+      'liquid-glass-ambient-shadow',
+      'liquid-glass-focus-neutral',
+      'liquid-glass-busy'
+    ];
+    for (const name of neutralVariables) expectAchromatic(cssVariable(darkTheme, name));
 
     const fill = cssVariable(darkTheme, 'liquid-glass-translucent');
     const edge = cssVariable(darkTheme, 'liquid-glass-edge-light');
     const side = cssVariable(darkTheme, 'liquid-glass-edge-side');
 
-    expect(rgbaAlpha(fill)).toBeGreaterThanOrEqual(0.8);
+    expect(rgbaAlpha(fill)).toBeGreaterThanOrEqual(0.85);
     expect(rgbaAlpha(edge)).toBeLessThanOrEqual(0.07);
     expect(rgbaAlpha(side)).toBeLessThanOrEqual(0.03);
     expect(liquidGlass).not.toContain('will-change: transform');

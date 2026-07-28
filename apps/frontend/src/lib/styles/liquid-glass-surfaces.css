@@ -21,18 +21,18 @@
 }
 
 :root[data-theme='dark'] {
-  --liquid-glass-solid: rgb(20, 25, 33);
-  --liquid-glass-translucent: rgba(18, 23, 30, 0.84);
-  --liquid-glass-border: rgba(235, 241, 250, 0.085);
-  --liquid-glass-border-strong: rgba(235, 241, 250, 0.18);
-  --liquid-glass-edge-light: rgba(235, 241, 250, 0.065);
-  --liquid-glass-edge-side: rgba(148, 163, 184, 0.025);
-  --liquid-glass-edge-shadow: rgba(0, 0, 0, 0.42);
-  --liquid-glass-key-shadow: rgba(0, 0, 0, 0.62);
-  --liquid-glass-ambient-shadow: rgba(0, 0, 0, 0.36);
-  --liquid-glass-focus-neutral: rgba(56, 189, 248, 0.18);
+  --liquid-glass-solid: rgb(38, 38, 38);
+  --liquid-glass-translucent: rgba(38, 38, 38, 0.88);
+  --liquid-glass-border: rgba(255, 255, 255, 0.09);
+  --liquid-glass-border-strong: rgba(255, 255, 255, 0.18);
+  --liquid-glass-edge-light: rgba(255, 255, 255, 0.06);
+  --liquid-glass-edge-side: rgba(255, 255, 255, 0.02);
+  --liquid-glass-edge-shadow: rgba(0, 0, 0, 0.34);
+  --liquid-glass-key-shadow: rgba(0, 0, 0, 0.44);
+  --liquid-glass-ambient-shadow: rgba(0, 0, 0, 0.28);
+  --liquid-glass-focus-neutral: rgba(255, 255, 255, 0.15);
   --liquid-glass-focus-composer: rgba(232, 120, 59, 0.18);
-  --liquid-glass-busy: rgba(148, 163, 184, 0.075);
+  --liquid-glass-busy: rgba(255, 255, 255, 0.075);
 }
 
 :root [data-testid='current-user-identity-card'],
@@ -62,8 +62,8 @@
   :root [data-testid='current-user-identity-card'],
   :root [data-testid='message-composer-shell'].composer-focus-shell {
     --liquid-glass-current-fill: var(--liquid-glass-translucent);
-    -webkit-backdrop-filter: blur(16px) saturate(112%);
-    backdrop-filter: blur(16px) saturate(112%);
+    -webkit-backdrop-filter: blur(16px) saturate(100%);
+    backdrop-filter: blur(16px) saturate(100%);
   }
 }
 
@@ -189,8 +189,8 @@
   @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     :root [data-testid='current-user-identity-card'],
     :root [data-testid='message-composer-shell'].composer-focus-shell {
-      -webkit-backdrop-filter: blur(12px) saturate(108%);
-      backdrop-filter: blur(12px) saturate(108%);
+      -webkit-backdrop-filter: blur(12px) saturate(100%);
+      backdrop-filter: blur(12px) saturate(100%);
     }
   }
 }

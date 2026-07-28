@@ -153,14 +153,15 @@
   }
 }
 
-/* Acrylic is reserved for transient, light-dismiss surfaces. */
+/* Acrylic is reserved for transient, light-dismiss surfaces. Do not amplify
+ * backdrop saturation: the dark material must remain visibly achromatic. */
 @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
   .menu,
   .floating-tooltip,
   .dialog-tray,
   dialog.bottom-sheet > div {
     background-color: var(--towk-transient-glass);
-    -webkit-backdrop-filter: blur(16px) saturate(112%);
-    backdrop-filter: blur(16px) saturate(112%);
+    -webkit-backdrop-filter: blur(16px) saturate(100%);
+    backdrop-filter: blur(16px) saturate(100%);
   }
 }

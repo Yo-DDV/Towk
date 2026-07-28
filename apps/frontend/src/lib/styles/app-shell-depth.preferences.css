@@ -27,8 +27,8 @@
     .floating-tooltip,
     .dialog-tray,
     dialog.bottom-sheet > div {
-      -webkit-backdrop-filter: blur(12px) saturate(108%);
-      backdrop-filter: blur(12px) saturate(108%);
+      -webkit-backdrop-filter: blur(12px) saturate(100%);
+      backdrop-filter: blur(12px) saturate(100%);
     }
 
     /* A viewport-filling dialog is content, not a floating glass control.

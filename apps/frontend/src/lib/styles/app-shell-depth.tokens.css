@@ -51,46 +51,54 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /* Deep, slightly blue-neutral values retain separation without gray haze. */
-  --color-background: #080a0e;
-  --color-text: #d8dde6;
-  --color-text-top: #f3f6fa;
-  --color-muted: #969faa;
-  --color-border: #242b36;
-  --color-surface: #11161d;
-  --color-surface-100: #151a22;
-  --color-surface-200: #1b222c;
-  --color-surface-300: #252e3a;
-  --color-surface-highlighted: #2d3745;
-  --color-input: #07090c;
-  --color-input-border: #2b3440;
-  --color-primary: #566273;
-  --color-primary-hover: #64748b;
-  --color-panel-tint: #10141a;
-  --color-panel-highlight: rgba(235, 241, 250, 0.045);
-  --color-image-outline: rgba(235, 241, 250, 0.11);
+  /*
+   * Achromatic neutral scale: the content floor stays a dark gray rather than
+   * near-black, while the surrounding envelope is one clear elevation step
+   * lighter. Every non-semantic surface keeps equal RGB channels so no blue
+   * cast can re-enter through a token override.
+   */
+  --color-background: #1a1a1a;
+  --color-text: #d8d8d8;
+  --color-text-top: #f2f2f2;
+  --color-muted: #a0a0a0;
+  --color-border: #383838;
+  --color-surface: #202020;
+  --color-surface-100: #262626;
+  --color-surface-200: #303030;
+  --color-surface-300: #3a3a3a;
+  --color-surface-highlighted: #444444;
+  --color-input: #161616;
+  --color-input-border: #3a3a3a;
+  --color-primary: #5a5a5a;
+  --color-primary-hover: #6a6a6a;
+  --color-panel-tint: #202020;
+  --color-panel-highlight: rgba(255, 255, 255, 0.045);
+  --color-image-outline: rgba(255, 255, 255, 0.11);
 
-  --towk-canvas: rgb(8, 10, 14);
-  --towk-content-raised: rgb(12, 15, 20);
-  --towk-envelope: rgb(21, 26, 34);
-  --towk-frame: rgb(9, 11, 15);
-  --towk-navigation: rgb(16, 20, 26);
-  --towk-control: rgb(24, 30, 39);
-  --towk-control-hover: rgb(34, 42, 53);
-  --towk-control-pressed: rgb(42, 52, 65);
-  --towk-control-subtle: rgb(18, 23, 30);
-  --towk-transient-solid: rgb(20, 25, 33);
-  --towk-transient-glass: rgba(18, 23, 30, 0.9);
+  --towk-canvas: rgb(26, 26, 26);
+  --towk-content-raised: rgb(31, 31, 31);
+  --towk-envelope: rgb(38, 38, 38);
+  --towk-frame: rgb(26, 26, 26);
+  --towk-navigation: rgb(32, 32, 32);
+  --towk-control: rgb(43, 43, 43);
+  --towk-control-hover: rgb(54, 54, 54);
+  --towk-control-pressed: rgb(65, 65, 65);
+  --towk-control-subtle: rgb(37, 37, 37);
+  --towk-transient-solid: rgb(36, 36, 36);
+  --towk-transient-glass: rgba(36, 36, 36, 0.92);
 
-  --towk-stroke: rgba(232, 238, 248, 0.075);
-  --towk-stroke-strong: rgba(232, 238, 248, 0.16);
-  --towk-edge-light: rgba(232, 238, 248, 0.065);
-  --towk-edge-soft: rgba(148, 163, 184, 0.06);
-  --towk-edge-shadow: rgba(0, 0, 0, 0.42);
-  --towk-key-shadow: rgba(0, 0, 0, 0.62);
-  --towk-ambient-shadow: rgba(0, 0, 0, 0.38);
-  --towk-deep-shadow: rgba(0, 0, 0, 0.76);
+  --towk-stroke: rgba(255, 255, 255, 0.075);
+  --towk-stroke-strong: rgba(255, 255, 255, 0.16);
+  --towk-edge-light: rgba(255, 255, 255, 0.06);
+  --towk-edge-soft: rgba(255, 255, 255, 0.035);
+  --towk-edge-shadow: rgba(0, 0, 0, 0.34);
+  --towk-key-shadow: rgba(0, 0, 0, 0.44);
+  --towk-ambient-shadow: rgba(0, 0, 0, 0.28);
+  --towk-deep-shadow: rgba(0, 0, 0, 0.52);
 
-  --towk-focus-neutral: rgba(56, 189, 248, 0.2);
+  --towk-focus-neutral: rgba(255, 255, 255, 0.15);
   --towk-focus-orange: rgba(232, 120, 59, 0.2);
+
+  --towk-action-primary: #5a5a5a;
+  --towk-action-primary-hover: #6a6a6a;
 }

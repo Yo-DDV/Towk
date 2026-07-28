@@ -39,6 +39,12 @@ function rgbChannels(value: string): [number, number, number] {
   return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
+function expectAchromatic(value: string) {
+  const [red, green, blue] = rgbChannels(value);
+  expect(red).toBe(green);
+  expect(green).toBe(blue);
+}
+
 function relativeLuminance(value: string): number {
   const channels = rgbChannels(value).map((channel) => {
     const normalized = channel / 255;
@@ -61,7 +67,7 @@ async function expectContained(locator: Locator, width: number) {
 }
 
 test.describe('Depth-aware application surfaces', () => {
-  test('renders a dark, gradient-free hierarchy with bounded glass and stable geometry', async ({
+  test('renders a neutral-gray hierarchy with a complete envelope and stable glass', async ({
     page,
     chatPage,
     roomPage
@@ -73,6 +79,7 @@ test.describe('Depth-aware application surfaces', () => {
     await chatPage.enterRoom('general');
 
     const root = page.locator('html');
+    const body = page.locator('body');
     const envelope = page.getByTestId('app-envelope');
     const frame = page.getByTestId('app-content-frame');
     const appHeader = page.locator('.app-header');
@@ -111,6 +118,7 @@ test.describe('Depth-aware application surfaces', () => {
     );
 
     const [
+      bodyStyle,
       envelopeStyle,
       frameStyle,
       appHeaderStyle,
@@ -122,6 +130,7 @@ test.describe('Depth-aware application surfaces', () => {
       composerStyle,
       sendButtonStyle
     ] = await Promise.all([
+      readSurfaceStyle(body),
       readSurfaceStyle(envelope),
       readSurfaceStyle(frame),
       readSurfaceStyle(appHeader),
@@ -135,6 +144,7 @@ test.describe('Depth-aware application surfaces', () => {
     ]);
 
     for (const style of [
+      bodyStyle,
       envelopeStyle,
       frameStyle,
       appHeaderStyle,
@@ -149,12 +159,34 @@ test.describe('Depth-aware application surfaces', () => {
       expectNoDecorativeGradient(style);
     }
 
+    for (const style of [
+      bodyStyle,
+      envelopeStyle,
+      appHeaderStyle,
+      serverGutterStyle,
+      serverSidebarStyle,
+      paneHeaderStyle,
+      roomViewStyle,
+      profileStyle,
+      composerStyle
+    ]) {
+      expectAchromatic(style.backgroundColor);
+    }
+
+    expect(bodyStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
+    expect(appHeaderStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
+
     const envelopeLuminance = relativeLuminance(envelopeStyle.backgroundColor);
-    const navigationLuminance = relativeLuminance(appHeaderStyle.backgroundColor);
+    const navigationLuminance = relativeLuminance(serverSidebarStyle.backgroundColor);
     const canvasLuminance = relativeLuminance(roomViewStyle.backgroundColor);
+    const envelopeChannel = rgbChannels(envelopeStyle.backgroundColor)[0];
+    const canvasChannel = rgbChannels(roomViewStyle.backgroundColor)[0];
     expect(envelopeLuminance).toBeGreaterThan(navigationLuminance);
     expect(navigationLuminance).toBeGreaterThan(canvasLuminance);
-    expect(canvasLuminance).toBeLessThan(0.005);
+    expect(canvasLuminance).toBeGreaterThan(0.008);
+    expect(canvasLuminance).toBeLessThan(0.02);
+    expect(envelopeChannel - canvasChannel).toBeGreaterThanOrEqual(10);
+    expect(canvasChannel).toBeGreaterThanOrEqual(24);
 
     expect(frameStyle.boxShadow).not.toBe('none');
     expect(frameStyle.borderRadius).not.toBe('0px');
@@ -186,11 +218,13 @@ test.describe('Depth-aware application surfaces', () => {
 
     const activeSidebarStyle = await readSurfaceStyle(activeSidebarItem);
     expectNoDecorativeGradient(activeSidebarStyle);
+    expectAchromatic(activeSidebarStyle.backgroundColor);
     expect(activeSidebarStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
     expect(activeSidebarStyle.boxShadow).not.toBe('none');
     await activeSidebarItem.hover();
     const activeSidebarHoverStyle = await readSurfaceStyle(activeSidebarItem);
     expectNoDecorativeGradient(activeSidebarHoverStyle);
+    expectAchromatic(activeSidebarHoverStyle.backgroundColor);
     expect(activeSidebarHoverStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
     expect(activeSidebarHoverStyle.boxShadow).not.toBe('none');
     expect(activeSidebarHoverStyle.transform).toBe('none');
@@ -199,10 +233,12 @@ test.describe('Depth-aware application surfaces', () => {
     await expect(activeServer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     const activeServerStyle = await readSurfaceStyle(activeServer);
     expectNoDecorativeGradient(activeServerStyle);
+    expectAchromatic(activeServerStyle.backgroundColor);
     expect(activeServerStyle.boxShadow).not.toBe('none');
     await activeServer.hover();
     const activeServerHoverStyle = await readSurfaceStyle(activeServer);
     expectNoDecorativeGradient(activeServerHoverStyle);
+    expectAchromatic(activeServerHoverStyle.backgroundColor);
     expect(activeServerHoverStyle.boxShadow).not.toBe('none');
     expect(activeServerHoverStyle.transform).toBe('none');
 
@@ -218,6 +254,8 @@ test.describe('Depth-aware application surfaces', () => {
     ]);
     expectNoDecorativeGradient(transientStyle);
     expectNoDecorativeGradient(transientContentStyle);
+    expectAchromatic(transientStyle.backgroundColor);
+    expectAchromatic(transientContentStyle.backgroundColor);
     if (supportsBackdropFilter) {
       expect(transientStyle.backdropFilter).toContain('blur(16px)');
     }
@@ -285,14 +323,20 @@ test.describe('Depth-aware application surfaces', () => {
       await expectContained(frame, viewport.width);
       await expectContained(composer, viewport.width);
 
-      const [caseFrameStyle, caseComposerStyle, caseFrameBox] = await Promise.all([
-        readSurfaceStyle(frame),
-        readSurfaceStyle(composer),
-        frame.boundingBox()
-      ]);
+      const [caseFrameStyle, caseComposerStyle, caseAppHeaderStyle, caseEnvelopeStyle, caseFrameBox] =
+        await Promise.all([
+          readSurfaceStyle(frame),
+          readSurfaceStyle(composer),
+          readSurfaceStyle(appHeader),
+          readSurfaceStyle(envelope),
+          frame.boundingBox()
+        ]);
       expect(caseFrameBox).not.toBeNull();
       expectNoDecorativeGradient(caseFrameStyle);
       expectNoDecorativeGradient(caseComposerStyle);
+      expect(caseAppHeaderStyle.backgroundColor).toBe(caseEnvelopeStyle.backgroundColor);
+      expectAchromatic(caseAppHeaderStyle.backgroundColor);
+      expectAchromatic(caseComposerStyle.backgroundColor);
 
       if (viewport.desktopInset) {
         expect(caseFrameBox!.x).toBeGreaterThanOrEqual(11.5);
@@ -320,15 +364,17 @@ test.describe('Depth-aware application surfaces', () => {
     await chatPage.enterRoom('general');
 
     const root = page.locator('html');
+    const body = page.locator('body');
     const envelope = page.getByTestId('app-envelope');
     const frame = page.getByTestId('app-content-frame');
-    const navigation = page.locator('.app-header');
+    const appHeader = page.locator('.app-header');
+    const navigation = page.getByTestId('server-sidebar');
     const roomView = page.getByTestId('room-view-region');
     const profile = page.getByTestId('current-user-identity-card');
     const composer = page.getByTestId('message-composer-shell');
 
     await expect(root).toHaveAttribute('data-theme', 'light');
-    for (const surface of [envelope, frame, navigation, roomView, profile, composer]) {
+    for (const surface of [envelope, frame, appHeader, navigation, roomView, profile, composer]) {
       await expect(surface).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     }
 
@@ -337,19 +383,31 @@ test.describe('Depth-aware application surfaces', () => {
         CSS.supports('backdrop-filter', 'blur(1px)') ||
         CSS.supports('-webkit-backdrop-filter', 'blur(1px)')
     );
-    const [envelopeStyle, frameStyle, navigationStyle, roomViewStyle, profileStyle, composerStyle] =
-      await Promise.all([
-        readSurfaceStyle(envelope),
-        readSurfaceStyle(frame),
-        readSurfaceStyle(navigation),
-        readSurfaceStyle(roomView),
-        readSurfaceStyle(profile),
-        readSurfaceStyle(composer)
-      ]);
-
-    for (const style of [
+    const [
+      bodyStyle,
       envelopeStyle,
       frameStyle,
+      appHeaderStyle,
+      navigationStyle,
+      roomViewStyle,
+      profileStyle,
+      composerStyle
+    ] = await Promise.all([
+      readSurfaceStyle(body),
+      readSurfaceStyle(envelope),
+      readSurfaceStyle(frame),
+      readSurfaceStyle(appHeader),
+      readSurfaceStyle(navigation),
+      readSurfaceStyle(roomViet),
+      readSurfaceStyle(profile),
+      readSurfaceStyle(composer)
+    ]);
+
+    for (const style of [
+      bodyStyle,
+      envelopeStyle,
+      frameStyle,
+      appHeaderStyle,
       navigationStyle,
       roomViewStyle,
       profileStyle,
@@ -358,6 +416,8 @@ test.describe('Depth-aware application surfaces', () => {
       expectNoDecorativeGradient(style);
     }
 
+    expect(bodyStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
+    expect(appHeaderStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
     expect(relativeLuminance(roomViewStyle.backgroundColor)).toBeGreaterThan(
       relativeLuminance(navigationStyle.backgroundColor)
     );
