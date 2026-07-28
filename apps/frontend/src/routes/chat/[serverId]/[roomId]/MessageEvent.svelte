@@ -1039,6 +1039,7 @@
         onReplyInRoom={canUseReplyAction ? handleReplyInRoom : undefined}
         onReply={canUseThreadAction ? handleOpenThread : undefined}
         onOpenEmojiPicker={roomPermissions.canReact ? () => openEmojiPicker('sheet') : undefined}
+        deferEmojiPickerOpen
         onClose={() => (showActionSheet = false)}
       />
     </BottomSheet>
