@@ -74,15 +74,8 @@
   --color-panel-highlight: rgba(255, 255, 255, 0.7);
   --color-image-outline: rgba(0, 0, 0, 0.1);
 
-  /* Shimmer hover effect gradient */
-  --shimmer-gradient: linear-gradient(
-    120deg,
-    transparent 0%,
-    transparent 40%,
-    rgba(255, 255, 255, 0.15) 50%,
-    transparent 60%,
-    transparent 100%
-  );
+  /* Interactive depth is supplied by solid fills and shadows, never a sweep. */
+  --shimmer-gradient: none;
 }
 
 :root[data-theme='dark'] {
@@ -191,66 +184,49 @@
   box-shadow: inset 0 1px 0 var(--color-panel-highlight);
 }
 
-/* Button utilities — share the gradient + shadow visual language with
- * ToggleChip / MatrixCell so primary actions, mini-buttons and chips
- * all read as one coherent "interactive UI" system. Solid variants get
- * a top-left → bottom-right gradient (lighter to saturated), a tone-
- * tinted shadow, and a 1px ring; the secondary variant gets a quiet
- * surface gradient + neutral ring. Disabled state collapses everything
- * via opacity.
- */
+/* Button utilities provide a gradient-free canonical baseline. The material
+ * layer adds paired key/ambient shadows and pressed depth while these utilities
+ * retain semantic fills, rings, touch targets, and disabled behavior. */
 @utility btn {
   @apply inline-flex min-h-10 min-w-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-4 py-2 font-medium;
-  @apply transition-[background-color,color,box-shadow,scale,--tw-gradient-from,--tw-gradient-to] duration-150 active:scale-[0.96];
+  @apply transition-[background-color,color,box-shadow,scale] duration-150 active:scale-[0.96];
   @apply disabled:cursor-not-allowed disabled:opacity-50;
 }
 
-/* Solid variants: top-light → bottom-saturated gradient + a soft tone
- * ring. No drop shadows — the gradient gives them depth on its own and
- * keeps the visual language consistent with the rest of the app, which
- * doesn't use shadows. */
 @utility btn-primary {
-  @apply btn text-white;
-  @apply bg-gradient-to-br from-primary/65 to-primary/95 ring-1 ring-primary/30;
-  @apply hover:from-primary/75 hover:to-primary;
+  @apply btn bg-primary text-white ring-1 ring-primary/30;
+  @apply hover:bg-primary-hover;
 }
 
 @utility btn-accent {
-  @apply btn text-white;
-  @apply bg-gradient-to-br from-accent/65 to-accent/95 ring-1 ring-accent/30;
-  @apply hover:from-accent/75 hover:to-accent;
+  @apply btn bg-accent text-white ring-1 ring-accent/30;
+  @apply hover:bg-link-hover;
 }
 
 @utility btn-success {
-  @apply btn text-white;
-  @apply bg-gradient-to-br from-success/65 to-success/95 ring-1 ring-success/30;
-  @apply hover:from-success/75 hover:to-success;
+  @apply btn bg-success text-white ring-1 ring-success/30;
+  @apply hover:bg-success/85;
 }
 
 @utility btn-secondary {
-  /* Quiet surface gradient + neutral ring — distinct from surfaces
-     (dialogs, panels) without competing with the saturated variants. */
-  @apply btn text-text;
-  @apply bg-gradient-to-br from-surface-100/80 to-surface-200/80 ring-1 ring-text/5;
-  @apply hover:from-surface-200 hover:to-surface-300 hover:ring-text/10;
+  @apply btn bg-surface-100 text-text ring-1 ring-text/5;
+  @apply hover:bg-surface-200 hover:ring-text/10;
 }
 
 @utility btn-ghost {
   /* Stays minimal — no fill or ring until hover. Used for in-row icon
-     actions where a gradient would be too loud. */
+     actions where a filled surface would be too loud. */
   @apply btn bg-transparent text-text hover:bg-surface;
 }
 
 @utility btn-warning {
-  @apply btn text-white;
-  @apply bg-gradient-to-br from-warning/65 to-warning/95 ring-1 ring-warning/30;
-  @apply hover:from-warning/75 hover:to-warning;
+  @apply btn bg-warning text-white ring-1 ring-warning/30;
+  @apply hover:bg-warning/85;
 }
 
 @utility btn-danger {
-  @apply btn text-white;
-  @apply bg-gradient-to-br from-danger/65 to-danger/95 ring-1 ring-danger/30;
-  @apply hover:from-danger/75 hover:to-danger;
+  @apply btn bg-danger text-white ring-1 ring-danger/30;
+  @apply hover:bg-danger/85;
 }
 
 @utility btn-sm {
@@ -366,25 +342,20 @@
   }
 }
 
-/* Skeleton loading utility */
+/* Skeleton loading utility — a quiet opacity pulse avoids moving highlights. */
 @utility skeleton {
-  @apply relative overflow-hidden opacity-30;
-  background: linear-gradient(
-    90deg,
-    var(--color-surface-100) 0%,
-    var(--color-surface-200) 50%,
-    var(--color-surface-100) 100%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 2s linear infinite;
+  @apply relative overflow-hidden bg-surface-200 opacity-30;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes skeleton-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
+@keyframes skeleton-pulse {
+  0%,
   100% {
-    background-position: -200% 0;
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 0.5;
   }
 }
 
@@ -398,9 +369,7 @@
     transition-duration: 0.01ms !important;
   }
 
-  .skeleton,
-  .shimmer-hover::before,
-  .server-gutter-item::before {
+  .skeleton {
     animation: none !important;
   }
 }
@@ -432,7 +401,7 @@
   @apply transition-colors;
 }
 
-/* Shimmer hover effect */
+/* Structural hook retained for callers; the material system supplies feedback. */
 @utility shimmer-hover {
   @apply relative overflow-hidden;
 }
@@ -484,29 +453,6 @@
   @apply hover:bg-surface-100 hover:text-text;
 }
 
-/* Shared shimmer pseudo-element rules for all shimmer-enabled elements */
-.shimmer-hover::before,
-.server-gutter-item::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--shimmer-gradient);
-  transform: translateX(-100%);
-  pointer-events: none;
-  z-index: 5;
-}
-
-.shimmer-hover:hover::before,
-.server-gutter-item:hover::before {
-  animation: shimmer-sweep 400ms ease-out forwards;
-}
-
-@keyframes shimmer-sweep {
-  to {
-    transform: translateX(100%);
-  }
-}
-
 @utility highlight-flash {
   animation: highlight-flash 1.5s ease-out;
 }
@@ -556,7 +502,7 @@
 
 /* Server Gutter item — icon buttons in the leftmost sidebar (the Server Gutter). */
 @utility server-gutter-item {
-  @apply shimmer-hover relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-3xl transition-colors duration-100;
+  @apply relative flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-3xl transition-colors duration-100;
   @apply bg-surface text-text/70 hover:bg-surface-highlighted hover:text-text;
 }
 

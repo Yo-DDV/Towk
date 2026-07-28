@@ -200,6 +200,11 @@ test.describe('Depth-aware application surfaces', () => {
     const activeServerStyle = await readSurfaceStyle(activeServer);
     expectNoDecorativeGradient(activeServerStyle);
     expect(activeServerStyle.boxShadow).not.toBe('none');
+    await activeServer.hover();
+    const activeServerHoverStyle = await readSurfaceStyle(activeServer);
+    expectNoDecorativeGradient(activeServerHoverStyle);
+    expect(activeServerHoverStyle.boxShadow).not.toBe('none');
+    expect(activeServerHoverStyle.transform).toBe('none');
 
     // A transient popover gets bounded acrylic, while the content section
     // inside it remains opaque. This avoids layering glass over glass.

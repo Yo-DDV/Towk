@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+const appCss = readFileSync(new URL('../../app.css', import.meta.url), 'utf8');
 const liquidGlass = readFileSync(new URL('./liquid-glass-surfaces.css', import.meta.url), 'utf8');
 const appShellEntry = readFileSync(new URL('./app-shell-depth.css', import.meta.url), 'utf8');
 const appShell = [
@@ -114,13 +115,20 @@ describe('depth-aware application surfaces', () => {
     expect(relativeLuminance(envelope)).toBeLessThan(0.02);
   });
 
-  it('contains no decorative color-gradient function in the new material layer', () => {
+  it('contains no decorative color-gradient function in canonical or material surfaces', () => {
+    expect(appCss).not.toMatch(gradientFunction);
     expect(liquidGlass).not.toMatch(gradientFunction);
     expect(appShell).not.toMatch(gradientFunction);
+    expect(appCss).not.toMatch(/\bbg-gradient|--tw-gradient/i);
     expect(scrollFader).not.toMatch(/bg-gradient|from-background|to-transparent/);
     expect(toggleChip).not.toMatch(/bg-gradient|--tw-gradient|from-[a-z]|to-[a-z]/i);
     expect(matrixCell).not.toMatch(/bg-gradient|--tw-gradient|from-[a-z]|to-[a-z]/i);
 
+    expect(appCss).toContain('--shimmer-gradient: none;');
+    expect(appCss).toContain('@keyframes skeleton-pulse');
+    expect(appCss).not.toContain('skeleton-shimmer');
+    expect(appCss).not.toContain('shimmer-sweep');
+    expect(appCss).not.toContain('@apply shimmer-hover');
     expect(liquidGlass).toContain('background-image: none;');
     expect(appShell).toContain('--shimmer-gradient: none;');
     expect(appShell).toContain('.shimmer-hover::before');
@@ -133,6 +141,9 @@ describe('depth-aware application surfaces', () => {
     expect(appShell).toContain('.embed-frame {');
     expect(appShell).toContain('.sidebar-item.bg-surface-100:hover');
     expect(appShell).toContain('.server-gutter-item-active:hover');
+    expect(appShell).toMatch(
+      /\.server-gutter-item-active:hover\s*\{[\s\S]*?transform:\s*none;[\s\S]*?\}/
+    );
     expect(appShell).toContain("[data-testid='current-user-identity-card'] > a:hover");
     expect(appShell).toContain("inset 0 -12px 18px -18px var(--towk-key-shadow)");
   });
