@@ -140,4 +140,62 @@ describe('ContextMenu', () => {
     expect(dialog.open).toBe(false);
     expect(onclose).toHaveBeenCalledOnce();
   });
+
+  it('keeps a persistent forced sheet open across external close requests', async () => {
+    const onclose = vi.fn();
+    const { container } = renderMenu({
+      presentation: 'sheet',
+      dismissOnExternalInteraction: false,
+      onclose,
+      children: testSnippet('<input data-testid="sheet-search" type="search" />')
+    });
+
+    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
+
+    dialog.dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
+    dialog.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    dialog.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    expect(dialog.open).toBe(true);
+    expect(onclose).not.toHaveBeenCalled();
+  });
+
+  it('reopens a persistent forced sheet after an unexpected native close', async () => {
+    const onclose = vi.fn();
+    const { container } = renderMenu({
+      presentation: 'sheet',
+      dismissOnExternalInteraction: false,
+      onclose
+    });
+
+    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
+
+    dialog.close();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(dialog.open).toBe(true);
+    expect(onclose).not.toHaveBeenCalled();
+  });
+
+  it('still closes a persistent forced sheet from its explicit handle', async () => {
+    const onclose = vi.fn();
+    const { container } = renderMenu({
+      presentation: 'sheet',
+      dismissOnExternalInteraction: false,
+      onclose
+    });
+
+    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
+    const closeHandle = q(
+      container,
+      'dialog.bottom-sheet > .bottom-sheet-content > button'
+    ) as HTMLButtonElement;
+
+    closeHandle.click();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    expect(dialog.open).toBe(false);
+    expect(onclose).toHaveBeenCalledOnce();
+  });
 });

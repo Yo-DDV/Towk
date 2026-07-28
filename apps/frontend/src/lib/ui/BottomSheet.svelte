@@ -7,10 +7,12 @@
   let {
     children,
     visible = $bindable(false),
+    dismissOnExternalInteraction = true,
     onclose
   }: {
     visible?: boolean;
     children: Snippet;
+    dismissOnExternalInteraction?: boolean;
     onclose?: () => void;
   } = $props();
 
@@ -57,6 +59,22 @@
       clearTimeout(closeTimer);
       closeTimer = null;
     }
+
+    // A persistent sheet is closed only by an explicit application action
+    // (handle, swipe, selection, or parent state). Some WebKit/iOS close
+    // requests bypass the event ordering used by backdrop/focus heuristics.
+    // If the user agent closes the native dialog while the bound state is
+    // still visible and no explicit close is running, restore it.
+    if (!dismissOnExternalInteraction && visible && !closing) {
+      const dialog = dialogEl;
+      queueMicrotask(() => {
+        if (visible && dialog === dialogEl && dialog?.isConnected && !dialog.open) {
+          dialog.showModal();
+        }
+      });
+      return;
+    }
+
     visible = false;
     closing = false;
     dragging = false;
@@ -81,9 +99,11 @@
 
 <dialog
   {@attach syncSheetVisibility}
+  closedby={dismissOnExternalInteraction ? 'closerequest' : 'none'}
   onclose={handleNativeClose}
   oncancel={(e) => {
     e.preventDefault();
+    if (!dismissOnExternalInteraction) return;
     // On Android Chrome, the virtual keyboard appearance fires a spurious
     // cancel event on the dialog. If the most recent pointerdown landed inside
     // the sheet content (e.g. the user just tapped an input), this cancel is
@@ -122,7 +142,7 @@
     // Only close when the original press landed on the backdrop, i.e. outside
     // the sheet content. Any tap inside the content (input focus, button) keeps
     // the sheet open regardless of what the synthesized click event reports.
-    if (!pointerDownInsideContent) close();
+    if (dismissOnExternalInteraction && !pointerDownInsideContent) close();
   }}
   class="bottom-sheet m-0 mt-auto w-full max-w-full bg-transparent p-0 backdrop:bg-black/50"
   class:closing

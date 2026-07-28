@@ -1006,6 +1006,7 @@
     <ContextMenu
       position={emojiPickerPos}
       presentation={emojiPickerPresentation}
+      dismissOnExternalInteraction={false}
       onclose={closeEmojiPicker}
     >
       <EmojiPicker
