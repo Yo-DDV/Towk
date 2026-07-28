@@ -111,6 +111,13 @@
     rememberPressTarget(e.target);
   }}
   ontouchstart={(e) => rememberPressTarget(e.target)}
+  onfocusin={(e) => {
+    // WebKit may transfer focus before the tapped input becomes
+    // document.activeElement, then emit a native dialog cancel while opening
+    // the keyboard. Preserve the internal target from focusin so that ordering
+    // cannot be mistaken for a backdrop dismissal.
+    rememberPressTarget(e.target);
+  }}
   onclick={() => {
     // Only close when the original press landed on the backdrop, i.e. outside
     // the sheet content. Any tap inside the content (input focus, button) keeps
