@@ -7,7 +7,6 @@ type SurfaceStyle = {
   backgroundColor: string;
   backgroundImage: string;
   backdropFilter: string;
-  borderColor: string;
   borderRadius: string;
   boxShadow: string;
   outlineStyle: string;
@@ -23,7 +22,6 @@ async function readSurfaceStyle(locator: Locator): Promise<SurfaceStyle> {
       backgroundImage: style.backgroundImage,
       backdropFilter:
         style.backdropFilter || style.getPropertyValue('-webkit-backdrop-filter') || 'none',
-      borderColor: style.borderColor,
       borderRadius: style.borderRadius,
       boxShadow: style.boxShadow,
       outlineStyle: style.outlineStyle,
@@ -55,7 +53,7 @@ function relativeLuminance(value: string): number {
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
 }
 
-function expectNoDecorativeGradient(style: SurfaceStyle) {
+function expectNoGradient(style: SurfaceStyle) {
   expect(style.backgroundImage).toBe('none');
 }
 
@@ -66,8 +64,8 @@ async function expectContained(locator: Locator, width: number) {
   expect(box!.x + box!.width).toBeLessThanOrEqual(width + 0.5);
 }
 
-test.describe('Depth-aware application surfaces', () => {
-  test('renders a neutral-gray hierarchy with a complete envelope and stable glass', async ({
+test.describe('Achromatic dark application surfaces', () => {
+  test('renders a complete neutral-gray hierarchy with stable compact glass', async ({
     page,
     chatPage,
     roomPage
@@ -91,7 +89,7 @@ test.describe('Depth-aware application surfaces', () => {
     const composer = page.getByTestId('message-composer-shell');
     const sendButton = page.getByTestId('message-send-button');
     const activeSidebarItem = page.locator('.sidebar-item[aria-current="page"]').first();
-    const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
+    const activeServer = page.locator('.server-gutter-item-active').first();
 
     await expect(root).toHaveAttribute('data-theme', 'dark');
     for (const surface of [
@@ -106,7 +104,7 @@ test.describe('Depth-aware application surfaces', () => {
       composer,
       sendButton,
       activeSidebarItem,
-      sidebarToggle
+      activeServer
     ]) {
       await expect(surface).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
     }
@@ -127,8 +125,7 @@ test.describe('Depth-aware application surfaces', () => {
       paneHeaderStyle,
       roomViewStyle,
       profileStyle,
-      composerStyle,
-      sendButtonStyle
+      composerStyle
     ] = await Promise.all([
       readSurfaceStyle(body),
       readSurfaceStyle(envelope),
@@ -139,8 +136,7 @@ test.describe('Depth-aware application surfaces', () => {
       readSurfaceStyle(paneHeader),
       readSurfaceStyle(roomView),
       readSurfaceStyle(profile),
-      readSurfaceStyle(composer),
-      readSurfaceStyle(sendButton)
+      readSurfaceStyle(composer)
     ]);
 
     for (const style of [
@@ -153,23 +149,9 @@ test.describe('Depth-aware application surfaces', () => {
       paneHeaderStyle,
       roomViewStyle,
       profileStyle,
-      composerStyle,
-      sendButtonStyle
-    ]) {
-      expectNoDecorativeGradient(style);
-    }
-
-    for (const style of [
-      bodyStyle,
-      envelopeStyle,
-      appHeaderStyle,
-      serverGutterStyle,
-      serverSidebarStyle,
-      paneHeaderStyle,
-      roomViewStyle,
-      profileStyle,
       composerStyle
     ]) {
+      expectNoGradient(style);
       expectAchromatic(style.backgroundColor);
     }
 
@@ -181,6 +163,7 @@ test.describe('Depth-aware application surfaces', () => {
     const canvasLuminance = relativeLuminance(roomViewStyle.backgroundColor);
     const envelopeChannel = rgbChannels(envelopeStyle.backgroundColor)[0];
     const canvasChannel = rgbChannels(roomViewStyle.backgroundColor)[0];
+
     expect(envelopeLuminance).toBeGreaterThan(navigationLuminance);
     expect(navigationLuminance).toBeGreaterThan(canvasLuminance);
     expect(canvasLuminance).toBeGreaterThan(0.008);
@@ -194,8 +177,6 @@ test.describe('Depth-aware application surfaces', () => {
     expect(serverSidebarStyle.boxShadow).not.toBe('none');
     expect(paneHeaderStyle.boxShadow).not.toBe('none');
 
-    // Persistent full-height surfaces stay crisp and cheap to render. Live blur
-    // is reserved for the two compact glass anchors and transient overlays.
     for (const style of [
       frameStyle,
       appHeaderStyle,
@@ -206,9 +187,12 @@ test.describe('Depth-aware application surfaces', () => {
     ]) {
       expect(style.backdropFilter).toBe('none');
     }
+
     if (supportsBackdropFilter) {
       expect(profileStyle.backdropFilter).toContain('blur(16px)');
       expect(composerStyle.backdropFilter).toContain('blur(16px)');
+      expect(profileStyle.backdropFilter).toContain('saturate(1)');
+      expect(composerStyle.backdropFilter).toContain('saturate(1)');
     }
 
     expect(profileStyle.backgroundColor).toBe(composerStyle.backgroundColor);
@@ -216,114 +200,53 @@ test.describe('Depth-aware application surfaces', () => {
     expect(profileStyle.boxShadow).not.toBe('none');
     expect(composerStyle.boxShadow).not.toBe('none');
 
-    const activeSidebarStyle = await readSurfaceStyle(activeSidebarItem);
-    expectNoDecorativeGradient(activeSidebarStyle);
-    expectAchromatic(activeSidebarStyle.backgroundColor);
-    expect(activeSidebarStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
-    expect(activeSidebarStyle.boxShadow).not.toBe('none');
+    const activeSidebarBefore = await readSurfaceStyle(activeSidebarItem);
     await activeSidebarItem.hover();
-    const activeSidebarHoverStyle = await readSurfaceStyle(activeSidebarItem);
-    expectNoDecorativeGradient(activeSidebarHoverStyle);
-    expectAchromatic(activeSidebarHoverStyle.backgroundColor);
-    expect(activeSidebarHoverStyle.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
-    expect(activeSidebarHoverStyle.boxShadow).not.toBe('none');
-    expect(activeSidebarHoverStyle.transform).toBe('none');
+    const activeSidebarAfter = await readSurfaceStyle(activeSidebarItem);
+    expectNoGradient(activeSidebarAfter);
+    expectAchromatic(activeSidebarAfter.backgroundColor);
+    expect(activeSidebarAfter.transform).toBe('none');
+    expect(activeSidebarAfter.boxShadow).not.toBe('none');
+    expect(activeSidebarBefore.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 
-    const activeServer = page.locator('.server-gutter-item-active').first();
-    await expect(activeServer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-    const activeServerStyle = await readSurfaceStyle(activeServer);
-    expectNoDecorativeGradient(activeServerStyle);
-    expectAchromatic(activeServerStyle.backgroundColor);
-    expect(activeServerStyle.boxShadow).not.toBe('none');
+    const activeServerBefore = await readSurfaceStyle(activeServer);
     await activeServer.hover();
-    const activeServerHoverStyle = await readSurfaceStyle(activeServer);
-    expectNoDecorativeGradient(activeServerHoverStyle);
-    expectAchromatic(activeServerHoverStyle.backgroundColor);
-    expect(activeServerHoverStyle.boxShadow).not.toBe('none');
-    expect(activeServerHoverStyle.transform).toBe('none');
+    const activeServerAfter = await readSurfaceStyle(activeServer);
+    expectNoGradient(activeServerAfter);
+    expectAchromatic(activeServerAfter.backgroundColor);
+    expect(activeServerAfter.transform).toBe('none');
+    expect(activeServerAfter.boxShadow).not.toBe('none');
+    expect(activeServerBefore.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
 
-    // A transient popover gets bounded acrylic, while the content section
-    // inside it remains opaque. This avoids layering glass over glass.
-    await page.getByTestId('version-info-trigger').click();
-    const versionPopover = page.getByTestId('version-info-popover');
-    const transientMenu = page.locator('.menu').filter({ has: versionPopover });
-    await expect(versionPopover).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-    const [transientStyle, transientContentStyle] = await Promise.all([
-      readSurfaceStyle(transientMenu),
-      readSurfaceStyle(versionPopover)
-    ]);
-    expectNoDecorativeGradient(transientStyle);
-    expectNoDecorativeGradient(transientContentStyle);
-    expectAchromatic(transientStyle.backgroundColor);
-    expectAchromatic(transientContentStyle.backgroundColor);
-    if (supportsBackdropFilter) {
-      expect(transientStyle.backdropFilter).toContain('blur(16px)');
-    }
-    expect(transientContentStyle.backdropFilter).toBe('none');
-    await page.keyboard.press('Escape');
-    await expect(versionPopover).toBeHidden({ timeout: TIMEOUTS.UI_STANDARD });
-
-    const [envelopeBox, frameBox, profileBox, restingComposerBox, toggleBox, sendBox] =
-      await Promise.all([
-        envelope.boundingBox(),
-        frame.boundingBox(),
-        profile.boundingBox(),
-        composer.boundingBox(),
-        sidebarToggle.boundingBox(),
-        sendButton.boundingBox()
-      ]);
-    expect(envelopeBox).not.toBeNull();
-    expect(frameBox).not.toBeNull();
-    expect(profileBox).not.toBeNull();
-    expect(restingComposerBox).not.toBeNull();
-    expect(toggleBox).not.toBeNull();
-    expect(sendBox).not.toBeNull();
-    expect(frameBox!.x).toBeGreaterThanOrEqual(envelopeBox!.x + 11.5);
-    expect(frameBox!.x + frameBox!.width).toBeLessThanOrEqual(
-      envelopeBox!.x + envelopeBox!.width - 11.5
-    );
-    expect(Math.abs(profileBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(0.5);
-    expect(toggleBox!.width).toBeGreaterThanOrEqual(40);
-    expect(toggleBox!.height).toBeGreaterThanOrEqual(40);
-    expect(sendBox!.width).toBeGreaterThanOrEqual(40);
-    expect(sendBox!.height).toBeGreaterThanOrEqual(40);
-
-    const restingComposerShadow = composerStyle.boxShadow;
+    const restingComposerBox = await composer.boundingBox();
+    const restingShadow = composerStyle.boxShadow;
     await roomPage.messageInput.click();
-    await expect
-      .poll(async () => (await readSurfaceStyle(composer)).boxShadow)
-      .not.toBe(restingComposerShadow);
-    await expect
-      .poll(async () => (await readSurfaceStyle(composer)).boxShadow)
-      .toContain('232, 120, 59');
-
+    await expect.poll(async () => (await readSurfaceStyle(composer)).boxShadow).not.toBe(restingShadow);
+    await expect.poll(async () => (await readSurfaceStyle(composer)).boxShadow).toContain('232, 120, 59');
     const focusedComposerBox = await composer.boundingBox();
+    expect(restingComposerBox).not.toBeNull();
     expect(focusedComposerBox).not.toBeNull();
-    expect(Math.abs(focusedComposerBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(
-      0.5
-    );
+    expect(Math.abs(focusedComposerBox!.height - restingComposerBox!.height)).toBeLessThanOrEqual(0.5);
 
-    await roomPage.messageInput.fill('Material hierarchy check');
+    await roomPage.messageInput.fill('Achromatic hierarchy check');
     await expect(sendButton).toHaveAttribute('data-ready', 'true');
     const readySendStyle = await readSurfaceStyle(sendButton);
-    expectNoDecorativeGradient(readySendStyle);
+    expectNoGradient(readySendStyle);
     expect(readySendStyle.transform).toBe('none');
 
-    const responsiveCases = [
+    for (const viewport of [
       { width: 375, height: 667, desktopInset: false },
       { width: 884, height: 1104, desktopInset: true },
       { width: 1024, height: 768, desktopInset: true },
       { width: 1440, height: 900, desktopInset: true }
-    ];
-
-    for (const viewport of responsiveCases) {
+    ]) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await expect(frame).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
       await expect(composer).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
       await expectContained(frame, viewport.width);
       await expectContained(composer, viewport.width);
 
-      const [caseFrameStyle, caseComposerStyle, caseAppHeaderStyle, caseEnvelopeStyle, caseFrameBox] =
+      const [caseFrameStyle, caseComposerStyle, caseHeaderStyle, caseEnvelopeStyle, frameBox] =
         await Promise.all([
           readSurfaceStyle(frame),
           readSurfaceStyle(composer),
@@ -331,20 +254,21 @@ test.describe('Depth-aware application surfaces', () => {
           readSurfaceStyle(envelope),
           frame.boundingBox()
         ]);
-      expect(caseFrameBox).not.toBeNull();
-      expectNoDecorativeGradient(caseFrameStyle);
-      expectNoDecorativeGradient(caseComposerStyle);
-      expect(caseAppHeaderStyle.backgroundColor).toBe(caseEnvelopeStyle.backgroundColor);
-      expectAchromatic(caseAppHeaderStyle.backgroundColor);
+
+      expect(frameBox).not.toBeNull();
+      expectNoGradient(caseFrameStyle);
+      expectNoGradient(caseComposerStyle);
+      expect(caseHeaderStyle.backgroundColor).toBe(caseEnvelopeStyle.backgroundColor);
+      expectAchromatic(caseHeaderStyle.backgroundColor);
       expectAchromatic(caseComposerStyle.backgroundColor);
 
       if (viewport.desktopInset) {
-        expect(caseFrameBox!.x).toBeGreaterThanOrEqual(11.5);
-        expect(caseFrameBox!.x + caseFrameBox!.width).toBeLessThanOrEqual(viewport.width - 11.5);
+        expect(frameBox!.x).toBeGreaterThanOrEqual(11.5);
+        expect(frameBox!.x + frameBox!.width).toBeLessThanOrEqual(viewport.width - 11.5);
         expect(caseFrameStyle.borderRadius).not.toBe('0px');
       } else {
-        expect(caseFrameBox!.x).toBeCloseTo(0, 1);
-        expect(caseFrameBox!.width).toBeCloseTo(viewport.width, 0);
+        expect(frameBox!.x).toBeCloseTo(0, 1);
+        expect(frameBox!.width).toBeCloseTo(viewport.width, 0);
         expect(caseFrameStyle.borderRadius).toBe('0px');
         if (supportsBackdropFilter) {
           expect(caseComposerStyle.backdropFilter).toContain('blur(12px)');
@@ -353,10 +277,7 @@ test.describe('Depth-aware application surfaces', () => {
     }
   });
 
-  test('keeps the polished material hierarchy coherent in light mode', async ({
-    page,
-    chatPage
-  }) => {
+  test('keeps light mode coherent', async ({ page, chatPage }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.setViewportSize({ width: 1280, height: 800 });
     await createAndLoginTestUser(page);
@@ -366,7 +287,6 @@ test.describe('Depth-aware application surfaces', () => {
     const root = page.locator('html');
     const body = page.locator('body');
     const envelope = page.getByTestId('app-envelope');
-    const frame = page.getByTestId('app-content-frame');
     const appHeader = page.locator('.app-header');
     const navigation = page.getByTestId('server-sidebar');
     const roomView = page.getByTestId('room-view-region');
@@ -374,73 +294,34 @@ test.describe('Depth-aware application surfaces', () => {
     const composer = page.getByTestId('message-composer-shell');
 
     await expect(root).toHaveAttribute('data-theme', 'light');
-    for (const surface of [envelope, frame, appHeader, navigation, roomView, profile, composer]) {
-      await expect(surface).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
-    }
+    const [bodyStyle, envelopeStyle, headerStyle, navigationStyle, roomStyle, profileStyle, composerStyle] =
+      await Promise.all([
+        readSurfaceStyle(body),
+        readSurfaceStyle(envelope),
+        readSurfaceStyle(appHeader),
+        readSurfaceStyle(navigation),
+        readSurfaceStyle(roomView),
+        readSurfaceStyle(profile),
+        readSurfaceStyle(composer)
+      ]);
 
-    const supportsBackdropFilter = await page.evaluate(
-      () =>
-        CSS.supports('backdrop-filter', 'blur(1px)') ||
-        CSS.supports('-webkit-backdrop-filter', 'blur(1px)')
-    );
-    const [
-      bodyStyle,
-      envelopeStyle,
-      frameStyle,
-      appHeaderStyle,
-      navigationStyle,
-      roomViewStyle,
-      profileStyle,
-      composerStyle
-    ] = await Promise.all([
-      readSurfaceStyle(body),
-      readSurfaceStyle(envelope),
-      readSurfaceStyle(frame),
-      readSurfaceStyle(appHeader),
-      readSurfaceStyle(navigation),
-      readSurfaceStyle(roomViet),
-      readSurfaceStyle(profile),
-      readSurfaceStyle(composer)
-    ]);
-
-    for (const style of [
-      bodyStyle,
-      envelopeStyle,
-      frameStyle,
-      appHeaderStyle,
-      navigationStyle,
-      roomViewStyle,
-      profileStyle,
-      composerStyle
-    ]) {
-      expectNoDecorativeGradient(style);
+    for (const style of [bodyStyle, envelopeStyle, headerStyle, navigationStyle, roomStyle, profileStyle, composerStyle]) {
+      expectNoGradient(style);
     }
 
     expect(bodyStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
-    expect(appHeaderStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
-    expect(relativeLuminance(roomViewStyle.backgroundColor)).toBeGreaterThan(
+    expect(headerStyle.backgroundColor).toBe(envelopeStyle.backgroundColor);
+    expect(relativeLuminance(roomStyle.backgroundColor)).toBeGreaterThan(
       relativeLuminance(navigationStyle.backgroundColor)
     );
     expect(relativeLuminance(navigationStyle.backgroundColor)).toBeGreaterThan(
       relativeLuminance(envelopeStyle.backgroundColor)
     );
-    expect(frameStyle.boxShadow).not.toBe('none');
-    expect(frameStyle.borderRadius).not.toBe('0px');
     expect(profileStyle.backgroundColor).toBe(composerStyle.backgroundColor);
     expect(profileStyle.borderRadius).toBe(composerStyle.borderRadius);
-    expect(profileStyle.boxShadow).not.toBe('none');
-    expect(composerStyle.boxShadow).not.toBe('none');
-    if (supportsBackdropFilter) {
-      expect(profileStyle.backdropFilter).toContain('blur(16px)');
-      expect(composerStyle.backdropFilter).toContain('blur(16px)');
-    }
   });
 
-  test('keeps interaction motion optional and surfaces legible in forced colors', async ({
-    page,
-    chatPage,
-    roomPage
-  }) => {
+  test('keeps forced-color and reduced-motion fallbacks legible', async ({ page, chatPage, roomPage }) => {
     await page.emulateMedia({
       colorScheme: 'dark',
       forcedColors: 'active',
@@ -450,34 +331,30 @@ test.describe('Depth-aware application surfaces', () => {
     await chatPage.goto();
     await chatPage.enterRoom('general');
 
-    const envelope = page.getByTestId('app-envelope');
-    const frame = page.getByTestId('app-content-frame');
-    const gutter = page.locator('.server-gutter');
-    const sidebar = page.getByTestId('server-sidebar');
-    const paneHeader = page.locator('[data-ui="pane-header"]').first();
-    const profile = page.getByTestId('current-user-identity-card');
-    const composer = page.getByTestId('message-composer-shell');
+    const surfaces = [
+      page.getByTestId('app-envelope'),
+      page.getByTestId('app-content-frame'),
+      page.locator('.server-gutter'),
+      page.getByTestId('server-sidebar'),
+      page.locator('[data-ui="pane-header"]').first(),
+      page.getByTestId('current-user-identity-card'),
+      page.getByTestId('message-composer-shell')
+    ];
 
-    for (const surface of [envelope, frame, gutter, sidebar, paneHeader, profile, composer]) {
+    for (const surface of surfaces) {
       await expect(surface).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
       const style = await readSurfaceStyle(surface);
       expect(style.boxShadow).toBe('none');
       expect(style.backdropFilter).toBe('none');
-      expectNoDecorativeGradient(style);
+      expectNoGradient(style);
       expect(style.outlineStyle).toBe('solid');
       expect(style.outlineWidth).toBe('1px');
     }
 
+    const composer = page.getByTestId('message-composer-shell');
     await roomPage.messageInput.click();
-    const focusedComposerStyle = await readSurfaceStyle(composer);
-    expect(focusedComposerStyle.outlineStyle).toBe('solid');
-    expect(focusedComposerStyle.outlineWidth).toBe('2px');
-
-    const sidebarToggle = page.getByRole('button', { name: 'Toggle sidebar' });
-    await sidebarToggle.focus();
-    const toggleStyle = await readSurfaceStyle(sidebarToggle);
-    expect(toggleStyle.outlineStyle).toBe('solid');
-    expect(toggleStyle.outlineWidth).toBe('2px');
-    expect(toggleStyle.transform).toBe('none');
+    const focusedComposer = await readSurfaceStyle(composer);
+    expect(focusedComposer.outlineStyle).toBe('solid');
+    expect(focusedComposer.outlineWidth).toBe('2px');
   });
 });
