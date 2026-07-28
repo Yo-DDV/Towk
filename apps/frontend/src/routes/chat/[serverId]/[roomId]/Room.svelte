@@ -577,11 +577,16 @@
         class={[
           'relative flex min-h-0 min-w-0 flex-1 flex-col transition-opacity duration-200',
           threadId ? 'opacity-30' : '',
-          mobileRoomSidebarPanel ? 'max-lg:opacity-30' : ''
+          mobileRoomSidebarPanel ? (isCallSurface ? 'opacity-30' : 'max-lg:opacity-30') : ''
         ]}
         inert={threadId || mobileRoomSidebarPanel ? true : undefined}
       >
-        <PaneHeader {title} subtitle={roomDescription} loading={!room.roomData}>
+        <PaneHeader
+          {title}
+          subtitle={roomDescription}
+          loading={!room.roomData}
+          stackOnNarrow={isCallSurface}
+        >
           {#snippet actions()}
             {#if showVoiceCall}
               <RoomPrimarySurfaceTabs
@@ -593,22 +598,33 @@
                 }}
               />
             {/if}
-            <RoomSidebarToggle
-              mode="mobile"
-              {canDeleteDirectMessage}
-              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
-              activePanel={mobileRoomSidebarPanel}
-              panels={roomSidebarTogglePanels}
-              onToggle={(panel) => appUi.toggleMobileRoomSidebarPanel(panel)}
-            />
-            <RoomSidebarToggle
-              mode="desktop"
-              {canDeleteDirectMessage}
-              onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
-              activePanel={activeRoomSidebarPanel}
-              panels={roomSidebarTogglePanels}
-              onToggle={toggleDesktopRoomSidebarPanel}
-            />
+            {#if isCallSurface}
+              <RoomSidebarToggle
+                mode="always"
+                {canDeleteDirectMessage}
+                onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
+                activePanel={mobileRoomSidebarPanel}
+                panels={roomSidebarTogglePanels}
+                onToggle={(panel) => appUi.toggleMobileRoomSidebarPanel(panel)}
+              />
+            {:else}
+              <RoomSidebarToggle
+                mode="mobile"
+                {canDeleteDirectMessage}
+                onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
+                activePanel={mobileRoomSidebarPanel}
+                panels={roomSidebarTogglePanels}
+                onToggle={(panel) => appUi.toggleMobileRoomSidebarPanel(panel)}
+              />
+              <RoomSidebarToggle
+                mode="desktop"
+                {canDeleteDirectMessage}
+                onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
+                activePanel={activeRoomSidebarPanel}
+                panels={roomSidebarTogglePanels}
+                onToggle={toggleDesktopRoomSidebarPanel}
+              />
+            {/if}
             {#if showLeaveRoom}
               <button
                 class="group/pane-header-icon-button pane-header-icon-button"
@@ -731,12 +747,15 @@
       {#if mobileRoomSidebarPanel}
         <button
           type="button"
-          class="absolute inset-0 z-10 bg-transparent lg:hidden"
+          class={['absolute inset-0 z-10 bg-transparent', !isCallSurface && 'lg:hidden']}
           aria-label={m['room.close_extras']()}
           onclick={() => appUi.closeMobileRoomSidebarPanel()}
         ></button>
         <div
-          class="absolute inset-y-0 right-0 z-20 flex min-h-0 max-w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)] lg:hidden"
+          class={[
+            'absolute inset-y-0 right-0 z-20 flex min-h-0 max-w-full min-w-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_12px_rgba(0,0,0,0.15)]',
+            !isCallSurface && 'lg:hidden'
+          ]}
           data-testid="room-sidebar-mobile-pane"
           style:width={`${SIDEBAR_PANEL_WIDTH_PX}px`}
           transition:fly={{
@@ -766,7 +785,7 @@
       {/if}
     </div>
 
-    {#if activeRoomSidebarPanel}
+    {#if activeRoomSidebarPanel && !isCallSurface}
       <div
         class="hidden min-h-0 min-w-0 shrink-0 surface-pop lg:flex"
         data-testid="room-sidebar-desktop-pane"

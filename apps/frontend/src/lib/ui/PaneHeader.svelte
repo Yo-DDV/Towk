@@ -17,6 +17,8 @@ Design language:
   - Right-side action icons are `<HeaderIconButton>` instances passed
     via the `actions` snippet. They use the same fixed hit area and
     glyph size as other pane-header icons.
+  - `stackOnNarrow` keeps both title and actions visible below 360px by
+    moving the actions onto a second row.
 
 Use `backHref` for navigation-style "back to parent route" affordances
 (renders an anchor) or `onBack` for callback-style "close this slideover
@@ -40,6 +42,7 @@ choice).
     backHref,
     onBack,
     backLabel = m['ui.pane_header.back'](),
+    stackOnNarrow = false,
     // Deprecated: showMobileNav is no longer used since hamburger menu is always visible
     showMobileNav: _showMobileNav = false
   }: {
@@ -63,6 +66,8 @@ choice).
     onBack?: (event: MouseEvent) => void;
     /** Title attribute / aria-label for the back affordance. */
     backLabel?: string;
+    /** Stack title and actions below 360px when both are essential. */
+    stackOnNarrow?: boolean;
     showMobileNav?: boolean;
   } = $props();
 
@@ -72,10 +77,18 @@ choice).
 <div
   class={[
     'flex h-14 shrink-0 items-center justify-between border-b border-border pr-4',
-    hasBack ? 'pl-2' : 'pl-4'
+    hasBack ? 'pl-2' : 'pl-4',
+    stackOnNarrow &&
+      'max-[359px]:h-auto max-[359px]:min-h-24 max-[359px]:flex-wrap max-[359px]:gap-y-1 max-[359px]:px-2 max-[359px]:py-1.5'
   ]}
 >
-  <div class={['flex min-w-0 flex-1 items-center', hasBack ? 'gap-2' : 'gap-3']}>
+  <div
+    class={[
+      'flex min-w-0 flex-1 items-center',
+      hasBack ? 'gap-2' : 'gap-3',
+      stackOnNarrow && 'max-[359px]:w-full max-[359px]:flex-none'
+    ]}
+  >
     {#if onBack}
       <button
         type="button"
@@ -115,7 +128,13 @@ choice).
     </div>
   </div>
   {#if actions}
-    <div class="flex items-center gap-2">
+    <div
+      class={[
+        'flex items-center gap-2',
+        stackOnNarrow &&
+          'max-[359px]:w-full max-[359px]:min-w-0 max-[359px]:justify-between max-[359px]:gap-1'
+      ]}
+    >
       {@render actions()}
     </div>
   {/if}

@@ -307,15 +307,11 @@ retained only for non-joined projections that still consume this component.
     computeSceneGrid(galleryWidth, galleryHeight, participantTiles.length)
   );
   let galleryPage = $derived(scenePage(participantTiles, galleryGrid.capacity, galleryPageIndex));
-  let galleryPageGrid = $derived(
-    computeSceneGrid(galleryWidth, galleryHeight, galleryPage.items.length)
-  );
   let galleryPageWidth = $derived(
-    galleryPageGrid.columns * galleryPageGrid.tileSize +
-      Math.max(0, galleryPageGrid.columns - 1) * 12
+    galleryGrid.columns * galleryGrid.tileSize + Math.max(0, galleryGrid.columns - 1) * 12
   );
   let galleryPageHeight = $derived(
-    galleryPageGrid.rows * galleryPageGrid.tileSize + Math.max(0, galleryPageGrid.rows - 1) * 12
+    galleryGrid.rows * galleryGrid.tileSize + Math.max(0, galleryGrid.rows - 1) * 12
   );
   let useHorizontalStage = $derived(sceneWidth >= 640 && sceneHeight < 420);
   let hasSecondaryScreenShare = $derived(
@@ -772,16 +768,25 @@ retained only for non-joined projections that still consume this component.
   </CallTileActionToolbar>
 {/snippet}
 
-{#snippet voiceTileActions(participant: DisplayParticipant)}
+{#snippet voiceTileActions(participant: DisplayParticipant, gallery = false)}
   {#if isInThisCall}
-    <CallTileActionToolbar testId="call-voice-actions" placement="inline">
+    <CallTileActionToolbar
+      testId="call-voice-actions"
+      placement={gallery ? 'bottom-overlay' : 'inline'}
+    >
       {@render participantAudioActions(participant, 'compact')}
     </CallTileActionToolbar>
   {/if}
 {/snippet}
 
-{#snippet participantIndicators(participant: DisplayParticipant)}
-  <span class="inline-flex h-5 min-w-5 shrink-0 items-center justify-end gap-1.5 text-sm">
+{#snippet participantIndicators(participant: DisplayParticipant, gallery = false)}
+  <span
+    class={[
+      'inline-flex h-5 min-w-5 shrink-0 items-center justify-end gap-1.5 text-sm',
+      gallery &&
+        'pointer-events-none absolute bottom-2 left-2 z-10 rounded-md bg-surface-100/90 px-1 shadow-sm'
+    ]}
+  >
     {#if participant.isMuted}
       <span
         class="iconify text-danger uil--microphone-slash"
@@ -838,7 +843,8 @@ retained only for non-joined projections that still consume this component.
   actions: 'media' | 'voice' | 'none',
   showIndicators = true,
   showScreenShareAudio = false,
-  isScreenShare = false
+  isScreenShare = false,
+  gallery = false
 )}
   <div class={callTileHeaderClass}>
     <button
@@ -846,7 +852,9 @@ retained only for non-joined projections that still consume this component.
       class={callTileIdentityButtonClass}
       onclick={(e) => showUserMenu(participant, e)}
     >
-      <UserAvatar user={participant.avatarUser} size="sm" />
+      {#if !gallery}
+        <UserAvatar user={participant.avatarUser} size="sm" />
+      {/if}
       <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
         <span class="block w-full truncate text-sm font-medium" data-testid="call-participant-name"
           >{label}</span
@@ -868,14 +876,14 @@ retained only for non-joined projections that still consume this component.
         ></span>
       {/if}
       {#if showIndicators}
-        {@render participantIndicators(participant)}
+        {@render participantIndicators(participant, gallery)}
       {/if}
     </button>
 
     {#if actions === 'media'}
       {@render mediaTileActions(participant, isScreenShare)}
     {:else if actions === 'voice'}
-      {@render voiceTileActions(participant)}
+      {@render voiceTileActions(participant, gallery)}
     {/if}
   </div>
 {/snippet}
@@ -907,7 +915,15 @@ retained only for non-joined projections that still consume this component.
       data-call-media-kind={showVideo ? 'camera' : undefined}
       data-connection-state={participant.connectionState}
     >
-      {@render participantHeader(participant, participant.displayName, actions)}
+      {@render participantHeader(
+        participant,
+        participant.displayName,
+        actions,
+        true,
+        false,
+        false,
+        mode === 'gallery'
+      )}
 
       {#if showVideo}
         <button
@@ -933,7 +949,12 @@ retained only for non-joined projections that still consume this component.
             class="flex min-w-0 flex-col items-center gap-3"
             data-testid="call-gallery-voice-avatar"
           >
-            <UserAvatar user={participant.avatarUser} size="xl" showPresence={false} />
+            <UserAvatar
+              user={participant.avatarUser}
+              size="xl"
+              showPresence={false}
+              class="call-gallery-avatar"
+            />
           </div>
         </button>
       {/if}
@@ -953,7 +974,15 @@ retained only for non-joined projections that still consume this component.
       data-call-media-card={showVideo ? true : undefined}
       data-connection-state={participant.connectionState}
     >
-      {@render participantHeader(participant, participant.displayName, 'none', false)}
+      {@render participantHeader(
+        participant,
+        participant.displayName,
+        'none',
+        false,
+        false,
+        false,
+        mode === 'gallery'
+      )}
 
       {#if showVideo}
         <button
@@ -979,7 +1008,12 @@ retained only for non-joined projections that still consume this component.
             class="flex min-w-0 flex-col items-center gap-3"
             data-testid="call-gallery-voice-avatar"
           >
-            <UserAvatar user={participant.avatarUser} size="xl" showPresence={false} />
+            <UserAvatar
+              user={participant.avatarUser}
+              size="xl"
+              showPresence={false}
+              class="call-gallery-avatar"
+            />
           </div>
         </button>
       {/if}
@@ -1326,13 +1360,13 @@ retained only for non-joined projections that still consume this component.
               style={`width: min(100%, ${galleryPageWidth}px); height: min(100%, ${galleryPageHeight}px)`}
               data-testid="call-participants-list"
               data-page-capacity={galleryGrid.capacity}
-              data-layout-columns={galleryPageGrid.columns}
-              data-layout-rows={galleryPageGrid.rows}
+              data-layout-columns={galleryGrid.columns}
+              data-layout-rows={galleryGrid.rows}
             >
               {#each galleryPage.items as tile (tile.key)}
                 <div
                   class="min-h-0 max-w-full min-w-0 shrink-0"
-                  style={`width: ${galleryPageGrid.tileSize}px; height: ${galleryPageGrid.tileSize}px; max-height: 100%`}
+                  style={`width: ${galleryGrid.tileSize}px; height: ${galleryGrid.tileSize}px; max-height: 100%`}
                   data-testid="call-gallery-tile"
                 >
                   {@render stageTile(tile, 'gallery')}
@@ -1348,7 +1382,7 @@ retained only for non-joined projections that still consume this component.
             >
               <button
                 type="button"
-                class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                class="flex h-[44px] min-h-[44px] w-[44px] min-w-[44px] items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
                 disabled={galleryPage.page === 0}
                 aria-label={m['voice.previous_page']()}
                 onclick={() => (galleryPageIndex = Math.max(0, galleryPage.page - 1))}
@@ -1363,7 +1397,7 @@ retained only for non-joined projections that still consume this component.
               </span>
               <button
                 type="button"
-                class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                class="flex h-[44px] min-h-[44px] w-[44px] min-w-[44px] items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
                 disabled={galleryPage.page === galleryPage.pageCount - 1}
                 aria-label={m['voice.next_page']()}
                 onclick={() =>
@@ -1372,6 +1406,8 @@ retained only for non-joined projections that still consume this component.
                 <span class="iconify text-xl uil--angle-right" aria-hidden="true"></span>
               </button>
             </nav>
+          {:else}
+            <div class="h-[44px] shrink-0" aria-hidden="true"></div>
           {/if}
         </section>
       {:else}
@@ -1415,6 +1451,15 @@ retained only for non-joined projections that still consume this component.
   :global(.call-speaking-card) {
     --call-speaking-ring-opacity: 0;
     --call-speaking-ring-strength: 0;
+  }
+
+  :global(.participant-card-gallery) {
+    container-type: inline-size;
+  }
+
+  :global(.call-gallery-avatar) {
+    width: clamp(2.75rem, 32cqi, 7rem);
+    height: clamp(2.75rem, 32cqi, 7rem);
   }
 
   :global(.call-speaking-card)::after {

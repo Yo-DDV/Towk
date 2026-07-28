@@ -12,56 +12,66 @@ export type ScenePage<T> = {
 };
 
 const SCENE_GAP_PX = 12;
-const MAX_TILE_SIZE_PX = 520;
 
 type GridCandidate = Omit<SceneGrid, 'capacity'>;
 
-function bestSquareGrid(
-  width: number,
-  height: number,
+function balancedGridShape(
   tileCount: number,
-  maxColumns: number
-): GridCandidate {
-  let best: GridCandidate = {
-    columns: 1,
-    rows: Math.max(1, tileCount),
-    tileSize: 1
-  };
-  let bestEmptySlots = Number.POSITIVE_INFINITY;
-
-  for (let columns = 1; columns <= Math.min(maxColumns, tileCount); columns += 1) {
-    const rows = Math.ceil(tileCount / columns);
-    const tileWidth = (width - SCENE_GAP_PX * (columns - 1)) / columns;
-    const tileHeight = (height - SCENE_GAP_PX * (rows - 1)) / rows;
-    const tileSize = Math.max(1, Math.floor(Math.min(tileWidth, tileHeight, MAX_TILE_SIZE_PX)));
-    const emptySlots = columns * rows - tileCount;
-
-    if (
-      tileSize > best.tileSize ||
-      (tileSize === best.tileSize && emptySlots < bestEmptySlots) ||
-      (tileSize === best.tileSize && emptySlots === bestEmptySlots && columns < best.columns)
-    ) {
-      best = { columns, rows, tileSize };
-      bestEmptySlots = emptySlots;
-    }
+  orientation: 'landscape' | 'portrait'
+): Pick<GridCandidate, 'columns' | 'rows'> {
+  if (tileCount <= 1) return { columns: 1, rows: 1 };
+  if (tileCount === 2) {
+    return orientation === 'landscape' ? { columns: 2, rows: 1 } : { columns: 1, rows: 2 };
+  }
+  if (tileCount <= 4) return { columns: 2, rows: 2 };
+  if (tileCount <= 6) {
+    return orientation === 'landscape' ? { columns: 3, rows: 2 } : { columns: 2, rows: 3 };
+  }
+  if (tileCount <= 9) return { columns: 3, rows: 3 };
+  if (tileCount <= 12) {
+    return orientation === 'landscape' ? { columns: 4, rows: 3 } : { columns: 3, rows: 4 };
+  }
+  if (tileCount <= 16) return { columns: 4, rows: 4 };
+  if (tileCount <= 20) {
+    return orientation === 'landscape' ? { columns: 5, rows: 4 } : { columns: 4, rows: 5 };
   }
 
-  return best;
+  const shortAxis = Math.max(1, Math.floor(Math.sqrt(tileCount)));
+  const longAxis = Math.ceil(tileCount / shortAxis);
+  return orientation === 'landscape'
+    ? { columns: longAxis, rows: shortAxis }
+    : { columns: shortAxis, rows: longAxis };
+}
+
+function squareGrid(width: number, height: number, tileCount: number): GridCandidate {
+  const shape = balancedGridShape(tileCount, width >= height ? 'landscape' : 'portrait');
+  const tileWidth = (width - SCENE_GAP_PX * (shape.columns - 1)) / shape.columns;
+  const tileHeight = (height - SCENE_GAP_PX * (shape.rows - 1)) / shape.rows;
+  return {
+    ...shape,
+    tileSize: Math.max(1, Math.floor(Math.min(tileWidth, tileHeight)))
+  };
+}
+
+function minimumReadableTileSize(width: number, height: number): number {
+  const shortestAxis = Math.min(width, height);
+  if (shortestAxis < 360) return 104;
+  if (width < 520) return 112;
+  if (width < 900) return 132;
+  return 160;
 }
 
 export function computeSceneGrid(width: number, height: number, tileCount: number): SceneGrid {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
   const count = Math.max(1, tileCount);
-  const classLimit = safeWidth < 520 ? 4 : safeWidth < 800 ? 6 : 12;
-  const maxColumns = safeWidth < 520 ? 2 : safeWidth < 900 ? 3 : 4;
-  const minimumTileSize = safeWidth < 520 ? 144 : safeWidth < 900 ? 156 : 180;
-  let capacity = Math.max(1, Math.min(count, classLimit));
-  let grid = bestSquareGrid(safeWidth, safeHeight, capacity, maxColumns);
+  const minimumTileSize = minimumReadableTileSize(safeWidth, safeHeight);
+  let capacity = count;
+  let grid = squareGrid(safeWidth, safeHeight, capacity);
 
   while (capacity > 1 && grid.tileSize < minimumTileSize) {
     capacity -= 1;
-    grid = bestSquareGrid(safeWidth, safeHeight, capacity, maxColumns);
+    grid = squareGrid(safeWidth, safeHeight, capacity);
   }
 
   return { capacity, ...grid };

@@ -7,18 +7,18 @@ import {
 } from './callSceneLayout';
 
 describe('call scene container layout', () => {
-  it('bounds phone, tablet and desktop mounts while keeping square tiles usable', () => {
+  it('uses balanced participant shapes before reducing the visible page size', () => {
     expect(computeSceneGrid(360, 620, 9)).toEqual({
-      capacity: 4,
-      columns: 2,
-      rows: 2,
-      tileSize: 174
+      capacity: 9,
+      columns: 3,
+      rows: 3,
+      tileSize: 112
     });
     expect(computeSceneGrid(740, 520, 9)).toEqual({
-      capacity: 6,
+      capacity: 9,
       columns: 3,
-      rows: 2,
-      tileSize: 238
+      rows: 3,
+      tileSize: 165
     });
     expect(computeSceneGrid(1_200, 700, 9)).toEqual({
       capacity: 9,
@@ -39,7 +39,7 @@ describe('call scene container layout', () => {
       capacity: 1,
       columns: 1,
       rows: 1,
-      tileSize: 520
+      tileSize: 700
     });
     expect(computeSceneGrid(360, 620, 1)).toEqual({
       capacity: 1,
@@ -49,20 +49,33 @@ describe('call scene container layout', () => {
     });
   });
 
-  it('chooses the composition that maximizes square tile area for common counts', () => {
+  it('uses conventional balanced shapes for common participant counts', () => {
     expect(computeSceneGrid(1_000, 700, 2)).toMatchObject({ columns: 2, rows: 1 });
     expect(computeSceneGrid(1_000, 700, 3)).toMatchObject({ columns: 2, rows: 2 });
     expect(computeSceneGrid(1_000, 700, 4)).toMatchObject({ columns: 2, rows: 2 });
     expect(computeSceneGrid(1_000, 700, 5)).toMatchObject({ columns: 3, rows: 2 });
     expect(computeSceneGrid(1_000, 700, 6)).toMatchObject({ columns: 3, rows: 2 });
+    expect(computeSceneGrid(1_000, 700, 8)).toMatchObject({ columns: 3, rows: 3 });
+    expect(computeSceneGrid(1_000, 700, 12)).toMatchObject({ columns: 4, rows: 3 });
+    expect(computeSceneGrid(700, 1_000, 12)).toMatchObject({ columns: 3, rows: 4 });
+    expect(computeSceneGrid(1_600, 900, 20)).toMatchObject({ columns: 5, rows: 4 });
   });
 
-  it('reduces page capacity in a short landscape viewport instead of crushing tiles', () => {
+  it('keeps all four participants visible in a short landscape viewport', () => {
     expect(computeSceneGrid(360, 260, 4)).toEqual({
-      capacity: 2,
+      capacity: 4,
       columns: 2,
-      rows: 1,
-      tileSize: 174
+      rows: 2,
+      tileSize: 124
+    });
+  });
+
+  it('paginates dense compact scenes only after preserving readable square tiles', () => {
+    expect(computeSceneGrid(320, 230, 8)).toEqual({
+      capacity: 4,
+      columns: 2,
+      rows: 2,
+      tileSize: 109
     });
   });
 

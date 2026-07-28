@@ -609,7 +609,7 @@ describe('VoiceCallPanel screen-share audio', () => {
     });
   });
 
-  it.each([1, 2, 3, 4, 6, 9, 12])(
+  it.each([1, 2, 3, 4, 6, 8, 9, 12, 15, 20])(
     'renders %i voice participants as bounded adaptive gallery tiles',
     async (participantCount) => {
       const { container } = render(VoiceCallPanelStoryHarness, {
@@ -658,7 +658,71 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(tile.querySelector('[data-testid="call-gallery-voice-avatar"]')).not.toBeNull();
     const rect = tile.getBoundingClientRect();
     expect(Math.abs(rect.width - rect.height)).toBeLessThanOrEqual(1);
-    expect(rect.width).toBeLessThanOrEqual(520);
+    expect(rect.width).toBeLessThanOrEqual(700);
+  });
+
+  it('keeps four participants visible with readable names on a compact phone', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'voice',
+        participantCount: 4,
+        dockVariant: 'floating',
+        viewportWidth: '320px',
+        viewportHeight: '568px'
+      }
+    });
+
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll('[data-testid="call-gallery-tile"]')).toHaveLength(4);
+      expect(container.querySelector('[data-testid="call-gallery-pagination"]')).toBeNull();
+    });
+
+    for (const name of container.querySelectorAll<HTMLElement>(
+      '[data-testid="call-participant-name"]'
+    )) {
+      expect(name.clientWidth).toBeGreaterThan(0);
+      expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
+    }
+  });
+
+  it('keeps tile geometry stable on the final page and exposes 44px pagination targets', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'voice',
+        participantCount: 8,
+        dockVariant: 'floating',
+        viewportWidth: '932px',
+        viewportHeight: '430px'
+      }
+    });
+
+    const firstPageTileSize = await vi.waitFor(() => {
+      const tiles = container.querySelectorAll<HTMLElement>('[data-testid="call-gallery-tile"]');
+      expect(tiles.length).toBeGreaterThan(1);
+      expect(container.querySelector('[data-testid="call-gallery-pagination"]')).not.toBeNull();
+      return tiles[0].getBoundingClientRect().width;
+    });
+    const buttons = container.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="call-gallery-pagination"] button'
+    );
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      const rect = button.getBoundingClientRect();
+      expect(rect.width).toBeGreaterThanOrEqual(44);
+      expect(rect.height).toBeGreaterThanOrEqual(44);
+    }
+
+    buttons[1].click();
+
+    await vi.waitFor(() => {
+      const lastPageTiles = container.querySelectorAll<HTMLElement>(
+        '[data-testid="call-gallery-tile"]'
+      );
+      expect(lastPageTiles.length).toBeLessThan(8);
+      expect(lastPageTiles[0].getBoundingClientRect().width).toBe(firstPageTileSize);
+    });
   });
 
   it('lets the user select either concurrent screen share without nested controls', async () => {
