@@ -27,6 +27,10 @@
     jitterWarning = false,
     simulateMobileCapabilities = false,
     microphoneProcessing = null,
+    participantCount = null,
+    dockVariant = 'sidebar',
+    viewportWidth = null,
+    viewportHeight = null,
     onStoreSeeded = null
   }: {
     layout?: 'sidebar' | 'stage';
@@ -45,6 +49,10 @@
     jitterWarning?: boolean;
     simulateMobileCapabilities?: boolean;
     microphoneProcessing?: MicrophoneProcessingStatus | null;
+    participantCount?: number | null;
+    dockVariant?: 'sidebar' | 'floating';
+    viewportWidth?: string | null;
+    viewportHeight?: string | null;
     onStoreSeeded?: ((store: ServerStateStore) => void) | null;
   } = $props();
 
@@ -224,6 +232,31 @@
       networkWarningMetric: jitterWarning ? 'jitter' : 'packetLoss'
     });
 
+    if (participantCount !== null) {
+      const names = [
+        'Alice',
+        'Bob',
+        'Chloe',
+        'Dana',
+        'Elliot',
+        'Fatima',
+        'Gabriel',
+        'Hana',
+        'Isaac',
+        'Jade',
+        'Karim',
+        'Lina'
+      ];
+      return Array.from({ length: Math.max(0, participantCount) }, (_, index) =>
+        participant(`gallery-${index + 1}`, names[index % names.length], {
+          isLocal: index === 0,
+          isMuted: index % 3 === 1,
+          isCameraEnabled: scenario === 'camera' && index % 2 === 0,
+          videoTrack: scenario === 'camera' && index % 2 === 0 ? cameraTrack : null
+        })
+      );
+    }
+
     if (scenario === 'devices') {
       return [
         participant('viewer-device-1', 'Alexandria Montgomery', {
@@ -395,6 +428,19 @@
 </script>
 
 {#if Panel}
-  <GlobalCallDock variant="sidebar" />
-  <Panel {roomId} {layout} />
+  <div
+    class="voice-call-story-region mobile-navigation-swipe-region relative flex min-h-0 w-full min-w-0 flex-1 flex-col"
+    style:width={viewportWidth ?? undefined}
+    style:height={viewportHeight ?? undefined}
+  >
+    <GlobalCallDock variant={dockVariant} />
+    <Panel {roomId} {layout} />
+  </div>
 {/if}
+
+<style>
+  :global(.voice-call-story-region[data-call-dock-reserved='true']) {
+    box-sizing: border-box;
+    padding-bottom: var(--global-call-dock-reserved-height);
+  }
+</style>

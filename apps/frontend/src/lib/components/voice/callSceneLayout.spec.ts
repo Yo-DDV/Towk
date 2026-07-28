@@ -7,18 +7,63 @@ import {
 } from './callSceneLayout';
 
 describe('call scene container layout', () => {
-  it('bounds phone, tablet and desktop video mounts from the actual container', () => {
-    expect(computeSceneGrid(360, 620, 9)).toEqual({ capacity: 4, columns: 1 });
-    expect(computeSceneGrid(740, 520, 9)).toEqual({ capacity: 6, columns: 2 });
-    expect(computeSceneGrid(1_200, 700, 9)).toEqual({ capacity: 9, columns: 3 });
-    expect(computeSceneGrid(1_600, 900, 12)).toEqual({ capacity: 12, columns: 4 });
+  it('bounds phone, tablet and desktop mounts while keeping square tiles usable', () => {
+    expect(computeSceneGrid(360, 620, 9)).toEqual({
+      capacity: 4,
+      columns: 2,
+      rows: 2,
+      tileSize: 174
+    });
+    expect(computeSceneGrid(740, 520, 9)).toEqual({
+      capacity: 6,
+      columns: 3,
+      rows: 2,
+      tileSize: 238
+    });
+    expect(computeSceneGrid(1_200, 700, 9)).toEqual({
+      capacity: 9,
+      columns: 3,
+      rows: 3,
+      tileSize: 225
+    });
+    expect(computeSceneGrid(1_600, 900, 12)).toEqual({
+      capacity: 12,
+      columns: 4,
+      rows: 3,
+      tileSize: 292
+    });
   });
 
-  it('keeps balanced gallery columns for common participant counts', () => {
-    expect(computeSceneGrid(1_000, 700, 1).columns).toBe(1);
-    expect(computeSceneGrid(1_000, 700, 2).columns).toBe(2);
-    expect(computeSceneGrid(1_000, 700, 4).columns).toBe(2);
-    expect(computeSceneGrid(1_000, 700, 6).columns).toBe(3);
+  it('keeps one audio participant as a centered square instead of a full-width bar', () => {
+    expect(computeSceneGrid(1_000, 700, 1)).toEqual({
+      capacity: 1,
+      columns: 1,
+      rows: 1,
+      tileSize: 520
+    });
+    expect(computeSceneGrid(360, 620, 1)).toEqual({
+      capacity: 1,
+      columns: 1,
+      rows: 1,
+      tileSize: 360
+    });
+  });
+
+  it('chooses the composition that maximizes square tile area for common counts', () => {
+    expect(computeSceneGrid(1_000, 700, 2)).toMatchObject({ columns: 2, rows: 1 });
+    expect(computeSceneGrid(1_000, 700, 3)).toMatchObject({ columns: 2, rows: 2 });
+    expect(computeSceneGrid(1_000, 700, 4)).toMatchObject({ columns: 2, rows: 2 });
+    expect(computeSceneGrid(1_000, 700, 5)).toMatchObject({ columns: 3, rows: 2 });
+    expect(computeSceneGrid(1_000, 700, 6)).toMatchObject({ columns: 3, rows: 2 });
+  });
+
+  it('reduces page capacity in a short landscape viewport instead of crushing tiles', () => {
+    expect(computeSceneGrid(360, 260, 4)).toEqual({
+      capacity: 2,
+      columns: 2,
+      rows: 1,
+      tileSize: 174
+    });
   });
 
   it('clamps pagination when the scene shrinks or participants leave', () => {
@@ -41,5 +86,6 @@ describe('call scene container layout', () => {
     expect(computeFilmstripCapacity(360, 700)).toBe(2);
     expect(computeFilmstripCapacity(800, 700)).toBe(3);
     expect(computeFilmstripCapacity(1_400, 700)).toBe(6);
+    expect(computeFilmstripCapacity(290, 376)).toBe(1);
   });
 });

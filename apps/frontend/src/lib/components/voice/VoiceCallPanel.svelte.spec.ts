@@ -490,6 +490,106 @@ describe('VoiceCallPanel screen-share audio', () => {
     });
   });
 
+  it('uses a horizontal shared-media composition in a short landscape call surface', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'screen',
+        dockVariant: 'floating',
+        viewportWidth: '844px',
+        viewportHeight: '390px'
+      }
+    });
+
+    const stage = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>('[data-testid="call-stage-layout"]');
+      expect(value?.dataset.stageOrientation).toBe('horizontal');
+      return value!;
+    });
+    const featured = stage.querySelector<HTMLElement>('[data-testid="call-featured-stage"]')!;
+    const secondary = stage.querySelector<HTMLElement>(
+      '[data-testid="call-secondary-stage-list"]'
+    )!;
+    const secondaryRect = secondary.getBoundingClientRect();
+
+    expect(featured.getBoundingClientRect().height).toBeGreaterThanOrEqual(144);
+    expect(secondaryRect.right).toBeLessThanOrEqual(stage.getBoundingClientRect().right);
+    for (const card of secondary.querySelectorAll<HTMLElement>(
+      '[data-testid="call-participant-card"]'
+    )) {
+      const cardRect = card.getBoundingClientRect();
+      expect(cardRect.top).toBeGreaterThanOrEqual(secondaryRect.top);
+      expect(cardRect.bottom).toBeLessThanOrEqual(secondaryRect.bottom);
+    }
+  });
+
+  it('keeps a secondary screen share usable in a short landscape rail', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'dual-screen',
+        dockVariant: 'floating',
+        viewportWidth: '844px',
+        viewportHeight: '390px'
+      }
+    });
+
+    const secondary = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>(
+        '[data-testid="call-secondary-stage-list"]'
+      );
+      expect(value?.children).toHaveLength(1);
+      return value!;
+    });
+    const card = secondary.firstElementChild as HTMLElement;
+    const focus = secondary.querySelector<HTMLElement>('[data-testid="call-focus-stage-button"]')!;
+    const secondaryRect = secondary.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const focusRect = focus.getBoundingClientRect();
+
+    expect(cardRect.height).toBe(secondaryRect.height);
+    expect(focusRect.left).toBeGreaterThanOrEqual(cardRect.left);
+    expect(focusRect.bottom).toBeLessThanOrEqual(cardRect.bottom);
+    expect(secondary.querySelector('[data-testid="call-media-actions"]')).toBeNull();
+    expect(secondary.textContent).toContain("Dana's screen");
+  });
+
+  it('keeps the portrait filmstrip card fully visible above the call dock', async () => {
+    document.documentElement.style.setProperty('--global-call-safe-area-bottom', '34px');
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'screen',
+        dockVariant: 'floating',
+        viewportWidth: '320px',
+        viewportHeight: '568px'
+      }
+    });
+    window.dispatchEvent(new Event('resize'));
+
+    const secondary = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>(
+        '[data-testid="call-secondary-stage-list"]'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    const secondaryRect = secondary.getBoundingClientRect();
+    const cardRect = secondary
+      .querySelector<HTMLElement>(
+        '[data-testid="call-screen-share-card"],[data-testid="call-participant-card"]'
+      )!
+      .getBoundingClientRect();
+    const featuredRect = container
+      .querySelector<HTMLElement>('[data-testid="call-featured-stage"]')!
+      .getBoundingClientRect();
+
+    expect(cardRect.top).toBeGreaterThanOrEqual(secondaryRect.top - 1);
+    expect(cardRect.bottom).toBeLessThanOrEqual(secondaryRect.bottom + 1);
+    expect(featuredRect.height).toBeGreaterThanOrEqual(144);
+    document.documentElement.style.removeProperty('--global-call-safe-area-bottom');
+  });
+
   it('uses a balanced gallery instead of promoting a camera when nobody shares', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'stage', scenario: 'camera' }
@@ -507,6 +607,58 @@ describe('VoiceCallPanel screen-share audio', () => {
         expect(container.querySelector('[data-testid="call-gallery-pagination"]')).not.toBeNull();
       }
     });
+  });
+
+  it.each([1, 2, 3, 4, 6, 9, 12])(
+    'renders %i voice participants as bounded adaptive gallery tiles',
+    async (participantCount) => {
+      const { container } = render(VoiceCallPanelStoryHarness, {
+        props: { layout: 'stage', scenario: 'voice', participantCount }
+      });
+      container.style.width = '1000px';
+      container.style.height = '700px';
+
+      const pageCapacity = await vi.waitFor(() => {
+        const list = container.querySelector<HTMLElement>('[data-testid="call-participants-list"]');
+        expect(list).not.toBeNull();
+        const capacity = Number(list!.dataset.pageCapacity);
+        expect(capacity).toBeGreaterThan(0);
+        expect(container.querySelectorAll('[data-testid="call-gallery-tile"]')).toHaveLength(
+          Math.min(participantCount, capacity)
+        );
+        return capacity;
+      });
+
+      for (const tile of container.querySelectorAll<HTMLElement>(
+        '[data-testid="call-gallery-tile"]'
+      )) {
+        const rect = tile.getBoundingClientRect();
+        expect(Math.abs(rect.width - rect.height)).toBeLessThanOrEqual(1);
+        expect(rect.width).toBeGreaterThanOrEqual(144);
+      }
+      expect(Boolean(container.querySelector('[data-testid="call-gallery-pagination"]'))).toBe(
+        participantCount > pageCapacity
+      );
+    }
+  );
+
+  it('keeps a single voice participant centered in a square card with a prominent avatar', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'voice', participantCount: 1 }
+    });
+    container.style.width = '1000px';
+    container.style.height = '700px';
+
+    const tile = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>('[data-testid="call-gallery-tile"]');
+      expect(value).not.toBeNull();
+      return value!;
+    });
+
+    expect(tile.querySelector('[data-testid="call-gallery-voice-avatar"]')).not.toBeNull();
+    const rect = tile.getBoundingClientRect();
+    expect(Math.abs(rect.width - rect.height)).toBeLessThanOrEqual(1);
+    expect(rect.width).toBeLessThanOrEqual(520);
   });
 
   it('lets the user select either concurrent screen share without nested controls', async () => {

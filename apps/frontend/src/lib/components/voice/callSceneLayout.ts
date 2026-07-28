@@ -1,6 +1,8 @@
 export type SceneGrid = {
   capacity: number;
   columns: number;
+  rows: number;
+  tileSize: number;
 };
 
 export type ScenePage<T> = {
@@ -9,34 +11,71 @@ export type ScenePage<T> = {
   pageCount: number;
 };
 
+const SCENE_GAP_PX = 12;
+const MAX_TILE_SIZE_PX = 520;
+
+type GridCandidate = Omit<SceneGrid, 'capacity'>;
+
+function bestSquareGrid(
+  width: number,
+  height: number,
+  tileCount: number,
+  maxColumns: number
+): GridCandidate {
+  let best: GridCandidate = {
+    columns: 1,
+    rows: Math.max(1, tileCount),
+    tileSize: 1
+  };
+  let bestEmptySlots = Number.POSITIVE_INFINITY;
+
+  for (let columns = 1; columns <= Math.min(maxColumns, tileCount); columns += 1) {
+    const rows = Math.ceil(tileCount / columns);
+    const tileWidth = (width - SCENE_GAP_PX * (columns - 1)) / columns;
+    const tileHeight = (height - SCENE_GAP_PX * (rows - 1)) / rows;
+    const tileSize = Math.max(1, Math.floor(Math.min(tileWidth, tileHeight, MAX_TILE_SIZE_PX)));
+    const emptySlots = columns * rows - tileCount;
+
+    if (
+      tileSize > best.tileSize ||
+      (tileSize === best.tileSize && emptySlots < bestEmptySlots) ||
+      (tileSize === best.tileSize && emptySlots === bestEmptySlots && columns < best.columns)
+    ) {
+      best = { columns, rows, tileSize };
+      bestEmptySlots = emptySlots;
+    }
+  }
+
+  return best;
+}
+
 export function computeSceneGrid(width: number, height: number, tileCount: number): SceneGrid {
   const safeWidth = Math.max(1, width);
   const safeHeight = Math.max(1, height);
   const count = Math.max(1, tileCount);
-
-  let columns: number;
-  if (count === 1 || safeWidth < 520) columns = 1;
-  else if (count <= 4) columns = 2;
-  else if (count <= 6) columns = safeWidth >= 960 ? 3 : 2;
-  else if (count <= 9) columns = safeWidth >= 900 ? 3 : 2;
-  else columns = safeWidth >= 1_280 ? 4 : 3;
-
-  const rowHeight = safeWidth < 520 ? 130 : 160;
-  const rows = Math.max(1, Math.floor(safeHeight / rowHeight));
   const classLimit = safeWidth < 520 ? 4 : safeWidth < 800 ? 6 : 12;
-  const capacity = Math.max(1, Math.min(count, classLimit, columns * rows));
+  const maxColumns = safeWidth < 520 ? 2 : safeWidth < 900 ? 3 : 4;
+  const minimumTileSize = safeWidth < 520 ? 144 : safeWidth < 900 ? 156 : 180;
+  let capacity = Math.max(1, Math.min(count, classLimit));
+  let grid = bestSquareGrid(safeWidth, safeHeight, capacity, maxColumns);
 
-  return {
-    capacity,
-    columns: Math.min(columns, count, capacity)
-  };
+  while (capacity > 1 && grid.tileSize < minimumTileSize) {
+    capacity -= 1;
+    grid = bestSquareGrid(safeWidth, safeHeight, capacity, maxColumns);
+  }
+
+  return { capacity, ...grid };
 }
 
-export function computeFilmstripCapacity(width: number, height: number): number {
-  if (height < 420) return 2;
-  if (width < 520) return 2;
-  if (width < 900) return 3;
-  return Math.max(3, Math.min(6, Math.floor(width / 220)));
+export function computeFilmstripCapacity(width: number, _height: number): number {
+  const safeWidth = Math.max(1, width);
+  const classLimit = safeWidth < 520 ? 2 : safeWidth < 900 ? 3 : 6;
+  const minimumTileWidth = safeWidth < 520 ? 144 : safeWidth < 900 ? 156 : 180;
+  const horizontalSlots = Math.max(
+    1,
+    Math.floor((safeWidth + SCENE_GAP_PX) / (minimumTileWidth + SCENE_GAP_PX))
+  );
+  return Math.min(classLimit, horizontalSlots);
 }
 
 export function scenePage<T>(

@@ -89,7 +89,7 @@ commands to the currently viewed server by mistake.
         const bottomGap = Number.isFinite(computedBottom) ? Math.max(0, computedBottom) : 0;
         appRegion.style.setProperty(
           '--global-call-dock-reserved-height',
-          `${Math.ceil(rect.height + bottomGap)}px`
+          `${Math.ceil(rect.height + Math.max(12, bottomGap))}px`
         );
         appRegion.dataset.callDockReserved = 'true';
       });
@@ -204,7 +204,7 @@ commands to the currently viewed server by mistake.
       '@container min-w-0 border border-border bg-background/95 shadow-lg backdrop-blur',
       variant === 'sidebar'
         ? 'rounded-xl p-2'
-        : 'fixed right-2 bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-2 z-[70] mx-auto max-w-xl rounded-2xl p-2 sm:right-4 sm:bottom-[calc(env(safe-area-inset-bottom)+1rem)] sm:left-auto sm:w-[min(36rem,calc(100vw-2rem))]'
+        : 'global-call-dock-floating fixed right-2 bottom-0 left-2 z-[70] mx-auto max-w-xl rounded-t-2xl rounded-b-none border-b-0 px-2 pt-2 sm:right-4 sm:bottom-4 sm:left-auto sm:w-[min(36rem,calc(100vw-2rem))] sm:rounded-2xl sm:border-b sm:p-2'
     ]}
     aria-label={m['voice.dock.session_label']({ room: roomName })}
     data-testid="global-call-dock"
@@ -400,3 +400,22 @@ commands to the currently viewed server by mistake.
     />
   {/if}
 {/if}
+
+<style>
+  .global-call-dock-floating {
+    padding-bottom: max(
+      0.5rem,
+      var(--global-call-safe-area-bottom, env(safe-area-inset-bottom, 0px))
+    );
+  }
+
+  :global(body[data-visual-keyboard-open]) .global-call-dock-floating {
+    padding-bottom: 0.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .global-call-dock-floating {
+      padding-bottom: 0.5rem;
+    }
+  }
+</style>

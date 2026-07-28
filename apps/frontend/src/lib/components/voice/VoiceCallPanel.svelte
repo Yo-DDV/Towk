@@ -62,6 +62,8 @@ retained only for non-joined projections that still consume this component.
   let pictureInPictureActive = $state(false);
   let sceneWidth = $state(1_200);
   let sceneHeight = $state(700);
+  let galleryWidth = $state(1_200);
+  let galleryHeight = $state(700);
   let galleryPageIndex = $state(0);
   let filmstripPageIndex = $state(0);
   let manuallyFocusedStageKey = $state<string | null>(null);
@@ -73,17 +75,43 @@ retained only for non-joined projections that still consume this component.
       if (nextWidth !== sceneWidth) sceneWidth = nextWidth;
       if (nextHeight !== sceneHeight) sceneHeight = nextHeight;
     };
-    const initial = node.getBoundingClientRect();
-    update(initial.width, initial.height);
+    const measureContentBox = () => {
+      const style = window.getComputedStyle(node);
+      const horizontalPadding =
+        Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight);
+      const verticalPadding =
+        Number.parseFloat(style.paddingTop) + Number.parseFloat(style.paddingBottom);
+      update(node.clientWidth - horizontalPadding, node.clientHeight - verticalPadding);
+    };
+    measureContentBox();
     if (typeof ResizeObserver === 'undefined') return;
     let frame = 0;
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries.at(-1);
-      if (!entry) return;
+    const observer = new ResizeObserver(() => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        update(entry.contentRect.width, entry.contentRect.height);
+        measureContentBox();
       });
+    });
+    observer.observe(node);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  };
+
+  const observeGalleryContainer: Attachment<HTMLElement> = (node) => {
+    const update = () => {
+      const nextWidth = Math.max(1, Math.round(node.clientWidth));
+      const nextHeight = Math.max(1, Math.round(node.clientHeight));
+      if (nextWidth !== galleryWidth) galleryWidth = nextWidth;
+      if (nextHeight !== galleryHeight) galleryHeight = nextHeight;
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
     });
     observer.observe(node);
     return () => {
@@ -275,13 +303,42 @@ retained only for non-joined projections that still consume this component.
         )
       : []
   );
-  let galleryGrid = $derived(computeSceneGrid(sceneWidth, sceneHeight, participantTiles.length));
+  let galleryGrid = $derived(
+    computeSceneGrid(galleryWidth, galleryHeight, participantTiles.length)
+  );
   let galleryPage = $derived(scenePage(participantTiles, galleryGrid.capacity, galleryPageIndex));
+  let galleryPageGrid = $derived(
+    computeSceneGrid(galleryWidth, galleryHeight, galleryPage.items.length)
+  );
+  let galleryPageWidth = $derived(
+    galleryPageGrid.columns * galleryPageGrid.tileSize +
+      Math.max(0, galleryPageGrid.columns - 1) * 12
+  );
+  let galleryPageHeight = $derived(
+    galleryPageGrid.rows * galleryPageGrid.tileSize + Math.max(0, galleryPageGrid.rows - 1) * 12
+  );
+  let useHorizontalStage = $derived(sceneWidth >= 640 && sceneHeight < 420);
+  let hasSecondaryScreenShare = $derived(
+    secondaryStageTiles.some((tile) => tile.kind === 'screen')
+  );
+  let filmstripCapacity = $derived(
+    useHorizontalStage
+      ? hasSecondaryScreenShare
+        ? 1
+        : Math.max(1, Math.min(2, Math.floor((sceneHeight + 12) / 72)))
+      : computeFilmstripCapacity(sceneWidth, sceneHeight)
+  );
+  let filmstripMaxHeight = $derived(Math.max(120, Math.min(210, Math.floor(sceneHeight * 0.28))));
   let filmstripPage = $derived(
-    scenePage(
-      secondaryStageTiles,
-      computeFilmstripCapacity(sceneWidth, sceneHeight),
-      filmstripPageIndex
+    scenePage(secondaryStageTiles, filmstripCapacity, filmstripPageIndex)
+  );
+  let filmstripColumns = $derived(
+    Math.max(1, Math.min(filmstripCapacity, filmstripPage.items.length))
+  );
+  let filmstripTileWidth = $derived(
+    Math.min(
+      240,
+      Math.max(1, Math.floor((sceneWidth - 12 * (filmstripColumns - 1)) / filmstripColumns))
     )
   );
   let lastFeaturedStageQualityRequest = $state<{ key: string; track: Track } | null>(null);
@@ -823,15 +880,24 @@ retained only for non-joined projections that still consume this component.
   </div>
 {/snippet}
 
-{#snippet participantCard(participant: DisplayParticipant, mode: 'compact' | 'video')}
-  {@const showVideo = mode === 'video' && hasVideo(participant)}
+{#snippet participantCard(
+  participant: DisplayParticipant,
+  mode: 'compact' | 'video' | 'gallery',
+  fillContainer = false
+)}
+  {@const showVideo = mode !== 'compact' && hasVideo(participant)}
+  {@const showGalleryVoice = mode === 'gallery' && !showVideo}
   {@const showVoiceActions = isInThisCall && !showVideo}
   {@const actions = showVideo ? 'media' : showVoiceActions ? 'voice' : 'none'}
   {#if isInThisCall}
     <div
       class={[
         callTileCardClass,
-        mode === 'video' ? 'participant-card-video' : 'participant-card-compact'
+        mode === 'gallery'
+          ? 'participant-card-gallery h-full min-h-0'
+          : mode === 'video'
+            ? ['participant-card-video', fillContainer && 'h-full min-h-0']
+            : 'participant-card-compact'
       ]}
       {@attach speakingCard(participant.key)}
       title={participantTitle(participant)}
@@ -854,7 +920,21 @@ retained only for non-joined projections that still consume this component.
             name={participant.displayName}
             user={participant.avatarUser}
             showIdentityOverlay={false}
+            fill={mode === 'gallery' || fillContainer}
           />
+        </button>
+      {:else if showGalleryVoice}
+        <button
+          type="button"
+          class={[callTileMediaButtonClass, 'min-h-0 items-center justify-center p-4']}
+          onclick={(e) => showUserMenu(participant, e)}
+        >
+          <div
+            class="flex min-w-0 flex-col items-center gap-3"
+            data-testid="call-gallery-voice-avatar"
+          >
+            <UserAvatar user={participant.avatarUser} size="xl" showPresence={false} />
+          </div>
         </button>
       {/if}
     </div>
@@ -862,7 +942,11 @@ retained only for non-joined projections that still consume this component.
     <div
       class={[
         callTileCardClass,
-        mode === 'video' ? 'participant-card-video' : 'participant-card-compact'
+        mode === 'gallery'
+          ? 'participant-card-gallery h-full min-h-0'
+          : mode === 'video'
+            ? ['participant-card-video', fillContainer && 'h-full min-h-0']
+            : 'participant-card-compact'
       ]}
       title={participantTitle(participant)}
       data-testid="call-participant-card"
@@ -882,16 +966,34 @@ retained only for non-joined projections that still consume this component.
             name={participant.displayName}
             user={participant.avatarUser}
             showIdentityOverlay={false}
+            fill={mode === 'gallery' || fillContainer}
           />
+        </button>
+      {:else if showGalleryVoice}
+        <button
+          type="button"
+          class={[callTileMediaButtonClass, 'min-h-0 items-center justify-center p-4']}
+          onclick={(e) => showUserMenu(participant, e)}
+        >
+          <div
+            class="flex min-w-0 flex-col items-center gap-3"
+            data-testid="call-gallery-voice-avatar"
+          >
+            <UserAvatar user={participant.avatarUser} size="xl" showPresence={false} />
+          </div>
         </button>
       {/if}
     </div>
   {/if}
 {/snippet}
 
-{#snippet screenShareCard(participant: DisplayParticipant)}
+{#snippet screenShareCard(participant: DisplayParticipant, fillContainer = false, compact = false)}
   <div
-    class={[callTileCardClass, 'participant-card-video @container @min-[368px]:col-span-2']}
+    class={[
+      callTileCardClass,
+      'participant-card-video @container @min-[368px]:col-span-2',
+      fillContainer && 'h-full min-h-0'
+    ]}
     {@attach isInThisCall && speakingCard(participant.key)}
     title={m['voice.screen_title']({ name: participant.displayName })}
     data-testid="call-screen-share-card"
@@ -902,7 +1004,7 @@ retained only for non-joined projections that still consume this component.
     {@render participantHeader(
       participant,
       m['voice.screen_title']({ name: participant.displayName }),
-      'media',
+      compact ? 'none' : 'media',
       false,
       true,
       true
@@ -1002,16 +1104,27 @@ retained only for non-joined projections that still consume this component.
   </div>
 {/snippet}
 
-{#snippet stageTile(tile: StageTile)}
+{#snippet stageTile(
+  tile: StageTile,
+  presentation: 'filmstrip' | 'compact-filmstrip' | 'gallery' = 'filmstrip'
+)}
   {#if tile.kind === 'screen'}
-    {@render screenShareCard(tile.participant)}
+    {@render screenShareCard(
+      tile.participant,
+      presentation !== 'gallery',
+      presentation === 'compact-filmstrip'
+    )}
   {:else}
-    {@render participantCard(tile.participant, tile.kind === 'video' ? 'video' : 'compact')}
+    {@render participantCard(
+      tile.participant,
+      presentation === 'gallery' ? 'gallery' : tile.kind === 'video' ? 'video' : 'compact',
+      presentation !== 'gallery'
+    )}
   {/if}
 {/snippet}
 
 <div
-  class="flex min-h-0 flex-1 flex-col"
+  class="flex min-h-0 w-full min-w-0 flex-1 flex-col"
   data-testid={isInThisCall ? 'call-participant-panel' : 'call-observer-panel'}
 >
   {#if isRecovering}
@@ -1064,7 +1177,7 @@ retained only for non-joined projections that still consume this component.
 
   <div
     class={[
-      'flex min-h-0 flex-1 flex-col gap-5',
+      'flex min-h-0 w-full min-w-0 flex-1 flex-col gap-5',
       isStageLayout ? 'p-4' : 'p-3',
       isStageLayout ? 'overflow-hidden' : 'overflow-y-auto'
     ]}
@@ -1089,49 +1202,76 @@ retained only for non-joined projections that still consume this component.
     {:else if !isIdle}
       {#if isStageLayout && featuredStageTile}
         <section
-          class="flex min-h-0 flex-1 flex-col gap-3"
+          class="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
           aria-label={m['voice.participants']()}
           data-testid="call-stage-layout"
+          data-stage-orientation={useHorizontalStage ? 'horizontal' : 'vertical'}
         >
-          <div class="flex min-h-0 flex-1" data-testid="call-featured-stage">
-            {@render featuredStageCard(featuredStageTile)}
+          <div
+            class={[
+              'flex min-h-0 min-w-0 flex-1 gap-3',
+              useHorizontalStage ? 'flex-row' : 'flex-col'
+            ]}
+            data-testid="call-stage-composition"
+          >
+            <div class="flex min-h-0 min-w-0 flex-1" data-testid="call-featured-stage">
+              {@render featuredStageCard(featuredStageTile)}
+            </div>
+
+            {#if secondaryStageTiles.length > 0}
+              <div
+                class={[
+                  'flex shrink-0 content-start justify-center gap-3 overflow-hidden',
+                  useHorizontalStage
+                    ? 'h-full w-[clamp(160px,28vw,240px)] flex-col flex-nowrap'
+                    : 'w-full flex-row flex-nowrap items-stretch'
+                ]}
+                style={useHorizontalStage ? undefined : `height: ${filmstripMaxHeight}px`}
+                data-testid="call-secondary-stage-list"
+              >
+                {#each filmstripPage.items as tile (tile.key)}
+                  <div
+                    class={[
+                      'relative max-w-full min-w-0',
+                      useHorizontalStage ? 'min-h-0 w-full flex-1' : 'h-full shrink-0'
+                    ]}
+                    style={useHorizontalStage ? undefined : `width: ${filmstripTileWidth}px`}
+                  >
+                    {@render stageTile(
+                      tile,
+                      useHorizontalStage ? 'compact-filmstrip' : 'filmstrip'
+                    )}
+                    {#if tile.kind === 'screen'}
+                      <button
+                        type="button"
+                        class="absolute bottom-2 left-2 z-30 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur outline-none hover:bg-black/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        aria-label={m['voice.focus_media']({
+                          name: m['voice.screen_title']({
+                            name: tile.participant.displayName
+                          })
+                        })}
+                        aria-pressed={manuallyFocusedStageKey === tile.key}
+                        title={m['voice.focus_media']({
+                          name: m['voice.screen_title']({
+                            name: tile.participant.displayName
+                          })
+                        })}
+                        data-testid="call-focus-stage-button"
+                        onclick={() => {
+                          manuallyFocusedStageKey = tile.key;
+                          filmstripPageIndex = 0;
+                        }}
+                      >
+                        <span class="iconify text-xl uil--focus-target" aria-hidden="true"></span>
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
 
           {#if secondaryStageTiles.length > 0}
-            <div
-              class="flex max-h-[210px] shrink-0 flex-wrap content-start justify-center gap-3 overflow-hidden"
-              data-testid="call-secondary-stage-list"
-            >
-              {#each filmstripPage.items as tile (tile.key)}
-                <div class="relative w-[clamp(180px,22vw,240px)] max-w-full min-w-0">
-                  {@render stageTile(tile)}
-                  {#if tile.kind === 'screen'}
-                    <button
-                      type="button"
-                      class="absolute bottom-2 left-2 z-30 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur outline-none hover:bg-black/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      aria-label={m['voice.focus_media']({
-                        name: m['voice.screen_title']({
-                          name: tile.participant.displayName
-                        })
-                      })}
-                      aria-pressed={manuallyFocusedStageKey === tile.key}
-                      title={m['voice.focus_media']({
-                        name: m['voice.screen_title']({
-                          name: tile.participant.displayName
-                        })
-                      })}
-                      data-testid="call-focus-stage-button"
-                      onclick={() => {
-                        manuallyFocusedStageKey = tile.key;
-                        filmstripPageIndex = 0;
-                      }}
-                    >
-                      <span class="iconify text-xl uil--focus-target" aria-hidden="true"></span>
-                    </button>
-                  {/if}
-                </div>
-              {/each}
-            </div>
             {#if filmstripPage.pageCount > 1}
               <nav
                 class="flex shrink-0 items-center justify-center gap-3"
@@ -1172,22 +1312,33 @@ retained only for non-joined projections that still consume this component.
         </section>
       {:else if isStageLayout}
         <section
-          class="flex min-h-0 flex-1 flex-col gap-3"
+          class="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
           aria-label={m['voice.participants']()}
           data-testid="call-gallery-layout"
         >
           <div
-            class={[
-              'grid min-h-0 flex-1 content-center gap-3 overflow-hidden',
-              participantTiles.length === 1 && 'mx-auto w-full max-w-2xl'
-            ]}
-            style={`grid-template-columns: repeat(${galleryGrid.columns}, minmax(0, 1fr))`}
-            data-testid="call-participants-list"
-            data-page-capacity={galleryGrid.capacity}
+            class="flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden"
+            {@attach observeGalleryContainer}
+            data-testid="call-gallery-viewport"
           >
-            {#each galleryPage.items as tile (tile.key)}
-              {@render stageTile(tile)}
-            {/each}
+            <div
+              class="flex min-h-0 max-w-full flex-wrap content-center justify-center gap-3 overflow-hidden"
+              style={`width: min(100%, ${galleryPageWidth}px); height: min(100%, ${galleryPageHeight}px)`}
+              data-testid="call-participants-list"
+              data-page-capacity={galleryGrid.capacity}
+              data-layout-columns={galleryPageGrid.columns}
+              data-layout-rows={galleryPageGrid.rows}
+            >
+              {#each galleryPage.items as tile (tile.key)}
+                <div
+                  class="min-h-0 max-w-full min-w-0 shrink-0"
+                  style={`width: ${galleryPageGrid.tileSize}px; height: ${galleryPageGrid.tileSize}px; max-height: 100%`}
+                  data-testid="call-gallery-tile"
+                >
+                  {@render stageTile(tile, 'gallery')}
+                </div>
+              {/each}
+            </div>
           </div>
           {#if galleryPage.pageCount > 1}
             <nav

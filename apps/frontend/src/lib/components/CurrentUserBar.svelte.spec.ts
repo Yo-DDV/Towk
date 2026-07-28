@@ -676,15 +676,28 @@ describe('CurrentUserBar', () => {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const appRegion = q(container, '.mobile-navigation-swipe-region') as HTMLElement;
     const floatingDock = q(container, '[data-call-dock-host="floating"]') as HTMLElement;
+    expect(floatingDock.className).toContain('global-call-dock-floating');
+    expect(floatingDock.className).not.toContain('bottom-[calc(env(safe-area-inset-bottom)');
     const reservedHeight = Number.parseFloat(
       appRegion.style.getPropertyValue('--global-call-dock-reserved-height')
     );
     const expectedReservedHeight = Math.ceil(
       floatingDock.getBoundingClientRect().height +
-        Number.parseFloat(window.getComputedStyle(floatingDock).bottom)
+        Math.max(12, Number.parseFloat(window.getComputedStyle(floatingDock).bottom))
     );
     expect(appRegion.dataset.callDockReserved).toBe('true');
     expect(reservedHeight).toBe(expectedReservedHeight);
+
+    floatingDock.style.setProperty('--global-call-safe-area-bottom', '34px');
+    await vi.waitFor(() => {
+      expect(window.getComputedStyle(floatingDock).paddingBottom).toBe('34px');
+    });
+    window.dispatchEvent(new Event('resize'));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(floatingDock.getBoundingClientRect().bottom).toBe(window.innerHeight);
+    expect(
+      Number.parseFloat(appRegion.style.getPropertyValue('--global-call-dock-reserved-height'))
+    ).toBe(Math.ceil(floatingDock.getBoundingClientRect().height + 12));
 
     sidebarNav.open();
     await vi.waitFor(() => {
