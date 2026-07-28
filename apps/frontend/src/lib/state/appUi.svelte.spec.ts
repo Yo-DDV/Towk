@@ -40,13 +40,13 @@ describe('AppUiState', () => {
     const appUi = new AppUiState();
 
     appUi.setActiveRoomScope('server-a', 'room-1');
-    appUi.setRoomCallWide('server-a', 'room-1', true);
+    appUi.selectRoomPrimarySurface('server-a', 'room-1', 'call');
     appUi.setActiveServer('server-a');
 
     expect(appUi.activeServerId).toBe('server-a');
     expect(appUi.activeRoomId).toBe(null);
     expect(appUi.activeRoomScope).toBe(null);
-    expect(appUi.isRoomCallWide).toBe(false);
+    expect(appUi.activeRoomPrimarySurface).toBe('messages');
   });
 
   it('tracks the active room sidebar panel inside the active room scope', () => {
@@ -81,43 +81,27 @@ describe('AppUiState', () => {
     expect(appUi.mobileRoomSidebarPanel).toBe(null);
   });
 
-  it('tracks the scoped wide call room', () => {
-    const appUi = new AppUiState();
-
-    expect(appUi.isRoomCallWide).toBe(false);
-    expect(appUi.isRoomCallWideFor('server-a', 'room-1')).toBe(false);
-
-    appUi.setRoomCallWide('server-a', 'room-1', true);
-
-    expect(appUi.isRoomCallWide).toBe(true);
-    expect(appUi.roomCallWideScope).toEqual({ serverId: 'server-a', roomId: 'room-1' });
-    expect(appUi.isRoomCallWideFor('server-a', 'room-1')).toBe(true);
-    expect(appUi.isRoomCallWideFor('server-a', 'room-2')).toBe(false);
-  });
-
-  it('toggles and disables the active wide call scope', () => {
-    const appUi = new AppUiState();
-
-    appUi.toggleRoomCallWide('server-a', 'room-1');
-    expect(appUi.isRoomCallWideFor('server-a', 'room-1')).toBe(true);
-
-    appUi.disableRoomCallWideFor('server-a', 'room-2');
-    expect(appUi.isRoomCallWideFor('server-a', 'room-1')).toBe(true);
-
-    appUi.disableRoomCallWideFor('server-a', 'room-1');
-    expect(appUi.isRoomCallWide).toBe(false);
-  });
-
-  it('clears wide mode when the viewed room scope changes', () => {
+  it('tracks the primary surface per room without persisting media state', () => {
     const appUi = new AppUiState();
 
     appUi.setActiveRoomScope('server-a', 'room-1');
-    appUi.setRoomCallWide('server-a', 'room-1', true);
-    appUi.setActiveRoomScope('server-a', 'room-1');
-    expect(appUi.isRoomCallWideFor('server-a', 'room-1')).toBe(true);
+    expect(appUi.activeRoomPrimarySurface).toBe('messages');
+
+    appUi.selectActiveRoomPrimarySurface('call');
+    expect(appUi.activeRoomPrimarySurface).toBe('call');
 
     appUi.setActiveRoomScope('server-a', 'room-2');
-    expect(appUi.isRoomCallWide).toBe(false);
+    expect(appUi.activeRoomPrimarySurface).toBe('messages');
+    expect(appUi.roomPrimarySurfaceFor('server-a', 'room-1')).toBe('call');
+  });
+
+  it('returns the room to messages when the call ends', () => {
+    const appUi = new AppUiState();
+
+    appUi.selectRoomPrimarySurface('server-a', 'room-1', 'call');
+    appUi.resetRoomPrimarySurface('server-a', 'room-1');
+
+    expect(appUi.roomPrimarySurfaceFor('server-a', 'room-1')).toBe('messages');
   });
 
   it('exposes generic fullscreen UI state for top-level consumers', () => {

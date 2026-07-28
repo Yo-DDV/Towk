@@ -1,3 +1,5 @@
+import { SvelteMap } from 'svelte/reactivity';
+
 export const AUTO_HIDE_SCROLLBAR_IDLE_MS = 700;
 
 const AUTO_HIDE_SCROLLBARS_ATTRIBUTE = 'data-auto-hide-scrollbars';
@@ -28,7 +30,7 @@ export function useAutoHideScrollbars() {
     const root = document.documentElement;
     const finePointer = window.matchMedia(FINE_POINTER_QUERY);
     const forcedColors = window.matchMedia(FORCED_COLORS_QUERY);
-    const idleTimers = new Map<Element, number>();
+    const idleTimers = new SvelteMap<Element, number>();
     let enabled = false;
 
     function clearElement(element: Element): void {

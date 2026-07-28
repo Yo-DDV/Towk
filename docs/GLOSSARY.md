@@ -72,6 +72,14 @@ User-facing concepts. If a user might say the word, it goes here.
 
 **Voice Call** — Real-time audio call attached to a room. See [FDR-016](fdr/FDR-016-voice-calls.md).
 
+**Call Workspace** — The room's central Call surface. It replaces the timeline and composer visually while the user is viewing the call, but Messages remains mounted and can be restored without leaving the session.
+
+**Global Call Dock** — The single route-independent control cluster for the local joining, connected, or recovering call. It identifies the owning room/server and revalidates that session before every media or leave command.
+
+**Global Call Session** — The frontend projection of the winning local call across registered servers. Connected sessions outrank recovering sessions, which outrank pending joins; the projection is observational and never replaces server or LiveKit authority.
+
+**Primary Room Surface** — Session-only UI selection between Messages and Call beneath the canonical room header. It is not persisted across reload and never causes an automatic join.
+
 **Jump to Present** — UI affordance that returns the Room View to the latest message after scrolling back through history. See [FDR-014](fdr/FDR-014-jump-to-present.md).
 
 **Last-Room Memory** — The system that remembers which room a user was last in per-server. See [FDR-026](fdr/FDR-026-last-room-memory.md).

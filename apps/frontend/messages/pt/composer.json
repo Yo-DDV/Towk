@@ -27,6 +27,7 @@
     "attachments_need_connection": "Mantenha este rascunho aberto: os anexos precisam de conexão antes de entrarem na fila.",
     "voice": {
       "record": "Gravar uma mensagem de voz",
+      "unavailable_during_call": "A gravação de voz não está disponível durante uma chamada.",
       "requesting_microphone": "Preparando o microfone…",
       "recording": "Gravando",
       "stop": "Parar a gravação",

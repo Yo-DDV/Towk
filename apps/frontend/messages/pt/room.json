@@ -144,6 +144,11 @@
       "delete_prompt": "Tem certeza de que deseja remover esta visualização do link? Isto não pode ser desfeito.",
       "delete_failed": "Falha ao excluir a visualização do link"
     },
+    "workspace": {
+      "switcher": "Vista da sala",
+      "messages": "Mensagens",
+      "call": "Chamada"
+    },
     "sidebar": {
       "extras": "Extras da sala",
       "resize": "Redimensionar painel de extras da sala",

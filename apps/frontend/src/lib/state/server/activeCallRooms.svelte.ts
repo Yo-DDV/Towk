@@ -76,6 +76,11 @@ export class ActiveCallRoomsState {
     return this.serverRooms.get(roomId)?.participants ?? [];
   }
 
+  getCallId(roomId: string): string | null {
+    if (this.#voiceCall.isInCall(roomId)) return this.#voiceCall.callId;
+    return this.serverRooms.get(roomId)?.callId ?? this.pendingCallIds.get(roomId) ?? null;
+  }
+
   /**
    * Return a user's call presence for a room.
    *

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   goto: vi.fn(),
   pushState: vi.fn(),
   replaceState: vi.fn(),
+  callJoinController: { request: vi.fn() },
   pageState: {} as Record<string, unknown>
 }));
 
@@ -52,6 +53,10 @@ vi.mock('$lib/state/server/connection.svelte', () => ({
 
 vi.mock('$lib/state/activeServer.svelte', () => ({
   getActiveServer: () => 'server-1'
+}));
+
+vi.mock('$lib/state/callJoinController.svelte', () => ({
+  getCallJoinController: () => mocks.callJoinController
 }));
 
 vi.mock('$lib/api-client/memberDirectory', () => ({
@@ -198,7 +203,13 @@ describe('UserContextMenu', () => {
     const second = renderMenu();
     await vi.waitFor(() => expect(second.container.textContent).toContain('Moderator'));
     buttonByText(second.container, 'Call').click();
-    await vi.waitFor(() => expect(mocks.startCallWith).toHaveBeenCalledWith('server-1', 'user-1'));
+    await vi.waitFor(() =>
+      expect(mocks.startCallWith).toHaveBeenCalledWith(
+        'server-1',
+        'user-1',
+        mocks.callJoinController
+      )
+    );
   });
 
   it('uses a member fallback when no explicit role is assigned', async () => {

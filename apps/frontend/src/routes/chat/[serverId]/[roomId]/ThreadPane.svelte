@@ -45,6 +45,7 @@
     highlightEventId = null,
     pendingQuote = null,
     pendingReply = null,
+    voiceCaptureDisabled = false,
     onHighlightComplete,
     onQuoteConsumed,
     onReplyConsumed
@@ -60,6 +61,7 @@
     highlightEventId?: string | null;
     pendingQuote?: QuoteInsertionRequest | null;
     pendingReply?: PendingThreadReplyRequest | null;
+    voiceCaptureDisabled?: boolean;
     onHighlightComplete?: () => void;
     onQuoteConsumed?: () => void;
     onReplyConsumed?: () => void;
@@ -388,6 +390,7 @@
     {canPost}
     {canAttach}
     {canVoice}
+    {voiceCaptureDisabled}
     showAlsoSendToChannel={canEchoMessage}
     onEscape={onClose}
     onReady={(api: MessageComposerApi) => {

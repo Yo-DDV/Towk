@@ -35,6 +35,7 @@
     onOpenThread,
     pendingHighlightId = null,
     onHighlightComplete,
+    attentionEnabled = true,
     typingUserIds = [],
     typingMembers = []
   }: {
@@ -47,6 +48,7 @@
     onOpenThread?: OpenThreadHandler;
     pendingHighlightId?: string | null;
     onHighlightComplete?: () => void;
+    attentionEnabled?: boolean;
     typingUserIds?: string[];
     typingMembers?: RoomMember[];
   } = $props();
@@ -133,6 +135,7 @@
   onLoadMore={(options) => store.loadMore(options)}
   {updateCounter}
   {onOpenThread}
+  {attentionEnabled}
   enableLastEditableFinder={true}
   isLoading={store.isInitialLoading}
   loadFailed={store.initialLoadFailed}

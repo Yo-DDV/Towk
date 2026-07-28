@@ -26,7 +26,9 @@
     updateCounter = 0,
     pendingHighlightId = null,
     isReconcilingCachedData = false,
-    readReceiptsEnabled = true
+    readReceiptsEnabled = true,
+    attentionEnabled = true,
+    eventActorId = 'test-user'
   }: {
     eventIds: string[];
     roomId?: string;
@@ -45,6 +47,8 @@
     pendingHighlightId?: string | null;
     isReconcilingCachedData?: boolean;
     readReceiptsEnabled?: boolean;
+    attentionEnabled?: boolean;
+    eventActorId?: string;
   } = $props();
 
   createComposerContext({ scroll: true });
@@ -60,7 +64,7 @@
     eventIds.map((id): RoomEventView => ({
       id,
       createdAt: '2026-06-17T10:47:00Z',
-      actorId: 'test-user',
+      actorId: eventActorId,
       actor: null,
       event: {
         kind: RoomEventKind.MessagePosted,
@@ -109,6 +113,7 @@
   {onJumpToPresent}
   {updateCounter}
   {pendingHighlightId}
+  {attentionEnabled}
   {scrollToEventId}
   onScrollToEventComplete={onComplete}
 />

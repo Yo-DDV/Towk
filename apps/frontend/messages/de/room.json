@@ -144,6 +144,11 @@
       "delete_prompt": "Möchtest du diese Linkvorschau wirklich entfernen? Dies kann nicht rückgängig gemacht werden.",
       "delete_failed": "Linkvorschau konnte nicht gelöscht werden"
     },
+    "workspace": {
+      "switcher": "Raumansicht",
+      "messages": "Nachrichten",
+      "call": "Anruf"
+    },
     "sidebar": {
       "extras": "Raumdetails",
       "resize": "Raumdetails-Bereich vergrößern/verkleinern",

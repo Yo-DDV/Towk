@@ -235,7 +235,7 @@ test.describe('Emoji reactions', () => {
     await message.reactViaEmojiPicker('fire', 'fire');
 
     // Verify picker is dismissed
-    const picker = page.locator('input[placeholder="Search emojis..."]');
+    const picker = page.getByTestId('emoji-picker-search');
     await expect(picker).not.toBeVisible({ timeout: TIMEOUTS.UI_FAST });
 
     // Verify the reaction was added

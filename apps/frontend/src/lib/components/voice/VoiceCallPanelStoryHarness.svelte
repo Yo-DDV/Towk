@@ -7,12 +7,13 @@
   import type { ServerPermissions } from '$lib/state/server/permissions.svelte';
   import { createPresenceCache } from '$lib/state/presenceCache.svelte';
   import { createUserProfileCache } from '$lib/state/userProfiles.svelte';
+  import { provideAppUiState } from '$lib/state/appUi.svelte';
   import { serverRegistry, type RegisteredServer } from '$lib/state/server/registry.svelte';
   import type { ServerStateStore } from '$lib/state/server/store.svelte';
+  import GlobalCallDock from './GlobalCallDock.svelte';
 
   type VoiceCallPanelProps = {
     roomId: string;
-    livekitUrl: string;
     layout?: 'sidebar' | 'stage';
   };
 
@@ -20,6 +21,7 @@
     layout = 'stage',
     scenario = 'screen',
     reconnecting = false,
+    joining = false,
     microphoneRouteRecovering = false,
     interrupted = false,
     jitterWarning = false,
@@ -29,8 +31,15 @@
   }: {
     layout?: 'sidebar' | 'stage';
     scenario?:
-      'screen' | 'screen-single-secondary' | 'camera' | 'mobile-camera' | 'voice' | 'devices';
+      | 'screen'
+      | 'dual-screen'
+      | 'screen-single-secondary'
+      | 'camera'
+      | 'mobile-camera'
+      | 'voice'
+      | 'devices';
     reconnecting?: boolean;
+    joining?: boolean;
     microphoneRouteRecovering?: boolean;
     interrupted?: boolean;
     jitterWarning?: boolean;
@@ -43,6 +52,7 @@
   const storybookServerId = 'storybook-call-server';
   createPresenceCache();
   createUserProfileCache();
+  provideAppUiState();
   let Panel = $state<Component<VoiceCallPanelProps> | null>(null);
 
   const permissions: ServerPermissions = {
@@ -260,6 +270,25 @@
       ];
     }
 
+    if (scenario === 'dual-screen') {
+      return [
+        participant('dana', 'Dana', {
+          isScreenShareEnabled: true,
+          isScreenShareAudioEnabled: true,
+          screenShareTrack: screenTrack
+        }),
+        participant('viewer', 'Alice', {
+          isLocal: true,
+          isCameraEnabled: true,
+          videoTrack: cameraTrack,
+          isScreenShareEnabled: true,
+          screenShareTrack: localScreenTrack
+        }),
+        bob,
+        chloe
+      ];
+    }
+
     if (scenario === 'camera' || scenario === 'mobile-camera') {
       return [viewer, bob, chloe];
     }
@@ -300,9 +329,14 @@
 
     store.permissions = permissions;
     store.rooms.currentUserId = 'viewer';
-    store.voiceCall.roomId = roomId;
-    store.voiceCall.connected = true;
-    store.voiceCall.connecting = false;
+    store.voiceCall.roomId = joining ? null : roomId;
+    store.voiceCall.connected = !joining;
+    store.voiceCall.connecting = joining;
+    (
+      store.voiceCall as unknown as {
+        joinInFlightRoomId: string | null;
+      }
+    ).joinInFlightRoomId = joining ? roomId : null;
     store.voiceCall.reconnecting = reconnecting;
     store.voiceCall.isMuted = false;
     store.voiceCall.microphoneRouteRecovering = microphoneRouteRecovering;
@@ -312,7 +346,7 @@
       noiseSuppression: 'unavailable'
     };
     store.voiceCall.isCameraEnabled = scenario !== 'voice';
-    store.voiceCall.isScreenShareEnabled = scenario === 'screen';
+    store.voiceCall.isScreenShareEnabled = scenario === 'screen' || scenario === 'dual-screen';
     if (scenario === 'mobile-camera') {
       store.voiceCall.videoDevices = [
         mediaDevice('front', 'videoinput', 'camera2 1, facing front'),
@@ -321,7 +355,7 @@
       ];
       store.voiceCall.selectedVideoDeviceId = 'front';
     }
-    store.voiceCall.participants = participantsForScenario();
+    store.voiceCall.participants = joining ? [] : participantsForScenario();
     onStoreSeeded?.(store);
   }
 
@@ -361,5 +395,6 @@
 </script>
 
 {#if Panel}
-  <Panel {roomId} livekitUrl="wss://livekit.invalid" {layout} />
+  <GlobalCallDock variant="sidebar" />
+  <Panel {roomId} {layout} />
 {/if}

@@ -1,49 +1,40 @@
 <!--
 @component
 
-Room sidebar panel for voice/video calls.
+Container-aware voice/video call scene.
 
-**Two modes:**
-- **Observer mode**: Call is active but user hasn't joined. Shows participants
-  from server state and a Join button.
-- **Participant mode**: User is connected to LiveKit. Shows live audio levels,
-  mute toggle, camera/screen-share controls, audio device selector, and hang-up button.
+Joined sessions use the central room workspace. The legacy observer rendering is
+retained only for non-joined projections that still consume this component.
 
 **Props:**
 - `roomId` - The room ID
-- `livekitUrl` - The LiveKit server WebSocket URL (needed for joining)
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import { serverRegistry } from '$lib/state/server/registry.svelte';
   import { getServerPermissions } from '$lib/state/server/permissions.svelte';
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import * as m from '$lib/i18n/messages';
 
-  const stores = serverRegistry.getStore(getActiveServer());
-  const voiceCallState = stores.voiceCall;
-  const activeCallRooms = stores.activeCallRooms;
-  const callParticipantsState = stores.callParticipants;
-  import { useEvent } from '$lib/hooks';
-  import { useRenderData } from '$lib/render/data';
-  import { UserAvatarViewData } from '$lib/components/UserAvatar.svelte';
+  const stores = $derived(serverRegistry.getStore(getActiveServer()));
+  const voiceCallState = $derived(stores.voiceCall);
+  const activeCallRooms = $derived(stores.activeCallRooms);
   import type { PresenceStatus } from '$lib/render/types';
-  import type { EventEnvelope } from '$lib/eventBus.svelte';
-  import { RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
   import UserAvatar from '$lib/components/UserAvatar.svelte';
   import VideoThumbnail from './VideoThumbnail.svelte';
-  import AudioDeviceMenu from './AudioDeviceMenu.svelte';
   import CallTileActionButton from './CallTileActionButton.svelte';
   import CallTileActionToolbar from './CallTileActionToolbar.svelte';
-  import CallDeviceJoinDialog from './CallDeviceJoinDialog.svelte';
   import ScreenShareDiagnostics from './ScreenShareDiagnostics.svelte';
   import UserContextMenu from '$lib/components/menus/UserContextMenu.svelte';
-  import { getVoiceCallJoinErrorMessage } from '$lib/state/server/voiceCall.svelte';
   import type { Track } from 'livekit-client';
   import type { Attachment } from 'svelte/attachments';
   import { startDMWith } from '$lib/dm/startDM';
-  import { toast } from '$lib/ui/toast';
-  import { onDestroy } from 'svelte';
+  import {
+    computeFilmstripCapacity,
+    computeSceneGrid,
+    resolveFeaturedShareKey,
+    scenePage
+  } from './callSceneLayout';
   import {
     callFullscreenMedia,
     type CallFullscreenMediaKind
@@ -55,28 +46,51 @@ Room sidebar panel for voice/video calls.
 
   let {
     roomId,
-    livekitUrl,
     layout = 'sidebar'
   }: {
     roomId: string;
-    livekitUrl: string;
     layout?: 'sidebar' | 'stage';
   } = $props();
 
   let isInThisCall = $derived(voiceCallState.isInCall(roomId));
-  let isInAnotherCall = $derived(voiceCallState.isInAnyCall && !isInThisCall);
-  let isConnecting = $derived(voiceCallState.isJoiningRoom(roomId));
+  let isJoiningThisCall = $derived(voiceCallState.isJoiningRoom(roomId));
   let isRecovering = $derived(voiceCallState.reconnecting && voiceCallState.roomId === roomId);
   let hasActiveCall = $derived(activeCallRooms.has(roomId));
   let isStageLayout = $derived(layout === 'stage');
-  let deviceMenuAnchor = $state<{ top: number; bottom: number; left: number } | null>(null);
-  let deviceMenuTrigger = $state<HTMLButtonElement | null>(null);
-  let deviceChoiceVisible = $state(false);
-  let companionAllowed = $state(false);
-  let deviceChoiceBusy = $state(false);
   let diagnosticsParticipantKey = $state<string | null>(null);
   let pictureInPictureAvailable = $state(false);
   let pictureInPictureActive = $state(false);
+  let sceneWidth = $state(1_200);
+  let sceneHeight = $state(700);
+  let galleryPageIndex = $state(0);
+  let filmstripPageIndex = $state(0);
+  let manuallyFocusedStageKey = $state<string | null>(null);
+
+  const observeSceneContainer: Attachment<HTMLElement> = (node) => {
+    const update = (width: number, height: number) => {
+      const nextWidth = Math.max(1, Math.round(width));
+      const nextHeight = Math.max(1, Math.round(height));
+      if (nextWidth !== sceneWidth) sceneWidth = nextWidth;
+      if (nextHeight !== sceneHeight) sceneHeight = nextHeight;
+    };
+    const initial = node.getBoundingClientRect();
+    update(initial.width, initial.height);
+    if (typeof ResizeObserver === 'undefined') return;
+    let frame = 0;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.at(-1);
+      if (!entry) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        update(entry.contentRect.width, entry.contentRect.height);
+      });
+    });
+    observer.observe(node);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  };
 
   onMount(() => {
     pictureInPictureAvailable = supportsVideoPictureInPicture();
@@ -91,114 +105,11 @@ Room sidebar panel for voice/video calls.
     };
   });
 
-  function callEventPayload(event: EventEnvelope['event']): {
-    roomId: string;
-    callId: string;
-    participantId: string | null;
-    deviceIndex: number;
-    connectionState: 'connected' | 'interrupted';
-    interruptionDeadline: string | null;
-  } | null {
-    if (
-      !event ||
-      !('roomId' in event) ||
-      typeof event.roomId !== 'string' ||
-      !('callId' in event) ||
-      typeof event.callId !== 'string'
-    ) {
-      return null;
-    }
-    const participantId =
-      'participantId' in event && typeof event.participantId === 'string' && event.participantId
-        ? event.participantId
-        : null;
-    const deviceIndex =
-      'deviceIndex' in event && typeof event.deviceIndex === 'number' ? event.deviceIndex : 0;
-    const connectionState =
-      'connectionState' in event && event.connectionState === 'interrupted'
-        ? 'interrupted'
-        : 'connected';
-    const interruptionDeadline =
-      'interruptionDeadline' in event && typeof event.interruptionDeadline === 'string'
-        ? event.interruptionDeadline
-        : null;
-    return {
-      roomId: event.roomId,
-      callId: event.callId,
-      participantId,
-      deviceIndex,
-      connectionState,
-      interruptionDeadline
-    };
-  }
-
   // The call tab can be opened directly from a room even if the sidebar room
   // list has not refreshed its active-call snapshot yet. Refresh here so
   // observers see the active participants before deciding whether to join.
   $effect(() => {
-    if (!isInThisCall) void activeCallRooms.load();
-  });
-
-  // Load server-side participants when there's an active call and we're not in it
-  $effect(() => {
-    if (!isInThisCall && hasActiveCall) {
-      callParticipantsState.load(roomId);
-    } else if (!hasActiveCall && !isInThisCall) {
-      callParticipantsState.clear();
-    }
-  });
-
-  // Handle call join/leave events to optimistically update the observer participant list
-  useEvent((spaceEvent) => {
-    const event = spaceEvent.event;
-    if (!event) return;
-
-    const call = callEventPayload(event);
-    if (!call || call.roomId !== roomId) return;
-
-    switch (roomEventKind(event)) {
-      case RoomEventKind.CallParticipantJoined: {
-        const actor = spaceEvent.actor ? useRenderData(UserAvatarViewData, spaceEvent.actor) : null;
-        void callParticipantsState.handleJoin(
-          call.roomId,
-          call.callId,
-          actor,
-          call.participantId,
-          call.deviceIndex
-        );
-        break;
-      }
-      case RoomEventKind.CallParticipantLeft:
-        callParticipantsState.handleLeave(
-          call.roomId,
-          call.callId,
-          spaceEvent.actorId ?? null,
-          call.participantId
-        );
-        voiceCallState.handleParticipantLeftEvent(
-          call.roomId,
-          call.callId,
-          call.participantId,
-          spaceEvent.actorId ?? null,
-          stores.rooms.currentUserId
-        );
-        break;
-      case RoomEventKind.CallParticipantConnectionChanged:
-        if (!call.callId || !call.participantId) break;
-        callParticipantsState.handleConnectionState(
-          call.roomId,
-          call.callId,
-          call.participantId,
-          call.connectionState,
-          call.interruptionDeadline
-        );
-        break;
-      case RoomEventKind.CallEnded:
-        callParticipantsState.handleEnd(call.roomId, call.callId);
-        activeCallRooms.handleEnd(call.roomId, call.callId);
-        voiceCallState.handleCallEndedEvent(call.roomId, call.callId);
-        break;
-    }
+    if (!isInThisCall && !isJoiningThisCall) void activeCallRooms.load();
   });
 
   /** Unified participant shape for rendering (structural data only). */
@@ -273,7 +184,7 @@ Room sidebar panel for voice/video calls.
       }));
     }
 
-    return callParticipantsState.participants.map((p) => ({
+    return activeCallRooms.getParticipants(roomId).map((p) => ({
       key: p.participantId,
       userId: p.userId,
       deviceIndex: p.deviceIndex,
@@ -348,16 +259,43 @@ Room sidebar panel for voice/video calls.
       participant
     }))
   );
-  let stageTiles = $derived([...screenShareTiles, ...participantTiles]);
+  let featuredStageKey = $derived(
+    resolveFeaturedShareKey(
+      screenShareTiles.map((tile) => tile.key),
+      manuallyFocusedStageKey
+    )
+  );
   let featuredStageTile = $derived(
-    screenShareTiles[0] ??
-      participantTiles.find((tile) => tile.kind === 'video') ??
-      participantTiles[0]
+    screenShareTiles.find((tile) => tile.key === featuredStageKey) ?? null
   );
   let secondaryStageTiles = $derived(
-    featuredStageTile ? stageTiles.filter((tile) => tile.key !== featuredStageTile.key) : []
+    featuredStageTile
+      ? [...screenShareTiles, ...participantTiles].filter(
+          (tile) => tile.key !== featuredStageTile.key
+        )
+      : []
+  );
+  let galleryGrid = $derived(computeSceneGrid(sceneWidth, sceneHeight, participantTiles.length));
+  let galleryPage = $derived(scenePage(participantTiles, galleryGrid.capacity, galleryPageIndex));
+  let filmstripPage = $derived(
+    scenePage(
+      secondaryStageTiles,
+      computeFilmstripCapacity(sceneWidth, sceneHeight),
+      filmstripPageIndex
+    )
   );
   let lastFeaturedStageQualityRequest = $state<{ key: string; track: Track } | null>(null);
+
+  $effect(() => {
+    if (
+      manuallyFocusedStageKey &&
+      !screenShareTiles.some((tile) => tile.key === manuallyFocusedStageKey)
+    ) {
+      manuallyFocusedStageKey = null;
+    }
+    if (galleryPageIndex !== galleryPage.page) galleryPageIndex = galleryPage.page;
+    if (filmstripPageIndex !== filmstripPage.page) filmstripPageIndex = filmstripPage.page;
+  });
 
   function featuredStageMedia(
     tile: StageTile
@@ -408,16 +346,7 @@ Room sidebar panel for voice/video calls.
       diagnosticsParticipantKey = null;
     }
   });
-  let isIdle = $derived(!hasActiveCall && !isInThisCall);
-  let joinLabel = $derived.by(() => {
-    if (isConnecting) return hasActiveCall ? m['voice.joining']() : m['voice.starting']();
-    return hasActiveCall ? m['voice.join_call']() : m['voice.start_call']();
-  });
-  const controlButtonClass = 'btn-secondary btn-sm h-12 w-full !px-0';
-  const activeControlButtonClass = 'btn-success btn-sm h-12 w-full !px-0';
-  const unavailableControlButtonClass =
-    'btn-secondary btn-sm h-12 w-full !px-0 cursor-not-allowed opacity-60 saturate-50';
-  const dangerControlButtonClass = 'btn-danger btn-sm h-12 w-full !px-0';
+  let isIdle = $derived(!hasActiveCall && !isInThisCall && !isJoiningThisCall);
   const callTileCardClass =
     'call-speaking-card participant-card group/media relative flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-text/10 bg-surface-100 p-1.5 text-left text-text shadow-sm transition-colors hover:bg-surface-200/70';
   const callTileHeaderClass = 'flex min-w-0 items-center gap-2';
@@ -541,56 +470,6 @@ Room sidebar panel for voice/video calls.
   function closeUserMenu() {
     popoverParticipant = null;
     popoverAnchorRect = null;
-  }
-
-  function toggleDeviceMenu(e: MouseEvent) {
-    if (deviceMenuAnchor) {
-      closeDeviceMenu();
-      return;
-    }
-
-    const button = e.currentTarget as HTMLButtonElement;
-    const rect = button.getBoundingClientRect();
-    // Chrome Android does not emit devicechange. Refresh once per explicit
-    // opening so hot-plugged routes are current without racing the menu mount.
-    voiceCallState.refreshDevices();
-    deviceMenuTrigger = button;
-    deviceMenuAnchor = { top: rect.top, bottom: rect.bottom, left: rect.left };
-  }
-
-  function keepDeviceMenuTriggerPointerDown(e: PointerEvent): void {
-    if (deviceMenuAnchor) e.stopPropagation();
-  }
-
-  function closeDeviceMenu(): void {
-    deviceMenuAnchor = null;
-    const trigger = deviceMenuTrigger;
-    deviceMenuTrigger = null;
-    requestAnimationFrame(() => {
-      if (trigger?.isConnected) trigger.focus();
-    });
-  }
-
-  async function handleJoin() {
-    await joinWithMode('ask');
-  }
-
-  async function joinWithMode(mode: 'ask' | 'companion' | 'transfer') {
-    if (mode !== 'ask') deviceChoiceBusy = true;
-    try {
-      const result = await voiceCallState.join(livekitUrl, roomId, mode);
-      if (result.status === 'selection-required') {
-        companionAllowed = result.companionAllowed;
-        deviceChoiceVisible = true;
-        return;
-      }
-      deviceChoiceVisible = false;
-    } catch (err) {
-      stores.handleVoiceCallJoinFailed(roomId);
-      toast.error(getVoiceCallJoinErrorMessage(err));
-    } finally {
-      deviceChoiceBusy = false;
-    }
   }
 
   async function toggleFullscreenElement(
@@ -1131,167 +1010,10 @@ Room sidebar panel for voice/video calls.
   {/if}
 {/snippet}
 
-{#snippet callControls()}
-  {#if isInThisCall}
-    <div class={isStageLayout ? 'mx-auto max-w-2xl' : ''}>
-      <div class={['grid gap-2', isStageLayout ? 'grid-cols-6' : 'grid-cols-3']}>
-        <button
-          type="button"
-          class={controlButtonClass}
-          title={m['voice.devices']()}
-          aria-label={m['voice.devices']()}
-          aria-haspopup="menu"
-          aria-expanded={deviceMenuAnchor !== null}
-          aria-controls={deviceMenuAnchor ? 'call-audio-device-menu' : undefined}
-          data-testid="call-device-menu-button"
-          onpointerdown={keepDeviceMenuTriggerPointerDown}
-          onclick={toggleDeviceMenu}
-          disabled={isRecovering}
-        >
-          <span class="iconify text-lg uil--setting" aria-hidden="true"></span>
-        </button>
-
-        <button
-          type="button"
-          class={voiceCallState.isOutputMuted ? controlButtonClass : activeControlButtonClass}
-          title={voiceCallState.isOutputMuted
-            ? m['voice.unmute_call_audio']()
-            : m['voice.mute_call_audio']()}
-          aria-label={voiceCallState.isOutputMuted
-            ? m['voice.unmute_call_audio']()
-            : m['voice.mute_call_audio']()}
-          data-testid="call-output-mute-toggle"
-          onclick={() => voiceCallState.toggleOutputMute()}
-        >
-          <span
-            class={[
-              'iconify text-lg',
-              voiceCallState.isOutputMuted ? 'uil--volume-mute' : 'uil--volume-up'
-            ]}
-            aria-hidden="true"
-          ></span>
-        </button>
-
-        <button
-          type="button"
-          class={voiceCallState.isCameraEnabled ? activeControlButtonClass : controlButtonClass}
-          title={voiceCallState.isCameraEnabled
-            ? m['voice.turn_off_camera']()
-            : m['voice.turn_on_camera']()}
-          aria-label={voiceCallState.isCameraEnabled
-            ? m['voice.turn_off_camera']()
-            : m['voice.turn_on_camera']()}
-          data-testid="call-camera-toggle"
-          onclick={() => voiceCallState.toggleCamera()}
-          disabled={voiceCallState.isCameraPending || isRecovering}
-          aria-busy={voiceCallState.isCameraPending || undefined}
-        >
-          {#if voiceCallState.isCameraPending}
-            <span class="iconify animate-spin text-lg uil--spinner" aria-hidden="true"></span>
-          {:else}
-            <span
-              class={[
-                'iconify text-lg',
-                voiceCallState.isCameraEnabled ? 'uil--video' : 'uil--video-slash'
-              ]}
-              aria-hidden="true"
-            ></span>
-          {/if}
-        </button>
-
-        <button
-          type="button"
-          class={voiceCallState.isMuted ? controlButtonClass : activeControlButtonClass}
-          title={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
-          aria-label={voiceCallState.isMuted ? m['voice.unmute']() : m['voice.mute']()}
-          data-testid="call-mute-toggle"
-          onclick={() => voiceCallState.toggleMute()}
-          disabled={voiceCallState.isMicrophonePending || isRecovering}
-          aria-busy={voiceCallState.isMicrophonePending || undefined}
-        >
-          {#if voiceCallState.isMicrophonePending}
-            <span class="iconify animate-spin text-lg uil--spinner" aria-hidden="true"></span>
-          {:else}
-            <span
-              class={[
-                'iconify text-lg',
-                voiceCallState.isMuted ? 'uil--microphone-slash' : 'uil--microphone'
-              ]}
-              aria-hidden="true"
-            ></span>
-          {/if}
-        </button>
-
-        <button
-          type="button"
-          class={voiceCallState.isScreenShareEnabled
-            ? activeControlButtonClass
-            : voiceCallState.canShareScreen
-              ? controlButtonClass
-              : unavailableControlButtonClass}
-          title={voiceCallState.isScreenShareEnabled
-            ? m['voice.stop_share_screen']()
-            : voiceCallState.canShareScreen
-              ? m['voice.share_screen_with_audio']()
-              : m['voice.screen_share_capability_unavailable']()}
-          aria-label={voiceCallState.isScreenShareEnabled
-            ? m['voice.stop_share_screen']()
-            : voiceCallState.canShareScreen
-              ? m['voice.share_screen_with_audio']()
-              : m['voice.screen_share_capability_unavailable']()}
-          data-testid="call-screen-share-toggle"
-          onclick={() => voiceCallState.toggleScreenShare()}
-          disabled={voiceCallState.isScreenSharePending || isRecovering}
-          aria-disabled={!voiceCallState.isScreenShareEnabled && !voiceCallState.canShareScreen}
-          aria-busy={voiceCallState.isScreenSharePending || undefined}
-        >
-          {#if voiceCallState.isScreenSharePending}
-            <span class="iconify animate-spin text-lg uil--spinner" aria-hidden="true"></span>
-          {:else if !voiceCallState.isScreenShareEnabled && !voiceCallState.canShareScreen}
-            <span class="iconify text-lg uil--desktop-slash" aria-hidden="true"></span>
-          {:else}
-            <span class="iconify text-lg uil--desktop" aria-hidden="true"></span>
-          {/if}
-        </button>
-
-        <button
-          type="button"
-          class={dangerControlButtonClass}
-          onclick={() => voiceCallState.leave()}
-          title={m['voice.leave']()}
-          aria-label={m['voice.leave']()}
-          data-testid="call-leave-button"
-        >
-          <span class="iconify text-lg uil--phone-slash" aria-hidden="true"></span>
-        </button>
-      </div>
-    </div>
-  {:else}
-    <div class={isStageLayout ? 'mx-auto max-w-sm' : ''}>
-      <button
-        type="button"
-        class="btn-accent w-full btn-sm"
-        data-testid="call-join-button"
-        onclick={handleJoin}
-        disabled={isInAnotherCall || isConnecting}
-        title={isInAnotherCall ? m['voice.already_in_another_call']() : joinLabel}
-      >
-        {joinLabel}
-      </button>
-    </div>
-  {/if}
-{/snippet}
-
 <div
   class="flex min-h-0 flex-1 flex-col"
   data-testid={isInThisCall ? 'call-participant-panel' : 'call-observer-panel'}
 >
-  {#if !isStageLayout}
-    <div class="border-b border-border bg-background p-3" data-testid="call-controls-bar">
-      {@render callControls()}
-    </div>
-  {/if}
-
   {#if isRecovering}
     <div
       class={[
@@ -1346,8 +1068,25 @@ Room sidebar panel for voice/video calls.
       isStageLayout ? 'p-4' : 'p-3',
       isStageLayout ? 'overflow-hidden' : 'overflow-y-auto'
     ]}
+    {@attach isStageLayout && observeSceneContainer}
+    data-scene-width={isStageLayout ? sceneWidth : undefined}
+    data-scene-height={isStageLayout ? sceneHeight : undefined}
   >
-    {#if !isIdle}
+    {#if isJoiningThisCall && !isInThisCall}
+      <div
+        class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-6 text-center"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="call-joining-status"
+      >
+        <span
+          class="iconify animate-spin text-3xl text-primary uil--spinner motion-reduce:animate-none"
+          aria-hidden="true"
+        ></span>
+        <p class="text-sm font-semibold text-text">{m['voice.connecting']()}</p>
+      </div>
+    {:else if !isIdle}
       {#if isStageLayout && featuredStageTile}
         <section
           class="flex min-h-0 flex-1 flex-col gap-3"
@@ -1360,15 +1099,128 @@ Room sidebar panel for voice/video calls.
 
           {#if secondaryStageTiles.length > 0}
             <div
-              class="flex max-h-[190px] shrink-0 flex-wrap content-start justify-center gap-3 overflow-y-auto"
+              class="flex max-h-[210px] shrink-0 flex-wrap content-start justify-center gap-3 overflow-hidden"
               data-testid="call-secondary-stage-list"
             >
-              {#each secondaryStageTiles as tile (tile.key)}
-                <div class="w-[clamp(180px,22vw,240px)] max-w-full min-w-0">
+              {#each filmstripPage.items as tile (tile.key)}
+                <div class="relative w-[clamp(180px,22vw,240px)] max-w-full min-w-0">
                   {@render stageTile(tile)}
+                  {#if tile.kind === 'screen'}
+                    <button
+                      type="button"
+                      class="absolute bottom-2 left-2 z-30 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur outline-none hover:bg-black/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                      aria-label={m['voice.focus_media']({
+                        name: m['voice.screen_title']({
+                          name: tile.participant.displayName
+                        })
+                      })}
+                      aria-pressed={manuallyFocusedStageKey === tile.key}
+                      title={m['voice.focus_media']({
+                        name: m['voice.screen_title']({
+                          name: tile.participant.displayName
+                        })
+                      })}
+                      data-testid="call-focus-stage-button"
+                      onclick={() => {
+                        manuallyFocusedStageKey = tile.key;
+                        filmstripPageIndex = 0;
+                      }}
+                    >
+                      <span class="iconify text-xl uil--focus-target" aria-hidden="true"></span>
+                    </button>
+                  {/if}
                 </div>
               {/each}
             </div>
+            {#if filmstripPage.pageCount > 1}
+              <nav
+                class="flex shrink-0 items-center justify-center gap-3"
+                aria-label={m['voice.call_pages']()}
+                data-testid="call-filmstrip-pagination"
+              >
+                <button
+                  type="button"
+                  class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                  disabled={filmstripPage.page === 0}
+                  aria-label={m['voice.previous_page']()}
+                  onclick={() => (filmstripPageIndex = Math.max(0, filmstripPage.page - 1))}
+                >
+                  <span class="iconify text-xl uil--angle-left" aria-hidden="true"></span>
+                </button>
+                <span class="min-w-20 text-center text-xs text-muted" aria-live="polite">
+                  {m['voice.page_status']({
+                    page: filmstripPage.page + 1,
+                    pages: filmstripPage.pageCount
+                  })}
+                </span>
+                <button
+                  type="button"
+                  class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                  disabled={filmstripPage.page === filmstripPage.pageCount - 1}
+                  aria-label={m['voice.next_page']()}
+                  onclick={() =>
+                    (filmstripPageIndex = Math.min(
+                      filmstripPage.pageCount - 1,
+                      filmstripPage.page + 1
+                    ))}
+                >
+                  <span class="iconify text-xl uil--angle-right" aria-hidden="true"></span>
+                </button>
+              </nav>
+            {/if}
+          {/if}
+        </section>
+      {:else if isStageLayout}
+        <section
+          class="flex min-h-0 flex-1 flex-col gap-3"
+          aria-label={m['voice.participants']()}
+          data-testid="call-gallery-layout"
+        >
+          <div
+            class={[
+              'grid min-h-0 flex-1 content-center gap-3 overflow-hidden',
+              participantTiles.length === 1 && 'mx-auto w-full max-w-2xl'
+            ]}
+            style={`grid-template-columns: repeat(${galleryGrid.columns}, minmax(0, 1fr))`}
+            data-testid="call-participants-list"
+            data-page-capacity={galleryGrid.capacity}
+          >
+            {#each galleryPage.items as tile (tile.key)}
+              {@render stageTile(tile)}
+            {/each}
+          </div>
+          {#if galleryPage.pageCount > 1}
+            <nav
+              class="flex shrink-0 items-center justify-center gap-3"
+              aria-label={m['voice.call_pages']()}
+              data-testid="call-gallery-pagination"
+            >
+              <button
+                type="button"
+                class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                disabled={galleryPage.page === 0}
+                aria-label={m['voice.previous_page']()}
+                onclick={() => (galleryPageIndex = Math.max(0, galleryPage.page - 1))}
+              >
+                <span class="iconify text-xl uil--angle-left" aria-hidden="true"></span>
+              </button>
+              <span class="min-w-20 text-center text-xs text-muted" aria-live="polite">
+                {m['voice.page_status']({
+                  page: galleryPage.page + 1,
+                  pages: galleryPage.pageCount
+                })}
+              </span>
+              <button
+                type="button"
+                class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                disabled={galleryPage.page === galleryPage.pageCount - 1}
+                aria-label={m['voice.next_page']()}
+                onclick={() =>
+                  (galleryPageIndex = Math.min(galleryPage.pageCount - 1, galleryPage.page + 1))}
+              >
+                <span class="iconify text-xl uil--angle-right" aria-hidden="true"></span>
+              </button>
+            </nav>
           {/if}
         </section>
       {:else}
@@ -1396,26 +1248,7 @@ Room sidebar panel for voice/video calls.
       {/if}
     {/if}
   </div>
-
-  {#if isStageLayout}
-    <div class="border-t border-border bg-background p-3" data-testid="call-controls-bar">
-      {@render callControls()}
-    </div>
-  {/if}
 </div>
-
-{#if deviceMenuAnchor}
-  <AudioDeviceMenu anchor={deviceMenuAnchor} onclose={closeDeviceMenu} />
-{/if}
-
-<CallDeviceJoinDialog
-  bind:visible={deviceChoiceVisible}
-  {companionAllowed}
-  canShareScreen={voiceCallState.canShareScreen}
-  busy={deviceChoiceBusy}
-  oncompanion={() => void joinWithMode('companion')}
-  ontransfer={() => void joinWithMode('transfer')}
-/>
 
 {#if popoverParticipant && popoverAnchorRect}
   <UserContextMenu

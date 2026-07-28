@@ -27,6 +27,7 @@
     "attachments_need_connection": "Lass diesen Entwurf geöffnet: Anhänge benötigen eine Verbindung, bevor sie vorgemerkt werden können.",
     "voice": {
       "record": "Sprachnachricht aufnehmen",
+      "unavailable_during_call": "Während eines Anrufs ist keine Sprachaufnahme möglich.",
       "requesting_microphone": "Mikrofon wird vorbereitet…",
       "recording": "Aufnahme läuft",
       "stop": "Aufnahme stoppen",

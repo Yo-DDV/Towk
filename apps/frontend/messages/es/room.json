@@ -144,6 +144,11 @@
       "delete_prompt": "¿Seguro que quieres eliminar la vista previa de este enlace? Esto no se puede deshacer.",
       "delete_failed": "No se pudo eliminar la vista previa del enlace"
     },
+    "workspace": {
+      "switcher": "Vista de la sala",
+      "messages": "Mensajes",
+      "call": "Llamada"
+    },
     "sidebar": {
       "extras": "Extras de sala",
       "resize": "Cambiar el tamaño del panel de extras de la sala",

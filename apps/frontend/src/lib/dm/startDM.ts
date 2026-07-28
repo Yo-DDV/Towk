@@ -3,12 +3,7 @@ import { goto } from '$app/navigation';
 import { resolve } from '$app/paths';
 import { serverIdToSegment } from '$lib/navigation';
 import { createRoomCommandAPI, type PublicRoom } from '$lib/api-client/rooms';
-import {
-  roomSidebarPanelStorageSuffix,
-  setPendingRoomSidebarPanel,
-  setRoomSidebarPanel
-} from '$lib/storage/roomSidebarPanel';
-import { serverStorageKey } from '$lib/storage/serverStorage';
+import type { CallJoinController } from '$lib/state/callJoinController.svelte';
 
 const PROFILE_ACTION_TARGET_TIMEOUT_MS = 2_000;
 
@@ -65,28 +60,6 @@ export async function focusActiveMessageComposer(
   return false;
 }
 
-/** Activate the real call control after the DM call panel has mounted. */
-export async function activateActiveCallControl(
-  timeoutMs = PROFILE_ACTION_TARGET_TIMEOUT_MS
-): Promise<boolean> {
-  if (typeof document === 'undefined') return false;
-
-  const deadline = Date.now() + Math.max(0, timeoutMs);
-  do {
-    const callButton = document.querySelector<HTMLButtonElement>(
-      '[data-testid="call-join-button"]'
-    );
-    if (callButton && !callButton.disabled && callButton.getAttribute('aria-disabled') !== 'true') {
-      callButton.focus({ preventScroll: true });
-      callButton.click();
-      return true;
-    }
-    await nextAnimationFrame();
-  } while (Date.now() <= deadline);
-
-  return false;
-}
-
 /** Start a DM conversation, navigate to it, and place the caret in the composer. */
 export async function startDMWith(serverId: string, userId: string): Promise<void> {
   const room = await ensureDMWith(serverId, userId);
@@ -96,22 +69,18 @@ export async function startDMWith(serverId: string, userId: string): Promise<voi
   await focusActiveMessageComposer();
 }
 
-/** Start or open a DM, expose its call panel, then activate the existing join/start flow. */
-export async function startCallWith(serverId: string, userId: string): Promise<void> {
+/** Resolve a DM and submit an explicit join intent without DOM polling or synthetic clicks. */
+export async function startCallWith(
+  serverId: string,
+  userId: string,
+  callJoinController: CallJoinController
+): Promise<void> {
   const room = await ensureDMWith(serverId, userId);
   if (!room) return;
 
-  setRoomSidebarPanel(serverId, room.id, 'call');
-  setPendingRoomSidebarPanel(serverId, room.id, 'call');
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(
-      new StorageEvent('storage', {
-        key: serverStorageKey(serverId, roomSidebarPanelStorageSuffix(room.id)),
-        newValue: 'call'
-      })
-    );
-  }
-
-  await navigateToDM(serverId, room.id);
-  await activateActiveCallControl();
+  await callJoinController.request({
+    serverId,
+    roomId: room.id,
+    source: 'direct-message'
+  });
 }

@@ -31,6 +31,22 @@ function mediaQuery(matches: boolean, media: string): MediaQueryList {
 }
 
 describe('VoiceCallPanel screen-share audio', () => {
+  it('shows an accessible central status while the local call is joining', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'voice', joining: true }
+    });
+
+    const status = await vi.waitFor(() => {
+      const value = container.querySelector('[data-testid="call-joining-status"]');
+      expect(value).not.toBeNull();
+      return value!;
+    });
+
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.textContent).toContain('Connecting');
+    expect(container.querySelector('[data-testid="call-participant-card"]')).toBeNull();
+  });
+
   it('shows measured packet loss for a degraded remote participant', async () => {
     const { container } = render(VoiceCallPanelStoryHarness, {
       props: { layout: 'sidebar', scenario: 'voice' }
@@ -88,7 +104,7 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const trigger = await vi.waitFor(() => {
       const value = container.querySelector<HTMLButtonElement>(
-        '[data-testid="call-device-menu-button"]'
+        '[data-testid="global-call-dock-devices"]'
       );
       expect(value).not.toBeNull();
       return value!;
@@ -161,7 +177,7 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const trigger = await vi.waitFor(() => {
       const value = container.querySelector<HTMLButtonElement>(
-        '[data-testid="call-device-menu-button"]'
+        '[data-testid="global-call-dock-devices"]'
       );
       expect(value).not.toBeNull();
       return value!;
@@ -210,7 +226,7 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const trigger = await vi.waitFor(() => {
       const value = container.querySelector<HTMLButtonElement>(
-        '[data-testid="call-device-menu-button"]'
+        '[data-testid="global-call-dock-devices"]'
       );
       expect(value).not.toBeNull();
       return value!;
@@ -251,7 +267,7 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const trigger = await vi.waitFor(() => {
       const value = container.querySelector<HTMLButtonElement>(
-        '[data-testid="call-device-menu-button"]'
+        '[data-testid="global-call-dock-devices"]'
       );
       expect(value).not.toBeNull();
       return value!;
@@ -313,7 +329,7 @@ describe('VoiceCallPanel screen-share audio', () => {
 
     const trigger = await vi.waitFor(() => {
       const value = container.querySelector<HTMLButtonElement>(
-        '[data-testid="call-device-menu-button"]'
+        '[data-testid="global-call-dock-devices"]'
       );
       expect(value).not.toBeNull();
       return value!;
@@ -387,7 +403,7 @@ describe('VoiceCallPanel screen-share audio', () => {
 
       const control = await vi.waitFor(() => {
         const value = container.querySelector<HTMLButtonElement>(
-          '[data-testid="call-screen-share-toggle"]'
+          '[data-testid="global-call-dock-screen-share"]'
         );
         expect(value).not.toBeNull();
         return value!;
@@ -448,7 +464,9 @@ describe('VoiceCallPanel screen-share audio', () => {
       featuredCard?.querySelector('[data-testid="call-screen-share-audio-indicator"]')
     ).not.toBeNull();
 
-    const screenShareControl = container.querySelector('[data-testid="call-screen-share-toggle"]');
+    const screenShareControl = container.querySelector(
+      '[data-testid="global-call-dock-screen-share"]'
+    );
     expect(screenShareControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
   });
 
@@ -469,6 +487,54 @@ describe('VoiceCallPanel screen-share audio', () => {
     await vi.waitFor(() => {
       expect(container.querySelector('[data-testid="call-featured-stage-card"]')).not.toBeNull();
       expect(setParticipantMediaExpanded).toHaveBeenCalledWith('dana', 'screen', true);
+    });
+  });
+
+  it('uses a balanced gallery instead of promoting a camera when nobody shares', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'camera' }
+    });
+
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-testid="call-gallery-layout"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="call-featured-stage-card"]')).toBeNull();
+      const mountedCards = container.querySelectorAll(
+        '[data-testid="call-participant-card"]'
+      ).length;
+      expect(mountedCards).toBeGreaterThan(0);
+      expect(mountedCards).toBeLessThanOrEqual(3);
+      if (mountedCards < 3) {
+        expect(container.querySelector('[data-testid="call-gallery-pagination"]')).not.toBeNull();
+      }
+    });
+  });
+
+  it('lets the user select either concurrent screen share without nested controls', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: { layout: 'stage', scenario: 'dual-screen' }
+    });
+
+    const focusDana = await vi.waitFor(() => {
+      const featured = container.querySelector('[data-testid="call-featured-stage-card"]');
+      expect(featured?.textContent).toContain('Alice');
+      const button = container.querySelector<HTMLButtonElement>(
+        '[data-testid="call-focus-stage-button"]'
+      );
+      expect(button?.getAttribute('aria-label')).toContain('Dana');
+      expect(button?.closest('[data-testid="call-screen-share-card"]')).toBeNull();
+      return button!;
+    });
+
+    focusDana.click();
+
+    await vi.waitFor(() => {
+      const featured = container.querySelector('[data-testid="call-featured-stage-card"]');
+      expect(featured?.textContent).toContain('Dana');
+      expect(
+        container
+          .querySelector('[data-testid="call-focus-stage-button"]')
+          ?.getAttribute('aria-label')
+      ).toContain('Alice');
     });
   });
 
@@ -533,7 +599,7 @@ describe('VoiceCallPanel screen-share audio', () => {
     }
 
     const outputControl = container.querySelector(
-      '[data-testid="call-output-mute-toggle"]'
+      '[data-testid="global-call-dock-output"]'
     ) as HTMLButtonElement | null;
     expect(outputControl).not.toBeNull();
     expect(outputControl?.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
@@ -557,17 +623,18 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(notice?.textContent).toContain('Towk is trying to reconnect you automatically.');
 
     for (const testId of [
-      'call-device-menu-button',
-      'call-camera-toggle',
-      'call-mute-toggle',
-      'call-screen-share-toggle'
+      'global-call-dock-devices',
+      'global-call-dock-camera',
+      'global-call-dock-microphone',
+      'global-call-dock-screen-share'
     ]) {
       expect(
         (container.querySelector(`[data-testid="${testId}"]`) as HTMLButtonElement).disabled
       ).toBe(true);
     }
     expect(
-      (container.querySelector('[data-testid="call-leave-button"]') as HTMLButtonElement).disabled
+      (container.querySelector('[data-testid="global-call-dock-leave"]') as HTMLButtonElement)
+        .disabled
     ).toBe(false);
   });
 
@@ -588,7 +655,7 @@ describe('VoiceCallPanel screen-share audio', () => {
     expect(notice.textContent).toContain('Microphone disconnected.');
     expect(notice.textContent).toContain('Towk is automatically looking for another audio input.');
     expect(
-      (container.querySelector('[data-testid="call-device-menu-button"]') as HTMLButtonElement)
+      (container.querySelector('[data-testid="global-call-dock-devices"]') as HTMLButtonElement)
         .disabled
     ).toBe(false);
   });

@@ -32,6 +32,7 @@
     onOpenThread,
     filterThreadReplies = true,
     readReceiptThreadRootEventId = null,
+    attentionEnabled = true,
     enableLastEditableFinder = false,
     isLoading = false,
     loadFailed = false,
@@ -71,6 +72,7 @@
     onOpenThread?: OpenThreadHandler;
     filterThreadReplies?: boolean;
     readReceiptThreadRootEventId?: string | null;
+    attentionEnabled?: boolean;
     enableLastEditableFinder?: boolean;
     isLoading?: boolean;
     loadFailed?: boolean;
@@ -134,6 +136,7 @@
   {onOpenThread}
   {filterThreadReplies}
   {readReceiptThreadRootEventId}
+  {attentionEnabled}
   {updateCounter}
   {enableLastEditableFinder}
   {isLoading}

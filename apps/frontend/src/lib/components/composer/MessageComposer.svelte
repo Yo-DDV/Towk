@@ -92,6 +92,7 @@
     canPost = true,
     canAttach = true,
     canVoice = false,
+    voiceCaptureDisabled = false,
     autoFocus = true,
     onReady,
     onTyping,
@@ -110,6 +111,7 @@
     canPost?: boolean;
     canAttach?: boolean;
     canVoice?: boolean;
+    voiceCaptureDisabled?: boolean;
     autoFocus?: boolean;
     onReady?: (api: MessageComposerApi) => void;
     onTyping?: () => void;
@@ -1322,7 +1324,15 @@
 
       {#if !isEditing && canVoice}
         <VoiceMessageRecorder
-          disabled={inputDisabled || loading || roleMentionCheckLoading || hasComposerText}
+          disabled={inputDisabled ||
+            loading ||
+            roleMentionCheckLoading ||
+            hasComposerText ||
+            voiceCaptureDisabled}
+          disabledReason={voiceCaptureDisabled
+            ? m['composer.voice.unavailable_during_call']()
+            : undefined}
+          draftScope={`${getActiveServer()}:${DRAFT_KEY}`}
           maxUploadSize={serverInfo.maxVoiceMessageUploadSize}
           onSend={sendVoiceMessage}
           onActiveChange={(active) => (voiceRecorderActive = active)}

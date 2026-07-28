@@ -21,7 +21,6 @@ Room header affordance for opening or hiding room extras panels.
     panels,
     onToggle,
     mode = 'desktop',
-    hasActiveCall = false,
     canDeleteDirectMessage = false,
     onDeleteDirectMessage
   }: {
@@ -29,7 +28,6 @@ Room header affordance for opening or hiding room extras panels.
     panels?: RoomSidebarPanel[];
     onToggle: (panel: RoomSidebarPanel) => void;
     mode?: 'desktop' | 'mobile' | 'always';
-    hasActiveCall?: boolean;
     canDeleteDirectMessage?: boolean;
     onDeleteDirectMessage?: () => void;
   } = $props();
@@ -51,12 +49,6 @@ Room header affordance for opening or hiding room extras panels.
       icon: 'uil--paperclip',
       showLabel: m['room.sidebar.show_files'],
       hideLabel: m['room.sidebar.hide_files']
-    },
-    {
-      id: 'call',
-      icon: 'uil--phone',
-      showLabel: m['room.sidebar.show_call'],
-      hideLabel: m['room.sidebar.hide_call']
     }
   ];
 
@@ -108,14 +100,11 @@ Room header affordance for opening or hiding room extras panels.
   {#each visiblePanels as panel (panel.id)}
     {@const isActive = activePanel === panel.id}
     {@const label = isActive ? panel.hideLabel() : panel.showLabel()}
-    {@const isActiveCallPanel = panel.id === 'call' && hasActiveCall}
-    {@const shouldPulseCallIcon = isActiveCallPanel && !isActive}
     <button
       type="button"
       class={[
         'group/pane-header-icon-button pane-header-icon-button',
-        isActive && 'pane-header-icon-button-active',
-        isActiveCallPanel && 'text-accent'
+        isActive && 'pane-header-icon-button-active'
       ]}
       onclick={() => onToggle(panel.id)}
       title={label}
@@ -123,21 +112,7 @@ Room header affordance for opening or hiding room extras panels.
       aria-pressed={isActive}
     >
       <span class="relative inline-flex">
-        {#if shouldPulseCallIcon}
-          <span
-            class={['absolute inset-0 pane-header-icon-glyph animate-ping opacity-45', panel.icon]}
-            aria-hidden="true"
-            data-testid="active-call-pulse-icon"
-          ></span>
-        {/if}
-        <span
-          class={[
-            'relative pane-header-icon-glyph',
-            panel.icon,
-            isActiveCallPanel && 'text-accent'
-          ]}
-          aria-hidden="true"
-        ></span>
+        <span class={['relative pane-header-icon-glyph', panel.icon]} aria-hidden="true"></span>
       </span>
     </button>
   {/each}

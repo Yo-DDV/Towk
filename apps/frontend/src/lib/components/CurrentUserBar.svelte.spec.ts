@@ -4,12 +4,7 @@ import '../../app.css';
 import { q } from '$lib/test-utils';
 import { PresenceStatus } from '$lib/render/types';
 import { presencePreference } from '$lib/state/presencePreference.svelte';
-import {
-  consumePendingRoomSidebarPanel,
-  getRoomSidebarPanelState,
-  roomSidebarPanelStorageSuffix
-} from '$lib/storage/roomSidebarPanel';
-import { serverStorageKey } from '$lib/storage/serverStorage';
+import { sidebarNav } from '$lib/state/globals.svelte';
 import CurrentUserBarTestHarness from './CurrentUserBarTestHarness.svelte';
 
 function computedBackgroundColor(color: string): string {
@@ -39,7 +34,9 @@ type MockRoom = {
 const {
   currentUserState,
   voiceCallState,
+  remoteVoiceCallState,
   roomsState,
+  remoteRoomsState,
   permissionsState,
   activeCallRoomsState,
   callParticipantsState
@@ -64,13 +61,18 @@ const {
     connected: false,
     reconnecting: false,
     roomId: null as string | null,
+    targetRoomId: null as string | null,
+    callId: null as string | null,
     isMuted: false,
+    isOutputMuted: false,
+    audioPlaybackBlocked: false,
     isMicrophonePending: false,
     isCameraEnabled: false,
     isCameraPending: false,
     isScreenShareEnabled: false,
     isScreenSharePending: false,
     canShareScreen: true,
+    toggleOutputMuteFromGesture: vi.fn(),
     toggleMute: vi.fn(),
     toggleCamera: vi.fn(),
     toggleScreenShare: vi.fn(),
@@ -85,12 +87,46 @@ const {
     isInCall: vi.fn((roomId: string) => roomId === 'storybook-call-room'),
     participants: [] as unknown[]
   },
+  remoteVoiceCallState: {
+    connected: false,
+    reconnecting: false,
+    roomId: null as string | null,
+    targetRoomId: null as string | null,
+    callId: null as string | null,
+    isMuted: false,
+    isOutputMuted: false,
+    audioPlaybackBlocked: false,
+    isMicrophonePending: false,
+    isCameraEnabled: false,
+    isCameraPending: false,
+    isScreenShareEnabled: false,
+    isScreenSharePending: false,
+    canShareScreen: true,
+    toggleOutputMuteFromGesture: vi.fn(),
+    toggleMute: vi.fn(),
+    toggleCamera: vi.fn(),
+    toggleScreenShare: vi.fn(),
+    leave: vi.fn(),
+    refreshDevices: vi.fn(),
+    isInAnyCall: false
+  },
   roomsState: {
     currentUserId: 'user-1',
     rooms: [
       {
         id: 'room-1',
         name: 'general',
+        type: 'CHANNEL',
+        members: []
+      }
+    ] as MockRoom[]
+  },
+  remoteRoomsState: {
+    currentUserId: 'remote-user-1',
+    rooms: [
+      {
+        id: 'remote-room',
+        name: 'operations',
         type: 'CHANNEL',
         members: []
       }
@@ -165,7 +201,7 @@ vi.mock('$app/navigation', () => ({
 vi.mock('$lib/state/server/registry.svelte', () => {
   // Browser specs can share one transformed module graph. Keep this mock a
   // stable registry superset so neighboring component specs are order-independent.
-  const store = {
+  const originStore = {
     currentUser: currentUserState,
     voiceCall: voiceCallState,
     rooms: roomsState,
@@ -175,6 +211,20 @@ vi.mock('$lib/state/server/registry.svelte', () => {
     notifications: { count: 0 },
     serverInfo: { version: 'test' }
   };
+  const remoteStore = {
+    currentUser: currentUserState,
+    voiceCall: remoteVoiceCallState,
+    rooms: remoteRoomsState,
+    permissions: permissionsState,
+    activeCallRooms: activeCallRoomsState,
+    callParticipants: callParticipantsState,
+    notifications: { count: 0 },
+    serverInfo: { version: 'test' }
+  };
+  const servers = [
+    { id: 'origin', url: 'https://chat.example.test', name: 'Home' },
+    { id: 'remote', url: 'https://remote.example.test', name: 'Operations' }
+  ];
 
   return {
     serverRegistry: {
@@ -182,11 +232,11 @@ vi.mock('$lib/state/server/registry.svelte', () => {
         id: 'origin',
         url: 'https://chat.example.test'
       },
-      servers: [{ id: 'origin', url: 'https://chat.example.test' }],
-      getServer: () => ({ id: 'origin', url: 'https://chat.example.test' }),
-      isOriginServer: () => true,
-      getStore: () => store,
-      tryGetStore: () => store
+      servers,
+      getServer: (serverId: string) => servers.find((server) => server.id === serverId),
+      isOriginServer: (serverId: string) => serverId === 'origin',
+      getStore: (serverId: string) => (serverId === 'remote' ? remoteStore : originStore),
+      tryGetStore: (serverId: string) => (serverId === 'remote' ? remoteStore : originStore)
     }
   };
 });
@@ -225,17 +275,44 @@ describe('CurrentUserBar', () => {
     voiceCallState.connected = false;
     voiceCallState.reconnecting = false;
     voiceCallState.roomId = null;
+    voiceCallState.targetRoomId = null;
+    voiceCallState.callId = null;
+    voiceCallState.isInAnyCall = false;
     voiceCallState.isMuted = false;
+    voiceCallState.isOutputMuted = false;
+    voiceCallState.audioPlaybackBlocked = false;
     voiceCallState.isMicrophonePending = false;
     voiceCallState.isCameraEnabled = false;
     voiceCallState.isCameraPending = false;
     voiceCallState.isScreenShareEnabled = false;
     voiceCallState.isScreenSharePending = false;
     voiceCallState.canShareScreen = true;
+    voiceCallState.toggleOutputMuteFromGesture.mockClear();
     voiceCallState.toggleMute.mockClear();
     voiceCallState.toggleCamera.mockClear();
     voiceCallState.toggleScreenShare.mockClear();
     voiceCallState.leave.mockClear();
+    remoteVoiceCallState.connected = false;
+    remoteVoiceCallState.reconnecting = false;
+    remoteVoiceCallState.roomId = null;
+    remoteVoiceCallState.targetRoomId = null;
+    remoteVoiceCallState.callId = null;
+    remoteVoiceCallState.isInAnyCall = false;
+    remoteVoiceCallState.isMuted = false;
+    remoteVoiceCallState.isOutputMuted = false;
+    remoteVoiceCallState.audioPlaybackBlocked = false;
+    remoteVoiceCallState.isMicrophonePending = false;
+    remoteVoiceCallState.isCameraEnabled = false;
+    remoteVoiceCallState.isCameraPending = false;
+    remoteVoiceCallState.isScreenShareEnabled = false;
+    remoteVoiceCallState.isScreenSharePending = false;
+    remoteVoiceCallState.canShareScreen = true;
+    remoteVoiceCallState.toggleOutputMuteFromGesture.mockClear();
+    remoteVoiceCallState.toggleMute.mockClear();
+    remoteVoiceCallState.toggleCamera.mockClear();
+    remoteVoiceCallState.toggleScreenShare.mockClear();
+    remoteVoiceCallState.leave.mockClear();
+    remoteVoiceCallState.refreshDevices.mockClear();
     navigation.goto.mockClear();
     navigation.pushState.mockClear();
     navigation.replaceState.mockClear();
@@ -261,6 +338,8 @@ describe('CurrentUserBar', () => {
         members: []
       }
     ];
+    sidebarNav.setMobile(false);
+    sidebarNav.open();
   });
 
   it('uses the seeded presence cache instead of the first-login offline fallback', () => {
@@ -491,90 +570,156 @@ describe('CurrentUserBar', () => {
   it('hides call controls when the user is not in a call', () => {
     const { container } = render(CurrentUserBarTestHarness);
 
-    expect(container.querySelector('[data-testid="current-user-call-link"]')).toBeFalsy();
-    expect(container.querySelector('[data-testid="current-user-call-mute"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="global-call-dock"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="global-call-dock-microphone"]')).toBeFalsy();
   });
 
-  it('shows active call controls and links to the call room', async () => {
+  it('composes the global call dock with identity and controls the real session', async () => {
     voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
     voiceCallState.roomId = 'room-1';
-    const storageEvents: StorageEvent[] = [];
-    const listener = (event: StorageEvent) => storageEvents.push(event);
-    window.addEventListener('storage', listener);
+    voiceCallState.targetRoomId = 'room-1';
+    voiceCallState.callId = 'call-1';
 
     const { container } = render(CurrentUserBarTestHarness);
 
-    expect(q(container, '[data-testid="current-user-call-card"]')).toBeTruthy();
+    expect(q(container, '[data-testid="global-call-dock"]')).toBeTruthy();
+    expect(q(container, '[data-call-dock-host="sidebar"]')).toBeTruthy();
     expect(q(container, '[data-testid="current-user-identity-card"]')).toBeTruthy();
-    const link = q(container, '[data-testid="current-user-call-link"]') as HTMLButtonElement;
+    const link = q(container, '[data-testid="global-call-dock-return"]') as HTMLButtonElement;
     expect(link.textContent).toContain('# general');
     link.click();
 
-    const muteButton = q(container, '[data-testid="current-user-call-mute"]') as HTMLButtonElement;
+    const outputButton = q(
+      container,
+      '[data-testid="global-call-dock-output"]'
+    ) as HTMLButtonElement;
+    const muteButton = q(
+      container,
+      '[data-testid="global-call-dock-microphone"]'
+    ) as HTMLButtonElement;
     const cameraButton = q(
       container,
-      '[data-testid="current-user-call-camera"]'
+      '[data-testid="global-call-dock-camera"]'
     ) as HTMLButtonElement;
     const screenShareButton = q(
       container,
-      '[data-testid="current-user-call-screen-share"]'
+      '[data-testid="global-call-dock-screen-share"]'
     ) as HTMLButtonElement;
-    const leaveButton = q(
-      container,
-      '[data-testid="current-user-call-leave"]'
-    ) as HTMLButtonElement;
+    const leaveButton = q(container, '[data-testid="global-call-dock-leave"]') as HTMLButtonElement;
 
-    expect(muteButton.className).toContain('btn-success');
-    expect(cameraButton.className).toContain('btn-secondary');
-    expect(screenShareButton.className).toContain('btn-secondary');
-    expect(leaveButton.className).toContain('btn-danger');
+    expect(muteButton.className).toContain('border-primary');
+    expect(cameraButton.className).toContain('border-border');
+    expect(screenShareButton.className).toContain('border-border');
+    expect(leaveButton.className).toContain('border-danger');
 
+    outputButton.click();
     muteButton.click();
     cameraButton.click();
     screenShareButton.click();
     leaveButton.click();
 
     expect(navigation.goto).toHaveBeenCalledWith('/chat/-/room-1');
-    expect(getRoomSidebarPanelState('origin', 'room-1')).toBe('call');
-    expect(consumePendingRoomSidebarPanel('origin', 'room-1')).toBe('call');
-    expect(storageEvents).toHaveLength(1);
-    expect(storageEvents[0].key).toBe(
-      serverStorageKey('origin', roomSidebarPanelStorageSuffix('room-1'))
-    );
-    expect(storageEvents[0].newValue).toBe('call');
+    expect(voiceCallState.toggleOutputMuteFromGesture).toHaveBeenCalledOnce();
     expect(voiceCallState.toggleMute).toHaveBeenCalledOnce();
     expect(voiceCallState.toggleCamera).toHaveBeenCalledOnce();
     expect(voiceCallState.toggleScreenShare).toHaveBeenCalledOnce();
     expect(voiceCallState.leave).toHaveBeenCalledOnce();
-    window.removeEventListener('storage', listener);
   });
 
-  it('uses green only for active compact call media controls', () => {
+  it('uses the Towk accent for active media and red only for leave', () => {
     voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
     voiceCallState.roomId = 'room-1';
+    voiceCallState.targetRoomId = 'room-1';
+    voiceCallState.callId = 'call-1';
     voiceCallState.isMuted = true;
     voiceCallState.isCameraEnabled = true;
     voiceCallState.isScreenShareEnabled = true;
 
     const { container } = render(CurrentUserBarTestHarness);
 
-    expect(q(container, '[data-testid="current-user-call-mute"]')!.className).toContain(
-      'btn-secondary'
+    expect(q(container, '[data-testid="global-call-dock-microphone"]')!.className).toContain(
+      'border-border'
     );
-    expect(q(container, '[data-testid="current-user-call-camera"]')!.className).toContain(
-      'btn-success'
+    expect(q(container, '[data-testid="global-call-dock-camera"]')!.className).toContain(
+      'border-primary'
     );
-    expect(q(container, '[data-testid="current-user-call-screen-share"]')!.className).toContain(
-      'btn-success'
+    expect(q(container, '[data-testid="global-call-dock-screen-share"]')!.className).toContain(
+      'border-primary'
     );
-    expect(q(container, '[data-testid="current-user-call-leave"]')!.className).toContain(
-      'btn-danger'
+    expect(q(container, '[data-testid="global-call-dock-leave"]')!.className).toContain(
+      'border-danger'
     );
+  });
+
+  it('moves the one command cluster to the floating host when the sidebar closes', async () => {
+    voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
+    voiceCallState.roomId = 'room-1';
+    voiceCallState.targetRoomId = 'room-1';
+    voiceCallState.callId = 'call-1';
+
+    const { container } = render(CurrentUserBarTestHarness);
+
+    expect(container.querySelectorAll('[data-testid="global-call-dock"]')).toHaveLength(1);
+    expect(q(container, '[data-call-dock-host="sidebar"]')).toBeTruthy();
+
+    sidebarNav.close();
+
+    await vi.waitFor(() => {
+      expect(container.querySelectorAll('[data-testid="global-call-dock"]')).toHaveLength(1);
+      expect(q(container, '[data-call-dock-host="floating"]')).toBeTruthy();
+      expect(q(container, '[data-call-dock-host="sidebar"]')).toBeFalsy();
+    });
+
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    const appRegion = q(container, '.mobile-navigation-swipe-region') as HTMLElement;
+    const floatingDock = q(container, '[data-call-dock-host="floating"]') as HTMLElement;
+    const reservedHeight = Number.parseFloat(
+      appRegion.style.getPropertyValue('--global-call-dock-reserved-height')
+    );
+    const expectedReservedHeight = Math.ceil(
+      floatingDock.getBoundingClientRect().height +
+        Number.parseFloat(window.getComputedStyle(floatingDock).bottom)
+    );
+    expect(appRegion.dataset.callDockReserved).toBe('true');
+    expect(reservedHeight).toBe(expectedReservedHeight);
+
+    sidebarNav.open();
+    await vi.waitFor(() => {
+      expect(appRegion.isConnected).toBe(false);
+      expect(appRegion.dataset.callDockReserved).toBeUndefined();
+      expect(appRegion.style.getPropertyValue('--global-call-dock-reserved-height')).toBe('');
+    });
+  });
+
+  it('keeps a remote-server call labeled and routes every command to its own store', async () => {
+    remoteVoiceCallState.connected = true;
+    remoteVoiceCallState.isInAnyCall = true;
+    remoteVoiceCallState.roomId = 'remote-room';
+    remoteVoiceCallState.targetRoomId = 'remote-room';
+    remoteVoiceCallState.callId = 'remote-call';
+
+    const { container } = render(CurrentUserBarTestHarness);
+    const dock = q(container, '[data-testid="global-call-dock"]')!;
+    expect(dock.textContent).toContain('# operations');
+    expect(dock.textContent).toContain('Operations');
+
+    (q(container, '[data-testid="global-call-dock-return"]') as HTMLButtonElement).click();
+    (q(container, '[data-testid="global-call-dock-microphone"]') as HTMLButtonElement).click();
+
+    expect(navigation.goto).toHaveBeenCalledWith('/chat/remote.example.test/remote-room');
+    expect(remoteVoiceCallState.toggleMute).toHaveBeenCalledOnce();
+    expect(voiceCallState.toggleMute).not.toHaveBeenCalled();
   });
 
   it('shows spinners on pending compact call media controls', () => {
     voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
     voiceCallState.roomId = 'room-1';
+    voiceCallState.targetRoomId = 'room-1';
+    voiceCallState.callId = 'call-1';
     voiceCallState.isMicrophonePending = true;
     voiceCallState.isCameraPending = true;
     voiceCallState.isScreenSharePending = true;
@@ -582,9 +727,9 @@ describe('CurrentUserBar', () => {
     const { container } = render(CurrentUserBarTestHarness);
 
     for (const testId of [
-      'current-user-call-mute',
-      'current-user-call-camera',
-      'current-user-call-screen-share'
+      'global-call-dock-microphone',
+      'global-call-dock-camera',
+      'global-call-dock-screen-share'
     ]) {
       const button = q(container, `[data-testid="${testId}"]`) as HTMLButtonElement;
       expect(button.disabled).toBe(true);
@@ -595,36 +740,41 @@ describe('CurrentUserBar', () => {
 
   it('surfaces network recovery outside the call room and keeps hang-up available', () => {
     voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
     voiceCallState.reconnecting = true;
     voiceCallState.roomId = 'room-1';
+    voiceCallState.targetRoomId = 'room-1';
+    voiceCallState.callId = 'call-1';
 
     const { container } = render(CurrentUserBarTestHarness);
 
-    const notice = q(container, '[data-testid="current-user-call-reconnecting"]');
-    expect(notice).toBeTruthy();
-    expect(notice!.textContent).toContain('Oops, there’s a network problem.');
-    expect(notice!.textContent).toContain('Towk is trying to reconnect you automatically.');
+    const dock = q(container, '[data-testid="global-call-dock"]');
+    expect(dock).toBeTruthy();
+    expect(dock!.textContent).toContain('Reconnecting');
     for (const testId of [
-      'current-user-call-mute',
-      'current-user-call-camera',
-      'current-user-call-screen-share'
+      'global-call-dock-microphone',
+      'global-call-dock-camera',
+      'global-call-dock-screen-share'
     ]) {
       expect((q(container, `[data-testid="${testId}"]`) as HTMLButtonElement).disabled).toBe(true);
     }
     expect(
-      (q(container, '[data-testid="current-user-call-leave"]') as HTMLButtonElement).disabled
+      (q(container, '[data-testid="global-call-dock-leave"]') as HTMLButtonElement).disabled
     ).toBe(false);
   });
 
   it('explains when this browser cannot expose screen capture to web apps', () => {
     voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
     voiceCallState.roomId = 'room-1';
+    voiceCallState.targetRoomId = 'room-1';
+    voiceCallState.callId = 'call-1';
     voiceCallState.canShareScreen = false;
 
     const { container } = render(CurrentUserBarTestHarness);
     const screenShareButton = q(
       container,
-      '[data-testid="current-user-call-screen-share"]'
+      '[data-testid="global-call-dock-screen-share"]'
     ) as HTMLButtonElement;
 
     expect(screenShareButton.title).toBe(
@@ -638,7 +788,10 @@ describe('CurrentUserBar', () => {
 
   it('uses the DM participant label for active direct-message calls', () => {
     voiceCallState.connected = true;
+    voiceCallState.isInAnyCall = true;
     voiceCallState.roomId = 'dm-1';
+    voiceCallState.targetRoomId = 'dm-1';
+    voiceCallState.callId = 'call-dm';
     roomsState.rooms = [
       {
         id: 'dm-1',
@@ -665,7 +818,7 @@ describe('CurrentUserBar', () => {
 
     const { container } = render(CurrentUserBarTestHarness);
 
-    const callLink = q(container, '[data-testid="current-user-call-link"]');
+    const callLink = q(container, '[data-testid="global-call-dock-return"]');
     expect(callLink).toBeTruthy();
     expect(callLink!.textContent ?? '').toContain('Bob');
   });

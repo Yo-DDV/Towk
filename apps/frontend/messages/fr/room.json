@@ -144,6 +144,11 @@
       "delete_prompt": "Êtes-vous sûr de vouloir supprimer cet aperçu du lien ? Cette action est irréversible.",
       "delete_failed": "Échec de la suppression de l'aperçu du lien"
     },
+    "workspace": {
+      "switcher": "Vue du salon",
+      "messages": "Messages",
+      "call": "Appel"
+    },
     "sidebar": {
       "extras": "Informations du salon",
       "resize": "Redimensionner le volet du salon",

@@ -1,4 +1,4 @@
-export const OFFLINE_SHELL_PATH = '/200.html';
+export const OFFLINE_SHELL_PATH = '/offline.html';
 
 const NETWORK_FIRST_PATHS: string[] = [];
 const NETWORK_ONLY_PATHS = ['/manifest.webmanifest'];

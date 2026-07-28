@@ -1,16 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  activateActiveCallControl,
-  focusActiveMessageComposer,
-  startCallWith,
-  startDMWith
-} from './startDM';
+import { focusActiveMessageComposer, startCallWith, startDMWith } from './startDM';
 
 const mocks = vi.hoisted(() => ({
   startDM: vi.fn(),
-  goto: vi.fn(),
-  setRoomSidebarPanel: vi.fn(),
-  setPendingRoomSidebarPanel: vi.fn()
+  goto: vi.fn()
 }));
 
 vi.mock('$lib/state/server/serverConnection.svelte', () => ({
@@ -29,15 +22,6 @@ vi.mock('$app/paths', () => ({
     `/chat/${params.serverId}/${params.roomId}`
 }));
 vi.mock('$lib/navigation', () => ({ serverIdToSegment: (serverId: string) => serverId }));
-vi.mock('$lib/storage/roomSidebarPanel', () => ({
-  roomSidebarPanelStorageSuffix: (roomId: string) => `room:${roomId}:sidebarPanel`,
-  setRoomSidebarPanel: mocks.setRoomSidebarPanel,
-  setPendingRoomSidebarPanel: mocks.setPendingRoomSidebarPanel
-}));
-vi.mock('$lib/storage/serverStorage', () => ({
-  serverStorageKey: (serverId: string, suffix: string) => `${serverId}:${suffix}`
-}));
-
 function mountRoomShell(child: HTMLElement): void {
   const region = document.createElement('div');
   region.dataset.testid = 'room-view-region';
@@ -49,8 +33,6 @@ beforeEach(() => {
   document.body.replaceChildren();
   mocks.startDM.mockReset();
   mocks.goto.mockReset();
-  mocks.setRoomSidebarPanel.mockReset();
-  mocks.setPendingRoomSidebarPanel.mockReset();
   mocks.startDM.mockResolvedValue({ id: 'dm-room' });
   mocks.goto.mockResolvedValue(undefined);
 });
@@ -72,34 +54,18 @@ describe('profile direct actions', () => {
     expect(document.activeElement).toBe(document.querySelector('[data-testid="message-input"]'));
   });
 
-  it('opens the call panel and activates the real call join control', async () => {
-    const join = vi.fn();
-    mocks.goto.mockImplementation(async () => {
-      const button = document.createElement('button');
-      button.dataset.testid = 'call-join-button';
-      button.addEventListener('click', join);
-      mountRoomShell(button);
-    });
+  it('submits the resolved DM directly to the call controller', async () => {
+    const request = vi.fn().mockResolvedValue({ status: 'joined' });
 
-    await startCallWith('server-1', 'user-2');
+    await startCallWith('server-1', 'user-2', { request } as never);
 
     expect(mocks.startDM).toHaveBeenCalledWith(['user-2']);
-    expect(mocks.setRoomSidebarPanel).toHaveBeenCalledWith('server-1', 'dm-room', 'call');
-    expect(mocks.setPendingRoomSidebarPanel).toHaveBeenCalledWith('server-1', 'dm-room', 'call');
-    expect(mocks.goto).toHaveBeenCalledWith('/chat/server-1/dm-room');
-    expect(join).toHaveBeenCalledOnce();
-  });
-
-  it('does not activate a disabled call control', async () => {
-    const join = vi.fn();
-    const button = document.createElement('button');
-    button.dataset.testid = 'call-join-button';
-    button.disabled = true;
-    button.addEventListener('click', join);
-    mountRoomShell(button);
-
-    await expect(activateActiveCallControl(20)).resolves.toBe(false);
-    expect(join).not.toHaveBeenCalled();
+    expect(request).toHaveBeenCalledWith({
+      serverId: 'server-1',
+      roomId: 'dm-room',
+      source: 'direct-message'
+    });
+    expect(mocks.goto).not.toHaveBeenCalled();
   });
 
   it('focuses an already mounted editable composer', async () => {

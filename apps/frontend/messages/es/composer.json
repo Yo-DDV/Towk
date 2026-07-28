@@ -27,6 +27,7 @@
     "attachments_need_connection": "Mantén este borrador abierto: los archivos adjuntos necesitan conexión antes de ponerse en cola.",
     "voice": {
       "record": "Grabar un mensaje de voz",
+      "unavailable_during_call": "La grabación de voz no está disponible durante una llamada.",
       "requesting_microphone": "Preparando el micrófono…",
       "recording": "Grabando",
       "stop": "Detener la grabación",

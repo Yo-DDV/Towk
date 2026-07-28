@@ -1,7 +1,7 @@
 import { segmentToServerId } from '$lib/navigation';
 import type { AppUiState } from '$lib/state/appUi.svelte';
 
-type NotificationUiController = Pick<AppUiState, 'disableRoomCallWideFor'>;
+type NotificationUiController = Pick<AppUiState, 'selectRoomPrimarySurface'>;
 
 export function notificationRoomTargetFromPathname(
   pathname: string
@@ -24,7 +24,7 @@ export function prepareUiForNotificationPath(
   pathname: string
 ): void {
   const target = notificationRoomTargetFromPathname(pathname);
-  if (target) appUi.disableRoomCallWideFor(target.serverId, target.roomId);
+  if (target) appUi.selectRoomPrimarySurface(target.serverId, target.roomId, 'messages');
 }
 
 export function prepareUiForNotificationTarget(
@@ -32,7 +32,7 @@ export function prepareUiForNotificationTarget(
   serverId: string,
   target: { roomId: string | null }
 ): void {
-  if (target.roomId) appUi.disableRoomCallWideFor(serverId, target.roomId);
+  if (target.roomId) appUi.selectRoomPrimarySurface(serverId, target.roomId, 'messages');
 }
 
 function decodePathSegment(segment: string): string | null {

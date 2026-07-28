@@ -11,11 +11,12 @@ import { useUnreadMarker } from './useUnreadMarker.svelte';
  *
  * Must be called during component initialization (uses context).
  */
-export function useRoomUnread(getProps: () => { roomId: string }) {
+export function useRoomUnread(getProps: () => { roomId: string; attentionEnabled?: boolean }) {
   const connection = useConnection();
   const roomUnreadStore = serverRegistry.getStore(getActiveServer()).roomUnread;
 
   const unread = useUnreadMarker(() => getProps().roomId, {
+    attentionEnabled: () => getProps().attentionEnabled ?? true,
     markAsRead: async (targetRoomId: string, upToEventId?: string) => {
       const optimisticRead = roomUnreadStore.beginOptimisticRead(targetRoomId);
 

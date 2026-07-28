@@ -92,7 +92,7 @@ test.describe('Direct Messages (room-shaped)', () => {
       });
 
       const dmLink = page
-        .locator('nav a.sidebar-item')
+        .locator('nav [data-testid="dm-list-row"] a')
         .filter({ has: page.getByText(userB.displayName, { exact: true }) });
       await expect(dmLink).toBeVisible({ timeout: TIMEOUTS.REALTIME_EVENT });
 
@@ -131,7 +131,7 @@ test.describe('Direct Messages (room-shaped)', () => {
         // Snapshot the order before C posts. dmRows() returns the visible DM
         // sidebar items; the order reflects the rooms-store array order.
         const dmRows = () =>
-          page.locator('nav a.sidebar-item').filter({
+          page.locator('nav [data-testid="dm-list-row"]').filter({
             has: page.getByText(new RegExp(`^(${userB.displayName}|${userC.displayName})$`))
           });
         const initial = await dmRows().allTextContents();
@@ -158,7 +158,7 @@ test.describe('Direct Messages (room-shaped)', () => {
         // higher-priority notification badge — "new direct message" — rather
         // than the plain unread dot. Assert on whichever applies.
         const cRow = page
-          .locator('nav a.sidebar-item')
+          .locator('nav [data-testid="dm-list-row"]')
           .filter({ has: page.getByText(userC.displayName, { exact: true }) });
         await expect(cRow.getByText(/new direct message|unread messages/)).toBeAttached({
           timeout: TIMEOUTS.REALTIME_EVENT
@@ -189,7 +189,7 @@ test.describe('Direct Messages (room-shaped)', () => {
         await page.goto(routes.browseRooms);
         await page.waitForURL(routes.browseRooms);
         const dmRows = () =>
-          page.locator('nav a.sidebar-item').filter({
+          page.locator('nav [data-testid="dm-list-row"]').filter({
             has: page.getByText(new RegExp(`^(${userB.displayName}|${userC.displayName})$`))
           });
         await expect
@@ -276,7 +276,7 @@ test.describe('Direct Messages (room-shaped)', () => {
 
         const groupHeader = page.getByRole('button', { name: /direct messages/i });
         const dmRow = (displayName: string) =>
-          page.locator('nav a.sidebar-item').filter({
+          page.locator('nav [data-testid="dm-list-row"]').filter({
             has: page.getByText(displayName, { exact: true })
           });
 

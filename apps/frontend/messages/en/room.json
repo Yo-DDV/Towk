@@ -144,6 +144,11 @@
       "delete_prompt": "Are you sure you want to remove this link preview? This cannot be undone.",
       "delete_failed": "Failed to delete link preview"
     },
+    "workspace": {
+      "switcher": "Room view",
+      "messages": "Messages",
+      "call": "Call"
+    },
     "sidebar": {
       "extras": "Room extras",
       "resize": "Resize room extras pane",

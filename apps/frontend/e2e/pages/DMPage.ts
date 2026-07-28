@@ -81,8 +81,9 @@ export class DMPage {
    */
   getConversation(displayName: string): Locator {
     return this.page
-      .locator('nav a.sidebar-item')
-      .filter({ has: this.page.getByText(displayName, { exact: true }) });
+      .locator('nav [data-testid="dm-list-row"]')
+      .filter({ has: this.page.getByText(displayName, { exact: true }) })
+      .getByRole('link');
   }
 
   /**
