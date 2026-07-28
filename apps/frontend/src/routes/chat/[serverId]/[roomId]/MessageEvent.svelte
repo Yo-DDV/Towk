@@ -164,7 +164,8 @@
 
   function openEmojiPickerFromEvent(e: MouseEvent) {
     if (
-      reactionTriggerTarget((e as PointerEvent).pointerType, canUseHoverActions) === 'action-sheet'
+      reactionTriggerTarget((e as PointerEvent).pointerType, canUseHoverActions, prefersTouch) ===
+      'action-sheet'
     ) {
       showActionSheet = true;
       return;

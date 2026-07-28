@@ -1,6 +1,9 @@
 export function reactionTriggerTarget(
   pointerType: string | undefined,
-  canUseHoverActions: boolean
+  canUseHoverActions: boolean,
+  isTouchPrimary: boolean
 ): 'action-sheet' | 'emoji-picker' {
-  return pointerType === 'touch' || !canUseHoverActions ? 'action-sheet' : 'emoji-picker';
+  return pointerType === 'touch' || isTouchPrimary || !canUseHoverActions
+    ? 'action-sheet'
+    : 'emoji-picker';
 }
