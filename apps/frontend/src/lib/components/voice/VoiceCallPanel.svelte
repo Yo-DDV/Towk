@@ -426,6 +426,15 @@ retained only for non-joined projections that still consume this component.
     );
   }
 
+  function hasParticipantIndicator(participant: DisplayParticipant) {
+    return (
+      participant.isMuted ||
+      participant.isLocallyMuted ||
+      participant.connectionState === 'interrupted' ||
+      hasConnectionWarning(participant)
+    );
+  }
+
   function formatNetworkMetric(value: number): string {
     return value.toLocaleString(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
   }
@@ -786,6 +795,7 @@ retained only for non-joined projections that still consume this component.
       gallery &&
         'pointer-events-none absolute bottom-2 left-2 z-10 rounded-md bg-surface-100/90 px-1 shadow-sm'
     ]}
+    data-testid="call-participant-indicators"
   >
     {#if participant.isMuted}
       <span
@@ -875,7 +885,7 @@ retained only for non-joined projections that still consume this component.
           data-testid="call-screen-share-audio-indicator"
         ></span>
       {/if}
-      {#if showIndicators}
+      {#if showIndicators && hasParticipantIndicator(participant)}
         {@render participantIndicators(participant, gallery)}
       {/if}
     </button>

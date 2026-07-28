@@ -40,7 +40,7 @@
 </script>
 
 <div
-  class="inline-flex min-h-[52px] items-center gap-1 rounded-xl border border-border bg-surface p-1 max-[359px]:min-h-[48px] max-[359px]:gap-0.5 max-[359px]:p-0.5"
+  class="inline-flex min-h-[52px] items-center gap-1 rounded-xl border border-border bg-surface p-1 @max-[359px]:min-h-[48px] @max-[359px]:gap-0.5 @max-[359px]:p-0.5"
   role="tablist"
   aria-label={m['room.workspace.switcher']()}
   data-testid="room-primary-surface-tabs"
@@ -51,7 +51,7 @@
     aria-selected={surface === 'messages'}
     aria-controls="room-messages-surface"
     class={[
-      'min-h-[44px] cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors max-[359px]:w-[44px] max-[359px]:px-0',
+      'min-h-[44px] cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors @max-[359px]:w-[44px] @max-[359px]:px-0',
       surface === 'messages'
         ? 'bg-surface-200 text-text shadow-sm'
         : 'text-muted hover:bg-surface-100 hover:text-text'
@@ -59,8 +59,8 @@
     data-testid="room-messages-tab"
     onclick={showMessages}
   >
-    <span class="iconify uil--comment-alt-lines min-[360px]:hidden" aria-hidden="true"></span>
-    <span class="max-[359px]:sr-only">{m['room.workspace.messages']()}</span>
+    <span class="iconify uil--comment-alt-lines @min-[360px]:hidden" aria-hidden="true"></span>
+    <span class="@max-[359px]:sr-only">{m['room.workspace.messages']()}</span>
   </button>
   <button
     type="button"
@@ -70,7 +70,7 @@
     aria-busy={isJoining || undefined}
     disabled={isJoining}
     class={[
-      'relative min-h-[44px] cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors disabled:cursor-wait max-[359px]:w-[44px] max-[359px]:px-0',
+      'relative min-h-[44px] cursor-pointer rounded-lg px-3 text-sm font-medium transition-colors disabled:cursor-wait @max-[359px]:w-[44px] @max-[359px]:px-0',
       surface === 'call'
         ? 'bg-accent/15 text-accent shadow-sm'
         : 'text-muted hover:bg-surface-100 hover:text-text'
@@ -87,7 +87,7 @@
       {:else}
         <span class="iconify uil--phone" aria-hidden="true"></span>
       {/if}
-      <span class="max-[359px]:sr-only">{m['room.workspace.call']()}</span>
+      <span class="@max-[359px]:sr-only">{m['room.workspace.call']()}</span>
       {#if hasActiveCall && !isJoining}
         <span class="relative inline-flex h-2 w-2" aria-hidden="true">
           <span

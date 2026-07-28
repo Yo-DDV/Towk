@@ -575,7 +575,7 @@
     >
       <div
         class={[
-          'relative flex min-h-0 min-w-0 flex-1 flex-col transition-opacity duration-200',
+          '@container relative flex min-h-0 min-w-0 flex-1 flex-col transition-opacity duration-200',
           threadId ? 'opacity-30' : '',
           mobileRoomSidebarPanel ? (isCallSurface ? 'opacity-30' : 'max-lg:opacity-30') : ''
         ]}

@@ -79,14 +79,14 @@ choice).
     'flex h-14 shrink-0 items-center justify-between border-b border-border pr-4',
     hasBack ? 'pl-2' : 'pl-4',
     stackOnNarrow &&
-      'max-[359px]:h-auto max-[359px]:min-h-24 max-[359px]:flex-wrap max-[359px]:gap-y-1 max-[359px]:px-2 max-[359px]:py-1.5'
+      '@max-[519px]:h-auto @max-[519px]:min-h-24 @max-[519px]:flex-wrap @max-[519px]:gap-y-1 @max-[519px]:px-2 @max-[519px]:py-1.5'
   ]}
 >
   <div
     class={[
       'flex min-w-0 flex-1 items-center',
       hasBack ? 'gap-2' : 'gap-3',
-      stackOnNarrow && 'max-[359px]:w-full max-[359px]:flex-none'
+      stackOnNarrow && '@max-[519px]:w-full @max-[519px]:flex-none'
     ]}
   >
     {#if onBack}
@@ -123,7 +123,12 @@ choice).
         </div>
       {/if}
       {#if subtitle}
-        <span class="hidden truncate text-sm text-muted md:inline">{subtitle}</span>
+        <span
+          class={[
+            'hidden truncate text-sm text-muted md:inline',
+            stackOnNarrow && '@max-[519px]:!hidden'
+          ]}>{subtitle}</span
+        >
       {/if}
     </div>
   </div>
@@ -132,7 +137,7 @@ choice).
       class={[
         'flex items-center gap-2',
         stackOnNarrow &&
-          'max-[359px]:w-full max-[359px]:min-w-0 max-[359px]:justify-between max-[359px]:gap-1'
+          '@max-[519px]:w-full @max-[519px]:min-w-0 @max-[519px]:justify-between @max-[519px]:gap-1'
       ]}
     >
       {@render actions()}

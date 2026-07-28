@@ -676,6 +676,9 @@ describe('VoiceCallPanel screen-share audio', () => {
     await vi.waitFor(() => {
       expect(container.querySelectorAll('[data-testid="call-gallery-tile"]')).toHaveLength(4);
       expect(container.querySelector('[data-testid="call-gallery-pagination"]')).toBeNull();
+      expect(
+        container.querySelectorAll('[data-testid="call-participant-indicators"]')
+      ).toHaveLength(1);
     });
 
     for (const name of container.querySelectorAll<HTMLElement>(
