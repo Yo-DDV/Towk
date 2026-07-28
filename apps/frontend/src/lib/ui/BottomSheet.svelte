@@ -49,6 +49,31 @@
     contentEl = node;
   }
 
+  function trackVisualViewport(node: HTMLDialogElement) {
+    const viewport = window.visualViewport;
+
+    function updateBounds() {
+      const top = Math.max(0, viewport?.offsetTop ?? 0);
+      const height = Math.max(0, viewport?.height ?? window.innerHeight);
+      node.style.top = `${top}px`;
+      node.style.height = `${height}px`;
+      node.style.maxHeight = `${height}px`;
+    }
+
+    viewport?.addEventListener('resize', updateBounds);
+    viewport?.addEventListener('scroll', updateBounds);
+    viewport?.addEventListener('scrollend', updateBounds);
+    window.addEventListener('resize', updateBounds);
+    updateBounds();
+
+    return () => {
+      viewport?.removeEventListener('resize', updateBounds);
+      viewport?.removeEventListener('scroll', updateBounds);
+      viewport?.removeEventListener('scrollend', updateBounds);
+      window.removeEventListener('resize', updateBounds);
+    };
+  }
+
   function rememberPressTarget(target: EventTarget | null) {
     const content = contentEl;
     pointerDownInsideContent = !!content && target instanceof Node && content.contains(target);
@@ -99,6 +124,7 @@
 
 <dialog
   {@attach syncSheetVisibility}
+  {@attach trackVisualViewport}
   closedby={dismissOnExternalInteraction ? 'closerequest' : 'none'}
   onclose={handleNativeClose}
   oncancel={(e) => {
@@ -215,6 +241,10 @@
   */
   .bottom-sheet-content {
     container-type: inline-size;
+    max-height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     transition: transform 200ms ease-out;
   }
   dialog.bottom-sheet > div.dragging {
@@ -222,6 +252,14 @@
   }
 
   dialog.bottom-sheet[open] {
+    position: fixed;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: hidden;
     animation: slide-up 200ms ease-out;
   }
 

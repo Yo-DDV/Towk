@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { q, testSnippet } from '$lib/test-utils';
 import ContextMenu from './ContextMenu.svelte';
@@ -14,6 +14,27 @@ let originalShowPopover: typeof HTMLElement.prototype.showPopover;
 let originalHidePopover: typeof HTMLElement.prototype.hidePopover;
 let originalShowModal: typeof HTMLDialogElement.prototype.showModal;
 let originalClose: typeof HTMLDialogElement.prototype.close;
+
+type MutableVisualViewport = Omit<VisualViewport, 'height' | 'offsetTop' | 'width'> & {
+  height: number;
+  offsetTop: number;
+  width: number;
+};
+
+function createVisualViewport(): MutableVisualViewport {
+  return Object.assign(new EventTarget(), {
+    height: 780,
+    offsetLeft: 0,
+    offsetTop: 0,
+    onresize: null,
+    onscroll: null,
+    onscrollend: null,
+    pageLeft: 0,
+    pageTop: 0,
+    scale: 1,
+    width: 390
+  }) as MutableVisualViewport;
+}
 
 function renderMenu(props: Record<string, unknown> = {}) {
   return render(ContextMenu, {
@@ -58,6 +79,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   inputCapabilities.prefersTouchActions.mockReturnValue(false);
   inputCapabilities.supportsHoverActions.mockReturnValue(true);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('ContextMenu', () => {
@@ -197,5 +222,31 @@ describe('ContextMenu', () => {
 
     expect(dialog.open).toBe(false);
     expect(onclose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a forced sheet inside the visual viewport when the iOS keyboard opens', async () => {
+    const viewport = createVisualViewport();
+    vi.stubGlobal('visualViewport', viewport);
+    const { container } = renderMenu({
+      presentation: 'sheet',
+      dismissOnExternalInteraction: false
+    });
+
+    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
+
+    viewport.height = 420;
+    viewport.offsetTop = 18;
+    viewport.dispatchEvent(new Event('resize'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(dialog.style.top).toBe('18px');
+    expect(dialog.style.height).toBe('420px');
+    expect(dialog.style.maxHeight).toBe('420px');
+
+    viewport.offsetTop = 32;
+    viewport.dispatchEvent(new Event('scroll'));
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(dialog.style.top).toBe('32px');
   });
 });
