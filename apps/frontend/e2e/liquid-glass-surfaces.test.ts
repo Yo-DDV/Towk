@@ -304,6 +304,73 @@ test.describe('Depth-aware application surfaces', () => {
     }
   });
 
+  test('keeps the polished material hierarchy coherent in light mode', async ({
+    page,
+    chatPage
+  }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await createAndLoginTestUser(page);
+    await chatPage.goto();
+    await chatPage.enterRoom('general');
+
+    const root = page.locator('html');
+    const envelope = page.getByTestId('app-envelope');
+    const frame = page.getByTestId('app-content-frame');
+    const navigation = page.locator('.app-header');
+    const roomView = page.getByTestId('room-view-region');
+    const profile = page.getByTestId('current-user-identity-card');
+    const composer = page.getByTestId('message-composer-shell');
+
+    await expect(root).toHaveAttribute('data-theme', 'light');
+    for (const surface of [envelope, frame, navigation, roomView, profile, composer]) {
+      await expect(surface).toBeVisible({ timeout: TIMEOUTS.UI_STANDARD });
+    }
+
+    const supportsBackdropFilter = await page.evaluate(
+      () =>
+        CSS.supports('backdrop-filter', 'blur(1px)') ||
+        CSS.supports('-webkit-backdrop-filter', 'blur(1px)')
+    );
+    const [envelopeStyle, frameStyle, navigationStyle, roomViewStyle, profileStyle, composerStyle] =
+      await Promise.all([
+        readSurfaceStyle(envelope),
+        readSurfaceStyle(frame),
+        readSurfaceStyle(navigation),
+        readSurfaceStyle(roomView),
+        readSurfaceStyle(profile),
+        readSurfaceStyle(composer)
+      ]);
+
+    for (const style of [
+      envelopeStyle,
+      frameStyle,
+      navigationStyle,
+      roomViewStyle,
+      profileStyle,
+      composerStyle
+    ]) {
+      expectNoDecorativeGradient(style);
+    }
+
+    expect(relativeLuminance(roomViewStyle.backgroundColor)).toBeGreaterThan(
+      relativeLuminance(navigationStyle.backgroundColor)
+    );
+    expect(relativeLuminance(navigationStyle.backgroundColor)).toBeGreaterThan(
+      relativeLuminance(envelopeStyle.backgroundColor)
+    );
+    expect(frameStyle.boxShadow).not.toBe('none');
+    expect(frameStyle.borderRadius).not.toBe('0px');
+    expect(profileStyle.backgroundColor).toBe(composerStyle.backgroundColor);
+    expect(profileStyle.borderRadius).toBe(composerStyle.borderRadius);
+    expect(profileStyle.boxShadow).not.toBe('none');
+    expect(composerStyle.boxShadow).not.toBe('none');
+    if (supportsBackdropFilter) {
+      expect(profileStyle.backdropFilter).toContain('blur(16px)');
+      expect(composerStyle.backdropFilter).toContain('blur(16px)');
+    }
+  });
+
   test('keeps interaction motion optional and surfaces legible in forced colors', async ({
     page,
     chatPage,
