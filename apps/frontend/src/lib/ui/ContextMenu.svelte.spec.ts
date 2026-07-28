@@ -82,4 +82,23 @@ describe('ContextMenu', () => {
     expect(q(container, '[role="menu"]')).toBeNull();
     expect(container.textContent).toContain('Menu body');
   });
+
+  it('keeps a forced sheet open when iOS cancels the dialog while focusing an input', async () => {
+    const onclose = vi.fn();
+    const { container } = renderMenu({
+      presentation: 'sheet',
+      onclose,
+      children: testSnippet('<input data-testid="sheet-search" type="search" />')
+    });
+
+    const dialog = q(container, 'dialog.bottom-sheet') as HTMLDialogElement;
+    const input = q(container, '[data-testid="sheet-search"]') as HTMLInputElement;
+
+    input.dispatchEvent(new Event('touchstart', { bubbles: true, cancelable: true }));
+    dialog.dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    expect(dialog.open).toBe(true);
+    expect(onclose).not.toHaveBeenCalled();
+  });
 });
