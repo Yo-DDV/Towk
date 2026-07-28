@@ -326,6 +326,20 @@ describe('RoomList', () => {
     expect(dmRow.getAttribute('data-sveltekit-preload-data')).toBe('tap');
   });
 
+  it('keeps channel and direct-message links at the compact sidebar density', async () => {
+    const { container } = render(RoomList);
+
+    const channelLink = q(container, '[href="/chat/-/channel-1"]') as HTMLAnchorElement;
+    const dmLink = q(container, '[href="/chat/-/dm-with-participants"]') as HTMLAnchorElement;
+    await expect.element(channelLink).toBeInTheDocument();
+    await expect.element(dmLink).toBeInTheDocument();
+
+    expect(channelLink.classList.contains('min-h-10')).toBe(false);
+    expect(dmLink.classList.contains('min-h-10')).toBe(false);
+    expect(channelLink.closest('[data-testid="room-list-row"]')).toHaveClass('sidebar-item');
+    expect(dmLink.closest('[data-testid="dm-list-row"]')).toHaveClass('sidebar-item');
+  });
+
   it('hides plain unread attention for a muted direct-message room', async () => {
     setRoomUnread('dm-with-participants', true);
     mocks.store.notificationLevels.isRoomMuted.mockImplementation(

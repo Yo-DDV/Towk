@@ -416,7 +416,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   <div class={rowClass} data-testid="room-list-row">
     <a
       href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
-      class="flex min-h-10 min-w-0 flex-1 items-center gap-2"
+      class="flex min-w-0 flex-1 items-center gap-2"
       aria-current={room.id === activeRoomId ? 'page' : undefined}
       data-sveltekit-preload-code="hover"
       data-sveltekit-preload-data="tap"
@@ -494,7 +494,7 @@ rooms are organized into collapsible sections. Otherwise, rooms display alphabet
   >
     <a
       href={resolve('/chat/[serverId]/[roomId]', { serverId: serverSegment, roomId: room.id })}
-      class="flex min-h-10 min-w-0 flex-1 items-center gap-2"
+      class="flex min-w-0 flex-1 items-center gap-2"
       aria-current={room.id === activeRoomId ? 'page' : undefined}
       data-sveltekit-preload-code="hover"
       data-sveltekit-preload-data="tap"
