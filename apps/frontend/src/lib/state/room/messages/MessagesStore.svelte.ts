@@ -418,7 +418,8 @@ export class MessagesStore {
     serverConnection: ServerConnection,
     private readonly getCurrentUserId: () => string | null,
     roomTimeline?: RoomTimelineAPI,
-    private readonly getPrivateDataScope?: () => PrivateDataScope | null
+    private readonly getPrivateDataScope?: () => PrivateDataScope | null,
+    private readonly resolveRoomActor?: (actorId: string) => RoomEventView['actor']
   ) {
     this.roomTimeline = roomTimeline ?? roomTimelineFromServerConnection(serverConnection);
   }
@@ -756,11 +757,18 @@ export class MessagesStore {
       kind === RoomEventKind.RoomArchived ||
       kind === RoomEventKind.RoomUnarchived
     ) {
-      if (!spaceEvent.actor && this.roomTimeline) {
-        void this.fetchAndIngestSystemEvent(spaceEvent);
+      if (this.scope !== 'room') return;
+
+      let systemEvent = spaceEvent;
+      if (!systemEvent.actor && systemEvent.actorId) {
+        const actor = this.resolveRoomActor?.(systemEvent.actorId);
+        if (actor) systemEvent = { ...systemEvent, actor };
+      }
+      if (!systemEvent.actor && this.roomTimeline) {
+        void this.fetchAndIngestSystemEvent(systemEvent);
         return;
       }
-      this.onSystemEvent(spaceEvent);
+      this.onSystemEvent(systemEvent);
     }
   }
 

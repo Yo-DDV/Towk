@@ -120,7 +120,11 @@
     connection(),
     () => currentUser.user?.id ?? null,
     undefined,
-    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer()))
+    () => privateDataScopeForServer(serverRegistry.getServer(getActiveServer())),
+    (actorId) => {
+      const member = roomMembersStore.members.find((candidate) => candidate.id === actorId);
+      return member ? { ...member, deleted: member.deleted ?? false } : null;
+    }
   );
 
   onMount(() => {

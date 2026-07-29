@@ -4,6 +4,7 @@ import { Code, ConnectError } from '@connectrpc/connect';
 import type { ServerConnection } from '$lib/state/server/serverConnection.svelte';
 import type { RoomTimelineAPI } from '$lib/api-client/roomTimeline';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import { PresenceStatus } from '$lib/render/types';
 import type { EventConnectionPage } from './messages/helpers';
 import {
   __resetTimelineWarmupStateForTests,
@@ -1549,6 +1550,41 @@ describe('MessagesStore — room lifecycle ownership', () => {
       store.rootEvents.some((event) => event.event?.kind === RoomEventKind.MessagePosted)
     ).toBe(false);
     expect(fake.queryMock).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('resolves actorless call events from the loaded room directory', async () => {
+    const getRoomEventsAround = vi.fn();
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => null,
+      fakeTimelineAPI({ getRoomEventsAround }),
+      undefined,
+      (actorId) => ({
+        id: actorId,
+        login: 'alice',
+        displayName: 'Alice',
+        deleted: false,
+        avatarUrl: '/alice.png',
+        presenceStatus: PresenceStatus.Online
+      })
+    );
+
+    store.setRoom('room-1');
+    await settle();
+
+    store.ingestServerEvent({
+      ...callEvent(RoomEventKind.CallParticipantJoined, 'call-joined'),
+      actor: null
+    } as never);
+    await settle();
+
+    expect(getRoomEventsAround).not.toHaveBeenCalled();
+    expect(store.rootEvents).toHaveLength(1);
+    expect(store.rootEvents[0]).toMatchObject({
+      id: 'call-joined',
+      actor: { id: 'u1', displayName: 'Alice', avatarUrl: '/alice.png' }
+    });
     store.dispose();
   });
 
