@@ -34,11 +34,12 @@ async function settleLayout(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-function renderTabs(containerWidth: number) {
+function renderTabs(containerWidth: number, hasActiveCall = false) {
   const result = render(RoomPrimarySurfaceTabs, {
     props: {
       serverId: 'server-1',
       roomId: 'room-1',
+      hasActiveCall,
       onmessages: mocks.onmessages
     }
   });
@@ -94,6 +95,24 @@ describe('RoomPrimarySurfaceTabs', () => {
     expect(call.getBoundingClientRect().width).toBeGreaterThan(52);
     expect(messagesLabel.getBoundingClientRect().width).toBeGreaterThan(20);
     expect(callLabel.getBoundingClientRect().width).toBeGreaterThan(20);
+  });
+
+  it('keeps the active-call pulse anchored to its compact indicator on wide panes', async () => {
+    const { container } = renderTabs(800, true);
+    await settleLayout();
+
+    const pulse = container.querySelector('.animate-ping') as HTMLElement;
+    const indicator = pulse.parentElement as HTMLElement;
+    const indicatorStyle = getComputedStyle(indicator);
+    const pulseStyle = getComputedStyle(pulse);
+
+    expect(indicatorStyle.position).toBe('relative');
+    expect(Math.round(indicator.getBoundingClientRect().width)).toBe(8);
+    expect(Math.round(indicator.getBoundingClientRect().height)).toBe(8);
+    expect(pulseStyle.width).toBe(indicatorStyle.width);
+    expect(pulseStyle.height).toBe(indicatorStyle.height);
+    expect(Number.parseFloat(pulseStyle.width)).toBeLessThan(9);
+    expect(Number.parseFloat(pulseStyle.height)).toBeLessThan(9);
   });
 
   it('preserves message selection and call-join behavior', () => {
