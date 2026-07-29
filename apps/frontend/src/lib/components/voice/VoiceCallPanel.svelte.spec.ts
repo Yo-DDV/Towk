@@ -686,6 +686,9 @@ describe('VoiceCallPanel screen-share audio', () => {
     )) {
       expect(name.clientWidth).toBeGreaterThan(0);
       expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
+      expect(name.classList.contains('line-clamp-2')).toBe(true);
+      expect(name.classList.contains('break-words')).toBe(true);
+      expect(name.classList.contains('truncate')).toBe(false);
     }
   });
 

@@ -866,8 +866,12 @@ retained only for non-joined projections that still consume this component.
         <UserAvatar user={participant.avatarUser} size="sm" />
       {/if}
       <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-        <span class="block w-full truncate text-sm font-medium" data-testid="call-participant-name"
-          >{label}</span
+        <span
+          class={[
+            'block w-full text-sm font-medium',
+            gallery ? 'line-clamp-2 leading-tight break-words' : 'truncate'
+          ]}
+          data-testid="call-participant-name">{label}</span
         >
         {#if (participantAccountCounts[participant.userId] ?? 0) > 1}
           <span
