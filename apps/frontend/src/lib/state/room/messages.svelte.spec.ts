@@ -1595,6 +1595,30 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.dispose();
   });
 
+  it('tolerates actorless call events during a rolling backend deployment', async () => {
+    const getRoomEventsAround = vi.fn(async () => {
+      throw new ConnectError('message not found', Code.NotFound);
+    });
+    const store = new MessagesStore(
+      {} as ServerConnection,
+      () => null,
+      fakeTimelineAPI({ getRoomEventsAround })
+    );
+
+    store.setRoom('room-1');
+    await settle();
+
+    store.ingestServerEvent({
+      ...callEvent(RoomEventKind.CallParticipantJoined, 'call-joined'),
+      actor: null
+    } as never);
+    await settle();
+
+    expect(getRoomEventsAround).toHaveBeenCalledOnce();
+    expect(store.rootEvents).toEqual([]);
+    store.dispose();
+  });
+
   it('refetches a loaded message when a replayed reaction event arrives', async () => {
     const fake = new FakeQueryClient([
       roomEventsResult({

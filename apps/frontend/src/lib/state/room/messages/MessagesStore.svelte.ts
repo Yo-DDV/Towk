@@ -757,7 +757,7 @@ export class MessagesStore {
       kind === RoomEventKind.RoomUnarchived
     ) {
       if (!spaceEvent.actor && this.roomTimeline) {
-        void this.fetchAndIngestSystemEvent(spaceEvent.id);
+        void this.fetchAndIngestSystemEvent(spaceEvent);
         return;
       }
       this.onSystemEvent(spaceEvent);
@@ -1148,10 +1148,19 @@ export class MessagesStore {
     }
   }
 
-  private async fetchAndIngestSystemEvent(eventId: string): Promise<void> {
-    const fetched = await this.fetchEventById(eventId);
-    if (fetched) {
-      this.ingestEvent(fetched);
+  private async fetchAndIngestSystemEvent(spaceEvent: RoomEventView): Promise<void> {
+    try {
+      const fetched = await this.fetchEventById(spaceEvent.id);
+      if (fetched) {
+        this.ingestEvent(fetched);
+      }
+    } catch (error) {
+      // During a rolling deployment, a newer frontend can receive a realtime
+      // system event before the timeline API knows how to project it. The
+      // authoritative catch-up will insert it once the backend is compatible;
+      // do not turn that temporary skew into an unhandled page error.
+      if (isConnectNotFound(error)) return;
+      throw error;
     }
   }
 
