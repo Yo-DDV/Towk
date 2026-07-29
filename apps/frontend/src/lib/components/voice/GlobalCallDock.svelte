@@ -213,7 +213,7 @@ commands to the currently viewed server by mistake.
   >
     <button
       type="button"
-      class="flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-100 focus-visible:outline-2 focus-visible:outline-primary"
+      class="global-call-dock-return flex min-h-11 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-100 focus-visible:outline-2 focus-visible:outline-primary"
       title={m['voice.dock.return_to_call']({ room: roomName })}
       aria-label={m['voice.dock.return_to_call']({ room: roomName })}
       data-testid="global-call-dock-return"
@@ -241,7 +241,9 @@ commands to the currently viewed server by mistake.
       <span class="iconify shrink-0 text-muted uil--arrow-up-right" aria-hidden="true"></span>
     </button>
 
-    <div class="mt-1 grid grid-cols-3 gap-1.5 @min-[300px]:grid-cols-6">
+    <div
+      class="global-call-dock-controls mt-1 grid grid-cols-3 gap-1.5 @min-[300px]:grid-cols-6"
+    >
       <button
         type="button"
         class={voiceCall.audioPlaybackBlocked
@@ -416,6 +418,25 @@ commands to the currently viewed server by mistake.
   @media (min-width: 640px) {
     .global-call-dock-floating {
       padding-bottom: 0.5rem;
+    }
+  }
+
+  @media (orientation: landscape) and (min-width: 640px) and (max-height: 600px) {
+    .global-call-dock-floating {
+      display: grid;
+      max-width: min(44rem, calc(100vw - 2rem));
+      grid-template-columns: minmax(0, 1fr) minmax(17.25rem, 1.35fr);
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .global-call-dock-return {
+      min-width: 0;
+    }
+
+    .global-call-dock-controls {
+      grid-template-columns: repeat(6, minmax(2.5rem, 1fr));
+      margin-top: 0;
     }
   }
 </style>
