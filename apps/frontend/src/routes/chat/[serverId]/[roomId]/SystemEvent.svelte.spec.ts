@@ -17,7 +17,13 @@ vi.mock('$lib/state/presenceCache.svelte', () => ({
 }));
 
 function systemEvent(
-  kind: typeof RoomEventKind.UserJoinedRoom | typeof RoomEventKind.UserLeftRoom,
+  kind:
+    | typeof RoomEventKind.UserJoinedRoom
+    | typeof RoomEventKind.UserLeftRoom
+    | typeof RoomEventKind.CallStarted
+    | typeof RoomEventKind.CallParticipantJoined
+    | typeof RoomEventKind.CallParticipantLeft
+    | typeof RoomEventKind.CallEnded,
   actorName = 'Alice'
 ): RoomEventView {
   return {
@@ -53,5 +59,20 @@ describe('SystemEvent', () => {
     });
 
     expect(container.textContent).toContain('Alice left the room');
+  });
+
+  it.each([
+    [RoomEventKind.CallStarted, 'Alice started the call'],
+    [RoomEventKind.CallParticipantJoined, 'Alice joined the call'],
+    [RoomEventKind.CallParticipantLeft, 'Alice left the call'],
+    [RoomEventKind.CallEnded, 'Alice ended the call']
+  ] as const)('renders %s as a quiet channel event', (kind, copy) => {
+    const { container } = render(SystemEvent, {
+      props: { event: systemEvent(kind, 'Alice') }
+    });
+
+    expect(container.textContent).toContain(copy);
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector('[aria-live]')).toBeNull();
   });
 });

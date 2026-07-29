@@ -205,6 +205,10 @@
       "joined_room_many": "sind dem Raum beigetreten",
       "left_room_one": "hat den Raum verlassen",
       "left_room_many": "haben den Raum verlassen",
+      "joined_call_one": "ist dem Anruf beigetreten",
+      "joined_call_many": "sind dem Anruf beigetreten",
+      "left_call_one": "hat den Anruf verlassen",
+      "left_call_many": "haben den Anruf verlassen",
       "and": "und",
       "show_less": "weniger anzeigen",
       "other_one": "{count} weitere Person",
@@ -213,6 +217,10 @@
     "system_event": {
       "joined_room": "ist dem Raum beigetreten",
       "left_room": "hat den Raum verlassen",
+      "started_call": "hat den Anruf gestartet",
+      "joined_call": "ist dem Anruf beigetreten",
+      "left_call": "hat den Anruf verlassen",
+      "ended_call": "hat den Anruf beendet",
       "archived_room": "hat den Raum archiviert",
       "unarchived_room": "hat den Raum wiederhergestellt"
     },

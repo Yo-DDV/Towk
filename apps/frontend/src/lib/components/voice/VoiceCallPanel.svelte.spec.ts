@@ -685,7 +685,7 @@ describe('VoiceCallPanel screen-share audio', () => {
       expect(container.querySelector('[data-testid="call-gallery-pagination"]')).toBeNull();
       expect(
         container.querySelectorAll('[data-testid="call-participant-indicators"]')
-      ).toHaveLength(1);
+      ).toHaveLength(4);
     });
 
     for (const name of container.querySelectorAll<HTMLElement>(
@@ -697,6 +697,56 @@ describe('VoiceCallPanel screen-share audio', () => {
       expect(name.classList.contains('break-words')).toBe(true);
       expect(name.classList.contains('truncate')).toBe(false);
     }
+  });
+
+  it('keeps long identities, equal avatars, and every participant status rail bounded', async () => {
+    const { container } = render(VoiceCallPanelStoryHarness, {
+      props: {
+        layout: 'stage',
+        scenario: 'voice',
+        participantCount: 8,
+        viewportWidth: '390px',
+        viewportHeight: '720px'
+      }
+    });
+
+    const cards = await vi.waitFor(() => {
+      const values = Array.from(
+        container.querySelectorAll<HTMLElement>('[data-testid="call-participant-card"]')
+      );
+      expect(values).toHaveLength(8);
+      return values;
+    });
+
+    const avatarRects = cards.map((card) => {
+      const avatar = card.querySelector<HTMLElement>('.call-gallery-avatar');
+      expect(avatar).not.toBeNull();
+      return avatar!.getBoundingClientRect();
+    });
+    expect(new Set(avatarRects.map((rect) => Math.round(rect.width)))).toHaveLength(1);
+    for (const rect of avatarRects) {
+      expect(Math.abs(rect.width - rect.height)).toBeLessThanOrEqual(1);
+    }
+
+    for (const card of cards) {
+      expect(card.scrollWidth).toBeLessThanOrEqual(card.clientWidth + 1);
+      const name = card.querySelector<HTMLElement>('[data-testid="call-participant-name"]');
+      const indicators = card.querySelector<HTMLElement>(
+        '[data-testid="call-participant-indicators"]'
+      );
+      expect(name).not.toBeNull();
+      expect(indicators).not.toBeNull();
+      expect(name!.scrollWidth).toBeLessThanOrEqual(name!.clientWidth + 1);
+      expect(indicators!.getBoundingClientRect().right).toBeLessThanOrEqual(
+        card.getBoundingClientRect().right + 1
+      );
+    }
+
+    expect(
+      container.querySelectorAll('[data-testid="call-connection-quality-indicator"]')
+    ).toHaveLength(8);
+    expect(container.querySelector('[data-testid="call-muted-indicator"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="call-output-muted-indicator"]')).not.toBeNull();
   });
 
   it('keeps tile geometry stable on the final page and exposes 44px pagination targets', async () => {

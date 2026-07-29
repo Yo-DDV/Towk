@@ -205,6 +205,10 @@
       "joined_room_many": "se unieron a la sala",
       "left_room_one": "salió de la sala",
       "left_room_many": "salieron de la sala",
+      "joined_call_one": "se unió a la llamada",
+      "joined_call_many": "se unieron a la llamada",
+      "left_call_one": "salió de la llamada",
+      "left_call_many": "salieron de la llamada",
       "and": "y",
       "show_less": "mostrar menos",
       "other_one": "{count} más",
@@ -213,6 +217,10 @@
     "system_event": {
       "joined_room": "se unió a la sala",
       "left_room": "salió de la sala",
+      "started_call": "inició la llamada",
+      "joined_call": "se unió a la llamada",
+      "left_call": "salió de la llamada",
+      "ended_call": "finalizó la llamada",
       "archived_room": "archivó la sala",
       "unarchived_room": "desarchivó la sala"
     },

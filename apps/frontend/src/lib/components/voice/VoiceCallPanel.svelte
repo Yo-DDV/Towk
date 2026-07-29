@@ -428,10 +428,23 @@ retained only for non-joined projections that still consume this component.
 
   function hasParticipantIndicator(participant: DisplayParticipant) {
     return (
-      participant.isMuted ||
-      participant.isLocallyMuted ||
+      isInThisCall ||
+      participantMicrophoneMuted(participant) ||
+      participantOutputMuted(participant) ||
       participant.connectionState === 'interrupted' ||
       hasConnectionWarning(participant)
+    );
+  }
+
+  function participantMicrophoneMuted(participant: DisplayParticipant) {
+    return participant.isMuted || participant.siblingMicrophoneMuted === true;
+  }
+
+  function participantOutputMuted(participant: DisplayParticipant) {
+    return (
+      participant.isLocallyMuted ||
+      participant.siblingOutputMuted === true ||
+      (participant.isLocal && voiceCallState.isOutputMuted)
     );
   }
 
@@ -454,6 +467,25 @@ retained only for non-joined projections that still consume this component.
       });
     }
     return m['voice.poor_connection']();
+  }
+
+  function participantConnectionLabel(participant: DisplayParticipant): string {
+    if (participant.connectionState === 'interrupted') {
+      return m['voice.participant_reconnecting']();
+    }
+    if (hasConnectionWarning(participant)) return participantNetworkWarning(participant);
+
+    switch (participant.connectionQuality) {
+      case 'excellent':
+        return m['voice.connection_quality_excellent']();
+      case 'good':
+        return m['voice.connection_quality_good']();
+      case 'poor':
+      case 'lost':
+        return m['voice.connection_quality_poor']();
+      default:
+        return m['voice.connection_quality_unknown']();
+    }
   }
 
   function participantTitle(participant: DisplayParticipant) {
@@ -791,59 +823,78 @@ retained only for non-joined projections that still consume this component.
 {#snippet participantIndicators(participant: DisplayParticipant, gallery = false)}
   <span
     class={[
-      'inline-flex h-5 min-w-5 shrink-0 items-center justify-end gap-1.5 text-sm',
+      'inline-flex h-6 min-w-5 max-w-full shrink-0 items-center justify-end gap-1.5 overflow-hidden text-sm',
       gallery &&
-        'pointer-events-none absolute bottom-2 left-2 z-10 rounded-md bg-surface-100/90 px-1 shadow-sm'
+        'pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-3.5rem)] rounded-md bg-surface-100/90 px-1.5 shadow-sm'
     ]}
     data-testid="call-participant-indicators"
   >
-    {#if participant.isMuted}
+    {#if participantMicrophoneMuted(participant)}
       <span
-        class="iconify text-danger uil--microphone-slash"
+        class="iconify shrink-0 text-danger uil--microphone-slash"
         aria-label={m['voice.muted']()}
         data-testid="call-muted-indicator"
       ></span>
     {/if}
-    {#if participant.isLocallyMuted}
+    {#if participantOutputMuted(participant)}
       <span
-        class="iconify text-muted uil--volume-mute"
-        aria-label={m['voice.locally_muted']()}
-        data-testid="call-locally-muted-indicator"
+        class="iconify shrink-0 text-muted uil--volume-mute"
+        aria-label={m['voice.output_muted']()}
+        data-testid="call-output-muted-indicator"
       ></span>
     {/if}
-    {#if participant.connectionState === 'interrupted'}
-      <span
-        class="iconify text-warning uil--sync motion-safe:animate-spin"
-        aria-label={m['voice.participant_reconnecting']()}
-        data-testid="call-reconnecting-indicator"
-      ></span>
-    {:else if hasConnectionWarning(participant)}
-      <span
-        class={[
-          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[0.6875rem] font-semibold tabular-nums',
-          participant.connectionQuality === 'lost' || participant.networkHealth === 'poor'
-            ? 'bg-danger/10 text-danger'
-            : 'bg-warning/10 text-warning'
-        ]}
-        aria-label={participantNetworkWarning(participant)}
-        data-testid={participant.networkWarningMetric === 'packetLoss'
-          ? 'call-packet-loss-indicator'
-          : participant.networkWarningMetric === 'jitter'
-            ? 'call-jitter-indicator'
-            : 'call-connection-warning-indicator'}
-      >
-        <span class="iconify uil--exclamation-triangle" aria-hidden="true"></span>
-        {#if participant.networkWarningMetric === 'packetLoss' && participant.packetLossPercent !== null}
-          <span>{formatNetworkMetric(participant.packetLossPercent)}%</span>
-        {:else if participant.networkWarningMetric === 'jitter' && participant.jitterMs !== null}
-          <span
-            >{m['voice.jitter_value']({
-              milliseconds: formatNetworkMetric(participant.jitterMs)
-            })}</span
-          >
-        {/if}
-      </span>
-    {/if}
+    <span
+      class="inline-flex min-w-4 shrink-0 items-center justify-center"
+      aria-label={participantConnectionLabel(participant)}
+      data-testid="call-connection-quality-indicator"
+      data-connection-quality={participant.connectionState === 'interrupted'
+        ? 'interrupted'
+        : participant.connectionQuality}
+    >
+      {#if participant.connectionState === 'interrupted'}
+        <span
+          class="iconify shrink-0 text-warning uil--sync motion-safe:animate-spin"
+          aria-label={m['voice.participant_reconnecting']()}
+          data-testid="call-reconnecting-indicator"
+        ></span>
+      {:else if hasConnectionWarning(participant)}
+        <span
+          class={[
+            'inline-flex max-w-full items-center gap-1 overflow-hidden rounded-full px-1.5 py-0.5 text-[0.6875rem] font-semibold tabular-nums',
+            participant.connectionQuality === 'lost' || participant.networkHealth === 'poor'
+              ? 'bg-danger/10 text-danger'
+              : 'bg-warning/10 text-warning'
+          ]}
+          aria-label={participantNetworkWarning(participant)}
+          data-testid={participant.networkWarningMetric === 'packetLoss'
+            ? 'call-packet-loss-indicator'
+            : participant.networkWarningMetric === 'jitter'
+              ? 'call-jitter-indicator'
+              : 'call-connection-warning-indicator'}
+        >
+          <span class="iconify shrink-0 uil--exclamation-triangle" aria-hidden="true"></span>
+          {#if participant.networkWarningMetric === 'packetLoss' && participant.packetLossPercent !== null}
+            <span class="truncate">{formatNetworkMetric(participant.packetLossPercent)}%</span>
+          {:else if participant.networkWarningMetric === 'jitter' && participant.jitterMs !== null}
+            <span class="truncate"
+              >{m['voice.jitter_value']({
+                milliseconds: formatNetworkMetric(participant.jitterMs)
+              })}</span
+            >
+          {/if}
+        </span>
+      {:else}
+        <span
+          class={[
+            'iconify shrink-0 uil--signal-alt-3',
+            participant.connectionQuality === 'excellent'
+              ? 'text-presence-online'
+              : 'text-muted'
+          ]}
+          aria-hidden="true"
+        ></span>
+      {/if}
+    </span>
   </span>
 {/snippet}
 
@@ -870,7 +921,7 @@ retained only for non-joined projections that still consume this component.
           class={[
             'block w-full font-medium',
             gallery
-              ? 'line-clamp-2 text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight break-words'
+              ? 'line-clamp-2 max-w-full overflow-hidden text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight text-ellipsis break-words [overflow-wrap:anywhere]'
               : 'truncate text-sm'
           ]}
           data-testid="call-participant-name">{label}</span
@@ -1474,8 +1525,11 @@ retained only for non-joined projections that still consume this component.
   }
 
   :global(.call-gallery-avatar) {
+    aspect-ratio: 1;
     width: clamp(2.75rem, 32cqi, 14rem);
     height: clamp(2.75rem, 32cqi, 14rem);
+    flex: 0 0 auto;
+    overflow: hidden;
   }
 
   :global(.call-speaking-card)::after {

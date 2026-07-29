@@ -189,6 +189,10 @@ type RoomTimelineEvent struct {
 	//	*RoomTimelineEvent_RoomUnarchived
 	//	*RoomTimelineEvent_UserJoinedRoom
 	//	*RoomTimelineEvent_UserLeftRoom
+	//	*RoomTimelineEvent_CallStarted
+	//	*RoomTimelineEvent_CallParticipantJoined
+	//	*RoomTimelineEvent_CallParticipantLeft
+	//	*RoomTimelineEvent_CallEnded
 	Event         isRoomTimelineEvent_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -324,6 +328,42 @@ func (x *RoomTimelineEvent) GetUserLeftRoom() *RoomTimelineRoomEvent {
 	return nil
 }
 
+func (x *RoomTimelineEvent) GetCallStarted() *RoomTimelineCallEvent {
+	if x != nil {
+		if x, ok := x.Event.(*RoomTimelineEvent_CallStarted); ok {
+			return x.CallStarted
+		}
+	}
+	return nil
+}
+
+func (x *RoomTimelineEvent) GetCallParticipantJoined() *RoomTimelineCallEvent {
+	if x != nil {
+		if x, ok := x.Event.(*RoomTimelineEvent_CallParticipantJoined); ok {
+			return x.CallParticipantJoined
+		}
+	}
+	return nil
+}
+
+func (x *RoomTimelineEvent) GetCallParticipantLeft() *RoomTimelineCallEvent {
+	if x != nil {
+		if x, ok := x.Event.(*RoomTimelineEvent_CallParticipantLeft); ok {
+			return x.CallParticipantLeft
+		}
+	}
+	return nil
+}
+
+func (x *RoomTimelineEvent) GetCallEnded() *RoomTimelineCallEvent {
+	if x != nil {
+		if x, ok := x.Event.(*RoomTimelineEvent_CallEnded); ok {
+			return x.CallEnded
+		}
+	}
+	return nil
+}
+
 type isRoomTimelineEvent_Event interface {
 	isRoomTimelineEvent_Event()
 }
@@ -368,6 +408,26 @@ type RoomTimelineEvent_UserLeftRoom struct {
 	UserLeftRoom *RoomTimelineRoomEvent `protobuf:"bytes,31,opt,name=user_left_room,json=userLeftRoom,proto3,oneof"`
 }
 
+type RoomTimelineEvent_CallStarted struct {
+	// A voice call started in the room.
+	CallStarted *RoomTimelineCallEvent `protobuf:"bytes,40,opt,name=call_started,json=callStarted,proto3,oneof"`
+}
+
+type RoomTimelineEvent_CallParticipantJoined struct {
+	// One participant connection joined the voice call.
+	CallParticipantJoined *RoomTimelineCallEvent `protobuf:"bytes,41,opt,name=call_participant_joined,json=callParticipantJoined,proto3,oneof"`
+}
+
+type RoomTimelineEvent_CallParticipantLeft struct {
+	// One participant connection left the voice call.
+	CallParticipantLeft *RoomTimelineCallEvent `protobuf:"bytes,42,opt,name=call_participant_left,json=callParticipantLeft,proto3,oneof"`
+}
+
+type RoomTimelineEvent_CallEnded struct {
+	// The voice call ended.
+	CallEnded *RoomTimelineCallEvent `protobuf:"bytes,43,opt,name=call_ended,json=callEnded,proto3,oneof"`
+}
+
 func (*RoomTimelineEvent_MessagePosted) isRoomTimelineEvent_Event() {}
 
 func (*RoomTimelineEvent_RoomCreated) isRoomTimelineEvent_Event() {}
@@ -383,6 +443,14 @@ func (*RoomTimelineEvent_RoomUnarchived) isRoomTimelineEvent_Event() {}
 func (*RoomTimelineEvent_UserJoinedRoom) isRoomTimelineEvent_Event() {}
 
 func (*RoomTimelineEvent_UserLeftRoom) isRoomTimelineEvent_Event() {}
+
+func (*RoomTimelineEvent_CallStarted) isRoomTimelineEvent_Event() {}
+
+func (*RoomTimelineEvent_CallParticipantJoined) isRoomTimelineEvent_Event() {}
+
+func (*RoomTimelineEvent_CallParticipantLeft) isRoomTimelineEvent_Event() {}
+
+func (*RoomTimelineEvent_CallEnded) isRoomTimelineEvent_Event() {}
 
 // Cursor page of room or thread timeline events.
 //
@@ -1055,6 +1123,85 @@ func (x *GetThreadEventsAroundResponse) GetTargetIndex() int32 {
 	return 0
 }
 
+// Payload for durable voice-call lifecycle entries shown in the room timeline.
+//
+// These informational timeline entries do not represent posted messages and
+// must not create unread markers or message notifications. Call-start and
+// call-end entries leave participant_id and device_index empty. Participant
+// entries identify the exact media-session connection so clients can
+// distinguish multiple devices belonging to the same account.
+type RoomTimelineCallEvent struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Room containing the call.
+	RoomId string `protobuf:"bytes,1,opt,name=room_id,json=roomId,proto3" json:"room_id,omitempty"`
+	// Stable call session ID.
+	CallId string `protobuf:"bytes,2,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	// Exact media-session participant ID for join and leave entries.
+	ParticipantId string `protobuf:"bytes,3,opt,name=participant_id,json=participantId,proto3" json:"participant_id,omitempty"`
+	// Stable display slot for concurrent connections from the same account.
+	DeviceIndex   uint32 `protobuf:"varint,4,opt,name=device_index,json=deviceIndex,proto3" json:"device_index,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RoomTimelineCallEvent) Reset() {
+	*x = RoomTimelineCallEvent{}
+	mi := &file_chatto_api_v1_room_timeline_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RoomTimelineCallEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RoomTimelineCallEvent) ProtoMessage() {}
+
+func (x *RoomTimelineCallEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_chatto_api_v1_room_timeline_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RoomTimelineCallEvent.ProtoReflect.Descriptor instead.
+func (*RoomTimelineCallEvent) Descriptor() ([]byte, []int) {
+	return file_chatto_api_v1_room_timeline_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RoomTimelineCallEvent) GetRoomId() string {
+	if x != nil {
+		return x.RoomId
+	}
+	return ""
+}
+
+func (x *RoomTimelineCallEvent) GetCallId() string {
+	if x != nil {
+		return x.CallId
+	}
+	return ""
+}
+
+func (x *RoomTimelineCallEvent) GetParticipantId() string {
+	if x != nil {
+		return x.ParticipantId
+	}
+	return ""
+}
+
+func (x *RoomTimelineCallEvent) GetDeviceIndex() uint32 {
+	if x != nil {
+		return x.DeviceIndex
+	}
+	return 0
+}
+
 var File_chatto_api_v1_room_timeline_proto protoreflect.FileDescriptor
 
 const file_chatto_api_v1_room_timeline_proto_rawDesc = "" +
@@ -1069,7 +1216,7 @@ const file_chatto_api_v1_room_timeline_proto_rawDesc = "" +
 	"\x15RoomTimelineRoomEvent\x12\x17\n" +
 	"\aroom_id\x18\x01 \x01(\tR\x06roomId\"E\n" +
 	"\x11RoomMessagePosted\x120\n" +
-	"\amessage\x18\x01 \x01(\v2\x16.chatto.api.v1.MessageR\amessage\"\xec\x05\n" +
+	"\amessage\x18\x01 \x01(\v2\x16.chatto.api.v1.MessageR\amessage\"\xba\b\n" +
 	"\x11RoomTimelineEvent\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -1083,7 +1230,12 @@ const file_chatto_api_v1_room_timeline_proto_rawDesc = "" +
 	"\rroom_archived\x18\x17 \x01(\v2$.chatto.api.v1.RoomTimelineRoomEventH\x00R\froomArchived\x12O\n" +
 	"\x0froom_unarchived\x18\x18 \x01(\v2$.chatto.api.v1.RoomTimelineRoomEventH\x00R\x0eroomUnarchived\x12P\n" +
 	"\x10user_joined_room\x18\x1e \x01(\v2$.chatto.api.v1.RoomTimelineRoomEventH\x00R\x0euserJoinedRoom\x12L\n" +
-	"\x0euser_left_room\x18\x1f \x01(\v2$.chatto.api.v1.RoomTimelineRoomEventH\x00R\fuserLeftRoomB\a\n" +
+	"\x0euser_left_room\x18\x1f \x01(\v2$.chatto.api.v1.RoomTimelineRoomEventH\x00R\fuserLeftRoom\x12I\n" +
+	"\fcall_started\x18( \x01(\v2$.chatto.api.v1.RoomTimelineCallEventH\x00R\vcallStarted\x12^\n" +
+	"\x17call_participant_joined\x18) \x01(\v2$.chatto.api.v1.RoomTimelineCallEventH\x00R\x15callParticipantJoined\x12Z\n" +
+	"\x15call_participant_left\x18* \x01(\v2$.chatto.api.v1.RoomTimelineCallEventH\x00R\x13callParticipantLeft\x12E\n" +
+	"\n" +
+	"call_ended\x18+ \x01(\v2$.chatto.api.v1.RoomTimelineCallEventH\x00R\tcallEndedB\a\n" +
 	"\x05event\"\x89\x02\n" +
 	"\x10RoomTimelinePage\x128\n" +
 	"\x06events\x18\x01 \x03(\v2 .chatto.api.v1.RoomTimelineEventR\x06events\x12!\n" +
@@ -1124,7 +1276,12 @@ const file_chatto_api_v1_room_timeline_proto_rawDesc = "" +
 	"\x05limit\x18\x04 \x01(\x05R\x05limit\"w\n" +
 	"\x1dGetThreadEventsAroundResponse\x123\n" +
 	"\x04page\x18\x01 \x01(\v2\x1f.chatto.api.v1.RoomTimelinePageR\x04page\x12!\n" +
-	"\ftarget_index\x18\x02 \x01(\x05R\vtargetIndexB\xad\x01\n" +
+	"\ftarget_index\x18\x02 \x01(\x05R\vtargetIndex\"\x93\x01\n" +
+	"\x15RoomTimelineCallEvent\x12\x17\n" +
+	"\aroom_id\x18\x01 \x01(\tR\x06roomId\x12\x17\n" +
+	"\acall_id\x18\x02 \x01(\tR\x06callId\x12%\n" +
+	"\x0eparticipant_id\x18\x03 \x01(\tR\rparticipantId\x12!\n" +
+	"\fdevice_index\x18\x04 \x01(\rR\vdeviceIndexB\xad\x01\n" +
 	"\x11com.chatto.api.v1B\x11RoomTimelineProtoP\x01Z/hmans.de/chatto/internal/pb/chatto/api/v1;apiv1\xa2\x02\x03CAX\xaa\x02\rChatto.Api.V1\xca\x02\rChatto\\Api\\V1\xe2\x02\x19Chatto\\Api\\V1\\GPBMetadata\xea\x02\x0fChatto::Api::V1b\x06proto3"
 
 var (
@@ -1139,7 +1296,7 @@ func file_chatto_api_v1_room_timeline_proto_rawDescGZIP() []byte {
 	return file_chatto_api_v1_room_timeline_proto_rawDescData
 }
 
-var file_chatto_api_v1_room_timeline_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_chatto_api_v1_room_timeline_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_chatto_api_v1_room_timeline_proto_goTypes = []any{
 	(*RoomTimelineIncludes)(nil),          // 0: chatto.api.v1.RoomTimelineIncludes
 	(*RoomTimelineRoomEvent)(nil),         // 1: chatto.api.v1.RoomTimelineRoomEvent
@@ -1154,15 +1311,16 @@ var file_chatto_api_v1_room_timeline_proto_goTypes = []any{
 	(*GetThreadEventsResponse)(nil),       // 10: chatto.api.v1.GetThreadEventsResponse
 	(*GetThreadEventsAroundRequest)(nil),  // 11: chatto.api.v1.GetThreadEventsAroundRequest
 	(*GetThreadEventsAroundResponse)(nil), // 12: chatto.api.v1.GetThreadEventsAroundResponse
-	nil,                                   // 13: chatto.api.v1.RoomTimelineIncludes.UsersEntry
-	(*Message)(nil),                       // 14: chatto.api.v1.Message
-	(*timestamppb.Timestamp)(nil),         // 15: google.protobuf.Timestamp
-	(*User)(nil),                          // 16: chatto.api.v1.User
+	(*RoomTimelineCallEvent)(nil),         // 13: chatto.api.v1.RoomTimelineCallEvent
+	nil,                                   // 14: chatto.api.v1.RoomTimelineIncludes.UsersEntry
+	(*Message)(nil),                       // 15: chatto.api.v1.Message
+	(*timestamppb.Timestamp)(nil),         // 16: google.protobuf.Timestamp
+	(*User)(nil),                          // 17: chatto.api.v1.User
 }
 var file_chatto_api_v1_room_timeline_proto_depIdxs = []int32{
-	13, // 0: chatto.api.v1.RoomTimelineIncludes.users:type_name -> chatto.api.v1.RoomTimelineIncludes.UsersEntry
-	14, // 1: chatto.api.v1.RoomMessagePosted.message:type_name -> chatto.api.v1.Message
-	15, // 2: chatto.api.v1.RoomTimelineEvent.created_at:type_name -> google.protobuf.Timestamp
+	14, // 0: chatto.api.v1.RoomTimelineIncludes.users:type_name -> chatto.api.v1.RoomTimelineIncludes.UsersEntry
+	15, // 1: chatto.api.v1.RoomMessagePosted.message:type_name -> chatto.api.v1.Message
+	16, // 2: chatto.api.v1.RoomTimelineEvent.created_at:type_name -> google.protobuf.Timestamp
 	2,  // 3: chatto.api.v1.RoomTimelineEvent.message_posted:type_name -> chatto.api.v1.RoomMessagePosted
 	1,  // 4: chatto.api.v1.RoomTimelineEvent.room_created:type_name -> chatto.api.v1.RoomTimelineRoomEvent
 	1,  // 5: chatto.api.v1.RoomTimelineEvent.room_updated:type_name -> chatto.api.v1.RoomTimelineRoomEvent
@@ -1171,18 +1329,22 @@ var file_chatto_api_v1_room_timeline_proto_depIdxs = []int32{
 	1,  // 8: chatto.api.v1.RoomTimelineEvent.room_unarchived:type_name -> chatto.api.v1.RoomTimelineRoomEvent
 	1,  // 9: chatto.api.v1.RoomTimelineEvent.user_joined_room:type_name -> chatto.api.v1.RoomTimelineRoomEvent
 	1,  // 10: chatto.api.v1.RoomTimelineEvent.user_left_room:type_name -> chatto.api.v1.RoomTimelineRoomEvent
-	3,  // 11: chatto.api.v1.RoomTimelinePage.events:type_name -> chatto.api.v1.RoomTimelineEvent
-	0,  // 12: chatto.api.v1.RoomTimelinePage.includes:type_name -> chatto.api.v1.RoomTimelineIncludes
-	4,  // 13: chatto.api.v1.GetRoomEventsResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
-	4,  // 14: chatto.api.v1.GetRoomEventsAroundResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
-	4,  // 15: chatto.api.v1.GetThreadEventsResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
-	4,  // 16: chatto.api.v1.GetThreadEventsAroundResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
-	16, // 17: chatto.api.v1.RoomTimelineIncludes.UsersEntry.value:type_name -> chatto.api.v1.User
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	13, // 11: chatto.api.v1.RoomTimelineEvent.call_started:type_name -> chatto.api.v1.RoomTimelineCallEvent
+	13, // 12: chatto.api.v1.RoomTimelineEvent.call_participant_joined:type_name -> chatto.api.v1.RoomTimelineCallEvent
+	13, // 13: chatto.api.v1.RoomTimelineEvent.call_participant_left:type_name -> chatto.api.v1.RoomTimelineCallEvent
+	13, // 14: chatto.api.v1.RoomTimelineEvent.call_ended:type_name -> chatto.api.v1.RoomTimelineCallEvent
+	3,  // 15: chatto.api.v1.RoomTimelinePage.events:type_name -> chatto.api.v1.RoomTimelineEvent
+	0,  // 16: chatto.api.v1.RoomTimelinePage.includes:type_name -> chatto.api.v1.RoomTimelineIncludes
+	4,  // 17: chatto.api.v1.GetRoomEventsResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
+	4,  // 18: chatto.api.v1.GetRoomEventsAroundResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
+	4,  // 19: chatto.api.v1.GetThreadEventsResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
+	4,  // 20: chatto.api.v1.GetThreadEventsAroundResponse.page:type_name -> chatto.api.v1.RoomTimelinePage
+	17, // 21: chatto.api.v1.RoomTimelineIncludes.UsersEntry.value:type_name -> chatto.api.v1.User
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_chatto_api_v1_room_timeline_proto_init() }
@@ -1201,6 +1363,10 @@ func file_chatto_api_v1_room_timeline_proto_init() {
 		(*RoomTimelineEvent_RoomUnarchived)(nil),
 		(*RoomTimelineEvent_UserJoinedRoom)(nil),
 		(*RoomTimelineEvent_UserLeftRoom)(nil),
+		(*RoomTimelineEvent_CallStarted)(nil),
+		(*RoomTimelineEvent_CallParticipantJoined)(nil),
+		(*RoomTimelineEvent_CallParticipantLeft)(nil),
+		(*RoomTimelineEvent_CallEnded)(nil),
 	}
 	file_chatto_api_v1_room_timeline_proto_msgTypes[5].OneofWrappers = []any{
 		(*GetRoomEventsRequest_Before)(nil),
@@ -1216,7 +1382,7 @@ func file_chatto_api_v1_room_timeline_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chatto_api_v1_room_timeline_proto_rawDesc), len(file_chatto_api_v1_room_timeline_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

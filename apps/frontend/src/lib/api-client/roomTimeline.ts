@@ -323,6 +323,34 @@ function timelinePayload(
         kind: RoomEventKind.UserLeftRoom,
         roomId: event.event.value.roomId
       } as never;
+    case 'callStarted':
+      return {
+        kind: RoomEventKind.CallStarted,
+        roomId: event.event.value.roomId,
+        callId: event.event.value.callId
+      };
+    case 'callParticipantJoined':
+      return {
+        kind: RoomEventKind.CallParticipantJoined,
+        roomId: event.event.value.roomId,
+        callId: event.event.value.callId,
+        participantId: event.event.value.participantId,
+        deviceIndex: event.event.value.deviceIndex
+      };
+    case 'callParticipantLeft':
+      return {
+        kind: RoomEventKind.CallParticipantLeft,
+        roomId: event.event.value.roomId,
+        callId: event.event.value.callId,
+        participantId: event.event.value.participantId,
+        deviceIndex: event.event.value.deviceIndex
+      };
+    case 'callEnded':
+      return {
+        kind: RoomEventKind.CallEnded,
+        roomId: event.event.value.roomId,
+        callId: event.event.value.callId
+      };
     default:
       return null;
   }

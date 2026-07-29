@@ -75,7 +75,7 @@ func TestEventFactsRoomIDAndVisibility(t *testing.T) {
 				VoiceCallStarted: &corev1.CallStartedEvent{RoomId: "R1"},
 			}},
 			roomID:  "R1",
-			visible: false,
+			visible: true,
 		},
 		{
 			name: "voice call ended",
@@ -83,7 +83,7 @@ func TestEventFactsRoomIDAndVisibility(t *testing.T) {
 				VoiceCallEnded: &corev1.CallEndedEvent{RoomId: "R1"},
 			}},
 			roomID:  "R1",
-			visible: false,
+			visible: true,
 		},
 		{
 			name: "voice call participant joined",
@@ -91,7 +91,7 @@ func TestEventFactsRoomIDAndVisibility(t *testing.T) {
 				VoiceCallParticipantJoined: &corev1.CallParticipantJoinedEvent{RoomId: "R1"},
 			}},
 			roomID:  "R1",
-			visible: false,
+			visible: true,
 		},
 		{
 			name: "voice call participant left",
@@ -99,7 +99,7 @@ func TestEventFactsRoomIDAndVisibility(t *testing.T) {
 				VoiceCallParticipantLeft: &corev1.CallParticipantLeftEvent{RoomId: "R1"},
 			}},
 			roomID:  "R1",
-			visible: false,
+			visible: true,
 		},
 		{
 			name: "thread followed",

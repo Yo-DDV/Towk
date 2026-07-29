@@ -248,7 +248,12 @@ function callEvent(
     id,
     createdAt: '2026-05-27T00:00:01Z',
     actorId: 'u1',
-    actor: null,
+    actor: {
+      id: 'u1',
+      login: 'alice',
+      displayName: 'Alice',
+      avatarUrl: null
+    },
     event: {
       kind,
       roomId,
@@ -1509,7 +1514,7 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.dispose();
   });
 
-  it('ignores call lifecycle and participant events in the room timeline', async () => {
+  it('inserts call lifecycle and participant events without fetching message rows', async () => {
     const fake = new FakeQueryClient(
       roomEventsResult({
         events: [],
@@ -1534,7 +1539,15 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.ingestServerEvent(callEvent(RoomEventKind.CallParticipantLeft, 'call-left') as never);
     store.ingestServerEvent(callEvent(RoomEventKind.CallEnded, 'call-ended') as never);
 
-    expect(store.rootEvents).toEqual([]);
+    expect(store.rootEvents.map((event) => event.id)).toEqual([
+      'call-started',
+      'call-joined',
+      'call-left',
+      'call-ended'
+    ]);
+    expect(
+      store.rootEvents.some((event) => event.event?.kind === RoomEventKind.MessagePosted)
+    ).toBe(false);
     expect(fake.queryMock).not.toHaveBeenCalled();
     store.dispose();
   });

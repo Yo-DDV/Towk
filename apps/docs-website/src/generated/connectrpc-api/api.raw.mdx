@@ -4078,6 +4078,27 @@ Payload for a message-posted timeline event.
 
 
 
+<a id="chatto-api-v1-RoomTimelineCallEvent"></a>
+
+### RoomTimelineCallEvent
+
+Payload for durable voice-call lifecycle entries shown in the room timeline.
+
+These informational timeline entries do not represent posted messages and
+must not create unread markers or message notifications. Call-start and
+call-end entries leave participant_id and device_index empty. Participant
+entries identify the exact media-session connection so clients can
+distinguish multiple devices belonging to the same account.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `room_id` | `string` | Room containing the call. |
+| `call_id` | `string` | Stable call session ID. |
+| `participant_id` | `string` | Exact media-session participant ID for join and leave entries. |
+| `device_index` | `uint32` | Stable display slot for concurrent connections from the same account. |
+
+
+
 <a id="chatto-api-v1-RoomTimelineEvent"></a>
 
 ### RoomTimelineEvent
@@ -4099,6 +4120,10 @@ Clients should inspect the event oneof to choose the renderer for the event.
 | `event.room_unarchived` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | The room was unarchived. |
 | `event.user_joined_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user joined the room. |
 | `event.user_left_room` | [`RoomTimelineRoomEvent`](#chatto-api-v1-RoomTimelineRoomEvent) | A user left the room. |
+| `event.call_started` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | A voice call started in the room. |
+| `event.call_participant_joined` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | One participant connection joined the voice call. |
+| `event.call_participant_left` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | One participant connection left the voice call. |
+| `event.call_ended` | [`RoomTimelineCallEvent`](#chatto-api-v1-RoomTimelineCallEvent) | The voice call ended. |
 
 
 

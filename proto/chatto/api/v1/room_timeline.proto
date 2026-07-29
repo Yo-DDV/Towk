@@ -59,6 +59,14 @@ message RoomTimelineEvent {
     RoomTimelineRoomEvent user_joined_room = 30;
     // A user left the room.
     RoomTimelineRoomEvent user_left_room = 31;
+    // A voice call started in the room.
+    RoomTimelineCallEvent call_started = 40;
+    // One participant connection joined the voice call.
+    RoomTimelineCallEvent call_participant_joined = 41;
+    // One participant connection left the voice call.
+    RoomTimelineCallEvent call_participant_left = 42;
+    // The voice call ended.
+    RoomTimelineCallEvent call_ended = 43;
   }
 }
 
@@ -180,4 +188,22 @@ message GetThreadEventsAroundResponse {
   RoomTimelinePage page = 1;
   // Zero-based index of the anchor event within page.events.
   int32 target_index = 2;
+}
+
+// Payload for durable voice-call lifecycle entries shown in the room timeline.
+//
+// These informational timeline entries do not represent posted messages and
+// must not create unread markers or message notifications. Call-start and
+// call-end entries leave participant_id and device_index empty. Participant
+// entries identify the exact media-session connection so clients can
+// distinguish multiple devices belonging to the same account.
+message RoomTimelineCallEvent {
+  // Room containing the call.
+  string room_id = 1;
+  // Stable call session ID.
+  string call_id = 2;
+  // Exact media-session participant ID for join and leave entries.
+  string participant_id = 3;
+  // Stable display slot for concurrent connections from the same account.
+  uint32 device_index = 4;
 }

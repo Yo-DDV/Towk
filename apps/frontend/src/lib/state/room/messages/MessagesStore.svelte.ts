@@ -748,6 +748,10 @@ export class MessagesStore {
     if (
       kind === RoomEventKind.UserJoinedRoom ||
       kind === RoomEventKind.UserLeftRoom ||
+      kind === RoomEventKind.CallStarted ||
+      kind === RoomEventKind.CallParticipantJoined ||
+      kind === RoomEventKind.CallParticipantLeft ||
+      kind === RoomEventKind.CallEnded ||
       kind === RoomEventKind.RoomUpdated ||
       kind === RoomEventKind.RoomArchived ||
       kind === RoomEventKind.RoomUnarchived

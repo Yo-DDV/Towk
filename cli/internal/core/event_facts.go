@@ -136,11 +136,12 @@ func isAssetLifecycleEvent(event *corev1.Event) bool {
 //     RoomMemberAddedEvent / RoomMemberRemovedEvent — moderation audit facts,
 //     not displayed as chat timeline items.
 //
-//   - Voice call lifecycle and participant events — projected into call state
-//     and delivered live, but not displayed as chat timeline items.
+//   - Voice call connection-state transitions — projected into call state and
+//     delivered live, but omitted from chat history to avoid transient churn.
 //
 // Visible: root messages, room lifecycle (created/updated/archived/
-// unarchived/deleted), and memberships (user_joined / user_left).
+// unarchived/deleted), memberships (user_joined / user_left), and durable
+// voice-call start/join/leave/end entries.
 func isVisibleRoomTimelineEntry(event *corev1.Event) bool {
 	if event == nil {
 		return false
@@ -154,7 +155,11 @@ func isVisibleRoomTimelineEntry(event *corev1.Event) bool {
 		*corev1.Event_RoomArchived,
 		*corev1.Event_RoomUnarchived,
 		*corev1.Event_UserJoinedRoom,
-		*corev1.Event_UserLeftRoom:
+		*corev1.Event_UserLeftRoom,
+		*corev1.Event_VoiceCallStarted,
+		*corev1.Event_VoiceCallParticipantJoined,
+		*corev1.Event_VoiceCallParticipantLeft,
+		*corev1.Event_VoiceCallEnded:
 		return true
 	case *corev1.Event_MessageEdited, *corev1.Event_MessageRetracted,
 		*corev1.Event_ThreadCreated,
@@ -165,9 +170,7 @@ func isVisibleRoomTimelineEntry(event *corev1.Event) bool {
 		*corev1.Event_AssetProcessingStarted,
 		*corev1.Event_AssetProcessingSucceeded, *corev1.Event_AssetProcessingFailed,
 		*corev1.Event_ReactionAdded, *corev1.Event_ReactionRemoved,
-		*corev1.Event_VoiceCallStarted, *corev1.Event_VoiceCallParticipantJoined,
-		*corev1.Event_VoiceCallParticipantLeft, *corev1.Event_VoiceCallParticipantConnectionChanged,
-		*corev1.Event_VoiceCallEnded:
+		*corev1.Event_VoiceCallParticipantConnectionChanged:
 		return false
 	}
 	return false

@@ -234,9 +234,9 @@
 
     if (participantCount !== null) {
       const names = [
-        'Alice',
+        'Alexandria-Montgomery-Des-Rives-Du-Nord-International',
         'Bob',
-        'Chloe',
+        'ChloeAvecUnPseudoSansEspaceQuiDoitResterParfaitementContenu',
         'Dana',
         'Elliot',
         'Fatima',
@@ -251,6 +251,12 @@
         participant(`gallery-${index + 1}`, names[index % names.length], {
           isLocal: index === 0,
           isMuted: index % 3 === 1,
+          isLocallyMuted: index % 5 === 3,
+          connectionQuality:
+            index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
+          networkHealth: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
+          packetLossPercent: index % 7 === 6 ? 12.4 : null,
+          networkWarningMetric: index % 7 === 6 ? 'packetLoss' : null,
           isCameraEnabled: scenario === 'camera' && index % 2 === 0,
           videoTrack: scenario === 'camera' && index % 2 === 0 ? cameraTrack : null
         })

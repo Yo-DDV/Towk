@@ -51,7 +51,11 @@ function makeMessageEvent(
 }
 
 function makeSystemEvent(
-  kind: typeof RoomEventKind.UserJoinedRoom | typeof RoomEventKind.UserLeftRoom,
+  kind:
+    | typeof RoomEventKind.UserJoinedRoom
+    | typeof RoomEventKind.UserLeftRoom
+    | typeof RoomEventKind.CallParticipantJoined
+    | typeof RoomEventKind.CallParticipantLeft,
   overrides: Partial<{
     id: string;
     actorId: string;
@@ -266,6 +270,33 @@ describe('buildVirtualItems', () => {
         { kind: 'join', count: 2 },
         { kind: 'leave', count: 1 },
         { kind: 'join', count: 2 }
+      ]);
+    });
+
+    it('compacts call joins and leaves without mixing their directions', () => {
+      const events = [
+        makeSystemEvent(RoomEventKind.CallParticipantJoined, {
+          id: 'cj1',
+          actorId: 'u_a'
+        }),
+        makeSystemEvent(RoomEventKind.CallParticipantJoined, {
+          id: 'cj2',
+          actorId: 'u_b'
+        }),
+        makeSystemEvent(RoomEventKind.CallParticipantLeft, {
+          id: 'cl1',
+          actorId: 'u_a'
+        })
+      ];
+
+      const groups = buildVirtualItems(meta(events), null, false).filter(
+        (item): item is Extract<VirtualItem, { type: 'system-group' }> =>
+          item.type === 'system-group'
+      );
+
+      expect(groups.map((group) => ({ kind: group.kind, count: group.events.length }))).toEqual([
+        { kind: 'call-join', count: 2 },
+        { kind: 'call-leave', count: 1 }
       ]);
     });
 
