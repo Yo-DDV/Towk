@@ -734,9 +734,16 @@ describe('VoiceCallPanel screen-share audio', () => {
       const indicators = card.querySelector<HTMLElement>(
         '[data-testid="call-participant-indicators"]'
       );
+      const avatar = card.querySelector<HTMLElement>('.call-gallery-avatar');
       expect(name).not.toBeNull();
       expect(indicators).not.toBeNull();
+      expect(avatar).not.toBeNull();
       expect(name!.scrollWidth).toBeLessThanOrEqual(name!.clientWidth + 1);
+      const lineHeight = Number.parseFloat(getComputedStyle(name!).lineHeight);
+      expect(name!.getBoundingClientRect().height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+      expect(name!.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        avatar!.getBoundingClientRect().top + 1
+      );
       expect(indicators!.getBoundingClientRect().right).toBeLessThanOrEqual(
         card.getBoundingClientRect().right + 1
       );

@@ -919,10 +919,10 @@ retained only for non-joined projections that still consume this component.
       <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
         <span
           class={[
-            'block w-full font-medium',
+            'w-full font-medium',
             gallery
               ? 'line-clamp-2 max-w-full overflow-hidden text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight text-ellipsis break-words [overflow-wrap:anywhere]'
-              : 'truncate text-sm'
+              : 'block truncate text-sm'
           ]}
           data-testid="call-participant-name">{label}</span
         >
