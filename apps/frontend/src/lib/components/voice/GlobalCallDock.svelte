@@ -430,11 +430,11 @@ commands to the currently viewed server by mistake.
       gap: 0.5rem;
     }
 
-    .global-call-dock-return {
+    .global-call-dock-floating .global-call-dock-return {
       min-width: 0;
     }
 
-    .global-call-dock-controls {
+    .global-call-dock-floating .global-call-dock-controls {
       grid-template-columns: repeat(6, minmax(2.5rem, 1fr));
       margin-top: 0;
     }
