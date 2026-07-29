@@ -1515,7 +1515,7 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.dispose();
   });
 
-  it('inserts call lifecycle and participant events without fetching message rows', async () => {
+  it('keeps only participant join and leave events in the room timeline', async () => {
     const fake = new FakeQueryClient(
       roomEventsResult({
         events: [],
@@ -1540,16 +1540,39 @@ describe('MessagesStore — room lifecycle ownership', () => {
     store.ingestServerEvent(callEvent(RoomEventKind.CallParticipantLeft, 'call-left') as never);
     store.ingestServerEvent(callEvent(RoomEventKind.CallEnded, 'call-ended') as never);
 
-    expect(store.rootEvents.map((event) => event.id)).toEqual([
-      'call-started',
-      'call-joined',
-      'call-left',
-      'call-ended'
-    ]);
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['call-joined', 'call-left']);
     expect(
       store.rootEvents.some((event) => event.event?.kind === RoomEventKind.MessagePosted)
     ).toBe(false);
     expect(fake.queryMock).not.toHaveBeenCalled();
+    store.dispose();
+  });
+
+  it('hides redundant call lifecycle rows loaded from older room history', async () => {
+    const fake = new FakeQueryClient(
+      roomEventsResult({
+        events: [
+          callEvent(RoomEventKind.CallStarted, 'call-started'),
+          callEvent(RoomEventKind.CallParticipantJoined, 'call-joined'),
+          callEvent(RoomEventKind.CallParticipantLeft, 'call-left'),
+          callEvent(RoomEventKind.CallEnded, 'call-ended')
+        ],
+        startCursor: null,
+        endCursor: null,
+        hasOlder: false,
+        hasNewer: false
+      })
+    );
+    const store = new MessagesStore(
+      fake as unknown as ServerConnection,
+      () => null,
+      timelineFromFixtures(fake)
+    );
+
+    store.setRoom('room-1');
+    await settle();
+
+    expect(store.rootEvents.map((event) => event.id)).toEqual(['call-joined', 'call-left']);
     store.dispose();
   });
 

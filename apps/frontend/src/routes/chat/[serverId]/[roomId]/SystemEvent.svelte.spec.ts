@@ -62,10 +62,8 @@ describe('SystemEvent', () => {
   });
 
   it.each([
-    [RoomEventKind.CallStarted, 'Alice started the call'],
     [RoomEventKind.CallParticipantJoined, 'Alice joined the call'],
-    [RoomEventKind.CallParticipantLeft, 'Alice left the call'],
-    [RoomEventKind.CallEnded, 'Alice ended the call']
+    [RoomEventKind.CallParticipantLeft, 'Alice left the call']
   ] as const)('renders %s as a quiet channel event', (kind, copy) => {
     const { container } = render(SystemEvent, {
       props: { event: systemEvent(kind, 'Alice') }
@@ -75,4 +73,16 @@ describe('SystemEvent', () => {
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector('[aria-live]')).toBeNull();
   });
+
+  it.each([RoomEventKind.CallStarted, RoomEventKind.CallEnded])(
+    'does not render redundant %s lifecycle state',
+    (kind) => {
+      const { container } = render(SystemEvent, {
+        props: { event: systemEvent(kind, 'Alice') }
+      });
+
+      expect(container.textContent).toBe('');
+      expect(container.querySelector('[data-event-id]')).toBeNull();
+    }
+  );
 });
