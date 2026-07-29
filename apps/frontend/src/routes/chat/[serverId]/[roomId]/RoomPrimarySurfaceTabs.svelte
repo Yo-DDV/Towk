@@ -95,7 +95,7 @@
     </span>
     {#if hasActiveCall && !isJoining}
       <span
-        class="absolute top-1.5 right-1.5 inline-flex h-2 w-2 @min-[720px]:relative"
+        class="absolute top-1.5 right-1.5 inline-flex h-2 w-2 @min-[720px]:relative @min-[720px]:top-auto @min-[720px]:right-auto"
         aria-hidden="true"
       >
         <span

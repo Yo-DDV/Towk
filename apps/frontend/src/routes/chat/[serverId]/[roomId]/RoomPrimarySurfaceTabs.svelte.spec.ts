@@ -103,16 +103,47 @@ describe('RoomPrimarySurfaceTabs', () => {
 
     const pulse = container.querySelector('.animate-ping') as HTMLElement;
     const indicator = pulse.parentElement as HTMLElement;
+    const call = container.querySelector('[data-testid="room-call-tab"]') as HTMLElement;
+    const callLabel = container.querySelector('[data-testid="room-call-tab-label"]') as HTMLElement;
     const indicatorStyle = getComputedStyle(indicator);
     const pulseStyle = getComputedStyle(pulse);
+    const callRect = call.getBoundingClientRect();
+    const callLabelRect = callLabel.getBoundingClientRect();
+    const indicatorRect = indicator.getBoundingClientRect();
+    const callCenterY = callRect.y + callRect.height / 2;
+    const indicatorCenterY = indicatorRect.y + indicatorRect.height / 2;
 
     expect(indicatorStyle.position).toBe('relative');
-    expect(Math.round(indicator.getBoundingClientRect().width)).toBe(8);
-    expect(Math.round(indicator.getBoundingClientRect().height)).toBe(8);
+    expect(Number.parseFloat(indicatorStyle.top)).toBe(0);
+    expect(Number.parseFloat(indicatorStyle.right)).toBe(0);
+    expect(Math.round(indicatorRect.width)).toBe(8);
+    expect(Math.round(indicatorRect.height)).toBe(8);
+    expect(Math.abs(indicatorCenterY - callCenterY)).toBeLessThan(1);
+    expect(indicatorRect.left).toBeGreaterThanOrEqual(callLabelRect.right);
     expect(pulseStyle.width).toBe(indicatorStyle.width);
     expect(pulseStyle.height).toBe(indicatorStyle.height);
     expect(Number.parseFloat(pulseStyle.width)).toBeLessThan(9);
     expect(Number.parseFloat(pulseStyle.height)).toBeLessThan(9);
+  });
+
+  it('keeps the active-call indicator inside the compact call button on narrow panes', async () => {
+    const { container } = renderTabs(390, true);
+    await settleLayout();
+
+    const call = container.querySelector('[data-testid="room-call-tab"]') as HTMLElement;
+    const pulse = container.querySelector('.animate-ping') as HTMLElement;
+    const indicator = pulse.parentElement as HTMLElement;
+    const indicatorStyle = getComputedStyle(indicator);
+    const callRect = call.getBoundingClientRect();
+    const indicatorRect = indicator.getBoundingClientRect();
+
+    expect(indicatorStyle.position).toBe('absolute');
+    expect(Number.parseFloat(indicatorStyle.top)).toBeGreaterThan(4);
+    expect(Number.parseFloat(indicatorStyle.top)).toBeLessThan(8);
+    expect(Number.parseFloat(indicatorStyle.right)).toBeGreaterThan(4);
+    expect(Number.parseFloat(indicatorStyle.right)).toBeLessThan(8);
+    expect(indicatorRect.top).toBeGreaterThan(callRect.top);
+    expect(indicatorRect.right).toBeLessThan(callRect.right);
   });
 
   it('preserves message selection and call-join behavior', () => {
