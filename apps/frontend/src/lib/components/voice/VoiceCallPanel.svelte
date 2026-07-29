@@ -868,8 +868,10 @@ retained only for non-joined projections that still consume this component.
       <span class="flex min-w-0 flex-1 flex-col items-start gap-0.5">
         <span
           class={[
-            'block w-full text-sm font-medium',
-            gallery ? 'line-clamp-2 leading-tight break-words' : 'truncate'
+            'block w-full font-medium',
+            gallery
+              ? 'line-clamp-2 text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight break-words'
+              : 'truncate text-sm'
           ]}
           data-testid="call-participant-name">{label}</span
         >
@@ -1472,8 +1474,8 @@ retained only for non-joined projections that still consume this component.
   }
 
   :global(.call-gallery-avatar) {
-    width: clamp(2.75rem, 32cqi, 7rem);
-    height: clamp(2.75rem, 32cqi, 7rem);
+    width: clamp(2.75rem, 32cqi, 14rem);
+    height: clamp(2.75rem, 32cqi, 14rem);
   }
 
   :global(.call-speaking-card)::after {

@@ -659,6 +659,13 @@ describe('VoiceCallPanel screen-share audio', () => {
     const rect = tile.getBoundingClientRect();
     expect(Math.abs(rect.width - rect.height)).toBeLessThanOrEqual(1);
     expect(rect.width).toBeLessThanOrEqual(700);
+    const avatar = tile.querySelector<HTMLElement>('.call-gallery-avatar');
+    expect(avatar).not.toBeNull();
+    expect(avatar!.getBoundingClientRect().width).toBeGreaterThan(112);
+    expect(avatar!.getBoundingClientRect().width).toBeLessThanOrEqual(224);
+    const name = tile.querySelector<HTMLElement>('[data-testid="call-participant-name"]');
+    expect(name).not.toBeNull();
+    expect(Number.parseFloat(getComputedStyle(name!).fontSize)).toBeGreaterThan(14);
   });
 
   it('keeps four participants visible with readable names on a compact phone', async () => {
