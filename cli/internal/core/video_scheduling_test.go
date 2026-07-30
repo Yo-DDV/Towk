@@ -184,13 +184,24 @@ func TestRecoverUnmanifestedVideoAttachments_ReschedulesUnmanifested(t *testing.
 		t.Fatal("expected recovery to dispatch local work")
 	}
 
-	// ...and it must leave a Started marker so a second recovery is a no-op.
+	// A Started marker is non-terminal: if the process dies before publishing
+	// success or failure, the next boot must redispatch the same attachment.
 	manifest, ok := core.Assets.VideoAttachmentManifest(att.Id)
 	if !ok || manifest.Started == nil {
 		t.Fatalf("manifest after recovery = %+v, want Started", manifest)
 	}
-	if got := core.assetLifecycle().UnmanifestedVideoAttachments(); len(got) != 0 {
-		t.Fatalf("UnmanifestedVideoAttachments after recovery = %+v, want none", got)
+	if got := core.assetLifecycle().UnmanifestedVideoAttachments(); len(got) != 1 || got[0].Attachment.GetId() != att.Id {
+		t.Fatalf("UnmanifestedVideoAttachments after Started = %+v, want %q recoverable", got, att.Id)
+	}
+
+	core.RecoverUnmanifestedVideoAttachments(ctx)
+	select {
+	case req := <-requests:
+		if req.assetID != att.Id || req.messageEventID != posted.Id {
+			t.Fatalf("recovered Started request = %+v, want asset %q msg %q", req, att.Id, posted.Id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected Started-only processing to be redispatched")
 	}
 }
 
