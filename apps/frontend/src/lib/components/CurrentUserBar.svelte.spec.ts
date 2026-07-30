@@ -589,6 +589,9 @@ describe('CurrentUserBar', () => {
     const link = q(container, '[data-testid="global-call-dock-return"]') as HTMLButtonElement;
     expect(link.textContent).toContain('# general');
     link.click();
+    await expect
+      .element(q(container, '[data-testid="active-room-primary-surface"]'))
+      .toHaveTextContent('call');
 
     const outputButton = q(
       container,
@@ -620,6 +623,9 @@ describe('CurrentUserBar', () => {
     leaveButton.click();
 
     expect(navigation.goto).toHaveBeenCalledWith('/chat/-/room-1');
+    await expect
+      .element(q(container, '[data-testid="active-room-primary-surface"]'))
+      .toHaveTextContent('messages');
     expect(voiceCallState.toggleOutputMuteFromGesture).toHaveBeenCalledOnce();
     expect(voiceCallState.toggleMute).toHaveBeenCalledOnce();
     expect(voiceCallState.toggleCamera).toHaveBeenCalledOnce();

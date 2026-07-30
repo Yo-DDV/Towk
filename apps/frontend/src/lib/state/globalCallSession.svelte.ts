@@ -1,4 +1,5 @@
 import { serverRegistry } from '$lib/state/server/registry.svelte';
+import type { AppUiState } from '$lib/state/appUi.svelte';
 import type { ServerStateStore } from '$lib/state/server/store.svelte';
 import type { VoiceCallState } from '$lib/state/server/voiceCall.svelte';
 
@@ -68,8 +69,28 @@ export function resolveCurrentGlobalCallStore(
   const store = registry.tryGetStore(session.serverId);
   if (!store || store !== session.store) return null;
   if (!store.voiceCall.isInAnyCall || store.voiceCall.targetRoomId !== session.roomId) return null;
-  if (session.callId && store.voiceCall.callId !== session.callId) return null;
+  if (store.voiceCall.callId !== session.callId) return null;
   return store;
+}
+
+/**
+ * End the exact current session and return its room UI to Messages.
+ *
+ * Resolving the store again fences stale dock and Media Session actions from
+ * affecting a replacement call. The surface changes before the asynchronous
+ * leave settles so the local UI never exposes a dead call grid.
+ */
+export async function leaveGlobalCallSession(
+  session: GlobalCallSession,
+  appUi: Pick<AppUiState, 'resetRoomPrimarySurface'>,
+  registry: GlobalCallRegistry = serverRegistry
+): Promise<boolean> {
+  const store = resolveCurrentGlobalCallStore(session, registry);
+  if (!store) return false;
+
+  appUi.resetRoomPrimarySurface(session.serverId, session.roomId);
+  await store.voiceCall.leave();
+  return true;
 }
 
 function callPhaseRank(phase: GlobalCallPhase): number {

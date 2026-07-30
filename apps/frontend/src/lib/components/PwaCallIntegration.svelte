@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import {
+    leaveGlobalCallSession,
     resolveCurrentGlobalCallStore,
     resolveGlobalCallSession
   } from '$lib/state/globalCallSession.svelte';
+  import { getAppUiState } from '$lib/state/appUi.svelte';
   import {
     CallAudioSessionController,
     CallMediaSessionController,
@@ -34,6 +36,7 @@
       : new CallAudioSessionController(
           (navigator as Navigator & { audioSession?: CallAudioSessionLike }).audioSession
         );
+  const appUi = getAppUiState();
 
   const activeCall = $derived(resolveGlobalCallSession());
 
@@ -57,7 +60,9 @@
             artist: active.store.serverInfo.name || active.serverId,
             cameraActive: call.isCameraEnabled,
             microphoneActive: !call.isMuted,
-            onHangup: () => runCurrent((current) => current.leave()),
+            onHangup: async () => {
+              await leaveGlobalCallSession(active, appUi);
+            },
             onToggleCamera: () => runCurrent((current) => current.toggleCamera()),
             onToggleMicrophone: () => runCurrent((current) => current.toggleMute())
           }

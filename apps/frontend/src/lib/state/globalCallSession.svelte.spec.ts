@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  leaveGlobalCallSession,
   resolveCurrentGlobalCallStore,
   resolveGlobalCallSession
 } from './globalCallSession.svelte';
@@ -116,5 +117,76 @@ describe('global call session projection', () => {
     source.voiceCall.callId = 'call-2';
 
     expect(resolveCurrentGlobalCallStore(session!, registry as never)).toBeNull();
+  });
+
+  it('invalidates a joining snapshot after the live store gains a call generation', () => {
+    const source = fakeStore({
+      isInAnyCall: true,
+      targetRoomId: 'room-call',
+      callId: null,
+      connected: false,
+      reconnecting: false
+    });
+    const registry = fakeRegistry({ source });
+    const session = resolveGlobalCallSession(registry as never);
+    expect(session).not.toBeNull();
+
+    source.voiceCall.callId = 'call-1';
+
+    expect(resolveCurrentGlobalCallStore(session!, registry as never)).toBeNull();
+  });
+
+  it('returns the exact source room to Messages before leaving the live session', async () => {
+    const leave = vi.fn(async () => undefined);
+    const source = fakeStore({
+      isInAnyCall: true,
+      targetRoomId: 'room-call',
+      callId: 'call-1',
+      connected: true,
+      reconnecting: false,
+      leave
+    } as never);
+    const registry = fakeRegistry({ source });
+    const session = resolveGlobalCallSession(registry as never);
+    const resetRoomPrimarySurface = vi.fn();
+
+    await expect(
+      leaveGlobalCallSession(session!, { resetRoomPrimarySurface }, registry as never)
+    ).resolves.toBe(true);
+
+    expect(resetRoomPrimarySurface).toHaveBeenCalledWith('source', 'room-call');
+    expect(resetRoomPrimarySurface.mock.invocationCallOrder[0]).toBeLessThan(
+      leave.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('does not reset or leave through a stale session snapshot', async () => {
+    const leave = vi.fn(async () => undefined);
+    const original = fakeStore({
+      isInAnyCall: true,
+      targetRoomId: 'room-call',
+      callId: 'call-1',
+      connected: true,
+      reconnecting: false,
+      leave
+    } as never);
+    const stores = { source: original };
+    const registry = fakeRegistry(stores);
+    const session = resolveGlobalCallSession(registry as never);
+    const resetRoomPrimarySurface = vi.fn();
+
+    stores.source = fakeStore({
+      isInAnyCall: true,
+      targetRoomId: 'room-replacement',
+      callId: 'call-2',
+      connected: true,
+      reconnecting: false
+    });
+
+    await expect(
+      leaveGlobalCallSession(session!, { resetRoomPrimarySurface }, registry as never)
+    ).resolves.toBe(false);
+    expect(resetRoomPrimarySurface).not.toHaveBeenCalled();
+    expect(leave).not.toHaveBeenCalled();
   });
 });

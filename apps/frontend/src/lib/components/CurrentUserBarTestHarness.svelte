@@ -27,4 +27,7 @@ before the bar mounts so specs can exercise first-login presence fallbacks.
     <GlobalCallDock variant="floating" />
   </div>
 {/if}
+<output hidden data-testid="active-room-primary-surface">
+  {appUi.roomPrimarySurfaceFor('origin', 'room-1')}
+</output>
 <CurrentUserBar />

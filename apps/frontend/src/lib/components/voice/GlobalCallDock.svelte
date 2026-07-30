@@ -12,6 +12,7 @@ commands to the currently viewed server by mistake.
   import { getActiveServer } from '$lib/state/activeServer.svelte';
   import { getAppUiState } from '$lib/state/appUi.svelte';
   import {
+    leaveGlobalCallSession,
     resolveCurrentGlobalCallStore,
     resolveGlobalCallSession
   } from '$lib/state/globalCallSession.svelte';
@@ -187,11 +188,11 @@ commands to the currently viewed server by mistake.
 
   async function leaveCall(): Promise<void> {
     if (leaving) return;
-    const current = currentVoiceCall();
-    if (!current) return;
+    const snapshot = session;
+    if (!snapshot) return;
     leaving = true;
     try {
-      await current.leave();
+      await leaveGlobalCallSession(snapshot, appUi);
     } finally {
       leaving = false;
     }
