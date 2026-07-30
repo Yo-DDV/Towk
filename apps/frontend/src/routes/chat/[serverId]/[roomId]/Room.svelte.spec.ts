@@ -183,6 +183,7 @@ vi.mock('$lib/state/server/registry.svelte', () => ({
       },
       voiceCall: {
         isInCall: vi.fn((roomId: string) => mocks.joinedCallRoomIds.has(roomId)),
+        isJoiningRoom: vi.fn(() => false),
         join: mocks.joinVoiceCall
       },
       handleVoiceCallJoinFailed: mocks.handleVoiceCallJoinFailed,
@@ -281,8 +282,8 @@ vi.mock('$lib/ui/PageTitle.svelte', async () => {
 });
 
 vi.mock('$lib/ui/PaneHeader.svelte', async () => {
-  const { default: EmptyMock } = await import('./RoomLocalEchoEmptyMock.svelte');
-  return { default: EmptyMock };
+  const { default: PaneHeaderMock } = await import('./RoomLocalEchoPaneHeaderMock.svelte');
+  return { default: PaneHeaderMock };
 });
 
 import Room from './Room.svelte';
@@ -369,6 +370,22 @@ beforeEach(() => {
 });
 
 describe('Room local message echo', () => {
+  it('keeps the active call header compact instead of stacking it on narrow screens', async () => {
+    mocks.livekitUrl = 'wss://livekit.example.test';
+    mocks.activeCallRoomIds.add('room-1');
+    appUi.selectRoomPrimarySurface('server-1', 'room-1', 'call');
+
+    const { container } = render(Room, { props: { roomId: 'room-1' } });
+
+    const header = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLElement>('[data-testid="pane-header-mock"]');
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    expect(header.dataset.stackOnNarrow).toBe('false');
+    expect(header.dataset.compactOnNarrow).toBe('true');
+  });
+
   it('preloads the inline video player while the room is idle', async () => {
     const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
       callback({

@@ -15,48 +15,38 @@ const SCENE_GAP_PX = 12;
 
 type GridCandidate = Omit<SceneGrid, 'capacity'>;
 
-function balancedGridShape(
-  tileCount: number,
-  orientation: 'landscape' | 'portrait'
-): Pick<GridCandidate, 'columns' | 'rows'> {
-  if (tileCount <= 1) return { columns: 1, rows: 1 };
-  if (tileCount === 2) {
-    return orientation === 'landscape' ? { columns: 2, rows: 1 } : { columns: 1, rows: 2 };
-  }
-  if (tileCount <= 4) return { columns: 2, rows: 2 };
-  if (tileCount <= 6) {
-    return orientation === 'landscape' ? { columns: 3, rows: 2 } : { columns: 2, rows: 3 };
-  }
-  if (tileCount <= 9) return { columns: 3, rows: 3 };
-  if (tileCount <= 12) {
-    return orientation === 'landscape' ? { columns: 4, rows: 3 } : { columns: 3, rows: 4 };
-  }
-  if (tileCount <= 16) return { columns: 4, rows: 4 };
-  if (tileCount <= 20) {
-    return orientation === 'landscape' ? { columns: 5, rows: 4 } : { columns: 4, rows: 5 };
-  }
-
-  const shortAxis = Math.max(1, Math.floor(Math.sqrt(tileCount)));
-  const longAxis = Math.ceil(tileCount / shortAxis);
-  return orientation === 'landscape'
-    ? { columns: longAxis, rows: shortAxis }
-    : { columns: shortAxis, rows: longAxis };
-}
-
 function squareGrid(width: number, height: number, tileCount: number): GridCandidate {
-  const shape = balancedGridShape(tileCount, width >= height ? 'landscape' : 'portrait');
-  const tileWidth = (width - SCENE_GAP_PX * (shape.columns - 1)) / shape.columns;
-  const tileHeight = (height - SCENE_GAP_PX * (shape.rows - 1)) / shape.rows;
+  const candidates = Array.from({ length: tileCount }, (_, index) => {
+    const columns = index + 1;
+    const rows = Math.ceil(tileCount / columns);
+    const tileWidth = (width - SCENE_GAP_PX * (columns - 1)) / columns;
+    const tileHeight = (height - SCENE_GAP_PX * (rows - 1)) / rows;
+    return {
+      columns,
+      rows,
+      tileSize: Math.max(1, Math.floor(Math.min(tileWidth, tileHeight))),
+      emptySlots: columns * rows - tileCount
+    };
+  });
+  const largestTile = Math.max(...candidates.map((candidate) => candidate.tileSize));
+  const nearLargest = candidates.filter((candidate) => candidate.tileSize >= largestTile * 0.96);
+  nearLargest.sort(
+    (left, right) =>
+      left.emptySlots - right.emptySlots || right.tileSize - left.tileSize || left.rows - right.rows
+  );
+  const selected = nearLargest[0];
   return {
-    ...shape,
-    tileSize: Math.max(1, Math.floor(Math.min(tileWidth, tileHeight)))
+    columns: selected.columns,
+    rows: selected.rows,
+    tileSize: selected.tileSize
   };
 }
 
 function minimumReadableTileSize(width: number, height: number): number {
   const shortestAxis = Math.min(width, height);
-  if (shortestAxis < 360) return 104;
-  if (width < 520) return 112;
+  if (height < 360) return width >= 640 ? 144 : 124;
+  if (width < 360) return 132;
+  if (shortestAxis < 520) return 144;
   if (width < 900) return 132;
   return 160;
 }
@@ -86,6 +76,23 @@ export function computeFilmstripCapacity(width: number, _height: number): number
     Math.floor((safeWidth + SCENE_GAP_PX) / (minimumTileWidth + SCENE_GAP_PX))
   );
   return Math.min(classLimit, horizontalSlots);
+}
+
+export function computeFilmstripTileWidth(width: number, columns: number): number {
+  const safeWidth = Math.max(1, width);
+  const safeColumns = Math.max(1, Math.floor(columns));
+  const availableWidth = Math.max(1, safeWidth - SCENE_GAP_PX * (safeColumns - 1));
+  const maximumTileWidth = safeWidth >= 3_200 ? 720 : safeWidth >= 2_400 ? 560 : 420;
+  return Math.min(maximumTileWidth, Math.max(1, Math.floor(availableWidth / safeColumns)));
+}
+
+export function computeFilmstripMaxHeight(width: number, height: number): number {
+  const safeWidth = Math.max(1, width);
+  const safeHeight = Math.max(1, height);
+  const minimumHeight =
+    safeWidth < 300 ? (safeHeight >= 420 ? 160 : 144) : safeWidth >= 900 ? 180 : 120;
+  const maximumHeight = safeWidth >= 2_400 ? 320 : 210;
+  return Math.max(minimumHeight, Math.min(maximumHeight, Math.floor(safeHeight * 0.28)));
 }
 
 export function scenePage<T>(

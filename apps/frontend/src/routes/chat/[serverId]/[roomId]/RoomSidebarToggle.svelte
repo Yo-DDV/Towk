@@ -8,6 +8,7 @@ Room header affordance for opening or hiding room extras panels.
 - `panels` - Panel buttons to show. Defaults to every room sidebar panel.
 - `onToggle` - Called with the panel requested by the user.
 - `mode` - Responsive visibility for the toggle group.
+- `emphasized` - Gives compact call-header tools a visible grouped surface.
 - `canDeleteDirectMessage` - Shows the private DM deletion action.
 - `onDeleteDirectMessage` - Opens the caller-owned confirmation flow.
 -->
@@ -21,6 +22,7 @@ Room header affordance for opening or hiding room extras panels.
     panels,
     onToggle,
     mode = 'desktop',
+    emphasized = false,
     canDeleteDirectMessage = false,
     onDeleteDirectMessage
   }: {
@@ -28,6 +30,7 @@ Room header affordance for opening or hiding room extras panels.
     panels?: RoomSidebarPanel[];
     onToggle: (panel: RoomSidebarPanel) => void;
     mode?: 'desktop' | 'mobile' | 'always';
+    emphasized?: boolean;
     canDeleteDirectMessage?: boolean;
     onDeleteDirectMessage?: () => void;
   } = $props();
@@ -94,7 +97,11 @@ Room header affordance for opening or hiding room extras panels.
 </script>
 
 <span
-  class={['group/badges items-center gap-1', visibilityClass]}
+  class={[
+    'group/badges items-center gap-1',
+    emphasized && 'gap-px rounded-xl border border-border bg-surface p-px',
+    visibilityClass
+  ]}
   data-testid="room-sidebar-toggle"
 >
   {#each visiblePanels as panel (panel.id)}
@@ -104,6 +111,7 @@ Room header affordance for opening or hiding room extras panels.
       type="button"
       class={[
         'group/pane-header-icon-button pane-header-icon-button',
+        emphasized && 'bg-surface-100/70 text-text',
         isActive && 'pane-header-icon-button-active'
       ]}
       onclick={() => onToggle(panel.id)}

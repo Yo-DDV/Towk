@@ -71,6 +71,17 @@
   </div>
 </Story>
 
+<Story name="Adaptive three participant voice gallery" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness
+      layout="stage"
+      scenario="voice"
+      participantCount={3}
+      dockVariant="floating"
+    />
+  </div>
+</Story>
+
 <Story name="Adaptive single voice participant" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness
@@ -93,6 +104,17 @@
   </div>
 </Story>
 
+<Story name="Adaptive four participant mixed camera gallery" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness
+      layout="stage"
+      scenario="camera"
+      participantCount={4}
+      dockVariant="floating"
+    />
+  </div>
+</Story>
+
 <Story name="Adaptive screen share stage" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness layout="stage" scenario="screen" dockVariant="floating" />
@@ -102,6 +124,28 @@
 <Story name="Adaptive dual screen share stage" asChild>
   <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
     <VoiceCallPanelStoryHarness layout="stage" scenario="dual-screen" dockVariant="floating" />
+  </div>
+</Story>
+
+<Story name="Adaptive screen share with eight participants" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness
+      layout="stage"
+      scenario="screen"
+      participantCount={8}
+      dockVariant="floating"
+    />
+  </div>
+</Story>
+
+<Story name="Adaptive dual screen share with twelve participants" asChild>
+  <div class="flex h-dvh w-full min-w-0 overflow-hidden bg-background">
+    <VoiceCallPanelStoryHarness
+      layout="stage"
+      scenario="dual-screen"
+      participantCount={12}
+      dockVariant="floating"
+    />
   </div>
 </Story>
 

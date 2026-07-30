@@ -589,7 +589,7 @@
           {title}
           subtitle={roomDescription}
           loading={!room.roomData}
-          stackOnNarrow={isCallSurface}
+          compactOnNarrow={isCallSurface}
         >
           {#snippet actions()}
             {#if showVoiceCall}
@@ -605,6 +605,7 @@
             {#if isCallSurface}
               <RoomSidebarToggle
                 mode="always"
+                emphasized
                 {canDeleteDirectMessage}
                 onDeleteDirectMessage={openDeleteDirectMessageConfirmation}
                 activePanel={mobileRoomSidebarPanel}
@@ -631,7 +632,10 @@
             {/if}
             {#if showLeaveRoom}
               <button
-                class="group/pane-header-icon-button pane-header-icon-button"
+                class={[
+                  'group/pane-header-icon-button pane-header-icon-button',
+                  isCallSurface && 'bg-surface-100/70 text-text'
+                ]}
                 onclick={() =>
                   pushState('', {
                     modal: {

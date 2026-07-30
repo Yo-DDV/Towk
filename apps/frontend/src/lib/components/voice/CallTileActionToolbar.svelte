@@ -24,7 +24,7 @@ quiet surface and border language instead of media-player chrome.
   class={[
     'call-tile-action-toolbar z-10 flex shrink-0 gap-0.5 rounded-md border border-text/10 bg-surface-100 p-0.5 shadow-sm transition-opacity',
     placement === 'inline'
-      ? 'relative self-center'
+      ? 'relative max-w-full flex-wrap justify-end self-center'
       : [
           'absolute right-1.5 max-w-[calc(100%-0.75rem)] flex-wrap justify-end',
           placement === 'bottom-overlay' ? 'bottom-1.5' : 'top-1.5'

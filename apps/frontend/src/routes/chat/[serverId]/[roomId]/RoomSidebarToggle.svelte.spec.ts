@@ -119,6 +119,25 @@ describe('RoomSidebarToggle', () => {
     expect(group!.classList.contains('hidden')).toBe(false);
   });
 
+  it('gives call-header tools a visible bounded group when emphasized', async () => {
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn(),
+        mode: 'always',
+        emphasized: true
+      }
+    });
+
+    const group = container.querySelector<HTMLElement>('[data-testid="room-sidebar-toggle"]');
+    expect(group).not.toBeNull();
+    expect(group!.classList.contains('border')).toBe(true);
+    expect(group!.classList.contains('bg-surface')).toBe(true);
+    for (const button of group!.querySelectorAll<HTMLButtonElement>('button')) {
+      expect(button.classList.contains('bg-surface-100/70')).toBe(true);
+    }
+  });
+
   it('offers private DM deletion only when enabled', async () => {
     const onDeleteDirectMessage = vi.fn();
     const { container } = render(RoomSidebarToggle, {

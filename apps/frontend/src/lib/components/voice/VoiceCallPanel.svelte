@@ -31,6 +31,8 @@ retained only for non-joined projections that still consume this component.
   import { startDMWith } from '$lib/dm/startDM';
   import {
     computeFilmstripCapacity,
+    computeFilmstripMaxHeight,
+    computeFilmstripTileWidth,
     computeSceneGrid,
     resolveFeaturedShareKey,
     scenePage
@@ -321,22 +323,17 @@ retained only for non-joined projections that still consume this component.
     useHorizontalStage
       ? hasSecondaryScreenShare
         ? 1
-        : Math.max(1, Math.min(2, Math.floor((sceneHeight + 12) / 72)))
+        : Math.max(1, Math.min(2, Math.floor((sceneHeight - 44) / (144 + 12))))
       : computeFilmstripCapacity(sceneWidth, sceneHeight)
   );
-  let filmstripMaxHeight = $derived(Math.max(120, Math.min(210, Math.floor(sceneHeight * 0.28))));
+  let filmstripMaxHeight = $derived(computeFilmstripMaxHeight(sceneWidth, sceneHeight));
   let filmstripPage = $derived(
     scenePage(secondaryStageTiles, filmstripCapacity, filmstripPageIndex)
   );
   let filmstripColumns = $derived(
     Math.max(1, Math.min(filmstripCapacity, filmstripPage.items.length))
   );
-  let filmstripTileWidth = $derived(
-    Math.min(
-      240,
-      Math.max(1, Math.floor((sceneWidth - 12 * (filmstripColumns - 1)) / filmstripColumns))
-    )
-  );
+  let filmstripTileWidth = $derived(computeFilmstripTileWidth(sceneWidth, filmstripColumns));
   let lastFeaturedStageQualityRequest = $state<{ key: string; track: Track } | null>(null);
 
   $effect(() => {
@@ -760,8 +757,16 @@ retained only for non-joined projections that still consume this component.
   {/if}
 {/snippet}
 
-{#snippet mediaTileActions(participant: DisplayParticipant, isScreenShare = false)}
-  <CallTileActionToolbar testId="call-media-actions" forceVisible={isScreenShare}>
+{#snippet mediaTileActions(
+  participant: DisplayParticipant,
+  isScreenShare = false,
+  inFooter = false
+)}
+  <CallTileActionToolbar
+    testId="call-media-actions"
+    forceVisible={isScreenShare}
+    placement={inFooter ? 'inline' : 'overlay'}
+  >
     {#if isScreenShare}
       <CallTileActionButton
         icon="uil--chart-line"
@@ -788,34 +793,41 @@ retained only for non-joined projections that still consume this component.
       />
     {/if}
     {#if pictureInPictureAvailable}
-      <CallTileActionButton
-        icon="uil--window"
-        label={pictureInPictureActive
-          ? m['voice.exit_picture_in_picture']()
-          : m['voice.picture_in_picture']()}
-        testId="call-feed-pip-button"
-        onclick={toggleClosestMediaPictureInPicture}
-      />
+      <span
+        class={inFooter
+          ? isScreenShare
+            ? 'contents @max-[399px]:hidden'
+            : 'contents @max-[199px]:hidden'
+          : 'contents'}
+      >
+        <CallTileActionButton
+          icon="uil--window"
+          label={pictureInPictureActive
+            ? m['voice.exit_picture_in_picture']()
+            : m['voice.picture_in_picture']()}
+          testId="call-feed-pip-button"
+          onclick={toggleClosestMediaPictureInPicture}
+        />
+      </span>
     {/if}
-    <CallTileActionButton
-      icon="mdi--fullscreen"
-      label={m['voice.fullscreen_feed']()}
-      testId="call-feed-fullscreen-button"
-      onclick={(event) => toggleClosestMediaFullscreen(participant, event)}
-    />
+    <span class={inFooter && !isScreenShare ? 'contents @max-[159px]:hidden' : 'contents'}>
+      <CallTileActionButton
+        icon="mdi--fullscreen"
+        label={m['voice.fullscreen_feed']()}
+        testId="call-feed-fullscreen-button"
+        onclick={(event) => toggleClosestMediaFullscreen(participant, event)}
+      />
+    </span>
     {#if isInThisCall}
       {@render participantAudioActions(participant)}
     {/if}
   </CallTileActionToolbar>
 {/snippet}
 
-{#snippet voiceTileActions(participant: DisplayParticipant, gallery = false)}
+{#snippet voiceTileActions(participant: DisplayParticipant, inFooter = false)}
   {#if isInThisCall}
-    <CallTileActionToolbar
-      testId="call-voice-actions"
-      placement={gallery ? 'bottom-overlay' : 'inline'}
-    >
-      {@render participantAudioActions(participant, 'compact')}
+    <CallTileActionToolbar testId="call-voice-actions" placement="inline">
+      {@render participantAudioActions(participant, inFooter ? 'default' : 'compact')}
     </CallTileActionToolbar>
   {/if}
 {/snippet}
@@ -823,7 +835,7 @@ retained only for non-joined projections that still consume this component.
 {#snippet participantIndicators(participant: DisplayParticipant, gallery = false)}
   <span
     class={[
-      'inline-flex h-6 min-w-5 max-w-full shrink-0 items-center justify-end gap-1.5 overflow-hidden text-sm',
+      'inline-flex h-6 max-w-full min-w-5 shrink-0 items-center justify-end gap-1.5 overflow-hidden text-sm',
       gallery &&
         'pointer-events-none absolute bottom-2 left-2 z-10 max-w-[calc(100%-3.5rem)] rounded-md bg-surface-100/90 px-1.5 shadow-sm'
     ]}
@@ -887,9 +899,7 @@ retained only for non-joined projections that still consume this component.
         <span
           class={[
             'iconify shrink-0 uil--signal-alt-3',
-            participant.connectionQuality === 'excellent'
-              ? 'text-presence-online'
-              : 'text-muted'
+            participant.connectionQuality === 'excellent' ? 'text-presence-online' : 'text-muted'
           ]}
           aria-hidden="true"
         ></span>
@@ -907,7 +917,12 @@ retained only for non-joined projections that still consume this component.
   isScreenShare = false,
   gallery = false
 )}
-  <div class={callTileHeaderClass}>
+  <div
+    class={[
+      callTileHeaderClass,
+      isScreenShare && 'w-full @max-[239px]:flex-col @max-[239px]:items-stretch @max-[239px]:gap-1'
+    ]}
+  >
     <button
       type="button"
       class={callTileIdentityButtonClass}
@@ -921,7 +936,7 @@ retained only for non-joined projections that still consume this component.
           class={[
             'w-full font-medium',
             gallery
-              ? 'line-clamp-2 max-w-full overflow-hidden text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight text-ellipsis break-words [overflow-wrap:anywhere]'
+              ? 'block max-w-full truncate text-[clamp(0.875rem,2.2cqi,1.5rem)] leading-tight whitespace-nowrap'
               : 'block truncate text-sm'
           ]}
           data-testid="call-participant-name">{label}</span
@@ -948,7 +963,7 @@ retained only for non-joined projections that still consume this component.
     </button>
 
     {#if actions === 'media'}
-      {@render mediaTileActions(participant, isScreenShare)}
+      {@render mediaTileActions(participant, isScreenShare, isScreenShare)}
     {:else if actions === 'voice'}
       {@render voiceTileActions(participant, gallery)}
     {/if}
@@ -957,13 +972,20 @@ retained only for non-joined projections that still consume this component.
 
 {#snippet participantCard(
   participant: DisplayParticipant,
-  mode: 'compact' | 'video' | 'gallery',
+  mode: 'compact' | 'video' | 'gallery' | 'filmstrip' | 'filmstrip-video',
   fillContainer = false
 )}
-  {@const showVideo = mode !== 'compact' && hasVideo(participant)}
-  {@const showGalleryVoice = mode === 'gallery' && !showVideo}
+  {@const showVideo = mode !== 'compact' && mode !== 'filmstrip' && hasVideo(participant)}
+  {@const showVisualVoice = (mode === 'gallery' || mode === 'filmstrip') && !showVideo}
+  {@const hasReservedFooter =
+    mode === 'gallery' || mode === 'filmstrip' || mode === 'filmstrip-video'}
   {@const showVoiceActions = isInThisCall && !showVideo}
-  {@const actions = showVideo ? 'media' : showVoiceActions ? 'voice' : 'none'}
+  {@const actions =
+    showVideo && !hasReservedFooter
+      ? 'media'
+      : showVoiceActions && !hasReservedFooter
+        ? 'voice'
+        : 'none'}
   {#if isInThisCall}
     <div
       class={[
@@ -972,7 +994,11 @@ retained only for non-joined projections that still consume this component.
           ? 'participant-card-gallery h-full min-h-0'
           : mode === 'video'
             ? ['participant-card-video', fillContainer && 'h-full min-h-0']
-            : 'participant-card-compact'
+            : mode === 'filmstrip-video'
+              ? 'participant-card-video participant-card-filmstrip @container h-full min-h-0'
+              : mode === 'filmstrip'
+                ? 'participant-card-gallery participant-card-filmstrip h-full min-h-0'
+                : 'participant-card-compact'
       ]}
       {@attach speakingCard(participant.key)}
       title={participantTitle(participant)}
@@ -986,10 +1012,10 @@ retained only for non-joined projections that still consume this component.
         participant,
         participant.displayName,
         actions,
-        true,
+        !hasReservedFooter,
         false,
         false,
-        mode === 'gallery'
+        mode === 'gallery' || mode === 'filmstrip' || mode === 'filmstrip-video'
       )}
 
       {#if showVideo}
@@ -997,6 +1023,7 @@ retained only for non-joined projections that still consume this component.
           type="button"
           class={callTileMediaButtonClass}
           onclick={(e) => showUserMenu(participant, e)}
+          data-testid="call-media-preview"
         >
           <VideoThumbnail
             track={participant.videoTrack!}
@@ -1006,14 +1033,19 @@ retained only for non-joined projections that still consume this component.
             fill={mode === 'gallery' || fillContainer}
           />
         </button>
-      {:else if showGalleryVoice}
+      {:else if showVisualVoice}
         <button
           type="button"
-          class={[callTileMediaButtonClass, 'min-h-0 items-center justify-center p-4']}
+          class={[
+            callTileMediaButtonClass,
+            'min-h-0 items-center justify-center',
+            mode === 'filmstrip' ? 'p-1' : 'p-4'
+          ]}
           onclick={(e) => showUserMenu(participant, e)}
+          data-testid="call-gallery-voice-media"
         >
           <div
-            class="flex min-w-0 flex-col items-center gap-3"
+            class="flex h-full max-h-full min-w-0 flex-col items-center justify-center gap-3"
             data-testid="call-gallery-voice-avatar"
           >
             <UserAvatar
@@ -1025,6 +1057,21 @@ retained only for non-joined projections that still consume this component.
           </div>
         </button>
       {/if}
+      {#if hasReservedFooter}
+        <div
+          class="flex min-h-[50px] w-full min-w-0 shrink-0 items-center justify-between gap-1 overflow-hidden rounded-md bg-surface-200/55 pl-1"
+          data-testid="call-gallery-voice-footer"
+        >
+          <span class="flex min-w-0 flex-1 overflow-hidden">
+            {@render participantIndicators(participant)}
+          </span>
+          {#if showVoiceActions}
+            {@render voiceTileActions(participant, true)}
+          {:else if showVideo}
+            {@render mediaTileActions(participant, false, true)}
+          {/if}
+        </div>
+      {/if}
     </div>
   {:else}
     <div
@@ -1034,7 +1081,11 @@ retained only for non-joined projections that still consume this component.
           ? 'participant-card-gallery h-full min-h-0'
           : mode === 'video'
             ? ['participant-card-video', fillContainer && 'h-full min-h-0']
-            : 'participant-card-compact'
+            : mode === 'filmstrip-video'
+              ? 'participant-card-video participant-card-filmstrip @container h-full min-h-0'
+              : mode === 'filmstrip'
+                ? 'participant-card-gallery participant-card-filmstrip h-full min-h-0'
+                : 'participant-card-compact'
       ]}
       title={participantTitle(participant)}
       data-testid="call-participant-card"
@@ -1048,7 +1099,7 @@ retained only for non-joined projections that still consume this component.
         false,
         false,
         false,
-        mode === 'gallery'
+        mode === 'gallery' || mode === 'filmstrip' || mode === 'filmstrip-video'
       )}
 
       {#if showVideo}
@@ -1056,6 +1107,7 @@ retained only for non-joined projections that still consume this component.
           type="button"
           class={callTileMediaButtonClass}
           onclick={(e) => showUserMenu(participant, e)}
+          data-testid="call-media-preview"
         >
           <VideoThumbnail
             track={participant.videoTrack!}
@@ -1065,14 +1117,19 @@ retained only for non-joined projections that still consume this component.
             fill={mode === 'gallery' || fillContainer}
           />
         </button>
-      {:else if showGalleryVoice}
+      {:else if showVisualVoice}
         <button
           type="button"
-          class={[callTileMediaButtonClass, 'min-h-0 items-center justify-center p-4']}
+          class={[
+            callTileMediaButtonClass,
+            'min-h-0 items-center justify-center',
+            mode === 'filmstrip' ? 'p-1' : 'p-4'
+          ]}
           onclick={(e) => showUserMenu(participant, e)}
+          data-testid="call-gallery-voice-media"
         >
           <div
-            class="flex min-w-0 flex-col items-center gap-3"
+            class="flex h-full max-h-full min-w-0 flex-col items-center justify-center gap-3"
             data-testid="call-gallery-voice-avatar"
           >
             <UserAvatar
@@ -1083,6 +1140,14 @@ retained only for non-joined projections that still consume this component.
             />
           </div>
         </button>
+      {/if}
+      {#if hasReservedFooter && hasParticipantIndicator(participant)}
+        <div
+          class="flex min-h-[50px] w-full min-w-0 shrink-0 items-center overflow-hidden rounded-md bg-surface-200/55 px-1"
+          data-testid="call-gallery-voice-footer"
+        >
+          {@render participantIndicators(participant)}
+        </div>
       {/if}
     </div>
   {/if}
@@ -1108,13 +1173,15 @@ retained only for non-joined projections that still consume this component.
       compact ? 'none' : 'media',
       false,
       true,
-      true
+      true,
+      compact
     )}
     <div class="relative flex min-h-0 w-full flex-1 overflow-hidden rounded-sm">
       <button
         type="button"
         class={callTileMediaButtonClass}
         onclick={(e) => showUserMenu(participant, e)}
+        data-testid="call-media-preview"
       >
         <VideoThumbnail
           track={participant.screenShareTrack!}
@@ -1169,6 +1236,7 @@ retained only for non-joined projections that still consume this component.
           !isScreen && !isVideo && 'p-6'
         ]}
         onclick={(e) => showUserMenu(participant, e)}
+        data-testid="call-media-preview"
       >
         {#if isScreen}
           <VideoThumbnail
@@ -1213,12 +1281,16 @@ retained only for non-joined projections that still consume this component.
     {@render screenShareCard(
       tile.participant,
       presentation !== 'gallery',
-      presentation === 'compact-filmstrip'
+      presentation !== 'gallery'
     )}
   {:else}
     {@render participantCard(
       tile.participant,
-      presentation === 'gallery' ? 'gallery' : tile.kind === 'video' ? 'video' : 'compact',
+      presentation === 'gallery'
+        ? 'gallery'
+        : tile.kind === 'video'
+          ? 'filmstrip-video'
+          : 'filmstrip',
       presentation !== 'gallery'
     )}
   {/if}
@@ -1345,7 +1417,7 @@ retained only for non-joined projections that still consume this component.
                     {#if tile.kind === 'screen'}
                       <button
                         type="button"
-                        class="absolute bottom-2 left-2 z-30 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur outline-none hover:bg-black/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        class="absolute bottom-2 left-2 z-30 flex h-[44px] min-h-[44px] w-[44px] min-w-[44px] cursor-pointer items-center justify-center rounded-full border border-white/25 bg-black/70 text-white shadow-lg backdrop-blur outline-none hover:bg-black/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                         aria-label={m['voice.focus_media']({
                           name: m['voice.screen_title']({
                             name: tile.participant.displayName
@@ -1381,7 +1453,7 @@ retained only for non-joined projections that still consume this component.
               >
                 <button
                   type="button"
-                  class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                  class="flex h-[44px] min-h-[44px] w-[44px] min-w-[44px] items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
                   disabled={filmstripPage.page === 0}
                   aria-label={m['voice.previous_page']()}
                   onclick={() => (filmstripPageIndex = Math.max(0, filmstripPage.page - 1))}
@@ -1396,7 +1468,7 @@ retained only for non-joined projections that still consume this component.
                 </span>
                 <button
                   type="button"
-                  class="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
+                  class="flex h-[44px] min-h-[44px] w-[44px] min-w-[44px] items-center justify-center rounded-full text-muted hover:bg-surface-highlighted hover:text-text disabled:opacity-40"
                   disabled={filmstripPage.page === filmstripPage.pageCount - 1}
                   aria-label={m['voice.next_page']()}
                   onclick={() =>
@@ -1530,6 +1602,18 @@ retained only for non-joined projections that still consume this component.
     height: clamp(2.75rem, 32cqi, 14rem);
     flex: 0 0 auto;
     overflow: hidden;
+  }
+
+  :global(.participant-card-filmstrip .call-gallery-avatar) {
+    width: auto;
+    max-width: 80px;
+    height: min(80px, 100%);
+    max-height: 100%;
+  }
+
+  :global(.participant-card-filmstrip) {
+    gap: 0.25rem;
+    padding: 0.25rem;
   }
 
   :global(.call-speaking-card)::after {

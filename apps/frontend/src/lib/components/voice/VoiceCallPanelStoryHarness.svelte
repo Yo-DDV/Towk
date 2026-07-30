@@ -252,13 +252,29 @@
           isLocal: index === 0,
           isMuted: index % 3 === 1,
           isLocallyMuted: index % 5 === 3,
-          connectionQuality:
-            index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
+          connectionQuality: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
           networkHealth: index % 7 === 6 ? 'poor' : index % 4 === 2 ? 'good' : 'excellent',
           packetLossPercent: index % 7 === 6 ? 12.4 : null,
           networkWarningMetric: index % 7 === 6 ? 'packetLoss' : null,
-          isCameraEnabled: scenario === 'camera' && index % 2 === 0,
-          videoTrack: scenario === 'camera' && index % 2 === 0 ? cameraTrack : null
+          isCameraEnabled:
+            (scenario === 'camera' && index % 2 === 0) ||
+            ((scenario === 'screen' || scenario === 'dual-screen') && index % 3 === 1),
+          videoTrack:
+            (scenario === 'camera' && index % 2 === 0) ||
+            ((scenario === 'screen' || scenario === 'dual-screen') && index % 3 === 1)
+              ? cameraTrack
+              : null,
+          isScreenShareEnabled:
+            (scenario === 'screen' && index === 0) || (scenario === 'dual-screen' && index < 2),
+          isScreenShareAudioEnabled: scenario === 'screen' && index === 0,
+          screenShareTrack:
+            scenario === 'screen' && index === 0
+              ? localScreenTrack
+              : scenario === 'dual-screen' && index === 0
+                ? localScreenTrack
+                : scenario === 'dual-screen' && index === 1
+                  ? screenTrack
+                  : null
         })
       );
     }
