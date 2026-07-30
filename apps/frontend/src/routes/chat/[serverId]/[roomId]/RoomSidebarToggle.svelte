@@ -111,7 +111,7 @@ Room header affordance for opening or hiding room extras panels.
       type="button"
       class={[
         'group/pane-header-icon-button pane-header-icon-button',
-        emphasized && 'bg-surface-100/70 text-text',
+        emphasized && '!h-[44px] !w-[44px] bg-surface-100/70 text-text',
         isActive && 'pane-header-icon-button-active'
       ]}
       onclick={() => onToggle(panel.id)}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { tick } from 'svelte';
+import '../../../../app.css';
 import RoomSidebarToggle from './RoomSidebarToggle.svelte';
 
 describe('RoomSidebarToggle', () => {
@@ -135,6 +136,25 @@ describe('RoomSidebarToggle', () => {
     expect(group!.classList.contains('bg-surface')).toBe(true);
     for (const button of group!.querySelectorAll<HTMLButtonElement>('button')) {
       expect(button.classList.contains('bg-surface-100/70')).toBe(true);
+    }
+  });
+
+  it('uses the same 44px square target as the compact call tabs when emphasized', () => {
+    const { container } = render(RoomSidebarToggle, {
+      props: {
+        activePanel: null,
+        onToggle: vi.fn(),
+        mode: 'always',
+        emphasized: true
+      }
+    });
+
+    const buttons = [...container.querySelectorAll<HTMLButtonElement>('button')];
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      const rect = button.getBoundingClientRect();
+      expect(Math.round(rect.width)).toBe(44);
+      expect(Math.round(rect.height)).toBe(44);
     }
   });
 

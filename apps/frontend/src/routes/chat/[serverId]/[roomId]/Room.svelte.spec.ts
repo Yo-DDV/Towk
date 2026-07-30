@@ -4,6 +4,7 @@ import { tick } from 'svelte';
 import { q } from '$lib/test-utils';
 import { RoomKind } from '@towk/api-types/api/v1/rooms_pb';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import '../../../../app.css';
 
 const { mocks } = vi.hoisted(() => {
   const queryData = {
@@ -384,6 +385,25 @@ describe('Room local message echo', () => {
     });
     expect(header.dataset.stackOnNarrow).toBe('false');
     expect(header.dataset.compactOnNarrow).toBe('true');
+  });
+
+  it('uses a 44px square leave target in the compact call header', async () => {
+    mocks.livekitUrl = 'wss://livekit.example.test';
+    mocks.activeCallRoomIds.add('room-1');
+    appUi.selectRoomPrimarySurface('server-1', 'room-1', 'call');
+
+    const { container } = render(Room, { props: { roomId: 'room-1' } });
+
+    const leaveButton = await vi.waitFor(() => {
+      const value = container.querySelector<HTMLButtonElement>(
+        '[data-testid="pane-header-mock"] button'
+      );
+      expect(value).not.toBeNull();
+      return value!;
+    });
+    const rect = leaveButton.getBoundingClientRect();
+    expect(Math.round(rect.width)).toBe(44);
+    expect(Math.round(rect.height)).toBe(44);
   });
 
   it('preloads the inline video player while the room is idle', async () => {

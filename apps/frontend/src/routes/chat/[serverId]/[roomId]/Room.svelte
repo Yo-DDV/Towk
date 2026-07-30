@@ -631,24 +631,35 @@
               />
             {/if}
             {#if showLeaveRoom}
-              <button
+              <span
                 class={[
-                  'group/pane-header-icon-button pane-header-icon-button',
-                  isCallSurface && 'bg-surface-100/70 text-text'
+                  isCallSurface
+                    ? 'inline-flex shrink-0 items-center rounded-xl border border-border bg-surface p-px'
+                    : 'contents'
                 ]}
-                onclick={() =>
-                  pushState('', {
-                    modal: {
-                      type: 'leaveRoom',
-                      roomId,
-                      roomName: room.roomData!.room.name
-                    }
-                  })}
-                disabled={leavingRoom}
-                title={m['room.leave.title']()}
+                data-testid="room-leave-action"
               >
-                <span class="pane-header-icon-glyph uil--sign-out-alt" aria-hidden="true"></span>
-              </button>
+                <button
+                  class={[
+                    'group/pane-header-icon-button pane-header-icon-button',
+                    isCallSurface && '!h-[44px] !w-[44px] bg-surface-100/70 text-text'
+                  ]}
+                  onclick={() =>
+                    pushState('', {
+                      modal: {
+                        type: 'leaveRoom',
+                        roomId,
+                        roomName: room.roomData!.room.name
+                      }
+                    })}
+                  disabled={leavingRoom}
+                  title={m['room.leave.title']()}
+                  aria-label={m['room.leave.title']()}
+                  data-testid="room-leave-button"
+                >
+                  <span class="pane-header-icon-glyph uil--sign-out-alt" aria-hidden="true"></span>
+                </button>
+              </span>
             {/if}
           {/snippet}
         </PaneHeader>
