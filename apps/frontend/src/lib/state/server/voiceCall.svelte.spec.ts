@@ -4265,6 +4265,47 @@ describe('VoiceCallState', () => {
     await state.leave();
   });
 
+  it('does not resurrect a terminally left remote participant as interrupted', async () => {
+    const remoteParticipant = {
+      identity: 'remote-device',
+      name: 'Remote User',
+      metadata:
+        '{"userId":"remote-user","participantId":"remote-device","deviceIndex":2,"login":"remote-user"}',
+      connectionQuality: 'good',
+      isSpeaking: false,
+      audioLevel: 0,
+      setVolume: vi.fn(),
+      trackPublications: new Map(),
+      getTrackPublications: vi.fn(() => [{ isMuted: false, track: { source: 'microphone' } }])
+    };
+    mockRemoteParticipants.set('remote-device', remoteParticipant);
+    const state = new VoiceCallState(createVoiceCallClient());
+    await state.join('wss://livekit.example.test', 'R1');
+
+    state.handleParticipantLeftEvent(
+      'R1',
+      'call-1',
+      'remote-device',
+      'remote-user',
+      'local-user'
+    );
+    state.handleParticipantConnectionChangedEvent(
+      'R1',
+      'call-1',
+      'remote-device',
+      'interrupted',
+      new Date(Date.now() + 60_000).toISOString()
+    );
+    mockRemoteParticipants.delete('remote-device');
+    roomEventHandlers.get('ParticipantDisconnected')?.(remoteParticipant);
+
+    expect(
+      state.participants.find((participant) => participant.identity === 'remote-device')
+    ).toBeUndefined();
+
+    await state.leave();
+  });
+
   it('does not let an old network-quality poll unlock a poll for the recovered room', async () => {
     const firstPoll = deferredValue<RTCStatsReport>();
     const recoveredPoll = deferredValue<RTCStatsReport>();

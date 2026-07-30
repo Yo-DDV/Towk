@@ -443,6 +443,10 @@ export class VoiceCallState {
   private siblingAudioControlInFlight = new SvelteMap<string, Promise<boolean>>();
   private siblingAudioStateRefreshInFlight = new SvelteMap<string, Promise<void>>();
   private interruptedParticipants = new SvelteMap<string, CallParticipantInfo>();
+  // A terminal room event and LiveKit's disconnect callback may arrive in
+  // either order. Keep exact IDs hidden for this call generation once the
+  // backend has committed their leave.
+  private terminalParticipantIds = new SvelteSet<string>();
 
   // Non-reactive audio level cache — updated at 60ms by the polling interval.
   // Deliberately NOT $state to avoid triggering Svelte reactivity at 60Hz.
@@ -993,7 +997,10 @@ export class VoiceCallState {
     actorId: string | null,
     currentUserId: string | null
   ): void {
-    if (participantId) {
+    const matchesCurrentCall =
+      this.roomId === roomId && callId !== null && this.activeCallId === callId;
+    if (participantId && matchesCurrentCall) {
+      this.terminalParticipantIds.add(participantId);
       this.clearInterruptedParticipant(participantId);
       this.updateParticipants();
     }
@@ -1012,6 +1019,11 @@ export class VoiceCallState {
   ): void {
     if (this.roomId !== roomId || this.activeCallId !== callId || !participantId) return;
     if (connectionState === 'interrupted') {
+      if (this.terminalParticipantIds.has(participantId)) {
+        this.clearInterruptedParticipant(participantId);
+        this.updateParticipants();
+        return;
+      }
       this.markParticipantInterrupted(participantId, interruptionDeadline);
     } else {
       this.clearInterruptedParticipant(participantId);
@@ -2153,10 +2165,16 @@ export class VoiceCallState {
 
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       if (this.room !== room) return;
-      this.markParticipantInterrupted(
-        participant.identity,
-        new SvelteDate(Date.now() + 60_000).toISOString()
-      );
+      const metadata = parseParticipantMetadata(participant.metadata);
+      const participantId = metadata.participantId ?? participant.identity;
+      if (this.terminalParticipantIds.has(participantId)) {
+        this.clearInterruptedParticipant(participantId);
+      } else {
+        this.markParticipantInterrupted(
+          participantId,
+          new SvelteDate(Date.now() + 60_000).toISOString()
+        );
+      }
       this.removeSiblingAudioState(participant.identity);
       this.updateParticipants();
     });
@@ -2479,15 +2497,16 @@ export class VoiceCallState {
     this.isScreenShareEnabled = isParticipantScreenShareEnabled(this.room.localParticipant);
     this.applyAllParticipantAudioVolumes();
 
-    const connectedParticipants = allParticipants.map((p) => {
+    const connectedParticipants = allParticipants.flatMap((p) => {
       const md = parseParticipantMetadata(p.metadata);
       const isLocal = p === this.room!.localParticipant;
       const participantId = md.participantId ?? p.identity;
+      if (this.terminalParticipantIds.has(participantId)) return [];
       const userId = md.userId ?? p.identity;
       const canControlAudio = this.isControllableSibling(p);
       const siblingAudioState = canControlAudio ? this.siblingAudioStates[p.identity] : undefined;
       const networkQuality = this.participantNetworkQuality[p.identity];
-      return {
+      return [{
         identity: p.identity,
         participantId,
         userId,
@@ -2521,7 +2540,7 @@ export class VoiceCallState {
         isSiblingOutputControlPending:
           canControlAudio &&
           Boolean(this.siblingAudioControlPending[siblingAudioControlKey(p.identity, 'output')])
-      };
+      }];
     });
     const connectedIdentities = new SvelteSet(
       connectedParticipants.map((participant) => participant.identity)
@@ -2686,6 +2705,7 @@ export class VoiceCallState {
     this.isScreenSharePending = false;
     this.participants = [];
     this.clearInterruptedParticipants();
+    this.terminalParticipantIds.clear();
     this.locallyMutedParticipantIds = {};
     this.localAudioStateRevision = 0;
     this.siblingAudioStates = {};
