@@ -164,7 +164,8 @@
 
   function openEmojiPickerFromEvent(e: MouseEvent) {
     if (
-      reactionTriggerTarget((e as PointerEvent).pointerType, canUseHoverActions) === 'action-sheet'
+      reactionTriggerTarget((e as PointerEvent).pointerType, canUseHoverActions, prefersTouch) ===
+      'action-sheet'
     ) {
       showActionSheet = true;
       return;
@@ -1005,6 +1006,7 @@
     <ContextMenu
       position={emojiPickerPos}
       presentation={emojiPickerPresentation}
+      dismissOnExternalInteraction={false}
       onclose={closeEmojiPicker}
     >
       <EmojiPicker
@@ -1038,6 +1040,7 @@
         onReplyInRoom={canUseReplyAction ? handleReplyInRoom : undefined}
         onReply={canUseThreadAction ? handleOpenThread : undefined}
         onOpenEmojiPicker={roomPermissions.canReact ? () => openEmojiPicker('sheet') : undefined}
+        deferEmojiPickerOpen
         onClose={() => (showActionSheet = false)}
       />
     </BottomSheet>
