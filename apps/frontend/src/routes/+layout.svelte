@@ -28,6 +28,7 @@
   import { ToastContainer } from '$lib/ui/toast';
   import { AppHeader, Frame } from '$lib/ui';
   import '../app.css';
+  import '$lib/styles/app-shell-depth.css';
   import '$lib/styles/liquid-glass-surfaces.css';
   import '$lib/styles/auto-hide-scrollbars.css';
 
@@ -99,7 +100,8 @@
 
 {#snippet frame()}
   <div
-    class="flex h-full w-full flex-col overscroll-y-contain bg-surface-100 pt-[env(safe-area-inset-top,0px)] md:p-3 md:pt-0"
+    data-testid="app-envelope"
+    class="app-envelope flex h-full w-full flex-col overscroll-y-contain bg-surface-100 pt-[env(safe-area-inset-top,0px)] md:p-3 md:pt-0"
   >
     <ConnectionIndicator />
 

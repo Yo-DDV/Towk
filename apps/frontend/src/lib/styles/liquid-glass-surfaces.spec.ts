@@ -1,15 +1,30 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const stylesheet = readFileSync(new URL('./liquid-glass-surfaces.css', import.meta.url), 'utf8');
+const appCss = readFileSync(new URL('../../app.css', import.meta.url), 'utf8');
 const rootLayout = readFileSync(new URL('../../routes/+layout.svelte', import.meta.url), 'utf8');
+const frame = readFileSync(new URL('../ui/Frame.svelte', import.meta.url), 'utf8');
+const paneHeader = readFileSync(new URL('../ui/PaneHeader.svelte', import.meta.url), 'utf8');
+const scrollFader = readFileSync(new URL('../ui/ScrollFader.svelte', import.meta.url), 'utf8');
+const toggleChip = readFileSync(new URL('../ui/ToggleChip.svelte', import.meta.url), 'utf8');
+const matrixCell = readFileSync(
+  new URL('../components/rbac/MatrixCell.svelte', import.meta.url),
+  'utf8'
+);
+const packageJson = readFileSync(new URL('../../../package.json', import.meta.url), 'utf8');
+const liquidGlass = readFileSync(new URL('./liquid-glass-surfaces.css', import.meta.url), 'utf8');
+const shellEntry = readFileSync(new URL('./app-shell-depth.css', import.meta.url), 'utf8');
+const shell = [
+  'app-shell-depth.tokens.css',
+  'app-shell-depth.surfaces.css',
+  'app-shell-depth.controls.css',
+  'app-shell-depth.states.css',
+  'app-shell-depth.preferences.css'
+]
+  .map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
+  .join('\n');
 
-const backdropEnhancement =
-  '@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px)))';
-const darkThemeStart = stylesheet.indexOf(":root[data-theme='dark']");
-const surfaceRulesStart = stylesheet.indexOf(":root [data-testid='current-user-identity-card']");
-const lightTheme = stylesheet.slice(0, darkThemeStart);
-const darkTheme = stylesheet.slice(darkThemeStart, surfaceRulesStart);
+const gradientFunction = /(?:linear|radial|conic)-gradient\s*\(/i;
 
 function cssVariable(block: string, name: string): string {
   const match = block.match(new RegExp(`--${name}:\\s*([^;]+);`));
@@ -17,86 +32,162 @@ function cssVariable(block: string, name: string): string {
   return match[1].trim();
 }
 
-function rgbaAlpha(value: string): number {
-  const match = value.match(/,\s*([0-9.]+)\)$/);
-  if (!match) throw new Error(`Expected rgba() value, received ${value}`);
-  return Number(match[1]);
+function rgbChannels(value: string): [number, number, number] {
+  const hex = value.match(/^#([0-9a-f]{6})$/i);
+  if (hex) {
+    return [
+      Number.parseInt(hex[1].slice(0, 2), 16),
+      Number.parseInt(hex[1].slice(2, 4), 16),
+      Number.parseInt(hex[1].slice(4, 6), 16)
+    ];
+  }
+
+  const rgb = value.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+  if (!rgb) throw new Error(`Expected rgb() or six-digit hex, received ${value}`);
+  return [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])];
 }
 
-describe('liquid glass surface stylesheet', () => {
-  it('loads once from the application shell and targets only the intended surfaces', () => {
-    expect(rootLayout).toContain("import '$lib/styles/liquid-glass-surfaces.css';");
-    expect(stylesheet).toContain("[data-testid='current-user-identity-card']");
-    expect(stylesheet).toContain("[data-testid='message-composer-shell'].composer-focus-shell");
+function expectAchromatic(value: string) {
+  const [red, green, blue] = rgbChannels(value);
+  expect(red).toBe(green);
+  expect(green).toBe(blue);
+}
+
+function relativeLuminance(value: string): number {
+  const channels = rgbChannels(value).map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045
+      ? normalized / 12.92
+      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+describe('depth-aware application surfaces', () => {
+  it('loads the material layers in deterministic order', () => {
+    const appCssIndex = rootLayout.indexOf("import '../app.css';");
+    const shellIndex = rootLayout.indexOf("import '$lib/styles/app-shell-depth.css';");
+    const liquidIndex = rootLayout.indexOf("import '$lib/styles/liquid-glass-surfaces.css';");
+
+    expect(appCssIndex).toBeGreaterThanOrEqual(0);
+    expect(shellIndex).toBeGreaterThan(appCssIndex);
+    expect(liquidIndex).toBeGreaterThan(shellIndex);
+    expect(rootLayout.match(/app-shell-depth\.css/g)).toHaveLength(1);
+    expect(rootLayout.match(/liquid-glass-surfaces\.css/g)).toHaveLength(1);
+
+    for (const fragment of ['tokens', 'surfaces', 'controls', 'states', 'preferences']) {
+      expect(shellEntry.match(new RegExp(`app-shell-depth\\.${fragment}\\.css`, 'g'))).toHaveLength(1);
+    }
   });
 
-  it('ships an opaque, layout-neutral fallback before backdrop enhancement', () => {
-    const enhancementIndex = stylesheet.indexOf(backdropEnhancement);
-    expect(enhancementIndex).toBeGreaterThan(0);
-
-    const fallback = stylesheet.slice(0, enhancementIndex);
-    expect(fallback).toContain('--liquid-glass-fill: rgb(248, 250, 252);');
-    expect(fallback).toContain('--liquid-glass-fill: rgb(38, 38, 42);');
-    expect(fallback).toContain('background-color: var(--liquid-glass-current-fill);');
-    expect(fallback).toContain('inset 0 0 0 1px var(--liquid-glass-current-border)');
-    expect(fallback).not.toMatch(/\n\s*border\s*:/);
-    expect(fallback).not.toContain('backdrop-filter:');
+  it('keeps structural hooks without moving the application layout', () => {
+    expect(rootLayout).toContain('data-testid="app-envelope"');
+    expect(rootLayout).toContain('class="app-envelope flex h-full w-full flex-col');
+    expect(frame).toContain('data-testid="app-content-frame"');
+    expect(frame).toContain('class="app-content-frame flex min-h-0 flex-1');
+    expect(paneHeader).toContain('data-ui="pane-header"');
+    expect(scrollFader).toContain('data-ui="scroll-edge-cue"');
+    expect(toggleChip).toContain('data-ui="toggle-chip"');
+    expect(matrixCell).toContain('data-ui="permission-matrix-state"');
   });
 
-  it('uses uniform face and perimeter lighting without fixed interior hotspots', () => {
-    expect(stylesheet).toContain('--liquid-glass-face-top:');
-    expect(stylesheet).toContain('--liquid-glass-face-middle:');
-    expect(stylesheet).toContain('--liquid-glass-face-bottom:');
-    expect(stylesheet).toContain('--liquid-glass-edge-highlight:');
-    expect(stylesheet).toContain('--liquid-glass-edge-sheen:');
-    expect(stylesheet).toContain('inset 1px 0 0 var(--liquid-glass-edge-sheen)');
-    expect(stylesheet).toContain('inset -1px 0 0 var(--liquid-glass-edge-sheen)');
-    expect(stylesheet).toContain('transparent 6%');
-    expect(stylesheet).toContain('transparent 94%');
-    expect(stylesheet).not.toContain('radial-gradient');
-    expect(stylesheet).not.toContain('at 4% -58%');
-    expect(stylesheet).not.toContain('at 104% 136%');
-    expect(stylesheet).not.toContain('--liquid-glass-caustic');
-    expect(stylesheet).not.toContain('--liquid-glass-lift');
-    expect(stylesheet).not.toContain('-6px -6px');
+  it('uses a comfortable achromatic dark hierarchy', () => {
+    const darkStart = shell.indexOf(":root[data-theme='dark']");
+    const darkEnd = shell.indexOf('/* Application shell', darkStart);
+    const darkTheme = shell.slice(darkStart, darkEnd);
+
+    const neutralVariables = [
+      'color-background',
+      'color-text',
+      'color-text-top',
+      'color-muted',
+      'color-border',
+      'color-surface',
+      'color-surface-100',
+      'color-surface-200',
+      'color-surface-300',
+      'color-surface-highlighted',
+      'color-input',
+      'color-input-border',
+      'color-primary',
+      'color-primary-hover',
+      'color-panel-tint',
+      'towk-canvas',
+      'towk-content-raised',
+      'towk-envelope',
+      'towk-frame',
+      'towk-navigation',
+      'towk-control',
+      'towk-control-hover',
+      'towk-control-pressed',
+      'towk-control-subtle',
+      'towk-transient-solid',
+      'towk-transient-glass',
+      'towk-stroke',
+      'towk-stroke-strong',
+      'towk-edge-light',
+      'towk-edge-soft',
+      'towk-focus-neutral',
+      'towk-action-primary',
+      'towk-action-primary-hover'
+    ];
+
+    for (const name of neutralVariables) expectAchromatic(cssVariable(darkTheme, name));
+
+    const envelope = cssVariable(darkTheme, 'towk-envelope');
+    const navigation = cssVariable(darkTheme, 'towk-navigation');
+    const canvas = cssVariable(darkTheme, 'towk-canvas');
+    const frameFill = cssVariable(darkTheme, 'towk-frame');
+    const background = cssVariable(darkTheme, 'color-background');
+    const envelopeChannel = rgbChannels(envelope)[0];
+    const canvasChannel = rgbChannels(canvas)[0];
+
+    expect(relativeLuminance(envelope)).toBeGreaterThan(relativeLuminance(navigation));
+    expect(relativeLuminance(navigation)).toBeGreaterThan(relativeLuminance(canvas));
+    expect(relativeLuminance(frameFill)).toBeGreaterThanOrEqual(relativeLuminance(canvas));
+    expect(relativeLuminance(canvas)).toBeCloseTo(relativeLuminance(background), 4);
+    expect(relativeLuminance(canvas)).toBeGreaterThan(0.008);
+    expect(relativeLuminance(canvas)).toBeLessThan(0.02);
+    expect(envelopeChannel - canvasChannel).toBeGreaterThanOrEqual(10);
+    expect(canvasChannel).toBeGreaterThanOrEqual(24);
   });
 
-  it('keeps the regular-style material neutral and bounds internal luminance', () => {
-    const lightFaceTop = cssVariable(lightTheme, 'liquid-glass-face-top');
-    const darkFaceTop = cssVariable(darkTheme, 'liquid-glass-face-top');
-    const lightEdgeHighlight = cssVariable(lightTheme, 'liquid-glass-edge-highlight');
-    const darkEdgeHighlight = cssVariable(darkTheme, 'liquid-glass-edge-highlight');
-    const lightFill = cssVariable(lightTheme, 'liquid-glass-fill-translucent');
-    const darkFill = cssVariable(darkTheme, 'liquid-glass-fill-translucent');
-
-    expect(lightFaceTop).toContain('148, 163, 184');
-    expect(darkFaceTop).toContain('148, 163, 184');
-    expect(lightEdgeHighlight).toContain('226, 232, 240');
-    expect(darkEdgeHighlight).toContain('203, 213, 225');
-    expect(rgbaAlpha(lightFaceTop)).toBeLessThanOrEqual(0.04);
-    expect(rgbaAlpha(darkFaceTop)).toBeLessThanOrEqual(0.02);
-    expect(rgbaAlpha(lightEdgeHighlight)).toBeLessThanOrEqual(0.22);
-    expect(rgbaAlpha(darkEdgeHighlight)).toBeLessThanOrEqual(0.07);
-    expect(rgbaAlpha(lightFill)).toBeLessThanOrEqual(0.5);
-    expect(rgbaAlpha(darkFill)).toBeLessThanOrEqual(0.54);
-    expect(stylesheet).not.toContain('rgba(255, 255, 255');
+  it('covers the whole outer envelope with one neutral surface', () => {
+    expect(shell).toContain('html,\nbody {\n  background-color: var(--towk-envelope);');
+    expect(shell).toContain('.app-header {\n  background-color: var(--towk-envelope);');
+    expect(shell).toContain('.app-envelope {');
+    expect(shell).toContain('background-color: var(--towk-envelope);');
   });
 
-  it('progressively enhances supported engines without making blur mandatory', () => {
-    expect(stylesheet).toContain(backdropEnhancement);
-    expect(stylesheet).toContain('-webkit-backdrop-filter: blur(18px) saturate(115%);');
-    expect(stylesheet).toContain('backdrop-filter: blur(18px) saturate(115%);');
-    expect(stylesheet).toContain('-webkit-backdrop-filter: blur(12px) saturate(110%);');
-    expect(stylesheet).toContain('backdrop-filter: blur(12px) saturate(110%);');
+  it('contains no decorative gradients or saturation amplification', () => {
+    expect(appCss).not.toMatch(gradientFunction);
+    expect(shell).not.toMatch(gradientFunction);
+    expect(liquidGlass).not.toMatch(gradientFunction);
+    expect(scrollFader).not.toMatch(/bg-gradient|from-background|to-transparent/);
+    expect(toggleChip).not.toMatch(/bg-gradient|--tw-gradient/i);
+    expect(matrixCell).not.toMatch(/bg-gradient|--tw-gradient/i);
+    expect(`${shell}\n${liquidGlass}`).toContain('saturate(100%)');
+    expect(`${shell}\n${liquidGlass}`).not.toMatch(/saturate\((?:10[1-9]|1[1-9]\d|[2-9]\d\d)%\)/);
   });
 
-  it('respects transparency, contrast, motion, and forced-color preferences', () => {
-    expect(stylesheet).toContain('@media (prefers-reduced-transparency: reduce)');
-    expect(stylesheet).toContain('@media (prefers-contrast: more)');
-    expect(stylesheet).toContain('@media (prefers-reduced-motion: reduce)');
-    expect(stylesheet).toContain('@media (forced-colors: active)');
-    expect(stylesheet).toContain('outline: 1px solid CanvasText;');
-    expect(stylesheet).toContain('outline: 2px solid Highlight;');
-    expect(stylesheet).not.toContain('will-change');
+  it('keeps blur bounded and persistent surfaces opaque', () => {
+    expect(liquidGlass).toContain('backdrop-filter: blur(16px) saturate(100%);');
+    expect(liquidGlass).toContain('backdrop-filter: blur(12px) saturate(100%);');
+    expect(shell).toContain('backdrop-filter: blur(16px) saturate(100%);');
+    expect(shell).toContain('backdrop-filter: blur(12px) saturate(100%);');
+    expect(`${liquidGlass}\n${shell}`).not.toMatch(/blur\((?:1[7-9]|[2-9]\d)px\)/);
+    expect(shell).toContain('Persistent surfaces use a stable Mica-like material');
+  });
+
+  it('preserves accessibility fallbacks and the existing stack', () => {
+    for (const stylesheet of [liquidGlass, shell]) {
+      expect(stylesheet).toContain('@media (prefers-reduced-transparency: reduce)');
+      expect(stylesheet).toContain('@media (prefers-contrast: more)');
+      expect(stylesheet).toContain('@media (prefers-reduced-motion: reduce)');
+      expect(stylesheet).toContain('@media (forced-colors: active)');
+      expect(stylesheet).toContain('backdrop-filter: none;');
+    }
+
+    expect(packageJson).not.toMatch(/shadcn|bits-ui|melt-ui/i);
   });
 });

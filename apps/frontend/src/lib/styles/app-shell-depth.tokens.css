@@ -1,0 +1,104 @@
+/*
+ * Towk dark material hierarchy.
+ *
+ * The existing layout and interaction model stay intact. This layer assigns
+ * semantic materials to the current shell: a matte outer envelope, an inset
+ * content canvas, persistent navigation surfaces, compact polished-glass
+ * anchors, and acrylic only for transient overlays. Depth is built with solid
+ * fills, hairlines, and paired key/ambient shadows; decorative color gradients
+ * are intentionally neutralized.
+ */
+:root {
+  --towk-canvas: rgb(248, 250, 252);
+  --towk-content-raised: rgb(244, 247, 250);
+  --towk-envelope: rgb(228, 233, 240);
+  --towk-frame: rgb(248, 250, 252);
+  --towk-navigation: rgb(238, 242, 247);
+  --towk-control: rgb(230, 235, 242);
+  --towk-control-hover: rgb(220, 227, 235);
+  --towk-control-pressed: rgb(211, 219, 229);
+  --towk-control-subtle: rgb(239, 243, 247);
+  --towk-transient-solid: rgb(235, 240, 246);
+  --towk-transient-glass: rgba(235, 240, 246, 0.88);
+
+  --towk-stroke: rgba(71, 85, 105, 0.22);
+  --towk-stroke-strong: rgba(51, 65, 85, 0.38);
+  --towk-edge-light: rgba(255, 255, 255, 0.78);
+  --towk-edge-soft: rgba(100, 116, 139, 0.15);
+  --towk-edge-shadow: rgba(15, 23, 42, 0.14);
+  --towk-key-shadow: rgba(15, 23, 42, 0.24);
+  --towk-ambient-shadow: rgba(15, 23, 42, 0.14);
+  --towk-deep-shadow: rgba(15, 23, 42, 0.3);
+
+  --towk-focus-neutral: rgba(14, 165, 233, 0.25);
+  --towk-focus-orange: rgba(232, 120, 59, 0.2);
+
+  --towk-action-primary: #566273;
+  --towk-action-primary-hover: #64748b;
+  --towk-action-accent: #075985;
+  --towk-action-accent-hover: #0369a1;
+  --towk-action-success: #166534;
+  --towk-action-success-hover: #15803d;
+  --towk-action-warning: #92400e;
+  --towk-action-warning-hover: #b45309;
+  --towk-action-danger: #991b1b;
+  --towk-action-danger-hover: #b91c1c;
+
+  /* Disable the legacy sweep token even before component overrides apply. */
+  --shimmer-gradient: none;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /*
+   * Achromatic neutral scale: the content floor stays a dark gray rather than
+   * near-black, while the surrounding envelope is one clear elevation step
+   * lighter. Every non-semantic surface keeps equal RGB channels so no blue
+   * cast can re-enter through a token override.
+   */
+  --color-background: #1a1a1a;
+  --color-text: #d8d8d8;
+  --color-text-top: #f2f2f2;
+  --color-muted: #a0a0a0;
+  --color-border: #383838;
+  --color-surface: #202020;
+  --color-surface-100: #262626;
+  --color-surface-200: #303030;
+  --color-surface-300: #3a3a3a;
+  --color-surface-highlighted: #444444;
+  --color-input: #161616;
+  --color-input-border: #3a3a3a;
+  --color-primary: #5a5a5a;
+  --color-primary-hover: #6a6a6a;
+  --color-panel-tint: #202020;
+  --color-panel-highlight: rgba(255, 255, 255, 0.045);
+  --color-image-outline: rgba(255, 255, 255, 0.11);
+
+  --towk-canvas: rgb(26, 26, 26);
+  --towk-content-raised: rgb(31, 31, 31);
+  --towk-envelope: rgb(38, 38, 38);
+  --towk-frame: rgb(26, 26, 26);
+  --towk-navigation: rgb(32, 32, 32);
+  --towk-control: rgb(43, 43, 43);
+  --towk-control-hover: rgb(54, 54, 54);
+  --towk-control-pressed: rgb(65, 65, 65);
+  --towk-control-subtle: rgb(37, 37, 37);
+  --towk-transient-solid: rgb(36, 36, 36);
+  --towk-transient-glass: rgba(36, 36, 36, 0.92);
+
+  --towk-stroke: rgba(255, 255, 255, 0.075);
+  --towk-stroke-strong: rgba(255, 255, 255, 0.16);
+  --towk-edge-light: rgba(255, 255, 255, 0.06);
+  --towk-edge-soft: rgba(255, 255, 255, 0.035);
+  --towk-edge-shadow: rgba(0, 0, 0, 0.34);
+  --towk-key-shadow: rgba(0, 0, 0, 0.44);
+  --towk-ambient-shadow: rgba(0, 0, 0, 0.28);
+  --towk-deep-shadow: rgba(0, 0, 0, 0.52);
+
+  --towk-focus-neutral: rgba(255, 255, 255, 0.15);
+  --towk-focus-orange: rgba(232, 120, 59, 0.2);
+
+  --towk-action-primary: #5a5a5a;
+  --towk-action-primary-hover: #6a6a6a;
+}

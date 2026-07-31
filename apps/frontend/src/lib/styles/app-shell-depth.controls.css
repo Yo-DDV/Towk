@@ -1,0 +1,244 @@
+/* Buttons ----------------------------------------------------------------- */
+.btn-primary,
+.btn-accent,
+.btn-success,
+.btn-secondary,
+.btn-warning,
+.btn-danger {
+  background-image: none;
+  border: 1px solid var(--towk-stroke);
+  border-radius: 0.625rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.26),
+    0 1px 2px var(--towk-key-shadow),
+    0 8px 18px -15px var(--towk-ambient-shadow);
+  transition-property: background-color, color, border-color, box-shadow, scale;
+}
+
+.btn-primary {
+  background-color: var(--towk-action-primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--towk-action-primary-hover);
+}
+
+.btn-accent {
+  background-color: var(--towk-action-accent);
+}
+
+.btn-accent:hover:not(:disabled) {
+  background-color: var(--towk-action-accent-hover);
+}
+
+.btn-success {
+  background-color: var(--towk-action-success);
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: var(--towk-action-success-hover);
+}
+
+.btn-warning {
+  background-color: var(--towk-action-warning);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: var(--towk-action-warning-hover);
+}
+
+.btn-danger {
+  background-color: var(--towk-action-danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--towk-action-danger-hover);
+}
+
+.btn-secondary {
+  background-color: var(--towk-control);
+  color: var(--color-text);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--towk-control-hover);
+  border-color: var(--towk-stroke-strong);
+}
+
+.btn-ghost {
+  background-image: none;
+  box-shadow: none;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--towk-control-hover);
+}
+
+.btn-primary:active:not(:disabled),
+.btn-accent:active:not(:disabled),
+.btn-success:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-warning:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.32),
+    inset 0 1px 0 rgba(0, 0, 0, 0.14);
+}
+
+.btn-primary:focus-visible,
+.btn-accent:focus-visible,
+.btn-success:focus-visible,
+.btn-secondary:focus-visible,
+.btn-warning:focus-visible,
+.btn-danger:focus-visible,
+.btn-ghost:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Navigation and compact controls ---------------------------------------- */
+.app-header-icon,
+.pane-header-icon-button,
+.icon-action,
+.sidebar-item,
+[data-testid='current-user-identity-text'] {
+  background-image: none;
+  box-shadow: none;
+  transition-property: background-color, color, box-shadow, transform, scale;
+  transition-duration: 140ms;
+}
+
+.server-gutter-item {
+  background-color: var(--towk-control);
+  background-image: none;
+  box-shadow:
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow),
+    0 1px 2px var(--towk-key-shadow),
+    0 8px 18px -15px var(--towk-ambient-shadow);
+  transition-property: background-color, color, border-color, box-shadow, transform, scale;
+  transition-duration: 140ms;
+}
+
+.server-gutter-item-active {
+  background-color: var(--towk-control-pressed);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--color-text-top) 58%, transparent),
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow),
+    0 1px 2px var(--towk-key-shadow),
+    0 10px 20px -16px var(--towk-ambient-shadow);
+}
+
+.sidebar-item.bg-surface-100,
+.menu-item-active {
+  background-color: var(--towk-control-pressed);
+  box-shadow:
+    inset 2px 0 0 color-mix(in srgb, var(--color-text-top) 18%, transparent),
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow);
+}
+
+.pane-header-icon-button-active {
+  background-color: var(--towk-control-pressed);
+  box-shadow:
+    inset 0 0 0 1px var(--towk-stroke-strong),
+    inset 0 1px 0 var(--towk-edge-light),
+    inset 0 -1px 0 var(--towk-edge-shadow);
+}
+
+.meta-badge {
+  border-radius: 0.45rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-header-icon:hover,
+  .pane-header-icon-button:hover,
+  .icon-action:hover {
+    background-color: var(--towk-control-hover);
+    color: var(--color-text-top);
+    box-shadow:
+      inset 0 1px 0 var(--towk-edge-light),
+      0 8px 16px -14px var(--towk-ambient-shadow);
+    transform: translateY(-1px);
+  }
+
+  .sidebar-item:hover,
+  [data-testid='current-user-identity-text']:hover,
+  [data-testid='current-user-identity-card'] > a:hover,
+  [data-testid='current-user-identity-card'] > button:hover {
+    background-color: var(--towk-control-hover);
+    color: var(--color-text-top);
+    box-shadow: inset 0 1px 0 var(--towk-edge-light);
+  }
+
+  .sidebar-item.bg-surface-100:hover,
+  .menu-item-active:hover {
+    background-color: color-mix(in srgb, var(--color-text-top) 5%, var(--towk-control-pressed));
+    box-shadow:
+      inset 2px 0 0 color-mix(in srgb, var(--color-text-top) 28%, transparent),
+      inset 0 1px 0 var(--towk-edge-light),
+      inset 0 -1px 0 var(--towk-edge-shadow),
+      0 8px 16px -15px var(--towk-ambient-shadow);
+    transform: none;
+  }
+
+  .pane-header-icon-button-active:hover {
+    background-color: color-mix(in srgb, var(--color-text-top) 5%, var(--towk-control-pressed));
+    box-shadow:
+      inset 0 0 0 1px var(--towk-stroke-strong),
+      inset 0 1px 0 var(--towk-edge-light),
+      inset 0 -1px 0 var(--towk-edge-shadow),
+      0 8px 16px -15px var(--towk-ambient-shadow);
+  }
+
+  .server-gutter-item:hover {
+    background-color: var(--towk-control-hover);
+    color: var(--color-text-top);
+    box-shadow:
+      inset 0 1px 0 var(--towk-edge-light),
+      inset 0 -1px 0 var(--towk-edge-shadow),
+      0 2px 3px var(--towk-key-shadow),
+      0 12px 22px -16px var(--towk-ambient-shadow);
+    transform: translateY(-1px);
+  }
+
+  .server-gutter-item-active:hover {
+    background-color: color-mix(in srgb, var(--color-text-top) 5%, var(--towk-control-pressed));
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--color-text-top) 68%, transparent),
+      inset 0 1px 0 var(--towk-edge-light),
+      inset 0 -1px 0 var(--towk-edge-shadow),
+      0 2px 3px var(--towk-key-shadow),
+      0 12px 22px -16px var(--towk-ambient-shadow);
+    transform: none;
+  }
+
+  .meta-badge:hover {
+    background-color: var(--towk-control-hover);
+    border-color: var(--towk-stroke-strong);
+    box-shadow: inset 0 1px 0 var(--towk-edge-light);
+  }
+}
+
+.app-header-icon:active,
+.pane-header-icon-button:active,
+.icon-action:active,
+.sidebar-item:active,
+.server-gutter-item:active,
+[data-testid='current-user-identity-text']:active {
+  background-color: var(--towk-control-pressed);
+  box-shadow: inset 0 2px 5px var(--towk-edge-shadow);
+  transform: translateY(0);
+}
+
+.app-header-icon:focus-visible,
+.pane-header-icon-button:focus-visible,
+.icon-action:focus-visible,
+.sidebar-item:focus-visible,
+.server-gutter-item:focus-visible,
+[data-testid='current-user-identity-text']:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
