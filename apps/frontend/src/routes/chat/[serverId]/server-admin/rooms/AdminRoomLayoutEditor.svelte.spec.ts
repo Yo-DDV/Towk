@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import { flushSync } from 'svelte';
 import { render } from 'vitest-browser-svelte';
+import '../../../../../app.css';
 import type { AdminRoomLayoutAPI } from '$lib/api-client/adminRoomLayout';
 import type { RoomPurgeAPI, RoomPurgeAPIConfig } from '$lib/api-client/roomPurge';
 import type { RoomCommandAPI } from '$lib/api-client/rooms';
@@ -294,63 +296,65 @@ describe('AdminRoomLayoutEditor', () => {
   });
 
   it('keeps the complete action group inside the room row across wide and narrow cards', async () => {
-    const layout = makeLayout();
-    layout.initialized = true;
-    layout.groups = [
-      group(
-        'g1',
-        [room('r1', { name: 'a-very-long-room-name', description: 'Responsive room row' })],
-        'Lobby'
-      )
-    ];
-    const { container } = renderEditor(layout);
-    const card = container.querySelector('.room-group-card');
-    const row = container.querySelector('.room-row');
-    const copy = container.querySelector('.room-row-copy');
-    const actions = container.querySelector('.room-row-actions');
-    if (
-      !(card instanceof HTMLElement) ||
-      !(row instanceof HTMLElement) ||
-      !(copy instanceof HTMLElement) ||
-      !(actions instanceof HTMLElement)
-    ) {
-      throw new Error('room row geometry was unavailable');
-    }
+    await page.viewport(1024, 768);
 
-    card.style.width = '48rem';
-    await vi.waitFor(() => {
-      const rowBounds = row.getBoundingClientRect();
-      const copyBounds = copy.getBoundingClientRect();
-      const actionBounds = actions.getBoundingClientRect();
-      expect(
-        Math.abs(
-          actionBounds.top +
-            actionBounds.height / 2 -
-            (copyBounds.top + copyBounds.height / 2)
+    try {
+      const layout = makeLayout();
+      layout.initialized = true;
+      layout.groups = [
+        group(
+          'g1',
+          [room('r1', { name: 'a-very-long-room-name', description: 'Responsive room row' })],
+          'Lobby'
         )
-      ).toBeLessThanOrEqual(2);
-      expect(actionBounds.right).toBeLessThanOrEqual(rowBounds.right + 1);
-      expect(row.scrollWidth).toBeLessThanOrEqual(Math.ceil(rowBounds.width) + 1);
-    });
+      ];
+      const { container } = renderEditor(layout);
+      const card = container.querySelector('.room-group-card');
+      const row = container.querySelector('.room-row');
+      const copy = container.querySelector('.room-row-copy');
+      const actions = container.querySelector('.room-row-actions');
+      if (
+        !(card instanceof HTMLElement) ||
+        !(row instanceof HTMLElement) ||
+        !(copy instanceof HTMLElement) ||
+        !(actions instanceof HTMLElement)
+      ) {
+        throw new Error('room row geometry was unavailable');
+      }
 
-    card.style.width = '26rem';
-    await vi.waitFor(() => {
-      const rowBounds = row.getBoundingClientRect();
-      const copyBounds = copy.getBoundingClientRect();
-      const actionBounds = actions.getBoundingClientRect();
-      expect(actionBounds.top).toBeGreaterThan(copyBounds.top);
-      expect(actionBounds.right).toBeLessThanOrEqual(rowBounds.right + 1);
-      expect(actionBounds.left).toBeGreaterThanOrEqual(rowBounds.left - 1);
-      expect(row.scrollWidth).toBeLessThanOrEqual(Math.ceil(rowBounds.width) + 1);
-    });
+      card.style.width = '48rem';
+      await vi.waitFor(() => {
+        const rowBounds = row.getBoundingClientRect();
+        const copyBounds = copy.getBoundingClientRect();
+        const actionBounds = actions.getBoundingClientRect();
+        expect(
+          Math.abs(
+            actionBounds.top + actionBounds.height / 2 - (copyBounds.top + copyBounds.height / 2)
+          )
+        ).toBeLessThanOrEqual(2);
+        expect(actionBounds.right).toBeLessThanOrEqual(rowBounds.right + 1);
+        expect(row.scrollWidth).toBeLessThanOrEqual(Math.ceil(rowBounds.width) + 1);
+      });
+
+      card.style.width = '26rem';
+      await vi.waitFor(() => {
+        const rowBounds = row.getBoundingClientRect();
+        const copyBounds = copy.getBoundingClientRect();
+        const actionBounds = actions.getBoundingClientRect();
+        expect(actionBounds.top).toBeGreaterThan(copyBounds.top);
+        expect(actionBounds.right).toBeLessThanOrEqual(rowBounds.right + 1);
+        expect(actionBounds.left).toBeGreaterThanOrEqual(rowBounds.left - 1);
+        expect(row.scrollWidth).toBeLessThanOrEqual(Math.ceil(rowBounds.width) + 1);
+      });
+    } finally {
+      await page.viewport(414, 896);
+    }
   });
 
   it('enables the row action only for an archived room with server-confirmed capability', async () => {
     const layout = makeLayout();
     layout.initialized = true;
-    layout.groups = [
-      group('g1', [room('r1', { name: 'retired-room', archived: true })], 'Lobby')
-    ];
+    layout.groups = [group('g1', [room('r1', { name: 'retired-room', archived: true })], 'Lobby')];
     const deniedAPI = purgeAPI({ allowed: false });
     const denied = renderEditor(layout, {
       server: server(),
@@ -389,9 +393,7 @@ describe('AdminRoomLayoutEditor', () => {
   it('keeps the archived-room action disabled when capability lookup fails', async () => {
     const layout = makeLayout();
     layout.initialized = true;
-    layout.groups = [
-      group('g1', [room('r1', { name: 'retired-room', archived: true })], 'Lobby')
-    ];
+    layout.groups = [group('g1', [room('r1', { name: 'retired-room', archived: true })], 'Lobby')];
     const failingAPI = purgeAPI({
       capability: vi.fn().mockRejectedValue(new Error('network unavailable'))
     });
