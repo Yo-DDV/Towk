@@ -9,6 +9,7 @@ test.describe('Composer send affordance', () => {
     chatPage,
     roomPage
   }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await createAndLoginTestUser(page);
     await chatPage.goto();
     await chatPage.enterRoom('general');
@@ -30,9 +31,8 @@ test.describe('Composer send affordance', () => {
     await expect(sendButton).toBeEnabled();
     await expect(sendButton).toHaveAttribute('data-ready', 'true');
     await expect(sendButton).toHaveCSS('color', 'rgb(232, 120, 59)');
-    await expect
-      .poll(() => sendIcon.evaluate((element) => getComputedStyle(element).animationName))
-      .toContain('composer-send-float');
+    await expect(sendIcon).toHaveCSS('animation-name', 'none');
+    await expect(sendIcon).toHaveCSS('transform', 'none');
 
     await input.press('Control+A');
     await input.press('Backspace');
