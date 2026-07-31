@@ -47,12 +47,22 @@ describe('PermanentRoomPurgeDialog', () => {
     expect(labelledBy).toBeTruthy();
     expect(describedBy).toBeTruthy();
     expect(container.querySelector(`#${labelledBy}`)?.textContent).toContain('#retired-room');
-    expect(container.querySelector(`#${describedBy}`)?.textContent).toContain('cannot be restored');
+    expect(container.querySelector(`#${describedBy}`)?.textContent).toContain(
+      'cannot be restored'
+    );
 
     const shell = container.querySelector('.room-purge-shell');
-    expect(shell?.classList.contains('max-h-[calc(100dvh-1.5rem)]')).toBe(true);
+    expect(shell?.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true);
+
+    const impact = container.querySelector('[data-testid="room-purge-impact"]');
+    expect(impact?.querySelectorAll('li')).toHaveLength(4);
+    expect(container.textContent).not.toContain('Existing backups');
+
     const input = container.querySelector('#room-purge-confirmation');
     if (!(input instanceof HTMLInputElement)) throw new Error('confirmation input not found');
+    const inputLabel = container.querySelector('label[for="room-purge-confirmation"]');
+    expect(inputLabel?.textContent).toContain('retired-room');
+
     const submit = buttonByText(container, 'Delete room permanently');
     expect(submit.disabled).toBe(true);
 
