@@ -618,23 +618,6 @@
           loading={!room.roomData}
           compactOnNarrow={isCallSurface}
         >
-          {#snippet afterTitle()}
-            {#if !room.isDM && room.roomData?.room.isLocked}
-              <span
-                class="inline-flex h-6 items-center gap-1 rounded-md border border-warning/20 bg-warning/10 px-1.5 text-xs font-semibold text-warning"
-                title={m['room.governance.locked_badge']()}
-                data-testid="room-locked-badge"
-              >
-                <span class="iconify text-sm uil--lock" aria-hidden="true"></span>
-                <span class="hidden @min-[420px]:inline">
-                  {m['room.governance.locked_status']()}
-                </span>
-                <span class="sr-only @min-[420px]:hidden">
-                  {m['room.governance.locked_badge']()}
-                </span>
-              </span>
-            {/if}
-          {/snippet}
           {#snippet actions()}
             {#if showVoiceCall}
               <RoomPrimarySurfaceTabs
