@@ -59,6 +59,37 @@ describe('MessageActionSheet', () => {
     await expect.element(q(container, '[aria-label="React with ❤️"]')).toBeInTheDocument();
   });
 
+  it('closes the action sheet before opening the expanded picker on the next frame', async () => {
+    const events: string[] = [];
+    const onClose = vi.fn(() => events.push('close'));
+    const onOpenEmojiPicker = vi.fn(() => events.push('open'));
+    const { container } = renderSheet({
+      canReact: true,
+      onClose,
+      onOpenEmojiPicker,
+      deferEmojiPickerOpen: true
+    });
+
+    q(container, '[aria-label="More reactions"]')?.click();
+
+    expect(events).toEqual(['close']);
+    await new Promise(requestAnimationFrame);
+    expect(events).toEqual(['close', 'open']);
+  });
+
+  it('keeps desktop picker opening synchronous so its anchor is captured before close', () => {
+    const events: string[] = [];
+    const { container } = renderSheet({
+      canReact: true,
+      onClose: () => events.push('close'),
+      onOpenEmojiPicker: () => events.push('open')
+    });
+
+    q(container, '[aria-label="More reactions"]')?.click();
+
+    expect(events).toEqual(['open', 'close']);
+  });
+
   it('keeps the action order unchanged', () => {
     const { container } = renderSheet({
       canEdit: true,

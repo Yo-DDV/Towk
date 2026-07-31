@@ -2,6 +2,9 @@ package video
 
 import (
 	"context"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -10,6 +13,194 @@ import (
 	"github.com/charmbracelet/log"
 	"hmans.de/chatto/internal/config"
 )
+
+func TestTranscodeUsesEffectiveFrameRateAndCapsAt30(t *testing.T) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg is required for the variable-frame-rate regression test")
+	}
+	ffprobePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Skip("ffprobe is required for the variable-frame-rate regression test")
+	}
+
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "misleading-rate.mp4")
+	outputPath := filepath.Join(tmpDir, "portable.mp4")
+
+	// One one-tick sample makes the MP4 advertise a 90 kHz nominal rate while
+	// the remaining timestamps still describe an ordinary short mobile clip.
+	// Default CFR synchronization amplifies this fixture to roughly 90k frames.
+	fixture := exec.Command(
+		ffmpegPath,
+		"-hide_banner", "-loglevel", "error",
+		"-f", "lavfi",
+		"-i", "testsrc2=duration=1:size=64x64:rate=85",
+		"-vf", `settb=1/90000,setpts=N*1059-if(gte(N\,10)\,1058\,0)`,
+		"-fps_mode", "passthrough",
+		"-enc_time_base", "1/90000",
+		"-c:v", "libx264",
+		"-preset", "ultrafast",
+		"-video_track_timescale", "90000",
+		"-an", "-y", inputPath,
+	)
+	if output, err := fixture.CombinedOutput(); err != nil {
+		t.Fatalf("create misleading-rate fixture: %v\n%s", err, output)
+	}
+
+	service := &Service{ffmpegPath: ffmpegPath, ffprobePath: ffprobePath}
+	probe, err := service.probe(context.Background(), inputPath, "video/mp4")
+	if err != nil {
+		t.Fatalf("probe misleading-rate fixture: %v", err)
+	}
+	if probe.AvgFrameRate < 80 || probe.AvgFrameRate > 90 {
+		t.Fatalf("effective fixture frame rate = %.3f, want about 85", probe.AvgFrameRate)
+	}
+
+	inputFrames := videoFrameCount(t, ffprobePath, inputPath)
+	if inputFrames != 85 {
+		t.Fatalf("fixture frame count = %d, want 85", inputFrames)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := service.transcode(ctx, inputPath, outputPath, 64, probe.AvgFrameRate, false, nil); err != nil {
+		t.Fatalf("transcode misleading-rate input: %v", err)
+	}
+
+	outputFrames := videoFrameCount(t, ffprobePath, outputPath)
+	if outputFrames < 29 || outputFrames > 30 {
+		t.Fatalf("transcode produced %d frames from %d source frames, want 29-30", outputFrames, inputFrames)
+	}
+}
+
+func TestTranscodeDoesNotUpsampleSlowerVideo(t *testing.T) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg is required for the frame-rate regression test")
+	}
+	ffprobePath, err := exec.LookPath("ffprobe")
+	if err != nil {
+		t.Skip("ffprobe is required for the frame-rate regression test")
+	}
+
+	tmpDir := t.TempDir()
+	inputPath := filepath.Join(tmpDir, "24fps.mp4")
+	outputPath := filepath.Join(tmpDir, "portable.mp4")
+	fixture := exec.Command(
+		ffmpegPath,
+		"-hide_banner", "-loglevel", "error",
+		"-f", "lavfi",
+		"-i", "testsrc2=duration=1:size=64x64:rate=24",
+		"-c:v", "libx264",
+		"-preset", "ultrafast",
+		"-an", "-y", inputPath,
+	)
+	if output, err := fixture.CombinedOutput(); err != nil {
+		t.Fatalf("create 24 fps fixture: %v\n%s", err, output)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	service := &Service{ffmpegPath: ffmpegPath, ffprobePath: ffprobePath}
+	probe, err := service.probe(context.Background(), inputPath, "video/mp4")
+	if err != nil {
+		t.Fatalf("probe 24 fps fixture: %v", err)
+	}
+	if err := service.transcode(ctx, inputPath, outputPath, 64, probe.AvgFrameRate, false, nil); err != nil {
+		t.Fatalf("transcode 24 fps input: %v", err)
+	}
+
+	inputFrames := videoFrameCount(t, ffprobePath, inputPath)
+	outputFrames := videoFrameCount(t, ffprobePath, outputPath)
+	if outputFrames != inputFrames {
+		t.Fatalf("transcode changed slower source from %d to %d frames", inputFrames, outputFrames)
+	}
+}
+
+func TestCappedOutputFrameRate(t *testing.T) {
+	tests := []struct {
+		name   string
+		source float64
+		want   float64
+	}{
+		{name: "preserves 24 fps", source: 24, want: 24},
+		{name: "preserves 29.97 fps", source: 30000.0 / 1001.0, want: 30000.0 / 1001.0},
+		{name: "caps high frame rate", source: 85, want: 30},
+		{name: "caps missing frame rate", source: 0, want: 30},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := cappedOutputFrameRate(tt.source); got != tt.want {
+				t.Fatalf("cappedOutputFrameRate(%v) = %v, want %v", tt.source, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestVideoTerminalContextOutlivesExpiredJob(t *testing.T) {
+	tests := []struct {
+		name      string
+		expireJob func() context.Context
+	}{
+		{
+			name: "cancellation",
+			expireJob: func() context.Context {
+				jobCtx, cancelJob := context.WithCancel(context.Background())
+				cancelJob()
+				return jobCtx
+			},
+		},
+		{
+			name: "deadline",
+			expireJob: func() context.Context {
+				jobCtx, cancelJob := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+				defer cancelJob()
+				return jobCtx
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			terminalCtx, cancelTerminal := videoTerminalContext(tt.expireJob())
+			defer cancelTerminal()
+
+			if err := terminalCtx.Err(); err != nil {
+				t.Fatalf("terminal context inherited job expiry: %v", err)
+			}
+			deadline, ok := terminalCtx.Deadline()
+			if !ok {
+				t.Fatal("terminal context must remain bounded")
+			}
+			remaining := time.Until(deadline)
+			if remaining <= 0 || remaining > videoProcessingTerminalTimeout {
+				t.Fatalf("terminal context remaining lifetime = %s", remaining)
+			}
+		})
+	}
+}
+
+func videoFrameCount(t *testing.T, ffprobePath, path string) int {
+	t.Helper()
+	output, err := exec.Command(
+		ffprobePath,
+		"-v", "error",
+		"-select_streams", "v:0",
+		"-count_frames",
+		"-show_entries", "stream=nb_read_frames",
+		"-of", "default=nokey=1:noprint_wrappers=1",
+		path,
+	).Output()
+	if err != nil {
+		t.Fatalf("count frames in %s: %v", path, err)
+	}
+	count, err := strconv.Atoi(strings.TrimSpace(string(output)))
+	if err != nil {
+		t.Fatalf("parse frame count %q: %v", output, err)
+	}
+	return count
+}
 
 func TestSelectVariantHeights(t *testing.T) {
 	tests := []struct {

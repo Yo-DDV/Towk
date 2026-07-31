@@ -39,6 +39,16 @@ async function type(input: HTMLInputElement, value: string) {
 }
 
 describe('EmojiPicker', () => {
+  it('uses the available sheet width on an unfolded viewport', () => {
+    const { container } = renderPicker();
+    container.style.containerType = 'inline-size';
+    container.style.width = '900px';
+
+    const picker = container.firstElementChild as HTMLElement;
+
+    expect(picker.getBoundingClientRect().width).toBeGreaterThan(800);
+  });
+
   describe('default state (no search)', () => {
     it('renders the search input', () => {
       const { container } = renderPicker();

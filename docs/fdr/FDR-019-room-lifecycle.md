@@ -1,7 +1,7 @@
 # FDR-019: Room Lifecycle
 
 **Status:** Active
-**Last reviewed:** 2026-07-26
+**Last reviewed:** 2026-07-27
 
 ## Overview
 
@@ -26,7 +26,7 @@ A channel room moves through create, edit, archive, unarchive, ordinary delete, 
 - Unknown fields, trailing JSON, oversized bodies, forged identifiers, empty confirmation, non-owner callers, and active rooms are rejected server-side.
 - Success returns aggregate deletion counts and `alreadyPurged`; it never returns message text, filenames, object keys, or other room content.
 - Responses are `private, no-store` and `nosniff`. Retryable conflicts carry a bounded `Retry-After` value.
-- Older servers that do not expose the capability endpoint simply do not show the destructive UI. There is no fallback to ordinary deletion.
+- Older servers that do not expose the capability endpoint keep the row action disabled. There is no fallback to ordinary deletion.
 
 ## Design Decisions
 
@@ -136,7 +136,7 @@ A channel room moves through create, edit, archive, unarchive, ordinary delete, 
 
 ## UX, responsive, and accessibility
 
-The destructive action appears only for archived rooms after the backend confirms owner capability. It uses a selected red trash action and a separate irreversible confirmation dialog. The dialog lists the deleted data categories, explains the backup boundary, requires exact confirmation, keeps errors visible for retry, and cannot be dismissed while the request is active. It becomes full-screen when width or height is constrained, respects safe areas, restores focus, supports keyboard and touch input, preserves real disabled states, supports forced colors, and reduces motion when requested. User-visible copy is provided in English, French, German, Spanish, and Portuguese.
+Every channel row contains a trash action beside its existing edit, permissions, and archive controls. The action is neutral and genuinely disabled while the room is active, while capability is being checked, or when the backend does not authorize permanent purge; it becomes available only for an archived room after server-confirmed owner capability. The controls stay inside the existing row and wrap as one action group when the room card is too narrow, without creating a second room list or danger-zone panel. Activation opens one compact irreversible confirmation surface with a concise consequence summary, the affected data categories, and exact-name confirmation. It keeps errors visible for retry and cannot be dismissed while the request is active. On constrained widths or heights it becomes a bottom-anchored sheet with bounded scrolling instead of forcing an empty full-screen layout. It respects safe areas, restores focus, supports keyboard and touch input, preserves real disabled states, supports forced colors, and reduces motion when requested. User-visible copy is provided in English, French, German, Spanish, and Portuguese.
 
 ## Rollback and recovery
 

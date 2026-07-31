@@ -3,6 +3,7 @@ package video
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -17,12 +18,22 @@ import (
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 )
 
+const (
+	videoProcessingJobTimeout      = 5 * time.Minute
+	videoProcessingTerminalTimeout = 10 * time.Second
+	maxVideoOutputFrameRate        = 30.0
+)
+
 // ProbeResult contains metadata extracted from a video file via ffprobe.
 type ProbeResult struct {
 	DurationMs int64
 	Width      int32
 	Height     int32
 	CodecInfo  string
+	// AvgFrameRate is derived from the stream frame count and timestamps.
+	// Unlike r_frame_rate, it does not expose the container time base as a
+	// misleading nominal frame rate.
+	AvgFrameRate float64
 	// VideoCodec is the video stream codec name (e.g., "h264", "hevc").
 	VideoCodec string
 	// AudioCodec is the audio stream codec name (e.g., "aac", "opus").
@@ -41,6 +52,7 @@ type ffprobeStream struct {
 	Width              int32             `json:"width"`
 	Height             int32             `json:"height"`
 	Duration           string            `json:"duration"`
+	AvgFrameRate       string            `json:"avg_frame_rate"`
 	DisplayAspectRatio string            `json:"display_aspect_ratio"`
 	SampleAspectRatio  string            `json:"sample_aspect_ratio"`
 	Tags               map[string]string `json:"tags"`
@@ -100,6 +112,9 @@ func (s *Service) probe(ctx context.Context, inputPath string, contentType strin
 		case "video":
 			result.Width, result.Height = videoDisplayDimensions(stream)
 			result.VideoCodec = stream.CodecName
+			if frameRate, ok := parseFrameRate(stream.AvgFrameRate); ok {
+				result.AvgFrameRate = frameRate
+			}
 			codecParts = append(codecParts, strings.ToUpper(stream.CodecName))
 			// Use stream-level duration as fallback (e.g., when -show_format is
 			// skipped for GIFs, the format duration is unavailable but the video
@@ -118,6 +133,33 @@ func (s *Service) probe(ctx context.Context, inputPath string, contentType strin
 	result.CodecInfo = strings.Join(codecParts, " / ")
 
 	return result, nil
+}
+
+func parseFrameRate(value string) (float64, bool) {
+	numeratorText, denominatorText, ok := strings.Cut(strings.TrimSpace(value), "/")
+	if !ok {
+		return 0, false
+	}
+	numerator, err := strconv.ParseFloat(numeratorText, 64)
+	if err != nil || numerator <= 0 || math.IsNaN(numerator) || math.IsInf(numerator, 0) {
+		return 0, false
+	}
+	denominator, err := strconv.ParseFloat(denominatorText, 64)
+	if err != nil || denominator <= 0 || math.IsNaN(denominator) || math.IsInf(denominator, 0) {
+		return 0, false
+	}
+	frameRate := numerator / denominator
+	if frameRate <= 0 || math.IsNaN(frameRate) || math.IsInf(frameRate, 0) {
+		return 0, false
+	}
+	return frameRate, true
+}
+
+func cappedOutputFrameRate(avgFrameRate float64) float64 {
+	if avgFrameRate <= 0 || math.IsNaN(avgFrameRate) || math.IsInf(avgFrameRate, 0) {
+		return maxVideoOutputFrameRate
+	}
+	return math.Min(avgFrameRate, maxVideoOutputFrameRate)
 }
 
 func videoDisplayDimensions(stream ffprobeStream) (int32, int32) {
@@ -262,7 +304,7 @@ func thumbnailDimensions(displayWidth, displayHeight int32) (int32, int32, bool)
 // transcode converts a video to H.264 MP4 at the specified height.
 // Uses -movflags +faststart for progressive download/seeking.
 // inputOpts are placed before -i (e.g., "-ignore_loop 1" for GIF input).
-func (s *Service) transcode(ctx context.Context, inputPath, outputPath string, height int, hasAudio bool, inputOpts []string) error {
+func (s *Service) transcode(ctx context.Context, inputPath, outputPath string, height int, avgFrameRate float64, hasAudio bool, inputOpts []string) error {
 	// yuv420p requires even dimensions; scale=-2 handles width, but height
 	// can be odd when transcoding at the source's original resolution.
 	if height%2 != 0 {
@@ -282,8 +324,13 @@ func (s *Service) transcode(ctx context.Context, inputPath, outputPath string, h
 	} else {
 		args = append(args, "-an")
 	}
+	outputFrameRate := cappedOutputFrameRate(avgFrameRate)
 	args = append(args,
-		"-vf", fmt.Sprintf("scale=-2:%d", height),
+		// Schedule frames from presentation timestamps before scaling or
+		// encoding. avg_frame_rate is frame count / timestamp duration, never
+		// r_frame_rate/tbr, and the target is capped at 30 fps.
+		"-vf", fmt.Sprintf("fps=fps=%.6f:round=down,scale=-2:%d", outputFrameRate, height),
+		"-fps_mode", "vfr",
 		"-movflags", "+faststart",
 		"-max_muxing_queue_size", "1024",
 		"-y",
@@ -316,7 +363,7 @@ func selectVariantHeights(sourceHeight int32) []int {
 // processVideo handles the full processing pipeline for a single video.
 func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 	// Per-job timeout prevents any single ffmpeg invocation from hanging forever.
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, videoProcessingJobTimeout)
 	defer cancel()
 
 	// Create temp directory for this job
@@ -348,6 +395,8 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 		"asset_id", req.AssetID,
 		"duration_ms", probeResult.DurationMs,
 		"resolution", fmt.Sprintf("%dx%d", probeResult.Width, probeResult.Height),
+		"effective_source_fps", probeResult.AvgFrameRate,
+		"output_fps", cappedOutputFrameRate(probeResult.AvgFrameRate),
 		"codec", probeResult.CodecInfo,
 	)
 
@@ -398,7 +447,7 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 			"height", h,
 		)
 
-		if err := s.transcode(ctx, inputPath, outputPath, h, hasAudio, inputOpts); err != nil {
+		if err := s.transcode(ctx, inputPath, outputPath, h, probeResult.AvgFrameRate, hasAudio, inputOpts); err != nil {
 			s.logger.Error("Variant transcoding failed", "height", h, "error", err)
 			continue // Try remaining variants
 		}
@@ -441,11 +490,14 @@ func (s *Service) processVideo(ctx context.Context, req processRequest) error {
 
 	// Publish durable manifest. The original upload is retained as source
 	// content for future re-encoding; generated variants are derivatives.
-	kind, err := s.core.FindRoomKind(ctx, req.RoomID)
+	terminalCtx, cancelTerminal := videoTerminalContext(ctx)
+	defer cancelTerminal()
+	kind, err := s.core.FindRoomKind(terminalCtx, req.RoomID)
 	if err != nil {
-		s.logger.Warn("Failed to resolve room kind for video processed event", "error", err)
-	} else if err := s.core.RecordAssetProcessed(ctx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, probeResult.DurationMs, probeResult.Width, probeResult.Height, thumbnailAttachment, variants); err != nil {
-		s.logger.Warn("Failed to publish video processed event", "error", err)
+		return s.failProcessing(ctx, req, fmt.Errorf("failed to resolve room kind for video processed event: %w", err))
+	}
+	if err := s.core.RecordAssetProcessed(terminalCtx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, probeResult.DurationMs, probeResult.Width, probeResult.Height, thumbnailAttachment, variants); err != nil {
+		return s.failProcessing(ctx, req, fmt.Errorf("failed to publish video processed event: %w", err))
 	}
 
 	s.logger.Info("Video processing completed",
@@ -487,15 +539,34 @@ func (s *Service) failProcessing(ctx context.Context, req processRequest, origin
 		"asset_id", req.AssetID,
 		"error", originalErr)
 
+	// Service shutdown is recoverable: leave the Started manifest in place so
+	// boot recovery can retry it. A per-job deadline is different and must
+	// publish a terminal failure instead of leaving the client spinning.
+	if errors.Is(ctx.Err(), context.Canceled) && !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return originalErr
+	}
+
 	// Publish durable failure event even on failure so frontend can update
 	// and replay can reconstruct the terminal state.
-	kind, kindErr := s.core.FindRoomKind(ctx, req.RoomID)
+	terminalCtx, cancelTerminal := videoTerminalContext(ctx)
+	defer cancelTerminal()
+	kind, kindErr := s.core.FindRoomKind(terminalCtx, req.RoomID)
 	if kindErr != nil {
 		s.logger.Warn("Failed to resolve room kind for video-failed event", "error", kindErr)
-	} else if err := s.core.RecordAssetProcessingFailed(ctx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED); err != nil {
+		return errors.Join(originalErr, fmt.Errorf("resolve room kind for terminal video failure: %w", kindErr))
+	}
+	if err := s.core.RecordAssetProcessingFailed(terminalCtx, core.SystemActorID, kind, req.RoomID, req.MessageEventID, req.AssetID, corev1.AssetProcessingFailureCode_ASSET_PROCESSING_FAILURE_CODE_PROCESSING_FAILED); err != nil {
 		s.logger.Warn("Failed to publish video processing failed event", "error", err)
+		return errors.Join(originalErr, fmt.Errorf("publish terminal video failure: %w", err))
 	}
 	return originalErr
+}
+
+// videoTerminalContext gives the durable outcome a short independent window.
+// Processing deadlines and shutdown cancellation must stop ffmpeg, but they
+// must not prevent the worker from leaving a replayable success/failure fact.
+func videoTerminalContext(jobCtx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(jobCtx), videoProcessingTerminalTimeout)
 }
 
 // downloadAttachment downloads an attachment from the asset store to a local file.
