@@ -112,7 +112,10 @@ vi.mock('$lib/hooks', () => ({
         name: 'general',
         description: 'Room description',
         type: mocks.roomKind,
-        isUniversal: false
+        isUniversal: false,
+        isLocked: false,
+        historyEpoch: 0n,
+        revision: 1n
       },
       spaceName: 'Test Space',
       canPostMessage: true,
@@ -122,11 +125,15 @@ vi.mock('$lib/hooks', () => ({
       canManageOthersMessage: false,
       canEchoMessage: true,
       canManageRoom: false,
-      canBanRoomMembers: false
+      canBanRoomMembers: false,
+      canLockRoom: false,
+      canPurgeMessages: false,
+      canBypassLock: false
     },
     dmData: null,
     isDM: mocks.roomKind === RoomKind.DM,
-    isRoomLoading: false
+    isRoomLoading: false,
+    refresh: vi.fn()
   }),
   useRoomUnread: () => ({
     unreadMarkerEventId: null,

@@ -11,6 +11,7 @@ import {
 } from '$lib/state/server/adminRoomLayout.svelte';
 import type { RegisteredServer } from '$lib/state/server/registry.svelte';
 import { q } from '$lib/test-utils';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import AdminRoomLayoutEditor from './AdminRoomLayoutEditor.svelte';
 
 vi.mock('$app/navigation', () => ({
@@ -38,7 +39,8 @@ vi.mock('$app/paths', () => ({
 }));
 
 vi.mock('svelte-dnd-action', () => ({
-  dndzone: () => ({
+  dragHandle: () => ({}),
+  dragHandleZone: () => ({
     update: vi.fn(),
     destroy: vi.fn()
   })
@@ -50,7 +52,13 @@ function room(id: string, overrides: Partial<AdminRoomInfo> = {}): AdminRoomInfo
     name: overrides.name ?? id,
     description: overrides.description ?? null,
     archived: overrides.archived ?? false,
-    isUniversal: overrides.isUniversal ?? false
+    isUniversal: overrides.isUniversal ?? false,
+    postingPolicy: overrides.postingPolicy ?? RoomPostingPolicy.OPEN,
+    historyEpoch: overrides.historyEpoch ?? 0n,
+    revision: overrides.revision ?? 1n,
+    isLocked: overrides.isLocked ?? false,
+    canLockRoom: overrides.canLockRoom ?? false,
+    canPurgeMessages: overrides.canPurgeMessages ?? false
   };
 }
 

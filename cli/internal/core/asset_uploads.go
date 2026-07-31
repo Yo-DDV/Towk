@@ -21,6 +21,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 	"google.golang.org/protobuf/proto"
 	"hmans.de/chatto/internal/assets"
+	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
 	"hmans.de/chatto/internal/runtimecap"
 )
@@ -89,6 +90,7 @@ type AssetUploadSession struct {
 	UploadID        string                      `json:"upload_id"`
 	ActorID         string                      `json:"actor_id"`
 	RoomID          string                      `json:"room_id"`
+	HistoryEpoch    uint64                      `json:"history_epoch,omitempty"`
 	Filename        string                      `json:"filename"`
 	ContentType     string                      `json:"content_type"`
 	Size            int64                       `json:"size"`
@@ -149,7 +151,8 @@ func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCr
 	if err := validateVoiceMessageUpload(input.VoiceMessage, contentType, input.Size); err != nil {
 		return nil, err
 	}
-	if err := m.authorizeUpload(ctx, input.ActorID, input.RoomID, input.VoiceMessage != nil); err != nil {
+	room, _, err := m.authorizeUpload(ctx, input.ActorID, input.RoomID, input.VoiceMessage != nil)
+	if err != nil {
 		return nil, err
 	}
 
@@ -163,6 +166,7 @@ func (m *AssetUploadModel) CreateUpload(ctx context.Context, input AssetUploadCr
 		UploadID:     uploadID,
 		ActorID:      input.ActorID,
 		RoomID:       input.RoomID,
+		HistoryEpoch: room.GetHistoryEpoch(),
 		Filename:     filename,
 		ContentType:  contentType,
 		Size:         input.Size,
@@ -275,8 +279,12 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 	if session.CommittedOffset != session.Size {
 		return nil, nil, invalidArgument("upload is incomplete")
 	}
-	if err := m.authorizeUpload(ctx, input.ActorID, session.RoomID, session.VoiceMessage != nil); err != nil {
+	room, kind, err := m.authorizeUpload(ctx, input.ActorID, session.RoomID, session.VoiceMessage != nil)
+	if err != nil {
 		return nil, nil, err
+	}
+	if session.HistoryEpoch != room.GetHistoryEpoch() {
+		return nil, nil, fmt.Errorf("room history epoch changed during upload: %w", events.ErrConflict)
 	}
 	tmp, err := m.materializeUpload(ctx, session)
 	if err != nil {
@@ -306,7 +314,21 @@ func (m *AssetUploadModel) CompleteUpload(ctx context.Context, input AssetUpload
 	}
 	pendingExpiresAt := time.Now().Add(defaultPendingAttachmentAssetTTL)
 	needsVideoProcessing := m.core.OnVideoProcessingRequested != nil && AttachmentNeedsVideoProcessing(attachment, animatedGIF)
-	if err := m.core.assetLifecycle().RecordUploadedPendingAttachmentAsset(ctx, input.ActorID, session.RoomID, attachment, session.SHA256, pendingExpiresAt, needsVideoProcessing); err != nil {
+	expectedRoomRevision, err := m.core.additiveRoomRevision(ctx, input.ActorID, kind, session.RoomID)
+	if err != nil {
+		m.core.media().DeleteAttachmentFromStorage(ctx, attachment)
+		return nil, nil, err
+	}
+	if err := m.core.assetLifecycle().RecordUploadedPendingAttachmentAssetAtRoomRevision(
+		ctx,
+		input.ActorID,
+		session.RoomID,
+		attachment,
+		session.SHA256,
+		pendingExpiresAt,
+		needsVideoProcessing,
+		expectedRoomRevision,
+	); err != nil {
 		m.core.media().DeleteAttachmentFromStorage(ctx, attachment)
 		return nil, nil, err
 	}
@@ -482,35 +504,40 @@ func (m *AssetUploadModel) checkUploadSize(contentType string, size int64) error
 	return nil
 }
 
-func (m *AssetUploadModel) authorizeUpload(ctx context.Context, actorID, roomID string, voiceMessage bool) error {
+func (m *AssetUploadModel) authorizeUpload(
+	ctx context.Context,
+	actorID,
+	roomID string,
+	voiceMessage bool,
+) (*corev1.Room, RoomKind, error) {
 	room, kind, err := m.core.requireRoomMember(ctx, actorID, roomID)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	if room.Archived {
-		return ErrRoomArchived
+		return nil, "", ErrRoomArchived
 	}
 	if err := m.core.requireRoomAcceptsAdditiveContent(ctx, actorID, kind, room.Id); err != nil {
-		return err
+		return nil, "", err
 	}
 	if voiceMessage {
 		canSendVoiceMessages, err := m.core.CanSendVoiceMessages(ctx, actorID, kind, room.Id)
 		if err != nil {
-			return err
+			return nil, "", err
 		}
 		if !canSendVoiceMessages {
-			return ErrPermissionDenied
+			return nil, "", ErrPermissionDenied
 		}
-		return nil
+		return room, kind, nil
 	}
 	canAttach, err := m.core.CanAttachFiles(ctx, actorID, kind, room.Id)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
 	if !canAttach {
-		return ErrPermissionDenied
+		return nil, "", ErrPermissionDenied
 	}
-	return nil
+	return room, kind, nil
 }
 
 func cloneVoiceMessageUploadMetadata(metadata *VoiceMessageUploadMetadata) *VoiceMessageUploadMetadata {

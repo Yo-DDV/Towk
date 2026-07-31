@@ -3,6 +3,7 @@ import { flushSync } from 'svelte';
 import type { AdminRoomLayoutAPI } from '$lib/api-client/adminRoomLayout';
 import type { RoomCommandAPI } from '$lib/api-client/rooms';
 import { RoomEventKind } from '$lib/render/eventKinds';
+import { RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 import {
   AdminRoomLayoutStore,
   buildGroupRoomOrder,
@@ -18,7 +19,13 @@ function room(id: string, overrides: Partial<AdminRoomInfo> = {}): AdminRoomInfo
     name: overrides.name ?? id,
     description: overrides.description ?? null,
     archived: overrides.archived ?? false,
-    isUniversal: overrides.isUniversal ?? false
+    isUniversal: overrides.isUniversal ?? false,
+    postingPolicy: overrides.postingPolicy ?? RoomPostingPolicy.OPEN,
+    historyEpoch: overrides.historyEpoch ?? 0n,
+    revision: overrides.revision ?? 1n,
+    isLocked: overrides.isLocked ?? false,
+    canLockRoom: overrides.canLockRoom ?? false,
+    canPurgeMessages: overrides.canPurgeMessages ?? false
   };
 }
 

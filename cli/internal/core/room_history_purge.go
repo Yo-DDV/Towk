@@ -10,11 +10,14 @@ import (
 
 	"hmans.de/chatto/internal/events"
 	corev1 "hmans.de/chatto/internal/pb/chatto/core/v1"
+
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 const (
 	roomHistoryPurgeKeyPrefix = "room_history_purge."
 	roomHistoryPurgeScanEvery = time.Second
+	roomHistoryPurgeRetryMax  = 30 * time.Second
 )
 
 type RoomHistoryPurgeStatus string
@@ -42,6 +45,8 @@ type roomHistoryPurgeState struct {
 	BarrierSeq   uint64                 `json:"barrier_seq"`
 	Status       RoomHistoryPurgeStatus `json:"status"`
 	FailureCode  string                 `json:"failure_code,omitempty"`
+	RetryCount   uint32                 `json:"retry_count,omitempty"`
+	RetryAfter   *time.Time             `json:"retry_after,omitempty"`
 	StartedAt    time.Time              `json:"started_at"`
 	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
 }
@@ -195,6 +200,9 @@ func (c *ChattoCore) putRoomHistoryPurgeState(ctx context.Context, state roomHis
 func (c *ChattoCore) runningRoomHistoryPurge(ctx context.Context, roomID string) (*roomHistoryPurgeState, error) {
 	lister, err := c.storage.runtimeStateKV.ListKeysFiltered(ctx, roomHistoryPurgeKeyPrefix+"*")
 	if err != nil {
+		if errors.Is(err, jetstream.ErrNoKeysFound) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("list room history purge operations: %w", err)
 	}
 	for key := range lister.Keys() {
@@ -234,6 +242,9 @@ func (c *ChattoCore) runRoomHistoryPurgeWorker(ctx context.Context) error {
 func (c *ChattoCore) processPendingRoomHistoryPurges(ctx context.Context) error {
 	lister, err := c.storage.runtimeStateKV.ListKeysFiltered(ctx, roomHistoryPurgeKeyPrefix+"*")
 	if err != nil {
+		if errors.Is(err, jetstream.ErrNoKeysFound) {
+			return nil
+		}
 		return err
 	}
 	for key := range lister.Keys() {
@@ -252,6 +263,9 @@ func (c *ChattoCore) processPendingRoomHistoryPurges(ctx context.Context) error 
 		if state.Status != RoomHistoryPurgeRunning {
 			continue
 		}
+		if state.RetryAfter != nil && time.Now().UTC().Before(*state.RetryAfter) {
+			continue
+		}
 		if err := c.processRoomHistoryPurge(ctx, state.ID); err != nil {
 			c.logger.Error("Room history purge cleanup failed", "operation_id", state.ID, "room_id", state.RoomID, "error", err)
 		}
@@ -268,7 +282,17 @@ func (c *ChattoCore) processRoomHistoryPurge(ctx context.Context, operationID st
 		return nil
 	}
 	if state.BarrierSeq == 0 {
-		return c.failRoomHistoryPurge(ctx, state, "barrier_missing")
+		recovered, recoverErr := c.recoverRoomHistoryPurgeBarrier(ctx, state)
+		if recoverErr != nil {
+			return recoverErr
+		}
+		if !recovered {
+			return c.failRoomHistoryPurge(ctx, state, "barrier_missing")
+		}
+		state, err = c.getRoomHistoryPurgeState(ctx, operationID)
+		if err != nil {
+			return err
+		}
 	}
 
 	operationErr := c.withRoomPurgeLease(ctx, state.RoomID, func(operationCtx context.Context) error {
@@ -285,14 +309,68 @@ func (c *ChattoCore) processRoomHistoryPurge(ctx context.Context, operationID st
 		now := time.Now().UTC()
 		current.Status = RoomHistoryPurgeCompleted
 		current.FailureCode = ""
+		current.RetryAfter = nil
 		current.CompletedAt = &now
 		return c.putRoomHistoryPurgeState(operationCtx, current, false)
 	})
 	if operationErr != nil {
-		_ = c.failRoomHistoryPurge(ctx, state, "cleanup_failed")
+		if retryErr := c.scheduleRoomHistoryPurgeRetry(ctx, state, "cleanup_failed"); retryErr != nil {
+			return errors.Join(operationErr, retryErr)
+		}
 		return operationErr
 	}
 	return nil
+}
+
+func (c *ChattoCore) recoverRoomHistoryPurgeBarrier(ctx context.Context, state roomHistoryPurgeState) (bool, error) {
+	aggregate := events.RoomAggregate(state.RoomID)
+	subjectEvents, _, err := c.EventPublisher.SubjectEventsWithSubjectsAfter(ctx, aggregate.AllEventsFilter(), 0)
+	if err != nil {
+		return false, fmt.Errorf("read channel history to recover purge barrier: %w", err)
+	}
+	for _, subjectEvent := range subjectEvents {
+		if subjectEvent == nil || subjectEvent.Event == nil {
+			continue
+		}
+		barrier := subjectEvent.Event.GetRoomHistoryPurged()
+		if barrier == nil ||
+			barrier.GetRoomId() != state.RoomID ||
+			barrier.GetOperationId() != state.ID ||
+			barrier.GetHistoryEpoch() != state.HistoryEpoch {
+			continue
+		}
+		state.BarrierSeq = subjectEvent.StreamSeq
+		state.FailureCode = ""
+		state.RetryAfter = nil
+		if err := c.putRoomHistoryPurgeState(ctx, state, false); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func (c *ChattoCore) scheduleRoomHistoryPurgeRetry(
+	ctx context.Context,
+	state roomHistoryPurgeState,
+	failureCode string,
+) error {
+	current, err := c.getRoomHistoryPurgeState(ctx, state.ID)
+	if err != nil {
+		return err
+	}
+	if current.Status != RoomHistoryPurgeRunning {
+		return nil
+	}
+	current.RetryCount++
+	current.FailureCode = failureCode
+	delay := time.Second << min(current.RetryCount-1, 5)
+	if delay > roomHistoryPurgeRetryMax {
+		delay = roomHistoryPurgeRetryMax
+	}
+	retryAfter := time.Now().UTC().Add(delay)
+	current.RetryAfter = &retryAfter
+	return c.putRoomHistoryPurgeState(ctx, current, false)
 }
 
 func (c *ChattoCore) failRoomHistoryPurge(ctx context.Context, state roomHistoryPurgeState, failureCode string) error {

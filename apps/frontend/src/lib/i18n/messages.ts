@@ -920,6 +920,52 @@ const msg_room_jump_to_present = (): LocalizedString => messages().room_jump_to_
 const msg_room_jump_failed = (): LocalizedString => messages().room_jump_failed(empty());
 const msg_room_unread_separator = (): LocalizedString => messages().room_unread_separator(empty());
 const msg_room_close_extras = (): LocalizedString => messages().room_close_extras(empty());
+const msg_room_governance_menu_label = (): LocalizedString => messages().room_governance_menu_label(empty());
+const msg_room_governance_locked_status = (): LocalizedString => messages().room_governance_locked_status(empty());
+const msg_room_governance_open_status = (): LocalizedString => messages().room_governance_open_status(empty());
+const msg_room_governance_locked_badge = (): LocalizedString => messages().room_governance_locked_badge(empty());
+const msg_room_governance_locked_composer = (): LocalizedString => messages().room_governance_locked_composer(empty());
+const msg_room_governance_bypass_composer = (): LocalizedString => messages().room_governance_bypass_composer(empty());
+const msg_room_governance_lock_action = (): LocalizedString => messages().room_governance_lock_action(empty());
+const msg_room_governance_unlock_action = (): LocalizedString => messages().room_governance_unlock_action(empty());
+const msg_room_governance_lock_description = (): LocalizedString => messages().room_governance_lock_description(empty());
+const msg_room_governance_unlock_description = (): LocalizedString => messages().room_governance_unlock_description(empty());
+const msg_room_governance_lock_success = (
+  inputs: Parameters<LocaleMessages['room_governance_lock_success']>[0]
+): LocalizedString => messages().room_governance_lock_success(inputs);
+const msg_room_governance_unlock_success = (
+  inputs: Parameters<LocaleMessages['room_governance_unlock_success']>[0]
+): LocalizedString => messages().room_governance_unlock_success(inputs);
+const msg_room_governance_policy_update_failed = (): LocalizedString => messages().room_governance_policy_update_failed(empty());
+const msg_room_governance_purge_action = (): LocalizedString => messages().room_governance_purge_action(empty());
+const msg_room_governance_purge_description = (): LocalizedString => messages().room_governance_purge_description(empty());
+const msg_room_governance_purge_title = (
+  inputs: Parameters<LocaleMessages['room_governance_purge_title']>[0]
+): LocalizedString => messages().room_governance_purge_title(inputs);
+const msg_room_governance_purge_warning = (): LocalizedString => messages().room_governance_purge_warning(empty());
+const msg_room_governance_confirmation_label = (
+  inputs: Parameters<LocaleMessages['room_governance_confirmation_label']>[0]
+): LocalizedString => messages().room_governance_confirmation_label(inputs);
+const msg_room_governance_confirmation_placeholder = (
+  inputs: Parameters<LocaleMessages['room_governance_confirmation_placeholder']>[0]
+): LocalizedString => messages().room_governance_confirmation_placeholder(inputs);
+const msg_room_governance_confirmation_error = (
+  inputs: Parameters<LocaleMessages['room_governance_confirmation_error']>[0]
+): LocalizedString => messages().room_governance_confirmation_error(inputs);
+const msg_room_governance_password_label = (): LocalizedString => messages().room_governance_password_label(empty());
+const msg_room_governance_password_help = (): LocalizedString => messages().room_governance_password_help(empty());
+const msg_room_governance_purge_submit = (): LocalizedString => messages().room_governance_purge_submit(empty());
+const msg_room_governance_purge_submitting = (): LocalizedString => messages().room_governance_purge_submitting(empty());
+const msg_room_governance_purge_committed = (
+  inputs: Parameters<LocaleMessages['room_governance_purge_committed']>[0]
+): LocalizedString => messages().room_governance_purge_committed(inputs);
+const msg_room_governance_purge_failed = (): LocalizedString => messages().room_governance_purge_failed(empty());
+const msg_room_governance_cleanup_completed = (
+  inputs: Parameters<LocaleMessages['room_governance_cleanup_completed']>[0]
+): LocalizedString => messages().room_governance_cleanup_completed(inputs);
+const msg_room_governance_cleanup_failed = (
+  inputs: Parameters<LocaleMessages['room_governance_cleanup_failed']>[0]
+): LocalizedString => messages().room_governance_cleanup_failed(inputs);
 const msg_room_system_group_joined_room_one = (): LocalizedString => messages().room_system_group_joined_room_one(empty());
 const msg_room_system_group_joined_room_many = (): LocalizedString => messages().room_system_group_joined_room_many(empty());
 const msg_room_system_group_left_room_one = (): LocalizedString => messages().room_system_group_left_room_one(empty());
@@ -944,6 +990,9 @@ const msg_room_system_event_left_call = (): LocalizedString => messages().room_s
 const msg_room_system_event_ended_call = (): LocalizedString => messages().room_system_event_ended_call(empty());
 const msg_room_system_event_archived_room = (): LocalizedString => messages().room_system_event_archived_room(empty());
 const msg_room_system_event_unarchived_room = (): LocalizedString => messages().room_system_event_unarchived_room(empty());
+const msg_room_system_event_locked_room = (): LocalizedString => messages().room_system_event_locked_room(empty());
+const msg_room_system_event_unlocked_room = (): LocalizedString => messages().room_system_event_unlocked_room(empty());
+const msg_room_system_event_purged_history = (): LocalizedString => messages().room_system_event_purged_history(empty());
 const msg_room_system_defaults_announcements_description = (): LocalizedString => messages().room_system_defaults_announcements_description(empty());
 const msg_room_system_defaults_general_description = (): LocalizedString => messages().room_system_defaults_general_description(empty());
 const msg_room_direct_message_delete_title = (): LocalizedString => messages().room_direct_message_delete_title(empty());
@@ -1212,6 +1261,7 @@ const msg_room_list_notifications = (
   inputs: Parameters<LocaleMessages['room_list_notifications']>[0]
 ): LocalizedString => messages().room_list_notifications(inputs);
 const msg_room_list_unread_messages = (): LocalizedString => messages().room_list_unread_messages(empty());
+const msg_room_list_locked = (): LocalizedString => messages().room_list_locked(empty());
 const msg_room_list_go_to_dm_notifications = (
   inputs: Parameters<LocaleMessages['room_list_go_to_dm_notifications']>[0]
 ): LocalizedString => messages().room_list_go_to_dm_notifications(inputs);
@@ -1921,6 +1971,7 @@ const msg_admin_rooms_admin_empty_groups = (): LocalizedString => messages().adm
 const msg_admin_rooms_admin_empty_groups_body = (): LocalizedString => messages().admin_rooms_admin_empty_groups_body(empty());
 const msg_admin_rooms_admin_drag_hint = (): LocalizedString => messages().admin_rooms_admin_drag_hint(empty());
 const msg_admin_rooms_admin_drag_group = (): LocalizedString => messages().admin_rooms_admin_drag_group(empty());
+const msg_admin_rooms_admin_drag_room = (): LocalizedString => messages().admin_rooms_admin_drag_room(empty());
 const msg_admin_rooms_admin_new_room = (): LocalizedString => messages().admin_rooms_admin_new_room(empty());
 const msg_admin_rooms_admin_new_link = (): LocalizedString => messages().admin_rooms_admin_new_link(empty());
 const msg_admin_rooms_admin_new_group = (): LocalizedString => messages().admin_rooms_admin_new_group(empty());
@@ -2955,6 +3006,34 @@ export { msg_room_jump_to_present as 'room.jump_to_present' };
 export { msg_room_jump_failed as 'room.jump_failed' };
 export { msg_room_unread_separator as 'room.unread_separator' };
 export { msg_room_close_extras as 'room.close_extras' };
+export { msg_room_governance_menu_label as 'room.governance.menu_label' };
+export { msg_room_governance_locked_status as 'room.governance.locked_status' };
+export { msg_room_governance_open_status as 'room.governance.open_status' };
+export { msg_room_governance_locked_badge as 'room.governance.locked_badge' };
+export { msg_room_governance_locked_composer as 'room.governance.locked_composer' };
+export { msg_room_governance_bypass_composer as 'room.governance.bypass_composer' };
+export { msg_room_governance_lock_action as 'room.governance.lock_action' };
+export { msg_room_governance_unlock_action as 'room.governance.unlock_action' };
+export { msg_room_governance_lock_description as 'room.governance.lock_description' };
+export { msg_room_governance_unlock_description as 'room.governance.unlock_description' };
+export { msg_room_governance_lock_success as 'room.governance.lock_success' };
+export { msg_room_governance_unlock_success as 'room.governance.unlock_success' };
+export { msg_room_governance_policy_update_failed as 'room.governance.policy_update_failed' };
+export { msg_room_governance_purge_action as 'room.governance.purge_action' };
+export { msg_room_governance_purge_description as 'room.governance.purge_description' };
+export { msg_room_governance_purge_title as 'room.governance.purge_title' };
+export { msg_room_governance_purge_warning as 'room.governance.purge_warning' };
+export { msg_room_governance_confirmation_label as 'room.governance.confirmation_label' };
+export { msg_room_governance_confirmation_placeholder as 'room.governance.confirmation_placeholder' };
+export { msg_room_governance_confirmation_error as 'room.governance.confirmation_error' };
+export { msg_room_governance_password_label as 'room.governance.password_label' };
+export { msg_room_governance_password_help as 'room.governance.password_help' };
+export { msg_room_governance_purge_submit as 'room.governance.purge_submit' };
+export { msg_room_governance_purge_submitting as 'room.governance.purge_submitting' };
+export { msg_room_governance_purge_committed as 'room.governance.purge_committed' };
+export { msg_room_governance_purge_failed as 'room.governance.purge_failed' };
+export { msg_room_governance_cleanup_completed as 'room.governance.cleanup_completed' };
+export { msg_room_governance_cleanup_failed as 'room.governance.cleanup_failed' };
 export { msg_room_system_group_joined_room_one as 'room.system_group.joined_room_one' };
 export { msg_room_system_group_joined_room_many as 'room.system_group.joined_room_many' };
 export { msg_room_system_group_left_room_one as 'room.system_group.left_room_one' };
@@ -2975,6 +3054,9 @@ export { msg_room_system_event_left_call as 'room.system_event.left_call' };
 export { msg_room_system_event_ended_call as 'room.system_event.ended_call' };
 export { msg_room_system_event_archived_room as 'room.system_event.archived_room' };
 export { msg_room_system_event_unarchived_room as 'room.system_event.unarchived_room' };
+export { msg_room_system_event_locked_room as 'room.system_event.locked_room' };
+export { msg_room_system_event_unlocked_room as 'room.system_event.unlocked_room' };
+export { msg_room_system_event_purged_history as 'room.system_event.purged_history' };
 export { msg_room_system_defaults_announcements_description as 'room.system_defaults.announcements_description' };
 export { msg_room_system_defaults_general_description as 'room.system_defaults.general_description' };
 export { msg_room_direct_message_delete_title as 'room.direct_message_delete.title' };
@@ -3217,6 +3299,7 @@ export { msg_room_list_call_participants as 'room_list.call_participants' };
 export { msg_room_list_go_to_notifications as 'room_list.go_to_notifications' };
 export { msg_room_list_notifications as 'room_list.notifications' };
 export { msg_room_list_unread_messages as 'room_list.unread_messages' };
+export { msg_room_list_locked as 'room_list.locked' };
 export { msg_room_list_go_to_dm_notifications as 'room_list.go_to_dm_notifications' };
 export { msg_room_list_new_direct_messages as 'room_list.new_direct_messages' };
 export { msg_room_list_direct_messages as 'room_list.direct_messages' };
@@ -3806,6 +3889,7 @@ export { msg_admin_rooms_admin_empty_groups as 'admin.rooms_admin.empty_groups' 
 export { msg_admin_rooms_admin_empty_groups_body as 'admin.rooms_admin.empty_groups_body' };
 export { msg_admin_rooms_admin_drag_hint as 'admin.rooms_admin.drag_hint' };
 export { msg_admin_rooms_admin_drag_group as 'admin.rooms_admin.drag_group' };
+export { msg_admin_rooms_admin_drag_room as 'admin.rooms_admin.drag_room' };
 export { msg_admin_rooms_admin_new_room as 'admin.rooms_admin.new_room' };
 export { msg_admin_rooms_admin_new_link as 'admin.rooms_admin.new_link' };
 export { msg_admin_rooms_admin_new_group as 'admin.rooms_admin.new_group' };

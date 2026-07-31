@@ -240,6 +240,11 @@ func (c *ChattoCore) publishReactionMutation(ctx context.Context, kind RoomKind,
 	occFilter := agg.AllEventsFilter()
 
 	for attempt := 0; attempt < maxReactionMutationRetries; attempt++ {
+		if add && c.rooms().directory != nil {
+			if _, err := c.additiveRoomRevision(ctx, userID, kind, roomID); err != nil {
+				return false, err
+			}
+		}
 		snapshot := c.rooms().reactionMutationSnapshot(roomID, messageEventID, emoji, userID)
 		if add && snapshot.Exists {
 			var err error

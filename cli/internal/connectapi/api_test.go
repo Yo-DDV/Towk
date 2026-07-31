@@ -3271,6 +3271,80 @@ func TestRoomServiceLifecycleCommands(t *testing.T) {
 	}
 }
 
+func TestRoomServiceGovernanceCommands(t *testing.T) {
+	env := newConnectAPITestEnv(t)
+	ctx := withCaller(env.ctx, env.viewer)
+	room := env.createJoinedRoom("connect-governance")
+	room, err := env.core.GetRoom(env.ctx, core.KindChannel, room.GetId())
+	if err != nil {
+		t.Fatalf("GetRoom: %v", err)
+	}
+	if err := env.core.GrantRoomPermission(env.ctx, core.SystemActorID, room.GetId(), core.RoleEveryone, core.PermRoomLock); err != nil {
+		t.Fatalf("GrantRoomPermission lock: %v", err)
+	}
+	if err := env.core.GrantRoomPermission(env.ctx, core.SystemActorID, room.GetId(), core.RoleEveryone, core.PermRoomPurgeMessages); err != nil {
+		t.Fatalf("GrantRoomPermission purge: %v", err)
+	}
+
+	locked, err := env.rooms.LockRoom(ctx, connect.NewRequest(&apiv1.LockRoomRequest{
+		RoomId:           room.GetId(),
+		ExpectedRevision: room.GetRevision(),
+	}))
+	if err != nil {
+		t.Fatalf("LockRoom: %v", err)
+	}
+	if locked.Msg.GetRoom().GetPostingPolicy() != apiv1.RoomPostingPolicy_ROOM_POSTING_POLICY_LOCKED {
+		t.Fatalf("LockRoom posting policy = %v, want locked", locked.Msg.GetRoom().GetPostingPolicy())
+	}
+
+	staleToken, err := env.core.CreateAuthTokenWithSource(env.ctx, env.viewer.Id, "unknown")
+	if err != nil {
+		t.Fatalf("CreateAuthTokenWithSource: %v", err)
+	}
+	staleCtx := withBearerCredential(env.ctx, env.viewer, staleToken)
+	if _, err := env.rooms.PurgeRoomHistory(staleCtx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
+		RoomId:           room.GetId(),
+		ExpectedRevision: locked.Msg.GetRoom().GetRevision(),
+		ConfirmationName: room.GetName(),
+	})); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("PurgeRoomHistory without fresh credential code = %v, want failed precondition", connect.CodeOf(err))
+	}
+	if _, err := env.rooms.PurgeRoomHistory(staleCtx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
+		RoomId:           room.GetId(),
+		ExpectedRevision: locked.Msg.GetRoom().GetRevision(),
+		ConfirmationName: room.GetName(),
+		CurrentPassword:  "wrong-password",
+	})); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("PurgeRoomHistory wrong password code = %v, want invalid argument", connect.CodeOf(err))
+	}
+
+	purged, err := env.rooms.PurgeRoomHistory(staleCtx, connect.NewRequest(&apiv1.PurgeRoomHistoryRequest{
+		RoomId:           room.GetId(),
+		ExpectedRevision: locked.Msg.GetRoom().GetRevision(),
+		ConfirmationName: room.GetName(),
+		CurrentPassword:  "password",
+	}))
+	if err != nil {
+		t.Fatalf("PurgeRoomHistory: %v", err)
+	}
+	if purged.Msg.GetRoom().GetHistoryEpoch() != 1 {
+		t.Fatalf("PurgeRoomHistory epoch = %d, want 1", purged.Msg.GetRoom().GetHistoryEpoch())
+	}
+	operationID := purged.Msg.GetOperation().GetId()
+	if operationID == "" {
+		t.Fatal("PurgeRoomHistory operation id is empty")
+	}
+	operation, err := env.rooms.GetRoomHistoryPurgeOperation(ctx, connect.NewRequest(&apiv1.GetRoomHistoryPurgeOperationRequest{
+		OperationId: operationID,
+	}))
+	if err != nil {
+		t.Fatalf("GetRoomHistoryPurgeOperation: %v", err)
+	}
+	if operation.Msg.GetOperation().GetRoomId() != room.GetId() {
+		t.Fatalf("operation room id = %q, want %q", operation.Msg.GetOperation().GetRoomId(), room.GetId())
+	}
+}
+
 func TestRoomServiceMembershipAndModerationCommands(t *testing.T) {
 	env := newConnectAPITestEnv(t)
 	ctx := withCaller(env.ctx, env.viewer)

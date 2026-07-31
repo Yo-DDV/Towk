@@ -132,22 +132,32 @@ func (c *ChattoCore) threadCreatedExistsInStream(ctx context.Context, agg events
 	return false, nil
 }
 
-func (c *ChattoCore) appendBodyAndMessage(ctx context.Context, agg events.Aggregate, bodyEvent, messageEvent *corev1.Event, claim *messageRequestClaim) (uint64, error) {
+func (c *ChattoCore) appendBodyAndMessage(
+	ctx context.Context,
+	actorID string,
+	kind RoomKind,
+	roomID string,
+	agg events.Aggregate,
+	bodyEvent,
+	messageEvent *corev1.Event,
+	claim *messageRequestClaim,
+) (uint64, error) {
 	bodySubject := agg.SubjectFor(bodyEvent)
 	messageSubject := agg.SubjectFor(messageEvent)
+	roomFilter := agg.AllEventsFilter()
 	var lastErr error
 
 	for attempt := 1; attempt <= maxThreadCreateAppendAttempts; attempt++ {
-		expectedSeq, err := c.EventPublisher.LastSubjectSeq(ctx, messageSubject)
+		expectedSeq, err := c.additiveRoomRevision(ctx, actorID, kind, roomID)
 		if err != nil {
-			return 0, fmt.Errorf("read message OCC tail: %w", err)
+			return 0, err
 		}
 		entries := []events.BatchEntry{
 			{
 				Subject:       bodySubject,
 				Event:         bodyEvent,
 				ExpectedSeq:   expectedSeq,
-				FilterSubject: messageSubject,
+				FilterSubject: roomFilter,
 				HasOCC:        true,
 			},
 		}
@@ -341,14 +351,25 @@ func (c *ChattoCore) hideChannelEchoForReply(ctx context.Context, actorID string
 	return fmt.Errorf("publish echo retraction after %d attempts: %w", maxThreadCreateAppendAttempts, lastErr)
 }
 
-func (c *ChattoCore) appendMessageWithOptionalThreadCreated(ctx context.Context, agg events.Aggregate, bodyEvent, messageEvent, threadCreatedEvent *corev1.Event, threadRootEventID string, claim *messageRequestClaim) (uint64, error) {
+func (c *ChattoCore) appendMessageWithOptionalThreadCreated(
+	ctx context.Context,
+	actorID string,
+	kind RoomKind,
+	roomID string,
+	agg events.Aggregate,
+	bodyEvent,
+	messageEvent,
+	threadCreatedEvent *corev1.Event,
+	threadRootEventID string,
+	claim *messageRequestClaim,
+) (uint64, error) {
 	if threadCreatedEvent == nil || threadRootEventID == "" || c.rooms().threadExists(threadRootEventID) {
-		return c.appendBodyAndMessage(ctx, agg, bodyEvent, messageEvent, claim)
+		return c.appendBodyAndMessage(ctx, actorID, kind, roomID, agg, bodyEvent, messageEvent, claim)
 	}
 	if exists, err := c.threadCreatedExistsInStream(ctx, agg, threadRootEventID); err != nil {
 		return 0, fmt.Errorf("check existing thread creation: %w", err)
 	} else if exists {
-		return c.appendBodyAndMessage(ctx, agg, bodyEvent, messageEvent, claim)
+		return c.appendBodyAndMessage(ctx, actorID, kind, roomID, agg, bodyEvent, messageEvent, claim)
 	}
 
 	roomFilter := agg.AllEventsFilter()
@@ -358,9 +379,9 @@ func (c *ChattoCore) appendMessageWithOptionalThreadCreated(ctx context.Context,
 	var lastErr error
 
 	for attempt := 1; attempt <= maxThreadCreateAppendAttempts; attempt++ {
-		expectedSeq, err := c.EventPublisher.LastSubjectSeq(ctx, roomFilter)
+		expectedSeq, err := c.additiveRoomRevision(ctx, actorID, kind, roomID)
 		if err != nil {
-			return 0, fmt.Errorf("read room OCC tail: %w", err)
+			return 0, err
 		}
 		entries := []events.BatchEntry{
 			{
@@ -416,12 +437,12 @@ func (c *ChattoCore) appendMessageWithOptionalThreadCreated(ctx context.Context,
 			}
 		}
 		if c.rooms().threadExists(threadRootEventID) {
-			return c.appendBodyAndMessage(ctx, agg, bodyEvent, messageEvent, claim)
+			return c.appendBodyAndMessage(ctx, actorID, kind, roomID, agg, bodyEvent, messageEvent, claim)
 		}
 		if exists, err := c.threadCreatedExistsInStream(ctx, agg, threadRootEventID); err != nil {
 			return 0, fmt.Errorf("check existing thread creation after conflict: %w", err)
 		} else if exists {
-			return c.appendBodyAndMessage(ctx, agg, bodyEvent, messageEvent, claim)
+			return c.appendBodyAndMessage(ctx, actorID, kind, roomID, agg, bodyEvent, messageEvent, claim)
 		}
 	}
 
@@ -704,7 +725,18 @@ func (c *ChattoCore) PostMessage(ctx context.Context, kind RoomKind, room_id, us
 	// has caught up, giving read-your-writes for subsequent reads from
 	// this request.
 	agg := events.RoomAggregate(room_id)
-	sequenceID, err := c.appendMessageWithOptionalThreadCreated(ctx, agg, bodyEventEvent, event, threadCreatedEvent, inThread, requestClaim)
+	sequenceID, err := c.appendMessageWithOptionalThreadCreated(
+		ctx,
+		user_id,
+		kind,
+		room_id,
+		agg,
+		bodyEventEvent,
+		event,
+		threadCreatedEvent,
+		inThread,
+		requestClaim,
+	)
 	if err != nil {
 		if linkPreviewClaimStarted {
 			_ = c.handleFailedLinkPreviewAppend(context.WithoutCancel(ctx), claimedLinkPreviewAssetID, eventID, sequenceID)
@@ -1129,7 +1161,7 @@ func (c *ChattoCore) EditMessage(ctx context.Context, actorID string, kind RoomK
 	}
 
 	agg := events.RoomAggregate(roomID)
-	if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, eventID, updated); err != nil {
+	if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, eventID, updated, true); err != nil {
 		return err
 	}
 	c.secureDeleteObsoleteMessageBodyEvents(ctx, eventID)
@@ -1143,7 +1175,7 @@ func (c *ChattoCore) EditMessage(ctx context.Context, actorID string, kind RoomK
 				"source_event_id", eventID, "linked_event_id", linkedID, "error", err)
 			continue
 		}
-		if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, linkedID, linkedBody); err != nil {
+		if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, linkedID, linkedBody, false); err != nil {
 			c.logger.Warn("Failed to propagate edit to linked message",
 				"source_event_id", eventID, "linked_event_id", linkedID, "error", err)
 			continue
@@ -1239,7 +1271,16 @@ func (c *ChattoCore) publishMessageRetract(ctx context.Context, actorID string, 
 // publishMessageEdit emits a MessageEditedEvent on EVT. StreamMyEvents
 // receives the canonical live.evt.> republish directly. Factored out so
 // EditMessage / editEmbeddedBody can fan the same payload to linked messages.
-func (c *ChattoCore) publishMessageEdit(ctx context.Context, actorID string, kind RoomKind, agg events.Aggregate, roomID, eventID string, body *corev1.MessageBody) error {
+func (c *ChattoCore) publishMessageEdit(
+	ctx context.Context,
+	actorID string,
+	kind RoomKind,
+	agg events.Aggregate,
+	roomID,
+	eventID string,
+	body *corev1.MessageBody,
+	additive bool,
+) error {
 	if body == nil {
 		return fmt.Errorf("message edit body is nil")
 	}
@@ -1267,18 +1308,25 @@ func (c *ChattoCore) publishMessageEdit(ctx context.Context, actorID string, kin
 	})
 	bodySubject := agg.SubjectFor(bodyEvent)
 	editSubject := agg.SubjectFor(event)
+	roomFilter := agg.AllEventsFilter()
 	var lastErr error
 	for attempt := 1; attempt <= maxThreadCreateAppendAttempts; attempt++ {
-		expectedSeq, err := c.EventPublisher.LastSubjectSeq(ctx, editSubject)
+		var expectedSeq uint64
+		var err error
+		if additive {
+			expectedSeq, err = c.additiveRoomRevision(ctx, actorID, kind, roomID)
+		} else {
+			expectedSeq, err = c.EventPublisher.LastSubjectSeq(ctx, roomFilter)
+		}
 		if err != nil {
-			return fmt.Errorf("read edit OCC tail: %w", err)
+			return fmt.Errorf("read room edit OCC tail: %w", err)
 		}
 		seqs, err := c.EventPublisher.AppendBatch(ctx, []events.BatchEntry{
 			{
 				Subject:       bodySubject,
 				Event:         bodyEvent,
 				ExpectedSeq:   expectedSeq,
-				FilterSubject: editSubject,
+				FilterSubject: roomFilter,
 				HasOCC:        true,
 			},
 			{
@@ -1395,7 +1443,7 @@ func (c *ChattoCore) editEmbeddedBody(
 	}
 
 	agg := events.RoomAggregate(roomID)
-	if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, eventID, updated); err != nil {
+	if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, eventID, updated, false); err != nil {
 		return err
 	}
 	c.secureDeleteObsoleteMessageBodyEvents(ctx, eventID)
@@ -1416,7 +1464,7 @@ func (c *ChattoCore) editEmbeddedBody(
 				"source_event_id", eventID, "linked_event_id", linkedID, "error", err)
 			continue
 		}
-		if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, linkedID, linkedBody); err != nil {
+		if err := c.publishMessageEdit(ctx, actorID, kind, agg, roomID, linkedID, linkedBody, false); err != nil {
 			c.logger.Warn("Failed to propagate partial edit to linked message",
 				"source_event_id", eventID, "linked_event_id", linkedID, "error", err)
 			continue

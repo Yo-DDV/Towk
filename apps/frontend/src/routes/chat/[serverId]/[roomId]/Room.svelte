@@ -31,6 +31,7 @@
   } from '$lib/state/room';
   import { onRoomMessageMutated } from '$lib/state/room/messageMutationEvents';
   import { onOutboxMessageSent } from '$lib/pwa/outboxEvents';
+  import { purgeRoomHistoryForServer } from '$lib/pwa/roomDeletionCleanup';
   import { privateDataScopeForServer } from '$lib/pwa/scope';
   import CachedTimelineNotice from '$lib/components/CachedTimelineNotice.svelte';
   import { getAppUiState } from '$lib/state/appUi.svelte';
@@ -49,7 +50,7 @@
   import { preloadVideoPlayerElements } from '$lib/components/chat/VideoPlayer.svelte';
   import PageTitle from '$lib/ui/PageTitle.svelte';
   import PaneHeader from '$lib/ui/PaneHeader.svelte';
-  import { isMessagePostedEvent } from '$lib/render/eventKinds';
+  import { isMessagePostedEvent, RoomEventKind, roomEventKind } from '$lib/render/eventKinds';
   import { onDestroy, onMount, tick } from 'svelte';
   import { sineInOut } from 'svelte/easing';
   import { fly } from 'svelte/transition';
@@ -58,6 +59,7 @@
   import RoomSidebar from './RoomSidebar.svelte';
   import RoomSidebarToggle from './RoomSidebarToggle.svelte';
   import RoomPrimarySurfaceTabs from './RoomPrimarySurfaceTabs.svelte';
+  import RoomGovernanceActions from '$lib/components/rooms/RoomGovernanceActions.svelte';
   import VoiceCallPanel from '$lib/components/voice/VoiceCallPanel.svelte';
   import {
     canBanMembersFromRoomSidebar,
@@ -176,6 +178,17 @@
   // --- Extracted hooks ---
   const room = useRoomData(() => ({ roomId }));
   let consumedCallJoinAction: string | null = null;
+  let locallyAppliedHistoryEpoch = $state<string | null>(null);
+
+  $effect(() => {
+    const data = room.roomData;
+    if (!data || data.room.id !== roomId) return;
+    const epoch = data.room.historyEpoch;
+    const epochKey = `${roomId}:${epoch.toString()}`;
+    if (epoch === 0n || locallyAppliedHistoryEpoch === epochKey) return;
+    locallyAppliedHistoryEpoch = epochKey;
+    void invalidatePurgedRoomHistory();
+  });
 
   // An explicit native-notification action may join only the exact call that
   // was advertised. The ordinary notification click has no query parameter
@@ -384,6 +397,11 @@
     }
   }
 
+  async function invalidatePurgedRoomHistory(): Promise<void> {
+    await purgeRoomHistoryForServer(serverRegistry.getServer(getActiveServer()), roomId);
+    await roomMessageStore.invalidatePurgedHistory(roomId);
+  }
+
   // Keep the server read cursor in sync with incoming root messages. Other
   // users' messages mark the room read while the user is actually present;
   // own messages are already auto-marked read by the post mutation.
@@ -391,6 +409,15 @@
     roomFilesStore.ingestServerEvent(event);
     roomMembersStore.ingestServerEvent(event);
     if (!event.event) return;
+
+    if (
+      roomEventKind(event.event) === RoomEventKind.RoomHistoryPurged &&
+      'roomId' in event.event &&
+      event.event.roomId === roomId
+    ) {
+      void invalidatePurgedRoomHistory();
+      return;
+    }
 
     if (isMessagePostedEvent(event.event) && event.event.roomId === roomId) {
       const actorId = event.actorId;
@@ -591,6 +618,23 @@
           loading={!room.roomData}
           compactOnNarrow={isCallSurface}
         >
+          {#snippet afterTitle()}
+            {#if !room.isDM && room.roomData?.room.isLocked}
+              <span
+                class="inline-flex h-6 items-center gap-1 rounded-md border border-warning/20 bg-warning/10 px-1.5 text-xs font-semibold text-warning"
+                title={m['room.governance.locked_badge']()}
+                data-testid="room-locked-badge"
+              >
+                <span class="iconify text-sm uil--lock" aria-hidden="true"></span>
+                <span class="hidden @min-[420px]:inline">
+                  {m['room.governance.locked_status']()}
+                </span>
+                <span class="sr-only @min-[420px]:hidden">
+                  {m['room.governance.locked_badge']()}
+                </span>
+              </span>
+            {/if}
+          {/snippet}
           {#snippet actions()}
             {#if showVoiceCall}
               <RoomPrimarySurfaceTabs
@@ -600,6 +644,20 @@
                 onmessages={() => {
                   if (threadId) closeThread();
                 }}
+              />
+            {/if}
+            {#if !room.isDM && room.roomData && (room.roomData.canLockRoom || room.roomData.canPurgeMessages)}
+              <RoomGovernanceActions
+                room={{
+                  id: room.roomData.room.id,
+                  name: room.roomData.room.name,
+                  isLocked: room.roomData.room.isLocked,
+                  revision: room.roomData.room.revision,
+                  canLockRoom: room.roomData.canLockRoom,
+                  canPurgeMessages: room.roomData.canPurgeMessages
+                }}
+                onrefresh={() => room.refresh()}
+                onhistorypurged={invalidatePurgedRoomHistory}
               />
             {/if}
             {#if isCallSurface}
@@ -695,6 +753,34 @@
             typingUserIds={isCallSurface ? [] : typingIndicator.userIds}
             typingMembers={getRoomMembers()}
           />
+
+          {#if !room.isDM && room.roomData?.room.isLocked}
+            <div
+              class={[
+                'mx-2 mt-2 flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-sm',
+                room.roomData.canBypassLock
+                  ? 'border-accent/20 bg-accent/5 text-text'
+                  : 'border-warning/20 bg-warning/5 text-muted'
+              ]}
+              role="status"
+              data-testid="room-lock-composer-notice"
+            >
+              <span
+                class={[
+                  'iconify shrink-0 text-base',
+                  room.roomData.canBypassLock
+                    ? 'text-accent uil--shield-check'
+                    : 'text-warning uil--lock'
+                ]}
+                aria-hidden="true"
+              ></span>
+              <span>
+                {room.roomData.canBypassLock
+                  ? m['room.governance.bypass_composer']()
+                  : m['room.governance.locked_composer']()}
+              </span>
+            </div>
+          {/if}
 
           <MessageComposer
             {roomId}

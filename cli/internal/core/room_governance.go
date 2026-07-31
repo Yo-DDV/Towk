@@ -105,6 +105,32 @@ func (c *ChattoCore) requireRoomAcceptsAdditiveContent(ctx context.Context, acto
 	return nil
 }
 
+// additiveRoomRevision returns a projection-current room aggregate position
+// after applying the posting-policy gate. Callers must use the returned
+// position as the OCC expectation for the additive append. If a governance
+// event wins the race after this check, the append conflicts and the caller
+// must re-enter this gate before retrying.
+func (c *ChattoCore) additiveRoomRevision(
+	ctx context.Context,
+	actorID string,
+	kind RoomKind,
+	roomID string,
+) (uint64, error) {
+	position, err := c.EventPublisher.LastSubjectPosition(ctx, events.RoomAggregate(roomID).AllEventsFilter())
+	if err != nil {
+		return 0, fmt.Errorf("read room additive OCC tail: %w", err)
+	}
+	if !position.IsZero() {
+		if err := c.rooms().waitForDirectoryAndTimeline(ctx, position); err != nil {
+			return 0, err
+		}
+	}
+	if err := c.requireRoomAcceptsAdditiveContent(ctx, actorID, kind, roomID); err != nil {
+		return 0, err
+	}
+	return position.Seq, nil
+}
+
 func isMessageOwnedRoomEvent(event *corev1.Event) bool {
 	if event == nil {
 		return false

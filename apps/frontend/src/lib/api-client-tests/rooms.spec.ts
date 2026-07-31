@@ -5,6 +5,7 @@ import { configureApiClientHooks } from '$lib/api-client/hooks';
 import { PresenceStatus } from '$lib/api-client/renderTypes';
 import { PresenceStatus as APIPresenceStatus } from '@towk/api-types/api/v1/presence_pb';
 import { createRoomCommandAPI } from '$lib/api-client/rooms';
+import { RoomHistoryPurgeStatus, RoomPostingPolicy } from '@towk/api-types/api/v1/rooms_pb';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -12,6 +13,10 @@ const mocks = vi.hoisted(() => ({
   handleAuthenticationRequired: vi.fn(),
   createRoom: vi.fn(),
   updateRoom: vi.fn(),
+  lockRoom: vi.fn(),
+  unlockRoom: vi.fn(),
+  purgeRoomHistory: vi.fn(),
+  getRoomHistoryPurgeOperation: vi.fn(),
   joinRoom: vi.fn(),
   startDM: vi.fn(),
   leaveRoom: vi.fn(),
@@ -45,6 +50,10 @@ describe('createRoomCommandAPI', () => {
     configureApiClientHooks({ onAuthenticationRequired: mocks.handleAuthenticationRequired });
     mocks.createRoom.mockReset();
     mocks.updateRoom.mockReset();
+    mocks.lockRoom.mockReset();
+    mocks.unlockRoom.mockReset();
+    mocks.purgeRoomHistory.mockReset();
+    mocks.getRoomHistoryPurgeOperation.mockReset();
     mocks.joinRoom.mockReset();
     mocks.startDM.mockReset();
     mocks.leaveRoom.mockReset();
@@ -59,6 +68,10 @@ describe('createRoomCommandAPI', () => {
     mocks.createClient.mockReturnValue({
       createRoom: mocks.createRoom,
       updateRoom: mocks.updateRoom,
+      lockRoom: mocks.lockRoom,
+      unlockRoom: mocks.unlockRoom,
+      purgeRoomHistory: mocks.purgeRoomHistory,
+      getRoomHistoryPurgeOperation: mocks.getRoomHistoryPurgeOperation,
       joinRoom: mocks.joinRoom,
       startDM: mocks.startDM,
       leaveRoom: mocks.leaveRoom,
@@ -171,6 +184,116 @@ describe('createRoomCommandAPI', () => {
         description: undefined,
         universal: false
       },
+      { headers: { Authorization: 'Bearer remote-token' } }
+    );
+  });
+
+  it('sends revision-fenced lock and unlock commands and maps governance state', async () => {
+    mocks.lockRoom.mockResolvedValue({
+      room: {
+        id: 'room-1',
+        name: 'general',
+        postingPolicy: RoomPostingPolicy.LOCKED,
+        historyEpoch: 2n,
+        revision: 9n
+      }
+    });
+    mocks.unlockRoom.mockResolvedValue({
+      room: {
+        id: 'room-1',
+        name: 'general',
+        postingPolicy: RoomPostingPolicy.OPEN,
+        historyEpoch: 2n,
+        revision: 10n
+      }
+    });
+
+    const api = createRoomCommandAPI({
+      baseUrl: 'https://remote.example.test/api/connect',
+      bearerToken: 'remote-token'
+    });
+
+    await expect(api.lockRoom({ roomId: 'room-1', expectedRevision: 8n })).resolves.toMatchObject({
+      postingPolicy: RoomPostingPolicy.LOCKED,
+      historyEpoch: 2n,
+      revision: 9n
+    });
+    await expect(api.unlockRoom({ roomId: 'room-1', expectedRevision: 9n })).resolves.toMatchObject(
+      {
+        postingPolicy: RoomPostingPolicy.OPEN,
+        revision: 10n
+      }
+    );
+
+    expect(mocks.lockRoom).toHaveBeenCalledWith(
+      { roomId: 'room-1', expectedRevision: 8n },
+      { headers: { Authorization: 'Bearer remote-token' } }
+    );
+    expect(mocks.unlockRoom).toHaveBeenCalledWith(
+      { roomId: 'room-1', expectedRevision: 9n },
+      { headers: { Authorization: 'Bearer remote-token' } }
+    );
+  });
+
+  it('forwards exact-name and fresh-auth purge inputs and maps durable operation state', async () => {
+    mocks.purgeRoomHistory.mockResolvedValue({
+      room: {
+        id: 'room-1',
+        name: 'general',
+        postingPolicy: RoomPostingPolicy.LOCKED,
+        historyEpoch: 3n,
+        revision: 11n
+      },
+      operation: {
+        id: 'purge-1',
+        roomId: 'room-1',
+        historyEpoch: 3n,
+        status: RoomHistoryPurgeStatus.RUNNING,
+        failureCode: ''
+      }
+    });
+    mocks.getRoomHistoryPurgeOperation.mockResolvedValue({
+      operation: {
+        id: 'purge-1',
+        roomId: 'room-1',
+        historyEpoch: 3n,
+        status: RoomHistoryPurgeStatus.COMPLETED,
+        failureCode: ''
+      }
+    });
+
+    const api = createRoomCommandAPI({
+      baseUrl: 'https://remote.example.test/api/connect',
+      bearerToken: 'remote-token'
+    });
+
+    await expect(
+      api.purgeRoomHistory({
+        roomId: 'room-1',
+        expectedRevision: 10n,
+        confirmationName: 'general',
+        currentPassword: 'current-password'
+      })
+    ).resolves.toMatchObject({
+      room: { historyEpoch: 3n, revision: 11n },
+      operation: { id: 'purge-1', status: RoomHistoryPurgeStatus.RUNNING }
+    });
+    await expect(api.getRoomHistoryPurgeOperation('purge-1')).resolves.toMatchObject({
+      id: 'purge-1',
+      status: RoomHistoryPurgeStatus.COMPLETED
+    });
+
+    expect(mocks.purgeRoomHistory).toHaveBeenCalledWith(
+      {
+        roomId: 'room-1',
+        expectedRevision: 10n,
+        confirmationName: 'general',
+        currentPassword: 'current-password'
+      },
+      { headers: { Authorization: 'Bearer remote-token' } }
+    );
+    expect(mocks.getRoomHistoryPurgeOperation).toHaveBeenCalledWith(
+      { operationId: 'purge-1' },
       { headers: { Authorization: 'Bearer remote-token' } }
     );
   });

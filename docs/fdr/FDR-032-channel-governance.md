@@ -1,6 +1,6 @@
 # FDR-032: Channel lock and message-history purge
 
-**Status:** Active  
+**Status:** Active
 **Last reviewed:** 2026-07-31
 
 ## Summary
@@ -57,14 +57,20 @@ facts immediately. Physical cleanup is idempotent and selective:
 An operation record reports running, completed, or a stable failure code. A
 failed cleanup never reopens the old logical epoch and may be safely retried.
 
+Chunked upload sessions capture the room history epoch at creation and cannot
+complete across a purge barrier. Supported PWA clients use a history-reset path
+separate from permanent room deletion: cached timelines and outbox entries are
+removed for the exact account/room scope. Legacy drafts, which predate epoch
+and provenance metadata, fail closed and are removed rather than restored.
+
 ## User interface and responsive behavior
 
 The current room header exposes a compact options control. Lock state remains
-visible in the header, sidebar, and composer. Destructive confirmation is a
-focused dialog on desktop and a full-width bottom sheet on narrow/mobile and
-foldable viewports. Controls keep a 44-pixel touch target, keyboard focus
-management, descriptive labels, reduced-motion behavior, and no horizontal
-overflow down to 320 CSS pixels.
+visible in the header, sidebar, and composer. The options control reuses the
+touch action sheet on mobile and foldable viewports; destructive confirmation
+uses the bounded responsive form dialog. Controls keep a 44-pixel touch target,
+keyboard focus management, descriptive labels, reduced-motion behavior, and no
+horizontal overflow down to 320 CSS pixels.
 
 The server administration Rooms page offers the same actions per row without
 making the whole row draggable; only the drag handle initiates reordering.
